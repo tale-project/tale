@@ -1,57 +1,24 @@
 ---
 title: Build a custom tool
-description: Package a custom function as a tool that agents can call, then attach it to an agent and watch it appear in tool calls during a chat.
+description: A Settings > Custom tools panel is not part of this version — this page shows the three places your own code reaches an agent today.
 ---
 
-A custom tool is a function you write that an agent's model can call by name. You declare the input schema and the return shape; Tale handles serialisation, the tool-call card in the chat, and the result hand-back to the model. This walk takes a fresh custom tool from "I have a function in mind" to "the agent calls it from a chat" on a single instance.
+This tutorial used to define a tool under a **Settings > Custom tools** panel, wire it to an HTTPS endpoint, and toggle it on for an agent. None of that exists in this version of Tale: there is no custom-tool registry, no per-agent tool toggle, and the chat assistant's tools are fixed. What you can do is put your code where agents already look — a connector action, an automation node, or a secret a project agent uses to call your API.
 
-You need a Developer role in the org and access to the **Settings > Custom tools** panel; everything else is in the UI. The underlying concept lives in [Agent tools](/platform/agents/tools); the developer-facing surface — schemas, transport, errors — is the focus here.
+<Note>
 
-## Before you begin
+Custom tools are not available in this version. The chat assistant carries exactly three read-only tools — `rag_search`, `rag_fetch`, and `web_fetch` — and no screen adds a fourth.
 
-Confirm two things. First, your role is at least Developer — the panel is hidden below that. Second, you have an agent you can edit; if not, create one through [Create an agent](/platform/agents/create) before continuing. The walk uses a single-input, single-output tool called `lookup_order` that takes an order ID and returns a status string — the smallest shape that exercises the schema, the call, and the result rendering.
+</Note>
 
-## Step 1 — Define the tool in Custom tools
+## Where your code reaches an agent
 
-The first move is registering the tool name and its JSON Schema. The schema is what the model sees; without a schema the model has no idea what arguments to emit, and the call never happens.
+Pick by who should run it. A **project agent** works board tasks in its own sandbox; equip it on the project's **Agents** tab under **Skills, connectors & tools**, and add a **Secret** — an API key delivered as an environment variable — when the service you want it to call has no connector. The agent reads the vendor's docs and calls the API itself. [Project agents](/platform/projects/project-agents) walks the dialog.
 
-Open **Settings > Custom tools** and click **New tool**. Give it a name (`lookup_order`), a one-sentence description (`Look up the status of an order by ID`), and a JSON Schema for the input:
+An **automation** runs without a person in the loop. Its nodes call connector actions and run your own JavaScript in `transform` nodes, on a schedule or a webhook; author it on the canvas or [upload it as a pack](/platform/automations/catalog). [Automation concepts](/platform/automations/concepts) is the model underneath.
 
-```json
-{
-  "type": "object",
-  "properties": {
-    "orderId": {
-      "type": "string",
-      "description": "The order ID, e.g. ORD-12345"
-    }
-  },
-  "required": ["orderId"]
-}
-```
-
-Save. The tool is now registered in the org's custom-tool registry; no agent uses it yet.
-
-## Step 2 — Wire the implementation
-
-A registered tool with no implementation returns an error to the model. Tale exposes two implementation modes: an inline sandbox script (Python or JavaScript, run inside Tale's sandbox), and an outbound HTTPS call (Tale POSTs the arguments to your endpoint, you return JSON).
-
-Pick the HTTPS mode for this walk — it is the shape you reach for in production. In the tool's detail panel, set:
-
-- **Endpoint URL** — `https://your-api.example.com/lookup-order`
-- **Method** — `POST`
-- **Auth header** — a bearer token from your secrets manager
-
-Tale POSTs `{ "orderId": "..." }` to your endpoint; your endpoint returns `{ "status": "shipped", "carrier": "DHL", "eta": "2026-06-01" }`. Save. The custom tool is wired.
-
-## Step 3 — Attach the tool to an agent
-
-A wired tool is invisible to agents until one of them is given permission to call it. Open the agent you want to extend, click **Tools**, scroll to **Custom tools**, and toggle `lookup_order` on. Save the agent.
-
-Open a chat with the agent and ask "what is the status of order ORD-12345". The chat shows a collapsed `lookup_order` tool-call card between your message and the reply; expanding it shows the arguments the model emitted (`{ "orderId": "ORD-12345" }`) and the JSON your endpoint returned. The model then writes the reply using the tool result.
+A **connector** is the shipped, vendor-specific bridge — GitHub, Gmail, Outlook, Slack and the rest. Reach for it first when one exists for your target; [Connectors overview](/platform/connectors/overview) lists what ships and what each needs.
 
 ## Where this fits
 
-A custom tool is the seam between an agent and your domain — order lookup, internal search, calculator, anything an off-the-shelf connector does not cover. The schema is what the model uses to decide whether to call, so spend the time to write a tight description and only the fields you need.
-
-For tools you want to share across orgs, see [MCP servers from scratch](/tutorials/developer/mcp-server-from-scratch) — MCP is the protocol for "one tool, many Tale instances". For the conceptual side of what tools do inside an agent, see [Agent tools](/platform/agents/tools).
+The seam between an agent and your domain has moved from a per-organization tool registry to the places work already runs: a project agent's equipment and secrets, an automation's nodes, and the shipped connectors. A model outside Tale that should drive these gets the [MCP endpoint](/develop/mcp-endpoint); the REST equivalent is the [API reference](/develop/api-reference).

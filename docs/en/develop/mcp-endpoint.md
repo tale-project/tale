@@ -32,7 +32,7 @@ The server identifies as `tale-platform`. In a client that takes a config block,
 }
 ```
 
-`tools/list` returns the full inventory; `GET` on the endpoint answers **405** — there is no event stream to subscribe to.
+`tools/list` returns the full inventory; `GET` on the endpoint answers **405** — there is no event stream to subscribe to. Your deployment's endpoint URL, the same inventory in its three groups, and a copyable `tools/list` request sit under **Settings > API > MCP**.
 
 ## The tools
 
@@ -79,7 +79,7 @@ Pick `run_deployed` when the automation is quick and you want one call with the 
 | `invoke_capability`   | Invoke one capability by id. An action the organization gates returns a pending-approval result instead of running. |
 | `get_knowledge`       | Retrieve passages from the organization's knowledge — its documents and its crawled web pages.                      |
 
-This is the same registry a chat turn sees: one namespace over builtins, connector actions, skills, automations, and connected MCP tools. A capability the organization gates behind approval does not silently run — `invoke_capability` answers a pending-approval result the model can relay.
+In this version the registry holds the organization's deployed automations — `invoke_capability` on one is the same act as `run_deployed`. Builtin tools, skills, and external MCP servers are not registered here; a call routed to one answers a readable refusal, not an error. A capability the organization gates behind approval does not silently run — `invoke_capability` answers a pending-approval result the model can relay.
 
 ## What the key may do
 
@@ -92,4 +92,4 @@ A refused call is not a protocol error: the tool answers a readable refusal — 
 
 ## Where this fits
 
-The MCP endpoint and the [REST API](/develop/api-reference) are one surface with two dialects — same key, same organization scoping, same run objects (`start_run` here and `POST .../runs` there produce the same durable run). Building an MCP server of your own that Tale consumes is the opposite direction — that is [MCP servers](/platform/connectors/mcp-servers) under connectors.
+The MCP endpoint and the [REST API](/develop/api-reference) are one surface with two dialects — same key, same organization scoping, same run objects (`start_run` here and `POST .../runs` there produce the same durable run). Tale does not connect to MCP servers of its own in this version — the endpoint is its one MCP surface, and the direction is always inward: your client drives Tale.

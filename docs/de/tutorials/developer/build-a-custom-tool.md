@@ -1,57 +1,24 @@
 ---
 title: Ein eigenes Tool bauen
-description: Packe eine eigene Funktion als Tool ein, das Agenten aufrufen können, häng es an einen Agent und beobachte, wie es im Chat als Tool-Call erscheint.
+description: Ein Panel für eigene Tools in den Einstellungen gibt es in dieser Version nicht — diese Seite zeigt die drei Stellen, an denen dein eigener Code heute einen Agenten erreicht.
 ---
 
-Ein eigenes Tool ist eine Funktion, die du schreibst und die das Modell eines Agenten beim Namen aufruft. Du deklarierst das Input-Schema und die Rückgabe-Form; Tale kümmert sich um die Serialisierung, die Tool-Call-Karte im Chat und das Zurückreichen des Resultats an das Modell. Dieser Spaziergang führt ein frisches eigenes Tool von „ich habe eine Funktion im Kopf" zu „der Agent ruft sie aus einem Chat heraus auf" auf einer einzigen Instanz.
+Diese Anleitung hat früher ein Tool in einem Panel **Einstellungen > Eigene Tools** definiert, es an einen HTTPS-Endpoint gehängt und für einen Agenten eingeschaltet. Nichts davon existiert in dieser Version von Tale: Es gibt keine Registry für eigene Tools, keinen Tool-Schalter pro Agent, und die Tools des Chat-Assistenten stehen fest. Was du tun kannst: deinen Code dorthin legen, wo Agenten ohnehin hinschauen — in eine Connector-Aktion, in einen Automatisierungs-Knoten oder in ein Secret, mit dem ein Projekt-Agent deine API aufruft.
 
-Du brauchst eine Developer-Rolle in der Org und Zugriff aufs Panel **Einstellungen > Eigene Tools**; alles andere passiert in der UI. Das zugrundeliegende Konzept lebt in [Agent-Tools](/de/platform/agents/tools); diese Seite richtet sich auf die Entwickler-Seite — Schemas, Transport, Fehler.
+<Note>
 
-## Bevor du beginnst
+Eigene Tools sind in dieser Version nicht verfügbar. Der Chat-Assistent trägt genau drei Lese-Tools — `rag_search`, `rag_fetch` und `web_fetch` — und kein Bildschirm fügt ein viertes hinzu.
 
-Bestätige zwei Dinge. Erstens: deine Rolle ist mindestens Developer — darunter ist das Panel versteckt. Zweitens: du hast einen Agent, den du bearbeiten kannst; falls nicht, erstelle einen über [Agent erstellen](/de/platform/agents/create), bevor du weitermachst. Der Spaziergang nutzt ein Tool mit einem Input und einem Output namens `lookup_order`, das eine Order-ID nimmt und einen Status-String zurückgibt — die kleinste Form, die das Schema, den Aufruf und das Rendern des Resultats übt.
+</Note>
 
-## Schritt 1 — Das Tool in „Eigene Tools" definieren
+## Wo dein Code einen Agenten erreicht
 
-Der erste Zug ist das Registrieren von Tool-Name und JSON-Schema. Das Schema ist das, was das Modell sieht; ohne Schema hat das Modell keine Idee, welche Argumente es ausgeben soll, und der Aufruf passiert nie.
+Entscheide danach, wer ihn ausführen soll. Ein **Projekt-Agent** arbeitet Board-Aufgaben in seiner eigenen Sandbox ab; rüste ihn auf dem Tab **Agenten** des Projekts unter **Skills, Connectors & Tools** aus und leg ein **Secret** an — einen API-Schlüssel, der als Umgebungsvariable ankommt —, wenn der Dienst, den er aufrufen soll, keinen Connector hat. Der Agent liest die Dokumentation des Anbieters und ruft die API selbst auf. [Projekt-Agenten](/de/platform/projects/project-agents) führt durch den Dialog.
 
-Öffne **Einstellungen > Eigene Tools** und klick **Neues Tool**. Gib ihm einen Namen (`lookup_order`), eine Ein-Satz-Beschreibung (`Look up the status of an order by ID`) und ein JSON-Schema für den Input:
+Eine **Automatisierung** läuft ohne Menschen in der Schleife; ihre Knoten rufen Connector-Aktionen auf und führen dein eigenes JavaScript in `transform`-Knoten aus, nach Zeitplan oder per Webhook; baue sie auf dem Canvas oder [lade sie als Paket hoch](/de/platform/automations/catalog). [Automatisierungskonzepte](/de/platform/automations/concepts) ist das Modell darunter.
 
-```json
-{
-  "type": "object",
-  "properties": {
-    "orderId": {
-      "type": "string",
-      "description": "The order ID, e.g. ORD-12345"
-    }
-  },
-  "required": ["orderId"]
-}
-```
+Ein **Connector** ist die mitgelieferte, herstellerspezifische Brücke — GitHub, Gmail, Outlook, Slack und die übrigen. Greif zuerst danach, wenn es einen für dein Ziel gibt; der [Connectors-Überblick](/de/platform/connectors/overview) listet, was mitkommt und was jeder braucht.
 
-Speichern. Das Tool ist nun in der Tool-Registry der Org registriert; noch nutzt es kein Agent.
+## Wo das hingehört
 
-## Schritt 2 — Die Implementierung verdrahten
-
-Ein registriertes Tool ohne Implementierung gibt dem Modell einen Fehler zurück. Tale bietet zwei Implementierungs-Modi: ein Inline-Sandbox-Skript (Python oder JavaScript, in Tales Sandbox ausgeführt) und einen ausgehenden HTTPS-Call (Tale POSTet die Argumente an deinen Endpoint, du gibst JSON zurück).
-
-Wähl für diesen Spaziergang den HTTPS-Modus — das ist die Form, zu der du in Produktion greifst. Im Detail-Panel des Tools setze:
-
-- **Endpoint-URL** — `https://your-api.example.com/lookup-order`
-- **Methode** — `POST`
-- **Auth-Kopfzeile** — ein Bearer-Token aus deinem Secret-Manager
-
-Tale POSTet `{ "orderId": "..." }` an deinen Endpoint; dein Endpoint gibt `{ "status": "shipped", "carrier": "DHL", "eta": "2026-06-01" }` zurück. Speichern. Das eigene Tool ist verdrahtet.
-
-## Schritt 3 — Das Tool an einen Agent hängen
-
-Ein verdrahtetes Tool ist für Agenten unsichtbar, bis einer von ihnen die Erlaubnis bekommt, es aufzurufen. Öffne den Agent, den du erweitern willst, klick **Tools**, scroll zu **Eigene Tools** und schalte `lookup_order` ein. Speicher den Agent.
-
-Öffne einen Chat mit dem Agent und frag „what is the status of order ORD-12345". Der Chat zeigt zwischen deiner Nachricht und der Antwort eine eingeklappte `lookup_order`-Tool-Call-Karte; sie auszuklappen zeigt die Argumente, die das Modell ausgegeben hat (`{ "orderId": "ORD-12345" }`) und das JSON, das dein Endpoint zurückgegeben hat. Das Modell schreibt die Antwort dann mit dem Tool-Resultat.
-
-## Wo das eingesetzt wird
-
-Ein eigenes Tool ist die Naht zwischen einem Agent und deiner Domäne — Order-Lookup, interne Suche, Rechner, alles, was eine Standard-Connector nicht abdeckt. Das Schema ist das, womit das Modell entscheidet, ob es aufruft — investier die Zeit für eine knappe Beschreibung und nimm nur die Felder, die du brauchst.
-
-Für Tools, die du Org-übergreifend teilen willst, siehe [MCP-Server von Grund auf](/de/tutorials/developer/mcp-server-from-scratch) — MCP ist das Protokoll für „ein Tool, viele Tale-Instanzen". Für die konzeptuelle Seite, was Tools in einem Agent tun, siehe [Agent-Tools](/de/platform/agents/tools).
+Die Naht zwischen einem Agenten und deiner Domäne ist von einer Tool-Registry pro Organisation dorthin gewandert, wo Arbeit ohnehin läuft: Ausrüstung und Secrets eines Projekt-Agenten, die Knoten einer Automatisierung und die mitgelieferten Connectors. Ein Modell außerhalb von Tale, das all das steuern soll, bekommt den [MCP-Endpoint](/de/develop/mcp-endpoint); das REST-Gegenstück ist die [API-Referenz](/de/develop/api-reference).

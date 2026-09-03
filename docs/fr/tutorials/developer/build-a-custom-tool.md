@@ -1,57 +1,24 @@
 ---
 title: Construire un outil personnalisé
-description: Empaquette une fonction personnalisée en outil que les agents peuvent appeler, attache-la à un agent et observe-la apparaître en tool-call pendant un chat.
+description: Un panneau d’outils personnalisés dans les paramètres ne fait pas partie de cette version — cette page montre les trois endroits où ton propre code atteint un agent aujourd’hui.
 ---
 
-Un outil personnalisé est une fonction que tu écris et que le modèle d'un agent peut appeler par son nom. Tu déclares le schéma d'entrée et la forme de retour ; Tale s'occupe de la sérialisation, de la carte d'appel d'outil dans le chat et du renvoi du résultat au modèle. Ce parcours mène un outil personnalisé neuf de « j'ai une fonction en tête » à « l'agent l'appelle depuis un chat » sur une seule instance.
+Ce tutoriel définissait un outil dans un panneau **Paramètres > Outils personnalisés**, le câblait à un endpoint HTTPS et l’activait pour un agent. Rien de tout cela n’existe dans cette version de Tale : pas de registre d’outils personnalisés, pas d’interrupteur d’outil par agent, et les outils de l’assistant de chat sont fixes. Ce que tu peux faire, c’est poser ton code là où les agents regardent déjà — une action de connector, un nœud d’automatisation, ou un secret qu’un agent de projet utilise pour appeler ton API.
 
-Il te faut le rôle Developer dans l'organisation et l'accès au panneau **Paramètres > Outils personnalisés** ; tout le reste se passe dans l'UI. Le concept sous-jacent vit dans [Outils d'agent](/fr/platform/agents/tools) ; la surface côté développeur — schémas, transport, erreurs — est l'objet ici.
+<Note>
 
-## Avant de commencer
+Les outils personnalisés ne sont pas disponibles dans cette version. L’assistant de chat porte exactement trois outils en lecture seule — `rag_search`, `rag_fetch` et `web_fetch` — et aucun écran n’en ajoute un quatrième.
 
-Confirme deux choses. Premièrement, ton rôle est au moins Developer — le panneau est caché en-dessous. Deuxièmement, tu as un agent éditable ; sinon, crée-en un via [Créer un agent](/fr/platform/agents/create) avant de continuer. Le parcours utilise un outil à une entrée et une sortie nommé `lookup_order` qui prend un ID de commande et renvoie une chaîne de statut — la plus petite forme qui exerce le schéma, l'appel et le rendu du résultat.
+</Note>
 
-## Étape 1 — Définir l'outil dans Outils personnalisés
+## Où ton code atteint un agent
 
-Le premier geste est d'enregistrer le nom de l'outil et son JSON Schema. Le schéma est ce que voit le modèle ; sans schéma, le modèle n'a aucune idée des arguments à émettre, et l'appel ne se produit jamais.
+Choisis selon qui doit l’exécuter. Un **agent de projet** travaille les tâches du tableau dans sa propre sandbox ; équipe-le sur l’onglet **Agents** du projet, sous **Skills, connectors & outils**, et ajoute un **Secret** — une clé API livrée en variable d’environnement — quand le service qu’il doit appeler n’a pas de connector. L’agent lit la documentation de l’éditeur et appelle l’API lui-même. [Agents de projet](/fr/platform/projects/project-agents) parcourt le dialogue.
 
-Ouvre **Paramètres > Outils personnalisés** et clique **Nouvel outil**. Donne-lui un nom (`lookup_order`), une description d'une phrase (`Look up the status of an order by ID`) et un JSON Schema pour l'entrée :
+Une **automatisation** tourne sans personne dans la boucle. Ses nœuds appellent des actions de connector et exécutent ton propre JavaScript dans des nœuds `transform`, sur un planning ou un webhook ; écris-la sur le canvas ou [téléverse-la comme un paquet](/fr/platform/automations/catalog). [Concepts d’automatisation](/fr/platform/automations/concepts) est le modèle en dessous.
 
-```json
-{
-  "type": "object",
-  "properties": {
-    "orderId": {
-      "type": "string",
-      "description": "The order ID, e.g. ORD-12345"
-    }
-  },
-  "required": ["orderId"]
-}
-```
+Un **connector** est le pont livré, spécifique à un éditeur — GitHub, Gmail, Outlook, Slack et les autres. Prends-le en premier quand il en existe un pour ta cible ; l’[aperçu des connectors](/fr/platform/connectors/overview) liste ce qui est livré et ce dont chacun a besoin.
 
-Enregistre. L'outil est désormais enregistré dans le registre des outils personnalisés de l'organisation ; aucun agent ne l'utilise encore.
+## Où cela se place
 
-## Étape 2 — Câbler l'implémentation
-
-Un outil enregistré sans implémentation renvoie une erreur au modèle. Tale expose deux modes d'implémentation : un script sandbox inline (Python ou JavaScript, exécuté dans la sandbox de Tale) et un appel HTTPS sortant (Tale POST les arguments à ton endpoint, tu renvoies du JSON).
-
-Choisis le mode HTTPS pour ce parcours — c'est la forme vers laquelle tu te tournes en production. Dans le panneau de détail de l'outil, règle :
-
-- **URL de l'endpoint** — `https://your-api.example.com/lookup-order`
-- **Méthode** — `POST`
-- **En-tête d'auth** — un bearer token issu de ton gestionnaire de secrets
-
-Tale POST `{ "orderId": "..." }` à ton endpoint ; ton endpoint renvoie `{ "status": "shipped", "carrier": "DHL", "eta": "2026-06-01" }`. Enregistre. L'outil personnalisé est câblé.
-
-## Étape 3 — Attacher l'outil à un agent
-
-Un outil câblé reste invisible aux agents jusqu'à ce qu'on en autorise un à l'appeler. Ouvre l'agent à étendre, clique **Outils**, descends jusqu'à **Outils personnalisés** et active `lookup_order`. Enregistre l'agent.
-
-Ouvre un chat avec l'agent et demande « what is the status of order ORD-12345 ». Le chat affiche une carte d'appel d'outil `lookup_order` repliée entre ton message et la réponse ; la déplier montre les arguments émis par le modèle (`{ "orderId": "ORD-12345" }`) et le JSON renvoyé par ton endpoint. Le modèle écrit ensuite la réponse avec le résultat de l'outil.
-
-## Où ça s'utilise
-
-Un outil personnalisé est la couture entre un agent et ton domaine — recherche de commande, recherche interne, calculatrice, tout ce qu'une connector prête à l'emploi ne couvre pas. Le schéma est ce que le modèle utilise pour décider d'appeler, alors prends le temps d'écrire une description serrée et de ne garder que les champs nécessaires.
-
-Pour des outils à partager entre organisations, voir [Serveur MCP depuis zéro](/fr/tutorials/developer/mcp-server-from-scratch) — MCP est le protocole pour « un outil, plusieurs instances Tale ». Pour le côté conceptuel de ce que font les outils dans un agent, voir [Outils d'agent](/fr/platform/agents/tools).
+La couture entre un agent et ton domaine est passée d’un registre d’outils par organisation aux endroits où le travail tourne déjà : l’équipement et les secrets d’un agent de projet, les nœuds d’une automatisation, et les connectors livrés. Un modèle hors de Tale qui doit piloter tout cela passe par l’[endpoint MCP](/fr/develop/mcp-endpoint) ; l’équivalent REST est la [référence API](/fr/develop/api-reference).

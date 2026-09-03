@@ -1,75 +1,33 @@
 ---
 title: Stand up an MCP server from scratch
-description: Wire a Model Context Protocol server as a custom connector so any Tale agent in the org can call its tools.
+description: Registering your own MCP server for agents to call is not part of this version — Tale is the MCP server, so point your client at the inbound endpoint instead.
 ---
 
-A Model Context Protocol (MCP) server is a process that exposes a list of tools over a small JSON-RPC protocol. Tale registers an MCP server once at the org level; from then on, every agent whose tools tab includes that server can call its tools. This walk takes a brand-new MCP server from "empty repo" to "called by an agent in a chat" on one Tale instance.
+This tutorial used to walk you through hosting a Model Context Protocol server and registering it under Settings so agents in the organization could call its tools. That direction does not exist in this version of Tale: there is no MCP servers panel, no registration form, and a capability that would route to an external MCP tool is refused at runtime with a readable reason. What ships is the opposite direction — Tale itself is an MCP server that your tools connect to.
 
-You need a Developer role, a host that can run the MCP server (your laptop is fine for the walk; a managed service or container for production), and an HTTPS URL Tale can reach. Cloud orgs reach public URLs by default; self-hosted instances need network access to wherever the MCP server runs.
+<Note>
 
-## Before you begin
+Outbound MCP servers are not available in this version. The former **Settings > MCP servers** address redirects to **Settings > Connectors**, which lists the connectors Tale ships and nothing MCP-specific.
 
-Confirm two things. You have Node 20 or Python 3.11 installed — the official MCP SDKs target those runtimes. The Tale instance can reach your MCP server's URL — for local development, an `ngrok` tunnel or equivalent works; for production, host the server somewhere with a stable HTTPS endpoint. The conceptual side of MCP in Tale lives in [Agent tools](/platform/agents/tools); this walk is the wiring.
+</Note>
 
-## Step 1 — Scaffold the server
+## Connect your client to Tale instead
 
-The first move is generating the minimum MCP server — one tool, one handler. The official SDK does the protocol plumbing so you only write the tool.
-
-```bash
-npm create mcp-server@latest hello-tale
-cd hello-tale
-```
-
-Open `src/index.ts` and replace the example tool with one that returns the current time in a named timezone:
-
-```ts
-server.tool(
-  'current_time',
-  'Return the current time in a given timezone',
-  { timezone: z.string() },
-  async ({ timezone }) => {
-    const now = new Date().toLocaleString('en-US', { timeZone: timezone });
-    return { content: [{ type: 'text', text: now }] };
-  },
-);
-```
-
-Run the server locally:
+Tale exposes one MCP endpoint per deployment at `/api/v1/mcp`, authenticated with an organization API key. Twenty-two tools sit behind it: authoring and deploying automations, running them and reading their runs, and searching and invoking what the organization can do. **Settings > API > MCP** shows the endpoint URL for your deployment, the tool inventory in those three groups, and — under **Try it** — a copyable request you can paste into a terminal:
 
 ```bash
-npm run start
+curl -X POST https://your-host.example.com/api/v1/mcp \
+  -H 'Authorization: Bearer <api-key>' \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-The server listens on `http://localhost:3000/mcp` by default. The scaffold is in place; nothing in Tale knows about it yet.
+The protocol details, the full tool table, and what each role's key may do are on [MCP endpoint](/develop/mcp-endpoint); minting the key is [API keys](/platform/admin/api-keys).
 
-## Step 2 — Expose it on HTTPS
+## Reach your own code from Tale today
 
-MCP servers Tale can call need an HTTPS URL with a valid certificate. For local development, point an `ngrok` tunnel at port 3000 and copy the public URL the tunnel prints. For production, host the server behind your normal ingress — Caddy, Nginx, a managed function, anything that terminates TLS.
-
-Verify the public URL responds to a health check:
-
-```bash
-curl -sS "https://abcd.ngrok.app/mcp/health"
-```
-
-A 200 confirms reachability. A 502 or timeout means the tunnel is not forwarding; restart it or check the firewall.
-
-## Step 3 — Register the server in Tale
-
-A reachable MCP server is invisible to Tale until you register it. Open **Settings > Connectors > MCP servers** and click **New server**. Fill in:
-
-- **Name** — `Hello Tale time`
-- **URL** — the public HTTPS URL from Step 2 (e.g. `https://abcd.ngrok.app/mcp`)
-- **Auth** — bearer token if your server requires it, none for the walk
-
-Click **Save**. Tale calls the server's `list_tools` method to discover the tool inventory; the panel shows `current_time` with its description. The server is now registered org-wide.
-
-## Step 4 — Attach the server to an agent and call the tool
-
-A registered server is reachable only by agents that opt in. Open any agent, click **Tools > MCP**, toggle **Hello Tale time** on, and save. Open a chat with the agent and ask "what time is it in Tokyo right now". The chat renders a `current_time` tool-call card; expanding it shows `{ "timezone": "Asia/Tokyo" }` and the timestamp your server returned, and the agent's reply uses the timestamp.
+Wrapping your own service so an agent can use it takes one of three shapes in this version. A [connector](/platform/connectors/overview) is the vendor-specific bridge Tale ships — reach for it when one exists for the target system. An [automation](/platform/automations/catalog) calls connector actions and runs your own JavaScript in `transform` nodes on a schedule or a webhook, and you upload it as a pack. A [project agent](/platform/projects/project-agents) holds **Secrets** — an API key handed to it as an environment variable — so it can call a service that has no connector straight from its sandbox.
 
 ## Where this fits
 
-An MCP server is the right shape when a tool needs to live outside Tale — code your team owns, a service in another network, a third-party API you wrap. Custom tools in [Build a custom tool](/tutorials/developer/build-a-custom-tool) are the right shape when the tool is one-off and lives inside one org's settings.
-
-For the bigger picture of how tools widen what an agent can do, see [Agent tools](/platform/agents/tools). For wiring a connector that wraps a third-party API instead of your own code, [Connectors overview](/platform/connectors/overview) is the next read.
+The MCP surface in this version points inward: external clients drive Tale, not the other way round. When you want a model outside Tale to author automations or search the organization's knowledge, connect it to the endpoint; when you want an agent inside Tale to reach your code, use a connector, an automation, or a project agent's secrets. [MCP endpoint](/develop/mcp-endpoint) is the reference for the first path; [Connectors overview](/platform/connectors/overview) opens the second.
