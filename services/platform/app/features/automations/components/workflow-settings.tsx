@@ -81,7 +81,7 @@ export function WorkflowSettings({
               blocked ? t('trigger.cronInvalid') : t('workflow.nothingToSave')
             }
             onClick={() => {
-              if (trigger?.dirty === true && trigger.blocked !== true) {
+              if (trigger?.dirty === true && !trigger.blocked) {
                 trigger.save();
               }
               if (projects?.dirty === true) {

@@ -109,7 +109,7 @@ export function ProjectBindingsSection({
   saveRef.current = save;
 
   useEffect(() => {
-    if (onControllerChange === undefined) return;
+    if (onControllerChange === undefined) return undefined;
     onControllerChange({
       dirty,
       pending: setProjects.isPending,

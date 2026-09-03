@@ -47,7 +47,7 @@ export function DatePickerPopperContainer({
 
   useEffect(() => {
     const node = ref.current;
-    if (!node) return;
+    if (!node) return undefined;
     // Native bubble, before document listeners. `preventDefault` is wrong
     // here — it cancels the following `click`, so month arrows do nothing.
     const stop = (event: Event) => {
