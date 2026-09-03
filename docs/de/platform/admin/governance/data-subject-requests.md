@@ -17,16 +17,16 @@ Um eine Anfrage einzureichen, öffne **Einstellungen > Richtlinien > Anfragen be
 
 ## Status-Lebenszyklus
 
-| Name                | Default        | Beschreibung                                                                                       |
-| ------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
-| Ausstehend          | Anfangszustand | Die Anfrage ist eingereicht und wartet auf das Cooling-off-Fenster oder die zweite Admin-Freigabe. |
-| Wartet auf Freigabe | Vier-Augen     | Ein zweiter Admin muss freigeben, bevor die Kaskade läuft.                                         |
-| Läuft               | mid-cascade    | Die Kaskade läuft; Teilzähler aktualisieren sich, sobald jede Kategorie fertig ist.                |
-| Abgeschlossen       | terminal       | Jede Kategorie ist ohne Fehler gelöscht.                                                           |
-| Teilweise           | terminal       | Einige Zeilen wurden übersprungen — meist hat ein Legal Hold sie blockiert.                        |
-| Fehlgeschlagen      | terminal       | Die Kaskade traf auf einen Fehler; der Beleg benennt die fehlgeschlagene Kategorie.                |
-| Blockiert           | terminal       | Ein aktiver Legal Hold blockiert jeden Kaskade-Schritt.                                            |
-| Abgebrochen         | terminal       | Ein Admin hat vor Ablauf des Cooling-off-Fensters abgebrochen.                                     |
+| Name                | Default        | Beschreibung                                                                                                                                                                  |
+| ------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ausstehend          | Anfangszustand | Die Anfrage ist eingereicht und wartet auf das Cooling-off-Fenster oder die zweite Admin-Freigabe.                                                                            |
+| Wartet auf Freigabe | Vier-Augen     | Ein zweiter Admin muss freigeben, bevor die Kaskade läuft — oder weist die Anfrage zurück, was sie abbricht.                                                                  |
+| Läuft               | mid-cascade    | Die Kaskade läuft; Teilzähler aktualisieren sich, sobald jede Kategorie fertig ist.                                                                                           |
+| Abgeschlossen       | terminal       | Jede Kategorie ist ohne Fehler gelöscht.                                                                                                                                      |
+| Teilweise           | terminal       | Einige Zeilen wurden übersprungen — meist hat ein Legal Hold sie blockiert.                                                                                                   |
+| Fehlgeschlagen      | terminal       | Die Kaskade traf auf einen Fehler; der Beleg benennt die fehlgeschlagene Kategorie.                                                                                           |
+| Blockiert           | terminal       | Ein aktiver Legal Hold blockiert jeden Kaskade-Schritt.                                                                                                                       |
+| Abgebrochen         | terminal       | Ein Admin hat abgebrochen, bevor die Kaskade lief, oder ein zweiter Admin hat die Freigabe zurückgewiesen. Für die betroffene Person lässt sich eine neue Anfrage einreichen. |
 
 ## SLA-Verfolgung
 
@@ -38,7 +38,7 @@ Daten einer betroffenen Person werden _nicht_ gelöscht, solange sie auf Legal H
 
 ## Die Kaskade-Kategorien
 
-Der Beleg schlüsselt die gelöschten Zeilen nach Kategorie auf — Threads, Dokumente, Workflow-Ausführungen, Prompt-Vorlagen, aus dem Vektorspeicher entfernte RAG-Dokumente. Lies das Drawer für Zähler und die Audit-Zeitleiste; das Audit-Log im selben Governance-Bereich trägt die volle Ereigniskette (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_cancelled`).
+Der Beleg schlüsselt die gelöschten Zeilen nach Kategorie auf — Threads, Dokumente, Workflow-Ausführungen, Prompt-Vorlagen, aus dem Vektorspeicher entfernte RAG-Dokumente. Lies das Drawer für Zähler und die Audit-Zeitleiste; das Audit-Log im selben Governance-Bereich trägt die volle Ereigniskette (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_rejected`, `gdpr_erasure_cancelled`).
 
 ## Wo das hingehört
 

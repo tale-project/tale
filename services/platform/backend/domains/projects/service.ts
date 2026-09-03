@@ -1112,8 +1112,11 @@ export async function deleteProject(
   const now = Date.now();
 
   if (args.mode === 'cascade') {
-    // Mark for deletion via lifecycle status; the retention pipeline
-    // hard-deletes blob + RAG chunks within the grace window.
+    // Mark for deletion via lifecycle status. 'expired' takes the documents
+    // out of the retrievable set IMMEDIATELY (the RAG filter admits only
+    // active-lifecycle documents); the retention documents sweep then
+    // hard-deletes rows + blobs + corpus entries — after the grace window,
+    // or on the next daily run when the org runs with no grace.
     const cascadedDocs = await tx<{ id: string }[]>`
       UPDATE app.documents SET
         project_id = NULL, lifecycle_status = 'expired',

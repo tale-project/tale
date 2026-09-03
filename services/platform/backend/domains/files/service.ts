@@ -88,7 +88,11 @@ export async function createUploadHandoff(
 /**
  * REST-door presign: the caller declares no size (unlike the session lane) —
  * the bind step HEADs the landed object, so the ceiling is enforced at
- * registration instead. Only the content type shapes the PUT.
+ * registration instead. A DECLARED content type is signed into the PUT (the
+ * client's PUT must then carry the identical `Content-Type` header — see the
+ * API reference); an omitted one leaves the URL header-agnostic so bare
+ * `curl -T` clients keep working, with the attachment-forced GET lane as the
+ * serve-side guarantee.
  */
 export async function createRestUploadHandoff(
   sql: Sql,
@@ -97,9 +101,13 @@ export async function createRestUploadHandoff(
 ): Promise<UploadHandoff> {
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = buildObjectKey(store, orgSlug);
-  const uploadUrl = await s3PresignPutUrl(browserFacing(store), key, {
-    contentType: args.contentType ?? 'application/octet-stream',
-  });
+  const uploadUrl = await s3PresignPutUrl(
+    browserFacing(store),
+    key,
+    args.contentType !== undefined && args.contentType !== ''
+      ? { contentType: args.contentType }
+      : {},
+  );
   return { storageRef: encodeS3Ref(key), uploadUrl };
 }
 
@@ -214,16 +222,24 @@ export async function getFileMetadataByIdOrRef(
   return rows[0] ?? null;
 }
 
-/** Presigned GET for a blob ref the caller's org owns. */
+/**
+ * Presigned GET for a blob ref the caller's org owns. A `filename` presigns
+ * with `response-content-disposition: attachment` so the browser saves under
+ * the real name (object keys are `<org>/<uuid>`, nameless by design); omit
+ * it for inline rendering.
+ */
 export async function getFileUrl(
   sql: Sql,
   scope: { organizationId: string },
   storageRef: string,
+  opts: { filename?: string } = {},
 ): Promise<string> {
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(storageRef, orgSlug);
   // Handed to the browser, so signed against the origin it can reach.
-  return s3PresignGetUrl(browserFacing(store), key);
+  return s3PresignGetUrl(browserFacing(store), key, {
+    ...(opts.filename !== undefined && { filename: opts.filename }),
+  });
 }
 
 /**

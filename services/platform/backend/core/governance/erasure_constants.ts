@@ -36,14 +36,15 @@ export const ERASURE_STATUSES = [
 export type ErasureStatus = (typeof ERASURE_STATUSES)[number];
 
 /**
- * Sentinel `errorMessage` value written by the watchdog when it flips a
- * stuck `running` row to `'failed'`. The late-finalize race-guard in
- * `finalizeProcessing` matches against this value to detect that a
- * watchdog already won (and preserves the watchdog's verdict instead of
- * overwriting it with a delayed `done`/`partial`).
+ * Sentinel `error` value the watchdog writes when it flips a stuck
+ * `running` receipt to `'failed'`. Load-bearing beyond the message: the
+ * retry path refuses a receipt carrying it (`retryErasure` — a run that
+ * timed out mid-cascade has unknown partial state, so the next attempt
+ * must be a FRESH request, not a resume).
  *
- * Centralised so a typo in any one of the three call sites cannot
- * silently break the guard.
+ * Centralised so the writer (`recoverStuckErasureRequests`) and the
+ * matcher (`retryErasure`) cannot drift apart — the value is persisted on
+ * receipt rows, so it must NEVER change without a data migration.
  */
 export const ERASURE_WATCHDOG_TIMEOUT_MESSAGE =
-  'Erasure timed out (watchdog)' as const;
+  'Erasure timed out and was stopped by the watchdog. File a new request.' as const;

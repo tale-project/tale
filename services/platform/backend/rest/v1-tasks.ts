@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import {
   assertReadable,
+  assertWritable,
   loadProjectOrThrow,
   type ProjectAuthContext,
 } from '../domains/projects/service.ts';
@@ -64,8 +65,11 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     taskId: string,
   ): Promise<TaskRow | null> => {
     try {
-      const task = await loadTaskOrThrow(deps.sql, taskId);
-      if (task.organizationId !== c.get('organizationId')) return null;
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        taskId,
+        c.get('organizationId'),
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertReadable(project, auth);
       return task;
@@ -190,7 +194,11 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // (or null when the slug is undeployed) is answered directly.
       let executionId: string | null | undefined;
       if (body.data.runWorkflowSlug !== undefined && result.created) {
-        const task = await loadTaskOrThrow(deps.sql, taskId);
+        const task = await loadTaskOrThrow(
+          deps.sql,
+          taskId,
+          c.get('organizationId'),
+        );
         const started = await startWorkflowForTask(deps.sql, {
           organizationId: c.get('organizationId'),
           task,
@@ -268,11 +276,12 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   /**
    * POST /tasks/{id}/start — start a deployed workflow on the task. RBAC
-   * deliberately mirrors the session action: org membership + the task's
-   * READ visibility, NOT the developer gate the arbitrary-input
-   * `POST /automations/{name}/runs` applies — this run is task-subject-
-   * bound, and deploying the workflow was the privileged act. Work-starting,
-   * so it tops up on the `rest:execute` lane.
+   * deliberately mirrors the session action: the task's project WRITE
+   * access (starting a run spends budget and moves the card), NOT the
+   * developer gate the arbitrary-input `POST /automations/{name}/runs`
+   * applies — this run is task-subject-bound, and deploying the workflow
+   * was the privileged act. Work-starting, so it tops up on the
+   * `rest:execute` lane.
    */
   app.post('/tasks/:id/start', async (c) => {
     const limited = await chargeLane(deps.sql, c, 'rest:execute');
@@ -289,6 +298,12 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const auth = await restProjectAuth(deps.sql, c);
     const task = await loadVisibleTask(c, auth, c.req.param('id'));
     if (task === null) return c.json({ error: 'Task not found' }, 404);
+    try {
+      const project = await loadProjectOrThrow(deps.sql, task.projectId);
+      assertWritable(project, auth);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
 
     const started = await startWorkflowForTask(deps.sql, {
       organizationId: c.get('organizationId'),

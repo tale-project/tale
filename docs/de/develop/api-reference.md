@@ -159,7 +159,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uplo
 # → 200 { "uploadId": "...", "url": "https://...", "method": "POST", "expiresAt": 1774... }
 ```
 
-`method` benennt die Storage-Spur, die du bekommen hast. `POST` zielt auf den Plattform-Speicher: sende die Bytes mit dieser Methode an `url`, und die Antwort trägt `{"storageId": "..."}` — das ist deine `fileId`. `PUT` ist eine vorsignierte URL für den eigenen Bucket der Organisation: sende die Bytes und binde dann die `s3Ref` aus dem Handoff als `fileId`. So oder so schließt das Binden den Upload ab:
+`method` benennt die Storage-Spur, die du bekommen hast. `POST` zielt auf den Plattform-Speicher: sende die Bytes mit dieser Methode an `url`, und die Antwort trägt `{"storageId": "..."}` — das ist deine `fileId`. `PUT` ist eine vorsignierte URL für den eigenen Bucket der Organisation: sende die Bytes mit einem `Content-Type`-Header, der exakt dem beim Minten deklarierten `contentType` entspricht — der deklarierte Typ ist in die URL signiert, ein abweichender Header wird vom Bucket abgelehnt (ohne `contentType` beim Minten stellt der PUT keine Header-Anforderung) — und binde dann die `s3Ref` aus dem Handoff als `fileId`. So oder so schließt das Binden den Upload ab:
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \

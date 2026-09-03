@@ -159,7 +159,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uplo
 # → 200 { "uploadId": "...", "url": "https://...", "method": "POST", "expiresAt": 1774... }
 ```
 
-`method` names the storage lane you got. `POST` targets platform storage: send the bytes to `url` with that method and the response answers `{"storageId": "..."}` — that is your `fileId`. `PUT` is a presigned URL for the organization's own bucket: send the bytes, then bind the handoff's `s3Ref` as `fileId`. Either way, the bind completes the upload:
+`method` names the storage lane you got. `POST` targets platform storage: send the bytes to `url` with that method and the response answers `{"storageId": "..."}` — that is your `fileId`. `PUT` is a presigned URL for the organization's own bucket: send the bytes with a `Content-Type` header exactly matching the `contentType` you declared when minting — the declared type is signed into the URL, so the bucket refuses a PUT that carries a different one (omit `contentType` at mint and the PUT has no header requirement) — then bind the handoff's `s3Ref` as `fileId`. Either way, the bind completes the upload:
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \
