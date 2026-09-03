@@ -1,6 +1,6 @@
 ---
 title: Onboarding Cloud
-description: De la demande de démo à une organisation prête pour la production — ta propre instance montée par l’équipe Tale, créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, publier un agent, ouvrir le chat.
+description: De la demande de démo à une organisation prête pour la production — ta propre instance montée par l’équipe Tale, créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, doter un projet d’un premier agent, ouvrir le chat.
 ---
 
 <!--
@@ -13,7 +13,7 @@ description: De la demande de démo à une organisation prête pour la productio
   change the entry point back to a tale.dev sign-up.
 -->
 
-Ce parcours va de la demande de démo à une organisation Cloud prête pour la production avec un agent qui fonctionne. Le résultat est une organisation où ton équipe peut se connecter, choisir un agent qui marche et lui demander quelque chose d’utile — rien d’extraordinaire encore, juste le socle sur lequel tout le reste se construit.
+Ce parcours va de la demande de démo à une organisation Cloud prête pour la production avec un agent qui fonctionne. Le résultat est une organisation où ton équipe peut se connecter, demander quelque chose d’utile à l’assistant du chat et confier sa première tâche à un agent de projet — rien d’extraordinaire encore, juste le socle sur lequel tout le reste se construit.
 
 Il te faut une adresse e-mail qui fonctionne et la possibilité de la vérifier. Le parcours ne suppose aucune connaissance préalable de Tale ; si quelque chose ci-dessous mentionne un concept que tu n’as pas rencontré, la page liée l’introduit. Une fois ton instance prête, la partie pratique prend moins d’une heure — environ la moitié part dans l’étape du fournisseur, le reste est surtout des clics.
 
@@ -51,7 +51,7 @@ Le premier utilisateur devient automatiquement **Propriétaire** de l’organisa
 
 <Step title="Invite le premier admin">
 
-Ouvre **Paramètres > Organisation**, descends jusqu’à la section **Membres** et clique sur **Ajouter un membre**. Saisis l’e-mail de l’admin et assigne le rôle **Admin**. L’invité reçoit un e-mail avec un lien magique ; il s’inscrit et atterrit dans l’organisation avec le rôle que tu as assigné. La règle de sécurité « au moins 2 Admins » empêche une organisation de s’enfermer dehors en retirant son seul Admin — invite un second admin avant toute action qui l’exige.
+Ouvre **Paramètres > Organisation**, descends jusqu’à la section **Membres** et clique sur **Ajouter un membre**. Saisis le nom et l’e-mail de l’admin, assigne le rôle **Admin** et fixe un mot de passe — Tale crée le compte directement et affiche les identifiants une seule fois ; enregistre-les et transmets-les au nouvel admin par un autre canal (il n’y a pas d’e-mail d’invitation). La personne atterrit dans l’organisation avec le rôle que tu as assigné. La règle de sécurité « au moins 2 Admins » empêche une organisation de s’enfermer dehors en retirant son seul Admin — ajoute un second admin avant toute action qui l’exige.
 
 Pour la matrice des rôles (qui peut faire quoi), voir [Membres et rôles](/fr/platform/admin/members-and-roles).
 
@@ -75,21 +75,21 @@ C’est l’étape où la plupart des sessions d’onboarding calent — le port
 
 </Step>
 
-<Step title="Publie ton premier agent">
+<Step title="Crée ton premier agent de projet">
 
-Ouvre **Agents** et clique sur **Créer un agent**. Choisis le modèle que tu viens d’ajouter. Écris un bloc d’instructions d’un paragraphe — la voix dans laquelle l’agent doit répondre, le domaine qu’il connaît, les cas qu’il refuse. Enregistre. Active **Visible dans le chat**. L’agent est maintenant joignable depuis n’importe quel chat de l’organisation.
+Ouvre l’onglet **Agents** d’un projet et clique sur **Nouvel agent**. Choisis le **Harness** — la CLI de code sur laquelle l’agent tourne — et, sous **Modèle**, le modèle que tu viens d’ajouter. Écris un bloc d’instructions d’un paragraphe — la voix dans laquelle l’agent doit répondre, le domaine qu’il connaît, les cas qu’il refuse — et clique sur **Créer l'agent**. Assigne-lui une tâche du tableau et clique sur **Démarrer l'agent** ; le résultat revient en **En revue**, où une personne l’accepte. Il n’y a ni étape de publication ni sélecteur d’agent dans le chat — dans cette version, les agents traitent les tâches du tableau.
 
-Pour un parcours plus profond sur ce qui fait un bon agent, voir [Créer un agent](/fr/platform/agents/create).
+Pour le dialogue champ par champ, voir [Agents de projet](/fr/platform/projects/project-agents) ; pour ce qui fait un bon agent, [Concepts d’agent](/fr/platform/agents/concepts).
 
 </Step>
 
 <Step title="Ouvre le chat">
 
-Clique sur **Nouveau chat** dans la barre latérale. Choisis l’agent dans le sélecteur, tape une question que son domaine couvre, envoie.
+Clique sur **Nouveau chat** dans la barre latérale. Le sélecteur de modèle du composer s’ouvre sur **Auto** — Tale choisit un modèle chez le fournisseur que tu as connecté —, alors tape une question que le domaine de ton équipe couvre, et envoie.
 
 <Check>
 
-La réponse arrive en streaming — si elle atterrit comme tu l’as voulue dans les instructions, l’organisation a fini son onboarding.
+La réponse arrive en streaming et enregistre quel modèle a répondu — l’organisation a fini son onboarding.
 
 </Check>
 
@@ -105,10 +105,10 @@ Trois suites qui valent la peine maintenant, pendant que tout est frais :
 
 ## Dépannage
 
-- **L’e-mail d’invitation n’arrive jamais.** Vérifie le dossier spam de l’invité. Tale envoie depuis `noreply@tale.dev` ; certains filtres d’entreprise le mettent en quarantaine.
+- **La liste des modèles est vide quand tu crées l’agent.** L’étape du fournisseur n’a pas abouti — un modèle doit exister sous **Paramètres > Fournisseurs IA** avant que le dialogue de l’agent puisse en choisir un.
 - **La validation du fournisseur échoue avec « invalid key ».** Recopie la clé depuis le portail du fournisseur — la copie embarque souvent un espace en tête ou en queue.
-- **L’agent n’apparaît pas dans le sélecteur du chat.** Confirme que **Visible dans le chat** est activé pour l’agent.
+- **Démarrer l'agent échoue avec un motif côté fournisseur.** Le fournisseur choisi ne peut plus servir ce modèle — corrige-le sous **Paramètres > Fournisseurs IA** et redémarre l’agent.
 
 ## Où ça s’utilise
 
-Tu as maintenant une organisation avec un agent qui fonctionne et un admin en plus de toi. Le parcours suivant naturel est [Construire ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end) — même forme, mais avec un agent qui fait un vrai travail de domaine grâce à des liaisons de connaissances. Si tu es venu évaluer Cloud face à l’auto-hébergé, [Migrer vers auto-hébergé](/fr/cloud/migrate-to-self-hosted) est le parcours inverse.
+Tu as maintenant une organisation avec un agent qui fonctionne et un admin en plus de toi. Le parcours suivant naturel est [Construire ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end) — même forme, mais il met un agent de projet au travail sur une vraie tâche et relit ce qui revient. Si tu es venu évaluer Cloud face à l’auto-hébergé, [Migrer vers auto-hébergé](/fr/cloud/migrate-to-self-hosted) est le parcours inverse.

@@ -25,13 +25,13 @@ Chat effectively, work in projects, hold voice conversations.
 
 <Card title="Editor tutorials" icon="bot" href="/tutorials/editor/first-agent-end-to-end">
 
-Build a first agent end to end, bind knowledge, delegate between agents, ship workflows with approvals.
+Build a first project agent end to end, see where knowledge and delegation live now, ship workflows with approvals.
 
 </Card>
 
 <Card title="Developer tutorials" icon="terminal" href="/tutorials/developer/call-tale-from-a-script">
 
-Call Tale from a script, trigger workflows via webhooks, build custom tools, stand up an MCP server.
+Call Tale from a script, trigger automations via webhooks, put your own code where agents look, connect an MCP client to Tale.
 
 </Card>
 

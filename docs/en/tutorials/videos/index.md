@@ -29,7 +29,7 @@ Work inside the library: create an entry and hear it cited back, learn what Inde
 
 <Card title="Episode 4 — Your first agent" icon="play" href="/tutorials/videos/your-first-agent">
 
-An agent built end to end on camera — instructions, knowledge scope, tools, model — then tested live. Capability is exposure: start small. Three minutes.
+An agent built end to end on camera in the earlier agent editor — instructions, knowledge scope, tools, model — then tested live; the screens have changed since, the reasoning has not. Capability is exposure: start small. Three minutes.
 
 </Card>
 
@@ -47,7 +47,7 @@ The board mid-flight, files as scoped context, and a task created on camera that
 
 <Card title="Episode 7 — Connectors & the outside world" icon="play" href="/tutorials/videos/connectors">
 
-Connectors you can read before opening, MCP tools with approval flags, and egress that fails closed. Every door opened deliberately. Two and a half minutes.
+Connectors you can read before opening, the MCP door as the earlier version showed it, and egress that fails closed. Every door opened deliberately. Two and a half minutes.
 
 </Card>
 

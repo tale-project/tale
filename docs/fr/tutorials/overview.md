@@ -25,13 +25,13 @@ Chatter efficacement, travailler dans les projets, mener des conversations vocal
 
 <Card title="Tutoriels éditeur" icon="bot" href="/fr/tutorials/editor/first-agent-end-to-end">
 
-Construire un premier agent de bout en bout, lier des connaissances, déléguer entre agents, livrer des workflows avec approbations.
+Construire un premier agent de projet de bout en bout, voir où vivent désormais les connaissances et la délégation, livrer des workflows avec approbations.
 
 </Card>
 
 <Card title="Tutoriels développeur" icon="terminal" href="/fr/tutorials/developer/call-tale-from-a-script">
 
-Appeler Tale depuis un script, déclencher des workflows par webhook, construire des outils sur mesure, monter un serveur MCP.
+Appeler Tale depuis un script, déclencher des automatisations par webhook, placer ton propre code là où les agents regardent, connecter un client MCP à Tale.
 
 </Card>
 

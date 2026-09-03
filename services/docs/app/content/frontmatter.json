@@ -100,7 +100,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 7 — Connectors & le monde extérieur",
-      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une connector reliée, les serveurs MCP avec drapeaux de validation par outil, et une sortie réseau qui échoue fermée."
+      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une connector reliée, un segment MCP enregistré sur le panneau de serveurs de la version précédente, et une sortie réseau qui échoue fermée."
     }
   },
   "fr:tutorials/videos/your-first-agent": {
@@ -212,7 +212,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Développeur",
-      "description": "Développeur est la surface développeur en-app — clés API, tools personnalisés, webhooks d’agent, serveurs MCP. Les pages ici sont ce qu’une personne de rôle Développeur parcourt quand elle câble Tale à du code externe."
+      "description": "Développeur est la surface développeur en-app — clés API pour l’API REST, l’endpoint MCP et les identifiants de connector avec lesquels une personne de rôle Développeur branche Tale à du code externe."
     }
   },
   "fr:platform/chat/overview": {
@@ -517,7 +517,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Configurer les approbations",
-      "description": "Là où les exigences d’approbation sont déclarées — par opération d’connector, par outil MCP, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter."
+      "description": "Là où les exigences d’approbation sont déclarées — par opération d’connector, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter."
     }
   },
   "fr:platform/approvals/concepts": {
@@ -1017,7 +1017,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Onboarding Cloud",
-      "description": "De la demande de démo à une organisation prête pour la production — ta propre instance montée par l’équipe Tale, créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, publier un agent, ouvrir le chat."
+      "description": "De la demande de démo à une organisation prête pour la production — ta propre instance montée par l’équipe Tale, créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, doter un projet d’un premier agent, ouvrir le chat."
     }
   },
   "fr:cloud/migrate-to-self-hosted": {
@@ -1067,7 +1067,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Ton premier jour de création d’agents",
-      "description": "Le parcours éditeur — crée un agent, donne-lui des instructions et regarde-le faire un vrai travail sur une tâche."
+      "description": "Le parcours éditeur — crée un agent de projet, donne-lui des instructions et regarde-le faire un vrai travail sur une tâche."
     }
   },
   "fr:get-started/members": {
@@ -1117,7 +1117,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Développement",
-      "description": "Développement couvre la surface côté consommateur d’API — REST API, webhooks, SDK d’connector, workflow de développement assisté par IA, page de statut, limites de débit."
+      "description": "Développement couvre la surface côté consommateur d’API — REST API, l’endpoint MCP, webhooks, connectors, workflow de développement assisté par IA, page de statut, limites de débit."
     }
   },
   "fr:develop/connectors": {
@@ -1125,7 +1125,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et quand héberger un serveur MCP à la place."
+      "description": "Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connecteur ne convient."
     }
   },
   "fr:develop/status-page": {
@@ -1277,7 +1277,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Episode 7 — Connectors & the outside world",
-      "description": "The doors out of the workspace — connectors whose operations and allowed hosts you can read, the deep-research payoff of a bound connector, MCP servers with per-tool approval flags, and fail-closed egress."
+      "description": "The doors out of the workspace — connectors whose operations and allowed hosts you can read, the deep-research payoff of a bound connector, an MCP segment recorded on the earlier version's server panel, and fail-closed egress."
     }
   },
   "en:tutorials/videos/your-first-agent": {
@@ -1389,7 +1389,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Developer",
-      "description": "Developer is the in-app developer surface — API keys, custom tools, agent webhooks, MCP servers. The pages here are what someone with the Developer role clicks through when they wire Tale to external code."
+      "description": "Developer is the in-app developer surface — API keys for the REST API, the MCP endpoint, and the connector credentials a Developer-role user wires Tale to external code with."
     }
   },
   "en:platform/chat/overview": {
@@ -1694,7 +1694,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Configure approvals",
-      "description": "Where approval requirements are declared — per connector operation, per MCP tool, and built in for writes and workflow changes — and where to see what will ask before it runs."
+      "description": "Where approval requirements are declared — per connector operation, and built in for writes and workflow changes — and where to see what will ask before it runs."
     }
   },
   "en:platform/approvals/concepts": {
@@ -2194,7 +2194,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Cloud onboarding",
-      "description": "From demo request to a production-ready organization — get your own instance from the Tale team, create the org, invite the first admin, add a model provider, publish an agent, open chat."
+      "description": "From demo request to a production-ready organization — get your own instance from the Tale team, create the org, invite the first admin, add a model provider, staff a first project agent, open chat."
     }
   },
   "en:cloud/migrate-to-self-hosted": {
@@ -2244,7 +2244,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Your first day building agents",
-      "description": "The editor journey — create an agent, give it instructions, and watch it do real work on a task."
+      "description": "The editor journey — create a project agent, give it instructions, and watch it do real work on a task."
     }
   },
   "en:get-started/members": {
@@ -2294,7 +2294,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Develop",
-      "description": "Develop covers the API-consumer surface — REST API, webhooks, connector SDK, AI-assisted development workflow, status page, rate limits."
+      "description": "Develop covers the API-consumer surface — REST API, the MCP endpoint, webhooks, connectors, AI-assisted development workflow, status page, rate limits."
     }
   },
   "en:develop/connectors": {
@@ -2302,7 +2302,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Connectors",
-      "description": "How a connector is declared, what one of its actions promises a caller, and when to reach for an MCP server instead."
+      "description": "How a connector is declared, what one of its actions promises a caller, and where your own code goes when no connector fits."
     }
   },
   "en:develop/status-page": {
@@ -2454,7 +2454,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 7 — Connectors & die Außenwelt",
-      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Connector, MCP-Server mit Freigabe-Flags pro Werkzeug und Egress, der im Zweifel schließt."
+      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Connector, ein MCP-Abschnitt, der im Server-Panel der früheren Version aufgenommen wurde, und Egress, der im Zweifel schließt."
     }
   },
   "de:tutorials/videos/your-first-agent": {
@@ -2566,7 +2566,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Entwickler",
-      "description": "Entwickler ist die In-App-Entwickler-Oberfläche — API-Schlüssel, Custom Tools, Agent-Webhooks, MCP-Server. Die Seiten hier sind das, was eine Person mit Entwickler-Rolle durchklickt, wenn sie Tale an externen Code verdrahtet."
+      "description": "Entwickler ist die In-App-Entwickler-Oberfläche — API-Schlüssel für die REST-API, der MCP-Endpoint und die Connector-Zugangsdaten, mit denen eine Person mit Entwickler-Rolle Tale an externen Code anbindet."
     }
   },
   "de:platform/chat/overview": {
@@ -2871,7 +2871,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Genehmigungen konfigurieren",
-      "description": "Wo Genehmigungspflichten deklariert werden — pro Connector-Operation, pro MCP-Tool und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt."
+      "description": "Wo Genehmigungspflichten deklariert werden — pro Connector-Operation und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt."
     }
   },
   "de:platform/approvals/concepts": {
@@ -3371,7 +3371,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Cloud-Onboarding",
-      "description": "Von der Demo-Anfrage zu einer produktionsreifen Organisation — eigene Instanz vom Tale-Team, Org erstellen, ersten Admin einladen, Modellanbieter verbinden, Agent veröffentlichen, Chat öffnen."
+      "description": "Von der Demo-Anfrage zu einer produktionsreifen Organisation — eigene Instanz vom Tale-Team, Org erstellen, ersten Admin einladen, Modellanbieter verbinden, ersten Projekt-Agenten anlegen, Chat öffnen."
     }
   },
   "de:cloud/migrate-to-self-hosted": {
@@ -3421,7 +3421,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Dein erster Tag als Agent-Autor",
-      "description": "Der Einstieg für Redakteure — erstelle einen Agent, gib ihm Anweisungen und sieh ihm bei echter Arbeit auf einer Aufgabe zu."
+      "description": "Der Einstieg für Redakteure — erstelle einen Projekt-Agenten, gib ihm Anweisungen und sieh ihm bei echter Arbeit auf einer Aufgabe zu."
     }
   },
   "de:get-started/members": {
@@ -3471,7 +3471,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Entwicklung",
-      "description": "Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, Webhooks, Connector-SDK, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits."
+      "description": "Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, der MCP-Endpoint, Webhooks, Connectors, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits."
     }
   },
   "de:develop/connectors": {
@@ -3479,7 +3479,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Wie ein Connector deklariert wird, was eine seiner Aktionen einem Aufrufer zusichert und wann stattdessen ein MCP-Server die richtige Wahl ist."
+      "description": "Wie ein Connector deklariert wird, was eine seiner Aktionen einem Aufrufer zusichert und wohin dein eigener Code gehört, wenn kein Connector passt."
     }
   },
   "de:develop/status-page": {

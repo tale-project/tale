@@ -1,35 +1,35 @@
 ---
 title: Ton premier jour de création d’agents
-description: Le parcours éditeur — crée un agent, donne-lui des instructions et regarde-le faire un vrai travail sur une tâche.
+description: Le parcours éditeur — crée un agent de projet, donne-lui des instructions et regarde-le faire un vrai travail sur une tâche.
 ---
 
-Ce parcours s’adresse à la personne qui transforme « l’équipe pose toujours les mêmes questions » en un agent qui y répond. En quinze minutes, tu crées un agent, tu façonnes son comportement et tu le regardes faire un vrai travail sur une tâche — la boucle que chaque agent suivant raffine.
+Ce parcours s’adresse à la personne qui transforme « l’équipe pose toujours les mêmes questions » en un agent qui y répond. En quinze minutes, tu crées un agent sur un projet, tu façonnes son comportement et tu le regardes faire un vrai travail sur une tâche — la boucle que chaque agent suivant raffine.
 
-Il te faut le rôle **Éditeur** ou plus (la section Agents est masquée pour les membres) sur un espace de travail où le chat répond déjà — c’est le [démarrage rapide](/fr/get-started/quickstart).
+Il te faut un accès en écriture à un projet et au moins un fournisseur sous **Paramètres > Fournisseurs IA** avec un modèle dessus ; si le chat répond déjà, le fournisseur est là — c’est le [démarrage rapide](/fr/get-started/quickstart). Dans cette version, les agents vivent sur les projets : il n’y a pas d’entrée Agents dans la barre latérale ni d’agent à choisir dans le chat.
 
 <Steps>
 
 <Step title="Crée l’agent">
 
-Pour lancer un agent que tes collègues peuvent mettre au travail, ouvre **Agents** dans la barre latérale et clique sur **Créer un agent**. Nomme-le d’après le travail, pas la technologie — « Tri support » bat « GPT Helper » — parce que c’est à ce nom que tes collègues assigneront des tâches plus tard.
+Pour lancer un agent que tes collègues peuvent mettre au travail, ouvre l’onglet **Agents** d’un projet et clique sur **Nouvel agent**. Nomme-le d’après le travail, pas la technologie — « Tri support » bat « GPT Helper » — parce que c’est ce nom que tes collègues voient sur les cartes de tâches quand ils lui assignent du travail.
 
 </Step>
 
-<Step title="Façonne son identité">
+<Step title="Choisis le harness et le modèle">
 
-L’éditeur s’ouvre sur l’onglet **Général** : le nom affiché que voient tes collègues et une description d’une ligne. Le réglage qui compte au premier jour est la visibilité — elle décide qui, dans l’organisation, peut mettre l’agent au travail.
+Le dialogue demande un **Harness** — la CLI de code sur laquelle l’agent tourne — et un **Modèle** ; un modèle servi par plusieurs fournisseurs apparaît une fois par fournisseur, et le choix est exact. Laisse **Skills, connectors & outils** et **Secrets** vides le premier jour : chaque outil accordé élargit ce que l’agent peut atteindre, et le premier travail n’en a besoin d’aucun.
 
 </Step>
 
 <Step title="Écris les instructions">
 
-Ouvre **Instructions** — le levier qui compte le plus. Écris un paragraphe comme si tu briefais un nouveau collègue : la voix dans laquelle répondre, le domaine qu’il possède et les cas qu’il doit refuser. Concret bat complet — tu affineras après avoir vu de vraies réponses. Clique sur **Enregistrer** ; l’agent est joignable dès la requête suivante, sans étape de publication séparée.
+**Instructions** est le levier qui compte le plus. Écris un paragraphe comme si tu briefais un nouveau collègue : la voix dans laquelle répondre, le domaine qu’il possède et les cas qu’il doit refuser. Concret bat complet — tu affineras après avoir vu de vrais résultats. Clique sur **Créer l'agent** ; on peut lui assigner du travail dès cet instant, sans étape de publication séparée.
 
 </Step>
 
 <Step title="Regarde-le travailler">
 
-Les agents font leur travail sur des tâches — le chat, lui, ne fait tourner que l’assistant intégré. Ouvre un projet, ajoute ton agent dans son onglet **Agents**, puis crée une tâche qui énonce le travail en une phrase et assigne-la à l’agent. Lance l’exécution et suis son déroulé ; le résultat revient pour ta relecture, et le marquer terminé n’appartient qu’à toi.
+Les agents font leur travail sur des tâches — le chat, lui, ne fait tourner que l’assistant intégré. Crée sur le tableau du projet une tâche qui énonce le travail en une phrase, assigne-la à l’agent et clique sur **Démarrer l'agent**. La carte passe en _En cours_ pendant que l’agent travaille dans sa sandbox ; son rapport arrive en commentaire de tâche et la carte se gare en **En revue** — seule une personne la passe en _Terminé_.
 
 <Check>
 
@@ -43,4 +43,4 @@ Un résultat qui suit la voix et le périmètre que tu as écrits prouve que les
 
 ## Où tu en es
 
-Tu as livré le plus petit agent réel : des instructions et une place dans l’effectif de l’organisation. Le modèle complet derrière ce que tu viens de toucher est [Concepts d’agent](/fr/platform/agents/concepts) — instructions, connaissances, outils et skills. La construction suivante naturelle est [ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end), qui ajoute des liaisons de connaissances et un vrai domaine ; ensuite, [agents avec connaissances](/fr/tutorials/editor/agent-with-knowledge) et [délégation entre agents](/fr/tutorials/editor/delegate-between-agents) poussent la même boucle plus loin.
+Tu as livré le plus petit agent réel : un agent nommé dans l’onglet **Agents** d’un projet, avec un paragraphe d’instructions. Le modèle complet derrière ce que tu viens de toucher est [Concepts d’agent](/fr/platform/agents/concepts) — instructions, outils, skills et portée des connaissances —, et [Agents de projet](/fr/platform/projects/project-agents) est la référence champ par champ. La construction suivante naturelle est [ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end), qui rejoue les mêmes quatre gestes sur un vrai domaine et relit le résultat ; ensuite, [agents avec connaissances](/fr/tutorials/editor/agent-with-knowledge) dit où vivent désormais les connaissances, et [confier du travail à un worker](/fr/tutorials/editor/delegate-between-agents) comment le travail d’un agent parvient au suivant.
