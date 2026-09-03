@@ -5515,6 +5515,9 @@ async function checkGovernance(
       '  - scope: default',
       '    allowedModels:',
       '      - some-other-model',
+      // A vendor-slash id (the OpenRouter/aggregator dialect): the slash is
+      // part of the id, and the Auto picker's governance read must keep it.
+      '      - vendor/itest-model',
     ].join('\n'),
   );
   await writeFile(
@@ -5564,6 +5567,17 @@ async function checkGovernance(
     organizationId: orgId,
     userId,
   });
+  // The Auto picker's governance read over the same allowlist: the slash id
+  // survives as itself (no vendor prefix is ever stripped off a candidate),
+  // its vendor-less spelling and the unlisted chat model both drop.
+  const autoPick = await governance.resolveModelGovernanceForUser(sql, {
+    organizationId: orgId,
+    userId,
+    supportedModels: ['vendor/itest-model', 'itest-model', 'itest-chat'],
+  });
+  const autoRefsOk =
+    autoPick.accessibleModelRefs.length === 1 &&
+    autoPick.accessibleModelRefs[0] === 'vendor/itest-model';
 
   // Lift the policy: access opens again (proven cheaply at the service).
   const { unlink } = await import('node:fs/promises');
@@ -5584,8 +5598,9 @@ async function checkGovernance(
       refused.data.status === 'refused' &&
       (refused.data.reason ?? '').includes('not available for your account') &&
       cap === 9000 &&
+      autoRefsOk &&
       reopened.allowed,
-    `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'}, connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), reopened=${reopened.allowed}`,
+    `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'}, connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
   );
 }
 

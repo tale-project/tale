@@ -101,19 +101,18 @@ export async function resolveModelGovernanceForUser(
     }
   }
 
-  const stripQualifier = (ref: string): string => {
-    const slash = ref.indexOf('/');
-    return slash === -1 ? ref : ref.slice(slash + 1);
-  };
-  const accessiblePlain = new Set(
-    filterAccessibleModels(
-      accessConfig,
-      whoFacts,
-      args.supportedModels.map(stripQualifier),
-    ),
-  );
-  const accessibleModelRefs = args.supportedModels.filter((ref) =>
-    accessiblePlain.has(stripQualifier(ref)),
+  // The candidates are the catalog's own ids (`z-ai/glm-5.1`, `glm-5.2`,
+  // `claude-sonnet-4-6`): a vendor slash is PART of the id, never a
+  // qualifier. The evaluator normalizes both the rule lists and the
+  // candidates through the one ref grammar (`stripModelRefQualifier` —
+  // the optional `provider:` prefix and `@quant` suffix), so the ids go in
+  // unmodified — exactly what the composer's picker filter
+  // (`getAccessibleModelsForUser`) does, which is what keeps Auto and the
+  // picker agreeing on the accessible set.
+  const accessibleModelRefs = filterAccessibleModels(
+    accessConfig,
+    whoFacts,
+    args.supportedModels,
   );
   return {
     ...(defaultModel !== undefined ? { defaultModel } : {}),
