@@ -1,9 +1,9 @@
 # @tale/shared
 
 Dependency-light TypeScript infrastructure shared across Tale's Node-side code:
-the platform's Convex node-actions, the CLI, and the standalone RAG/crawler
-services. Cross-cutting plumbing only — config readers, a DB-retry wrapper, a
-logger, error types, and small utilities. No domain logic.
+the platform backend, the CLI, and the standalone RAG/crawler services.
+Cross-cutting plumbing only — config readers, a DB-retry wrapper, a logger,
+error types, and small utilities. No domain logic.
 
 Source-only package: consumers import directly from `@tale/shared/<subpath>`.
 There is no build step.
@@ -87,5 +87,3 @@ bun run --filter @tale/shared test         # vitest run
 Tests live next to their modules as `*.test.ts` (e.g.
 `src/db/retry.test.ts`, `src/config/providers.test.ts`,
 `src/utils/hashing.test.ts`, `src/utils/model-list.test.ts`).
-</content>
-</invoke>
