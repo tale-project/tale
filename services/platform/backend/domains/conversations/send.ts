@@ -2,9 +2,12 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { validateConversationAttachmentCaps } from '../../core/conversations/attachments.ts';
 import { buildThreadingHeaders } from '../../core/conversations/build_threading_headers.ts';
 import { sendConnectorAction } from '../../core/conversations/connector_slug.ts';
+import { normalizeEmail } from '../../core/conversations/ingest/normalize_email.ts';
+import { normalizeExternalMessageId } from '../../core/conversations/ingest/normalize_external_message_id.ts';
 import { inboundRecipientAddress } from '../../core/conversations/reply_from.ts';
 import {
   BULK_REPLY_CAP,
@@ -27,6 +30,7 @@ import {
   ConversationError,
   createConversation,
   MESSAGE_COLUMNS,
+  viewerIsAdmin,
   type BulkOperationResult,
   type ConversationMessageRow,
   type ConversationRow,
@@ -259,12 +263,12 @@ export async function sendMessageViaConnector(
       INSERT INTO app.conversation_messages (
         org_id, conversation_id, connector_name, channel, direction,
         delivery_state, content, sent_at_ms, delivered_at_ms, metadata,
-        created_at_ms
+        created_at_ms, status_changed_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.conversationId},
         ${args.connectorName}, 'email', 'outbound', 'queued',
         ${args.content}, ${now}, ${now},
-        ${tx.json(toJson(messageMetadata))}, ${now}
+        ${tx.json(toJson(messageMetadata))}, ${now}, ${now}
       )
       RETURNING id
     `;
@@ -506,19 +510,57 @@ export async function bulkReplyToConversations(
   };
 }
 
+/**
+ * Resolve who owns a newly composed outbound conversation.
+ *
+ * Defaults to the creator; only an admin may pick another member or a team
+ * queue. Non-admin team requests are dropped (not rejected). A team must
+ * belong to the org or we throw `team_not_in_org`.
+ */
+export async function resolveComposeAssignment(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    assigneeUserId?: string;
+    assigneeTeamId?: string;
+    actor: { userId: string; role: string };
+  },
+): Promise<{ assigneeUserId: string; assigneeTeamId?: string }> {
+  const isAdmin = viewerIsAdmin(args.actor.role);
+  const assigneeUserId = isAdmin
+    ? (args.assigneeUserId ?? args.actor.userId)
+    : args.actor.userId;
+  if (!(isAdmin && args.assigneeTeamId)) {
+    return { assigneeUserId };
+  }
+  const teams = await sql<{ organizationId: string }[]>`
+    SELECT "organizationId" FROM "team" WHERE "id" = ${args.assigneeTeamId}
+    LIMIT 1
+  `;
+  if (teams[0]?.organizationId !== args.organizationId) {
+    throw new ConversationError(
+      'team_not_in_org',
+      'Team does not belong to this organization',
+    );
+  }
+  return { assigneeUserId, assigneeTeamId: args.assigneeTeamId };
+}
+
 export async function composeEmailConversation(
   sql: Sql,
   args: {
     organizationId: string;
     contactId: string;
     assigneeUserId?: string;
+    /** Team queue. Admin-only; validated in-org. Non-admin requests are dropped. */
+    assigneeTeamId?: string;
     connectorName: string;
     subject: string;
     content: string;
     sourceMarkdown?: string;
     from?: string;
     attachments?: SendAttachment[];
-    actor: { userId: string; email?: string };
+    actor: { userId: string; email?: string; role: string };
   },
 ): Promise<{ conversationId: string; messageId: string }> {
   const subject = args.subject.trim();
@@ -555,14 +597,28 @@ export async function composeEmailConversation(
   // Refuse over-cap attachments BEFORE creating the conversation — the 0.4
   // compose is one atomic mutation, so a cap denial must leave nothing.
   validateConversationAttachmentCaps(args.attachments);
+
+  const { assigneeUserId, assigneeTeamId } = await resolveComposeAssignment(
+    sql,
+    {
+      organizationId: args.organizationId,
+      actor: args.actor,
+      ...(args.assigneeUserId !== undefined
+        ? { assigneeUserId: args.assigneeUserId }
+        : {}),
+      ...(args.assigneeTeamId !== undefined
+        ? { assigneeTeamId: args.assigneeTeamId }
+        : {}),
+    },
+  );
+
   const chosenFrom = args.from?.trim();
   const conversationId = await sql.begin((tx) =>
     createConversation(tx, {
       organizationId: args.organizationId,
       contactId: args.contactId,
-      ...(args.assigneeUserId !== undefined
-        ? { assigneeUserId: args.assigneeUserId }
-        : {}),
+      assigneeUserId,
+      ...(assigneeTeamId !== undefined ? { assigneeTeamId } : {}),
       subject,
       status: 'open',
       channel: 'email',
@@ -719,6 +775,7 @@ export async function retrySendMessage(
     await tx`
       UPDATE app.conversation_messages SET
         delivery_state = 'queued', retry_count = ${retryCount},
+        status_changed_at_ms = ${Date.now()},
         metadata = ${tx.json(toJson(retainedMetadata))}
       WHERE id = ${args.messageId}
     `;
@@ -830,6 +887,67 @@ export async function discardOutboundMessage(
   });
 }
 
+/** The `{ message }` / `{ email }` wrapper a mail get_message answers with. */
+function unwrapConnectorMessage(output: unknown): unknown {
+  if (!isRecord(output)) return output;
+  if ('message' in output) return output.message;
+  if ('email' in output) return output.email;
+  return output;
+}
+
+/**
+ * The external id to stamp on the sent row so a customer's reply threads back
+ * onto this conversation.
+ *
+ * Threading keys on the RFC Message-ID (an inbound reply's In-Reply-To carries
+ * it), but Gmail's send returns only its OWN API id. Storing that makes the
+ * reply's lookup miss AND makes buildThreadingHeaders later emit the API id as
+ * an invalid outgoing In-Reply-To on the next reply. So for Gmail we read the
+ * sent message back once to recover its RFC Message-ID. Best-effort: the send
+ * already succeeded, so a failed read-back keeps the API id rather than failing
+ * a message that was delivered. Outlook (Graph sendMail returns no id) relies on
+ * the Sent-folder sync; imap-smtp already returns the RFC id.
+ */
+export async function resolveSentExternalMessageId(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    connector: string;
+    connectorName: string;
+    output: unknown;
+  },
+): Promise<string | undefined> {
+  const fallback = externalIdFromSendOutput(args.connectorName, args.output);
+  if (args.connector !== 'gmail') return fallback;
+  const apiId =
+    isRecord(args.output) && typeof args.output.id === 'string'
+      ? args.output.id
+      : undefined;
+  if (apiId === undefined) return fallback;
+  try {
+    const fetched = await runConnectorAction(sql, {
+      organizationId: args.organizationId,
+      connector: 'gmail',
+      action: 'get_message',
+      input: { messageId: apiId },
+      mode: 'live',
+      caller: { kind: 'system', reason: 'conversation reply Message-ID' },
+    });
+    if (fetched.status !== 'ok') return fallback;
+    const rfc = normalizeExternalMessageId(
+      normalizeEmail(unwrapConnectorMessage(fetched.output)).messageId,
+    );
+    return rfc ?? fallback;
+  } catch (error) {
+    console.warn(
+      `[conversation-send] gmail Message-ID read-back failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return fallback;
+  }
+}
+
 /**
  * The scheduled delivery — the 0.4 `sendMessageViaConnectorAction` twin:
  * re-checks the row is still queued (an undo deleted it), runs the send
@@ -852,23 +970,23 @@ export async function runSendMessageJob(
   }
   try {
     const { connector, action } = sendConnectorAction(payload.connectorName);
-    // The imap-smtp send input never carries attachments (0.4 parity); for
-    // the API-mail connectors, presign a GET per attachment at send time.
-    const attachmentPayloads =
-      connector === 'imap-smtp' || !payload.attachments?.length
-        ? []
-        : await Promise.all(
-            payload.attachments.map(async (att) => ({
-              name: att.fileName,
-              contentType: att.contentType,
-              size: att.size,
-              url: await getFileUrl(
-                sql,
-                { organizationId: payload.organizationId },
-                att.storageRef,
-              ),
-            })),
-          );
+    // Presign a GET per attachment at send time — for EVERY mail connector,
+    // imap-smtp included: its native now streams each part from the URL, so a
+    // reply carries the files the sender attached instead of dropping them.
+    const attachmentPayloads = !payload.attachments?.length
+      ? []
+      : await Promise.all(
+          payload.attachments.map(async (att) => ({
+            name: att.fileName,
+            contentType: att.contentType,
+            size: att.size,
+            url: await getFileUrl(
+              sql,
+              { organizationId: payload.organizationId },
+              att.storageRef,
+            ),
+          })),
+        );
     const input = buildSendInput({
       connectorName: payload.connectorName,
       to: payload.to,
@@ -901,14 +1019,17 @@ export async function runSendMessageJob(
     if (result.status !== 'ok') {
       throw new Error(result.message);
     }
-    const externalMessageId = externalIdFromSendOutput(
-      payload.connectorName,
-      result.output,
-    );
+    const externalMessageId = await resolveSentExternalMessageId(sql, {
+      organizationId: payload.organizationId,
+      connector,
+      connectorName: payload.connectorName,
+      output: result.output,
+    });
     const now = Date.now();
     await sql`
       UPDATE app.conversation_messages SET
         delivery_state = 'sent', sent_at_ms = ${now},
+        status_changed_at_ms = ${now},
         external_message_id = ${externalMessageId ?? sql.unsafe('external_message_id')}
       WHERE id = ${payload.messageId}
     `;
@@ -924,7 +1045,7 @@ export async function runSendMessageJob(
     );
     await sql`
       UPDATE app.conversation_messages SET
-        delivery_state = 'failed',
+        delivery_state = 'failed', status_changed_at_ms = ${Date.now()},
         metadata = coalesce(metadata, '{}'::jsonb)
           || ${sql.json(
             toJson({
@@ -942,4 +1063,58 @@ export async function runSendMessageJob(
       entityId: message.conversationId,
     });
   }
+}
+
+/** A send left 'queued' this long past its last state change lost its job:
+ * the undo window is seconds and the send job's own expiry is 600s, so a row
+ * still queued well past both was never settled by a live handler. Generous,
+ * so a slow-but-live connector send is never failed out from under itself. */
+const SEND_STALE_MS = 20 * 60 * 1000;
+const SEND_WATCHDOG_ERROR =
+  'the message could not be delivered — the send was interrupted before it completed';
+
+/**
+ * Crash-recovery watchdog for outbound conversation sends (the job-liveness
+ * class): `conversation.send_message` has retryLimit 0, so a worker killed
+ * mid-send, or a job expired past its 600s window, leaves the message row
+ * `delivery_state='queued'` with no job behind it — an eternal "sending"
+ * clock, and the retry/discard controls only appear on `failed`.
+ *
+ * Flip stale queued rows to `failed` with a reason so the existing retry
+ * surface lights up (`retrySendMessage` re-queues from the stored args). The
+ * window is far past the send job's own expiry, so a live-but-slow handler is
+ * never failed under itself; and were one to finish afterwards it settles the
+ * row `sent`, correcting the bubble.
+ */
+export async function recoverStuckConversationSends(
+  sql: Sql,
+  options: { staleMs?: number } = {},
+): Promise<{ failed: number }> {
+  const now = Date.now();
+  const cutoff = now - (options.staleMs ?? SEND_STALE_MS);
+  const failed = await sql<
+    { id: string; conversationId: string; orgId: string }[]
+  >`
+    UPDATE app.conversation_messages SET
+      delivery_state = 'failed', status_changed_at_ms = ${now},
+      metadata = coalesce(metadata, '{}'::jsonb) || ${sql.json(
+        toJson({ error: SEND_WATCHDOG_ERROR, errorCode: 'send_interrupted' }),
+      )}
+    WHERE direction = 'outbound' AND delivery_state = 'queued'
+      AND coalesce(status_changed_at_ms, created_at_ms) < ${cutoff}
+    RETURNING id, conversation_id AS "conversationId", org_id AS "orgId"
+  `;
+  for (const row of failed) {
+    await emitHintInTx(sql, {
+      orgId: row.orgId,
+      entity: 'conversation',
+      entityId: row.conversationId,
+    });
+  }
+  if (failed.length > 0) {
+    console.warn(
+      `[conversation-send-watchdog] failed ${failed.length} stranded queued send(s)`,
+    );
+  }
+  return { failed: failed.length };
 }

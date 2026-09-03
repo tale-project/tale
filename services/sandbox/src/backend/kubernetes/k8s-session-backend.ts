@@ -40,8 +40,9 @@ export class KubernetesSessionBackend implements SessionBackend {
     this.client = client ?? makeK8sClient(cfg.k8s.namespace);
   }
 
+  /** runnerd token: derived from SANDBOX_TOKEN (always set — loadConfig fails
+   * closed without it). Matches SessionRoutes.tokenFor. */
   private tokenFor(sessionId: string): string {
-    if (this.cfg.sandboxToken === null) return '';
     return deriveRunnerdToken(this.cfg.sandboxToken, sessionId);
   }
 

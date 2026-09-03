@@ -7,24 +7,22 @@ Usage analytics is the dashboard that aggregates every billable AI call into a s
 
 ## A worked drill-down
 
-Open **Settings > Governance > Usage**. The default view is the last 30 days, org-wide, with the three headline counters — total tokens, total cost in USD, total requests. Switch the breakdown to **By user** to find the heaviest consumers, **By model** to compare an expensive primary against a cheaper fallback, or **By agent** to find the agent driving the load. Each row clicks through to a per-row time series; the chart axis follows the chosen period.
+Open **Settings > Metrics > Usage**. The default view is the last 30 days, org-wide, with the headline counters — total requests, total tokens, total cost, and active users — above the usage trend. Read **Per-user usage** to find the heaviest consumers, **Top models** to compare an expensive primary against a cheaper fallback, or **Top assistants** to find the assistant driving the load. The period switch (7, 30, or 90 days) drives every section at once.
 
 ## The dimensions
 
-- **User** — every member who has triggered a billable call. Pair with the team or role filter to scope the view.
-- **Team** — aggregated across team members; useful when budgets are team-scoped.
-- **Role** — Owner, Admin, Developer, Editor, Member.
-- **Model** — every model that produced a reply, grouped by provider.
-- **Agent** — every named agent (the leaderboard sorts by token volume, cost, or request count).
-- **Time** — daily trend for short windows, weekly for longer windows.
+- **User** — every member who has triggered a billable call, with their tokens, cost, and requests.
+- **Model** — every model that produced a reply; voice models keep their own leaderboard.
+- **Assistant** — every assistant with attributed usage.
+- **Time** — the trend chart follows the chosen window: 7, 30, or 90 days.
 
 ## The cost model
 
 Cost is an estimate. Each request lands in the usage ledger with input tokens, output tokens, the model's published price per million tokens, and the wall-clock duration. The dashboard multiplies tokens by price; image generation calls land with a per-image cost the provider returns. The ledger row is the source of truth, and the [audit log](/platform/admin/governance/audit-logs) carries the row's actor and timestamp for cross-reference.
 
-## Budget overlays
+## Budgets and usage
 
-When [policies and limits](/platform/admin/governance/policies-and-limits) has a budget for a scope, the usage chart overlays the cap as a horizontal line. Hovering a point shows the percentage of the cap consumed and the projected month-end based on the current trend. Crossing the warning threshold paints the chart's series amber; crossing the cap paints it red and surfaces the budget-exceeded events as markers on the time axis.
+Budgets live on [policies and limits](/platform/admin/governance/policies-and-limits); this dashboard is where you trace what drove them. When a budget warning or a budget-exceeded notice fires in chat, the per-user and per-model tables here answer the follow-up — who spent it, on which model, over which days.
 
 ## Retention of usage rows
 

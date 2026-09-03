@@ -15,14 +15,19 @@ import {
   s3GetObjectBytes,
 } from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
+import { consumeUploadIntent } from '../files/upload-intents.ts';
 import { bindProject, saveVersion } from './store.ts';
 
 /**
  * The pg wiring of the shared upload lane (`upload_impl.ts`): the staged
- * zip is an ORG BLOB from the byte-lane `POST /files/upload` (the 0.4
- * `_storage` + single-use-intent handshake collapses into the org-prefixed
- * key — ownership IS the prefix), the store effects hit the pg store, and
- * the viewer context reads team memberships straight from the tables.
+ * zip is an ORG BLOB from the byte lane `POST /files/upload?purpose=
+ * automation_bundle`, owned by the caller's single-use upload intent
+ * (`app.upload_intents`) — the 0.4 `_storage` + single-use-intent
+ * handshake, kept: the org-prefixed key alone proves tenancy, not
+ * ownership, because every document blob in the org carries the same
+ * prefix and this lane DELETES its staged blob on every path. The store
+ * effects hit the pg store, and the viewer context reads team memberships
+ * straight from the tables.
  */
 export async function uploadAutomationPg(
   sql: Sql,
@@ -43,6 +48,10 @@ export async function uploadAutomationPg(
       return null;
     }
   };
+  // The one key `verifyStagedZip` admitted by consuming the caller's intent.
+  // `readStagedZip` / `cleanupStagedZip` act on that key alone — never on a
+  // bare client ref (the impl calls cleanup in `finally`, refusal included).
+  let verifiedKey: string | null = null;
 
   return uploadAutomationImpl(
     {
@@ -77,10 +86,22 @@ export async function uploadAutomationPg(
           actor: auth.userId,
         });
       },
-      verifyStagedZip: async (storageId) => stagedKeyOf(storageId) !== null,
+      verifyStagedZip: async (storageId) => {
+        const key = stagedKeyOf(storageId);
+        if (key === null) return false;
+        const owned = await consumeUploadIntent(sql, {
+          organizationId: auth.organizationId,
+          userId: auth.userId,
+          purpose: 'automation_bundle',
+          storageRef: storageId,
+        });
+        if (!owned) return false;
+        verifiedKey = key;
+        return true;
+      },
       readStagedZip: async (storageId) => {
         const key = stagedKeyOf(storageId);
-        if (key === null) return null;
+        if (key === null || key !== verifiedKey) return null;
         try {
           const store = await resolveObjectStore(auth.orgSlug);
           return await s3GetObjectBytes(store, key);
@@ -91,7 +112,7 @@ export async function uploadAutomationPg(
       },
       cleanupStagedZip: async (storageId) => {
         const key = stagedKeyOf(storageId);
-        if (key === null) return;
+        if (key === null || key !== verifiedKey) return;
         try {
           const store = await resolveObjectStore(auth.orgSlug);
           await s3DeleteObject(store, key);

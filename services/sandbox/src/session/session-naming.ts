@@ -29,15 +29,14 @@ export function sessionWorkspaceDirName(sessionId: string): string {
  * Per-session runnerd token. HMAC-SHA256(SANDBOX_TOKEN, "runnerd-v1:" +
  * sessionId): derivable by any replica, stored nowhere, and one-way — a
  * compromised session learns only its own token, not the platform secret or
- * any peer's. When SANDBOX_TOKEN is unset (dev/unsigned mode) the caller
- * passes a per-boot random key instead (dev sessions don't survive a spawner
- * restart; acceptable — see config sandboxToken policy).
+ * any peer's. SANDBOX_TOKEN is required (loadConfig fails closed), so every
+ * session gets a real token — there is no unsigned mode.
  */
 export function deriveRunnerdToken(
-  sandboxTokenOrDevKey: string,
+  sandboxToken: string,
   sessionId: string,
 ): string {
-  return createHmac('sha256', sandboxTokenOrDevKey)
+  return createHmac('sha256', sandboxToken)
     .update(`${RUNNERD_TOKEN_CONTEXT}${sessionId}`)
     .digest('hex');
 }

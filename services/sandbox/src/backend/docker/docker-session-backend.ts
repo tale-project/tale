@@ -59,10 +59,9 @@ export class DockerSessionBackend implements SessionBackend {
 
   constructor(private readonly cfg: SpawnerConfig) {}
 
-  /** runnerd token: derived from SANDBOX_TOKEN when signed, '' in unsigned dev
-   * mode (runnerd skips the check). Matches SessionRoutes.tokenFor. */
+  /** runnerd token: derived from SANDBOX_TOKEN (always set — loadConfig fails
+   * closed without it). Matches SessionRoutes.tokenFor. */
   private tokenFor(sessionId: string): string {
-    if (this.cfg.sandboxToken === null) return '';
     return deriveRunnerdToken(this.cfg.sandboxToken, sessionId);
   }
 

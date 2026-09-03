@@ -41,11 +41,23 @@ vi.mock('./ingest/resolve_connector_account_email', () => ({
   resolveConnectorAccountEmail,
 }));
 
+import { tipOfEmails } from './ingest/email_epoch';
+import { normalizeEmails } from './ingest/normalize_email';
 import {
   listMailboxMessages,
   querySyncCursor,
   syncMailbox,
 } from './sync_mailbox';
+
+/** The ingestedTip the real ingest helpers report — the tip of the window they
+ * cover. The sync advances the watermark to this, so the mock must carry it. */
+function ingestedTipFor(args: unknown): number | null {
+  const emails =
+    isRecord(args) && 'emails' in args
+      ? (args as { emails: unknown }).emails
+      : [];
+  return tipOfEmails(normalizeEmails(emails));
+}
 
 interface ConnectorCall {
   connector: string;
@@ -191,10 +203,20 @@ function inputsFor(calls: ConnectorCall[], action: string): unknown[] {
 }
 
 beforeEach(() => {
-  createConversationFromEmail.mockReset().mockResolvedValue(INGESTED);
+  createConversationFromEmail
+    .mockReset()
+    .mockImplementation((_ctx: unknown, args: unknown) =>
+      Promise.resolve({ ...INGESTED, ingestedTip: ingestedTipFor(args) }),
+    );
   createConversationFromSentEmail
     .mockReset()
-    .mockResolvedValue({ ...INGESTED, created: false });
+    .mockImplementation((_ctx: unknown, args: unknown) =>
+      Promise.resolve({
+        ...INGESTED,
+        created: false,
+        ingestedTip: ingestedTipFor(args),
+      }),
+    );
   resolveConnectorAccountEmail
     .mockReset()
     .mockResolvedValue('desk@example.com');
@@ -340,13 +362,18 @@ describe('syncMailbox over Outlook', () => {
 
     // Graph resolves `sentitems` as a path segment only, and rejects a filter
     // on one date field ordered by another — so the folder rides `folder` while
-    // the cursor and the sort both switch to sentDateTime.
+    // the cursor and the sort both switch to sentDateTime. Both folders sort
+    // ASC so a backlog drains forward from the watermark.
     expect(inputsFor(calls, 'list_messages')).toEqual([
-      { top: 25, filter: 'receivedDateTime ge 1970-01-01T00:00:05.000Z' },
+      {
+        top: 25,
+        orderby: 'receivedDateTime asc',
+        filter: 'receivedDateTime ge 1970-01-01T00:00:05.000Z',
+      },
       {
         top: 25,
         folder: 'sentitems',
-        orderby: 'sentDateTime desc',
+        orderby: 'sentDateTime asc',
         filter: 'sentDateTime ge 1970-01-01T00:00:07.000Z',
       },
     ]);
@@ -709,6 +736,54 @@ describe('syncMailbox over multiple credentials', () => {
         mailSyncInboundSince: 1700000000000,
       },
     ]);
+  });
+
+  it('advances the watermark only to what ingest COVERED, never past a fetched-but-unpersisted message', async () => {
+    // The permanent-loss bug: the pass fetched more than it ingested, yet the
+    // watermark jumped to the newest FETCHED body — stepping over the surplus
+    // forever. Here g_new is fetched but NOT ingested (a truncated page), so the
+    // watermark must stop at the ingested tip and leave g_new re-fetchable.
+    const ingestedTip = Date.parse('2025-05-02T00:00:00.000Z');
+    const fetchedTip = Date.parse('2025-05-09T00:00:00.000Z');
+    createConversationFromEmail
+      .mockReset()
+      .mockResolvedValue({ ...INGESTED, ingestedTip });
+    const reply: Reply = (call) =>
+      call.action === 'list_messages'
+        ? { messages: [{ id: 'g_old' }, { id: 'g_new' }] }
+        : {
+            message: {
+              messageId: `<${String(call.input.messageId)}@example.com>`,
+              date:
+                call.input.messageId === 'g_new'
+                  ? '2025-05-09T00:00:00.000Z'
+                  : '2025-05-01T00:00:00.000Z',
+            },
+            attachments: [],
+          };
+    const { ctx, cursorPatches } = harness(reply, {
+      credentials: [{ id: 'cred_gmail', name: 'Gmail', isDefault: true }],
+    });
+
+    await syncMailbox(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'gmail',
+      limit: 25,
+      includeSent: false,
+      mode: 'live',
+    });
+
+    expect(cursorPatches).toEqual([
+      {
+        organizationId: 'org',
+        credentialId: 'cred_gmail',
+        mailSyncInboundSince: ingestedTip,
+      },
+    ]);
+    // The newest FETCHED message is strictly beyond the new watermark, so it is
+    // re-listed next pass rather than skipped.
+    const patched = cursorPatches[0]?.mailSyncInboundSince;
+    expect(typeof patched === 'number' && patched < fetchedTip).toBe(true);
   });
 
   it('tracks the Sent watermark separately from the Inbox one', async () => {

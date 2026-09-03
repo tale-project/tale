@@ -92,7 +92,7 @@ export async function addTaskComment(
   threadId: string;
   unresolvedMentionTokens: string[];
 }> {
-  const task = await loadTaskOrThrow(tx, args.taskId);
+  const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   // Commenting is READ-level (0.4 `addTaskComment*`): anyone who can see
   // the task may join its discussion; edit/delete stay write-gated below.
@@ -234,7 +234,7 @@ export async function listTaskComments(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<TaskCommentItem[]> {
-  const task = await loadTaskOrThrow(sql, taskId);
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   if (!task.discussionThreadId) {
@@ -317,7 +317,7 @@ export async function editTaskComment(
   args: { messageId: string; body: string },
 ): Promise<void> {
   const meta = await loadCommentMeta(tx, args.messageId);
-  const task = await loadTaskOrThrow(tx, meta.taskId);
+  const task = await loadTaskOrThrow(tx, meta.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertCommentOwnerOrAdmin(auth, meta);
@@ -357,7 +357,7 @@ export async function deleteTaskComment(
   messageId: string,
 ): Promise<void> {
   const meta = await loadCommentMeta(tx, messageId);
-  const task = await loadTaskOrThrow(tx, meta.taskId);
+  const task = await loadTaskOrThrow(tx, meta.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertCommentOwnerOrAdmin(auth, meta);
@@ -598,6 +598,7 @@ async function dispatchMentionedProjectAgent(
     return;
   }
   await handTaskToInProgressForKick(tx, {
+    organizationId: args.auth.organizationId,
     taskId: args.task.id,
     userId: args.auth.userId,
   });

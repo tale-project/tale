@@ -53,16 +53,19 @@ export async function checkDaemon(): Promise<Check> {
 }
 
 export function checkSandboxToken(env: NodeJS.ProcessEnv): Check {
-  // Token policy is opt-in — unset = HMAC disabled, valid for dev / internal
-  // trust. A short value is suspicious (probably truncated); missing is OK.
-  const raw = env.SANDBOX_TOKEN;
+  // The token is REQUIRED: the spawner refuses to start without it (it holds
+  // the host docker socket and sits on the network every session container
+  // shares — there is no unsigned mode). `tale deploy` auto-mints it into .env
+  // before this check runs, so an unset value here means the .env is broken.
+  // A short value is suspicious (probably truncated).
+  const raw = env.SANDBOX_TOKEN?.trim();
   if (!raw || raw.length === 0) {
     return {
       name: 'SANDBOX_TOKEN',
-      status: 'warn',
+      status: 'fail',
       detail:
-        'unset — HMAC auth between Convex and the sandbox spawner is disabled',
-      fix: 'Set a 64-char hex value (or re-run `tale init`) to enable signature verification',
+        'unset — the sandbox spawner refuses to start without the shared HMAC secret',
+      fix: 'Set a 64-char hex value (openssl rand -hex 32) or re-run `tale init`',
     };
   }
   if (raw.length < 32) {

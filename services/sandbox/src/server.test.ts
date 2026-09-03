@@ -6,7 +6,7 @@
 // config defaults) — the same way `docker-args.test.ts` covers the spawn
 // argv builder without ever booting the server.
 
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 
 import {
   SIGNATURE_HEADER,
@@ -132,31 +132,37 @@ describe('screencast HMAC gate (empty-body GET)', () => {
   });
 });
 
-describe('loadConfig token defaults', () => {
-  test('returns null token on a fresh env (opt-in verification)', () => {
-    // server.ts main() only warns when sandboxToken is null; the wire path's
-    // `authorize()` returns null and skips HMAC checks. Drop the env var
-    // and re-parse to confirm the config surface matches the policy.
-    const prev = process.env.SANDBOX_TOKEN;
-    delete process.env.SANDBOX_TOKEN;
-    try {
-      const cfg = loadConfig();
-      expect(cfg.sandboxToken).toBeNull();
-    } finally {
-      if (prev !== undefined) process.env.SANDBOX_TOKEN = prev;
-    }
+describe('loadConfig token policy (fail-closed)', () => {
+  // The spawner holds the host docker socket and is reachable from every
+  // session container on the shared sandbox network, so it must never boot
+  // with HMAC verification off. An unset / blank SANDBOX_TOKEN refuses boot
+  // instead of silently turning `authorize()` into a no-op (the audit finding
+  // that left every compose stack without a token running the spawner open).
+  const prev = process.env.SANDBOX_TOKEN;
+  afterEach(() => {
+    if (prev === undefined) delete process.env.SANDBOX_TOKEN;
+    else process.env.SANDBOX_TOKEN = prev;
   });
 
-  test('treats empty-string SANDBOX_TOKEN as unset', () => {
-    const prev = process.env.SANDBOX_TOKEN;
+  test('refuses to boot when SANDBOX_TOKEN is unset', () => {
+    delete process.env.SANDBOX_TOKEN;
+    expect(() => loadConfig()).toThrow(/SANDBOX_TOKEN is required/);
+  });
+
+  test('treats an empty-string SANDBOX_TOKEN as unset (refuses to boot)', () => {
     process.env.SANDBOX_TOKEN = '';
-    try {
-      const cfg = loadConfig();
-      expect(cfg.sandboxToken).toBeNull();
-    } finally {
-      if (prev === undefined) delete process.env.SANDBOX_TOKEN;
-      else process.env.SANDBOX_TOKEN = prev;
-    }
+    expect(() => loadConfig()).toThrow(/SANDBOX_TOKEN is required/);
+  });
+
+  test('treats a whitespace-only SANDBOX_TOKEN as unset (refuses to boot)', () => {
+    // Otherwise it would silently enable HMAC with a trivially weak space key.
+    process.env.SANDBOX_TOKEN = '   ';
+    expect(() => loadConfig()).toThrow(/SANDBOX_TOKEN is required/);
+  });
+
+  test('trims a padded token so the key matches what the clients sign with', () => {
+    process.env.SANDBOX_TOKEN = '  shared-secret  ';
+    expect(loadConfig().sandboxToken).toBe('shared-secret');
   });
 });
 

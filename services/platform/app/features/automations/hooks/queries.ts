@@ -4,11 +4,13 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { listNodeTypesRef } from './backend';
 
 /**
- * Read hooks for the automations surface. Everything about a stored automation
- * — its versions, its deployment, its triggers, its runs — is a reactive Convex
- * query, so a save, a deploy, or a run started next door propagates without any
- * manual invalidation, and a run in flight fills in as the stepper writes its
- * checkpoints.
+ * Read hooks for the automations surface — an automation's versions,
+ * deployment, triggers, and runs. These key under the 0.5 backend's query
+ * vocabulary (`['backend', orgId, entity, ...]`); a save, a deploy, or a run
+ * state change emits an entity hint over SSE (`automation` / `automation_run`)
+ * that the `useBackendHints` bridge maps to an invalidation, so a run in
+ * flight fills in as the stepper writes its checkpoints — without a manual
+ * reload.
  *
  * The node-type catalog is the exception: it comes from an ACTION (it reads the
  * shipped connector files), so it goes through `useActionQuery`.

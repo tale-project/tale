@@ -1,18 +1,23 @@
 import type { Sql } from 'postgres';
 
+import { isAdminRole } from '../../auth/membership.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { pokeParkedRun } from '../automations/store.ts';
-import { confirmAndScheduleErasure } from '../erasure/service.ts';
+import {
+  confirmAndScheduleErasure,
+  rejectErasure,
+} from '../erasure/service.ts';
 
 /**
  * The approvals INBOX surface — the 0.5 twin of the 0.4 read/decide half of
  * `convex/approvals/{queries,mutations,helpers,list_approvals_paginated}`:
  * paginated listing, per-status counts, one-row read, and the generic
  * human decision (`updateApprovalStatus`) with the same FSM and the same
- * dedicated-door refusals. The gate half lives in `gate.ts`; the
- * conversations fold lives in the send lane.
+ * dedicated-door refusals. Kind-scoped authorization rides the decision:
+ * erasure rows demand an org admin (`assertRoleMayDecideKind`). The gate
+ * half lives in `gate.ts`; the conversations fold lives in the send lane.
  */
 
 export class ApprovalError extends Error {
@@ -135,7 +140,32 @@ export interface DecideApprovalArgs {
   approvalId: string;
   status: 'executing' | 'rejected';
   comments?: string;
-  actor: { userId: string; email?: string };
+  /** `role` is the caller's SESSION-RESOLVED org role (`orgMember.role`
+   * from `requireOrgMember` — trusted-headers aware), never a raw member
+   * row read. Kind-gated decisions check it. */
+  actor: { userId: string; role: string; email?: string };
+}
+
+/**
+ * The per-KIND authorization rule for the generic decide door. The door
+ * itself is an org-member surface (the 0.4 posture — connector operations,
+ * human-input asks, and conversation approvals are decided by the people
+ * working the thread), but a GDPR erasure decision IS the second half of
+ * the dual-control contract the docs promise ("a second Admin must
+ * approve"), so both deciding directions — approve AND reject — demand an
+ * org admin. Pure so the rule is unit-testable.
+ */
+export function assertRoleMayDecideKind(
+  resourceType: string,
+  role: string,
+): void {
+  if (resourceType === 'erasure' && !isAdminRole(role)) {
+    throw new ApprovalError(
+      'FORBIDDEN',
+      'Only org admins decide erasure approvals.',
+      403,
+    );
+  }
 }
 
 /**
@@ -187,6 +217,7 @@ export async function decideApproval(
         409,
       );
     }
+    assertRoleMayDecideKind(approval.resourceType, args.actor.role);
     if (approval.status !== 'pending') {
       throw new ApprovalError(
         'ALREADY_RESOLVED',
@@ -238,13 +269,24 @@ export async function decideApproval(
     // GDPR Art 17 dispatch: approving an erasure row starts its cooling-off
     // window and schedules the processor. Filer ≠ approver is re-enforced
     // there and throws, rolling the decision back with it — an approval the
-    // policy forbids must not stand.
-    if (args.status === 'executing' && approval.resourceType === 'erasure') {
-      await confirmAndScheduleErasure(tx, {
-        requestId: approval.resourceId,
-        approverId: args.actor.userId,
-        organizationId: args.organizationId,
-      });
+    // policy forbids must not stand. REJECTING one settles the receipt
+    // terminally (`cancelled`) in the same transaction — a rejected request
+    // must never wedge the subject behind the live-unique index.
+    if (approval.resourceType === 'erasure') {
+      if (args.status === 'executing') {
+        await confirmAndScheduleErasure(tx, {
+          requestId: approval.resourceId,
+          approverId: args.actor.userId,
+          organizationId: args.organizationId,
+        });
+      } else {
+        await rejectErasure(tx, {
+          requestId: approval.resourceId,
+          rejectedBy: args.actor.userId,
+          organizationId: args.organizationId,
+          ...(args.comments !== undefined ? { comments: args.comments } : {}),
+        });
+      }
     }
     await emitHintInTx(tx, {
       orgId: args.organizationId,

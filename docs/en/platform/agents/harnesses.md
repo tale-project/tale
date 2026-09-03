@@ -5,7 +5,7 @@ description: Coding CLIs that run a model in an isolated sandbox — which harne
 
 A **Harness** is a shipped coding CLI — Claude Code, Codex, Cursor, and peers — that runs your chosen model inside an isolated container instead of the ordinary chat loop. The harness plans, writes files, runs commands, installs packages, and reports back. You never pick a harness from the chat composer: chat selects a **model** only. The harness is chosen when you create a **project agent** — its dialog calls the field **Agent type** — or an automation **agent** node, where it is labeled **Harness**.
 
-This page covers which harnesses ship with Tale, where you bind one, where the credential comes from, and what the container can and cannot reach. The credentials themselves are an organization-level surface — see [Providers](/platform/admin/providers). **Settings > Providers** also has a **Harnesses** tab that shows how each harness would resolve for the organization.
+This page covers which harnesses ship with Tale, where you bind one, where the credential comes from, and what the container can and cannot reach. The credentials themselves are an organization-level surface — see [Providers](/platform/admin/providers). **Settings > AI providers** also has a **Harnesses** section that shows how each harness would resolve for the organization.
 
 ## Where you pick a harness
 
@@ -55,7 +55,7 @@ A harness turn always names a concrete harness. Nothing guesses one for you: the
 
 ## What the sandbox can reach
 
-The container starts from an empty working directory and is locked down by default. Files and folders you pin with `@` ride along into the session under `/agent/uploads/`, so the agent opens the real bytes rather than a retrieval snippet, and what it writes under `/agent/output/` comes back into the chat as a file. Outbound network is denied apart from a narrow allowlist — package registries and GitHub — so the agent can install what it needs and clone a public repository without being able to reach arbitrary hosts.
+The container starts from an empty working directory. Files and folders you pin with `@` ride along into the session under `/agent/uploads/`, so the agent opens the real bytes rather than a retrieval snippet, and what it writes under `/agent/output/` comes back into the chat as a file. Outbound network is open by default with the dangerous targets always blocked — the cloud metadata endpoint and private address ranges — so the agent can install packages and clone repositories while never reaching the host network; a self-hosted operator can tighten egress to a hostname allowlist at the deployment level.
 
 Connected connectors reach the agent through a broker rather than through the box. When the agent calls one, the request goes back to Tale, which runs it with the stored credential and hands back only the result, so a compromised container cannot read your keys. A write surfaces as an approval card in the chat and proceeds once you approve it. GitHub is the deliberate exception: `git` and the `gh` CLI need a token locally, so a turn runs with a scoped one while the conversation has the GitHub connector equipped — injected per turn, gone when the turn ends.
 

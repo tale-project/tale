@@ -9,7 +9,7 @@ Cette page est la référence pour les colonnes, les filtres, les catégories et
 
 ## Un filtre mis en pratique
 
-Pour trouver le moment où le rôle d'un membre a changé, ouvre **Paramètres > Gouvernance > Journaux d'audit**, règle le filtre **Catégorie** sur **Membre** et cherche l'acteur ou la cible par nom. Chaque ligne s'étend en payload complète — état précédent, état nouveau, l'IP si la requête est passée par le réseau, le type d'acteur (utilisateur, système, API, workflow). Exporte la sélection filtrée en CSV ou JSON depuis la barre d'outils au-dessus du tableau.
+Pour trouver le moment où le rôle d'un membre a changé, ouvre **Paramètres > Gouvernance > Journaux** et règle le filtre **Catégorie** sur **Membre** — les colonnes utilisateur et cible nomment les personnes impliquées. Chaque ligne s'étend en payload complète — état précédent, état nouveau, champs modifiés, le type d'acteur (utilisateur, système, API, workflow). Exporte la sélection filtrée en CSV ou JSON depuis la barre d'outils au-dessus du tableau.
 
 ## Les colonnes
 
@@ -18,18 +18,21 @@ Pour trouver le moment où le rôle d'un membre a changé, ouvre **Paramètres >
 | Horodatage      | ISO 8601 | oui    | Heure serveur à laquelle l'action a été validée.                                               |
 | Action          | string   | oui    | L'action sémantique — `update_member_role`, `provider_created`, `agent_saved`.                 |
 | Utilisateur     | string   | oui    | Nom affiché de l'acteur ; `System`, `API` ou `Workflow` quand l'acteur n'est pas une personne. |
-| Ressource       | string   | oui    | La ressource touchée par l'action — `agent`, `provider`, `member`, `workflow`.                 |
-| Catégorie       | enum     | oui    | Auth, Membre, Données, Connector, Workflow, Sécurité, Admin, AI, Skill, Agent.                 |
+| Ressource       | string   | oui    | Le type de ressource touché par l'action — `agent`, `provider`, `member`, `workflow`.          |
+| Cible           | string   | non    | La ressource précise touchée, par nom ou par id.                                               |
+| Catégorie       | enum     | oui    | Authentification, Membre, Données, Connector, Automatisation, Sécurité, Admin, IA, Skill, Agent. |
 | Statut          | enum     | oui    | Succès, Échec, Refusé.                                                                         |
-| Champs modifiés | JSON     | non    | Le diff entre l'état précédent et le nouveau pour les actions de mise à jour.                  |
+| Erreur          | string   | non    | Le message d'erreur quand l'action a échoué ou a été refusée.                                  |
+
+Le diff entre l'état précédent et le nouveau, la liste des champs modifiés et les éventuelles métadonnées d'usage IA voyagent avec la ligne et s'ouvrent dans sa vue de détail plutôt qu'en colonnes.
 
 ## Filtres
 
-Filtre par plage de dates, catégorie, statut, acteur, ressource ou recherche libre sur les noms d'action. Combine les filtres — une plage de dates plus la catégorie **Sécurité** plus le statut **Refusé** fait remonter les tentatives de connexion ratées sur une fenêtre. L'état des filtres se reflète dans l'URL ; un lien sauvegardé rouvre la même vue.
+Le tableau d'audit porte un seul filtre — **Catégorie**, à choix unique. Le filtre et l'onglet actif se reflètent dans l'URL ; un lien sauvegardé rouvre la même vue. La page se découpe en quatre onglets : **Journaux d'audit** (le tableau que décrit cette page), **Blocages de connexion**, **Journaux d'activité** (un résumé par période avec les compteurs succès, échec et refusé) et **Journaux d'erreurs** ; le filtre de catégorie s'applique sur les onglets audit et erreurs.
 
 ## Exporter
 
-Deux formats d'export sont livrés : CSV pour les tableurs et JSON pour les systèmes en aval. Les deux respectent les filtres actifs — ce que tu exportes est ce que tu vois. Définis les filtres voulus (le filtre mis en pratique ci-dessus est le modèle), puis choisis CSV ou JSON dans la barre d'outils au-dessus du tableau. Les exports volumineux se téléchargent en streaming ; la barre d'outils suit la progression et signale la fin avec la taille du fichier et le nombre de lignes.
+Deux formats d'export sont livrés : CSV pour les tableurs et JSON pour les systèmes en aval. Les deux respectent le filtre de catégorie actif — ce que tu exportes est ce que tu vois. Définis le filtre voulu (le filtre mis en pratique ci-dessus est le modèle), puis choisis CSV ou JSON dans la barre d'outils au-dessus du tableau. L'export se construit côté serveur — jusqu'à 10 000 lignes —, se range avec les fichiers de ton organisation et arrive au navigateur comme lien de téléchargement à courte durée de vie.
 
 Le CSV arrive sous `audit-logs-<timestamp>.csv`, une ligne par action, avec une colonne plate par champ ; les horodatages sont en ISO 8601 (UTC) et toute valeur contenant une virgule est mise entre guillemets :
 
@@ -43,7 +46,7 @@ L'export JSON (`audit-logs-<timestamp>.json`) porte les mêmes lignes en objets 
 
 ## Rétention et intégrité
 
-Les lignes d'audit sont immuables : les modifications et suppressions sont elles-mêmes auditées, et le schéma de ligne porte un hash d'intégrité que tu peux vérifier contre l'export. Une tâche planifiée quotidienne re-vérifie la chaîne de hachage côté serveur et écrit une entrée d'audit `security` si la vérification échoue — ainsi une altération ou une suppression hors bande ressort même si personne ne lance la vérification manuelle. Une vérification en échec déclenche aussi une notification critique dans l'app pour les admins de l'organisation et part vers Slack quand un canal de notification Slack est configuré. La rétention est de 90 jours par défaut et se configure sur la page de politique de rétention (30 à 365 jours). Les lignes qui vieillissent sont retirées par la prochaine passe de nettoyage — il n'y a pas de fenêtre de soft-delete pour les données d'audit.
+Les lignes d'audit sont immuables : les modifications et suppressions sont elles-mêmes auditées, et le schéma de ligne porte un hash d'intégrité que tu peux vérifier contre l'export. Une tâche planifiée quotidienne parcourt la chaîne de hachage côté serveur — ainsi une altération ou une suppression hors bande ressort même si personne ne lance la vérification manuelle. Une vérification en échec déclenche une notification critique dans l'app pour les admins de l'organisation et part vers Slack quand un canal de notification Slack est configuré. Les admins vérifient la chaîne à la demande depuis le panneau **Intégrité de la chaîne** en haut de cette page — il montre le statut courant, la dernière vérification automatique et un bouton **Vérifier maintenant** — et la notification d'une vérification en échec mène droit à la ligne signalée, pour que l'admin atterrisse sur la cassure plutôt qu'en tête du journal. La rétention est de deux ans par défaut et se configure sur la page de politique de rétention — entre un an, le plancher de conformité, et dix. Les lignes qui vieillissent sont retirées par la prochaine passe de nettoyage — il n'y a pas de fenêtre de soft-delete pour les données d'audit.
 
 ## Où cela s'inscrit
 

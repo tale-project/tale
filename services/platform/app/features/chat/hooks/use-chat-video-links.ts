@@ -202,9 +202,13 @@ export function useChatVideoLinks(args: {
           const code = backendErrorCode(err);
           toast({
             title: t('videoLink.toast.ingestFailedTitle'),
-            description: t(
-              code ? `videoLink.errors.${code}` : 'videoLink.errors.generic',
-            ),
+            // defaultValue: an unmapped backend code degrades to the generic
+            // copy instead of rendering a raw i18n key (the chip's pattern).
+            description: code
+              ? t(`videoLink.errors.${code}`, {
+                  defaultValue: t('videoLink.errors.generic'),
+                })
+              : t('videoLink.errors.generic'),
             variant: 'destructive',
           });
           console.error(
@@ -256,9 +260,13 @@ export function useChatVideoLinks(args: {
         const code = backendErrorCode(err);
         toast({
           title: t('videoLink.toast.retryFailedTitle'),
-          description: t(
-            code ? `videoLink.errors.${code}` : 'videoLink.errors.generic',
-          ),
+          // defaultValue: an unmapped backend code degrades to the generic
+          // copy instead of rendering a raw i18n key (the chip's pattern).
+          description: code
+            ? t(`videoLink.errors.${code}`, {
+                defaultValue: t('videoLink.errors.generic'),
+              })
+            : t('videoLink.errors.generic'),
           variant: 'destructive',
         });
         console.error(

@@ -167,10 +167,24 @@ export const TASK_COLUMNS = `
 // Guards
 // ---------------------------------------------------------------------------
 
+/** A project in another org answers as MISSING (the projects-domain
+ * `assertSameOrg` idiom): the role matrix is org-relative, so it must never
+ * run across a foreign project row — an org-A admin is nobody in org B, and
+ * a 403 would confirm the foreign id exists. */
+function assertTaskProjectSameOrg(
+  project: ProjectRow,
+  auth: ProjectAuthContext,
+): void {
+  if (project.organizationId !== auth.organizationId) {
+    throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
+  }
+}
+
 export function assertTaskReadable(
   project: ProjectRow,
   auth: ProjectAuthContext,
 ): void {
+  assertTaskProjectSameOrg(project, auth);
   const access = checkProjectAccess(
     { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
     auth.teamIds,
@@ -185,6 +199,7 @@ export function assertTaskWritable(
   project: ProjectRow,
   auth: ProjectAuthContext,
 ): void {
+  assertTaskProjectSameOrg(project, auth);
   const access = checkProjectAccess(
     { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
     auth.teamIds,
@@ -233,13 +248,17 @@ function assertScheduleOrder(
   }
 }
 
+/** The ONE task-by-id load — always org-scoped: a task in another org answers
+ * exactly like one that does not exist (opaque 404), so a leaked id is worth
+ * nothing across a tenant boundary. */
 export async function loadTaskOrThrow(
   sql: Sql | TransactionSql,
   taskId: string,
+  organizationId: string,
 ): Promise<TaskRow> {
   const rows = await sql<TaskRow[]>`
     SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
-    WHERE id = ${taskId} LIMIT 1
+    WHERE id = ${taskId} AND org_id = ${organizationId} LIMIT 1
   `;
   const task = rows[0];
   if (!task) {
@@ -869,9 +888,6 @@ export async function createTask(
   args: CreateTaskArgs,
 ): Promise<string> {
   const project = await loadProjectOrThrow(tx, args.projectId);
-  if (project.organizationId !== auth.organizationId) {
-    throw new TaskError('ORG_FORBIDDEN', 'Wrong organization', 403);
-  }
   assertTaskWritable(project, auth);
 
   const title = validateTitle(args.title);
@@ -888,7 +904,11 @@ export async function createTask(
   await assertAssigneeValid(tx, { project, auth, assignee });
 
   if (args.parentTaskId) {
-    const parent = await loadTaskOrThrow(tx, args.parentTaskId);
+    const parent = await loadTaskOrThrow(
+      tx,
+      args.parentTaskId,
+      auth.organizationId,
+    );
     if (parent.projectId !== args.projectId) {
       throw new TaskError('TASK_PARENT_PROJECT_MISMATCH', 'Parent mismatch');
     }
@@ -987,7 +1007,7 @@ export async function updateTask(
   auth: ProjectAuthContext,
   args: UpdateTaskArgs,
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, args.taskId);
+  const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -1093,7 +1113,7 @@ export async function updateTaskStatus(
   taskId: string,
   status: TaskStatus,
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -1220,11 +1240,13 @@ export async function agentCreateTaskTrusted(
   const status = args.status ?? 'backlog';
 
   if (args.parentTaskId !== undefined) {
-    const parent = await loadTaskOrThrow(tx, args.parentTaskId);
-    if (
-      parent.organizationId !== args.organizationId ||
-      parent.projectId !== args.projectId
-    ) {
+    // Org-scoped load: a parent id from another org reads as missing.
+    const parent = await loadTaskOrThrow(
+      tx,
+      args.parentTaskId,
+      args.organizationId,
+    );
+    if (parent.projectId !== args.projectId) {
       throw new TaskError('TASK_PARENT_PROJECT_MISMATCH', 'Parent mismatch');
     }
     if (parent.archivedAt !== null) {
@@ -1332,13 +1354,12 @@ export async function agentUpdateTaskStatusTrusted(
   // `AGENTS_CANNOT_COMPLETE` to tell the agent to park at `in_review`
   // instead, and the connector native renders each code as a sentence.
 ): Promise<{ ok: boolean; reason?: string }> {
-  const task = await loadTaskOrThrow(tx, args.taskId);
-  if (task.organizationId !== args.organizationId) {
-    return { ok: false, reason: 'TASK_WRONG_ORGANIZATION' };
-  }
+  // Org-scoped load: a task in another org answers as missing (opaque 404
+  // through the tool bridge) — one refusal shape for foreign and garbage ids.
+  const task = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
   const mintReview = async (): Promise<void> => {
     if (args.review === undefined || args.status !== 'in_review') return;
-    const fresh = await loadTaskOrThrow(tx, args.taskId);
+    const fresh = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
     if (fresh.status !== 'in_review') return;
     await requestTaskReview(tx, {
       task: fresh,
@@ -1407,9 +1428,9 @@ export async function agentUpdateTaskStatusTrusted(
  */
 export async function handTaskToInProgressForKick(
   tx: TransactionSql,
-  args: { taskId: string; userId: string },
+  args: { organizationId: string; taskId: string; userId: string },
 ): Promise<boolean> {
-  const fresh = await loadTaskOrThrow(tx, args.taskId);
+  const fresh = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
   if (fresh.status === 'in_progress') return false;
   await closePendingTaskReviewOnStatusLeave(tx, {
     task: fresh,
@@ -1454,8 +1475,7 @@ export async function agentRecordTaskOutputsTrusted(
   },
 ): Promise<void> {
   if (args.files.length === 0) return;
-  const task = await loadTaskOrThrow(tx, args.taskId);
-  if (task.organizationId !== args.organizationId) return;
+  const task = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
   const next: Array<{
     fileId: string;
     fileName: string;
@@ -1494,7 +1514,7 @@ export async function assignTask(
     assigneeId?: string;
   },
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, args.taskId);
+  const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -1519,7 +1539,7 @@ export async function claimTask(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<{ claimed: boolean; reason?: string }> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -1563,7 +1583,7 @@ export async function moveTask(
     afterTaskId?: string;
   },
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, args.taskId);
+  const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -1649,7 +1669,7 @@ export async function archiveTask(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   if (task.archivedAt !== null) {
@@ -1680,7 +1700,7 @@ export async function restoreTask(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   if (task.archivedAt === null) {
@@ -1716,7 +1736,7 @@ export async function deleteTask(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<{ deletedChildCount: number }> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   if (!['owner', 'admin'].includes(auth.role)) {
@@ -1844,8 +1864,16 @@ export async function addTaskDependency(
   if (args.blockerTaskId === args.blockedTaskId) {
     throw new TaskError('TASK_DEPENDENCY_SELF', 'A task cannot block itself');
   }
-  const blocker = await loadTaskOrThrow(tx, args.blockerTaskId);
-  const blocked = await loadTaskOrThrow(tx, args.blockedTaskId);
+  const blocker = await loadTaskOrThrow(
+    tx,
+    args.blockerTaskId,
+    auth.organizationId,
+  );
+  const blocked = await loadTaskOrThrow(
+    tx,
+    args.blockedTaskId,
+    auth.organizationId,
+  );
   if (blocker.projectId !== blocked.projectId) {
     throw new TaskError(
       'TASK_DEPENDENCY_PROJECT_MISMATCH',
@@ -1900,7 +1928,11 @@ export async function removeTaskDependency(
   auth: ProjectAuthContext,
   args: { blockerTaskId: string; blockedTaskId: string },
 ): Promise<void> {
-  const blocked = await loadTaskOrThrow(tx, args.blockedTaskId);
+  const blocked = await loadTaskOrThrow(
+    tx,
+    args.blockedTaskId,
+    auth.organizationId,
+  );
   const project = await loadProjectOrThrow(tx, blocked.projectId);
   assertTaskWritable(project, auth);
   const deleted = await tx`
@@ -2353,7 +2385,7 @@ export async function getTask(
   canClaim: boolean;
   canComment: boolean;
 }> {
-  const task = await loadTaskOrThrow(sql, taskId);
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   const canEdit = checkProjectAccess(
@@ -2385,7 +2417,7 @@ export async function listSubtasks(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<DecoratedTaskRow[]> {
-  const task = await loadTaskOrThrow(sql, taskId);
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   const rows = await sql<TaskRow[]>`
@@ -2415,7 +2447,7 @@ export async function listTaskActivity(
   taskId: string,
   limit = 100,
 ): Promise<TaskActivityRow[]> {
-  const task = await loadTaskOrThrow(sql, taskId);
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   return sql<TaskActivityRow[]>`
@@ -2578,7 +2610,7 @@ export async function mentionTriggerPreview(
 
   let project: ProjectRow;
   if (args.taskId !== undefined) {
-    const task = await loadTaskOrThrow(sql, args.taskId);
+    const task = await loadTaskOrThrow(sql, args.taskId, auth.organizationId);
     project = await loadProjectOrThrow(sql, task.projectId);
   } else if (args.projectId !== undefined) {
     project = await loadProjectOrThrow(sql, args.projectId);
@@ -2905,7 +2937,7 @@ export async function startTaskAgentRunManual(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<{ started: boolean; reason?: string }> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -3124,7 +3156,7 @@ export async function listTaskDependencies(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<{ blockedBy: DecoratedTaskRow[]; blocks: DecoratedTaskRow[] }> {
-  const task = await loadTaskOrThrow(sql, taskId);
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   const blockedBy = await sql<TaskRow[]>`

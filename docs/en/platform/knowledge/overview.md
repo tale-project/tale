@@ -3,7 +3,7 @@ title: Knowledge
 description: Knowledge is the org's shared library — documents, small facts, crawled websites, and typed records — that agents ground their replies in. This overview names the tabs and points at the per-area pages.
 ---
 
-Knowledge is the area where the org's data lives so agents can read and cite it. Editors curate it once; agents retrieve over it at reply time, which is why an agent in Tale can answer with your reality instead of the model's training data. The area opens on six tabs: **Documents**, **Knowledge entries**, **Websites**, **Products**, **Contacts**, and **Vendors**.
+Knowledge is the area where the org's data lives so agents can read and cite it. Editors curate it once; agents retrieve over it at reply time, which is why an agent in Tale can answer with your reality instead of the model's training data. The area opens on five tabs: **Documents**, **Knowledge entries**, **Websites**, **Products**, and **Contacts**.
 
 Prefer to watch first? Episode 3 walks the whole library in three minutes — indexing, entries, records, the crawler, and scopes, captions included.
 
@@ -19,7 +19,7 @@ Prefer to watch first? Episode 3 walks the whole library in three minutes — in
 
 ## The two shapes
 
-Everything in the area is one of two shapes. **Indexed content** — the files in Documents, the facts in Knowledge entries, the pages a website crawl brings in — runs through the indexing pipeline (extract, chunk, embed, store) so agents retrieve relevant passages and cite them. **Typed records** — Products, Contacts, Vendors — are rows with named fields that agents read as data, not prose: exact values, no retrieval guesswork.
+Everything in the area is one of two shapes. **Indexed content** — the files in Documents, the facts in Knowledge entries, the pages a website crawl brings in — runs through the indexing pipeline (extract, chunk, embed, store) so agents retrieve relevant passages and cite them. **Typed records** — Products and Contacts (the correspondent directory that covers both customers and vendors) — are rows with named fields that agents read as data, not prose: exact values, no retrieval guesswork.
 
 The shape you pick decides how an agent can use the content, which is why [Structured data](/platform/knowledge/structured-data) is a decision page, not just a reference.
 
@@ -57,7 +57,7 @@ Turning a public website into knowledge — domain, scan interval, and the index
 
 <Card title="Structured data" icon="table" href="/platform/knowledge/structured-data">
 
-Contacts, Products, Vendors, Websites — when a typed record beats a document.
+Contacts, Products, Websites — when a typed record beats a document.
 
 </Card>
 

@@ -27,6 +27,7 @@ import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';
 import {
   automationAgentHost,
+  DEFAULT_HARNESS,
   type AutomationAgentHost,
   type WorkflowAgentRequest,
 } from './agent_host';
@@ -977,6 +978,62 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         files: files as Record<string, unknown>,
       }),
     };
+    // Crash-safety guard (the mirror of the already-fixed under-run): a prior
+    // kick may have created this turn's op row and scheduled its start, then
+    // crashed in the kick→suspend window BEFORE the cursor was persisted —
+    // leaving the run 'running' with no cursor. A liveness re-poke re-enters
+    // here; kicking again would run a SECOND agent turn (double LLM spend,
+    // duplicate effects) while the first is still in flight, and the first
+    // turn's settle would be dropped for want of a matching cursor. So if a
+    // still-running op exists for this run, ADOPT it — rebuild the cursor on
+    // its exec and park — instead of kicking. The in-flight turn then settles
+    // into the adopted cursor. Composes with the atomic claim (which already
+    // ensures a single walker re-enters at a time).
+    const liveOp = await run.ctx.runQuery(
+      internal.automations.queries.loadLiveAgentOpForRun,
+      { organizationId: run.organizationId, runId: run.runId },
+    );
+    if (liveOp !== null && liveOp !== undefined) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the query returns exactly this shape (or null)
+      const op = liveOp as {
+        execId: string;
+        sessionId: string;
+        deadlineAt: number;
+        providerSlug: string;
+        gatewayModel: string;
+      };
+      const agent: AgentCursor = {
+        execId: op.execId,
+        sessionId: op.sessionId,
+        deadlineAt: op.deadlineAt,
+        providerSlug: op.providerSlug,
+        gatewayModel: op.gatewayModel,
+        harness: request.harness ?? DEFAULT_HARNESS,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolved request is plain JSON by construction
+        input: request as unknown as Record<string, unknown>,
+      };
+      const cursor: NodeCursor = {
+        node: node.id,
+        index: 0,
+        passes: 0,
+        outs: [],
+        agent,
+      };
+      const waited = await sink.wait({
+        detail: `agent:${node.id}`,
+        cursor,
+        executions: checkpoints.executions,
+        resumeInMs: AGENT_POLL_MS,
+      });
+      if (waited === 'cancelled') return { kind: 'cancelled' };
+      if (waited === 'suspended') {
+        checkpoints.cursor = cursor;
+        return { kind: 'suspended' };
+      }
+      throw new Error(
+        'an agent node cannot run inside a subautomation — hoist it to the top level of the calling automation',
+      );
+    }
     checkpoints.executions++;
     if (checkpoints.executions > DEFAULT_MAX_NODE_EXECUTIONS) {
       throw new Error(
@@ -1225,10 +1282,30 @@ async function stepClaimedRun(
       { organizationId: args.organizationId, runId: args.runId },
     );
     if (!loaded) {
+      // The automation's versions are gone (a force-delete, or a delete that
+      // raced a just-started run). Without a document the run can never step,
+      // so mark it terminal instead of returning 'missing' and leaving it
+      // 'running' — otherwise the liveness sweep re-claims it every ~3min
+      // forever and its sandbox session is never freed. Epoch-fenced like
+      // every other terminal write; the delete guard makes this the rare
+      // race, not the norm.
       console.error(
-        `[automations] run ${args.runId} has no document to execute`,
+        `[automations] run ${args.runId} has no document to execute — failing it terminally`,
       );
-      return { status: 'missing' };
+      const failed = await ctx.runMutation(
+        internal.automations.mutations.finishRun,
+        {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          epoch,
+          status: 'failed',
+          trace: [],
+          effects: [],
+          detail: 'the automation was deleted while this run was in flight',
+          executions: 0,
+        },
+      );
+      return { status: failed.status };
     }
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- documents are validated before they are saved

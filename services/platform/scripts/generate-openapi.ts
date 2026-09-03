@@ -395,7 +395,10 @@ function buildSpec(): Json {
       description:
         'Answers where to send the bytes: `method: "PUT"` is a presigned ' +
         'URL for the organization’s own bucket (bind the returned `s3Ref` ' +
-        'afterwards); `method: "POST"` targets platform storage and answers ' +
+        'afterwards) — a declared `contentType` is signed into the URL, so ' +
+        'the PUT must carry that exact `Content-Type` header (omit ' +
+        '`contentType` and the PUT has no header requirement); ' +
+        '`method: "POST"` targets platform storage and answers ' +
         '`{"storageId": …}` — bind that id. The `uploadId` is a single-use ' +
         'intent valid until `expiresAt` (60 minutes); complete the upload ' +
         'with `POST /api/v1/projects/{id}/files`. Requires the org editor ' +

@@ -3,21 +3,19 @@ title: Backups and restore
 description: Volume snapshots via `tale backup`, the automatic pre-migration snapshot, retention, the off-host copy, and the `tale restore` drill.
 ---
 
-Tale's backup unit is the volume snapshot: a paused, checksummed tar of every data volume in the instance, written into a dedicated `backups` volume that lives next to the data it protects. The CLI takes one automatically before any deploy step that can migrate data, and `tale backup` takes one on demand. Recovery is `tale restore <snapshot-id>` plus a redeploy of the matching version — that pair is the answer to a failed upgrade, and the reason `tale rollback` can afford to refuse anything beyond a patch step.
+Tale's backup unit is the volume snapshot: a paused, checksummed tar of the instance's core data volumes, written into a dedicated `backups` volume that lives next to the data it protects. The CLI takes one automatically before any deploy step that can migrate data, and `tale backup` takes one on demand. Recovery is `tale restore <snapshot-id>` plus a redeploy of the matching version — that pair is the answer to a failed upgrade, and the reason `tale rollback` can afford to refuse anything beyond a patch step.
 
 The architecture context lives in [Container architecture](/self-hosted/operate/container-architecture); this page covers what a snapshot contains, when one is taken, how the copy gets off the host, and the restore walk.
 
 ## What a snapshot contains
 
-| Volume                       | Holds                                           |
-| ---------------------------- | ----------------------------------------------- |
-| `db-data`                    | Postgres — agents, runs, the audit log          |
-| `convex-data`                | Org config, provider secrets, uploaded branding |
-| `rag-data`                   | The vector index built from your documents      |
-| `crawler-data`               | Crawled website knowledge                       |
-| `caddy-data`, `caddy-config` | TLS certificates and proxy state                |
+| Volume                       | Holds                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `db-data`                    | Postgres — the application store (agents, runs, the audit log) and the knowledge corpus (document chunks, embeddings, crawled pages) |
+| `convex-data`                | Org config, provider secrets, uploaded branding                                                                                      |
+| `caddy-data`, `caddy-config` | TLS certificates and proxy state                                                                                                     |
 
-Each snapshot is a directory named like `20260611-142530-deploy` inside the project's `backups` volume: one `.tar.gz` per volume, a `.sha256` sidecar each, and a `manifest.json` written last. A directory without a manifest is an incomplete snapshot — it never shows up in listings and can never be restored. Two things live outside the volumes and need separate capture: the project workspace (the directory holding `tale.json`) and `.env`.
+Each snapshot is a directory named like `20260611-142530-deploy` inside the project's `backups` volume: one `.tar.gz` per volume, a `.sha256` sidecar each, and a `manifest.json` written last. A directory without a manifest is an incomplete snapshot — it never shows up in listings and can never be restored. The snapshot deliberately skips `object-store-data` — the blob store holding uploaded files and generated media — so those blobs need their own off-host capture, alongside the two things that live outside the volumes entirely: the project workspace (the directory holding `tale.json`) and `.env`.
 
 ## When snapshots are taken
 

@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { authorizeRls } from '../../auth/access.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -10,6 +11,7 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import {
+  assertDocumentsWriteRole,
   assertDocumentVisible,
   DocumentError,
   hasKnowledgeHubDocumentAccess,
@@ -143,13 +145,14 @@ function requireControlledRecord(doc: DocumentRow): ControlledRecord {
   return record;
 }
 
-/** The document-write standard (public updateDocument): visible + project
- * canEdit for project files. */
+/** The document-write standard (public updateDocument): org-role write
+ * matrix, visible, + project canEdit for project files. */
 async function requireDocumentWriteAccess(
   db: Sql | TransactionSql,
   auth: ProjectAuthContext,
   documentId: string,
 ): Promise<DocumentRow> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(db, documentId);
   await assertDocumentVisible(db, auth, doc);
   if (doc.projectId !== null) {
@@ -247,8 +250,10 @@ async function userTeamIds(
 /**
  * Whether `userId` could RESPOND to a review on this document — the single
  * rule behind the submit designee gate AND the reviewer picker: a
- * non-disabled member who can see the document (team scope), with edit
- * access to the owning project for project files.
+ * write-capable role (responding transitions the record, and
+ * `respondToDocumentRecordReview` enforces the same matrix — a designee who
+ * could never respond would strand the review) who can see the document
+ * (team scope), with edit access to the owning project for project files.
  */
 export async function isEligibleDocumentReviewer(
   db: Sql | TransactionSql,
@@ -256,7 +261,7 @@ export async function isEligibleDocumentReviewer(
   userId: string,
 ): Promise<boolean> {
   const role = await memberRole(db, doc.organizationId, userId);
-  if (role === null || role.toLowerCase() === 'disabled') return false;
+  if (role === null || !authorizeRls(role, 'documents', 'write')) return false;
   const teamIds = await userTeamIds(db, userId);
   if (doc.projectId !== null) {
     const project = await loadProjectOrThrow(db, doc.projectId);

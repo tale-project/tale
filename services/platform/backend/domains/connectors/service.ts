@@ -96,8 +96,7 @@ function pgTaskStore(sql: Sql): WorkflowTaskStore {
   return {
     async get({ organizationId, taskId }) {
       try {
-        const task = await loadTaskOrThrow(sql, taskId);
-        if (task.organizationId !== organizationId) return null;
+        const task = await loadTaskOrThrow(sql, taskId, organizationId);
         return {
           taskId: task.id,
           title: task.title,
@@ -200,8 +199,11 @@ function pgConversationStore(sql: Sql): WorkflowConversationStore {
     return ctx as unknown as Parameters<typeof syncMailbox>[0];
   };
   return {
-    ingestEmails: (args) => ingestEmails(shim(), args),
-    ingestSentEmails: (args) => ingestSentEmails(shim(), args),
+    // The native returns the ingest result; the ingestedTip rides alongside it
+    // for the sync watermark only, so the workflow-facing binding drops it.
+    ingestEmails: (args) => ingestEmails(shim(), args).then((o) => o.result),
+    ingestSentEmails: (args) =>
+      ingestSentEmails(shim(), args).then((o) => o.result),
     querySyncCursor: (args) => querySyncCursor(shim(), args),
     syncMailbox: (args) => syncMailbox(shim(), args),
     listMailboxMessages: (args) => listMailboxMessages(shim(), args),

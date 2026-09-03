@@ -10,11 +10,12 @@ export interface SpawnerConfig {
   // 'kubernetes' runs each execution as a Pod (Helm, Phase 2).
   backend: 'docker' | 'kubernetes';
   port: number;
-  // Token policy: opt-in verification. When null, the spawner skips HMAC
-  // checks on every route (a single warn at boot logs the state). When
-  // set, the wire path enforces signatures. Set by `loadConfig()` once
-  // at boot from `SANDBOX_TOKEN`; empty-string is treated as null.
-  sandboxToken: string | null;
+  // The shared HMAC secret (env SANDBOX_TOKEN) every state-changing route is
+  // verified against, and the key the per-session runnerd tokens derive from.
+  // REQUIRED: `loadConfig()` refuses to boot when it is unset or blank — there
+  // is no unsigned mode (the spawner holds the host docker socket and sits on
+  // the network every session container shares).
+  sandboxToken: string;
   runtimeImage: string;
   // Deployment-level container runtime tier (env SANDBOX_RUNTIME; default
   // 'runc'). Resolves to the docker `--runtime` value and the k8s

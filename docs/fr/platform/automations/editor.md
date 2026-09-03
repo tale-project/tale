@@ -29,7 +29,7 @@ Le canvas sert à lire et à sélectionner. Tu relies des nœuds en les référe
 
 ## Modifier un nœud
 
-Clique sur une boîte et le panneau à côté du canvas passe de **Déclencheur** aux champs de ce nœud. Clique sur **Fermer**, appuie sur Échap (quand tu ne tapes pas dans un champ), clique à nouveau sur la boîte, ou sur le canvas vide, pour revenir. Les champs affichés dépendent du type : **Code** pour un `transform`, **Prompt**, **Prompt système**, **Modèle** et **Schéma de sortie** pour un `llm`, **Workflow** pour un `subworkflow`, et **Entrée** partout où il y en a une. Les champs propres au type se trouvent au-dessus de **Entrée**.
+Clique sur une boîte et le panneau à côté du canvas passe de **Déclencheur** aux champs de ce nœud. Clique sur **Fermer**, appuie sur Échap (quand tu ne tapes pas dans un champ), clique à nouveau sur la boîte, ou sur le canvas vide, pour revenir. Les champs affichés dépendent du type : **Code** pour un `transform`, **Prompt**, **Prompt système**, **Modèle** et **Schéma de sortie** pour un `llm`, **Automatisation** pour une `subautomation`, et un `agent` ajoute son équipement — **Harness**, **Skills**, **Connectors**, **Outils de la plateforme**, **Secrets** et **Fichiers fournis** — au prompt et au modèle qu’il partage avec `llm`. **Entrée** apparaît partout où il y en a une, et les champs propres au type se trouvent au-dessus.
 
 **Entrée** est un objet JSON, et c’est là que vivent les références. Une valeur texte peut référencer la sortie d’un autre nœud, et c’est précisément cette référence qui trace la flèche sur le canvas. Tant que le JSON est incomplet, le panneau te dit qu’il n’est pas encore valide et laisse le nœud inchangé : une modification à moitié tapée ne peut donc jamais être enregistrée par accident.
 

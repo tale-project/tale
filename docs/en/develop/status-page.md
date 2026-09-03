@@ -21,11 +21,11 @@ The RSS feed carries every state change — open, update, resolved — for every
 
 | Service    | What it covers                                                                     | When it goes red                                 |
 | ---------- | ---------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `platform` | The TanStack Start + Convex application — agents, workflows, connectors, UI.       | UI unreachable; API returns 5xx; auth broken.    |
+| `platform` | The TanStack Start + Hono application — agents, workflows, connectors, UI.         | UI unreachable; API returns 5xx; auth broken.    |
 | `rag`      | The Python FastAPI document-processing service — indexing, retrieval.              | Document uploads stall; retrieval is empty.      |
 | `crawler`  | The Crawl4AI web-extraction service — used by document ingest and Tavily fallback. | Web-pulled documents fail; deep research stalls. |
 | `proxy`    | The Caddy edge — TLS termination, HTTP routing.                                    | All Tale Cloud traffic affected.                 |
-| `db`       | TimescaleDB — durable state for the Convex layer and platform metadata.            | Writes refused; the platform row also goes red.  |
+| `db`       | Postgres — durable state for the platform and its metadata.                        | Writes refused; the platform row also goes red.  |
 
 Each row carries the last 90 days of uptime as a sparkline. An incident reads as a coloured band on the row; clicking the band opens the timeline — first update, follow-ups, resolution, post-mortem when one is owed.
 
@@ -37,7 +37,7 @@ The page is owned by the on-call rotation. Updates are pushed by the engineer ho
 
 ## Self-hosted: what changes
 
-Self-hosted instances do not appear on `status.tale.dev` — that page covers Tale Cloud. Each deployment ships its own status page instead, served by the platform and reachable without signing in at `https://<your-host>/status`. It renders a server-side health summary — operational, degraded, or outage — from a liveness probe against the Convex backend, so an operator (or an end user checking whether it is just them) can read availability without a login. The machine-readable form is `https://<your-host>/status.json`, which returns the same result as JSON for an uptime monitor to poll.
+Self-hosted instances do not appear on `status.tale.dev` — that page covers Tale Cloud. Each deployment ships its own status page instead, served by the platform and reachable without signing in at `https://<your-host>/status`. It renders a server-side health summary — operational, degraded, or outage — from a liveness probe against the backend, so an operator (or an end user checking whether it is just them) can read availability without a login. The machine-readable form is `https://<your-host>/status.json`, which returns the same result as JSON for an uptime monitor to poll.
 
 That page reports the availability of the deployment itself. For deeper operational signal — container health from `tale status`, request metrics from the Caddy logs, and control-plane events in the in-product audit log — the [observability troubleshooting page](/self-hosted/operate/observability/troubleshooting) maps symptoms to logs.
 

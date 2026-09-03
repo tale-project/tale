@@ -9,7 +9,7 @@ Le modèle de ce qu’est une carte d’approbation et de qui la décide vit sur
 
 ## Opérations d’connector
 
-Chaque connector déclare ses opérations, et chaque opération porte son propre drapeau d’approbation. Ouvre **Paramètres > Connectors**, clique sur une connector, et sa liste d’opérations badge celles marquées **Nécessite une approbation** — pour les connecteurs livrés, c’est le versant écriture : envoyer du courrier, poster des messages, créer des tickets. Les lectures s’exécutent sans carte ; les écritures marquées tiennent dans le chat avec leurs paramètres exacts jusqu’à ce que quelqu’un approuve.
+Chaque connector déclare ses opérations, et chaque opération porte son propre drapeau d’approbation — pour les connecteurs livrés, c’est le versant écriture : envoyer du courrier, poster des messages, créer des tickets. Les lectures s’exécutent sans carte ; les écritures marquées tiennent dans le chat avec leurs paramètres exacts jusqu’à ce que quelqu’un approuve.
 
 Le drapeau n’est pas un réglage séparé qu’un administrateur bascule. Chaque action déclarée par un connecteur porte un effet — `read` ou `write` — et c’est le versant écriture que la politique d’approbation retient. Cela garde les deux honnêtes l’un envers l’autre : une action ne peut pas passer discrètement d’une lecture à une écriture sans changer aussi ce pour quoi elle doit demander.
 
@@ -40,7 +40,7 @@ Une opération déjà en attente sur une carte garde sa carte même si la politi
 
 ## Outils MCP
 
-Le manifeste d’un serveur MCP marque lesquels de ses outils exigent un accord. Ouvre **Paramètres > API > MCP**, déplie un serveur, et sa liste **Outils découverts** badge chaque outil marqué avec **Nécessite une approbation** — ceux-là demandent dans le chat chaque fois qu’un agent les appelle. Le drapeau vient de l’auteur du serveur ; connecter un serveur, c’est accepter son contrat d’outils, donc relis la liste avant d’en activer un. [Serveurs MCP](/fr/platform/connectors/mcp-servers) couvre l’enregistrement.
+Le manifeste d’un serveur MCP marque lesquels de ses outils exigent un accord — ceux-là demandent dans le chat chaque fois qu’un agent les appelle. Le drapeau vient de l’auteur du serveur ; connecter un serveur, c’est accepter son contrat d’outils, donc relis sa liste d’outils avant d’en brancher un. [Serveurs MCP](/fr/platform/connectors/mcp-servers) couvre la façon dont les serveurs atteignent tes agents.
 
 ## Garde-fous d’écriture intégrés
 
@@ -58,7 +58,7 @@ Le levier pour celles-ci n’est pas le drapeau d’approbation mais la capacit�
 
 ## Vérifier ce qui demandera
 
-Avant de mettre un agent devant de vrais systèmes, lis ses capacités comme le ferait un approbateur : la liste d’opérations de l’connector pour les écritures marquées, les **Outils découverts** du serveur MCP pour les outils marqués, et l’onglet outils de l’agent pour savoir s’il tient des outils d’écriture tout court. Le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre ensuite chaque décision que produit l’installation.
+Avant de mettre un agent devant de vrais systèmes, lis ses capacités comme le ferait un approbateur : quelles actions d’écriture ses connectors déclarent, quels outils ses serveurs MCP marquent, et si l’agent tient des outils d’écriture tout court. Le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre ensuite chaque décision que produit l’installation.
 
 ## Où cela s’inscrit
 

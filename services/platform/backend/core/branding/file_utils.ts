@@ -104,6 +104,27 @@ export function validateImageFilename(filename: string): boolean {
   return ALLOWED_IMAGE_EXTENSIONS.has(ext);
 }
 
+/**
+ * Best-effort detector for ACTIVE content in an SVG upload: script elements
+ * (namespace-prefixed included), `on*=` event-handler attributes, and
+ * `javascript:` URLs. Branding accepts SVG logos from org admins, and an SVG
+ * is a full document when navigated to — this rejects the obvious scripting
+ * vectors at intake with a clear error instead of storing them.
+ *
+ * DEFENSE LAYERING: this is a UX nicety, not the guarantee. XML entity
+ * tricks can smuggle markup past any regex — the guarantee is the serving
+ * side, which delivers branding images under `Content-Security-Policy:
+ * sandbox` so a navigated SVG can never script (see server.ts and
+ * vite-plugins/serve-branding-images.ts).
+ */
+export function svgHasActiveContent(svgText: string): boolean {
+  return (
+    /<\s*(?:[a-z0-9]+:)?script[\s>/]/i.test(svgText) ||
+    /\bon\w+\s*=/i.test(svgText) ||
+    /javascript\s*:/i.test(svgText)
+  );
+}
+
 export function mimeToExtension(mimeType: string): string | null {
   const map: Record<string, string> = {
     'image/png': 'png',

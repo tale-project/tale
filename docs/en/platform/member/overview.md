@@ -12,7 +12,7 @@ This overview names what a Member can do and points at the per-feature pages. Me
 The Member surface is intentionally narrow. The four buckets are:
 
 - **Chat** — pick an agent (or none), send a message, read the reply. The chat surfaces the skill library, attachments, voice mode, arena mode for side-by-side comparison, and the Canvas pane when a reply produces more than the chat can hold inline.
-- **Knowledge** — browse documents, contacts, products, vendors, websites the org has loaded. Read-only for Members; the curating happens on the Editor side.
+- **Knowledge** — browse documents, contacts, products, websites the org has loaded. Read-only for Members; the curating happens on the Editor side.
 - **Inbox** — reply in the **Inbox** tab an installed email automation adds. Members answer when an agent hands a conversation back; installing the automation itself is an admin action.
 - **Approvals** — read the approval cards routed to you. Click Approve, Reject, or Request changes; leave a comment if the rule asks for one.
 

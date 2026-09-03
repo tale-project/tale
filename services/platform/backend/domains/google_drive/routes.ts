@@ -3,7 +3,11 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
-import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
+import {
+  requireOrgAbility,
+  requireOrgMember,
+  type OrgEnv,
+} from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { importFiles } from '../../core/google_drive/import_files.ts';
 import { listFiles } from '../../core/google_drive/list_files.ts';
@@ -17,7 +21,9 @@ import {
 /**
  * /api/app/google-drive — the Knowledge Google Drive browse + import
  * surface (the 0.4 `google_drive/actions` + `mutations.cancelSyncConfig`).
- * Membership-gated like 0.4; tokens are grant-only and never reach the
+ * The whole surface exists to write Knowledge documents, so it sits behind
+ * `knowledgeWrite` — the same gate the cloud-import OAuth start enforces and
+ * the UI hides the import behind. Tokens are grant-only and never reach the
  * client. Native Google Workspace files are excluded by the reused listers.
  */
 
@@ -53,7 +59,11 @@ export function createGoogleDriveRoutes(deps: {
   auth: Auth;
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
-  app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+  app.use(
+    requireSession(deps.auth),
+    requireOrgMember(deps.sql),
+    requireOrgAbility('write', 'knowledgeWrite'),
+  );
 
   const tokenFor = async (c: Context<OrgEnv>) =>
     resolveDriveTokenForUser(deps.sql, {

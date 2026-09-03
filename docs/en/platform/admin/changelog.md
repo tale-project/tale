@@ -5,13 +5,13 @@ description: The in-product release viewer that surfaces what changed in the Tal
 
 The changelog is the in-product viewer that surfaces release notes for the Tale platform itself — not for content your members produce. After a self-hosted upgrade or a managed-cloud rollout, the viewer lists what changed between the previous version and the one running now. Admins read it after an upgrade to brief the team and to flag anything that affects how members work.
 
-The viewer reads release notes from the Tale repository on GitHub and caches them inside your instance so the page loads even when GitHub is unreachable.
+The viewer reads release notes from the Tale repository on GitHub and caches each page for an hour, so repeat visits do not refetch — a cold cache still needs GitHub to be reachable.
 
 ## Where the changelog lives
 
-The changelog has two surfaces. The **What's new** page under **Help** lists every recent release with its full notes. The **upgrade toast** fires once per major-version bump and links straight to the page — the toast shows `Upgraded to v<version>` and stays until dismissed so a member who was away does not miss the heads-up.
+The changelog has two surfaces. The **What's new** page lists every recent release with its full notes. The **upgrade toast** fires once per version bump and links straight to the page — the toast shows `Upgraded to v<version>` with a **View** action and dismisses itself after a few seconds; a dot on your avatar persists until you actually open the notes, so a member who was away does not miss the heads-up.
 
-Open the page from the help menu in the top bar, or from the upgrade toast when it appears. The page caches up to roughly thirty recent releases; older ones link out to the GitHub release history.
+Open the page from your user menu — its footer names the running version and links **What's new** — or from the upgrade toast when it appears. The page fetches up to roughly thirty recent releases; older ones link out to the GitHub release history.
 
 ## What each entry shows
 
@@ -25,9 +25,9 @@ The viewer is read-only and visible to every signed-in member. There is no Admin
 
 ## A worked upgrade
 
-After a self-hosted upgrade from `v0.42` to `v0.45`, sign in and look for the upgrade toast in the top right. Click **View** to open the changelog page. The page shows three release entries (`v0.43`, `v0.44`, `v0.45`) newest first, each with the engineer-written notes from the GitHub release. Skim the highlights, share the link with the team if anything needs a wider audience, and the toast clears the next time you reload.
+After a self-hosted upgrade from `v0.42` to `v0.45`, sign in and look for the upgrade toast in the top right. Click **View** to open the changelog page. The page shows three release entries (`v0.43`, `v0.44`, `v0.45`) newest first, each with the engineer-written notes from the GitHub release. Skim the highlights, share the link with the team if anything needs a wider audience; the toast fires only once per version, and the dot on your avatar clears once you have opened the notes.
 
-When the upgrade spans more than the cached window, the page shows the most recent entries with a banner that links to GitHub for the earlier notes. The cache stays warm for the next reader on your instance.
+When the upgrade spans more than the fetched window, the page shows the most recent entries with a banner that links to GitHub for the earlier notes. The cache stays warm for the next reader on your instance.
 
 ## Where this fits
 

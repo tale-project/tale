@@ -1,9 +1,9 @@
 ---
 title: Équipes
-description: Les équipes sont des groupes nommés de membres qui partagent l’accès aux agents, prompts, projets et connectors. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle.
+description: Les équipes sont des groupes nommés de membres qui partagent l’accès aux documents, projets, skills et conversations. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle.
 ---
 
-Une équipe est un groupe nommé de membres qui partage l’accès aux agents, prompts, projets, connectors et conversations. Là où les rôles définissent ce qu’une personne _peut_ faire, les équipes définissent dans quelle tranche des données de l’org cette personne travaille. La plupart des orgs finissent avec une poignée d’équipes — support, ventes, opérations — et la plupart des décisions quotidiennes de permission atterrissent sur la frontière équipe, pas sur la frontière rôle. Les Administrateurs gèrent les équipes sous **Paramètres > Équipes**.
+Une équipe est un groupe nommé de membres qui partage l’accès aux documents, projets, skills et conversations. Là où les rôles définissent ce qu’une personne _peut_ faire, les équipes définissent dans quelle tranche des données de l’org cette personne travaille. La plupart des orgs finissent avec une poignée d’équipes — support, ventes, opérations — et la plupart des décisions quotidiennes de permission atterrissent sur la frontière équipe, pas sur la frontière rôle. Les Administrateurs gèrent les équipes sous **Paramètres > Équipes**.
 
 Cette page est la référence pour ce qu’une équipe possède, comment marche l’appartenance, et comment la frontière équipe interagit avec les permissions basées sur les rôles documentées sous [Membres et rôles](/fr/platform/admin/members-and-roles). Lis-la une fois quand tu mets les équipes de l’org en place ; reviens quand tu réorganises.
 
@@ -17,19 +17,18 @@ Cette page est la référence pour ce qu’une équipe possède, comment marche 
 
 Une équipe porte l’appartenance et un ensemble de ressources qui lui sont cadrées. Les ressources sont :
 
-- **Agents** — les agents créés avec un cadre d’équipe ne sont visibles et éditables que par les membres de cette équipe. Les agents à l’échelle de l’org restent visibles pour quiconque a le bon rôle.
-- **Prompts** — les prompts enregistrés avec visibilité `Équipe` n’apparaissent que pour les membres de cette équipe. Les prompts personnels restent privés à leur propriétaire ; les prompts Globaux sont visibles à l’échelle de l’org.
-- **Projets** — les projets peuvent être assignés à une équipe ; les membres de l’équipe héritent de l’accès au projet sans être ajoutés un par un.
-- **Connectors** — les connectors restreintes à certaines équipes (sous le levier **Équipes autorisées** dans **Paramètres > Connectors**) n’apparaissent que dans les pickers de ces équipes.
+- **Documents et dossiers** — un document ou un dossier cadré sur une équipe n’est visible et éditable que par les membres de cette équipe. Les documents à l’échelle de l’org restent visibles pour quiconque a le bon rôle.
+- **Projets** — un projet peut être assigné à une équipe et partagé avec d’autres ; les membres des équipes héritent de l’accès au projet sans être ajoutés un par un.
+- **Skills** — un skill enregistré avec visibilité équipe n’apparaît qu’aux membres de ces équipes ; les onglets de la bibliothèque de skills séparent **Organisation**, **Équipes** et **Personnel**.
 - **Conversations** — une conversation peut être assignée à une équipe autant qu’à un responsable individuel, depuis le sélecteur d’assignation de son en-tête. La visibilité suit cette assignation : une file d’équipe est visible pour les membres de cette équipe, une assignation personne pour cette personne, et les administrateurs et propriétaires voient tout. Les conversations vraiment non assignées (ni personne ni équipe) restent aux admins pour le triage — associe cela au [Routage des conversations](/fr/platform/admin/governance/policies-and-limits#routage-des-conversations) pour que le courrier entrant atterrisse dans une équipe dès l’arrivée.
 
 Une ressource sans cadre équipe reste visible pour quiconque dont le rôle l’autorise. Les équipes sont une couche de cadrage _additive_ — elles rétrécissent la visibilité, jamais ne l’élargissent.
 
 ## Créer une équipe
 
-Ouvre **Paramètres > Équipes** et clique sur **Créer une équipe**. Donne à l’équipe un nom (`Support`, `Ventes`, `Opérations`) et une description optionnelle ; le nom apparaît partout où l’équipe surgit — pickers, badges, accès aux documents cadré par équipe et champ d’assignation d’un projet. Enregistrer crée une équipe vide que tu peux remplir de membres depuis la ligne de l’équipe.
+Ouvre **Paramètres > Équipes** et clique sur **Créer une équipe**. Donne à l’équipe un nom (`Support`, `Ventes`, `Opérations`) et coche ses premiers membres dans la liste — laisse-la vide et tu es ajouté automatiquement, car une équipe doit garder au moins un membre. Le nom apparaît partout où l’équipe surgit : pickers, badges, accès aux documents cadré par équipe et champ d’assignation d’un projet.
 
-La ligne de l’équipe porte trois sous-vues : **Membres** (qui est dans l’équipe), **Ressources** (ce que l’équipe possède) et **Paramètres** (nom, description et cycle de vie de l’équipe). La vue Ressources est la façon la plus simple de voir jusqu’où une équipe peut atteindre ; elle sert aussi de surface d’audit quand quelqu’un demande pourquoi une équipe voit un agent particulier.
+La ligne de l’équipe porte les actions du quotidien : **Membres** gère qui est dans l’équipe, **Modifier l'équipe** la renomme, **Supprimer l'équipe** la retire. Ce qu’une équipe peut atteindre découle des endroits où elle est choisie — le cadre d’accès d’un document, l’assignation d’un projet, la visibilité d’un skill.
 
 ## Ajouter et retirer des membres
 
@@ -37,13 +36,13 @@ Ouvre la ligne de l’équipe et clique sur **Ajouter des membres**. Le picker l
 
 ## Équipe versus rôle
 
-Le rôle décide ce qu’une personne peut faire ; l’équipe décide à quoi elle peut le faire. Un utilisateur de rôle Membre dans l’équipe Support peut lire les agents de l’équipe support mais ne peut pas les éditer ; un utilisateur de rôle Développeur dans l’équipe Support peut lire et écrire les agents de l’équipe support mais ne peut pas voir ceux des Ventes. Les équipes n’accordent jamais des capacités que le rôle n’a pas ; les rôles n’élargissent jamais la visibilité au-delà du cadre équipe.
+Le rôle décide ce qu’une personne peut faire ; l’équipe décide à quoi elle peut le faire. Un utilisateur de rôle Membre dans l’équipe Support peut lire les documents de l’équipe support mais ne peut pas les éditer ; un utilisateur de rôle Éditeur dans l’équipe Support peut les lire et les écrire mais ne peut pas voir ceux des Ventes. Les équipes n’accordent jamais des capacités que le rôle n’a pas ; les rôles n’élargissent jamais la visibilité au-delà du cadre équipe.
 
 Quand tu as besoin d’une décision de permission que les rôles et équipes existants ne peuvent pas exprimer, le levier suivant est une politique de gouvernance — voir [Membres et rôles](/fr/platform/admin/members-and-roles) pour comment les politiques s’attachent aux rôles, et la section gouvernance pour les champs de politique eux-mêmes.
 
 ## Supprimer une équipe
 
-Clique la ligne de l’équipe, puis **Supprimer l'équipe**. La suppression est définitive — l’équipe est partie, chaque ressource cadrée équipe qu’elle possédait passe à la visibilité à l’échelle de l’org, et les membres perdent la tranche cadrée équipe de leur accès. Pas d’annulation ; les ressources orphelines restent joignables par quiconque dont le rôle l’autorise, ce qui est rarement le bon résultat. Va vers supprimer quand une équipe est vraiment retirée, pas quand elle se réorganise.
+Clique la ligne de l’équipe, puis **Supprimer l'équipe**. La suppression est définitive — l’équipe est partie, tous ses membres en sont retirés, et ils perdent la tranche cadrée équipe de leur accès. Pas d’annulation. Va vers supprimer quand une équipe est vraiment retirée, pas quand elle se réorganise.
 
 ## Où cela s’inscrit
 

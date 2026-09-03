@@ -43,9 +43,12 @@ Trusted Headers ist der Modus für Sites, die SSO an einem vorgelagerten Reverse
 ```bash
 # .env
 TRUSTED_HEADERS_ENABLED=true
+TRUSTED_HEADERS_INTERNAL_SECRET=<langer zufälliger Wert>
 ```
 
-Das Bedrohungsmodell ist heikel. Alles, was den Plattform-Container mit diesen Headern erreichen kann, wird zum Benutzer, der in ihnen genannt ist. Beschränke den Plattform-Port so, dass nur der Proxy mit ihm sprechen kann (ein Docker-Netzwerk oder eine Host-Firewall-Regel), und exponier den Plattform-Container nie direkt zum Internet, wenn dieser Modus an ist.
+Das Secret ist keine Option: Die Identitäts-Header kann jeder fälschen, der das Backend erreicht — deshalb verweigert der Endpunkt den Dienst, bis `TRUSTED_HEADERS_INTERNAL_SECRET` gesetzt ist. Konfiguriere den authentifizierenden Proxy so, dass er denselben Wert bei jeder Anfrage an Tale im Header `Remote-Internal-Secret` mitschickt (der Header-Name lässt sich über `TRUSTED_SECRET_HEADER` umbenennen, falls dein Proxy eigene Namen vorgibt) — eine Anfrage ohne den passenden Wert wird abgewiesen, bevor irgendein Benutzer nachgeschlagen wird.
+
+Das Bedrohungsmodell bleibt heikel. Alles, was den Plattform-Container mit diesen Headern **und** dem Secret erreichen kann, wird zum Benutzer, der in ihnen genannt ist. Beschränke den Plattform-Port so, dass nur der Proxy mit ihm sprechen kann (ein Docker-Netzwerk oder eine Host-Firewall-Regel), und exponier den Plattform-Container nie direkt zum Internet, wenn dieser Modus an ist.
 
 ## Wo das hingehört
 

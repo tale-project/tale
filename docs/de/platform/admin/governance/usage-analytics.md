@@ -7,24 +7,22 @@ Nutzungs-Analyse ist das Dashboard, das jeden abrechenbaren AI-Aufruf in einer e
 
 ## Eine durchgespielte Detailansicht
 
-Öffne **Einstellungen > Richtlinien > Nutzung**. Die Default-Ansicht sind die letzten 30 Tage, org-weit, mit den drei Kennzahlen-Zählern — Tokens insgesamt, Kosten insgesamt in USD, Anfragen insgesamt. Wechsle die Aufschlüsselung auf **Nach Benutzer**, um die größten Verbraucher zu finden, **Nach Modell**, um ein teures Primärmodell mit einem günstigeren Fallback zu vergleichen, oder **Nach Agent**, um den Agent zu finden, der die Last treibt. Jede Zeile öffnet eine Per-Zeile-Zeitreihe; die Diagrammachse folgt der gewählten Periode.
+Öffne **Einstellungen > Metriken > Nutzung**. Die Default-Ansicht sind die letzten 30 Tage, org-weit, mit den Kennzahlen-Zählern — Anfragen, Tokens, Kosten und aktive Benutzer — über dem Nutzungs-Trend. Lies **Nutzung pro Benutzer**, um die größten Verbraucher zu finden, **Top-Modelle**, um ein teures Primärmodell mit einem günstigeren Fallback zu vergleichen, oder **Top-Assistenten**, um den Assistenten zu finden, der die Last treibt. Der Perioden-Schalter (7, 30 oder 90 Tage) treibt alle Abschnitte zugleich.
 
 ## Die Dimensionen
 
-- **Benutzer** — jedes Mitglied, das einen abrechenbaren Aufruf ausgelöst hat. Paare mit dem Team- oder Rollenfilter, um die Ansicht einzugrenzen.
-- **Team** — aggregiert über Team-Mitglieder; nützlich, wenn Budgets team-gebunden sind.
-- **Rolle** — Inhaber, Admin, Entwickler, Redakteur, Mitglied.
-- **Modell** — jedes Modell, das eine Antwort erzeugt hat, gruppiert nach Anbieter.
-- **Agent** — jeder benannte Agent (die Rangliste sortiert nach Token-Volumen, Kosten oder Anfragenzahl).
-- **Zeit** — täglicher Trend für kurze Fenster, wöchentlich für längere.
+- **Benutzer** — jedes Mitglied, das einen abrechenbaren Aufruf ausgelöst hat, mit Tokens, Kosten und Anfragen.
+- **Modell** — jedes Modell, das eine Antwort erzeugt hat; Sprachmodelle halten ihre eigene Rangliste.
+- **Assistent** — jeder Assistent mit zugeordneter Nutzung.
+- **Zeit** — der Trend-Chart folgt dem gewählten Fenster: 7, 30 oder 90 Tage.
 
 ## Das Kostenmodell
 
 Kosten sind eine Schätzung. Jede Anfrage landet im Nutzungsbuch mit Eingabe-Tokens, Ausgabe-Tokens, dem veröffentlichten Preis des Modells pro Million Tokens und der Wanduhr-Dauer. Das Dashboard multipliziert Tokens mit Preis; Bildgenerierungsaufrufe landen mit einem Per-Bild-Preis, den der Anbieter zurückgibt. Die Zeile im Nutzungsbuch ist die Quelle der Wahrheit, und das [Audit-Log](/de/platform/admin/governance/audit-logs) trägt Akteur und Zeitstempel der Zeile für den Quervergleich.
 
-## Budget-Überlagerungen
+## Budgets und Nutzung
 
-Wenn [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) ein Budget für einen Bereich hat, überlagert das Nutzungs-Diagramm das Limit als horizontale Linie. Beim Hovern auf einen Punkt erscheint der verbrauchte Anteil des Limits und der projizierte Monatsendwert basierend auf dem aktuellen Trend. Das Überschreiten der Warnschwelle färbt die Reihe orange; das Überschreiten des Limits färbt sie rot und zeigt die Budget-überschritten-Ereignisse als Marker auf der Zeitachse.
+Budgets leben unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits); dieses Dashboard ist der Ort, an dem du nachverfolgst, was sie getrieben hat. Feuert im Chat eine Budget-Warnung oder ein Budget-überschritten-Hinweis, beantworten die Tabellen pro Benutzer und pro Modell hier die Anschlussfrage — wer hat es ausgegeben, auf welchem Modell, über welche Tage.
 
 ## Aufbewahrung von Nutzungs-Zeilen
 

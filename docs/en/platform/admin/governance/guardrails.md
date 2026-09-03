@@ -13,7 +13,7 @@ Guardrails is the surface where you configure the three filter layers Tale runs 
 
 ## A worked layering
 
-To configure the layers, open **Settings > Governance > Guardrails**. The overview shows three status cards, one per layer — content safety, PII detection, moderation. Each card links to its own configuration page where you pick whether the layer runs on input, on output, or both, and what it does on a match (block the message, mask the match, or flag and pass). The recent-events table at the bottom of the overview shows the last 50 detections, blocks, and provider errors with their layer, direction, and match category.
+To configure the layers, open **Settings > Governance > Guardrails**. The overview shows three status cards, one per layer — content safety, PII detection, moderation — and each layer's editor sits further down the same page, where you pick whether the layer runs on input, on output, or both, and what it does on a match. The org's mandatory custom instructions live here too — they constrain every agent, so they sit with the other content controls. The recent-events table under the overview shows the last 50 detections, blocks, and provider errors with their layer, direction, and match category.
 
 ## Content safety
 
@@ -23,7 +23,7 @@ The layer's word lists and patterns never leave the deployment. Matched text is 
 
 ## PII detection
 
-PII detection ships with patterns for emails, phones, government IDs, payment numbers, and a long tail of regional formats. Add custom patterns if your regulator names a format the built-ins miss. Pick a mode — block, mask with a placeholder, or flag — and an apply direction. Mask is the typical choice for output filtering when the model has been given access to records that include PII it should not echo back.
+PII detection ships with patterns for emails, phones, government IDs, payment numbers, and a long tail of regional formats. Add custom patterns if your regulator names a format the built-ins miss. Pick a mode — block, mask with a placeholder, or tokenize, which swaps PII for indexed tokens on the way in and restores them in the model's reply. Mask is the typical choice when the model has been given access to records that include PII it should not echo back.
 
 ## Moderation provider
 
@@ -33,7 +33,7 @@ The provider sits on the network egress path. Failures are configurable per dire
 
 ## Recent events
 
-Every detection, block, and provider error lands in the recent-events table for 30 days. Filter by layer or by kind; click a row to see the matched categories, the actor, the message id, and the timestamp. Raw matched text is never stored — the events are a tuning surface, not a content archive.
+Every detection, block, and provider error lands in the recent-events table — kept for 90 days by default, adjustable on the retention policy page. Filter by layer or by kind; each row carries the matched categories, the actor, and the timestamp. Raw matched text is never stored — the events are a tuning surface, not a content archive.
 
 ## Where this fits
 

@@ -5,13 +5,13 @@ description: Der In-Produkt-Release-Viewer, der zeigt, was sich in der Tale-Plat
 
 Der Changelog ist der In-Produkt-Viewer, der Release Notes für die Tale-Plattform selbst anzeigt — nicht für Inhalte, die deine Mitglieder produzieren. Nach einem selbst gehosteten Upgrade oder einem Managed-Cloud-Rollout listet der Viewer auf, was sich zwischen der vorherigen Version und der jetzt laufenden geändert hat. Admins lesen ihn nach einem Upgrade, um das Team einzuweisen und alles zu markieren, was die Arbeit der Mitglieder berührt.
 
-Der Viewer liest Release Notes aus dem Tale-Repository auf GitHub und cached sie in deiner Instanz, damit die Seite auch lädt, wenn GitHub nicht erreichbar ist.
+Der Viewer liest Release Notes aus dem Tale-Repository auf GitHub und cached jede Seite für eine Stunde — wiederholte Besuche laden nichts neu, ein kalter Cache braucht GitHub aber erreichbar.
 
 ## Wo der Changelog lebt
 
-Der Changelog hat zwei Oberflächen. Die Seite **Was ist neu** unter **Hilfe** listet jeden jüngsten Release mit den vollen Notes. Der **Upgrade-Toast** feuert einmal pro Major-Versionssprung und verlinkt direkt auf die Seite — der Toast zeigt `Auf v<version> aktualisiert` und bleibt bis zum Schliessen stehen, damit ein Mitglied, das weg war, den Hinweis nicht verpasst.
+Der Changelog hat zwei Oberflächen. Die Seite **Was ist neu** listet jeden jüngsten Release mit den vollen Notes. Der **Upgrade-Toast** feuert einmal pro Versionssprung und verlinkt direkt auf die Seite — der Toast zeigt `Aktualisiert auf v<version>` mit der Aktion **Anzeigen** und verschwindet nach ein paar Sekunden von selbst; ein Punkt auf deinem Avatar bleibt stehen, bis du die Notes wirklich öffnest, damit ein Mitglied, das weg war, den Hinweis nicht verpasst.
 
-Öffne die Seite über das Hilfemenü in der oberen Leiste oder über den Upgrade-Toast, wenn er erscheint. Die Seite cached etwa dreissig jüngste Releases; ältere verlinken in die GitHub-Release-Historie.
+Öffne die Seite über dein Benutzermenü — dessen Fusszeile nennt die laufende Version und verlinkt **Neuigkeiten** — oder über den Upgrade-Toast, wenn er erscheint. Die Seite holt etwa dreissig jüngste Releases; ältere verlinken in die GitHub-Release-Historie.
 
 ## Was jeder Eintrag zeigt
 
@@ -25,9 +25,9 @@ Der Viewer ist nur-lesend und für jedes angemeldete Mitglied sichtbar. Es gibt 
 
 ## Ein durchgespieltes Upgrade
 
-Nach einem selbst gehosteten Upgrade von `v0.42` auf `v0.45` melde dich an und schau oben rechts nach dem Upgrade-Toast. Klick auf **Anzeigen**, um die Changelog-Seite zu öffnen. Die Seite zeigt drei Release-Einträge (`v0.43`, `v0.44`, `v0.45`), neuester zuerst, jeder mit den von Entwicklern geschriebenen Notes aus dem GitHub-Release. Geh die Highlights durch, teile den Link mit dem Team, falls etwas ein grösseres Publikum braucht, und der Toast verschwindet beim nächsten Neuladen.
+Nach einem selbst gehosteten Upgrade von `v0.42` auf `v0.45` melde dich an und schau oben rechts nach dem Upgrade-Toast. Klick auf **Anzeigen**, um die Changelog-Seite zu öffnen. Die Seite zeigt drei Release-Einträge (`v0.43`, `v0.44`, `v0.45`), neuester zuerst, jeder mit den von Entwicklern geschriebenen Notes aus dem GitHub-Release. Geh die Highlights durch, teile den Link mit dem Team, falls etwas ein grösseres Publikum braucht; der Toast feuert nur einmal pro Version, und der Punkt auf deinem Avatar verschwindet, sobald du die Notes geöffnet hast.
 
-Wenn das Upgrade über das gecachte Fenster hinausgeht, zeigt die Seite die jüngsten Einträge mit einem Banner, der für die früheren Notes auf GitHub verlinkt. Der Cache bleibt warm für den nächsten Leser auf deiner Instanz.
+Wenn das Upgrade über das geholte Fenster hinausgeht, zeigt die Seite die jüngsten Einträge mit einem Banner, der für die früheren Notes auf GitHub verlinkt. Der Cache bleibt warm für den nächsten Leser auf deiner Instanz.
 
 ## Wo das hingehört
 

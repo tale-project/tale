@@ -1,9 +1,9 @@
 ---
 title: Demandes des personnes concernées
-description: Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, exécutions de workflow et prompts. Les Administrateurs et Propriétaires lisent ceci quand un utilisateur dépose une demande ou quand une échéance SLA approche.
+description: Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, téléversements et préférences. Les Administrateurs et Propriétaires lisent ceci quand un utilisateur dépose une demande ou quand une échéance SLA approche.
 ---
 
-Demandes des personnes concernées est le workflow que Tale livre pour honorer l’article 17 du RGPD (droit à l’effacement) et le droit équivalent CCPA sous la loi californienne. Chaque demande devient un reçu : il nomme la personne concernée, le code de motif, l’échéance SLA et la cascade de lignes que le système a effacées dans les threads, documents, exécutions de workflow et modèles de prompts personnels. Les Administrateurs et Propriétaires lisent cette page quand une personne dépose une demande, quand une échéance approche, ou quand un audit demande le reçu d’un effacement passé.
+Demandes des personnes concernées est le workflow que Tale livre pour honorer l’article 17 du RGPD (droit à l’effacement) et le droit équivalent CCPA sous la loi californienne. Chaque demande devient un reçu : il nomme la personne concernée, le code de motif, l’échéance SLA et la cascade de lignes que le système a effacées dans les threads, documents, téléversements et les autres lignes qui identifient la personne. Les Administrateurs et Propriétaires lisent cette page quand une personne dépose une demande, quand une échéance approche, ou quand un audit demande le reçu d’un effacement passé.
 
 <Frame caption="Gouvernance > Demandes des personnes concernées — la politique de gouvernance DSAR (fenêtre d’attente, double approbation, limite quotidienne), au-dessus de la liste des reçus de demandes avec Déposer une demande.">
 
@@ -13,20 +13,20 @@ Demandes des personnes concernées est le workflow que Tale livre pour honorer l
 
 ## Un dépôt mis en pratique
 
-Pour déposer une demande, ouvre **Paramètres > Gouvernance > Demandes des personnes concernées** et clique sur **Déposer une demande**. Choisis la personne, choisis un code de motif (consentement retiré, plus nécessaire, traitement illégal, obligation légale, opposition, mineur ou fin de contrat) et ajoute une narration libre. La demande entre dans une fenêtre d’attente avant l’exécution de la cascade — tout Administrateur peut annuler pendant la fenêtre. Une fois la fenêtre écoulée, la cascade efface les threads, documents, exécutions de workflow, embeddings RAG et prompts personnels de la personne, et le reçu enregistre les compteurs par catégorie.
+Pour déposer une demande, ouvre **Paramètres > Gouvernance > Demandes des personnes concernées** et clique sur **Déposer une demande**. Choisis la personne, choisis un code de motif (consentement retiré, plus nécessaire, traitement illégal, obligation légale, opposition, mineur ou fin de contrat) et ajoute une narration libre. La demande entre dans une fenêtre d’attente avant l’exécution de la cascade — tout Administrateur peut annuler pendant la fenêtre. Une fois la fenêtre écoulée, la cascade efface les threads et documents de la personne (l’entrée de base de connaissances d’un document part avec lui), ses téléversements, préférences, notifications, feedbacks, mémoires et lignes d’usage, et caviarde ses identifiants dans la piste d’audit — le reçu enregistre un compteur par passe.
 
 ## Cycle de vie du statut
 
-| Nom                      | Par défaut      | Description                                                                                             |
-| ------------------------ | --------------- | ------------------------------------------------------------------------------------------------------- |
-| En attente               | état initial    | La demande est déposée et attend la fenêtre d’attente ou la seconde approbation administrateur.         |
-| En attente d’approbation | double contrôle | Un second Administrateur doit approuver avant que la cascade ne s’exécute.                              |
-| En cours                 | mid-cascade     | La cascade est en cours ; les compteurs partiels se mettent à jour à mesure que chaque catégorie finit. |
-| Terminée                 | terminal        | Chaque catégorie effacée sans erreur.                                                                   |
-| Partielle                | terminal        | Certaines lignes ont été ignorées — généralement une conservation légale les a bloquées.                |
-| Échouée                  | terminal        | La cascade a rencontré une erreur ; le reçu nomme la catégorie en échec.                                |
-| Bloquée                  | terminal        | Une conservation légale active bloque chaque étape de cascade.                                          |
-| Annulée                  | terminal        | Un Administrateur a annulé avant que la fenêtre d’attente n’expire.                                     |
+| Nom                      | Par défaut      | Description                                                                                                                                                                      |
+| ------------------------ | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| En attente               | état initial    | La demande est déposée et attend la fenêtre d’attente ou la seconde approbation administrateur.                                                                                  |
+| En attente d’approbation | double contrôle | Un second Administrateur doit approuver avant que la cascade ne s’exécute — ou rejeter, ce qui annule la demande.                                                                |
+| En cours                 | mid-cascade     | La cascade est en cours ; les compteurs partiels se mettent à jour à mesure que chaque catégorie finit.                                                                          |
+| Terminée                 | terminal        | Chaque catégorie effacée sans erreur.                                                                                                                                            |
+| Partielle                | terminal        | Certaines lignes ont été ignorées (une conservation légale les a bloquées) ou une passe de la cascade a échoué — l’erreur du reçu nomme les passes en échec.                     |
+| Échouée                  | terminal        | La cascade est morte en plein vol — sur une erreur fatale, Réessayer la relance ; après un timeout du watchdog, dépose une nouvelle demande.                                     |
+| Bloquée                  | terminal        | Une conservation légale active bloque chaque étape de cascade.                                                                                                                   |
+| Annulée                  | terminal        | Un Administrateur a annulé avant l’exécution de la cascade, ou un second Administrateur a rejeté la double approbation. Une nouvelle demande peut être déposée pour la personne. |
 
 ## Suivi du SLA
 
@@ -38,7 +38,7 @@ Les données d’une personne ne sont _pas_ effacées tant qu’elles sont sous 
 
 ## Les catégories de cascade
 
-Le reçu ventile les lignes effacées par catégorie — threads, documents, exécutions de workflow, modèles de prompts, documents RAG retirés du magasin vectoriel. Lis le drawer pour voir les compteurs et la timeline d’audit ; le journal d’audit dans la même zone Gouvernance porte la chaîne d’événements complète (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_cancelled`).
+Le reçu ventile les lignes effacées par passe — threads, documents, téléversements, préférences, notifications, abonnements, feedbacks, mémoires, registre d’usage et le caviardage de la piste d’audit. Lis le drawer pour voir les compteurs et la timeline d’audit ; le journal d’audit dans la même zone Gouvernance porte la chaîne d’événements complète (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_rejected`, `gdpr_erasure_cancelled`).
 
 ## Où cela s’inscrit
 

@@ -26,7 +26,7 @@ Le mode par défaut est **Liste de blocage** avec liste vide, ce qui veut dire q
 
 Chaque mode lit deux listes — Python et Node. Un paquet par ligne, ou séparé par des virgules. Les contraintes de version sont retirées automatiquement (`pandas==2.1` correspond à `pandas`), donc la politique est basée sur le nom et survit aux montées de version des bibliothèques. Les paquets Node scopés (`@scope/pkg`) sont pris en charge.
 
-Les listes sont indépendantes par langage : une liste d’autorisation Python plus une liste de blocage Node est une combinaison valide, et veut dire que Python est strict et Node est permissif sur la même sandbox.
+Le mode est global : en mode allowlist les deux langages lisent leurs listes d’autorisation, en mode denylist les deux lisent leurs listes de blocage. Les listes elles-mêmes sont par langage — Python et Node gardent chacun leur propre jeu.
 
 ## Le testeur
 

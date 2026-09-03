@@ -66,11 +66,11 @@ TALE_PROVIDER_KEY_OPENAI_PROD=sk-...
 
 <Note>
 
-Die Schranke ist fail-closed: Jeder Name ausserhalb des reservierten Präfixes wird abgelehnt. Genau das verhindert, dass Zugangsdaten ein fremdes Deployment-Geheimnis wie `SOPS_AGE_KEY` oder `BETTER_AUTH_SECRET` benennen und es als Bearer-Token an einen Anbieter-Endpunkt geschickt wird. Namen sind auf 40 Zeichen begrenzt — das Limit der Env-Synchronisierung von der Plattform zu Convex, denn ein längerer Name würde die Backend-Laufzeit nie erreichen.
+Die Schranke ist fail-closed: Jeder Name ausserhalb des reservierten Präfixes wird abgelehnt. Genau das verhindert, dass Zugangsdaten ein fremdes Deployment-Geheimnis wie `SOPS_AGE_KEY` oder `BETTER_AUTH_SECRET` benennen und es als Bearer-Token an einen Anbieter-Endpunkt geschickt wird. Namen sind auf 40 Zeichen begrenzt — ein längerer Name würde die Backend-Laufzeit nie erreichen.
 
 </Note>
 
-Definier die Variable so, dass sowohl der Plattform-Container als auch das Convex-Backend sie lesen können. Die Plattform synchronisiert ihre Umgebung beim Boot zu Convex, damit die dortigen Actions denselben Wert auflösen; eine nach dem Boot hinzugefügte oder geänderte Variable braucht einen Neustart des Plattform-Containers, bevor sie sichtbar wird. Werte werden getrimmt, was dir den Zeilenumbruch am Ende einer gemounteten Secret-Datei und den daraus folgenden `401` erspart.
+Definier die Variable so, dass das Backend sie lesen kann — es löst die Anbieter-Zugangsdaten zur Laufzeit auf. Eine nach dem Boot hinzugefügte oder geänderte Variable braucht einen Neustart von `backend-api` und `backend-worker`, bevor sie sichtbar wird. Werte werden getrimmt, was dir den Zeilenumbruch am Ende einer gemounteten Secret-Datei und den daraus folgenden `401` erspart.
 
 ## Broker-Secrets aus der Umgebung
 

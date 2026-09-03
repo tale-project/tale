@@ -29,7 +29,6 @@ import type { Id } from '../lib/rows';
 import { createConversationFromEmail } from './ingest/create_conversation_from_email';
 import { createConversationFromSentEmail } from './ingest/create_conversation_from_sent_email';
 import { materializeEmailAttachments } from './ingest/materialize_email_attachments';
-import { normalizeEmails } from './ingest/normalize_email';
 import { queryLatestMessageByDeliveryState } from './ingest/query_latest_message_by_delivery_state';
 import { queryLatestOutboundMessageForEmailSync } from './ingest/query_latest_outbound_message_for_sync';
 import { resolveConnectorAccountEmail } from './ingest/resolve_connector_account_email';
@@ -43,41 +42,6 @@ interface ActiveMailCredential {
   isDefault: boolean;
   mailSyncInboundSince?: number;
   mailSyncOutboundSince?: number;
-}
-
-/**
- * Epoch ms for one fetched email, read the way ingest reads it. Gmail hands
- * back `internalDate` (epoch ms as a STRING) when the message carries no `Date`
- * header, which `new Date(...)` cannot parse — hence the numeric branch.
- */
-function emailSentAt(date: unknown): number | null {
-  if (typeof date === 'number') {
-    return Number.isFinite(date) ? date : null;
-  }
-  if (typeof date !== 'string' || date.trim() === '') return null;
-  const parsed = new Date(date).getTime();
-  if (Number.isFinite(parsed)) return parsed;
-  const epoch = Number(date);
-  return Number.isFinite(epoch) ? epoch : null;
-}
-
-/**
- * Highest send time among the bodies a pass actually fetched — that mailbox's
- * next watermark. Read from the NORMALIZED emails, not the listed envelopes:
- * only IMAP envelopes carry `sentAt` (Gmail lists `{id, threadId}`, Graph lists
- * `receivedDateTime`), so an envelope-derived tip would leave Gmail and Outlook
- * watermarks unset forever and re-fetch the same newest `limit` bodies on every
- * scheduled pass. Bodies also mean the watermark never steps past a message the
- * fetch leg dropped.
- */
-function tipFromEmails(emails: unknown[]): number | null {
-  let tip: number | null = null;
-  for (const email of normalizeEmails(emails)) {
-    const sentAt = emailSentAt(email.date);
-    if (sentAt === null) continue;
-    tip = tip === null ? sentAt : Math.max(tip, sentAt);
-  }
-  return tip;
 }
 
 async function advanceMailSyncCursor(
@@ -371,8 +335,12 @@ async function listFolder(
       args.mailbox === 'sent' ? 'sentDateTime' : 'receivedDateTime';
     if (args.mailbox === 'sent') {
       input.folder = 'sentitems';
-      input.orderby = `${dateField} desc`;
     }
+    // Oldest-first: with the watermark advancing over the INGESTED set, a
+    // backlog larger than one page must drain FORWARD from the cursor. Newest-
+    // first (Graph's default) would re-read the newest page every pass while the
+    // older mail behind the cap was stepped over and lost.
+    input.orderby = `${dateField} asc`;
     if (args.since !== null) {
       input.filter = `${dateField} ge ${new Date(args.since).toISOString()}`;
     }
@@ -431,6 +399,22 @@ export async function querySyncCursor(
   );
 }
 
+/**
+ * The ingest result plus the tip the pass actually COVERED — the newest message
+ * it persisted (or permanently skipped). The watermark advances to `tip`, never
+ * to the tip of the fetched set, so no message between the old and new watermark
+ * is ever left unpersisted. `tip` rides alongside `result` (not merged into it)
+ * so the sync's public `inbound`/`sent` stay the clean ConversationIngestResult.
+ */
+interface IngestOutcome {
+  result: ConversationIngestResult;
+  tip: number | null;
+}
+
+function ingestedTipOf(raw: { ingestedTip?: number | null }): number | null {
+  return typeof raw.ingestedTip === 'number' ? raw.ingestedTip : null;
+}
+
 export async function ingestEmails(
   ctx: ActionCtx,
   args: {
@@ -440,18 +424,17 @@ export async function ingestEmails(
     accountEmail?: string;
     status?: 'open' | 'closed' | 'archived' | 'spam';
   },
-): Promise<ConversationIngestResult> {
-  return ingestResult(
-    await createConversationFromEmail(ctx, {
-      organizationId: args.organizationId,
-      emails: args.emails,
-      connectorName: args.connectorSlug,
-      ...(args.accountEmail !== undefined
-        ? { accountEmail: args.accountEmail }
-        : {}),
-      ...(args.status !== undefined ? { status: args.status } : {}),
-    }),
-  );
+): Promise<IngestOutcome> {
+  const raw = await createConversationFromEmail(ctx, {
+    organizationId: args.organizationId,
+    emails: args.emails,
+    connectorName: args.connectorSlug,
+    ...(args.accountEmail !== undefined
+      ? { accountEmail: args.accountEmail }
+      : {}),
+    ...(args.status !== undefined ? { status: args.status } : {}),
+  });
+  return { result: ingestResult(raw), tip: ingestedTipOf(raw) };
 }
 
 export async function ingestSentEmails(
@@ -463,18 +446,17 @@ export async function ingestSentEmails(
     accountEmail?: string;
     status?: 'open' | 'closed' | 'archived' | 'spam';
   },
-): Promise<ConversationIngestResult> {
-  return ingestResult(
-    await createConversationFromSentEmail(ctx, {
-      organizationId: args.organizationId,
-      emails: args.emails,
-      connectorName: args.connectorSlug,
-      ...(args.accountEmail !== undefined
-        ? { accountEmail: args.accountEmail }
-        : {}),
-      ...(args.status !== undefined ? { status: args.status } : {}),
-    }),
-  );
+): Promise<IngestOutcome> {
+  const raw = await createConversationFromSentEmail(ctx, {
+    organizationId: args.organizationId,
+    emails: args.emails,
+    connectorName: args.connectorSlug,
+    ...(args.accountEmail !== undefined
+      ? { accountEmail: args.accountEmail }
+      : {}),
+    ...(args.status !== undefined ? { status: args.status } : {}),
+  });
+  return { result: ingestResult(raw), tip: ingestedTipOf(raw) };
 }
 
 async function listActiveMailCredentials(
@@ -618,7 +600,7 @@ async function syncOneMailbox(
   });
 
   let listed = inboundListed.length;
-  let sent: ConversationIngestResult | undefined;
+  let sent: IngestOutcome | undefined;
   let outboundTip: number | null = null;
 
   if (args.includeSent) {
@@ -643,7 +625,6 @@ async function syncOneMailbox(
         credentialRef: args.credentialRef,
       }),
     });
-    outboundTip = tipFromEmails(sentEmails);
     sent = await ingestSentEmails(ctx, {
       organizationId: args.organizationId,
       connectorSlug: args.connectorSlug,
@@ -651,13 +632,17 @@ async function syncOneMailbox(
       status: 'open',
       ...(accountEmail !== undefined ? { accountEmail } : {}),
     });
+    // Advance the outbound watermark to the newest sent message this pass
+    // INGESTED, not the newest it fetched — the fetch may carry more than one
+    // batch ingests.
+    outboundTip = sent.tip;
   }
 
   return {
     listed,
-    inbound,
-    ...(sent !== undefined ? { sent } : {}),
-    inboundTip: tipFromEmails(inboundEmails),
+    inbound: inbound.result,
+    ...(sent !== undefined ? { sent: sent.result } : {}),
+    inboundTip: inbound.tip,
     outboundTip,
   };
 }

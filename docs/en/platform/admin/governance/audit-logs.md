@@ -9,27 +9,30 @@ This page is the reference for the columns, the filters, the categories, and the
 
 ## A worked filter
 
-To find the moment a member's role was changed, open **Settings > Governance > Logs**, set the **Category** filter to **Member**, and search for the actor or the target by name. Each row expands to the full payload — previous state, new state, the IP if the request was over the wire, the actor type (user, system, API, workflow). Export the filtered set as CSV or JSON from the toolbar above the table.
+To find the moment a member's role was changed, open **Settings > Governance > Logs** and set the **Category** filter to **Member** — the user and target columns identify the people involved. Each row expands to the full payload — previous state, new state, changed fields, the actor type (user, system, API, workflow). Export the filtered set as CSV or JSON from the toolbar above the table.
 
 ## The columns
 
-| Name           | Type     | Required | Description                                                                               |
-| -------------- | -------- | -------- | ----------------------------------------------------------------------------------------- |
-| Timestamp      | ISO 8601 | yes      | Server time the action committed.                                                         |
-| Action         | string   | yes      | The semantic action — `update_member_role`, `provider_created`, `agent_saved`.            |
-| User           | string   | yes      | Display name of the actor; `System`, `API`, or `Workflow` when the actor is not a person. |
-| Resource       | string   | yes      | The resource the action touched — `agent`, `provider`, `member`, `workflow`.              |
-| Category       | enum     | yes      | Auth, Member, Data, Connector, Workflow, Security, Admin, AI, Skill, Agent.               |
-| Status         | enum     | yes      | Success, Failure, Denied.                                                                 |
-| Changed fields | JSON     | no       | The diff between previous and new state for update actions.                               |
+| Name      | Type     | Required | Description                                                                               |
+| --------- | -------- | -------- | ----------------------------------------------------------------------------------------- |
+| Timestamp | ISO 8601 | yes      | Server time the action committed.                                                         |
+| Action    | string   | yes      | The semantic action — `update_member_role`, `provider_created`, `agent_saved`.            |
+| User      | string   | yes      | Display name of the actor; `System`, `API`, or `Workflow` when the actor is not a person. |
+| Resource  | string   | yes      | The resource type the action touched — `agent`, `provider`, `member`, `workflow`.         |
+| Target    | string   | no       | The specific resource the action touched, by name or id.                                  |
+| Category  | enum     | yes      | Auth, Member, Data, Connector, Automation, Security, Admin, AI, Skill, Agent.             |
+| Status    | enum     | yes      | Success, Failure, Denied.                                                                 |
+| Error     | string   | no       | The error message when the action failed or was denied.                                   |
+
+The diff between previous and new state, the changed-field list, and any AI usage metadata travel with the row and open in its detail view rather than as columns.
 
 ## Filters
 
-Filter by date range, category, status, actor, resource, or free-text search across action names. Combine filters — a date range plus the **Security** category plus **Denied** status surfaces the failed sign-in attempts in a window. Filter state is reflected in the URL, so a saved link reopens the same view.
+The audit table carries one filter — **Category**, single-select. Both the filter and the active tab round-trip through the URL, so a saved link reopens the same view. The page splits into four tabs: **Audit logs** (the table this page describes), **Sign-in blocks**, **Activity logs** (a per-period summary with success, failure, and denied counts), and **Error logs**; the category filter applies on the audit and error tabs.
 
 ## Exporting
 
-Two export formats ship: CSV for spreadsheets and JSON for downstream systems. Both honour the active filters — what you export is what you see. Set the filters you want (the worked filter above is the pattern), then choose CSV or JSON from the toolbar above the table. Large exports stream as a download; the toolbar reports progress and completes with the file size and row count.
+Two export formats ship: CSV for spreadsheets and JSON for downstream systems. Both honour the active category filter — what you export is what you see. Set the filter you want (the worked filter above is the pattern), then choose CSV or JSON from the toolbar above the table. The export is built server-side — up to 10,000 rows — stored with your organisation's files, and handed to the browser as a short-lived download link.
 
 The CSV arrives as `audit-logs-<timestamp>.csv`, one row per action, with a flat column per field; timestamps are ISO 8601 in UTC and any value containing a comma is quoted:
 
@@ -43,7 +46,7 @@ The JSON export (`audit-logs-<timestamp>.json`) carries the same rows as full ob
 
 ## Retention and integrity
 
-Audit rows are immutable: edits and deletes are themselves audited, and the row schema carries an integrity hash you can verify against the export. A scheduled daily check re-verifies the hash chain server-side and records a `security` audit entry if verification fails, so tampering or an out-of-band deletion surfaces even when no admin runs the manual check. A failed check also raises a critical in-app notification to the organisation's admins and fans out to Slack when a Slack notification channel is configured. Admins can verify the chain on demand from the **Chain integrity** panel at the top of this page — it shows the current status, the last automated check time, and a **Verify now** button — and a failed check's notification deep-links to the flagged row so an admin lands on the break instead of the top of the log. Retention defaults to 90 days and is configurable on the retention policy page (30 to 365 days). Rows that age out are removed by the next cleanup pass — there is no soft-delete window for audit data.
+Audit rows are immutable: edits and deletes are themselves audited, and the row schema carries an integrity hash you can verify against the export. A scheduled daily check walks the hash chain server-side, so tampering or an out-of-band deletion surfaces even when no admin runs the manual check. A failed check raises a critical in-app notification to the organisation's admins and fans out to Slack when a Slack notification channel is configured. Admins can verify the chain on demand from the **Chain integrity** panel at the top of this page — it shows the current status, the last automated check time, and a **Verify now** button — and a failed check's notification deep-links to the flagged row so an admin lands on the break instead of the top of the log. Retention defaults to two years and is configurable on the retention policy page — between one year, the compliance floor, and ten. Rows that age out are removed by the next cleanup pass — there is no soft-delete window for audit data.
 
 ## Where this fits
 

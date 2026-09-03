@@ -3,7 +3,7 @@ title: Wissen
 description: Wissen ist die geteilte Bibliothek der Organisation — Dokumente, kleine Fakten, gecrawlte Websites und typisierte Datensätze —, in der Agenten ihre Antworten verankern. Diese Übersicht nennt die Tabs und verweist auf die Seiten pro Bereich.
 ---
 
-Wissen ist der Bereich, in dem die Daten der Organisation liegen, damit Agenten sie lesen und zitieren können. Redakteure kuratieren sie einmal; Agenten rufen zur Antwortzeit darüber ab — deshalb kann ein Agent in Tale mit deiner Realität antworten statt mit den Trainingsdaten des Modells. Der Bereich öffnet auf sechs Tabs: **Dokumente**, **Wissenseinträge**, **Websites**, **Produkte**, **Kontakte** und **Lieferanten**.
+Wissen ist der Bereich, in dem die Daten der Organisation liegen, damit Agenten sie lesen und zitieren können. Redakteure kuratieren sie einmal; Agenten rufen zur Antwortzeit darüber ab — deshalb kann ein Agent in Tale mit deiner Realität antworten statt mit den Trainingsdaten des Modells. Der Bereich öffnet auf fünf Tabs: **Dokumente**, **Wissenseinträge**, **Websites**, **Produkte** und **Kontakte**.
 
 Lieber erst zusehen? Episode 3 geht die ganze Bibliothek in gut drei Minuten durch — Indexierung, Einträge, Datensätze, Crawler und Zugriff, mit Untertiteln.
 
@@ -19,7 +19,7 @@ Lieber erst zusehen? Episode 3 geht die ganze Bibliothek in gut drei Minuten dur
 
 ## Die zwei Formen
 
-Alles in diesem Bereich hat eine von zwei Formen. **Indexierte Inhalte** — die Dateien in Dokumente, die Fakten in Wissenseinträge, die Seiten, die ein Website-Crawl hereinholt — laufen durch die Indexierungs-Pipeline (extrahieren, chunken, einbetten, speichern), damit Agenten relevante Passagen abrufen und zitieren. **Typisierte Datensätze** — Produkte, Kontakte, Lieferanten — sind Zeilen mit benannten Feldern, die Agenten als Daten lesen, nicht als Prosa: exakte Werte, kein Abruf-Rätselraten.
+Alles in diesem Bereich hat eine von zwei Formen. **Indexierte Inhalte** — die Dateien in Dokumente, die Fakten in Wissenseinträge, die Seiten, die ein Website-Crawl hereinholt — laufen durch die Indexierungs-Pipeline (extrahieren, chunken, einbetten, speichern), damit Agenten relevante Passagen abrufen und zitieren. **Typisierte Datensätze** — Produkte und Kontakte (das Korrespondenten-Verzeichnis, das Kunden und Lieferanten umfasst) — sind Zeilen mit benannten Feldern, die Agenten als Daten lesen, nicht als Prosa: exakte Werte, kein Abruf-Rätselraten.
 
 Die Form, die du wählst, entscheidet, wie ein Agent den Inhalt nutzen kann — deshalb ist [Strukturierte Daten](/de/platform/knowledge/structured-data) eine Entscheidungsseite, nicht nur eine Referenz.
 
@@ -57,7 +57,7 @@ Aus einer öffentlichen Website wird Wissen — Domain, Scan-Intervall und die A
 
 <Card title="Strukturierte Daten" icon="table" href="/de/platform/knowledge/structured-data">
 
-Kontakte, Produkte, Lieferanten, Websites — wann ein typisierter Datensatz ein Dokument schlägt.
+Kontakte, Produkte, Websites — wann ein typisierter Datensatz ein Dokument schlägt.
 
 </Card>
 

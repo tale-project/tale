@@ -1,10 +1,10 @@
 ---
 title: Self-hosted
-description: Self-hosted Tale runs on your infrastructure — on-premises, in your VPC, or air-gapped. Seven containers, your data on your disk, no per-seat billing.
+description: Self-hosted Tale runs on your infrastructure — on-premises, in your VPC, or air-gapped. Nine containers, your data on your disk, no per-seat billing.
 kind: index
 ---
 
-Self-hosted Tale runs on your own infrastructure — on-premises, in your VPC, or air-gapped. Seven containers, your data on your disk, no per-seat billing, and no traffic that crosses to Tale's servers unless you point a provider at one.
+Self-hosted Tale runs on your own infrastructure — on-premises, in your VPC, or air-gapped. Nine containers, your data on your disk, no per-seat billing, and no traffic that crosses to Tale's servers unless you point a provider at one.
 
 This section is for operators: the people who decide where Tale runs, install it, configure it, keep it patched, and pick up the pager when something goes wrong. End users of self-hosted instances mostly read the Platform tab — the product surface is identical between editions.
 

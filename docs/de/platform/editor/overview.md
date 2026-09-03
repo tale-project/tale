@@ -9,7 +9,7 @@ Diese Übersicht nennt, was ein Redakteur tut, wo er es tut und welche Seiten je
 
 ## Was Redakteur abdeckt
 
-Die Arbeit eines Redakteurs fällt in vier Bereiche: **Agents** bauen (Anweisungen, Wissensbindungen, Tools, Modelle), die **Wissensdatenbank** kuratieren (Dokumente hochladen, Kontakte, Produkte, Lieferanten, Websites pflegen), **Automatisierungen** verfassen (Workflows mit Triggern, Schritten und Genehmigungs-Gates) und **Projekte** bündeln (Dateimengen, projektgebundene Agents, Projekt-Anweisungen). Jeder davon hat seinen eigenen Ort in Platform; der Redakteurs-Tab ist der Index über sie hinweg.
+Die Arbeit eines Redakteurs fällt in vier Bereiche: **Agents** bauen (Anweisungen, Wissensbindungen, Tools, Modelle), die **Wissensdatenbank** kuratieren (Dokumente hochladen, Kontakte, Produkte, Websites pflegen), **Automatisierungen** verfassen (Workflows mit Triggern, Schritten und Genehmigungs-Gates) und **Projekte** bündeln (Dateimengen, projektgebundene Agents, Projekt-Anweisungen). Jeder davon hat seinen eigenen Ort in Platform; der Redakteurs-Tab ist der Index über sie hinweg.
 
 Redakteure teilen die Bau-Oberfläche mit Entwicklern — Entwickler sehen ebenfalls alle vier Bereiche und können alles, was ein Redakteur kann, plus die API- und Connector-Ebene. Greif zu einem Redakteur, wenn die tägliche Arbeit Inhalt und Konfiguration ist; greif zu einem Entwickler, wenn die Arbeit in Code oder externe Systeme übergeht.
 

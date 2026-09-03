@@ -38,7 +38,7 @@ Installierbare Bündel aus Connectors, Agents, Skills und einem Workflow — der
 
 <Card title="Wissen" icon="library" href="/de/platform/knowledge/overview">
 
-Dokumente, Kontakte, Produkte, Lieferanten, Websites — das Modell für strukturierte Daten, das Agents zitieren.
+Dokumente, Kontakte, Produkte, Websites — das Modell für strukturierte Daten, das Agents zitieren.
 
 </Card>
 
