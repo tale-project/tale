@@ -89,4 +89,4 @@ Dokumente sind die unstrukturierte Hälfte der Wissensdatenbank. Ist der Inhalt 
 
 ## Wo das hingehört
 
-Dokumente sind die meistgenutzte Ecke der Wissensdatenbank — die meisten Zitate in den meisten Antworten zeigen hierher. Die Abrufseite — wie der Wissens-Umfang eines Agenten entscheidet, was er durchsucht — ist [Agent-Wissen](/de/platform/agents/knowledge); die faktengroße Schwesterfläche sind die [Wissenseinträge](/de/platform/knowledge/knowledge-entries), die dieselbe Pipeline dokumentweise nutzen.
+Dokumente sind die meistgenutzte Ecke der Wissensdatenbank — die meisten Zitate in den meisten Antworten zeigen hierher. Die Abrufseite — wie der Chat-Assistent und Projekt-Agenten lesen, was hier indexiert ist — ist der [Wissens-Überblick](/de/platform/knowledge/overview); die faktengroße Schwesterfläche sind die [Wissenseinträge](/de/platform/knowledge/knowledge-entries), die dieselbe Pipeline dokumentweise nutzen.

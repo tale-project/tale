@@ -35,4 +35,4 @@ Editing creates a new live version and re-indexes in the background — the **St
 
 ## Where this fits
 
-Knowledge entries are the knowledge base's smallest unit: a fact written down once becomes something every lane retrieves, with one live version per topic guaranteeing the old fact disappears when the new one lands. For the file-shaped half read [Documents](/platform/knowledge/documents); for how agents bind and retrieve, read [Agent knowledge](/platform/agents/knowledge).
+Knowledge entries are the knowledge base's smallest unit: a fact written down once becomes something every lane retrieves, with one live version per topic guaranteeing the old fact disappears when the new one lands. For the file-shaped half read [Documents](/platform/knowledge/documents); for how the chat assistant and project agents retrieve, read the [Knowledge overview](/platform/knowledge/overview).

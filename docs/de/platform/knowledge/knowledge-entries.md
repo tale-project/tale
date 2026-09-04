@@ -35,4 +35,4 @@ Bearbeiten erzeugt eine neue aktive Version und indexiert im Hintergrund neu —
 
 ## Wo das hingehört
 
-Wissenseinträge sind die kleinste Einheit der Wissensdatenbank: Ein einmal notierter Fakt wird etwas, das jede Bahn abruft, und eine aktive Version pro Thema garantiert, dass der alte Fakt verschwindet, sobald der neue landet. Für die dateiförmige Hälfte lies [Dokumente](/de/platform/knowledge/documents); wie Agenten binden und abrufen, steht in [Agent-Wissen](/de/platform/agents/knowledge).
+Wissenseinträge sind die kleinste Einheit der Wissensdatenbank: Ein einmal notierter Fakt wird etwas, das jede Bahn abruft, und eine aktive Version pro Thema garantiert, dass der alte Fakt verschwindet, sobald der neue landet. Für die dateiförmige Hälfte lies [Dokumente](/de/platform/knowledge/documents); wie der Chat-Assistent und Projekt-Agenten abrufen, steht im [Wissens-Überblick](/de/platform/knowledge/overview).

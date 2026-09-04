@@ -9,7 +9,7 @@ This overview names what each page covers and points to the deeper reference. De
 
 ## What Developer covers
 
-The Developer surface sits beside the rest of the org's settings but with a narrower audience. It assumes you know what a REST API is, what a webhook looks like, and what an MCP client does — the pages do not re-explain the underlying concepts; they explain how Tale exposes them. Two levers the earlier version had are not part of this one: registering external MCP servers and defining custom tools. Your own code reaches an agent through a project agent's **Secrets** or an automation's nodes instead — [MCP servers](/platform/connectors/mcp-servers) and [Build a custom tool](/tutorials/developer/build-a-custom-tool) say what replaced each.
+The Developer surface sits beside the rest of the org's settings but with a narrower audience. It assumes you know what a REST API is, what a webhook looks like, and what an MCP client does — the pages do not re-explain the underlying concepts; they explain how Tale exposes them. Two levers the earlier version had are not part of this one: registering external MCP servers and defining custom tools. Your own code reaches an agent through a project agent's **Secrets** or an automation's nodes instead — [MCP servers](/platform/connectors/mcp-servers) says what replaced the first; [Project agents](/platform/projects/project-agents) walks the dialog where the second now lives.
 
 The same surface in the Cloud and self-hosted tabs differs only in deployment shape; the UI here is identical. The configuration-file side — environment variables and provider files — lives one tab over in the self-hosted documentation.
 

@@ -111,9 +111,9 @@ Les docs existent en anglais, allemand et français — commence sur [tale.dev/d
 
 - [Démarrage rapide](https://tale.dev/docs/fr/get-started/quickstart) — les premiers pas, pour chaque rôle
 - [Référence plateforme](https://tale.dev/docs/fr/platform) — chaque fonctionnalité, module par module
-- [Construire un agent](https://tale.dev/docs/fr/platform/agents/create) — des assistants spécialisés de bout en bout
+- [Construire un agent](https://tale.dev/docs/fr/tutorials/editor/first-agent-end-to-end) — des assistants spécialisés de bout en bout
 - [Exploitation auto-hébergée](https://tale.dev/docs/fr/self-hosted/overview) — architecture, installation, mises à niveau
-- [Surface développeur](https://tale.dev/docs/fr/develop/overview) — API REST, webhooks, outils personnalisés
+- [Surface développeur](https://tale.dev/docs/fr/develop/overview) — API REST, webhooks, endpoint MCP
 - [Référence CLI](tools/cli/README.md) — chaque commande `tale` et ses flags
 
 ## Communauté et support

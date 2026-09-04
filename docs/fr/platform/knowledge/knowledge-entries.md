@@ -35,4 +35,4 @@ Modifier crée une nouvelle version active et réindexe en arrière-plan — le 
 
 ## Où cela s’inscrit
 
-Les entrées de connaissances sont la plus petite unité de la base de connaissances : un fait noté une fois devient quelque chose que chaque voie récupère, et une seule version active par sujet garantit que l’ancien fait disparaît quand le nouveau atterrit. Pour la moitié au format fichier, lis [Documents](/fr/platform/knowledge/documents) ; pour la façon dont les agents s’y relient et récupèrent, lis [Connaissances de l’agent](/fr/platform/agents/knowledge).
+Les entrées de connaissances sont la plus petite unité de la base de connaissances : un fait noté une fois devient quelque chose que chaque voie récupère, et une seule version active par sujet garantit que l’ancien fait disparaît quand le nouveau atterrit. Pour la moitié au format fichier, lis [Documents](/fr/platform/knowledge/documents) ; pour la façon dont l’assistant de chat et les agents de projet récupèrent, lis l’[aperçu des connaissances](/fr/platform/knowledge/overview).

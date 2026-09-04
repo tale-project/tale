@@ -1209,14 +1209,14 @@ platformAgents:
   docs:
     - label: Agent concepts
       path: /platform/agents/concepts
-    - label: Create an agent
-      path: /platform/agents/create
+    - label: Project agents
+      path: /platform/projects/project-agents
     - label: Harnesses
       path: /platform/agents/harnesses
-    - label: Delegation
-      path: /platform/agents/delegation
-    - label: Agent knowledge
-      path: /platform/agents/knowledge
+    - label: Task automation
+      path: /platform/projects/task-automation
+    - label: Knowledge
+      path: /platform/knowledge/overview
   tour:
     heading: How agents show up in Tale
     description:

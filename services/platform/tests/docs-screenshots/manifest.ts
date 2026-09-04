@@ -495,27 +495,6 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText('Claude Haiku 4.5').first(),
   },
   {
-    // The Tools tab — per-tool toggles grouped by category, plus the
-    // web-search mode selector at the top.
-    //
-    // While `getAvailableTools` is unresolved the selector renders a PLACEHOLDER
-    // of three fake categories with two masked rows each — every card reads
-    // "0/2" and nothing is checked. The old gate (a category heading) matched
-    // that placeholder, so the shot captured an agent that looked to grant no
-    // tools at all. Gate on a real granted count instead: the Assistant holds
-    // all seven file tools.
-    name: 'agent-editor-tools',
-    section: 'platform',
-    route: '/dashboard/:orgId/agents/assistant/tools',
-    prepare: async (page) => {
-      // The granted categories sit below the fold of the masonry; bring them
-      // into frame so the shot shows checked boxes, not just empty ones.
-      await page.getByText('7/7').first().waitFor({ timeout: 30_000 });
-      await page.getByText('7/7').first().scrollIntoViewIfNeeded();
-    },
-    readyWhen: (page) => page.getByText('7/7').first(),
-  },
-  {
     // The Knowledge tab — retrieval mode, team/org document scopes, and the
     // seeded organization documents with their index state.
     name: 'agent-editor-knowledge',

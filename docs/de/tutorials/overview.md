@@ -25,19 +25,19 @@ Effektiv chatten, in Projekten arbeiten, Sprach-Konversationen führen.
 
 <Card title="Redakteurs-Tutorials" icon="bot" href="/de/tutorials/editor/first-agent-end-to-end">
 
-Einen ersten Projekt-Agenten von Anfang bis Ende bauen, sehen, wo Wissen und Delegation heute liegen, Workflows mit Genehmigungen ausliefern.
+Einen ersten Projekt-Agenten von Anfang bis Ende bauen, Workflows mit Genehmigungen ausliefern.
 
 </Card>
 
 <Card title="Entwickler-Tutorials" icon="terminal" href="/de/tutorials/developer/call-tale-from-a-script">
 
-Tale aus einem Skript aufrufen, Automatisierungen per Webhook auslösen, eigenen Code dort platzieren, wo Agenten hinschauen, einen MCP-Client mit Tale verbinden.
+Tale aus einem Skript aufrufen, Automatisierungen per Webhook auslösen.
 
 </Card>
 
-<Card title="Verwaltungs-Tutorials" icon="shield" href="/de/tutorials/admin/office-add-in">
+<Card title="Verwaltungs-Tutorials" icon="shield" href="/de/tutorials/admin/connect-local-provider">
 
-Das Office-Add-in installieren, Meeting-Transkription verdrahten, einen lokalen Anbieter verbinden.
+Einen lokalen Anbieter verbinden, Meeting-Transkription verdrahten.
 
 </Card>
 

@@ -104,7 +104,7 @@ Deux surfaces atteignent des systèmes hors de Tale, et le choix porte sur qui p
 | Connector livré | Un connecteur existe déjà pour le système visé. Ton travail se limite aux identifiants, et le contrat fournisseur est maintenu pour toi.           |
 | Ton propre code | Rien de livré ne couvre le système — une API interne, un outil maison, un hôte que seul ton réseau atteint. Un agent de projet l’appelle depuis sa sandbox avec une entrée **Secrets** ; une automatisation depuis un nœud `transform`. |
 
-Enregistrer un serveur MCP externe ne fait pas partie de cette version — la seule surface MCP de Tale est l’endpoint entrant sous **Paramètres > API > MCP**, où ton client MCP pilote Tale. [Serveurs MCP](/fr/platform/connectors/mcp-servers) dit ce qui a remplacé le formulaire d’enregistrement ; [Monter un serveur MCP depuis zéro](/fr/tutorials/developer/mcp-server-from-scratch) dit la même chose du côté de qui construit.
+Enregistrer un serveur MCP externe ne fait pas partie de cette version — la seule surface MCP de Tale est l’endpoint entrant sous **Paramètres > API > MCP**, où ton client MCP pilote Tale. [Serveurs MCP](/fr/platform/connectors/mcp-servers) dit ce qui a remplacé le formulaire d’enregistrement ; [Endpoint MCP](/fr/develop/mcp-endpoint) est la référence de la surface qui existe vraiment.
 
 ## Où cela s’inscrit
 

@@ -31,4 +31,4 @@ Readers of the previous manual will remember the dialog below. It is shown only 
 
 ## Where this fits
 
-The MCP surface in this version points inward: external clients drive Tale, not the other way round. When a model outside Tale should author automations or search the organization's knowledge, connect it to the [MCP endpoint](/develop/mcp-endpoint); when an agent inside Tale should reach your code, use a connector, an automation, or a project agent's secrets — the [Connectors overview](/platform/connectors/overview) opens that path. The developer tutorial [Stand up an MCP server from scratch](/tutorials/developer/mcp-server-from-scratch) says the same thing from the builder's side.
+The MCP surface in this version points inward: external clients drive Tale, not the other way round. When a model outside Tale should author automations or search the organization's knowledge, connect it to the [MCP endpoint](/develop/mcp-endpoint); when an agent inside Tale should reach your code, use a connector, an automation, or a project agent's secrets — the [Connectors overview](/platform/connectors/overview) opens that path.

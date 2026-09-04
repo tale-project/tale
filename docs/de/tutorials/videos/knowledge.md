@@ -25,4 +25,4 @@ Die verankerten Antworten aus Episode 2 kamen alle aus einem Ort — in dieser E
 
 ## Wie es weitergeht
 
-Der [Wissens-Überblick](/de/platform/knowledge/overview) kartiert die ganze Bibliothek; [Dokumente](/de/platform/knowledge/documents) behandelt die Indexierung, [Wissenseinträge](/de/platform/knowledge/knowledge-entries) die gepflegten Fakten, [strukturierte Daten](/de/platform/knowledge/structured-data) die typisierten Datensätze und [Crawling](/de/platform/knowledge/crawling) die Websites. Zu den Zugriffsschaltern: [Agenten-Wissen](/de/platform/agents/knowledge).
+Der [Wissens-Überblick](/de/platform/knowledge/overview) kartiert die ganze Bibliothek; [Dokumente](/de/platform/knowledge/documents) behandelt die Indexierung, [Wissenseinträge](/de/platform/knowledge/knowledge-entries) die gepflegten Fakten, [strukturierte Daten](/de/platform/knowledge/structured-data) die typisierten Datensätze und [Crawling](/de/platform/knowledge/crawling) die Websites. Wie ein Projekt-Agent darauf zugreift, steht in [Projekt-Agenten](/de/platform/projects/project-agents).

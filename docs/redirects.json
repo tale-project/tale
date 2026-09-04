@@ -17,7 +17,7 @@
     "platform/workflows/approvals-in-workflows": "platform/automations/approvals-in-workflows",
     "platform/workflows/metrics": "platform/automations/execution-logs",
     "platform/admin/token-sources": "platform/admin/providers",
-    "platform/agents/conversation-starters": "platform/agents/create",
+    "platform/agents/conversation-starters": "platform/agents/concepts",
     "platform/chat/starters-and-prompts": "platform/workspace/skills",
     "platform/workspace/prompt-library": "platform/workspace/skills",
     "platform/agents/webhook-triggers": "platform/agents/concepts",
@@ -34,6 +34,17 @@
     "platform/chat/canvas-pane": "platform/chat/overview",
     "platform/chat/video-links": "platform/chat/overview",
     "platform/chat/deep-research": "platform/chat/basics",
-    "platform/agents/external-agent": "platform/agents/harnesses"
+    "platform/agents/external-agent": "platform/agents/harnesses",
+    "platform/agents/create": "platform/projects/project-agents",
+    "platform/agents/tools": "platform/projects/project-agents",
+    "platform/agents/knowledge": "platform/agents/concepts",
+    "platform/agents/versions": "platform/agents/concepts",
+    "platform/agents/delegation": "platform/projects/task-automation",
+    "platform/agents/image-generation": "platform/agents/concepts",
+    "tutorials/developer/build-a-custom-tool": "develop/mcp-endpoint",
+    "tutorials/developer/mcp-server-from-scratch": "develop/mcp-endpoint",
+    "tutorials/editor/agent-with-knowledge": "platform/knowledge/overview",
+    "tutorials/editor/delegate-between-agents": "platform/projects/task-automation",
+    "tutorials/admin/office-add-in": "platform/connectors/overview"
   }
 }

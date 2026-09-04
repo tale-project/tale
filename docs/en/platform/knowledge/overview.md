@@ -31,7 +31,7 @@ Indexed content is embedded into Tale's built-in vector database — a **Postgre
 
 ## How agents reach in
 
-An agent does not see the whole library by default. The agent's **Knowledge** tab controls its retrieval scope — which parts of the library it searches at reply time — and team-scoped items stay invisible to agents and members outside the team. Retrieval is driven by the agent's RAG-tagged tools, and every retrieved passage carries its source, so citations point back at the file, entry, or page it came from. The agent-side mechanics live in [Agent knowledge](/platform/agents/knowledge).
+An agent does not pick its own slice of the library. The chat assistant searches the whole pool with `rag_search` and loads what it found with `rag_fetch` whenever a question calls for it, a project agent reads it through the platform tools you equip it with, and team-scoped items stay invisible to agents and members outside the team. Every retrieved passage carries its source, so citations point back at the file, entry, or page it came from. The agent-side mechanics live in [Project agents](/platform/projects/project-agents).
 
 ## Pages in this section
 
@@ -65,4 +65,4 @@ Contacts, Products, Websites — when a typed record beats a document.
 
 ## Where this fits
 
-Knowledge is the data layer every grounded reply stands on; without it, agents only know what the model already knows. Bring content in through the tab that matches its shape, then wire agents to it — the natural next read is [Documents](/platform/knowledge/documents) for files, [Structured data](/platform/knowledge/structured-data) for records, and [Agent knowledge](/platform/agents/knowledge) for the retrieval side.
+Knowledge is the data layer every grounded reply stands on; without it, agents only know what the model already knows. Bring content in through the tab that matches its shape, then wire agents to it — the natural next read is [Documents](/platform/knowledge/documents) for files, [Structured data](/platform/knowledge/structured-data) for records, and [Project agents](/platform/projects/project-agents) for how an agent reads it.

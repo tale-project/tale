@@ -89,4 +89,4 @@ Documents are the unstructured half of the knowledge base. When the content is a
 
 ## Where this fits
 
-Documents are the most-used corner of the knowledge base — most citations in most replies point here. The retrieval side — how an agent's knowledge scope decides what it searches — is [Agent knowledge](/platform/agents/knowledge); the fact-sized sibling surface is [Knowledge entries](/platform/knowledge/knowledge-entries), which rides this same pipeline one document at a time.
+Documents are the most-used corner of the knowledge base — most citations in most replies point here. The retrieval side — how the chat assistant and project agents read what is indexed here — is the [Knowledge overview](/platform/knowledge/overview); the fact-sized sibling surface is [Knowledge entries](/platform/knowledge/knowledge-entries), which rides this same pipeline one document at a time.

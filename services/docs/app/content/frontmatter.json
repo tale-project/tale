@@ -7,14 +7,6 @@
       "description": "Des parcours de tâches indexés par rôle — Membre, Éditeur, Développeur, Administration. Chaque tutoriel amène une instance neuve de « je veux faire X » au résultat qui fonctionne."
     }
   },
-  "fr:tutorials/developer/mcp-server-from-scratch": {
-    "slug": "tutorials/developer/mcp-server-from-scratch",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Monter un serveur MCP depuis zéro",
-      "description": "Enregistrer ton propre serveur MCP pour que les agents l’appellent ne fait pas partie de cette version — Tale est lui-même le serveur MCP, alors branche ton client sur l’endpoint entrant."
-    }
-  },
   "fr:tutorials/developer/trigger-automation-via-webhook": {
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "fr",
@@ -31,36 +23,12 @@
       "description": "Crée une clé API et appelle l'API REST de Tale depuis un script bash ou Python — le chemin de bout en bout le plus court du terminal à une réponse d'assistant."
     }
   },
-  "fr:tutorials/developer/build-a-custom-tool": {
-    "slug": "tutorials/developer/build-a-custom-tool",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Construire un outil personnalisé",
-      "description": "Un panneau d’outils personnalisés dans les paramètres ne fait pas partie de cette version — cette page montre les trois endroits où ton propre code atteint un agent aujourd’hui."
-    }
-  },
   "fr:tutorials/editor/first-agent-end-to-end": {
     "slug": "tutorials/editor/first-agent-end-to-end",
     "locale": "fr",
     "frontmatter": {
       "title": "Construire ton premier agent",
       "description": "Mène un projet neuf de « je veux un agent » à un résultat de tâche relu — crée un agent de projet avec un harness, un modèle et un paragraphe d’instructions, confie-lui une vraie tâche et relis ce qui revient."
-    }
-  },
-  "fr:tutorials/editor/delegate-between-agents": {
-    "slug": "tutorials/editor/delegate-between-agents",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Confier du travail à un worker",
-      "description": "Le worker spawn_agent et sa carte de job ne font pas partie de cette version — confie le travail à un agent de projet par une tâche du tableau, ou à une automatisation par son nœud agent."
-    }
-  },
-  "fr:tutorials/editor/agent-with-knowledge": {
-    "slug": "tutorials/editor/agent-with-knowledge",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Construire un agent avec du savoir",
-      "description": "Lier des documents à un agent ne fait pas partie de cette version — les connaissances appartiennent à toute l’organisation, indexées sous Connaissances, et l’assistant de chat comme les agents de projet les lisent depuis là."
     }
   },
   "fr:tutorials/editor/workflow-with-approvals": {
@@ -175,14 +143,6 @@
       "description": "Transforme un chat ponctuel en espace de travail partagé qui garde ensemble les mêmes fichiers, instructions et conversations — et arrête de re-charger les mêmes documents à chaque fois."
     }
   },
-  "fr:tutorials/admin/office-add-in": {
-    "slug": "tutorials/admin/office-add-in",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Installer le complément Outlook",
-      "description": "Déploie la sidebar Tale dans Outlook et Microsoft 365 pour que les membres rédigent des réponses avec les agents Tale sans quitter leur boîte de réception."
-    }
-  },
   "fr:tutorials/admin/meeting-transcription": {
     "slug": "tutorials/admin/meeting-transcription",
     "locale": "fr",
@@ -272,22 +232,6 @@
       "description": "Éditeur est la surface de construction — créer agents, projets, automatisations et la connaissance dans laquelle ils s’étendent. Les pages ici sont ce que fait au quotidien une personne de rôle Éditeur."
     }
   },
-  "fr:platform/agents/create": {
-    "slug": "platform/agents/create",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Créer un agent",
-      "description": "Le dialogue de création et l’éditeur d’agent ne font pas partie de cette version — les agents que tu crées dans l’interface sont des agents de projet, et les personas de chat sont des fichiers de configuration."
-    }
-  },
-  "fr:platform/agents/tools": {
-    "slug": "platform/agents/tools",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Outils d’agent",
-      "description": "Il n’y a pas d’onglet Outils par agent dans cette version — l’assistant de chat porte un jeu fixe d’outils en lecture seule, et les agents de projet s’équipent dans leur propre dialogue."
-    }
-  },
   "fr:platform/agents/harnesses": {
     "slug": "platform/agents/harnesses",
     "locale": "fr",
@@ -302,38 +246,6 @@
     "frontmatter": {
       "title": "Les skills sur les agents",
       "description": "Comment un skill de la bibliothèque atteint un agent — équiper les agents d'un projet, quelle visibilité compte, et comment un bundle arrive dans une session sandbox."
-    }
-  },
-  "fr:platform/agents/versions": {
-    "slug": "platform/agents/versions",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Versions d’agent",
-      "description": "La vue Historique de l’éditeur d’agent ne fait pas partie de cette version — les fichiers de persona gardent un historique derrière l’API, et le versionnage visible dans le produit appartient aux automatisations."
-    }
-  },
-  "fr:platform/agents/delegation": {
-    "slug": "platform/agents/delegation",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Workers d’agent",
-      "description": "Le tool de worker spawn_agent ne fait pas partie de cette version — le travail passe à un agent de projet par une tâche du tableau et à une automatisation par son nœud agent."
-    }
-  },
-  "fr:platform/agents/image-generation": {
-    "slug": "platform/agents/image-generation",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Génération d’images",
-      "description": "La génération d’images ne fait pas partie de cette version — il n’y a pas de tool generate_image, et aucun agent ne produit d’image dans sa réponse."
-    }
-  },
-  "fr:platform/agents/knowledge": {
-    "slug": "platform/agents/knowledge",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Connaissances d’agent",
-      "description": "Il n’y a pas d’onglet Connaissances par agent dans cette version — les connaissances se gèrent à l’échelle de l’organisation et se lisent par les outils de recherche de l’assistant de chat et les outils de plateforme d’un agent de projet."
     }
   },
   "fr:platform/agents/concepts": {
@@ -1184,14 +1096,6 @@
       "description": "Role-indexed task walks — Member, Editor, Developer, Admin. Each tutorial takes a fresh instance from \"I want to do X\" to a working result."
     }
   },
-  "en:tutorials/developer/mcp-server-from-scratch": {
-    "slug": "tutorials/developer/mcp-server-from-scratch",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Stand up an MCP server from scratch",
-      "description": "Registering your own MCP server for agents to call is not part of this version — Tale is the MCP server, so point your client at the inbound endpoint instead."
-    }
-  },
   "en:tutorials/developer/trigger-automation-via-webhook": {
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "en",
@@ -1208,36 +1112,12 @@
       "description": "Mint an API key and call the Tale REST API from a bash or Python script — the smallest end-to-end path from terminal to an assistant reply."
     }
   },
-  "en:tutorials/developer/build-a-custom-tool": {
-    "slug": "tutorials/developer/build-a-custom-tool",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Build a custom tool",
-      "description": "A Settings > Custom tools panel is not part of this version — this page shows the three places your own code reaches an agent today."
-    }
-  },
   "en:tutorials/editor/first-agent-end-to-end": {
     "slug": "tutorials/editor/first-agent-end-to-end",
     "locale": "en",
     "frontmatter": {
       "title": "Build your first agent",
       "description": "Walk a fresh project from \"I want an agent\" to a reviewed task result — create a project agent with a harness, a model, and a paragraph of instructions, hand it a real task, and review what comes back."
-    }
-  },
-  "en:tutorials/editor/delegate-between-agents": {
-    "slug": "tutorials/editor/delegate-between-agents",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Hand work to a worker",
-      "description": "The spawn_agent worker and its job card are not part of this version — hand work to a project agent through a board task, or to an automation through its agent node."
-    }
-  },
-  "en:tutorials/editor/agent-with-knowledge": {
-    "slug": "tutorials/editor/agent-with-knowledge",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Build an agent with knowledge",
-      "description": "Binding documents to an agent is not part of this version — knowledge is organization-wide, indexed under Knowledge, and the chat assistant and project agents read it from there."
     }
   },
   "en:tutorials/editor/workflow-with-approvals": {
@@ -1352,14 +1232,6 @@
       "description": "Turn a one-off chat into a shared workspace that keeps the same files, instructions, and conversations together — and stops you from re-uploading the same documents every time."
     }
   },
-  "en:tutorials/admin/office-add-in": {
-    "slug": "tutorials/admin/office-add-in",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Install the Outlook add-in",
-      "description": "Roll out the Tale sidebar inside Outlook and Microsoft 365 so members can draft replies with Tale agents without leaving their inbox."
-    }
-  },
   "en:tutorials/admin/meeting-transcription": {
     "slug": "tutorials/admin/meeting-transcription",
     "locale": "en",
@@ -1449,22 +1321,6 @@
       "description": "Editor is the build surface — creating agents, projects, automations, and the knowledge they reach into. The pages here are what someone with the Editor role does day to day."
     }
   },
-  "en:platform/agents/create": {
-    "slug": "platform/agents/create",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Create an agent",
-      "description": "The agent create dialog and editor are not part of this version — agents you create in the UI are project agents, and chat personas are configuration files."
-    }
-  },
-  "en:platform/agents/tools": {
-    "slug": "platform/agents/tools",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Agent tools",
-      "description": "There is no per-agent Tools tab in this version — the chat assistant carries a fixed read-only loadout, and project agents are equipped on their own dialog."
-    }
-  },
   "en:platform/agents/harnesses": {
     "slug": "platform/agents/harnesses",
     "locale": "en",
@@ -1479,38 +1335,6 @@
     "frontmatter": {
       "title": "Skills on agents",
       "description": "How a skill from the library reaches an agent — equipping a project's agents, whose visibility counts, and how a bundle lands in a sandbox session."
-    }
-  },
-  "en:platform/agents/versions": {
-    "slug": "platform/agents/versions",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Agent versions",
-      "description": "The agent editor's History view is not part of this version — persona files keep a history behind the API, and the versioning you see in the product belongs to automations."
-    }
-  },
-  "en:platform/agents/delegation": {
-    "slug": "platform/agents/delegation",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Agent workers",
-      "description": "The spawn_agent worker tool is not part of this version — work is handed to a project agent through a board task and to an automation through its agent node."
-    }
-  },
-  "en:platform/agents/image-generation": {
-    "slug": "platform/agents/image-generation",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Image generation",
-      "description": "Image generation is not part of this version — there is no generate_image tool, and no agent produces pictures inline."
-    }
-  },
-  "en:platform/agents/knowledge": {
-    "slug": "platform/agents/knowledge",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Agent knowledge",
-      "description": "There is no per-agent Knowledge tab in this version — knowledge is managed organization-wide and reached through the chat assistant's retrieval tools and a project agent's platform tools."
     }
   },
   "en:platform/agents/concepts": {
@@ -2361,14 +2185,6 @@
       "description": "Rollenbasierte Aufgaben-Walkthroughs — Mitglied, Redakteur, Entwickler, Verwaltung. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun\" zum funktionierenden Ergebnis."
     }
   },
-  "de:tutorials/developer/mcp-server-from-scratch": {
-    "slug": "tutorials/developer/mcp-server-from-scratch",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Einen MCP-Server von Grund auf hochziehen",
-      "description": "Einen eigenen MCP-Server für Agenten zu registrieren gibt es in dieser Version nicht — Tale ist selbst der MCP-Server, also verbinde deinen Client mit dem eingehenden Endpoint."
-    }
-  },
   "de:tutorials/developer/trigger-automation-via-webhook": {
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "de",
@@ -2385,36 +2201,12 @@
       "description": "Erzeug einen API-Schlüssel und ruf die Tale-REST-API aus einem Bash- oder Python-Skript auf — der kürzeste End-to-End-Pfad vom Terminal zur Assistenten-Antwort."
     }
   },
-  "de:tutorials/developer/build-a-custom-tool": {
-    "slug": "tutorials/developer/build-a-custom-tool",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Ein eigenes Tool bauen",
-      "description": "Ein Panel für eigene Tools in den Einstellungen gibt es in dieser Version nicht — diese Seite zeigt die drei Stellen, an denen dein eigener Code heute einen Agenten erreicht."
-    }
-  },
   "de:tutorials/editor/first-agent-end-to-end": {
     "slug": "tutorials/editor/first-agent-end-to-end",
     "locale": "de",
     "frontmatter": {
       "title": "Deinen ersten Agent bauen",
       "description": "Bring ein frisches Projekt von „ich will einen Agent“ zu einem geprüften Aufgaben-Ergebnis — leg einen Projekt-Agenten mit Agent-Laufzeit, Modell und einem Absatz Anweisungen an, gib ihm eine echte Aufgabe und prüfe, was zurückkommt."
-    }
-  },
-  "de:tutorials/editor/delegate-between-agents": {
-    "slug": "tutorials/editor/delegate-between-agents",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Arbeit an einen Worker geben",
-      "description": "Den Worker spawn_agent und seine Job-Karte gibt es in dieser Version nicht — gib Arbeit über eine Board-Aufgabe an einen Projekt-Agenten oder über ihren Agent-Knoten an eine Automatisierung."
-    }
-  },
-  "de:tutorials/editor/agent-with-knowledge": {
-    "slug": "tutorials/editor/agent-with-knowledge",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Einen Agent mit Wissen bauen",
-      "description": "Dokumente an einen Agenten zu binden gibt es in dieser Version nicht — Wissen gehört der ganzen Organisation, wird unter Wissen indexiert, und Chat-Assistent wie Projekt-Agenten lesen es von dort."
     }
   },
   "de:tutorials/editor/workflow-with-approvals": {
@@ -2529,14 +2321,6 @@
       "description": "Verwandle einen Einmal-Chat in einen geteilten Arbeitsraum, der dieselben Dateien, Instruktionen und Konversationen zusammenhält — und hör auf, jedes Mal dieselben Dokumente erneut hochzuladen."
     }
   },
-  "de:tutorials/admin/office-add-in": {
-    "slug": "tutorials/admin/office-add-in",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Das Outlook-Add-in installieren",
-      "description": "Roll die Tale-Sidebar in Outlook und Microsoft 365 aus, damit Mitglieder Antworten mit Tale-Agenten direkt aus dem Posteingang verfassen können."
-    }
-  },
   "de:tutorials/admin/meeting-transcription": {
     "slug": "tutorials/admin/meeting-transcription",
     "locale": "de",
@@ -2626,22 +2410,6 @@
       "description": "Redakteur ist die Bau-Oberfläche — Agents, Projekte, Automatisierungen und das Wissen erstellen, in das sie reichen. Die Seiten hier sind das, was eine Person mit Redakteurs-Rolle tagtäglich tut."
     }
   },
-  "de:platform/agents/create": {
-    "slug": "platform/agents/create",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Einen Agent erstellen",
-      "description": "Den Dialog zum Anlegen und den Editor für Agenten gibt es in dieser Version nicht — Agenten, die du in der UI anlegst, sind Projekt-Agenten, und Chat-Personas sind Konfigurationsdateien."
-    }
-  },
-  "de:platform/agents/tools": {
-    "slug": "platform/agents/tools",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Agent-Tools",
-      "description": "Einen Tools-Tab pro Agent gibt es in dieser Version nicht — der Chat-Assistent trägt einen festen, rein lesenden Tool-Satz, und Projekt-Agenten rüstest du in ihrem eigenen Dialog aus."
-    }
-  },
   "de:platform/agents/harnesses": {
     "slug": "platform/agents/harnesses",
     "locale": "de",
@@ -2656,38 +2424,6 @@
     "frontmatter": {
       "title": "Skills auf Agenten",
       "description": "Wie ein Skill aus der Bibliothek einen Agenten erreicht — die Agenten eines Projekts ausrüsten, wessen Sichtbarkeit zählt und wie ein Bundle in einer Sandbox-Sitzung landet."
-    }
-  },
-  "de:platform/agents/versions": {
-    "slug": "platform/agents/versions",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Agent-Versionen",
-      "description": "Die Verlauf-Ansicht des Agenten-Editors gibt es in dieser Version nicht — Persona-Dateien führen hinter der API einen Verlauf, und die Versionierung, die du im Produkt siehst, gehört den Automatisierungen."
-    }
-  },
-  "de:platform/agents/delegation": {
-    "slug": "platform/agents/delegation",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Agent-Worker",
-      "description": "Das Worker-Tool spawn_agent gibt es in dieser Version nicht — Arbeit geht über eine Board-Aufgabe an einen Projekt-Agenten und über ihren Agent-Knoten an eine Automatisierung."
-    }
-  },
-  "de:platform/agents/image-generation": {
-    "slug": "platform/agents/image-generation",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Bildgenerierung",
-      "description": "Bildgenerierung gibt es in dieser Version nicht — es gibt kein Tool generate_image, und kein Agent erzeugt Bilder in seiner Antwort."
-    }
-  },
-  "de:platform/agents/knowledge": {
-    "slug": "platform/agents/knowledge",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Agent-Wissen",
-      "description": "Einen Wissen-Tab pro Agent gibt es in dieser Version nicht — Wissen wird organisationsweit verwaltet und über die Such-Tools des Chat-Assistenten und die Plattform-Tools eines Projekt-Agenten erreicht."
     }
   },
   "de:platform/agents/concepts": {

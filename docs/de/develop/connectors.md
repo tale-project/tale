@@ -104,7 +104,7 @@ Zwei Oberflächen erreichen Systeme außerhalb von Tale, und die Wahl dreht sich
 | Mitgelieferter Connector | Für das Zielsystem gibt es bereits einen. Deine Arbeit sind die Zugangsdaten, der Anbieter-Vertrag wird für dich gepflegt.                                           |
 | Dein eigener Code        | Nichts Mitgeliefertes deckt das System ab — eine interne API, ein selbstgebautes Tool, ein Host, den nur dein Netz erreicht. Ein Projekt-Agent ruft ihn mit einem **Secrets**-Eintrag aus seiner Sandbox auf; eine Automatisierung aus einem `transform`-Knoten. |
 
-Einen externen MCP-Server zu registrieren, gibt es in dieser Version nicht — Tales einzige MCP-Oberfläche ist der eingehende Endpoint unter **Einstellungen > API > MCP**, an dem dein MCP-Client Tale steuert. [MCP-Server](/de/platform/connectors/mcp-servers) sagt, was an die Stelle des Registrierungsformulars getreten ist; [Einen MCP-Server von Grund auf hochziehen](/de/tutorials/developer/mcp-server-from-scratch) sagt dasselbe aus Sicht dessen, der baut.
+Einen externen MCP-Server zu registrieren, gibt es in dieser Version nicht — Tales einzige MCP-Oberfläche ist der eingehende Endpoint unter **Einstellungen > API > MCP**, an dem dein MCP-Client Tale steuert. [MCP-Server](/de/platform/connectors/mcp-servers) sagt, was an die Stelle des Registrierungsformulars getreten ist; [MCP-Endpoint](/de/develop/mcp-endpoint) ist die Referenz für die Oberfläche, die es tatsächlich gibt.
 
 ## Wo das hingehört
 

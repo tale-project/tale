@@ -105,4 +105,4 @@ A connector is vendor-specific, ships with the platform, and is maintained for y
 
 ## Where this fits
 
-Credential management is the whole of connector administration now that nothing is installed: add the accounts, name them well, keep one default per connector, and reconnect the OAuth rows that lapse. [Connectors](/platform/connectors/overview) is the catalog those credentials attach to, [Agent tools](/platform/agents/tools) shows how the resulting actions arrive in an agent's toolbelt, and [Configure approvals](/platform/approvals/configure) is where the write actions are held for a person to release.
+Credential management is the whole of connector administration now that nothing is installed: add the accounts, name them well, keep one default per connector, and reconnect the OAuth rows that lapse. [Connectors](/platform/connectors/overview) is the catalog those credentials attach to, [Project agents](/platform/projects/project-agents) shows how the resulting actions arrive in an agent's equipment, and [Configure approvals](/platform/approvals/configure) is where the write actions are held for a person to release.

@@ -104,7 +104,7 @@ Two surfaces reach systems outside Tale, and the choice is about who owns and ru
 | Shipped connector | A connector already exists for the target system. Your work is a credential, and the vendor contract is maintained for you.               |
 | Your own code     | Nothing shipped covers the system — an internal API, a homegrown tool, a host only your network can reach. A project agent calls it from its sandbox with a **Secrets** entry; an automation calls it from a `transform` node. |
 
-Registering an external MCP server is not part of this version — Tale's one MCP surface is the inbound endpoint under **Settings > API > MCP**, where your MCP client drives Tale. [MCP servers](/platform/connectors/mcp-servers) says what replaced the registration form; [Stand up an MCP server from scratch](/tutorials/developer/mcp-server-from-scratch) says the same from the builder's side.
+Registering an external MCP server is not part of this version — Tale's one MCP surface is the inbound endpoint under **Settings > API > MCP**, where your MCP client drives Tale. [MCP servers](/platform/connectors/mcp-servers) says what replaced the registration form; [MCP endpoint](/develop/mcp-endpoint) is the reference for the surface that does ship.
 
 ## Where this fits
 

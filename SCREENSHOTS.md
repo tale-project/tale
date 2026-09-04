@@ -109,34 +109,6 @@ Documents, crawled websites, and typed records that agents retrieve and cite.
   </tr>
 </table>
 
-## Agents
-
-Instructions, knowledge, tools, and a model as one unit.
-[Agents docs →](https://tale.dev/docs/platform/agents/concepts)
-
-<table>
-  <tr>
-    <td width="50%">
-      <a href="services/docs/public/images/get-started/agent-editor-general.webp"><img src="services/docs/public/images/get-started/agent-editor-general.webp" alt="The agent editor's General tab for the Assistant agent, showing the agent type options, the Visible in chat toggle, and the display name field" width="100%"></a>
-      <br/><sub><b>General</b> — agent type, visibility, and identity</sub>
-    </td>
-    <td width="50%">
-      <a href="services/docs/public/images/platform/agent-editor-instructions.webp"><img src="services/docs/public/images/platform/agent-editor-instructions.webp" alt="The Instructions & models tab of the agent editor, showing the system instructions field with locale tabs and an ordered list of five models" width="100%"></a>
-      <br/><sub><b>Instructions & models</b> — the system prompt, per locale, and an ordered model roster</sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <a href="services/docs/public/images/platform/agent-editor-tools.webp"><img src="services/docs/public/images/platform/agent-editor-tools.webp" alt="The agent editor's Tools tab showing per-tool checkboxes grouped by domain — Conversations, Discussions, Knowledge, Analytics, Files — each group carrying its own grant counter" width="100%"></a>
-      <br/><sub><b>Tools</b> — per-tool grants, domain by domain</sub>
-    </td>
-    <td width="50%">
-      <a href="services/docs/public/images/platform/agent-editor-starters.webp"><img src="services/docs/public/images/platform/agent-editor-starters.webp" alt="The agent editor's Starters tab showing four English conversation starters with drag handles, reorder arrows, and remove buttons" width="100%"></a>
-      <br/><sub><b>Starters</b> — the entry points users see on a new chat</sub>
-    </td>
-  </tr>
-</table>
-
 ## Automations
 
 Typed workflows on schedules, webhooks, and events — with human approval gates.

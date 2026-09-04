@@ -25,19 +25,19 @@ Chatter efficacement, travailler dans les projets, mener des conversations vocal
 
 <Card title="Tutoriels éditeur" icon="bot" href="/fr/tutorials/editor/first-agent-end-to-end">
 
-Construire un premier agent de projet de bout en bout, voir où vivent désormais les connaissances et la délégation, livrer des workflows avec approbations.
+Construire un premier agent de projet de bout en bout, livrer des workflows avec approbations.
 
 </Card>
 
 <Card title="Tutoriels développeur" icon="terminal" href="/fr/tutorials/developer/call-tale-from-a-script">
 
-Appeler Tale depuis un script, déclencher des automatisations par webhook, placer ton propre code là où les agents regardent, connecter un client MCP à Tale.
+Appeler Tale depuis un script, déclencher des automatisations par webhook.
 
 </Card>
 
-<Card title="Tutoriels admin" icon="shield" href="/fr/tutorials/admin/office-add-in">
+<Card title="Tutoriels admin" icon="shield" href="/fr/tutorials/admin/connect-local-provider">
 
-Installer l’add-in Office, câbler la transcription de réunion, connecter un fournisseur local.
+Connecter un fournisseur local, câbler la transcription de réunion.
 
 </Card>
 

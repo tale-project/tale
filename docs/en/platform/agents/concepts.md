@@ -52,7 +52,7 @@ A first useful agent is the support-triage one: it reads the inbound question, a
 - Knowledge: the organization's documents, with the crawled web left out — on a project agent, the knowledge and document read tools.
 - Visibility: `org`, so the whole support team may read the persona; a project agent belongs to its project and is managed by whoever may edit it.
 
-The agent that actually runs in this version is the project agent: create it on the project's **Agents** tab with those instructions, assign it a task, click **Start agent**, and read the two lines it posts back at **In review** — [Build your first agent](/tutorials/editor/first-agent-end-to-end) walks exactly that. Escalation to a specialist is not a persona setting: handing work on is another task, assigned to another agent, as [Agent workers](/platform/agents/delegation) explains.
+The agent that actually runs in this version is the project agent: create it on the project's **Agents** tab with those instructions, assign it a task, click **Start agent**, and read the two lines it posts back at **In review** — [Build your first agent](/tutorials/editor/first-agent-end-to-end) walks exactly that. Escalation to a specialist is not a persona setting: handing work on is another task, assigned to another agent, as [Task automation](/platform/projects/task-automation) explains.
 
 ## When to reach for it
 
@@ -67,4 +67,4 @@ A persona is configuration that names who answers; the lanes you actually pick f
 
 ## Build one
 
-An agent is identity, instructions, two allowlists, a knowledge scope, and a visibility setting — change one of them and you have changed how it behaves, change three and you have a different product. Everything about how a turn actually runs stays outside the persona, decided by the lane that runs it: the chat composer's model picker, a project agent's harness and model, an automation node's settings. The agents you build on a screen are project agents — [Project agents](/platform/projects/project-agents) walks the dialog field by field, [Create an agent](/platform/agents/create) says what replaced the editor, and [Agents (admin view)](/platform/admin/agents) covers the persona files and who may change them.
+An agent is identity, instructions, two allowlists, a knowledge scope, and a visibility setting — change one of them and you have changed how it behaves, change three and you have a different product. Everything about how a turn actually runs stays outside the persona, decided by the lane that runs it: the chat composer's model picker, a project agent's harness and model, an automation node's settings. The agents you build on a screen are project agents — [Project agents](/platform/projects/project-agents) walks the dialog field by field, and [Agents (admin view)](/platform/admin/agents) covers the persona files and who may change them.

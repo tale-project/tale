@@ -89,4 +89,4 @@ Les documents sont la moitié non structurée de la base de connaissances. Quand
 
 ## Où cela s’inscrit
 
-Les documents sont le coin le plus utilisé de la base de connaissances — la plupart des citations, dans la plupart des réponses, pointent ici. Le volet récupération — comment le périmètre de connaissances d’un agent décide de ce qu’il interroge — est [Connaissances de l’agent](/fr/platform/agents/knowledge) ; la surface sœur au format fait est [Entrées de connaissances](/fr/platform/knowledge/knowledge-entries), qui emprunte le même pipeline un document à la fois.
+Les documents sont le coin le plus utilisé de la base de connaissances — la plupart des citations, dans la plupart des réponses, pointent ici. Le volet récupération — comment l’assistant de chat et les agents de projet lisent ce qui est indexé ici — est l’[aperçu des connaissances](/fr/platform/knowledge/overview) ; la surface sœur au format fait est [Entrées de connaissances](/fr/platform/knowledge/knowledge-entries), qui emprunte le même pipeline un document à la fois.

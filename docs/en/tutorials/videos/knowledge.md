@@ -25,4 +25,4 @@ The grounded answers of episode 2 all came from one place; this episode works in
 
 ## Where to go next
 
-The [knowledge overview](/platform/knowledge/overview) maps the whole library; [documents](/platform/knowledge/documents) covers the indexing pipeline, [knowledge entries](/platform/knowledge/knowledge-entries) the curated facts, [structured data](/platform/knowledge/structured-data) the typed records, and [crawling](/platform/knowledge/crawling) the websites. For the scope switches, read [agent knowledge](/platform/agents/knowledge).
+The [knowledge overview](/platform/knowledge/overview) maps the whole library; [documents](/platform/knowledge/documents) covers the indexing pipeline, [knowledge entries](/platform/knowledge/knowledge-entries) the curated facts, [structured data](/platform/knowledge/structured-data) the typed records, and [crawling](/platform/knowledge/crawling) the websites. For how a project agent reads it, read [project agents](/platform/projects/project-agents).
