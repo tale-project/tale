@@ -125,6 +125,20 @@ ENV DB_LOG_STATEMENT=none \
 
 EXPOSE 5432
 
+# Stop with SIGINT — PostgreSQL's *fast* shutdown (disconnect every client,
+# checkpoint, exit cleanly). The official postgres image and the ParadeDB base
+# built on it set exactly this (`docker inspect paradedb/paradedb:0.22.6-pg16`
+# → Config.StopSignal = SIGINT), but the `FROM scratch` stage above drops it
+# with the rest of the image config, leaving Docker's default SIGTERM. For
+# PostgreSQL SIGTERM is the *smart* shutdown, which waits for every client
+# session to end: a client outside compose (a host-side `bun dev` backend, a
+# psql shell) keeps its pooled sessions open, the stop never completes, and
+# Docker SIGKILLs the server once the grace period runs out — turning every
+# orderly stop into a crash recovery. One such kill left a never-initialised
+# tail page in the knowledge corpus's BM25 index, and pg_search then PANICked
+# on every write. compose.yml mirrors this as `stop_signal: SIGINT`.
+STOPSIGNAL SIGINT
+
 HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=10 \
     CMD pg_isready -U ${DB_USER:-tale} -d ${DB_NAME:-tale} && test -f /tmp/.db_ready || exit 1
 

@@ -45,6 +45,55 @@ docker compose ps db
 
 Si les logs montrent des erreurs de connexion à la base du corpus (`knowledge-db` sur le réseau, repliée dans `db` sur un déploiement single-host), redémarre-la (`docker compose restart db`) ; l'ingestion retente à la passe suivante, donc les téléversements n'ont pas à être re-soumis. Si la base est saine mais qu'un téléversement spécifique est bloqué, le fichier lui-même est le suspect — les PDFs corrompus et les documents protégés par mot de passe atterrissent en état d'échec et exigent suppression + re-téléversement.
 
+## La base de connaissances redémarre à chaque téléversement
+
+Chaque ingestion de document échoue de la même façon : la base du corpus (`knowledge-db`, repliée dans `db` sur un déploiement single-host) redémarre, le backend worker perd sa connexion, et le téléversement suivant déclenche le même redémarrage. Le log du serveur — un fichier sous `/var/lib/postgresql/data/log/` dans le conteneur ; `docker compose logs` ne porte que la sortie de l'entrypoint — nomme l'échec à chaque fois :
+
+```bash
+docker compose exec knowledge-db sh -c 'grep -h -E "PANIC|signal 6" /var/lib/postgresql/data/log/*.log | tail -n 4'
+```
+
+```text
+PANIC:  corrupted page pointers: lower = 0, upper = 0, special = 0
+LOG:  server process (PID 4711) was terminated by signal 6: Aborted
+```
+
+L'index BM25 de mots-clés sur `private_knowledge.chunks` contient une page qui n'a jamais été initialisée, et c'est un arrêt en mode crash du conteneur de base qui en laisse une derrière lui : le serveur étend le fichier d'index pour une écriture en cours, `SIGKILL` arrive avant que la page soit écrite, et la récupération après crash n'a aucun WAL à rejouer pour elle. Les images `tale-db` jusqu'à v0.5.7 arrêtaient Postgres avec `SIGTERM`, que Postgres lit comme un arrêt *smart* — il attend la fin de chaque session client. Un client hors compose qui garde une connexion (un backend sur l'hôte, un `psql` ouvert) a poussé l'arrêt au-delà du délai de grâce, Docker a tué le serveur, et le démarrage suivant a tourné en récupération après crash. Les tables et index ordinaires y survivent ; `pg_search` tombe sur la page à zéro à sa prochaine écriture et panique, et Postgres redémarre pour récupérer — à chaque téléversement.
+
+Confirme que l'index est le coupable avant de réparer quoi que ce soit. Ouvre une session sur la base du corpus — les deux requêtes ne font que lire :
+
+```bash
+docker compose exec knowledge-db psql -U tale -d tale_knowledge
+```
+
+```sql
+select * from pdb.verify_index('private_knowledge.idx_pk_chunks_bm25');
+```
+
+Un index sain passe chaque vérification (`passed = t`) ; un index abîmé échoue sur `segment_metadata_valid` ou ne se lit pas du tout. Pour voir la page elle-même, `pageinspect` affiche l'en-tête de la dernière page de l'index — `0 | 0 | 0` est la page jamais initialisée, une page saine affiche `24 | 8184 | 8184` :
+
+```sql
+create extension if not exists pageinspect;
+select lower, upper, special
+from page_header(get_raw_page('private_knowledge.idx_pk_chunks_bm25',
+  (pg_relation_size('private_knowledge.idx_pk_chunks_bm25') / 8192 - 1)::int));
+```
+
+Puis reconstruis l'index. Il dérive de `private_knowledge.chunks`, donc rien n'est perdu et rien n'est à re-téléverser :
+
+```sql
+REINDEX INDEX private_knowledge.idx_pk_chunks_bm25;
+```
+
+En option, reconstruis aussi l'index vectoriel (il existe dès que le premier embedding a été stocké) et récupère les pages de queue orphelines de la table :
+
+```sql
+REINDEX INDEX private_knowledge.idx_pk_chunks_embedding_hnsw;
+VACUUM private_knowledge.chunks;
+```
+
+L'ingestion reprend à la passe suivante du worker. Les images `tale-db` plus récentes que v0.5.7 arrêtent Postgres avec `SIGINT` — l'arrêt *fast*, qui déconnecte les clients, écrit un checkpoint et se termine en quelques secondes même avec des clients attachés — et `compose.yml` pose `stop_signal: SIGINT` pour qu'une image plus ancienne reçoive le même signal. Arrête la stack avec `docker compose stop` ou `docker compose down` et laisse courir le délai de grâce de 60 secondes (la CLI tale arrête les conteneurs de la même manière) ; `docker kill` et débrancher l'hôte sont les deux chemins qui finissent encore en arrêt en mode crash.
+
 ## Les réponses chat s'arrêtent au milieu du stream
 
 Le stream de tokens depuis le fournisseur amont est tombé — soit le fournisseur a rate-limité, soit la connexion a timeouté, soit le service du fournisseur est dégradé. Vérifie la page de statut du fournisseur d'abord ; puis regarde dans les logs plateforme :
