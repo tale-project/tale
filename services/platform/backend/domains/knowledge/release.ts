@@ -7,6 +7,7 @@ import {
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { resolveObjectStore, s3DeleteObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { reconcileDocumentScopeStamps } from './service.ts';
 
 /**
  * Ref release — THE shared seam for taking content out of circulation.
@@ -302,6 +303,20 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
       if (stats.released > 0 || stats.failures > 0) {
         console.info(
           `[knowledge] corpus reconcile for ${org.slug}: scanned=${stats.scanned} released=${stats.released} failures=${stats.failures}`,
+        );
+      }
+      // The scope pass is independent of the release pass: a ref that is
+      // alive can still be mis-stamped, and correcting that is the only
+      // backstop a scope-only edit has (see `reconcileDocumentScopeStamps`).
+      const scope = await reconcileDocumentScopeStamps(sql, {
+        organizationId: org.id,
+        orgSlug: org.slug,
+      });
+      if (scope.corrected > 0) {
+        // Loud on purpose: every corrected row is an edit whose corpus write
+        // failed silently, and until now nothing said so.
+        console.warn(
+          `[knowledge] corpus scope drift for ${org.slug}: corrected=${scope.corrected} of scanned=${scope.scanned} — the per-edit sync had failed for these`,
         );
       }
     } catch (error) {
