@@ -17,7 +17,7 @@ import {
   notifyConversationAssignedTeam,
 } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
-import { getFileUrl } from '../files/service.ts';
+import { getFileUrl, statOrgBlob } from '../files/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
 
 /**
@@ -1076,6 +1076,30 @@ export async function presignMessageAttachments(
               { organizationId },
               raw.storageId,
             );
+            // Presigning does NOT prove the object is there — it signs a
+            // path. Without this the message keeps offering a download that
+            // fails with a browser error and no explanation, which is what
+            // #3017 saw after a recovery re-imported the database without
+            // file storage.
+            //
+            // A probe that THROWS is not evidence of absence (unreachable
+            // store, unresolved org), so it fails open and the attachment is
+            // offered as before. Only a definite `null` marks it.
+            let gone = false;
+            try {
+              gone =
+                (await statOrgBlob(sql, organizationId, raw.storageId)) ===
+                null;
+            } catch (error) {
+              console.warn(
+                `[conversations] attachment presence probe failed for ${raw.storageId}, offering it anyway:`,
+                error,
+              );
+            }
+            if (gone) {
+              const { url: _unreachable, ...rest } = raw;
+              return { ...rest, unavailable: true };
+            }
             return { ...raw, url };
           } catch (error) {
             console.warn(

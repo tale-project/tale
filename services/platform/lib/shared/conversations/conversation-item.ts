@@ -75,6 +75,9 @@ export interface ProjectedMessage {
     storageId?: string;
     url?: string;
     contentId?: string;
+    /** The bytes are gone, so this cannot be offered for download. Stamped at
+     *  read time from live storage; `url` is absent alongside it. */
+    unavailable?: boolean;
   }[];
 }
 
@@ -117,6 +120,7 @@ function projectConversationMessage(
           ...(typeof a.contentId === 'string'
             ? { contentId: a.contentId }
             : {}),
+          ...(a.unavailable === true ? { unavailable: true } : {}),
         }))
       : undefined;
   const deliveryState = message.deliveryState || 'sent';
