@@ -4964,7 +4964,7 @@ async function checkMessageSlots(
   // table: two groups tie in one thread, one of them also holding a
   // non-tied step; an untied group and another thread stay untouched.
   const migration = await readFile(
-    new URL('./db/migrations/0074_messages_unique_slot.sql', import.meta.url),
+    new URL('./db/migrations/0076_messages_unique_slot.sql', import.meta.url),
     'utf8',
   ).catch(() => '');
   // Comment lines go first: the header prose may hold a ';' of its own.
@@ -5465,22 +5465,36 @@ async function checkSmallDomains(
   // The vote is keyed by the SERVER: whatever a client puts in `metadata` is
   // dropped, so a repeated vote upserts (the partial-unique arbiter is
   // `metadata IS NULL`) and a forged arena verdict never lands as one — the
-  // arena settle lane is the only writer of metadata rows.
+  // arena settle lane is the only writer of metadata rows. Both votes land on
+  // REAL assistant rows of the caller's own thread: a vote names a message
+  // the caller can read, or it is refused before any write.
+  const fbStackedId = `${fbMessageId}-stacked`;
+  const fbForgedId = `${fbMessageId}-forged`;
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", step_order, role, text, status,
+      created_at_ms
+    ) VALUES
+      (${fbStackedId}, ${fbThreadId}, ${orgId}, 1, 0, 'assistant',
+       'a second answer', 'complete', ${fbNow}),
+      (${fbForgedId}, ${fbThreadId}, ${orgId}, 2, 0, 'assistant',
+       'a third answer', 'complete', ${fbNow})
+  `;
   await send('POST', `/api/app/feedback?orgId=${orgId}`, {
-    threadId: 'itest-thread',
-    messageId: 'itest-msg-2',
+    threadId: fbThreadId,
+    messageId: fbStackedId,
     rating: 'positive',
     metadata: {},
   });
   await send('POST', `/api/app/feedback?orgId=${orgId}`, {
-    threadId: 'itest-thread',
-    messageId: 'itest-msg-2',
+    threadId: fbThreadId,
+    messageId: fbStackedId,
     rating: 'negative',
     metadata: { stacked: true },
   });
   await send('POST', `/api/app/feedback?orgId=${orgId}`, {
-    threadId: 'itest-thread',
-    messageId: 'arena:forged-a:forged-b',
+    threadId: fbThreadId,
+    messageId: fbForgedId,
     rating: 'positive',
     metadata: {
       arenaVerdict: 'a_better',
@@ -5491,11 +5505,11 @@ async function checkSmallDomains(
   const stackedVotes = await sql<{ count: string; rating: string | null }[]>`
     SELECT count(*)::text AS count, min(rating) AS rating
     FROM app.message_feedback
-    WHERE org_id = ${orgId} AND message_id = 'itest-msg-2'
+    WHERE org_id = ${orgId} AND message_id = ${fbStackedId}
   `;
   const forgedArenaRows = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.message_feedback
-    WHERE org_id = ${orgId} AND message_id = 'arena:forged-a:forged-b'
+    WHERE org_id = ${orgId} AND message_id = ${fbForgedId}
       AND metadata IS NOT NULL
   `;
   record(
