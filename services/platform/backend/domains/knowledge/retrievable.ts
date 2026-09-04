@@ -13,7 +13,11 @@
  *     (project / hub team) applies per candidate document — a WebDAV COPY
  *     twin admits through its own scope, not its sibling's.
  *   - or a LIVE unbound file row holding the ref, admitted only inside its
- *     thread's scope. A row with NEITHER binding is DENIED: the corpus
+ *     thread's scope — or, for an emailed attachment, inside the scope of
+ *     the CONVERSATION it arrived on. That one is assignment privacy, not
+ *     org membership: an unassigned inbox row is admin-triage only, so the
+ *     caller supplies the conversations it may read rather than this file
+ *     deriving them. A row with NEITHER binding is DENIED: the corpus
  *     stamps no project and no team for that shape, and the SQL half then
  *     reads it as an org-wide hub row, so admitting it here serves one
  *     member's file to the whole organization. 0.4 denied it too
@@ -42,6 +46,16 @@ export interface AccessScopeArg {
   includeHub?: boolean;
   includeConversationScoped?: boolean;
   threadIds?: string[];
+  /**
+   * Conversations this caller may read, already decided by
+   * `conversationAssignmentAllows` — the ONE definition of inbox visibility.
+   *
+   * Resolved per dispatch from the CANDIDATES' own conversations, not
+   * enumerated for the caller: an admin sees every conversation, and an
+   * org with a large inbox would otherwise ship a list of thousands into
+   * every turn's scope.
+   */
+  conversationIds?: string[];
 }
 
 /** A document currently exposing the ref (`file_ref` = ref). */
@@ -64,6 +78,9 @@ function folderContains(folder: string, path: string | null): boolean {
 export interface UnboundFileCandidate {
   lifecycleStatus: string | null;
   threadId: string | null;
+  /** The conversation an emailed attachment arrived on, when the file IS
+   * one. Mutually exclusive with `threadId` in practice. */
+  conversationId: string | null;
 }
 
 function isActiveLifecycle(status: string | null): boolean {
@@ -112,6 +129,21 @@ export function decideRetrievable(
       if (
         access.includeConversationScoped !== false &&
         (access.threadIds ?? []).includes(file.threadId)
+      ) {
+        return true;
+      }
+      continue;
+    }
+    if (file.conversationId !== null) {
+      // Assignment privacy, not org membership: an unassigned inbox row is
+      // admin-triage only, so the allowed set is the caller's own answer
+      // from `conversationAssignmentAllows` rather than anything derived
+      // here. `access === undefined` is the system caller (ingest, purge),
+      // which is not a person and is not scoped.
+      if (access === undefined) return true;
+      if (
+        access.includeConversationScoped !== false &&
+        (access.conversationIds ?? []).includes(file.conversationId)
       ) {
         return true;
       }

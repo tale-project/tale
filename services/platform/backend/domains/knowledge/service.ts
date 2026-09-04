@@ -31,6 +31,7 @@ import {
   isImageFile,
   isSupported,
 } from '../../core/lib/knowledge/extraction/router.ts';
+import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
@@ -58,8 +59,9 @@ import {
  * BYO corpus → deployment default, pgvector + FTS), so search/fetch reuse
  * them VERBATIM through the ctx shim; only three seams re-point at 0.5:
  * the org-row lookup, the credential row loads, and the retrievable-file
- * access filter (Tier A: document + chat-thread scopes; the conversation /
- * email-message branches return deny until those domains land — ledger).
+ * access filter (Tier A: document, chat-thread and CONVERSATION scopes; the
+ * email-message (`msg:`) branch returns deny until something writes such a
+ * ref — ledger).
  *
  * Ingest is a 0.5-native composition of the same exported pieces
  * (extractText → embedder → indexDocument) with status writes on
@@ -71,14 +73,79 @@ const FILTER_RETRIEVABLE =
   'documents/internal_queries:filterRetrievableRagFileIds';
 
 /**
+ * Which of these conversations the caller may read.
+ *
+ * Delegates to `conversationAssignmentAllows` — the ONE definition of inbox
+ * visibility — rather than restating it. A second copy is how a reader ends
+ * up subtly wider than the rule it mirrors, and the failure mode here is
+ * publishing an entire inbox into a chat answer.
+ *
+ * Bounded by the CANDIDATES, not by the caller: an admin may read every
+ * conversation, so enumerating the caller's would ship thousands of ids into
+ * every dispatch. One read of the candidates' assignment stamps, then the
+ * shared predicate per row.
+ *
+ * No caller identity means no person is asking through this path — an
+ * emailed attachment stays denied rather than defaulting to org-wide.
+ */
+async function allowedConversationIds(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    candidates: readonly string[];
+    teamIds: readonly string[];
+    caller?: { userId: string; isAdmin: boolean };
+  },
+): Promise<string[]> {
+  if (args.candidates.length === 0 || args.caller === undefined) return [];
+  const rows = await sql<
+    {
+      id: string;
+      assigneeUserId: string | null;
+      assigneeTeamId: string | null;
+    }[]
+  >`
+    SELECT id, assignee_user_id AS "assigneeUserId",
+           assignee_team_id AS "assigneeTeamId"
+    FROM app.conversations
+    WHERE org_id = ${args.organizationId}
+      AND id = ANY(${[...args.candidates]})
+  `;
+  const teams = new Set(args.teamIds);
+  const allowed: string[] = [];
+  for (const row of rows) {
+    const visible = await conversationAssignmentAllows(
+      {
+        ...(row.assigneeUserId !== null
+          ? { assigneeUserId: row.assigneeUserId }
+          : {}),
+        ...(row.assigneeTeamId !== null
+          ? { assigneeTeamId: row.assigneeTeamId }
+          : {}),
+      },
+      {
+        isAdmin: args.caller.isAdmin,
+        userId: args.caller.userId,
+        // Already resolved for the document branches, so the team lookup
+        // this predicate defers costs nothing here.
+        hasTeam: (teamId: string) => teams.has(teamId),
+      },
+    );
+    if (visible) allowed.push(row.id);
+  }
+  return allowed;
+}
+
+/**
  * Tier-A retrievable filter over app tables — lifecycle truth for the
  * corpus. A ref passes when a document CURRENTLY exposes it (`file_ref` =
  * ref, active lifecycle, in scope — a replaced version's ref or a trashed/
  * expired document is dark immediately, whatever the physical purge is
- * still doing) or a LIVE unbound file row holds it (thread files inside
- * their thread's scope; document-less lanes like video-link transcripts
- * keep the 0.4 same-org posture). The DECISION is `decideRetrievable`
- * (pure, tested); this wrapper only fetches its candidates.
+ * still doing) or a LIVE unbound file row holds it: a thread file inside its
+ * thread's scope, an emailed attachment inside the scope of the conversation
+ * it arrived on, and a row bound to neither is denied. The DECISION is
+ * `decideRetrievable` (pure, tested); this wrapper fetches its candidates
+ * and resolves which of THEIR conversations the caller may read.
  *
  * `folder` (canonical spelling) re-checks the folder filter against each
  * document's CURRENT folder — the corpus row's stamp is a copy that can lag
@@ -91,6 +158,12 @@ async function filterRetrievableRagFileIds(
     fileIds: string[];
     access?: AccessScopeArg;
     folder?: string;
+    /**
+     * Who is asking — needed ONLY by the conversation branch, which is
+     * assignment privacy rather than org scope. Absent leaves an emailed
+     * attachment denied, which is the posture until a caller supplies it.
+     */
+    caller?: { userId: string; isAdmin: boolean };
   },
 ): Promise<string[]> {
   if (args.fileIds.length === 0) {
@@ -126,12 +199,31 @@ async function filterRetrievableRagFileIds(
       : new Map<string, string>();
   const fileRows = await sql<({ storageRef: string } & UnboundFileCandidate)[]>`
     SELECT fm.storage_ref AS "storageRef", fm.thread_id AS "threadId",
+           fm.conversation_id AS "conversationId",
            fm.lifecycle_status AS "lifecycleStatus"
     FROM app.file_metadata fm
     WHERE fm.org_id = ${args.organizationId}
       AND fm.storage_ref = ANY(${args.fileIds})
       AND fm.document_id IS NULL
   `;
+  // Which of the CANDIDATES' conversations this caller may read. Bounded by
+  // the candidate set, never enumerated for the caller: an admin sees every
+  // conversation, so an org with a large inbox would otherwise ship
+  // thousands of ids into every dispatch's scope.
+  const conversationIds = await allowedConversationIds(sql, {
+    organizationId: args.organizationId,
+    candidates: [
+      ...new Set(
+        fileRows.flatMap((row) =>
+          row.conversationId !== null ? [row.conversationId] : [],
+        ),
+      ),
+    ],
+    teamIds: args.access?.teamIds ?? [],
+    ...(args.caller !== undefined ? { caller: args.caller } : {}),
+  });
+  const access =
+    args.access === undefined ? undefined : { ...args.access, conversationIds };
   const docsByRef = new Map<string, DocCandidate[]>();
   for (const row of docRows) {
     const { fileRef, folderId, folderPath, ...scope } = row;
@@ -163,7 +255,7 @@ async function filterRetrievableRagFileIds(
       decideRetrievable(
         docsByRef.get(ref) ?? [],
         filesByRef.get(ref) ?? [],
-        args.access,
+        access,
         folder ?? undefined,
       )
     ) {
