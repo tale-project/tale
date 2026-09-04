@@ -318,6 +318,31 @@ describe('verifying the indexes at boot', () => {
     expect(reindexStatements(db)).toEqual([]);
   });
 
+  it('leaves an index alone when the verifier fails for a reason other than corruption', async () => {
+    // A role that may not run `pdb.verify_index`, a statement timeout, a
+    // dropped connection: none of these says anything about the index. Only
+    // a corruption-class error (SQLSTATE XX…) is a verdict; rebuilding — or
+    // refusing writes — on anything else would be our own outage.
+    const denied = pgError(
+      'permission denied for function verify_index',
+      '42501',
+    );
+    const db = fakeSession({ indexes: [PK], verify: [denied] });
+
+    const report = await healBm25Indexes({
+      url: URL,
+      label: 'the test database',
+      openSession: db.openSession,
+    });
+
+    const [entry] = report.indexes;
+    expect(entry?.outcome.kind).toBe('unverifiable');
+    if (entry?.outcome.kind !== 'unverifiable') return;
+    expect(entry.outcome.reason).toContain('permission denied');
+    expect(reindexStatements(db)).toEqual([]);
+    expect(db.ended).toBe(true);
+  });
+
   it('skips quietly when another process holds the repair lock', async () => {
     const db = fakeSession({ indexes: [PK], locked: false });
 

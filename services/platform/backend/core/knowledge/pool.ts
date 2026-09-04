@@ -358,6 +358,13 @@ export function isUndefinedFunction(err: unknown): boolean {
   return sqlState(err) === '42883';
 }
 
+/** Class XX — internal error, data corrupted, index corrupted: what a pgrx
+ * panic (`XX000`) or a torn index block (`XX001`/`XX002`) surfaces as. */
+export function isInternalOrCorruptionError(err: unknown): boolean {
+  const state = sqlState(err);
+  return typeof state === 'string' && state.startsWith('XX');
+}
+
 /** 54000 — a program limit was exceeded, e.g. an HNSW index above pgvector's
  * dimension ceiling. */
 export function isProgramLimitExceeded(err: unknown): boolean {

@@ -18,10 +18,12 @@
  *
  * `pdb.verify_index(index)` returns one row per check (`passed`, `details`)
  * on a readable index and RAISES on one whose segments cannot be read. Both a
- * failed check and a raised error mean "unhealthy". Only a missing verifier
- * (a pg_search too old to ship `pdb.verify_index`) is "unverifiable", and an
- * unverifiable index is never rebuilt: rebuilding healthy indexes on every
- * boot would be an outage of our own making. Indexes are discovered by access
+ * failed check and a raised corruption error (SQLSTATE class XX) mean
+ * "unhealthy". A missing verifier (a pg_search too old to ship
+ * `pdb.verify_index`) or any other failure to run it (permissions, a timeout,
+ * a dropped connection) is "unverifiable", and an unverifiable index is never
+ * rebuilt: rebuilding healthy indexes on every boot would be an outage of our
+ * own making. Indexes are discovered by access
  * method (`pg_am.amname = 'bm25'`), never by name, so a corpus that grows a
  * third BM25 index is covered without anyone remembering this file. HNSW
  * (pgvector) indexes are deliberately out of scope: pgvector ships no verifier
@@ -50,6 +52,7 @@ import type { Sql } from 'postgres';
 
 import { logger } from '../../../lib/knowledge/logger';
 import {
+  isInternalOrCorruptionError,
   isUndefinedFunction,
   isUndefinedSchema,
   openKnowledgeSession,
@@ -195,10 +198,22 @@ async function verifyBm25Index(
     if (isUndefinedFunction(error) || isUndefinedSchema(error)) {
       return { status: 'unverifiable', reason: describe(error) };
     }
+    // pg_search reports a corrupted index by RAISING — a pgrx panic surfaces
+    // as SQLSTATE XX000, a torn block as XX001/XX002 — so only that class is a
+    // verdict. Anything else (a role that may not run the verifier, a
+    // statement timeout, a dropped connection) says nothing about the index,
+    // and rebuilding it — or refusing its writes — on that account would turn
+    // an unrelated hiccup into an outage of our own making.
+    if (isInternalOrCorruptionError(error)) {
+      return {
+        status: 'unhealthy',
+        checks: [],
+        reason: `pdb.verify_index raised: ${describe(error)}`,
+      };
+    }
     return {
-      status: 'unhealthy',
-      checks: [],
-      reason: `pdb.verify_index raised: ${describe(error)}`,
+      status: 'unverifiable',
+      reason: `pdb.verify_index could not run: ${describe(error)}`,
     };
   }
 }
@@ -346,7 +361,7 @@ async function examineIndex(
   const verifyMs = Math.round(performance.now() - started);
   if (verify.status === 'unverifiable') {
     logger.info(
-      `${ctx.label}: BM25 index ${name} cannot be verified on this pg_search (${verify.reason}) — leaving it alone`,
+      `${ctx.label}: BM25 index ${name} cannot be verified (${verify.reason}) — leaving it alone`,
     );
     return {
       index,
@@ -731,7 +746,9 @@ export async function assertCorpusWritable(
       return;
     }
     logger.warn(
-      `BM25 index ${name} is still unhealthy — writes to ${schema} stay refused: ${verify.reason}`,
+      verify.status === 'unhealthy'
+        ? `BM25 index ${name} is still unhealthy — writes to ${schema} stay refused: ${verify.reason}`
+        : `BM25 index ${name} could not be re-verified — writes to ${schema} stay refused until the next check: ${verify.reason}`,
       { index: name, state: refusal.state },
     );
   } finally {
