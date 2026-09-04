@@ -1,4 +1,3 @@
-import { transactSerializable } from '@tale/shared/db/serializable';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -23,13 +22,6 @@ import {
   listSandboxViewsForOrg,
   listSessionsForOrg,
 } from './sessions.ts';
-import {
-  deleteMyEnvVar,
-  listMyEnv,
-  upsertMyEnvVar,
-  UserEnvError,
-} from './user-env.ts';
-
 /**
  * /api/app/sandbox — the sandbox-management surface: the org's live
  * sessions (with their running ops), always-on pinning, and explicit
@@ -53,46 +45,6 @@ export function createSandboxRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
-
-  const envScope = (c: Context<OrgEnv>) => ({
-    organizationId: c.get('orgId'),
-    userId: c.get('sessionBundle').user.id,
-  });
-
-  // User-level env/secrets (always self-scoped; secrets write-only).
-  app.get('/user-env', async (c) => {
-    return c.json({ env: await listMyEnv(deps.sql, envScope(c)) });
-  });
-
-  app.post('/user-env', async (c) => {
-    const body = z
-      .object({
-        key: z.string().min(1).max(128),
-        value: z.string().max(8192),
-        isSecret: z.boolean(),
-      })
-      .safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      await transactSerializable(deps.sql, (tx) =>
-        upsertMyEnvVar(tx, envScope(c), body.data),
-      );
-      return c.json({ ok: true });
-    } catch (error) {
-      if (error instanceof UserEnvError) {
-        return c.json({ error: error.code, message: error.message }, 400);
-      }
-      throw error;
-    }
-  });
-
-  app.delete('/user-env/:key', async (c) => {
-    return c.json(
-      await deleteMyEnvVar(deps.sql, envScope(c), c.req.param('key')),
-    );
-  });
 
   /** Per-budget quota pressure (the 0.4 `getSandboxQuotaUsage` wire). */
   app.get('/quota-usage', async (c) => {

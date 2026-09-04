@@ -4223,10 +4223,6 @@ metadata:
   notificationPreferences:
     title: Benachrichtigungen
     description: Wähle, welche Ereignisse dir eine Benachrichtigung schicken.
-  environment:
-    title: Umgebungsvariablen & Geheimnisse
-    description: Umgebungsvariablen und Geheimnisse, die in deine Sandboxes
-      eingespeist werden.
   organization:
     title: Organisation
     description: deine Organisationseinstellungen verwalten.
@@ -4357,7 +4353,6 @@ navigation:
   governance: Richtlinien
   metrics: Metriken
   personalization: Personalisierung
-  environment: Umgebung
   account: Konto
   agents: Agenten
   mcp: MCP
@@ -4536,14 +4531,6 @@ personalization:
     tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.
   toasts:
     preferencesUpdated: Einstellungen aktualisiert.
-userEnv:
-  page:
-    title: Umgebungsvariablen & Geheimnisse
-    description: Variablen und Geheimnisse, die in alle deine Sandboxes
-      eingespeist werden.
-    note: Geheimnisse werden verschlüsselt und sind nur beschreibbar — nach dem
-      Speichern werden sie nie wieder angezeigt. Diese Variablen werden in alle
-      deine Sandboxes eingespeist.
 piiConfigPanel:
   modeLabel: Modus
   modeTokenize: Tokenisieren
@@ -4965,9 +4952,6 @@ settings:
       description: Wie Tale sich an dich anpasst — Gedächtnis, Instruktionen und Stimme.
     notifications:
       description: Wähle, welche Ereignisse dir eine Benachrichtigung schicken.
-    environment:
-      description: Umgebungsvariablen und Geheimnisse, die in deine Sandboxes
-        eingespeist werden.
     organization:
       description: Name des Arbeitsbereichs und Identifikatoren.
     members:

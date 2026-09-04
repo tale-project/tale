@@ -4076,9 +4076,6 @@ metadata:
   notificationPreferences:
     title: Notifications
     description: Choose which events send you a notification.
-  environment:
-    title: Environment variables & secrets
-    description: Environment variables and secrets injected into your sandboxes.
   organization:
     title: Organization
     description: Manage your organization settings.
@@ -4207,7 +4204,6 @@ navigation:
   governance: Governance
   metrics: Metrics
   personalization: Preferences
-  environment: Environment
   account: Account
   agents: Agents
   mcp: MCP
@@ -4379,12 +4375,6 @@ personalization:
     tooLong: Custom instructions exceed {max} characters.
   toasts:
     preferencesUpdated: Preferences updated.
-userEnv:
-  page:
-    title: Environment variables & secrets
-    description: Variables and secrets injected into all of your sandboxes.
-    note: Secrets are encrypted and write-only — once saved they are never shown
-      again. These variables are injected into all of your sandboxes.
 piiConfigPanel:
   modeLabel: Mode
   modeTokenize: Tokenize
@@ -5102,8 +5092,6 @@ settings:
       description: How Tale adapts to you — memory, instructions, and voice.
     notifications:
       description: Choose which events send you a notification.
-    environment:
-      description: Environment variables and secrets injected into your sandboxes.
     organization:
       description: Workspace name and identifiers.
     members:

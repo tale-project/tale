@@ -275,29 +275,6 @@ export const DEMO_TEAMS: readonly string[] = [
   'Customer success',
 ] as const;
 
-interface DemoEnvVar {
-  readonly key: string;
-  readonly value: string;
-  readonly secret: boolean;
-}
-
-/**
- * Personal environment (Settings > Environment). Keys must match
- * `^[A-Za-z_][A-Za-z0-9_]*$` or the save throws. Secret values are write-only —
- * the row re-renders as a mask, so idempotency checks the KEY, never the value.
- */
-export const DEMO_ENV_VARS: readonly DemoEnvVar[] = [
-  {
-    key: 'CRM_BASE_URL',
-    value: 'https://crm.northlight.example/api/v2',
-    secret: false,
-  },
-  // Keep keys short: the row's key input clips a long name flush against its
-  // right edge with no ellipsis, which reads as broken in a screenshot.
-  { key: 'ANALYTICS_ORG', value: 'northlight-prod', secret: false },
-  { key: 'CRM_API_TOKEN', value: 'nl_crm_2f8c41d9e7b64a0c', secret: true },
-] as const;
-
 /** REST API keys (Settings > API > REST). Names cap at 32 characters. */
 export const DEMO_API_KEYS: readonly string[] = [
   'Production ingest',

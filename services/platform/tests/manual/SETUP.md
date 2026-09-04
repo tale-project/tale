@@ -241,7 +241,6 @@ quick pass; deep coverage lives in the per-area guides.
 | `/dashboard/{org}/settings/account`                   | profile + security                                       |
 | `/dashboard/{org}/settings/personalization`           | user preferences (custom instructions, memories)         |
 | `/dashboard/{org}/settings/notifications`             | notification preferences                                 |
-| `/dashboard/{org}/settings/environment`               | env vars & secrets form                                  |
 | `/dashboard/{org}/settings/organization`              | org details                                              |
 | `/dashboard/{org}/settings/teams`                     | teams list                                               |
 | `/dashboard/{org}/settings/members`                   | members list                                             |
