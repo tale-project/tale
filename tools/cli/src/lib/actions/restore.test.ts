@@ -2,7 +2,7 @@ import { afterEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DeploymentEnv } from '../../utils/load-env';
 import { setProjectId } from '../project/project-context';
-import { restore } from './restore';
+import { restore, type RestoreDeps } from './restore';
 
 // Seed the shared project-context singleton instead of mocking load-env —
 // bun's mock.module leaks across test files in one process.
@@ -20,21 +20,6 @@ const loggerInfoMock = mock();
 const loggerNoticeMock = mock();
 const loggerTableMock = mock();
 
-mock.module('../backup/list-snapshots', () => ({
-  listSnapshots: listSnapshotsMock,
-}));
-mock.module('../backup/resolve-prefix', () => ({
-  resolveSnapshotPrefix: resolveSnapshotPrefixMock,
-}));
-mock.module('../backup/verify-snapshot', () => ({
-  verifySnapshot: verifySnapshotMock,
-}));
-mock.module('../docker/is-container-running', () => ({
-  isContainerRunning: isContainerRunningMock,
-}));
-mock.module('../docker/stop-container', () => ({
-  stopContainer: stopContainerMock,
-}));
 mock.module('../docker/ensure-volumes', () => ({
   ensureVolumes: ensureVolumesMock,
   volumeExists: mock(),
@@ -56,6 +41,20 @@ mock.module('../../utils/logger', () => ({
   notice: loggerNoticeMock,
   table: loggerTableMock,
 }));
+
+// The collaborators restore drives are INJECTED, not module-mocked: bun's
+// mock.module is process-wide, and mocking `../backup/list-snapshots` or
+// `../backup/verify-snapshot` here leaked into those modules' own test files
+// whenever this file ran first (the sorted order macOS and Windows use),
+// handing them a mock where they test the real implementation.
+const deps: RestoreDeps = {
+  listSnapshots: listSnapshotsMock,
+  resolveSnapshotPrefix: resolveSnapshotPrefixMock,
+  verifySnapshot: verifySnapshotMock,
+  isContainerRunning: isContainerRunningMock,
+  stopContainer: stopContainerMock,
+};
+const run = (options: Parameters<typeof restore>[0]) => restore(options, deps);
 
 const env: DeploymentEnv = {
   BACKEND_UPSTREAM: '',
@@ -113,7 +112,7 @@ describe('restore', () => {
     resolveSnapshotPrefixMock.mockResolvedValue('tale_');
     listSnapshotsMock.mockResolvedValue([MANIFEST]);
 
-    await restore({ env });
+    await run({ env });
 
     expect(loggerTableMock).toHaveBeenCalled();
     expect(execMock).not.toHaveBeenCalled();
@@ -123,9 +122,9 @@ describe('restore', () => {
     resolveSnapshotPrefixMock.mockResolvedValue('tale_');
     listSnapshotsMock.mockResolvedValue([MANIFEST]);
 
-    await expect(
-      restore({ env, snapshotId: '$(rm -rf /backup)' }),
-    ).rejects.toThrow('Invalid snapshot id');
+    await expect(run({ env, snapshotId: '$(rm -rf /backup)' })).rejects.toThrow(
+      'Invalid snapshot id',
+    );
     expect(execMock).not.toHaveBeenCalled();
   });
 
@@ -134,7 +133,7 @@ describe('restore', () => {
     listSnapshotsMock.mockResolvedValue([MANIFEST]);
 
     await expect(
-      restore({ env, snapshotId: '20990101-000000-manual' }),
+      run({ env, snapshotId: '20990101-000000-manual' }),
     ).rejects.toThrow('not found');
     expect(execMock).not.toHaveBeenCalled();
   });
@@ -147,7 +146,7 @@ describe('restore', () => {
     );
 
     await expect(
-      restore({ env, snapshotId: MANIFEST.id, assumeYes: true }),
+      run({ env, snapshotId: MANIFEST.id, assumeYes: true }),
     ).rejects.toThrow(
       'Refusing to restore while project containers are running',
     );
@@ -171,7 +170,7 @@ describe('restore', () => {
       exitCode: 0,
     });
 
-    await restore({
+    await run({
       env,
       snapshotId: MANIFEST.id,
       stop: true,
@@ -200,7 +199,7 @@ describe('restore', () => {
     isContainerRunningMock.mockResolvedValue(false);
     confirmMock.mockResolvedValue(false);
 
-    await expect(restore({ env, snapshotId: MANIFEST.id })).rejects.toThrow(
+    await expect(run({ env, snapshotId: MANIFEST.id })).rejects.toThrow(
       'Restore aborted',
     );
     expect(verifySnapshotMock).not.toHaveBeenCalled();
@@ -221,7 +220,7 @@ describe('restore', () => {
         exitCode: 0,
       });
 
-      await restore({
+      await run({
         env,
         snapshotId: MANIFEST_WITH_BLOBS.id,
         assumeYes: true,
@@ -258,7 +257,7 @@ describe('restore', () => {
         exitCode: 0,
       });
 
-      await restore({ env, snapshotId: MANIFEST.id, assumeYes: true });
+      await run({ env, snapshotId: MANIFEST.id, assumeYes: true });
 
       expect(execMock).toHaveBeenCalledTimes(2);
       expect(
@@ -276,7 +275,7 @@ describe('restore', () => {
       resolveSnapshotPrefixMock.mockResolvedValue('tale_');
       listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS, MANIFEST]);
 
-      await restore({ env });
+      await run({ env });
 
       const rows = loggerTableMock.mock.calls[0][0] as [string, string][];
       const byId = new Map(rows);

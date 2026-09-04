@@ -32,10 +32,35 @@ interface RestoreOptions {
 }
 
 /**
+ * The collaborators `restore` drives, injectable so its tests can script them
+ * without module-mocking the sibling modules (`list-snapshots`,
+ * `verify-snapshot`) that carry their own test files — bun's `mock.module`
+ * is process-wide, so a mock installed here would leak into those suites and
+ * hand them a mock where they expect the real implementation.
+ */
+export interface RestoreDeps {
+  listSnapshots: typeof listSnapshots;
+  resolveSnapshotPrefix: typeof resolveSnapshotPrefix;
+  verifySnapshot: typeof verifySnapshot;
+  isContainerRunning: typeof isContainerRunning;
+  stopContainer: typeof stopContainer;
+}
+
+const DEFAULT_DEPS: RestoreDeps = {
+  listSnapshots,
+  resolveSnapshotPrefix,
+  verifySnapshot,
+  isContainerRunning,
+  stopContainer,
+};
+
+/**
  * Every container name this project can run: stateful (one instance each),
  * rotatable both uncolored (dev stack) and per blue/green color (prod stack).
  */
-async function findRunningProjectContainers(): Promise<string[]> {
+async function findRunningProjectContainers(
+  deps: RestoreDeps,
+): Promise<string[]> {
   const projectId = getProjectId();
   const candidates: string[] = [];
   for (const service of STATEFUL_SERVICES) {
@@ -48,7 +73,7 @@ async function findRunningProjectContainers(): Promise<string[]> {
   }
   const running: string[] = [];
   for (const name of candidates) {
-    if (await isContainerRunning(name)) {
+    if (await deps.isContainerRunning(name)) {
       running.push(name);
     }
   }
@@ -75,10 +100,13 @@ function printSnapshotList(snapshots: SnapshotManifest[]): void {
   );
 }
 
-export async function restore(options: RestoreOptions): Promise<void> {
+export async function restore(
+  options: RestoreOptions,
+  deps: RestoreDeps = DEFAULT_DEPS,
+): Promise<void> {
   const { env, snapshotId } = options;
 
-  const prefix = await resolveSnapshotPrefix();
+  const prefix = await deps.resolveSnapshotPrefix();
   if (!prefix) {
     throw new Error(
       'No Tale data volumes found for this project — nothing to restore into. ' +
@@ -87,7 +115,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
     );
   }
 
-  const snapshots = await listSnapshots(prefix);
+  const snapshots = await deps.listSnapshots(prefix);
 
   if (!snapshotId) {
     logger.header('Available Snapshots');
@@ -121,7 +149,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
 
     // Restoring under a live stack guarantees corruption — Postgres would
     // be rewritten underneath a running postmaster. Refuse unless stopped.
-    const running = await findRunningProjectContainers();
+    const running = await findRunningProjectContainers(deps);
     if (running.length > 0) {
       if (!options.stop) {
         throw new Error(
@@ -131,7 +159,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
       }
       logger.step('Stopping running project containers...');
       for (const name of running) {
-        const stopped = await stopContainer(name);
+        const stopped = await deps.stopContainer(name);
         if (!stopped) {
           throw new Error(`Failed to stop ${name} — aborting restore.`);
         }
@@ -169,7 +197,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
     }
 
     logger.step('Verifying snapshot integrity...');
-    await verifySnapshot(prefix, snapshotId);
+    await deps.verifySnapshot(prefix, snapshotId);
 
     // Fresh-host case: re-create any missing target volumes first.
     const volumesReady = await ensureVolumes(volumes, prefix);
