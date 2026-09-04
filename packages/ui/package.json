@@ -202,7 +202,7 @@
     "@tanstack/react-router": "1.168.10",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
-    "dompurify": "3.4.11",
+    "dompurify": "3.4.13",
     "framer-motion": "12.38.0",
     "i18next": "26.0.4",
     "i18next-icu": "2.4.3",
