@@ -23917,6 +23917,7 @@ async function checkAutomationRunToolLane(
     'task_update_status',
     'task_upsert_by_external_ref',
     'document_create',
+    'document_find',
   ];
   // The step-scoped owner spelling (`${runId}:<suffix>`) is what the agent
   // host mints — the resolver must split it back to the run.
@@ -24185,6 +24186,68 @@ async function checkAutomationRunToolLane(
     projectId: randomUUID(),
   });
   const freeBogusDocument = await projectOf('free-run-bogus.md');
+
+  // The org-wide run's KNOWLEDGE reads reach ITS bound projects' files — the
+  // same projects its task/document actions are confined to — not only the
+  // hub. One document per bound project and one on the unbound project:
+  // `document_find` lists exactly the two bound ones (through the real tool
+  // door), and the scope resolver names both projects.
+  await sql`
+    INSERT INTO app.documents (
+      org_id, title, file_ref, extension, project_id, created_by,
+      created_at_ms, updated_at_ms
+    ) VALUES
+      (${orgId}, 'run-tools-bound-a.md', 's3:itest/run-tools-bound-a', 'md',
+       ${boundProjectId}, ${userId}, ${now}, ${now}),
+      (${orgId}, 'run-tools-bound-b.md', 's3:itest/run-tools-bound-b', 'md',
+       ${otherProjectId}, ${userId}, ${now}, ${now}),
+      (${orgId}, 'run-tools-unbound-c.md', 's3:itest/run-tools-unbound-c', 'md',
+       ${unboundProjectId}, ${userId}, ${now}, ${now})
+  `;
+  const orgDocFind = await dispatch(orgToken, 'document_find', {
+    fileName: 'run-tools-',
+  });
+  const pinnedDocFind = await dispatch(pinnedToken, 'document_find', {
+    fileName: 'run-tools-',
+  });
+  const { sandboxToolShimHandlers: sandboxShim } =
+    await import('./domains/sandbox/shim.ts');
+  const orgKnowledgeScope = z
+    .object({
+      allowed: z.literal(true),
+      scope: z.object({
+        projectIds: z.array(z.string()),
+        includeHub: z.boolean(),
+      }),
+    })
+    .safeParse(
+      await sandboxShim(sql)[
+        'sandbox/workspace_access:resolveKnowledgeToolAccess'
+      ]?.({
+        organizationId: orgId,
+        sessionId: 'itest-run-org',
+        subject: 'documents',
+      }),
+    );
+  const orgScopeProjects = orgKnowledgeScope.success
+    ? new Set(orgKnowledgeScope.data.scope.projectIds)
+    : new Set<string>();
+  record(
+    'automation-run knowledge reads span the run’s bound projects (document_find + scope)',
+    orgDocFind.status === 'ok' &&
+      orgDocFind.raw.includes('run-tools-bound-a.md') &&
+      orgDocFind.raw.includes('run-tools-bound-b.md') &&
+      !orgDocFind.raw.includes('run-tools-unbound-c.md') &&
+      pinnedDocFind.status === 'ok' &&
+      pinnedDocFind.raw.includes('run-tools-bound-a.md') &&
+      !pinnedDocFind.raw.includes('run-tools-bound-b.md') &&
+      orgKnowledgeScope.success &&
+      orgKnowledgeScope.data.scope.includeHub &&
+      orgScopeProjects.size === 2 &&
+      orgScopeProjects.has(boundProjectId) &&
+      orgScopeProjects.has(otherProjectId),
+    `orgFind=${orgDocFind.status} (a=${orgDocFind.raw.includes('run-tools-bound-a.md')}, b=${orgDocFind.raw.includes('run-tools-bound-b.md')}, unboundLeak=${orgDocFind.raw.includes('run-tools-unbound-c.md')}), pinnedFind=${pinnedDocFind.status} (a=${pinnedDocFind.raw.includes('run-tools-bound-a.md')}, bLeak=${pinnedDocFind.raw.includes('run-tools-bound-b.md')}), scope=${orgKnowledgeScope.success ? [...orgScopeProjects].length : 'ERR'} project(s)`,
+  );
 
   // Hand back the workflow session budget — the org's cap is small, and the
   // spawner scenarios that follow provision real sessions of their own.
@@ -34162,6 +34225,145 @@ async function checkWatchdogs(
       tickets.length === 1 &&
       tickets[0]?.ownerId === 'wd-ticket-live',
     `ttl=${JSON.stringify(ttlRows)} tickets=${tickets.map((t) => t.ownerId).join(',')}`,
+  );
+
+  // Lane 3b: the spawner-facing passes with a SCRIPTED spawner — the fair
+  // reconcile rotation and the ended-run reclaim, on the real schema.
+  //
+  // Fairness: three compute-holding rows older than every other one in the
+  // table, a batch of TWO. The old `ORDER BY created_at_ms LIMIT n` probed the
+  // same two oldest rows every tick and never reached the third; the fair walk
+  // (least-recently-visited first, visited rows stamped) reaches it on the
+  // second tick.
+  const oldest = await sql<{ min: number | null }[]>`
+    SELECT min(created_at_ms)::float8 AS min FROM app.sandbox_sessions
+    WHERE status IN ('creating', 'active', 'degraded')
+  `;
+  const ancient = Math.min(oldest[0]?.min ?? now, now) - 1_000;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'wd-fair-1', 'active', 'render', 'wd-fair-1', 'itest:wd',
+       ${ancient}, ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-fair-2', 'active', 'render', 'wd-fair-2', 'itest:wd',
+       ${ancient + 1}, ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-fair-3', 'active', 'render', 'wd-fair-3', 'itest:wd',
+       ${ancient + 2}, ${now + 24 * 3_600_000})
+  `;
+  // Reclaim: an ENDED run's hibernated session (reclaimed), an expired
+  // session whose run the retention purge deleted (reclaimed), a LIVE run's
+  // active AND hibernated sessions (both survive — a resume is coming), and
+  // an ended run whose session the spawner reports busy (waits a tick).
+  const wdRun = async (
+    name: string,
+    status: 'success' | 'running' | 'cancelled',
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, input,
+        started_at_ms, finished_at_ms
+      ) VALUES (
+        ${orgId}, ${name}, 1, ${status}, 'live', 'itest:wd', ${sql.json({})},
+        ${now - 2 * 3_600_000},
+        ${status === 'running' ? null : now - 3_600_000}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const endedRunId = await wdRun('itest-wd-ended', 'success');
+  const liveRunId = await wdRun('itest-wd-live', 'running');
+  const busyRunId = await wdRun('itest-wd-busy', 'cancelled');
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'wd-reclaim-ended', 'stopped', 'workflow_run',
+       ${`${endedRunId}:@workflow`}, 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-reclaim-purged', 'expired', 'workflow_run',
+       'itest-wd-purged-run:@workflow', 'itest:wd', ${now - 2 * 3_600_000},
+       ${now - 3_600_000}),
+      (${orgId}, 'wd-reclaim-live', 'active', 'workflow_run',
+       ${`${liveRunId}:@workflow`}, 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-reclaim-paused', 'stopped', 'workflow_run',
+       ${`${liveRunId}:agent`}, 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-reclaim-busy', 'stopped', 'workflow_run',
+       ${`${busyRunId}:@workflow`}, 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000})
+  `;
+  const probed: string[] = [];
+  const destroyAsked: string[] = [];
+  const scriptedSpawner = {
+    isAlive: (sessionId: string): Promise<boolean> => {
+      probed.push(sessionId);
+      return Promise.resolve(true);
+    },
+    destroyIfIdle: (
+      sessionId: string,
+    ): Promise<{ destroyed: boolean; busy: boolean }> => {
+      destroyAsked.push(sessionId);
+      return Promise.resolve(
+        sessionId === 'wd-reclaim-busy'
+          ? { destroyed: false, busy: true }
+          : { destroyed: true, busy: false },
+      );
+    },
+  };
+  const tick1 = await sandboxWatchdogs.runSandboxWatchdog(sql, {
+    reconcileBatch: 2,
+    spawner: scriptedSpawner,
+  });
+  const probedTick1 = probed.filter((id) => id.startsWith('wd-fair-'));
+  const tick2 = await sandboxWatchdogs.runSandboxWatchdog(sql, {
+    reconcileBatch: 2,
+    spawner: scriptedSpawner,
+  });
+  const probedFair = new Set(probed.filter((id) => id.startsWith('wd-fair-')));
+  const fairRows = await sql<
+    { sessionId: string; lastReconciledAt: number | null }[]
+  >`
+    SELECT session_id AS "sessionId",
+           last_reconciled_at_ms::float8 AS "lastReconciledAt"
+    FROM app.sandbox_sessions
+    WHERE session_id IN ('wd-fair-1', 'wd-fair-2', 'wd-fair-3')
+  `;
+  const reclaimRows = await sql<{ sessionId: string; status: string }[]>`
+    SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
+    WHERE session_id LIKE 'wd-reclaim-%'
+  `;
+  const statusOf = (sessionId: string): string | undefined =>
+    reclaimRows.find((r) => r.sessionId === sessionId)?.status;
+  const destroyAskedSet = new Set(destroyAsked);
+  record(
+    'sandbox watchdog reconciles fairly (rotation reaches past the batch) and reclaims ended runs’ sessions',
+    // A batch of two cannot hold all three on tick 1 (another compute-holding
+    // row may even take a slot); the rotation reaches every one by tick 2 —
+    // the created_at_ms order re-probed the same head rows and never did.
+    probedTick1.length < 3 &&
+      ['wd-fair-1', 'wd-fair-2', 'wd-fair-3'].every((id) =>
+        probedFair.has(id),
+      ) &&
+      fairRows.length === 3 &&
+      fairRows.every((r) => r.lastReconciledAt !== null) &&
+      // The ended run's session and the purged run's orphan settled…
+      statusOf('wd-reclaim-ended') === 'destroyed' &&
+      statusOf('wd-reclaim-purged') === 'destroyed' &&
+      // …the live run's sessions were never candidates…
+      statusOf('wd-reclaim-live') === 'active' &&
+      statusOf('wd-reclaim-paused') === 'stopped' &&
+      !destroyAskedSet.has('wd-reclaim-live') &&
+      !destroyAskedSet.has('wd-reclaim-paused') &&
+      // …and the busy one was asked, refused, and left for a later tick.
+      destroyAskedSet.has('wd-reclaim-busy') &&
+      statusOf('wd-reclaim-busy') === 'stopped' &&
+      tick1.reclaimed === 2 &&
+      tick2.reclaimed === 0,
+    `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
 
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread

@@ -14,6 +14,7 @@ import type { SpawnerConfig } from '../../types.ts';
 import type { SessionSpec } from '../types.ts';
 import type { K8sClient } from './k8s-client.ts';
 import { KubernetesSessionBackend } from './k8s-session-backend.ts';
+import { sessionPodNameFor } from './k8s-session-pod-spec.ts';
 
 const cfg: SpawnerConfig = {
   backend: 'kubernetes',
@@ -205,5 +206,64 @@ describe('KubernetesSessionBackend.createSession — PVC cleanup on Secret failu
     // envelope must destroy the orphan (fresh create ⇒ destroy, not stop).
     expect(calls.pvcCreated).toBe(true);
     expect(calls.pvcDeleted).toBe(true);
+  });
+});
+
+describe('KubernetesSessionBackend durable pin (Pod annotation)', () => {
+  test('setPinned merge-patches the pin annotation; listSessions reads it back', async () => {
+    const patches: Array<{ name: string; body: unknown }> = [];
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const core = {
+      patchNamespacedPod: (param: { name: string; body: unknown }) => {
+        patches.push({ name: param.name, body: param.body });
+        return Promise.resolve({});
+      },
+      listNamespacedPod: () =>
+        Promise.resolve({
+          items: [
+            {
+              metadata: {
+                annotations: {
+                  'tale.dev/session-id': 'k8s-pinned',
+                  'tale.dev/organization-id': 'org_k8s',
+                  'tale.dev/profile': 'agent',
+                  'tale.dev/created-at': '1700000000000',
+                  'tale.dev/pinned': 'true',
+                },
+              },
+              status: { phase: 'Running' },
+            },
+            {
+              metadata: {
+                annotations: {
+                  'tale.dev/session-id': 'k8s-plain',
+                  'tale.dev/organization-id': 'org_k8s',
+                  'tale.dev/profile': 'agent',
+                  'tale.dev/created-at': '1700000000000',
+                },
+              },
+              status: { phase: 'Running' },
+            },
+          ],
+        }),
+    } as unknown as CoreV1Api;
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const networking = {} as unknown as NetworkingV1Api;
+    const backend = new KubernetesSessionBackend(cfg, {
+      core,
+      networking,
+      namespace: 'tale-sandbox',
+    });
+
+    await backend.setPinned('k8s-pinned', true);
+    expect(patches).toHaveLength(1);
+    expect(patches[0]?.name).toBe(sessionPodNameFor('k8s-pinned'));
+    expect(patches[0]?.body).toEqual({
+      metadata: { annotations: { 'tale.dev/pinned': 'true' } },
+    });
+
+    const listed = await backend.listSessions();
+    expect(listed.find((s) => s.sessionId === 'k8s-pinned')?.pinned).toBe(true);
+    expect(listed.find((s) => s.sessionId === 'k8s-plain')?.pinned).toBe(false);
   });
 });

@@ -3,7 +3,7 @@
 // quota + registry bookkeeping; the SessionBackend owns container/Pod
 // lifecycle and runnerd addressing; runnerd owns the actual exec.
 
-import type { SessionBackend } from '../backend/types.ts';
+import type { CreateSessionResult, SessionBackend } from '../backend/types.ts';
 import { jsonResponse } from '../http-util.ts';
 import { sseResponse } from '../sse.ts';
 import type { SpawnerConfig } from '../types.ts';
@@ -145,6 +145,10 @@ export class SessionRoutes {
         idleTimeoutMs: s.idleTimeoutMs,
         endpoint,
         liveExecs: new Map(),
+        // The reaper exemption is re-read from the backend object's durable
+        // record: a restart used to rebuild entries unpinned, and an always-on
+        // session older than maxLifetime was TTL-stopped on the first sweep.
+        pinned: s.pinned === true,
       });
     }
 
@@ -263,6 +267,7 @@ export class SessionRoutes {
       lastActivityAtMs: s.createdAtMs,
       expiresAtMs: s.expiresAtMs,
       idleTimeoutMs: s.idleTimeoutMs,
+      pinned: s.pinned === true,
     };
   }
 
@@ -359,8 +364,9 @@ export class SessionRoutes {
     this.creating.add(req.sessionId);
     try {
       const createdAtMs = Date.now();
+      let created: CreateSessionResult;
       try {
-        await this.backend.createSession({
+        created = await this.backend.createSession({
           sessionId: req.sessionId,
           organizationId: req.organizationId,
           profile: req.profile,
@@ -386,11 +392,20 @@ export class SessionRoutes {
         // The backend object was created above but we can't address it. Roll it
         // back rather than leak an unregistered, unroutable, never-reaped session
         // (the sweep only walks the registry, so an unregistered backend object
-        // lingers until a spawner restart re-adopts it).
-        await this.backend.destroySession(req.sessionId).catch((destroyErr) => {
+        // lingers until a spawner restart re-adopts it). The VERB depends on
+        // what this create provisioned: a RESUME re-attached a preserved
+        // workspace that is not ours to delete — a blip reading a Pod IP must
+        // never wipe the user's data — so it rolls back with stop (compute
+        // released, workspace kept for the retry); only a fresh create destroys
+        // the half-made workspace it created itself. Mirrors the backends' own
+        // failed-create cleanup.
+        const rollback = created.resumed
+          ? this.backend.stopSession(req.sessionId)
+          : this.backend.destroySession(req.sessionId);
+        await rollback.catch((rollbackErr) => {
           console.warn(
-            '[sandbox.session] rollback destroy after resolveEndpoint failure:',
-            destroyErr,
+            `[sandbox.session] rollback ${created.resumed ? 'stop' : 'destroy'} after resolveEndpoint failure:`,
+            rollbackErr,
           );
         });
         return jsonResponse(
@@ -882,9 +897,11 @@ export class SessionRoutes {
 
   /** PATCH /v1/sessions/:id/pin — toggle "always-on". Pinned sessions are
    * exempt from the idle/TTL reaper; unpinning restores a fresh normal TTL.
-   * In-memory only (the platform row is the durable truth; re-pushed on the
-   * next turn after a spawner restart). */
-  handleSetPinned(sessionId: string, body: string): Response {
+   * The flag takes effect in the registry at once and is then recorded on
+   * the backend object's durable state (see SessionBackend.setPinned) so a
+   * spawner restart re-adopts it — the platform row is the durable truth
+   * platform-side, but nothing re-pushes it at spawner boot. */
+  async handleSetPinned(sessionId: string, body: string): Promise<Response> {
     const session = this.registry.get(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: { pinned?: boolean };
@@ -899,6 +916,17 @@ export class SessionRoutes {
     if (!pinned) {
       // Give an unpinned session a fresh lifetime so it isn't reaped instantly.
       session.expiresAtMs = Date.now() + this.cfg.session.maxLifetimeMs;
+    }
+    // Best-effort durability: the in-memory pin already protects this process;
+    // a failed record means the pin would not survive a RESTART, which is
+    // worth an operator-visible line, not a failed toggle.
+    try {
+      await this.backend.setPinned(sessionId, pinned);
+    } catch (err) {
+      console.warn(
+        `[sandbox.session] recording pin=${pinned} for ${sessionId} on the backend failed (in-memory pin applied; will not survive a spawner restart):`,
+        err,
+      );
     }
     return jsonResponse({ ok: true, pinned }, 200);
   }
