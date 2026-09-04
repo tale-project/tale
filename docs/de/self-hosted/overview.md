@@ -37,7 +37,7 @@ Diese Volumes überleben ein `docker compose down`:
 - `caddy-data`, `caddy-config` — TLS-Zertifikate und Proxy-State.
 - `backups` — prüfsummengesicherte Volume-Snapshots, geschrieben von `tale backup` und automatisch vor migrierenden Deploys; [Backups und Restore](/de/self-hosted/operate/backups-and-restore) ist die Übung.
 
-Alles andere ist ephemer. Container lassen sich ohne Datenverlust ersetzen, solange die Volumes überleben. Ein Vorbehalt, den du verinnerlichen solltest: `tale backup` snapshottet `db-data`, `convex-data` und die Caddy-Volumes, aber **nicht** `object-store-data` — die Blobs brauchen ihre eigene Off-Host-Sicherung, behandelt in [Backups und Restore](/de/self-hosted/operate/backups-and-restore).
+Alles andere ist ephemer. Container lassen sich ohne Datenverlust ersetzen, solange die Volumes überleben. `tale backup` snapshottet die Daten-Volumes oben — `object-store-data` eingeschlossen, solange die Blobs im mitgelieferten Objektspeicher liegen. Blobs in einem externen S3-Bucket, ob umgebogener Deployment-Default oder eigener Bucket einer Organisation, sicherst du selbst, und das Backup sagt dir das; [Backups und Restore](/de/self-hosted/operate/backups-and-restore) hat die Liste und die Übung.
 
 ## Provider-Secrets und die SOPS-Schicht
 

@@ -1,5 +1,8 @@
 import { getProjectId } from '../../../utils/load-env';
-import { EXTRA_HOSTS } from '../generators/constants';
+import {
+  BUNDLED_OBJECT_STORE_ENDPOINT,
+  EXTRA_HOSTS,
+} from '../generators/constants';
 import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
 
@@ -75,7 +78,7 @@ export function createBackendApiService(config: ServiceConfig): ComposeService {
       // The bundled blob store the backend seeds the deployment default
       // against at boot. Internal address: presigned URLs are signed here
       // and forwarded by the proxy, so the store is never published.
-      OBJECT_STORE_ENDPOINT: 'http://object-store:9000',
+      OBJECT_STORE_ENDPOINT: BUNDLED_OBJECT_STORE_ENDPOINT,
       OBJECT_STORE_BUCKET: '${OBJECT_STORE_BUCKET:-tale-blobs}',
       OBJECT_STORE_ACCESS_KEY: '${OBJECT_STORE_ACCESS_KEY:-tale}',
       OBJECT_STORE_SECRET_KEY:
@@ -122,7 +125,7 @@ export function createBackendWorkerService(
       // The bundled blob store the backend seeds the deployment default
       // against at boot. Internal address: presigned URLs are signed here
       // and forwarded by the proxy, so the store is never published.
-      OBJECT_STORE_ENDPOINT: 'http://object-store:9000',
+      OBJECT_STORE_ENDPOINT: BUNDLED_OBJECT_STORE_ENDPOINT,
       OBJECT_STORE_BUCKET: '${OBJECT_STORE_BUCKET:-tale-blobs}',
       OBJECT_STORE_ACCESS_KEY: '${OBJECT_STORE_ACCESS_KEY:-tale}',
       OBJECT_STORE_SECRET_KEY:

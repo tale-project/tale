@@ -3,8 +3,10 @@ import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { confirm } from '../../utils/prompt';
 import {
+  archiveTimeoutSeconds,
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
+  BLOB_VOLUME,
   SNAPSHOT_VOLUMES,
   isValidSnapshotId,
 } from '../backup/constants';
@@ -28,9 +30,6 @@ interface RestoreOptions {
   /** Non-interactive: skip the confirmation prompt. */
   assumeYes?: boolean;
 }
-
-/** Bounds a single volume extraction; mirrors the snapshot-side tar bound. */
-const RESTORE_TIMEOUT_SECONDS = 1800;
 
 /**
  * Every container name this project can run: stateful (one instance each),
@@ -63,11 +62,15 @@ function totalSizeBytes(manifest: SnapshotManifest): number {
   );
 }
 
+function hasBlobArchive(manifest: SnapshotManifest): boolean {
+  return BLOB_VOLUME in manifest.volumes;
+}
+
 function printSnapshotList(snapshots: SnapshotManifest[]): void {
   logger.table(
     snapshots.map((snapshot) => [
       snapshot.id,
-      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}`,
+      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}${hasBlobArchive(snapshot) ? '' : ' · without blobs'}`,
     ]),
   );
 }
@@ -143,6 +146,14 @@ export async function restore(options: RestoreOptions): Promise<void> {
     if (volumes.length === 0) {
       throw new Error(`Snapshot ${snapshotId} contains no restorable volumes`);
     }
+    // Snapshots from before blobs were captured — and snapshots of a
+    // deployment whose blobs live in external S3 — carry no blob archive.
+    // Restore what the snapshot has; say what it does not touch.
+    if (!volumes.includes(BLOB_VOLUME)) {
+      logger.notice(
+        `Snapshot ${snapshotId} has no ${BLOB_VOLUME} archive (taken before blobs were captured, or with an external blob store) — the blob volume is left untouched.`,
+      );
+    }
 
     if (!options.assumeYes) {
       logger.warn(
@@ -182,7 +193,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
           '-c',
           `find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${volume}.tar.gz -C /data`,
         ],
-        { timeout: RESTORE_TIMEOUT_SECONDS },
+        { timeout: archiveTimeoutSeconds(volume) },
       );
       if (!result.success) {
         throw new Error(

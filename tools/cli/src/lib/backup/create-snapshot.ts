@@ -5,10 +5,13 @@ import { docker } from '../docker/docker';
 import { ensureVolumes, volumeExists } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import {
+  archiveTimeoutSeconds,
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
+  BLOB_VOLUME,
   SNAPSHOT_VOLUMES,
 } from './constants';
+import { type BlobStoreLayout, inspectBlobStore } from './inspect-blob-store';
 
 export const SNAPSHOT_TRIGGERS = [
   'deploy',
@@ -45,9 +48,6 @@ interface CreateSnapshotOptions {
    */
   allowMissingVolumes?: boolean;
 }
-
-/** Bounds a single volume tar; the slowest realistic volume is db-data. */
-const TAR_TIMEOUT_SECONDS = 1800;
 
 function newSnapshotId(trigger: SnapshotTrigger, now = new Date()): string {
   const iso = now.toISOString(); // e.g. 2026-06-11T14:25:30.123Z
@@ -115,7 +115,7 @@ async function snapshotVolume(
         // are parseable from the last two stdout lines below.
         `mkdir -p /backup/${id} && tar czf /backup/${id}/${volume}.tar.gz -C /data . && cd /backup/${id} && sha256sum ${volume}.tar.gz | tee ${volume}.tar.gz.sha256 && wc -c < ${volume}.tar.gz`,
       ],
-      { timeout: TAR_TIMEOUT_SECONDS },
+      { timeout: archiveTimeoutSeconds(volume) },
     );
     if (!tarResult.success) {
       throw new Error(
@@ -157,10 +157,45 @@ async function snapshotVolume(
 }
 
 /**
+ * Say, once and plainly, which blobs a snapshot can NOT contain: those in an
+ * external S3 the deployment default points at, and those in buckets
+ * organizations bring themselves. Either way the operator's own backup of
+ * that bucket is the only copy — silence here would read as "everything is
+ * in the snapshot".
+ */
+function announceExternalBlobs(layout: BlobStoreLayout): void {
+  switch (layout.default.kind) {
+    case 'external':
+      logger.notice(
+        `Blobs live in external S3 (${layout.default.endpoint}, bucket "${layout.default.bucket}") — not in this snapshot: back that bucket up yourself; the local ${BLOB_VOLUME} volume is skipped.`,
+      );
+      break;
+    case 'unknown':
+      logger.debug(
+        `Blob store layout unknown (${layout.default.reason}) — capturing ${BLOB_VOLUME} when present.`,
+      );
+      break;
+    case 'bundled':
+      break;
+  }
+  if (layout.ownBucketOrgs.length > 0) {
+    logger.notice(
+      `Blobs of ${layout.ownBucketOrgs.length} organization(s) with their own bucket (${layout.ownBucketOrgs.join(', ')}) live in those buckets — not in this snapshot: back them up under your own contract.`,
+    );
+  }
+}
+
+/**
  * Snapshot every existing data volume under `prefix` into the project's
  * backups volume. The manifest is written LAST — its presence marks the
  * snapshot complete. Listing and restore ignore manifest-less directories,
  * so a crash mid-tar can never surface as a restorable snapshot.
+ *
+ * The blob volume is one of the data volumes — uploads are as
+ * non-rederivable as rows — unless the deployment default points at an
+ * external S3, in which case the local volume holds nothing the app reads
+ * and the operator is told the bucket is theirs to back up. Blobs of
+ * organizations that bring their own bucket are named for the same reason.
  *
  * Throws on any failure (callers abort the surrounding deploy/migration);
  * returns null only in the `allowMissingVolumes` no-volumes case.
@@ -170,8 +205,14 @@ export async function createSnapshot(
 ): Promise<SnapshotManifest | null> {
   const { prefix, trigger, platformVersion } = options;
 
+  const blobStore = await inspectBlobStore(prefix);
+  const candidates: readonly string[] =
+    blobStore.default.kind === 'external'
+      ? SNAPSHOT_VOLUMES.filter((volume) => volume !== BLOB_VOLUME)
+      : SNAPSHOT_VOLUMES;
+
   const present: string[] = [];
-  for (const volume of SNAPSHOT_VOLUMES) {
+  for (const volume of candidates) {
     if (await volumeExists(`${prefix}${volume}`)) {
       present.push(volume);
     }
@@ -193,6 +234,7 @@ export async function createSnapshot(
 
   const id = newSnapshotId(trigger);
   logger.step(`Creating volume snapshot ${id} (${present.join(', ')})...`);
+  announceExternalBlobs(blobStore);
 
   const volumes: Record<string, SnapshotVolumeInfo> = {};
   for (const volume of present) {

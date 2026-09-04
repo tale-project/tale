@@ -9,17 +9,20 @@ Der Architektur-Kontext lebt in [Container-Architektur](/de/self-hosted/operate/
 
 ## Was ein Snapshot enthält
 
-| Volume                       | Enthält                                                                                                                                |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `db-data`                    | Postgres — der Anwendungsspeicher (Agents, Runs, das Audit-Log) und der Wissens-Korpus (Dokument-Chunks, Embeddings, gecrawlte Seiten) |
-| `convex-data`                | Org-Config, Anbieter-Secrets, hochgeladenes Branding                                                                                   |
-| `caddy-data`, `caddy-config` | TLS-Zertifikate und Proxy-State                                                                                                        |
+| Volume                       | Enthält                                                                                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db-data`                    | Postgres — der Anwendungsspeicher (Agents, Runs, das Audit-Log) und der Wissens-Korpus (Dokument-Chunks, Embeddings, gecrawlte Seiten)               |
+| `convex-data`                | Org-Config, Anbieter-Secrets, hochgeladenes Branding                                                                                                 |
+| `object-store-data`          | Der Blob-Store — hochgeladene Dateien, Chat-Anhänge, Audio, generierte Medien —, solange der Deployment-Default der mitgelieferte Objektspeicher ist |
+| `caddy-data`, `caddy-config` | TLS-Zertifikate und Proxy-State                                                                                                                      |
 
-Jeder Snapshot ist ein Verzeichnis mit einem Namen wie `20260611-142530-deploy` im `backups`-Volume des Projekts: ein `.tar.gz` pro Volume, je ein `.sha256`-Sidecar und ein zuletzt geschriebenes `manifest.json`. Ein Verzeichnis ohne Manifest ist ein unvollständiger Snapshot — er taucht nie in Listings auf und lässt sich nie wiederherstellen. Der Snapshot lässt `object-store-data` bewusst aus — den Blob-Store mit hochgeladenen Dateien und generierten Medien —, sodass diese Blobs ihre eigene Off-Host-Erfassung brauchen, neben den zwei Dingen, die ganz außerhalb der Volumes leben: dem Projekt-Workspace (das Verzeichnis mit `tale.json`) und `.env`.
+Jeder Snapshot ist ein Verzeichnis mit einem Namen wie `20260611-142530-deploy` im `backups`-Volume des Projekts: ein `.tar.gz` pro Volume, je ein `.sha256`-Sidecar und ein zuletzt geschriebenes `manifest.json`. Ein Verzeichnis ohne Manifest ist ein unvollständiger Snapshot — er taucht nie in Listings auf und lässt sich nie wiederherstellen. Zwei Dinge leben ganz außerhalb der Volumes und brauchen ihren eigenen Platz in deinem Off-Host-Job: der Projekt-Workspace (das Verzeichnis mit `tale.json`) und `.env`.
+
+Blobs folgen dem Objektspeicher. Mit dem mitgelieferten `object-store` — dem Default — erfasst der Snapshot `object-store-data` wie jedes andere Volume, und sein Archiv ist so groß wie alles, was je hochgeladen wurde: Während des Tars pausiert der Store, Uploads und Downloads stehen also so lange still. In zwei Fällen liegen Blobs außerhalb des Snapshots, und beide sagt das Backup an, statt sie zu verschweigen. Zeigt der Deployment-Default auf ein externes S3 (`default/object-storage/connection.json` nennt nicht mehr den mitgelieferten Store), liegt im lokalen Volume nichts, was die App liest: Das Backup überspringt das Volume, und `tale backup` druckt eine einzeilige Notiz mit Endpoint und Bucket — dieses Bucket sicherst du mit deinem eigenen S3-Tooling. Eine Organisation, die unter **Einstellungen > Datenresidenz** ihren eigenen Bucket mitbringt, schreibt ebenfalls nie ins lokale Volume; die Notiz nennt die Organisation, und kein Snapshot kann diese Blobs enthalten.
 
 ## Wann Snapshots genommen werden
 
-`tale deploy` snapshotet vor seinem ersten mutierenden Schritt, wann immer der Deploy Daten ändern kann: Die Zielversion weicht von der laufenden ab oder ein Host-Config-Push (`--override` / `--override-all`) ist angefordert. Während jedes Volume getart wird, sind die Container, die es nutzen, für ein paar Sekunden pausiert, damit das Archiv crash-konsistent ist — eine Live-Kopie eines laufenden Postgres-Verzeichnisses ist nicht wiederherstellbar.
+`tale deploy` snapshotet vor seinem ersten mutierenden Schritt, wann immer der Deploy Daten ändern kann: Die Zielversion weicht von der laufenden ab oder ein Host-Config-Push (`--override` / `--override-all`) ist angefordert. Während jedes Volume getart wird, pausieren die Container, die es nutzen, für die Dauer des Tars — Sekunden bei Datenbank- und Config-Volumes, beim Blob-Volume so lange, wie der Store groß ist —, damit das Archiv crash-konsistent ist: Eine Live-Kopie eines laufenden Postgres-Verzeichnisses ist nicht wiederherstellbar.
 
 Ein gescheiterter Snapshot bricht den Deploy ab. `--skip-backup` übersteuert das auf `tale deploy` — dann sind deine eigenen externen Backups der einzige Recovery-Pfad, und genau deshalb loggt das Flag eine laute Warnung.
 
@@ -61,6 +64,8 @@ tale deploy --stop
 ```
 
 Das Redeploy der passenden Version ist Teil des Restores, kein optionales Extra: Der Snapshot hat die Daten exakt so erfasst, wie diese Plattform-Version sie hinterlassen hat, und ein neueres Binary würde sofort wieder seine Migrationen darauf laufen lassen. Die Restore-Ausgabe druckt die exakte Version aus dem Manifest des Snapshots.
+
+Ein Snapshot aus der Zeit, bevor Blobs erfasst wurden, oder von einem Deployment, dessen Blobs in einem externen S3 liegen, hat kein `object-store-data`-Archiv. `tale restore` listet solche Snapshots als `without blobs`, sagt es vor der Bestätigung noch einmal und lässt das Blob-Volume unangetastet, während es alles andere wiederherstellt — die Blobs bleiben genau so, wie sie auf dem Host sind.
 
 ## Restore-Drill
 

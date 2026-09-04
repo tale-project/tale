@@ -9,17 +9,20 @@ The architecture context lives in [Container architecture](/self-hosted/operate/
 
 ## What a snapshot contains
 
-| Volume                       | Holds                                                                                                                                |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `db-data`                    | Postgres — the application store (agents, runs, the audit log) and the knowledge corpus (document chunks, embeddings, crawled pages) |
-| `convex-data`                | Org config, provider secrets, uploaded branding                                                                                      |
-| `caddy-data`, `caddy-config` | TLS certificates and proxy state                                                                                                     |
+| Volume                       | Holds                                                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `db-data`                    | Postgres — the application store (agents, runs, the audit log) and the knowledge corpus (document chunks, embeddings, crawled pages)    |
+| `convex-data`                | Org config, provider secrets, uploaded branding                                                                                         |
+| `object-store-data`          | The blob store — uploaded files, chat attachments, audio, generated media — whenever the deployment default is the bundled object store |
+| `caddy-data`, `caddy-config` | TLS certificates and proxy state                                                                                                        |
 
-Each snapshot is a directory named like `20260611-142530-deploy` inside the project's `backups` volume: one `.tar.gz` per volume, a `.sha256` sidecar each, and a `manifest.json` written last. A directory without a manifest is an incomplete snapshot — it never shows up in listings and can never be restored. The snapshot deliberately skips `object-store-data` — the blob store holding uploaded files and generated media — so those blobs need their own off-host capture, alongside the two things that live outside the volumes entirely: the project workspace (the directory holding `tale.json`) and `.env`.
+Each snapshot is a directory named like `20260611-142530-deploy` inside the project's `backups` volume: one `.tar.gz` per volume, a `.sha256` sidecar each, and a `manifest.json` written last. A directory without a manifest is an incomplete snapshot — it never shows up in listings and can never be restored. Two things live outside the volumes entirely and need their own place in your off-host job: the project workspace (the directory holding `tale.json`) and `.env`.
+
+Blobs follow the object store. With the bundled `object-store` — the default — `object-store-data` is captured like every other volume, and its archive is as large as everything ever uploaded: the store is paused while it is tarred, so uploads and downloads stall for that long. Two cases put blobs outside the snapshot, and both are announced rather than silent. A deployment default repointed at an external S3 (`default/object-storage/connection.json` no longer naming the bundled store) leaves the local volume with nothing the app reads, so the volume is skipped and `tale backup` prints a one-line notice with the endpoint and bucket — that bucket's backup runs under your own S3 tooling. An organization that brings its own bucket under **Settings > Data residency** never writes to the local volume either; the notice names the organization, and no snapshot can contain those blobs.
 
 ## When snapshots are taken
 
-`tale deploy` snapshots before its first mutating step whenever the deploy can change data: the target version differs from the running one, or a host-config push (`--override` / `--override-all`) is requested. While each volume is tarred, the containers using it are paused for a few seconds so the archive is crash-consistent — a live copy of a running Postgres directory is not restorable.
+`tale deploy` snapshots before its first mutating step whenever the deploy can change data: the target version differs from the running one, or a host-config push (`--override` / `--override-all`) is requested. While each volume is tarred, the containers using it are paused for the duration — seconds for the database and config volumes, as long as the store is large for the blob volume — so the archive is crash-consistent: a live copy of a running Postgres directory is not restorable.
 
 A failed snapshot aborts the deploy. `--skip-backup` overrides that on `tale deploy`, which leaves your own external backups as the only recovery path — the flag logs a loud warning for exactly that reason.
 
@@ -61,6 +64,8 @@ tale deploy --stop
 ```
 
 The redeploy of the matching version is part of the restore, not an optional extra: the snapshot captured the data exactly as that platform version left it, and a newer binary would immediately re-run its migrations against it. The restore output prints the exact version recorded in the snapshot's manifest.
+
+A snapshot taken before blobs were captured, or on a deployment whose blobs live in external S3, has no `object-store-data` archive. `tale restore` lists such snapshots as `without blobs`, says so again before asking for confirmation, and leaves the blob volume untouched while it restores everything else — the blobs stay exactly as they are on the host.
 
 ## Restore drill
 

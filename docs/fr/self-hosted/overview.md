@@ -37,7 +37,7 @@ Ces volumes survivent à un `docker compose down` :
 - `caddy-data`, `caddy-config` — certificats TLS et état du proxy.
 - `backups` — snapshots de volumes vérifiés par somme de contrôle, écrits par `tale backup` et automatiquement avant les déploiements qui migrent ; [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) est l'exercice.
 
-Tout le reste est éphémère. Les conteneurs se remplacent sans perte de données tant que les volumes survivent. Une réserve à intérioriser : `tale backup` snapshotte `db-data`, `convex-data` et les volumes Caddy, mais **pas** `object-store-data` — les blobs ont besoin de leur propre capture off-host, traitée dans [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore).
+Tout le reste est éphémère. Les conteneurs se remplacent sans perte de données tant que les volumes survivent. `tale backup` snapshotte les volumes de données ci-dessus — `object-store-data` compris, tant que les blobs vivent dans le magasin d'objets fourni. Les blobs d'un bucket S3 externe, qu'il s'agisse d'un défaut du déploiement repointé ou du propre bucket d'une organisation, sont à toi de sauvegarder, et le backup te le dit ; [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) a la liste et l'exercice.
 
 ## Secrets de fournisseur et couche SOPS
 

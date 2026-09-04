@@ -17,6 +17,7 @@ const ensureVolumesMock = mock();
 const execMock = mock();
 const confirmMock = mock();
 const loggerInfoMock = mock();
+const loggerNoticeMock = mock();
 const loggerTableMock = mock();
 
 mock.module('../backup/list-snapshots', () => ({
@@ -52,7 +53,7 @@ mock.module('../../utils/logger', () => ({
   header: mock(),
   blank: mock(),
   debug: mock(),
-  notice: mock(),
+  notice: loggerNoticeMock,
   table: loggerTableMock,
 }));
 
@@ -65,6 +66,7 @@ const env: DeploymentEnv = {
   DEPLOY_DIR: '/tmp/tale-restore-test',
 };
 
+/** A snapshot from before blobs were captured: no `object-store-data` archive. */
 const MANIFEST = {
   id: '20260611-120000-deploy',
   createdAt: '2026-06-11T12:00:00.000Z',
@@ -77,6 +79,21 @@ const MANIFEST = {
   },
 };
 
+const MANIFEST_WITH_BLOBS = {
+  ...MANIFEST,
+  id: '20260903-090000-manual',
+  createdAt: '2026-09-03T09:00:00.000Z',
+  trigger: 'manual',
+  volumes: {
+    ...MANIFEST.volumes,
+    'object-store-data': { sha256: 'c'.repeat(64), sizeBytes: 4096 },
+  },
+};
+
+function restoreScripts(): string[] {
+  return execMock.mock.calls.map((call) => call[1][call[1].length - 1]);
+}
+
 afterEach(() => {
   listSnapshotsMock.mockReset();
   resolveSnapshotPrefixMock.mockReset();
@@ -87,6 +104,7 @@ afterEach(() => {
   execMock.mockReset();
   confirmMock.mockReset();
   loggerInfoMock.mockReset();
+  loggerNoticeMock.mockReset();
   loggerTableMock.mockReset();
 });
 
@@ -187,5 +205,83 @@ describe('restore', () => {
     );
     expect(verifySnapshotMock).not.toHaveBeenCalled();
     expect(execMock).not.toHaveBeenCalled();
+  });
+
+  describe('the blob archive', () => {
+    test('is restored into the blob volume when the snapshot carries one', async () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS, MANIFEST]);
+      isContainerRunningMock.mockResolvedValue(false);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      await restore({
+        env,
+        snapshotId: MANIFEST_WITH_BLOBS.id,
+        assumeYes: true,
+      });
+
+      // The blob volume is re-created alongside the others on a fresh host.
+      expect(ensureVolumesMock).toHaveBeenCalledWith(
+        expect.arrayContaining(['object-store-data']),
+        'tale_',
+      );
+      // One wipe+extract per volume — the blob archive included.
+      expect(execMock).toHaveBeenCalledTimes(3);
+      const blobRestore = execMock.mock.calls.find((call) =>
+        String(call[1][call[1].length - 1]).includes(
+          'object-store-data.tar.gz',
+        ),
+      );
+      expect(blobRestore?.[1]).toContain('tale_object-store-data:/data');
+      // Blobs are proportional to the store: the extract gets the wider bound.
+      expect(blobRestore?.[2]?.timeout).toBeGreaterThan(1800);
+      expect(loggerNoticeMock).not.toHaveBeenCalled();
+    });
+
+    test('is noted as absent when an older snapshot predates blob capture, and the rest restores', async () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS, MANIFEST]);
+      isContainerRunningMock.mockResolvedValue(false);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      await restore({ env, snapshotId: MANIFEST.id, assumeYes: true });
+
+      expect(execMock).toHaveBeenCalledTimes(2);
+      expect(
+        restoreScripts().some((script) => script.includes('object-store-data')),
+      ).toBe(false);
+      const notices = loggerNoticeMock.mock.calls.map((call) =>
+        String(call[0]),
+      );
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toContain('no object-store-data archive');
+      expect(notices[0]).toContain('left untouched');
+    });
+
+    test('is visible in the listing: snapshots without one are marked', async () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS, MANIFEST]);
+
+      await restore({ env });
+
+      const rows = loggerTableMock.mock.calls[0][0] as [string, string][];
+      const byId = new Map(rows);
+      expect(byId.get(MANIFEST_WITH_BLOBS.id)).not.toContain('without blobs');
+      expect(byId.get(MANIFEST.id)).toContain('without blobs');
+    });
   });
 });

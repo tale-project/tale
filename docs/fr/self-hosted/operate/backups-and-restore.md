@@ -9,17 +9,20 @@ Le contexte d'architecture vit dans [Architecture des conteneurs](/fr/self-hoste
 
 ## Ce qu'un snapshot contient
 
-| Volume                       | Contient                                                                                                                                        |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `db-data`                    | Postgres — le magasin applicatif (agents, runs, l'audit log) et le corpus de connaissances (fragments de documents, embeddings, pages crawlées) |
-| `convex-data`                | Config d'org, secrets de fournisseurs, branding téléversé                                                                                       |
-| `caddy-data`, `caddy-config` | Certificats TLS et état du proxy                                                                                                                |
+| Volume                       | Contient                                                                                                                                                 |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db-data`                    | Postgres — le magasin applicatif (agents, runs, l'audit log) et le corpus de connaissances (fragments de documents, embeddings, pages crawlées)          |
+| `convex-data`                | Config d'org, secrets de fournisseurs, branding téléversé                                                                                                |
+| `object-store-data`          | Le store de blobs — fichiers téléversés, pièces jointes de chat, audio, médias générés — dès que le défaut du déploiement est le magasin d'objets fourni |
+| `caddy-data`, `caddy-config` | Certificats TLS et état du proxy                                                                                                                         |
 
-Chaque snapshot est un répertoire nommé comme `20260611-142530-deploy` dans le volume `backups` du projet : un `.tar.gz` par volume, un sidecar `.sha256` chacun et un `manifest.json` écrit en dernier. Un répertoire sans manifest est un snapshot incomplet — il n'apparaît jamais dans les listings et ne peut jamais être restauré. Le snapshot saute délibérément `object-store-data` — le store de blobs qui détient les fichiers téléversés et les médias générés — donc ces blobs demandent leur propre capture off-host, aux côtés des deux choses qui vivent entièrement hors des volumes : le workspace du projet (le répertoire qui contient `tale.json`) et `.env`.
+Chaque snapshot est un répertoire nommé comme `20260611-142530-deploy` dans le volume `backups` du projet : un `.tar.gz` par volume, un sidecar `.sha256` chacun et un `manifest.json` écrit en dernier. Un répertoire sans manifest est un snapshot incomplet — il n'apparaît jamais dans les listings et ne peut jamais être restauré. Deux choses vivent entièrement hors des volumes et demandent leur propre place dans ton job hors-hôte : le workspace du projet (le répertoire qui contient `tale.json`) et `.env`.
+
+Les blobs suivent le magasin d'objets. Avec le service `object-store` fourni — le défaut — le snapshot capture `object-store-data` comme n'importe quel autre volume, et son archive pèse autant que tout ce qui a jamais été téléversé : le store est en pause pendant le tar, donc les téléversements et les téléchargements restent bloqués aussi longtemps. Deux cas placent des blobs hors du snapshot, et le backup les annonce tous les deux au lieu de les passer sous silence. Un défaut du déploiement repointé vers un S3 externe (`default/object-storage/connection.json` ne nomme plus le store fourni) ne laisse dans le volume local rien que l'app lise : le backup saute le volume et `tale backup` imprime une notice d'une ligne avec l'endpoint et le bucket — la sauvegarde de ce bucket relève de ton propre outillage S3. Une organisation qui apporte son propre bucket sous **Paramètres > Résidence des données** n'écrit jamais non plus dans le volume local ; la notice nomme l'organisation, et aucun snapshot ne peut contenir ces blobs.
 
 ## Quand les snapshots sont pris
 
-`tale deploy` snapshotte avant sa première étape mutante dès que le déploiement peut changer des données : la version cible diffère de celle qui tourne, ou un push de config hôte (`--override` / `--override-all`) est demandé. Pendant que chaque volume est mis en tar, les conteneurs qui l'utilisent sont mis en pause quelques secondes pour que l'archive soit cohérente après crash — une copie à chaud d'un répertoire Postgres en marche n'est pas restaurable.
+`tale deploy` snapshotte avant sa première étape mutante dès que le déploiement peut changer des données : la version cible diffère de celle qui tourne, ou un push de config hôte (`--override` / `--override-all`) est demandé. Pendant que chaque volume est mis en tar, les conteneurs qui l'utilisent sont mis en pause pour toute la durée — quelques secondes pour les volumes de base et de config, aussi longtemps que le store est gros pour le volume de blobs — pour que l'archive soit cohérente après crash : une copie à chaud d'un répertoire Postgres en marche n'est pas restaurable.
 
 Un snapshot échoué interrompt le déploiement. `--skip-backup` outrepasse cela sur `tale deploy` — tes propres backups externes deviennent alors le seul chemin de récupération, et c'est exactement pour ça que le flag logge un avertissement bien visible.
 
@@ -61,6 +64,8 @@ tale deploy --stop
 ```
 
 Le redéploiement de la version correspondante fait partie de la restauration, ce n'est pas un extra optionnel : le snapshot a capturé les données exactement comme cette version de la plateforme les a laissées, et un binaire plus récent relancerait immédiatement ses migrations dessus. La sortie de la restauration imprime la version exacte enregistrée dans le manifest du snapshot.
+
+Un snapshot pris avant que les blobs soient capturés, ou sur un déploiement dont les blobs vivent dans un S3 externe, n'a pas d'archive `object-store-data`. `tale restore` liste ces snapshots comme `without blobs`, le redit avant de demander confirmation et laisse le volume de blobs intact pendant qu'il restaure tout le reste — les blobs restent exactement tels qu'ils sont sur l'hôte.
 
 ## Drill de restauration
 

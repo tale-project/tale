@@ -35,6 +35,17 @@ export const REQUIRED_VOLUMES = [
   'llm-gateway-data',
 ] as const;
 
+/**
+ * Where the backend tier reaches the BUNDLED blob store (`object-store`, the
+ * MinIO service on `object-store-data`). The backend seeds the deployment
+ * default `default/object-storage/connection.json` against this address at
+ * boot, so a default connection that still points here means the blobs live
+ * on the local volume — the test the backup uses to decide whether to
+ * snapshot it, and the same comparison the backend's own bootstrap makes to
+ * tell the bundled store from an operator-repointed one.
+ */
+export const BUNDLED_OBJECT_STORE_ENDPOINT = 'http://object-store:9000';
+
 // Enables containers to reach host services (e.g. Ollama on localhost:11434)
 // via `host.docker.internal`. `host-gateway` requires Docker 20.10+ (project
 // already requires 24.0+). Safe on Docker Desktop where host.docker.internal
