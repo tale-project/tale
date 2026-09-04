@@ -34,7 +34,6 @@ import {
   DocumentError,
   getDocumentById,
   listHubDocumentsPage,
-  loadDocumentOrThrow,
   readDocumentRestExtras,
   updateDocument,
   type DocumentRow,
@@ -443,13 +442,13 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const result = await deps.sql.begin((tx) =>
         updateDocument(tx, auth, { documentId: doc.id, ...body.data }),
       );
-      // A team change is a corpus SCOPE change — re-stamp retrieval filters
-      // after commit, exactly as the app route does (best-effort, logged
-      // inside), or the REST door leaves the corpus answering with the old
-      // team's scope.
-      if (result.teamScopeChanged && result.fileRef !== null) {
-        const updated = await loadDocumentOrThrow(deps.sql, doc.id);
-        await syncRagDocumentScope(deps.sql, auth.organizationId, updated);
+      // Same post-commit re-stamp as the app door: a team or folder change
+      // moves the corpus filters, not the embeddings.
+      if (
+        (result.teamScopeChanged || result.folderChanged) &&
+        result.fileRef !== null
+      ) {
+        await syncRagDocumentScope(deps.sql, auth.organizationId, doc.id);
       }
       return c.body(null, 204);
     } catch (error) {

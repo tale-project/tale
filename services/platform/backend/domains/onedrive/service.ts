@@ -37,7 +37,7 @@ import {
   getOrCreateHubFolderPath,
   reapEmptyAncestorFolders,
 } from '../folders/paths.ts';
-import { markRagQueued } from '../knowledge/service.ts';
+import { markRagQueued, syncRagDocumentScope } from '../knowledge/service.ts';
 import { assertNotHeld, LegalHoldError } from '../legal_holds/service.ts';
 import { purgeDocument } from '../retention/service.ts';
 import { readSsoSecrets, resolveSignInConfig } from '../sso/config.ts';
@@ -894,6 +894,12 @@ export function createSyncImportDeps(
           updated_at_ms = ${Date.now()}
         WHERE id = ${documentId}
       `;
+      // A re-filed document keeps its embeddings but moves in the corpus
+      // FILTER (folder-scoped search matches the stamped path) — re-stamp.
+      // A replaced blob re-indexes via the schedule below and stamps itself.
+      if (updateArgs.folderId !== undefined && !blobReplaced) {
+        await syncRagDocumentScope(sql, organizationId, documentId);
+      }
 
       // The replaced blob's corpus chunks are keyed by the OLD ref — release
       // them through the shared refcounted seam (the 0.4

@@ -11,6 +11,7 @@ const activeDoc = (overrides: Partial<DocCandidate> = {}): DocCandidate => ({
   projectId: null,
   teamId: null,
   teamTags: null,
+  folderPath: null,
   ...overrides,
 });
 
@@ -101,5 +102,85 @@ describe('decideRetrievable', () => {
         undefined,
       ),
     ).toBe(false);
+  });
+
+  describe('folder filter', () => {
+    // The corpus row's folder stamp is a copy that can lag a move; the
+    // decision is made from the document's CURRENT folder.
+    it('admits the folder itself and everything beneath it', () => {
+      expect(
+        decideRetrievable(
+          [activeDoc({ folderPath: 'Reports' })],
+          [],
+          undefined,
+          'Reports',
+        ),
+      ).toBe(true);
+      expect(
+        decideRetrievable(
+          [activeDoc({ folderPath: 'Reports/2025/Q1' })],
+          [],
+          undefined,
+          'Reports',
+        ),
+      ).toBe(true);
+    });
+
+    it('denies siblings, prefixes without a separator, and root documents', () => {
+      expect(
+        decideRetrievable(
+          [activeDoc({ folderPath: 'Reports-archive' })],
+          [],
+          undefined,
+          'Reports',
+        ),
+      ).toBe(false);
+      expect(
+        decideRetrievable(
+          [activeDoc({ folderPath: 'Invoices' })],
+          [],
+          undefined,
+          'Reports',
+        ),
+      ).toBe(false);
+      expect(decideRetrievable([activeDoc()], [], undefined, 'Reports')).toBe(
+        false,
+      );
+    });
+
+    it('applies the access scope on top of the folder', () => {
+      const doc = activeDoc({ folderPath: 'Reports', teamId: 't1' });
+      expect(decideRetrievable([doc], [], { teamIds: ['t1'] }, 'Reports')).toBe(
+        true,
+      );
+      expect(decideRetrievable([doc], [], { teamIds: ['t2'] }, 'Reports')).toBe(
+        false,
+      );
+    });
+
+    it('never surfaces unbound files under a folder filter — they are filed nowhere', () => {
+      expect(decideRetrievable([], [unboundFile()], undefined, 'Reports')).toBe(
+        false,
+      );
+      expect(
+        decideRetrievable(
+          [],
+          [unboundFile({ threadId: 'th1' })],
+          { threadIds: ['th1'] },
+          'Reports',
+        ),
+      ).toBe(false);
+    });
+
+    it('is a no-op when no folder is given', () => {
+      expect(
+        decideRetrievable(
+          [activeDoc({ folderPath: 'Reports' })],
+          [],
+          undefined,
+        ),
+      ).toBe(true);
+      expect(decideRetrievable([], [unboundFile()], undefined)).toBe(true);
+    });
   });
 });

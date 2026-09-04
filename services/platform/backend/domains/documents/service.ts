@@ -504,7 +504,11 @@ export async function updateDocument(
     extension?: string | null;
     sourceProvider?: string | null;
   },
-): Promise<{ teamScopeChanged: boolean; fileRef: string | null }> {
+): Promise<{
+  teamScopeChanged: boolean;
+  folderChanged: boolean;
+  fileRef: string | null;
+}> {
   const doc = await requireDocumentWriteAccess(tx, auth, args.documentId);
   // Content-freeze guard (core/documents/access.ts doctrine): the bytes and
   // their identity fields move ONLY while uncontrolled — renames, folder
@@ -589,6 +593,9 @@ export async function updateDocument(
     teamId !== doc.teamId ||
     teamTags.length !== doc.teamTags.length ||
     teamTags.some((tag, index) => tag !== doc.teamTags[index]);
+  // A folder move is a corpus FILTER change too (folder-scoped search
+  // matches the stamped path) — the caller re-stamps after commit.
+  const folderChanged = folderId !== doc.folderId;
 
   await tx`
     UPDATE app.documents SET
@@ -607,7 +614,7 @@ export async function updateDocument(
     entity: 'document',
     entityId: args.documentId,
   });
-  return { teamScopeChanged, fileRef: doc.fileRef };
+  return { teamScopeChanged, folderChanged, fileRef: doc.fileRef };
 }
 
 /** Soft trash / restore. Hard delete + blob erasure land with governance. */
