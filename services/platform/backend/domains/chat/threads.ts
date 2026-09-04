@@ -778,8 +778,8 @@ export interface SharedThreadView {
     sequence: number;
     model: string | null;
     providerSlug: string | null;
-    blockedReason: string | null;
-    error: string | null;
+    blockedReason: string | undefined;
+    error: string | undefined;
     createdAt: number;
   }>;
 }
@@ -850,8 +850,11 @@ export async function getSharedThread(
       sequence: index,
       model: message.model,
       providerSlug: message.providerSlug,
-      blockedReason: message.blockedReason,
-      error: message.error,
+      // Absent, not null: the message view tests `!== undefined`, so a SQL
+      // null here rendered every shared message as a blocked, failed reply.
+      // The live read (shim.ts) normalizes the same two columns the same way.
+      blockedReason: message.blockedReason ?? undefined,
+      error: message.error ?? undefined,
       createdAt: message.createdAt,
     })),
   };
