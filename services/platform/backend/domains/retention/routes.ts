@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { retentionPolicyConfigSchema } from '../../../lib/shared/schemas/governance.ts';
 import {
   hashAppliedBounds,
-  type RetentionCategory,
+  RETENTION_CATEGORIES,
 } from '../../../lib/shared/schemas/retention.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
@@ -22,6 +22,7 @@ import {
   RetentionBoundsViolation,
   applyEnvTighteningAll,
   isRetentionDisabled,
+  RETENTION_POLICY_FIELD_BY_CATEGORY,
   RetentionConfigMissingError,
 } from '../../core/governance/retention_floors.ts';
 import { writeGovernancePolicyFile } from '../../lib/governance-policy-write.ts';
@@ -191,22 +192,11 @@ export function createRetentionRoutes(deps: {
       }
       const boundsByCategory = buildBoundsByCategory(orgConfig);
       const cfg = parsed.data;
-      const checks: Array<[RetentionCategory, unknown]> = [
-        ['documents', cfg.documentsRetentionDays],
-        ['userTempHours', cfg.userTempRetentionHours],
-        ['agentTempHours', cfg.agentTempRetentionHours],
-        ['chatHistory', cfg.chatHistoryRetentionDays],
-        ['auditLog', cfg.auditLogRetentionDays],
-        ['workflowLog', cfg.workflowLogRetentionDays],
-        ['usageLedger', cfg.usageLedgerRetentionDays],
-        ['loginAttempt', cfg.loginAttemptRetentionDays],
-        ['chatFilterEvents', cfg.chatFilterEventsRetentionDays],
-        ['messageFeedback', cfg.messageFeedbackRetentionDays],
-        ['contacts', cfg.contactsRetentionDays],
-        ['externalConversations', cfg.externalConversationsRetentionDays],
-        ['notifications', cfg.notificationsRetentionDays],
-      ];
-      for (const [category, value] of checks) {
+      // Every bounded category, from the ONE field↔category map — a hand
+      // list here once omitted `agentRuns`, so its value bypassed the floor
+      // the sweep would then delete by.
+      for (const category of RETENTION_CATEGORIES) {
+        const value = cfg[RETENTION_POLICY_FIELD_BY_CATEGORY[category]];
         if (typeof value !== 'number') continue;
         assertWithinBounds(boundsByCategory[category], value);
       }

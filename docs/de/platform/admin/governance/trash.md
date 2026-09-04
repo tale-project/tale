@@ -11,7 +11,7 @@ Um einen Chat-Verlauf-Thread wiederherzustellen, öffne **Einstellungen > Richtl
 
 ## Die zwei Status
 
-**Verworfen** ist der normale Soft-Delete-Zustand. Das Aufbewahrungsfenster der Zeile ist abgelaufen, sie ist in den Papierkorb gewandert, und das Kulanzfenster tickt noch. Wiederherstellen führt die Zeile in ihre Quellliste zurück, ohne die Richtlinie zu überschreiben.
+**Verworfen** ist der normale Soft-Delete-Zustand. Das Aufbewahrungsfenster der Zeile ist abgelaufen, sie ist in den Papierkorb gewandert, und das Kulanzfenster tickt noch. Wiederherstellen führt die Zeile in ihre Quellliste zurück, ohne die Richtlinie zu überschreiben. Das Aufbewahrungsfenster beginnt dabei von vorn — ein wiederhergestellter Chat-Thread, ein Dokument oder eine externe Konversation zählt ab dem Moment der Wiederherstellung, und der nächste Cleanup lässt die Zeile in Ruhe, statt sie erneut ablaufen zu lassen.
 
 **Abgelaufen** ist der zweite Zustand — das Kulanzfenster ist abgelaufen und die Zeile ist für die endgültige Löschung im nächsten Cleanup vorgemerkt. Wiederherstellen ist weiterhin möglich, aber es ist eine Überschreibung: der Dialog verlangt, dass du `restore` tippst, und das Audit-Log dokumentiert die Überschreibung mit deinem Namen.
 

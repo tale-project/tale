@@ -11,7 +11,7 @@ To restore a chat history thread, open **Settings > Governance > Trash** and swi
 
 ## The two statuses
 
-**Trashed** is the normal soft-delete state. The row's retention window elapsed, it moved to trash, and the grace window is still ticking. Restore returns the row to its source list with no policy override.
+**Trashed** is the normal soft-delete state. The row's retention window elapsed, it moved to trash, and the grace window is still ticking. Restore returns the row to its source list with no policy override. The retention clock restarts at the restore — a restored chat thread, document, or external conversation counts from that moment, so the next cleanup pass leaves it alone instead of expiring it again.
 
 **Expired** is the second state — the grace window ran out and the row is queued for permanent deletion at the next cleanup. Restore is still possible but is an override: the dialog asks you to type `restore` and the audit log records the override with your name.
 

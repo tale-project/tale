@@ -5,7 +5,12 @@ import {
   DEFAULT_DSAR_GOVERNANCE,
   type DsarGovernanceConfig,
 } from '../../../lib/shared/schemas/governance.ts';
+import {
+  RETENTION_CATEGORIES,
+  type RetentionCategory,
+} from '../../../lib/shared/schemas/retention.ts';
 import { isLoosening } from '../../core/governance/dsar_policy.ts';
+import { RETENTION_POLICY_FIELD_BY_CATEGORY } from '../../core/governance/retention_floors.ts';
 import { decryptSecret, encryptSecret } from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
 import { writeGovernancePolicyFile } from '../../lib/governance-policy-write.ts';
@@ -19,9 +24,11 @@ import { createAuditLog } from '../audit_logs/service.ts';
 /**
  * The governance settings TAIL: legal matters (grouping for holds), the
  * retention-shortening cooldown store, the DSAR owner-only grace flow
- * (loosening staged 24h; APPLIED LAZILY on the next read past its
- * effective time — no cron), the guardrails secret store, and the
- * chat-filter event listing the Security page reads.
+ * (loosening staged 24h; applied once its effective time passes — by the
+ * erasure lane's enforcement read, by the editor's read, and by the
+ * 5-minute `governance.apply_dsar_policy_changes` sweep, so the change
+ * takes effect whether or not anyone opens the page), the guardrails
+ * secret store, and the chat-filter event listing the Security page reads.
  */
 
 export class GovernanceTailError extends Error {
@@ -292,26 +299,38 @@ export async function getPendingRetentionChange(
   return row;
 }
 
+/** The summary's label per category (the pending-change banner's text). */
+const RETENTION_CATEGORY_LABELS: Record<RetentionCategory, string> = {
+  documents: 'documents',
+  userTempHours: 'user temp files',
+  agentTempHours: 'agent temp files',
+  chatHistory: 'chat history',
+  auditLog: 'audit log',
+  workflowLog: 'workflow logs',
+  usageLedger: 'usage ledger',
+  loginAttempt: 'login attempts',
+  chatFilterEvents: 'chat filter events',
+  messageFeedback: 'message feedback',
+  contacts: 'contacts',
+  externalConversations: 'external conversations',
+  notifications: 'notifications',
+  agentRuns: 'agent runs',
+};
+
 /** The 0.4 shortening detector — a category disabled in the new config
- * deletes nothing, so its smaller number is not a shortening. */
+ * deletes nothing, so its smaller number is not a shortening. Walks every
+ * bounded category through the ONE field↔category map (a hand list here
+ * missed `notifications` and `agentRuns`, so shortening either skipped the
+ * cooldown) plus the grace window. */
 export function detectRetentionShortening(
   oldConfig: Record<string, unknown>,
   newConfig: Record<string, unknown>,
 ): string | null {
   const checks: Array<[string, string]> = [
-    ['documentsRetentionDays', 'documents'],
-    ['userTempRetentionHours', 'user temp files'],
-    ['agentTempRetentionHours', 'agent temp files'],
-    ['chatHistoryRetentionDays', 'chat history'],
-    ['auditLogRetentionDays', 'audit log'],
-    ['workflowLogRetentionDays', 'workflow logs'],
-    ['usageLedgerRetentionDays', 'usage ledger'],
-    ['loginAttemptRetentionDays', 'login attempts'],
-    ['chatFilterEventsRetentionDays', 'chat filter events'],
-    ['promptTemplatesRetentionDays', 'prompt templates'],
-    ['messageFeedbackRetentionDays', 'message feedback'],
-    ['contactsRetentionDays', 'contacts'],
-    ['externalConversationsRetentionDays', 'external conversations'],
+    ...RETENTION_CATEGORIES.map((category): [string, string] => [
+      RETENTION_POLICY_FIELD_BY_CATEGORY[category],
+      RETENTION_CATEGORY_LABELS[category],
+    ]),
     ['deletionGraceDays', 'deletion grace'],
   ];
   const reduced: string[] = [];
@@ -440,8 +459,120 @@ async function readDsarConfig(
   return parsed.success ? parsed.data : DEFAULT_DSAR_GOVERNANCE;
 }
 
-/** The editor's read; a pending change past its grace APPLIES here (write
- * the file, drop the row) before the answer — the lazy-apply seam. */
+interface DsarPendingRow {
+  id: string;
+  pendingConfig: Record<string, unknown>;
+  effectiveAt: number;
+  proposedBy: string;
+  proposedByEmail: string | null;
+  proposedAt: number;
+}
+
+const DSAR_PENDING_COLUMNS = `
+  id, pending_config AS "pendingConfig",
+  effective_at_ms::float8 AS "effectiveAt", proposed_by AS "proposedBy",
+  proposed_by_email AS "proposedByEmail", proposed_at_ms::float8 AS "proposedAt"
+`;
+
+/** Drop the pending row (the claim — whoever gets it back records the
+ * apply) and audit the change becoming effective. */
+async function claimMaturedDsarChange(
+  tx: TransactionSql,
+  organizationId: string,
+  row: DsarPendingRow,
+  applied: DsarGovernanceConfig | null,
+): Promise<boolean> {
+  const claimed = await tx<{ id: string }[]>`
+    DELETE FROM app.dsar_policy_pending_changes
+    WHERE id = ${row.id} RETURNING id
+  `;
+  if (!claimed[0] || applied === null) return false;
+  await createAuditLog(tx, {
+    organizationId,
+    actorId: 'system',
+    actorType: 'system',
+    action: 'policy.dsar_governance_loosening_applied',
+    category: 'security',
+    resourceType: 'governance_policy',
+    resourceId: 'dsar_governance',
+    newState: {
+      config: applied,
+      effectiveAt: row.effectiveAt,
+      proposedBy: row.proposedBy,
+    },
+    status: 'success',
+  });
+  await emitHintInTx(tx, {
+    orgId: organizationId,
+    entity: 'governance_policy',
+    entityId: 'dsar_governance',
+  });
+  return true;
+}
+
+/**
+ * Apply the org's staged DSAR loosening once its grace has elapsed: write
+ * the policy file, drop the pending row, audit it. Every reader that must
+ * see the EFFECTIVE policy calls this first — the erasure lane's
+ * enforcement read, the editor's read, and the scheduled sweep — so the
+ * change the owner was told would be in force at <date> is in force then,
+ * not whenever someone next happens to open the policy page. Idempotent and
+ * race-safe: two racers write the same file; the DELETE decides who records
+ * the audit row. Works inside a caller's transaction (postgres.js marks one
+ * with `savepoint`) or opens its own. Returns true when a change applied.
+ */
+export async function applyMaturedDsarPolicyChange(
+  db: Sql | TransactionSql,
+  organizationId: string,
+): Promise<boolean> {
+  const rows = await db<DsarPendingRow[]>`
+    SELECT ${db.unsafe(DSAR_PENDING_COLUMNS)}
+    FROM app.dsar_policy_pending_changes
+    WHERE org_id = ${organizationId} AND effective_at_ms <= ${Date.now()}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (row === undefined) return false;
+  const parsed = dsarGovernanceConfigSchema.safeParse(row.pendingConfig);
+  const orgSlug = await resolveOrgSlug(db, organizationId);
+  let applied: DsarGovernanceConfig | null = null;
+  if (parsed.success && orgSlug !== null) {
+    await writeGovernancePolicyFile(orgSlug, 'dsar_governance', parsed.data);
+    applied = parsed.data;
+  } else {
+    console.warn(
+      `[governance] dropping a pending DSAR policy change for org ${organizationId} that cannot apply:`,
+      parsed.success ? 'organization not found' : parsed.error.message,
+    );
+  }
+  const claim = (tx: TransactionSql): Promise<boolean> =>
+    claimMaturedDsarChange(tx, organizationId, row, applied);
+  return 'savepoint' in db ? claim(db) : db.begin(claim);
+}
+
+/** The scheduled twin of the lazy apply: every org whose staged loosening
+ * has matured gets it applied now. One org's failure never starves the rest. */
+export async function applyMaturedDsarPolicyChanges(sql: Sql): Promise<number> {
+  const due = await sql<{ orgId: string }[]>`
+    SELECT DISTINCT org_id AS "orgId" FROM app.dsar_policy_pending_changes
+    WHERE effective_at_ms <= ${Date.now()}
+  `;
+  let applied = 0;
+  for (const { orgId } of due) {
+    try {
+      if (await applyMaturedDsarPolicyChange(sql, orgId)) applied += 1;
+    } catch (error) {
+      console.error(
+        `[governance] DSAR policy apply failed for org ${orgId}:`,
+        error,
+      );
+    }
+  }
+  return applied;
+}
+
+/** The editor's read: a matured pending change applies first (as it does
+ * on every other path), then the effective config and what is still staged. */
 export async function getDsarPolicyForUi(
   sql: Sql,
   auth: { organizationId: string; role: string },
@@ -450,39 +581,14 @@ export async function getDsarPolicyForUi(
   pending: DsarPendingView | null;
   callerIsOwner: boolean;
 }> {
-  const rows = await sql<
-    {
-      id: string;
-      pendingConfig: Record<string, unknown>;
-      effectiveAt: number;
-      proposedBy: string;
-      proposedByEmail: string | null;
-      proposedAt: number;
-    }[]
-  >`
-    SELECT id, pending_config AS "pendingConfig",
-           effective_at_ms::float8 AS "effectiveAt",
-           proposed_by AS "proposedBy",
-           proposed_by_email AS "proposedByEmail",
-           proposed_at_ms::float8 AS "proposedAt"
+  await applyMaturedDsarPolicyChange(sql, auth.organizationId);
+  const rows = await sql<DsarPendingRow[]>`
+    SELECT ${sql.unsafe(DSAR_PENDING_COLUMNS)}
     FROM app.dsar_policy_pending_changes
     WHERE org_id = ${auth.organizationId}
     LIMIT 1
   `;
-  let pendingRow: (typeof rows)[number] | undefined = rows[0];
-  if (pendingRow !== undefined && pendingRow.effectiveAt <= Date.now()) {
-    const parsed = dsarGovernanceConfigSchema.safeParse(
-      pendingRow.pendingConfig,
-    );
-    const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
-    if (parsed.success && orgSlug !== null) {
-      await writeGovernancePolicyFile(orgSlug, 'dsar_governance', parsed.data);
-    }
-    await sql`
-      DELETE FROM app.dsar_policy_pending_changes WHERE id = ${pendingRow.id}
-    `;
-    pendingRow = undefined;
-  }
+  const pendingRow = rows[0];
   const config = await readDsarConfig(sql, auth.organizationId);
   let pending: DsarPendingView | null = null;
   if (pendingRow !== undefined) {

@@ -477,7 +477,11 @@ async function sweepDocuments(
   const protectedIds = [...holds.userMembershipIds];
   let processed = 0;
 
-  // Pass A (grace > 0): flip active expired rows into the admin Trash.
+  // Pass A (grace > 0): flip active expired rows into the admin Trash. A
+  // document's age is its creation — or its last lifecycle change, when a
+  // restore from the Trash stamped one: a restore restarts the retention
+  // clock, or the very next sweep re-expires the row the admin just brought
+  // back (and, with no grace, hard-deletes it outright).
   if (graceDays > 0) {
     const flipped = await sql<{ id: string }[]>`
       UPDATE app.documents SET
@@ -485,7 +489,8 @@ async function sweepDocuments(
       WHERE id IN (
         SELECT id FROM app.documents
         WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
-          AND created_at_ms < ${cutoff}
+          AND GREATEST(created_at_ms, coalesce(status_changed_at_ms, 0))
+              < ${cutoff}
           AND (${protectedIds.length === 0}
                OR created_by <> ALL(${protectedIds}))
         LIMIT ${BATCH_LIMIT}
@@ -533,7 +538,9 @@ async function sweepDocuments(
                  history_files AS "historyFiles"
           FROM app.documents
           WHERE org_id = ${org.organizationId}
-            AND ((lifecycle_status IS NULL AND created_at_ms < ${cutoff})
+            AND ((lifecycle_status IS NULL
+                  AND GREATEST(created_at_ms, coalesce(status_changed_at_ms, 0))
+                      < ${cutoff})
                  OR lifecycle_status IN ('trashed', 'expired'))
           LIMIT ${BATCH_LIMIT}
         `;
@@ -604,14 +611,19 @@ async function sweepChatHistory(
   let processed = 0;
 
   // Pass A (grace > 0): expire active chat threads past the cutoff — they
-  // land in the admin Trash for the grace window.
+  // land in the admin Trash for the grace window. A thread's age is its
+  // last activity — or its last lifecycle change, when a restore from the
+  // Trash stamped one: the restore restarts the retention clock, or the
+  // next sweep re-expires the thread the admin just brought back.
   if (graceDays > 0) {
     const candidates = await sql<{ threadId: string; userId: string }[]>`
       SELECT tm.thread_id AS "threadId", tm.user_id AS "userId"
       FROM app.thread_metadata tm
       JOIN app.threads t ON t.id = tm.thread_id
       WHERE tm.org_id = ${org.organizationId} AND tm.chat_type = 'chat'
-        AND tm.status = 'active' AND t.updated_at_ms < ${cutoff}
+        AND tm.status = 'active'
+        AND GREATEST(t.updated_at_ms, coalesce(tm.status_changed_at_ms, 0))
+            < ${cutoff}
       LIMIT ${BATCH_LIMIT}
     `;
     for (const thread of candidates) {
@@ -645,7 +657,10 @@ async function sweepChatHistory(
           JOIN app.threads t ON t.id = tm.thread_id
           WHERE tm.org_id = ${org.organizationId} AND tm.chat_type = 'chat'
             AND tm.branch_root_id IS NULL
-            AND ((tm.status = 'active' AND t.updated_at_ms < ${cutoff})
+            AND ((tm.status = 'active'
+                  AND GREATEST(t.updated_at_ms,
+                               coalesce(tm.status_changed_at_ms, 0))
+                      < ${cutoff})
                  OR tm.status IN ('trashed', 'expired'))
           LIMIT ${BATCH_LIMIT}
         `;
@@ -725,7 +740,11 @@ async function sweepContacts(
  * `conversations_org_last_message`). A conversation that never received a
  * message has no activity timestamp to age against and is intentionally NOT
  * a candidate — the 0.4 index range said the same, and `NULL < cutoff` is
- * already false in SQL, so the rule costs nothing to keep.
+ * already false in SQL, so the rule costs nothing to keep. A restore from
+ * the Trash stamps `status_changed_at_ms`, and that stamp restarts the
+ * retention clock (spelled as a second `<` rather than `GREATEST`, which
+ * ignores NULLs and would turn the never-messaged row into a candidate) —
+ * the same rule the document and chat sweeps follow.
  *
  * Message rows ride the parent's `ON DELETE CASCADE` (migration 0036).
  * Stored mail attachments do NOT: `app.file_metadata.conversation_id`
@@ -758,6 +777,7 @@ async function sweepExternalConversations(
         SELECT id FROM app.conversations
         WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
           AND last_message_at_ms < ${cutoff}
+          AND coalesce(status_changed_at_ms, 0) < ${cutoff}
         LIMIT ${BATCH_LIMIT}
       )
       RETURNING id
@@ -778,7 +798,8 @@ async function sweepExternalConversations(
           WHERE org_id = ${org.organizationId}
             AND (lifecycle_status IN ('trashed', 'expired')
                  OR (lifecycle_status IS NULL
-                     AND last_message_at_ms < ${cutoff}))
+                     AND last_message_at_ms < ${cutoff}
+                     AND coalesce(status_changed_at_ms, 0) < ${cutoff}))
           LIMIT ${BATCH_LIMIT}
         `;
   if (doomed.length === 0) return processed;
@@ -891,6 +912,33 @@ async function sweepAutomationRuns(sql: Sql, org: OrgPolicy): Promise<number> {
   return rows.length;
 }
 
+/** The audit-log sweep's cutoff for one clamped policy: rows with `ts`
+ * below it are reap candidates; null when the category is off. */
+function auditLogCutoffFor(config: RetentionPolicyConfig): number | null {
+  if (config.auditLogEnabled !== true) return null;
+  const days = config.auditLogRetentionDays;
+  if (typeof days !== 'number' || days <= 0 || !Number.isFinite(days)) {
+    return null;
+  }
+  return Date.now() - days * DAY_MS;
+}
+
+/**
+ * The oldest audit `ts` the org's sweep would still keep right now — the
+ * same clamped, cooldown-overlaid policy `sweepAuditLogs` enforces — or
+ * null when nothing legitimately deletes the org's audit rows (category
+ * off, no valid policy, bounds never applied). The scheduled integrity walk
+ * uses it to tell a resume anchor the sweep reaped (re-anchor) from a row
+ * that vanished inside the window (a break).
+ */
+export async function auditLogRetentionCutoff(
+  sql: Sql,
+  organizationId: string,
+): Promise<number | null> {
+  const policy = await clampedPolicyFor(sql, organizationId);
+  return policy === null ? null : auditLogCutoffFor(policy.config);
+}
+
 /**
  * Audit logs are PREFIX-ONLY: the hash chain anchors on the oldest
  * remaining row's stored `previous_hash`, so a mid-chain hole would break
@@ -903,12 +951,10 @@ async function sweepAuditLogs(
   org: OrgPolicy,
   holds: ActiveHolds,
 ): Promise<number> {
-  if (org.config.auditLogEnabled !== true) return 0;
-  const days = org.config.auditLogRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
+  const cutoff = auditLogCutoffFor(org.config);
+  if (cutoff === null) return 0;
   // Refuse to delete the very table that records why the hold exists.
   if (holds.orgHeld) return 0;
-  const cutoff = Date.now() - days * DAY_MS;
   const candidates = await sql<
     { id: string; actorId: string | null; ts: number }[]
   >`

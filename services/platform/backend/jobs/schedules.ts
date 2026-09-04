@@ -51,6 +51,10 @@ export const SCHEDULES: CronSchedule[] = [
   // just purged reconcile the same night — which is why this one DOES share
   // the sweep's hour, deliberately, unlike the three above.
   { name: 'knowledge.reconcile_corpus', cron: '45 4 * * *' },
+  // A staged DSAR-policy loosening promises "effective at <time>"; the
+  // sweep keeps that promise even when nobody opens the page or files a
+  // request in between (the reads apply it lazily as well).
+  { name: 'governance.apply_dsar_policy_changes', cron: '*/5 * * * *' },
   { name: 'watchdog.task_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.automation_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.sandbox', cron: '*/5 * * * *' },

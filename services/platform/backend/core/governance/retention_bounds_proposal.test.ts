@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { diffBounds } from './retention_bounds_proposal';
+import {
+  RETENTION_CATEGORIES,
+  type AppliedBoundsByCategory,
+} from '../../../lib/shared/schemas/retention';
+import { buildImpactPreview, diffBounds } from './retention_bounds_proposal';
+import {
+  RETENTION_POLICY_FIELD_BY_CATEGORY,
+  clampConfigToBounds,
+  type EffectiveBoundDef,
+} from './retention_floors';
 
 describe('diffBounds', () => {
   it('returns an empty diff for identical snapshots', () => {
@@ -119,5 +128,42 @@ describe('diffBounds', () => {
     expect(diff).toHaveLength(2);
     expect(diff.every((d) => d.from === null)).toBe(true);
     expect(diff.every((d) => d.direction === 'tighten')).toBe(true);
+  });
+});
+
+describe('buildImpactPreview ↔ clampConfigToBounds parity', () => {
+  it('promises exactly the clamp the sweep performs, for every category', () => {
+    // Every category bounded to [10, 20]; the stored policy sits below the
+    // floor on half of them and above the ceiling on the other half.
+    const proposed: AppliedBoundsByCategory = {};
+    const bounds: Partial<Record<string, EffectiveBoundDef>> = {};
+    const stored: Record<string, number> = {};
+    RETENTION_CATEGORIES.forEach((category, index) => {
+      proposed[category] = { min: 10, max: 20 };
+      bounds[category] = {
+        category,
+        min: 10,
+        max: 20,
+        default: 15,
+        unit: category.endsWith('Hours') ? 'hours' : 'days',
+        source: 'file',
+        minEnv: { envName: '', source: 'none', applied: false },
+        maxEnv: { envName: '', source: 'none', applied: false },
+        defaultEnv: { envName: '', source: 'none', applied: false },
+      };
+      stored[RETENTION_POLICY_FIELD_BY_CATEGORY[category]] =
+        index % 2 === 0 ? 1 : 99;
+    });
+    const preview = buildImpactPreview(proposed, stored);
+    const clamped = clampConfigToBounds(bounds, stored);
+    expect(preview).toHaveLength(RETENTION_CATEGORIES.length);
+    for (const entry of preview) {
+      expect(clamped[entry.field]).toBe(entry.willClampTo);
+      expect(clamped[entry.field]).not.toBe(entry.current);
+    }
+    // The category whose preview used to lie: clamp and preview agree.
+    expect(clamped.agentRunsRetentionDays).toBe(
+      preview.find((entry) => entry.category === 'agentRuns')?.willClampTo,
+    );
   });
 });

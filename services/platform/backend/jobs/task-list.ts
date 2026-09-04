@@ -419,6 +419,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.log(`[legal-holds] effected ${effected} approved releases`);
       }
     },
+    'governance.apply_dsar_policy_changes': async () => {
+      const { applyMaturedDsarPolicyChanges } =
+        await import('../domains/governance/settings-tail.ts');
+      const applied = await applyMaturedDsarPolicyChanges(deps.sql);
+      if (applied > 0) {
+        console.log(
+          `[governance] applied ${applied} matured DSAR policy change(s)`,
+        );
+      }
+    },
     'watchdog.task_agents': async () => {
       // Re-attach BEFORE the deadline pass: a turn whose chain died is
       // still doing work, and failing it for a stale heartbeat would throw
