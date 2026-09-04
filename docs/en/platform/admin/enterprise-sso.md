@@ -70,13 +70,13 @@ Every protocol shares one provisioning policy:
 
 - **Default role** — the role a newly provisioned member receives (Member by default).
 - **Auto-assign roles from the IdP** — when on, role-mapping rules map a job title, app role, group, or claim to a platform role; the default role applies when nothing matches.
-- **Sync IdP groups to teams** — when on, each of the user's IdP groups becomes (or joins) a team of the same name on sign-in; **Exclude groups** skips noisy groups (comma-separated).
+- **Sync IdP groups to teams** — when on, each of the user's IdP groups becomes (or joins) a team of the same name on sign-in; **Exclude groups** skips noisy groups (comma-separated). The sync only ever takes back what it added: when a group disappears from the user's claim, the membership the sync granted is removed, and a team the sync created is deleted once it empties. Teams and memberships created by admins or through SCIM are never touched, and excluded groups are left alone entirely.
 
 ## SCIM provisioning (users and groups)
 
 SCIM lets your IdP push changes without anyone signing in. In the **SCIM provisioning** section, click **Generate token** — copy it once (it is never shown again) — and paste it, along with the **SCIM base URL** shown, into your IdP's provisioning settings. The IdP authenticates with the token as a bearer credential; Tale resolves the organisation from the token, so it is the tenant boundary.
 
-Tale implements SCIM 2.0 **Users** and **Groups**: create, read, list (with `userName`/`displayName` filters), replace, patch, and delete. Provisioned users map to organisation members; groups map to teams. **Deactivation is soft** — when the IdP sets a user inactive (`active: false`), the member's role is set to `disabled` (which removes their access), and re-activation restores their prior role. A SCIM **delete** removes the membership from the organisation; the user account itself is kept, and re-provisioning attaches it again at the connection's default role. The organisation owner can never be de-provisioned via SCIM.
+Tale implements SCIM 2.0 **Users** and **Groups**: create, read, list (with `userName`/`displayName` filters), replace, patch, and delete. Provisioned users map to organisation members; groups map to teams. **Deactivation is soft** — when the IdP sets a user inactive (`active: false`), the member's role is set to `disabled` (which removes their access), and re-activation restores their prior role. A SCIM **delete** removes the membership from the organisation; the user account itself is kept, and re-provisioning attaches it again at the connection's default role. The organisation owner can never be de-provisioned or deactivated via SCIM. Group members must be members of the organisation — a user from another organisation is refused. A `userName` change is applied only when the address is free and the account belongs to this organisation alone; an account that is also a member elsewhere keeps its sign-in identity, and the IdP receives a refusal instead.
 
 ## Verifying
 

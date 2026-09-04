@@ -10481,6 +10481,43 @@ async function checkSsoLogin(
     `;
     const firstPkce = pkceVerified;
 
+    // Structures the org manages ELSEWHERE, built between the two logins: an
+    // admin-curated team, an admin team named after an EXCLUDED group, and a
+    // SCIM-provisioned team (Group link row) — each with the SSO user as a
+    // member. The second login's reconcile must leave every one of them
+    // intact: the prune used to remove the user from every org team missing
+    // from the claim and delete the emptied team (admin-built and SCIM teams
+    // vanished on a routine login).
+    const ssoUserRows = await sql<{ id: string }[]>`
+      SELECT "id" FROM "user" WHERE "email" = 'sso.user@door.test'
+    `;
+    const ssoUserId = ssoUserRows[0]?.id ?? '';
+    const curatedTeam = async (name: string): Promise<string> => {
+      const teamId = randomUUID();
+      await sql`
+        INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                            "updatedAt")
+        VALUES (${teamId}, ${name}, ${orgId}, now(), now())
+      `;
+      await sql`
+        INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+        VALUES (${randomUUID()}, ${teamId}, ${ssoUserId}, now())
+      `;
+      return teamId;
+    };
+    const boardTeamId = await curatedTeam('Board');
+    const everyoneTeamId = await curatedTeam('Everyone');
+    const scimTeamId = await curatedTeam('Scim Managed');
+    await sql`
+      INSERT INTO app.sso_provisioning_links (
+        org_id, resource_type, internal_id, external_id, created_at_ms,
+        updated_at_ms
+      ) VALUES (
+        ${orgId}, 'Group', ${scimTeamId}, 'idp-group-9', ${Date.now()},
+        ${Date.now()}
+      )
+    `;
+
     // --- second login: the IdP demotes (group gone) + team churn -----------
     userinfoGroups = ['Finance'];
     pkceVerified = false;
@@ -10499,6 +10536,40 @@ async function checkSsoLogin(
       SELECT "id" FROM "team"
       WHERE "organizationId" = ${orgId} AND "name" = 'Ops'
     `;
+    const curatedAfter = await sql<
+      { id: string; name: string; members: string }[]
+    >`
+      SELECT t."id", t."name",
+             (SELECT count(*)::text FROM "teamMember" tm
+              WHERE tm."teamId" = t."id" AND tm."userId" = ${ssoUserId})
+               AS members
+      FROM "team" t
+      WHERE t."id" IN (${boardTeamId}, ${everyoneTeamId}, ${scimTeamId})
+      ORDER BY t."name"
+    `;
+    // Provenance after the churn: Finance (created this round) is the sync's;
+    // Ops was the sync's and is gone with its row; nothing curated is claimed.
+    const provenance = await sql<
+      { teams: string | null; memberships: string | null }[]
+    >`
+      SELECT
+        (SELECT string_agg(t."name", ',' ORDER BY t."name")
+         FROM app.sso_synced_teams s JOIN "team" t ON t."id" = s.team_id
+         WHERE s.org_id = ${orgId}) AS teams,
+        (SELECT string_agg(t."name", ',' ORDER BY t."name")
+         FROM app.sso_synced_team_members s
+         JOIN "team" t ON t."id" = s.team_id
+         WHERE s.org_id = ${orgId} AND s.user_id = ${ssoUserId}) AS memberships
+    `;
+    record(
+      'SSO team sync prunes only what it created (admin, excluded, SCIM teams survive)',
+      curatedAfter.length === 3 &&
+        curatedAfter.every((t) => t.members === '1') &&
+        opsTeamGone.length === 0 &&
+        provenance[0]?.teams === 'Finance' &&
+        provenance[0]?.memberships === 'Finance',
+      `curated=${curatedAfter.map((t) => `${t.name}:${t.members}`).join(' ')} (want Board:1 Everyone:1 Scim Managed:1), opsReaped=${opsTeamGone.length === 0}, provenance teams=${provenance[0]?.teams} memberships=${provenance[0]?.memberships} (want Finance/Finance)`,
+    );
 
     // --- third round: the IdP breaks mid-exchange --------------------------
     // A failed sign-in is invisible by construction — the handler catches,
@@ -10559,10 +10630,74 @@ async function checkSsoLogin(
         second.callbackStatus === 302 &&
         pkceVerified &&
         rows2[0]?.role === 'member' &&
-        rows2[0]?.teams === 'Finance' &&
+        rows2[0]?.teams === 'Board,Everyone,Finance,Scim Managed' &&
         opsTeamGone.length === 0 &&
         aliasRes.status === 302,
-      `discover=${discovered.success ? `${discovered.data.ssoEnabled}/${discovered.data.protocol ?? ''}` : 'ERR'}, authorize=${first.authorizeStatus} idp=${first.idpHost} pkce=${firstPkce}, callback=${first.callbackStatus}→${first.location.includes('/dashboard') ? 'dashboard' : first.location}, session=${sessionBody.success ? (sessionBody.data.user?.email ?? 'none') : 'ERR'}, first role/teams=${rows1[0]?.role}/${rows1[0]?.teams} (want developer/Ops), second role/teams=${rows2[0]?.role}/${rows2[0]?.teams} (want member/Finance), opsReaped=${opsTeamGone.length === 0}, alias=${aliasRes.status}`,
+      `discover=${discovered.success ? `${discovered.data.ssoEnabled}/${discovered.data.protocol ?? ''}` : 'ERR'}, authorize=${first.authorizeStatus} idp=${first.idpHost} pkce=${firstPkce}, callback=${first.callbackStatus}→${first.location.includes('/dashboard') ? 'dashboard' : first.location}, session=${sessionBody.success ? (sessionBody.data.user?.email ?? 'none') : 'ERR'}, first role/teams=${rows1[0]?.role}/${rows1[0]?.teams} (want developer/Ops), second role/teams=${rows2[0]?.role}/${rows2[0]?.teams} (want member/Board,Everyone,Finance,Scim Managed), opsReaped=${opsTeamGone.length === 0}, alias=${aliasRes.status}`,
+    );
+
+    // --- fourth round: org 2FA enforcement anchors on the SSO door ---------
+    // The password path anchors the grace clock in the Better Auth
+    // after-hook, which never runs for a session the SSO callback mints — so
+    // under an enforced policy with exemptSsoUsers=false the deadline was
+    // recomputed as `now + grace` on every read and never arrived. Anchor
+    // once (a second login keeps the anchor), then prove the clock actually
+    // runs out: backdate the anchor and the SSO session is refused on org
+    // routes server-side while the enrolment surface stays open.
+    const orgConfig = await import('./lib/org-config.ts');
+    const governanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(governanceDir, { recursive: true });
+    const policyPath = path.join(governanceDir, 'two-factor-policy.yml');
+    await writeFile(
+      policyPath,
+      ['enforced: true', 'gracePeriodDays: 7', 'exemptSsoUsers: false'].join(
+        '\n',
+      ),
+    );
+    orgConfig.clearOrgConfigCaches();
+    const graceLogin = await loginRound();
+    const anchorAfterFirst = await sql<{ graceUntil: number }[]>`
+      SELECT grace_until_ms::float8 AS "graceUntil"
+      FROM app.two_factor_grace WHERE user_id = ${ssoUserId}
+    `;
+    const graceAgain = await loginRound();
+    const anchorAfterSecond = await sql<{ graceUntil: number }[]>`
+      SELECT grace_until_ms::float8 AS "graceUntil"
+      FROM app.two_factor_grace WHERE user_id = ${ssoUserId}
+    `;
+    const inGrace = await fetch(`${base}/api/app/projects?orgId=${orgId}`, {
+      headers: { cookie: graceAgain.cookie, origin: base },
+    });
+    await sql`
+      UPDATE app.two_factor_grace SET grace_until_ms = ${Date.now() - 1}
+      WHERE user_id = ${ssoUserId}
+    `;
+    const pastGrace = await fetch(`${base}/api/app/projects?orgId=${orgId}`, {
+      headers: { cookie: graceAgain.cookie, origin: base },
+    });
+    const pastGraceBody = z
+      .looseObject({ error: z.string().optional() })
+      .safeParse(await pastGrace.json());
+    const enrolmentOpen = await fetch(`${base}/api/app/two-factor/status`, {
+      headers: { cookie: graceAgain.cookie, origin: base },
+    });
+    // Lift the policy and the anchor so later lanes see the world they expect.
+    await sql`DELETE FROM app.two_factor_grace WHERE user_id = ${ssoUserId}`;
+    await writeFile(policyPath, 'enforced: false\n');
+    orgConfig.clearOrgConfigCaches();
+    record(
+      'SSO sign-in anchors the 2FA grace clock once; grace actually expires',
+      graceLogin.callbackStatus === 302 &&
+        graceLogin.cookie.includes('better-auth.session_token=') &&
+        anchorAfterFirst.length === 1 &&
+        (anchorAfterFirst[0]?.graceUntil ?? 0) > Date.now() &&
+        anchorAfterSecond[0]?.graceUntil === anchorAfterFirst[0]?.graceUntil &&
+        inGrace.status === 200 &&
+        pastGrace.status === 403 &&
+        pastGraceBody.success &&
+        pastGraceBody.data.error === 'two_factor_enrollment_required' &&
+        enrolmentOpen.status === 200,
+      `login=${graceLogin.callbackStatus}, anchored=${anchorAfterFirst.length === 1}, stable=${anchorAfterSecond[0]?.graceUntil === anchorAfterFirst[0]?.graceUntil}, inGrace=${inGrace.status} (want 200), pastGrace=${pastGrace.status}/${pastGraceBody.success ? pastGraceBody.data.error : 'ERR'} (want 403/two_factor_enrollment_required), enrol=${enrolmentOpen.status} (want 200)`,
     );
   } finally {
     idp.close();
@@ -11202,9 +11337,9 @@ async function checkEntraLogin(
 async function checkScim(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const admin = (route: string, body?: unknown): Promise<Response> =>
     fetch(`${base}/api/app/scim${route}?orgId=${orgId}`, {
       method: body !== undefined ? 'POST' : 'GET',
@@ -11342,6 +11477,132 @@ async function checkScim(
     SELECT "id" FROM "team" WHERE "id" = ${groupId || '-'}
   `;
 
+  // ---- the guards: owner, foreign members, userName rewrite --------------
+  // PATCH active:false on the org owner is refused exactly like DELETE (403
+  // mutability): writing role=disabled onto the owner locked the org out of
+  // administration. Self-healing: should the guard ever fail, the owner is
+  // restored so the rest of the suite stays meaningful.
+  const scimTypeBody = z.looseObject({ scimType: z.string().optional() });
+  const ownerDeactivate = await scim(`/Users/${userId}`, {
+    method: 'PATCH',
+    body: {
+      schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+      Operations: [{ op: 'replace', path: 'active', value: false }],
+    },
+  });
+  const ownerDeactivateBody = scimTypeBody.safeParse(
+    await ownerDeactivate.json(),
+  );
+  const ownerRole = await sql<{ role: string }[]>`
+    SELECT "role" FROM "member"
+    WHERE "organizationId" = ${orgId} AND "userId" = ${userId}
+  `;
+  if (ownerRole[0]?.role !== 'owner') {
+    await sql`
+      UPDATE "member" SET "role" = 'owner'
+      WHERE "organizationId" = ${orgId} AND "userId" = ${userId}
+    `;
+  }
+
+  // A second tenant with its own user: a Group write naming that user is a
+  // 400 invalidValue and leaves no teamMember row (and no team) behind.
+  const foreignOrgId = randomUUID();
+  const foreignUserId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${foreignOrgId}, 'Foreign Tenant',
+            ${`foreign-${foreignOrgId.slice(0, 8)}`}, now())
+  `;
+  await sql`
+    INSERT INTO "user" (
+      "id", "email", "name", "emailVerified", "createdAt", "updatedAt"
+    ) VALUES (
+      ${foreignUserId}, ${`foreign-${foreignUserId.slice(0, 8)}@door.test`},
+      'Foreign User', true, now(), now()
+    )
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${foreignOrgId}, ${foreignUserId}, 'member', now())
+  `;
+  const foreignGroup = await scim('/Groups', {
+    body: {
+      schemas: ['urn:ietf:params:scim:schemas:core:2.0:Group'],
+      displayName: 'Smuggled',
+      members: [{ value: scimUserId }, { value: foreignUserId }],
+    },
+  });
+  const foreignGroupBody = scimTypeBody.safeParse(await foreignGroup.json());
+  const smuggledRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count
+    FROM "teamMember" tm JOIN "team" t ON t."id" = tm."teamId"
+    WHERE t."organizationId" = ${orgId} AND tm."userId" = ${foreignUserId}
+  `;
+  const smuggledTeam = await sql<{ id: string }[]>`
+    SELECT "id" FROM "team"
+    WHERE "organizationId" = ${orgId} AND "name" = 'Smuggled'
+  `;
+
+  // userName rewrite: a collision is a 409 uniqueness (not a unique-index
+  // 500); an account that also belongs to another org is not this org's to
+  // rename (403 mutability, identity untouched); a single-org account
+  // renames, normalized.
+  const ownerEmail = await sql<{ email: string }[]>`
+    SELECT "email" FROM "user" WHERE "id" = ${userId}
+  `;
+  const renameOp = (userName: string): Promise<Response> =>
+    scim(`/Users/${scimUserId}`, {
+      method: 'PATCH',
+      body: {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+        Operations: [{ op: 'replace', path: 'userName', value: userName }],
+      },
+    });
+  const collision = await renameOp(ownerEmail[0]?.email ?? 'owner@door.test');
+  const collisionBody = scimTypeBody.safeParse(await collision.json());
+  const sharedMemberId = randomUUID();
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${sharedMemberId}, ${foreignOrgId}, ${scimUserId}, 'member', now())
+  `;
+  const sharedRename = await renameOp('Scim.Hijacked@door.test');
+  const sharedRenameBody = scimTypeBody.safeParse(await sharedRename.json());
+  const emailAfterShared = await sql<{ email: string }[]>`
+    SELECT "email" FROM "user" WHERE "id" = ${scimUserId}
+  `;
+  await sql`DELETE FROM "member" WHERE "id" = ${sharedMemberId}`;
+  const soleRename = await renameOp(' Scim.Renamed@door.test ');
+  const emailAfterSole = await sql<{ email: string }[]>`
+    SELECT "email" FROM "user" WHERE "id" = ${scimUserId}
+  `;
+  // Foreign tenant cleanup.
+  await sql`DELETE FROM "member" WHERE "organizationId" = ${foreignOrgId}`;
+  await sql`DELETE FROM "user" WHERE "id" = ${foreignUserId}`;
+  await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrgId}`;
+
+  record(
+    'SCIM guards: owner never deactivated, no foreign group members, userName rewrite contract',
+    ownerDeactivate.status === 403 &&
+      ownerDeactivateBody.success &&
+      ownerDeactivateBody.data.scimType === 'mutability' &&
+      ownerRole[0]?.role === 'owner' &&
+      foreignGroup.status === 400 &&
+      foreignGroupBody.success &&
+      foreignGroupBody.data.scimType === 'invalidValue' &&
+      smuggledRows[0]?.count === '0' &&
+      smuggledTeam.length === 0 &&
+      collision.status === 409 &&
+      collisionBody.success &&
+      collisionBody.data.scimType === 'uniqueness' &&
+      sharedRename.status === 403 &&
+      sharedRenameBody.success &&
+      sharedRenameBody.data.scimType === 'mutability' &&
+      emailAfterShared[0]?.email === 'scim.user@door.test' &&
+      soleRename.status === 200 &&
+      emailAfterSole[0]?.email === 'scim.renamed@door.test',
+    `owner PATCH active:false=${ownerDeactivate.status}/${ownerDeactivateBody.success ? ownerDeactivateBody.data.scimType : 'ERR'} role=${ownerRole[0]?.role} (want 403/mutability/owner), foreign member=${foreignGroup.status}/${foreignGroupBody.success ? foreignGroupBody.data.scimType : 'ERR'} rows=${smuggledRows[0]?.count} team=${smuggledTeam.length} (want 400/invalidValue/0/0), collision=${collision.status}/${collisionBody.success ? collisionBody.data.scimType : 'ERR'} (want 409/uniqueness), shared=${sharedRename.status}/${sharedRenameBody.success ? sharedRenameBody.data.scimType : 'ERR'} email=${emailAfterShared[0]?.email} (want 403/mutability/unchanged), sole=${soleRename.status} email=${emailAfterSole[0]?.email} (want 200/scim.renamed@door.test)`,
+  );
+
   // ---- hard DELETE (RFC 7644 §3.6) ---------------------------------------
   const userDeleted = await scim(`/Users/${scimUserId}`, { method: 'DELETE' });
   const userGone = await scim(`/Users/${scimUserId}`);
@@ -11403,10 +11664,11 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
       role: string,
       cookie?: string,
       secret: string | null = 'itest-trusted-door',
+      email = 'proxy.user@door.test',
     ): Promise<{ cookie: string; status: number; body: string }> => {
       const res = await fetch(`${base}/api/trusted-headers/authenticate`, {
         headers: {
-          'Remote-Email': 'proxy.user@door.test',
+          'Remote-Email': email,
           'Remote-Name': 'Proxy User',
           'Remote-Role': role,
           'Remote-Teams': 't-fin:Finance, t-ops:Operations',
@@ -11515,6 +11777,49 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
         sessionsAfter.length === 1 &&
         sessionsAfter[0]?.trustedRole === 'admin',
       `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
+    );
+
+    // Session reuse is bound to the browser's OWN cookie: a second device
+    // (no cookie) gets its own session — the old fallback adopted "any
+    // session row of this user" and silently shared one session across
+    // devices (the cookie branch matched the signed value against the bare
+    // token and never hit). A cookie naming another user's session (account
+    // switch behind the proxy) kills that session and mints a new one.
+    const deviceTwo = await authWith('member');
+    const proxyUserSessions = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM "session" s
+      JOIN "user" u ON u."id" = s."userId"
+      WHERE u."email" = 'proxy.user@door.test'
+    `;
+    const switched = await authWith(
+      'member',
+      first.cookie,
+      'itest-trusted-door',
+      'other.user@door.test',
+    );
+    const proxyUserLeft = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM "session" s
+      JOIN "user" u ON u."id" = s."userId"
+      WHERE u."email" = 'proxy.user@door.test'
+    `;
+    const otherSessions = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM "session" s
+      JOIN "user" u ON u."id" = s."userId"
+      WHERE u."email" = 'other.user@door.test'
+    `;
+    record(
+      'trusted-headers sessions: cookie-bound reuse, no cross-device sharing, account switch',
+      deviceTwo.status === 200 &&
+        deviceTwo.cookie.includes('better-auth.session_token=') &&
+        deviceTwo.cookie !== first.cookie &&
+        proxyUserSessions[0]?.count === '2' &&
+        switched.status === 200 &&
+        switched.cookie.includes('better-auth.session_token=') &&
+        switched.cookie !== first.cookie &&
+        switched.cookie !== deviceTwo.cookie &&
+        proxyUserLeft[0]?.count === '1' &&
+        otherSessions[0]?.count === '1',
+      `deviceTwo=${deviceTwo.status} own=${deviceTwo.cookie !== first.cookie} sessions=${proxyUserSessions[0]?.count} (want 2), switch=${switched.status} fresh=${switched.cookie !== first.cookie && switched.cookie !== deviceTwo.cookie} proxyUserLeft=${proxyUserLeft[0]?.count} (want 1: device two only), other=${otherSessions[0]?.count} (want 1)`,
     );
   } finally {
     delete process.env.TRUSTED_HEADERS_ENABLED;

@@ -184,9 +184,10 @@ async function getUserInfo(
 /**
  * Graph pages `/me/memberOf` and `/me/appRoleAssignments` at 100 entries; a
  * page-1-only read silently truncates for enterprise users, and truncated
- * groups are WORSE than a failed fetch — `syncTeamsFromGroupNames` prunes
- * every membership missing from the list, so page-2+ teams would be REMOVED
- * on each login. The cap bounds a runaway/looping feed; exceeding it throws,
+ * groups are WORSE than a failed fetch — `syncTeamsFromGroupNames` revokes
+ * every membership IT granted that is missing from the list, so page-2+
+ * synced teams would be REMOVED on each login. The cap bounds a
+ * runaway/looping feed; exceeding it throws,
  * which lands in the callers' existing failed-fetch path (team sync skipped,
  * memberships preserved) instead of a silent partial list.
  */

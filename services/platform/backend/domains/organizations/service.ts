@@ -368,6 +368,13 @@ export async function deleteOrganization(
     WHERE "activeOrganizationId" = ${organizationId}
   `;
 
+  // The SSO team-sync provenance rows (migration 0071) are keyed by org and
+  // carry no FK to the teams they describe — they go with the teams.
+  await tx`
+    DELETE FROM app.sso_synced_team_members WHERE org_id = ${organizationId}
+  `;
+  await tx`DELETE FROM app.sso_synced_teams WHERE org_id = ${organizationId}`;
+
   // Better Auth's own rows, leaf-first. (Its `organization.delete` removes
   // members, invitations and the org but strands teams; this is the
   // complete set for the teams-enabled plugin.)

@@ -26,12 +26,11 @@ import {
   recordFailure,
 } from '../domains/login_attempts/service.ts';
 import {
-  evaluateTwoFactorEnforcement,
+  anchorTwoFactorGraceOnSignIn,
   getTwoFactorLockState,
   recordTwoFactorFailure,
   recordTwoFactorLifecycleEvent,
   recordTwoFactorSuccess,
-  setGraceUntilIfAbsent,
   type TwoFactorLifecycleAction,
 } from '../domains/two_factor/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
@@ -445,20 +444,10 @@ export function createAuth(config: AuthConfig) {
                 ? sessionUser.id
                 : null;
             if (sessionUserId !== null) {
-              const enforcement = await evaluateTwoFactorEnforcement(
+              const enforcement = await anchorTwoFactorGraceOnSignIn(
                 sql,
                 sessionUserId,
               );
-              if (
-                enforcement.decision === 'grace' &&
-                enforcement.graceUntilToSet !== null
-              ) {
-                await setGraceUntilIfAbsent(
-                  sql,
-                  sessionUserId,
-                  enforcement.graceUntilToSet,
-                );
-              }
               if (enforcement.decision === 'blocked') {
                 return mw.json({
                   twoFactorRedirect: true,

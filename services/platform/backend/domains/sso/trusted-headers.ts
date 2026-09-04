@@ -7,9 +7,13 @@ import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
 import { resolveTeams } from '../../core/betterAuth/trusted_headers/resolve_team_names.ts';
 import { publicOrigin } from '../../core/enterprise_sso/login/public_origin.ts';
-import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
+import {
+  signCookieValue,
+  verifySignedValue,
+} from '../../core/enterprise_sso/sign_cookie_value.ts';
 import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
 
 /**
  * Trusted-headers authentication — the 0.5 twin of
@@ -53,6 +57,14 @@ export async function trustedHeadersAuthenticate(
      * whoever `Remote-Email` named. Fail closed: no env secret, no door.
      */
     secret: string | undefined;
+    /**
+     * The BARE session token from the browser's own cookie, after the route
+     * verified its signature (the cookie carries `${token}.${signature}`; the
+     * row stores the token). Reuse is bound to THIS session and no other:
+     * the door never adopts another device's row for the same user — that
+     * silently shared one session across devices (sign out on one killed
+     * both) — so no cookie, or one that fails verification, mints afresh.
+     */
     existingSessionToken?: string;
     ipAddress?: string;
     userAgent?: string;
@@ -154,6 +166,11 @@ export async function trustedHeadersAuthenticate(
       }
     }
 
+    // Org 2FA enforcement anchors on this door too — it mints sessions
+    // outside the Better Auth sign-in hook, so without this an enforced
+    // policy's grace clock never started for proxy-authenticated users.
+    await anchorTwoFactorGraceOnSignIn(tx, userId);
+
     // ---- create or reuse the session ------------------------------------
     const nowMs = now.getTime();
     const expiresAt = new Date(sessionExpiryMs(nowMs, 24 * 60 * 60 * 1000));
@@ -202,39 +219,7 @@ export async function trustedHeadersAuthenticate(
       }
     }
 
-    const reusable = await tx<
-      {
-        id: string;
-        token: string;
-        expiresAt: Date;
-        trustedRole: string | null;
-        trustedTeams: string | null;
-      }[]
-    >`
-      SELECT "id", "token", "expiresAt", "trustedRole", "trustedTeams"
-      FROM "session" WHERE "userId" = ${userId} LIMIT 1
-    `;
-    const candidate = reusable[0];
-    if (candidate !== undefined && candidate.expiresAt.getTime() > nowMs) {
-      const trustedHeadersChanged =
-        (candidate.trustedRole ?? null) !== (args.role ?? null) ||
-        (candidate.trustedTeams ?? null) !== (trustedTeams ?? null);
-      await tx`
-        UPDATE "session" SET
-          "expiresAt" = ${expiresAt}, "updatedAt" = ${now},
-          "trustedRole" = ${args.role ?? null},
-          "trustedTeams" = ${trustedTeams ?? null}
-        WHERE "id" = ${candidate.id}
-      `;
-      return {
-        userId,
-        organizationId,
-        sessionToken: candidate.token,
-        shouldClearOldSession: args.existingSessionToken !== undefined,
-        trustedHeadersChanged,
-      };
-    }
-
+    // No (valid, live, same-user) cookie: a fresh session for THIS browser.
     const sessionToken = globalThis.crypto.randomUUID();
     await tx`
       INSERT INTO "session" (
@@ -404,10 +389,20 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
     const cookieName = isHttps
       ? `__Secure-${SESSION_COOKIE_NAME}`
       : SESSION_COOKIE_NAME;
-    const existingSessionToken = extractCookieValue(
+    // The cookie carries what signCookieValue minted — `${token}.${signature}`
+    // — while the session row stores the bare token, so the lookup needs the
+    // verified, stripped value. (Matching the signed string against the token
+    // column never hit: the reuse and account-switch branches were dead, and
+    // every request fell through to adopting an arbitrary row of the user.)
+    // A cookie that fails verification is treated as no cookie at all.
+    const presentedCookie = extractCookieValue(
       c.req.header('cookie'),
       cookieName,
     );
+    const existingSessionToken =
+      presentedCookie !== undefined
+        ? ((await verifySignedValue(presentedCookie, secret)) ?? undefined)
+        : undefined;
     const ip =
       c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
       c.req.header('x-real-ip') ||
