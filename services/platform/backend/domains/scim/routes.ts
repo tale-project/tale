@@ -87,18 +87,8 @@ export function createScimRoutes(deps: { sql: Sql }): Hono {
           c.req.raw,
         );
       } catch (error) {
-        // A coded AppError from the provisioning layer maps to its SCIM
-        // status — a cross-tenant create collision is a 409, not a 500.
-        if (error instanceof AppError && isRecord(error.data)) {
-          const data = error.data;
-          if (data.code === 'scim_user_conflict') {
-            const detail =
-              typeof data.message === 'string'
-                ? data.message
-                : 'User already exists';
-            return scimError(409, detail, 'uniqueness');
-          }
-        }
+        const refusal = scimResponseForAppError(error);
+        if (refusal !== null) return refusal;
         console.error('[scim] handler error', error);
         return scimError(500, 'Internal server error');
       }
@@ -127,6 +117,41 @@ export function createScimRoutes(deps: { sql: Sql }): Hono {
   app.all('/Groups/:id', withAuth(scimGroupResourceImpl));
 
   return app;
+}
+
+/**
+ * Map a coded AppError from the provisioning layer to its RFC 7644 answer —
+ * null for anything else (which stays a logged 500). The codes are the
+ * refusals `domains/scim/service.ts` throws: a cross-tenant create or a
+ * userName collision is a 409 `uniqueness`; deactivating the owner or
+ * rewriting a shared account's identity is a 403 `mutability` (the answer
+ * DELETE already gives for the owner); a Group member outside the org is a
+ * 400 `invalidValue`.
+ */
+export function scimResponseForAppError(error: unknown): Response | null {
+  if (!(error instanceof AppError) || !isRecord(error.data)) return null;
+  const { code, message } = error.data;
+  const detail = typeof message === 'string' ? message : undefined;
+  switch (code) {
+    case 'scim_user_conflict':
+      return scimError(409, detail ?? 'User already exists', 'uniqueness');
+    case 'scim_owner_protected':
+      return scimError(
+        403,
+        detail ?? 'Cannot deactivate the organization owner',
+        'mutability',
+      );
+    case 'scim_identity_shared':
+      return scimError(
+        403,
+        detail ?? 'The account belongs to other organizations',
+        'mutability',
+      );
+    case 'scim_invalid_member':
+      return scimError(400, detail ?? 'Unknown member', 'invalidValue');
+    default:
+      return null;
+  }
 }
 
 /** Public SCIM base for `meta.location` — undefined when SITE_URL is unset. */

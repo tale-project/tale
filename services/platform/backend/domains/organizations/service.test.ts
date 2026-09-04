@@ -264,6 +264,8 @@ describe('deleteOrganization', () => {
     expect(deletes.map((t) => /^DELETE FROM ([\w."]+)/.exec(t)?.[1])).toEqual([
       'app.user_preferences',
       'app.memories',
+      'app.sso_synced_team_members',
+      'app.sso_synced_teams',
       '"teamMember"',
       '"team"',
       '"invitation"',

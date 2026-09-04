@@ -331,6 +331,28 @@ export async function setGraceUntilIfAbsent(
   `;
 }
 
+/**
+ * The sign-in anchor EVERY session-minting door runs — the Better Auth
+ * password after-hook, SSO (`handleSsoLogin`) and the trusted-headers door:
+ * evaluate the enforcement and persist the grace anchor exactly once. A door
+ * that writes its session row directly and skips this never anchors, so
+ * `evaluateTwoFactorEnforcement` recomputes `now + grace` on every read and
+ * the enrolment deadline never arrives for anyone signing in through it.
+ */
+export async function anchorTwoFactorGraceOnSignIn(
+  db: Db,
+  userId: string,
+): Promise<TwoFactorEnforcement> {
+  const enforcement = await evaluateTwoFactorEnforcement(db, userId);
+  if (
+    enforcement.decision === 'grace' &&
+    enforcement.graceUntilToSet !== null
+  ) {
+    await setGraceUntilIfAbsent(db, userId, enforcement.graceUntilToSet);
+  }
+  return enforcement;
+}
+
 /** The settings/status read: the enforcement posture for one user. */
 /** The 0.4 `TwoFactorStatus` wire shape (`two_factor/queries.ts`) — what
  * the dashboard gate, the enroll page, and the settings surface consume. */

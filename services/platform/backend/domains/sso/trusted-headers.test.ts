@@ -1,8 +1,14 @@
 // @vitest-environment node
 
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
+import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import {
   createTrustedHeadersRoutes,
   trustedHeadersAuthenticate,
@@ -245,5 +251,257 @@ describe('GET /api/trusted-headers/authenticate — the proxy hand-off door', ()
     expect(ok.headers.get('set-cookie')).toContain(
       'better-auth.session_token=',
     );
+  });
+
+  // The cookie carries `${token}.${signature}` (signCookieValue's output),
+  // the row stores the bare token. The regression: the route matched the
+  // signed string against the token column, which never hit — the reuse and
+  // account-switch branches were dead and every request fell through to
+  // adopting an arbitrary session row of the user.
+  it("looks the cookie's session up by its bare token, not the signed cookie value", async () => {
+    const signed = await signCookieValue('tok-1', 'session-signing-secret');
+    const live = {
+      id: 's-1',
+      userId: 'user-1',
+      token: 'tok-1',
+      expiresAt: new Date(Date.now() + 3_600_000),
+      trustedRole: 'member',
+      trustedTeams: null,
+    };
+    const { app, queries } = makeApp([
+      {
+        match: /SELECT "id", "name" FROM "user"/,
+        rows: [{ id: 'user-1', name: 'Proxy User' }],
+      },
+      {
+        match: /SELECT "organizationId" FROM "member"/,
+        rows: [{ organizationId: 'org-1' }],
+      },
+      { match: /FROM "session" WHERE "token"/, rows: [live] },
+      { match: /SELECT .* FROM "session"/, rows: [] },
+    ]);
+
+    const res = await request(app, {
+      ...identityHeaders,
+      'Remote-Internal-Secret': 'door-secret',
+      cookie: `better-auth.session_token=${signed}`,
+    });
+
+    const lookup = queries.find((q) =>
+      /FROM "session" WHERE "token"/.test(q.text),
+    );
+    expect(lookup?.values).toContain('tok-1');
+    expect(lookup?.values).not.toContain(decodeURIComponent(signed));
+    // The browser's own session is refreshed and handed back — no new row.
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
+    ).toBe(false);
+    expect(res.headers.get('set-cookie')).toContain(
+      `better-auth.session_token=${signed}`,
+    );
+  });
+
+  it('treats a cookie that fails verification as no cookie at all', async () => {
+    const { app, queries } = makeApp(happyScript());
+
+    const res = await request(app, {
+      ...identityHeaders,
+      'Remote-Internal-Secret': 'door-secret',
+      cookie: 'better-auth.session_token=tok-1.forged-signature',
+    });
+
+    expect(queries.some((q) => /WHERE "token"/.test(q.text))).toBe(false);
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
+    ).toBe(true);
+    expect(res.headers.get('set-cookie')).toContain(
+      'better-auth.session_token=',
+    );
+  });
+});
+
+/**
+ * Session reuse is bound to the browser's OWN cookie. The fallback that
+ * adopted "any session row of this user" silently shared one session across
+ * devices (signing out or revoking one killed both; the sessions list showed
+ * one device) — it is gone.
+ */
+describe("trustedHeadersAuthenticate — reuse is bound to the browser's own session", () => {
+  beforeEach(() => {
+    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
+  });
+
+  const identity = [
+    {
+      match: /SELECT "id", "name" FROM "user"/,
+      rows: [{ id: 'user-1', name: 'Proxy User' }],
+    },
+    {
+      match: /SELECT "organizationId" FROM "member"/,
+      rows: [{ organizationId: 'org-1' }],
+    },
+  ];
+
+  it("never adopts another device's session for the same user", async () => {
+    const otherDevice = {
+      id: 's-other',
+      token: 'other-device-token',
+      expiresAt: new Date(Date.now() + 3_600_000),
+      trustedRole: 'member',
+      trustedTeams: null,
+    };
+    const { sql, queries } = fakeSql([
+      ...identity,
+      // The old fallback read `FROM "session" WHERE "userId" … LIMIT 1` —
+      // answer it with the other device's live row.
+      { match: /FROM "session" WHERE "userId"/, rows: [otherDevice] },
+      { match: /SELECT .* FROM "session"/, rows: [] },
+    ]);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      secret: 'right-secret',
+    });
+
+    expect(result.sessionToken).not.toBe('other-device-token');
+    expect(
+      queries.some((q) => /FROM "session" WHERE "userId"/.test(q.text)),
+    ).toBe(false);
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
+    ).toBe(true);
+  });
+
+  it("refreshes the cookie's own live session and answers its token", async () => {
+    const { sql, queries } = fakeSql([
+      ...identity,
+      {
+        match: /FROM "session" WHERE "token"/,
+        rows: [
+          {
+            id: 's-1',
+            userId: 'user-1',
+            token: 'tok-1',
+            expiresAt: new Date(Date.now() + 3_600_000),
+            trustedRole: 'member',
+            trustedTeams: null,
+          },
+        ],
+      },
+    ]);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      role: 'admin',
+      secret: 'right-secret',
+      existingSessionToken: 'tok-1',
+    });
+
+    expect(result.sessionToken).toBe('tok-1');
+    expect(result.trustedHeadersChanged).toBe(true);
+    const refresh = queries.find((q) => q.text.startsWith('UPDATE "session"'));
+    expect(refresh?.values).toContain('admin');
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
+    ).toBe(false);
+  });
+
+  it("kills the other user's session on an account switch behind the proxy", async () => {
+    const { sql, queries } = fakeSql([
+      ...identity,
+      {
+        match: /FROM "session" WHERE "token"/,
+        rows: [
+          {
+            id: 's-2',
+            userId: 'user-2',
+            token: 'tok-2',
+            expiresAt: new Date(Date.now() + 3_600_000),
+            trustedRole: 'member',
+            trustedTeams: null,
+          },
+        ],
+      },
+    ]);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      secret: 'right-secret',
+      existingSessionToken: 'tok-2',
+    });
+
+    expect(result.shouldClearOldSession).toBe(true);
+    expect(result.sessionToken).not.toBe('tok-2');
+    const killed = queries.find((q) =>
+      q.text.startsWith('DELETE FROM "session"'),
+    );
+    expect(killed?.values).toEqual(['s-2']);
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
+    ).toBe(true);
+  });
+});
+
+/**
+ * Org 2FA enforcement on the proxy door: it mints sessions outside the
+ * Better Auth sign-in hook, so the grace anchor has to be set here or an
+ * enforced policy never starts its clock for proxy-authenticated users.
+ */
+describe('trustedHeadersAuthenticate — org 2FA enforcement anchors on the proxy door', () => {
+  let configRoot: string;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(async () => {
+    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-trusted-headers-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+    clearOrgConfigCaches();
+  });
+
+  afterEach(async () => {
+    if (savedConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
+    else process.env.TALE_CONFIG_DIR = savedConfigDir;
+    await rm(configRoot, { recursive: true, force: true });
+    clearOrgConfigCaches();
+  });
+
+  it('anchors the grace clock inside the sign-in transaction', async () => {
+    const governanceDir = path.join(configRoot, 'proxy-org', 'governance');
+    await mkdir(governanceDir, { recursive: true });
+    await writeFile(
+      path.join(governanceDir, 'two-factor-policy.yml'),
+      'enforced: true\ngracePeriodDays: 7\nexemptSsoUsers: false\n',
+    );
+    const { sql, queries } = fakeSql([
+      {
+        match: /SELECT "id", "name" FROM "user"/,
+        rows: [{ id: 'user-1', name: 'Proxy User' }],
+      },
+      {
+        match: /SELECT "organizationId" FROM "member"/,
+        rows: [{ organizationId: 'org-1' }],
+      },
+      {
+        match: /SELECT "slug" FROM "organization"/,
+        rows: [{ slug: 'proxy-org' }],
+      },
+      {
+        match: /SELECT "twoFactorEnabled" FROM "user"/,
+        rows: [{ twoFactorEnabled: false }],
+      },
+    ]);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      secret: 'right-secret',
+    });
+
+    expect(result.sessionToken).not.toBe('');
+    const anchor = queries.find((q) =>
+      q.text.startsWith('INSERT INTO app.two_factor_grace'),
+    );
+    expect(anchor?.values[0]).toBe('user-1');
+    expect(anchor?.values[1]).toBeGreaterThan(Date.now());
   });
 });

@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import {
   classifyDeprovision,
@@ -237,6 +238,87 @@ async function findMemberRow(
   return rows[0] ?? null;
 }
 
+/** Postgres unique-index violation (SQLSTATE 23505). */
+function isUniqueViolation(error: unknown): boolean {
+  return isRecord(error) && error.code === '23505';
+}
+
+/**
+ * The SCIM `userName` rewrite contract. `"user".email` is the account's
+ * GLOBAL sign-in identity — one row that every org the user belongs to reads
+ * — so an org's IdP may rewrite it only when that account is the org's alone:
+ *  1. unchanged after normalization → nothing to write (null);
+ *  2. another account already holds the address → `scim_user_conflict` (409
+ *     `uniqueness`) instead of the unique-index 500 an IdP retries forever as
+ *     a server fault;
+ *  3. the account has a membership in ANY other org → `scim_identity_shared`
+ *     (403 `mutability`): this org's IdP has no authority over an identity
+ *     other tenants rely on. Otherwise one org's SCIM could redirect a
+ *     cross-org user's login identity everywhere — and, with a password reset
+ *     to the redirected address, take the account over. It is the cross-org
+ *     authority rule of the credential-reset door (#3159) applied to SCIM:
+ *     act on the global account only when every org it belongs to is under
+ *     your authority, and a SCIM token's authority is exactly its own org.
+ * `active`, `externalId` and the display name stay org-scoped and apply as
+ * before (the create path already renames only a member of this org).
+ */
+async function planEmailChange(
+  db: Db,
+  organizationId: string,
+  userId: string,
+  requestedEmail: string,
+): Promise<string | null> {
+  const nextEmail = normalizeAuthEmail(requestedEmail);
+  const current = await findUserRowById(db, userId);
+  if (current === null || current.email === nextEmail) return null;
+  const holder = await findUserRowByEmail(db, nextEmail);
+  if (holder !== null && holder.id !== userId) {
+    throw new AppError({
+      code: 'scim_user_conflict',
+      message: `userName ${nextEmail} is already taken`,
+    });
+  }
+  const memberships = await db<{ organizationId: string }[]>`
+    SELECT "organizationId" FROM "member" WHERE "userId" = ${userId}
+  `;
+  if (memberships.some((m) => m.organizationId !== organizationId)) {
+    throw new AppError({
+      code: 'scim_identity_shared',
+      message:
+        'Cannot change the userName of an account that belongs to other organizations',
+    });
+  }
+  return nextEmail;
+}
+
+/**
+ * Every member id an IdP writes into a Group must be a member of the token's
+ * org: a foreign or unknown id is an RFC 7644 `invalidValue` (400), never a
+ * teamMember row — otherwise a miskeyed or hostile payload stitches another
+ * tenant's user into this org's team (returned by later SCIM reads and every
+ * app-side team query), or a garbage id becomes an opaque 500.
+ */
+async function assertOrgMembers(
+  db: Db,
+  organizationId: string,
+  userIds: readonly string[],
+): Promise<void> {
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return;
+  const rows = await db<{ userId: string }[]>`
+    SELECT "userId" FROM "member"
+    WHERE "organizationId" = ${organizationId} AND "userId" = ANY(${ids})
+  `;
+  const known = new Set(rows.map((row) => row.userId));
+  const foreign = ids.filter((id) => !known.has(id));
+  if (foreign.length > 0) {
+    throw new AppError({
+      code: 'scim_invalid_member',
+      message: `Not members of this organization: ${foreign.join(', ')}`,
+    });
+  }
+}
+
 function toUserRecord(
   user: UserRow,
   member: MemberRow,
@@ -413,7 +495,18 @@ export async function provisionUser(
   });
 }
 
-/** SCIM User PATCH: active toggle (soft-deactivate/restore) + name/email. */
+/**
+ * SCIM User PATCH/PUT: active toggle (soft-deactivate/restore) + name/email.
+ * Two refusals answer inside the transaction BEFORE any write, so a refused
+ * operation changes nothing (PATCH is atomic):
+ *  - `active:false` on the owner → `scim_owner_protected` (403 `mutability`),
+ *    the SAME protection DELETE has. Writing role=disabled onto the owner
+ *    made `requireOrgMember` refuse their every request, so an IdP
+ *    unassigning the app for the owner locked the whole org out of
+ *    administration with no in-app way back;
+ *  - a `userName` rewrite that fails the identity contract of
+ *    `planEmailChange` (collision → 409, shared account → 403).
+ */
 export async function patchUser(
   sql: Sql,
   args: {
@@ -429,6 +522,15 @@ export async function patchUser(
   return sql.begin(async (tx) => {
     const member = await findMemberRow(tx, args.organizationId, args.userId);
     if (!member) return null;
+    if (
+      args.active === false &&
+      classifyDeprovision(member) === 'owner-protected'
+    ) {
+      throw new AppError({
+        code: 'scim_owner_protected',
+        message: 'Cannot deactivate the organization owner',
+      });
+    }
     const now = new Date();
 
     if (args.externalId !== undefined) {
@@ -440,17 +542,37 @@ export async function patchUser(
       });
     }
 
-    if (args.name !== undefined || args.email !== undefined) {
-      await tx`
-        UPDATE "user" SET
-          "name" = CASE WHEN ${args.name !== undefined}
-            THEN ${args.name ?? null} ELSE "name" END,
-          "email" = CASE WHEN ${args.email !== undefined}
-            THEN ${args.email !== undefined ? normalizeAuthEmail(args.email) : null}
-            ELSE "email" END,
-          "updatedAt" = ${now}
-        WHERE "id" = ${args.userId}
-      `;
+    const nextEmail =
+      args.email !== undefined
+        ? await planEmailChange(
+            tx,
+            args.organizationId,
+            args.userId,
+            args.email,
+          )
+        : null;
+    if (args.name !== undefined || nextEmail !== null) {
+      try {
+        await tx`
+          UPDATE "user" SET
+            "name" = CASE WHEN ${args.name !== undefined}
+              THEN ${args.name ?? null} ELSE "name" END,
+            "email" = CASE WHEN ${nextEmail !== null}
+              THEN ${nextEmail} ELSE "email" END,
+            "updatedAt" = ${now}
+          WHERE "id" = ${args.userId}
+        `;
+      } catch (error) {
+        // The pre-check can lose a race against a concurrent claim of the
+        // same address; the unique index has the last word — still a 409.
+        if (nextEmail !== null && isUniqueViolation(error)) {
+          throw new AppError({
+            code: 'scim_user_conflict',
+            message: `userName ${nextEmail} is already taken`,
+          });
+        }
+        throw error;
+      }
     }
 
     let role = (member.role ?? '').toLowerCase();
@@ -571,9 +693,11 @@ function toGroupRecord(
 
 async function setTeamMembers(
   tx: TransactionSql,
+  organizationId: string,
   teamId: string,
   desiredUserIds: string[],
 ): Promise<void> {
+  await assertOrgMembers(tx, organizationId, desiredUserIds);
   const current = await listTeamMemberUserIds(tx, teamId);
   const currentIds = new Set(current.map((m) => m.userId));
   const desired = new Set(desiredUserIds);
@@ -674,7 +798,7 @@ export async function provisionGroup(
     `;
     const teamId = created[0]?.id;
     if (teamId === undefined) throw new Error('team insert failed');
-    await setTeamMembers(tx, teamId, args.memberIds);
+    await setTeamMembers(tx, args.organizationId, teamId, args.memberIds);
     await upsertLink(tx, {
       organizationId: args.organizationId,
       resourceType: 'Group',
@@ -727,7 +851,7 @@ export async function replaceGroup(
         WHERE "id" = ${args.teamId}
       `;
     }
-    await setTeamMembers(tx, args.teamId, args.memberIds);
+    await setTeamMembers(tx, args.organizationId, args.teamId, args.memberIds);
     const link = await getLink(tx, args.organizationId, args.teamId);
     await logScim(
       tx,
@@ -773,6 +897,7 @@ export async function patchGroup(
     if (args.replaceMembers !== undefined) {
       await setTeamMembers(
         tx,
+        args.organizationId,
         args.teamId,
         composeDesiredMembers(
           args.replaceMembers,
@@ -781,6 +906,7 @@ export async function patchGroup(
         ),
       );
     } else {
+      await assertOrgMembers(tx, args.organizationId, args.addMembers);
       const current = await listTeamMemberUserIds(tx, args.teamId);
       const currentIds = new Set(current.map((m) => m.userId));
       for (const userId of args.addMembers) {
