@@ -26,6 +26,7 @@ import {
   fetchKnowledgeDocument,
   KnowledgeError,
   searchKnowledgeForOrg,
+  requeueEmbeddingBlockedDocuments,
 } from './service.ts';
 
 const searchSchema = z.object({
@@ -263,7 +264,21 @@ export function createKnowledgeRoutes(deps: {
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
       await writeKnowledgeEmbedding(orgSlug, body);
-      return c.json({ ok: true });
+      // Configuring a model is only half the fix: every document that failed
+      // while there was none stays `failed` until something re-queues it, and
+      // the failure text tells the operator to configure one "then retry
+      // indexing" — one document at a time, by hand. Do it for them, and say
+      // how many, so the page can report the recovery instead of looking as
+      // though nothing happened.
+      const { requeued } = await requeueEmbeddingBlockedDocuments(deps.sql, {
+        organizationId: c.get('orgId'),
+      });
+      if (requeued > 0) {
+        console.info(
+          `[knowledge] embedding configured for ${orgSlug}: re-queued ${requeued} document(s) that had failed for want of a model`,
+        );
+      }
+      return c.json({ ok: true, requeued });
     } catch (error) {
       return handleAdminError(c, error);
     }
