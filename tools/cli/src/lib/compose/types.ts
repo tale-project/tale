@@ -23,6 +23,11 @@ export interface ComposeService {
   // (the object store's address + data dir) rather than a baked entrypoint.
   command?: string;
   stop_grace_period?: string;
+  // The signal `docker stop` sends before the grace period runs out. Postgres
+  // reads SIGINT as its fast shutdown; the SIGTERM default (smart shutdown)
+  // waits on every attached client and ends in SIGKILL — see
+  // create-db-service.ts.
+  stop_signal?: string;
   shm_size?: string;
   ports?: string[];
   volumes?: string[];

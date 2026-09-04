@@ -61,3 +61,18 @@ describe('createDbService knowledge-db alias', () => {
     expect(networks.internal?.aliases).toContain('knowledge-db');
   });
 });
+
+describe('createDbService shutdown', () => {
+  // A crash-mode stop left a never-initialised page in pg_search's BM25 index
+  // (PANIC on every knowledge insert). Docker's default SIGTERM is Postgres'
+  // *smart* shutdown, which waits for every client session and gets SIGKILLed
+  // after the grace period whenever a client holds a connection; SIGINT is the
+  // *fast* shutdown that disconnects clients, checkpoints, and exits cleanly.
+  test('stops Postgres with SIGINT (fast shutdown), not the SIGTERM default', () => {
+    expect(createDbService(config).stop_signal).toBe('SIGINT');
+  });
+
+  test('keeps the checkpoint window before SIGKILL', () => {
+    expect(createDbService(config).stop_grace_period).toBe('60s');
+  });
+});

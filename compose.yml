@@ -55,8 +55,16 @@ services:
     # Container name
     container_name: tale-db
 
-    # Graceful shutdown: give PostgreSQL enough time to complete
-    # checkpoint + WAL flush before Docker sends SIGKILL
+    # Graceful shutdown. SIGINT is PostgreSQL's *fast* shutdown (disconnect
+    # every client, checkpoint, exit); Docker's default SIGTERM is the *smart*
+    # shutdown, which waits for every client session to end and — with a
+    # host-side backend or psql holding connections — never finishes, so Docker
+    # SIGKILLs the server after the grace period: a crash-mode stop that left a
+    # never-initialised page in pg_search's BM25 index. The image sets the same
+    # STOPSIGNAL (services/db/Dockerfile); this covers an older image without it.
+    stop_signal: SIGINT
+    # Give PostgreSQL enough time to complete checkpoint + WAL flush before
+    # Docker sends SIGKILL
     stop_grace_period: 60s
 
     # Shared memory: ParadeDB extensions may exceed Docker's default 64MB /dev/shm
@@ -153,6 +161,8 @@ services:
 
     container_name: tale-knowledge-db
 
+    # Same fast-shutdown contract as `db` above.
+    stop_signal: SIGINT
     stop_grace_period: 60s
     shm_size: 256mb
 
