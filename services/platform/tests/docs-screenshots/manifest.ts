@@ -26,9 +26,12 @@ import {
   DEMO_DOCUMENTS,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_ORG_NAME,
+  DEMO_OWNER,
   DEMO_PROJECT_FILES,
   DEMO_PROJECTS,
+  DEMO_PROVIDER_CREDENTIAL,
   DEMO_SSO_EXAMPLE,
+  MOCK_PROVIDER_DISPLAY_NAME,
 } from './demo-content';
 
 export interface ShotContext {
@@ -84,6 +87,16 @@ const chatThreadRoute = (ctx: ShotContext, prompt: string): string => {
 const FEEDBACK_PROMPT = DEMO_CHAT_PROMPTS[0];
 const RELAUNCH_PROJECT = DEMO_PROJECTS[0].name;
 
+/**
+ * The explicit fresh composer. A bare `/chat` RESUMES the caller's most
+ * recent thread, so a shot that wants the empty new-chat screen — or that
+ * sends a message meant to start its own thread — must ask for a fresh one,
+ * or it lands (and types) inside whatever thread was open last. `new=true`
+ * is the form the in-app links send: the router parses search params as
+ * JSON, so `?new=1` would arrive as a number.
+ */
+const FRESH_CHAT_ROUTE = '/dashboard/:orgId/chat?new=true';
+
 const projectRoute = (ctx: ShotContext, sub = ''): string => {
   const projectId = ctx.projects.get(RELAUNCH_PROJECT);
   if (!projectId) {
@@ -92,6 +105,27 @@ const projectRoute = (ctx: ShotContext, sub = ''): string => {
     );
   }
   return `/dashboard/${ctx.orgId}/projects/${projectId}${sub}`;
+};
+
+/**
+ * Sanitizer for pages that print the deployment's own origin (a redirect
+ * URL, a connection URL, an API endpoint): swap the capture rig's localhost
+ * for a production-shaped host so no published image shows the rig.
+ */
+const replaceRigOrigin = async (page: Page): Promise<void> => {
+  await page.evaluate(() => {
+    for (const el of document.querySelectorAll('td, span, div, code, p')) {
+      if (
+        el.children.length === 0 &&
+        el.textContent?.includes('http://localhost:3000/')
+      ) {
+        el.textContent = el.textContent.replace(
+          'http://localhost:3000/',
+          'https://tale.yourcompany.com/',
+        );
+      }
+    }
+  });
 };
 
 export const SHOTS: readonly Shot[] = [
@@ -118,7 +152,7 @@ export const SHOTS: readonly Shot[] = [
   {
     name: 'chat-composer',
     section: 'platform',
-    route: '/dashboard/:orgId/chat',
+    route: FRESH_CHAT_ROUTE,
     // Not the textarea alone: the picker button shows "No models available"
     // until the composer-options action answers, so gate on the resolved
     // model label or the shot freezes the loading placeholder.
@@ -164,8 +198,11 @@ export const SHOTS: readonly Shot[] = [
     viewport: { width: 1920, height: 1200 },
   },
   {
-    // The project's General tab — identity form, sharing, and the stats
-    // strip; the file count only renders once the project data has loaded.
+    // The project's General tab — identity form, standing instructions, and
+    // sharing. The whole page waits for the project record, and the sharing
+    // section then waits for the teams query (until it answers it shows a
+    // "no teams yet" hint) — so the owning-team picker is the last thing to
+    // settle and the honest "loaded" marker.
     name: 'project-general-tab',
     section: 'platform',
     route: '/dashboard/:orgId/projects',
@@ -175,7 +212,7 @@ export const SHOTS: readonly Shot[] = [
       });
     },
     readyWhen: (page) =>
-      page.getByText(`${DEMO_PROJECT_FILES.length} files`).first(),
+      page.getByText(t('projects.settings.owningTeam')).first(),
   },
   {
     // The project's Knowledge tab — attached files with their index state
@@ -195,7 +232,10 @@ export const SHOTS: readonly Shot[] = [
         .nth(DEMO_PROJECT_FILES.length - 1),
   },
   {
-    // The Agents tab — the project's agent instances.
+    // The Agents tab — the project's crew, one row per agent with its harness,
+    // provider, and model. Gate on a row's action button: the tab strip and
+    // the section title both read "Agents" long before the list query
+    // answers, so a text gate froze the skeleton.
     name: 'project-agents-models',
     section: 'platform',
     route: '/dashboard/:orgId/projects',
@@ -205,7 +245,21 @@ export const SHOTS: readonly Shot[] = [
       });
     },
     readyWhen: (page) =>
-      page.getByText(t('projects.agents.agentsHeading')).first(),
+      page.getByRole('button', { name: t('projects.agents.rowEdit') }).first(),
+    // Each row names the provider serving its model — the mock gateway here;
+    // a customer's row names a real vendor.
+    sanitize: async (page) => {
+      await page.evaluate(
+        ({ rig, real }) => {
+          for (const el of document.querySelectorAll('span, div, p')) {
+            if (el.children.length === 0 && el.textContent?.includes(rig)) {
+              el.textContent = el.textContent.replace(rig, real);
+            }
+          }
+        },
+        { rig: MOCK_PROVIDER_DISPLAY_NAME, real: 'OpenRouter' },
+      );
+    },
   },
   {
     // Knowledge > Knowledge entries with the seeded manual facts.
@@ -241,9 +295,10 @@ export const SHOTS: readonly Shot[] = [
       await page.goto(chatThreadRoute(ctx, FEEDBACK_PROMPT), {
         waitUntil: 'domcontentloaded',
       });
-      // Share puts the snapshot URL on the clipboard (idempotent: sharing
-      // again refreshes the snapshot, same link). The capture context has
-      // clipboard-read granted for exactly this hop.
+      // Share opens the access dialog: pick the organization link, create it
+      // when the thread is not shared yet (idempotent — an already-shared
+      // thread shows its live link straight away), then take the dialog's own
+      // Preview action to the snapshot.
       await page
         .getByRole('button', { name: t('chat.aria.threadActions') })
         .click();
@@ -251,15 +306,23 @@ export const SHOTS: readonly Shot[] = [
         .getByRole('menuitem', { name: t('chat.share.button') })
         .first()
         .click();
-      await expect
-        .poll(() => page.evaluate(() => navigator.clipboard.readText()), {
-          timeout: 15_000,
-        })
-        .toMatch(/\/chat\/shared\//);
-      const sharedUrl = await page.evaluate(() =>
-        navigator.clipboard.readText(),
-      );
-      await page.goto(sharedUrl, { waitUntil: 'domcontentloaded' });
+      const dialog = page.getByRole('dialog', { name: t('chat.share.title') });
+      await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+      await dialog
+        .getByRole('radio', { name: t('chat.share.organizationLink') })
+        .click();
+      const createLink = dialog.getByRole('button', {
+        name: t('chat.share.createLink'),
+      });
+      const preview = dialog.getByRole('button', {
+        name: t('chat.share.preview'),
+      });
+      await expect(createLink.or(preview).first()).toBeVisible({
+        timeout: TIMEOUT.VISIBLE,
+      });
+      if (await createLink.isVisible()) await createLink.click();
+      await preview.click();
+      await page.waitForURL(/\/chat\/shared\//, { timeout: TIMEOUT.NAV });
     },
     // The heading prefers the thread's own title; the byline ("Shared by …
     // on …") is the stable marker of the shared view. English is fine — the
@@ -270,7 +333,7 @@ export const SHOTS: readonly Shot[] = [
     // Arena Mode: the same prompt streamed into two model columns.
     name: 'chat-arena-split',
     section: 'platform',
-    route: '/dashboard/:orgId/chat',
+    route: FRESH_CHAT_ROUTE,
     prepare: async (page) => {
       // Wait for the chat surface to hydrate FIRST. A fill that lands before
       // React attaches writes the DOM value but never the component state, so
@@ -315,7 +378,7 @@ export const SHOTS: readonly Shot[] = [
     // The empty new-chat screen with the Assistant's conversation starters.
     name: 'chat-starters-empty',
     section: 'platform',
-    route: '/dashboard/:orgId/chat',
+    route: FRESH_CHAT_ROUTE,
     // The starters render immediately; the picker's model label does not
     // (same composer-options race as chat-composer) — gate on the label.
     readyWhen: (page) =>
@@ -399,12 +462,15 @@ export const SHOTS: readonly Shot[] = [
       page.getByLabel(t('settings.organization.organizationName')),
   },
   {
-    // Members live inside Settings > Organization (there is no separate
-    // People page); the members table is the region worth showing.
+    // Settings > Members — the members table with its Add member action.
+    // (Members moved off the Organization page onto their own settings page;
+    // the image keeps its name so every page embedding it keeps resolving.)
+    // The owner's row is the honest "table resolved" marker.
     name: 'settings-organization-members',
     section: 'get-started',
-    route: '/dashboard/:orgId/settings/organization',
-    readyWhen: (page) => page.getByText('Alex Rivera').first(),
+    route: '/dashboard/:orgId/settings/members',
+    readyWhen: (page) =>
+      page.getByRole('row').filter({ hasText: DEMO_OWNER.name }).first(),
   },
   {
     // Settings > Teams — the teams table with its create action. A fresh
@@ -427,28 +493,32 @@ export const SHOTS: readonly Shot[] = [
       page.getByText(t('settings.branding.accentColor')).first(),
   },
   {
-    // The AI providers catalog. `getByText('OpenRouter')` also matches the
-    // Default Models card above the grid and would fire while the grid is still
-    // skeletons — gate on the provider's own CARD, whose accessible name only
-    // exists once the card has rendered.
+    // Settings > AI providers — the credentials table with the seeded row
+    // (the shipped vendor catalog is step one of Add credential). The section
+    // chrome paints before the rows do, so the seeded ROW is the honest
+    // "loaded" marker — the same lesson as the API keys shot.
     name: 'settings-providers',
     section: 'get-started',
     route: '/dashboard/:orgId/settings/providers',
     readyWhen: (page) =>
-      page.getByRole('heading', { name: 'OpenRouter', level: 3 }),
+      page
+        .getByRole('row')
+        .filter({ hasText: DEMO_PROVIDER_CREDENTIAL })
+        .first(),
     sanitize: async (page) => {
-      // The demo provider points at the offline mock gateway; a customer's
-      // row shows the real endpoint.
-      await page.evaluate(() => {
-        for (const el of document.querySelectorAll('td, span, div')) {
-          if (
-            el.children.length === 0 &&
-            el.textContent?.includes('127.0.0.1:4141')
-          ) {
-            el.textContent = 'https://openrouter.ai/api/v1';
+      // The seeded credential sits on the offline mock gateway; a customer's
+      // row names a real vendor — the production-shaped equivalent, never an
+      // invented row.
+      await page.evaluate(
+        ({ rig, real }) => {
+          for (const el of document.querySelectorAll('td, span, div')) {
+            if (el.children.length === 0 && el.textContent?.includes(rig)) {
+              el.textContent = el.textContent.replace(rig, real);
+            }
           }
-        }
-      });
+        },
+        { rig: MOCK_PROVIDER_DISPLAY_NAME, real: 'OpenRouter' },
+      );
     },
   },
   {
@@ -488,31 +558,63 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('heading', { name: t('automations.upload.title') }),
   },
   {
-    // The automation's workflow editor tab — step graph on the canvas with
-    // the AI editor panel toggled open alongside (the hidden autoInstall
-    // triage automation renders the same editor every automation gets).
+    // The automation workbench — the saved version's step graph on the canvas
+    // with the node inspector beside it. The seeded Gmail triage pack stands
+    // in for every automation: they all render this same workbench.
     name: 'automation-editor-canvas',
     section: 'platform',
-    route:
-      '/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=editor',
-    // The AI editor panel opens by default on the editor tab — never click
-    // the toolbar toggle here, it would CLOSE it. Wait for the graph, then
-    // gate on the open panel's title so both are in frame.
-    prepare: async (page, _ctx) => {
-      await page
-        .getByText('Score candidates against the task')
-        .first()
-        .waitFor({ timeout: 30_000 });
-      // The "this workflow is active" banner overlays the top of the canvas and
-      // buries the Start node. It is dismissible — close it so the graph reads
-      // from its first step.
-      const dismiss = page
-        .getByRole('button', { name: t('common.aria.dismiss') })
-        .first();
-      if (await dismiss.isVisible().catch(() => false)) await dismiss.click();
+    // A pack's automation is NAMED after its path with the separator
+    // flattened (`gmail/triage-inbox` → `gmail-triage-inbox`, see
+    // lib/automations/packs), so the route param is that name — the `__`
+    // codec is only for names that carry a real `/`.
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox',
+    // Select the LLM step so the inspector shows a node's fields instead of
+    // its "select a node" hint — the frame then teaches both halves at once.
+    // A node box is a button carrying `data-automation-node=<id>` (the same
+    // attribute the inspector's Close restores focus to).
+    prepare: async (page) => {
+      const triageStep = page.locator('[data-automation-node="triage"]');
+      await triageStep.waitFor({ timeout: 30_000 });
+      await triageStep.click();
     },
+    // The inspector renders the selected node's Input field only once the
+    // node-type catalog has answered — gate on it so the panel is never
+    // captured mid-load.
     readyWhen: (page) =>
-      page.getByText(t('workflows.sidePanel.aiAssistant')).first(),
+      page
+        .getByText(t('automations.editor.fields.input'), { exact: true })
+        .first(),
+  },
+  {
+    // Settings > Connectors with Add credential open on its first step — the
+    // shipped connector catalog. The page itself is the credentials table
+    // (the seeded Tavily key), so the catalog is what a reader picks from.
+    name: 'connectors-add-credential',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/connectors',
+    prepare: async (page) => {
+      // Let the table resolve first: the Add button paints before the rows,
+      // and the dialog lists configured connectors ahead of the rest.
+      await expect(
+        page
+          .getByRole('row')
+          .filter({ hasText: 'Tavily' })
+          .first()
+          .or(page.getByText(t('emptyStates.connectors.title')).first())
+          .first(),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await page
+        .getByRole('button', { name: t('settings.credentials.addCredential') })
+        .first()
+        .click();
+    },
+    // The catalog renders from the connectors query the table already holds,
+    // so a vendor card is the honest "dialog is up" marker.
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('settings.credentials.catalog.title') })
+        .getByRole('button', { name: /Confluence/ })
+        .first(),
   },
   {
     // Settings > API > MCP — outbound MCP-server management is retired, so the
@@ -522,6 +624,8 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/settings/api/mcp',
     readyWhen: (page) => page.getByText('/api/v1/mcp').first(),
+    // The endpoint URL and the example request print the rig's origin.
+    sanitize: replaceRigOrigin,
   },
   {
     // Settings > API > WebDAV — connection details and the app-password
@@ -531,56 +635,41 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/settings/api/webdav',
     readyWhen: (page) =>
       page.getByText(t('webdav.connectionDetails.title')).first(),
-    sanitize: async (page) => {
-      // The connection URL shows the capture rig's localhost origin.
-      await page.evaluate(() => {
-        for (const el of document.querySelectorAll('td, span, div, code, p')) {
-          if (
-            el.children.length === 0 &&
-            el.textContent?.includes('http://localhost:3000/')
-          ) {
-            el.textContent = el.textContent.replace(
-              'http://localhost:3000/',
-              'https://tale.yourcompany.com/',
-            );
-          }
-        }
-      });
-    },
+    // The connection URL shows the capture rig's localhost origin.
+    sanitize: replaceRigOrigin,
   },
   {
-    // Settings > Preferences — the personalization toggles plus the custom
-    // instructions and memories sections, the per-user layer over the org
-    // defaults.
+    // Settings > Preferences — the custom-instructions and memories sections,
+    // each with its own toggle over the org default: the per-user layer.
     name: 'settings-preferences',
     section: 'platform',
     route: '/dashboard/:orgId/settings/personalization',
-    // Gate on the voice-output row's DESCRIPTION, not its label: the label is
-    // painted immediately while the row itself is still a placeholder bar
-    // (it waits on the TTS-availability check). The description only lands once
-    // the row has really resolved — which is also the last thing on this page
-    // to do so.
+    // Gate on the Memories list's resolved empty state — the LAST thing on
+    // this page to settle: the memories query answers after the preferences
+    // do, and until it does the list reads "backend unavailable", not empty.
     readyWhen: (page) =>
-      page.getByText(t('personalization.page.voiceOutput.description')).first(),
+      page.getByText(t('personalization.page.memories.empty')).first(),
   },
   {
-    // Settings > Environment — the personal env/secret store with its inline
-    // add form. Every account starts empty; the empty state is the honest
-    // first-visit view.
-    name: 'settings-environment',
-    section: 'platform',
-    route: '/dashboard/:orgId/settings/environment',
-    readyWhen: (page) => page.getByText(t('userEnv.page.title')).first(),
-  },
-  {
-    // Settings > Governance > Content & Models — the org-wide system-prompt
-    // prefix/suffix, default models, and model-access controls every chat and
-    // agent passes through at request time.
+    // Settings > Governance > Content & Models — the default-model rules,
+    // model access, and the vision model every chat and agent passes through
+    // at request time. (The org's custom instructions live on Guardrails.)
+    // Section titles paint before their data, so gate on the LAST thing to
+    // resolve: the vision-model editor's "currently reading images with …"
+    // line, which waits on the provider catalog. The message carries a
+    // placeholder, so match the text ahead of it — or the no-model variant,
+    // which has none.
     name: 'governance-content-models',
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/content-models',
-    readyWhen: (page) =>
-      page.getByText(t('governance.systemPrompt.prefixLabel')).first(),
+    readyWhen: (page) => {
+      const resolved = t('governance.visionModel.resolved.pinned');
+      const prefix = resolved.slice(0, resolved.indexOf('{')).trim();
+      return page
+        .getByText(prefix)
+        .or(page.getByText(t('governance.visionModel.resolvedNone')))
+        .first();
+    },
   },
   {
     // Governance > Policies & Limits — budget rules, upload/retention policy,
@@ -603,13 +692,19 @@ export const SHOTS: readonly Shot[] = [
       page.getByText(t('governance.runCodePolicy.modeAllowlistLabel')).first(),
   },
   {
-    // Governance > Guardrails — content safety, PII protection, and the
-    // moderation provider that filter every message in both directions.
+    // Governance > Guardrails — the three filter-layer status cards, the
+    // org's custom instructions, and the content-safety, PII, and moderation
+    // editors that filter every message in both directions. The enable
+    // labels are switches' aria-labels, never text — gate on the recent-events
+    // feed's resolved empty state instead: it is the last query on the page to
+    // answer, and there are genuinely no events.
     name: 'governance-guardrails',
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/guardrails',
     readyWhen: (page) =>
-      page.getByText(t('governance.contentSafety.enableLabel')).first(),
+      page
+        .getByText(t('governance.guardrailsOverview.recentEvents.empty.title'))
+        .first(),
   },
   {
     // Governance > Security & Monitoring — login-attempt limits, password
@@ -617,8 +712,14 @@ export const SHOTS: readonly Shot[] = [
     name: 'governance-security-monitoring',
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/security-monitoring',
+    // Every enable label here is a switch's aria-label, never text, and the
+    // four editors reveal together (the route preloads their policies) — gate
+    // on the LAST editor's switch; masked leaves are aria-hidden, so the role
+    // query resolves only once it has really rendered.
     readyWhen: (page) =>
-      page.getByText(t('governance.loginPolicy.enabled')).first(),
+      page.getByRole('switch', {
+        name: t('governance.sessionIdleTimeout.enabled'),
+      }),
     // Land the fold ON a section boundary (measured) — 900 sliced the password
     // policy's Save/Discard row, 1120 sliced the two-factor grace-period input.
     viewport: { width: 1440, height: 1260 },
@@ -666,36 +767,23 @@ export const SHOTS: readonly Shot[] = [
     // connection would put a live identity provider in front of sign-in and
     // lock the capture rig out of its own workspace.
     prepare: async (page) => {
+      // Textbox role, not getByLabel: the settings row wrapping each field is
+      // itself aria-labelledby the same label, so a bare label query resolves
+      // to the row AND the input (a strict-mode violation).
       await page
-        .getByLabel(
-          labelStart(t('settings.connectors.enterpriseSso.issuerLabel')),
-        )
+        .getByRole('textbox', {
+          name: labelStart(t('settings.enterpriseSso.issuerLabel')),
+        })
         .fill(DEMO_SSO_EXAMPLE.issuerUrl);
       await page
-        .getByLabel(
-          labelStart(t('settings.connectors.enterpriseSso.clientIdLabel')),
-        )
+        .getByRole('textbox', {
+          name: labelStart(t('settings.enterpriseSso.clientIdLabel')),
+        })
         .fill(DEMO_SSO_EXAMPLE.clientId);
     },
     readyWhen: (page) =>
-      page
-        .getByText(t('settings.connectors.enterpriseSso.protocolLabel'))
-        .first(),
-    sanitize: async (page) => {
-      // The redirect-URL field shows the capture rig's localhost origin.
-      await page.evaluate(() => {
-        for (const el of document.querySelectorAll('td, span, div, code, p')) {
-          if (
-            el.children.length === 0 &&
-            el.textContent?.includes('http://localhost:3000/')
-          ) {
-            el.textContent = el.textContent.replace(
-              'http://localhost:3000/',
-              'https://tale.yourcompany.com/',
-            );
-          }
-        }
-      });
-    },
+      page.getByText(t('settings.enterpriseSso.protocolLabel')).first(),
+    // The redirect-URL field shows the capture rig's localhost origin.
+    sanitize: replaceRigOrigin,
   },
 ] as const;
