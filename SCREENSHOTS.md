@@ -32,28 +32,7 @@ The everyday entry point: agents, attachments, citations, voice — and Arena.
       <a href="services/docs/public/images/platform/chat-thread-reply.webp"><img src="services/docs/public/images/platform/chat-thread-reply.webp" alt="A chat thread showing a user question about onboarding feedback and an assistant reply containing a markdown table of three themes" width="100%"></a>
       <br/><sub><b>Rich replies</b> — markdown tables, citations, and follow-up context</sub>
     </td>
-    <td width="50%">
-      <a href="services/docs/public/images/platform/chat-code-reply.webp"><img src="services/docs/public/images/platform/chat-code-reply.webp" alt="A chat reply containing a syntax-highlighted Python code block rendered inline with a Copy button" width="100%"></a>
-      <br/><sub><b>Code replies</b> — syntax-highlighted blocks with one-click copy</sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <a href="services/docs/public/images/platform/chat-agent-picker.webp"><img src="services/docs/public/images/platform/chat-agent-picker.webp" alt="The agent picker open above the chat composer, showing a search field, an Auto entry, and the available agents" width="100%"></a>
-      <br/><sub><b>Agent picker</b> — switch agents, or let Auto route the request</sub>
-    </td>
-    <td width="50%">
-      <a href="services/docs/public/images/platform/chat-mention-picker.webp"><img src="services/docs/public/images/platform/chat-mention-picker.webp" alt="The chat composer with an at-sign typed and the knowledge-base picker open, listing knowledge entries alongside indexed text documents" width="100%"></a>
-      <br/><sub><b>@-mentions</b> — pull indexed knowledge straight into the composer</sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-    </td>
-    <td width="50%">
-      <a href="services/docs/public/images/platform/chat-share-dialog.webp"><img src="services/docs/public/images/platform/chat-share-dialog.webp" alt="The Share chat dialog open over a thread, with the Enable sharing toggle still off and a note that anyone in the organization holding the link can view the chat" width="100%"></a>
-      <br/><sub><b>Sharing</b> — turn a chat into a shareable link</sub>
-    </td>
+    <td width="50%"></td>
   </tr>
 </table>
 
@@ -77,20 +56,13 @@ of work — with task boards agents work from.
   </tr>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/project-discussions-list.webp"><img src="services/docs/public/images/platform/project-discussions-list.webp" alt="The Discussions tab of the Website relaunch project listing two open discussions, one tagged Q&A and one tagged Decisions" width="100%"></a>
-      <br/><sub><b>Discussions</b> — Q&A and decisions recorded next to the work</sub>
-    </td>
-    <td width="50%">
       <a href="services/docs/public/images/platform/project-agents-models.webp"><img src="services/docs/public/images/platform/project-agents-models.webp" alt="The Agents & models tab of a project showing the Agents and Models radio groups, each offering a Recommended and a Restricted mode" width="100%"></a>
       <br/><sub><b>Agents & models</b> — recommend or restrict what the project may use</sub>
     </td>
-  </tr>
-  <tr>
     <td width="50%">
       <a href="services/docs/public/images/platform/project-knowledge-files.webp"><img src="services/docs/public/images/platform/project-knowledge-files.webp" alt="The Knowledge tab of the Website relaunch project showing two indexed files in the file tree, a New folder button, and the Add file dropzone" width="100%"></a>
       <br/><sub><b>Project files</b> — reference material available to every chat in the project</sub>
     </td>
-    <td width="50%"></td>
   </tr>
 </table>
 
@@ -121,16 +93,6 @@ Typed workflows on schedules, webhooks, and events — with human approval gates
       <br/><sub><b>Workflow editor</b> — the typed step graph, with the AI editor a prompt away</sub>
     </td>
     <td width="50%">
-      <a href="services/docs/public/images/platform/automation-triggers.webp"><img src="services/docs/public/images/platform/automation-triggers.webp" alt="The Triggers tab of an automation showing Schedules and Webhooks sections and an expanded Events section with a task.created trigger row" width="100%"></a>
-      <br/><sub><b>Triggers</b> — schedules, webhooks, and events like <code>task.created</code></sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <a href="services/docs/public/images/platform/automation-configuration.webp"><img src="services/docs/public/images/platform/automation-configuration.webp" alt="The Configuration tab of an automation showing name and description fields, timeout, max retries, backoff, and a variables JSON editor" width="100%"></a>
-      <br/><sub><b>Configuration</b> — timeouts, retries, backoff, and variables</sub>
-    </td>
-    <td width="50%">
       <a href="services/docs/public/images/platform/automations-catalog.webp"><img src="services/docs/public/images/platform/automations-catalog.webp" alt="The Automations catalog on its All automations tab, cards grouped by source — Sync Confluence pages, Archive idle conversations, Resolve GitHub issues, Sync Gmail emails" width="100%"></a>
       <br/><sub><b>Catalog</b> — ready-made automations, installable per organization</sub>
     </td>
@@ -145,13 +107,10 @@ Connect the systems your team already uses.
 <table>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/connectors-catalog.webp"><img src="services/docs/public/images/platform/connectors-catalog.webp" alt="The connectors catalog showing a grid of connector cards — Confluence, Discord, GitHub, Gmail, Google Drive, IMAP/SMTP, Outlook, Shopify — each with a Connect action" width="100%"></a>
-      <br/><sub><b>Catalog</b> — Gmail, Google Drive, GitHub, Confluence, Shopify, and more</sub>
-    </td>
-    <td width="50%">
       <a href="services/docs/public/images/platform/settings-mcp-add-dialog.webp"><img src="services/docs/public/images/platform/settings-mcp-add-dialog.webp" alt="The Add MCP server dialog with fields for name, display name, description, and a transport type selector showing Streamable HTTP" width="100%"></a>
       <br/><sub><b>MCP servers</b> — add any Model Context Protocol server as a tool source</sub>
     </td>
+    <td width="50%"></td>
   </tr>
 </table>
 
@@ -190,31 +149,24 @@ The operator's side: models, members, branding, SSO, and your documents as a net
 
 <table>
   <tr>
-    <td width="50%" valign="top">
-      <a href="services/docs/public/images/platform/settings-provider-models.webp"><img src="services/docs/public/images/platform/settings-provider-models.webp" alt="The provider details drawer under AI providers, showing a searchable model list where each row carries capability tags such as Chat and Image generation" width="45%"></a>
-      <br/><sub><b>Model catalog</b> — every provider model with capability tags, kept in sync</sub>
-    </td>
-    <td width="50%" valign="top">
+    <td width="50%">
       <a href="services/docs/public/images/get-started/settings-organization-members.webp"><img src="services/docs/public/images/get-started/settings-organization-members.webp" alt="The Organization settings page with its Members table listing five people — an owner, an admin, an editor, and two members — beside an Add member button" width="100%"></a>
       <br/><sub><b>Members</b> — the organization, its people, and their roles</sub>
     </td>
-  </tr>
-  <tr>
     <td width="50%">
       <a href="services/docs/public/images/platform/settings-branding.webp"><img src="services/docs/public/images/platform/settings-branding.webp" alt="The Branding settings page with logo and favicon uploads, an accent colour field, and a live preview pane on the right" width="100%"></a>
       <br/><sub><b>Branding</b> — logo, favicon, accent color, live preview</sub>
     </td>
+  </tr>
+  <tr>
     <td width="50%">
       <a href="services/docs/public/images/platform/settings-enterprise-sso.webp"><img src="services/docs/public/images/platform/settings-enterprise-sso.webp" alt="The Enterprise SSO settings page showing the Protocol dropdown set to Microsoft Entra ID, the display name field, and a sign-in section with redirect URL, issuer URL, client ID, and scopes" width="100%"></a>
       <br/><sub><b>Enterprise SSO</b> — Microsoft Entra ID or trusted headers</sub>
     </td>
-  </tr>
-  <tr>
     <td width="50%">
       <a href="services/docs/public/images/platform/settings-webdav.webp"><img src="services/docs/public/images/platform/settings-webdav.webp" alt="The WebDAV settings page showing the connection URL and username, and an app-passwords table listing two generated device passwords next to a Generate button" width="100%"></a>
       <br/><sub><b>WebDAV</b> — mount Tale documents as a network drive</sub>
     </td>
-    <td width="50%"></td>
   </tr>
 </table>
 

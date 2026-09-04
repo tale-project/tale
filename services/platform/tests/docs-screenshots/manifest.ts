@@ -462,96 +462,6 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('row').filter({ hasText: DEMO_API_KEYS[0] }).first(),
   },
   {
-    // The agent editor's General tab (agent type, Visible in chat, name),
-    // reached the way a reader would: expand the chat folder, open Assistant.
-    name: 'agent-editor-general',
-    section: 'get-started',
-    route: '/dashboard/:orgId/agents',
-    prepare: async (page) => {
-      await page.getByText('chat', { exact: true }).first().click();
-      await page.getByText('Assistant', { exact: true }).first().click();
-      await page.waitForURL(/\/agents\/[A-Za-z0-9]+/, { timeout: 30_000 });
-    },
-    readyWhen: (page) => page.getByText('General-purpose AI assistant').first(),
-  },
-  {
-    // The agents list with the chat folder expanded — folders come from the
-    // slug's `/` prefix, so the two builtin chat agents show as rows.
-    name: 'agents-list-expanded',
-    section: 'platform',
-    route: '/dashboard/:orgId/agents',
-    prepare: async (page) => {
-      await page.getByText('chat', { exact: true }).first().click();
-    },
-    readyWhen: (page) =>
-      page.getByText('Automation Assistant', { exact: true }).first(),
-  },
-  {
-    // The Instructions & models tab — system prompt plus the ordered model
-    // list (first = primary, rest = fallbacks) on the builtin Assistant.
-    name: 'agent-editor-instructions',
-    section: 'platform',
-    route: '/dashboard/:orgId/agents/assistant/instructions',
-    readyWhen: (page) => page.getByText('Claude Haiku 4.5').first(),
-  },
-  {
-    // The Knowledge tab — retrieval mode, team/org document scopes, and the
-    // seeded organization documents with their index state.
-    name: 'agent-editor-knowledge',
-    section: 'platform',
-    route: '/dashboard/:orgId/agents/assistant/knowledge',
-    readyWhen: (page) => page.getByText('2026-brand-guidelines.txt').first(),
-  },
-  {
-    // The Starters tab with the Assistant's four seeded conversation
-    // starters — the fourth row number only renders once the values load.
-    name: 'agent-editor-starters',
-    section: 'platform',
-    route: '/dashboard/:orgId/agents/assistant/conversation-starters',
-    readyWhen: (page) => page.getByText('4.', { exact: true }).first(),
-  },
-  {
-    // The Webhooks tab with one live webhook row. Creating the webhook is
-    // idempotent-by-guard: only when the tab is still in its empty state.
-    name: 'agent-editor-webhooks',
-    section: 'platform',
-    route: '/dashboard/:orgId/agents/assistant/webhook',
-    prepare: async (page) => {
-      const createButton = page.getByRole('button', {
-        name: t('settings.agents.webhook.createButton'),
-      });
-      await createButton.waitFor({ timeout: 30_000 });
-      const emptyState = page.getByText(
-        t('settings.agents.webhook.emptyTitle'),
-      );
-      if (await emptyState.isVisible().catch(() => false)) {
-        await createButton.click();
-        await page
-          .getByText(t('settings.agents.webhook.urlWarning'))
-          .first()
-          .waitFor({ timeout: 30_000 });
-        await page.keyboard.press('Escape');
-      }
-    },
-    readyWhen: (page) => page.getByText('/api/agents/wh/').first(),
-    sanitize: async (page) => {
-      // The webhook URL cell shows the capture rig's localhost origin.
-      await page.evaluate(() => {
-        for (const el of document.querySelectorAll('td, span, div, code')) {
-          if (
-            el.children.length === 0 &&
-            el.textContent?.includes('http://localhost:3000/')
-          ) {
-            el.textContent = el.textContent.replace(
-              'http://localhost:3000/',
-              'https://tale.yourcompany.com/',
-            );
-          }
-        }
-      });
-    },
-  },
-  {
     // The Automations page — the seeded pack rows with their version count
     // and deployment state, plus the Create automation menu.
     name: 'automations-catalog',
@@ -603,57 +513,6 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByText(t('workflows.sidePanel.aiAssistant')).first(),
-  },
-  {
-    // The Configuration tab — name, timeout, retries, variables, env.
-    name: 'automation-configuration',
-    section: 'platform',
-    route:
-      '/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=configuration',
-    // Wait for the variables editor to render its loaded JSON, not the
-    // loading skeleton.
-    readyWhen: (page) => page.getByText('workflowId').first(),
-  },
-  {
-    // The Triggers tab with the Events section expanded to show the builtin
-    // event subscription row.
-    name: 'automation-triggers',
-    section: 'platform',
-    route:
-      '/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=triggers',
-    prepare: async (page) => {
-      await page
-        .getByRole('button', { name: t('workflows.triggers.events.title') })
-        .first()
-        .click();
-    },
-    readyWhen: (page) =>
-      page.getByText(t('workflows.triggers.events.columns.eventType')).first(),
-  },
-  {
-    // The Executions tab — one row per run with status, timing, and source.
-    // Gate on a COMPLETED run: the seeded tasks each fire the triage automation,
-    // and all but one complete (the mock answers one task's scoring step with a
-    // payload that violates the step's schema — that single red badge is what
-    // the execution-logs page teaches debugging from).
-    //
-    // The executions table renders its badge from `common.status.*` — NOT the
-    // `workflows.steps.execution.status.*` namespace that this gate used to
-    // read. Both resolve to "Failed" in English, so the old gate passed by
-    // coincidence; `common.status.completed` is the real key.
-    name: 'automation-executions',
-    section: 'platform',
-    route:
-      '/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=executions',
-    readyWhen: (page) => page.getByText(t('common.status.completed')).first(),
-  },
-  {
-    // Settings > Connectors — the shipped catalog as cards. The tab strip
-    // opens on All, so the route carries no tab param.
-    name: 'connectors-catalog',
-    section: 'platform',
-    route: '/dashboard/:orgId/settings/connectors',
-    readyWhen: (page) => page.getByText('Tavily', { exact: true }).first(),
   },
   {
     // Settings > API > MCP — outbound MCP-server management is retired, so the
@@ -712,35 +571,6 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/settings/environment',
     readyWhen: (page) => page.getByText(t('userEnv.page.title')).first(),
-  },
-  {
-    // Settings > AI providers with a provider's card open — its credentials and
-    // the model allowlist are the point. Deep-linked through the same search
-    // param the card writes, so no click has to land before hydration.
-    name: 'settings-provider-models',
-    section: 'platform',
-    route: '/dashboard/:orgId/settings/providers?provider=openrouter',
-    prepare: async (page) => {
-      await page
-        .getByRole('dialog', { name: 'OpenRouter' })
-        .waitFor({ timeout: 10_000 });
-    },
-    readyWhen: (page) => page.getByRole('dialog', { name: 'OpenRouter' }),
-    sanitize: async (page) => {
-      // The demo provider points at the offline mock gateway; a customer's
-      // drawer shows the real endpoint.
-      await page.evaluate(() => {
-        for (const el of document.querySelectorAll('td, span, div')) {
-          if (
-            el.children.length === 0 &&
-            el.textContent?.includes('127.0.0.1:4141')
-          ) {
-            el.textContent = 'https://openrouter.ai/api/v1';
-          }
-        }
-      });
-    },
-    capture: (page) => page.getByRole('dialog').last(),
   },
   {
     // Settings > Governance > Content & Models — the org-wide system-prompt

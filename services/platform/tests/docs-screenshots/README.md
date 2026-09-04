@@ -35,7 +35,7 @@ cd services/platform && \
 bun run docs:screenshots                          # everything
 bun run docs:screenshots -- --list                # enumerate shots
 bun run docs:screenshots -- --only chat-composer  # regenerate one
-bun run docs:screenshots -- --grep '^agents-'     # a section
+bun run docs:screenshots -- --grep '^governance-' # a section
 bun run docs:screenshots -- --skip-seed           # reuse seeded content as-is
 
 # 4. Verify + eyeball
