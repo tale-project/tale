@@ -21,7 +21,7 @@ import { join } from 'node:path';
 
 import type { ExecutionBackend } from './backend/types.ts';
 import { isSessionWorkspaceDirName } from './session/session-naming.ts';
-import { runDocker, dockerRm } from './spawn-util.ts';
+import { dockerRm, dockerRmSucceeded, runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 import { ID_ALPHABET_RE } from './wire.ts';
 
@@ -195,6 +195,27 @@ export async function releaseSpawnerLock(cfg: SpawnerConfig): Promise<void> {
   }
 }
 
+/** A sweep's `docker rm`: true only when the container is verifiably gone.
+ * `dockerRm` never rejects (a timeout is exitCode 124), so the result must be
+ * judged — a swallowed failure would count a still-running container as
+ * removed. Logged, never thrown: one stuck container must not stop the sweep. */
+async function sweepRm(containerName: string, label: string): Promise<boolean> {
+  let removal;
+  try {
+    removal = await dockerRm(containerName);
+  } catch (err) {
+    console.warn(`${label} docker rm ${containerName} failed:`, err);
+    return false;
+  }
+  if (!dockerRmSucceeded(removal)) {
+    console.warn(
+      `${label} docker rm ${containerName} failed (exit ${removal.exitCode}): ${removal.stderr.trim()}`,
+    );
+    return false;
+  }
+  return true;
+}
+
 async function listLabeledContainers(...labels: string[]): Promise<string[]> {
   // Each `-f label=…` is AND-ed by docker.
   const filters = labels.flatMap((l) => ['-f', `label=${l}`]);
@@ -319,21 +340,13 @@ export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
   // here, so re-adoption can recover them.
   const containers = await listLabeledContainers('tale.sandbox=1');
   for (const c of containers) {
-    try {
-      await dockerRm(c);
-    } catch (err) {
-      console.warn(`[sandbox.bootSweep] dockerRm ${c} failed:`, err);
-    }
+    await sweepRm(c, '[sandbox.bootSweep]');
   }
   const stagingContainers = await listLabeledContainers(
     'tale.sandbox-staging=1',
   );
   for (const c of stagingContainers) {
-    try {
-      await dockerRm(c);
-    } catch (err) {
-      console.warn(`[sandbox.bootSweep] dockerRm staging ${c} failed:`, err);
-    }
+    await sweepRm(c, '[sandbox.bootSweep] staging');
   }
   let dirsRemoved = 0;
   if (cfg) {
@@ -398,15 +411,7 @@ export async function dockerSweepOrphans(
         // session id is the second component of the name (tale-sbx-<id>).
         const sessionId = name.replace(/^tale-sbx-/, '');
         if (isLive(sessionId)) continue;
-        try {
-          await dockerRm(name);
-        } catch (err) {
-          console.warn(
-            `[sandbox.periodic] dockerRm stale ${name} failed:`,
-            err,
-          );
-          continue;
-        }
+        if (!(await sweepRm(name, '[sandbox.periodic] stale'))) continue;
         removed += 1;
         console.log(
           `[sandbox] periodic sweep removed stale container ${name} (started ${new Date(started).toISOString()})`,

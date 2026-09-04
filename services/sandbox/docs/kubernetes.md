@@ -61,7 +61,10 @@ metadata:
 rules:
   - apiGroups: ['']
     resources: ['pods']
-    verbs: ['create', 'get', 'list', 'delete']
+    # `patch` records a session's "always-on" pin as a Pod annotation
+    # (`tale.dev/pinned`) so a spawner restart re-adopts it instead of
+    # TTL/idle-reaping the pinned session on its first sweep.
+    verbs: ['create', 'get', 'list', 'delete', 'patch']
   - apiGroups: ['']
     resources: ['pods/log']
     verbs: ['get']

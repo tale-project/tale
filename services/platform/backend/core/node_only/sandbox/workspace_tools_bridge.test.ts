@@ -546,7 +546,9 @@ describe('dispatchWorkspaceToolImpl', () => {
     );
     const { dispatch } = await getActions();
     // The default scope mock resolves a binding (allowed), so document_find
-    // lists through listDocumentsForScope with the binding's teams+project.
+    // lists through listDocumentsForScope with the binding's teams + EVERY
+    // authorized project — an org-wide run of a two-project automation lists
+    // both boards' files, not the first one's.
     const result = await dispatch(
       createCtx({
         readQuery,
@@ -554,7 +556,7 @@ describe('dispatchWorkspaceToolImpl', () => {
           allowed: true,
           scope: {
             teamIds: ['team_a'],
-            projectIds: ['proj_1'],
+            projectIds: ['proj_1', 'proj_2'],
             includeHub: true,
           },
         },
@@ -571,7 +573,8 @@ describe('dispatchWorkspaceToolImpl', () => {
     );
     expect(qArgs.organizationId).toBe('org_1');
     expect(qArgs.teamIds).toEqual(['team_a']);
-    expect(qArgs.projectId).toBe('proj_1');
+    expect(qArgs.projectIds).toEqual(['proj_1', 'proj_2']);
+    expect(qArgs.projectId).toBeUndefined();
     // A binding read never carries a user id.
     expect(qArgs.userId).toBeUndefined();
   });

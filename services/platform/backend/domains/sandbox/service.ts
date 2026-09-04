@@ -171,12 +171,17 @@ export async function pinSession(
 }
 
 /** Watchdog reconcile for one row: a container gone spawner-side settles the
- * platform row as destroyed; a live one is left alone. */
+ * platform row as destroyed; a live one is left alone. The liveness probe is
+ * injectable (the watchdog's scripted spawner in tests and the integration
+ * probe); production asks the signed session client. */
 export async function reconcileSession(
   sql: Sql,
   args: { organizationId: string; sessionId: string },
+  deps: { isAlive: (sessionId: string) => Promise<boolean> } = {
+    isAlive: sessionIsAlive,
+  },
 ): Promise<'live' | 'healed'> {
-  if (await sessionIsAlive(args.sessionId)) {
+  if (await deps.isAlive(args.sessionId)) {
     return 'live';
   }
   await markSessionDestroyed(sql, args);

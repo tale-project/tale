@@ -25,6 +25,10 @@ export interface AgentDocumentListArgs {
   /** An ALREADY-AUTHORIZED project: set → that project's docs; absent → the
    *  hub lane (project docs excluded). */
   projectId?: string;
+  /** Several ALREADY-AUTHORIZED projects — the binding door's shape for an
+   *  org-wide run of a multi-bound automation (its bound projects). Non-empty
+   *  → those projects' docs; takes precedence over `projectId`. */
+  projectIds?: string[];
   /** Substring match on the title, case-insensitive. */
   fileName?: string;
   /** Exact match; stored lowercased without the dot (e.g. `pdf`). */
@@ -57,7 +61,15 @@ export async function listDocumentsForAgent(
 ): Promise<AgentDocumentPage> {
   const limit = Math.min(Math.max(args.limit ?? 20, 1), 100);
   const offset = Math.max(0, args.cursor ?? 0);
-  const projectId = args.projectId ?? null;
+  // The project lane is a SET: the chat door's one validated project, or the
+  // binding door's bound projects. Empty → the hub lane.
+  const projectIds =
+    args.projectIds !== undefined && args.projectIds.length > 0
+      ? args.projectIds
+      : args.projectId !== undefined
+        ? [args.projectId]
+        : [];
+  const projectLane = projectIds.length > 0;
   const like = `%${args.fileName?.trim() ?? ''}%`;
   const rows = await sql<
     {
@@ -94,8 +106,8 @@ export async function listDocumentsForAgent(
       AND (${args.extension === undefined}
         OR d.extension = ${args.extension ?? ''})
       AND (
-        (${projectId}::text IS NOT NULL AND d.project_id = ${projectId})
-        OR (${projectId}::text IS NULL AND d.project_id IS NULL AND (
+        (${projectLane} AND d.project_id = ANY(${projectIds}))
+        OR (${!projectLane} AND d.project_id IS NULL AND (
           (d.team_id IS NULL AND cardinality(d.team_tags) = 0)
           OR d.team_id = ANY(${args.teamIds})
           OR d.team_tags && ${args.teamIds}

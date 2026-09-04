@@ -6,7 +6,7 @@
 // container DNS name on tale-sandbox-net. Cleanup.ts's one-shot sweep ignores
 // these (distinct `tale.sandbox-session=1` label).
 
-import { chown, mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { chown, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ensureBuildkitd } from '../../buildkitd.ts';
@@ -25,7 +25,12 @@ import {
   sessionContainerName,
   sessionWorkspaceDirName,
 } from '../../session/session-naming.ts';
-import { dockerRm, runDocker } from '../../spawn-util.ts';
+import {
+  dockerRm,
+  dockerRmSucceeded,
+  isDockerNoSuchObject,
+  runDocker,
+} from '../../spawn-util.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import {
   bunCacheVolumeName,
@@ -33,7 +38,12 @@ import {
   npmCacheVolumeName,
   pipCacheVolumeName,
 } from '../../volume.ts';
-import type { BackendSession, SessionBackend, SessionSpec } from '../types.ts';
+import type {
+  BackendSession,
+  CreateSessionResult,
+  SessionBackend,
+  SessionSpec,
+} from '../types.ts';
 
 /** Does a `docker run` stderr report a container-name collision? */
 export function isDockerNameConflict(stderr: string): boolean {
@@ -126,6 +136,8 @@ export class DockerSessionBackend implements SessionBackend {
     }
     for (const e of entries) {
       if (!e.isDirectory() || isSessionWorkspaceDirName(e.name)) continue;
+      // Spawner bookkeeping (`.pins/`) is not a colour root.
+      if (e.name.startsWith('.')) continue;
       const legacy = join(this.cfg.hostSessionRoot, e.name, dirName);
       if (await this.workspaceDirExists(legacy)) {
         console.warn(
@@ -160,8 +172,13 @@ export class DockerSessionBackend implements SessionBackend {
     return src.length > 0 ? src : null;
   }
 
-  async createSession(spec: SessionSpec): Promise<void> {
+  async createSession(spec: SessionSpec): Promise<CreateSessionResult> {
     const containerName = sessionContainerName(spec.sessionId);
+    // A new session starts UNPINNED whatever a prior incarnation under this
+    // deterministic id recorded: the platform row is the truth and re-pushes
+    // its pin; a stale marker would exempt a container the platform believes
+    // is reapable. Cleared before anything else so a failed create leaves none.
+    await this.clearPinMarker(spec.sessionId);
     const workspaceHostDir = await this.resolveWorkspaceDir(spec.sessionId);
     // Agent-profile only — see sessionDindEnabled. Every DinD side-effect below
     // (inner-docker volume, shared buildkitd, cache-volume skip) keys off this,
@@ -281,9 +298,7 @@ export class DockerSessionBackend implements SessionBackend {
         console.warn(
           `[sandbox.session] reaping dead container ${containerName} (status=${status}) and retrying create for ${spec.sessionId}`,
         );
-        await dockerRm(containerName).catch((err) =>
-          console.warn('[sandbox.session] orphan reap dockerRm failed:', err),
-        );
+        await this.bestEffortRm(containerName, 'orphan reap');
         // The dead container may still have pinned the dind volume, so the
         // earlier ensureFreshDindVolume could not actually recreate it; redo it
         // now that the container is gone so the retry mounts a genuinely fresh
@@ -307,9 +322,7 @@ export class DockerSessionBackend implements SessionBackend {
         // Clean up a half-created container before surfacing the failure. On a
         // resume (preexisting dir), preserve the workspace; only a fresh create
         // deletes its own empty dir.
-        await dockerRm(containerName).catch((err) =>
-          console.warn('[sandbox.session] cleanup dockerRm failed:', err),
-        );
+        await this.bestEffortRm(containerName, 'failed-create cleanup');
         if (dind) {
           await this.removeDindVolume(spec.sessionId);
         }
@@ -360,6 +373,7 @@ export class DockerSessionBackend implements SessionBackend {
       }
       throw err;
     }
+    return { resumed: preexisting };
   }
 
   async resolveEndpoint(sessionId: string): Promise<string> {
@@ -423,7 +437,7 @@ export class DockerSessionBackend implements SessionBackend {
     // Only a definitive "the object is gone" answer may return false; any
     // other inspect failure (daemon hiccup, timeout) is "unknown" and must
     // throw per the interface contract.
-    if (/no such (object|container)/i.test(inspect.stderr)) return false;
+    if (isDockerNoSuchObject(inspect.stderr)) return false;
     throw new Error(
       `docker inspect ${containerName} failed: ${inspect.stderr.trim() || inspect.stdout.trim()}`,
     );
@@ -454,9 +468,20 @@ export class DockerSessionBackend implements SessionBackend {
     }
   }
 
-  /** Remove the container (best-effort), leaving the workspace dir untouched.
-   * Shared by stopSession (keep dir) and destroySession (which then deletes
-   * the dir). Returns whether the container existed. */
+  /**
+   * Remove the container, leaving the workspace dir untouched. Shared by
+   * stopSession (keep dir) and destroySession (which then deletes the dir).
+   * Returns whether the container existed.
+   *
+   * THROWS when the removal did not verifiably happen — a `docker rm --force`
+   * that timed out against a wedged daemon (exit 124) or was refused for any
+   * reason other than "no such container". `dockerRm` itself never rejects, so
+   * a swallowed result here used to report a stop as done while the container
+   * kept running: the reaper then dropped the registry entry and the live
+   * container (2 cpu / 4-8 GB) was orphaned until a spawner restart re-adopted
+   * it. Throwing is the stop/destroy contract (types.ts): the reaper keeps the
+   * entry and retries next sweep; destroy leaves the workspace intact.
+   */
   private async removeContainer(sessionId: string): Promise<boolean> {
     const containerName = sessionContainerName(sessionId);
     let existed = false;
@@ -469,10 +494,30 @@ export class DockerSessionBackend implements SessionBackend {
     } catch {
       existed = false;
     }
-    await dockerRm(containerName).catch((err) => {
-      console.warn(`[sandbox.session] dockerRm ${containerName} failed:`, err);
-    });
+    const removal = await dockerRm(containerName);
+    if (!dockerRmSucceeded(removal)) {
+      throw new Error(
+        `docker rm ${containerName} failed (exit ${removal.exitCode}): ` +
+          `${removal.stderr.trim() || removal.stdout.trim() || 'no output'} — container may still be running`,
+      );
+    }
     return existed;
+  }
+
+  /** A cleanup-path `docker rm` whose failure must not mask the error being
+   * surfaced, but must not pass silently either: a leftover container 409s
+   * the next resume by name (the create-conflict reconcile reaps it once it
+   * has exited), so the operator gets a warning line to find it by. */
+  private async bestEffortRm(
+    containerName: string,
+    label: string,
+  ): Promise<void> {
+    const removal = await dockerRm(containerName);
+    if (!dockerRmSucceeded(removal)) {
+      console.warn(
+        `[sandbox.session] ${label}: docker rm ${containerName} failed (exit ${removal.exitCode}): ${removal.stderr.trim()}`,
+      );
+    }
   }
 
   /** Per-session inner-dockerd storage volume (DinD only), mounted at
@@ -534,6 +579,7 @@ export class DockerSessionBackend implements SessionBackend {
       );
     }
     if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
+    await this.clearPinMarker(sessionId);
     await rm(workspaceHostDir, {
       recursive: true,
       force: true,
@@ -552,7 +598,54 @@ export class DockerSessionBackend implements SessionBackend {
     // docker store is ephemeral, so reap it (resume rebuilds the image cache).
     const existed = await this.removeContainer(sessionId);
     if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
+    // The pin belongs to the container that just went away; the resume's
+    // create starts unpinned and the platform re-pushes.
+    await this.clearPinMarker(sessionId);
     return existed;
+  }
+
+  // --- the durable "always-on" pin -----------------------------------------
+  //
+  // The registry's `pinned` flag dies with the spawner process, so a deploy or
+  // crash used to forget every pin and the first sweep after re-adoption
+  // TTL/idle-reaped the user's always-on session. The host session root is the
+  // one place this spawner already keeps durable state (`.spawner.lock`, the
+  // workspaces), mounted identically into the replacement container — so the
+  // pin lives there as a marker file, OUTSIDE the workspace (the agent must not
+  // be able to pin itself by touching a file under /agent). `.pins/` is a
+  // dot-dir: the host-dir sweep skips it (not an id-alphabet name) and the
+  // legacy colour-root scan skips dot entries explicitly.
+
+  private pinMarkerPath(sessionId: string): string {
+    return join(this.cfg.hostSessionRoot, '.pins', `${sessionId}.pinned`);
+  }
+
+  async setPinned(sessionId: string, pinned: boolean): Promise<void> {
+    if (!pinned) {
+      await this.clearPinMarker(sessionId);
+      return;
+    }
+    const marker = this.pinMarkerPath(sessionId);
+    await mkdir(join(this.cfg.hostSessionRoot, '.pins'), { recursive: true });
+    await writeFile(marker, `${Date.now()}\n`);
+  }
+
+  private async clearPinMarker(sessionId: string): Promise<void> {
+    await rm(this.pinMarkerPath(sessionId), { force: true }).catch((err) => {
+      console.warn(
+        `[sandbox.session] clearing pin marker for ${sessionId} failed:`,
+        err,
+      );
+    });
+  }
+
+  private async isPinned(sessionId: string): Promise<boolean> {
+    try {
+      await stat(this.pinMarkerPath(sessionId));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async listSessions(organizationId?: string): Promise<BackendSession[]> {
@@ -588,6 +681,7 @@ export class DockerSessionBackend implements SessionBackend {
         ttlMs: this.cfg.session.maxLifetimeMs,
         idleTimeoutMs: this.cfg.session.maxIdleMs,
         state: state === 'running' ? 'ready' : 'degraded',
+        pinned: await this.isPinned(sessionId),
       });
     }
     return out;

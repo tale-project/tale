@@ -6,13 +6,23 @@
 // Secret carries the runnerd token + seed env. Deterministic Pod/Secret names
 // let any spawner replica address/destroy any session statelessly.
 
-import type { V1Pod, V1Secret } from '@kubernetes/client-node';
+import {
+  PatchStrategy,
+  setHeaderOptions,
+  type V1Pod,
+  type V1Secret,
+} from '@kubernetes/client-node';
 
 import { waitForRunnerd } from '../../session/runnerd-client.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import { deriveRunnerdToken } from '../../session/session-naming.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import type { BackendSession, SessionBackend, SessionSpec } from '../types.ts';
+import type {
+  BackendSession,
+  CreateSessionResult,
+  SessionBackend,
+  SessionSpec,
+} from '../types.ts';
 import {
   apiTimeout,
   httpStatusCode,
@@ -28,6 +38,8 @@ import {
 } from './k8s-session-pod-spec.ts';
 
 const SESSION_LABEL_SELECTOR = 'tale.sandbox-session=1';
+/** Pod annotation carrying the durable "always-on" pin (see setPinned). */
+const PINNED_ANNOTATION = 'tale.dev/pinned';
 
 export class KubernetesSessionBackend implements SessionBackend {
   readonly kind = 'kubernetes' as const;
@@ -46,7 +58,7 @@ export class KubernetesSessionBackend implements SessionBackend {
     return deriveRunnerdToken(this.cfg.sandboxToken, sessionId);
   }
 
-  async createSession(spec: SessionSpec): Promise<void> {
+  async createSession(spec: SessionSpec): Promise<CreateSessionResult> {
     // A pre-existing workspace PVC means this is a RESUME of a stopped session.
     // A failed create here must NOT delete that PVC (it holds the user's
     // preserved data) — stop instead. Fresh creates clean up fully.
@@ -127,6 +139,7 @@ export class KubernetesSessionBackend implements SessionBackend {
       await this.cleanupFailedCreate(spec.sessionId, preexisting);
       throw err;
     }
+    return { resumed: preexisting };
   }
 
   /** On a failed create: stop (keep PVC) when resuming a session whose PVC
@@ -424,9 +437,39 @@ export class KubernetesSessionBackend implements SessionBackend {
         ttlMs: this.cfg.session.maxLifetimeMs,
         idleTimeoutMs: this.cfg.session.maxIdleMs,
         state: running ? 'ready' : 'degraded',
+        pinned: ann[PINNED_ANNOTATION] === 'true',
       });
     }
     return out;
+  }
+
+  /**
+   * The durable pin lives on the session Pod as an annotation, so every
+   * spawner replica (the Deployment is multi-replica, stateless) re-adopts it
+   * from the same object. A new Pod (fresh create or resume) carries none —
+   * a new session starts unpinned and the platform re-pushes its pin; stop /
+   * destroy delete the Pod and the annotation with it. Needs `patch` on pods
+   * in the spawner Role (docs/kubernetes.md).
+   */
+  async setPinned(sessionId: string, pinned: boolean): Promise<void> {
+    await withRetry('pin-session-pod', () =>
+      this.client.core.patchNamespacedPod(
+        {
+          name: sessionPodNameFor(sessionId),
+          namespace: this.cfg.k8s.namespace,
+          body: {
+            metadata: {
+              annotations: { [PINNED_ANNOTATION]: pinned ? 'true' : 'false' },
+            },
+          },
+        },
+        setHeaderOptions(
+          'Content-Type',
+          PatchStrategy.MergePatch,
+          apiTimeout(),
+        ),
+      ),
+    );
   }
 
   // No shared cross-session build cache on K8s (DinD is single-container,

@@ -220,13 +220,23 @@ let backendCheckThrows = false;
 // Sessions whose backend destroy fails (a wedged dockerd) — destroySession
 // throws for these so the route's honesty path (no laundered success) is tested.
 const backendDestroyThrows = new Set<string>();
+// Sessions whose create is a RESUME (the workspace pre-existed backend-side).
+const resumedSessions = new Set<string>();
+// The backend's durable pin record (what a restart would re-adopt).
+const backendPins = new Map<string, boolean>();
 
 const fakeBackend: SessionBackend = {
   kind: 'docker',
   async createSession(spec: SessionSpec) {
     created.add(spec.sessionId);
+    return { resumed: resumedSessions.has(spec.sessionId) };
   },
   async resolveEndpoint(sessionId: string) {
+    // `unaddressable-`-prefixed sessions exist backend-side but their endpoint
+    // can't be read (the K8s Pod-IP blip) — the create-rollback tests.
+    if (sessionId.startsWith('unaddressable-')) {
+      throw new Error(`session ${sessionId} has no pod IP`);
+    }
     // `dead-`-prefixed sessions get an unreachable runnerd — the zombie tests
     // need the runnerd hop to fail at the transport level.
     return sessionId.startsWith('dead-') ? 'http://127.0.0.1:9' : fakeBaseUrl;
@@ -251,6 +261,9 @@ const fakeBackend: SessionBackend = {
   async sessionExists(sessionId: string) {
     if (backendCheckThrows) throw new Error('docker daemon hiccup');
     return !backendGone.has(sessionId);
+  },
+  async setPinned(sessionId: string, pinned: boolean) {
+    backendPins.set(sessionId, pinned);
   },
   async reconcileBuildCache() {},
 };
@@ -293,6 +306,8 @@ beforeEach(() => {
   backendGone.clear();
   backendCheckThrows = false;
   backendDestroyThrows.clear();
+  resumedSessions.clear();
+  backendPins.clear();
   fakeHealth.lastActivityAtMs = 0;
   fakeHealth.liveExecs = 0;
   fakeHealth.activeScreencasts = 0;
@@ -487,6 +502,44 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(res.status).toBe(404);
   });
 
+  // The post-create rollback (backend object made, endpoint unreadable) must
+  // never delete data it did not provision: a RESUME re-attached a preserved
+  // workspace, so it rolls back with STOP; only a fresh create destroys.
+  describe('create rollback when the endpoint cannot be resolved', () => {
+    test('a FRESH create destroys the half-made session (nothing to preserve)', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      const res = await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'unaddressable-fresh',
+          organizationId: 'org_rb',
+        }),
+      );
+      expect(res.status).toBe(502);
+      expect(await res.json()).toMatchObject({ error: 'create_failed' });
+      expect(destroyed.has('unaddressable-fresh')).toBe(true);
+      expect(stopped.has('unaddressable-fresh')).toBe(false);
+      // Nothing registered: the sweep would never have walked it.
+      expect((await routes.handleGet('unaddressable-fresh')).status).toBe(404);
+    });
+
+    test('a RESUME stops — the preserved workspace survives for the retry', async () => {
+      resumedSessions.add('unaddressable-resume');
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      const res = await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'unaddressable-resume',
+          organizationId: 'org_rb',
+        }),
+      );
+      expect(res.status).toBe(502);
+      expect(await res.json()).toMatchObject({ error: 'create_failed' });
+      // Compute released, data kept: the data-deleting verb was never reached.
+      expect(stopped.has('unaddressable-resume')).toBe(true);
+      expect(destroyed.has('unaddressable-resume')).toBe(false);
+      expect((await routes.handleGet('unaddressable-resume')).status).toBe(404);
+    });
+  });
+
   test('duplicate sessionId → 409', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
@@ -610,8 +663,11 @@ describe('SessionRoutes (fake runnerd)', () => {
       JSON.stringify({ sessionId: 'pin1', organizationId: 'org_pin' }),
     );
     expect(
-      routes.handleSetPinned('pin1', JSON.stringify({ pinned: true })).status,
+      (await routes.handleSetPinned('pin1', JSON.stringify({ pinned: true })))
+        .status,
     ).toBe(200);
+    // The pin is recorded on the backend's durable state, not only in memory.
+    expect(backendPins.get('pin1')).toBe(true);
 
     // Stale + no live exec → would normally idle-reap, but pinned exempts it.
     fakeHealth.liveExecs = 0;
@@ -619,11 +675,53 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(await routes.sweepExpired()).toBe(0);
     expect((await routes.handleGet('pin1')).status).toBe(200);
 
-    // Unpin → reaped on the next sweep.
-    routes.handleSetPinned('pin1', JSON.stringify({ pinned: false }));
+    // Unpin → recorded, and reaped on the next sweep.
+    await routes.handleSetPinned('pin1', JSON.stringify({ pinned: false }));
+    expect(backendPins.get('pin1')).toBe(false);
     expect(await routes.sweepExpired()).toBe(1);
     expect((await routes.handleGet('pin1')).status).toBe(404);
     fakeHealth.lastActivityAtMs = 0;
+  });
+
+  test('a pin survives a spawner restart: adoptExisting carries `pinned` and the sweep spares it', async () => {
+    // Two sessions re-adopted from the backend after a restart, both created
+    // long before maxLifetime (TTL long past) with stale activity. Before the
+    // fix the rebuilt entries carried no `pinned`, so the always-on one was
+    // TTL-stopped on the very first sweep like its unpinned sibling.
+    const ancient = Date.now() - 2 * cfg.session.maxLifetimeMs;
+    const restartBackend: SessionBackend = {
+      ...fakeBackend,
+      async listSessions(): Promise<BackendSession[]> {
+        return [
+          {
+            ...mkBackendSession('adopt-pinned', 'org_restart'),
+            createdAtMs: ancient,
+            pinned: true,
+          },
+          {
+            ...mkBackendSession('adopt-plain', 'org_restart'),
+            createdAtMs: ancient,
+          },
+        ];
+      },
+    };
+    const routes = new SessionRoutes(cfg, restartBackend);
+    await routes.adoptExisting();
+    fakeHealth.liveExecs = 0;
+    fakeHealth.lastActivityAtMs = 0;
+
+    // The wire view reports what was adopted.
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const info = (await (await routes.handleGet('adopt-pinned')).json()) as {
+      session: { pinned: boolean };
+    };
+    expect(info.session.pinned).toBe(true);
+
+    expect(await routes.sweepExpired()).toBe(1);
+    expect(stopped.has('adopt-plain')).toBe(true);
+    expect(stopped.has('adopt-pinned')).toBe(false);
+    expect((await routes.handleGet('adopt-pinned')).status).toBe(200);
+    expect((await routes.handleGet('adopt-plain')).status).toBe(404);
   });
 
   test('sweepExpired skips a session with a live browser viewer (activeScreencasts > 0)', async () => {
