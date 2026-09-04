@@ -10,7 +10,7 @@ import { authorizeRls } from '../../auth/access.ts';
 import { hasTeamAccess } from '../../core/lib/team_access.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
-import { addJobInTx } from '../../jobs/enqueue.ts';
+import { addJobInTx, PRIORITY_INTERACTIVE } from '../../jobs/enqueue.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
@@ -482,7 +482,14 @@ export async function createDocumentFromUpload(
   // skip-flagged upload never enters the corpus (sticky on the file row).
   if (args.skipRagIndexing !== true) {
     await markRagQueued(tx, args.fileId);
-    await addJobInTx(tx, 'rag.index_file', { fileId: args.fileId });
+    await addJobInTx(
+      tx,
+      'rag.index_file',
+      { fileId: args.fileId },
+      {
+        priority: PRIORITY_INTERACTIVE,
+      },
+    );
   }
   return documentId;
 }
@@ -1002,7 +1009,14 @@ export async function createHubDocument(
       WHERE id = ${file.id}
     `;
     await markRagQueued(tx, file.id);
-    await addJobInTx(tx, 'rag.index_file', { fileId: file.id });
+    await addJobInTx(
+      tx,
+      'rag.index_file',
+      { fileId: file.id },
+      {
+        priority: PRIORITY_INTERACTIVE,
+      },
+    );
   }
   await createAuditLog(tx, {
     organizationId: auth.organizationId,
@@ -1483,7 +1497,14 @@ export async function retryRagIndexingForDocument(
   }
   await sql.begin(async (tx) => {
     await markRagQueued(tx, meta.id);
-    await addJobInTx(tx, 'rag.index_file', { fileId: meta.id });
+    await addJobInTx(
+      tx,
+      'rag.index_file',
+      { fileId: meta.id },
+      {
+        priority: PRIORITY_INTERACTIVE,
+      },
+    );
     await emitHintInTx(tx, {
       orgId: auth.organizationId,
       entity: 'document',
