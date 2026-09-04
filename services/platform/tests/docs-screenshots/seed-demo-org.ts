@@ -32,6 +32,7 @@ import {
   DEMO_CUSTOM_INSTRUCTIONS,
   DEMO_DEPARTING_MEMBER,
   DEMO_DOCUMENTS,
+  DEMO_EMBEDDING_MODEL,
   DEMO_ERASURE_REQUEST,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LEGAL_HOLD_REASON,
@@ -48,6 +49,7 @@ import {
   DEMO_TEAMS,
   DEMO_WEBDAV_LABELS,
   MOCK_PROVIDER_DISPLAY_NAME,
+  MOCK_PROVIDER_SLUG,
   type DemoDocument,
   type DemoKnowledgeEntry,
   type DemoProduct,
@@ -388,6 +390,115 @@ async function ensureProjectAgents(
   }
 }
 
+/**
+ * Settings > Data residency > Embedding model — knowledge indexing refuses
+ * every upload ("No embedding model is configured") until the org names one,
+ * so this runs BEFORE the first document lands. Points at the mock provider
+ * (the select offers only providers the org holds a credential for, hence
+ * after `ensureMockProvider`), whose `/v1/embeddings` answers offline at the
+ * width the knowledge-db schema stores. Idempotent on the saved model.
+ */
+async function ensureEmbeddingModel(page: Page, orgId: string): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/settings/data-residency`);
+  const toggle = page.getByRole('switch', {
+    name: t('settings.dataResidency.orgEmbedding.title'),
+  });
+  await expect(toggle).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  const model = page.getByRole('textbox', {
+    name: t('settings.dataResidency.orgEmbedding.model'),
+  });
+  // The switch is ON exactly when a model is saved (the form only mounts
+  // then); an empty model field behind an ON switch is a half-filled form.
+  if (await toggle.isChecked()) {
+    await expect(model).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    if ((await model.inputValue()) !== '') return;
+  } else {
+    await toggle.click();
+  }
+  await page
+    .getByRole('combobox', {
+      name: t('settings.dataResidency.orgEmbedding.provider'),
+    })
+    .click();
+  await page
+    .getByRole('option', { name: MOCK_PROVIDER_SLUG, exact: true })
+    .click();
+  await model.fill(DEMO_EMBEDDING_MODEL.model);
+  await page
+    .getByRole('spinbutton', {
+      name: t('settings.dataResidency.orgEmbedding.dimensions'),
+    })
+    .fill(String(DEMO_EMBEDDING_MODEL.dimensions));
+  const save = page.getByRole('button', { name: t('common.actions.save') });
+  await save.click();
+  await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
+  await expect(
+    page.getByText(t('settings.dataResidency.orgEmbedding.statusConfigured'), {
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
+}
+
+/** The two RAG-status labels a knowledge surface renders per row. */
+interface IndexingLabels {
+  /** The row's Retry indexing button. */
+  readonly retry: string;
+  /** The row's Indexed status text. */
+  readonly indexed: string;
+}
+
+/**
+ * Give an uploaded or re-queued row its indexing window. Reports — never
+ * fails — when the row does not reach Indexed: a stack without the
+ * knowledge-db shows Failed instead, and the seed serves every shot, not only
+ * the knowledge ones (their own Indexed gates then say so).
+ */
+async function awaitIndexed(
+  row: Locator,
+  indexedLabel: string,
+  fileName: string,
+): Promise<void> {
+  try {
+    await expect(row.getByText(indexedLabel, { exact: true })).toBeVisible({
+      timeout: TIMEOUT.VISIBLE,
+    });
+  } catch (error) {
+    console.warn(
+      `[seed] "${fileName}" did not reach "${indexedLabel}" within ${TIMEOUT.VISIBLE / 1000}s — the knowledge shots will show its current badge`,
+      error instanceof Error ? error.message.split('\n')[0] : error,
+    );
+  }
+}
+
+/**
+ * Re-queue a row an earlier run left "Failed" (no knowledge-db reachable, or
+ * no embedding model yet) through its own Retry indexing button — the same
+ * recovery a user has — and give it its indexing window.
+ */
+async function retryFailedIndexing(
+  row: Locator,
+  labels: IndexingLabels,
+  fileName: string,
+): Promise<void> {
+  const retry = row.getByRole('button', { name: labels.retry });
+  if (!(await isPresent(retry))) return;
+  await retry.click();
+  // The button unmounts once the row leaves "Failed" (queued → indexing).
+  await expect(retry).toBeHidden({ timeout: TIMEOUT.VISIBLE });
+  console.log(`[seed] re-queued indexing for "${fileName}"`);
+  await awaitIndexed(row, labels.indexed, fileName);
+}
+
+const PROJECT_FILE_LABELS: IndexingLabels = {
+  retry: t('projects.files.indexingRetry'),
+  indexed: t('projects.files.ragStatusCompleted'),
+};
+
+const DOCUMENT_LABELS: IndexingLabels = {
+  retry: t('documents.rag.retryIndexing'),
+  indexed: t('documents.rag.status.indexed'),
+};
+
 /** Attach the demo files to the project's Knowledge tab (upload dropzone). */
 async function ensureProjectFiles(
   page: Page,
@@ -419,6 +530,18 @@ async function ensureProjectFiles(
     await expect(page.getByText(doc.fileName).first()).toBeVisible({
       timeout: TIMEOUT.FIRST_PAINT,
     });
+    await awaitIndexed(
+      tree.locator('li').filter({ hasText: doc.fileName }).first(),
+      PROJECT_FILE_LABELS.indexed,
+      doc.fileName,
+    );
+  }
+  for (const doc of files) {
+    await retryFailedIndexing(
+      tree.locator('li').filter({ hasText: doc.fileName }).first(),
+      PROJECT_FILE_LABELS,
+      doc.fileName,
+    );
   }
 }
 
@@ -514,9 +637,45 @@ async function ensureDocuments(
         exact: true,
       })
       .click();
-    await expect(
+    const row = page.getByRole('row').filter({ hasText: doc.fileName }).first();
+    await expect(row).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await awaitIndexed(row, DOCUMENT_LABELS.indexed, doc.fileName);
+  }
+  for (const doc of documents) {
+    await retryFailedIndexing(
       page.getByRole('row').filter({ hasText: doc.fileName }).first(),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      DOCUMENT_LABELS,
+      doc.fileName,
+    );
+  }
+}
+
+/**
+ * Knowledge entries are backed by one markdown document each, listed in the
+ * Documents table (at its root — the 0.4 "Knowledge entries" folder is not
+ * filed in 0.5). Those rows share the documents-list frame, so a Failed one
+ * from an earlier run is retried here, on the surface that carries the button.
+ */
+async function ensureKnowledgeEntryDocumentsIndexed(
+  page: Page,
+  orgId: string,
+  entries: readonly DemoKnowledgeEntry[] = DEMO_KNOWLEDGE_ENTRIES,
+): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/documents`);
+  await expect(
+    page.getByRole('button', { name: t('documents.upload.importDocuments') }),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await settleListOrEmpty(
+    page,
+    page.getByText(t('documents.emptyState.title')),
+  );
+  for (const entry of entries) {
+    const fileName = `${entry.topic}.md`;
+    await retryFailedIndexing(
+      page.getByRole('row').filter({ hasText: fileName }).first(),
+      DOCUMENT_LABELS,
+      fileName,
+    );
   }
 }
 
@@ -1340,6 +1499,11 @@ export async function seedDemoOrg(
   // somebody to act on.
   await step('members', () => ensureMembers(page, orgId));
   await step('teams', () => ensureTeams(page, orgId));
+  // The mock AI provider and the org's embedding model come BEFORE any upload:
+  // knowledge indexing refuses every file until an embedding model exists, so
+  // a later wiring would leave the seeded documents "Failed".
+  await step('mock AI provider', () => ensureMockProvider(page, orgId));
+  await step('embedding model', () => ensureEmbeddingModel(page, orgId));
 
   const projects = new Map<string, string>();
   for (const project of DEMO_PROJECTS) {
@@ -1360,6 +1524,9 @@ export async function seedDemoOrg(
   }
   await step('documents', () => ensureDocuments(page, orgId));
   await step('knowledge entries', () => ensureKnowledgeEntries(page, orgId));
+  await step('knowledge entry documents indexed', () =>
+    ensureKnowledgeEntryDocumentsIndexed(page, orgId),
+  );
   await step('products', () => ensureProducts(page, orgId));
   await step('tavily connector', () => ensureTavilyConnector(page, orgId));
   await step('researcher agent installed', () =>
@@ -1375,8 +1542,7 @@ export async function seedDemoOrg(
   await step('legal hold', () => ensureLegalHold(page, orgId));
   await step('erasure request', () => ensureErasureRequest(page, orgId));
 
-  await step('mock AI provider', () => ensureMockProvider(page, orgId));
-  // Project agents pick their model from the catalog that provider serves.
+  // Project agents pick their model from the catalog the mock provider serves.
   if (relaunchId) {
     await step('project agents', () =>
       ensureProjectAgents(page, orgId, relaunchId),

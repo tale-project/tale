@@ -56,7 +56,10 @@ bun run --filter @tale/docs dev                   # docs on :3002
    check-then-create idempotent: projects with tasks, knowledge documents, and chats whose
    prompts are answered by the scripted markdown replies in
    `lib/mocks/overrides/docs-replies.ts` (reasoning included, so "Thinking" captures need no
-   `e2e:` trigger in the visible message).
+   `e2e:` trigger in the visible message). The mock provider and the org's **embedding model**
+   (Settings > Data residency, pointed at the mock's `/v1/embeddings`) are wired before the
+   first upload — knowledge indexing refuses every file until one exists — and rows an earlier
+   run left `Failed` are re-queued through their own Retry indexing button.
 4. **Capture** — per shot: fresh context at 1440×900, DPR 2, light theme + `en` locale forced
    via `localStorage` init script, reduced motion; navigate, run `prepare`, wait on the
    `readyWhen` locator (never on time), screenshot the `capture` element or the viewport,
@@ -78,9 +81,12 @@ bun run --filter @tale/docs dev                   # docs on :3002
   `http://127.0.0.1:4141/v1`) into the demo org's config dir and connects an env credential
   named `TALE_PROVIDER_KEY_E2E_MOCK` through the settings UI. The gateway's `/v1/models`
   serves a believable catalog and its completions echo any model id, so the picker looks real.
-- **`TALE_DEV_SKIP_DOCKER=1` means no RAG backend** — uploaded documents eventually show a
-  `Failed` indexing badge. For knowledge-page captures where the badge is in frame, boot the
-  stack WITHOUT `TALE_DEV_SKIP_DOCKER` (Docker required) and re-run only those shots.
+- **`TALE_DEV_SKIP_DOCKER=1` only skips bringing the Docker services up** — the backend still
+  dials the knowledge-db on `localhost:5433`. With the containers already running (a `bun dev`
+  from the main checkout starts them) indexing works; with none, uploaded documents eventually
+  show a `Failed` indexing badge. For knowledge-page captures where the badge is in frame, have
+  the containers running (or boot WITHOUT the flag) and re-run only those shots — the seeder
+  retries the `Failed` rows.
 - **Adding a shot** = one entry in `manifest.ts` (locators through `t()`, readiness on state,
   element crops for detail shots) + the page embedding it + the captured `.webp` + regenerated
   `manifest.json`, all in the same change. When a PR changes a route, grep `manifest.ts` for it

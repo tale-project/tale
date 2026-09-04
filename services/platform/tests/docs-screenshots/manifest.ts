@@ -387,11 +387,17 @@ export const SHOTS: readonly Shot[] = [
         .filter({ hasNotText: t('chat.modelSelector.noModelsAvailable') }),
   },
   {
-    // The knowledge documents table with the seeded believable files.
+    // The knowledge documents table with the seeded believable files. Wait
+    // for the LAST file's Indexed badge, not its name: the rows paint with
+    // their RAG status still Queued/Indexing right after the seed, and the
+    // badge column is in frame.
     name: 'documents-list',
     section: 'get-started',
     route: '/dashboard/:orgId/documents',
-    readyWhen: (page) => page.getByText('2026-brand-guidelines.txt'),
+    readyWhen: (page) =>
+      page
+        .getByText(t('documents.rag.status.indexed'), { exact: true })
+        .nth(DEMO_DOCUMENTS.length - 1),
   },
   {
     // A controlled record's one-file replacement dialog. The prepare step

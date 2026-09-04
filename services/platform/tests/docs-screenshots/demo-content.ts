@@ -16,6 +16,7 @@
  * row in the Executions screenshot — so rename a task here and rename it there.
  */
 
+import { EMBEDDING_DIMENSIONS } from '../../lib/mocks/overrides/embeddings';
 import { E2E_PASSWORD } from '../e2e/helpers/auth';
 
 /** The demo owner — a fictional person on a reserved example domain. */
@@ -370,3 +371,16 @@ export const DEMO_ERASURE_REQUEST = {
  */
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
 export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';
+/** The mock provider's slug — the `name` in `docs-demo/providers/e2e-mock.yml`. */
+export const MOCK_PROVIDER_SLUG = 'e2e-mock';
+
+/**
+ * The org's embedding model (Settings > Data residency) — knowledge indexing
+ * refuses every upload until one is configured. The mock gateway serves it:
+ * `/v1/embeddings` answers deterministic vectors at the width the knowledge-db
+ * schema stores and accepts any model tag, so the tag is a believable one.
+ */
+export const DEMO_EMBEDDING_MODEL = {
+  model: 'text-embedding-3-small',
+  dimensions: EMBEDDING_DIMENSIONS,
+} as const;
