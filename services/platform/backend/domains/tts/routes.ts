@@ -10,6 +10,10 @@ import { errorCodeFromCaught } from '../../core/tts/error_codes.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveObjectStore, s3PresignGetUrl } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import {
+  rateLimitExceededCause,
+  rateLimitedResponse,
+} from '../../lib/rate-limit-response.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { loadOwnedThread } from '../chat/threads.ts';
 import {
@@ -35,6 +39,12 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
+  // A spent budget answers the one 429 every door speaks — the service
+  // wraps the limiter's refusal as a coded TtsError and carries it as cause.
+  const limited = rateLimitExceededCause(error);
+  if (limited !== null) {
+    return rateLimitedResponse(c, limited);
+  }
   if (error instanceof TtsError) {
     return c.json(
       {

@@ -282,4 +282,4 @@ L'API est versionnée par le préfixe d'URL — aujourd'hui `/api/v1/` — et y 
 
 ## Où ça se place
 
-Cette page est la moitié REST de la surface externe. L'[endpoint MCP](/fr/develop/mcp-endpoint) expose la même plateforme aux clients MCP — l'écriture d'automatisations vit là-bas, pas dans REST. La [page Webhooks](/fr/develop/webhooks) couvre le déclencheur entrant qui démarre des exécutions sans clé. Si tu construis dans le produit — agents, automatisations, outils maison — l'onglet [Platform](/fr/platform) est ton quotidien ; cette page est pour l'extérieur.
+Cette page est la moitié REST de la surface externe. L'[endpoint MCP](/fr/develop/mcp-endpoint) expose la même plateforme aux clients MCP — l'écriture d'automatisations vit là-bas, pas dans REST. La [page Webhooks](/fr/develop/webhooks) couvre le déclencheur entrant qui démarre des exécutions sans clé. Si tu construis dans le produit — agents de projet, automatisations — l'onglet [Platform](/fr/platform) est ton quotidien ; cette page est pour l'extérieur.

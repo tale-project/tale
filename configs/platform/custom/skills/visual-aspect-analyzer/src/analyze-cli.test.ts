@@ -579,6 +579,14 @@ describe('renderSummary', () => {
 
 const CLI = new URL('./analyze-cli.ts', import.meta.url).pathname;
 
+// Each test here spawns a cold Bun process (the launch-failure case also
+// imports playwright before it can throw). Locally that is well under a
+// second; on CI the whole repo's suites run at once on a two-core runner
+// and one cold start took over bun's 5 s default, which killed the child
+// mid-spawn (2026-09-04, main run 33843933336). Give the out-of-process
+// tests the time a cold start under load actually needs.
+const SPAWNED_CLI_TIMEOUT_MS = 60_000;
+
 async function runCli(
   args: readonly string[],
   env: Record<string, string> = {},
@@ -597,29 +605,41 @@ async function runCli(
 }
 
 describe('CLI entry (import.meta.main)', () => {
-  test('no url: prints usage and exits 1', async () => {
-    const { code, stdout, stderr } = await runCli([]);
-    expect(code).toBe(1);
-    expect(stderr).toContain('usage: analyze <url>');
-    expect(stdout).toBe('');
-  });
+  test(
+    'no url: prints usage and exits 1',
+    async () => {
+      const { code, stdout, stderr } = await runCli([]);
+      expect(code).toBe(1);
+      expect(stderr).toContain('usage: analyze <url>');
+      expect(stdout).toBe('');
+    },
+    SPAWNED_CLI_TIMEOUT_MS,
+  );
 
-  test('--help: prints usage and exits 0', async () => {
-    const { code, stderr } = await runCli(['--help']);
-    expect(code).toBe(0);
-    expect(stderr).toContain('usage: analyze <url>');
-  });
+  test(
+    '--help: prints usage and exits 0',
+    async () => {
+      const { code, stderr } = await runCli(['--help']);
+      expect(code).toBe(0);
+      expect(stderr).toContain('usage: analyze <url>');
+    },
+    SPAWNED_CLI_TIMEOUT_MS,
+  );
 
-  test('a browser-launch failure is caught as a one-line error and exits 1', async () => {
-    // Point playwright at an empty browser root so `chromium.launch()` throws;
-    // the entry wrapper's catch must surface that message and set exit code 1.
-    const empty = `${process.cwd()}/.tmp-no-browsers-${Date.now()}`;
-    const { code, stdout, stderr } = await runCli(['https://example.test/'], {
-      PLAYWRIGHT_BROWSERS_PATH: empty,
-    });
-    expect(code).toBe(1);
-    expect(stdout).toBe('');
-    // The thrown launch error reduced to a one-line message (no JSON emitted).
-    expect(stderr).toContain("Executable doesn't exist");
-  });
+  test(
+    'a browser-launch failure is caught as a one-line error and exits 1',
+    async () => {
+      // Point playwright at an empty browser root so `chromium.launch()` throws;
+      // the entry wrapper's catch must surface that message and set exit code 1.
+      const empty = `${process.cwd()}/.tmp-no-browsers-${Date.now()}`;
+      const { code, stdout, stderr } = await runCli(['https://example.test/'], {
+        PLAYWRIGHT_BROWSERS_PATH: empty,
+      });
+      expect(code).toBe(1);
+      expect(stdout).toBe('');
+      // The thrown launch error reduced to a one-line message (no JSON emitted).
+      expect(stderr).toContain("Executable doesn't exist");
+    },
+    SPAWNED_CLI_TIMEOUT_MS,
+  );
 });

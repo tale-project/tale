@@ -5,7 +5,7 @@ description: Sous Paramètres > Connectors, une organisation ajoute, nomme, prom
 
 Chaque connecteur est livré avec la plateforme, le travail d’administration ne consiste donc jamais à installer : il consiste à décider au nom de quels comptes Tale peut agir, puis à garder ces identifiants en bonne santé. Un connecteur porte autant de lignes que nécessaire — une par espace de travail, boutique, boîte mail ou bot — et l’une d’elles répond pour tout appelant qui n’en nomme aucune. Cette page est le versant exploitation : ce que la page affiche, comment se remplit chaque méthode d’authentification, et ce qui arrive quand tu promeus, désactives, supprimes ou reconnectes une ligne.
 
-Le catalogue lui-même — les treize connecteurs, ce que chacun apporte, et comment leurs actions rejoignent les automatisations et le chat — est sur [Connectors](/fr/platform/connectors/overview). Le temps de lecture ici est mieux investi dans le cycle de vie des identifiants, parce que c’est la partie qui varie d’une organisation à l’autre et la partie qui casse.
+Le catalogue lui-même — les treize connecteurs, ce que chacun apporte, et comment leurs actions rejoignent les automatisations et les exécutions d’agent — est sur [Connectors](/fr/platform/connectors/overview). Le temps de lecture ici est mieux investi dans le cycle de vie des identifiants, parce que c’est la partie qui varie d’une organisation à l’autre et la partie qui casse.
 
 ## Ce que la page affiche
 
@@ -63,13 +63,13 @@ Confluence et Shopify demandent en plus une **URL de l’instance**, faute d’h
 
 ## Choisir l’identifiant par défaut
 
-Un identifiant par connecteur peut être celui **Par défaut**, et **Définir par défaut** le déplace sur n’importe quelle ligne. C’est lui qui répond quand un nœud d’automatisation ou une action de chat ne nomme aucun identifiant. La sync mail est l’exception dans l’autre sens : `conversation.sync_mailbox` parcourt chaque identifiant _actif_ du connecteur, pour qu’une deuxième boîte IMAP (ou un deuxième compte Gmail) soit relevée sans que tu aies à la promouvoir. Chaque identifiant garde sa propre position dans sa propre boîte. Le triage de boîte se répartit de la même façon via `conversation.list_mailbox_messages`.
+Un identifiant par connecteur peut être celui **Par défaut**, et **Définir par défaut** le déplace sur n’importe quelle ligne. C’est lui qui répond quand un nœud d’automatisation — ou l’appel d’un agent via le broker — ne nomme aucun identifiant. La sync mail est l’exception dans l’autre sens : `conversation.sync_mailbox` parcourt chaque identifiant _actif_ du connecteur, pour qu’une deuxième boîte IMAP (ou un deuxième compte Gmail) soit relevée sans que tu aies à la promouvoir. Chaque identifiant garde sa propre position dans sa propre boîte. Le triage de boîte se répartit de la même façon via `conversation.list_mailbox_messages`.
 
 Un connecteur avec plusieurs identifiants et aucun par défaut est une configuration qui marche, avec un trou dedans. Les appelants qui nomment une ligne continuent de tourner ; les autres ne peuvent pas choisir et échouent. Promeus une ligne et le trou se referme aussitôt.
 
 ## Remplacer un secret
 
-Changer une clé est une modification de l’identifiant, pas une opération à part. Ouvre la ligne et choisis **Remplacer la clé API**, **Remplacer le jeton** ou **Remplacer le nom d’utilisateur et le mot de passe**, selon la méthode. Le secret stocké n’est jamais réaffiché, et en saisir un nouveau le remplace partout où cet identifiant est utilisé — chaque nœud d’automatisation et chaque action de chat qui pointe dessus reprend le nouveau secret sans qu’on y touche.
+Changer une clé est une modification de l’identifiant, pas une opération à part. Ouvre la ligne et choisis **Remplacer la clé API**, **Remplacer le jeton** ou **Remplacer le nom d’utilisateur et le mot de passe**, selon la méthode. Le secret stocké n’est jamais réaffiché, et en saisir un nouveau le remplace partout où cet identifiant est utilisé — chaque nœud d’automatisation qui pointe dessus reprend le nouveau secret sans qu’on y touche.
 
 L’identifiant garde son nom, son drapeau par défaut et son URL d’instance à travers un remplacement, rien n’a donc besoin d’être repointé en aval. **Modifier les identifiants** couvre l’autre sens : renommer une ligne, ou la déplacer vers une autre instance.
 
@@ -79,7 +79,7 @@ L’identifiant garde son nom, son drapeau par défaut et son URL d’instance �
 
 <Warning>
 
-**Supprimer** agit tout de suite et sans retour. Les automatisations et actions de chat qui utilisent cet identifiant perdent l’accès à ce connecteur sur-le-champ — il n’y a pas de délai de grâce. Supprimer celui par défaut laisse le connecteur sans défaut jusqu’à ce qu’une autre ligne soit promue, et la confirmation le dit avant que tu valides.
+**Supprimer** agit tout de suite et sans retour. Les automatisations et exécutions d’agent qui utilisent cet identifiant perdent l’accès à ce connecteur sur-le-champ — il n’y a pas de délai de grâce. Supprimer celui par défaut laisse le connecteur sans défaut jusqu’à ce qu’une autre ligne soit promue, et la confirmation le dit avant que tu valides.
 
 </Warning>
 
@@ -101,8 +101,8 @@ Un identifiant OAuth dont l’autorisation stockée a expiré ou a été révoqu
 
 ## Connectors et serveurs MCP
 
-Les deux surfaces laissent un agent aller au-delà de Tale, et la différence tient à qui possède le pont. Un connecteur est propre à un fournisseur, arrive avec la plateforme et est maintenu pour toi ; ta part, ce sont les identifiants. Un serveur MCP est un processus que tu héberges et branches pour tes agents, exposant les outils que tu écris. Prends le connecteur quand il en existe un pour le système visé, et les [serveurs MCP](/fr/platform/connectors/mcp-servers) quand il n’y en a pas.
+Un connecteur est propre à un fournisseur, arrive avec la plateforme et est maintenu pour toi ; ta part, ce sont les identifiants. Enregistrer ton propre serveur MCP pour que les agents l’appellent ne fait pas partie de cette version — quand aucun connecteur n’existe pour un système, ton propre code l’atteint par les **Secrets** d’un agent de projet ou un nœud `transform` d’une automatisation, et la seule surface MCP de Tale est l’endpoint entrant sous **Paramètres > API > MCP**, où ton client pilote Tale. [Serveurs MCP](/fr/platform/connectors/mcp-servers) expose les deux.
 
 ## Où cela s’inscrit
 
-Gérer les identifiants, c’est désormais toute l’administration des connectors, puisque plus rien ne s’installe : ajouter les comptes, les nommer correctement, garder un identifiant par défaut par connecteur, et reconnecter les lignes OAuth qui expirent. [Connectors](/fr/platform/connectors/overview) est le catalogue auquel ces identifiants s’attachent, [Outils d’agent](/fr/platform/agents/tools) montre comment les actions qui en découlent arrivent dans la trousse d’un agent, et [Configurer les approbations](/fr/platform/approvals/configure) est l’endroit où les actions en écriture attendent qu’une personne les libère.
+Gérer les identifiants, c’est désormais toute l’administration des connectors, puisque plus rien ne s’installe : ajouter les comptes, les nommer correctement, garder un identifiant par défaut par connecteur, et reconnecter les lignes OAuth qui expirent. [Connectors](/fr/platform/connectors/overview) est le catalogue auquel ces identifiants s’attachent, [Agents de projet](/fr/platform/projects/project-agents) montre comment les actions qui en découlent arrivent dans l’équipement d’un agent, et [Configurer les approbations](/fr/platform/approvals/configure) est l’endroit où les actions en écriture attendent qu’une personne les libère.

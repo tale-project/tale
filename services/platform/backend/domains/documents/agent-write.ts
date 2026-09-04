@@ -90,6 +90,11 @@ export interface UpsertAgentDocumentArgs {
  * is refreshed in place rather than resurrected as a duplicate. A row that
  * became a controlled record refuses the refresh (content freeze) — the
  * record lifecycle owns those bytes.
+ *
+ * Concurrent runs converge on ONE row: the key is unique in the schema
+ * (0073), the insert is `ON CONFLICT DO NOTHING`, and a run that loses the
+ * insert race re-reads the winner's row under the lock and refreshes it —
+ * FOR UPDATE over zero rows locks nothing, so the check alone never could.
  */
 export async function upsertAgentDocument(
   sql: Sql,
@@ -128,23 +133,16 @@ export async function upsertAgentDocument(
       LIMIT 1
     `;
     const contentHash = ledger[0]?.contentHash ?? null;
-    const existing = await tx<
-      { id: string; record: Record<string, unknown> | null }[]
-    >`
-      SELECT id, record FROM app.documents
-      WHERE org_id = ${args.organizationId}
-        AND external_item_id = ${args.externalItemId}
-      ORDER BY created_at_ms
-      LIMIT 1
-      FOR UPDATE
-    `;
-    const documentId = existing[0]?.id;
-    if (documentId !== undefined) {
+
+    const refresh = async (existing: {
+      id: string;
+      record: Record<string, unknown> | null;
+    }): Promise<{ documentId: string; action: 'updated' }> => {
       // 'agent' documents can be controlled records (records.ts): a re-run
       // is a generic content writer, so the SAME freeze rule every human
       // content path applies holds here — a controlled record's bytes move
       // only through the attested replacement flow.
-      assertGenericDocumentContentWritableJson(existing[0]?.record ?? null);
+      assertGenericDocumentContentWritableJson(existing.record);
       await tx`
         UPDATE app.documents SET
           title = ${title}, file_ref = ${args.fileRef},
@@ -152,11 +150,15 @@ export async function upsertAgentDocument(
           content_hash = ${contentHash},
           project_id = ${args.projectId ?? null},
           lifecycle_status = 'active', updated_at_ms = ${now}
-        WHERE id = ${documentId}
+        WHERE id = ${existing.id}
       `;
-      await auditWrite(tx, args, 'updated', documentId, title);
-      return { documentId, action: 'updated' as const };
-    }
+      await auditWrite(tx, args, 'updated', existing.id, title);
+      return { documentId: existing.id, action: 'updated' as const };
+    };
+
+    const existing = await lockAgentDocument(tx, args);
+    if (existing !== null) return refresh(existing);
+
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.documents (
         org_id, title, file_ref, mime_type, extension, source_provider,
@@ -168,15 +170,42 @@ export async function upsertAgentDocument(
         ${args.externalItemId}, ${contentHash}, ${args.projectId ?? null},
         ${args.createdBy}, ${now}, ${now}
       )
+      ON CONFLICT (org_id, external_item_id)
+        WHERE external_item_id IS NOT NULL
+        DO NOTHING
       RETURNING id
     `;
     const created = inserted[0]?.id;
-    if (created === undefined) {
+    if (created !== undefined) {
+      await auditWrite(tx, args, 'created', created, title);
+      return { documentId: created, action: 'created' as const };
+    }
+    // Lost the insert race: the winner's row is committed by now (ON
+    // CONFLICT waits for it) — refresh it exactly as a re-run would.
+    const winner = await lockAgentDocument(tx, args);
+    if (winner === null) {
       throw new DocumentError('DOCUMENT_CREATE_FAILED', 'Insert failed');
     }
-    await auditWrite(tx, args, 'created', created, title);
-    return { documentId: created, action: 'created' as const };
+    return refresh(winner);
   });
+}
+
+/** The key's row (any lifecycle), locked for the upsert transaction. */
+async function lockAgentDocument(
+  tx: TransactionSql,
+  args: { organizationId: string; externalItemId: string },
+): Promise<{ id: string; record: Record<string, unknown> | null } | null> {
+  const rows = await tx<
+    { id: string; record: Record<string, unknown> | null }[]
+  >`
+    SELECT id, record FROM app.documents
+    WHERE org_id = ${args.organizationId}
+      AND external_item_id = ${args.externalItemId}
+    ORDER BY created_at_ms
+    LIMIT 1
+    FOR UPDATE
+  `;
+  return rows[0] ?? null;
 }
 
 /** The governance trail a standing-grant document write leaves. Rides the

@@ -3,7 +3,7 @@
 // imports so it stays trivially unit-testable.
 
 /** The name IS the env var name: letters/digits/underscore, not starting with
- * a digit — identical to the sandbox user-env rule. */
+ * a digit. */
 export const AGENT_SECRET_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 export const MAX_AGENT_SECRET_NAME_LEN = 128;
 /** Generous ceiling — OAuth tokens / PEM-ish secrets can be long. */
@@ -52,7 +52,7 @@ export function validateAgentSecretValue(value: string): Validation {
 /**
  * A recognizable, low-leak preview of a secret for the manager UI: the first
  * and last few characters with a fixed-width masked middle (e.g. `ghp_••••b3f`)
- * — the same affordance the connector-credential and user-env UIs use. Reveals
+ * — the same affordance the connector-credential UI uses. Reveals
  * a tiny edge slice; for a secret too short to reveal safely it returns
  * `undefined` (the caller shows a full mask), and the masked middle is a
  * constant width so the true length never leaks. Pure.

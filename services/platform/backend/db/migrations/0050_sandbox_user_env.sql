@@ -2,6 +2,11 @@
 -- `sandboxUserEnv` table). One row per (org, user, key); secrets are
 -- encrypted at rest (the shared secret_box envelope) and write-only —
 -- the read API answers a fixed mask, never plaintext.
+--
+-- DEPRECATED (2026-09): the personal Environment page and its
+-- `/api/app/sandbox/user-env` routes were retired — nothing ever injected
+-- these rows into a sandbox, so the UI promised what no code did. The table
+-- stays (applied schema is never dropped); no code reads or writes it.
 CREATE TABLE app.sandbox_user_env (
   id text PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id text NOT NULL,

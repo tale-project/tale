@@ -477,6 +477,18 @@ async function sweepDocuments(
   const protectedIds = [...holds.userMembershipIds];
   let processed = 0;
 
+  // The custodian filter lives in SQL, on every pass: a held creator's rows
+  // are never candidates, so they cannot fill the batch. Skipping them in
+  // JS after `LIMIT` starved the sweep — once an org held more than a
+  // batch of trashed rows, the same held rows were re-selected every night
+  // and the unheld rows behind them were never reached. A creator-less row
+  // (a synced document) is nobody's to hold: `NULL <> ALL(...)` is NULL,
+  // so the IS NULL arm keeps it a candidate.
+  const custodianFree = sql`
+    (${protectedIds.length === 0}
+     OR created_by IS NULL OR created_by <> ALL(${protectedIds}))
+  `;
+
   // Pass A (grace > 0): flip active expired rows into the admin Trash. A
   // document's age is its creation — or its last lifecycle change, when a
   // restore from the Trash stamped one: a restore restarts the retention
@@ -491,8 +503,7 @@ async function sweepDocuments(
         WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
           AND GREATEST(created_at_ms, coalesce(status_changed_at_ms, 0))
               < ${cutoff}
-          AND (${protectedIds.length === 0}
-               OR created_by <> ALL(${protectedIds}))
+          AND ${custodianFree}
         LIMIT ${BATCH_LIMIT}
       )
       RETURNING id
@@ -508,16 +519,15 @@ async function sweepDocuments(
           {
             id: string;
             fileRef: string | null;
-            createdBy: string | null;
             historyFiles: string[];
           }[]
         >`
-          SELECT id, file_ref AS "fileRef", created_by AS "createdBy",
-                 history_files AS "historyFiles"
+          SELECT id, file_ref AS "fileRef", history_files AS "historyFiles"
           FROM app.documents
           WHERE org_id = ${org.organizationId}
             AND lifecycle_status IN ('trashed', 'expired')
             AND status_changed_at_ms < ${Date.now() - graceDays * DAY_MS}
+            AND ${custodianFree}
           LIMIT ${BATCH_LIMIT}
         `
       : // No grace window: trashed/expired rows (user trash, a project-
@@ -530,26 +540,22 @@ async function sweepDocuments(
           {
             id: string;
             fileRef: string | null;
-            createdBy: string | null;
             historyFiles: string[];
           }[]
         >`
-          SELECT id, file_ref AS "fileRef", created_by AS "createdBy",
-                 history_files AS "historyFiles"
+          SELECT id, file_ref AS "fileRef", history_files AS "historyFiles"
           FROM app.documents
           WHERE org_id = ${org.organizationId}
             AND ((lifecycle_status IS NULL
                   AND GREATEST(created_at_ms, coalesce(status_changed_at_ms, 0))
                       < ${cutoff})
                  OR lifecycle_status IN ('trashed', 'expired'))
+            AND ${custodianFree}
           LIMIT ${BATCH_LIMIT}
         `;
   if (passB.length === 0) return processed;
   const orgSlug = await resolveOrgSlug(sql, org.organizationId);
   for (const doc of passB) {
-    if (doc.createdBy !== null && holds.userMembershipIds.has(doc.createdBy)) {
-      continue;
-    }
     try {
       await purgeDocument(sql, orgSlug, {
         id: doc.id,
@@ -608,7 +614,14 @@ async function sweepChatHistory(
   if (typeof days !== 'number' || days <= 0) return 0;
   const cutoff = Date.now() - days * DAY_MS;
   const graceDays = org.config.deletionGraceDays ?? 0;
+  const protectedIds = [...holds.userMembershipIds];
   let processed = 0;
+
+  // Custodian filter in SQL (see sweepDocuments): a held owner's threads
+  // are never candidates, so they cannot fill a batch and starve the rest.
+  const custodianFree = sql`
+    (${protectedIds.length === 0} OR tm.user_id <> ALL(${protectedIds}))
+  `;
 
   // Pass A (grace > 0): expire active chat threads past the cutoff — they
   // land in the admin Trash for the grace window. A thread's age is its
@@ -616,18 +629,18 @@ async function sweepChatHistory(
   // Trash stamped one: the restore restarts the retention clock, or the
   // next sweep re-expires the thread the admin just brought back.
   if (graceDays > 0) {
-    const candidates = await sql<{ threadId: string; userId: string }[]>`
-      SELECT tm.thread_id AS "threadId", tm.user_id AS "userId"
+    const candidates = await sql<{ threadId: string }[]>`
+      SELECT tm.thread_id AS "threadId"
       FROM app.thread_metadata tm
       JOIN app.threads t ON t.id = tm.thread_id
       WHERE tm.org_id = ${org.organizationId} AND tm.chat_type = 'chat'
         AND tm.status = 'active'
         AND GREATEST(t.updated_at_ms, coalesce(tm.status_changed_at_ms, 0))
             < ${cutoff}
+        AND ${custodianFree}
       LIMIT ${BATCH_LIMIT}
     `;
     for (const thread of candidates) {
-      if (holds.userMembershipIds.has(thread.userId)) continue;
       await sql`
         UPDATE app.thread_metadata SET
           status = 'expired', status_changed_at_ms = ${Date.now()}
@@ -642,17 +655,18 @@ async function sweepChatHistory(
   // — hidden siblings travel with their root.
   const passB =
     graceDays > 0
-      ? await sql<{ threadId: string; userId: string }[]>`
-          SELECT tm.thread_id AS "threadId", tm.user_id AS "userId"
+      ? await sql<{ threadId: string }[]>`
+          SELECT tm.thread_id AS "threadId"
           FROM app.thread_metadata tm
           WHERE tm.org_id = ${org.organizationId} AND tm.chat_type = 'chat'
             AND tm.status IN ('trashed', 'expired')
             AND tm.branch_root_id IS NULL
             AND tm.status_changed_at_ms < ${Date.now() - graceDays * DAY_MS}
+            AND ${custodianFree}
           LIMIT ${BATCH_LIMIT}
         `
-      : await sql<{ threadId: string; userId: string }[]>`
-          SELECT tm.thread_id AS "threadId", tm.user_id AS "userId"
+      : await sql<{ threadId: string }[]>`
+          SELECT tm.thread_id AS "threadId"
           FROM app.thread_metadata tm
           JOIN app.threads t ON t.id = tm.thread_id
           WHERE tm.org_id = ${org.organizationId} AND tm.chat_type = 'chat'
@@ -662,10 +676,10 @@ async function sweepChatHistory(
                                coalesce(tm.status_changed_at_ms, 0))
                       < ${cutoff})
                  OR tm.status IN ('trashed', 'expired'))
+            AND ${custodianFree}
           LIMIT ${BATCH_LIMIT}
         `;
   for (const thread of passB) {
-    if (holds.userMembershipIds.has(thread.userId)) continue;
     processed += await purgeThreadLineage(
       sql,
       org.organizationId,

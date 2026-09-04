@@ -45,6 +45,55 @@ docker compose ps db
 
 Zeigen die Logs Verbindungsfehler zur Korpus-Datenbank (`knowledge-db` im Netz, auf einem Single-Host-Deploy in `db` gefaltet), starte sie neu (`docker compose restart db`); die Ingestion versucht es beim nächsten Durchlauf erneut, Uploads müssen also nicht erneut eingereicht werden. Ist die Datenbank healthy, aber ein bestimmter Upload steckt, ist die Datei selbst der Verdächtige — beschädigte PDFs und passwortgeschützte Dokumente landen in einem Fehlzustand und brauchen Löschung und Re-Upload.
 
+## Wissensdatenbank startet bei jedem Upload neu
+
+Jede Dokument-Ingestion scheitert auf dieselbe Art: Die Korpus-Datenbank (`knowledge-db`, auf einem Single-Host-Deploy in `db` gefaltet) startet neu, der Backend-Worker verliert seine Verbindung, und der nächste Upload löst denselben Neustart aus. Das Server-Log — eine Datei unter `/var/lib/postgresql/data/log/` im Container; `docker compose logs` trägt nur die Ausgabe des Entrypoints — benennt den Fehler jedes Mal:
+
+```bash
+docker compose exec knowledge-db sh -c 'grep -h -E "PANIC|signal 6" /var/lib/postgresql/data/log/*.log | tail -n 4'
+```
+
+```text
+PANIC:  corrupted page pointers: lower = 0, upper = 0, special = 0
+LOG:  server process (PID 4711) was terminated by signal 6: Aborted
+```
+
+Der BM25-Keyword-Index auf `private_knowledge.chunks` enthält eine Seite, die nie initialisiert wurde, und ein Stopp im Crash-Modus des Datenbank-Containers lässt genau so eine zurück: Der Server erweitert die Index-Datei für einen laufenden Write, `SIGKILL` trifft ein, bevor die Seite geschrieben ist, und die Crash-Recovery hat kein WAL, das sie dafür einspielen könnte. `tale-db`-Images bis v0.5.7 haben Postgres mit `SIGTERM` gestoppt, was Postgres als *smart* shutdown liest — es wartet, bis jede Client-Session beendet ist. Ein Client außerhalb von Compose, der eine Verbindung hält (ein Backend auf dem Host, ein offenes `psql`), hat den Stopp über die Grace-Period hinausgeschoben, Docker hat den Server abgeschossen, und der nächste Start lief als Crash-Recovery. Gewöhnliche Tabellen und Indizes überstehen das; `pg_search` trifft die Null-Seite beim nächsten Write, bricht mit PANIC ab, und Postgres startet zur Recovery neu — bei jedem Upload.
+
+Bestätige, dass der Index der Schuldige ist, bevor du etwas reparierst. Öffne eine Session auf der Korpus-Datenbank — beide Statements lesen nur:
+
+```bash
+docker compose exec knowledge-db psql -U tale -d tale_knowledge
+```
+
+```sql
+select * from pdb.verify_index('private_knowledge.idx_pk_chunks_bm25');
+```
+
+Ein gesunder Index besteht jede Prüfung (`passed = t`); ein beschädigter scheitert an `segment_metadata_valid` oder lässt sich gar nicht lesen. Um die Seite selbst zu sehen, gibt `pageinspect` den Header der letzten Index-Seite aus — `0 | 0 | 0` ist die nie initialisierte Seite, eine gesunde Seite zeigt `24 | 8184 | 8184`:
+
+```sql
+create extension if not exists pageinspect;
+select lower, upper, special
+from page_header(get_raw_page('private_knowledge.idx_pk_chunks_bm25',
+  (pg_relation_size('private_knowledge.idx_pk_chunks_bm25') / 8192 - 1)::int));
+```
+
+Dann baue den Index neu. Er ist aus `private_knowledge.chunks` abgeleitet, also geht nichts verloren und nichts muss erneut hochgeladen werden:
+
+```sql
+REINDEX INDEX private_knowledge.idx_pk_chunks_bm25;
+```
+
+Optional baust du auch den Vektor-Index neu (er existiert, sobald das erste Embedding gespeichert wurde) und gibst die verwaisten Schluss-Seiten der Tabelle frei:
+
+```sql
+REINDEX INDEX private_knowledge.idx_pk_chunks_embedding_hnsw;
+VACUUM private_knowledge.chunks;
+```
+
+Die Ingestion läuft beim nächsten Durchlauf des Workers weiter. `tale-db`-Images neuer als v0.5.7 stoppen Postgres mit `SIGINT` — dem *fast* shutdown, der Clients trennt, einen Checkpoint schreibt und binnen Sekunden beendet, auch während Clients verbunden sind — und `compose.yml` setzt `stop_signal: SIGINT`, damit auch ein älteres Image dasselbe Signal bekommt. Stoppe den Stack mit `docker compose stop` oder `docker compose down` und lass die 60-Sekunden-Grace-Period laufen (die tale-CLI stoppt Container auf demselben Weg); `docker kill` und dem Host den Strom zu ziehen sind die zwei Wege, die weiterhin in einem Stopp im Crash-Modus enden.
+
 ## Chat-Antworten hören mitten im Stream auf
 
 Der Token-Stream vom Upstream-Anbieter ist abgefallen — entweder hat der Anbieter rate-limited, die Verbindung ist getimeoutet, oder der Service des Anbieters ist degradiert. Prüf zuerst die Status-Seite des Anbieters; schau dann in die Plattform-Logs:

@@ -5,7 +5,7 @@ description: Le modèle derrière chaque automatisation — un document de workf
 
 Une automatisation, c’est un document de workflow enregistré sous un nom, plus tout ce que la plateforme conserve autour : l’historique des versions de ce document, la seule version en service, les déclencheurs autorisés à la lancer, et la trace de chaque exécution. Ouvre **Automatisations** dans la barre latérale et chaque ligne est l’un de ces noms, avec à côté la version en service. Trois idées de cette page commandent tout le reste — les versions ne changent jamais, la mise en service est un geste distinct, et un déclencheur se rattache au nom plutôt qu’à une version —, alors lis-les avant de construire quoi que ce soit.
 
-Tu préfères regarder d’abord ? L’épisode 5 ouvre l’automatisation de triage de bout en bout et décide une vraie carte de validation à l’écran, sous-titres compris.
+Tu préfères regarder d’abord ? L’épisode 5 ouvre l’automatisation de triage de bout en bout et décide une carte de validation à l’écran, sous-titres compris — enregistré sur l’ancienne version, où la carte se trouvait dans le chat ; dans cette version, elle se trouve sur la page de détail de l’exécution.
 
 <Video src="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.mp4" poster="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.webp" captions="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.vtt" lang="fr" title="Épisode 5 — Automatisations & validations" caption="Épisode 5 — Automatisations & validations (2:34)">
 

@@ -132,6 +132,43 @@ export const DEMO_DOCUMENTS: readonly DemoDocument[] = [
 export const DEMO_PROJECT_DESCRIPTION =
   'Rebuild of the public website: new information architecture, refreshed brand, zero-downtime cutover.';
 
+/** The project's standing instructions (General tab) — every chat and run in
+ * it starts from these. */
+export const DEMO_PROJECT_INSTRUCTIONS = [
+  'This project rebuilds the public website for a zero-downtime cutover.',
+  'Ground every answer in the content inventory and the launch-day runbook before anything else, write in the voice of the 2026 brand guidelines, and treat any change to the redirect map as launch-blocking until the owning section has signed it off.',
+].join(' ');
+
+export interface DemoProjectAgent {
+  readonly name: string;
+  /** Harness display name, as the Agent type picker lists it. */
+  readonly harness: string;
+  /** Model id, as the mock catalog serves it. */
+  readonly model: string;
+  readonly instructions: string;
+}
+
+/**
+ * The "Website relaunch" project's crew (Agents tab): named agents, each with
+ * a harness, a model from the mock catalog, and standing instructions.
+ */
+export const DEMO_PROJECT_AGENTS: readonly DemoProjectAgent[] = [
+  {
+    name: 'Content editor',
+    harness: 'Claude Code',
+    model: 'anthropic/claude-sonnet-4.6',
+    instructions:
+      'Rewrite migrated pages in the voice of the 2026 brand guidelines. Keep every product claim traceable to the content inventory, and hand anything that needs a legal or product decision back as a task comment instead of guessing.',
+  },
+  {
+    name: 'Redirect auditor',
+    harness: 'Codex',
+    model: 'anthropic/claude-haiku-4.5',
+    instructions:
+      'Check every legacy URL in the redirect map against the launch-day runbook. File one task per unmapped URL with its owning section; never edit the map yourself.',
+  },
+] as const;
+
 /** Files attached to the "Website relaunch" project's Knowledge tab. */
 export const DEMO_PROJECT_FILES: readonly DemoDocument[] = [
   {
@@ -275,29 +312,6 @@ export const DEMO_TEAMS: readonly string[] = [
   'Customer success',
 ] as const;
 
-interface DemoEnvVar {
-  readonly key: string;
-  readonly value: string;
-  readonly secret: boolean;
-}
-
-/**
- * Personal environment (Settings > Environment). Keys must match
- * `^[A-Za-z_][A-Za-z0-9_]*$` or the save throws. Secret values are write-only —
- * the row re-renders as a mask, so idempotency checks the KEY, never the value.
- */
-export const DEMO_ENV_VARS: readonly DemoEnvVar[] = [
-  {
-    key: 'CRM_BASE_URL',
-    value: 'https://crm.northlight.example/api/v2',
-    secret: false,
-  },
-  // Keep keys short: the row's key input clips a long name flush against its
-  // right edge with no ellipsis, which reads as broken in a screenshot.
-  { key: 'ANALYTICS_ORG', value: 'northlight-prod', secret: false },
-  { key: 'CRM_API_TOKEN', value: 'nl_crm_2f8c41d9e7b64a0c', secret: true },
-] as const;
-
 /** REST API keys (Settings > API > REST). Names cap at 32 characters. */
 export const DEMO_API_KEYS: readonly string[] = [
   'Production ingest',
@@ -346,3 +360,13 @@ export const DEMO_ERASURE_REQUEST = {
   reason:
     'The contractor withdrew consent when their engagement ended and asked us to erase their workspace data.',
 } as const;
+
+/**
+ * The AI-provider credential (Settings > AI providers). Its vendor is the
+ * offline mock gateway the seed wires up (`docs-demo/providers/e2e-mock.yml`,
+ * whose `displayName` MOCK_PROVIDER_DISPLAY_NAME mirrors — the capture
+ * sanitizes that rig name out of the published frame); the credential's NAME
+ * is what a customer's row shows, so it reads like one.
+ */
+export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
+export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';

@@ -5,9 +5,9 @@ description: Un projet regroupe chats, fichiers, instructions et tâches dans un
 
 Un projet est l’unité que Tale sort quand un chantier a besoin des mêmes fichiers, des mêmes instructions et des mêmes surfaces de travail à travers beaucoup de chats et beaucoup de personnes. Cette page te donne le modèle mental — lis-la avant de créer ton premier projet, et reviens-y au moment de décider si un chat qui grossit mérite d’être promu en projet.
 
-<Frame caption="L’onglet Général — identité, partage et bandeau de statistiques du projet.">
+<Frame caption="L’onglet Général — l’identité du projet, ses instructions permanentes et, en dessous, le partage.">
 
-![L’onglet Général du projet Website relaunch montrant les champs de nom et de description, la section de partage où l’équipe propriétaire est Toute l’organisation, et un bandeau de statistiques indiquant deux fichiers, aucun chat et Toute l’organisation.](/images/platform/project-general-tab.webp)
+![L’onglet Général du projet Website relaunch montrant les champs de nom et de description, l’éditeur d’instructions rempli dont part chaque chat du projet, et en dessous le titre de la section Partage, avec Enregistrer et Annuler dans la barre d’onglets.](/images/platform/project-general-tab.webp)
 
 </Frame>
 

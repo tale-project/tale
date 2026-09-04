@@ -11,7 +11,7 @@ Die Default-Region für neue Cloud-Orgs ist die Schweiz. Die Region nach der Anm
 
 Der User in Zürich öffnet Chat und sendet „fass den letzten Kundenanruf zusammen". Die Anfrage trifft Tales Edge in der gewählten Region, landet auf `tale-platform`, leitet an `tale-backend-api` (das Backend) weiter, liest Wissen aus der Datenbank des Wissens-Korpus, sobald das Wissens-Tool des Agents danach fragt, und emittiert einen ausgehenden Anruf an den Provider hinter dem Modell, das die sendende Person gewählt hat. Der Wissens-Abruf läuft im Backend — es fragt die Korpus-Datenbank direkt ab, ohne separaten Retrieval-Dienst im Pfad. Der Modell-Provider gibt Tokens zurück; Tale streamt sie auf demselben Pfad zurück. Die Antwort und die Zitate landen in der operativen Datenbank, der Korpus bleibt in der Wissensdatenbank, und beide werden innerhalb der Region repliziert.
 
-Zwei Pfeile überqueren in diesem Trip die regionale Grenze: der Anruf an den Modell-Provider (immer extern) und jeder Sub-Prozessor, den die Tools des Agents ausgelöst haben (Web-Fetch, OneDrive-Lese, MCP-Server in einer anderen Region). Alles andere bleibt in der Region.
+Zwei Pfeile überqueren in diesem Trip die regionale Grenze: der Anruf an den Modell-Provider (immer extern) und jeder Sub-Prozessor, den die Tools des Agents ausgelöst haben (Web-Fetch, OneDrive-Lese, die Anbieter-API eines Connectors in einer anderen Region). Alles andere bleibt in der Region.
 
 ## Primärregionen
 

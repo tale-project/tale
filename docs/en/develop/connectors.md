@@ -1,9 +1,9 @@
 ---
 title: Connectors
-description: How a connector is declared, what one of its actions promises a caller, and when to reach for an MCP server instead.
+description: How a connector is declared, what one of its actions promises a caller, and where your own code goes when no connector fits.
 ---
 
-Connectors are the vendor-specific half of how Tale reaches other systems, and they are part of the platform rather than something an organisation assembles. Each one is a YAML file in the source tree that declares who it talks to, how it authenticates, and every action it can perform — which is why the catalog is identical in every deployment and why an upgrade is all it takes to move it forward. Read this when you want to know what a connector actually promises a caller, or when you are deciding between contributing one and hosting an MCP server.
+Connectors are the vendor-specific half of how Tale reaches other systems, and they are part of the platform rather than something an organisation assembles. Each one is a YAML file in the source tree that declares who it talks to, how it authenticates, and every action it can perform — which is why the catalog is identical in every deployment and why an upgrade is all it takes to move it forward. Read this when you want to know what a connector actually promises a caller, or when you are deciding between contributing one and reaching your own service from a project agent or an automation.
 
 The organisation-facing side — adding credentials, defaults, reconnecting a lapsed grant — is [Connector credentials](/platform/admin/connectors), and the catalog itself is [Connectors](/platform/connectors/overview).
 
@@ -42,7 +42,7 @@ actions:
 
 <Info>
 
-Connectors are read from the platform's own tree, not from an organisation's configuration, and there is no upload path that adds one at runtime. Adding a connector is a source contribution — see [Contributor setup](/develop/contributor-setup). Hosting your own bridge without touching the source is what MCP is for.
+Connectors are read from the platform's own tree, not from an organisation's configuration, and there is no upload path that adds one at runtime. Adding a connector is a source contribution — see [Contributor setup](/develop/contributor-setup). Reaching your own service without touching the source goes through a project agent's **Secrets** or an automation's `transform` node — the section on choosing a surface below says how.
 
 </Info>
 
@@ -102,10 +102,10 @@ Two surfaces reach systems outside Tale, and the choice is about who owns and ru
 | Surface           | Reach for it when                                                                                                                         |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Shipped connector | A connector already exists for the target system. Your work is a credential, and the vendor contract is maintained for you.               |
-| MCP server        | Nothing shipped covers the system — an internal API, a homegrown tool, a host only your network can reach. You write and run the process. |
+| Your own code     | Nothing shipped covers the system — an internal API, a homegrown tool, a host only your network can reach. A project agent calls it from its sandbox with a **Secrets** entry; an automation calls it from a `transform` node. |
 
-An MCP server is registered under **Settings > API > MCP**, and every tool it exposes joins the agent toolbelt beside connector actions, each with its own approval flag. The reference is [MCP servers](/platform/connectors/mcp-servers); the end-to-end build is [MCP server from scratch](/tutorials/developer/mcp-server-from-scratch).
+Registering an external MCP server is not part of this version — Tale's one MCP surface is the inbound endpoint under **Settings > API > MCP**, where your MCP client drives Tale. [MCP servers](/platform/connectors/mcp-servers) says what replaced the registration form; [MCP endpoint](/develop/mcp-endpoint) is the reference for the surface that does ship.
 
 ## Where this fits
 
-A connector is a declared contract — hosts, authentication, and a typed action list — that ships with the platform and is fed by credentials the organisation owns. Read [Connectors](/platform/connectors/overview) for what is in the catalog, [Connector credentials](/platform/admin/connectors) for how those credentials are managed day to day, and [MCP servers](/platform/connectors/mcp-servers) when the bridge you need has to be your own code.
+A connector is a declared contract — hosts, authentication, and a typed action list — that ships with the platform and is fed by credentials the organisation owns. Read [Connectors](/platform/connectors/overview) for what is in the catalog, [Connector credentials](/platform/admin/connectors) for how those credentials are managed day to day, and [MCP servers](/platform/connectors/mcp-servers) for the one MCP surface this version ships.

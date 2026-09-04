@@ -7,14 +7,6 @@
       "description": "Des parcours de tâches indexés par rôle — Membre, Éditeur, Développeur, Administration. Chaque tutoriel amène une instance neuve de « je veux faire X » au résultat qui fonctionne."
     }
   },
-  "fr:tutorials/developer/mcp-server-from-scratch": {
-    "slug": "tutorials/developer/mcp-server-from-scratch",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Monter un serveur MCP depuis zéro",
-      "description": "Câble un serveur Model Context Protocol comme connector personnalisée pour que n'importe quel agent Tale de l'organisation appelle ses outils."
-    }
-  },
   "fr:tutorials/developer/trigger-automation-via-webhook": {
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "fr",
@@ -31,36 +23,12 @@
       "description": "Crée une clé API et appelle l'API REST de Tale depuis un script bash ou Python — le chemin de bout en bout le plus court du terminal à une réponse d'assistant."
     }
   },
-  "fr:tutorials/developer/build-a-custom-tool": {
-    "slug": "tutorials/developer/build-a-custom-tool",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Construire un outil personnalisé",
-      "description": "Empaquette une fonction personnalisée en outil que les agents peuvent appeler, attache-la à un agent et observe-la apparaître en tool-call pendant un chat."
-    }
-  },
   "fr:tutorials/editor/first-agent-end-to-end": {
     "slug": "tutorials/editor/first-agent-end-to-end",
     "locale": "fr",
     "frontmatter": {
       "title": "Construire ton premier agent",
-      "description": "Mène une organisation neuve de « je veux un agent » à un résultat de tâche relu, en tournant les quatre boutons — instructions, savoir, tools, modèle — dans l'ordre sur une seule instance."
-    }
-  },
-  "fr:tutorials/editor/delegate-between-agents": {
-    "slug": "tutorials/editor/delegate-between-agents",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Confier du travail à un worker",
-      "description": "Demande une recherche ouverte à l'assistant, regarde-le lancer un worker ciblé et suis la carte de job — progression en direct, résultat et transcription complète."
-    }
-  },
-  "fr:tutorials/editor/agent-with-knowledge": {
-    "slug": "tutorials/editor/agent-with-knowledge",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Construire un agent avec du savoir",
-      "description": "Lie des documents de la base de connaissances à un agent neuf pour que ses réponses citent les documents au lieu de deviner depuis la mémoire paramétrique du modèle."
+      "description": "Mène un projet neuf de « je veux un agent » à un résultat de tâche relu — crée un agent de projet avec un harness, un modèle et un paragraphe d’instructions, confie-lui une vraie tâche et relis ce qui revient."
     }
   },
   "fr:tutorials/editor/workflow-with-approvals": {
@@ -68,7 +36,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Construire un workflow avec approbation",
-      "description": "Laisse l'Éditeur IA construire un workflow à trois étapes où une décision humaine s'intercale entre le brouillon et l'envoi, approuve sa proposition, puis lance le tout et inspecte le journal."
+      "description": "L’éditeur IA et sa carte de proposition ne font pas partie de cette version — un workflow avec une décision humaine se construit sur le canvas, et l’exécution attend cette décision sur sa page de détail."
     }
   },
   "fr:tutorials/videos/chat-in-depth": {
@@ -100,7 +68,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 7 — Connectors & le monde extérieur",
-      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une connector reliée, les serveurs MCP avec drapeaux de validation par outil, et une sortie réseau qui échoue fermée."
+      "description": "Les portes hors de l'espace de travail — des connecteurs dont on lit les opérations et les hôtes autorisés, la recherche approfondie offerte par une connector reliée, un segment MCP enregistré sur le panneau de serveurs de la version précédente, et une sortie réseau qui échoue fermée."
     }
   },
   "fr:tutorials/videos/your-first-agent": {
@@ -108,7 +76,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 4 — Ton premier agent",
-      "description": "Un agent construit de bout en bout à l'écran — nom, instructions, périmètre de connaissances, outils, modèle — puis rendu visible et testé en direct, la frontière de confiance nommée."
+      "description": "Un agent construit de bout en bout à l’écran dans l’ancien éditeur d’agent — nom, instructions, périmètre de connaissances, outils, modèle — la frontière de confiance nommée ; les écrans ont changé depuis, le raisonnement non."
     }
   },
   "fr:tutorials/videos/people-roles-and-teams": {
@@ -175,14 +143,6 @@
       "description": "Transforme un chat ponctuel en espace de travail partagé qui garde ensemble les mêmes fichiers, instructions et conversations — et arrête de re-charger les mêmes documents à chaque fois."
     }
   },
-  "fr:tutorials/admin/office-add-in": {
-    "slug": "tutorials/admin/office-add-in",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Installer le complément Outlook",
-      "description": "Déploie la sidebar Tale dans Outlook et Microsoft 365 pour que les membres rédigent des réponses avec les agents Tale sans quitter leur boîte de réception."
-    }
-  },
   "fr:tutorials/admin/meeting-transcription": {
     "slug": "tutorials/admin/meeting-transcription",
     "locale": "fr",
@@ -212,7 +172,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Développeur",
-      "description": "Développeur est la surface développeur en-app — clés API, tools personnalisés, webhooks d’agent, serveurs MCP. Les pages ici sont ce qu’une personne de rôle Développeur parcourt quand elle câble Tale à du code externe."
+      "description": "Développeur est la surface développeur en-app — clés API pour l’API REST, l’endpoint MCP et les identifiants de connector avec lesquels une personne de rôle Développeur branche Tale à du code externe."
     }
   },
   "fr:platform/chat/overview": {
@@ -228,7 +188,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Chats partagés",
-      "description": "Partager un chat avec le reste de l’organisation — le lien de partage en un seul geste, l’instantané en lecture seule que voit le destinataire, et comment arrêter le partage."
+      "description": "Partager un chat avec le reste de l’organisation — le dialogue de partage et son lien, l’instantané en lecture seule que voit le destinataire, et comment arrêter le partage."
     }
   },
   "fr:platform/chat/voice-mode": {
@@ -272,22 +232,6 @@
       "description": "Éditeur est la surface de construction — créer agents, projets, automatisations et la connaissance dans laquelle ils s’étendent. Les pages ici sont ce que fait au quotidien une personne de rôle Éditeur."
     }
   },
-  "fr:platform/agents/create": {
-    "slug": "platform/agents/create",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Créer un agent",
-      "description": "Du dialogue vide à un agent utilisable — nomme-le, écris ses instructions, accorde outils et skills, cadre ses connaissances et essaie-le dans le chat."
-    }
-  },
-  "fr:platform/agents/tools": {
-    "slug": "platform/agents/tools",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Outils d’agent",
-      "description": "Les permissions outil par outil qu’un agent porte au-delà de la génération de texte — les catégories, l’accès web, et les connectors et automatisations comme capacités."
-    }
-  },
   "fr:platform/agents/harnesses": {
     "slug": "platform/agents/harnesses",
     "locale": "fr",
@@ -304,38 +248,6 @@
       "description": "Comment un skill de la bibliothèque atteint un agent — équiper les agents d'un projet, quelle visibilité compte, et comment un bundle arrive dans une session sandbox."
     }
   },
-  "fr:platform/agents/versions": {
-    "slug": "platform/agents/versions",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Versions d’agent",
-      "description": "La vue Historique de l’éditeur d’agent — chaque enregistrement pris en instantané, avec un diff contre la version actuelle et une restauration en un clic."
-    }
-  },
-  "fr:platform/agents/delegation": {
-    "slug": "platform/agents/delegation",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Workers d'agent",
-      "description": "Un agent peut lancer un worker ciblé pour une tâche via le tool spawn_agent. Cette page donne le modèle mental — quand lancer un worker, comment les capacités restent bornées et ce que montre la carte de job."
-    }
-  },
-  "fr:platform/agents/image-generation": {
-    "slug": "platform/agents/image-generation",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Génération d’images",
-      "description": "La génération d’images est un outil accordable à n’importe quel agent — generate_image produit une image dans la réponse, sur un modèle choisi tour par tour."
-    }
-  },
-  "fr:platform/agents/knowledge": {
-    "slug": "platform/agents/knowledge",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Connaissances d’agent",
-      "description": "L’onglet Connaissances de l’agent — un seul réglage décide quel corpus sa recherche a le droit de lire, et où passe la frontière avec les outils."
-    }
-  },
   "fr:platform/agents/concepts": {
     "slug": "platform/agents/concepts",
     "locale": "fr",
@@ -349,7 +261,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Assistant d’automatisation",
-      "description": "L’agent de chat épinglé à une automatisation — ce qu’il modifie directement, ce qu’il rédige pour que tu l’appliques, et comment il retrouve les automatisations existantes avant d’en construire une nouvelle."
+      "description": "Un agent de chat rattaché à une automatisation ne fait pas partie de cette version — tu modifies une automatisation sur sa propre page, et un modèle en rédige une par l’endpoint MCP."
     }
   },
   "fr:platform/automations/editor": {
@@ -373,7 +285,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Approbations dans les workflows",
-      "description": "Là où les humains décident autour des workflows — approuver les modifications de l’éditeur IA sur une définition, approuver la demande d’un agent d’exécuter un workflow, et répondre aux questions qui mettent une exécution en pause."
+      "description": "Là où une exécution en cours attend une personne — une écriture de connector en pause pour approbation, une question posée par un nœud agent — et comment une définition change et passe en service sans carte de proposition."
     }
   },
   "fr:platform/automations/builtin": {
@@ -381,7 +293,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Automatisations livrées",
-      "description": "Ce que fait chaque automatisation livrée — le trio boîte de réception, le bundle Résoudre les issues GitHub, les modèles de synchronisation et d’entretien, et les packs préinstallés qui font tourner tableaux et mentions."
+      "description": "Ce que fait chacune des huit automatisations livrées — synchronisation et tri du courrier pour Gmail, Outlook et IMAP, évaluation des issues et examen des pull requests pour GitHub — et le connector dont chacune a besoin avant sa mise en service."
     }
   },
   "fr:platform/automations/catalog": {
@@ -421,7 +333,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Gérer les fichiers du projet",
-      "description": "L’onglet Connaissances du projet tient les fichiers où chaque chat du projet peut puiser — dossiers, téléversement, statut d’indexation, épinglage, et comment les fichiers du projet restent scopés au projet."
+      "description": "L’onglet Connaissances du projet tient les fichiers où chaque chat du projet peut puiser — dossiers, téléversement, statut d’indexation, et comment les fichiers du projet restent scopés au projet."
     }
   },
   "fr:platform/projects/project-agents": {
@@ -445,7 +357,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Backlog du projet",
-      "description": "Le backlog est un statut du tableau pour le travail proposé — les automatisations y synchronisent les issues, et tu déplaces les tâches avec les mêmes contrôles de glisser, de statut et d’affectation que pour toute autre colonne."
+      "description": "Le Backlog est le statut d’entrée du tableau pour le travail auquel personne ne s’est encore engagé — comment une tâche y atterrit et comment tu la fais avancer avec les mêmes contrôles que dans toute autre colonne."
     }
   },
   "fr:platform/projects/concepts": {
@@ -469,7 +381,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Les connecteurs livrés avec Tale, les identifiants que ton organisation enregistre en face, et comment les actions d’un connecteur arrivent dans les automatisations et le chat."
+      "description": "Les connecteurs livrés avec Tale, les identifiants que ton organisation enregistre en face, et comment les actions d’un connecteur arrivent dans les automatisations et les exécutions d’agent."
     }
   },
   "fr:platform/connectors/mcp-servers": {
@@ -477,7 +389,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Serveurs MCP",
-      "description": "Enregistre des serveurs d’outils externes sous Paramètres > API > MCP — le transport, l’authentification, la liste des outils découverts et les drapeaux d’approbation par outil qui gardent la frontière de confiance serrée."
+      "description": "Enregistrer des serveurs MCP externes pour que les agents les appellent ne fait pas partie de cette version — la seule surface MCP de Tale est l’endpoint entrant sous Paramètres > API > MCP."
     }
   },
   "fr:platform/member/overview": {
@@ -485,7 +397,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Membre",
-      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée, agir sur les approbations. Les pages ici sont ce que fait au quotidien une personne de rôle Membre."
+      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée. Les pages ici sont ce que fait au quotidien une personne de rôle Membre."
     }
   },
   "fr:platform/member/install-as-app": {
@@ -494,14 +406,6 @@
     "frontmatter": {
       "title": "Installer en tant qu'app",
       "description": "Comment installer Tale en tant que Progressive Web App sur ordinateur et mobile — le raccourci de menu dans les navigateurs Chromium, le chemin iOS Safari, et ce qui change une fois l'app installée."
-    }
-  },
-  "fr:platform/member/environment": {
-    "slug": "platform/member/environment",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Variables d’environnement et secrets",
-      "description": "Tes variables d’environnement et secrets personnels, injectés dans chaque sandbox que tu lances dans une organisation, et que personne d’autre ne peut lire."
     }
   },
   "fr:platform/member/preferences": {
@@ -517,7 +421,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Configurer les approbations",
-      "description": "Là où les exigences d’approbation sont déclarées — par opération d’connector, par outil MCP, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter."
+      "description": "Là où les exigences d’approbation sont déclarées — par opération de connector, avec un fichier de politique par organisation qui déplace la ligne — et quelles portes humaines se tiennent hors de cette politique."
     }
   },
   "fr:platform/approvals/concepts": {
@@ -525,7 +429,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Concepts d’approbation",
-      "description": "Une approbation est une carte dans le chat qui retient l’action d’un agent jusqu’à ta décision. Cette page nomme ce qui en déclenche une, les décisions que chaque carte offre et ce que chaque décision laisse derrière elle."
+      "description": "Une approbation est une étape en pause dans une exécution d’automatisation en cours — une écriture de connector qui attend sur la page de détail de l’exécution qu’une personne l’approuve ou la rejette. Cette page nomme ce qui en déclenche une, la décision qu’elle offre et ce qu’elle laisse derrière elle."
     }
   },
   "fr:platform/admin/changelog": {
@@ -661,7 +565,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Agents (vue Admin)",
-      "description": "La liste des agents à l’échelle de l’organisation — chaque agent, à qui il appartient, qui peut l’atteindre et ce qu’il a le droit de toucher."
+      "description": "Quels agents existent dans cette version et comment un admin les gouverne — les agents de projet sur l’onglet Agents de chaque projet, et les personas d’agent sous forme de fichiers dans la configuration de l’organisation."
     }
   },
   "fr:platform/admin/teams": {
@@ -725,7 +629,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Entrées de connaissances",
-      "description": "Les entrées de connaissances sont de petits faits indexés par sujet dans la base de connaissances — capturés depuis le chat avec approbation humaine ou ajoutés à la main — avec une seule version active par sujet et un historique complet des versions."
+      "description": "Les entrées de connaissances sont de petits faits indexés par sujet dans la base de connaissances — ajoutés à la main ou par l’API — avec une seule version active par sujet et un historique complet des versions."
     }
   },
   "fr:platform/knowledge/documents": {
@@ -1017,7 +921,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Onboarding Cloud",
-      "description": "De la demande de démo à une organisation prête pour la production — ta propre instance montée par l’équipe Tale, créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, publier un agent, ouvrir le chat."
+      "description": "De la demande de démo à une organisation prête pour la production — ta propre instance montée par l’équipe Tale, créer l’organisation, inviter le premier admin, ajouter un fournisseur de modèles, doter un projet d’un premier agent, ouvrir le chat."
     }
   },
   "fr:cloud/migrate-to-self-hosted": {
@@ -1067,7 +971,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Ton premier jour de création d’agents",
-      "description": "Le parcours éditeur — crée un agent, donne-lui des instructions et regarde-le faire un vrai travail sur une tâche."
+      "description": "Le parcours éditeur — crée un agent de projet, donne-lui des instructions et regarde-le faire un vrai travail sur une tâche."
     }
   },
   "fr:get-started/members": {
@@ -1117,7 +1021,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Développement",
-      "description": "Développement couvre la surface côté consommateur d’API — REST API, webhooks, SDK d’connector, workflow de développement assisté par IA, page de statut, limites de débit."
+      "description": "Développement couvre la surface côté consommateur d’API — REST API, l’endpoint MCP, webhooks, connectors, workflow de développement assisté par IA, page de statut, limites de débit."
     }
   },
   "fr:develop/connectors": {
@@ -1125,7 +1029,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et quand héberger un serveur MCP à la place."
+      "description": "Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connecteur ne convient."
     }
   },
   "fr:develop/status-page": {
@@ -1149,7 +1053,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Développement assisté par IA",
-      "description": "Comment Claude Code, Cursor, Copilot et Windsurf éditent un projet Tale — le fichier de règles que chaque éditeur lit et le miroir de schéma que Tale génère sous `.tale/reference/`."
+      "description": "Comment un agent de code édite un projet Tale — les fichiers AGENTS.md et CLAUDE.md que la CLI écrit, le miroir des sources sous .tale/reference/, et la disposition par organisation des fichiers de configuration."
     }
   },
   "fr:develop/rate-limits": {
@@ -1184,14 +1088,6 @@
       "description": "Role-indexed task walks — Member, Editor, Developer, Admin. Each tutorial takes a fresh instance from \"I want to do X\" to a working result."
     }
   },
-  "en:tutorials/developer/mcp-server-from-scratch": {
-    "slug": "tutorials/developer/mcp-server-from-scratch",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Stand up an MCP server from scratch",
-      "description": "Wire a Model Context Protocol server as a custom connector so any Tale agent in the org can call its tools."
-    }
-  },
   "en:tutorials/developer/trigger-automation-via-webhook": {
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "en",
@@ -1208,36 +1104,12 @@
       "description": "Mint an API key and call the Tale REST API from a bash or Python script — the smallest end-to-end path from terminal to an assistant reply."
     }
   },
-  "en:tutorials/developer/build-a-custom-tool": {
-    "slug": "tutorials/developer/build-a-custom-tool",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Build a custom tool",
-      "description": "Package a custom function as a tool that agents can call, then attach it to an agent and watch it appear in tool calls during a chat."
-    }
-  },
   "en:tutorials/editor/first-agent-end-to-end": {
     "slug": "tutorials/editor/first-agent-end-to-end",
     "locale": "en",
     "frontmatter": {
       "title": "Build your first agent",
-      "description": "Walk a fresh org from \"I want an agent\" to a reviewed task result by turning the four knobs — instructions, knowledge, tools, model — in order on one instance."
-    }
-  },
-  "en:tutorials/editor/delegate-between-agents": {
-    "slug": "tutorials/editor/delegate-between-agents",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Hand work to a worker",
-      "description": "Ask the assistant for open-ended research, watch it spawn a focused worker, and follow the job card — live progress, the result, and the full transcript."
-    }
-  },
-  "en:tutorials/editor/agent-with-knowledge": {
-    "slug": "tutorials/editor/agent-with-knowledge",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Build an agent with knowledge",
-      "description": "Bind documents from the knowledge base to a fresh agent so its replies cite the documents instead of guessing from the model's parametric memory."
+      "description": "Walk a fresh project from \"I want an agent\" to a reviewed task result — create a project agent with a harness, a model, and a paragraph of instructions, hand it a real task, and review what comes back."
     }
   },
   "en:tutorials/editor/workflow-with-approvals": {
@@ -1245,7 +1117,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Build a workflow with an approval",
-      "description": "Have the AI editor build a three-step workflow where a human decision sits between the draft and the send, approve its proposal, then run it end to end and inspect the journal."
+      "description": "The AI editor and its proposal card are not part of this version — a workflow with a human decision is built on the canvas, and the run waits for that decision on its detail page."
     }
   },
   "en:tutorials/videos/chat-in-depth": {
@@ -1277,7 +1149,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Episode 7 — Connectors & the outside world",
-      "description": "The doors out of the workspace — connectors whose operations and allowed hosts you can read, the deep-research payoff of a bound connector, MCP servers with per-tool approval flags, and fail-closed egress."
+      "description": "The doors out of the workspace — connectors whose operations and allowed hosts you can read, the deep-research payoff of a bound connector, an MCP segment recorded on the earlier version's server panel, and fail-closed egress."
     }
   },
   "en:tutorials/videos/your-first-agent": {
@@ -1285,7 +1157,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Episode 4 — Your first agent",
-      "description": "An agent built end to end on camera — name, instructions, knowledge scope, tools, model — then made visible and tested live, with the trust boundary spelled out."
+      "description": "An agent built end to end on camera in the earlier agent editor — name, instructions, knowledge scope, tools, model — with the trust boundary spelled out; the screens have changed since, the reasoning has not."
     }
   },
   "en:tutorials/videos/people-roles-and-teams": {
@@ -1352,14 +1224,6 @@
       "description": "Turn a one-off chat into a shared workspace that keeps the same files, instructions, and conversations together — and stops you from re-uploading the same documents every time."
     }
   },
-  "en:tutorials/admin/office-add-in": {
-    "slug": "tutorials/admin/office-add-in",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Install the Outlook add-in",
-      "description": "Roll out the Tale sidebar inside Outlook and Microsoft 365 so members can draft replies with Tale agents without leaving their inbox."
-    }
-  },
   "en:tutorials/admin/meeting-transcription": {
     "slug": "tutorials/admin/meeting-transcription",
     "locale": "en",
@@ -1389,7 +1253,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Developer",
-      "description": "Developer is the in-app developer surface — API keys, custom tools, agent webhooks, MCP servers. The pages here are what someone with the Developer role clicks through when they wire Tale to external code."
+      "description": "Developer is the in-app developer surface — API keys for the REST API, the MCP endpoint, and the connector credentials a Developer-role user wires Tale to external code with."
     }
   },
   "en:platform/chat/overview": {
@@ -1405,7 +1269,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Shared chats",
-      "description": "Sharing a chat with the rest of your organization — the one-gesture share link, the read-only snapshot the recipient sees, and how to stop sharing."
+      "description": "Sharing a chat with the rest of your organization — the share dialog and its link, the read-only snapshot the recipient sees, and how to stop sharing."
     }
   },
   "en:platform/chat/voice-mode": {
@@ -1449,22 +1313,6 @@
       "description": "Editor is the build surface — creating agents, projects, automations, and the knowledge they reach into. The pages here are what someone with the Editor role does day to day."
     }
   },
-  "en:platform/agents/create": {
-    "slug": "platform/agents/create",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Create an agent",
-      "description": "Walk from an empty create dialog to a working agent — name it, write its instructions, grant tools and skills, scope its knowledge, and try it in chat."
-    }
-  },
-  "en:platform/agents/tools": {
-    "slug": "platform/agents/tools",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Agent tools",
-      "description": "The per-tool permissions an agent carries beyond text generation — the tool categories, web access as a tool, and connectors and automations as capabilities."
-    }
-  },
   "en:platform/agents/harnesses": {
     "slug": "platform/agents/harnesses",
     "locale": "en",
@@ -1481,38 +1329,6 @@
       "description": "How a skill from the library reaches an agent — equipping a project's agents, whose visibility counts, and how a bundle lands in a sandbox session."
     }
   },
-  "en:platform/agents/versions": {
-    "slug": "platform/agents/versions",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Agent versions",
-      "description": "The agent editor's History view — every save snapshotted, with a diff against the current version and one-click restore."
-    }
-  },
-  "en:platform/agents/delegation": {
-    "slug": "platform/agents/delegation",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Agent workers",
-      "description": "An agent can spawn a focused worker for one task through the spawn_agent tool. This page hands you the mental model for when to spawn, how capabilities stay bounded, and what the job card shows."
-    }
-  },
-  "en:platform/agents/image-generation": {
-    "slug": "platform/agents/image-generation",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Image generation",
-      "description": "Image generation is a tool any agent can be granted — generate_image produces a picture inline in the reply, on a model picked per turn like any other."
-    }
-  },
-  "en:platform/agents/knowledge": {
-    "slug": "platform/agents/knowledge",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Agent knowledge",
-      "description": "The agent's Knowledge tab — one scope deciding which corpus its retrieval may read, and how that differs from tools."
-    }
-  },
   "en:platform/agents/concepts": {
     "slug": "platform/agents/concepts",
     "locale": "en",
@@ -1526,7 +1342,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Automation assistant",
-      "description": "The chat agent scoped to one automation — what it edits directly, what it drafts for you to apply, and how it finds existing automations before building a new one."
+      "description": "A chat agent scoped to one automation is not part of this version — you edit an automation on its own page, and a model authors one through the MCP endpoint."
     }
   },
   "en:platform/automations/editor": {
@@ -1550,7 +1366,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Approvals in workflows",
-      "description": "Where humans decide around workflows — approving the AI editor's changes to a definition, approving an agent's request to run a workflow, and answering the questions that pause a run."
+      "description": "Where a live run waits on a person — a connector write parked for approval, a question an agent node asks — and how a definition changes and goes live without a proposal card."
     }
   },
   "en:platform/automations/builtin": {
@@ -1558,7 +1374,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Built-in automations",
-      "description": "What each shipped automation does — the inbox trio, the Resolve GitHub issues bundle, the sync and upkeep templates, and the pre-installed packs that run your boards and mentions."
+      "description": "What each of the eight shipped automations does — mail sync and triage for Gmail, Outlook, and IMAP, and issue scoring and pull-request review for GitHub — and the connector each needs before you deploy it."
     }
   },
   "en:platform/automations/catalog": {
@@ -1598,7 +1414,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Manage project files",
-      "description": "The project's Knowledge tab holds the files every chat in the project can draw on — folders, uploading, index status, pinning, and how project files stay scoped to the project."
+      "description": "The project's Knowledge tab holds the files every chat in the project can draw on — folders, uploading, index status, and how project files stay scoped to the project."
     }
   },
   "en:platform/projects/project-agents": {
@@ -1622,7 +1438,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Project Backlog",
-      "description": "Backlog is a board status for proposed work — automations sync issues here, and you move tasks forward with the same drag, status picker, and assignee controls as every other lane."
+      "description": "Backlog is the board's intake status for work nobody has committed to yet — how a task lands there and how you move it forward with the same controls as every other column."
     }
   },
   "en:platform/projects/concepts": {
@@ -1646,7 +1462,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Connectors",
-      "description": "The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and chat."
+      "description": "The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and agent runs."
     }
   },
   "en:platform/connectors/mcp-servers": {
@@ -1654,7 +1470,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "MCP servers",
-      "description": "Register external tool servers under Settings > API > MCP — transport, authentication, the discovered tool list, and the per-tool approval flags that keep the trust boundary tight."
+      "description": "Registering external MCP servers for agents to call is not part of this version — Tale's one MCP surface is the inbound endpoint under Settings > API > MCP."
     }
   },
   "en:platform/member/overview": {
@@ -1662,7 +1478,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Member",
-      "description": "Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox, act on approvals. The pages here are what someone with the Member role does day to day."
+      "description": "Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox. The pages here are what someone with the Member role does day to day."
     }
   },
   "en:platform/member/install-as-app": {
@@ -1671,14 +1487,6 @@
     "frontmatter": {
       "title": "Install as app",
       "description": "How to install Tale as a Progressive Web App on desktop and mobile — the menu shortcut on Chromium browsers, the iOS Safari path, and what changes once the app is installed."
-    }
-  },
-  "en:platform/member/environment": {
-    "slug": "platform/member/environment",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Environment variables & secrets",
-      "description": "Your personal environment variables and secrets, injected into every sandbox you run in an organisation, and readable by nobody else."
     }
   },
   "en:platform/member/preferences": {
@@ -1694,7 +1502,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Configure approvals",
-      "description": "Where approval requirements are declared — per connector operation, per MCP tool, and built in for writes and workflow changes — and where to see what will ask before it runs."
+      "description": "Where approval requirements are declared — per connector operation, with one policy file per organization moving the line — and which human gates sit outside that policy."
     }
   },
   "en:platform/approvals/concepts": {
@@ -1702,7 +1510,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Approval concepts",
-      "description": "An approval is a card in the chat that holds an agent's action until you decide. This page names what fires one, the decisions each card offers, and what every decision leaves behind."
+      "description": "An approval is a parked step in a live automation run — a connector write waiting on the run's detail page until a person approves or rejects it. This page names what fires one, the decision it offers, and what it leaves behind."
     }
   },
   "en:platform/admin/changelog": {
@@ -1838,7 +1646,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agents (admin view)",
-      "description": "The org-wide agents list — every agent in the organisation, who owns it, who can reach it, and what it is allowed to touch."
+      "description": "What agents exist in this version and how an admin governs them — project agents on each project's Agents tab, and file-based agent personas in the organization's configuration."
     }
   },
   "en:platform/admin/teams": {
@@ -1902,7 +1710,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Knowledge entries",
-      "description": "Knowledge entries are small, topic-keyed facts in the knowledge base — captured from chat with human approval or added by hand — with one live version per topic and full version history."
+      "description": "Knowledge entries are small, topic-keyed facts in the knowledge base — added by hand or through the API — with one live version per topic and full version history."
     }
   },
   "en:platform/knowledge/documents": {
@@ -2194,7 +2002,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Cloud onboarding",
-      "description": "From demo request to a production-ready organization — get your own instance from the Tale team, create the org, invite the first admin, add a model provider, publish an agent, open chat."
+      "description": "From demo request to a production-ready organization — get your own instance from the Tale team, create the org, invite the first admin, add a model provider, staff a first project agent, open chat."
     }
   },
   "en:cloud/migrate-to-self-hosted": {
@@ -2244,7 +2052,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Your first day building agents",
-      "description": "The editor journey — create an agent, give it instructions, and watch it do real work on a task."
+      "description": "The editor journey — create a project agent, give it instructions, and watch it do real work on a task."
     }
   },
   "en:get-started/members": {
@@ -2294,7 +2102,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Develop",
-      "description": "Develop covers the API-consumer surface — REST API, webhooks, connector SDK, AI-assisted development workflow, status page, rate limits."
+      "description": "Develop covers the API-consumer surface — REST API, the MCP endpoint, webhooks, connectors, AI-assisted development workflow, status page, rate limits."
     }
   },
   "en:develop/connectors": {
@@ -2302,7 +2110,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Connectors",
-      "description": "How a connector is declared, what one of its actions promises a caller, and when to reach for an MCP server instead."
+      "description": "How a connector is declared, what one of its actions promises a caller, and where your own code goes when no connector fits."
     }
   },
   "en:develop/status-page": {
@@ -2326,7 +2134,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "AI-assisted development",
-      "description": "How Claude Code, Cursor, Copilot, and Windsurf edit a Tale project — the rules file each editor reads and the schema reference Tale generates under `.tale/reference/`."
+      "description": "How a coding agent edits a Tale project — the AGENTS.md and CLAUDE.md the CLI writes, the source mirror under .tale/reference/, and the org-first layout of the configuration files."
     }
   },
   "en:develop/rate-limits": {
@@ -2361,14 +2169,6 @@
       "description": "Rollenbasierte Aufgaben-Walkthroughs — Mitglied, Redakteur, Entwickler, Verwaltung. Jedes Tutorial bringt eine frische Instanz von „Ich möchte X tun\" zum funktionierenden Ergebnis."
     }
   },
-  "de:tutorials/developer/mcp-server-from-scratch": {
-    "slug": "tutorials/developer/mcp-server-from-scratch",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Einen MCP-Server von Grund auf hochziehen",
-      "description": "Verdrahte einen Model-Context-Protocol-Server als eigene Connector, damit jeder Agent in der Org seine Tools aufrufen kann."
-    }
-  },
   "de:tutorials/developer/trigger-automation-via-webhook": {
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "de",
@@ -2385,36 +2185,12 @@
       "description": "Erzeug einen API-Schlüssel und ruf die Tale-REST-API aus einem Bash- oder Python-Skript auf — der kürzeste End-to-End-Pfad vom Terminal zur Assistenten-Antwort."
     }
   },
-  "de:tutorials/developer/build-a-custom-tool": {
-    "slug": "tutorials/developer/build-a-custom-tool",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Ein eigenes Tool bauen",
-      "description": "Packe eine eigene Funktion als Tool ein, das Agenten aufrufen können, häng es an einen Agent und beobachte, wie es im Chat als Tool-Call erscheint."
-    }
-  },
   "de:tutorials/editor/first-agent-end-to-end": {
     "slug": "tutorials/editor/first-agent-end-to-end",
     "locale": "de",
     "frontmatter": {
       "title": "Deinen ersten Agent bauen",
-      "description": "Bring eine frische Org von „ich will einen Agent\" zu einem geprüften Aufgaben-Ergebnis, indem du die vier Knöpfe — Instruktionen, Wissen, Tools, Modell — der Reihe nach auf einer Instanz drehst."
-    }
-  },
-  "de:tutorials/editor/delegate-between-agents": {
-    "slug": "tutorials/editor/delegate-between-agents",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Arbeit an einen Worker geben",
-      "description": "Bitte den Assistenten um offene Recherche, sieh zu, wie er einen fokussierten Worker startet, und folge der Job-Karte — Live-Fortschritt, Ergebnis und vollständiges Protokoll."
-    }
-  },
-  "de:tutorials/editor/agent-with-knowledge": {
-    "slug": "tutorials/editor/agent-with-knowledge",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Einen Agent mit Wissen bauen",
-      "description": "Binde Dokumente aus der Wissensdatenbank an einen frischen Agent, damit seine Antworten die Dokumente zitieren statt aus dem parametrischen Modellgedächtnis zu raten."
+      "description": "Bring ein frisches Projekt von „ich will einen Agent“ zu einem geprüften Aufgaben-Ergebnis — leg einen Projekt-Agenten mit Agent-Laufzeit, Modell und einem Absatz Anweisungen an, gib ihm eine echte Aufgabe und prüfe, was zurückkommt."
     }
   },
   "de:tutorials/editor/workflow-with-approvals": {
@@ -2422,7 +2198,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einen Workflow mit Freigabe bauen",
-      "description": "Lass den KI-Editor einen Drei-Schritt-Workflow bauen, bei dem eine menschliche Entscheidung zwischen Entwurf und Versand sitzt, genehmige seinen Vorschlag und lies danach das Journal des Laufs."
+      "description": "Den KI-Editor und seine Vorschlagskarte gibt es in dieser Version nicht — einen Workflow mit menschlicher Entscheidung baust du auf dem Canvas, und der Lauf wartet auf diese Entscheidung auf seiner Detailseite."
     }
   },
   "de:tutorials/videos/chat-in-depth": {
@@ -2454,7 +2230,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 7 — Connectors & die Außenwelt",
-      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Connector, MCP-Server mit Freigabe-Flags pro Werkzeug und Egress, der im Zweifel schließt."
+      "description": "Die Türen aus dem Arbeitsbereich — Connectoren, deren Operationen und erlaubte Hosts du lesen kannst, der Tiefenrecherche-Gewinn einer angebundenen Connector, ein MCP-Abschnitt, der im Server-Panel der früheren Version aufgenommen wurde, und Egress, der im Zweifel schließt."
     }
   },
   "de:tutorials/videos/your-first-agent": {
@@ -2462,7 +2238,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 4 — Dein erster Agent",
-      "description": "Ein Agent, vor laufender Kamera gebaut — Name, Anweisungen, Wissensbereich, Werkzeuge, Modell — dann sichtbar gemacht und live getestet, mit klar benannter Vertrauensgrenze."
+      "description": "Ein Agent, im früheren Agenten-Editor vor laufender Kamera gebaut — Name, Anweisungen, Wissensbereich, Werkzeuge, Modell — mit klar benannter Vertrauensgrenze; die Ansichten haben sich seither geändert, die Überlegung nicht."
     }
   },
   "de:tutorials/videos/people-roles-and-teams": {
@@ -2529,14 +2305,6 @@
       "description": "Verwandle einen Einmal-Chat in einen geteilten Arbeitsraum, der dieselben Dateien, Instruktionen und Konversationen zusammenhält — und hör auf, jedes Mal dieselben Dokumente erneut hochzuladen."
     }
   },
-  "de:tutorials/admin/office-add-in": {
-    "slug": "tutorials/admin/office-add-in",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Das Outlook-Add-in installieren",
-      "description": "Roll die Tale-Sidebar in Outlook und Microsoft 365 aus, damit Mitglieder Antworten mit Tale-Agenten direkt aus dem Posteingang verfassen können."
-    }
-  },
   "de:tutorials/admin/meeting-transcription": {
     "slug": "tutorials/admin/meeting-transcription",
     "locale": "de",
@@ -2566,7 +2334,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Entwickler",
-      "description": "Entwickler ist die In-App-Entwickler-Oberfläche — API-Schlüssel, Custom Tools, Agent-Webhooks, MCP-Server. Die Seiten hier sind das, was eine Person mit Entwickler-Rolle durchklickt, wenn sie Tale an externen Code verdrahtet."
+      "description": "Entwickler ist die In-App-Entwickler-Oberfläche — API-Schlüssel für die REST-API, der MCP-Endpoint und die Connector-Zugangsdaten, mit denen eine Person mit Entwickler-Rolle Tale an externen Code anbindet."
     }
   },
   "de:platform/chat/overview": {
@@ -2582,7 +2350,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Geteilte Chats",
-      "description": "Einen Chat mit dem Rest deiner Organisation teilen — der Freigabelink in einer Geste, der schreibgeschützte Snapshot, den Empfänger sehen, und wie du das Teilen beendest."
+      "description": "Einen Chat mit dem Rest deiner Organisation teilen — der Freigabe-Dialog und sein Link, der schreibgeschützte Snapshot, den Empfänger sehen, und wie du das Teilen beendest."
     }
   },
   "de:platform/chat/voice-mode": {
@@ -2626,22 +2394,6 @@
       "description": "Redakteur ist die Bau-Oberfläche — Agents, Projekte, Automatisierungen und das Wissen erstellen, in das sie reichen. Die Seiten hier sind das, was eine Person mit Redakteurs-Rolle tagtäglich tut."
     }
   },
-  "de:platform/agents/create": {
-    "slug": "platform/agents/create",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Einen Agent erstellen",
-      "description": "Vom leeren Dialog zu einem einsatzfähigen Agenten — benennen, Anweisungen schreiben, Tools und Skills gewähren, Wissen eingrenzen und im Chat ausprobieren."
-    }
-  },
-  "de:platform/agents/tools": {
-    "slug": "platform/agents/tools",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Agent-Tools",
-      "description": "Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, Web-Zugang als Tool und Connectors und Automatisierungen als Fähigkeiten."
-    }
-  },
   "de:platform/agents/harnesses": {
     "slug": "platform/agents/harnesses",
     "locale": "de",
@@ -2658,38 +2410,6 @@
       "description": "Wie ein Skill aus der Bibliothek einen Agenten erreicht — die Agenten eines Projekts ausrüsten, wessen Sichtbarkeit zählt und wie ein Bundle in einer Sandbox-Sitzung landet."
     }
   },
-  "de:platform/agents/versions": {
-    "slug": "platform/agents/versions",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Agent-Versionen",
-      "description": "Die Verlauf-Ansicht des Agenten-Editors — jeder Speichervorgang als Snapshot, mit Diff gegen die aktuelle Version und Wiederherstellung per Klick."
-    }
-  },
-  "de:platform/agents/delegation": {
-    "slug": "platform/agents/delegation",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Agent-Worker",
-      "description": "Ein Agent kann über das spawn_agent-Tool einen fokussierten Worker für eine Aufgabe starten. Diese Seite gibt dir das Denkmodell — wann sich ein Worker lohnt, wie Fähigkeiten begrenzt bleiben und was die Job-Karte zeigt."
-    }
-  },
-  "de:platform/agents/image-generation": {
-    "slug": "platform/agents/image-generation",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Bildgenerierung",
-      "description": "Bildgenerierung ist ein Tool, das du jedem Agenten gewähren kannst — generate_image liefert ein Bild direkt in der Antwort, auf einem pro Zug gewählten Modell."
-    }
-  },
-  "de:platform/agents/knowledge": {
-    "slug": "platform/agents/knowledge",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Agent-Wissen",
-      "description": "Der Wissen-Tab des Agents — eine Einstellung dafür, welchen Bestand seine Suche lesen darf, und wie sich das von Tools unterscheidet."
-    }
-  },
   "de:platform/agents/concepts": {
     "slug": "platform/agents/concepts",
     "locale": "de",
@@ -2703,7 +2423,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungs-Assistent",
-      "description": "Der Chat-Agent, der auf eine Automatisierung fixiert ist — was er direkt editiert, was er für dich entwirft, und wie er bestehende Automatisierungen findet, bevor er eine neue baut."
+      "description": "Einen Chat-Agent, der auf eine Automatisierung fixiert ist, gibt es in dieser Version nicht — eine Automatisierung bearbeitest du auf ihrer eigenen Seite, und ein Modell verfasst sie über den MCP-Endpoint."
     }
   },
   "de:platform/automations/editor": {
@@ -2727,7 +2447,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Genehmigungen in Workflows",
-      "description": "Wo Menschen rund um Workflows entscheiden — Änderungen des KI-Editors an einer Definition genehmigen, die Anfrage eines Agents auf einen Workflow-Lauf genehmigen und die Fragen beantworten, die einen Lauf pausieren."
+      "description": "Wo ein Live-Lauf auf einen Menschen wartet — ein für die Freigabe geparkter Connector-Schreibzugriff, eine Frage einer Agent-Node — und wie eine Definition sich ändert und live geht, ohne Vorschlagskarte."
     }
   },
   "de:platform/automations/builtin": {
@@ -2735,7 +2455,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitgelieferte Automatisierungen",
-      "description": "Was jede mitgelieferte Automatisierung tut — das Posteingangs-Trio, das Bundle GitHub-Issues lösen, die Sync- und Pflege-Vorlagen und die vorinstallierten Pakete, die Boards und Erwähnungen am Laufen halten."
+      "description": "Was jede der acht mitgelieferten Automatisierungen tut — Mail-Sync und Sichtung für Gmail, Outlook und IMAP sowie Issue-Bewertung und Pull-Request-Prüfung für GitHub — und welchen Connector jede braucht, bevor du sie live schaltest."
     }
   },
   "de:platform/automations/catalog": {
@@ -2775,7 +2495,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekt-Dateien verwalten",
-      "description": "Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann — Ordner, Hochladen, Index-Status, Anheften und wie Projekt-Dateien auf das Projekt begrenzt bleiben."
+      "description": "Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann — Ordner, Hochladen, Index-Status und wie Projekt-Dateien auf das Projekt begrenzt bleiben."
     }
   },
   "de:platform/projects/project-agents": {
@@ -2799,7 +2519,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekt-Backlog",
-      "description": "Backlog ist ein Board-Status für vorgeschlagene Arbeit — Automatisierungen synchronisieren Issues hierher, und du bewegst Aufgaben mit denselben Drag-, Status- und Zuweisungs-Steuerelementen wie in jeder anderen Spalte."
+      "description": "Backlog ist der Eingangsstatus des Boards für Arbeit, zu der sich noch niemand verpflichtet hat — wie eine Aufgabe dort landet und wie du sie mit denselben Steuerelementen wie in jeder anderen Spalte weiterbewegst."
     }
   },
   "de:platform/projects/concepts": {
@@ -2823,7 +2543,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und im Chat landen."
+      "description": "Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und Agent-Läufen landen."
     }
   },
   "de:platform/connectors/mcp-servers": {
@@ -2831,7 +2551,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "MCP-Server",
-      "description": "Registriere externe Tool-Server unter Einstellungen > API > MCP — Transport, Authentifizierung, die Liste der erkannten Tools und die Genehmigungs-Flags pro Tool, die die Vertrauensgrenze eng halten."
+      "description": "Externe MCP-Server zu registrieren, damit Agenten sie aufrufen, gibt es in dieser Version nicht — Tales einzige MCP-Oberfläche ist der eingehende Endpoint unter Einstellungen > API > MCP."
     }
   },
   "de:platform/member/overview": {
@@ -2839,7 +2559,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitglied",
-      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten, Genehmigungen entscheiden. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut."
+      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut."
     }
   },
   "de:platform/member/install-as-app": {
@@ -2848,14 +2568,6 @@
     "frontmatter": {
       "title": "Als App installieren",
       "description": "Wie du Tale als Progressive Web App auf Desktop und Mobile installierst — die Menüverknüpfung in Chromium-Browsern, der iOS-Safari-Pfad und was sich ändert, sobald die App installiert ist."
-    }
-  },
-  "de:platform/member/environment": {
-    "slug": "platform/member/environment",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Umgebungsvariablen & Geheimnisse",
-      "description": "Deine persönlichen Umgebungsvariablen und Geheimnisse, die Tale in jede Sandbox einspeist, die du in einer Organisation startest, und die sonst niemand lesen kann."
     }
   },
   "de:platform/member/preferences": {
@@ -2871,7 +2583,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Genehmigungen konfigurieren",
-      "description": "Wo Genehmigungspflichten deklariert werden — pro Connector-Operation, pro MCP-Tool und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt."
+      "description": "Wo Genehmigungspflichten deklariert werden — pro Connector-Operation, mit einer Richtliniendatei pro Organisation, die die Grenze verschiebt — und welche menschlichen Tore außerhalb dieser Richtlinie liegen."
     }
   },
   "de:platform/approvals/concepts": {
@@ -2879,7 +2591,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Genehmigungskonzepte",
-      "description": "Eine Genehmigung ist eine Karte im Chat, die die Aktion eines Agents anhält, bis du entscheidest. Diese Seite benennt, was eine auslöst, welche Entscheidungen jede Karte bietet und was jede Entscheidung hinterlässt."
+      "description": "Eine Genehmigung ist ein geparkter Schritt in einem laufenden Automatisierungslauf — ein Connector-Schreibzugriff, der auf der Detailseite des Laufs wartet, bis ein Mensch ihn freigibt oder ablehnt. Diese Seite benennt, was eine auslöst, welche Entscheidung sie bietet und was sie hinterlässt."
     }
   },
   "de:platform/admin/changelog": {
@@ -3015,7 +2727,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agents (Admin-Sicht)",
-      "description": "Die organisationsweite Agenten-Liste — jeder Agent der Organisation, wem er gehört, wer an ihn herankommt und was er berühren darf."
+      "description": "Welche Agenten es in dieser Version gibt und wie ein Admin sie steuert — Projekt-Agenten auf dem Tab Agenten jedes Projekts und dateibasierte Agent-Personas in der Konfiguration der Organisation."
     }
   },
   "de:platform/admin/teams": {
@@ -3079,7 +2791,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Wissenseinträge",
-      "description": "Wissenseinträge sind kleine Fakten mit Themen-Schlüssel in der Wissensdatenbank — aus dem Chat mit menschlicher Freigabe erfasst oder von Hand hinzugefügt — mit einer aktiven Version pro Thema und vollem Versionsverlauf."
+      "description": "Wissenseinträge sind kleine Fakten mit Themen-Schlüssel in der Wissensdatenbank — von Hand oder über die API hinzugefügt — mit einer aktiven Version pro Thema und vollem Versionsverlauf."
     }
   },
   "de:platform/knowledge/documents": {
@@ -3371,7 +3083,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Cloud-Onboarding",
-      "description": "Von der Demo-Anfrage zu einer produktionsreifen Organisation — eigene Instanz vom Tale-Team, Org erstellen, ersten Admin einladen, Modellanbieter verbinden, Agent veröffentlichen, Chat öffnen."
+      "description": "Von der Demo-Anfrage zu einer produktionsreifen Organisation — eigene Instanz vom Tale-Team, Org erstellen, ersten Admin einladen, Modellanbieter verbinden, ersten Projekt-Agenten anlegen, Chat öffnen."
     }
   },
   "de:cloud/migrate-to-self-hosted": {
@@ -3421,7 +3133,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Dein erster Tag als Agent-Autor",
-      "description": "Der Einstieg für Redakteure — erstelle einen Agent, gib ihm Anweisungen und sieh ihm bei echter Arbeit auf einer Aufgabe zu."
+      "description": "Der Einstieg für Redakteure — erstelle einen Projekt-Agenten, gib ihm Anweisungen und sieh ihm bei echter Arbeit auf einer Aufgabe zu."
     }
   },
   "de:get-started/members": {
@@ -3471,7 +3183,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Entwicklung",
-      "description": "Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, Webhooks, Connector-SDK, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits."
+      "description": "Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, der MCP-Endpoint, Webhooks, Connectors, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits."
     }
   },
   "de:develop/connectors": {
@@ -3479,7 +3191,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Wie ein Connector deklariert wird, was eine seiner Aktionen einem Aufrufer zusichert und wann stattdessen ein MCP-Server die richtige Wahl ist."
+      "description": "Wie ein Connector deklariert wird, was eine seiner Aktionen einem Aufrufer zusichert und wohin dein eigener Code gehört, wenn kein Connector passt."
     }
   },
   "de:develop/status-page": {
@@ -3503,7 +3215,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "AI-gestützte Entwicklung",
-      "description": "Wie Claude Code, Cursor, Copilot und Windsurf ein Tale-Projekt bearbeiten — die Rules-Datei, die jeder Editor liest, und der Schema-Spiegel, den Tale unter `.tale/reference/` erzeugt."
+      "description": "Wie ein Coding-Agent ein Tale-Projekt bearbeitet — die AGENTS.md und CLAUDE.md, die die CLI schreibt, der Quell-Spiegel unter .tale/reference/ und die org-first-Struktur der Konfigurationsdateien."
     }
   },
   "de:develop/rate-limits": {

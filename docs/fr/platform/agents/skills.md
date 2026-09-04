@@ -13,7 +13,7 @@ Un bundle dont le frontmatter porte `disable-model-invocation: true` se comporte
 
 ## Équiper les agents d'un projet
 
-Un [agent de projet](/fr/platform/agents/create) porte son propre équipement, choisi dans le menu d'équipement du dialogue de l'agent. La liste y suit la visibilité du **projet**, pas la tienne : les skills de toute l'organisation, plus les skills d'équipe partagés avec l'une des équipes du projet. Un projet ouvert à toute l'organisation ne voit que les skills d'organisation, et les anciens skills privés n'apparaissent jamais — un agent de projet tourne pour chaque membre du projet, son équipement ne doit donc jamais embarquer quelque chose que seule son autrice pouvait voir.
+Un [agent de projet](/fr/platform/projects/project-agents) porte son propre équipement, choisi dans le menu d'équipement du dialogue de l'agent. La liste y suit la visibilité du **projet**, pas la tienne : les skills de toute l'organisation, plus les skills d'équipe partagés avec l'une des équipes du projet. Un projet ouvert à toute l'organisation ne voit que les skills d'organisation, et les anciens skills privés n'apparaissent jamais — un agent de projet tourne pour chaque membre du projet, son équipement ne doit donc jamais embarquer quelque chose que seule son autrice pouvait voir.
 
 La même règle tient à l'exécution. Un run de tâche charge les skills de l'agent en tant que projet ; une automatisation au niveau de l'organisation charge en tant qu'organisation. Un skill qui devient invisible pour ce périmètre fait échouer le run en le nommant, plutôt que de tourner sans lui en silence — un équipement choisi qui manque sans bruit est pire qu'un run raté.
 

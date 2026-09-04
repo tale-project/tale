@@ -66,8 +66,10 @@ export class DocumentError extends Error {
     message: string,
     status: 400 | 403 | 404 | 429 = 400,
     data?: Record<string, unknown>,
+    /** The refusal this one wraps (a rate limit), for the door to answer. */
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = 'DocumentError';
     this.code = code;
     this.status = status;
@@ -1510,9 +1512,15 @@ export async function validateDocumentUploadForOrg(
     await checkOrganizationRateLimit(sql, 'file:upload', auth.organizationId);
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
-      throw new DocumentError('RATE_LIMITED', error.message, 429, {
-        retryAfterMs: error.retryAfter,
-      });
+      // Coded for the REST helpers and bridges that read codes; the app door
+      // answers the one 429 from the cause (`rateLimitExceededCause`).
+      throw new DocumentError(
+        'RATE_LIMITED',
+        error.message,
+        429,
+        { retryAfterMs: error.retryAfter },
+        { cause: error },
+      );
     }
     throw error;
   }

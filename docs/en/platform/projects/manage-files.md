@@ -1,11 +1,11 @@
 ---
 title: Manage project files
-description: The project's Knowledge tab holds the files every chat in the project can draw on — folders, uploading, index status, pinning, and how project files stay scoped to the project.
+description: The project's Knowledge tab holds the files every chat in the project can draw on — folders, uploading, index status, and how project files stay scoped to the project.
 ---
 
 A project's **Knowledge** tab is the shared file area every chat inside the project can reach. Upload a file once and every chat in the project — and every agent that runs inside it — can read it without re-uploading. This page covers the folder tree, the upload mechanic, pinning, and the limits.
 
-The Knowledge tab is not the org-wide knowledge base in the [Documents](/platform/knowledge/documents) sense. Its files are scoped to one project and never appear in the org-wide library, in `@` pickers outside the project, or over WebDAV; deleting the project deletes the files. For org-wide reference material, use [Documents](/platform/knowledge/documents) and bind it to agents.
+The Knowledge tab is not the org-wide knowledge base in the [Documents](/platform/knowledge/documents) sense. Its files are scoped to one project and never appear in the org-wide library or over WebDAV; deleting the project deletes the files. For org-wide reference material, use [Documents](/platform/knowledge/documents) and bind it to agents.
 
 <Frame caption="The Knowledge tab — the project's file tree, every file scoped to this project and indexed for retrieval.">
 
@@ -19,7 +19,7 @@ Project files live in a folder tree. **New folder** creates a folder at the root
 
 ## A worked upload
 
-Open the project, click **Knowledge**, select the target folder (or none for the root), and drag files onto the drop area. The row appears in the tree and resolves to **Indexed** once retrieval has picked it up. The same upload is now reachable from any chat the project owns: send a message that references the topic and the agent retrieves it, or type `@` in the chat and pin the file — or a whole folder — to the turn.
+Open the project, click **Knowledge**, select the target folder (or none for the root), and drag files onto the drop area. The row appears in the tree and resolves to **Indexed** once retrieval has picked it up. The same upload is now reachable from any chat the project owns: send a message that names the topic and the assistant retrieves it, loading the full text when a snippet is not enough.
 
 ## Replacing and deleting
 
@@ -35,9 +35,9 @@ Per-file and per-project limits are set by the org under [Policies and limits](/
 
 ## Surfacing in chats
 
-A chat started inside a project automatically has access to every file in the project's Knowledge tab. The agent's retrieval tool sees project files alongside any agent-bound Knowledge sources. Citations from project files are scoped to the chat that produced them — sharing that chat outside the project preserves the citations, but the viewer cannot click through to the source unless they are also in the project.
+A chat started inside a project automatically has access to every file in the project's Knowledge tab. The assistant's retrieval tool sees project files alongside the organization's knowledge. Citations from project files are scoped to the chat that produced them — sharing that chat outside the project preserves the citations, but the viewer cannot click through to the source unless they are also in the project.
 
-Pinning with `@` narrows a single turn: `@file` pins one file, `@folder` pins a folder and everything under it (the picker offers the project's folders inside project chats, and org-wide folders everywhere). Pinned files are also delivered to the agent's sandbox under `/agent/uploads`, so a project agent on a coding harness — Claude Code and the other harnesses included — can open the actual bytes, not just quote retrieval snippets.
+There is no `@` picker in the composer in this version — a message names the topic, retrieval finds the file, and the assistant loads the full text with its fetch tool when it needs more than a snippet. A project agent working a board task gets its files another way: the task's attachments are mirrored read-only into its sandbox under `/agent/inputs/<task>/attachments/`, so a coding harness opens the real bytes rather than a retrieval snippet — [Harnesses](/platform/agents/harnesses) covers that path.
 
 ## Where this fits
 

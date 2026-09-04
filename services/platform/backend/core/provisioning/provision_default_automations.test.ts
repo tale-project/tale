@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { assertAutomationName } from '../automations/store';
+import { assertAutomationName } from '../../domains/automations/store.ts';
 import { loadSeedablePacks } from './provision_default_automations';
 
 const REPO_CATALOG = path.resolve(

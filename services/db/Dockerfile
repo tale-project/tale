@@ -84,7 +84,8 @@ COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmat
 # Migration sets, grouped by container role (TALE_DB_ROLE), each schema in its
 # own subdirectory so it gets a schema-scoped dbmate tracking table:
 #   migrations/knowledge-db/<schema>/ → applied to `tale_knowledge` (knowledge-db)
-#   migrations/db/                    → platform DB (Convex-owned; ships empty —
+#   migrations/db/                    → platform role; ships empty (`tale_app` is
+#                                       migrated by the platform backend at boot;
 #                                       its only file is a *.md, dockerignored)
 # docker-entrypoint.sh applies the set matching this container's role.
 COPY services/db/migrations/ /etc/postgresql/migrations/
@@ -123,6 +124,20 @@ ENV DB_LOG_STATEMENT=none \
     DB_LOG_MIN_DURATION_STATEMENT=-1
 
 EXPOSE 5432
+
+# Stop with SIGINT — PostgreSQL's *fast* shutdown (disconnect every client,
+# checkpoint, exit cleanly). The official postgres image and the ParadeDB base
+# built on it set exactly this (`docker inspect paradedb/paradedb:0.22.6-pg16`
+# → Config.StopSignal = SIGINT), but the `FROM scratch` stage above drops it
+# with the rest of the image config, leaving Docker's default SIGTERM. For
+# PostgreSQL SIGTERM is the *smart* shutdown, which waits for every client
+# session to end: a client outside compose (a host-side `bun dev` backend, a
+# psql shell) keeps its pooled sessions open, the stop never completes, and
+# Docker SIGKILLs the server once the grace period runs out — turning every
+# orderly stop into a crash recovery. One such kill left a never-initialised
+# tail page in the knowledge corpus's BM25 index, and pg_search then PANICked
+# on every write. compose.yml mirrors this as `stop_signal: SIGINT`.
+STOPSIGNAL SIGINT
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=10 \
     CMD pg_isready -U ${DB_USER:-tale} -d ${DB_NAME:-tale} && test -f /tmp/.db_ready || exit 1

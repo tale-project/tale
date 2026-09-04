@@ -1,61 +1,49 @@
 ---
 title: Automatisations livrées
-description: Ce que fait chaque automatisation livrée — le trio boîte de réception, le bundle Résoudre les issues GitHub, les modèles de synchronisation et d’entretien, et les packs préinstallés qui font tourner tableaux et mentions.
+description: Ce que fait chacune des huit automatisations livrées — synchronisation et tri du courrier pour Gmail, Outlook et IMAP, évaluation des issues et examen des pull requests pour GitHub — et le connector dont chacune a besoin avant sa mise en service.
 ---
 
-Tale livre des automatisations prêtes à l’emploi : trois à but unique qui transforment une boîte aux lettres en une boîte de réception partagée, et un bundle qui résout les issues GitHub de bout en bout. Les Éditeurs et Membres se servent de ce qu’une automatisation installée ajoute — un onglet Boîte de réception, une entrée de Backlog — sans rien installer eux-mêmes ; installer est une action Propriétaire/Admin/Développeur couverte sur [Parcourir et installer des automatisations](/fr/platform/automations/catalog). Cette page nomme ce que fait chacune et l’connector qu’il faut connecter en premier.
+Tale livre huit automatisations, et chaque organisation démarre avec toutes en place : trois qui tirent une boîte aux lettres dans la **Boîte de réception** partagée, trois qui résument ce qui y est arrivé, et deux pour GitHub — l’une évalue les issues ouvertes, l’autre examine les pull requests ouvertes. Chacune arrive en version 1, son planning déjà lié et le badge **Pas en service** affiché ; rien ne tourne donc tant qu’un Propriétaire, un Admin ou un Développeur n’a pas connecté le connector requis et mis l’automatisation en service. Cette page nomme ce que fait chaque paquet, à quelle fréquence il tourne et ce dont il a besoin ; la mécanique de la mise en service est sur [L’éditeur de workflow](/fr/platform/automations/editor).
 
-<Frame caption="Le catalogue des automatisations — chaque carte est à une installation près ; les membres de packs cachés et l’intérieur des bundles restent hors de la liste.">
+<Frame caption="La page Automatisations d’une organisation fraîche — chaque paquet semé est une version portant Pas en service jusqu’à ce que tu le mettes en service.">
 
-![Le catalogue des automatisations sur l’onglet Toutes les automatisations, avec les cartes des automatisations e-mail et du bundle Résoudre les issues GitHub, chacune avec son icône et sa description.](/images/platform/automations-catalog.webp)
+![La page Automatisations listant les automatisations semées github-review-pull-requests, github-triage-issues, gmail-triage-inbox, imap-smtp-triage-inbox et outlook-triage-inbox, chacune avec une version et un badge Pas en service, sous les boutons Téléverser un paquet et Nouvelle automatisation.](/images/platform/automations-catalog.webp)
 
 </Frame>
 
-## Synchroniser les e-mails Gmail, Outlook et IMAP
+## Comment les paquets arrivent
 
-**Synchroniser les e-mails Gmail**, **Synchroniser les e-mails Outlook** et **Synchroniser les e-mails via SMTP/IMAP** sont la même automatisation répétée trois fois, une par type de boîte aux lettres : chacune requiert exactement le connecteur que son nom indique, chacune installe la même vue intégrée **Boîte de réception**, indépendante du canal, et chacune embarque le workflow de synchronisation qui rapatrie la boîte aux lettres dans les conversations selon une planification, toutes les cinq minutes d'origine — change le [déclencheur de planification](/fr/platform/automations/triggers) pour rapatrier moins souvent. Une organisation qui reçoit du courrier sur plus d'un type de boîte aux lettres en installe plusieurs ; chaque Boîte de réception ne montre que le trafic de sa propre boîte aux lettres. Quand un connecteur porte plusieurs identifiants — deux boîtes IMAP, deux comptes Gmail — une passe de sync couvre chaque identifiant actif, et chaque boîte garde sa propre position dans son propre courrier : une boîte ajoutée plus tard ne saute donc pas tout ce qui est plus ancien que ce que la première a déjà relevé. Une boîte injoignable est laissée de côté pour cette passe et reprise à la suivante, sans retenir les autres. Les automatisations **Trier la boîte de réception …** correspondantes se répartissent de la même façon avant d’écrire un seul résumé sur chaque boîte connectée.
+Les paquets sont semés à la création de l’organisation, pas installés depuis un catalogue. Le semis fait attention à ce qui existe déjà : un paquet dont l’organisation tient déjà une version, quelle qu’elle soit, est laissé tel quel — seuls son nom et sa description livrés se rafraîchissent — et un paquet que tu as supprimé reste supprimé ; un déploiement ultérieur ne le ramène jamais. Ouvre un paquet comme n’importe quelle automatisation pour lire son document sur le canvas, suivre ses [journaux d’exécution](/fr/platform/automations/execution-logs), changer son [déclencheur](/fr/platform/automations/triggers) ou le modifier — une modification devient une nouvelle version que tu mets en service quand tu es prêt.
 
-| Automatisation                         | Requiert  | Boîte aux lettres                 |
-| -------------------------------------- | --------- | --------------------------------- |
-| Synchroniser les e-mails Gmail         | Gmail     | Une boîte Gmail                   |
-| Synchroniser les e-mails Outlook       | Outlook   | Une boîte Microsoft Outlook       |
-| Synchroniser les e-mails via SMTP/IMAP | IMAP/SMTP | Toute boîte privée en IMAP / SMTP |
+## Tirer une boîte aux lettres dans la Boîte de réception
 
-## L’onglet Boîte de réception
+**Synchroniser les e-mails Gmail**, **Synchroniser les e-mails Outlook** et **Synchroniser les e-mails via SMTP/IMAP** sont la même automatisation trois fois, une par type de boîte. Chacune tire les nouveaux messages dans les conversations toutes les cinq minutes et déclare la vue **Boîte de réception** : dès que l’une d’elles est en service, **Boîte de réception** apparaît dans la navigation et le formulaire de rédaction propose la boîte connectée — jusque-là, la page de la boîte te renvoie vers **Automatisations**. Chacune a d’abord besoin de son connector de courrier connecté.
 
-Chacune des trois s’ouvre sur son onglet **Boîte de réception** : quatre sous-onglets — **Ouvert**, **Fermé**, **Spam**, **Archivé** — chacun une vue scindée avec la liste des conversations à gauche et le fil sélectionné à droite. Ouvrir une conversation remplit le panneau de droite avec tout l’historique de ses messages ; tant que tu n’en as choisi aucune, le panneau affiche **Sélectionne une conversation pour voir les détails**.
+| Automatisation                         | Requiert  | Planning             |
+| -------------------------------------- | --------- | -------------------- |
+| Synchroniser les e-mails Gmail         | Gmail     | Toutes les 5 minutes |
+| Synchroniser les e-mails Outlook       | Outlook   | Toutes les 5 minutes |
+| Synchroniser les e-mails via SMTP/IMAP | IMAP/SMTP | Toutes les 5 minutes |
 
-Le champ de message se trouve sous le fil dans l’onglet **Ouvert** — les réponses appartiennent aux conversations actives, donc les trois autres onglets sont en lecture seule. Écris dans **Saisis un message** et clique sur **Envoyer** ; la réponse part par la boîte aux lettres sur laquelle la conversation est arrivée, avec le destinataire et l’objet dérivés du fil — rien à adresser à la main. L’en-tête du fil montre le vrai **Expéditeur** de cette conversation — l’adresse à laquelle le contact a écrit, ou l’expéditeur que tu choisis à la rédaction — pour que ce que tu vois corresponde à ce qu’une réponse envoie vraiment. Sur une connexion Gmail ou Outlook, le champ **Expéditeur** à la rédaction est l’adresse du compte connecté ; sur IMAP/SMTP tu n’édites que la partie locale de **Expéditeur**, et le domaine vérifié reste fixé en badge pour que tu ne le quittes jamais. **Améliorer** réécrit ton brouillon avec l’IA avant l’envoi. Sur l’automatisation IMAP, les réponses envoyées depuis la boîte elle-même — depuis n’importe quel client mail — se synchronisent aussi dans la conversation, ordonnées avec le reste du fil.
+## Résumer ce qui est arrivé
 
-L’en-tête du fil porte les verbes de statut de la conversation sélectionnée — **Fermer la conversation** et **Marquer comme spam** sur un fil ouvert, **Rouvrir la conversation** sur un fil fermé ou archivé, **Pas du spam** et le destructeur **Supprimer** sur le spam. Sélectionner plusieurs lignes dans la liste fait apparaître les mêmes verbes en actions groupées.
+**Trier la boîte de réception Gmail**, **Trier la boîte de réception Outlook** et **Trier la boîte de réception IMAP** lisent toutes les six heures les messages les plus récents de chaque boîte connectée de leur type et écrivent un résumé : ce qui est arrivé, en bref, et les messages qui demandent manifestement une réponse aujourd’hui. Le résumé est la sortie de l’exécution — ouvre l’exécution dans les [journaux d’exécution](/fr/platform/automations/execution-logs) pour le lire. Rien n’est réécrit dans la boîte, et aucune conversation ne change de statut.
 
-Les Admins et Propriétaires utilisent aussi le contrôle **Responsable** dans l’en-tête pour mettre le travail en file. Ouvre-le et choisis sous **Personnes** et **Équipe** — les deux dimensions sont indépendantes, donc une conversation peut rester dans la file d’une équipe et être quand même assignée à une personne. Changer la personne la notifie dans l’app et par e-mail ; assigner à une équipe notifie les membres de cette équipe (l’acteur est exclu dans les deux cas). S’assigner soi-même, retirer la personne (**Retirer l'attribution**) et retirer l’équipe (**Retirer l'équipe**) ne notifient personne. Les non-admins voient l’assignation courante en lecture seule. La visibilité suit l’assignation : les Membres ne voient que leurs propres files et celles de leurs équipes ; le courrier vraiment non assigné est réservé au triage admin. Associe l’assignation au [Routage des conversations](/fr/platform/admin/governance/policies-and-limits#routage-des-conversations) quand les adresses entrantes doivent atterrir automatiquement dans une file.
+| Automatisation                      | Requiert  | Planning            |
+| ----------------------------------- | --------- | ------------------- |
+| Trier la boîte de réception Gmail   | Gmail     | Toutes les 6 heures |
+| Trier la boîte de réception Outlook | Outlook   | Toutes les 6 heures |
+| Trier la boîte de réception IMAP    | IMAP/SMTP | Toutes les 6 heures |
 
-## Résoudre les issues GitHub
+## Évaluer les issues et examiner les pull requests sur GitHub
 
-**Résoudre les issues GitHub** est un bundle, pas une automatisation seule : l’installer lance un seul assistant agrégé qui installe quatre automatisations cachées d’un coup, liées au projet que tu choisis, et requiert l’connector GitHub. Chaque membre couvre une étape de la boucle. **Trier les issues GitHub** — « Évalue les issues GitHub ouvertes d’un dépôt et propose les issues exploitables dans le backlog du projet — un humain les démarre depuis là. » — tourne sur une planification récurrente. **Synchroniser les issues GitHub** — « Termine une tâche du tableau lorsque son issue GitHub est fermée. Parcourt les tâches ouvertes du tableau lui-même, sans jamais en manquer. Mise à jour uniquement — ne crée jamais de tâche. » — que la fermeture vienne de la chaîne de résolution ou d’un humain agissant directement sur GitHub, le résultat est le même : jamais de création, jamais de réouverture. **Créer des pull requests GitHub** livre l’agent PR Creator : une fois qu’un humain a cliqué **Démarrer** sur une tâche proposée, il clone le dépôt, ouvre ou reprend la pull request de l’issue, implémente le correctif, le vérifie contre les tests du projet, et attend que la CI passe au vert. **Examiner les pull requests GitHub** livre l’agent PR Reviewer : il reteste la branche du PR Creator, confirme la CI, et un juge sans outils décide de la fusionnabilité — approuvé gare la tâche en **En revue** pour qu’un humain la fusionne sur GitHub ; non approuvé la renvoie au PR Creator avec un retour, jusqu’à un petit plafond de reprises.
+**Trier les issues GitHub** liste une fois par jour, à 07:00 UTC, les issues ouvertes d’un dépôt, évalue pour chacune si elle est exploitable et à quel point elle est urgente, et renvoie une courte liste classée avec une phrase de justification par issue. En lecture seule : rien n’est écrit sur GitHub, et aucune tâche n’est créée sur aucun tableau — la liste est un rapport sur lequel une personne agit. **Examiner les pull requests GitHub** lit toutes les trente minutes le diff de chaque pull request ouverte, l’examine et publie ses conclusions en commentaire de revue sur la pull request. Jamais d’approbation ni de fusion — cela reste humain. Les deux ont besoin du connector GitHub connecté.
 
-Un humain reste dans la boucle à deux moments : démarrer une tâche proposée depuis le Backlog, et fusionner la pull request sur GitHub lui-même — rien dans le bundle ne fusionne à ta place.
+| Automatisation                    | Requiert | Planning                | Écrit                                                |
+| --------------------------------- | -------- | ----------------------- | ---------------------------------------------------- |
+| Trier les issues GitHub           | GitHub   | Chaque jour à 07:00 UTC | Rien — la liste classée est la sortie de l’exécution |
+| Examiner les pull requests GitHub | GitHub   | Toutes les 30 minutes   | Un commentaire de revue par pull request ouverte     |
 
-## Modèles de synchronisation et d’entretien
+## Où cela se place
 
-Huit automatisations de plus attendent dans le catalogue pour le moment où tu en as besoin. Chacune est un workflow unique : installe-la, pointe-la vers tes données — les modèles de synchronisation demandent leur source via la planification qu’ils créent — puis ajuste-la librement sur la page de l’automatisation, où une modification devient une nouvelle version que tu mets en service quand tu es prêt.
-
-| Automatisation                             | Requiert     | Ce qu’elle fait                                                                                    |
-| ------------------------------------------ | ------------ | -------------------------------------------------------------------------------------------------- |
-| Synchroniser les pages Confluence          | Confluence   | Importe les pages d’un espace Confluence dans la bibliothèque de connaissances selon un planning   |
-| Synchroniser les fichiers Google Drive     | Google Drive | Importe les documents d’un dossier Drive dans la bibliothèque de connaissances                     |
-| Synchroniser les clients Shopify           | Shopify      | Importe les clients de la boutique dans les fiches contacts de l’organisation                      |
-| Synchroniser les produits Shopify          | Shopify      | Importe le catalogue produits de la boutique dans les fiches produits de l’organisation            |
-| Analyser les relations entre produits      | —            | Parcourt le catalogue et consigne accessoires, variantes et compléments                            |
-| Indexer les documents pour la recherche    | —            | Indexe les documents fraîchement importés pour que les agents puissent les rechercher et les citer |
-| Archiver les conversations inactives       | —            | Clôt les conversations restées silencieuses au-delà de leur période d’inactivité                   |
-| Notifier les membres des messages entrants | —            | Alerte les membres dès qu’un nouveau message entrant arrive dans une conversation ouverte          |
-
-## Les packs préinstallés
-
-La mécanique qui fait tourner les tableaux de chaque organisation est elle aussi faite d’automatisations — installées automatiquement à la création, cachées du catalogue, mais visibles sur l’onglet **Installées** comme tout le reste. Le **pack tâches** lance un agent assigné dès qu’une tâche lui arrive, trie le travail non assigné, réagit aux @-mentions, fait passer le travail terminé par la relecture, balaie les exécutions bloquées, fait respecter les SLA et garde en mouvement tâches dépendantes, sous-tâches et archives ; un pack voisin garde les fichiers OneDrive synchronisés. Chacune est une automatisation normale — ouvre-la pour lire son document sur le canvas, suivre ce qu’elle a fait dans sa [liste des exécutions](/fr/platform/automations/execution-logs), ou couper un [déclencheur](/fr/platform/automations/triggers) pour qu’elle cesse de se lancer ; une désinstallation tient, et rien ne la réinstalle dans ton dos.
-
-## Où cela s’inscrit
-
-Les automatisations de boîte de réception, le bundle Résoudre les issues GitHub et les modèles de synchronisation sont ce qui est livré aujourd’hui ; une automatisation privée que ton organisation construit ou téléverse apparaît dans le même catalogue, juste à côté. [Parcourir et installer des automatisations](/fr/platform/automations/catalog) couvre la mécanique du catalogue ; [Backlog du projet](/fr/platform/projects/backlog) est la lecture suivante pour ce qui arrive à une tâche une fois que Trier les issues GitHub l’a proposée.
+Huit paquets, deux familles : le courrier tiré dans la Boîte de réception et résumé, GitHub évalué et examiné — chacun une automatisation normale que tu mets en service, modifies et versionnes comme les tiennes. [Ajouter des automatisations](/fr/platform/automations/catalog) couvre l’écriture sur le canvas et le téléversement de tes propres paquets ; [L’éditeur de workflow](/fr/platform/automations/editor) la mise en service d’une version ; [Backlog du projet](/fr/platform/projects/backlog) explique le statut du tableau qu’utilise le travail proposé — et pourquoi rien de livré ne le remplit tout seul.

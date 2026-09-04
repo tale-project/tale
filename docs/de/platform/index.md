@@ -14,7 +14,7 @@ Der Abschnitt ist nach Bereich und innerhalb eines Bereichs nach Feature geglied
 
 <Card title="Chat" icon="message-circle" href="/de/platform/chat/overview">
 
-Der alltägliche Einstieg — Konversationen, Agents im Chat, Anhänge, Arena-Modus, Sprachmodus, der Canvas-Bereich, Teilen.
+Der alltägliche Einstieg — Konversationen, der Assistent, Anhänge, Arena-Modus, Sprachmodus, der Canvas-Bereich, Teilen.
 
 </Card>
 
@@ -62,7 +62,7 @@ Der Modellkatalog hinter jedem Picker — Fähigkeits-Tags, Standards und die au
 
 <Card title="Connectors" icon="plug" href="/de/platform/connectors/overview">
 
-Drittanbieter-Pairings und MCP-Server.
+Drittanbieter-Connectors und die Zugangsdaten dahinter.
 
 </Card>
 
@@ -88,7 +88,7 @@ Die Bau-Oberfläche — Agents, Wissenspflege, Automatisierungen, Projekte.
 
 <Card title="Entwickler" icon="terminal" href="/de/platform/developer/overview">
 
-API-Schlüssel, eigene Tools, Webhooks, MCP-Server — Tale an externen Code anbinden.
+API-Schlüssel, der MCP-Endpoint, Connector-Zugangsdaten — Tale an externen Code anbinden.
 
 </Card>
 

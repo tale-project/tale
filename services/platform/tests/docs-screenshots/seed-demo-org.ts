@@ -19,10 +19,11 @@ import { matchDocsReply } from '../../lib/mocks/overrides/docs-replies';
 import { E2E_PASSWORD } from '../e2e/helpers/auth';
 import {
   deleteThreadById,
+  messageLog,
   sendNewThreadMessage,
   waitForReplyComplete,
 } from '../e2e/helpers/chat';
-import { TIMEOUT } from '../e2e/helpers/env';
+import { ENTITY_ID, TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';
 import { t } from '../e2e/helpers/i18n';
 import {
@@ -31,23 +32,27 @@ import {
   DEMO_CUSTOM_INSTRUCTIONS,
   DEMO_DEPARTING_MEMBER,
   DEMO_DOCUMENTS,
-  DEMO_ENV_VARS,
   DEMO_ERASURE_REQUEST,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LEGAL_HOLD_REASON,
   DEMO_LEGAL_MATTER,
   DEMO_MEMBERS,
   DEMO_OWNER,
+  DEMO_PROJECT_AGENTS,
   DEMO_PROJECT_DESCRIPTION,
   DEMO_PROJECT_FILES,
+  DEMO_PROJECT_INSTRUCTIONS,
   DEMO_PROJECTS,
   DEMO_PRODUCTS,
+  DEMO_PROVIDER_CREDENTIAL,
   DEMO_TEAMS,
   DEMO_WEBDAV_LABELS,
+  MOCK_PROVIDER_DISPLAY_NAME,
   type DemoDocument,
   type DemoKnowledgeEntry,
   type DemoProduct,
   type DemoProject,
+  type DemoProjectAgent,
 } from './demo-content';
 
 /** The member the legal hold freezes — never the erasure subject (a hold BLOCKS
@@ -118,6 +123,28 @@ async function alreadySeeded(record: Locator): Promise<boolean> {
     .catch(() => false);
 }
 
+/**
+ * Settle a credentials table (Settings > AI providers / Connectors) and answer
+ * whether the seeded row is already there. These tables replace themselves
+ * with an empty-state hero at zero rows (no row-count footer), and the hero
+ * flashes while the query is still in flight — so an instant presence check
+ * read "not seeded" against a loading table and filed a DUPLICATE, which the
+ * mutation refuses; the dialog then stayed open on its error and, being modal,
+ * hid every row behind it from the role queries that followed.
+ */
+async function settleCredentialsTable(
+  page: Page,
+  seededRow: Locator,
+  emptyTitle: string,
+): Promise<boolean> {
+  const empty = page.getByRole('heading', { name: emptyTitle });
+  await expect(seededRow.or(empty).first()).toBeVisible({
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
+  if (await isPresent(empty)) await page.waitForTimeout(750);
+  return isPresent(seededRow);
+}
+
 interface SeededIds {
   /** Thread id per chat prompt. */
   readonly threads: Map<string, string>;
@@ -125,7 +152,9 @@ interface SeededIds {
   readonly projects: Map<string, string>;
 }
 
-const PROJECT_URL = /\/projects\/([A-Za-z0-9]{16,})/;
+// 0.5 ids are hyphenated UUIDs — `ENTITY_ID` (env.ts), not a bare word class.
+const PROJECT_URL = new RegExp(`/projects/(${ENTITY_ID})`);
+const CHAT_THREAD_URL = new RegExp(`/chat/(${ENTITY_ID})`);
 
 async function ensureProject(
   page: Page,
@@ -260,12 +289,103 @@ async function ensureProjectDescription(
     name: t('projects.settings.description'),
   });
   await expect(description).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  if ((await description.inputValue()) !== '') return;
-  await description.fill(DEMO_PROJECT_DESCRIPTION);
+  // The standing instructions live on the same tab and share its ONE
+  // Save/Discard cluster with the identity form — fill whatever is still
+  // blank, then save once.
+  const instructions = page.getByRole('textbox', {
+    name: t('projects.instructions.label'),
+  });
+  await expect(instructions).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  let dirty = false;
+  if ((await description.inputValue()) === '') {
+    await description.fill(DEMO_PROJECT_DESCRIPTION);
+    dirty = true;
+  }
+  if ((await instructions.inputValue()) === '') {
+    await instructions.fill(DEMO_PROJECT_INSTRUCTIONS);
+    dirty = true;
+  }
+  if (!dirty) return;
   const save = page.getByRole('button', { name: t('common.actions.save') });
   await save.click();
   // The Save/Discard cluster disables once the form is clean again.
   await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
+}
+
+/**
+ * The flagship project's crew (Agents tab) — the surface the docs and the
+ * README lead with, so it must show named agents, never the empty state.
+ * Each is created through the New agent dialog: a name, the agent type, a
+ * model searched from the catalog the mock provider serves, and standing
+ * instructions; equipment stays empty. Runs after the mock provider exists,
+ * or the model picker has nothing to offer.
+ */
+async function ensureProjectAgents(
+  page: Page,
+  orgId: string,
+  projectId: string,
+  agents: readonly DemoProjectAgent[] = DEMO_PROJECT_AGENTS,
+): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/projects/${projectId}/agents`);
+  // Settled is the empty state OR a row's action button — the section title
+  // paints before the list query answers.
+  const rowEdit = page.getByRole('button', {
+    name: t('projects.agents.rowEdit'),
+  });
+  await expect(
+    page.getByText(t('projects.agents.emptyTitle')).or(rowEdit.first()).first(),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  for (const agent of agents) {
+    if (await isPresent(page.getByText(agent.name, { exact: true }))) continue;
+    await page
+      .getByRole('button', { name: t('projects.agents.newAgent') })
+      .click();
+    const dialog = page.getByRole('dialog', {
+      name: t('projects.agents.dialogCreateTitle'),
+    });
+    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await dialog
+      .getByRole('textbox', {
+        name: t('projects.agents.nameLabel'),
+        exact: true,
+      })
+      .fill(agent.name);
+    await dialog
+      .getByRole('combobox', { name: t('projects.agents.harnessLabel') })
+      .click();
+    await page
+      .getByRole('option', { name: agent.harness, exact: true })
+      .click();
+    // The model picker is a searchable select: its trigger is labelled by the
+    // field label, its search box by the search placeholder.
+    await dialog
+      .getByRole('button', {
+        name: t('projects.agents.modelLabel'),
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole('combobox', {
+        name: t('projects.agents.modelSearchPlaceholder'),
+      })
+      .fill(agent.model);
+    await page.getByRole('option', { name: agent.model }).first().click();
+    await dialog
+      .getByRole('textbox', {
+        name: t('projects.agents.instructionsLabel'),
+        exact: true,
+      })
+      .fill(agent.instructions);
+    await dialog
+      .getByRole('button', {
+        name: t('projects.agents.createSubmit'),
+        exact: true,
+      })
+      .click();
+    await expect(page.getByText(agent.name, { exact: true })).toBeVisible({
+      timeout: TIMEOUT.PERSIST,
+    });
+  }
 }
 
 /** Attach the demo files to the project's Knowledge tab (upload dropzone). */
@@ -276,16 +396,18 @@ async function ensureProjectFiles(
   files: readonly DemoDocument[] = DEMO_PROJECT_FILES,
 ): Promise<void> {
   await page.goto(`/dashboard/${orgId}/projects/${projectId}/files`);
+  // Settle on the tree (files exist) or the empty placeholder (none yet): the
+  // dropzone description above both paints before the query answers, so a
+  // presence check taken on it read "missing" and uploaded a duplicate.
+  const tree = page.getByRole('tree', { name: t('projects.files.treeLabel') });
   await expect(
-    page.getByText(t('projects.files.emptyDescription')).first(),
+    tree.or(page.getByText(t('projects.files.emptyTitle'))).first(),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   for (const doc of files) {
     if (
-      await page
-        .getByText(doc.fileName)
-        .first()
-        .isVisible()
-        .catch(() => false)
+      await isPresent(
+        tree.getByRole('treeitem', { name: doc.fileName, exact: true }),
+      )
     ) {
       continue;
     }
@@ -417,12 +539,13 @@ async function ensureProducts(
   // The products table renders no row-count footer, so `settleListOrEmpty`
   // cannot latch once rows exist: settled is the empty-state hero OR the
   // first data row (header is row 0).
+  const productsEmpty = page.getByText(t('emptyStates.products.title'));
   await expect(
-    page
-      .getByText(t('emptyStates.products.title'))
-      .first()
-      .or(page.getByRole('row').nth(1)),
+    productsEmpty.first().or(page.getByRole('row').nth(1)),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  // The hero flashes while the query is in flight — grant it one window, or a
+  // reseed files duplicates the create dialog then refuses to close on.
+  if (await isPresent(productsEmpty)) await page.waitForTimeout(750);
   for (const product of products) {
     if (
       await isPresent(page.getByRole('row').filter({ hasText: product.name }))
@@ -538,7 +661,13 @@ async function ensureResearcherInstalled(orgId: string): Promise<void> {
 async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/connectors`);
   const existing = page.getByRole('row').filter({ hasText: 'Tavily' }).first();
-  if (await isPresent(existing)) {
+  if (
+    await settleCredentialsTable(
+      page,
+      existing,
+      t('emptyStates.connectors.title'),
+    )
+  ) {
     return;
   }
 
@@ -633,47 +762,84 @@ async function ensureMockProvider(page: Page, orgId: string): Promise<void> {
     console.log(`[seed] wrote mock provider definition for org "${org.slug}"`);
   }
 
+  // The page is the credentials TABLE; the vendor catalog is step one of
+  // "Add credential" (the same shape as connectors). Idempotency is the
+  // seeded row's name — the table names every credential.
   await page.goto(`/dashboard/${orgId}/settings/providers`);
-  const card = page.getByText('E2E Mock Gateway', { exact: true }).first();
-  await expect(card).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await card.click();
-  const dialog = page.getByRole('dialog').last();
-  await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-  // Idempotency: the detail panel lists existing credentials by env name.
-  const alreadyConnected = await dialog
-    .getByText('TALE_PROVIDER_KEY_E2E_MOCK')
-    .first()
-    .isVisible()
-    .catch(() => false);
-  if (!alreadyConnected) {
-    await dialog
-      .getByRole('button', { name: t('settings.credentials.create') })
-      .click();
-    // The method select defaults to API key; switch to the env variant.
-    await dialog.getByRole('combobox').first().click();
-    await page
-      .getByRole('option', { name: t('settings.providers.authMethod.env') })
-      .click();
-    await dialog
-      .getByLabel(t('settings.credentials.name'))
-      .fill('Docs demo key');
-    // The env field takes the SUFFIX; the TALE_PROVIDER_KEY_ prefix is fixed
-    // chrome rendered next to it.
-    await dialog
-      .getByLabel(t('settings.providers.dialog.envName'))
-      .fill('E2E_MOCK');
-    await dialog
-      .getByRole('button', { name: t('settings.credentials.create') })
-      .click();
-    await expect(
-      dialog.getByText('TALE_PROVIDER_KEY_E2E_MOCK').first(),
-    ).toBeVisible({ timeout: TIMEOUT.PERSIST });
+  const seededRow = page
+    .getByRole('row')
+    .filter({ hasText: DEMO_PROVIDER_CREDENTIAL })
+    .first();
+  if (
+    await settleCredentialsTable(
+      page,
+      seededRow,
+      t('emptyStates.providers.title'),
+    )
+  ) {
+    return;
   }
-  const close = dialog.getByRole('button', {
-    name: t('common.actions.close'),
+
+  await page
+    .getByRole('button', { name: t('settings.credentials.addCredential') })
+    .first()
+    .click();
+  const dialog = page.getByRole('dialog', {
+    name: t('settings.credentials.catalog.title'),
   });
-  if (await isPresent(close)) await close.click();
+  await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  // The catalog may still be fetching the shipped vendors' live model lists
+  // (OpenRouter, the Vercel gateway) — grant it the execution budget.
+  const card = dialog.getByRole('button', {
+    name: new RegExp(MOCK_PROVIDER_DISPLAY_NAME),
+  });
+  await expect(card).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+  await card.click();
+
+  // Setup step: the mock declares two auth methods, so the method picker
+  // renders — choose the env variant, whose field takes the SUFFIX (the
+  // TALE_PROVIDER_KEY_ prefix is fixed chrome beside it).
+  await dialog
+    .getByRole('combobox', { name: t('settings.credentials.method') })
+    .click();
+  await page
+    .getByRole('option', {
+      name: t('settings.providers.authMethod.env'),
+      exact: true,
+    })
+    .click();
+  await dialog
+    .getByRole('textbox', { name: t('settings.credentials.name') })
+    .fill(DEMO_PROVIDER_CREDENTIAL);
+  await dialog
+    .getByRole('textbox', { name: t('settings.providers.dialog.envName') })
+    .fill('E2E_MOCK');
+  await dialog
+    .getByRole('button', {
+      name: t('settings.credentials.create'),
+      exact: true,
+    })
+    .click();
+  await expect(seededRow).toBeVisible({ timeout: TIMEOUT.PERSIST });
+}
+
+/**
+ * Whether the open thread carries any OTHER demo prompt as a message. Scoped
+ * to the message log: the history panel titles every seeded thread with that
+ * same prompt text, so a page-wide text query would always answer yes.
+ */
+async function hasOtherDemoPrompts(
+  page: Page,
+  prompt: string,
+): Promise<boolean> {
+  for (const other of DEMO_CHAT_PROMPTS) {
+    if (other === prompt) continue;
+    const count = await messageLog(page)
+      .getByText(other, { exact: true })
+      .count();
+    if (count > 0) return true;
+  }
+  return false;
 }
 
 async function ensureChats(
@@ -681,6 +847,12 @@ async function ensureChats(
   orgId: string,
 ): Promise<Map<string, string>> {
   const threads = new Map<string, string>();
+  // A bare `/chat` RESUMES the caller's most recent thread, so a message typed
+  // there lands in that thread instead of starting its own — every prompt
+  // below must be sent from the explicit fresh composer. `new=true` is the
+  // form the in-app links send; the router parses search params as JSON, so
+  // `?new=1` would arrive as a number and resume anyway.
+  const freshChatRoute = `/dashboard/${orgId}/chat?new=true`;
   for (const prompt of DEMO_CHAT_PROMPTS) {
     // The scripted answer this prompt must show (docs-replies.ts); its first
     // prose words double as the verification text. A thread carrying the
@@ -696,11 +868,13 @@ async function ensureChats(
 
     // Thread titles derive from the prompt text (the mock's router path
     // returns `{}`, so the fallback title is the trimmed user message) —
-    // an existing History entry starting with the prompt means this chat is
-    // already seeded; open it to record its id.
-    await page.goto(`/dashboard/${orgId}/chat`);
+    // an existing History row titled with the prompt means this chat is
+    // already seeded. Rows are links: read the id off the href, because
+    // clicking and waiting for "a thread URL" is ambiguous once the resume
+    // redirect has already put one in the address bar.
+    await page.goto(freshChatRoute);
     const historyEntry = page
-      .getByText(prompt.slice(0, 40), { exact: false })
+      .getByRole('link', { name: prompt.slice(0, 40) })
       .first();
     // WAIT for the list, don't poll it: an instant isVisible() on a page
     // that has not painted the history panel yet answers false and the
@@ -710,25 +884,27 @@ async function ensureChats(
       .then(() => true)
       .catch(() => false);
     if (chatSeeded) {
-      await historyEntry.click();
-      await page.waitForURL(/\/chat\/[A-Za-z0-9]{16,}/, {
-        timeout: TIMEOUT.NAV,
-      });
-      const threadId = /\/chat\/([A-Za-z0-9]{16,})/.exec(page.url())?.[1];
-      const replyVisible = await page
-        .getByText(expectedReply)
-        .first()
-        .waitFor({ timeout: 10_000 })
-        .then(() => true)
-        .catch(() => false);
-      if (threadId && replyVisible) {
-        threads.set(prompt, threadId);
-        continue;
-      }
+      const href = await historyEntry.getAttribute('href');
+      const threadId = href ? CHAT_THREAD_URL.exec(href)?.[1] : undefined;
       if (threadId) {
+        await page.goto(`/dashboard/${orgId}/chat/${threadId}`);
+        const replyVisible = await messageLog(page)
+          .getByText(expectedReply)
+          .first()
+          .waitFor({ timeout: 10_000 })
+          .then(() => true)
+          .catch(() => false);
+        // A thread that also carries another demo prompt was seeded by a rig
+        // that typed every prompt into one resumed conversation — stale in a
+        // way the reply check alone cannot see.
+        const polluted = await hasOtherDemoPrompts(page, prompt);
+        if (replyVisible && !polluted) {
+          threads.set(prompt, threadId);
+          continue;
+        }
         console.warn(`Re-seeding stale demo chat: "${prompt.slice(0, 40)}…"`);
         await deleteThreadById(page, threadId);
-        await page.goto(`/dashboard/${orgId}/chat`);
+        await page.goto(freshChatRoute);
       }
     }
     const threadId = await sendNewThreadMessage(page, prompt);
@@ -892,51 +1068,6 @@ async function ensureTeams(
       page.getByRole('row').filter({ hasText: team }).first(),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   }
-}
-
-/** Personal environment variables and secrets (Settings > Environment). */
-async function ensureEnvVars(page: Page, orgId: string): Promise<void> {
-  await page.goto(`/dashboard/${orgId}/settings/environment`);
-  const addButton = page.getByRole('button', { name: t('envEditor.add') });
-  await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-  // Rows are label-less inputs, so identity is the KEY's current value — a
-  // saved secret re-renders as a mask, so the value can never be the check.
-  const keyInputs = page.getByPlaceholder(t('envEditor.keyPlaceholder'));
-  const existingKeys = await keyInputs.evaluateAll((inputs) =>
-    inputs.map((input) => (input as HTMLInputElement).value),
-  );
-
-  let added = false;
-  for (const variable of DEMO_ENV_VARS) {
-    if (existingKeys.includes(variable.key)) continue;
-    await addButton.click();
-    await page
-      .getByPlaceholder(t('envEditor.keyPlaceholder'))
-      .last()
-      .fill(variable.key);
-    await page
-      .getByPlaceholder(t('envEditor.valuePlaceholder'))
-      .last()
-      .fill(variable.value);
-    if (variable.secret) {
-      await page
-        .getByRole('checkbox', { name: t('envEditor.secret') })
-        .last()
-        .check();
-    }
-    added = true;
-  }
-  if (!added) return;
-  // The row editor runs in externalSave mode: its Save lives in the settings
-  // header, and success is reported by that cluster flashing the button label
-  // to "Saved" (the editor's own toast is suppressed in this mode). Wait for
-  // the flash — it starts only after the persist resolves.
-  const save = page.getByRole('button', { name: t('common.actions.save') });
-  await save.click();
-  await expect(
-    page.getByRole('button', { name: t('common.actions.saved') }),
-  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
 }
 
 /** REST API keys (Settings > API > REST). */
@@ -1220,7 +1351,7 @@ export async function seedDemoOrg(
   // a filled identity and attached files.
   const relaunchId = projects.get(DEMO_PROJECTS[0].name);
   if (relaunchId) {
-    await step('project description', () =>
+    await step('project description + instructions', () =>
       ensureProjectDescription(page, orgId, relaunchId),
     );
     await step('project files', () =>
@@ -1236,7 +1367,6 @@ export async function seedDemoOrg(
   );
 
   // The settings surfaces that otherwise screenshot as bare empty states.
-  await step('environment variables', () => ensureEnvVars(page, orgId));
   await step('API keys', () => ensureApiKeys(page, orgId));
   await step('WebDAV app-passwords', () => ensureWebdavPasswords(page, orgId));
   await step('custom instructions', () =>
@@ -1246,6 +1376,12 @@ export async function seedDemoOrg(
   await step('erasure request', () => ensureErasureRequest(page, orgId));
 
   await step('mock AI provider', () => ensureMockProvider(page, orgId));
+  // Project agents pick their model from the catalog that provider serves.
+  if (relaunchId) {
+    await step('project agents', () =>
+      ensureProjectAgents(page, orgId, relaunchId),
+    );
+  }
 
   const threads = new Map<string, string>();
   await step('chats', async () => {

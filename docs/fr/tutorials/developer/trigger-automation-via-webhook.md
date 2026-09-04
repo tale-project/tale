@@ -9,7 +9,7 @@ Il te faut le rôle Développeur dans l'organisation, une automatisation avec un
 
 ## Avant de commencer
 
-Vérifie deux choses. L'automatisation que tu vas déclencher a une version **déployée** — enregistrer une version ne suffit pas, et une version ne devient déployable qu'une fois ses propres tests au vert ; lance-les d'abord. Ton rôle est au moins Développeur ; ajouter des déclencheurs est réservé à Développeur et au-dessus. Si tu n'as pas encore d'automatisation, la plus petite canonique est « enregistre la charge utile puis arrête-toi » — construis-la via [Workflow avec approbations](/fr/tutorials/editor/workflow-with-approvals) et retire le nœud d'approbation pour ce parcours.
+Vérifie deux choses. L'automatisation que tu vas déclencher a une version **déployée** — enregistrer une version ne suffit pas, et une version ne devient déployable qu'une fois ses propres tests au vert ; lance-les d'abord. Ton rôle est au moins Développeur ; ajouter des déclencheurs est réservé à Développeur et au-dessus. Si tu n'as pas encore d'automatisation, la plus petite canonique est « enregistre la charge utile puis arrête-toi » — un seul nœud `transform`, construit sur le canvas comme le décrit [L’éditeur de workflow](/fr/platform/automations/editor).
 
 ## Étape 1 — Ajouter un déclencheur webhook
 

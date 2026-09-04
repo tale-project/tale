@@ -29,7 +29,7 @@ Travailler dans la bibliothèque : créer une entrée et l'entendre citée, comp
 
 <Card title="Épisode 4 — Ton premier agent" icon="play" href="/fr/tutorials/videos/your-first-agent">
 
-Un agent construit de bout en bout à l'écran — instructions, connaissances, outils, modèle — puis testé en direct. La capacité, c'est de l'exposition : commence petit. Trois minutes.
+Un agent construit de bout en bout à l’écran dans l’ancien éditeur d’agent — instructions, connaissances, outils, modèle — puis testé en direct ; les écrans ont changé depuis, le raisonnement non. La capacité, c’est de l’exposition : commence petit. Trois minutes.
 
 </Card>
 
@@ -47,7 +47,7 @@ Le tableau en plein vol, les fichiers comme contexte borné, et une tâche cré�
 
 <Card title="Épisode 7 — Connectors & le monde extérieur" icon="play" href="/fr/tutorials/videos/connectors">
 
-Des connecteurs qu'on lit avant d'ouvrir, des outils MCP avec drapeaux de validation, et une sortie réseau qui échoue fermée. Chaque porte ouverte délibérément. Deux minutes et demie.
+Des connecteurs qu’on lit avant d’ouvrir, la porte MCP telle que la montrait la version précédente, et une sortie réseau qui échoue fermée. Chaque porte ouverte délibérément. Deux minutes et demie.
 
 </Card>
 

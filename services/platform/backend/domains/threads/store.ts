@@ -88,41 +88,54 @@ export interface SaveMessageArgs {
 }
 
 /**
+ * How many times an appender re-claims the next (order, step) slot after
+ * another appender took the one it computed. The slot is UNIQUE
+ * (`messages_thread_slot`), so a lost race is refused at the index rather
+ * than landing two rows on one slot; under READ COMMITTED each attempt is a
+ * fresh statement that sees the winner's row, so one retry is the norm and a
+ * handful is generous. Under SERIALIZABLE the same conflict surfaces as a
+ * serialization failure and `transactSerializable` reruns the whole
+ * transaction instead, so this loop never spins there.
+ */
+export const MESSAGE_SLOT_ATTEMPTS = 8;
+
+/**
  * Append a message as the next turn: claims `max(order)+1` with
- * `step_order = 0`. Callers appending STEPS of an existing turn use
- * `saveMessageStep`. Runs inside the caller's serializable transaction, so
- * two concurrent appends to one thread serialize (one retries).
+ * `step_order = 0` in ONE statement (read and write together), and re-claims
+ * the following slot when a concurrent append took it first. Runs inside the
+ * caller's transaction; under a serializable one, two concurrent appends to
+ * one thread serialize (one retries the transaction).
  */
 export async function saveMessage(
   tx: TransactionSql,
   args: SaveMessageArgs,
 ): Promise<{ messageId: string; order: number }> {
-  const orderRows = await tx<{ next: number }[]>`
-    SELECT coalesce(max("order"), -1) + 1 AS next FROM app.messages
-    WHERE thread_id = ${args.threadId}
-  `;
-  const order = orderRows[0]?.next ?? 0;
-  const rows = await tx<{ id: string }[]>`
-    INSERT INTO app.messages (
-      thread_id, org_id, "order", step_order, role, parts, text, author_id,
-      status, created_at_ms
-    ) VALUES (
-      ${args.threadId}, ${args.organizationId}, ${order}, 0, ${args.role},
-      ${args.parts === undefined ? null : tx.json(toJson(args.parts))},
-      ${args.text ?? null}, ${args.authorId ?? null},
-      ${args.status ?? 'complete'}, ${Date.now()}
-    )
-    RETURNING id
-  `;
-  const id = rows[0]?.id;
-  if (!id) {
-    throw new Error('message insert failed');
+  for (let attempt = 0; attempt < MESSAGE_SLOT_ATTEMPTS; attempt += 1) {
+    const rows = await tx<{ id: string; order: number }[]>`
+      INSERT INTO app.messages (
+        thread_id, org_id, "order", step_order, role, parts, text, author_id,
+        status, created_at_ms
+      )
+      SELECT ${args.threadId}, ${args.organizationId},
+             coalesce(max("order"), -1) + 1, 0, ${args.role},
+             ${args.parts === undefined ? null : tx.json(toJson(args.parts))},
+             ${args.text ?? null}, ${args.authorId ?? null},
+             ${args.status ?? 'complete'}, ${Date.now()}
+      FROM app.messages WHERE thread_id = ${args.threadId}
+      ON CONFLICT (thread_id, "order", step_order) DO NOTHING
+      RETURNING id, "order"
+    `;
+    const row = rows[0];
+    if (row === undefined) continue; // the slot went to a concurrent append
+    await tx`
+      UPDATE app.threads SET updated_at_ms = ${Date.now()}
+      WHERE id = ${args.threadId}
+    `;
+    return { messageId: row.id, order: row.order };
   }
-  await tx`
-    UPDATE app.threads SET updated_at_ms = ${Date.now()}
-    WHERE id = ${args.threadId}
-  `;
-  return { messageId: id, order };
+  throw new Error(
+    `message insert failed: no free slot after ${MESSAGE_SLOT_ATTEMPTS} attempts`,
+  );
 }
 
 /** The most messages one read may ask for, on either lane below. */

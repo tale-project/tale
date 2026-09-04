@@ -29,7 +29,7 @@ Bündle ihr Wissen, delegiere echte Arbeit — auf Infrastruktur, die du betreib
   <tr>
     <td width="33.33%"><a href="https://tale.dev/docs/de/platform/chat/overview"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Der Arena-Modus lässt zwei Modelle denselben Prompt nebeneinander beantworten" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/de/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="Das Aufgaben-Board eines Projekts mit Karten in allen sechs Spalten, von Backlog bis Cancelled" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/agents/concepts"><img src=".github/assets/readme-gallery-agent-editor.webp" alt="Der Agent-Editor bündelt Anweisungen, Wissen, Tools und Modell" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/projects/project-agents"><img src=".github/assets/readme-gallery-project-agents.webp" alt="Der Tab Agenten eines Projekts mit zwei benannten Agenten, jeder mit Harness, Provider und Modell" width="100%"></a></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Chat & Arena</b> — ein Prompt, zwei Modelle nebeneinander</sub></td>
@@ -37,9 +37,9 @@ Bündle ihr Wissen, delegiere echte Arbeit — auf Infrastruktur, die du betreib
     <td align="center"><sub><b>Agents</b> — Anweisungen, Wissen, Tools und Modell als eine Einheit</sub></td>
   </tr>
   <tr>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Der Canvas des Workflow-Editors mit den typisierten, verzweigten Schritten einer Automatisierung" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/connectors/overview"><img src=".github/assets/readme-gallery-connectors.webp" alt="Der Connector-Katalog mit Confluence, GitHub, Gmail, Google Drive, Shopify und mehr" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Die Guardrails-Einstellungen mit Inhaltsfilter, PII-Erkennung und Moderations-Provider" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Die Automatisierungs-Werkbank mit den typisierten Schritten eines Workflows auf dem Canvas und dem Node-Inspektor daneben" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/connectors/overview"><img src=".github/assets/readme-gallery-connectors.webp" alt="Der Dialog Zugangsdaten hinzufügen mit dem Connector-Katalog — Tavily, Confluence, Discord, GitHub, Gmail, Google Drive und mehr" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/de/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Die Guardrails-Einstellungen mit Status-Karten für Inhaltssicherheit, PII-Erkennung und Moderations-Anbieter über dem Feed der letzten Ereignisse" width="100%"></a></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Workflow-Editor</b> — typisierte Schritte, Zeitpläne und Genehmigungstore</sub></td>
@@ -89,7 +89,7 @@ bun run dev
 
 ## Tale in Aktion
 
-<img src=".github/assets/readme-tour.webp" alt="Tale-Produkttour durch Agent-Editor, Projekt-Taskboard, Automatisierungs-Canvas, Connector-Katalog und Governance-Guardrails" width="100%">
+<img src=".github/assets/readme-tour.webp" alt="Tale-Produkttour durch die Agenten eines Projekts, sein Taskboard, die Automatisierungs-Werkbank, den Connector-Katalog und die Governance-Guardrails" width="100%">
 
 Agents → Projekte → Automatisierungen → Connectors → Governance — eine Runde durch die Plattform. Die volle Tour findest du in den [Docs](https://tale.dev/docs/de).
 
@@ -111,9 +111,9 @@ Die Docs erscheinen auf Englisch, Deutsch und Französisch — starte unter [tal
 
 - [Quickstart](https://tale.dev/docs/de/get-started/quickstart) — die ersten Schritte, für jede Rolle
 - [Plattform-Referenz](https://tale.dev/docs/de/platform) — jedes Feature, Modul für Modul
-- [Einen Agent bauen](https://tale.dev/docs/de/platform/agents/create) — spezialisierte Assistenten von Anfang bis Ende
+- [Einen Agent bauen](https://tale.dev/docs/de/tutorials/editor/first-agent-end-to-end) — spezialisierte Assistenten von Anfang bis Ende
 - [Self-hosted-Betrieb](https://tale.dev/docs/de/self-hosted/overview) — Architektur, Installation, Upgrades
-- [Developer-Oberfläche](https://tale.dev/docs/de/develop/overview) — REST-API, Webhooks, eigene Tools
+- [Developer-Oberfläche](https://tale.dev/docs/de/develop/overview) — REST-API, Webhooks, MCP-Endpoint
 - [CLI-Referenz](tools/cli/README.md) — jeder `tale`-Befehl mit allen Flags
 
 ## Community und Support

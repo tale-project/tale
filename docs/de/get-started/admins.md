@@ -35,11 +35,11 @@ Nichts antwortet, solange kein Anbieter verbunden ist. Hast du den Anbieter-Schr
 
 <Step title="Hol das Team an Bord">
 
-Um Personen hinzuzufügen, öffne **Einstellungen > Organisation**, scroll zum Abschnitt **Mitglieder** und klicke auf **Mitglied hinzufügen**. Jede Person landet mit einer Rolle, die absteckt, was sie tun kann: **Mitglied** liest und chattet, **Redakteur** baut Agents und Wissen, **Entwickler** verdrahtet Workflows, Automatisierungen und API-Zugriff, **Admin** betreibt den Arbeitsbereich. Fang niedrig an — eine Rolle später anzuheben ist ein Klick, geleakten Zugriff einzufangen nicht.
+Um Personen hinzuzufügen, öffne **Einstellungen > Mitglieder** und klicke auf **Mitglied hinzufügen**. Jede Person landet mit einer Rolle, die absteckt, was sie tun kann: **Mitglied** liest und chattet, **Redakteur** baut Agents und Wissen, **Entwickler** verdrahtet Workflows, Automatisierungen und API-Zugriff, **Admin** betreibt den Arbeitsbereich. Fang niedrig an — eine Rolle später anzuheben ist ein Klick, geleakten Zugriff einzufangen nicht.
 
-<Frame caption="Der Abschnitt Mitglieder — jedes Konto und seine Rolle.">
+<Frame caption="Die Seite Mitglieder — jedes Konto und seine Rolle.">
 
-![Die Organisationseinstellungen mit dem Abschnitt Mitglieder, der den Arbeitsbereichs-Inhaber Alex Rivera listet, und dem Knopf Mitglied hinzufügen.](/images/get-started/settings-organization-members.webp)
+![Die Einstellungsseite Mitglieder mit fünf Personen und ihren Rollen — Alex Rivera als Inhaber, ein Admin, ein Redakteur und zwei Mitglieder — neben dem Knopf Mitglied hinzufügen.](/images/get-started/settings-organization-members.webp)
 
 </Frame>
 

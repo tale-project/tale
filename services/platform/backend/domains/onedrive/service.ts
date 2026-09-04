@@ -846,9 +846,27 @@ export function createSyncImportDeps(
           ${createArgs.createdBy ?? null}, ${folderId}, ${folderPath},
           ${now}, ${now}
         )
+        ON CONFLICT (org_id, external_item_id)
+          WHERE external_item_id IS NOT NULL
+          DO NOTHING
         RETURNING id
       `;
-      const id = inserted[0]?.id;
+      let id = inserted[0]?.id;
+      if (id === undefined) {
+        // Lost a race with a concurrent sync of the same item (an
+        // overlapping run, a second config over the same folder): the key
+        // is unique in the schema (0073), so the row exists now — hand it
+        // back and let this run refresh it rather than fail the config on
+        // a unique violation.
+        const existing = await sql<{ id: string }[]>`
+          SELECT id FROM app.documents
+          WHERE org_id = ${createArgs.organizationId}
+            AND external_item_id = ${createArgs.externalItemId}
+          ORDER BY created_at_ms ASC
+          LIMIT 1
+        `;
+        id = existing[0]?.id;
+      }
       if (!id) throw new Error('Document insert failed');
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for the reused pipeline's Convex Id<'documents'> brand
       return id as never;
@@ -1416,31 +1434,60 @@ async function renewSyncClaim(
   `;
 }
 
+/** Configs per scan page — how many sit in memory at once, not how many
+ * the platform syncs. */
+const SYNC_SCAN_PAGE_SIZE = 1000;
+
 /**
  * Cron scan: one per-config job per syncable config. `error` configs are
  * retried too (a transient vendor failure must not silently end a sync
  * forever — the 0.4 active-only listing predates this engine); `inactive`
  * is the only terminal state (cancel, source deleted, folder removed).
+ *
+ * The scan WALKS every syncable config (keyset pages in id order, the
+ * trigger scanner's idiom) rather than taking the first N: a bare
+ * `LIMIT 1000 ORDER BY created_at_ms` handed every config past the
+ * thousandth to never — the newest syncs sat `active` with no job, no
+ * error and no log. The per-config `singletonKey` keeps a config that is
+ * still queued from being enqueued twice, so a complete walk costs one
+ * no-op enqueue per busy config and nothing else.
  */
 export async function runSyncScanWith(
   sql: Sql,
   adapter: SyncProviderAdapter,
+  options: { pageSize?: number } = {},
 ): Promise<number> {
-  const rows = await sql<{ id: string; organizationId: string }[]>`
-    SELECT id, org_id AS "organizationId" FROM ${sql.unsafe(adapter.configTable)}
-    WHERE status IN ('active', 'error')
-    ORDER BY created_at_ms ASC
-    LIMIT 1000
-  `;
-  for (const row of rows) {
-    await addJobInTx(
-      sql,
-      adapter.configJobName,
-      { organizationId: row.organizationId, configId: row.id },
-      { singletonKey: `${adapter.singletonPrefix}${row.id}` },
-    );
+  const pageSize = options.pageSize ?? SYNC_SCAN_PAGE_SIZE;
+  let enqueued = 0;
+  let cursor: string | null = null;
+  for (;;) {
+    const page: SyncScanRow[] = await sql<SyncScanRow[]>`
+      SELECT id, org_id AS "organizationId" FROM ${sql.unsafe(adapter.configTable)}
+      WHERE status IN ('active', 'error')
+        AND (${cursor}::text IS NULL OR id > ${cursor})
+      ORDER BY id
+      LIMIT ${pageSize}
+    `;
+    for (const row of page) {
+      await addJobInTx(
+        sql,
+        adapter.configJobName,
+        { organizationId: row.organizationId, configId: row.id },
+        { singletonKey: `${adapter.singletonPrefix}${row.id}` },
+      );
+      enqueued += 1;
+    }
+    if (page.length < pageSize) break;
+    const last: SyncScanRow | undefined = page.at(-1);
+    if (last === undefined) break;
+    cursor = last.id;
   }
-  return rows.length;
+  return enqueued;
+}
+
+interface SyncScanRow {
+  id: string;
+  organizationId: string;
 }
 
 /**

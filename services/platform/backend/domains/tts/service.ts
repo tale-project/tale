@@ -84,8 +84,10 @@ export class TtsError extends Error {
     message: string,
     status: 400 | 403 | 404 | 429 = 400,
     retryAfterMs?: number,
+    /** The refusal this one wraps (a rate limit), for the door to answer. */
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = 'TtsError';
     this.code = code;
     this.status = status;
@@ -496,11 +498,14 @@ async function reserveChunk(
       await checkUserRateLimit(tx, 'tts:synthesize:user', args.userId, 1);
     } catch (error) {
       if (error instanceof RateLimitExceededError) {
+        // Coded for the shim and job consumers; the app door answers the one
+        // 429 from the cause (`rateLimitExceededCause`).
         throw new TtsError(
           'RATE_LIMITED',
           'TTS rate limit exceeded for this user.',
           429,
           error.retryAfter,
+          { cause: error },
         );
       }
       throw error;
@@ -519,6 +524,7 @@ async function reserveChunk(
           'TTS rate limit exceeded for this organization.',
           429,
           error.retryAfter,
+          { cause: error },
         );
       }
       throw error;

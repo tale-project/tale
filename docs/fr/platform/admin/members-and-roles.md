@@ -13,19 +13,19 @@ Tu préfères regarder d’abord ? L’épisode 8 parcourt l’effectif, l’éc
 
 </Video>
 
-<Frame caption="La section Membres sous Paramètres > Organisation — chaque compte et le rôle qui le borne.">
+<Frame caption="Paramètres > Membres — chaque compte et le rôle qui le borne.">
 
-![La page de paramètres Organisation avec sa section Membres listant le propriétaire de l’espace de travail et un bouton Ajouter un membre.](/images/get-started/settings-organization-members.webp)
+![La page de paramètres Membres listant le propriétaire de l’espace de travail et quatre autres personnes, chacune avec son badge de rôle, à côté d’un bouton Ajouter un membre.](/images/get-started/settings-organization-members.webp)
 
 </Frame>
 
 ## Ajouter un membre
 
-Pour ajouter une personne à ton organisation, ouvre **Paramètres > Organisation**, fais défiler jusqu’à la section **Membres** et clique sur **Ajouter un membre**. Renseigne son **Nom**, son **E-mail** et son **Rôle**, puis définis un **Mot de passe** — Tale n’envoie pas d’invitation par e-mail, un mot de passe est donc requis pour créer un nouveau compte. (Si l’e-mail correspond déjà à un compte Tale, aucun mot de passe n’est demandé : la personne se connecte avec ses identifiants existants et est simplement ajoutée à cette organisation.)
+Pour ajouter une personne à ton organisation, ouvre **Paramètres > Membres** et clique sur **Ajouter un membre**. Renseigne son **Nom**, son **E-mail** et son **Rôle**, puis définis un **Mot de passe** — Tale n’envoie pas d’invitation par e-mail, un mot de passe est donc requis pour créer un nouveau compte. (Si l’e-mail correspond déjà à un compte Tale, aucun mot de passe n’est demandé : la personne se connecte avec ses identifiants existants et est simplement ajoutée à cette organisation.)
 
-Lors de l’**Ajouter un membre**, Tale affiche les nouveaux identifiants **une seule fois**, en rappelant de les enregistrer maintenant : ils ne seront plus affichés. Transmets-les au nouveau membre par un autre canal ; il n’y a pas d’e-mail de réinitialisation. Quiconque oublie ensuite son mot de passe contacte un administrateur, qui peut en définir un nouveau depuis la même section Membres.
+Lors de l’**Ajouter un membre**, Tale affiche les nouveaux identifiants **une seule fois**, en rappelant de les enregistrer maintenant : ils ne seront plus affichés. Transmets-les au nouveau membre par un autre canal ; il n’y a pas d’e-mail de réinitialisation. Quiconque oublie ensuite son mot de passe contacte un administrateur, qui peut en définir un nouveau depuis la même page.
 
-Choisis le rôle dans le formulaire avant de valider ; le promouvoir ou le changer ensuite est une modification en un clic dans la même section Membres.
+Choisis le rôle dans le formulaire avant de valider ; le promouvoir ou le changer ensuite est une modification en un clic sur la même page.
 
 ## Les six rôles
 
@@ -33,7 +33,7 @@ Choisis le rôle dans le formulaire avant de valider ; le promouvoir ou le cha
 
 **Admin** gouverne l’organisation : membres, fournisseurs, branding, politiques de gouvernance, connectors, le journal d’audit. Les Administrateurs font tout ce que fait Éditeur et tout ce que fait Développeur, plus la surface de configuration. Ils ne peuvent pas transférer la propriété.
 
-**Développeur** construit : agents, automatisations, connectors, clés API, serveurs MCP. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu’un a besoin du plan API et de l’outillage d’connector.
+**Développeur** construit : agents, automatisations, connectors, clés API. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu’un a besoin du plan API et de l’outillage d’connector.
 
 **Éditeur** organise et opère : agents, base de connaissances (documents, contacts, produits, fournisseurs, sites web), boîte de réception des conversations, approbations, bibliothèque de skills. Les Éditeurs peuvent lire les workflows mais pas les modifier ; ils peuvent lire les connectors mais pas les configurer. Va vers Éditeur quand quelqu’un fait le travail produit quotidien sans toucher au plan API ou connectors.
 
@@ -68,7 +68,7 @@ R = lecture, W = écriture, — = aucun accès. La matrice est la description fa
 
 ## La surface Paramètres et le menu
 
-Les Membres, Éditeurs et utilisateurs Désactivés ne voient pas la surface de configuration — seulement leurs paramètres personnels plus la bibliothèque de skills de l’organisation. Les Développeurs voient la surface développeur (Fournisseurs IA, connectors, sandboxes, la section API) mais pas le sous-arbre gouvernance. Les Administrateurs et Propriétaires voient tout. Le menu des paramètres est groupé en **Personnel** (Compte, Préférences, Notifications, Environnement — chaque rôle), **Organisation** (Équipes, Membres, Fournisseurs IA, Branding, Gouvernance, Métriques et le reste — Admin et Propriétaire, les Développeurs en voyant un sous-ensemble) et **Avancé** (la surface API, SSO d’entreprise et résidence des données). La gouvernance est un élément dans le groupe Organisation, pas un groupe à part, et demande l’accès Admin.
+Les Membres, Éditeurs et utilisateurs Désactivés ne voient pas la surface de configuration — seulement leurs paramètres personnels plus la bibliothèque de skills de l’organisation. Les Développeurs voient la surface développeur (Fournisseurs IA, connectors, sandboxes, la section API) mais pas le sous-arbre gouvernance. Les Administrateurs et Propriétaires voient tout. Le menu des paramètres est groupé en **Personnel** (Compte, Préférences, Notifications — chaque rôle), **Organisation** (Équipes, Membres, Fournisseurs IA, Branding, Gouvernance, Métriques et le reste — Admin et Propriétaire, les Développeurs en voyant un sous-ensemble) et **Avancé** (la surface API, SSO d’entreprise et résidence des données). La gouvernance est un élément dans le groupe Organisation, pas un groupe à part, et demande l’accès Admin.
 
 ## Cas limites
 
@@ -76,7 +76,7 @@ Les Membres, Éditeurs et utilisateurs Désactivés ne voient pas la surface de 
 
 **Le dernier Admin reste.** Tale refuse de rétrograder le dernier Admin — le changement revient avec _Le dernier admin ne peut pas être rétrogradé_. Deux gardes de plus siègent à côté : le rôle Propriétaire ne bouge que par **Transférer la propriété**, et le rôle de la personne qui a créé l’organisation est immuable.
 
-**Réinitialiser la 2FA** se trouve sur la ligne du membre dans la section Membres. Réinitialiser efface le second facteur ; le sign-in suivant réenrôle.
+**Réinitialiser la 2FA** se trouve sur la ligne du membre sur la page Membres. Réinitialiser efface le second facteur ; le sign-in suivant réenrôle.
 
 ## Où cela s’inscrit
 

@@ -102,7 +102,10 @@ const CREDENTIAL_COLUMNS = `
   created_at_ms::float8 AS "createdAt", updated_at_ms::float8 AS "updatedAt"
 `;
 
-const NAME_MAX = 100;
+/** The longest label a credential may carry — the OAuth callback derives
+ * workspace-named labels and must stay within it. */
+export const CREDENTIAL_NAME_MAX = 100;
+const NAME_MAX = CREDENTIAL_NAME_MAX;
 const SECRET_VALUE_MAX = 8192;
 
 function normalizeName(raw: string): string {

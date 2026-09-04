@@ -224,9 +224,9 @@ function PgSection({
   /** Contextual footnote shown below the fields while the section is enabled. */
   note?: ReactNode;
   /**
-   * Whether to render the SSL-mode control. Off for the app (Convex metadata)
-   * DB: its postgres-v5 driver derives the database from INSTANCE_NAME and
-   * rejects a `?sslmode=` URL, so the boot path cannot honor a chosen mode —
+   * Whether to render the SSL-mode control. Off for the app DB: the backend
+   * pins that target's connection test to `sslmode=prefer`
+   * (domains/deployment/service.ts) instead of honoring a chosen mode —
    * offering the control would promise a guarantee we can't deliver.
    */
   showSslMode?: boolean;

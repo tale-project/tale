@@ -14,8 +14,16 @@ import {
   mintStateToken,
   OAUTH_STATE_TTL_MS,
 } from '../../core/http_connectors/oauth_state.ts';
-import { exchangeAuthorizationCode } from '../../core/http_connectors/token_exchange.ts';
-import { createCredentialInTransaction } from '../connector_credentials/service.ts';
+import {
+  exchangeAuthorizationCode,
+  type Oauth2Tokens,
+} from '../../core/http_connectors/token_exchange.ts';
+import {
+  CREDENTIAL_NAME_MAX,
+  createCredentialInTransaction,
+  listCredentials,
+  updateCredential,
+} from '../connector_credentials/service.ts';
 import {
   applyMicrosoftTenant,
   resolveConnectorOauthApp,
@@ -199,6 +207,140 @@ export async function claimTeamRoute(
     return { ok: false, reason: 'claimed_by_other_org' };
   }
   return { ok: true };
+}
+
+/**
+ * The label a NEW credential gets among the names its (organization,
+ * connector) siblings already hold: `base` itself when free, else
+ * `base (2)`, `base (3)`, … — compared case-insensitively, the way the
+ * table's unique index compares. Pure, so the rule is testable on its own.
+ */
+export function uniqueCredentialName(
+  taken: readonly string[],
+  base: string,
+): string {
+  const held = new Set(taken.map((name) => name.trim().toLowerCase()));
+  let candidate = base;
+  let counter = 1;
+  while (held.has(candidate.toLowerCase())) {
+    counter += 1;
+    candidate = `${base} (${counter})`;
+  }
+  return candidate;
+}
+
+/** Room a workspace-named label leaves for the ` (N)` a collision appends. */
+const NAME_COUNTER_ROOM = 6;
+
+export interface Oauth2GrantArgs {
+  organizationId: string;
+  connectorSlug: string;
+  userId: string;
+  /** The connector's catalog display name — the first credential's label. */
+  displayName: string;
+  tokens: Oauth2Tokens;
+}
+
+/**
+ * Where a completed consent lands.
+ *
+ * A workspace this organization already connected — the team route names its
+ * credential — is a RECONNECT: that credential takes the fresh grant and is
+ * active again, so the settings card's Reconnect action (and a second consent
+ * for the same workspace) renews what is there instead of failing on the
+ * label it already holds. A connector with no workspace notion reconnects
+ * the same way — the pair's one oauth2 credential (its default, when several
+ * exist) is the grant being renewed. Everything else is a NEW connection: a
+ * first one, or a second Slack workspace — stored under a label no sibling
+ * holds (the connector's display name for the first, the workspace name or a
+ * counter after that).
+ */
+export async function storeOauth2Grant(
+  sql: Sql,
+  args: Oauth2GrantArgs,
+): Promise<{ credentialId: string; renewed: boolean }> {
+  const { tokens } = args;
+  const secret = {
+    accessToken: tokens.accessToken,
+    ...(tokens.refreshToken !== undefined
+      ? { refreshToken: tokens.refreshToken }
+      : {}),
+    ...(tokens.expiresAt !== undefined ? { expiresAt: tokens.expiresAt } : {}),
+    scopes: tokens.scopes,
+  };
+  const siblings = await listCredentials(
+    sql,
+    args.organizationId,
+    args.connectorSlug,
+  );
+  const grants = siblings.filter((row) => row.authMethod === 'oauth2');
+
+  let renewId: string | null = null;
+  if (tokens.teamId !== undefined) {
+    const route = await resolveTeamRoute(sql, tokens.teamId);
+    if (
+      route !== null &&
+      route.organizationId === args.organizationId &&
+      grants.some((row) => row.id === route.credentialId)
+    ) {
+      renewId = route.credentialId;
+    }
+  } else if (grants.length > 0) {
+    const oldest = [...grants].sort((a, b) => a.createdAt - b.createdAt)[0];
+    renewId = grants.find((row) => row.isDefault)?.id ?? oldest?.id ?? null;
+  }
+
+  if (renewId !== null) {
+    await updateCredential(sql, {
+      organizationId: args.organizationId,
+      credentialId: renewId,
+      secret,
+      status: 'active',
+      statusDetail: null,
+    });
+    console.info(
+      `[connectors:oauth2] "${args.connectorSlug}" grant renewed for organization ${args.organizationId}`,
+    );
+    return { credentialId: renewId, renewed: true };
+  }
+
+  const workspace = tokens.teamName?.trim() ?? '';
+  const base =
+    grants.length === 0 || workspace.length === 0
+      ? args.displayName
+      : `${args.displayName} (${workspace})`.slice(
+          0,
+          CREDENTIAL_NAME_MAX - NAME_COUNTER_ROOM,
+        );
+  // Store the credential and claim the workspace in ONE transaction. Two
+  // organizations can pass the pre-check for the same workspace at once;
+  // the route's key decides the winner, and the loser must keep nothing —
+  // a committed credential for a workspace routed elsewhere would be a
+  // live foreign token stored (and default) for this organization.
+  const name = uniqueCredentialName(
+    siblings.map((row) => row.name),
+    base,
+  );
+  let created!: { credentialId: string };
+  await sql.begin(async (tx) => {
+    created = await createCredentialInTransaction(tx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      authMethod: 'oauth2',
+      name,
+      createdBy: args.userId,
+      secret,
+    });
+    if (tokens.teamId !== undefined) {
+      const claim = await claimTeamRoute(tx, {
+        teamId: tokens.teamId,
+        organizationId: args.organizationId,
+        credentialId: created.credentialId,
+      });
+      if (!claim.ok) throw new WorkspaceClaimedError();
+    }
+  });
+  return { credentialId: created.credentialId, renewed: false };
 }
 
 export type StartOutcome =
@@ -407,38 +549,17 @@ export async function completeOauth2(
     }
   }
 
-  // Store the credential and claim the workspace in ONE transaction. Two
-  // organizations can pass the pre-check for the same workspace at once;
-  // the route's key decides the winner, and the loser must keep nothing —
-  // a committed credential for a workspace routed elsewhere would be a
-  // live foreign token stored (and default) for this organization.
   try {
-    await sql.begin(async (tx) => {
-      const stored = await createCredentialInTransaction(tx, {
-        organizationId,
-        connectorSlug,
-        authMethod: 'oauth2',
-        name: endpoints.displayName,
-        createdBy: userId,
-        secret: {
-          accessToken: tokens.accessToken,
-          ...(tokens.refreshToken !== undefined
-            ? { refreshToken: tokens.refreshToken }
-            : {}),
-          ...(tokens.expiresAt !== undefined
-            ? { expiresAt: tokens.expiresAt }
-            : {}),
-          scopes: tokens.scopes,
-        },
-      });
-      if (tokens.teamId !== undefined) {
-        const claim = await claimTeamRoute(tx, {
-          teamId: tokens.teamId,
-          organizationId,
-          credentialId: stored.credentialId,
-        });
-        if (!claim.ok) throw new WorkspaceClaimedError();
-      }
+    // A renewal for a workspace (or connector) already connected here, or a
+    // new credential under a label no sibling holds — never a collision on
+    // the connector's display name. A NEW credential and its workspace claim
+    // commit together inside storeOauth2Grant, or not at all.
+    await storeOauth2Grant(sql, {
+      organizationId,
+      connectorSlug,
+      userId,
+      displayName: endpoints.displayName,
+      tokens,
     });
   } catch (error) {
     if (error instanceof WorkspaceClaimedError) {

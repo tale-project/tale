@@ -114,9 +114,6 @@ describe('FeatureFlagsEditor', () => {
           rules: [
             {
               scope: 'default',
-              webSearch: true,
-              codeExecution: false,
-              fileUpload: true,
               maxContextTokens: 32768,
             },
           ],
@@ -128,7 +125,49 @@ describe('FeatureFlagsEditor', () => {
     render(<FeatureFlagsEditor organizationId="org_1" />);
 
     expect(screen.getByText('default')).toBeInTheDocument();
-    expect(screen.getByText('\u2718')).toBeInTheDocument();
+    expect(screen.getByText(/32,768|32768/)).toBeInTheDocument();
+  });
+
+  // The webSearch / codeExecution / fileUpload toggles were retired — nothing
+  // ever enforced them. The rule dialog must not offer them, and a rule that
+  // still carries them from an older policy file must lose them on save.
+  describe('retired feature toggles', () => {
+    it('offers no toggle for web search, code execution, or file upload', async () => {
+      const { user } = render(<FeatureFlagsEditor organizationId="org_1" />);
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+
+      const dialog = screen.getByRole('dialog');
+      expect(dialog.querySelectorAll('[role="switch"]')).toHaveLength(0);
+      expect(screen.queryByText(/web search/i)).toBeNull();
+      expect(screen.queryByText(/code execution/i)).toBeNull();
+      expect(screen.queryByText(/file upload/i)).toBeNull();
+    });
+
+    it('drops the deprecated keys from a rule when it is saved', async () => {
+      setSectionOn([
+        {
+          scope: 'default',
+          webSearch: false,
+          codeExecution: false,
+          fileUpload: true,
+          maxContextTokens: 32768,
+        },
+      ]);
+      const { user } = render(<FeatureFlagsEditor organizationId="org_1" />);
+      await user.click(screen.getByRole('button', { name: /edit rule 1/i }));
+      await user.click(screen.getByRole('button', { name: '8K' }));
+      await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+      expect(saveMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          policyType: 'feature_flags',
+          config: {
+            enabled: true,
+            rules: [{ scope: 'default', maxContextTokens: 8192 }],
+          },
+        }),
+      );
+    });
   });
 
   it('renders add rule button', () => {
@@ -196,7 +235,7 @@ describe('FeatureFlagsEditor', () => {
       // 3 placeholder rows in the body, each with the real column count.
       const bodyRows = container.querySelectorAll('tbody tr');
       expect(bodyRows).toHaveLength(3);
-      expect(bodyRows[0].querySelectorAll('td')).toHaveLength(7);
+      expect(bodyRows[0].querySelectorAll('td')).toHaveLength(4);
     });
   });
 
@@ -237,9 +276,10 @@ describe('FeatureFlagsEditor', () => {
       expect(saveMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           policyType: 'feature_flags',
-          config: expect.objectContaining({
-            rules: [expect.objectContaining({ maxContextTokens: 8192 })],
-          }),
+          config: {
+            enabled: true,
+            rules: [{ scope: 'default', maxContextTokens: 8192 }],
+          },
         }),
       );
     });
