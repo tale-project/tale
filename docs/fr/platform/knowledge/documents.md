@@ -43,7 +43,7 @@ Ouvre le menu de la ligne d’un brouillon ou d’un document approuvé et cliqu
 
 <Step title="Vérifier et soumettre la révision">
 
-Ouvre l’aperçu du document et vérifie qu’il affiche le fichier de remplacement. Ouvre ensuite le menu de la ligne et clique sur **Soumettre à la relecture**. Le sélecteur ne propose que les membres qui peuvent réellement ouvrir le document — un fichier de projet exige l’accès en édition au projet. Tale fige le brouillon pendant que le relecteur statue sur ce fichier exact ; le relecteur est prévenu par la cloche et par e-mail, et la décision te revient par le même chemin — une demande de modifications porte le retour du relecteur, que la boîte de dialogue de soumission affiche aussi avant ta prochaine tentative.
+Ouvre l’aperçu du document et vérifie qu’il affiche le fichier de remplacement. Ouvre ensuite le menu de la ligne et clique sur **Soumettre à la relecture**. Le sélecteur ne propose que les membres qui peuvent réellement ouvrir le document — un fichier de projet exige l’accès en édition au projet — et jamais toi. Seul le relecteur que tu désignes peut approuver ou demander des modifications, chaque relecture est donc un second regard. Tale fige le brouillon pendant que le relecteur statue sur ce fichier exact ; le relecteur est prévenu par la cloche et par e-mail, et la décision te revient par le même chemin — une demande de modifications porte le retour du relecteur, que la boîte de dialogue de soumission affiche aussi avant ta prochaine tentative.
 
 </Step>
 

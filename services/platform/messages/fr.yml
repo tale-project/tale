@@ -2106,6 +2106,8 @@ documents:
       sendFeedback: Envoyer le feedback
       feedbackPlaceholder: Que faut-il changer ? Ton retour est enregistré
         avec la décision.
+      onlyDesignee: 'Seul {name} peut se prononcer sur cette relecture.'
+      onlyDesigneeNoName: Seul le relecteur désigné peut se prononcer sur cette relecture.
     toast:
       controlled: Ce document est maintenant un document maîtrisé
       controlledFailed: Impossible de marquer le document comme maîtrisé

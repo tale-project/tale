@@ -2023,6 +2023,8 @@ documents:
       sendFeedback: Send feedback
       feedbackPlaceholder: What should change? The decision is recorded with
         this feedback.
+      onlyDesignee: 'Only {name} can decide this review.'
+      onlyDesigneeNoName: Only the designated reviewer can decide this review.
     toast:
       controlled: This document is now a controlled record
       controlledFailed: Could not mark the document as controlled

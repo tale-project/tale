@@ -3433,6 +3433,52 @@ async function checkDocuments(
 
   // --- Controlled-record lifecycle (inc 85) --------------------------------
 
+  // The review is FOUR-EYES: a submitter cannot designate themselves and only
+  // the designee decides, so the lifecycle needs a second writer. An
+  // editor-role member joins for this function (membership removed at its
+  // end, so later sections see the member set they always did).
+  const reviewerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `doc-reviewer-${Date.now().toString(36)}@example.com`,
+      password: 'itest-password-1',
+      name: 'Doc Reviewer',
+    }),
+  });
+  const reviewerCookie = cookieHeaderFrom(reviewerSignUp);
+  const reviewerBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await reviewerSignUp.json());
+  const reviewerUserId = reviewerBody.success ? reviewerBody.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${reviewerUserId}, 'editor',
+            ${new Date()})
+  `;
+  const sendAs = (
+    asCookie: string,
+    method: 'POST' | 'DELETE',
+    route: string,
+    payload?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        cookie: asCookie,
+        origin: base,
+      },
+      ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+    });
+  const errorCodeOf = async (response: Response): Promise<string> => {
+    const parsed = z
+      .looseObject({ error: z.string().optional() })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success ? (parsed.data.error ?? '') : '';
+  };
+
   const recordDocId = directBound.success ? directBound.data.documentId : '';
   const mark = await send(
     'POST',
@@ -3462,19 +3508,30 @@ async function checkDocuments(
         `/api/app/documents/${recordDocId}/record/eligible-reviewer-ids?orgId=${orgId}`,
       ),
     );
+  // The eligible set is everyone ELSE who could respond — never the caller —
+  // and the server refuses a self-designation the picker would not offer.
+  const selfSubmit = await send(
+    'POST',
+    `/api/app/documents/${recordDocId}/record/submit?orgId=${orgId}`,
+    { reviewerUserId: userId },
+  );
+  const selfSubmitCode = await errorCodeOf(selfSubmit);
   record(
-    'record mark-controlled + double-control guard + eligibility',
+    'record mark-controlled + double-control guard + eligibility (never self)',
     mark.ok &&
       markAgain.status === 400 &&
       controlledItem.success &&
       controlledItem.data.document.record.state === 'draft' &&
       controlledItem.data.document.record.version === 1 &&
       eligible.success &&
-      eligible.data.userIds.length >= 1,
-    `mark → ${mark.status}, again → ${markAgain.status} (want 400), badge=${controlledItem.success ? `${controlledItem.data.document.record.state} v${controlledItem.data.document.record.version}` : 'ERR'}, eligible=${eligible.success ? eligible.data.userIds.length : 'ERR'}`,
+      eligible.data.userIds.includes(reviewerUserId) &&
+      !eligible.data.userIds.includes(userId) &&
+      selfSubmit.status === 400 &&
+      selfSubmitCode === 'REVIEWER_SELF_NOT_ALLOWED',
+    `mark → ${mark.status}, again → ${markAgain.status} (want 400), badge=${controlledItem.success ? `${controlledItem.data.document.record.state} v${controlledItem.data.document.record.version}` : 'ERR'}, eligible=${eligible.success ? `${eligible.data.userIds.includes(reviewerUserId) ? 'editor' : 'NO-EDITOR'}${eligible.data.userIds.includes(userId) ? '+SELF' : ''}` : 'ERR'} (want editor only), selfSubmit → ${selfSubmit.status}/${selfSubmitCode} (want 400/REVIEWER_SELF_NOT_ALLOWED)`,
   );
 
-  const reviewerId = eligible.success ? (eligible.data.userIds[0] ?? '') : '';
+  const reviewerId = reviewerUserId;
   const submit = z
     .object({ approvalId: z.string() })
     .safeParse(
@@ -3505,20 +3562,28 @@ async function checkDocuments(
     'POST',
     `/api/app/documents/${recordDocId}/trash?orgId=${orgId}`,
   );
-  const noFeedback = await send(
-    'POST',
-    `/api/app/documents/records/reviews/${submit.success ? submit.data.approvalId : ''}/respond?orgId=${orgId}`,
-    { decision: 'request_changes' },
-  );
+  const respondRoute = `/api/app/documents/records/reviews/${submit.success ? submit.data.approvalId : ''}/respond?orgId=${orgId}`;
+  const noFeedback = await sendAs(reviewerCookie, 'POST', respondRoute, {
+    decision: 'request_changes',
+  });
+  // The submitter is a writer, but not the designee: the decision is the
+  // reviewer's alone — a designation anyone could act on would make the
+  // four-eyes flow a one-person stamp. (A request-changes attempt, so a
+  // regression that lets it through leaves the record a draft the rest of
+  // this section can still drive, instead of derailing every later check.)
+  const submitterResponds = await send('POST', respondRoute, {
+    decision: 'request_changes',
+    feedback: 'Deciding my own submission.',
+  });
+  const submitterCode = await errorCodeOf(submitterResponds);
   const changes = z
     .object({ state: z.literal('draft'), version: z.number() })
     .safeParse(
       await (
-        await send(
-          'POST',
-          `/api/app/documents/records/reviews/${submit.success ? submit.data.approvalId : ''}/respond?orgId=${orgId}`,
-          { decision: 'request_changes', feedback: 'Tighten section 2.' },
-        )
+        await sendAs(reviewerCookie, 'POST', respondRoute, {
+          decision: 'request_changes',
+          feedback: 'Tighten section 2.',
+        })
       ).json(),
     );
   const lastReview = z
@@ -3537,17 +3602,21 @@ async function checkDocuments(
       ),
     );
   record(
-    'record submit → in_review guardrails → request-changes round trip',
+    'record submit → in_review guardrails → designee-only request-changes',
     submit.success &&
       pendingReview.success &&
       pendingReview.data.review?.approvalId === submit.data.approvalId &&
+      pendingReview.data.review.requestedFor === reviewerUserId &&
       trashWhileInReview.status === 400 &&
       noFeedback.status === 400 &&
+      submitterResponds.status === 403 &&
+      submitterCode === 'REVIEW_NOT_ASSIGNED' &&
       changes.success &&
       lastReview.success &&
       lastReview.data.review?.decision === 'request_changes' &&
-      lastReview.data.review.feedback === 'Tighten section 2.',
-    `submit=${submit.success ? 'ok' : 'ERR'}, pendingMatch=${pendingReview.success ? pendingReview.data.review?.approvalId === (submit.success ? submit.data.approvalId : '') : 'ERR'}, trash → ${trashWhileInReview.status} (want 400), noFeedback → ${noFeedback.status} (want 400), changes=${changes.success ? changes.data.state : 'ERR'}, last=${lastReview.success ? (lastReview.data.review?.decision ?? 'null') : 'ERR'}`,
+      lastReview.data.review.feedback === 'Tighten section 2.' &&
+      lastReview.data.review.respondedBy === reviewerUserId,
+    `submit=${submit.success ? 'ok' : 'ERR'}, pendingMatch=${pendingReview.success ? pendingReview.data.review?.approvalId === (submit.success ? submit.data.approvalId : '') : 'ERR'}, trash → ${trashWhileInReview.status} (want 400), noFeedback → ${noFeedback.status} (want 400), submitterResponds → ${submitterResponds.status}/${submitterCode} (want 403/REVIEW_NOT_ASSIGNED), changes=${changes.success ? changes.data.state : 'ERR'}, last=${lastReview.success ? `${lastReview.data.review?.decision ?? 'null'} by ${lastReview.data.review?.respondedBy === reviewerUserId ? 'reviewer' : 'OTHER'}` : 'ERR'}`,
   );
 
   const resubmit = z
@@ -3565,12 +3634,15 @@ async function checkDocuments(
     .object({ state: z.literal('approved'), version: z.number() })
     .safeParse(
       await (
-        await send(
+        await sendAs(
+          reviewerCookie,
           'POST',
           `/api/app/documents/records/reviews/${resubmit.success ? resubmit.data.approvalId : ''}/respond?orgId=${orgId}`,
           { decision: 'approve' },
         )
-      ).json(),
+      )
+        .json()
+        .catch(() => null),
     );
   const approvedItem = z
     .object({
@@ -3617,6 +3689,79 @@ async function checkDocuments(
       revision.data.version === 2 &&
       deleteRetained.status === 400,
     `resubmitFresh=${resubmit.success && submit.success ? resubmit.data.approvalId !== submit.data.approvalId : 'ERR'}, approve=${approve.success ? 'ok' : 'ERR'}, badge=${approvedItem.success ? `${approvedItem.data.document.record.state}/${approvedItem.data.document.record.hasApprovedVersions}` : 'ERR'}, deleteApproved → ${deleteApproved.status} (want 400), revision=${revision.success ? revision.data.version : 'ERR'}, deleteRetained → ${deleteRetained.status} (want 400)`,
+  );
+
+  // --- The settings panel's text file: access is not absence ---------------
+  // The read half needs project READ access like the project listing does.
+  // The folder and file names are well known (validation-policy.yaml), so
+  // without the gate any org member could read another team's settings. The
+  // editor outside the team reads the org-wide project (positive control)
+  // but is refused on a team-restricted one; an unknown project is not found,
+  // never an empty map.
+  const textTeam = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), 'Settings owners', ${orgId}, ${new Date()},
+            ${new Date()})
+    RETURNING "id"
+  `;
+  const textTeamId = textTeam[0]?.id ?? '';
+  const restrictedProject = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/projects?orgId=${orgId}`, {
+        name: 'Restricted settings project',
+        teamId: textTeamId,
+      })
+    ).json(),
+  );
+  const restrictedProjectId = restrictedProject.success
+    ? restrictedProject.data.projectId
+    : '';
+  const textFile = { folderName: 'Setup', fileName: 'validation-policy.yaml' };
+  await send('POST', `/api/app/documents/project-text?orgId=${orgId}`, {
+    projectId: restrictedProjectId,
+    ...textFile,
+    yaml: { secret: 'team-only' },
+  });
+  const strangerOrgWide = await sendAs(
+    reviewerCookie,
+    'POST',
+    `/api/app/documents/project-text/read?orgId=${orgId}`,
+    { projectId, ...textFile },
+  );
+  const strangerRestricted = await sendAs(
+    reviewerCookie,
+    'POST',
+    `/api/app/documents/project-text/read?orgId=${orgId}`,
+    { projectId: restrictedProjectId, ...textFile },
+  );
+  const strangerCode = await errorCodeOf(strangerRestricted);
+  const ownerRestricted = z
+    .object({ values: z.record(z.string(), z.string()) })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/project-text/read?orgId=${orgId}`,
+          { projectId: restrictedProjectId, ...textFile },
+        )
+      ).json(),
+    );
+  const unknownProject = await send(
+    'POST',
+    `/api/app/documents/project-text/read?orgId=${orgId}`,
+    { projectId: randomUUID(), ...textFile },
+  );
+  record(
+    'project text read requires project access (no guessing another team’s settings)',
+    restrictedProject.success &&
+      strangerOrgWide.status === 200 &&
+      strangerRestricted.status === 403 &&
+      strangerCode === 'PROJECT_FORBIDDEN' &&
+      ownerRestricted.success &&
+      ownerRestricted.data.values.secret === 'team-only' &&
+      unknownProject.status === 404,
+    `orgWide → ${strangerOrgWide.status} (want 200), restricted → ${strangerRestricted.status}/${strangerCode} (want 403/PROJECT_FORBIDDEN), owner=${ownerRestricted.success ? JSON.stringify(ownerRestricted.data.values) : 'ERR'}, unknown → ${unknownProject.status} (want 404)`,
   );
 
   // --- Replacement uploads (inc 86) ----------------------------------------
@@ -3805,6 +3950,119 @@ async function checkDocuments(
     `unchanged → ${finalizeSame.status} (want 400), cancel=${cancelled.success ? 'ok' : 'ERR'}, finalizeCancelled → ${finalizeCancelled.status} (want 400), status=${statusRead.success ? statusRead.data.state : 'ERR'}`,
   );
 
+  // Two finalizes racing on the SAME current file. Both intents pass their
+  // mint-time checks (both name the current blob); the bind must serialize on
+  // the document row so exactly one wins and the other gets a clear
+  // version-mismatch — never two "success" answers with one uploaded version
+  // silently missing from the chain. The race is made deterministic by
+  // parking BOTH binds behind a row lock this test holds until both wait.
+  const beginRace = async (bytes: string): Promise<string> => {
+    const minted = z
+      .object({ intentId: z.string(), url: z.string().url() })
+      .safeParse(
+        await (
+          await send(
+            'POST',
+            `/api/app/documents/${recordDocId}/replacement-upload/begin?orgId=${orgId}`,
+            {
+              expectedRecordState: 'draft',
+              expectedVersion: 2,
+              expectedFileId: fileIdAfter,
+              fileName: 'direct-post.txt',
+              contentType: 'text/plain',
+            },
+          )
+        ).json(),
+      );
+    if (!minted.success) return '';
+    await fetch(minted.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: bytes,
+    });
+    return minted.data.intentId;
+  };
+  const raceA = await beginRace('race body alpha');
+  const raceB = await beginRace('race body beta');
+  let releaseGate = (): void => {};
+  const gateReleased = new Promise<void>((resolve) => {
+    releaseGate = resolve;
+  });
+  let gateHeld = (): void => {};
+  const gateHeldOnce = new Promise<void>((resolve) => {
+    gateHeld = resolve;
+  });
+  const gate = sql.begin(async (tx) => {
+    await tx`SELECT id FROM app.documents WHERE id = ${recordDocId} FOR UPDATE`;
+    gateHeld();
+    await gateReleased;
+  });
+  await gateHeldOnce;
+  const racing = Promise.all(
+    [raceA, raceB].map((intentId) =>
+      send(
+        'POST',
+        `/api/app/documents/replacement-uploads/${intentId}/finalize?orgId=${orgId}`,
+        {},
+      ),
+    ),
+  );
+  // Both binds are now parked — release once two backends are blocked.
+  // Serialized, both wait at the locked load of app.documents; an
+  // unserialized bind reads the document freely and blocks later — one at
+  // the swap UPDATE behind the gate, the other behind THAT bind on a row
+  // they both touch first (the per-org upload counter) — so the honest
+  // predicate is "two blocked backends", whatever statement each waits in.
+  const bothParked = await waitFor(async () => {
+    const waiting = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND cardinality(pg_blocking_pids(pid)) > 0
+    `;
+    return Number(waiting[0]?.count ?? '0') >= 2;
+  }, 20_000);
+  releaseGate();
+  await gate;
+  const raceResponses = await racing;
+  const raceCodes = await Promise.all(
+    raceResponses.map((response) =>
+      response.ok ? Promise.resolve('ok') : errorCodeOf(response),
+    ),
+  );
+  const raceIntents = await sql<
+    { id: string; state: string; finalRef: string }[]
+  >`
+    SELECT id, state, final_ref AS "finalRef"
+    FROM app.document_replacement_uploads
+    WHERE id IN (${raceA}, ${raceB})
+  `;
+  const afterRace = await sql<
+    { fileRef: string | null; historyFiles: string[] }[]
+  >`
+    SELECT file_ref AS "fileRef", history_files AS "historyFiles"
+    FROM app.documents WHERE id = ${recordDocId} LIMIT 1
+  `;
+  const raceWinners = raceIntents.filter((intent) => intent.state === 'bound');
+  const raceLoser = raceIntents.find((intent) => intent.state !== 'bound');
+  // No version lost: every blob a bind made current is current or retained.
+  const chainIntact = raceWinners.every(
+    (intent) =>
+      afterRace[0]?.fileRef === intent.finalRef ||
+      (afterRace[0]?.historyFiles ?? []).includes(intent.finalRef),
+  );
+  record(
+    'replacement finalize race: one bind wins, the other conflicts, no version lost',
+    bothParked &&
+      raceCodes.filter((code) => code === 'ok').length === 1 &&
+      raceCodes.includes('DOCUMENT_RECORD_VERSION_MISMATCH') &&
+      raceWinners.length === 1 &&
+      raceLoser?.state === 'failed' &&
+      afterRace[0]?.fileRef === raceWinners[0]?.finalRef &&
+      (afterRace[0]?.historyFiles ?? []).includes(fileIdAfter) &&
+      chainIntact,
+    `parked=${bothParked}, responses=${raceCodes.join('/')} (want ok + DOCUMENT_RECORD_VERSION_MISMATCH), bound=${raceWinners.length} (want 1), loser=${raceLoser?.state ?? 'none'} (want failed), currentIsWinner=${afterRace[0]?.fileRef === raceWinners[0]?.finalRef}, previousRetained=${(afterRace[0]?.historyFiles ?? []).includes(fileIdAfter)}, chainIntact=${chainIntact}`,
+  );
+
   // Hard delete removes the row and the hub listing entry.
   const hardDelete = await send(
     'POST',
@@ -3965,6 +4223,13 @@ async function checkDocuments(
       traversal.status === 400,
     `missing=${readMissing.success ? Object.keys(readMissing.data.values).length : 'ERR'} (want 0), write=${wrote.success ? `${wrote.data.action}/${wrote.data.createdFolder}` : 'ERR'}, readBack=${readBack.success ? JSON.stringify(readBack.data.values) : 'ERR'}, rewrite=${rewrote.success ? `${rewrote.data.action}/${rewrote.data.documentId === (wrote.success ? wrote.data.documentId : '')}` : 'ERR'}, after=${afterRewrite.success ? JSON.stringify(afterRewrite.data.values) : 'ERR'}, traversal=${traversal.status} (want 400)`,
   );
+
+  // Fixture hygiene: the reviewer leaves the org so later sections see the
+  // member set they always did.
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${orgId} AND "userId" = ${reviewerUserId}
+  `;
 }
 
 /**
@@ -4072,6 +4337,27 @@ async function checkDocumentWriteGuards(
     INSERT INTO "member" ("id", "organizationId", "userId", "role",
                           "createdAt")
     VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member', ${new Date()})
+  `;
+  // A second WRITER: the record review is four-eyes, so the owner submits
+  // and this editor decides.
+  const editorSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `doc-guards-editor-${suffix}@example.com`,
+      password: 'itest-password-1',
+      name: 'Doc Guards Editor',
+    }),
+  });
+  const editorCookie = cookieHeaderFrom(editorSignUp);
+  const editorBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await editorSignUp.json());
+  const editorId = editorBody.success ? editorBody.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${editorId}, 'editor', ${new Date()})
   `;
   const mintKey = async (asCookie: string, name: string): Promise<string> => {
     const minted = z.looseObject({ key: z.string() }).safeParse(
@@ -4245,7 +4531,7 @@ async function checkDocumentWriteGuards(
   });
   // Eligibility mirrors the respond gate: a read-only member never appears
   // as a designation candidate (a designee who could not respond would
-  // strand the review).
+  // strand the review), and neither does the caller (no self-review).
   const eligibleIds = z
     .object({ userIds: z.array(z.string()) })
     .safeParse(
@@ -4265,7 +4551,7 @@ async function checkDocumentWriteGuards(
           cookie,
           'POST',
           `/api/app/documents/${docB}/record/submit?orgId=${orgId}`,
-          { reviewerUserId: userId },
+          { reviewerUserId: editorId },
         )
       ).json(),
     );
@@ -4284,22 +4570,27 @@ async function checkDocumentWriteGuards(
       draftContentCode === 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' &&
       patchDraftTitle.status === 204 &&
       eligibleIds.success &&
-      eligibleIds.data.userIds.includes(userId) &&
+      eligibleIds.data.userIds.includes(editorId) &&
+      !eligibleIds.data.userIds.includes(userId) &&
       !eligibleIds.data.userIds.includes(memberId) &&
       submitB.success &&
       patchFrozenContent.status === 400 &&
       frozenContentCode === 'DOCUMENT_RECORD_FROZEN' &&
       patchFrozenMime.status === 400,
-    `mark → ${markB.status}, draftContent → ${patchDraftContent.status}/${draftContentCode} (want 400/REPLACEMENT_REQUIRED), rename → ${patchDraftTitle.status} (want 204), eligible=${eligibleIds.success ? `${eligibleIds.data.userIds.includes(userId) ? 'owner' : 'NO-OWNER'}${eligibleIds.data.userIds.includes(memberId) ? '+MEMBER' : ''}` : 'ERR'} (want owner only), inReviewContent → ${patchFrozenContent.status}/${frozenContentCode} (want 400/FROZEN), mime → ${patchFrozenMime.status} (want 400)`,
+    `mark → ${markB.status}, draftContent → ${patchDraftContent.status}/${draftContentCode} (want 400/REPLACEMENT_REQUIRED), rename → ${patchDraftTitle.status} (want 204), eligible=${eligibleIds.success ? `${eligibleIds.data.userIds.includes(editorId) ? 'editor' : 'NO-EDITOR'}${eligibleIds.data.userIds.includes(userId) ? '+SELF' : ''}${eligibleIds.data.userIds.includes(memberId) ? '+MEMBER' : ''}` : 'ERR'} (want editor only), inReviewContent → ${patchFrozenContent.status}/${frozenContentCode} (want 400/FROZEN), mime → ${patchFrozenMime.status} (want 400)`,
   );
 
   // ---- (4) REST DELETE uses the session protection predicate --------------
-  const approveB = await sendAs(
-    cookie,
-    'POST',
-    `/api/app/documents/records/reviews/${submitB.success ? submitB.data.approvalId : ''}/respond?orgId=${orgId}`,
-    { decision: 'approve' },
-  );
+  // The owner submitted and is not the designee — the decision is the
+  // editor's; the owner's attempt is refused as not assigned.
+  const respondB = `/api/app/documents/records/reviews/${submitB.success ? submitB.data.approvalId : ''}/respond?orgId=${orgId}`;
+  const ownerApproveB = await sendAs(cookie, 'POST', respondB, {
+    decision: 'approve',
+  });
+  const ownerApproveCode = await codeIn(ownerApproveB);
+  const approveB = await sendAs(editorCookie, 'POST', respondB, {
+    decision: 'approve',
+  });
   const deleteApproved = await v1(ownerKey, 'DELETE', `/documents/${docB}`);
   const revisionB = await sendAs(
     cookie,
@@ -4322,7 +4613,9 @@ async function checkDocumentWriteGuards(
   `;
   record(
     'REST DELETE inherits record protection (retained history) + audit',
-    approveB.status === 200 &&
+    ownerApproveB.status === 403 &&
+      ownerApproveCode === 'REVIEW_NOT_ASSIGNED' &&
+      approveB.status === 200 &&
       deleteApproved.status === 409 &&
       (await codeIn(deleteApproved)) === 'DOCUMENT_RECORD_PROTECTED' &&
       revisionB.status === 200 &&
@@ -4330,7 +4623,7 @@ async function checkDocumentWriteGuards(
       retainedRow.length === 1 &&
       deleteUncontrolled.status === 204 &&
       auditRows[0]?.count === '1',
-    `approve → ${approveB.status}, deleteApproved → ${deleteApproved.status} (want 409), revision → ${revisionB.status}, deleteRetained → ${deleteRetained.status} (want 409), rowKept=${retainedRow.length === 1}, uncontrolled → ${deleteUncontrolled.status} (want 204), auditRows=${auditRows[0]?.count ?? '0'} (want 1)`,
+    `ownerApprove → ${ownerApproveB.status}/${ownerApproveCode} (want 403/REVIEW_NOT_ASSIGNED), approve → ${approveB.status}, deleteApproved → ${deleteApproved.status} (want 409), revision → ${revisionB.status}, deleteRetained → ${deleteRetained.status} (want 409), rowKept=${retainedRow.length === 1}, uncontrolled → ${deleteUncontrolled.status} (want 204), auditRows=${auditRows[0]?.count ?? '0'} (want 1)`,
   );
 
   // ---- (2) agent upsert: freeze + content-hash coherence ------------------
@@ -4399,6 +4692,62 @@ async function checkDocumentWriteGuards(
       refusedCode === 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' &&
       fileRefRows[0]?.fileRef === second.fileRef,
     `create=${first.action}/${hashAfterCreate === sha('agent v1 body') ? 'hash-ok' : `hash=${hashAfterCreate ?? 'null'}`}, update=${second.action}/${hashAfterUpdate === sha('agent v2 body') ? 'hash-ok' : `hash=${hashAfterUpdate ?? 'null'}`}, mark → ${markAgent.status}, rerun=${refusedCode || 'ALLOWED'} (want DOCUMENT_RECORD_REPLACEMENT_REQUIRED), fileRefKept=${fileRefRows[0]?.fileRef === second.fileRef}`,
+  );
+
+  // A named project must EXIST in this org — the task writer's rule. Without
+  // it the row lands where nothing reaches it (the hub lists `project_id IS
+  // NULL`, retrieval scopes need a readable project): saved, "ok", lost. A
+  // foreign org's project reads as missing, never as forbidden.
+  const foreignProject = await sql<{ id: string }[]>`
+    SELECT id FROM app.projects WHERE org_id <> ${orgId} LIMIT 1
+  `;
+  const agentProjectRefusal = async (
+    projectId: string,
+    key: string,
+  ): Promise<string> => {
+    const blob = await storeAgentTextBlob(sql, {
+      organizationId: orgId,
+      fileName: 'agent-lost.md',
+      content: `unreachable ${key}`,
+      contentType: 'text/markdown',
+      uploadedBy: userId,
+    });
+    try {
+      await upsertAgentDocument(sql, {
+        organizationId: orgId,
+        externalItemId: key,
+        title: 'agent-lost.md',
+        fileRef: blob.storageRef,
+        mimeType: 'text/markdown',
+        createdBy: userId,
+        projectId,
+      });
+      return 'ALLOWED';
+    } catch (error) {
+      return error instanceof DocumentError ? error.code : String(error);
+    }
+  };
+  const bogusProjectCode = await agentProjectRefusal(
+    randomUUID(),
+    `itest:doc-guards:bogus:${suffix}`,
+  );
+  const foreignProjectCode =
+    foreignProject[0] === undefined
+      ? 'NO-FOREIGN-PROJECT'
+      : await agentProjectRefusal(
+          foreignProject[0].id,
+          `itest:doc-guards:foreign:${suffix}`,
+        );
+  const unreachableRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.documents
+    WHERE org_id = ${orgId} AND title = 'agent-lost.md'
+  `;
+  record(
+    'agent upsert: unknown or foreign project is refused before the write',
+    bogusProjectCode === 'PROJECT_NOT_FOUND' &&
+      foreignProjectCode === 'PROJECT_NOT_FOUND' &&
+      unreachableRows[0]?.count === '0',
+    `bogus=${bogusProjectCode}, foreign=${foreignProjectCode} (want PROJECT_NOT_FOUND), unreachableRows=${unreachableRows[0]?.count ?? '?'} (want 0)`,
   );
 
   // ---- (5) hub team assignment must stay visible to the caller ------------
@@ -5455,7 +5804,7 @@ async function checkKnowledge(
 async function checkCorpusPurgeConsistency(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
   orgSlug: string,
 ): Promise<void> {
   if (!process.env.ITEST_S3_ENDPOINT) {
@@ -5664,6 +6013,134 @@ async function checkCorpusPurgeConsistency(
         oldFetchDark &&
         oldBlobRetained,
       `finalize → ${finalize.status}, oldCorpusGone=${oldDeindexed}, newIndexed=${newIndexed}, oldFetchDark=${oldFetchDark}, snapshotBytesKept=${oldBlobRetained}`,
+    );
+
+    // --- 1b. Project attach/detach re-stamps the corpus scope --------------
+    // A hub document's corpus rows carry no project; attaching it to a
+    // project must stamp that project (or the file keeps answering org-wide
+    // retrieval from inside a restricted project), and detaching must clear
+    // it (or the file silently vanishes from hub retrieval).
+    const scoped = await uploadIndexedDoc(
+      'purge-scope.txt',
+      'purge check gamma peridot scope body',
+    );
+    const scopeProject = z.object({ projectId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/projects?orgId=${orgId}`, {
+          name: 'Corpus scope project',
+        })
+      ).json(),
+    );
+    const scopeProjectId = scopeProject.success
+      ? scopeProject.data.projectId
+      : '';
+    const corpusProjectOf = async (
+      ref: string,
+    ): Promise<string | null | undefined> => {
+      const rows = await corpusPool<{ projectId: string | null }[]>`
+        SELECT project_id AS "projectId" FROM private_knowledge.documents
+        WHERE org_slug = ${orgSlug} AND file_id = ${ref}
+        LIMIT 1
+      `;
+      return rows[0]?.projectId;
+    };
+    const scopeBefore =
+      scoped === null ? undefined : await corpusProjectOf(scoped.ref);
+    const attachScoped =
+      scoped === null
+        ? null
+        : await send(
+            'POST',
+            `/api/app/documents/${scoped.documentId}/attach-to-project?orgId=${orgId}`,
+            { projectId: scopeProjectId },
+          );
+    const scopeAttached =
+      scoped === null ? undefined : await corpusProjectOf(scoped.ref);
+    const detachScoped =
+      scoped === null
+        ? null
+        : await send(
+            'POST',
+            `/api/app/documents/${scoped.documentId}/detach-from-project?orgId=${orgId}`,
+          );
+    const scopeDetached =
+      scoped === null ? undefined : await corpusProjectOf(scoped.ref);
+    record(
+      'corpus scope: project attach/detach re-stamps retrieval scope',
+      scoped !== null &&
+        scopeProjectId !== '' &&
+        scopeBefore === null &&
+        attachScoped?.ok === true &&
+        scopeAttached === scopeProjectId &&
+        detachScoped?.ok === true &&
+        scopeDetached === null,
+      `seed=${scoped !== null}, before=${String(scopeBefore)} (want null), attach → ${attachScoped?.status ?? 'skipped'}, stamped=${scopeAttached === scopeProjectId ? 'project' : String(scopeAttached)} (want project), detach → ${detachScoped?.status ?? 'skipped'}, cleared=${String(scopeDetached)} (want null)`,
+    );
+
+    // --- 1c. The REST door's team change re-stamps too ----------------------
+    // Only the app route re-stamped on a team change; a `PATCH /documents/:id`
+    // with a teamId left the corpus rows carrying the old scope. Same doc,
+    // back in the hub: team it via REST, then clear it.
+    const scopeTeam = await sql<{ id: string }[]>`
+      INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                          "updatedAt")
+      VALUES (gen_random_uuid(), 'Corpus scope team', ${orgId}, ${new Date()},
+              ${new Date()})
+      RETURNING "id"
+    `;
+    const scopeTeamId = scopeTeam[0]?.id ?? '';
+    await sql`
+      INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+      VALUES (gen_random_uuid(), ${scopeTeamId}, ${ctx.userId}, ${new Date()})
+    `;
+    const scopeKey = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: 'itest-corpus-scope' }),
+        })
+      ).json(),
+    );
+    const restPatch = (body: unknown): Promise<Response> =>
+      fetch(`${base}/api/v1/documents/${scoped?.documentId ?? ''}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${scopeKey.success ? scopeKey.data.key : ''}`,
+        },
+        body: JSON.stringify(body),
+      });
+    const corpusTeamOf = async (
+      ref: string,
+    ): Promise<string | null | undefined> => {
+      const rows = await corpusPool<{ teamId: string | null }[]>`
+        SELECT team_id AS "teamId" FROM private_knowledge.documents
+        WHERE org_slug = ${orgSlug} AND file_id = ${ref}
+        LIMIT 1
+      `;
+      return rows[0]?.teamId;
+    };
+    const teamed =
+      scoped === null ? null : await restPatch({ teamId: scopeTeamId });
+    const teamStamped =
+      scoped === null ? undefined : await corpusTeamOf(scoped.ref);
+    const unteamed = scoped === null ? null : await restPatch({ teamId: null });
+    const teamCleared =
+      scoped === null ? undefined : await corpusTeamOf(scoped.ref);
+    record(
+      'corpus scope: REST team change re-stamps retrieval scope',
+      scoped !== null &&
+        scopeKey.success &&
+        teamed?.status === 204 &&
+        teamStamped === scopeTeamId &&
+        unteamed?.status === 204 &&
+        teamCleared === null,
+      `key=${scopeKey.success}, team → ${teamed?.status ?? 'skipped'} (want 204), stamped=${teamStamped === scopeTeamId ? 'team' : String(teamStamped)} (want team), clear → ${unteamed?.status ?? 'skipped'} (want 204), cleared=${String(teamCleared)} (want null)`,
     );
 
     // --- 2. Knowledge-entry edit releases the rotated-away ref -------------
@@ -22913,20 +23390,83 @@ async function checkAutomationRunToolLane(
   });
   const orgFind = await dispatch(orgToken, 'task_find', {});
   const orgFindRaw = orgFind.raw;
-  // An org-level run's document is a HUB document — it belongs to no project.
+  // A MULTI-BOUND run's document must name one of its bound projects — the
+  // hub is org-wide, wider than the run's authority (task_create's rule) —
+  // and a project outside the bindings is refused like the task tools do.
+  /** The document's project — `null` for a hub row, `undefined` for NO row. */
+  const projectOf = async (
+    title: string,
+  ): Promise<string | null | undefined> => {
+    const rows = await sql<{ projectId: string | null }[]>`
+      SELECT project_id AS "projectId" FROM app.documents
+      WHERE org_id = ${orgId} AND title = ${title}
+      LIMIT 1
+    `;
+    return rows[0]?.projectId;
+  };
   const orgWrote = await dispatch(orgToken, 'document_create', {
     name: 'org-run-notes.md',
     content: '# Notes\n\nOrg-level run.',
     contentType: 'text/markdown',
   });
-  const hubDocument = await sql<{ projectId: string | null }[]>`
-    SELECT project_id AS "projectId" FROM app.documents
-    WHERE org_id = ${orgId} AND title = 'org-run-notes.md'
+  const hubDocument = await projectOf('org-run-notes.md');
+  const orgWroteBound = await dispatch(orgToken, 'document_create', {
+    name: 'org-run-bound.md',
+    content: '# Notes\n\nFiled on a bound project.',
+    contentType: 'text/markdown',
+    projectId: otherProjectId,
+  });
+  const boundDocument = await projectOf('org-run-bound.md');
+  const orgWroteOutside = await dispatch(orgToken, 'document_create', {
+    name: 'org-run-outside.md',
+    content: '# Notes\n\nNot allowed here.',
+    contentType: 'text/markdown',
+    projectId: unboundProjectId,
+  });
+  const outsideDocument = await projectOf('org-run-outside.md');
+
+  // A TRULY org-level run (no bindings) writes the hub, or a project it
+  // names — which must exist in this org: an unknown id is refused as
+  // not_found rather than filed where no listing or retrieval reaches it.
+  const freeRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by,
+      input, checkpoints, started_at_ms
+    ) VALUES (
+      ${orgId}, 'itest-run-tools-free', 1, 'running', 'live', ${userId},
+      ${sql.json({})}, ${sql.json(toJson(liveCursor))}, ${now}
+    ) RETURNING id
   `;
+  const freeToken = 'itest-vk-run-free';
+  await seedSession('itest-run-free', freeRun[0]?.id ?? '', freeToken);
+  const freeHub = await dispatch(freeToken, 'document_create', {
+    name: 'free-run-hub.md',
+    content: '# Notes\n\nOrg-wide.',
+    contentType: 'text/markdown',
+  });
+  const freeHubDocument = await projectOf('free-run-hub.md');
+  const freeNamed = await dispatch(freeToken, 'document_create', {
+    name: 'free-run-named.md',
+    content: '# Notes\n\nFiled on a named project.',
+    contentType: 'text/markdown',
+    projectId: unboundProjectId,
+  });
+  const freeNamedDocument = await projectOf('free-run-named.md');
+  const freeBogus = await dispatch(freeToken, 'document_create', {
+    name: 'free-run-bogus.md',
+    content: '# Notes\n\nNobody could ever reach this.',
+    contentType: 'text/markdown',
+    projectId: randomUUID(),
+  });
+  const freeBogusDocument = await projectOf('free-run-bogus.md');
 
   // Hand back the workflow session budget — the org's cap is small, and the
   // spawner scenarios that follow provision real sessions of their own.
-  for (const sessionId of ['itest-run-pinned', 'itest-run-org']) {
+  for (const sessionId of [
+    'itest-run-pinned',
+    'itest-run-org',
+    'itest-run-free',
+  ]) {
     await sessions.markSessionDestroyed(sql, {
       organizationId: orgId,
       sessionId,
@@ -22971,11 +23511,27 @@ async function checkAutomationRunToolLane(
       insideBindings.status === 'ok' &&
       orgFind.status === 'ok' &&
       orgFindRaw.includes('Filed on a bound board') &&
-      !orgFindRaw.includes("Someone else's card") &&
-      orgWrote.status === 'ok' &&
-      hubDocument.length === 1 &&
-      hubDocument[0]?.projectId === null,
-    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")}, hubDoc=${orgWrote.status}/${hubDocument[0]?.projectId === null})`,
+      !orgFindRaw.includes("Someone else's card"),
+    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")})`,
+  );
+  const placement = (project: string | null | undefined): string =>
+    project === undefined ? 'no-row' : project === null ? 'hub' : 'project';
+  record(
+    'document_create authority: bound runs name a bound project, org-level runs validate it',
+    orgWrote.status === 'invalid_args' &&
+      orgWrote.raw.includes(boundProjectId) &&
+      hubDocument === undefined &&
+      orgWroteBound.status === 'ok' &&
+      boundDocument === otherProjectId &&
+      orgWroteOutside.status === 'invalid_args' &&
+      outsideDocument === undefined &&
+      freeHub.status === 'ok' &&
+      freeHubDocument === null &&
+      freeNamed.status === 'ok' &&
+      freeNamedDocument === unboundProjectId &&
+      freeBogus.status === 'not_found' &&
+      freeBogusDocument === undefined,
+    `multiBound(noProject=${orgWrote.status}/${placement(hubDocument)} (want invalid_args/no-row), bound=${orgWroteBound.status}/${boundDocument === otherProjectId ? 'bound-project' : placement(boundDocument)} (want ok/bound-project), outside=${orgWroteOutside.status}/${placement(outsideDocument)} (want invalid_args/no-row)), orgLevel(hub=${freeHub.status}/${placement(freeHubDocument)} (want ok/hub), named=${freeNamed.status}/${freeNamedDocument === unboundProjectId ? 'named-project' : placement(freeNamedDocument)} (want ok/named-project), bogus=${freeBogus.status}/${placement(freeBogusDocument)} (want not_found/no-row))`,
   );
 }
 

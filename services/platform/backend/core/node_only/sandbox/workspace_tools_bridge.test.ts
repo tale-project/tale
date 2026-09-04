@@ -1289,6 +1289,76 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     // Refused before any blob was stored or document written.
     expect(upsert).not.toHaveBeenCalled();
   });
+
+  it('document_create on a multi-bound org run refuses when no project is named (never the hub)', async () => {
+    const upsert = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ documentId: 'nope', action: 'created' }),
+    );
+    const runAction = vi.fn(() =>
+      Promise.resolve({ fileStorageId: 'store_1' }),
+    );
+    const { dispatch } = await getActions();
+    const ctx = {
+      runQuery: vi.fn((ref: unknown) =>
+        fnName(ref) === ACTION_FN
+          ? Promise.resolve(RESTRICTED_CTX)
+          : Promise.resolve(null),
+      ),
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('upsertDocumentByExternalId')
+          ? upsert(ref, args)
+          : Promise.resolve(null),
+      ),
+      runAction,
+    };
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'document_create',
+      callArgs: { name: 'report.md', content: '# Report\n' },
+    });
+    // The hub is org-wide — wider than a run confined to its bound projects.
+    // Same refusal shape as task_create: name one of the bound projects.
+    expect(result.status).toBe('invalid_args');
+    expect(result.message).toContain('proj_1, proj_2');
+    // Nothing was stored or written on the way to the refusal.
+    expect(runAction).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it('document_create on a multi-bound org run files into a named bound project', async () => {
+    const upsert = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ documentId: 'doc_2', action: 'created' }),
+    );
+    const { dispatch } = await getActions();
+    const ctx = {
+      runQuery: vi.fn((ref: unknown) =>
+        fnName(ref) === ACTION_FN
+          ? Promise.resolve(RESTRICTED_CTX)
+          : Promise.resolve(null),
+      ),
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('upsertDocumentByExternalId')
+          ? upsert(ref, args)
+          : Promise.resolve(null),
+      ),
+      runAction: vi.fn(() => Promise.resolve({ fileStorageId: 'store_1' })),
+    };
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'document_create',
+      callArgs: {
+        name: 'report.md',
+        content: '# Report\n',
+        projectId: 'proj_2',
+      },
+    });
+    expect(result.status).toBe('ok');
+    const mArgs = upsert.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(mArgs.projectId).toBe('proj_2');
+    expect(mArgs.externalItemId).toBe(
+      'agent:project:proj_2:automation:multi:report.md',
+    );
+  });
 });
 
 describe('workspaceToolStatusImpl', () => {

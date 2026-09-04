@@ -140,6 +140,29 @@ export async function loadDocumentOrThrow(
 }
 
 /**
+ * `loadDocumentOrThrow` under a row lock — for a transaction that decides on
+ * the row's CURRENT state and then rewrites it (the replacement bind), so two
+ * such transactions serialize on the row instead of both deciding on the
+ * same snapshot and the second silently overwriting the first. Meaningful
+ * only inside a transaction; the lock is released with it.
+ */
+export async function loadDocumentForUpdate(
+  tx: Sql | TransactionSql,
+  documentId: string,
+): Promise<DocumentRow> {
+  const rows = await tx<DocumentRow[]>`
+    SELECT ${tx.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
+    WHERE id = ${documentId} LIMIT 1
+    FOR UPDATE
+  `;
+  const doc = rows[0];
+  if (!doc) {
+    throw new DocumentError('DOCUMENT_NOT_FOUND', 'Document not found', 404);
+  }
+  return doc;
+}
+
+/**
  * Every document whose content is the blob `storageRef` — a multi-team upload
  * creates one document per team from ONE blob, and the file row's own
  * `document_id` names only the last of them — plus the document that row
@@ -271,6 +294,43 @@ export function assertHubTeamAssignable(
       403,
     );
   }
+}
+
+/**
+ * The document-write standard every mutating lane consults — the app update
+ * and trash doors, the REST PATCH, the controlled-record transitions and the
+ * replacement flow: the org-role write matrix, visibility (404-shaped), and
+ * for a project file EDIT access to the owning project. Today the write
+ * matrix and `EDITOR_ROLES` admit the same roles, so a writer who can see a
+ * project file can also edit it; the explicit `canEdit` check keeps the rule
+ * true if either matrix ever moves (`write-guards.test.ts` pins the pair).
+ * `lock` takes the row lock (`loadDocumentForUpdate`) for a transaction that
+ * rewrites the row it decided on.
+ */
+export async function requireDocumentWriteAccess(
+  db: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  documentId: string,
+  options: { lock?: boolean } = {},
+): Promise<DocumentRow> {
+  assertDocumentsWriteRole(auth);
+  const doc =
+    options.lock === true
+      ? await loadDocumentForUpdate(db, documentId)
+      : await loadDocumentOrThrow(db, documentId);
+  await assertDocumentVisible(db, auth, doc);
+  if (doc.projectId !== null) {
+    const project = await loadProjectOrThrow(db, doc.projectId);
+    const access = checkProjectAccess(
+      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
+      auth.teamIds,
+      auth.role,
+    );
+    if (!access.canEdit) {
+      throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
+    }
+  }
+  return doc;
 }
 
 // ---------------------------------------------------------------------------
@@ -445,9 +505,7 @@ export async function updateDocument(
     sourceProvider?: string | null;
   },
 ): Promise<{ teamScopeChanged: boolean; fileRef: string | null }> {
-  assertDocumentsWriteRole(auth);
-  const doc = await loadDocumentOrThrow(tx, args.documentId);
-  await assertDocumentVisible(tx, auth, doc);
+  const doc = await requireDocumentWriteAccess(tx, auth, args.documentId);
   // Content-freeze guard (core/documents/access.ts doctrine): the bytes and
   // their identity fields move ONLY while uncontrolled — renames, folder
   // moves, team and metadata edits stay allowed in every record state.
@@ -559,9 +617,7 @@ export async function setDocumentTrashed(
   documentId: string,
   trashed: boolean,
 ): Promise<void> {
-  assertDocumentsWriteRole(auth);
-  const doc = await loadDocumentOrThrow(tx, documentId);
-  await assertDocumentVisible(tx, auth, doc);
+  const doc = await requireDocumentWriteAccess(tx, auth, documentId);
   if (trashed) {
     // Controlled-record protection: reviewed/approved records never trash.
     assertRecordTrashableJson(doc.record);
@@ -614,12 +670,19 @@ export async function setDocumentTrashed(
 // Project attach/detach (the projects-domain gap, closed here)
 // ---------------------------------------------------------------------------
 
-/** Attach a hub document to a project (requires teamless doc + edit access). */
+/**
+ * Attach a hub document to a project (requires teamless doc + edit access).
+ * Answers the blob ref so the caller can re-stamp the corpus scope AFTER the
+ * transaction commits (`syncRagDocumentScope` talks to the knowledge pool):
+ * a project file is retrievable only inside its project, so a hub document's
+ * org-wide corpus rows must follow it in — the same re-stamp a team change
+ * gets.
+ */
 export async function attachDocumentToProject(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: { documentId: string; projectId: string },
-): Promise<void> {
+): Promise<{ fileRef: string | null }> {
   assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(tx, args.documentId);
   await assertDocumentVisible(tx, auth, doc);
@@ -663,14 +726,20 @@ export async function attachDocumentToProject(
     metadata: { documentId: args.documentId },
     status: 'success',
   });
+  return { fileRef: doc.fileRef };
 }
 
-/** Detach back to the org-wide library (explicit destination, audited). */
+/**
+ * Detach back to the org-wide library (explicit destination, audited). Like
+ * attach, answers the blob ref for the post-commit corpus re-stamp: the
+ * detached document is org-wide again, so its corpus rows must stop carrying
+ * the old project's scope or it silently vanishes from hub retrieval.
+ */
 export async function detachDocumentFromProject(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   documentId: string,
-): Promise<void> {
+): Promise<{ fileRef: string | null }> {
   assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(tx, documentId);
   await assertDocumentVisible(tx, auth, doc);
@@ -707,6 +776,7 @@ export async function detachDocumentFromProject(
     metadata: { documentId, destination: 'org-library' },
     status: 'success',
   });
+  return { fileRef: doc.fileRef };
 }
 
 // ---------------------------------------------------------------------------

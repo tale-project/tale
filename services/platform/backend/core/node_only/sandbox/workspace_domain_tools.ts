@@ -708,11 +708,26 @@ export async function runDocumentCreate(
 
   // Where the document lands. A project-bound run files it INSIDE its project,
   // so it is a project file — not an org-wide hub document that every other
-  // project's agents would see through baseline rag_search (`includeHub`). An
-  // org run writes the hub as before; a caller-named project is validated
-  // against the automation's bindings, the same boundary the task tools apply.
+  // project's agents would see through baseline rag_search (`includeHub`). A
+  // caller-named project is validated against the automation's bindings, the
+  // same boundary the task tools apply; only a TRULY org-level run (no
+  // bindings) writes the hub.
   const target = resolveTargetProject(args.authority, args.callArgs);
   if ('refusal' in target) return target.refusal;
+  if (
+    target.projectId === undefined &&
+    target.allowedProjectIds !== undefined
+  ) {
+    // A run confined to several bound projects must NAME one: the hub is
+    // org-wide — wider than the run's authority — and `task_create` refuses
+    // the same case rather than picking a board for the agent.
+    return {
+      status: 'invalid_args',
+      message:
+        'This run spans several projects, so document_create needs a ' +
+        `"projectId" — one of: ${target.allowedProjectIds.join(', ')}.`,
+    };
+  }
   const scopePrefix =
     target.projectId !== undefined
       ? `agent:project:${target.projectId}`

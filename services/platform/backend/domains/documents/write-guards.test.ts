@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { authorizeRls } from '../../auth/access.ts';
+import { checkProjectAccess } from '../../core/projects/access.ts';
 import {
   assertDocumentsWriteRole,
   assertGenericDocumentContentWritableJson,
@@ -48,6 +50,26 @@ describe('assertDocumentsWriteRole (the org-role write matrix)', () => {
       code: 'RBAC_FORBIDDEN',
       status: 403,
     });
+  });
+
+  // The two matrices behind `requireDocumentWriteAccess` must agree: every
+  // role the org-wide write matrix admits also holds project `canEdit`, so a
+  // writer who can SEE a project file can always edit it — and no role that
+  // only reads can rename, move, or trash one. If either matrix moves, this
+  // is the test that says the project-file write door changed meaning.
+  it.each([
+    'owner',
+    'admin',
+    'developer',
+    'editor',
+    'member',
+    'disabled',
+    'wizard',
+  ])('%s: documents:write ⇔ project canEdit on a readable project', (role) => {
+    const orgWideProject = { teamId: null, sharedWithTeamIds: [] };
+    expect(checkProjectAccess(orgWideProject, [], role).canEdit).toBe(
+      authorizeRls(role, 'documents', 'write'),
+    );
   });
 });
 

@@ -8,6 +8,7 @@ import { useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { DocumentRecordInfo } from '@/types/documents';
@@ -35,6 +36,7 @@ function DocumentRecordReviewDialogContent({
   // The approval id is the respond mutation's key; the content only mounts
   // while the dialog is open, so this subscribes per open dialog, not per row.
   const { data: pending } = usePendingDocumentRecordReview(documentId);
+  const { data: currentUser } = useCurrentUser();
   const respond = useRespondToDocumentRecordReview();
   const [requestingChanges, setRequestingChanges] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -42,6 +44,22 @@ function DocumentRecordReviewDialogContent({
   const waitingOn =
     record?.state === 'in_review' && record.reviewerName
       ? tDocuments('record.waitingOn', { name: record.reviewerName })
+      : undefined;
+  // Only the designee decides — the server refuses anyone else
+  // (`REVIEW_NOT_ASSIGNED`), so the dialog says so instead of offering
+  // buttons that would fail.
+  const isDesignee =
+    pending != null &&
+    currentUser != null &&
+    pending.requestedFor === currentUser.userId;
+  const canDecide = isDesignee && !respond.isPending;
+  const onlyDesignee =
+    pending != null && currentUser != null && !isDesignee
+      ? record?.reviewerName
+        ? tDocuments('record.review.onlyDesignee', {
+            name: record.reviewerName,
+          })
+        : tDocuments('record.review.onlyDesigneeNoName')
       : undefined;
 
   const submit = async (decision: 'approve' | 'request_changes') => {
@@ -99,9 +117,7 @@ function DocumentRecordReviewDialogContent({
               type="button"
               variant="secondary"
               onClick={() => void submit('request_changes')}
-              disabled={
-                respond.isPending || !pending || feedback.trim().length === 0
-              }
+              disabled={!canDecide || feedback.trim().length === 0}
             >
               {tDocuments('record.review.sendFeedback')}
             </Button>
@@ -112,7 +128,7 @@ function DocumentRecordReviewDialogContent({
               type="button"
               variant="secondary"
               onClick={() => setRequestingChanges(true)}
-              disabled={respond.isPending || !pending}
+              disabled={!canDecide}
             >
               {tDocuments('record.review.requestChanges')}
             </Button>
@@ -120,7 +136,7 @@ function DocumentRecordReviewDialogContent({
               type="button"
               icon={CheckCircle2}
               onClick={() => void submit('approve')}
-              disabled={respond.isPending || !pending}
+              disabled={!canDecide}
             >
               {tDocuments('record.review.approve')}
             </Button>
@@ -135,6 +151,11 @@ function DocumentRecordReviewDialogContent({
         {waitingOn !== undefined && (
           <Text as="p" variant="muted" className="text-xs">
             {waitingOn}
+          </Text>
+        )}
+        {onlyDesignee !== undefined && (
+          <Text as="p" variant="muted" className="text-xs">
+            {onlyDesignee}
           </Text>
         )}
         {requestingChanges && (
@@ -154,9 +175,11 @@ function DocumentRecordReviewDialogContent({
 /**
  * The review decision for a controlled record in `in_review`: Approve locks
  * the version as an immutable snapshot; Request changes needs feedback and
- * reopens the draft. Names the reviewer the record waits on — designation
- * is soft (matching task reviews), so any member with document-write access
- * may respond; the server enforces the real permission.
+ * reopens the draft. Names the reviewer the record waits on, and only that
+ * designee may decide — the server refuses everyone else
+ * (`REVIEW_NOT_ASSIGNED`, and the submitter can never approve their own
+ * submission), so the decision buttons are live for the designee alone and
+ * anyone else reads who the record waits on.
  *
  * Mounted only while open (the DocumentTeamTagsDialog pattern): the content
  * holds a live pending-review query, which must not subscribe once per
