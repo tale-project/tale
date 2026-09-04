@@ -242,6 +242,12 @@ export interface TurnStore {
    * message-info panel reports is their sum. Atomic, so a failure can never
    * strand a user message whose reply will not arrive, or a placeholder with
    * no generation row.
+   *
+   * The generation row IS the at-most-one-turn gate: opening it is a claim,
+   * and a thread whose row already exists rejects with {@link
+   * ThreadBusyError} — the whole open rolls back, so the loser leaves no
+   * message behind and never touches the winner's row. A read-before-write
+   * check in the caller is only a fast path; this is the guard.
    */
   beginTurn(setup: {
     organizationId: string;
@@ -263,6 +269,28 @@ export interface TurnStore {
     organizationId: string;
     threadId: string;
   }): Promise<void>;
+}
+
+/** The one sentence every lane answers a concurrent send with. */
+export const THREAD_BUSY_REASON =
+  'This conversation is already generating a response.';
+
+/**
+ * `beginTurn` found another turn's generation row on the thread and opened
+ * nothing: its transaction rolled back, so the losing send leaves no user
+ * message, no placeholder, and never rebinds or deletes the winner's row.
+ * Raised BEFORE the pipeline's settle block, so the loser never runs the
+ * `endGeneration` that would close the winner's turn. Hosts answer it as a
+ * refusal, never as an internal error.
+ */
+export class ThreadBusyError extends Error {
+  readonly code = 'THREAD_BUSY' as const;
+  readonly threadId: string;
+  constructor(threadId: string) {
+    super(THREAD_BUSY_REASON);
+    this.name = 'ThreadBusyError';
+    this.threadId = threadId;
+  }
 }
 
 export interface UsageLedgerEntry {

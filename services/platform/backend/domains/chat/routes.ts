@@ -3,6 +3,7 @@ import { streamSSE } from 'hono/streaming';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { THREAD_BUSY_REASON, ThreadBusyError } from '../../../lib/chat/turn.ts';
 import {
   classifyChatErrorCode,
   encodeChatError,
@@ -503,8 +504,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     try {
       const ok = await moveThreadToProject(
         deps.sql,
-        organizationId,
-        userId,
+        {
+          organizationId,
+          userId,
+          email: c.get('sessionBundle').user.email,
+        },
         c.req.param('threadId'),
         body.data.projectId,
       );
@@ -623,16 +627,18 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return c.json(share);
   });
 
+  // Works on a trashed thread too — revoking a link must never depend on
+  // the conversation being visible.
   app.post('/threads/:threadId/unshare', async (c) => {
     const { organizationId, userId } = caller(c);
-    await unshareThread(
+    const ok = await unshareThread(
       deps.sql,
       organizationId,
       userId,
       c.req.param('threadId'),
     );
-    await hintThread(c, c.req.param('threadId'));
-    return c.json({ ok: true });
+    if (ok) await hintThread(c, c.req.param('threadId'));
+    return c.json({ ok });
   });
 
   app.post('/threads/:threadId/branch', async (c) => {
@@ -1152,10 +1158,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       (await hasLiveGeneration(deps.sql, organizationId, pair.threadIdA)) ||
       (await hasLiveGeneration(deps.sql, organizationId, pair.threadIdB))
     ) {
-      const busy = {
-        status: 'refused' as const,
-        reason: 'This conversation is already generating a response.',
-      };
+      const busy = { status: 'refused' as const, reason: THREAD_BUSY_REASON };
       return c.json({ a: busy, b: busy });
     }
 
@@ -1191,6 +1194,12 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
                 : {}),
             };
       } catch (err) {
+        // Lost the column's claim to a send that slipped past the busy read
+        // above: the open rolled back and the other turn owns the thread —
+        // an error row now would land in ITS transcript.
+        if (err instanceof ThreadBusyError) {
+          return { status: 'refused', reason: err.message };
+        }
         // A pre-pipeline throw (model resolution, credential) left nothing
         // in the transcript — write the error row here so the column
         // explains itself instead of sitting silently half-empty.
@@ -1260,17 +1269,14 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         503,
       );
     }
-    // At most one turn per thread — refuse a concurrent send rather than
-    // let two turns interleave and delete each other's generation row.
+    // At most one turn per thread. This read is the fast path that spares a
+    // busy thread the model resolution; the GUARD is the turn's own atomic
+    // open (`beginTurn` claims the generation row and rejects a loser with
+    // ThreadBusyError), so two sends racing through this check cannot both
+    // run and delete each other's row.
     const live = await readGeneration(deps.sql, organizationId, thread.id);
     if (live !== null) {
-      return c.json(
-        {
-          status: 'refused',
-          reason: 'This conversation is already generating a response.',
-        },
-        409,
-      );
+      return c.json({ status: 'refused', reason: THREAD_BUSY_REASON }, 409);
     }
     let outcome;
     try {
@@ -1298,6 +1304,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         ...(body.data.resend === true ? { resend: true } : {}),
       });
     } catch (error) {
+      // The claim loser of two racing sends: nothing was appended, the
+      // other turn streams on — the same refusal the fast path gives.
+      if (error instanceof ThreadBusyError) {
+        return c.json({ status: 'refused', reason: error.message }, 409);
+      }
       // A turn that could not START because the picked model is not
       // servable — its provider's default credential was disabled or
       // deleted, or the composer still holds a model the picker has since

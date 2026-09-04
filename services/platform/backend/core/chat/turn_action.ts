@@ -72,9 +72,9 @@ import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { createChatToolExecutor } from './assistant_tools';
 import { resolveProjectContext } from './project_context';
+import { createStallGuard, type StallGuard } from './stream_stall';
 import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
 
-const REQUEST_TIMEOUT_MS = 180_000;
 /** The stored excerpt of an upstream error body. This is the ONLY record of
  * the provider's answer anywhere (nothing logs the full body), so it must fit
  * a whole pretty-printed provider error — secrets are handled by redaction
@@ -407,12 +407,35 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return isRecord(value) ? value : null;
 }
 
+/** A promise that rejects with the signal's reason once it aborts — the
+ * stall clock's side of the per-read race below. Marked handled here, so a
+ * stream that ends before the clock fires never leaves an unhandled
+ * rejection behind. */
+function rejectOnAbort(signal: AbortSignal): Promise<never> {
+  const rejection = new Promise<never>((_, reject) => {
+    const fail = (): void => {
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new Error(String(signal.reason)),
+      );
+    };
+    if (signal.aborted) fail();
+    else signal.addEventListener('abort', fail, { once: true });
+  });
+  rejection.catch(() => undefined);
+  return rejection;
+}
+
 /** Read a provider's Server-Sent Events stream line by line, yielding each
  * `data:` payload as a chunk of cleared text (and the final usage when it
- * arrives). */
-async function* streamSse(
+ * arrives). With a stall guard, every byte restarts its silence clock and
+ * every read races it, so a provider that stops sending ends the round with
+ * the guard's error even where the runtime would leave the read pending. */
+export async function* streamSse(
   response: Response,
   apiFormat: ApiFormat,
+  stall?: StallGuard,
 ): AsyncGenerator<ModelStreamChunk> {
   const body = response.body;
   if (!body) throw new Error('the model returned no response body to stream');
@@ -424,10 +447,34 @@ async function* streamSse(
   };
   let buffer = '';
   let lastUsage: TurnUsage | undefined;
+  const stalled = stall === undefined ? undefined : rejectOnAbort(stall.signal);
 
   while (true) {
-    const { done, value } = await reader.read();
+    const pending = reader.read();
+    let next: Awaited<typeof pending>;
+    if (stalled === undefined) {
+      next = await pending;
+    } else {
+      try {
+        next = await Promise.race([pending, stalled]);
+      } catch (error) {
+        // The abandoned read settles later (the aborted fetch fails it) and
+        // must not surface as an unhandled rejection; the reader itself is
+        // released so the connection does not linger.
+        void pending.then(
+          () => undefined,
+          () => undefined,
+        );
+        void reader.cancel().then(
+          () => undefined,
+          () => undefined,
+        );
+        throw stall?.stalled === true ? stall.error(error) : error;
+      }
+    }
+    const { done, value } = next;
     if (done) break;
+    stall?.touch();
     buffer += decoder.decode(value, { stream: true });
     let newline = buffer.indexOf('\n');
     while (newline !== -1) {
@@ -645,10 +692,16 @@ export function createDirectModelCall(
         : { stream_options: { include_usage: true } }),
     });
 
-    const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    // The round's only clock is a SILENCE clock — never a whole-request
+    // deadline. A reply that keeps streaming is never cut, however long it
+    // runs (a high reasoning effort with a large output ceiling routinely
+    // passes three minutes while perfectly healthy); only a provider that
+    // stops sending for the whole window ends the round. The first byte
+    // gets the same allowance: a slow-thinking model is not a hung one.
+    const stall = createStallGuard();
     const signal = request.signal
-      ? AbortSignal.any([request.signal, timeout])
-      : timeout;
+      ? AbortSignal.any([request.signal, stall.signal])
+      : stall.signal;
 
     let response: Response;
     try {
@@ -659,6 +712,8 @@ export function createDirectModelCall(
         signal,
       });
     } catch (error) {
+      stall.dispose();
+      if (stall.stalled) throw stall.error(error);
       throw new Error(
         `The model provider was unreachable: ${sanitizeError(error, ERROR_EXCERPT)}`,
         { cause: error },
@@ -666,6 +721,7 @@ export function createDirectModelCall(
     }
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
+      stall.dispose();
       // The HTTP status rides on the error so the chat-error classifier can
       // bucket it precisely (401/402/429…) instead of regexing the text.
       throw Object.assign(
@@ -675,7 +731,13 @@ export function createDirectModelCall(
         { status: response.status },
       );
     }
-    yield* streamSse(response, wire.apiFormat);
+    // Headers count as the first sign of life; the body's bytes take over.
+    stall.touch();
+    try {
+      yield* streamSse(response, wire.apiFormat, stall);
+    } finally {
+      stall.dispose();
+    }
   };
 }
 

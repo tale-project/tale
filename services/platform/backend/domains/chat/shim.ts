@@ -922,6 +922,9 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
                lifecycle_status AS "lifecycleStatus"
         FROM app.contacts
         WHERE org_id = ${args.organizationId}
+          -- The contacts domain hides trashed rows from every read; a
+          -- contact the user deleted must not resurface in a chat answer.
+          AND lifecycle_status IS DISTINCT FROM 'trashed'
           AND (${term === ''} OR name ILIKE ${like} OR email ILIKE ${like}
                OR phone ILIKE ${like}
                OR (${words.length > 0}
