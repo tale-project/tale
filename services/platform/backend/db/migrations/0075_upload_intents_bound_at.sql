@@ -1,0 +1,22 @@
+-- 0.5 app migration 0075: `upload_intents.bound_at_ms` — the mark a
+-- NON-consuming ownership proof leaves on a minted upload.
+--
+-- Why: an intent row (0067) is the only record that a presigned blob key
+-- exists at all. A key the browser never PUT to, or PUT to and never bound
+-- (closed tab, refused register), had no `file_metadata` row for the row-
+-- driven retention sweeps to find and no explicit reject call, so its bytes
+-- stayed in the org's bucket forever — and the mint path's lazy sweep only
+-- dropped the expired ROW, erasing the last trace of the blob. The mint path
+-- now reclaims the blob of an intent that expired unconsumed
+-- (`sweepUploadIntents` in domains/files/upload-intents.ts).
+--
+-- That is only safe for a ref NOTHING vouched for. Two lanes prove ownership
+-- through `ownsUploadedBlob` WITHOUT consuming the intent: the document
+-- upload binds one blob into one document per selected team, and an outbound
+-- mail attachment is read straight from the ref it names — no file row on
+-- either path. The proof stamps this column; a stamped ref is somebody's,
+-- and the sweep drops its intent row but leaves its blob alone.
+--
+-- Rolling-deploy safe: nullable, unread by the previous image.
+
+ALTER TABLE app.upload_intents ADD COLUMN IF NOT EXISTS bound_at_ms bigint;

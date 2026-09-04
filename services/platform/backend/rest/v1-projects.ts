@@ -14,6 +14,7 @@ import {
   getFileUrl,
   registerUpload,
 } from '../domains/files/service.ts';
+import { sweepUploadIntents } from '../domains/files/upload-intents.ts';
 import {
   getOrCreateProjectFolder,
   listFolders,
@@ -275,13 +276,13 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           ${project.id}, ${handoff.storageRef}, ${expiresAt}, ${now}
         )
       `;
-      // Lazy sweep of dead handshakes (consumed, or expired a day ago).
-      await deps.sql`
-        DELETE FROM app.rest_upload_intents
-        WHERE org_id = ${c.get('organizationId')}
-          AND (consumed_at_ms IS NOT NULL
-            OR expires_at_ms < ${now - 24 * 3_600_000})
-      `;
+      // Lazy sweep of dead handshakes (consumed) and ABANDONED uploads (never
+      // bound: their blob is reclaimed with the row — the intent is the only
+      // record the bytes exist).
+      await sweepUploadIntents(deps.sql, {
+        organizationId: c.get('organizationId'),
+        ledger: 'app.rest_upload_intents',
+      });
       return c.json({
         uploadId,
         url: handoff.uploadUrl,

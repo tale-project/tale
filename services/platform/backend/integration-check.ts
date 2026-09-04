@@ -35735,10 +35735,20 @@ async function checkTwoFactor(
   // port kept only the failure half, so an attacker who registered their own
   // passkey and turned TOTP off left no trace at all. Action names are 0.4's
   // verbatim — a rename would break any saved query grouping on them.
+  // Better Auth's two-factor plugin deletes the CALLING session on enable
+  // and on disable (its own anti-hijack rule), so these calls ride a
+  // throwaway session of their own — on the shared harness cookie they took
+  // every later cookie-based probe down with them.
+  const lifecycleCookie =
+    ((await signIn()).headers.get('set-cookie') ?? '').split(';')[0] ?? '';
   const authPost = (route: string, body: unknown): Promise<Response> =>
     fetch(`${base}/api/auth${route}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', cookie, origin: base },
+      headers: {
+        'content-type': 'application/json',
+        cookie: lifecycleCookie,
+        origin: base,
+      },
       body: JSON.stringify(body),
     });
   const lifecycleActions = async (): Promise<string[]> => {
@@ -36709,6 +36719,651 @@ async function checkBackfillRecovery(
  * while a live one stays; a stale chat generation clears with its thread
  * settled idle and its pending placeholder failed.
  */
+/**
+ * Abandoned presigned uploads (files/upload-intents): a key minted and PUT to
+ * but never bound had no file row for the row-driven sweeps, so its bytes
+ * leaked forever while the mint path dropped the expired ROW. The sweep
+ * reclaims the abandoned blob with its row and leaves alone a blob a file row
+ * carries or a non-consuming proof vouched for (`bound_at_ms`) — on both
+ * ledgers (session + REST). Gated on ITEST_S3_ENDPOINT.
+ */
+async function checkAbandonedUploadReclaim(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'abandoned upload reclaim (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const { orgId, userId } = ctx;
+  const slugRows = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
+  `;
+  const orgSlug = slugRows[0]?.slug ?? '';
+  const storage = await import('./lib/object-store.ts');
+  const { encodeS3Ref } = await import('./core/lib/storage/blob_ref.ts');
+  // Optional-typed so the pre-fix tree (no such export) records a failure
+  // instead of crashing the suite.
+  const intents = (await import('./domains/files/upload-intents.ts')) as {
+    sweepUploadIntents?: (
+      db: Sql,
+      args: {
+        organizationId: string;
+        ledger?: 'app.upload_intents' | 'app.rest_upload_intents';
+      },
+    ) => Promise<{ reclaimed: number }>;
+  };
+  const store = await storage.resolveObjectStore(orgSlug);
+  const mint = async (label: string): Promise<{ key: string; ref: string }> => {
+    const key = storage.buildObjectKey(store, orgSlug);
+    await storage.s3PutObject(
+      store,
+      key,
+      new TextEncoder().encode(`abandoned-upload probe: ${label}`),
+      'text/plain',
+    );
+    return { key, ref: encodeS3Ref(key) };
+  };
+  const abandoned = await mint('abandoned');
+  const bound = await mint('bound');
+  const vouched = await mint('vouched');
+  const restAbandoned = await mint('rest-abandoned');
+  // Expired well past the intent TTL (2h) plus the reclaim grace (24h).
+  const expired = Date.now() - 27 * 3_600_000;
+  let setup = 'ok';
+  try {
+    await sql`
+      INSERT INTO app.upload_intents (
+        org_id, user_id, purpose, s3_ref, expires_at_ms, created_at_ms
+      ) VALUES
+        (${orgId}, ${userId}, 'file', ${abandoned.ref}, ${expired}, ${expired - 7_200_000}),
+        (${orgId}, ${userId}, 'file', ${bound.ref}, ${expired}, ${expired - 7_200_000}),
+        (${orgId}, ${userId}, 'file', ${vouched.ref}, ${expired}, ${expired - 7_200_000})
+    `;
+    await sql`
+      UPDATE app.upload_intents SET bound_at_ms = ${expired - 60_000}
+      WHERE s3_ref = ${vouched.ref}
+    `;
+    await sql`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, uploaded_by,
+        created_at_ms
+      ) VALUES (
+        ${orgId}, ${bound.ref}, 'bound.txt', 'text/plain', 32, ${userId},
+        ${Date.now()}
+      )
+    `;
+    await sql`
+      INSERT INTO app.rest_upload_intents (
+        id, org_id, user_id, project_id, s3_ref, expires_at_ms, created_at_ms
+      ) VALUES (
+        ${randomUUID()}, ${orgId}, ${userId}, 'itest-project',
+        ${restAbandoned.ref}, ${expired}, ${expired - 1_800_000}
+      )
+    `;
+  } catch (error) {
+    setup = error instanceof Error ? error.message : String(error);
+  }
+  let reclaimed = -1;
+  let restReclaimed = -1;
+  if (setup === 'ok' && intents.sweepUploadIntents !== undefined) {
+    reclaimed = (
+      await intents.sweepUploadIntents(sql, { organizationId: orgId })
+    ).reclaimed;
+    restReclaimed = (
+      await intents.sweepUploadIntents(sql, {
+        organizationId: orgId,
+        ledger: 'app.rest_upload_intents',
+      })
+    ).reclaimed;
+  }
+  const present = async (key: string): Promise<boolean> =>
+    (await storage.s3HeadObject(store, key)) !== null;
+  const abandonedGone = !(await present(abandoned.key));
+  const boundKept = await present(bound.key);
+  const vouchedKept = await present(vouched.key);
+  const restGone = !(await present(restAbandoned.key));
+  const rowsLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.upload_intents
+    WHERE s3_ref IN (${abandoned.ref}, ${bound.ref}, ${vouched.ref})
+  `;
+  const restRowsLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.rest_upload_intents
+    WHERE s3_ref = ${restAbandoned.ref}
+  `;
+  record(
+    'abandoned presigned uploads are reclaimed; bound and vouched-for blobs survive',
+    setup === 'ok' &&
+      reclaimed === 1 &&
+      restReclaimed === 1 &&
+      abandonedGone &&
+      boundKept &&
+      vouchedKept &&
+      restGone &&
+      rowsLeft[0]?.count === '0' &&
+      restRowsLeft[0]?.count === '0',
+    `setup=${setup}, reclaimed=${reclaimed}/${restReclaimed} (want 1/1), abandonedGone=${abandonedGone}, boundKept=${boundKept}, vouchedKept=${vouchedKept}, restGone=${restGone}, intentRowsLeft=${rowsLeft[0]?.count ?? '?'}/${restRowsLeft[0]?.count ?? '?'} (want 0/0)`,
+  );
+  // Leave no probe bytes behind.
+  for (const key of [
+    abandoned.key,
+    bound.key,
+    vouched.key,
+    restAbandoned.key,
+  ]) {
+    await storage
+      .s3DeleteObject(store, key)
+      .catch((error: unknown) =>
+        console.warn('[itest] probe blob cleanup failed:', error),
+      );
+  }
+  await sql`
+    DELETE FROM app.file_metadata
+    WHERE org_id = ${orgId} AND storage_ref = ${bound.ref}
+  `;
+}
+
+/**
+ * Captions finalizer (video_links): the terminal `completed` patch is a CAS
+ * on `indexing` inside the finalizer's transaction. A cancel that landed
+ * while the transcript was being stored stays a cancel — no file row, no
+ * resurrected chip, and the orphan transcript blob is reaped — while a live
+ * job completes normally over its blob. Gated on ITEST_S3_ENDPOINT (the
+ * transcript bytes are real blobs, so the reap is observable).
+ */
+async function checkVideoFinalizerCas(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'video finalizer CAS (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const { orgId, userId } = ctx;
+  const video = await import('./domains/video_links/service.ts');
+  const files = await import('./domains/files/service.ts');
+  const storage = await import('./lib/object-store.ts');
+  const { parseBlobRef } = await import('./core/lib/storage/blob_ref.ts');
+  const slugRows = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
+  `;
+  const store = await storage.resolveObjectStore(slugRows[0]?.slug ?? '');
+  const now = Date.now();
+  const insertJob = async (hash: string, status: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.video_link_jobs (
+        org_id, source_url, source_url_hash, source_platform, pasted_token,
+        status, status_changed_at_ms, uploaded_by, created_at_ms
+      ) VALUES (
+        ${orgId}, ${`https://example.test/${hash}`}, ${hash}, 'youtube',
+        ${hash}, ${status}, ${now}, ${userId}, ${now}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const transcript = 'finalizer probe transcript';
+  const storeTranscript = (): Promise<string> =>
+    files.putOrgBlobBytes(sql, orgId, {
+      bytes: new TextEncoder().encode(transcript),
+      contentType: 'text/plain; charset=utf-8',
+    });
+  const cancelledId = await insertJob(`itest-fin-cancelled-${now}`, 'skipped');
+  const liveId = await insertJob(`itest-fin-live-${now}`, 'indexing');
+  const cancelledBlob = await storeTranscript();
+  const liveBlob = await storeTranscript();
+  const finalize = (jobId: string, storageId: string): Promise<string | null> =>
+    video.insertSyntheticFileMetadata(sql, {
+      jobId,
+      storageId,
+      transcript,
+      fileSize: transcript.length,
+      videoTitle: 'Finalizer probe',
+      videoDurationSec: 30,
+      sourceUrl: 'https://example.test/finalizer',
+      sourcePlatform: 'youtube',
+      transcriptSource: 'captions_auto',
+      organizationId: orgId,
+      uploadedBy: userId,
+    });
+  const overCancel = await finalize(cancelledId, cancelledBlob);
+  const overLive = await finalize(liveId, liveBlob);
+  const jobs = await sql<
+    { id: string; status: string; fileMetadataId: string | null }[]
+  >`
+    SELECT id, status, file_metadata_id AS "fileMetadataId"
+    FROM app.video_link_jobs
+    WHERE id IN (${cancelledId}, ${liveId})
+  `;
+  const cancelledRow = jobs.find((row) => row.id === cancelledId);
+  const liveRow = jobs.find((row) => row.id === liveId);
+  const strayRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE org_id = ${orgId} AND storage_ref = ${cancelledBlob}
+  `;
+  const blobPresent = async (ref: string): Promise<boolean> => {
+    const parsed = parseBlobRef(ref);
+    return (
+      parsed.backend === 's3' &&
+      (await storage.s3HeadObject(store, parsed.key)) !== null
+    );
+  };
+  const cancelledBlobReaped = !(await blobPresent(cancelledBlob));
+  const liveBlobKept = await blobPresent(liveBlob);
+  record(
+    'video finalizer: a cancel is never overwritten with completed; a live job completes',
+    overCancel === null &&
+      cancelledRow?.status === 'skipped' &&
+      cancelledRow.fileMetadataId === null &&
+      strayRows[0]?.count === '0' &&
+      cancelledBlobReaped &&
+      overLive !== null &&
+      liveRow?.status === 'completed' &&
+      liveRow.fileMetadataId === overLive &&
+      liveBlobKept,
+    `overCancel=${overCancel === null ? 'null' : 'file row'} (want null), cancelled=${cancelledRow?.status}/${cancelledRow?.fileMetadataId ?? 'null'} (want skipped/null), strayFileRows=${strayRows[0]?.count ?? '?'} (want 0), cancelledBlobReaped=${cancelledBlobReaped}, live=${liveRow?.status} (want completed), liveFileBound=${liveRow?.fileMetadataId === overLive}, liveBlobKept=${liveBlobKept}`,
+  );
+}
+
+/**
+ * Approvals gate: concurrent evaluations of ONE operation share one pending
+ * card — the insert is a claim against the partial unique index (0074), and
+ * the loser answers with the winner's record.
+ */
+async function checkApprovalGateSingleClaim(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const gate = await import('./domains/approvals/gate.ts');
+  const resourceKey = `itest-gate-race-${randomUUID()}`;
+  const evaluate = (): ReturnType<typeof gate.evaluateApprovalGate> =>
+    gate.evaluateApprovalGate(sql, {
+      organizationId: orgId,
+      source: 'connector',
+      resourceKey,
+      connector: 'imap-smtp',
+      action: 'send',
+      effect: 'write',
+      requestedBy: userId,
+    });
+  const settled = await Promise.allSettled([
+    evaluate(),
+    evaluate(),
+    evaluate(),
+    evaluate(),
+  ]);
+  const decisions = settled.flatMap((outcome) =>
+    outcome.status === 'fulfilled' ? [outcome.value] : [],
+  );
+  const approvalIds = new Set(
+    decisions.map((decision) =>
+      'approvalId' in decision ? decision.approvalId : 'none',
+    ),
+  );
+  const pending = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.approvals
+    WHERE org_id = ${orgId} AND resource_type = 'connector_operation'
+      AND resource_id = ${resourceKey} AND status = 'pending'
+  `;
+  const indexRows = await sql<{ indexname: string }[]>`
+    SELECT indexname FROM pg_indexes
+    WHERE schemaname = 'app'
+      AND indexname = 'approvals_one_pending_connector_operation'
+  `;
+  record(
+    'approval gate: concurrent evaluations of one operation share one pending card',
+    settled.every((outcome) => outcome.status === 'fulfilled') &&
+      decisions.every((decision) => decision.decision === 'needs-approval') &&
+      approvalIds.size === 1 &&
+      pending[0]?.count === '1' &&
+      indexRows.length === 1,
+    `fulfilled=${decisions.length}/4, distinctCards=${approvalIds.size} (want 1), pendingRows=${pending[0]?.count ?? '?'} (want 1), uniqueIndex=${indexRows.length === 1}`,
+  );
+}
+
+/**
+ * Agent document upsert: concurrent runs writing the same key converge on
+ * ONE row — the key is unique in the schema (0073), the insert is
+ * ON CONFLICT DO NOTHING, and a run that loses the race refreshes the
+ * winner's row.
+ */
+async function checkAgentUpsertConvergence(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const { upsertAgentDocument } =
+    await import('./domains/documents/agent-write.ts');
+  const key = `itest:agent-race:${randomUUID()}`;
+  const write = (attempt: number): ReturnType<typeof upsertAgentDocument> =>
+    upsertAgentDocument(sql, {
+      organizationId: orgId,
+      externalItemId: key,
+      title: 'race-report.md',
+      fileRef: `s3:itest/agent-race-${attempt}`,
+      mimeType: 'text/markdown',
+      createdBy: userId,
+    });
+  const settled = await Promise.allSettled([
+    write(1),
+    write(2),
+    write(3),
+    write(4),
+  ]);
+  const writes = settled.flatMap((outcome) =>
+    outcome.status === 'fulfilled' ? [outcome.value] : [],
+  );
+  const documentIds = new Set(writes.map((result) => result.documentId));
+  const created = writes.filter((result) => result.action === 'created').length;
+  const rows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.documents
+    WHERE org_id = ${orgId} AND external_item_id = ${key}
+  `;
+  const indexRows = await sql<{ indexname: string }[]>`
+    SELECT indexname FROM pg_indexes
+    WHERE schemaname = 'app' AND indexname = 'documents_org_external_unique'
+  `;
+  record(
+    'agent document upsert: concurrent runs converge on one row',
+    settled.every((outcome) => outcome.status === 'fulfilled') &&
+      documentIds.size === 1 &&
+      created === 1 &&
+      rows[0]?.count === '1' &&
+      indexRows.length === 1,
+    `fulfilled=${writes.length}/4, distinctRows=${documentIds.size} (want 1), created=${created} (want 1), rows=${rows[0]?.count ?? '?'} (want 1), uniqueIndex=${indexRows.length === 1}`,
+  );
+  await sql`
+    DELETE FROM app.documents
+    WHERE org_id = ${orgId} AND external_item_id = ${key}
+  `;
+}
+
+/**
+ * Project-text panel file: one key is one document — concurrent saves
+ * converge, and a TRASHED twin comes back in place instead of parking a
+ * duplicate under the same key. Gated on ITEST_S3_ENDPOINT (the lane stores
+ * the file bytes).
+ */
+async function checkProjectTextConvergence(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'project-text convergence (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — document lanes not exercised in this run',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify(body),
+    });
+  const project = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/projects?orgId=${orgId}`, {
+        name: 'Project text convergence',
+      })
+    ).json(),
+  );
+  const projectId = project.success ? project.data.projectId : '';
+  const write = (content: string): Promise<Response> =>
+    post(`/api/app/documents/project-text?orgId=${orgId}`, {
+      projectId,
+      folderName: 'Settings',
+      fileName: 'panel.yml',
+      content,
+    });
+  const shape = z.object({ documentId: z.string(), action: z.string() });
+  const concurrent = await Promise.all([
+    write('a: 1'),
+    write('a: 2'),
+    write('a: 3'),
+  ]);
+  const parsed = await Promise.all(
+    concurrent.map(async (response) => shape.safeParse(await response.json())),
+  );
+  const documentIds = new Set(
+    parsed.flatMap((result) =>
+      result.success ? [result.data.documentId] : [],
+    ),
+  );
+  const rowsAfterRace = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.documents
+    WHERE org_id = ${orgId} AND project_id = ${projectId} AND title = 'panel.yml'
+  `;
+  const documentId = [...documentIds][0] ?? '';
+  await sql`
+    UPDATE app.documents SET
+      lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
+    WHERE id = ${documentId}
+  `;
+  const rewritten = shape.safeParse(await (await write('a: 4')).json());
+  const after = await sql<{ id: string; lifecycleStatus: string | null }[]>`
+    SELECT id, lifecycle_status AS "lifecycleStatus" FROM app.documents
+    WHERE org_id = ${orgId} AND project_id = ${projectId} AND title = 'panel.yml'
+  `;
+  record(
+    'project-text file: concurrent saves converge on one document; a trashed twin comes back in place',
+    concurrent.every((response) => response.status === 200) &&
+      documentIds.size === 1 &&
+      rowsAfterRace[0]?.count === '1' &&
+      rewritten.success &&
+      rewritten.data.documentId === documentId &&
+      after.length === 1 &&
+      after[0]?.lifecycleStatus === null,
+    `saves=${concurrent.map((response) => response.status).join('/')}, distinctDocs=${documentIds.size} (want 1), rowsAfterRace=${rowsAfterRace[0]?.count ?? '?'} (want 1), rewrite=${rewritten.success ? rewritten.data.action : 'ERR'} sameDoc=${rewritten.success && rewritten.data.documentId === documentId}, rowsAfterRewrite=${after.length} (want 1), lifecycle=${after[0]?.lifecycleStatus ?? 'null'} (want null)`,
+  );
+}
+
+/**
+ * Crawl registry: registration and removal of one domain are serialized on
+ * the domain row. A removal racing a new member's registration used to run
+ * its "last member?" check between the registration's two writes — the
+ * fresh domain row was deleted under it (cascading urls and chunks) and the
+ * membership insert failed on the foreign key. Both orders now end in the
+ * same state: the row stands with exactly the surviving member.
+ */
+async function checkCrawlRegistrationSerialization(): Promise<void> {
+  const crawl = await import('./core/knowledge/crawl.ts');
+  const corpus = await import('./core/knowledge/pool.ts');
+  const pool = corpus.getKnowledgePool();
+  const domain = `itest-race-${randomUUID().slice(0, 8)}.example`;
+  const members = async (): Promise<string[]> =>
+    (
+      await pool<{ orgSlug: string }[]>`
+        SELECT org_slug AS "orgSlug" FROM public_web.website_org_memberships
+        WHERE domain = ${domain} ORDER BY org_slug
+      `
+    ).map((row) => row.orgSlug);
+  const rowExists = async (): Promise<boolean> =>
+    (
+      await pool<{ domain: string }[]>`
+        SELECT domain FROM public_web.websites WHERE domain = ${domain}
+      `
+    ).length === 1;
+  let rejected = 0;
+  const inconsistencies: string[] = [];
+  for (let round = 0; round < 8; round += 1) {
+    const leaving = `itest-race-org-${round % 2}`;
+    const joining = `itest-race-org-${(round + 1) % 2}`;
+    await crawl.registerDomain(pool, leaving, domain, 3600);
+    const outcomes = await Promise.allSettled([
+      crawl.deregisterDomain(pool, leaving, domain),
+      crawl.registerDomain(pool, joining, domain, 3600),
+    ]);
+    rejected += outcomes.filter(
+      (outcome) => outcome.status === 'rejected',
+    ).length;
+    const survivors = await members();
+    if (
+      !(await rowExists()) ||
+      survivors.length !== 1 ||
+      survivors[0] !== joining
+    ) {
+      inconsistencies.push(`round ${round}: [${survivors.join(',')}]`);
+    }
+    await crawl.deregisterDomain(pool, joining, domain);
+    if (await rowExists()) {
+      inconsistencies.push(`round ${round}: row outlived its last member`);
+    }
+  }
+  record(
+    'crawl registry: a removal racing a registration leaves the domain consistent',
+    rejected === 0 && inconsistencies.length === 0,
+    `rejected=${rejected} (want 0), inconsistencies=${inconsistencies.length === 0 ? 'none' : inconsistencies.join('; ')}`,
+  );
+}
+
+/**
+ * Retention: custodian-held rows never fill the purge batch. With more held
+ * trashed rows than one batch, the unheld row behind them must still purge —
+ * the custodian filter is part of the candidate query, not a skip after it.
+ */
+async function checkRetentionHeldRowsProgress(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const tag = randomUUID().slice(0, 8);
+  const heldUser = `itest-held-${tag}`;
+  const unheldUser = `itest-unheld-${tag}`;
+  const holdRows = await sql<{ id: string }[]>`
+    INSERT INTO app.legal_holds (
+      org_id, target_type, target_id, target_label, reason, placed_by,
+      placed_at_ms
+    ) VALUES (
+      ${orgId}, 'userMembership', ${heldUser}, 'itest held custodian',
+      'retention batch probe', ${userId}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const stale = Date.now() - 30 * 24 * 3_600_000;
+  // One more held trashed row than the sweep's batch, then one unheld row.
+  const heldDocs = Array.from({ length: 1001 }, (_, index) => ({
+    org_id: orgId,
+    title: `held-${tag}-${index}`,
+    lifecycle_status: 'trashed',
+    status_changed_at_ms: stale,
+    created_by: heldUser,
+    created_at_ms: stale,
+    updated_at_ms: stale,
+  }));
+  await sql`INSERT INTO app.documents ${sql(heldDocs)}`;
+  const unheld = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (
+      org_id, title, lifecycle_status, status_changed_at_ms, created_by,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${`unheld-${tag}`}, 'trashed', ${stale}, ${unheldUser},
+      ${stale}, ${stale}
+    ) RETURNING id
+  `;
+  const unheldId = unheld[0]?.id ?? '';
+  const { sweepOrgPhase2 } = await import('./domains/retention/service.ts');
+  const { loadActiveHolds } = await import('./domains/legal_holds/service.ts');
+  const holds = await loadActiveHolds(sql, orgId);
+  const stats = await sweepOrgPhase2(
+    sql,
+    {
+      organizationId: orgId,
+      config: {
+        documentsEnabled: true,
+        documentsRetentionDays: 36_500,
+        deletionGraceDays: 1,
+      },
+    },
+    holds,
+  );
+  const unheldLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.documents WHERE id = ${unheldId}
+  `;
+  const heldLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.documents
+    WHERE org_id = ${orgId} AND created_by = ${heldUser}
+  `;
+  record(
+    'retention: a batch of custodian-held rows does not starve the unheld rows behind it',
+    holds.userMembershipIds.has(heldUser) &&
+      !holds.orgHeld &&
+      unheldLeft[0]?.count === '0' &&
+      heldLeft[0]?.count === '1001' &&
+      stats.documents >= 1,
+    `held=${holds.userMembershipIds.has(heldUser)}, orgHeld=${holds.orgHeld}, unheldLeft=${unheldLeft[0]?.count ?? '?'} (want 0), heldLeft=${heldLeft[0]?.count ?? '?'} (want 1001), purged=${stats.documents}`,
+  );
+  await sql`
+    DELETE FROM app.documents WHERE org_id = ${orgId} AND created_by = ${heldUser}
+  `;
+  await sql`
+    UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
+    WHERE id = ${holdRows[0]?.id ?? ''}
+  `;
+}
+
+/**
+ * Cloud-sync scan: every syncable config gets its job — a keyset walk over
+ * the whole table, not the first thousand. The probe rows are removed right
+ * after the scan: each enqueued per-config job then finds no row to claim
+ * and returns.
+ */
+async function checkSyncScanFairness(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const onedrive = await import('./domains/onedrive/service.ts');
+  const tag = randomUUID().slice(0, 8);
+  const now = Date.now();
+  const configs = Array.from({ length: 1001 }, (_, index) => ({
+    org_id: orgId,
+    user_id: userId,
+    item_type: 'file',
+    item_id: `itest-scan-${tag}-${index}`,
+    item_name: `scan-${index}.txt`,
+    target_bucket: 'itest',
+    status: 'active',
+    created_at_ms: now - 2000 + index,
+    updated_at_ms: now,
+  }));
+  await sql`INSERT INTO app.onedrive_sync_configs ${sql(configs)}`;
+  const syncable = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.onedrive_sync_configs
+    WHERE status IN ('active', 'error')
+  `;
+  let enqueued = -1;
+  let failure = '';
+  try {
+    enqueued = await onedrive.runSyncScanWith(
+      sql,
+      onedrive.ONEDRIVE_SYNC_ADAPTER,
+    );
+  } catch (error) {
+    failure = error instanceof Error ? error.message : String(error);
+  }
+  await sql`
+    DELETE FROM app.onedrive_sync_configs
+    WHERE org_id = ${orgId} AND item_id LIKE ${`itest-scan-${tag}-%`}
+  `;
+  const total = Number(syncable[0]?.count ?? '0');
+  record(
+    'cloud-sync scan reaches every config past the first thousand',
+    failure === '' && total >= 1001 && enqueued === total,
+    `enqueued=${enqueued} of ${total} syncable configs (want all)${failure ? ` — ${failure}` : ''}`,
+  );
+}
+
 async function checkWatchdogs(
   sql: Sql,
   base: string,
@@ -36787,8 +37442,40 @@ async function checkWatchdogs(
   `;
   const parkedId = parked[0]?.id ?? '';
 
+  // The deadline sweep must stop the exec itself, not only its ledger row:
+  // a fake spawner records the cancel the sweep sends for the overdue run.
+  const { createServer } = await import('node:http');
+  const cancels: string[] = [];
+  const spawner = createServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.method === 'POST' && (req.url ?? '').endsWith('/cancel')) {
+      cancels.push(req.url ?? '');
+      res.end(JSON.stringify({ killed: true }));
+      return;
+    }
+    res.statusCode = 404;
+    res.end('{}');
+  });
+  await new Promise<void>((resolve) => {
+    spawner.listen(0, '127.0.0.1', resolve);
+  });
+  const spawnerAddress = spawner.address();
+  const spawnerPort =
+    spawnerAddress !== null && typeof spawnerAddress === 'object'
+      ? spawnerAddress.port
+      : 0;
+  const previousSandboxUrl = process.env.SANDBOX_URL;
+  process.env.SANDBOX_URL = `http://127.0.0.1:${spawnerPort}`;
   const taskWatchdogs = await import('./domains/tasks/watchdogs.ts');
-  await taskWatchdogs.runTaskAgentWatchdog(sql);
+  try {
+    await taskWatchdogs.runTaskAgentWatchdog(sql);
+  } finally {
+    if (previousSandboxUrl === undefined) delete process.env.SANDBOX_URL;
+    else process.env.SANDBOX_URL = previousSandboxUrl;
+    await new Promise<void>((resolve) => {
+      spawner.close(() => resolve());
+    });
+  }
   const runsAfter = await sql<
     { id: string; status: string; error: string | null }[]
   >`
@@ -36817,6 +37504,12 @@ async function checkWatchdogs(
       opAfter[0].finalizedAt !== null &&
       slotAfter[0]?.status === 'stopped',
     `overdue=${overdueAfter?.status} parked=${parkedAfter?.status} op=${opAfter[0]?.status} slot=${slotAfter[0]?.status}`,
+  );
+  record(
+    'task-agent watchdog stops the sandbox exec of a deadline-failed run',
+    cancels.length === 1 &&
+      cancels[0] === '/v1/sessions/pa-wd-agent/exec/exec-wd-1/cancel',
+    `cancels=${cancels.length === 0 ? 'none' : cancels.join(', ')} (want exactly /v1/sessions/pa-wd-agent/exec/exec-wd-1/cancel — the parked run never launched, so no cancel for it)`,
   );
 
   // Lane 3: sandbox expiry + admission reap (reconcile skipped — no spawner
@@ -38012,6 +38705,16 @@ async function main(): Promise<void> {
     await checkLegalHolds(sql, baseUrl, authCtx);
     await checkRetention(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkErasure(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    // Reliability batch probes (self-contained; each seeds and cleans its
+    // own rows).
+    await checkAbandonedUploadReclaim(sql, authCtx);
+    await checkCrawlRegistrationSerialization();
+    await checkVideoFinalizerCas(sql, authCtx);
+    await checkAgentUpsertConvergence(sql, authCtx);
+    await checkProjectTextConvergence(sql, baseUrl, authCtx);
+    await checkApprovalGateSingleClaim(sql, authCtx);
+    await checkRetentionHeldRowsProgress(sql, authCtx);
+    await checkSyncScanFairness(sql, authCtx);
     await checkTwoFactor(
       sql,
       baseUrl,
