@@ -451,12 +451,35 @@ export async function getOrCreateProjectFolder(
   if (found !== undefined) {
     return { folderId: found.id, name: found.name, created: false };
   }
-  const folderId = await createFolder(tx, auth, {
-    name,
-    projectId: args.projectId,
-    ...(args.parentId !== undefined ? { parentId: args.parentId } : {}),
-  });
-  return { folderId, name, created: true };
+  try {
+    const folderId = await createFolder(tx, auth, {
+      name,
+      projectId: args.projectId,
+      ...(args.parentId !== undefined ? { parentId: args.parentId } : {}),
+    });
+    return { folderId, name, created: true };
+  } catch (error) {
+    // Two writers can pass the lookup above before either commits (the
+    // project-text panel saving twice, two syncs filing into one folder);
+    // the create's own sibling check then sees the winner's row and refuses
+    // with FOLDER_NAME_TAKEN. The folder this caller asked for exists now —
+    // hand it back as "found" instead of failing a save on a name the caller
+    // never chose to collide with.
+    if (!(error instanceof FolderError) || error.code !== 'FOLDER_NAME_TAKEN') {
+      throw error;
+    }
+    const won = await tx<{ id: string; name: string }[]>`
+      SELECT id, name FROM app.folders
+      WHERE org_id = ${auth.organizationId}
+        AND project_id = ${args.projectId}
+        AND parent_id IS NOT DISTINCT FROM ${args.parentId ?? null}
+        AND name = ${name}
+      LIMIT 1
+    `;
+    const winner = won[0];
+    if (winner === undefined) throw error;
+    return { folderId: winner.id, name: winner.name, created: false };
+  }
 }
 
 /** Point-read with 0.4 semantics: null (not 404) on any access failure. */
