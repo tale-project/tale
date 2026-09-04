@@ -9,6 +9,7 @@ import {
 import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
+import { rateLimitedResponse } from '../lib/rate-limit-response.ts';
 import {
   RateLimitExceededError,
   checkIpRateLimit,
@@ -56,10 +57,13 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  */
 
 /** The 429 every lane answers: the flat envelope plus `Retry-After`. */
+/** The plugin's own per-key window, answered in the one 429 shape every
+ * door speaks — the window is a refusal the limiter never threw. */
 function rateLimited(c: Context<RestEnv>, retryAfterMs: number): Response {
-  return c.json({ error: 'Rate limit exceeded' }, 429, {
-    'retry-after': String(Math.ceil(retryAfterMs / 1000)),
-  });
+  return rateLimitedResponse(
+    c,
+    new RateLimitExceededError('API key rate limit exceeded', retryAfterMs),
+  );
 }
 
 /**
@@ -120,7 +124,7 @@ export function createRestV1Routes(deps: {
         await checkIpRateLimit(deps.sql, 'rest:auth-fail-ip', ip);
       } catch (error) {
         if (error instanceof RateLimitExceededError) {
-          return rateLimited(c, error.retryAfter);
+          return rateLimitedResponse(c, error);
         }
         throw error;
       }
@@ -133,7 +137,7 @@ export function createRestV1Routes(deps: {
       await checkUserRateLimit(deps.sql, 'rest:api', session.user.id);
     } catch (error) {
       if (error instanceof RateLimitExceededError) {
-        return rateLimited(c, error.retryAfter);
+        return rateLimitedResponse(c, error);
       }
       throw error;
     }

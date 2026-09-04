@@ -45,6 +45,7 @@ import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
+import { appendMessageRow } from './domains/chat/store.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
@@ -53,6 +54,7 @@ import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import { RATE_LIMITS, type RateLimitName } from './lib/rate-limit.ts';
 import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
 
 const noopPayloadSchema = z.object({
@@ -4904,15 +4906,261 @@ async function checkDocumentWriteGuards(
 }
 
 /**
+ * Message ordering under concurrency: a thread's (order, step_order) slot is
+ * unique, so concurrent appends each land on their own slot — never a tie —
+ * and the migration that introduced the rule repairs pre-existing ties
+ * deterministically (proved by replaying its statement on a scratch table
+ * seeded with ties, since the live table can no longer hold any).
+ */
+async function checkMessageSlots(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const threadId = `itest-slot-thread-${now}`;
+  await sql`
+    INSERT INTO app.threads (id, org_id, user_id, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${threadId}, ${orgId}, ${userId}, 'chat', ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.thread_metadata (
+      thread_id, org_id, user_id, chat_type, status, created_at_ms
+    ) VALUES (${threadId}, ${orgId}, ${userId}, 'assistant', 'active', ${now})
+  `;
+  const APPENDS = 12;
+  const outcomes = await Promise.allSettled(
+    Array.from({ length: APPENDS }, (_, i) =>
+      appendMessageRow(sql, {
+        organizationId: orgId,
+        threadId,
+        role: 'assistant',
+        parts: [{ type: 'text', text: `reply ${i}` }],
+        text: `reply ${i}`,
+      }),
+    ),
+  );
+  const failures = outcomes.filter((o) => o.status === 'rejected').length;
+  const slots = await sql<{ order: number; stepOrder: number }[]>`
+    SELECT "order", step_order AS "stepOrder" FROM app.messages
+    WHERE thread_id = ${threadId}
+    ORDER BY "order", step_order
+  `;
+  const distinctOrders = new Set(slots.map((row) => row.order));
+  const contiguous = [...distinctOrders]
+    .sort((a, b) => a - b)
+    .every((order, i) => order === i);
+  record(
+    'messages: concurrent appends each take their own slot',
+    failures === 0 &&
+      slots.length === APPENDS &&
+      distinctOrders.size === APPENDS &&
+      contiguous,
+    `appends=${APPENDS}, failed=${failures} (want 0), rows=${slots.length}, distinctOrders=${distinctOrders.size} (want ${APPENDS}, no ties), contiguous=${contiguous}`,
+  );
+
+  // The dedup rule, replayed from the shipped migration onto a scratch
+  // table: two groups tie in one thread, one of them also holding a
+  // non-tied step; an untied group and another thread stay untouched.
+  const migration = await readFile(
+    new URL('./db/migrations/0076_messages_unique_slot.sql', import.meta.url),
+    'utf8',
+  ).catch(() => '');
+  // Comment lines go first: the header prose may hold a ';' of its own.
+  const dedupStatement = migration
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('--'))
+    .join('\n')
+    .split(';')
+    .find((statement) => statement.includes('UPDATE app.messages'));
+  await sql`DROP TABLE IF EXISTS itest_msg_slots`;
+  await sql`
+    CREATE TABLE itest_msg_slots (
+      id text PRIMARY KEY, thread_id text NOT NULL, "order" int NOT NULL,
+      step_order int NOT NULL, created_at_ms bigint NOT NULL
+    )
+  `;
+  await sql`
+    INSERT INTO itest_msg_slots (id, thread_id, "order", step_order, created_at_ms)
+    VALUES
+      ('a-late',  'tA', 3, 0, 300), ('a-early', 'tA', 3, 0, 100),
+      ('a-step',  'tA', 3, 1, 200), ('a-mid',   'tA', 3, 0, 200),
+      ('a-solo',  'tA', 4, 0, 400),
+      ('a-tie2x', 'tA', 5, 2, 500), ('a-tie2y', 'tA', 5, 2, 600),
+      ('b-one',   'tB', 3, 0, 100), ('b-two',   'tB', 3, 1, 200)
+  `;
+  let replayError = '';
+  if (dedupStatement !== undefined) {
+    await sql
+      .unsafe(dedupStatement.replaceAll('app.messages', 'itest_msg_slots'))
+      .catch((error: unknown) => {
+        replayError = error instanceof Error ? error.message : String(error);
+      });
+  }
+  const repaired = await sql<
+    { id: string; threadId: string; order: number; stepOrder: number }[]
+  >`
+    SELECT id, thread_id AS "threadId", "order", step_order AS "stepOrder"
+    FROM itest_msg_slots ORDER BY thread_id, "order", step_order, id
+  `;
+  const stepOf = (id: string): number | undefined =>
+    repaired.find((row) => row.id === id)?.stepOrder;
+  const noTies =
+    new Set(
+      repaired.map((row) => `${row.threadId}/${row.order}/${row.stepOrder}`),
+    ).size === repaired.length;
+  const orderKept =
+    // step first, then arrival: the step-1 row stays after every step-0 row
+    stepOf('a-early') === 0 &&
+    stepOf('a-mid') === 1 &&
+    stepOf('a-late') === 2 &&
+    stepOf('a-step') === 3 &&
+    // a tie above step 0 compacts to the front of its group
+    stepOf('a-tie2x') === 0 &&
+    stepOf('a-tie2y') === 1 &&
+    // untied groups and other threads are untouched
+    stepOf('a-solo') === 0 &&
+    stepOf('b-one') === 0 &&
+    stepOf('b-two') === 1;
+  await sql`DROP TABLE IF EXISTS itest_msg_slots`;
+  record(
+    'messages: the 0076 migration renumbers tied slots deterministically',
+    dedupStatement !== undefined && replayError === '' && noTies && orderKept,
+    `migrationFound=${dedupStatement !== undefined}, replay=${replayError === '' ? 'ok' : replayError}, noTies=${noTies}, orderKept=${orderKept} (${repaired.map((row) => `${row.id}=${row.order}.${row.stepOrder}`).join(' ')})`,
+  );
+}
+
+/**
+ * Every rate-limited app door refuses the same way: 429, a `Retry-After` in
+ * whole seconds, and `{ error: 'RATE_LIMITED', data: { retryAfterMs } }` —
+ * one helper (`lib/rate-limit-response.ts`) behind all of them, so no door
+ * answers a spent budget as an outage or without the wait. Budgets are spent
+ * directly in the limiter's table (a token bucket driven far negative, a
+ * fixed window filled for the current period) and restored afterwards so the
+ * rest of the suite keeps its budgets.
+ */
+async function checkRateLimitShapes(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const doors: {
+    name: string;
+    rule: RateLimitName;
+    key: string;
+    route: string;
+    body: string;
+    contentType: string;
+  }[] = [
+    {
+      name: 'files',
+      rule: 'file:upload',
+      key: `user:${userId}`,
+      route: `/api/app/files/upload?purpose=file&orgId=${orgId}`,
+      body: 'bytes',
+      contentType: 'application/octet-stream',
+    },
+    {
+      name: 'folders',
+      rule: 'folder:mutate',
+      key: `org:${orgId}`,
+      route: `/api/app/folders?orgId=${orgId}`,
+      body: JSON.stringify({ name: 'Rate limited folder' }),
+      contentType: 'application/json',
+    },
+    {
+      name: 'projects',
+      rule: 'project:create',
+      key: `user:${userId}`,
+      route: `/api/app/projects?orgId=${orgId}`,
+      body: JSON.stringify({ name: 'Rate limited project' }),
+      contentType: 'application/json',
+    },
+    {
+      name: 'tasks',
+      rule: 'task:create',
+      key: `user:${userId}`,
+      route: `/api/app/tasks?orgId=${orgId}`,
+      body: JSON.stringify({ projectId: 'no-such-project', title: 'x' }),
+      contentType: 'application/json',
+    },
+    {
+      name: 'knowledge entries',
+      rule: 'knowledge:mutate',
+      key: `org:${orgId}`,
+      route: `/api/app/knowledge-entries?orgId=${orgId}`,
+      body: JSON.stringify({ topic: 'limits', content: 'spent' }),
+      contentType: 'application/json',
+    },
+    {
+      name: 'webdav app passwords',
+      rule: 'webdav:app-password-create',
+      key: `org:${orgId}`,
+      route: `/api/app/webdav/app-passwords?orgId=${orgId}`,
+      body: JSON.stringify({ label: 'spent' }),
+      contentType: 'application/json',
+    },
+  ];
+  const spend = async (rule: RateLimitName, key: string): Promise<void> => {
+    const spec = RATE_LIMITS[rule];
+    const now = Date.now();
+    if (spec.kind === 'token bucket') {
+      await sql`
+        INSERT INTO app.rate_limits (name, key, value, ts)
+        VALUES (${rule}, ${key}, -1e9, ${now})
+        ON CONFLICT (name, key) DO UPDATE SET value = -1e9, ts = ${now}
+      `;
+      return;
+    }
+    const windowStart = Math.floor(now / spec.period) * spec.period;
+    await sql`
+      INSERT INTO app.rate_limits (name, key, value, ts)
+      VALUES (${rule}, ${key}, 1e9, ${windowStart})
+      ON CONFLICT (name, key) DO UPDATE SET value = 1e9, ts = ${windowStart}
+    `;
+  };
+  const refusal = z.object({
+    error: z.literal('RATE_LIMITED'),
+    data: z.object({ retryAfterMs: z.number().positive() }),
+  });
+  for (const door of doors) {
+    await spend(door.rule, door.key);
+    try {
+      const res = await fetch(`${base}${door.route}`, {
+        method: 'POST',
+        headers: { 'content-type': door.contentType, cookie, origin: base },
+        body: door.body,
+      });
+      const retryAfter = Number(res.headers.get('retry-after') ?? 'NaN');
+      const body = refusal.safeParse(await res.json().catch(() => null));
+      record(
+        `rate limit: ${door.name} refuses in the one 429 shape`,
+        res.status === 429 &&
+          Number.isInteger(retryAfter) &&
+          retryAfter >= 1 &&
+          body.success,
+        `status=${res.status} (want 429), retry-after=${res.headers.get('retry-after') ?? 'MISSING'} (want whole seconds ≥ 1), body=${body.success ? 'RATE_LIMITED+retryAfterMs' : 'WRONG SHAPE'}`,
+      );
+    } finally {
+      await sql`
+        DELETE FROM app.rate_limits WHERE name = ${door.rule} AND key = ${door.key}
+      `;
+    }
+  }
+}
+
+/**
  * Small-domain smoke: contacts CRUD + find-or-create shape, message
  * feedback upsert/toggle/stats, support case lifecycle.
  */
 async function checkSmallDomains(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const get = async (route: string): Promise<unknown> =>
     (await fetch(`${base}${route}`, { headers: { cookie } })).json();
   const send = (
@@ -5089,15 +5337,112 @@ async function checkSmallDomains(
     `listed created=${hopperListed?.createdAt} updated=${hopperListed?.updatedAt}, hit updatedAt=${hopperSearched?.updatedAt} (want = listed updatedAt, > createdAt)`,
   );
 
+  // Message feedback lands on a REAL message the caller can read: a chat
+  // thread this user owns, with one assistant reply in it.
+  const fbNow = Date.now();
+  const fbThreadId = `itest-fb-thread-${fbNow}`;
+  const fbMessageId = `itest-fb-msg-${fbNow}`;
+  await sql`
+    INSERT INTO app.threads (id, org_id, user_id, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${fbThreadId}, ${orgId}, ${userId}, 'chat', ${fbNow}, ${fbNow})
+  `;
+  await sql`
+    INSERT INTO app.thread_metadata (
+      thread_id, org_id, user_id, chat_type, status, created_at_ms
+    ) VALUES (${fbThreadId}, ${orgId}, ${userId}, 'assistant', 'active',
+              ${fbNow})
+  `;
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", step_order, role, text, status,
+      created_at_ms
+    ) VALUES (${fbMessageId}, ${fbThreadId}, ${orgId}, 0, 0, 'assistant',
+              'the answer', 'complete', ${fbNow})
+  `;
+
+  // A member of ANOTHER organization, voting through their own org on this
+  // message: well-formed request, foreign ids. The door must not confirm the
+  // message exists, and must record nothing.
+  const rivalSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `itest-fb-rival-${fbNow}@example.com`,
+      password: 'itest-password-1',
+      name: 'Feedback Rival',
+    }),
+  });
+  const rivalCookie = cookieHeaderFrom(rivalSignUp);
+  const rivalParsed = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await rivalSignUp.json());
+  const rivalId = rivalParsed.success ? rivalParsed.data.user.id : '';
+  const rivalOrgCreate = await fetch(`${base}/api/auth/organization/create`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie: rivalCookie,
+      origin: base,
+    },
+    body: JSON.stringify({
+      name: `Feedback Rival ${fbNow}`,
+      slug: `itest-fb-rival-${fbNow}`,
+    }),
+  });
+  const rivalOrgId =
+    z
+      .object({ id: z.string().optional() })
+      .safeParse(await rivalOrgCreate.json()).data?.id ?? '';
+  const crossOrgVote = await fetch(
+    `${base}/api/app/feedback?orgId=${rivalOrgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: rivalCookie,
+        origin: base,
+      },
+      body: JSON.stringify({
+        threadId: fbThreadId,
+        messageId: fbMessageId,
+        rating: 'positive',
+      }),
+    },
+  );
+  const crossOrgBody = z
+    .object({ error: z.string() })
+    .safeParse(await crossOrgVote.json());
+  // The owner naming a message that does not exist gets the SAME answer.
+  const missingVote = await send('POST', `/api/app/feedback?orgId=${orgId}`, {
+    threadId: fbThreadId,
+    messageId: 'itest-fb-no-such-message',
+    rating: 'positive',
+  });
+  const foreignRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.message_feedback
+    WHERE message_id = ${fbMessageId} AND user_id = ${rivalId}
+  `;
+  record(
+    "message feedback: a vote on another organization's message is refused opaquely",
+    rivalOrgId !== '' &&
+      crossOrgVote.status === 404 &&
+      crossOrgBody.success &&
+      crossOrgBody.data.error === 'MESSAGE_NOT_FOUND' &&
+      missingVote.status === 404 &&
+      foreignRows[0]?.count === '0',
+    `crossOrg → ${crossOrgVote.status}/${crossOrgBody.success ? crossOrgBody.data.error : 'ERR'} (want 404/MESSAGE_NOT_FOUND), missing → ${missingVote.status} (want 404), foreignRows=${foreignRows[0]?.count} (want 0)`,
+  );
+
   // Message feedback: vote → toggle → stats reflect one negative.
-  await send('POST', `/api/app/feedback?orgId=${orgId}`, {
-    threadId: 'itest-thread',
-    messageId: 'itest-msg-1',
+  const ownVote = await send('POST', `/api/app/feedback?orgId=${orgId}`, {
+    threadId: fbThreadId,
+    messageId: fbMessageId,
     rating: 'positive',
   });
   await send('POST', `/api/app/feedback?orgId=${orgId}`, {
-    threadId: 'itest-thread',
-    messageId: 'itest-msg-1',
+    threadId: fbThreadId,
+    messageId: fbMessageId,
     rating: 'negative',
     comment: 'wrong answer',
   });
@@ -5109,32 +5454,47 @@ async function checkSmallDomains(
     .safeParse(await get(`/api/app/feedback?orgId=${orgId}`));
   record(
     'message feedback upsert + stats',
-    stats.success &&
+    ownVote.status === 200 &&
+      stats.success &&
       stats.data.items.length === 1 &&
       stats.data.stats.negative === 1 &&
       stats.data.stats.positive === 0,
-    `items=${stats.success ? stats.data.items.length : 'ERR'} (want 1 after toggle), stats=${stats.success ? JSON.stringify(stats.data.stats) : 'ERR'}`,
+    `ownVote → ${ownVote.status} (want 200), items=${stats.success ? stats.data.items.length : 'ERR'} (want 1 after toggle), stats=${stats.success ? JSON.stringify(stats.data.stats) : 'ERR'}`,
   );
 
   // The vote is keyed by the SERVER: whatever a client puts in `metadata` is
   // dropped, so a repeated vote upserts (the partial-unique arbiter is
   // `metadata IS NULL`) and a forged arena verdict never lands as one — the
-  // arena settle lane is the only writer of metadata rows.
+  // arena settle lane is the only writer of metadata rows. Both votes land on
+  // REAL assistant rows of the caller's own thread: a vote names a message
+  // the caller can read, or it is refused before any write.
+  const fbStackedId = `${fbMessageId}-stacked`;
+  const fbForgedId = `${fbMessageId}-forged`;
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", step_order, role, text, status,
+      created_at_ms
+    ) VALUES
+      (${fbStackedId}, ${fbThreadId}, ${orgId}, 1, 0, 'assistant',
+       'a second answer', 'complete', ${fbNow}),
+      (${fbForgedId}, ${fbThreadId}, ${orgId}, 2, 0, 'assistant',
+       'a third answer', 'complete', ${fbNow})
+  `;
   await send('POST', `/api/app/feedback?orgId=${orgId}`, {
-    threadId: 'itest-thread',
-    messageId: 'itest-msg-2',
+    threadId: fbThreadId,
+    messageId: fbStackedId,
     rating: 'positive',
     metadata: {},
   });
   await send('POST', `/api/app/feedback?orgId=${orgId}`, {
-    threadId: 'itest-thread',
-    messageId: 'itest-msg-2',
+    threadId: fbThreadId,
+    messageId: fbStackedId,
     rating: 'negative',
     metadata: { stacked: true },
   });
   await send('POST', `/api/app/feedback?orgId=${orgId}`, {
-    threadId: 'itest-thread',
-    messageId: 'arena:forged-a:forged-b',
+    threadId: fbThreadId,
+    messageId: fbForgedId,
     rating: 'positive',
     metadata: {
       arenaVerdict: 'a_better',
@@ -5145,11 +5505,11 @@ async function checkSmallDomains(
   const stackedVotes = await sql<{ count: string; rating: string | null }[]>`
     SELECT count(*)::text AS count, min(rating) AS rating
     FROM app.message_feedback
-    WHERE org_id = ${orgId} AND message_id = 'itest-msg-2'
+    WHERE org_id = ${orgId} AND message_id = ${fbStackedId}
   `;
   const forgedArenaRows = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.message_feedback
-    WHERE org_id = ${orgId} AND message_id = 'arena:forged-a:forged-b'
+    WHERE org_id = ${orgId} AND message_id = ${fbForgedId}
       AND metadata IS NOT NULL
   `;
   record(
@@ -16347,7 +16707,9 @@ async function checkConnectorOauth(
   // vendor shape — including `team.id`, which drives the workspace claim.
   const seen: { body: string; auth: string | null }[] = [];
   let denyExchange = false;
-  let vendorTeamId = 'T-ITEST-1';
+  // The workspace the fake vendor reports — re-pointed below to prove a
+  // reconnect renews the same credential and a second workspace gets its own.
+  let vendorTeam: { id: string; name?: string } = { id: 'T-ITEST-1' };
   const vendor = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -16365,7 +16727,7 @@ async function checkConnectorOauth(
               refresh_token: 'xoxe-itest-refresh',
               expires_in: 3600,
               scope: 'channels:read,chat:write',
-              team: { id: vendorTeamId },
+              team: vendorTeam,
             }),
       );
     });
@@ -16593,6 +16955,91 @@ async function checkConnectorOauth(
       `claim=${claim.ok ? 'ALLOWED' : 'refused'}, routeOwner=${routeAfter[0]?.orgId === orgId}, resolve=${resolved?.organizationId === orgId}`,
     );
 
+    // ---- reconnect: the same workspace renews ITS credential ------------
+    // The settings card's Reconnect is a second consent for a workspace
+    // already connected here. It must land on the credential the route names
+    // — fresh tokens, active again — not collide with the label it holds.
+    const firstCredentialId = credentialRows[0]?.id ?? '';
+    await sql`
+      UPDATE app.connector_credentials
+      SET status = 'needs-reauth', status_detail = 'token revoked'
+      WHERE id = ${firstCredentialId}
+    `;
+    const reconnectState = 'itest-oauth-state-reconnect';
+    await oauth.createPendingAuthorization(sql, {
+      stateHash: await hashStateToken(reconnectState),
+      organizationId: orgId,
+      userId,
+      connectorSlug: 'slack',
+      codeVerifier: 'itest-verifier-value-222222222222222222222',
+      redirectUri: `${base}/api/connectors/oauth2/callback`,
+    });
+    const reconnected = await oauth.completeOauth2(
+      sql,
+      { state: reconnectState, code: 'itest-auth-code-r', vendorError: null },
+      { fetchImpl: vendorFetch },
+    );
+    const afterReconnect = await sql<
+      {
+        id: string;
+        name: string;
+        status: string;
+        statusDetail: string | null;
+      }[]
+    >`
+      SELECT id, name, status, status_detail AS "statusDetail"
+      FROM app.connector_credentials
+      WHERE org_id = ${orgId} AND connector_slug = 'slack'
+      ORDER BY created_at_ms
+    `;
+    const routeAfterReconnect = await oauth.resolveTeamRoute(sql, 'T-ITEST-1');
+    record(
+      'connector oauth: reconnecting a connected workspace renews its credential',
+      reconnected.kind === 'connected' &&
+        afterReconnect.length === 1 &&
+        afterReconnect[0]?.id === firstCredentialId &&
+        afterReconnect[0]?.name === 'Slack' &&
+        afterReconnect[0]?.status === 'active' &&
+        afterReconnect[0]?.statusDetail === null &&
+        routeAfterReconnect?.credentialId === firstCredentialId,
+      `outcome=${reconnected.kind}${reconnected.kind === 'error' ? `/${reconnected.error}` : ''} (want connected), credentials=${afterReconnect.length} (want 1, same row), status=${afterReconnect[0]?.status ?? '-'}/${afterReconnect[0]?.statusDetail ?? 'null'} (want active/null), route=${routeAfterReconnect?.credentialId === firstCredentialId}`,
+    );
+
+    // ---- a second workspace gets its own, distinctly named credential ----
+    vendorTeam = { id: 'T-ITEST-2', name: 'Second Workspace' };
+    const secondState = 'itest-oauth-state-second-workspace';
+    await oauth.createPendingAuthorization(sql, {
+      stateHash: await hashStateToken(secondState),
+      organizationId: orgId,
+      userId,
+      connectorSlug: 'slack',
+      codeVerifier: 'itest-verifier-value-333333333333333333333',
+      redirectUri: `${base}/api/connectors/oauth2/callback`,
+    });
+    const secondConnected = await oauth.completeOauth2(
+      sql,
+      { state: secondState, code: 'itest-auth-code-s', vendorError: null },
+      { fetchImpl: vendorFetch },
+    );
+    const afterSecond = await sql<{ id: string; name: string }[]>`
+      SELECT id, name FROM app.connector_credentials
+      WHERE org_id = ${orgId} AND connector_slug = 'slack'
+      ORDER BY created_at_ms
+    `;
+    const secondRoute = await oauth.resolveTeamRoute(sql, 'T-ITEST-2');
+    record(
+      'connector oauth: a second workspace connects under its own label',
+      secondConnected.kind === 'connected' &&
+        afterSecond.length === 2 &&
+        afterSecond[0]?.name === 'Slack' &&
+        afterSecond[1]?.name === 'Slack (Second Workspace)' &&
+        secondRoute?.organizationId === orgId &&
+        secondRoute.credentialId === afterSecond[1]?.id &&
+        secondRoute.credentialId !== firstCredentialId,
+      `outcome=${secondConnected.kind}${secondConnected.kind === 'error' ? `/${secondConnected.error}` : ''} (want connected), credentials=${afterSecond.map((row) => row.name).join(' | ')} (want Slack | Slack (Second Workspace)), route2=${secondRoute?.credentialId === afterSecond[1]?.id}`,
+    );
+    vendorTeam = { id: 'T-ITEST-1' };
+
     // ---- the claim race: the pre-check passes, another org claims first --
     // Two organizations can pass the pre-check for one workspace; the
     // route's key decides the winner and the LOSER must keep nothing. The
@@ -16603,7 +17050,7 @@ async function checkConnectorOauth(
     // holds this org's Slack credential (one credential per connector name),
     // so only a fresh organization walks the store-then-claim path — and the
     // credential it must not keep would have been its FIRST, i.e. its default.
-    vendorTeamId = 'T-ITEST-RACE';
+    vendorTeam = { id: 'T-ITEST-RACE' };
     const raceOrgId = 'itest-race-org';
     const raceState = 'itest-oauth-state-race';
     await oauth.createPendingAuthorization(sql, {
@@ -16660,7 +17107,7 @@ async function checkConnectorOauth(
     releaseForeignClaim();
     await foreignClaim;
     const raced = await racing;
-    vendorTeamId = 'T-ITEST-1';
+    vendorTeam = { id: 'T-ITEST-1' };
     const raceCredentials = await sql<
       { count: string; isDefault: boolean | null }[]
     >`
@@ -16711,8 +17158,8 @@ async function checkConnectorOauth(
       'connector oauth: a vendor-rejected exchange stores no credential',
       refused.kind === 'error' &&
         (refused.kind === 'error' ? refused.error : '') === 'vendor_declined' &&
-        credentialsAfter[0]?.count === '1',
-      `outcome=${refused.kind}/${refused.kind === 'error' ? refused.error : '-'}, credentials=${credentialsAfter[0]?.count} (want 1, unchanged)`,
+        credentialsAfter[0]?.count === '2',
+      `outcome=${refused.kind}/${refused.kind === 'error' ? refused.error : '-'}, credentials=${credentialsAfter[0]?.count} (want 2, unchanged)`,
     );
   } finally {
     vendor.close();
@@ -38671,6 +39118,8 @@ async function main(): Promise<void> {
     await checkWorkflowDocumentListing(sql, baseUrl, authCtx);
     await checkBlobRefAuthority(sql, baseUrl, authCtx);
     await checkSmallDomains(sql, baseUrl, authCtx);
+    await checkMessageSlots(sql, authCtx);
+    await checkRateLimitShapes(sql, baseUrl, authCtx);
     await checkAgents(baseUrl, authCtx);
     await checkSkills(baseUrl, authCtx);
     await checkProviderCredentials(sql, baseUrl, authCtx);

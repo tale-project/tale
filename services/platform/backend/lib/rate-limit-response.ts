@@ -46,3 +46,48 @@ export async function chargeOrgRateLimit<E extends Env>(
     throw error;
   }
 }
+
+/**
+ * `Retry-After` in whole seconds, rounded up and never zero — the one figure
+ * every door advertises, whichever body its protocol speaks.
+ */
+export function retryAfterSeconds(retryAfterMs: number): string {
+  return String(Math.max(1, Math.ceil(retryAfterMs / 1000)));
+}
+
+/**
+ * The same refusal for a door that answers with a bare `Response` and no
+ * Hono context — the Slack events webhook, the SSE/screencast auth
+ * pre-checks: 429, plain text, `Retry-After`, plus whatever headers the door
+ * always sends (`Cache-Control: no-store`, `Vary`).
+ */
+export function rateLimitedPlainResponse(
+  error: RateLimitExceededError,
+  headers: Record<string, string> = {},
+): Response {
+  return new Response('Rate limit exceeded', {
+    status: 429,
+    headers: {
+      'content-type': 'text/plain; charset=utf-8',
+      ...headers,
+      'retry-after': retryAfterSeconds(error.retryAfter),
+    },
+  });
+}
+
+/**
+ * The rate-limit refusal behind an error, if any: the error itself, or the
+ * `cause` a domain wrapper carries (a `DocumentError` / `TtsError` coded
+ * `RATE_LIMITED`, so the wrapper's own consumers — the REST helpers, the
+ * bridges — keep reading a code while the app door answers the one 429).
+ * Null for anything else.
+ */
+export function rateLimitExceededCause(
+  error: unknown,
+): RateLimitExceededError | null {
+  if (error instanceof RateLimitExceededError) return error;
+  if (error instanceof Error && error.cause instanceof RateLimitExceededError) {
+    return error.cause;
+  }
+  return null;
+}

@@ -9,6 +9,7 @@ import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
+  FeedbackError,
   listMyThreadFeedback,
   getMyMessageFeedback,
   listMessageFeedback,
@@ -54,9 +55,18 @@ export function createFeedbackRoutes(deps: {
       return c.json({ error: 'invalid body' }, 400);
     }
     const scope = scopeOf(c);
-    await transactSerializable(deps.sql, (tx) =>
-      submitMessageFeedback(tx, scope, body.data),
-    );
+    try {
+      await transactSerializable(deps.sql, (tx) =>
+        submitMessageFeedback(tx, scope, body.data),
+      );
+    } catch (error) {
+      // A message outside the caller's reach — another organization's, a
+      // thread that is not theirs, or none at all — is one opaque refusal.
+      if (error instanceof FeedbackError) {
+        return c.json({ error: error.code }, error.status);
+      }
+      throw error;
+    }
     return c.json({ ok: true });
   });
 

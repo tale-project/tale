@@ -64,7 +64,7 @@ describe('exchangeAuthorizationCode', () => {
     });
   });
 
-  it('splits comma-separated scopes and surfaces the Slack team id', async () => {
+  it('splits comma-separated scopes and surfaces the Slack team id and name', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse({
         ok: true,
@@ -84,6 +84,8 @@ describe('exchangeAuthorizationCode', () => {
         expiresAt: undefined,
         scopes: ['chat:write', 'channels:read'],
         teamId: 'T0EXCHANGE',
+        // Labels a second workspace's credential (`Slack (Workspace)`).
+        teamName: 'Workspace',
       },
     });
   });

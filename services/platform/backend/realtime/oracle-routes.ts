@@ -23,6 +23,7 @@ import type { Sql } from 'postgres';
 import { loadTrustedProxies, type Auth } from '../auth/auth.ts';
 import { getUserOrganizations } from '../auth/membership.ts';
 import { getClientIp } from '../core/lib/utils/client_ip.ts';
+import { rateLimitedPlainResponse } from '../lib/rate-limit-response.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
 
 /**
@@ -76,12 +77,7 @@ async function authenticateForwardedCookie(
     await checkIpRateLimit(deps.sql, limit, ip);
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
-      return new Response('Rate limit exceeded', {
-        status: 429,
-        headers: noStore({
-          'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
-        }),
-      });
+      return rateLimitedPlainResponse(error, noStore());
     }
     throw error;
   }

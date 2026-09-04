@@ -8,6 +8,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { resolveTaskServing } from '../../core/tasks/task_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
   RateLimitExceededError,
@@ -168,10 +169,7 @@ function handleError<E extends OrgEnv>(
     );
   }
   if (error instanceof RateLimitExceededError) {
-    return c.json(
-      { error: 'RATE_LIMITED', data: { retryAfterMs: error.retryAfter } },
-      429,
-    );
+    return rateLimitedResponse(c, error);
   }
   // A comment whose @mentions could not be resolved is NOT posted — the
   // author sees a retryable failure instead of a comment that silently
