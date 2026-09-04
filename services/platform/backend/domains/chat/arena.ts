@@ -153,9 +153,13 @@ export async function ensureArenaPair(
   const now = Date.now();
   const pairId = mintPairId();
   const threadIdB = await sql.begin(async (tx) => {
-    // B ties into A's lineage for the trash cascade but deliberately owns no
-    // project/share/voice state — the pair reads as ONE conversation and
-    // every outward-facing property stays on A.
+    // B ties into A's lineage for the trash cascade and carries A's project
+    // filing and effort pick: both columns must run with the same project
+    // instructions and knowledge — two prompts that differ compare prompts,
+    // not models — and a winning B keeps the conversation filed. Share and
+    // voice state stay on A: the pair reads as ONE conversation and its
+    // outward-facing properties live there (a hidden row never lists in the
+    // project's Chats tab).
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
                                updated_at_ms)
@@ -168,11 +172,13 @@ export async function ensureArenaPair(
     await tx`
       INSERT INTO app.thread_metadata (
         thread_id, org_id, user_id, chat_type, status, agent_slug,
-        capabilities, hidden, branch_root_id, archived, created_at_ms
+        capabilities, reasoning_effort, project_id, hidden, branch_root_id,
+        archived, created_at_ms
       ) VALUES (
         ${idB}, ${args.organizationId}, ${args.userId}, ${thread.kind},
         'active', ${thread.agentSlug},
         ${thread.capabilities === null ? null : tx.json(toJson(thread.capabilities))},
+        ${thread.reasoningEffort}, ${thread.projectId},
         true, ${thread.branchRootId ?? thread.id}, false, ${now}
       )
     `;
@@ -380,12 +386,19 @@ export async function settleArenaPair(
       WHERE thread_id = ${loserId} AND org_id = ${args.organizationId}
     `;
     if (winnerId === idB) {
-      // B graduates to a standalone visible conversation. The losing A stays
-      // a hidden root until retention reaps it.
+      // B graduates to a standalone visible conversation and takes over what
+      // the conversation had on A — its pin, its read watermark, and (for a
+      // pair opened before B carried the project) its filing. The losing A
+      // stays a hidden root until retention reaps it.
       await tx`
-        UPDATE app.thread_metadata
-        SET arena = NULL, hidden = NULL, branch_root_id = NULL
-        WHERE thread_id = ${idB} AND org_id = ${args.organizationId}
+        UPDATE app.thread_metadata b
+        SET arena = NULL, hidden = NULL, branch_root_id = NULL,
+            project_id = coalesce(b.project_id, a.project_id),
+            pinned_at_ms = a.pinned_at_ms,
+            last_read_at_ms = a.last_read_at_ms
+        FROM app.thread_metadata a
+        WHERE b.thread_id = ${idB} AND b.org_id = ${args.organizationId}
+          AND a.thread_id = ${idA} AND a.org_id = ${args.organizationId}
       `;
     } else {
       await tx`

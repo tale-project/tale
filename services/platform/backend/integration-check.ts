@@ -7633,6 +7633,73 @@ async function checkChat(
       tracedLive,
       `toolPartInProgressFrame=${tracedLive} (want true — not only in the settled payload)`,
     );
+
+    // Two sends racing into ONE thread (two tabs, a double-click): both can
+    // pass the busy read, so the turn's own atomic open must decide —
+    // exactly one runs to completion, the other is refused with 409, and the
+    // transcript gains one question and one FULL reply (the loser appended
+    // nothing and never closed the winner's generation row mid-drip).
+    const raceThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Itest racing sends',
+        })
+      ).json(),
+    );
+    const raceThreadId = raceThread.success ? raceThread.data.id : '';
+    const raceBody = (tab: string): unknown => ({
+      text: `${SLOW_MARKER} from ${tab}`,
+      modelId: 'itest-chat',
+      providerSlug: 'itestchat',
+    });
+    const raced = await Promise.all([
+      send(
+        `/api/app/chat/threads/${raceThreadId}/messages?orgId=${orgId}`,
+        raceBody('tab one'),
+      ),
+      send(
+        `/api/app/chat/threads/${raceThreadId}/messages?orgId=${orgId}`,
+        raceBody('tab two'),
+      ),
+    ]);
+    const raceOutcome = z.object({ status: z.string() });
+    const raceStatuses = (
+      await Promise.all(
+        raced.map(async (response) => {
+          const parsed = raceOutcome.safeParse(await response.json());
+          return parsed.success ? parsed.data.status : 'ERR';
+        }),
+      )
+    ).sort((a, b) => a.localeCompare(b));
+    const raceHttp = raced
+      .map((response) => response.status)
+      .sort((a, b) => a - b);
+    const raceRows = await sql<
+      { role: string; status: string; text: string | null }[]
+    >`
+      SELECT role, status, text FROM app.messages
+      WHERE thread_id = ${raceThreadId}
+      ORDER BY "order", step_order
+    `;
+    const raceGen = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.generations
+      WHERE thread_id = ${raceThreadId}
+    `;
+    const raceReply = raceRows[1];
+    record(
+      'racing sends: one turn wins the thread, the other is refused, one full exchange lands',
+      raceStatuses[0] === 'completed' &&
+        raceStatuses[1] === 'refused' &&
+        raceHttp[0] === 200 &&
+        raceHttp[1] === 409 &&
+        raceRows.length === 2 &&
+        raceRows[0]?.role === 'user' &&
+        raceReply?.role === 'assistant' &&
+        raceReply.status === 'complete' &&
+        (raceReply.text ?? '').includes(`tick${SLOW_CHUNKS}`) &&
+        raceGen[0]?.count === '0',
+      `outcomes=${raceStatuses.join('/')} (want completed/refused), http=${raceHttp.join('/')} (want 200/409), rows=${raceRows.length} (want 2), reply=${raceReply?.status ?? 'NONE'} full=${(raceReply?.text ?? '').includes(`tick${SLOW_CHUNKS}`)}, genGone=${raceGen[0]?.count === '0'}`,
+    );
   } finally {
     await new Promise<void>((resolve) => {
       aiServer.close(() => resolve());
@@ -26686,6 +26753,328 @@ async function checkChatThreadSurface(
       title.length > 0 &&
       renamed[0]?.title === 'Owner named it',
     `title=${JSON.stringify(title)} afterRename=${renamed[0]?.title}`,
+  );
+
+  // Sharing follows the conversation's lifecycle: a trashed thread's link
+  // goes dark, revoking still works in the trash (and answers honestly), and
+  // a restore brings the thread back without resurrecting a link the owner
+  // switched off meanwhile.
+  const sharedLink = (linkToken: string): Promise<Response> =>
+    fetch(`${base}/api/app/chat/threads/shared/${linkToken}?orgId=${orgId}`, {
+      headers: { cookie },
+    });
+  const okBody = z.object({ ok: z.boolean() });
+  const linked = await mkThread({ title: 'Shared then trashed' });
+  const linkedShare = z
+    .object({ shareToken: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/chat/threads/${linked}/share?orgId=${orgId}`)
+      ).json(),
+    );
+  const linkedToken = linkedShare.success ? linkedShare.data.shareToken : '';
+  const litBefore = await sharedLink(linkedToken);
+  await post(`/api/app/chat/threads/${linked}/trash?orgId=${orgId}`);
+  const darkInTrash = await sharedLink(linkedToken);
+  const unshareInTrash = okBody.safeParse(
+    await (
+      await post(`/api/app/chat/threads/${linked}/unshare?orgId=${orgId}`)
+    ).json(),
+  );
+  await post(`/api/app/chat/threads/${linked}/restore?orgId=${orgId}`);
+  const shareAfterRestore = z
+    .object({ isShared: z.boolean() })
+    .loose()
+    .safeParse(
+      await get(`/api/app/chat/threads/${linked}/share-status?orgId=${orgId}`),
+    );
+  const darkAfterRestore = await sharedLink(linkedToken);
+  const unshareUnknown = okBody.safeParse(
+    await (
+      await post(`/api/app/chat/threads/no-such-thread/unshare?orgId=${orgId}`)
+    ).json(),
+  );
+  record(
+    'share links die with a trashed thread; unshare works in the trash',
+    litBefore.status === 200 &&
+      darkInTrash.status === 404 &&
+      unshareInTrash.success &&
+      unshareInTrash.data.ok &&
+      shareAfterRestore.success &&
+      !shareAfterRestore.data.isShared &&
+      darkAfterRestore.status === 404 &&
+      unshareUnknown.success &&
+      !unshareUnknown.data.ok,
+    `live=${litBefore.status} (want 200), trashed=${darkInTrash.status} (want 404), unshareInTrash=${unshareInTrash.success ? unshareInTrash.data.ok : 'ERR'} (want true), sharedAfterRestore=${shareAfterRestore.success ? shareAfterRestore.data.isShared : 'ERR'} (want false), afterRestore=${darkAfterRestore.status} (want 404), unknownThread=${unshareUnknown.success ? unshareUnknown.data.ok : 'ERR'} (want false)`,
+  );
+
+  // Refiling a project-shared thread ends the share — the new project's
+  // members never inherit an audience the owner consented to elsewhere — and
+  // the implicit unshare leaves an audit row on the project it left. threadB
+  // is filed in `projectId` and shared with it since the filing probe.
+  const summaryOf = async (
+    id: string,
+  ): Promise<{
+    projectId: string | null;
+    sharedWithProject: boolean | null;
+    pinnedAt: number | null;
+  } | null> => {
+    const parsed = z
+      .object({
+        thread: z
+          .object({
+            projectId: z.string().nullable(),
+            sharedWithProject: z.boolean().nullable(),
+            pinnedAt: z.number().nullable(),
+          })
+          .loose(),
+      })
+      .safeParse(
+        await get(`/api/app/chat/threads/${id}/summary?orgId=${orgId}`),
+      );
+    return parsed.success ? parsed.data.thread : null;
+  };
+  const projectTwo = z
+    .object({ projectId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Chat Tab Two' })
+      ).json(),
+    );
+  const projectTwoId = projectTwo.success ? projectTwo.data.projectId : '';
+  const sharedBeforeMove = (await summaryOf(threadB))?.sharedWithProject;
+  await post(`/api/app/chat/threads/${threadB}/project?orgId=${orgId}`, {
+    projectId: projectTwoId,
+  });
+  const movedSummary = await summaryOf(threadB);
+  const moveAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'project.thread.unshared'
+      AND resource_id = ${projectId}
+      AND new_state->>'threadId' = ${threadB}
+      AND new_state->>'movedToProjectId' = ${projectTwoId}
+  `;
+  const tabTwo = z
+    .object({
+      mine: z.array(
+        z
+          .object({ id: z.string(), sharedWithProject: z.boolean().nullable() })
+          .loose(),
+      ),
+    })
+    .loose()
+    .safeParse(
+      await get(`/api/app/chat/project/${projectTwoId}/threads?orgId=${orgId}`),
+    );
+  record(
+    'moving a project-shared thread ends the share and audits the old project',
+    sharedBeforeMove === true &&
+      movedSummary?.projectId === projectTwoId &&
+      movedSummary.sharedWithProject === false &&
+      moveAudit[0]?.count === '1' &&
+      tabTwo.success &&
+      tabTwo.data.mine.some(
+        (row) => row.id === threadB && row.sharedWithProject === false,
+      ),
+    `before=${sharedBeforeMove} (want true), after: project=${movedSummary?.projectId === projectTwoId} shared=${movedSummary?.sharedWithProject} (want false), audit=${moveAudit[0]?.count} (want 1), newTabShared=${tabTwo.success ? tabTwo.data.mine.find((row) => row.id === threadB)?.sharedWithProject : 'ERR'} (want false)`,
+  );
+
+  // Arena: column B is born with A's project filing and effort pick — both
+  // columns run with the project's instructions and knowledge — and stays
+  // out of the project's Chats tab while hidden; a winning B keeps the
+  // filing and takes over A's pin.
+  const arenaA = await mkThread({
+    title: 'Arena in a project',
+    projectId: projectTwoId,
+  });
+  await post(`/api/app/chat/threads/${arenaA}/pin?orgId=${orgId}`, {
+    pinned: true,
+  });
+  await post(
+    `/api/app/chat/threads/${arenaA}/reasoning-effort?orgId=${orgId}`,
+    {
+      reasoningEffort: 'high',
+    },
+  );
+  const ensured = z
+    .object({ threadIdB: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${arenaA}/arena/ensure?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  const arenaB = ensured.success ? ensured.data.threadIdB : '';
+  const bBirth = await sql<
+    { projectId: string | null; reasoningEffort: string | null }[]
+  >`
+    SELECT project_id AS "projectId", reasoning_effort AS "reasoningEffort"
+    FROM app.thread_metadata WHERE thread_id = ${arenaB}
+  `;
+  const tabWhilePaired = z
+    .object({ mine: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(
+      await get(`/api/app/chat/project/${projectTwoId}/threads?orgId=${orgId}`),
+    );
+  const settled = z
+    .object({ continueThreadId: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${arenaA}/arena/settle?orgId=${orgId}`,
+          { verdict: 'b_better' },
+        )
+      ).json(),
+    );
+  const bAfterWin = await summaryOf(arenaB);
+  record(
+    'arena column B carries the project; a winning B stays filed and pinned',
+    ensured.success &&
+      bBirth[0]?.projectId === projectTwoId &&
+      bBirth[0].reasoningEffort === 'high' &&
+      tabWhilePaired.success &&
+      !tabWhilePaired.data.mine.some((row) => row.id === arenaB) &&
+      settled.success &&
+      settled.data.continueThreadId === arenaB &&
+      bAfterWin?.projectId === projectTwoId &&
+      bAfterWin.pinnedAt !== null,
+    `ensured=${ensured.success}, B.project=${bBirth[0]?.projectId === projectTwoId} (want A's), B.effort=${bBirth[0]?.reasoningEffort ?? 'NULL'} (want high), hiddenFromTab=${tabWhilePaired.success ? !tabWhilePaired.data.mine.some((row) => row.id === arenaB) : 'ERR'}, settled→B=${settled.success && settled.data.continueThreadId === arenaB}, winnerFiled=${bAfterWin?.projectId === projectTwoId}, winnerPinned=${bAfterWin?.pinnedAt !== null}`,
+  );
+
+  // The chat search tool applies the contacts domain's lifecycle rule: a
+  // trashed contact never resurfaces in an answer.
+  const stamp = Date.now();
+  await sql`
+    INSERT INTO app.contacts (
+      org_id, name, email, source, lifecycle_status, created_at_ms,
+      updated_at_ms
+    ) VALUES
+      (${orgId}, 'Zelda Trashed', 'zelda.trashed@example.com', 'itest',
+       'trashed', ${stamp}, ${stamp}),
+      (${orgId}, 'Zelda Current', 'zelda.current@example.com', 'itest',
+       NULL, ${stamp}, ${stamp})
+  `;
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const contactQuery =
+    chatShimHandlers(sql)['contacts/internal_queries:queryContacts'];
+  const contactPage = z
+    .object({ page: z.array(z.object({ name: z.string().optional() })) })
+    .loose()
+    .safeParse(
+      contactQuery === undefined
+        ? null
+        : await contactQuery({ organizationId: orgId, searchTerm: 'Zelda' }),
+    );
+  const contactNames = contactPage.success
+    ? contactPage.data.page.map((row) => row.name ?? '')
+    : [];
+  record(
+    'chat search tool hides trashed contacts',
+    contactNames.includes('Zelda Current') &&
+      !contactNames.includes('Zelda Trashed'),
+    `names=${JSON.stringify(contactNames)} (want Zelda Current only)`,
+  );
+
+  // beginTurn is ONE transaction: a crash at the generation row leaves no
+  // user message and no pending placeholder behind. The trigger stands in
+  // for the process dying between the statements.
+  const crashed = await mkThread({ title: 'Crash mid-open' });
+  await sql.unsafe(`
+    CREATE OR REPLACE FUNCTION app.itest_refuse_generation() RETURNS trigger AS $$
+    BEGIN
+      IF NEW.thread_id = '${crashed}' THEN
+        RAISE EXCEPTION 'itest: simulated crash before the generation row';
+      END IF;
+      RETURN NEW;
+    END $$ LANGUAGE plpgsql;
+    CREATE TRIGGER itest_refuse_generation BEFORE INSERT ON app.generations
+      FOR EACH ROW EXECUTE FUNCTION app.itest_refuse_generation();
+  `);
+  let openFailed = false;
+  try {
+    await createPgTurnStore(sql).beginTurn({
+      organizationId: orgId,
+      threadId: crashed,
+      userParts: [{ type: 'text', text: 'this question must not land' }],
+    });
+  } catch (error) {
+    openFailed =
+      error instanceof Error && /simulated crash/.test(error.message);
+  } finally {
+    await sql.unsafe(`
+      DROP TRIGGER IF EXISTS itest_refuse_generation ON app.generations;
+      DROP FUNCTION IF EXISTS app.itest_refuse_generation();
+    `);
+  }
+  const crashedRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.messages
+    WHERE thread_id = ${crashed}
+  `;
+  const crashedMeta = await sql<{ generationStatus: string | null }[]>`
+    SELECT generation_status AS "generationStatus"
+    FROM app.thread_metadata WHERE thread_id = ${crashed}
+  `;
+  record(
+    'beginTurn is one transaction: a crash at the generation row strands nothing',
+    openFailed &&
+      crashedRows[0]?.count === '0' &&
+      crashedMeta[0]?.generationStatus !== 'generating',
+    `openThrew=${openFailed}, strandedRows=${crashedRows[0]?.count} (want 0), sidecar=${crashedMeta[0]?.generationStatus ?? 'NULL'} (want not generating)`,
+  );
+
+  // Two opens racing into one thread: the generation row is the claim, so
+  // exactly one wins; the loser rolls back (no rows) and never touches the
+  // winner's row. Ending the winner's turn without a settled reply fails its
+  // placeholder rather than leaving an eternal pending bubble.
+  const raced = await mkThread({ title: 'Racing opens' });
+  const turnStore = createPgTurnStore(sql);
+  const openings = await Promise.allSettled([
+    turnStore.beginTurn({
+      organizationId: orgId,
+      threadId: raced,
+      userParts: [{ type: 'text', text: 'first tab' }],
+    }),
+    turnStore.beginTurn({
+      organizationId: orgId,
+      threadId: raced,
+      userParts: [{ type: 'text', text: 'second tab' }],
+    }),
+  ]);
+  const wins = openings.filter((o) => o.status === 'fulfilled').length;
+  const busyLosses = openings.filter(
+    (o) =>
+      o.status === 'rejected' &&
+      o.reason instanceof Error &&
+      o.reason.name === 'ThreadBusyError',
+  ).length;
+  const racedGens = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.generations
+    WHERE thread_id = ${raced}
+  `;
+  const racedRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.messages WHERE thread_id = ${raced}
+  `;
+  await turnStore.endGeneration({ organizationId: orgId, threadId: raced });
+  const racedPlaceholder = await sql<{ status: string }[]>`
+    SELECT status FROM app.messages
+    WHERE thread_id = ${raced} AND role = 'assistant'
+  `;
+  const racedGensAfter = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.generations
+    WHERE thread_id = ${raced}
+  `;
+  record(
+    'racing opens: one claims the thread, the loser leaves no trace, settle fails the orphan placeholder',
+    wins === 1 &&
+      busyLosses === 1 &&
+      racedGens[0]?.count === '1' &&
+      racedRows[0]?.count === '2' &&
+      racedPlaceholder.length === 1 &&
+      racedPlaceholder[0]?.status === 'failed' &&
+      racedGensAfter[0]?.count === '0',
+    `wins=${wins} (want 1), busy=${busyLosses} (want 1), generations=${racedGens[0]?.count} (want 1), rows=${racedRows[0]?.count} (want 2), placeholderAfterEnd=${racedPlaceholder.map((row) => row.status).join(',')} (want failed), genAfterEnd=${racedGensAfter[0]?.count} (want 0)`,
   );
 }
 

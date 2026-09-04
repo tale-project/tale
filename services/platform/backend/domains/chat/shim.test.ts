@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -92,5 +93,34 @@ describe('chatShimHandlers', () => {
         'knowledge_entries/internal_queries:listEntriesForAgent',
       ]),
     );
+  });
+});
+
+/**
+ * The chat shim's entity reads must apply the same lifecycle rules the owning
+ * domains do — a record the user deleted is not "current" just because the
+ * assistant found it through a different door.
+ */
+function capturingSql(): { sql: Sql; texts: string[] } {
+  const texts: string[] = [];
+  const tag = (strings: TemplateStringsArray) => {
+    texts.push(strings.join('?'));
+    return Promise.resolve([]);
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call is exercised by the contact query
+  return { sql: tag as unknown as Sql, texts };
+}
+
+describe("chat shim 'contacts/internal_queries:queryContacts'", () => {
+  it('hides trashed contacts, like every read in the contacts domain', async () => {
+    const { sql, texts } = capturingSql();
+    const handlers = chatShimHandlers(sql);
+    const query = handlers['contacts/internal_queries:queryContacts'];
+    if (query === undefined) throw new Error('contact query handler missing');
+
+    await query({ organizationId: 'org_1', searchTerm: 'ada' });
+
+    const contacts = texts.find((text) => text.includes('FROM app.contacts'));
+    expect(contacts).toContain("lifecycle_status IS DISTINCT FROM 'trashed'");
   });
 });

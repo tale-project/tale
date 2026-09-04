@@ -463,21 +463,32 @@ export async function setThreadReasoningEffort(
   return true;
 }
 
-/** File a thread under a project, or take it back out (null). */
+/**
+ * File a thread under a project, or take it back out (null). Changing the
+ * project ENDS a project share: the owner's opt-in named one specific
+ * audience, and carrying the flag into another project would hand its
+ * members the whole history with no consent and no audit row. The implicit
+ * unshare is audited on the project the thread leaves — the owner re-shares
+ * in the new project deliberately.
+ */
 export async function moveThreadToProject(
   sql: Sql,
-  organizationId: string,
-  userId: string,
+  auth: { organizationId: string; userId: string; email?: string },
   threadId: string,
   projectId: string | null,
 ): Promise<boolean> {
-  const thread = await loadOwnedThread(sql, organizationId, userId, threadId);
+  const thread = await loadOwnedThread(
+    sql,
+    auth.organizationId,
+    auth.userId,
+    threadId,
+  );
   if (!thread) return false;
   if (projectId !== null) {
     const access = await projectChatAccess(sql, {
       projectId,
-      organizationId,
-      userId,
+      organizationId: auth.organizationId,
+      userId: auth.userId,
     });
     if (access !== 'ok') {
       throw new ChatThreadError(
@@ -487,10 +498,40 @@ export async function moveThreadToProject(
       );
     }
   }
-  await sql`
-    UPDATE app.thread_metadata SET project_id = ${projectId}
-    WHERE thread_id = ${thread.id}
-  `;
+  const previousProjectId = thread.projectId;
+  const moved = projectId !== previousProjectId;
+  const endsShare =
+    moved && thread.sharedWithProject === true && previousProjectId !== null;
+  await sql.begin(async (tx) => {
+    await tx`
+      UPDATE app.thread_metadata SET
+        project_id = ${projectId},
+        shared_with_project = ${moved ? false : thread.sharedWithProject}
+      WHERE thread_id = ${thread.id}
+    `;
+    if (!endsShare) return;
+    const projects = await tx<{ name: string }[]>`
+      SELECT name FROM app.projects WHERE id = ${previousProjectId} LIMIT 1
+    `;
+    await createAuditLog(tx, {
+      organizationId: auth.organizationId,
+      actorId: auth.userId,
+      ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
+      actorType: 'user',
+      action: 'project.thread.unshared',
+      category: 'data',
+      resourceType: 'project',
+      resourceId: previousProjectId,
+      ...(projects[0] ? { resourceName: projects[0].name } : {}),
+      status: 'success',
+      previousState: { threadId: thread.id, shared: true },
+      newState: {
+        threadId: thread.id,
+        shared: false,
+        movedToProjectId: projectId,
+      },
+    });
+  });
   return true;
 }
 
@@ -679,19 +720,28 @@ export async function shareThread(
   return { shareToken };
 }
 
-/** Stop sharing; the token is kept so re-sharing restores the same URL. */
+/**
+ * Stop sharing; the token is kept so re-sharing restores the same URL.
+ * Owner-matched on the row itself rather than through the active-thread
+ * read: a conversation already in the trash must stay revocable — the link's
+ * gate hides it meanwhile, but a restore would otherwise bring the share
+ * back without the owner ever having been able to switch it off. Returns
+ * whether an owned row was matched, so the route answers honestly.
+ */
 export async function unshareThread(
   sql: Sql,
   organizationId: string,
   userId: string,
   threadId: string,
-): Promise<void> {
-  const thread = await loadOwnedThread(sql, organizationId, userId, threadId);
-  if (!thread) return;
-  await sql`
-    UPDATE app.thread_metadata SET is_shared = false
-    WHERE thread_id = ${thread.id}
+): Promise<boolean> {
+  const rows = await sql<{ threadId: string }[]>`
+    UPDATE app.thread_metadata tm SET is_shared = false
+    FROM app.threads t
+    WHERE tm.thread_id = t.id AND t.id = ${threadId}
+      AND t.org_id = ${organizationId} AND t.user_id = ${userId}
+    RETURNING tm.thread_id AS "threadId"
   `;
+  return rows.length > 0;
 }
 
 export async function getThreadShareStatus(
@@ -738,8 +788,10 @@ export interface SharedThreadView {
  * Resolve a share token to its read-only snapshot. The token authorizes the
  * read TOGETHER with org membership (checked by the route's door — the org
  * is resolved FROM the thread here and compared). The snapshot is cut at
- * `sharedAt`; unknown token, unshared thread, and cross-org caller are
- * indistinguishable nulls by design.
+ * `sharedAt`; unknown token, unshared thread, trashed or aged-out thread,
+ * and cross-org caller are indistinguishable nulls by design — the
+ * lifecycle gate is the one every other read applies, so deleting a
+ * conversation revokes what its link serves.
  */
 export async function getSharedThread(
   sql: Sql,
@@ -750,7 +802,7 @@ export async function getSharedThread(
     SELECT ${sql.unsafe(THREAD_COLUMNS)}
     FROM app.threads t
     JOIN app.thread_metadata tm ON tm.thread_id = t.id
-    WHERE tm.share_token = ${shareToken}
+    WHERE tm.share_token = ${shareToken} AND tm.status = 'active'
     LIMIT 1
   `;
   const thread = rows[0];

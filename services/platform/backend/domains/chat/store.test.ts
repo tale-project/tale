@@ -25,7 +25,12 @@ vi.mock('../../core/lib/providers/catalog_fetch.ts', () => ({
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
-import { createPgUsageLedger, estimateTurnCostCents } from './store.ts';
+import { ThreadBusyError } from '../../../lib/chat/turn.ts';
+import {
+  createPgTurnStore,
+  createPgUsageLedger,
+  estimateTurnCostCents,
+} from './store.ts';
 
 const OPENROUTER = {
   name: 'openrouter',
@@ -107,5 +112,150 @@ describe('createPgUsageLedger', () => {
     for (const values of buckets) {
       expect(values).toContain(200);
     }
+  });
+});
+
+interface Statement {
+  text: string;
+  values: unknown[];
+}
+
+/**
+ * A transaction-aware fake `sql`: the pool tag and each `begin` callback's
+ * tag log to SEPARATE ledgers, so a test can prove which writes rode the
+ * transaction and which bypassed it. Statements are answered by shape — a
+ * message insert returns the next row id, the generations claim returns a
+ * row unless the fake is told the thread is held.
+ */
+function fakeChatSql(options: { threadHeld?: boolean } = {}): {
+  sql: Sql;
+  pool: Statement[];
+  tx: Statement[];
+  transactions: Array<'commit' | 'rollback'>;
+  notified: string[];
+} {
+  const pool: Statement[] = [];
+  const tx: Statement[] = [];
+  const transactions: Array<'commit' | 'rollback'> = [];
+  const notified: string[] = [];
+  let messageRows = 0;
+  const answer = (text: string): unknown[] => {
+    if (text.includes('INSERT INTO app.messages')) {
+      messageRows += 1;
+      return [{ id: `msg_${messageRows}`, order: messageRows - 1 }];
+    }
+    if (text.includes('FROM app.thread_metadata WHERE thread_id')) {
+      return [{ branchRootId: null, chatType: 'chat', userId: 'user_1' }];
+    }
+    if (text.includes('INSERT INTO app.generations')) {
+      return options.threadHeld === true ? [] : [{ threadId: 'thread_1' }];
+    }
+    return [];
+  };
+  const makeTag = (log: Statement[]) => {
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?');
+      log.push({ text, values });
+      return Promise.resolve(answer(text));
+    };
+    tag.json = (value: unknown) => ({ json: value });
+    return tag;
+  };
+  const pooled = Object.assign(makeTag(pool), {
+    notify(channel: string, payload: string) {
+      notified.push(`${channel}:${payload}`);
+      return Promise.resolve();
+    },
+    async begin(fn: (tx: unknown) => Promise<unknown>) {
+      try {
+        const result = await fn(makeTag(tx));
+        transactions.push('commit');
+        return result;
+      } catch (error) {
+        transactions.push('rollback');
+        throw error;
+      }
+    },
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the turn store exercises exactly the tag, json, notify, and begin surfaces faked here
+  return { sql: pooled as unknown as Sql, pool, tx, transactions, notified };
+}
+
+const OPEN = {
+  organizationId: 'org_1',
+  threadId: 'thread_1',
+  userParts: [{ type: 'text' as const, text: 'hello' }],
+};
+
+describe('createPgTurnStore.beginTurn', () => {
+  it('opens the turn inside ONE transaction and notifies only once it committed', async () => {
+    const f = fakeChatSql();
+    const opened = await createPgTurnStore(f.sql).beginTurn(OPEN);
+
+    expect(opened.userMessage?.id).toBe('msg_1');
+    expect(opened.assistantMessage.id).toBe('msg_2');
+    expect(f.transactions).toEqual(['commit']);
+    // Every write rode the transaction; nothing touched the pool directly,
+    // so no crash between the three can leave a partial open behind.
+    expect(f.pool).toEqual([]);
+    const texts = f.tx.map((statement) => statement.text);
+    expect(
+      texts.filter((t) => t.includes('INSERT INTO app.messages')),
+    ).toHaveLength(2);
+    expect(texts.some((t) => t.includes('INSERT INTO app.generations'))).toBe(
+      true,
+    );
+    expect(
+      texts.some((t) => t.includes("generation_status = 'generating'")),
+    ).toBe(true);
+    expect(f.notified).toEqual(['chat_stream:thread_1']);
+  });
+
+  it('claims the thread with DO NOTHING and rolls the whole open back when another turn holds it', async () => {
+    const f = fakeChatSql({ threadHeld: true });
+
+    await expect(
+      createPgTurnStore(f.sql).beginTurn(OPEN),
+    ).rejects.toBeInstanceOf(ThreadBusyError);
+
+    expect(f.transactions).toEqual(['rollback']);
+    const claim = f.tx.find((statement) =>
+      statement.text.includes('INSERT INTO app.generations'),
+    );
+    expect(claim?.text).toContain('ON CONFLICT (thread_id) DO NOTHING');
+    expect(claim?.text).not.toContain('DO UPDATE');
+    // The loser announces nothing — no NOTIFY for a turn that never opened,
+    // and no sidecar write claiming the thread is generating.
+    expect(f.notified).toEqual([]);
+    expect(
+      f.tx.some((s) => s.text.includes("generation_status = 'generating'")),
+    ).toBe(false);
+  });
+});
+
+describe('createPgTurnStore.endGeneration', () => {
+  it('closes the row, settles the sidecar, and fails a still-pending placeholder in one transaction', async () => {
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).endGeneration({
+      organizationId: 'org_1',
+      threadId: 'thread_1',
+    });
+
+    expect(f.transactions).toEqual(['commit']);
+    expect(f.pool).toEqual([]);
+    const texts = f.tx.map((statement) => statement.text);
+    expect(texts.some((t) => t.includes('DELETE FROM app.generations'))).toBe(
+      true,
+    );
+    expect(texts.some((t) => t.includes("generation_status = 'idle'"))).toBe(
+      true,
+    );
+    expect(
+      texts.some(
+        (t) =>
+          t.includes("status = 'failed'") && t.includes("status = 'pending'"),
+      ),
+    ).toBe(true);
+    expect(f.notified).toEqual(['chat_stream:thread_1']);
   });
 });

@@ -13,7 +13,7 @@ Ein Projekt ist die Einheit, zu der Tale greift, wenn ein Arbeitsvorhaben diesel
 
 ## Was ein Projekt besitzt
 
-**Chats**, die im Projekt gestartet werden, tragen seinen Kontext automatisch. Sie bleiben deine, bis du an einem Chat **Mit Projekt teilen** umlegst — der Chats-Tab teilt sich entsprechend in **Deine Chats** und **Mit Projekt geteilt**. Das Teilen eines Chats blendet deine persönlichen Erinnerungen und Anweisungen aus den Antworten aus, die andere Mitglieder sehen.
+**Chats**, die im Projekt gestartet werden, tragen seinen Kontext automatisch. Sie bleiben deine, bis du an einem Chat **Mit Projekt teilen** umlegst — der Chats-Tab teilt sich entsprechend in **Deine Chats** und **Mit Projekt geteilt**. Das Teilen eines Chats blendet deine persönlichen Erinnerungen und Anweisungen aus den Antworten aus, die andere Mitglieder sehen. Verschiebst du einen geteilten Chat in ein anderes Projekt — oder nimmst ihn aus seinem Projekt heraus —, endet das Teilen, damit ein neues Publikum ihn nicht stillschweigend erbt: Lege **Mit Projekt teilen** wieder um, wenn die Mitglieder des neuen Projekts ihn lesen sollen.
 
 **Anweisungen** sind Kontext, der für jeden Chat im Projekt gilt — die Rahmung, die Randbedingungen und das Vokabular der Arbeit —, damit niemand sie pro Chat neu einfügt.
 

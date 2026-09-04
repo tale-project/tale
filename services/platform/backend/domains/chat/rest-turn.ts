@@ -87,6 +87,10 @@ export async function runApiTurn(
       );
     }
   } catch (error) {
+    // A ThreadBusyError here is the busy gate above lost to a send that
+    // slipped in between the read and the turn's atomic open — the same
+    // fact, answered the same way: the caller sees why their message never
+    // got a reply. (The open rolled back; the other turn is untouched.)
     const reason =
       error instanceof Error ? error.message : 'The turn could not be started.';
     console.warn(`[rest-turn] turn threw for ${payload.threadId}: ${reason}`);

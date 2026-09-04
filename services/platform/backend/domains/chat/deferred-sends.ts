@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 
+import { ThreadBusyError } from '../../../lib/chat/turn.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { isBackendDraining } from '../control/service.ts';
@@ -424,6 +425,7 @@ export async function pollDeferredSend(
   `;
   if (claimed.length === 0) return 'gone';
 
+  let parkedAgain = false;
   try {
     // The claimed videos' transcripts join the send now (the 0.4
     // `buildBoundJobAttachments` semantics — a job without a completed
@@ -461,11 +463,29 @@ export async function pollDeferredSend(
         `[deferred-send] turn refused for ${row.id}: ${outcome.reason}`,
       );
     }
+  } catch (error) {
+    // Lost the thread to a send that slipped in between the busy read above
+    // and the turn's atomic open. Nothing was appended, so this is the same
+    // "wait our turn" as the read — park the row again rather than drop the
+    // message into a deleted tray row.
+    if (error instanceof ThreadBusyError) {
+      await sql`
+        UPDATE app.deferred_sends
+        SET status = 'waiting', waiting_since_ms = ${Date.now()}
+        WHERE id = ${row.id} AND status = 'claimed'
+      `;
+      await reschedule(READY_POLL_MS);
+      parkedAgain = true;
+      return 'busy';
+    }
+    throw error;
   } finally {
     // The terminal mop-up: the row settles whether the turn completed,
     // refused, or threw — the thread shows the bubble (or nothing), and the
     // tray row would only double-display or wedge.
-    await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+    if (!parkedAgain) {
+      await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+    }
   }
   return 'ran';
 }

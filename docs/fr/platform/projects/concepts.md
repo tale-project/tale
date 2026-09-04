@@ -13,7 +13,7 @@ Un projet est l’unité que Tale sort quand un chantier a besoin des mêmes fic
 
 ## Ce qu’un projet possède
 
-Les **chats** démarrés dans le projet portent son contexte automatiquement. Ils restent les tiens jusqu’à ce que tu actives **Partager avec le projet** sur un chat — l’onglet Chats se divise en **Tes chats** et **Partagés avec le projet** en conséquence. Partager un chat masque tes souvenirs et tes instructions personnels dans les réponses que voient les autres membres.
+Les **chats** démarrés dans le projet portent son contexte automatiquement. Ils restent les tiens jusqu’à ce que tu actives **Partager avec le projet** sur un chat — l’onglet Chats se divise en **Tes chats** et **Partagés avec le projet** en conséquence. Partager un chat masque tes souvenirs et tes instructions personnels dans les réponses que voient les autres membres. Déplacer un chat partagé vers un autre projet — ou le sortir de son projet — met fin au partage, pour qu’un nouveau public n’en hérite jamais en silence : réactive **Partager avec le projet** si les membres du nouveau projet doivent le lire.
 
 Les **instructions** sont du contexte qui s’applique à chaque chat du projet — le cadre, les contraintes et le vocabulaire du travail — pour que personne ne les recolle chat par chat.
 

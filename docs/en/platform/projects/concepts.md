@@ -13,7 +13,7 @@ A project is the unit Tale reaches for when a body of work needs the same files,
 
 ## What a project owns
 
-**Chats** started inside the project carry its context automatically. They stay yours until you flip **Share with project** on a chat — the Chats tab splits into **Your chats** and **Shared with project** accordingly. Sharing a chat hides your personal memories and instructions from the responses other members see.
+**Chats** started inside the project carry its context automatically. They stay yours until you flip **Share with project** on a chat — the Chats tab splits into **Your chats** and **Shared with project** accordingly. Sharing a chat hides your personal memories and instructions from the responses other members see. Moving a shared chat to another project — or out of its project — ends the share, so a new audience never inherits it silently: switch **Share with project** back on if the new project's members should read it.
 
 **Instructions** are context that applies to every chat in the project — the framing, constraints, and vocabulary of the work — so nobody re-pastes them per chat.
 
