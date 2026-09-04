@@ -23,7 +23,15 @@ export const Route = createFileRoute('/dashboard/$id/chat/')({
     if (typeof search.projectId === 'string' && search.projectId !== '') {
       next.projectId = search.projectId;
     }
-    if (search.new === true || search.new === '1' || search.new === 'true') {
+    // The default search parser is JSON-based, so a hand-typed `?new=1`
+    // arrives as the number 1 — accept it alongside the boolean the in-app
+    // links send and the string forms a custom parser would deliver.
+    if (
+      search.new === true ||
+      search.new === 1 ||
+      search.new === '1' ||
+      search.new === 'true'
+    ) {
       next.new = true;
     }
     return next;
