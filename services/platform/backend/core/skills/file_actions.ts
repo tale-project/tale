@@ -211,8 +211,7 @@ export async function saveSkillForViewer(
     if (visibility === 'private' && existing?.meta.visibility !== 'private') {
       throw new AppError({
         code: 'SKILL_PRIVATE_RETIRED',
-        message:
-          'Private skills are retired — nothing can equip one. Share the skill with a team or the organization instead.',
+        message: PRIVATE_SKILLS_RETIRED_MESSAGE,
       });
     }
     const teams = resolveTeams(visibility, args.teams, existing?.meta.teams);
@@ -277,25 +276,55 @@ export async function saveSkillForViewer(
   }
 }
 
+const PRIVATE_SKILLS_RETIRED_MESSAGE =
+  'Private skills are retired — nothing can equip one. Share the skill with a team or the organization instead.';
+
 /**
- * The bundle files as they will be persisted. An unmarked upload lands as an
- * `org` skill (the parse default) with the uploader adopted as owner for
- * attribution — by rewriting the `SKILL.md` about to be written, so the file
- * on disk always says what the readers will conclude. A bundle that declares
- * its sharing is honored verbatim (any member may share, and the parse step
- * already refused the inconsistent shapes).
+ * The bundle files as they will be persisted, with `SKILL.md` rewritten so
+ * the file on disk says exactly what the readers will conclude — under the
+ * SAME rules {@link saveSkillForViewer} applies, because an upload is a
+ * second door into the same create-or-replace action:
+ *
+ * - a new bundle is attributed to its uploader; a replacement keeps the
+ *   bundle's current owner (or, when nobody owned it, the uploader). A
+ *   declared `owner` is never honored — the editor never lets a member pick
+ *   one, so a zip cannot install a skill in someone else's name either;
+ * - `private` is retired: a bundle may stay private only when the one it
+ *   replaces already is (its owner re-uploading), never become it.
+ *
+ * `existing` is the bundle the upload replaces, or `null` for a new slug — a
+ * slug whose current document is unreadable counts as new, since there is
+ * nothing left to preserve. Sharing (`team`/`org` + `teams`) is honored as
+ * declared: any member may share, and the parse step already refused the
+ * inconsistent shapes. `SKILL.md` stays byte-for-byte when the zip already
+ * says what the readers will conclude.
  */
 export function normalizedBundleFiles(
   parsed: ParsedBundle,
   uploader: UserSkillViewer,
+  existing: OrgSkill | null,
 ): Array<{ path: string; content: Buffer }> {
+  if (
+    parsed.meta.visibility === 'private' &&
+    existing?.meta.visibility !== 'private'
+  ) {
+    throw new AppError({
+      code: 'SKILL_PRIVATE_RETIRED',
+      message: PRIVATE_SKILLS_RETIRED_MESSAGE,
+    });
+  }
+  const owner =
+    existing === null
+      ? uploader.userId
+      : (existing.meta.owner ?? uploader.userId);
+
   const files = parsed.files.map((file) => ({
     path: file.relPath,
     content: file.content,
   }));
-  if (parsed.meta.owner !== undefined) return files;
+  if (parsed.meta.owner === owner) return files;
 
-  const meta: SkillFrontmatter = { ...parsed.meta, owner: uploader.userId };
+  const meta: SkillFrontmatter = { ...parsed.meta, owner };
   const rewritten = serializeSkillMd(meta, parsed.body);
   return files.map((file) =>
     file.path === SKILL_DOCUMENT_NAME
@@ -304,7 +333,17 @@ export function normalizedBundleFiles(
   );
 }
 
-/** Delete a skill bundle and its history. Deleting an absent one is a no-op. */
+/**
+ * Delete a skill bundle and its history. Deleting an absent one is a no-op.
+ *
+ * Deleting is the one operation that needs no readable document. A bundle
+ * whose `SKILL.md` fails to parse — the library lists it as a failure — has
+ * no owner or sharing left to consult, so removing it falls to an org admin;
+ * without that, the failure row is a dead end only filesystem access can
+ * clear. The same rule covers a bundle directory with no `SKILL.md` at all
+ * (an upload that died mid-way): invisible to the library, yet present to
+ * the upload lane's slug check.
+ */
 export async function deleteSkillForViewer(args: {
   orgSlug: string;
   slug: string;
@@ -312,8 +351,22 @@ export async function deleteSkillForViewer(args: {
 }): Promise<boolean> {
   assertValidSlug(args.slug);
   const viewer = assertUserViewer(args.viewer);
-  const existing = await loadSkillOrThrow(args.orgSlug, args.slug);
-  if (existing === null) return false;
+  let existing: OrgSkill | null;
+  try {
+    existing = await readOrgSkill(
+      createOrgSkillReader(args.orgSlug),
+      args.slug,
+    );
+  } catch (err) {
+    if (!(err instanceof SkillParseError)) throw err;
+    console.error(`[skills] ${args.orgSlug}: ${err.message}`);
+    return removeUnreadableBundle(args.orgSlug, args.slug, viewer);
+  }
+  if (existing === null) {
+    const entries = await listSkillBundleFileEntries(args.orgSlug, args.slug);
+    if (entries === null) return false;
+    return removeUnreadableBundle(args.orgSlug, args.slug, viewer);
+  }
   if (!canEditSkill(existing.meta, viewer)) {
     throw new AppError({
       code: 'SKILL_FORBIDDEN',
@@ -321,6 +374,21 @@ export async function deleteSkillForViewer(args: {
     });
   }
   return removeSkillBundle(args.orgSlug, args.slug);
+}
+
+/** A bundle nobody can read is the org admin's to remove. */
+function removeUnreadableBundle(
+  orgSlug: string,
+  slug: string,
+  viewer: UserSkillViewer,
+): Promise<boolean> {
+  if (!viewer.isOrgAdmin) {
+    throw new AppError({
+      code: 'SKILL_FORBIDDEN',
+      message: `Only an organization admin can delete the unreadable skill "${slug}".`,
+    });
+  }
+  return removeSkillBundle(orgSlug, slug);
 }
 /**
  * The teams a saved skill ends up with. A `team` skill keeps or receives a

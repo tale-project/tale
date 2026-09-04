@@ -32,6 +32,28 @@ import {
 } from '../../../lib/shared/schemas/skills';
 import { parseSkillMd } from '../../../lib/skills/parse';
 
+/**
+ * Every code this module refuses a zip with. The HTTP boundary maps each one
+ * to a 4xx and BUILDS that map from this list, so a new refusal cannot ship
+ * as an unmapped 500 — {@link refuse} is typed on it, which is what keeps the
+ * throw sites and the list in step.
+ */
+export const SKILL_BUNDLE_REFUSAL_CODES = [
+  'INVALID_BUNDLE',
+  'MISSING_SKILL_MD',
+  'INVALID_SKILL_MD',
+  'INVALID_SKILL_SLUG',
+  'FILE_TOO_LARGE',
+  'BUNDLE_TOO_LARGE',
+] as const;
+
+export type SkillBundleRefusalCode =
+  (typeof SKILL_BUNDLE_REFUSAL_CODES)[number];
+
+function refuse(code: SkillBundleRefusalCode, message: string): AppError {
+  return new AppError({ code, message });
+}
+
 export interface ParsedBundleFile {
   /** Path relative to the bundle root (no leading slash, POSIX separators). */
   relPath: string;
@@ -155,20 +177,19 @@ function inflateCapped(
 }
 
 function fileTooLarge(relPath: string, declared?: number): AppError {
-  return new AppError({
-    code: 'FILE_TOO_LARGE',
-    message:
-      declared === undefined
-        ? `"${relPath}" exceeds per-file cap of ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`
-        : `"${relPath}" declares ${declared} bytes (per-file cap ${MAX_SKILL_BUNDLE_FILE_BYTES})`,
-  });
+  return refuse(
+    'FILE_TOO_LARGE',
+    declared === undefined
+      ? `"${relPath}" exceeds per-file cap of ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`
+      : `"${relPath}" declares ${declared} bytes (per-file cap ${MAX_SKILL_BUNDLE_FILE_BYTES})`,
+  );
 }
 
 function bundleTooLarge(): AppError {
-  return new AppError({
-    code: 'BUNDLE_TOO_LARGE',
-    message: `Decompressed bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes`,
-  });
+  return refuse(
+    'BUNDLE_TOO_LARGE',
+    `Decompressed bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes`,
+  );
 }
 
 /** Decode and validate one uploaded zip. Throws `AppError` on refusal. */
@@ -177,26 +198,23 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
   try {
     zip = await JSZip.loadAsync(buf);
   } catch (err) {
-    throw new AppError({
-      code: 'INVALID_BUNDLE',
-      message: `Not a valid zip archive: ${err instanceof Error ? err.message : String(err)}`,
-    });
+    throw refuse(
+      'INVALID_BUNDLE',
+      `Not a valid zip archive: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   const rawEntries = Object.entries(zip.files).filter(
     ([name]) => !isOsMetadataEntry(name),
   );
   if (rawEntries.length === 0) {
-    throw new AppError({
-      code: 'INVALID_BUNDLE',
-      message: 'Zip is empty',
-    });
+    throw refuse('INVALID_BUNDLE', 'Zip is empty');
   }
   if (rawEntries.length > MAX_SKILL_BUNDLE_FILES) {
-    throw new AppError({
-      code: 'INVALID_BUNDLE',
-      message: `Bundle contains ${rawEntries.length} entries (max ${MAX_SKILL_BUNDLE_FILES})`,
-    });
+    throw refuse(
+      'INVALID_BUNDLE',
+      `Bundle contains ${rawEntries.length} entries (max ${MAX_SKILL_BUNDLE_FILES})`,
+    );
   }
 
   const stripPrefix = detectSingleTopLevelFolder(rawEntries);
@@ -209,24 +227,15 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
     const rel = stripPrefix ? name.slice(stripPrefix.length) : name;
     if (rel === '') continue;
     if (rel.includes('\0')) {
-      throw new AppError({
-        code: 'INVALID_BUNDLE',
-        message: `Bundle entry path contains NUL byte`,
-      });
+      throw refuse('INVALID_BUNDLE', 'Bundle entry path contains NUL byte');
     }
     if (rel.startsWith('/') || /^[A-Za-z]:/.test(rel)) {
-      throw new AppError({
-        code: 'INVALID_BUNDLE',
-        message: `Bundle entry uses absolute path: ${rel}`,
-      });
+      throw refuse('INVALID_BUNDLE', `Bundle entry uses absolute path: ${rel}`);
     }
     const segments = rel.split('/');
     for (const seg of segments) {
       if (seg === '' || seg === '..' || seg === '.') {
-        throw new AppError({
-          code: 'INVALID_BUNDLE',
-          message: `Bundle entry path is unsafe: ${rel}`,
-        });
+        throw refuse('INVALID_BUNDLE', `Bundle entry path is unsafe: ${rel}`);
       }
     }
     if (rel === 'SKILL.md') {
@@ -239,10 +248,7 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
   }
 
   if (!skillMdEntry) {
-    throw new AppError({
-      code: 'MISSING_SKILL_MD',
-      message: 'Bundle is missing SKILL.md at the root',
-    });
+    throw refuse('MISSING_SKILL_MD', 'Bundle is missing SKILL.md at the root');
   }
 
   // Declared sizes gate BEFORE any inflation — per entry and in total.
@@ -271,18 +277,18 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
   try {
     ({ meta, body } = parseSkillMd(skillMdContent, 'SKILL.md'));
   } catch (err) {
-    throw new AppError({
-      code: 'INVALID_SKILL_MD',
-      message: `SKILL.md frontmatter rejected: ${err instanceof Error ? err.message : String(err)}`,
-    });
+    throw refuse(
+      'INVALID_SKILL_MD',
+      `SKILL.md frontmatter rejected: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   const slug = meta.name;
   if (!isValidSkillSlug(slug)) {
-    throw new AppError({
-      code: 'INVALID_SKILL_SLUG',
-      message: `Frontmatter name "${slug}" is not a valid skill slug`,
-    });
+    throw refuse(
+      'INVALID_SKILL_SLUG',
+      `Frontmatter name "${slug}" is not a valid skill slug`,
+    );
   }
 
   const files: ParsedBundleFile[] = [];

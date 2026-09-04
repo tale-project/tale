@@ -352,13 +352,36 @@ export async function restoreFromHistoryForCaller(
     viewer,
   );
 }
-/** Delete an agent and its history. Deleting an absent one is a no-op. */
+/**
+ * Delete an agent and its history. Deleting an absent one is a no-op.
+ *
+ * Deleting is the one operation that needs no readable definition. A file
+ * that fails to parse — the library lists it as a failure — has no owner or
+ * visibility left to consult, so removing it falls to an org admin; agents
+ * have no upload lane, so this is the only in-product repair there is.
+ */
 export async function deleteAgentForCaller(
   args: AgentCallerArgs & { slug: string },
 ): Promise<boolean> {
   assertValidSlug(args.slug);
   const viewer = viewerFrom(args);
-  const existing = await loadAgentOrThrow(args.orgSlug, args.slug);
+  let existing: OrgAgent | null;
+  try {
+    existing = await readOrgAgent(
+      createOrgAgentReader(args.orgSlug),
+      args.slug,
+    );
+  } catch (err) {
+    if (!(err instanceof AgentParseError)) throw err;
+    console.error(`[agents] ${args.orgSlug}: ${err.message}`);
+    if (!viewer.isOrgAdmin) {
+      throw new AppError({
+        code: 'AGENT_FORBIDDEN',
+        message: `Only an organization admin can delete the unreadable agent "${args.slug}".`,
+      });
+    }
+    return removeAgentFile(args.orgSlug, args.slug);
+  }
   if (existing === null) return false;
   if (!canEditAgent(existing.definition, viewer)) {
     throw new AppError({

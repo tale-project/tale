@@ -711,7 +711,11 @@ export interface PgSyncImportDeps {
   findDocumentByExternalId: (args: {
     organizationId: string;
     externalItemId: string;
-  }) => Promise<{ _id: never; contentHash?: string } | null>;
+  }) => Promise<{
+    _id: never;
+    contentHash?: string;
+    metadata?: Record<string, unknown> | null;
+  } | null>;
   createDocument: (args: {
     organizationId: string;
     title: string;
@@ -752,6 +756,10 @@ export interface PgSyncImportDeps {
   ) => Promise<void>;
   linkDocumentToFile: (storageId: string, documentId: string) => Promise<void>;
   scheduleHubDocumentRagIndexing: (documentId: string) => Promise<void>;
+  bindDocumentToSync: (args: {
+    documentId: string;
+    metadata: Record<string, unknown>;
+  }) => Promise<void>;
   upsertSyncConfig: (
     target: {
       itemType: 'file' | 'folder';
@@ -792,8 +800,14 @@ export function createSyncImportDeps(
       // Deliberately NO lifecycle filter (0.4 contract): a trashed row with
       // the same external id must update in place, or the next sweep would
       // resurrect the document the user just trashed as a duplicate.
-      const rows = await sql<{ id: string; contentHash: string | null }[]>`
-        SELECT id, content_hash AS "contentHash" FROM app.documents
+      const rows = await sql<
+        {
+          id: string;
+          contentHash: string | null;
+          metadata: Record<string, unknown> | null;
+        }[]
+      >`
+        SELECT id, content_hash AS "contentHash", metadata FROM app.documents
         WHERE org_id = ${findArgs.organizationId}
           AND external_item_id = ${findArgs.externalItemId}
         ORDER BY created_at_ms ASC
@@ -805,6 +819,7 @@ export function createSyncImportDeps(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for the reused pipeline's Convex Id<'documents'> brand
         _id: row.id as never,
         ...(row.contentHash !== null ? { contentHash: row.contentHash } : {}),
+        metadata: row.metadata,
       };
     },
     createDocument: async (createArgs) => {
@@ -973,6 +988,17 @@ export function createSyncImportDeps(
     },
     scheduleHubDocumentRagIndexing: async (documentId) => {
       await scheduleDocumentRagIndexing(sql, documentId);
+    },
+    // A metadata MERGE, never a replace: the document's content, hash, and
+    // every other key stay; only the sync binding lands.
+    bindDocumentToSync: async ({ documentId, metadata }) => {
+      await sql`
+        UPDATE app.documents SET
+          metadata = COALESCE(metadata, '{}'::jsonb)
+            || ${sql.json(toJson(metadata))}::jsonb,
+          updated_at_ms = ${Date.now()}
+        WHERE id = ${documentId} AND org_id = ${organizationId}
+      `;
     },
     upsertSyncConfig: async (target) =>
       upsertSyncConfigRow(sql, adapter.configTable, target),

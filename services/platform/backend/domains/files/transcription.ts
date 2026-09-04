@@ -29,9 +29,11 @@ import { FileError } from './service.ts';
  * ledger minutes. The engine's ctx runs on the chat shim (the provider walk
  * `resolveTranscriptionModel` shares with TTS/dictation) plus the file-row
  * verbs below; its `[30s, 60s, 120s]` retry self-chain maps onto delayed
- * `files.transcribe` jobs. The 0.4 content-hash dedup rides Convex
- * `_storage` sha256 rows and degrades to OFF here by design (0.5 blobs are
- * `s3:` refs — the 0.4 code takes the same branch for BYO-bucket orgs).
+ * `files.transcribe` jobs. The 0.4 content-hash dedup — the same bytes
+ * transcribed once per org, whatever blob they arrive in — stays alive on
+ * pg: the engine hashes the blob it reads anyway, stamps `content_hash`, and
+ * `findCachedTranscript` answers from the org's completed rows (0.4 read the
+ * hash off Convex `_storage`; an `s3:` ref has no such system row).
  */
 
 const DICTATION_TIMEOUT_MS = 60_000;
@@ -60,6 +62,7 @@ async function applyTranscriptionPatch(
       transcription_duration_sec = ${patch.transcriptionDurationSec !== undefined ? patch.transcriptionDurationSec : db.unsafe('transcription_duration_sec')},
       transcription_progress = ${patch.transcriptionProgress !== undefined ? patch.transcriptionProgress : db.unsafe('transcription_progress')},
       transcription_error = ${patch.transcriptionError !== undefined ? patch.transcriptionError : db.unsafe('transcription_error')},
+      content_hash = ${patch.contentHash !== undefined ? patch.contentHash : db.unsafe('content_hash')},
       status_changed_at_ms = ${patch.transcriptionStatus !== undefined ? Date.now() : db.unsafe('status_changed_at_ms')}
     WHERE storage_ref = ${storageRef}
   `;
@@ -165,11 +168,42 @@ function transcriptionHandlers(sql: Sql): ShimHandlers {
         contentType: row.contentType,
       };
     },
-    // 0.5 blobs are `s3:` refs with no Convex `_storage` system row — the
-    // engine never reaches these two on that branch, but the honest answers
-    // keep any stray call harmless (dedup off, exactly like 0.4 BYO-bucket).
-    'file_metadata/internal_queries:getStorageSha256': async () => null,
-    'file_metadata/internal_queries:findCachedTranscript': async () => null,
+    // The org's completed transcript for these exact bytes, if any other blob
+    // carried them. Org-scoped by construction: a transcript never crosses
+    // organizations, however identical the audio.
+    'file_metadata/internal_queries:findCachedTranscript': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the engine passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        contentHash: string;
+        excludeStorageId: string;
+      };
+      const rows = await sql<
+        {
+          storageId: string;
+          transcript: string;
+          transcriptionDurationSec: number | null;
+        }[]
+      >`
+        SELECT storage_ref AS "storageId", transcript,
+               transcription_duration_sec AS "transcriptionDurationSec"
+        FROM app.file_metadata
+        WHERE org_id = ${args.organizationId}
+          AND content_hash = ${args.contentHash}
+          AND transcription_status = 'completed'
+          AND transcript IS NOT NULL
+          AND storage_ref <> ${args.excludeStorageId}
+        ORDER BY created_at_ms DESC
+        LIMIT 1
+      `;
+      const row = rows[0];
+      if (!row) return null;
+      return {
+        storageId: row.storageId,
+        transcript: row.transcript,
+        transcriptionDurationSec: row.transcriptionDurationSec ?? 0,
+      };
+    },
     'file_metadata/internal_mutations:updateFileTranscription': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the engine passes exactly this shape
       const args = raw as { storageId: string } & TranscriptionRowPatch;
@@ -303,6 +337,11 @@ export async function runTranscribeJob(
 /**
  * Queue transcription for a freshly registered audio/video upload (the 0.4
  * `saveFileMetadata` audio branch): stamp `queued` + enqueue the job.
+ *
+ * Only a row THIS call moved into `queued` gets a job. A row that is already
+ * queued, running, or terminal has its own lifecycle — a job in flight, the
+ * retry door — and a second job would at best be wasted and at worst a
+ * second attempt at paid work. Answers whether a job was enqueued.
  */
 export async function queueTranscription(
   sql: Sql,
@@ -312,20 +351,23 @@ export async function queueTranscription(
     fileName: string;
     contentType: string;
   },
-): Promise<void> {
-  await sql`
+): Promise<boolean> {
+  const stamped = await sql<{ id: string }[]>`
     UPDATE app.file_metadata SET
       transcription_status = 'queued',
       status_changed_at_ms = ${Date.now()}
     WHERE org_id = ${args.organizationId} AND storage_ref = ${args.storageRef}
       AND transcription_status IS NULL
+    RETURNING id
   `;
+  if (stamped.length === 0) return false;
   await addJobInTx(sql, 'files.transcribe', {
     storageId: args.storageRef,
     fileName: args.fileName,
     contentType: args.contentType,
     organizationId: args.organizationId,
   });
+  return true;
 }
 
 // ------------------------------------------------------------ user actions

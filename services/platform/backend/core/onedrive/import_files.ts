@@ -75,7 +75,12 @@ export interface ImportFilesDependencies {
   findDocumentByExternalId: (args: {
     organizationId: string;
     externalItemId: string;
-  }) => Promise<{ _id: Id<'documents'>; contentHash?: string } | null>;
+  }) => Promise<{
+    _id: Id<'documents'>;
+    contentHash?: string;
+    /** The stored metadata — read for the sync binding it may carry. */
+    metadata?: Record<string, unknown> | null;
+  } | null>;
   createDocument: (args: {
     organizationId: string;
     title: string;
@@ -122,6 +127,16 @@ export interface ImportFilesDependencies {
   scheduleHubDocumentRagIndexing?: (
     documentId: Id<'documents'>,
   ) => Promise<void>;
+  /**
+   * Bind an already-imported document to a sync config without touching its
+   * content — a merge into its metadata. A "Sync import" over a file an
+   * earlier one-time import already brought in, unchanged, adopts it this
+   * way, so the config updates and prunes it from now on.
+   */
+  bindDocumentToSync?: (args: {
+    documentId: Id<'documents'>;
+    metadata: Record<string, unknown>;
+  }) => Promise<void>;
   /** Create-or-reactivate the sync config for a selected item ("Sync import"
    *  only). Returns the config id so imported documents can point back at it. */
   upsertSyncConfig?: (
@@ -133,6 +148,58 @@ export interface ImportFilesDependencies {
       storagePrefix?: string;
     },
   ) => Promise<string | null>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** The keys that describe the user's selection an import item came from. */
+function selectionOf(item: ImportItem): Record<string, unknown> {
+  return {
+    ...(item.selectedParentId && { selectedParentId: item.selectedParentId }),
+    ...(item.selectedParentName && {
+      selectedParentName: item.selectedParentName,
+    }),
+    ...(item.selectedParentPath && {
+      selectedParentPath: item.selectedParentPath,
+    }),
+    ...(item.isDirectlySelected !== undefined && {
+      isDirectlySelected: item.isDirectlySelected,
+    }),
+  };
+}
+
+const SYNC_SELECTION_KEYS = [
+  'selectedParentId',
+  'selectedParentName',
+  'selectedParentPath',
+  'isDirectlySelected',
+] as const;
+
+/**
+ * The binding a sync-owned document already carries, so a one-time re-import
+ * of the same file does not detach it: the config keeps updating and pruning
+ * it, and the selection keys stay so the trash lane can still stop a
+ * single-file sync. Empty for a manual document.
+ */
+function inheritedSyncBinding(
+  existingMeta: Record<string, unknown>,
+): Record<string, unknown> {
+  if (
+    existingMeta.sourceMode !== 'auto' ||
+    typeof existingMeta.syncConfigId !== 'string'
+  ) {
+    return {};
+  }
+  const kept: Record<string, unknown> = {
+    sourceMode: 'auto',
+    syncConfigId: existingMeta.syncConfigId,
+  };
+  for (const key of SYNC_SELECTION_KEYS) {
+    if (existingMeta[key] !== undefined) kept[key] = existingMeta[key];
+  }
+  return kept;
 }
 
 export async function importFiles(
@@ -193,12 +260,34 @@ export async function importFiles(
       }
 
       const contentHash = metadataResult.data.hash;
+      const syncConfigId = configIdByItemId.get(
+        item.selectedParentId ?? item.id,
+      );
+      const existingMeta = isRecord(existingDoc?.metadata)
+        ? existingDoc.metadata
+        : {};
 
       if (
         existingDoc &&
         contentHash &&
         existingDoc.contentHash === contentHash
       ) {
+        // Unchanged — but a sync import still adopts a document an earlier
+        // one-time import left unbound; otherwise the config would neither
+        // track nor prune it until its content happened to change.
+        const boundToThisSync =
+          existingMeta.syncConfigId === syncConfigId &&
+          existingMeta.sourceMode === 'auto';
+        if (syncConfigId !== undefined && !boundToThisSync) {
+          await deps.bindDocumentToSync?.({
+            documentId: existingDoc._id,
+            metadata: {
+              sourceMode: 'auto',
+              syncConfigId,
+              ...selectionOf(item),
+            },
+          });
+        }
         await deps.scheduleHubDocumentRagIndexing?.(existingDoc._id);
         results.push({
           fileId: item.id,
@@ -237,10 +326,6 @@ export async function importFiles(
         ? `${args.organizationId}/${item.relativePath}`
         : `${args.organizationId}/${item.name}`;
 
-      const syncConfigId = configIdByItemId.get(
-        item.selectedParentId ?? item.id,
-      );
-
       const metadata: Record<string, unknown> = {
         oneDriveItemId: item.id,
         itemPath: item.relativePath || '',
@@ -248,20 +333,15 @@ export async function importFiles(
         storagePath,
         size: fileSize,
         ...(syncConfigId && { syncConfigId }),
-        ...(item.selectedParentId && {
-          selectedParentId: item.selectedParentId,
-        }),
-        ...(item.selectedParentName && {
-          selectedParentName: item.selectedParentName,
-        }),
-        ...(item.selectedParentPath && {
-          selectedParentPath: item.selectedParentPath,
-        }),
-        ...(item.isDirectlySelected !== undefined && {
-          isDirectlySelected: item.isDirectlySelected,
-        }),
+        ...selectionOf(item),
         ...(item.siteId && { siteId: item.siteId }),
         ...(item.driveId && { driveId: item.driveId }),
+        // A one-time re-import of a file a sync config owns must not detach
+        // it (the metadata is written whole, so the binding has to be
+        // carried over explicitly).
+        ...(syncConfigId === undefined
+          ? inheritedSyncBinding(existingMeta)
+          : {}),
       };
 
       let folderId: Id<'folders'> | undefined;

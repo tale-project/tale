@@ -1,4 +1,6 @@
 'use node';
+import { createHash } from 'node:crypto';
+
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy';
 import { TRANSCRIPTION_SLUG } from '../../../lib/shared/constants/usage';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
@@ -140,6 +142,23 @@ async function patchProgress(
   );
 }
 
+/**
+ * The audio blob's bytes: an `s3:` ref through the org's store, a legacy
+ * Convex ref through `ctx.storage`. Only the S3 path needs the org slug.
+ */
+async function readAudioBytes(
+  ctx: ActionCtx,
+  orgSlug: string | null,
+  ref: BlobRef,
+): Promise<Uint8Array> {
+  if (convexStorageId(ref) === null && orgSlug === null) {
+    throw new Error(
+      `[transcribeAudio] org unresolvable; cannot read S3 audio blob ${ref}`,
+    );
+  }
+  return readBlobBytes(ctx, orgSlug ?? '', ref);
+}
+
 /** The pipeline body, hoisted so the 0.5 backend can run it on a ctx shim
  * (the wrapper above keeps the 0.4 wiring). */
 export async function transcribeAudioImpl(
@@ -187,6 +206,21 @@ export async function transcribeAudioImpl(
       );
       return null;
     }
+    if (preCheck.transcriptionStatus === 'completed') {
+      // A completed row is never re-run: a duplicate job (a re-registered
+      // blob, a retry racing a finish) must not re-bill the provider or
+      // rewrite the transcript. The lease's status guard fences this too;
+      // saying so here keeps the log honest instead of "deduplicated".
+      console.log(
+        JSON.stringify({
+          event: 'transcription.already_completed',
+          requestId,
+          storageId: args.storageId,
+          attempt,
+        }),
+      );
+      return null;
+    }
 
     // Single-flight gate. Two concurrent invocations on the same
     // storageId (retryTranscription double-click, scheduled retry +
@@ -224,56 +258,49 @@ export async function transcribeAudioImpl(
         },
       );
 
-      // Dedup: Convex stores a SHA-256 of every upload on `_storage`. If the
-      // same content was already transcribed in this org, short-circuit and
-      // copy the prior transcript rather than paying ffmpeg + OpenAI again.
-      // An `s3:` ref has no `_storage` system row, so the checksum is
-      // unavailable — dedup gracefully degrades to off for BYO-bucket orgs.
-      const audioConvexId = convexStorageId(args.storageId);
-      const contentHash = audioConvexId
-        ? await ctx.runQuery(
-            internal.file_metadata.internal_queries.getStorageSha256,
-            { storageId: audioConvexId },
-          )
-        : null;
-
-      if (contentHash) {
+      // Dedup by content. The blob's bytes are needed for compression anyway,
+      // so they are read first and hashed: if the same audio was already
+      // transcribed in this org, the prior transcript is copied and neither
+      // the ffmpeg pass nor the provider call is paid for again. The hash is
+      // stamped on the row before the lookup, so the NEXT identical upload
+      // finds this one. (0.4 read a SHA-256 off Convex `_storage`; an `s3:`
+      // ref has no such system row, which is why it is computed here.)
+      const bytes = await readAudioBytes(ctx, orgSlug, args.storageId);
+      const contentHash = createHash('sha256').update(bytes).digest('hex');
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.updateFileTranscription,
+        { storageId: args.storageId, contentHash },
+      );
+      const cached = await ctx.runQuery(
+        internal.file_metadata.internal_queries.findCachedTranscript,
+        {
+          organizationId: args.organizationId,
+          contentHash,
+          excludeStorageId: args.storageId,
+        },
+      );
+      if (cached) {
+        console.log(
+          JSON.stringify({
+            event: 'transcription.dedup_hit',
+            requestId,
+            storageId: args.storageId,
+            sourceStorageId: cached.storageId,
+            contentHash,
+            durationSec: cached.transcriptionDurationSec,
+          }),
+        );
         await ctx.runMutation(
           internal.file_metadata.internal_mutations.updateFileTranscription,
-          { storageId: args.storageId, contentHash },
-        );
-
-        const cached = await ctx.runQuery(
-          internal.file_metadata.internal_queries.findCachedTranscript,
           {
-            organizationId: args.organizationId,
-            contentHash,
-            excludeStorageId: args.storageId,
+            storageId: args.storageId,
+            transcriptionStatus: 'completed',
+            transcript: cached.transcript,
+            transcriptionDurationSec: cached.transcriptionDurationSec,
+            transcriptionProgress: '',
           },
         );
-        if (cached) {
-          console.log(
-            JSON.stringify({
-              event: 'transcription.dedup_hit',
-              requestId,
-              storageId: args.storageId,
-              sourceStorageId: cached.storageId,
-              contentHash,
-              durationSec: cached.transcriptionDurationSec,
-            }),
-          );
-          await ctx.runMutation(
-            internal.file_metadata.internal_mutations.updateFileTranscription,
-            {
-              storageId: args.storageId,
-              transcriptionStatus: 'completed',
-              transcript: cached.transcript,
-              transcriptionDurationSec: cached.transcriptionDurationSec,
-              transcriptionProgress: '',
-            },
-          );
-          return null;
-        }
+        return null;
       }
 
       await patchProgress(ctx, args.storageId, 'compressing');
@@ -286,25 +313,10 @@ export async function transcribeAudioImpl(
       // token (mirrors dictation / TTS).
       checkProviderHostPolicy(modelData.baseUrl);
 
-      let origBlob: Blob;
-      if (audioConvexId) {
-        const b = await ctx.storage.get(audioConvexId);
-        if (!b) {
-          throw new Error(`Audio blob not found in storage: ${args.storageId}`);
-        }
-        origBlob = b;
-      } else {
-        if (orgSlug === null) {
-          throw new Error(
-            `[transcribeAudio] org ${args.organizationId} unresolvable; cannot read S3 audio blob ${args.storageId}`,
-          );
-        }
-        const bytes = await readBlobBytes(ctx, orgSlug, args.storageId);
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
-        origBlob = new Blob([bytes as BlobPart], {
-          type: args.contentType || 'application/octet-stream',
-        });
-      }
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
+      const origBlob = new Blob([bytes as BlobPart], {
+        type: args.contentType || 'application/octet-stream',
+      });
 
       compressed = await compressAudio(origBlob, args.fileName);
 

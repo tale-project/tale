@@ -73,6 +73,20 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 40,
   },
+  // The Google Drive picker and import lanes: the OneDrive twins' budgets,
+  // in buckets of their own.
+  'external:google-drive-list': {
+    kind: 'token bucket',
+    rate: 100,
+    period: MINUTE,
+    capacity: 120,
+  },
+  'external:google-drive-read': {
+    kind: 'token bucket',
+    rate: 50,
+    period: MINUTE,
+    capacity: 60,
+  },
   'external:email-test': {
     kind: 'token bucket',
     rate: 10,

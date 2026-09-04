@@ -1,12 +1,16 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
+import type { OrgSkill } from '../../../lib/skills/listing';
+import { parseSkillMd } from '../../../lib/skills/parse';
+import type { ParsedBundle } from './bundle_zip';
+import { normalizedBundleFiles } from './file_actions';
 
 // The `*ForViewer` functions ARE the skill-file surface now — the Convex
 // action wrappers that used to delegate to them retired with the runtime —
@@ -574,6 +578,206 @@ describe('deleteSkill', () => {
     expect((await listSkills({ orgSlug: 'acme', ...alice })).skills).toEqual(
       [],
     );
+  });
+
+  // The regression under test: delete loaded the document first, so a bundle
+  // whose SKILL.md fails to parse answered SKILL_MALFORMED on the one
+  // operation that needs no parsed document — the failure row the library
+  // shows was a dead end without filesystem access.
+  it('lets an org admin, and only an org admin, delete a malformed bundle', async () => {
+    await seedSkill('acme', 'broken', '# no frontmatter\n');
+    const deleteSkill = await load('deleteSkillForViewer');
+    const listSkills = await load('listSkillsForViewer');
+
+    try {
+      await deleteSkill({ orgSlug: 'acme', slug: 'broken', ...bob });
+      expect.unreachable('a member must not remove a bundle nobody can read');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_FORBIDDEN');
+    }
+    expect((await listSkills({ orgSlug: 'acme', ...admin })).failures).toEqual([
+      expect.objectContaining({ slug: 'broken' }),
+    ]);
+
+    expect(
+      await deleteSkill({ orgSlug: 'acme', slug: 'broken', ...admin }),
+    ).toBe(true);
+    expect((await listSkills({ orgSlug: 'acme', ...admin })).failures).toEqual(
+      [],
+    );
+  });
+
+  it('lets an org admin clear a bundle directory that has no SKILL.md', async () => {
+    const dir = path.join(configRoot, 'acme', 'skills', 'half-written');
+    await mkdir(path.join(dir, 'scripts'), { recursive: true });
+    await writeFile(path.join(dir, 'scripts', 'run.py'), 'print(1)\n', 'utf-8');
+    const deleteSkill = await load('deleteSkillForViewer');
+
+    try {
+      await deleteSkill({ orgSlug: 'acme', slug: 'half-written', ...bob });
+      expect.unreachable('a member must not remove a bundle nobody can read');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_FORBIDDEN');
+    }
+    expect(
+      await deleteSkill({ orgSlug: 'acme', slug: 'half-written', ...admin }),
+    ).toBe(true);
+    await expect(stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+});
+
+/**
+ * The upload lane's normalization is the editor's rule set at a second
+ * door. The regression under test: a zip that declared an `owner` was
+ * honored verbatim — installing a skill in another member's name — and one
+ * declaring `visibility: private` minted the retired state the editor
+ * refuses.
+ */
+describe('normalizedBundleFiles', () => {
+  function bundleOf(content: string): ParsedBundle {
+    const { meta, body } = parseSkillMd(content, 'SKILL.md');
+    const skillMdBytes = Buffer.from(content, 'utf-8');
+    const asset = Buffer.from('print("unpack")\n', 'utf-8');
+    return {
+      slug: meta.name,
+      meta,
+      body,
+      files: [
+        { relPath: 'SKILL.md', content: skillMdBytes },
+        { relPath: 'scripts/unpack.py', content: asset },
+      ],
+      totalBytes: skillMdBytes.length + asset.length,
+    };
+  }
+  function existingOf(content: string): OrgSkill {
+    const { meta, body } = parseSkillMd(content, 'SKILL.md');
+    return {
+      slug: meta.name,
+      path: `skills/${meta.name}/SKILL.md`,
+      meta,
+      body,
+    };
+  }
+  function writtenMeta(files: Array<{ path: string; content: Buffer }>) {
+    const doc = files.find((file) => file.path === 'SKILL.md');
+    if (doc === undefined) throw new Error('no SKILL.md written');
+    return parseSkillMd(doc.content.toString('utf-8'), 'SKILL.md').meta;
+  }
+
+  it('attributes a new bundle to its uploader, whatever owner the zip declares', () => {
+    const files = normalizedBundleFiles(
+      bundleOf(
+        skillMd({
+          name: 'house-voice',
+          description: 'Ours.',
+          owner: 'user_someone_else',
+        }),
+      ),
+      alice.viewer,
+      null,
+    );
+
+    expect(files.map((file) => file.path)).toEqual([
+      'SKILL.md',
+      'scripts/unpack.py',
+    ]);
+    expect(writtenMeta(files)).toMatchObject({
+      owner: 'user_alice',
+      visibility: 'org',
+    });
+  });
+
+  it('adopts the uploader as owner of an unmarked bundle', () => {
+    const files = normalizedBundleFiles(
+      bundleOf(skillMd({ name: 'house-voice', description: 'Ours.' })),
+      bob.viewer,
+      null,
+    );
+    expect(writtenMeta(files).owner).toBe('user_bob');
+  });
+
+  it('refuses to mint a private skill, exactly like the editor', () => {
+    expect(() =>
+      normalizedBundleFiles(
+        bundleOf(
+          skillMd({
+            name: 'alice-drafts',
+            description: 'Mine alone.',
+            visibility: 'private',
+            owner: 'user_alice',
+          }),
+        ),
+        alice.viewer,
+        null,
+      ),
+    ).toThrow(/SKILL_PRIVATE_RETIRED/);
+  });
+
+  it('keeps a pre-existing private bundle private when its owner re-uploads it', () => {
+    const files = normalizedBundleFiles(
+      bundleOf(
+        skillMd({
+          name: 'alice-drafts',
+          description: 'Mine alone, v2.',
+          visibility: 'private',
+          owner: 'user_alice',
+        }),
+      ),
+      alice.viewer,
+      existingOf(
+        skillMd({
+          name: 'alice-drafts',
+          description: 'Mine alone.',
+          visibility: 'private',
+          owner: 'user_alice',
+        }),
+      ),
+    );
+    expect(writtenMeta(files)).toMatchObject({
+      visibility: 'private',
+      owner: 'user_alice',
+    });
+  });
+
+  it('keeps the current owner on a replacement, whatever the zip declares', () => {
+    const files = normalizedBundleFiles(
+      bundleOf(
+        skillMd({
+          name: 'house-voice',
+          description: 'Replaced.',
+          owner: 'user_someone_else',
+        }),
+      ),
+      admin.viewer,
+      existingOf(
+        skillMd({
+          name: 'house-voice',
+          description: 'Original.',
+          visibility: 'org',
+          owner: 'user_alice',
+        }),
+      ),
+    );
+    expect(writtenMeta(files).owner).toBe('user_alice');
+  });
+
+  it('attributes the replacement of an ownerless bundle to its uploader', () => {
+    const files = normalizedBundleFiles(
+      bundleOf(skillMd({ name: 'house-voice', description: 'Replaced.' })),
+      admin.viewer,
+      existingOf(skillMd({ name: 'house-voice', description: 'Original.' })),
+    );
+    expect(writtenMeta(files).owner).toBe('user_admin');
+  });
+
+  it('leaves SKILL.md byte-for-byte when the zip already says what the readers conclude', () => {
+    const content = skillMd({
+      name: 'house-voice',
+      description: 'Ours.',
+      owner: 'user_alice',
+    });
+    const files = normalizedBundleFiles(bundleOf(content), alice.viewer, null);
+    expect(files[0]?.content.toString('utf-8')).toBe(content);
   });
 });
 
