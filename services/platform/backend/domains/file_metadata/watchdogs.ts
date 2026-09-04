@@ -106,8 +106,16 @@ const RAG_STALE_AFTER_MS = 35 * 60 * 1000;
 /** How far back a `failed` row is still reconciled (a false failure heals). */
 const RAG_FAILED_RECONCILE_WINDOW_MS = 48 * 60 * 60 * 1000;
 const RAG_MAX_PER_RUN = 200;
-const RAG_INTERRUPTED_MESSAGE =
-  'Indexing was interrupted and did not finish. Re-upload the file to try again.';
+/**
+ * The `rag_error` a dead chain is settled with. It names the recovery the
+ * failed badge already offers: the blob is still stored (every candidate has
+ * a `storage_ref`) and Retry indexing re-runs the pipeline on it — the ingest
+ * upserts the corpus row `ON CONFLICT (org_slug, file_id)`, so a half-written
+ * document is reset and re-chunked. Telling the person to re-upload, as this
+ * text once did, made them recreate a document the retry button recovers.
+ */
+export const RAG_INTERRUPTED_MESSAGE =
+  'Indexing was interrupted before it finished. The stored file is intact — use Retry indexing to index it again.';
 
 interface CorpusStatus {
   status: string;

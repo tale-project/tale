@@ -23,7 +23,7 @@ Wissen überdauert jeden Chat und zitiert sich in den Antworten selbst. Soll ein
 
 <Frame caption="Die Dokumente-Tabelle nach ein paar Uploads.">
 
-![Die Dokumente-Tabelle im Bereich Wissen mit drei hochgeladenen Textdateien und ihrem Indizierungsstatus.](/images/get-started/documents-list.webp)
+![Die Dokumente-Tabelle im Bereich Wissen mit drei hochgeladenen Textdateien, den Markdown-Dokumenten der Wissenseinträge und ihrem Indizierungsstatus.](/images/get-started/documents-list.webp)
 
 </Frame>
 

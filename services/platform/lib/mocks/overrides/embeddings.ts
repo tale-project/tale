@@ -8,7 +8,7 @@
  * similarity search over the mock corpus stays meaningful).
  */
 
-const EMBEDDING_DIMENSIONS = 1536;
+export const EMBEDDING_DIMENSIONS = 1536;
 
 export function isEmbeddingsRoute(method: string, pathname: string): boolean {
   return method === 'POST' && pathname === '/v1/embeddings';

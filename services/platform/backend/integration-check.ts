@@ -16407,7 +16407,7 @@ async function checkRecoverySweeps(
     console.warn('[itest] corpus seed skipped:', error);
   }
 
-  const { recoverStuckRagIndexing } =
+  const { recoverStuckRagIndexing, RAG_INTERRUPTED_MESSAGE } =
     await import('./domains/file_metadata/watchdogs.ts');
   const ragOutcome = await recoverStuckRagIndexing(sql);
   const ragRows = await sql<
@@ -16424,9 +16424,10 @@ async function checkRecoverySweeps(
   record(
     'watchdog: rag reconcile adopts finished work and fails only dead rows',
     // Never ingested + past the stale window → failed with the interrupted
-    // text (not silently left running).
+    // text (not silently left running) — the one that points at Retry
+    // indexing, never at a re-upload.
     ragStale?.status === 'failed' &&
-      (ragStale.error ?? '').includes('interrupted') &&
+      ragStale.error === RAG_INTERRUPTED_MESSAGE &&
       // Still inside the window → untouched.
       ragFresh?.status === 'running' &&
       // Corpus says completed → ADOPTED, never failed.

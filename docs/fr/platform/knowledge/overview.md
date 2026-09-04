@@ -13,7 +13,7 @@ Tu préfères regarder d’abord ? L’épisode 3 parcourt toute la bibliothèqu
 
 <Frame caption="L’onglet Documents — le coin le plus utilisé de la base de connaissances.">
 
-![L’onglet Documents de la base de connaissances listant trois fichiers texte téléversés avec les colonnes taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)
+![L’onglet Documents de la base de connaissances listant trois fichiers texte téléversés et les trois documents Markdown des entrées de connaissances, avec les colonnes taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)
 
 </Frame>
 

@@ -7,7 +7,7 @@ Der Dokumente-Tab ist die Dateifläche der Wissensdatenbank. Redakteure laden Da
 
 <Frame caption="Die Dokumente-Tabelle — Größe, Quelle, RAG-Status und Team-Bindung pro Datei.">
 
-![Der Dokumente-Tab des Wissensbereichs mit drei hochgeladenen Textdateien samt Spalten für Größe, Quelle, RAG-Status und Team.](/images/get-started/documents-list.webp)
+![Der Dokumente-Tab des Wissensbereichs mit drei hochgeladenen Textdateien und den drei Markdown-Dokumenten hinter den Wissenseinträgen, samt Spalten für Größe, Quelle, RAG-Status und Team.](/images/get-started/documents-list.webp)
 
 </Frame>
 
