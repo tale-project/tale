@@ -23,8 +23,10 @@ describe('resolveComposeAssignment', () => {
   });
 
   test('an admin may assign another member and a team in-org', async () => {
+    // One row shape satisfies both reads: the member row (role) and the team
+    // row (organizationId).
     const result = await resolveComposeAssignment(
-      fakeSql([{ organizationId: 'org_1' }]),
+      fakeSql([{ id: 'm1', organizationId: 'org_1', role: 'member' }]),
       {
         organizationId: 'org_1',
         assigneeUserId: 'user_other',
@@ -70,5 +72,42 @@ describe('resolveComposeAssignment', () => {
         actor: { userId: 'user_admin', role: 'admin' },
       }),
     ).rejects.toBeInstanceOf(ConversationError);
+  });
+
+  // The shared assignee gate: a person an admin picks must be an active
+  // member, or the new conversation would be visible to nobody.
+  test('rejects an admin-picked assignee who is not a member of the org', async () => {
+    await expect(
+      resolveComposeAssignment(fakeSql([]), {
+        organizationId: 'org_1',
+        assigneeUserId: 'user_stranger',
+        actor: { userId: 'user_admin', role: 'admin' },
+      }),
+    ).rejects.toMatchObject({
+      code: 'user_not_in_org',
+    } satisfies Partial<ConversationError>);
+  });
+
+  test('rejects an admin-picked assignee whose seat is disabled', async () => {
+    await expect(
+      resolveComposeAssignment(
+        fakeSql([{ id: 'm1', organizationId: 'org_1', role: 'disabled' }]),
+        {
+          organizationId: 'org_1',
+          assigneeUserId: 'user_off',
+          actor: { userId: 'user_admin', role: 'admin' },
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'user_not_in_org' });
+  });
+
+  test('self-assignment consults no membership (the actor is a member by construction)', async () => {
+    // An empty answer would otherwise read as "not a member".
+    const result = await resolveComposeAssignment(fakeSql([]), {
+      organizationId: 'org_1',
+      assigneeUserId: 'user_admin',
+      actor: { userId: 'user_admin', role: 'admin' },
+    });
+    expect(result).toEqual({ assigneeUserId: 'user_admin' });
   });
 });

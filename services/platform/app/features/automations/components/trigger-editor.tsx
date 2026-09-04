@@ -7,9 +7,13 @@ import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { Text } from '@tale/ui/text';
 import { KeyRound, Trash2 } from 'lucide-react';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -21,6 +25,10 @@ import {
   useSetAutomationTrigger,
 } from '../hooks/mutations';
 import { useAutomationTriggers } from '../hooks/queries';
+import {
+  listTimezoneOptions,
+  previewCronExpression,
+} from '../lib/cron-preview';
 import { automationErrorMessage } from '../lib/errors';
 
 const TRIGGER_KINDS = ['schedule', 'webhook', 'event'] as const;
@@ -29,6 +37,20 @@ type TriggerKind = (typeof TRIGGER_KINDS)[number];
 function isTriggerKind(value: string): value is TriggerKind {
   return (TRIGGER_KINDS as readonly string[]).includes(value);
 }
+
+/** Imperative surface for {@link WorkflowSettings}' single Save footer. */
+export type TriggerEditorController = {
+  dirty: boolean;
+  pending: boolean;
+  /** True when the schedule cron cannot be saved as typed. */
+  blocked: boolean;
+  canRotate: boolean;
+  canRemove: boolean;
+  removePending: boolean;
+  save: () => void;
+  rotate: () => void;
+  requestRemove: () => void;
+};
 
 /**
  * The automation's trigger binding: what starts it, and whether it is armed.
@@ -44,17 +66,26 @@ function isTriggerKind(value: string): value is TriggerKind {
  * draft: arming is safe by construction.
  *
  * Lives in the inspector when no node is selected; fields stack in one
- * column so they fit the panel.
+ * column so they fit the panel. Prefer {@link WorkflowSettings} for the
+ * production surface (one Save for trigger + projects).
  */
 export function TriggerEditor({
   organizationId,
   name,
   /** Authoring is developer-gated server-side; readers still see the binding. */
   canEdit,
+  /**
+   * When false, Save / Rotate / Remove are omitted — the parent owns them
+   * through `onControllerChange` (the workflow inspector footer).
+   */
+  showActions = true,
+  onControllerChange,
 }: {
   organizationId: string;
   name: string;
   canEdit: boolean;
+  showActions?: boolean;
+  onControllerChange?: (controller: TriggerEditorController | null) => void;
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
@@ -68,7 +99,6 @@ export function TriggerEditor({
     `${origin}/api/automations/webhook/${token}`;
   const headingId = useId();
   const cronId = useId();
-  const timezoneId = useId();
   const eventId = useId();
 
   const triggersQuery = useAutomationTriggers(organizationId, name);
@@ -79,7 +109,7 @@ export function TriggerEditor({
 
   const [kind, setKind] = useState<TriggerKind>('schedule');
   const [cron, setCron] = useState('');
-  const [timezone, setTimezone] = useState('');
+  const [timezone, setTimezone] = useState('UTC');
   const [eventName, setEventName] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -92,7 +122,7 @@ export function TriggerEditor({
     if (stored === undefined) return;
     if (isTriggerKind(stored.kind)) setKind(stored.kind);
     setCron(stored.cron ?? '');
-    setTimezone(stored.timezone ?? '');
+    setTimezone(stored.timezone ?? 'UTC');
     setEventName(stored.event ?? '');
     setEnabled(stored.enabled);
   }, [stored]);
@@ -101,19 +131,56 @@ export function TriggerEditor({
     if (stored === undefined) {
       return (
         cron !== '' ||
-        timezone !== '' ||
+        (timezone !== '' && timezone !== 'UTC') ||
         eventName !== '' ||
-        kind !== 'schedule'
+        kind !== 'schedule' ||
+        !enabled
       );
     }
     return (
       kind !== stored.kind ||
       cron !== (stored.cron ?? '') ||
-      timezone !== (stored.timezone ?? '') ||
+      timezone !== (stored.timezone ?? 'UTC') ||
       eventName !== (stored.event ?? '') ||
       enabled !== stored.enabled
     );
   }, [stored, kind, cron, timezone, eventName, enabled]);
+
+  const timezoneOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      listTimezoneOptions(timezone).map((zone) => ({
+        value: zone,
+        label: zone,
+      })),
+    [timezone],
+  );
+
+  const cronPreview = useMemo(
+    () => previewCronExpression(cron, timezone || 'UTC'),
+    [cron, timezone],
+  );
+
+  const cronDescription = useMemo(() => {
+    if (kind !== 'schedule') return undefined;
+    if (cronPreview.kind === 'empty') return t('trigger.cronHint');
+    if (cronPreview.kind === 'invalid') return t('trigger.cronInvalid');
+    const next = t('trigger.cronNext', {
+      at: formatDate(cronPreview.nextAt, 'long'),
+    });
+    if (cronPreview.pattern?.type === 'everyMinutes') {
+      return `${t('trigger.cronEveryMinutes', { n: cronPreview.pattern.n })} · ${next}`;
+    }
+    if (cronPreview.pattern?.type === 'everyHours') {
+      return `${t('trigger.cronEveryHours', { n: cronPreview.pattern.n })} · ${next}`;
+    }
+    if (cronPreview.pattern?.type === 'dailyAt') {
+      const { hour, minute } = cronPreview.pattern;
+      const hh = String(hour).padStart(2, '0');
+      const mm = String(minute).padStart(2, '0');
+      return `${t('trigger.cronDailyAt', { time: `${hh}:${mm}` })} · ${next}`;
+    }
+    return next;
+  }, [kind, cronPreview, t, formatDate]);
 
   const save = (rotateToken?: boolean) => {
     setRefusal(null);
@@ -142,26 +209,61 @@ export function TriggerEditor({
     );
   };
 
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  const blocked = kind === 'schedule' && cronPreview.kind === 'invalid';
+  const canRotate = kind === 'webhook' && stored?.hasToken === true;
+  const canRemove = stored !== undefined;
+
+  useEffect(() => {
+    if (onControllerChange === undefined) return undefined;
+    onControllerChange({
+      dirty,
+      pending: setTrigger.isPending,
+      blocked,
+      canRotate,
+      canRemove,
+      removePending: deleteTrigger.isPending,
+      save: () => {
+        saveRef.current();
+      },
+      rotate: () => {
+        saveRef.current(true);
+      },
+      requestRemove: () => {
+        setConfirmRemove(true);
+      },
+    });
+    return () => {
+      onControllerChange(null);
+    };
+  }, [
+    onControllerChange,
+    dirty,
+    setTrigger.isPending,
+    blocked,
+    canRotate,
+    canRemove,
+    deleteTrigger.isPending,
+  ]);
+
   return (
     <section
       aria-labelledby={headingId}
       className="flex min-w-0 flex-col gap-4"
     >
-      <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+      <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 id={headingId} className="text-sm font-semibold">
               {t('trigger.title')}
             </h3>
-            {stored !== undefined && (
-              <Badge variant={stored.enabled ? 'green' : 'slate'}>
-                {stored.enabled
-                  ? t('trigger.enabledBadge')
-                  : t('trigger.disabledBadge')}
-              </Badge>
+            {dirty && canEdit && (
+              <Badge variant="orange">{t('trigger.unsavedBadge')}</Badge>
             )}
           </div>
-          {stored?.lastFiredAt !== undefined && (
+          {stored?.lastFiredAt != null && (
             <Text as="p" variant="muted" className="text-xs">
               {t('trigger.lastFired', {
                 at: formatDate(new Date(stored.lastFiredAt), 'long'),
@@ -179,7 +281,7 @@ export function TriggerEditor({
         )}
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex min-h-0 flex-col gap-3">
         {stored === undefined && !canEdit && (
           <Text as="p" variant="muted" className="text-sm">
             {t('trigger.none')}
@@ -224,7 +326,18 @@ export function TriggerEditor({
             />
             {kind === 'schedule' && (
               <>
-                <Field label={t('trigger.cronLabel')} htmlFor={cronId}>
+                <Field
+                  label={t('trigger.cronLabel')}
+                  htmlFor={cronId}
+                  description={
+                    cronPreview.kind === 'invalid' ? undefined : cronDescription
+                  }
+                  error={
+                    cronPreview.kind === 'invalid'
+                      ? t('trigger.cronInvalid')
+                      : undefined
+                  }
+                >
                   <Input
                     id={cronId}
                     value={cron}
@@ -234,15 +347,16 @@ export function TriggerEditor({
                     className="font-mono"
                   />
                 </Field>
-                <Field label={t('trigger.timezoneLabel')} htmlFor={timezoneId}>
-                  <Input
-                    id={timezoneId}
-                    value={timezone}
-                    placeholder="UTC"
-                    readOnly={!canEdit}
-                    onChange={(event) => setTimezone(event.target.value)}
-                  />
-                </Field>
+                <SearchableSelect
+                  label={t('trigger.timezoneLabel')}
+                  options={timezoneOptions}
+                  value={timezone || null}
+                  onValueChange={setTimezone}
+                  disabled={!canEdit}
+                  searchPlaceholder={t('trigger.timezoneSearch')}
+                  emptyText={t('trigger.timezoneEmpty')}
+                  placeholder="UTC"
+                />
               </>
             )}
             {kind === 'event' && (
@@ -290,13 +404,20 @@ export function TriggerEditor({
         )}
       </div>
 
-      {canEdit && (
+      {canEdit && showActions && (
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             isLoading={setTrigger.isPending}
-            disabled={!dirty && stored !== undefined}
-            disabledReason={t('trigger.nothingToSave')}
+            disabled={
+              (!dirty && stored !== undefined) ||
+              (kind === 'schedule' && cronPreview.kind === 'invalid')
+            }
+            disabledReason={
+              kind === 'schedule' && cronPreview.kind === 'invalid'
+                ? t('trigger.cronInvalid')
+                : t('trigger.nothingToSave')
+            }
             onClick={() => {
               save();
             }}

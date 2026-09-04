@@ -1,10 +1,13 @@
 import { attachmentsForMetadata } from './attachments_for_metadata';
 import { buildEmailMetadata } from './build_email_metadata';
+import { emailStamps } from './email_epoch';
 import { normalizeExternalMessageId } from './normalize_external_message_id';
 import type { EmailType } from './types';
 
 /**
- * Build initial message object for conversation creation
+ * Build initial message object for conversation creation. The instant stamps
+ * ride {@link emailStamps}: absent, never NaN, for a message with no readable
+ * date (Gmail's no-Date-header shape hands back an epoch-ms string).
  */
 export function buildInitialMessage(
   email: EmailType,
@@ -12,7 +15,6 @@ export function buildInitialMessage(
   status: 'delivered' | 'sent',
   connectorName?: string,
 ) {
-  const emailTimestamp = new Date(email.date).getTime();
   const attachments = attachmentsForMetadata(email.attachments);
 
   return {
@@ -22,8 +24,7 @@ export function buildInitialMessage(
     status,
     externalMessageId: normalizeExternalMessageId(email.messageId),
     metadata: buildEmailMetadata(email),
-    sentAt: emailTimestamp,
-    deliveredAt: status === 'delivered' ? emailTimestamp : undefined,
+    ...emailStamps(email.date, status === 'delivered'),
     ...(attachments?.length ? { attachments } : {}),
     ...(connectorName ? { connectorName } : {}),
   };

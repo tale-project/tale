@@ -1,10 +1,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import {
   ERASURE_REASON_CODES,
   ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
 } from '../../core/governance/erasure_constants.ts';
+import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -31,6 +33,12 @@ import { writeNotificationForOrgs } from '../notifications/service.ts';
  * divergence (the 0.4 signed-checkpoint window collapses to this flag +
  * the receipt + the gdpr audit rows — rule 5).
  */
+
+/** Stands in for the subject on a record that is kept but de-identified. A
+ *  review decision is the audit trail of a governance gate, so the row stays
+ *  and the identity goes. Same value 0.4 used, so old and new rows read
+ *  alike. */
+const ERASED_SUBJECT = 'erased-user';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -551,6 +559,69 @@ async function scrubSubjectAuditLogs(
   return scrubbed.length;
 }
 
+/**
+ * `done` is a claim that every category was reached. A pass that threw, or
+ * that a legal hold held off, makes the claim false — so the receipt reads
+ * `partial` and names which, rather than reporting a clean erasure. Under Art
+ * 19 this receipt is the subject's confirmation, so the distinction between
+ * "found nothing" and "never looked" has to survive onto it.
+ */
+export function erasureReceiptStatus(
+  failedPasses: readonly string[],
+  heldOffPasses: readonly string[],
+): 'done' | 'partial' {
+  return failedPasses.length === 0 && heldOffPasses.length === 0
+    ? 'done'
+    : 'partial';
+}
+
+/** One line naming what stopped a `partial` receipt from being `done`, or
+ *  `null` when nothing did. */
+export function erasureReceiptError(
+  failedPasses: readonly string[],
+  heldOffPasses: readonly string[],
+): string | null {
+  const parts: string[] = [];
+  if (failedPasses.length > 0) {
+    parts.push(`failed passes: ${failedPasses.join(', ')}`);
+  }
+  if (heldOffPasses.length > 0) {
+    parts.push(`held off by a legal hold: ${heldOffPasses.join(', ')}`);
+  }
+  return parts.length > 0 ? parts.join('; ') : null;
+}
+
+/**
+ * Does the subject still belong to another organization that has not
+ * disabled them?
+ *
+ * `login_attempts`, `login_block_counters` and the two-factor tables are
+ * keyed globally, by email or by user id, while a GDPR request is scoped to
+ * one organization. Wiping them for one org's request would reset the
+ * lockout and 2FA backoff counters protecting every OTHER org the subject
+ * belongs to, which hands a multi-org user a cross-tenant bypass. 0.4
+ * refused the wipe in that case; so does this.
+ *
+ * 0.4 paged Better Auth's adapter at 256 memberships and failed CLOSED when
+ * the page came back full, because it could not see past the cap. SQL
+ * answers exactly, so neither the cap nor its guard is ported.
+ */
+async function subjectBelongsToOtherActiveOrg(
+  sql: Sql,
+  userId: string,
+  excludeOrgId: string,
+): Promise<boolean> {
+  const rows = await sql<{ elsewhere: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM "member"
+      WHERE "userId" = ${userId}
+        AND "organizationId" <> ${excludeOrgId}
+        AND "role" <> 'disabled'
+    ) AS "elsewhere"
+  `;
+  return rows[0]?.elsewhere ?? false;
+}
+
 /** The cascade — each pass bounded and idempotent; per-pass counts land on
  * the receipt. Reuses the retention purge primitives for threads and the
  * document trash for owned documents. */
@@ -584,10 +655,29 @@ export async function processErasure(
 
   const counts: Record<string, number> = {};
   const failures: string[] = [];
+  const heldOff: string[] = [];
   const pass = async (
     name: string,
     run: () => Promise<number>,
   ): Promise<void> => {
+    // The hold is re-read before EVERY pass, not once before the cascade.
+    // The passes are not one transaction, and two of them fan out per-thread
+    // and per-document deletes, so a hold placed mid-cascade would otherwise
+    // be ignored for everything after it. 0.4 re-read holds inside all 19 of
+    // its arms and named the reason: FRCP 37(e) spoliation.
+    try {
+      const current = await loadActiveHolds(sql, organizationId);
+      if (current.orgHeld || current.userMembershipIds.has(targetUserId)) {
+        heldOff.push(name);
+        return;
+      }
+    } catch (error) {
+      // An unreadable hold table is not evidence that nothing is held, so the
+      // pass is skipped rather than run.
+      console.error(`[erasure] hold re-check before ${name} failed:`, error);
+      heldOff.push(name);
+      return;
+    }
     try {
       counts[name] = await run();
     } catch (error) {
@@ -733,17 +823,211 @@ export async function processErasure(
     return removed.length;
   });
 
+  // `video_link_jobs` is its own category, not part of `uploads`: the job can
+  // own a blob (Whisper audio, captions transcript) even when the linked
+  // `file_metadata` row never landed, and a welcome-page paste has no thread,
+  // so neither the uploads pass nor the thread cascade reaches it.
+  //
+  // Same STRICT blob-then-row posture the uploads pass above uses, and for
+  // the same reason: a receipt that says done is a claim about the bytes.
+  await pass('videoLinks', async () => {
+    const jobs = await sql<{ id: string; storageRef: string | null }[]>`
+      SELECT id, storage_ref AS "storageRef" FROM app.video_link_jobs
+      WHERE org_id = ${organizationId} AND uploaded_by = ${targetUserId}
+    `;
+    if (jobs.length === 0) return 0;
+    const withBlobs = jobs.filter(
+      (job) => job.storageRef !== null && job.storageRef !== '',
+    );
+    let orgSlug: string | null = null;
+    if (withBlobs.length > 0) {
+      orgSlug = await resolveOrgSlug(sql, organizationId);
+      if (orgSlug === null) {
+        throw new Error(
+          `no org slug for ${organizationId}; video-link blobs not deletable`,
+        );
+      }
+    }
+    const deletedRefs = new Set<string>();
+    for (const job of jobs) {
+      const ref = job.storageRef;
+      if (ref !== null && ref !== '' && orgSlug !== null) {
+        const parsed = parseBlobRef(ref);
+        if (parsed.backend === 's3' && !deletedRefs.has(ref)) {
+          const store = await resolveObjectStore(orgSlug);
+          await s3DeleteObject(store, parsed.key);
+          deletedRefs.add(ref);
+        }
+      }
+      await sql`DELETE FROM app.video_link_jobs WHERE id = ${job.id}`;
+    }
+    return jobs.length;
+  });
+
+  // The subject's own OAuth grant for Documents import — a sealed access +
+  // refresh token per (org, user, provider). It outlives their membership
+  // unless erasure takes it, and an in-flight authorization carries the same
+  // identity in its state row.
+  await pass('cloudGrants', async () => {
+    const grants = await sql<{ id: string }[]>`
+      DELETE FROM app.user_cloud_authorizations
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    const states = await sql<{ id: string }[]>`
+      DELETE FROM app.cloud_import_oauth_states
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return grants.length + states.length;
+  });
+
+  // Sync configs name the member whose grant the sync runs under, so they are
+  // subject data AND a schedule that would keep firing against a revoked
+  // grant. Imported documents are not touched here — they are org content,
+  // reached by the `documents` pass when the subject created them.
+  await pass('syncConfigs', async () => {
+    const onedrive = await sql<{ id: string }[]>`
+      DELETE FROM app.onedrive_sync_configs
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    const googleDrive = await sql<{ id: string }[]>`
+      DELETE FROM app.google_drive_sync_configs
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return onedrive.length + googleDrive.length;
+  });
+
+  // The org-level security and system bells ABOUT the subject, which are a
+  // different table from the per-user inbox the `notifications` pass above
+  // clears. `subject_user_id` exists for exactly this — 0002_notifications
+  // calls it "the data-subject user this notification is ABOUT (GDPR Art 17
+  // erasure matches on it)" — and the lockout alert stamps it on the row
+  // that carries the subject's email and IP in `params`. `notification_reads`
+  // falls with the row on its foreign key.
+  await pass('orgNotifications', async () => {
+    const removed = await sql<{ id: string }[]>`
+      DELETE FROM app.notifications
+      WHERE org_id = ${organizationId}
+        AND subject_user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return removed.length;
+  });
+
+  // Automation runs the subject started. `input`, `output`, `trace` and
+  // `effects` hold every node's resolved values, so the run is subject data
+  // even though the row is org-owned. The two markers are the ones 0.5
+  // writes: `user:<id>` from the app door and `api-key:<id>` from REST.
+  await pass('automationRuns', async () => {
+    const removed = await sql<{ id: string }[]>`
+      DELETE FROM app.automation_runs
+      WHERE org_id = ${organizationId}
+        AND started_by = ANY(${[`user:${targetUserId}`, `api-key:${targetUserId}`]})
+      RETURNING id
+    `;
+    return removed.length;
+  });
+
+  // Review decisions are pseudonymized rather than deleted: the decision is
+  // the audit record of a governance gate, so the row stays and the identity
+  // goes. `tasks.reviewer_user_id` is different — it is live routing, not
+  // history, so it is cleared. Leaving it pointed at an erased user sends
+  // the next review to nobody.
+  await pass('reviewDecisions', async () => {
+    const decisions = await sql<
+      { id: string; approvedBy: string | null; metadata: unknown }[]
+    >`
+      SELECT id, approved_by AS "approvedBy", metadata
+      FROM app.approvals
+      WHERE org_id = ${organizationId} AND resource_type = 'task_review'
+        AND (approved_by = ${targetUserId}
+             OR metadata->>'requestedFor' = ${targetUserId}
+             OR metadata->'response'->>'respondedBy' = ${targetUserId})
+    `;
+    let changed = 0;
+    for (const row of decisions) {
+      const metadata = isRecord(row.metadata) ? { ...row.metadata } : undefined;
+      if (metadata !== undefined) {
+        if (metadata.requestedFor === targetUserId) {
+          metadata.requestedFor = ERASED_SUBJECT;
+        }
+        const response = metadata.response;
+        if (isRecord(response) && response.respondedBy === targetUserId) {
+          metadata.response = { ...response, respondedBy: ERASED_SUBJECT };
+        }
+      }
+      await sql`
+        UPDATE app.approvals SET
+          approved_by = ${row.approvedBy === targetUserId ? ERASED_SUBJECT : row.approvedBy},
+          metadata = ${metadata === undefined ? null : sql.json(toJson(metadata))}
+        WHERE id = ${row.id}
+      `;
+      changed++;
+    }
+    const cleared = await sql<{ id: string }[]>`
+      UPDATE app.tasks SET reviewer_user_id = NULL
+      WHERE org_id = ${organizationId}
+        AND reviewer_user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return changed + cleared.length;
+  });
+
+  // Global auth state: the lockout trail is keyed by email and the two-factor
+  // backoff by user id, so neither is org-scoped. Refused outright while the
+  // subject is still an active member elsewhere, because these counters
+  // protect those organizations too.
+  await pass('authState', async () => {
+    if (
+      await subjectBelongsToOtherActiveOrg(sql, targetUserId, organizationId)
+    ) {
+      console.warn(
+        `[erasure] skipping global auth-state wipe for ${targetUserId}: still an active member of another organization`,
+      );
+      return 0;
+    }
+    const users = await sql<{ email: string | null }[]>`
+      SELECT "email" FROM "user" WHERE "id" = ${targetUserId} LIMIT 1
+    `;
+    const email = users[0]?.email ?? null;
+    let removed = 0;
+    if (email !== null) {
+      const normalized = normalizeAuthEmail(email);
+      const attempts = await sql<{ email: string }[]>`
+        DELETE FROM app.login_attempts WHERE lower(email) = ${normalized}
+        RETURNING email
+      `;
+      const counters = await sql<{ email: string }[]>`
+        DELETE FROM app.login_block_counters WHERE lower(email) = ${normalized}
+        RETURNING email
+      `;
+      removed += attempts.length + counters.length;
+    }
+    const twoFactor = await sql<{ userId: string }[]>`
+      DELETE FROM app.two_factor_attempts WHERE user_id = ${targetUserId}
+      RETURNING user_id AS "userId"
+    `;
+    const grace = await sql<{ userId: string }[]>`
+      DELETE FROM app.two_factor_grace WHERE user_id = ${targetUserId}
+      RETURNING user_id AS "userId"
+    `;
+    return removed + twoFactor.length + grace.length;
+  });
+
   await pass('auditScrub', () =>
     scrubSubjectAuditLogs(sql, organizationId, targetUserId),
   );
 
-  const status = failures.length === 0 ? 'done' : 'partial';
+  const status = erasureReceiptStatus(failures, heldOff);
   await sql.begin(async (tx) => {
     await tx`
       UPDATE app.gdpr_erasure_requests SET
         status = ${status}, finished_at_ms = ${Date.now()},
         counts = ${tx.json(toJson(counts))},
-        error = ${failures.length > 0 ? `failed passes: ${failures.join(', ')}` : null}
+        error = ${erasureReceiptError(failures, heldOff)}
       WHERE id = ${requestId}
     `;
     await createAuditLog(tx, {

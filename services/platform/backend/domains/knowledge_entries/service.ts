@@ -12,6 +12,7 @@ import {
   s3PresignPutUrl,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { wordStartPatterns } from '../../lib/word-match.ts';
 
 /**
  * User-contributed knowledge entries — the 0.5 twin of
@@ -448,10 +449,22 @@ export interface KnowledgeEntryRow {
 export async function listKnowledgeEntries(
   sql: Sql,
   organizationId: string,
-  options: { cursor?: number; limit?: number; topic?: string } = {},
+  options: {
+    cursor?: number;
+    limit?: number;
+    topic?: string;
+    /** Also match a topic on any meaningful WORD of `topic`, not only on the
+     *  whole string. Opt-in, because only the chat leg passes a question
+     *  here — the entries page passes what the reader typed. */
+    matchWords?: boolean;
+  } = {},
 ): Promise<{ rows: KnowledgeEntryRow[]; nextCursor: number | null }> {
   const limit = Math.min(Math.max(options.limit ?? 30, 1), 100);
   const topicLower = options.topic?.trim().toLowerCase() || null;
+  const words =
+    options.matchWords === true && topicLower !== null
+      ? wordStartPatterns(topicLower)
+      : [];
   const page = await sql<(KnowledgeEntryRow & { seq: number })[]>`
     SELECT id, topic, content, source, document_id AS "documentId",
            created_by AS "createdBy", created_at_ms::float8 AS "createdAt",
@@ -460,7 +473,8 @@ export async function listKnowledgeEntries(
     WHERE org_id = ${organizationId} AND status = 'active'
       AND deleted_at_ms IS NULL
       AND (${topicLower}::text IS NULL
-           OR lower(topic) LIKE '%' || ${topicLower} || '%')
+           OR lower(topic) LIKE '%' || ${topicLower} || '%'
+           OR (${words.length > 0} AND topic ~* ANY(${words})))
       AND (${options.cursor ?? null}::bigint IS NULL
            OR seq < ${options.cursor ?? null})
     ORDER BY seq DESC
@@ -534,6 +548,7 @@ export async function listEntriesForAgent(
     topic?: string;
     numItems: number;
     cursor: string | null;
+    matchWords?: boolean;
   },
 ): Promise<{
   page: Array<{
@@ -554,6 +569,7 @@ export async function listEntriesForAgent(
       ...(cursor !== null ? { cursor } : {}),
       limit: args.numItems,
       ...(args.topic !== undefined ? { topic: args.topic } : {}),
+      ...(args.matchWords === true ? { matchWords: true } : {}),
     },
   );
   return {

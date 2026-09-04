@@ -720,6 +720,39 @@ export async function findCredentialForRef(
   return rows.find((row) => row.name.toLowerCase() === needle) ?? null;
 }
 
+/**
+ * The 0.4 `resolveCredentialRefInternal` answer every reused resolver reads —
+ * the work-lane credential broker and the mailbox sync's IMAP fromAddress
+ * heal alike: the FULL row including the sealed envelope (the reused resolver
+ * decrypts it itself and refuses disabled / needs-reauth rows on `status`), in
+ * the 0.4 wire shape where nullable columns are ABSENT fields, never nulls.
+ * Null on a miss. Internal-only by contract: it carries sealed secret
+ * material and must never reach a client, an agent, or a log.
+ */
+export async function resolveCredentialRowForShim(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    credentialRef?: string;
+  },
+): Promise<Record<string, unknown> | null> {
+  const row = await findCredentialForRef(sql, args);
+  if (row === null) return null;
+  return {
+    _id: row.id,
+    organizationId: row.organizationId,
+    connectorSlug: row.connectorSlug,
+    authMethod: row.authMethod,
+    name: row.name,
+    encryptedData: row.encryptedData,
+    ...(row.endpointUrl !== null ? { endpointUrl: row.endpointUrl } : {}),
+    ...(row.config !== null ? { config: row.config } : {}),
+    status: row.status,
+    ...(row.statusDetail !== null ? { statusDetail: row.statusDetail } : {}),
+  };
+}
+
 /** Load the addressed row (explicit id-or-name ref, else the default). */
 async function loadRowForResolve(
   sql: Sql,
@@ -881,6 +914,27 @@ export async function patchMailSyncWatermarks(
         ${patch.inboundSince ?? null}, mail_sync_inbound_since_ms),
       mail_sync_outbound_since_ms = coalesce(
         ${patch.outboundSince ?? null}, mail_sync_outbound_since_ms),
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${credentialId} AND org_id = ${organizationId}
+  `;
+}
+
+/**
+ * The mailbox sync's config heal (the IMAP `fromAddress` mirror): the caller
+ * derived the whole config from the row's own resolved config plus a login
+ * address it validated, so it is written as given — a system seam, not the
+ * user door, hence no per-field normalization — scoped to the org like the
+ * watermark patch.
+ */
+export async function patchCredentialConfigInternal(
+  sql: Sql,
+  organizationId: string,
+  credentialId: string,
+  config: Record<string, string | number | boolean>,
+): Promise<void> {
+  await sql`
+    UPDATE app.connector_credentials SET
+      config = ${sql.json(toJson(config))},
       updated_at_ms = ${Date.now()}
     WHERE id = ${credentialId} AND org_id = ${organizationId}
   `;

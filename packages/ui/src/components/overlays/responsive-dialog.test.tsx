@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import {
   ResponsiveDialog,
@@ -66,6 +66,24 @@ describe('ResponsiveDialog', () => {
     it('marks the content as a modal dialog (aria-modal)', () => {
       render(<Example />);
       expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    });
+
+    it('stays open when the pointer is on a portaled date picker', () => {
+      const onOpenChange = vi.fn();
+      render(
+        <ResponsiveDialog open onOpenChange={onOpenChange}>
+          <ResponsiveDialogContent closeLabel="Close">
+            <ResponsiveDialogTitle>Title</ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>Body text</ResponsiveDialogDescription>
+          </ResponsiveDialogContent>
+        </ResponsiveDialog>,
+      );
+      const layer = document.createElement('div');
+      layer.setAttribute('data-tale-datepicker-popper', '');
+      document.body.append(layer);
+      fireEvent.pointerDown(layer);
+      expect(onOpenChange).not.toHaveBeenCalledWith(false);
+      layer.remove();
     });
   });
 

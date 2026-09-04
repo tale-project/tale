@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
@@ -255,20 +256,20 @@ function DangerZoneSection({
       title={tSettings('organization.dangerZoneTitle')}
       description={tSettings('organization.dangerZoneDescription')}
     >
-      <Alert
-        variant="destructive"
-        live="off"
-        icon={AlertTriangle}
-        title={tSettings('organization.deleteDialogTitle')}
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-sm">
-            {tSettings('organization.deleteSectionHelp')}
-          </span>
+      <Alert variant="destructive" live="off" icon={AlertTriangle}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <Stack gap={1} className="max-w-2xl min-w-0">
+            <span className="text-foreground text-sm leading-none font-medium">
+              {tSettings('organization.deleteDialogTitle')}
+            </span>
+            <span className="text-sm leading-relaxed">
+              {tSettings('organization.deleteSectionHelp')}
+            </span>
+          </Stack>
           <Button
             type="button"
             variant="destructive"
-            className="shrink-0"
+            className="shrink-0 self-end sm:self-auto"
             onClick={() => setConfirmDeleteOpen(true)}
           >
             {tSettings('organization.deleteConfirmAction')}

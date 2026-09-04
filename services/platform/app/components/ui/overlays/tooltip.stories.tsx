@@ -95,7 +95,6 @@ export const LongContent: Story = {
   args: {
     content:
       'This is a longer tooltip with more detailed information. It wraps to multiple lines when the content is too long.',
-    contentClassName: 'max-w-xs',
   },
   render: (args) => (
     <Tooltip {...args}>

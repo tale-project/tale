@@ -61,3 +61,64 @@ describe('installPdfjsDomGlobals base64 codecs', () => {
     expect(new TextDecoder().decode(plaintext)).toBe('integration-secret');
   });
 });
+
+describe('installPdfjsDomGlobals Map.getOrInsertComputed', () => {
+  it('installs the method pdfjs calls on its Maps', () => {
+    // Its absence is what broke the operator-list read per page (#3018).
+    installPdfjsDomGlobals();
+    expect(typeof Map.prototype.getOrInsertComputed).toBe('function');
+  });
+
+  it('computes and inserts when the key is absent', () => {
+    installPdfjsDomGlobals();
+    const map = new Map<string, number>();
+    const calls: string[] = [];
+    const value = map.getOrInsertComputed('a', (key) => {
+      calls.push(key);
+      return 1;
+    });
+    expect(value).toBe(1);
+    expect(map.get('a')).toBe(1);
+    expect(calls).toEqual(['a']);
+  });
+
+  it('returns the existing value without calling the callback', () => {
+    // pdfjs relies on this: the callback builds an intent state, and calling
+    // it twice would discard the one already in flight.
+    installPdfjsDomGlobals();
+    const map = new Map<string, number>([['a', 1]]);
+    let called = false;
+    const value = map.getOrInsertComputed('a', () => {
+      called = true;
+      return 2;
+    });
+    expect(value).toBe(1);
+    expect(called).toBe(false);
+  });
+
+  it('stores a value the callback returns even when it is undefined', () => {
+    // Presence, not truthiness: a second call must not recompute.
+    installPdfjsDomGlobals();
+    const map = new Map<string, undefined>();
+    map.getOrInsertComputed('a', () => undefined);
+    expect(map.has('a')).toBe(true);
+    let recomputed = false;
+    map.getOrInsertComputed('a', () => {
+      recomputed = true;
+      return undefined;
+    });
+    expect(recomputed).toBe(false);
+  });
+
+  it('refuses a callback that is not callable', () => {
+    installPdfjsDomGlobals();
+    const map = new Map<string, number>();
+    expect(() =>
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the guard exists for callers without types
+      map.getOrInsertComputed(
+        'a',
+        undefined as unknown as (k: string) => number,
+      ),
+    ).toThrow(TypeError);
+  });
+});

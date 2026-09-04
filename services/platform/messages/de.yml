@@ -511,7 +511,6 @@ automations:
     empty: Keine Automatisierungen gefunden
     ariaLabel: 'Automatisierung wechseln, aktuell: {name}'
   list:
-    createButton: Automatisierung erstellen
     searchPlaceholder: Automatisierungen suchen
     columnName: Name
     columnProjects: Projekte
@@ -573,6 +572,7 @@ automations:
     outcomeFailedTitle: Automatisierung konnte nicht generiert werden
     outcomeGaveUpTitle: Builder früh gestoppt
     noProviders: Kein KI-Anbieter verfügbar. Lege zuerst einen API-Schlüssel in den Anbietereinstellungen an.
+    new: Neue Automatisierung
   notFound:
     title: Automatisierung nicht gefunden
     description:
@@ -614,21 +614,28 @@ automations:
   trigger:
     title: Trigger
     none: Noch nichts startet diese Automatisierung.
-    kindLabel: Art
+    kindLabel: Trigger-Typ
     kinds:
       schedule: Zeitplan
       webhook: Webhook
       event: Plattform-Ereignis
     cronLabel: Cron
+    cronHint: Standard-Cron mit 5 Feldern (Minute Stunde Tag Monat Wochentag).
+    cronInvalid: Dieser Cron-Ausdruck ist ungültig.
+    cronNext: 'Nächster Lauf {at}'
+    cronEveryMinutes: '{n, plural, one {Jede Minute} other {Alle # Minuten}}'
+    cronEveryHours: '{n, plural, one {Jede Stunde} other {Alle # Stunden}}'
+    cronDailyAt: 'Jeden Tag um {time}'
     timezoneLabel: Zeitzone
+    timezoneSearch: Zeitzonen suchen
+    timezoneEmpty: Keine passende Zeitzone
     eventLabel: Ereignisname
     eventPlaceholder: Ereignis wählen
     enabledLabel: Aktiv
-    enabledBadge: Aktiv
-    disabledBadge: Aus
+    unsavedBadge: Ungespeichert
     lastFired: 'Zuletzt ausgelöst {at}'
     nothingToSave: Die Bindung entspricht dem gespeicherten Stand.
-    save: Trigger speichern
+    save: Speichern
     remove: Trigger entfernen
     removeTitle: Trigger entfernen?
     removeBody: Entfernt den Trigger. Die Automatisierung und ihre Versionshistorie bleiben unberührt.
@@ -716,16 +723,19 @@ automations:
       forEachDescription: Läuft einmal pro Element des Arrays, das der Ausdruck ergibt.
       repeatUntil: Wiederholen bis
       repeatUntilDescription: Diese Node wiederholen, bis der Ausdruck wahr ist.
+  workflow:
+    save: Einstellungen speichern
+    nothingToSave: Nichts zu speichern
   bindings:
     title: Projekte
-    orgBadge: Organisationsweit
     countBadge: '{count, plural, one {An # Projekt gebunden} other {An # Projekte gebunden}}'
-    hint: Wähle aus, welche Projekte diese Automatisierung nutzen können. Ohne Auswahl steht sie der gesamten Organisation zur Verfügung.
+    hint: Auf bestimmte Projekte eingrenzen — oder leer lassen für alle.
     placeholder: Projekte wählen
     searchPlaceholder: Projekte durchsuchen
     empty: Keine passenden Projekte
     noProjects: Diese Organisation hat noch keine Projekte.
-    save: Projekte speichern
+    save: Speichern
+    unsavedBadge: Ungespeichert
     nothingToSave: Keine Änderungen zu speichern
   versions:
     title: Versionen
@@ -1467,6 +1477,8 @@ common:
     yesterday: Gestern
   datePicker:
     placeholder: Datum wählen
+    previousMonth: Vorheriger Monat
+    nextMonth: Nächster Monat
     presets:
       custom: Benutzerdefiniert
       today: Heute

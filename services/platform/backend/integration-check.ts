@@ -15068,9 +15068,9 @@ async function checkConnectorCredentials(
 async function checkConversations(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const api = (
     route: string,
     init: { method?: string; body?: unknown } = {},
@@ -15183,6 +15183,28 @@ async function checkConversations(
     WHERE org_id = ${orgId} AND user_id = ${memberId}
       AND type = 'conversation_assigned'
   `;
+  // A non-member cannot be the assignee: refused, the row keeps its owner,
+  // and no phantom bell is minted for the stranger.
+  const strangerAssign = await api(`/${conversationId}/assign`, {
+    body: { assigneeUserId: 'user-from-nowhere' },
+  });
+  const strangerBody = z
+    .object({ error: z.string() })
+    .safeParse(await strangerAssign.json());
+  const afterStranger = await sql<{ assigneeUserId: string | null }[]>`
+    SELECT assignee_user_id AS "assigneeUserId" FROM app.conversations
+    WHERE id = ${conversationId}
+  `;
+  const strangerBell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = 'user-from-nowhere'
+  `;
+  const strangerRefused =
+    strangerAssign.status === 400 &&
+    strangerBody.success &&
+    strangerBody.data.error === 'user_not_in_org' &&
+    afterStranger[0]?.assigneeUserId === memberId &&
+    strangerBell[0]?.count === '0';
 
   // Team queueing: a fresh team + a second member on it.
   const teamRows = await sql<{ id: string }[]>`
@@ -15422,6 +15444,51 @@ async function checkConversations(
   `;
   await api('/bulk/reopen', { body: { conversationIds: [conversationId] } });
 
+  // The PATCH door (the app's single close/spam buttons) writes the SAME
+  // resolution record the bulk verb writes, and a metadata patch merges onto
+  // the stored object instead of wiping unread/routing state.
+  await sql`
+    UPDATE app.conversations
+    SET metadata = coalesce(metadata, '{}'::jsonb)
+      || '{"unread_count": 3, "routing": "desk"}'::jsonb
+    WHERE id = ${conversationId}
+  `;
+  const patchClose = await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { status: 'closed' },
+  });
+  const patchMeta = await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { metadata: { priority_note: 'VIP' } },
+  });
+  const patchedRow = await sql<
+    { status: string | null; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.conversations WHERE id = ${conversationId}
+  `;
+  const patched = patchedRow[0];
+  const patchKeepsRecord =
+    patchClose.status === 200 &&
+    patchMeta.status === 200 &&
+    patched?.status === 'closed' &&
+    patched.metadata?.resolved_by === userId &&
+    typeof patched.metadata?.resolved_at === 'string' &&
+    patched.metadata?.unread_count === 3 &&
+    patched.metadata?.routing === 'desk' &&
+    patched.metadata?.priority_note === 'VIP';
+  // Junk in one row's unread_count must not 500 the org's count tiles.
+  await sql`
+    UPDATE app.conversations
+    SET metadata = coalesce(metadata, '{}'::jsonb)
+      || '{"unread_count": "many"}'::jsonb
+    WHERE id = ${conversationId}
+  `;
+  const countsWithJunk = await api('/counts');
+  await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { status: 'open' },
+  });
+
   // Delete cascades the messages.
   const deleted = await api(`/${conversationId}`, { method: 'DELETE' });
   const remnants = await sql<{ count: string }[]>`
@@ -15443,6 +15510,7 @@ async function checkConversations(
       assignRes.status === 200 &&
       visibleAfter &&
       assignBell[0]?.count === '1' &&
+      strangerRefused &&
       teammateSees &&
       teamBell[0]?.count === '1' &&
       unreadStillOne &&
@@ -15452,9 +15520,166 @@ async function checkConversations(
       closed.data.successCount === 1 &&
       closedRow[0]?.status === 'closed' &&
       closedRow[0]?.resolvedBy !== null &&
+      patchKeepsRecord &&
+      countsWithJunk.status === 200 &&
       deleted.status === 204 &&
       remnants[0]?.count === '0',
-    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, del=${deleted.status} remnants=${remnants[0]?.count}`,
+    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, strangerRefused=${strangerRefused} (${strangerAssign.status}/${strangerBody.success ? strangerBody.data.error : 'ERR'}), teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, patchClose=${patchClose.status}/${patchMeta.status} record=${patchKeepsRecord} (resolved_by=${patched?.metadata?.resolved_by === userId} unread=${String(patched?.metadata?.unread_count)} note=${String(patched?.metadata?.priority_note)}) countsWithJunk=${countsWithJunk.status}, del=${deleted.status} remnants=${remnants[0]?.count}`,
+  );
+
+  // --- Write gate: editor-or-above, assignment privacy held constant ----
+  // 0.4 ran every conversation mutation through `mutationWithRLS`, whose
+  // `conversations`/`conversationMessages` rules demanded WRITE — ALL for
+  // owner/admin/developer/editor, READ_ONLY for `member`. The probe thread is
+  // ASSIGNED to the probing user, so assignment privacy passes on every call
+  // and the ONLY thing that can refuse is the role.
+  const gateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `conv-gate-${orgId.slice(0, 8)}@door.test`,
+      password: 'itest-password-1',
+      name: 'Inbox Gate Probe',
+    }),
+  });
+  const gateCookie = cookieHeaderFrom(gateSignUp);
+  const gateUser = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await gateSignUp.json());
+  const gateUserId = gateUser.success ? gateUser.data.user.id : '';
+  const gateMemberId = `m-conv-gate-${gateUserId}`;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${gateMemberId}, ${orgId}, ${gateUserId}, 'member', ${new Date()})
+  `;
+  const gated = await sql.begin(async (tx) => {
+    const id = await createConversation(tx, {
+      organizationId: orgId,
+      contactId,
+      assigneeUserId: gateUserId,
+      subject: 'Write gate probe',
+      channel: 'email',
+      direction: 'inbound',
+      connectorName: 'imap-smtp',
+    });
+    await addMessageToConversation(tx, {
+      conversationId: id,
+      organizationId: orgId,
+      sender: 'customer@inbox.test',
+      content: 'Can a read-only member answer this?',
+      isCustomer: true,
+      connectorName: 'imap-smtp',
+    });
+    return id;
+  });
+  const gateMessages = await sql<{ id: string }[]>`
+    SELECT id FROM app.conversation_messages
+    WHERE conversation_id = ${gated} LIMIT 1
+  `;
+  const gateMessageId = gateMessages[0]?.id ?? '';
+  const asGate = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/conversations${route}?orgId=${orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/json',
+        cookie: gateCookie,
+        origin: base,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+  const writeDoors = async (): Promise<number[]> =>
+    (
+      await Promise.all([
+        asGate(`/${gated}`, { method: 'PATCH', body: { status: 'closed' } }),
+        asGate(`/${gated}/read`, { body: {} }),
+        asGate(`/${gated}/messages`, { body: { content: 'a note' } }),
+        asGate(`/${gated}/reply`, { body: { content: 'an outbound reply' } }),
+        asGate('/compose', {
+          body: {
+            contactId,
+            connectorName: 'imap-smtp',
+            subject: 'Unauthorized outbound',
+            content: 'This must never leave the building.',
+          },
+        }),
+        asGate('/bulk/reply', {
+          body: { conversationIds: [gated], content: 'bulk reply' },
+        }),
+        asGate('/bulk/close', { body: { conversationIds: [gated] } }),
+        asGate(`/messages/${gateMessageId}/undo`, { body: {} }),
+        asGate(`/messages/${gateMessageId}/retry`, { body: {} }),
+        asGate(`/messages/${gateMessageId}/discard`, { body: {} }),
+        asGate(`/messages/${gateMessageId}/attachments`, { body: {} }),
+        asGate(`/${gated}`, { method: 'DELETE' }),
+      ])
+    ).map((res) => res.status);
+  const memberDoors = await writeDoors();
+  // Refused means REFUSED: the thread is untouched and nothing was appended.
+  const afterMember = await sql<{ status: string | null; msgs: string }[]>`
+    SELECT c.status,
+           (SELECT count(*)::text FROM app.conversation_messages m
+             WHERE m.conversation_id = c.id) AS msgs
+    FROM app.conversations c WHERE c.id = ${gated}
+  `;
+  // Reads are NOT gated — a member still opens the thread assigned to them.
+  const memberRead = await asGate(`/${gated}`);
+
+  // The same doors as `editor` now go THROUGH the gate. The send doors are
+  // probed with an invalid body so the proof is "the gate opened, the schema
+  // refused" (400) — no real outbound mail, no state to clean up after.
+  await sql`UPDATE "member" SET "role" = 'editor' WHERE "id" = ${gateMemberId}`;
+  const editorNote = await asGate(`/${gated}/messages`, {
+    body: { content: 'an editor may answer' },
+  });
+  const editorPatch = await asGate(`/${gated}`, {
+    method: 'PATCH',
+    body: { status: 'closed' },
+  });
+  const editorRead = await asGate(`/${gated}/read`, { body: {} });
+  const editorBulk = await asGate('/bulk/close', {
+    body: { conversationIds: [gated] },
+  });
+  const afterEditor = await sql<{ status: string | null; msgs: string }[]>`
+    SELECT c.status,
+           (SELECT count(*)::text FROM app.conversation_messages m
+             WHERE m.conversation_id = c.id) AS msgs
+    FROM app.conversations c WHERE c.id = ${gated}
+  `;
+  const editorPastGate = (
+    await Promise.all([
+      asGate(`/${gated}/reply`, { body: {} }),
+      asGate('/compose', { body: {} }),
+      asGate('/bulk/reply', { body: {} }),
+      asGate(`/messages/${gateMessageId}/undo`, { body: {} }),
+      asGate(`/messages/${gateMessageId}/retry`, { body: {} }),
+      asGate(`/messages/${gateMessageId}/discard`, { body: {} }),
+      asGate(`/messages/${gateMessageId}/attachments`, { body: {} }),
+    ])
+  ).map((res) => res.status);
+  const editorDelete = await asGate(`/${gated}`, { method: 'DELETE' });
+
+  await sql`DELETE FROM app.conversations WHERE id = ${gated}`;
+  await sql`DELETE FROM "member" WHERE "id" = ${gateMemberId}`;
+  record(
+    'conversations: writes need editor-or-above, reads do not',
+    memberDoors.length === 12 &&
+      memberDoors.every((status) => status === 403) &&
+      afterMember[0]?.status === 'open' &&
+      afterMember[0]?.msgs === '1' &&
+      memberRead.status === 200 &&
+      editorNote.status === 201 &&
+      editorPatch.status === 200 &&
+      editorRead.status === 200 &&
+      editorBulk.status === 200 &&
+      afterEditor[0]?.status === 'closed' &&
+      afterEditor[0]?.msgs === '2' &&
+      editorPastGate.every((status) => status !== 403) &&
+      editorDelete.status === 204,
+    `member=${memberDoors.join(',')} (want 12x403) untouched=${afterMember[0]?.status}/${afterMember[0]?.msgs}msg read=${memberRead.status} (want 200), editor note=${editorNote.status} patch=${editorPatch.status} read=${editorRead.status} bulk=${editorBulk.status} → ${afterEditor[0]?.status}/${afterEditor[0]?.msgs}msg, pastGate=${editorPastGate.join(',')} (want none 403), del=${editorDelete.status}`,
   );
 }
 
@@ -15736,6 +15961,185 @@ async function checkMailboxSyncLane(
 }
 
 /**
+ * Mail without a readable Date must still land. Gmail hands back `internalDate`
+ * (epoch ms as a STRING) when a message carries no Date header, and a malformed
+ * message may carry no readable instant at all. The writers used to stamp
+ * `new Date(...)` → NaN, the shim's number validator rejected the write, and
+ * the whole pass — and its watermark — wedged on that one message forever.
+ * Driven through the REAL shim (the same handlers the sync native runs on).
+ */
+async function checkUndatedMailIngest(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { conversationShimHandlers } =
+    await import('./domains/conversations/shim.ts');
+  const { createCtxShim } = await import('./lib/ctx-shim.ts');
+  const { createConversationFromEmail } =
+    await import('./core/conversations/ingest/create_conversation_from_email.ts');
+  const handlers = conversationShimHandlers(sql, () => {
+    throw new Error('the undated-mail check dispatches no connector calls');
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 module on the real shim
+  const shim = createCtxShim(handlers) as unknown as Parameters<
+    typeof createConversationFromEmail
+  >[0];
+
+  const internalDate = Date.now() - 600_000;
+  const gmailRaw = (
+    id: string,
+    headers: Record<string, string>,
+    internalDateMs?: number,
+  ) => ({
+    id,
+    threadId: `t-${id}`,
+    labelIds: ['INBOX'],
+    ...(internalDateMs !== undefined
+      ? { internalDate: String(internalDateMs) }
+      : {}),
+    payload: {
+      mimeType: 'text/plain',
+      headers: Object.entries(headers).map(([name, value]) => ({
+        name,
+        value,
+      })),
+      body: { data: Buffer.from(`body of ${id}`).toString('base64url') },
+    },
+  });
+  const outcome = await createConversationFromEmail(shim, {
+    organizationId: orgId,
+    connectorName: 'gmail',
+    emails: [
+      gmailRaw(
+        'g-dated',
+        {
+          From: 'Dated Sender <dated@ext.test>',
+          To: 'inbox@door.test',
+          Subject: 'Dated',
+          Date: new Date(internalDate - 60_000).toUTCString(),
+          'Message-ID': '<g-dated@ext.test>',
+        },
+        internalDate - 60_000,
+      ),
+      gmailRaw(
+        'g-nodate',
+        {
+          From: 'No Date <nodate@ext.test>',
+          To: 'inbox@door.test',
+          Subject: 'No Date header',
+          'Message-ID': '<g-nodate@ext.test>',
+        },
+        internalDate,
+      ),
+      gmailRaw('g-nothing', {
+        From: 'Nothing <nothing@ext.test>',
+        To: 'inbox@door.test',
+        Subject: 'No readable instant at all',
+        'Message-ID': '<g-nothing@ext.test>',
+      }),
+    ],
+  });
+  const rows = await sql<
+    {
+      externalMessageId: string | null;
+      sentAt: number | null;
+      deliveryState: string;
+    }[]
+  >`
+    SELECT external_message_id AS "externalMessageId",
+           sent_at_ms::float8 AS "sentAt", delivery_state AS "deliveryState"
+    FROM app.conversation_messages
+    WHERE org_id = ${orgId}
+      AND external_message_id IN ('g-dated@ext.test', 'g-nodate@ext.test',
+                                  'g-nothing@ext.test')
+  `;
+  const byId = new Map(rows.map((row) => [row.externalMessageId, row]));
+  const noDate = byId.get('g-nodate@ext.test');
+  const nothing = byId.get('g-nothing@ext.test');
+  record(
+    'mail ingest: a message without a readable Date lands instead of wedging the pass',
+    outcome.processedCount === 3 &&
+      rows.length === 3 &&
+      noDate?.sentAt === internalDate &&
+      nothing?.sentAt === null &&
+      nothing.deliveryState === 'delivered' &&
+      outcome.ingestedTip === internalDate,
+    `processed=${outcome.processedCount} (want 3) rows=${rows.length} internalDateStamped=${noDate?.sentAt === internalDate} undatedStamp=${nothing?.sentAt ?? 'null'} (want null) state=${nothing?.deliveryState} tip=${outcome.ingestedTip === internalDate}`,
+  );
+}
+
+/**
+ * A heal that says it healed must have written. An IMAP credential whose
+ * public `config.fromAddress` mirror is missing (a pre-mirror row, or a config
+ * edit that dropped the hidden field) is healed by the mailbox sync from the
+ * login username — through the same `patchCredentialInternal` shim the
+ * watermark advance uses, which used to drop `config` on the floor while the
+ * sync logged "mirrored" every pass. Real credential, real decrypt, real row.
+ */
+async function checkImapFromAddressHeal(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { runConnectorAction } =
+    await import('./domains/connectors/service.ts');
+  const defaults = await sql<{ id: string }[]>`
+    SELECT id FROM app.connector_credentials
+    WHERE org_id = ${orgId} AND connector_slug = 'imap-smtp'
+      AND is_default = true AND status = 'active'
+    LIMIT 1
+  `;
+  const credentialId = defaults[0]?.id ?? '';
+  // Drift the row: drop the mirror the create door wrote.
+  await sql`
+    UPDATE app.connector_credentials
+    SET config = coalesce(config, '{}'::jsonb) - 'fromAddress'
+    WHERE id = ${credentialId}
+  `;
+  const fromBefore = await sql<{ fromAddress: string | null }[]>`
+    SELECT config->>'fromAddress' AS "fromAddress"
+    FROM app.connector_credentials WHERE id = ${credentialId}
+  `;
+
+  // An empty mailbox: the pass has nothing to ingest, only the heal to run.
+  setMailTransportForTesting({
+    openImap: async () => ({
+      listMessages: async () => [],
+      getMessage: async () => null,
+      close: async () => {},
+    }),
+    openSmtp: async () => {
+      throw new Error('the heal check sends nothing');
+    },
+  });
+  try {
+    const synced = await runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'conversation',
+      action: 'sync_mailbox',
+      input: { connectorSlug: 'imap-smtp', includeSent: false },
+      mode: 'live',
+      caller: { kind: 'system', reason: 'itest fromAddress heal' },
+    });
+    const fromAfter = await sql<{ fromAddress: string | null }[]>`
+      SELECT config->>'fromAddress' AS "fromAddress"
+      FROM app.connector_credentials WHERE id = ${credentialId}
+    `;
+    record(
+      'imap fromAddress heal persists through the credential shim',
+      credentialId !== '' &&
+        fromBefore[0]?.fromAddress === null &&
+        synced.status === 'ok' &&
+        fromAfter[0]?.fromAddress === 'inbox@door.test',
+      `credential=${credentialId !== ''} stripped=${fromBefore[0]?.fromAddress ?? 'null'} sync=${synced.status} healed=${fromAfter[0]?.fromAddress ?? 'null'} (want inbox@door.test)`,
+    );
+  } finally {
+    setMailTransportForTesting(DEFAULT_MAIL_FAKE);
+  }
+}
+
+/**
  * The outbound send surface over the connector door: a reply queues a row
  * and schedules the send one (shortened) undo window out; the worker's job
  * re-checks the row, delivers through the fake SMTP, and stamps the
@@ -15902,6 +16306,47 @@ async function checkOutboundSendLane(
     const failedRow = await messageRow(failId);
     failMode = false;
 
+    // A member who cannot open the conversation (unassigned = admin triage)
+    // gets the opaque 404 from retry and discard, and the row is untouched —
+    // holding a messageId is not a licence to act on a colleague's mail.
+    const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({
+        email: `send-lane-member-${Date.now().toString(36)}@example.com`,
+        password: 'itest-password-1',
+        name: 'Send Lane Member',
+      }),
+    });
+    const memberCookie = cookieHeaderFrom(memberSignUp);
+    const memberBody = z
+      .object({ user: z.object({ id: z.string() }) })
+      .safeParse(await memberSignUp.json());
+    const memberId = memberBody.success ? memberBody.data.user.id : '';
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member',
+              ${new Date()})
+    `;
+    const asMember = (route: string): Promise<Response> =>
+      fetch(`${base}/api/app/conversations${route}?orgId=${orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: memberCookie,
+          origin: base,
+        },
+        body: '{}',
+      });
+    const memberRetry = await asMember(`/messages/${failId}/retry`);
+    const memberDiscard = await asMember(`/messages/${failId}/discard`);
+    const afterMemberDoors = await messageRow(failId);
+    const memberRetryDiscardRefused =
+      memberRetry.status === 404 &&
+      memberDiscard.status === 404 &&
+      afterMemberDoors?.deliveryState === 'failed';
+
     // …and retry (immediate, no undo window) re-delivers.
     const retryRes = await api(`/messages/${failId}/retry`, { body: {} });
     const retriedOk = await waitForState(failId, 'sent');
@@ -15916,6 +16361,11 @@ async function checkOutboundSendLane(
       .object({ messageId: z.string() })
       .safeParse(await undoTarget.json());
     const undoId = undoTargetBody.success ? undoTargetBody.data.messageId : '';
+    // The hidden-conversation member cannot recall the owner's queued reply.
+    const memberUndo = await asMember(`/messages/${undoId}/undo`);
+    const memberUndoRefused =
+      memberUndo.status === 404 &&
+      (await messageRow(undoId))?.deliveryState === 'queued';
     const undoRes = await api(`/messages/${undoId}/undo`, { body: {} });
     const undoBody = z
       .object({ sourceMarkdown: z.string().nullable() })
@@ -15962,6 +16412,29 @@ async function checkOutboundSendLane(
           WHERE id = ${composeBody.data.conversationId} LIMIT 1
         `
       : [];
+    // Compose shares the assignee gate: an admin naming a non-member is
+    // refused before anything is created or sent.
+    const composeStranger = await api('/compose', {
+      body: {
+        contactId,
+        connectorName: 'imap-smtp',
+        subject: 'Quote for a stranger',
+        content: 'Never sent.',
+        assigneeUserId: 'user-from-nowhere',
+      },
+    });
+    const composeStrangerBody = z
+      .object({ error: z.string() })
+      .safeParse(await composeStranger.json());
+    const strangerConversations = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.conversations
+      WHERE org_id = ${orgId} AND subject = 'Quote for a stranger'
+    `;
+    const composeStrangerRefused =
+      composeStranger.status === 400 &&
+      composeStrangerBody.success &&
+      composeStrangerBody.data.error === 'user_not_in_org' &&
+      strangerConversations[0]?.count === '0';
 
     // 6. Bulk reply: one visible + one ghost → partial failure.
     const bulkRes = await api('/bulk/reply', {
@@ -16009,6 +16482,8 @@ async function checkOutboundSendLane(
         retryRes.status === 200 &&
         retriedOk &&
         retriedRow?.retryCount === 1 &&
+        memberRetryDiscardRefused &&
+        memberUndoRefused &&
         undoRes.status === 200 &&
         undoBody.success &&
         undoBody.data.sourceMarkdown === 'Recall me.' &&
@@ -16020,12 +16495,13 @@ async function checkOutboundSendLane(
         composedOk &&
         composedConv[0]?.direction === 'outbound' &&
         composedConv[0]?.subject === 'Quote 7' &&
+        composeStrangerRefused &&
         bulkBody.success &&
         bulkBody.data.successCount === 1 &&
         bulkBody.data.failedCount === 1 &&
         drained &&
         finalSendCount === 4,
-      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject}, bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
+      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 404s, row kept=${memberRetryDiscardRefused && memberUndoRefused}), undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
@@ -16201,11 +16677,20 @@ async function checkChatConversationSearchLeg(
     term: 'shipped',
     limit: 10,
   });
-  // Contact-name match (a conversation is findable by who it is with).
+  // Contact-name match (a conversation is findable by who it is with) — the
+  // contact leg prefilters in SQL now, so this drives the ILIKE path.
   const byContact = await searchConversationsForChat(sql, {
     organizationId: orgId,
     userId,
     term: 'Carla',
+    limit: 10,
+  });
+  // A LIKE metacharacter in the question matches itself, not any character:
+  // 'carla_' must NOT reach carla@ext.test through an unescaped `_`.
+  const byUnderscore = await searchConversationsForChat(sql, {
+    organizationId: orgId,
+    userId,
+    term: 'carla_',
     limit: 10,
   });
   // Listing skips the text match but keeps the privacy predicate.
@@ -16257,6 +16742,7 @@ async function checkChatConversationSearchLeg(
       subjects.has('Quote 7') &&
       byBody.conversations.some((row) => row.subject === 'Send me a quote') &&
       byContact.conversations.length >= 2 &&
+      byUnderscore.conversations.length === 0 &&
       listedAdmin.conversations.length >= 3 &&
       memberQuote.conversations.length === 1 &&
       memberQuote.conversations[0]?.subject === 'Quote 7' &&
@@ -16265,7 +16751,506 @@ async function checkChatConversationSearchLeg(
         (row) => row.assigneeUserId === memberId,
       ) &&
       stranger.conversations.length === 0,
-    `subject=${[...subjects].sort().join('|')} body=${byBody.conversations.map((r) => r.subject).join('|')} contact=${byContact.conversations.length} adminList=${listedAdmin.conversations.length}, memberQuote=${memberQuote.conversations.map((r) => r.subject).join('|')} (want only Quote 7) memberList=${memberList.conversations.length}/ownOnly=${memberList.conversations.every((row) => row.assigneeUserId === memberId)}, stranger=${stranger.conversations.length} (want 0)`,
+    `subject=${[...subjects].sort().join('|')} body=${byBody.conversations.map((r) => r.subject).join('|')} contact=${byContact.conversations.length} underscoreEscaped=${byUnderscore.conversations.length === 0} adminList=${listedAdmin.conversations.length}, memberQuote=${memberQuote.conversations.map((r) => r.subject).join('|')} (want only Quote 7) memberList=${memberList.conversations.length}/ownOnly=${memberList.conversations.every((row) => row.assigneeUserId === memberId)}, stranger=${stranger.conversations.length} (want 0)`,
+  );
+}
+
+/**
+ * The chat entity legs match a QUESTION, not only a typed name. Each leg
+ * receives the user's whole message as its search term, so a phrase-only
+ * compare finds nothing for anything phrased as a question. The word clause
+ * runs alongside the phrase clause, so a typed fragment keeps working, and a
+ * word must match at the START of a word so an OR over tokens is not noise.
+ */
+async function checkChatEntityWordSearch(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const now = Date.now();
+  // A fixture org of its own: two later checks count this org's tasks, and a
+  // third picks an arbitrary one, so seeding a task into the real org would
+  // move their numbers. The legs are org-scoped SQL, so a synthetic id is a
+  // complete world for them.
+  const org = `${ctx.orgId}-word-search-fixture`;
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${org}, 'Word Search Fixture', ${ctx.userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.tasks (org_id, project_id, title, description, status,
+                           rank, created_by, created_by_type, created_at_ms,
+                           updated_at_ms)
+    VALUES (${org}, ${projectId}, 'Set up Facebook ad account',
+            'for the recruitment campaign', 'todo', 'n', ${ctx.userId},
+            'user', ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.products (org_id, name, category, description,
+                              created_at_ms, updated_at_ms)
+    VALUES (${org}, 'Red Running Shoes', 'footwear', 'Lightweight trainers',
+            ${now}, ${now})
+  `;
+
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const handlers = chatShimHandlers(sql);
+  const pageShape = z
+    .object({ page: z.array(z.unknown()), listed: z.boolean().optional() })
+    .loose();
+  // MATCHED rows, not returned rows: the task and project legs fall back to a
+  // listing when the words match nothing (stamped `listed: true`), so a
+  // non-empty page is not by itself evidence of a match.
+  const rows = async (name: string, args: unknown): Promise<number> => {
+    const parsed = pageShape.safeParse(await handlers[name]?.(args));
+    if (!parsed.success) return -1;
+    return parsed.data.listed === true ? 0 : parsed.data.page.length;
+  };
+
+  const productQuestion = await rows(
+    'products/internal_queries:queryProducts',
+    { organizationId: org, searchTerm: 'do we have red running shoes' },
+  );
+  const productTyped = await rows('products/internal_queries:queryProducts', {
+    organizationId: org,
+    searchTerm: 'Red Running',
+  });
+  const productUnrelated = await rows(
+    'products/internal_queries:queryProducts',
+    { organizationId: org, searchTerm: 'do we have blue hats' },
+  );
+  const productStopwords = await rows(
+    'products/internal_queries:queryProducts',
+    { organizationId: org, searchTerm: 'what do we have?' },
+  );
+  const taskQuestion = await rows('tasks/search_for_chat:searchTasksForChat', {
+    organizationId: org,
+    projectIds: [projectId],
+    term: 'recruitment ads Facebook ad account project tasks',
+  });
+  // 'ebook' alone would hit the phrase clause through 'Facebook'. Inside a
+  // question the phrase cannot match, which isolates the word clause: a
+  // mid-word fragment must not be enough on its own.
+  const taskMidWord = await rows('tasks/search_for_chat:searchTasksForChat', {
+    organizationId: org,
+    projectIds: [projectId],
+    term: 'do we have any ebook tasks',
+  });
+  const taskRealWord = await rows('tasks/search_for_chat:searchTasksForChat', {
+    organizationId: org,
+    projectIds: [projectId],
+    term: 'do we have any facebook tasks',
+  });
+
+  record(
+    'chat entity legs match a question, not only a typed name',
+    productQuestion === 1 &&
+      productTyped === 1 &&
+      productUnrelated === 0 &&
+      productStopwords === 0 &&
+      taskQuestion === 1 &&
+      taskMidWord === 0 &&
+      taskRealWord === 1,
+    `product: question=${productQuestion} typed=${productTyped} unrelated=${productUnrelated} stopwords=${productStopwords} (want 1/1/0/0), task: question=${taskQuestion} midWord=${taskMidWord} realWord=${taskRealWord} (want 1/0/1)`,
+  );
+}
+/**
+ * The chat assistant's website catalog leg (`rag_search` leg 5 and
+ * `list kind="website"`), previously an empty stub against a table that had
+ * existed since migration 0045 — so the leg answered "no sites" while the tool
+ * description shipped to the model on every turn pointed at it as the way to
+ * browse crawled content.
+ *
+ * Reuses `listWebsites`, and keeps the 0.4 reader's one editorial rule: a
+ * site mid-teardown or in error is not offered, because nothing can be
+ * fetched from it.
+ */
+async function checkChatWebsiteCatalogLeg(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const now = Date.now();
+  const org = `${ctx.orgId}-website-leg-fixture`;
+  await sql`
+    INSERT INTO app.websites (org_id, domain, title, description,
+                              scan_interval, status, page_count,
+                              created_at_ms, updated_at_ms)
+    VALUES
+      (${org}, 'handbook.example', 'Company Handbook',
+       'Policies and onboarding', 'weekly', 'active', 42, ${now}, ${now}),
+      (${org}, 'blog.example', NULL, NULL, 'daily', 'idle', NULL,
+       ${now - 1}, ${now - 1}),
+      (${org}, 'gone.example', 'Being removed', NULL, 'weekly', 'deleting',
+       7, ${now - 2}, ${now - 2}),
+      (${org}, 'broken.example', 'Crawl failed', NULL, 'weekly', 'error',
+       0, ${now - 3}, ${now - 3})
+  `;
+
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const handlers = chatShimHandlers(sql);
+  const summaries = z
+    .array(
+      z.object({
+        domain: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        pageCount: z.number().optional(),
+      }),
+    )
+    .safeParse(
+      await handlers['websites/internal_queries:listWebsiteSummaries']?.({
+        organizationId: org,
+      }),
+    );
+  const rows = summaries.success ? summaries.data : [];
+  const domains = rows.map((row) => row.domain).sort();
+  const handbook = rows.find((row) => row.domain === 'handbook.example');
+  const bare = rows.find((row) => row.domain === 'blog.example');
+
+  record(
+    'chat website catalog leg (real rows, teardown/error sites withheld)',
+    domains.join('|') === 'blog.example|handbook.example' &&
+      handbook?.title === 'Company Handbook' &&
+      handbook?.description === 'Policies and onboarding' &&
+      // The catalog answer "how big is each site?" — the search rows skip it.
+      handbook?.pageCount === 42 &&
+      // Absent optionals stay absent rather than arriving as nulls.
+      bare !== undefined &&
+      bare.title === undefined &&
+      bare.description === undefined &&
+      bare.pageCount === undefined,
+    `domains=${domains.join('|')} (want blog.example|handbook.example), handbook=title:${handbook?.title}/desc:${handbook?.description}/pages:${handbook?.pageCount}, bareOptionalsAbsent=${bare !== undefined && bare.title === undefined && bare.pageCount === undefined}`,
+  );
+}
+
+/**
+ * `list kind="mail-attachment"` — the ONLY listing surface an emailed
+ * attachment has, previously an empty stub even though migration 0037 added
+ * the binding columns and the email binder writes both.
+ *
+ * The assertion that matters is the ACCESS decision, because a listing that
+ * skips it publishes the whole inbox: an admin reaches an unassigned
+ * conversation's attachment, a plain member reaches only their own and their
+ * team's, and a non-member reaches nothing. Arrival order and an honest
+ * `truncated` are checked alongside — the stub returned `truncated: false`
+ * while listing nothing, which claims the mail index was fully walked.
+ */
+async function checkChatMailAttachmentListing(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const now = Date.now();
+  const org = `${ctx.orgId}-mail-attachment-fixture`;
+  const stamp = new Date();
+  // `member`/`team` carry a FK to `organization`, so the fixture org is a real
+  // row (a direct INSERT — the scaffold hook lives in the auth API, not here).
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${org}, 'Mail Attachment Fixture', ${org}, ${stamp})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+
+  // An admin, a plain member with a team, and a member of no team — all in
+  // the fixture org only, so the real org's inbox checks stay untouched.
+  const seedUser = async (email: string, role: string): Promise<string> => {
+    const users = await sql<{ id: string }[]>`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt",
+                          "updatedAt")
+      VALUES (gen_random_uuid(), ${email}, ${email}, true, ${stamp}, ${stamp})
+      RETURNING "id"
+    `;
+    const id = users[0]?.id ?? '';
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${org}, ${id}, ${role}, ${stamp})
+    `;
+    return id;
+  };
+  const adminId = await seedUser('mail.admin@leg.test', 'admin');
+  const memberId = await seedUser('mail.member@leg.test', 'member');
+  const outsiderId = await seedUser('mail.outsider@leg.test', 'member');
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), 'Mail Squad', ${org}, ${stamp}, ${stamp})
+    RETURNING "id"
+  `;
+  const teamId = teamRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (gen_random_uuid(), ${teamId}, ${memberId}, ${stamp})
+  `;
+
+  const seedConversation = async (
+    subject: string,
+    assignment: { userId?: string; teamId?: string },
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.conversations (org_id, subject, status, channel,
+                                     direction, assignee_user_id,
+                                     assignee_team_id, last_message_at_ms,
+                                     created_at_ms)
+      VALUES (${org}, ${subject}, 'open', 'email', 'inbound',
+              ${assignment.userId ?? null}, ${assignment.teamId ?? null},
+              ${now}, ${now})
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const unassigned = await seedConversation('Unassigned application', {});
+  const mine = await seedConversation('Assigned to me', { userId: memberId });
+  const ours = await seedConversation('Assigned to my team', { teamId });
+
+  const bind = async (
+    conversationId: string,
+    fileName: string,
+    receivedAt: number,
+    options: { ragStatus?: string; trashed?: boolean } = {},
+  ): Promise<void> => {
+    await sql`
+      INSERT INTO app.file_metadata (org_id, storage_ref, file_name,
+                                     content_type, size, rag_status,
+                                     lifecycle_status, conversation_id,
+                                     mail_received_at_ms, created_at_ms)
+      VALUES (${org}, ${`s3://mail/${fileName}`}, ${fileName},
+              'application/pdf', 1024, ${options.ragStatus ?? null},
+              ${options.trashed === true ? 'trashed' : null},
+              ${conversationId}, ${receivedAt}, ${receivedAt})
+    `;
+  };
+  // Arrival order deliberately disagrees with insert order.
+  await bind(mine, 'mine-older.pdf', now - 5000, { ragStatus: 'completed' });
+  await bind(ours, 'ours-newest.pdf', now - 1000);
+  await bind(unassigned, 'triage-middle.pdf', now - 3000);
+  await bind(mine, 'mine-trashed.pdf', now - 500, { trashed: true });
+  // A file with no mail arrival time is not an emailed attachment.
+  await sql`
+    INSERT INTO app.file_metadata (org_id, storage_ref, file_name,
+                                   content_type, size, created_at_ms)
+    VALUES (${org}, 's3://hub/not-mail.pdf', 'not-mail.pdf',
+            'application/pdf', 10, ${now})
+  `;
+
+  // Through the SHIM HANDLER, not the module: an empty stub in the map is
+  // exactly the defect this replaces, and the map's exhaustiveness test
+  // cannot see it (a handler that is present and answers nothing looks like
+  // a handler that works).
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const handlers = chatShimHandlers(sql);
+  const listingShape = z.object({
+    attachments: z.array(
+      z.object({
+        ref: z.string(),
+        fileName: z.string(),
+        contentType: z.string(),
+        size: z.number(),
+        conversationId: z.string(),
+        receivedAt: z.number(),
+        indexed: z.boolean(),
+      }),
+    ),
+    truncated: z.boolean(),
+  });
+  type Listing = z.infer<typeof listingShape>;
+  const listFor = async (userId: string, limit: number): Promise<Listing> => {
+    const parsed = listingShape.safeParse(
+      await handlers[
+        'file_metadata/internal_queries:listMailAttachmentsForChat'
+      ]?.({ organizationId: org, userId, limit }),
+    );
+    return parsed.success ? parsed.data : { attachments: [], truncated: false };
+  };
+  const names = (result: Listing): string =>
+    result.attachments.map((attachment) => attachment.fileName).join('|');
+
+  const admin = await listFor(adminId, 10);
+  const member = await listFor(memberId, 10);
+  const outsider = await listFor(outsiderId, 10);
+  const stranger = await listFor('no-such-user', 10);
+  // `truncated` is the walk's own claim, so both ways of cutting it short
+  // have to raise it: a filled page (through the handler), and an exhausted
+  // scan budget (the module, because the handler never overrides the cap).
+  const pageFilled = await listFor(adminId, 1);
+  const { listMailAttachments } =
+    await import('./domains/file_metadata/mail-attachments.ts');
+  const scanCut = await listMailAttachments(sql, {
+    organizationId: org,
+    userId: outsiderId,
+    limit: 10,
+    scanCap: 1,
+  });
+
+  record(
+    'chat mail-attachment listing (assignment scope, arrival order, truncated)',
+    // Newest arrival first, the trashed row skipped, the non-mail row absent.
+    names(admin) === 'ours-newest.pdf|triage-middle.pdf|mine-older.pdf' &&
+      !admin.truncated &&
+      // A plain member never sees the unassigned triage row.
+      names(member) === 'ours-newest.pdf|mine-older.pdf' &&
+      !member.truncated &&
+      // Same org, same role, no assignment and no team: nothing.
+      names(outsider) === '' &&
+      !outsider.truncated &&
+      // Not a member at all.
+      names(stranger) === '' &&
+      !stranger.truncated &&
+      // Indexed state is reported, not implied.
+      admin.attachments.find((a) => a.fileName === 'mine-older.pdf')
+        ?.indexed === true &&
+      admin.attachments.find((a) => a.fileName === 'ours-newest.pdf')
+        ?.indexed === false &&
+      // Rows carry the conversation they arrived on and a fetchable ref.
+      member.attachments.every(
+        (a) => a.conversationId !== '' && a.ref.startsWith('s3://mail/'),
+      ) &&
+      names(pageFilled) === 'ours-newest.pdf' &&
+      pageFilled.truncated &&
+      // Nothing readable, but the reach WAS bounded — saying "false" here
+      // would claim the inbox is empty.
+      names(scanCut) === '' &&
+      scanCut.truncated,
+    `admin=${names(admin)}/trunc=${admin.truncated}, member=${names(member)}/trunc=${member.truncated} (want team+own only), outsider=${names(outsider) || '(none)'}, stranger=${names(stranger) || '(none)'}, indexed=${admin.attachments.map((a) => `${a.fileName}:${a.indexed}`).join(',')}, pageFilled=${names(pageFilled)}/trunc=${pageFilled.truncated} (want true), scanCut=${names(scanCut) || '(none)'}/trunc=${scanCut.truncated} (want true)`,
+  );
+}
+
+/**
+ * The zero-hit listing fallback on the task and project legs.
+ *
+ * A mixed question names something and matches nothing — "anything blocked on
+ * procurement?" over a board whose rows say none of those words. 0.4 answered
+ * it by listing the readable rows and stamping `listed: true`, which is what
+ * makes `listedSource` in `core/chat/assistant_tools.ts` reachable; without
+ * the fallback the leg reports `searched (no matches)` over a full board.
+ *
+ * `detectListingIntent` already routes a PURE listing utterance to
+ * `action: "list"`, so the mixed query is the case that has nothing else to
+ * fall back to. The fallback must not widen scope: it lists the SAME readable
+ * project set the search was restricted to.
+ */
+async function checkChatZeroHitListingFallback(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const now = Date.now();
+  const org = `${ctx.orgId}-list-fallback-fixture`;
+  const seedProject = async (name: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES (${org}, ${name}, ${ctx.userId}, ${now}, ${now})
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const readableId = await seedProject('Marketing Site Rebuild');
+  const hiddenId = await seedProject('Secret Board');
+  const seedTask = async (projectId: string, title: string): Promise<void> => {
+    await sql`
+      INSERT INTO app.tasks (org_id, project_id, title, description, status,
+                             rank, created_by, created_by_type, created_at_ms,
+                             updated_at_ms)
+      VALUES (${org}, ${projectId}, ${title}, NULL, 'todo', 'n',
+              ${ctx.userId}, 'user', ${now}, ${now})
+    `;
+  };
+  await seedTask(readableId, 'Draft the launch email');
+  await seedTask(hiddenId, 'Do not surface this');
+
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const handlers = chatShimHandlers(sql);
+  const legShape = z
+    .object({
+      page: z.array(
+        z
+          .object({
+            title: z.string().optional(),
+            name: z.string().optional(),
+          })
+          .loose(),
+      ),
+      isDone: z.boolean(),
+      listed: z.boolean().optional(),
+    })
+    .loose();
+  const leg = async (
+    name: string,
+    args: unknown,
+  ): Promise<{ titles: string; listed: boolean | undefined }> => {
+    const parsed = legShape.safeParse(await handlers[name]?.(args));
+    if (!parsed.success) return { titles: '(unparseable)', listed: undefined };
+    return {
+      titles: parsed.data.page
+        .map((row) => row.title ?? row.name ?? '')
+        .join('|'),
+      listed: parsed.data.listed,
+    };
+  };
+  const TASKS = 'tasks/search_for_chat:searchTasksForChat';
+  const PROJECTS = 'tasks/search_for_chat:searchProjectsForChat';
+
+  // The mixed query: real words, no match on this board.
+  const taskFallback = await leg(TASKS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: 'is anything blocked on procurement',
+  });
+  // A term that DOES match must stay a search, not a listing.
+  const taskMatched = await leg(TASKS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: 'what about the launch email',
+  });
+  // An explicit listing is unchanged.
+  const taskListed = await leg(TASKS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: '',
+    list: true,
+  });
+  // The fallback lists the readable set, never the whole org.
+  const taskScope = await leg(TASKS, {
+    organizationId: org,
+    projectIds: [readableId, hiddenId],
+    term: 'is anything blocked on procurement',
+  });
+  // A status filter still applies to the fallback page.
+  const taskFiltered = await leg(TASKS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: 'is anything blocked on procurement',
+    status: 'done',
+  });
+
+  const projectFallback = await leg(PROJECTS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: 'are there any archived initiatives',
+  });
+  const projectMatched = await leg(PROJECTS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: 'how is the rebuild going',
+  });
+
+  record(
+    'chat task/project legs list when the words match nothing',
+    taskFallback.titles === 'Draft the launch email' &&
+      taskFallback.listed === true &&
+      taskMatched.titles === 'Draft the launch email' &&
+      taskMatched.listed === false &&
+      taskListed.titles === 'Draft the launch email' &&
+      taskListed.listed === true &&
+      taskScope.titles.split('|').sort().join('|') ===
+        'Do not surface this|Draft the launch email' &&
+      taskFiltered.titles === '' &&
+      taskFiltered.listed === true &&
+      projectFallback.titles === 'Marketing Site Rebuild' &&
+      projectFallback.listed === true &&
+      projectMatched.titles === 'Marketing Site Rebuild' &&
+      projectMatched.listed === false,
+    `taskFallback=${taskFallback.titles || '(none)'}/listed=${taskFallback.listed} (want listed), taskMatched=${taskMatched.titles || '(none)'}/listed=${taskMatched.listed} (want searched), taskListed=${taskListed.titles || '(none)'}/listed=${taskListed.listed}, scopedFallback=${taskScope.titles || '(none)'} (want both readable), statusFiltered=${taskFiltered.titles || '(none)'}/listed=${taskFiltered.listed} (want empty), projectFallback=${projectFallback.titles || '(none)'}/listed=${projectFallback.listed} (want listed), projectMatched=${projectMatched.titles || '(none)'}/listed=${projectMatched.listed} (want searched)`,
   );
 }
 
@@ -26200,6 +27185,8 @@ async function checkRetention(
       'messageFeedbackRetentionDays: 7',
       'notificationsEnabled: true',
       'notificationsRetentionDays: 7',
+      'externalConversationsEnabled: true',
+      'externalConversationsRetentionDays: 7',
       'deletionGraceDays: 0',
     ].join('\n'),
   );
@@ -26336,6 +27323,52 @@ async function checkRetention(
     ) RETURNING id
   `;
 
+  // externalConversations: three conversations aged by `last_message_at_ms`.
+  // The ancient one carries an email BODY and a stored mail attachment and
+  // must go; the fresh one stays; the never-messaged one has no activity
+  // timestamp to age against and must survive regardless of its age.
+  await sql`
+    INSERT INTO app.conversations (
+      org_id, subject, status, channel, direction, connector_name,
+      last_message_at_ms, created_at_ms
+    ) VALUES
+      (${orgId}, 'rt-conv-ancient', 'open', 'email', 'inbound', 'imap_smtp',
+       ${ancient}, ${ancient}),
+      (${orgId}, 'rt-conv-fresh', 'open', 'email', 'inbound', 'imap_smtp',
+       ${now}, ${now}),
+      (${orgId}, 'rt-conv-silent', 'open', 'email', 'inbound', 'imap_smtp',
+       NULL, ${ancient})
+  `;
+  const convRows = await sql<{ id: string; subject: string }[]>`
+    SELECT id, subject FROM app.conversations
+    WHERE org_id = ${orgId} AND subject LIKE 'rt-conv-%'
+  `;
+  const convId = (subject: string): string =>
+    convRows.find((row) => row.subject === subject)?.id ?? '';
+  const ancientConv = convId('rt-conv-ancient');
+  await sql`
+    INSERT INTO app.conversation_messages (
+      org_id, conversation_id, channel, direction, delivery_state, content,
+      sent_at_ms, created_at_ms
+    ) VALUES
+      (${orgId}, ${ancientConv}, 'email', 'inbound', 'delivered',
+       'ancient email body', ${ancient}, ${ancient}),
+      (${orgId}, ${convId('rt-conv-fresh')}, 'email', 'inbound', 'delivered',
+       'fresh email body', ${now}, ${now})
+  `;
+  // The mail attachment binding (migration 0037): `source` is the CONNECTOR
+  // slug, so no temp-file sweep can ever collect this row — the
+  // conversation sweep owns it or nothing does.
+  const convAttachment = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, source,
+      uploaded_by, conversation_id, mail_received_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, 's3:itest/conv-attachment', 'invoice.pdf', 'application/pdf',
+      9, 'imap_smtp', ${userId}, ${ancientConv}, ${ancient}, ${ancient}
+    ) RETURNING id
+  `;
+
   const { runRetentionCleanup } =
     await import('./domains/retention/service.ts');
   // An org hold freezes the whole run.
@@ -26352,6 +27385,10 @@ async function checkRetention(
   const frozen = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.message_feedback
     WHERE org_id = ${orgId} AND message_id = 'rt-old'
+  `;
+  const frozenConv = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.conversations
+    WHERE id = ${ancientConv}
   `;
   await sql`
     UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
@@ -26429,6 +27466,182 @@ async function checkRetention(
       automationRunsLeft.map((row) => row.name).join(',') ===
         'rt-wf-running,rt-wf-waiting',
     `doc=${docGone[0]?.count} thread=${threadGone[0]?.count} msgs=${msgGone[0]?.count} run=${runGone[0]?.count} audit=${auditGone[0]?.count} temp=${tempGone[0]?.count} (all want 0), automationRuns=${automationRunsLeft.map((row) => row.name).join(',')} (want rt-wf-running,rt-wf-waiting)`,
+  );
+
+  const convLeft = await sql<{ subject: string }[]>`
+    SELECT subject FROM app.conversations
+    WHERE org_id = ${orgId} AND subject LIKE 'rt-conv-%'
+    ORDER BY subject
+  `;
+  const convBodiesLeft = await sql<{ content: string }[]>`
+    SELECT content FROM app.conversation_messages
+    WHERE org_id = ${orgId} AND conversation_id = ${ancientConv}
+  `;
+  const convAttachmentGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE id = ${convAttachment[0]?.id ?? ''}
+  `;
+  record(
+    'retention: external conversations age by last message, org hold freezes',
+    // The org hold froze the ancient conversation on the first run.
+    frozenConv[0]?.count === '1' &&
+      // Past the window the conversation goes; the fresh one and the
+      // never-messaged one (no activity timestamp to age against) stay.
+      convLeft.map((row) => row.subject).join(',') ===
+        'rt-conv-fresh,rt-conv-silent' &&
+      // The email BODIES ride the parent's ON DELETE CASCADE...
+      convBodiesLeft.length === 0 &&
+      // ...and the stored mail attachment, which no temp-file sweep can
+      // reach, goes with them instead of outliving the mail forever.
+      convAttachmentGone[0]?.count === '0',
+    `frozenConv=${frozenConv[0]?.count} (want 1), left=${convLeft.map((row) => row.subject).join(',')} (want rt-conv-fresh,rt-conv-silent), bodies=${convBodiesLeft.length} attachment=${convAttachmentGone[0]?.count} (both want 0)`,
+  );
+
+  // With a deletion grace configured the conversation sweep is TWO-PASS
+  // (the 0.4 model): pass one marks the aged row `expired` and starts the
+  // grace clock, and only a row whose grace has since elapsed is deleted.
+  await writeFile(
+    path.join(governanceDir, 'retention-policy.yml'),
+    [
+      'documentsEnabled: true',
+      'documentsRetentionDays: 7',
+      'externalConversationsEnabled: true',
+      'externalConversationsRetentionDays: 7',
+      'deletionGraceDays: 30',
+    ].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+  const graceConv = await sql<{ id: string }[]>`
+    INSERT INTO app.conversations (
+      org_id, subject, status, channel, direction, connector_name,
+      last_message_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, 'rt-conv-grace', 'open', 'email', 'inbound', 'imap_smtp',
+      ${ancient}, ${ancient}
+    ) RETURNING id
+  `;
+  const graceConvId = graceConv[0]?.id ?? '';
+  await runRetentionCleanup(sql);
+  const graceFirstPass = await sql<{ lifecycleStatus: string | null }[]>`
+    SELECT lifecycle_status AS "lifecycleStatus" FROM app.conversations
+    WHERE id = ${graceConvId}
+  `;
+  // Backdate the stamp pass one just wrote so the grace has elapsed.
+  await sql`
+    UPDATE app.conversations
+    SET status_changed_at_ms = ${now - 60 * 24 * 3_600_000}
+    WHERE id = ${graceConvId}
+  `;
+  await runRetentionCleanup(sql);
+  const graceSecondPass = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.conversations
+    WHERE id = ${graceConvId}
+  `;
+  record(
+    'retention: external conversations honour the two-pass deletion grace',
+    // Pass one marks, and must NOT delete inside the grace window.
+    graceFirstPass[0]?.lifecycleStatus === 'expired' &&
+      // Pass two removes it once the grace has elapsed.
+      graceSecondPass[0]?.count === '0',
+    `firstPass=${graceFirstPass.length === 0 ? 'ROW GONE' : (graceFirstPass[0]?.lifecycleStatus ?? 'unmarked')} (want expired), secondPass=${graceSecondPass[0]?.count} (want 0)`,
+  );
+
+  // Restore the policy this check set up. The grace variant above writes
+  // `deletionGraceDays: 30`, and a later governance check asserts on the
+  // summary of its own policy change — inheriting a grace it never set made
+  // that summary list a reduction it did not expect. Test isolation, not a
+  // product rule.
+  await writeFile(
+    path.join(governanceDir, 'retention-policy.yml'),
+    [
+      'documentsEnabled: true',
+      'documentsRetentionDays: 7',
+      'chatHistoryEnabled: true',
+      'chatHistoryRetentionDays: 7',
+      'agentRunsEnabled: true',
+      'agentRunsRetentionDays: 7',
+      'workflowLogEnabled: true',
+      'workflowLogRetentionDays: 7',
+      'auditLogEnabled: true',
+      'auditLogRetentionDays: 365',
+      'userTempEnabled: true',
+      'userTempRetentionHours: 1',
+      'usageLedgerEnabled: true',
+      // Below the 30-day floor — the clamp must raise it.
+      'usageLedgerRetentionDays: 1',
+      'messageFeedbackEnabled: true',
+      'messageFeedbackRetentionDays: 7',
+      'notificationsEnabled: true',
+      'notificationsRetentionDays: 7',
+      'externalConversationsEnabled: true',
+      'externalConversationsRetentionDays: 7',
+      'deletionGraceDays: 0',
+    ].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+
+  // Sign-in throttling state is global (no org scope) and swept by the
+  // maintenance job, not the per-org cleanup: one 30-day window for
+  // attempts, block counters AND 2FA attempts.
+  const ttlOld = now - 45 * 24 * 3_600_000;
+  await sql`
+    INSERT INTO app.login_attempts (email, consecutive_failures,
+                                    last_failure_at)
+    VALUES ('rt-ttl-old@example.com', 3, ${ttlOld}),
+           ('rt-ttl-new@example.com', 3, ${now})
+    ON CONFLICT (email) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.login_block_counters (email, window_start, lockout_count,
+                                          ip_limit_count, last_ip, updated_at)
+    VALUES ('rt-ttl-old@example.com', ${ttlOld}, 1, 0, '203.0.113.9',
+            ${ttlOld}),
+           ('rt-ttl-new@example.com', ${now}, 1, 0, '203.0.113.9', ${now})
+    ON CONFLICT (email, window_start) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.two_factor_attempts (user_id, consecutive_failures,
+                                         last_failure_at_ms)
+    VALUES ('rt-ttl-old-user', 3, ${ttlOld}),
+           ('rt-ttl-new-user', 3, ${now})
+    ON CONFLICT (user_id) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.two_factor_grace (user_id, grace_until_ms)
+    VALUES ('rt-ttl-old-user', ${ttlOld})
+    ON CONFLICT (user_id) DO NOTHING
+  `;
+  const ttlHandler = createTaskList({ sql })['maintenance.login_attempts_ttl'];
+  if (ttlHandler !== undefined) await ttlHandler({});
+  const attemptsLeft = await sql<{ email: string }[]>`
+    SELECT email FROM app.login_attempts WHERE email LIKE 'rt-ttl-%'
+  `;
+  const countersLeft = await sql<{ email: string }[]>`
+    SELECT email FROM app.login_block_counters WHERE email LIKE 'rt-ttl-%'
+  `;
+  const twoFactorLeft = await sql<{ userId: string }[]>`
+    SELECT user_id AS "userId" FROM app.two_factor_attempts
+    WHERE user_id LIKE 'rt-ttl-%'
+  `;
+  const graceLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.two_factor_grace
+    WHERE user_id = 'rt-ttl-old-user'
+  `;
+  record(
+    'retention: sign-in throttling TTL is one 30-day window, grace kept',
+    attemptsLeft.map((row) => row.email).join(',') ===
+      'rt-ttl-new@example.com' &&
+      // The counters carry `email` + `last_ip`: same window as the attempts
+      // they summarise, never longer.
+      countersLeft.map((row) => row.email).join(',') ===
+        'rt-ttl-new@example.com' &&
+      // Parity for 2FA attempts — cleared on success only, so a user who
+      // failed and never came back left a permanently stuck row.
+      twoFactorLeft.map((row) => row.userId).join(',') === 'rt-ttl-new-user' &&
+      // `two_factor_grace` is NOT age-swept: an absent row mints a FRESH
+      // grace window, so ageing it out would reward staying away.
+      graceLeft[0]?.count === '1',
+    `attempts=${attemptsLeft.map((row) => row.email).join(',')} counters=${countersLeft.map((row) => row.email).join(',')} (both want rt-ttl-new@example.com), twoFactor=${twoFactorLeft.map((row) => row.userId).join(',')} (want rt-ttl-new-user), grace=${graceLeft[0]?.count} (want 1)`,
   );
 }
 
@@ -26547,6 +27760,59 @@ async function checkErasure(
     reason: 'self test',
     reasonCode: 'consent_withdrawn',
   });
+  // The seven categories the cascade gained. None is reachable from the
+  // thread, document, preference or upload passes: two are org-level rows
+  // ABOUT the subject, two are global auth state keyed by email or user id,
+  // and the review decision is KEPT and de-identified rather than deleted.
+  await sql`
+    INSERT INTO app.notifications (
+      org_id, category, severity, title_key, body_key, params,
+      subject_user_id, created_at_ms
+    ) VALUES (${orgId}, 'security', 'warning', 'accountLocked',
+              'lockoutDetails',
+              ${sql.json({ email: `${subject}@example.com`, ip: '203.0.113.9' })},
+              ${subject}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, started_at_ms
+    ) VALUES (${orgId}, 'erasure-fixture', 1, 'success', 'live',
+              ${`user:${subject}`}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.approvals (
+      org_id, resource_type, resource_id, status, approved_by, metadata,
+      created_at_ms
+    ) VALUES (${orgId}, 'task_review', ${`er-task-${subject}`}, 'completed',
+              ${subject},
+              ${sql.json({ requestedFor: subject, response: { respondedBy: subject } })},
+              ${now})
+  `;
+  await sql`
+    INSERT INTO app.login_attempts (email, consecutive_failures,
+                                    last_failure_at)
+    VALUES (${`${subject}@example.com`}, 3, ${now})
+    ON CONFLICT (email) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.two_factor_attempts (user_id, consecutive_failures,
+                                         last_failure_at_ms)
+    VALUES (${subject}, 2, ${now}) ON CONFLICT (user_id) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.user_cloud_authorizations (
+      org_id, user_id, provider, encrypted_data, status, created_at_ms,
+      updated_at_ms
+    ) VALUES (${orgId}, ${subject}, 'google-drive',
+              ${sql.json({ sealed: 'x' })}, 'active', ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.google_drive_sync_configs (
+      org_id, user_id, item_type, item_id, item_name, target_bucket, status,
+      created_at_ms, updated_at_ms
+    ) VALUES (${orgId}, ${subject}, 'folder', ${`gd-${subject}`}, 'Reports',
+              'documents', 'active', ${now}, ${now})
+  `;
   const filed = z
     .object({ requestId: z.string(), threadsTargeted: z.number() })
     .loose()
@@ -26581,7 +27847,28 @@ async function checkErasure(
          WHERE org_id = ${orgId} AND user_id = ${subject})
       + (SELECT count(*) FROM app.memories
          WHERE org_id = ${orgId} AND user_id = ${subject})
+      + (SELECT count(*) FROM app.notifications
+         WHERE org_id = ${orgId} AND subject_user_id = ${subject})
+      + (SELECT count(*) FROM app.automation_runs
+         WHERE org_id = ${orgId} AND started_by = ${`user:${subject}`})
+      + (SELECT count(*) FROM app.login_attempts
+         WHERE email = ${`${subject}@example.com`})
+      + (SELECT count(*) FROM app.two_factor_attempts
+         WHERE user_id = ${subject})
+      + (SELECT count(*) FROM app.user_cloud_authorizations
+         WHERE org_id = ${orgId} AND user_id = ${subject})
+      + (SELECT count(*) FROM app.google_drive_sync_configs
+         WHERE org_id = ${orgId} AND user_id = ${subject})
     )::text AS count
+  `;
+  // A review decision is KEPT and de-identified: the decision is the audit
+  // record of a governance gate, so the row stays and the identity goes.
+  const reviewErased = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.approvals
+    WHERE org_id = ${orgId} AND resource_id = ${`er-task-${subject}`}
+      AND approved_by = 'erased-user'
+      AND metadata->>'requestedFor' = 'erased-user'
+      AND metadata->'response'->>'respondedBy' = 'erased-user'
   `;
   const scrubbed = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.audit_logs
@@ -26694,6 +27981,7 @@ async function checkErasure(
       receiptStatus === 'done' &&
       threadGone[0]?.count === '0' &&
       leftovers[0]?.count === '0' &&
+      reviewErased[0]?.count === '1' &&
       Number(scrubbed[0]?.count ?? '0') >= 1 &&
       filedTwo.success &&
       cancelled.success &&
@@ -26705,7 +27993,7 @@ async function checkErasure(
       filedThree.data.userCustodianHeld &&
       blockedReceipt[0]?.status === 'blocked' &&
       threeStatus === 'done',
-    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), retried=${threeStatus}`,
+    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, reviewDeidentified=${reviewErased[0]?.count} (want 1), scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), retried=${threeStatus}`,
   );
 
   // ---- the documented 'child' reason code files -------------------------
@@ -28175,6 +29463,94 @@ async function checkAuditSurface(
     'audit surface: CSV export -> object store presigned download',
     exported.success && exported.data.fileName.endsWith('.csv') && csvOk,
     `export=${exported.success ? exported.data.fileName : 'ERR'}, csv=${csvOk}`,
+  );
+
+  // --- Read gate: admin/owner only, on EVERY door (#1505) ---------------
+  // The log enumerates who did what to whom and carries the GDPR erasure
+  // trail, so 0.4 gated every public audit query on `isAdmin`. One seeded
+  // user walks the doors at three roles: the same cookie, the `member` row
+  // rewritten between passes (that is where `requireOrgMember` reads from).
+  const gateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `audit-gate-${orgId.slice(0, 8)}@door.test`,
+      password: 'itest-password-1',
+      name: 'Audit Gate Probe',
+    }),
+  });
+  const gateCookie = cookieHeaderFrom(gateSignUp);
+  const gateUser = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await gateSignUp.json());
+  const gateUserId = gateUser.success ? gateUser.data.user.id : '';
+  const gateMemberId = `m-audit-gate-${gateUserId}`;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${gateMemberId}, ${orgId}, ${gateUserId}, 'member', ${new Date()})
+  `;
+  const asRole = async (role: string): Promise<number[]> => {
+    await sql`
+      UPDATE "member" SET "role" = ${role} WHERE "id" = ${gateMemberId}
+    `;
+    const doors: Promise<Response>[] = [
+      fetch(`${base}/api/app/audit-logs?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      fetch(`${base}/api/app/audit-logs/errors?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      fetch(`${base}/api/app/audit-logs/summary?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      fetch(`${base}/api/app/audit-logs/integrity/status?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      fetch(`${base}/api/app/audit-logs/block-counters?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      // The by-id detail door: a real row, so a leak would be a real leak.
+      fetch(`${base}/api/app/audit-logs/${anyId}?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      fetch(`${base}/api/app/audit-logs/integrity/verify?orgId=${orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: gateCookie,
+          origin: base,
+        },
+        body: JSON.stringify({ maxEntries: 10 }),
+      }),
+      fetch(`${base}/api/app/audit-logs/export?orgId=${orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: gateCookie,
+          origin: base,
+        },
+        body: JSON.stringify({ format: 'json' }),
+      }),
+    ];
+    return (await Promise.all(doors)).map((res) => res.status);
+  };
+  // `member` and `developer` are both refused — 0.4's matrix gave developer
+  // auditLogs WRITE only. `admin` passes every door (the export needs the
+  // object store, so "not 403" is the gate assertion there).
+  const asMember = await asRole('member');
+  const asDeveloper = await asRole('developer');
+  const asAdmin = await asRole('admin');
+  // The detail door must refuse with 403, never leak "no such row" as a 404.
+  const detailRefused = asMember[5] === 403 && asDeveloper[5] === 403;
+  await sql`DELETE FROM "member" WHERE "id" = ${gateMemberId}`;
+  record(
+    'audit surface: every read door is admin/owner-only (#1505)',
+    asMember.every((status) => status === 403) &&
+      asDeveloper.every((status) => status === 403) &&
+      detailRefused &&
+      asAdmin.every((status) => status !== 403),
+    `member=${asMember.join(',')} developer=${asDeveloper.join(',')} (want all 403), admin=${asAdmin.join(',')} (want none 403)`,
   );
 }
 
@@ -30931,6 +32307,105 @@ async function checkTwoFactor(
       stateAfter[0]?.count === '0',
     `blocked=${blockedRes.status}/${blockedBody.success ? blockedBody.data.enrollRequired : 'ERR'} (want true), grace=${graceBody.success ? graceBody.data.enrollRequired !== true : 'ERR'}, anchored=${anchor1.length === 1 && anchor2[0]?.graceUntil === anchor1[0]?.graceUntil}, status=${wireStatus.success ? wireStatus.data.decision : 'ERR'}, locked=${lockedUntil !== null}, verify=${verifyWhileLocked.status}, cleared=${stateAfter[0]?.count}`,
   );
+
+  // --- Lifecycle audit: enable / regenerate / disable, and the passkey trio
+  // 0.4 audited every SUCCESSFUL second-factor lifecycle event (#1508); the
+  // port kept only the failure half, so an attacker who registered their own
+  // passkey and turned TOTP off left no trace at all. Action names are 0.4's
+  // verbatim — a rename would break any saved query grouping on them.
+  const authPost = (route: string, body: unknown): Promise<Response> =>
+    fetch(`${base}/api/auth${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify(body),
+    });
+  const lifecycleActions = async (): Promise<string[]> => {
+    const rows = await sql<{ action: string }[]>`
+      SELECT action FROM app.audit_logs
+      WHERE org_id = ${ctx.orgId} AND resource_type = 'twoFactorAuth'
+        AND resource_id = ${userId}
+      ORDER BY ts ASC
+    `;
+    return rows.map((row) => row.action);
+  };
+  const before2fa = await lifecycleActions();
+  const enableRes = await authPost('/two-factor/enable', {
+    password: 'itest-password-1',
+  });
+  const afterEnable = await lifecycleActions();
+  const regenRes = await authPost('/two-factor/generate-backup-codes', {
+    password: 'itest-password-1',
+  });
+  const afterRegen = await lifecycleActions();
+  const disableRes = await authPost('/two-factor/disable', {
+    password: 'itest-password-1',
+  });
+  const afterDisable = await lifecycleActions();
+  // Backup-code regeneration audits as a `2fa_enrolled` carrying the 0.4
+  // `backupCodesRegenerated` stamp. The endpoint needs a COMPLETED TOTP
+  // enrolment (a verified code), which a script cannot produce — so the
+  // assertion covers whichever way it answers: a 200 must leave the stamped
+  // row, and a refusal must leave NOTHING (the hook audits success only).
+  const regenRow = await sql<
+    { category: string; status: string; regenerated: boolean | null }[]
+  >`
+    SELECT category, status,
+           (metadata->>'backupCodesRegenerated')::boolean AS regenerated
+    FROM app.audit_logs
+    WHERE org_id = ${ctx.orgId} AND resource_id = ${userId}
+      AND action = '2fa_enrolled' AND metadata ? 'backupCodesRegenerated'
+    ORDER BY ts DESC LIMIT 1
+  `;
+  const regenConsistent =
+    regenRes.status === 200
+      ? regenRow.length === 1 &&
+        regenRow[0]?.regenerated === true &&
+        afterRegen.join(',') === '2fa_enrolled,2fa_enrolled'
+      : regenRow.length === 0 && afterRegen.join(',') === afterEnable.join(',');
+  // WebAuthn cannot be driven from a script, so the passkey trio is proven at
+  // the writer: the action names land as rows with the security shape.
+  const { recordTwoFactorLifecycleEvent } =
+    await import('./domains/two_factor/service.ts');
+  for (const action of [
+    'passkey_added',
+    'passkey_sign_in',
+    'passkey_removed',
+  ] as const) {
+    await recordTwoFactorLifecycleEvent(sql, {
+      userId,
+      action,
+      actorEmail: email,
+      ip: '203.0.113.9',
+      userAgent: 'itest-passkey/1.0',
+    });
+  }
+  const afterPasskeys = await lifecycleActions();
+  // Every lifecycle row carries the 0.4 security shape, not just the name.
+  const shapes = await sql<{ category: string; status: string }[]>`
+    SELECT DISTINCT category, status FROM app.audit_logs
+    WHERE org_id = ${ctx.orgId} AND resource_type = 'twoFactorAuth'
+      AND resource_id = ${userId}
+  `;
+  // Leave 2FA OFF: later lanes sign this account in with password alone.
+  const enrolled = await sql<{ enabled: boolean | null }[]>`
+    SELECT "twoFactorEnabled" AS enabled FROM "user" WHERE "id" = ${userId}
+  `;
+  record(
+    'two-factor: successful lifecycle events audit (#1508 action names)',
+    before2fa.length === 0 &&
+      enableRes.status === 200 &&
+      afterEnable.join(',') === '2fa_enrolled' &&
+      regenConsistent &&
+      disableRes.status === 200 &&
+      afterDisable.join(',') === `${afterRegen.join(',')},2fa_disabled` &&
+      afterPasskeys.join(',') ===
+        `${afterDisable.join(',')},passkey_added,passkey_sign_in,passkey_removed` &&
+      shapes.length === 1 &&
+      shapes[0]?.category === 'security' &&
+      shapes[0]?.status === 'success' &&
+      enrolled[0]?.enabled !== true,
+    `before=${before2fa.length}, enable=${enableRes.status} regen=${regenRes.status} (stamped=${regenRow.length}) disable=${disableRes.status}, trail=${afterPasskeys.join(',')}, shape=${shapes.map((s) => `${s.category}/${s.status}`).join('|')}, enabledLeftOn=${enrolled[0]?.enabled}`,
+  );
 }
 
 /**
@@ -33021,9 +34496,15 @@ async function main(): Promise<void> {
     await checkWorkflowTurnReattach(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
+    await checkUndatedMailIngest(sql, authCtx);
+    await checkImapFromAddressHeal(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
     await checkNotificationEmailSink(sql, authCtx);
     await checkChatConversationSearchLeg(sql, authCtx);
+    await checkChatEntityWordSearch(sql, authCtx);
+    await checkChatWebsiteCatalogLeg(sql, authCtx);
+    await checkChatMailAttachmentListing(sql, authCtx);
+    await checkChatZeroHitListingFallback(sql, authCtx);
     await checkAddressRouting(sql, authCtx, `itest-${orgSuffix}`);
     await checkControlDrain(sql, baseUrl, authCtx);
     await checkProvisioning(sql);

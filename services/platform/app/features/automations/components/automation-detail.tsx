@@ -6,7 +6,6 @@ import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Field } from '@tale/ui/field';
-import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Input } from '@tale/ui/input';
 import { Text } from '@tale/ui/text';
 import {
@@ -38,7 +37,6 @@ import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
-import { automationDisplayDescription } from '@/lib/shared/schemas/automation_presentation';
 
 import { mergeNodeTypes } from '../hooks/backend';
 import {
@@ -64,10 +62,9 @@ import {
 } from '../lib/workbench';
 import { AutomationCanvas } from './automation-canvas';
 import { NodeInspector } from './node-inspector';
-import { ProjectBindingsSection } from './project-bindings-section';
 import { RunList } from './run-list';
-import { TriggerEditor } from './trigger-editor';
 import { VersionList } from './version-list';
+import { WorkflowSettings } from './workflow-settings';
 
 /**
  * Every field of a node a patch may clear. Spelling them out keeps the unset
@@ -267,7 +264,6 @@ export function AutomationDetail({
     () => readDocument(automationQuery.data?.document),
     [automationQuery.data?.document],
   );
-  const { locale } = useLocale();
   const automation = draft ?? stored;
   const graph = useMemo(() => buildGraph(automation), [automation]);
   const positions = useMemo(() => readPositions(automation), [automation]);
@@ -411,27 +407,23 @@ export function AutomationDetail({
     lookingVersion === undefined || versionEntries.length === 0
       ? []
       : [
-          versionEntries.map((entry) => ({
-            type: 'item' as const,
-            label: t('versions.versionLabel', { version: entry.version }),
-            selected: entry.version === lookingVersion,
-            trailing:
-              entry.version === meta?.deployedVersion
-                ? t('versions.deployed')
-                : undefined,
-            onClick: () => {
-              if (entry.version !== lookingVersion) {
-                requestVersionSwitch(entry.version);
-              }
-            },
-          })),
+          versionEntries.map((entry) => {
+            const isDeployed = entry.version === meta?.deployedVersion;
+            return {
+              type: 'item' as const,
+              label: t('versions.versionLabel', { version: entry.version }),
+              selected: entry.version === lookingVersion,
+              trailing: isDeployed ? t('versions.deployed') : undefined,
+              onClick: () => {
+                if (entry.version !== lookingVersion) {
+                  requestVersionSwitch(entry.version);
+                }
+              },
+            };
+          }),
         ];
   const selectedNode =
     graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
-  const described =
-    automationDisplayDescription(automationQuery.data?.presentation, locale) ??
-    automation.description;
-
   const confirmSave = async (): Promise<void> => {
     const pending = pendingSaveRef.current;
     try {
@@ -465,8 +457,8 @@ export function AutomationDetail({
         // Display name is the breadcrumb h1 in AdaptiveHeader. Live sits
         // next to that name when the canvas version is the live one. The
         // version switcher and the run/save verbs portal to the right of
-        // the same row. The description sits under the name.
-        {...(described !== undefined && { description: described })}
+        // the same row. Pack descriptions stay off this workbench — they
+        // belong on list/catalog surfaces where you pick an automation.
         {...(lookingIsLive && {
           identity: (
             <Badge variant="green" icon={CheckCircle2}>
@@ -675,18 +667,11 @@ export function AutomationDetail({
             {...(projectId !== undefined && { projectId })}
             onDeselect={deselectNode}
             workflow={
-              <>
-                <TriggerEditor
-                  organizationId={organizationId}
-                  name={automationSlug}
-                  canEdit={canAuthor}
-                />
-                <ProjectBindingsSection
-                  organizationId={organizationId}
-                  name={automationSlug}
-                  canEdit={canAuthor}
-                />
-              </>
+              <WorkflowSettings
+                organizationId={organizationId}
+                name={automationSlug}
+                canEdit={canAuthor}
+              />
             }
           />
         </div>

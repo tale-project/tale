@@ -57,8 +57,10 @@ export function selectTriggerClasses({
   error?: boolean;
 } = {}) {
   return cn(
-    // One height fits all controls (`h-9`) — no size axis.
-    'bg-input ring-offset-background placeholder:text-muted-foreground ring-border focus-visible:ring-primary flex h-9 w-full items-center justify-between rounded-lg border border-transparent px-3 py-2 text-base whitespace-nowrap ring-1 transition-[border-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm [&>span]:line-clamp-1',
+    // One height fits all controls (`h-9`) — no size axis. Resting edge uses
+    // `--color-border-input` (same as Input) — `ring-border` is too faint in
+    // light mode and reads as a clipped / borderless field (#1478).
+    'bg-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-primary flex h-9 w-full items-center justify-between rounded-lg border border-transparent px-3 py-2 text-base whitespace-nowrap ring-1 ring-[color:var(--color-border-input)] transition-[border-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm [&>span]:line-clamp-1',
     error && 'border-destructive focus-visible:ring-destructive',
   );
 }

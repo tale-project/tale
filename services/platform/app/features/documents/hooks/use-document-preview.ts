@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 
 import { useReactQuery } from '@/app/hooks/use-react-query';
 
+import { normalizeConvertedDocumentHtml } from '../utils/normalize-converted-document-html';
 import { odtBytesToHtml } from '../utils/odt-preview';
 
 export function useDocxPreview(url: string) {
@@ -15,7 +16,9 @@ export function useDocxPreview(url: string) {
       const ab = await res.arrayBuffer();
       const mammoth = await import('mammoth');
       const result = await mammoth.convertToHtml({ arrayBuffer: ab });
-      return DOMPurify.sanitize(result.value || '');
+      return normalizeConvertedDocumentHtml(
+        DOMPurify.sanitize(result.value || ''),
+      );
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -31,7 +34,7 @@ export function useOdtPreview(url: string) {
       // jszip is dynamically imported inside `odtBytesToHtml` (parity with
       // the mammoth/xlsx imports below); output is sanitized before render.
       const html = await odtBytesToHtml(ab);
-      return DOMPurify.sanitize(html);
+      return normalizeConvertedDocumentHtml(DOMPurify.sanitize(html));
     },
     staleTime: 5 * 60 * 1000,
   });

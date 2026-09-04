@@ -109,8 +109,15 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
           {tTables('headers.scanned')}
         </span>
       ),
-      size: 128,
-      meta: { headerLabel: tTables('headers.scanned') },
+      size: 208,
+      meta: {
+        headerLabel: tTables('headers.scanned'),
+        align: 'right' as const,
+        // The timestamp + copy control is nowrap; clip at the cell edge so a
+        // long value cannot spill left into Indexed (preset `long` also appends
+        // a timezone suffix that exceeded the old 128px column).
+        className: 'overflow-hidden',
+      },
       cell: ({ row }) => {
         // A successful scan stamps `lastScannedAt`; until then the cell must
         // not pretend work is in progress. Show the spinner only while the
@@ -119,11 +126,16 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
         // `idle`, `error`, or environments where the crawler never ran).
         if (row.original.lastScannedAt) {
           return (
-            <CopyableTimestamp
-              date={row.original.lastScannedAt}
-              preset="long"
-              alignRight
-            />
+            <div className="w-0 min-w-full overflow-hidden">
+              <CopyableTimestamp
+                date={row.original.lastScannedAt}
+                // `medium` skips the timezone suffix in the cell; `title` still
+                // carries the full localized value + zone for hover/copy.
+                preset="medium"
+                customFormat="ll LT"
+                alignRight
+              />
+            </div>
           );
         }
         if (row.original.status === 'scanning') {
