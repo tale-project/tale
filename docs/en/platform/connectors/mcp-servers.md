@@ -15,19 +15,15 @@ Outbound MCP servers are not available in this version. The former **Settings > 
 
 Tale exposes one MCP endpoint per deployment at `/api/v1/mcp`, authenticated with an organization API key. Twenty-two tools sit behind it in three groups — authoring and deploying automations, running them and reading their runs, and searching and invoking what the organization can do. **Settings > API > MCP** shows your deployment's endpoint URL, the inventory in those three groups, and under **Try it** a copyable `tools/list` request. [MCP endpoint](/develop/mcp-endpoint) is the reference — protocol, tool table, and what each role's key may do; [API keys](/platform/admin/api-keys) covers minting the key.
 
+<Frame caption="Settings > API > MCP — the endpoint URL to point a client at, the tool inventory in its three groups, and a request to try the key with.">
+
+![The MCP page under Settings > API showing the MCP endpoint row with the deployment's URL ending in /api/v1/mcp and a copy button, three rows listing tool names by group — Authoring, Run & trigger management, Skills & knowledge — and a Try it row holding a curl request that calls tools/list with a bearer API key.](/images/platform/settings-mcp-endpoint.webp)
+
+</Frame>
+
 ## Reach your own code from an agent today
 
 Wrapping your own service so an agent can use it takes one of three shapes in this version. A [connector](/platform/connectors/overview) is the vendor-specific bridge Tale ships — reach for it when one exists for the target system. An [automation](/platform/automations/catalog) calls connector actions and runs your own JavaScript in `transform` nodes on a schedule or a webhook, and you upload it as a pack. A [project agent](/platform/projects/project-agents) holds **Secrets** — an API key handed to it as an environment variable — so it can call a service that has no connector straight from its sandbox.
-
-## The retired form
-
-Readers of the previous manual will remember the dialog below. It is shown only so the change is recognizable — no screen in this version renders it, and nothing on it can be saved.
-
-<Frame caption="The Add MCP server dialog of the earlier version — a screen this version does not ship.">
-
-![The earlier version's Add MCP server dialog, filled in for a support-tickets server — display name Support Tickets, a one-line description, Streamable HTTP as the transport type, the server URL, and an authentication method of None — over an MCP page where an Internal Wiki server is already registered.](/images/platform/settings-mcp-add-dialog.webp)
-
-</Frame>
 
 ## Where this fits
 

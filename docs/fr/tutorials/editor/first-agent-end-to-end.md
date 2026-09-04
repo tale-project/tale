@@ -17,7 +17,7 @@ Ouvre l’onglet **Agents** du projet. Il liste l’équipe du projet, une ligne
 
 <Frame caption="L’onglet Agents — chaque ligne nomme le harness, le fournisseur et le modèle de l’agent.">
 
-![L’onglet Agents d’un projet listant des agents nommés, chacun avec son harness, le fournisseur qui le sert, l’identifiant du modèle et le nombre d’équipements.](/images/platform/project-agents-models.webp)
+![L’onglet Agents du projet Website relaunch listant deux agents nommés — Content editor sur Claude Code et Redirect auditor sur Codex — chaque ligne nommant le fournisseur et l’identifiant du modèle, à côté du bouton Nouvel agent.](/images/platform/project-agents-models.webp)
 
 </Frame>
 

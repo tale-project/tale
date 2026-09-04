@@ -50,14 +50,14 @@ of work — with task boards agents work from.
       <br/><sub><b>Task board</b> — assign a card to an agent and it goes to work</sub>
     </td>
     <td width="50%">
-      <a href="services/docs/public/images/platform/project-general-tab.webp"><img src="services/docs/public/images/platform/project-general-tab.webp" alt="The General tab of the Website relaunch project showing the name and description fields, the sharing section, and a stats strip" width="100%"></a>
-      <br/><sub><b>Project home</b> — name, description, sharing, and the project's stats</sub>
+      <a href="services/docs/public/images/platform/project-general-tab.webp"><img src="services/docs/public/images/platform/project-general-tab.webp" alt="The General tab of the Website relaunch project showing the name and description fields, the filled-in Instructions editor, and the Sharing section below" width="100%"></a>
+      <br/><sub><b>Project home</b> — name, description, standing instructions, and sharing</sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/project-agents-models.webp"><img src="services/docs/public/images/platform/project-agents-models.webp" alt="The Agents & models tab of a project showing the Agents and Models radio groups, each offering a Recommended and a Restricted mode" width="100%"></a>
-      <br/><sub><b>Agents & models</b> — recommend or restrict what the project may use</sub>
+      <a href="services/docs/public/images/platform/project-agents-models.webp"><img src="services/docs/public/images/platform/project-agents-models.webp" alt="The Agents tab of the Website relaunch project listing two named agents, Content editor on Claude Code and Redirect auditor on Codex, each with its provider and model" width="100%"></a>
+      <br/><sub><b>Project agents</b> — a named crew, each with a harness, a model, and standing instructions</sub>
     </td>
     <td width="50%">
       <a href="services/docs/public/images/platform/project-knowledge-files.webp"><img src="services/docs/public/images/platform/project-knowledge-files.webp" alt="The Knowledge tab of the Website relaunch project showing two indexed files in the file tree, a New folder button, and the Add file dropzone" width="100%"></a>
@@ -89,8 +89,8 @@ Typed workflows on schedules, webhooks, and events — with human approval gates
 <table>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src="services/docs/public/images/platform/automation-editor-canvas.webp" alt="The workflow editor for the Triage unassigned tasks automation, showing its typed Condition, Action, and LLM steps branching across the canvas with the AI Assistant panel open on the right" width="100%"></a>
-      <br/><sub><b>Workflow editor</b> — the typed step graph, with the AI editor a prompt away</sub>
+      <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src="services/docs/public/images/platform/automation-editor-canvas.webp" alt="The workbench for the Triage the Gmail inbox automation: a canvas with its fetch, inbox, and triage steps, the llm step selected, and the node inspector beside it showing the step's prompt, system prompt, model, output schema, and input" width="100%"></a>
+      <br/><sub><b>Workflow editor</b> — the typed step graph, with the node inspector a click away</sub>
     </td>
     <td width="50%">
       <a href="services/docs/public/images/platform/automations-catalog.webp"><img src="services/docs/public/images/platform/automations-catalog.webp" alt="The Automations catalog on its All automations tab, cards grouped by source — Sync Confluence pages, Archive idle conversations, Resolve GitHub issues, Sync Gmail emails" width="100%"></a>
@@ -107,8 +107,8 @@ Connect the systems your team already uses.
 <table>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/settings-mcp-add-dialog.webp"><img src="services/docs/public/images/platform/settings-mcp-add-dialog.webp" alt="The Add MCP server dialog with fields for name, display name, description, and a transport type selector showing Streamable HTTP" width="100%"></a>
-      <br/><sub><b>MCP servers</b> — add any Model Context Protocol server as a tool source</sub>
+      <a href="services/docs/public/images/platform/settings-mcp-endpoint.webp"><img src="services/docs/public/images/platform/settings-mcp-endpoint.webp" alt="The MCP endpoint settings page listing the deployment's MCP URL and the tools an MCP client can call, grouped into authoring, run and trigger management, and skills and knowledge" width="100%"></a>
+      <br/><sub><b>MCP endpoint</b> — point any MCP client at the deployment to author and run automations</sub>
     </td>
     <td width="50%"></td>
   </tr>
@@ -122,7 +122,7 @@ Approvals before actions ship — and the controls around them.
 <table>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/governance-guardrails.webp"><img src="services/docs/public/images/platform/governance-guardrails.webp" alt="The Guardrails governance page showing three status cards — content safety applied to input and output, PII detection set to mask, the moderation provider disabled — above the recent-events section" width="100%"></a>
+      <a href="services/docs/public/images/platform/governance-guardrails.webp"><img src="services/docs/public/images/platform/governance-guardrails.webp" alt="The Guardrails governance page showing three status cards — content safety off, PII detection off, the moderation provider not configured — above the recent-events feed and the organization's custom instructions" width="100%"></a>
       <br/><sub><b>Guardrails</b> — content safety, PII detection, and a moderation provider, layered per message</sub>
     </td>
     <td width="50%">
@@ -150,8 +150,8 @@ The operator's side: models, members, branding, SSO, and your documents as a net
 <table>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/get-started/settings-organization-members.webp"><img src="services/docs/public/images/get-started/settings-organization-members.webp" alt="The Organization settings page with its Members table listing five people — an owner, an admin, an editor, and two members — beside an Add member button" width="100%"></a>
-      <br/><sub><b>Members</b> — the organization, its people, and their roles</sub>
+      <a href="services/docs/public/images/get-started/settings-organization-members.webp"><img src="services/docs/public/images/get-started/settings-organization-members.webp" alt="The Members settings page listing five people with their roles — an owner, an admin, an editor, and two members — beside an Add member button" width="100%"></a>
+      <br/><sub><b>Members</b> — the organization's people and their roles</sub>
     </td>
     <td width="50%">
       <a href="services/docs/public/images/platform/settings-branding.webp"><img src="services/docs/public/images/platform/settings-branding.webp" alt="The Branding settings page with logo and favicon uploads, an accent colour field, and a live preview pane on the right" width="100%"></a>

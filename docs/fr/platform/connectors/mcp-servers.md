@@ -15,19 +15,15 @@ Les serveurs MCP sortants ne sont pas disponibles dans cette version. L’ancien
 
 Tale expose un endpoint MCP par déploiement, sous `/api/v1/mcp`, authentifié par une clé API d’organisation. Vingt-deux outils se tiennent derrière, en trois groupes — écrire et déployer des automatisations, les exécuter et lire leurs exécutions, chercher et invoquer ce que l’organisation sait faire. **Paramètres > API > MCP** affiche l’URL de l’endpoint de ton déploiement, l’inventaire dans ces trois groupes et, sous **Essaie**, une requête `tools/list` à copier. [Endpoint MCP](/fr/develop/mcp-endpoint) est la référence — protocole, table des outils et ce que la clé de chaque rôle peut faire ; [Clés API](/fr/platform/admin/api-keys) couvre la création de la clé.
 
+<Frame caption="Paramètres > API > MCP — l’URL de l’endpoint à donner à ton client, l’inventaire des outils dans ses trois groupes et une requête pour essayer la clé.">
+
+![La page MCP sous Paramètres > API, avec la ligne Endpoint MCP dont l’URL se termine par /api/v1/mcp et son bouton de copie, trois lignes qui listent les noms d’outils par groupe — Écriture, Gestion des exécutions & déclencheurs, Skills & connaissances — et une ligne Essaie qui contient une requête curl appelant tools/list avec une clé API en bearer.](/images/platform/settings-mcp-endpoint.webp)
+
+</Frame>
+
 ## Atteindre ton propre code depuis un agent aujourd’hui
 
 Emballer ton propre service pour qu’un agent l’utilise prend l’une de trois formes dans cette version. Un [connector](/fr/platform/connectors/overview) est le pont spécifique à un éditeur que Tale livre — prends-le quand il en existe un pour le système visé. Une [automatisation](/fr/platform/automations/catalog) appelle des actions de connector et exécute ton propre JavaScript dans des nœuds `transform`, sur un planning ou un webhook ; tu la téléverses comme un paquet. Un [agent de projet](/fr/platform/projects/project-agents) porte des **Secrets** — une clé API qu’il reçoit en variable d’environnement — et appelle ainsi, depuis sa sandbox, un service qui n’a pas de connector.
-
-## Le formulaire retiré
-
-Les lecteurs de l’ancien manuel reconnaîtront la boîte de dialogue ci-dessous. Elle n’est là que pour rendre le changement reconnaissable — aucun écran de cette version ne l’affiche, et rien n’y peut être enregistré.
-
-<Frame caption="La boîte de dialogue Ajouter un serveur MCP de la version précédente — un écran que cette version ne livre pas.">
-
-![La boîte de dialogue Ajouter un serveur MCP de la version précédente, remplie pour un serveur de tickets de support — nom d’affichage Support Tickets, une description d’une ligne, Streamable HTTP comme type de transport, l’URL du serveur et Aucune comme méthode d’authentification — par-dessus une page MCP où un serveur Internal Wiki est déjà enregistré.](/images/platform/settings-mcp-add-dialog.webp)
-
-</Frame>
 
 ## Où cela se place
 

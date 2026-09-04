@@ -17,7 +17,7 @@ Prüf drei Dinge. Du darfst das Projekt bearbeiten — wer das darf, legt seine 
 
 <Frame caption="Der Tab Agenten — jede Zeile nennt Agent-Laufzeit, Provider und Modell des Agenten.">
 
-![Der Tab Agenten eines Projekts mit benannten Agenten, jeweils mit Agent-Laufzeit, Provider, Modell-ID und Ausrüstungszahl.](/images/platform/project-agents-models.webp)
+![Der Tab Agenten des Projekts Website relaunch mit zwei benannten Agenten — Content editor auf Claude Code und Redirect auditor auf Codex — jede Zeile mit Provider und Modell-ID, neben dem Knopf Neuer Agent.](/images/platform/project-agents-models.webp)
 
 </Frame>
 

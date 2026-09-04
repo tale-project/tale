@@ -7,7 +7,7 @@ Les entrées de connaissances sont la surface « faits » de la base de connaiss
 
 <Frame caption="L’onglet Entrées de connaissances — sujet, contenu, source et statut d’indexation par fait.">
 
-![L’onglet Entrées de connaissances listant trois faits ajoutés à la main, chacun avec l’étiquette de source Manuel et le badge de statut Indexé.](/images/platform/knowledge-entries-list.webp)
+![L’onglet Entrées de connaissances listant trois faits ajoutés à la main, chacun avec l’étiquette de source Manuel, le badge de statut Non indexé et sa commande de relance de l’indexation.](/images/platform/knowledge-entries-list.webp)
 
 </Frame>
 

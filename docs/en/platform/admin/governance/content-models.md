@@ -5,9 +5,9 @@ description: Model-level controls — which models are allowed per role or team,
 
 Content and models is the surface where you decide which LLMs the people in your organisation can reach and which one each group lands on by default. It pairs an allowlist or blocklist per scope (org, team, role) with a default-model rule the resolver applies when no explicit choice has overridden it. Admins and Owners read this page when a compliance rule pins a workload to an approved model, when a team should default to a cheaper model than the rest of the org, or when a new model from an existing provider needs to be made reachable.
 
-<Frame caption="Settings > Governance > Models — the per-scope default-model rules, with model access and the vision model below.">
+<Frame caption="Settings > Governance > Models — the per-scope default-model rules, with the model-access allowlist below them and the vision model further down.">
 
-![The Content and Models governance page showing the mandatory system-prompt prefix and suffix fields filled with the org's house rules, above a default-models table carrying three rules: a default for all users, and role rules for Developer and Member, each pinned to an OpenRouter model.](/images/platform/governance-content-models.webp)
+![The Models governance page showing the default-models table with three rules — a default for all users, and role rules for Developer and Member, each pinned to an OpenRouter model — above the model-access section set to Allowlist with one allowed-models rule per role.](/images/platform/governance-content-models.webp)
 
 </Frame>
 

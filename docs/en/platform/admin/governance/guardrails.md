@@ -7,7 +7,7 @@ Guardrails is the surface where you configure the three filter layers Tale runs 
 
 <Frame caption="Governance > Guardrails — the three filter-layer status cards (content safety, PII detection, moderation provider) above the recent-events log.">
 
-![The Guardrails governance page showing three status cards — content safety applied to input and output across two categories, PII detection running in mask mode over four built-in patterns, and a moderation provider marked Disabled with no external API configured — above a recent-events feed reporting no events yet.](/images/platform/governance-guardrails.webp)
+![The Guardrails governance page showing three status cards — Content safety off, PII detection off, and the Moderation provider not configured — above a recent-events feed reporting no events yet and the organization's custom instructions.](/images/platform/governance-guardrails.webp)
 
 </Frame>
 

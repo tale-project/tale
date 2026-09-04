@@ -5,9 +5,9 @@ description: A project bundles chats, files, instructions, and tasks into one sh
 
 A project is the unit Tale reaches for when a body of work needs the same files, the same instructions, and the same working surfaces across many chats and many people. This page hands you the mental model — read it before you create your first project, and come back when you are deciding whether a growing chat should be promoted into one.
 
-<Frame caption="The General tab — identity, sharing, and the stats strip for the project.">
+<Frame caption="The General tab — the project's identity, its standing instructions, and sharing below them.">
 
-![The General tab of the Website relaunch project showing the name and description fields, the sharing section with an Org-wide owning team, and a stats strip reading two files, no chats, and Org-wide.](/images/platform/project-general-tab.webp)
+![The General tab of the Website relaunch project showing the name and description fields, the filled-in Instructions editor that every chat in the project starts from, and the Sharing section heading below, with Save and Discard in the tab strip.](/images/platform/project-general-tab.webp)
 
 </Frame>
 

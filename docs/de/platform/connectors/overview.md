@@ -3,7 +3,7 @@ title: Connectors
 description: Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und Agent-Läufen landen.
 ---
 
-Eine Connector besteht aus zwei Teilen: einem **Connector**, der mit der Plattform ausgeliefert wird, und den **Zugangsdaten**, die deine Organisation dazu hinterlegt. Der Connector bringt das Wissen über den Anbieter mit — welche Aktionen es gibt, was jede davon entgegennimmt und zurückgibt, wie die Anmeldung läuft — und sieht in jeder Organisation gleich aus. Die Zugangsdaten gehören dir, und ein Connector hält davon so viele, wie du brauchst: einen Eintrag pro Workspace, Shop, Postfach oder Bot. Dreizehn Connectoren werden ausgeliefert, und jeder davon steht bereits unter **Einstellungen > Connectors** und wartet auf seinen ersten Eintrag.
+Eine Connector besteht aus zwei Teilen: einem **Connector**, der mit der Plattform ausgeliefert wird, und den **Zugangsdaten**, die deine Organisation dazu hinterlegt. Der Connector bringt das Wissen über den Anbieter mit — welche Aktionen es gibt, was jede davon entgegennimmt und zurückgibt, wie die Anmeldung läuft — und sieht in jeder Organisation gleich aus. Die Zugangsdaten gehören dir, und ein Connector hält davon so viele, wie du brauchst: einen Eintrag pro Workspace, Shop, Postfach oder Bot. Dreizehn Connectoren werden ausgeliefert, und jeder davon wartet im Katalog hinter **Zugangsdaten hinzufügen** unter **Einstellungen > Connectors** auf seinen ersten Eintrag.
 
 Lieber erst zusehen? Episode 7 geht die Türen zur Außenwelt ab — Connectoren, MCP und die Grenzen — in knapp drei Minuten, mit Untertiteln.
 
@@ -19,7 +19,7 @@ Weil diese Definition für alle gilt, entscheidet deine Organisation nur eines: 
 
 ## Die mitgelieferten Connectoren
 
-Dreizehn Connectoren werden ausgeliefert, jeder mit der Kategorie, zu der er gehört — Knowledge, Messaging, Email, Developer, Commerce, Search oder Files. **Anmeldung** ist die Authentifizierungsmethode, die der Connector akzeptiert; sie bestimmt, wonach das Formular fragt. **Aktionen** ist die Anzahl der Operationen, die er anbietet — dieselbe Zahl, die der Abschnitt des Connectors in den Einstellungen zeigt.
+Dreizehn Connectoren werden ausgeliefert, jeder mit der Kategorie, zu der er gehört — Knowledge, Messaging, Email, Developer, Commerce, Search oder Files. **Anmeldung** ist die Authentifizierungsmethode, die der Connector akzeptiert; sie bestimmt, wonach das Formular fragt. **Aktionen** ist die Anzahl der Operationen, die er anbietet — dieselbe Zahl, die seine Karte im Katalog hinter **Zugangsdaten hinzufügen** zeigt.
 
 | Connector               | Was dir das Verbinden bringt                                                                                   | Anmeldung               | Aktionen |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------- | -------- |
@@ -66,13 +66,25 @@ Wo du anfängst, hängt davon ab, was der Connector akzeptiert. Connectoren mit 
 
 <Step title="Einstellungen > Connectors öffnen">
 
-Jeder Connector hat einen Abschnitt, überschrieben mit Icon, Beschreibung, Kategorien und Aktionszahl. Nichts versteckt sich hinter einem Katalog-Dialog.
+Die Seite ist die Tabelle der Zugangsdaten, die deine Organisation schon hält — eine Zeile pro Eintrag mit Name, Connector und Authentifizierungsmethode. In einer frischen Organisation ist sie leer; der mitgelieferte Katalog wartet hinter **Zugangsdaten hinzufügen**.
+
+</Step>
+
+<Step title="Connector auswählen">
+
+**Zugangsdaten hinzufügen** öffnet den Katalog: Connectoren, für die du schon Zugangsdaten hältst, stehen vorn, die übrigen folgen mit ihren Kategorien und Aktionszahlen, und die Suche grenzt die Liste ein. Wählst du einen aus, geht es weiter zur Einrichtung.
+
+<Frame caption="Zugangsdaten hinzufügen öffnet den Katalog — die dreizehn mitgelieferten Connectoren, die mit vorhandenen Zugangsdaten zuerst.">
+
+![Der Dialog Zugangsdaten hinzufügen über der Tabelle unter Einstellungen > Connectors, mit den mitgelieferten Connectoren als Karten samt Kategorien und Aktionszahl, einem Suchfeld oben und dem bereits eingerichteten Connector Tavily am Anfang der Liste.](/images/platform/connectors-add-credential.webp)
+
+</Frame>
 
 </Step>
 
 <Step title="Zugangsdaten hinzufügen">
 
-**Zugangsdaten hinzufügen** öffnet das Formular bei Connectoren, die einen Schlüssel, ein Token oder Benutzername und Passwort entgegennehmen. **Verbinden** startet bei OAuth-Connectoren den Freigabe-Flow des Anbieters und legt danach eine neue Zeile an.
+Ein Connector, der einen Schlüssel, ein Token oder Benutzername und Passwort entgegennimmt, zeigt sein Formular und nimmt das Secret direkt an. Ein OAuth-Connector bietet stattdessen **Verbinden** an: Der Freigabe-Flow des Anbieters läuft durch, und aus dem Ergebnis entsteht eine neue Zeile.
 
 </Step>
 

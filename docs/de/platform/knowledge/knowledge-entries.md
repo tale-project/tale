@@ -7,7 +7,7 @@ Wissenseinträge sind die Faktenfläche der Wissensdatenbank. Wo ein Dokument ei
 
 <Frame caption="Der Wissenseinträge-Tab — Thema, Inhalt, Quelle und Indexierungsstatus pro Fakt.">
 
-![Der Wissenseinträge-Tab mit drei von Hand hinzugefügten Fakten, jeder mit dem Quellen-Tag Manuell und dem Status-Badge Indexiert.](/images/platform/knowledge-entries-list.webp)
+![Der Wissenseinträge-Tab mit drei von Hand hinzugefügten Fakten, jeder mit dem Quellen-Tag Manuell, dem Status-Badge Nicht indexiert und dem Knopf zum erneuten Indexieren.](/images/platform/knowledge-entries-list.webp)
 
 </Frame>
 

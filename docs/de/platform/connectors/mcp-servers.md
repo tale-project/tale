@@ -15,19 +15,15 @@ Ausgehende MCP-Server sind in dieser Version nicht verfügbar. Die frühere Adre
 
 Tale stellt pro Deployment einen MCP-Endpoint unter `/api/v1/mcp` bereit, authentifiziert mit einem API-Schlüssel der Organisation. Dahinter liegen zweiundzwanzig Tools in drei Gruppen — Automatisierungen autorieren und live schalten, sie ausführen und ihre Läufe lesen, und durchsuchen und aufrufen, was die Organisation kann. Unter **Einstellungen > API > MCP** findest du die Endpoint-URL deines Deployments, das Inventar in genau diesen drei Gruppen und unter **Ausprobieren** eine kopierbare `tools/list`-Anfrage. [MCP-Endpoint](/de/develop/mcp-endpoint) ist die Referenz — Protokoll, Tool-Tabelle und was der Schlüssel jeder Rolle darf; wie du den Schlüssel erzeugst, steht auf [API-Schlüssel](/de/platform/admin/api-keys).
 
+<Frame caption="Einstellungen > API > MCP — die Endpoint-URL für deinen Client, das Tool-Inventar in seinen drei Gruppen und eine Anfrage, mit der du den Schlüssel ausprobierst.">
+
+![Die MCP-Seite unter Einstellungen > API mit der Zeile MCP-Endpunkt, deren URL auf /api/v1/mcp endet und einen Kopieren-Button trägt, drei Zeilen mit Tool-Namen nach Gruppe — Autorieren, Lauf- & Trigger-Verwaltung, Capabilities & Wissen — und einer Zeile Ausprobieren mit einer curl-Anfrage, die tools/list mit einem API-Schlüssel als Bearer-Token aufruft.](/images/platform/settings-mcp-endpoint.webp)
+
+</Frame>
+
 ## Eigenen Code heute aus einem Agenten erreichen
 
 Einen eigenen Dienst so zu verpacken, dass ein Agent ihn nutzen kann, hat in dieser Version drei Formen. Ein [Connector](/de/platform/connectors/overview) ist die herstellerspezifische Brücke, die Tale mitliefert — nimm ihn, wenn es für das Zielsystem einen gibt. Eine [Automatisierung](/de/platform/automations/catalog) ruft Connector-Aktionen auf und führt dein eigenes JavaScript in `transform`-Knoten aus, nach Zeitplan oder per Webhook; du lädst sie als Paket hoch. Ein [Projekt-Agent](/de/platform/projects/project-agents) trägt **Secrets** — einen API-Schlüssel, den er als Umgebungsvariable bekommt — und ruft damit direkt aus seiner Sandbox einen Dienst auf, für den es keinen Connector gibt.
-
-## Das ausgemusterte Formular
-
-Wer das frühere Handbuch kennt, erinnert sich an den Dialog unten. Er steht hier nur, damit der Wechsel erkennbar bleibt — keine Ansicht dieser Version zeigt ihn, und nichts darin lässt sich speichern.
-
-<Frame caption="Der Dialog MCP-Server hinzufügen der früheren Version — eine Ansicht, die es in dieser Version nicht gibt.">
-
-![Der Dialog MCP-Server hinzufügen der früheren Version, ausgefüllt für einen Server für Support-Tickets — Anzeigename Support Tickets, eine einzeilige Beschreibung, Streamable HTTP als Transporttyp, die Server-URL und Keine als Authentifizierungsmethode — über einer MCP-Seite, auf der bereits ein Server Internal Wiki registriert ist.](/images/platform/settings-mcp-add-dialog.webp)
-
-</Frame>
 
 ## Wo das hingehört
 

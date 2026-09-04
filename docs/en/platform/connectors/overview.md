@@ -3,7 +3,7 @@ title: Connectors
 description: The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and agent runs.
 ---
 
-A connector is two things at once: a **connector** that ships with the platform, and the **credentials** your organisation stores against that connector. The connector carries the vendor knowledge — which actions exist, what each one takes and returns, how signing in works — and is identical in every organisation. The credentials are yours, and a connector holds as many as you need: one per workspace, store, mailbox, or bot. Thirteen connectors ship today, and each one is already listed under **Settings > Connectors**, waiting for its first credential.
+A connector is two things at once: a **connector** that ships with the platform, and the **credentials** your organisation stores against that connector. The connector carries the vendor knowledge — which actions exist, what each one takes and returns, how signing in works — and is identical in every organisation. The credentials are yours, and a connector holds as many as you need: one per workspace, store, mailbox, or bot. Thirteen connectors ship today, and each one waits in the **Add credential** catalog under **Settings > Connectors** for its first credential.
 
 Prefer to watch first? Episode 7 walks the doors to the outside world — connectors, MCP, and the boundaries — in two and a half minutes, captions included.
 
@@ -19,7 +19,7 @@ Because the definition is shared, the only thing your organisation decides is wh
 
 ## The connectors that ship
 
-Thirteen connectors ship, each tagged with the category it belongs to — Knowledge, Messaging, Email, Developer, Commerce, Search, or Files. **Sign-in** is the authentication method the connector accepts, which decides what the credential form asks for; **Actions** is how many operations it exposes, the same count the connector's section shows on the settings page.
+Thirteen connectors ship, each tagged with the category it belongs to — Knowledge, Messaging, Email, Developer, Commerce, Search, or Files. **Sign-in** is the authentication method the connector accepts, which decides what the credential form asks for; **Actions** is how many operations it exposes, the same count its card in the **Add credential** catalog shows.
 
 | Connector               | What connecting it buys you                                                                                 | Sign-in             | Actions |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
@@ -66,13 +66,25 @@ Where you start depends on what the connector accepts. Token-shaped connectors o
 
 <Step title="Open Settings > Connectors">
 
-Every connector has a section, headed by its icon, description, category tags, and action count. Nothing is hidden behind a catalog dialog.
+The page is the table of credentials your organisation already holds — one row per credential with its name, its connector, and its authentication method. On a fresh organisation the table is empty; the shipped catalog waits behind **Add credential**.
+
+</Step>
+
+<Step title="Pick the connector">
+
+**Add credential** opens the catalog: connectors you already hold a credential for come first, the rest follow with their category tags and action counts, and search narrows the list. Picking one moves you to the setup step.
+
+<Frame caption="Add credential opens on the catalog — the thirteen shipped connectors, with the ones you already hold a credential for listed first.">
+
+![The Add credential dialog over the Settings > Connectors table, listing the shipped connectors as cards with their category tags and action counts, a search field at the top, and the already-configured Tavily connector at the head of the list.](/images/platform/connectors-add-credential.webp)
+
+</Frame>
 
 </Step>
 
 <Step title="Add the credential">
 
-**Add credential** opens the form for connectors that take a key, a token, or a username and password. **Connect** runs the vendor's consent flow for OAuth connectors, then binds the result to a new row.
+A connector that takes a key, a token, or a username and password shows its form and takes the secret directly. An OAuth connector offers **Connect** instead, which runs the vendor's consent flow and binds the result to a new row.
 
 </Step>
 

@@ -7,7 +7,7 @@ Knowledge entries are the knowledge base's fact surface. Where a document carrie
 
 <Frame caption="The Knowledge entries tab — topic, content, source, and indexing status per fact.">
 
-![The Knowledge entries tab listing three manually added facts, each showing a Manual source tag and an Indexed status badge.](/images/platform/knowledge-entries-list.webp)
+![The Knowledge entries tab listing three manually added facts, each showing a Manual source tag and a Not indexed status badge with its retry control.](/images/platform/knowledge-entries-list.webp)
 
 </Frame>
 

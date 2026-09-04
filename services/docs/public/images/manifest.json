@@ -39,7 +39,7 @@
     {
       "file": "images/get-started/settings-organization-members.webp",
       "shot": "settings-organization-members",
-      "route": "/dashboard/:orgId/settings/organization",
+      "route": "/dashboard/:orgId/settings/members",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -63,7 +63,7 @@
     {
       "file": "images/platform/automation-editor-canvas.webp",
       "shot": "automation-editor-canvas",
-      "route": "/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=editor",
+      "route": "/dashboard/:orgId/automations/gmail-triage-inbox",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -99,7 +99,7 @@
     {
       "file": "images/platform/chat-arena-split.webp",
       "shot": "chat-arena-split",
-      "route": "/dashboard/:orgId/chat",
+      "route": "/dashboard/:orgId/chat?new=true",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -111,14 +111,14 @@
     {
       "file": "images/platform/chat-composer.webp",
       "shot": "chat-composer",
-      "route": "/dashboard/:orgId/chat",
+      "route": "/dashboard/:orgId/chat?new=true",
       "viewport": {
         "width": 1440,
         "height": 900
       },
       "dpr": 2,
-      "width": 2262,
-      "height": 380
+      "width": 1538,
+      "height": 348
     },
     {
       "file": "images/platform/chat-shared-view.webp",
@@ -135,7 +135,7 @@
     {
       "file": "images/platform/chat-starters-empty.webp",
       "shot": "chat-starters-empty",
-      "route": "/dashboard/:orgId/chat",
+      "route": "/dashboard/:orgId/chat?new=true",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -148,6 +148,18 @@
       "file": "images/platform/chat-thread-reply.webp",
       "shot": "chat-thread-reply",
       "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/connectors-add-credential.webp",
+      "shot": "connectors-add-credential",
+      "route": "/dashboard/:orgId/settings/connectors",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -337,9 +349,9 @@
       "height": 1800
     },
     {
-      "file": "images/platform/settings-environment.webp",
-      "shot": "settings-environment",
-      "route": "/dashboard/:orgId/settings/environment",
+      "file": "images/platform/settings-mcp-endpoint.webp",
+      "shot": "settings-mcp-endpoint",
+      "route": "/dashboard/:orgId/settings/api/mcp",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -349,9 +361,9 @@
       "height": 1800
     },
     {
-      "file": "images/platform/settings-mcp-add-dialog.webp",
-      "shot": "settings-mcp-add-dialog",
-      "route": "/dashboard/:orgId/settings/api/mcp",
+      "file": "images/platform/settings-preferences.webp",
+      "shot": "settings-preferences",
+      "route": "/dashboard/:orgId/settings/personalization",
       "viewport": {
         "width": 1440,
         "height": 900

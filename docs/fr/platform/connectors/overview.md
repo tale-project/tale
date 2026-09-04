@@ -3,7 +3,7 @@ title: Connectors
 description: Les connecteurs livrés avec Tale, les identifiants que ton organisation enregistre en face, et comment les actions d’un connecteur arrivent dans les automatisations et les exécutions d’agent.
 ---
 
-Une connector, c’est deux choses à la fois : un **connecteur** livré avec la plateforme, et les **identifiants** que ton organisation enregistre en face de ce connecteur. Le connecteur porte la connaissance du fournisseur — quelles actions existent, ce que chacune prend et renvoie, comment se fait la connexion — et il est identique dans toutes les organisations. Les identifiants, eux, sont à toi, et un connecteur en porte autant que nécessaire : un par espace de travail, boutique, boîte mail ou bot. Treize connecteurs sont livrés aujourd’hui, et chacun figure déjà sous **Paramètres > Connectors**, en attente de son premier identifiant.
+Une connector, c’est deux choses à la fois : un **connecteur** livré avec la plateforme, et les **identifiants** que ton organisation enregistre en face de ce connecteur. Le connecteur porte la connaissance du fournisseur — quelles actions existent, ce que chacune prend et renvoie, comment se fait la connexion — et il est identique dans toutes les organisations. Les identifiants, eux, sont à toi, et un connecteur en porte autant que nécessaire : un par espace de travail, boutique, boîte mail ou bot. Treize connecteurs sont livrés aujourd’hui, et chacun attend son premier identifiant dans le catalogue derrière **Ajouter des identifiants**, sous **Paramètres > Connectors**.
 
 Tu préfères regarder d’abord ? L’épisode 7 parcourt les portes vers l’extérieur — connecteurs, MCP et frontières — en deux minutes et demie, sous-titres compris.
 
@@ -19,7 +19,7 @@ Comme cette définition vaut pour tout le monde, ton organisation ne décide que
 
 ## Les connecteurs livrés
 
-Treize connecteurs sont livrés, chacun marqué de la catégorie à laquelle il appartient — Knowledge, Messaging, Email, Developer, Commerce, Search ou Files. **Connexion** est la méthode d’authentification que le connecteur accepte, celle qui décide de ce que le formulaire demande ; **Actions** est le nombre d’opérations qu’il expose, le même compte que celui affiché dans sa section des paramètres.
+Treize connecteurs sont livrés, chacun marqué de la catégorie à laquelle il appartient — Knowledge, Messaging, Email, Developer, Commerce, Search ou Files. **Connexion** est la méthode d’authentification que le connecteur accepte, celle qui décide de ce que le formulaire demande ; **Actions** est le nombre d’opérations qu’il expose, le même compte que celui affiché sur sa carte dans le catalogue d’**Ajouter des identifiants**.
 
 | Connector               | Ce que la connexion t’apporte                                                                               | Connexion                         | Actions |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------- | ------- |
@@ -66,13 +66,25 @@ Le point de départ dépend de ce que le connecteur accepte. Les connecteurs à 
 
 <Step title="Ouvrir Paramètres > Connectors">
 
-Chaque connecteur a sa section, en tête de laquelle figurent son icône, sa description, ses catégories et son nombre d’actions. Rien ne se cache derrière une boîte de dialogue de catalogue.
+La page est la table des identifiants que ton organisation détient déjà — une ligne par identifiant, avec son nom, son connecteur et sa méthode d’authentification. Dans une organisation neuve, la table est vide ; le catalogue livré attend derrière **Ajouter des identifiants**.
 
 </Step>
 
-<Step title="Ajouter des identifiants">
+<Step title="Choisir le connecteur">
 
-**Ajouter des identifiants** ouvre le formulaire sur les connecteurs qui prennent une clé, un jeton ou un couple nom d’utilisateur et mot de passe. **Connecter** déroule le consentement du fournisseur sur les connecteurs OAuth, puis crée une ligne avec le résultat.
+**Ajouter des identifiants** ouvre le catalogue : les connecteurs pour lesquels tu détiens déjà un identifiant viennent en premier, les autres suivent avec leurs catégories et leur nombre d’actions, et la recherche filtre la liste. En choisir un t’amène à l’étape de configuration.
+
+<Frame caption="Ajouter des identifiants s’ouvre sur le catalogue — les treize connecteurs livrés, ceux qui ont déjà un identifiant en premier.">
+
+![La boîte de dialogue Ajouter des identifiants par-dessus la table de Paramètres > Connectors, qui liste les connecteurs livrés sous forme de cartes avec leurs catégories et leur nombre d’actions, un champ de recherche en haut et le connecteur Tavily déjà configuré en tête de liste.](/images/platform/connectors-add-credential.webp)
+
+</Frame>
+
+</Step>
+
+<Step title="Ajouter l’identifiant">
+
+Un connecteur à clé, à jeton ou à couple nom d’utilisateur et mot de passe affiche son formulaire et prend le secret directement. Un connecteur OAuth propose **Connecter** à la place : le consentement du fournisseur se déroule, puis le résultat devient une nouvelle ligne.
 
 </Step>
 
