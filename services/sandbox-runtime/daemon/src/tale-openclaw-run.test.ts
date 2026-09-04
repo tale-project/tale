@@ -114,7 +114,14 @@ function startWrapper(opts: { mode: 'ok' | 'hang'; systemPrompt?: string }) {
 async function waitForSeen(): Promise<string> {
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
-    if (existsSync(seenPath)) return readFileSync(seenPath, 'utf8');
+    // The fake CLI records through a shell redirection, which creates (and
+    // truncates) the file BEFORE `cat` fills it: an existence check alone can
+    // read that empty in-between state and fail the assertion on a busy
+    // runner. Both branches write a non-empty record, so wait for content.
+    if (existsSync(seenPath)) {
+      const seen = readFileSync(seenPath, 'utf8');
+      if (seen !== '') return seen;
+    }
     await Bun.sleep(20);
   }
   throw new Error('fake openclaw never started');
