@@ -99,6 +99,54 @@ describe('getSharedThread', () => {
     const lookup = statements.find((s) => s.text.includes('share_token'));
     expect(lookup?.text).toContain("tm.status = 'active'");
   });
+
+  it('maps NULL blocked_reason/error to ABSENT — a shared message is not a blocked, failed reply', async () => {
+    const messageRow = {
+      id: 'm1',
+      role: 'user',
+      parts: [{ type: 'text', text: 'hello' }],
+      order: 0,
+      stepOrder: 0,
+      model: null,
+      providerSlug: null,
+      blockedReason: null,
+      error: null,
+      createdAt: 10,
+    };
+    const { sql } = fakeSql((statement) => {
+      if (statement.text.includes('share_token')) return [OWNED_ROW];
+      if (statement.text.includes('FROM app.messages')) {
+        return [
+          messageRow,
+          {
+            ...messageRow,
+            id: 'm2',
+            role: 'assistant',
+            order: 1,
+            blockedReason: 'content_policy',
+            error: 'upstream refused',
+            createdAt: 20,
+          },
+        ];
+      }
+      return undefined;
+    });
+    const view = await getSharedThread(sql, ['org_1'], 'tok');
+
+    expect(view?.messages).toHaveLength(2);
+    // The client tests `!== undefined`, so a SQL null must not survive into
+    // the view — on the wire the two keys are simply absent.
+    const [plain, blocked] = view?.messages ?? [];
+    expect(plain?.blockedReason).toBeUndefined();
+    expect(plain?.error).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(plain))).not.toHaveProperty(
+      'blockedReason',
+    );
+    expect(JSON.parse(JSON.stringify(plain))).not.toHaveProperty('error');
+    // A genuinely blocked or failed row keeps its stamps.
+    expect(blocked?.blockedReason).toBe('content_policy');
+    expect(blocked?.error).toBe('upstream refused');
+  });
 });
 
 describe('unshareThread', () => {

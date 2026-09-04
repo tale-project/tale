@@ -27885,7 +27885,11 @@ async function checkChatThreadSurface(
        'complete', ${Date.now() + 60_000})
   `;
   const snapshot = z
-    .object({ messages: z.array(z.unknown()) })
+    .object({
+      messages: z.array(
+        z.object({ blockedReason: z.unknown(), error: z.unknown() }).loose(),
+      ),
+    })
     .loose()
     .safeParse(
       await get(`/api/app/chat/threads/shared/${token}?orgId=${orgId}`),
@@ -27911,6 +27915,23 @@ async function checkChatThreadSurface(
       reshare.success &&
       reshare.data.shareToken === token,
     `snapshot=${snapshot.success ? snapshot.data.messages.length : 'ERR'} (want 2), dark=${dark.status}, stable=${reshare.success && reshare.data.shareToken === token}`,
+  );
+
+  // The two snapshot rows were inserted with NULL blocked_reason/error. The
+  // client tests `!== undefined`, so the snapshot must serialize those as
+  // ABSENT — a null here rendered every shared message as a blocked, failed
+  // reply (the live read already normalizes the same two columns).
+  const snapshotMessages = snapshot.success ? snapshot.data.messages : [];
+  const describeFlag = (value: unknown): string =>
+    value === undefined ? 'absent' : JSON.stringify(value);
+  record(
+    'share links: snapshot carries no null blocked reason or error',
+    snapshotMessages.length === 2 &&
+      snapshotMessages.every(
+        (message) =>
+          message.blockedReason === undefined && message.error === undefined,
+      ),
+    `flags=${snapshotMessages.map((message) => `${describeFlag(message.blockedReason)}/${describeFlag(message.error)}`).join(',')} (want absent/absent,absent/absent)`,
   );
 
   // Branch at the first message: exactly one message crosses.
