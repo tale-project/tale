@@ -45,13 +45,13 @@ Open your instance and sign up. The form asks for your name, email, and a passwo
 
 </Frame>
 
-The first user becomes the org's **Owner** automatically. You can see your role in the **Members** section under **Settings > Organization** later if you forget.
+The first user becomes the org's **Owner** automatically. You can see your role under **Settings > Members** later if you forget.
 
 </Step>
 
 <Step title="Invite the first admin">
 
-Open **Settings > Organization**, scroll to the **Members** section, and click **Add member**. Enter the admin's name and email, assign the **Admin** role, and set a password — Tale creates the account directly and shows the sign-in credentials once, so save them and relay them to the new admin out of band (there is no invite email). They land in the org with the role you assigned. The "at least 2 Admins" safety rule means an org cannot accidentally lock itself out by removing its only Admin — add a second admin before doing anything that requires it.
+Open **Settings > Members** and click **Add member**. Enter the admin's name and email, assign the **Admin** role, and set a password — Tale creates the account directly and shows the sign-in credentials once, so save them and relay them to the new admin out of band (there is no invite email). They land in the org with the role you assigned. The "at least 2 Admins" safety rule means an org cannot accidentally lock itself out by removing its only Admin — add a second admin before doing anything that requires it.
 
 For the role matrix (who can do what), see [Members and roles](/platform/admin/members-and-roles).
 

@@ -45,13 +45,13 @@ Ouvre ton instance et inscris-toi. Le formulaire demande ton nom, ton e-mail et 
 
 </Frame>
 
-Le premier utilisateur devient automatiquement **Propriétaire** de l’organisation. Tu retrouveras ton rôle plus tard dans la section **Membres** sous **Paramètres > Organisation** si tu l’oublies.
+Le premier utilisateur devient automatiquement **Propriétaire** de l’organisation. Tu retrouveras ton rôle plus tard sous **Paramètres > Membres** si tu l’oublies.
 
 </Step>
 
 <Step title="Invite le premier admin">
 
-Ouvre **Paramètres > Organisation**, descends jusqu’à la section **Membres** et clique sur **Ajouter un membre**. Saisis le nom et l’e-mail de l’admin, assigne le rôle **Admin** et fixe un mot de passe — Tale crée le compte directement et affiche les identifiants une seule fois ; enregistre-les et transmets-les au nouvel admin par un autre canal (il n’y a pas d’e-mail d’invitation). La personne atterrit dans l’organisation avec le rôle que tu as assigné. La règle de sécurité « au moins 2 Admins » empêche une organisation de s’enfermer dehors en retirant son seul Admin — ajoute un second admin avant toute action qui l’exige.
+Ouvre **Paramètres > Membres** et clique sur **Ajouter un membre**. Saisis le nom et l’e-mail de l’admin, assigne le rôle **Admin** et fixe un mot de passe — Tale crée le compte directement et affiche les identifiants une seule fois ; enregistre-les et transmets-les au nouvel admin par un autre canal (il n’y a pas d’e-mail d’invitation). La personne atterrit dans l’organisation avec le rôle que tu as assigné. La règle de sécurité « au moins 2 Admins » empêche une organisation de s’enfermer dehors en retirant son seul Admin — ajoute un second admin avant toute action qui l’exige.
 
 Pour la matrice des rôles (qui peut faire quoi), voir [Membres et rôles](/fr/platform/admin/members-and-roles).
 

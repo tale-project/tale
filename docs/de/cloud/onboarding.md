@@ -45,13 +45,13 @@ Tale Cloud ist kein Self-Service — jede Cloud-Org läuft auf einer eigenen Ins
 
 </Frame>
 
-Der erste Benutzer wird automatisch **Inhaber** der Org. Falls du es vergisst: Deine Rolle siehst du später im Abschnitt **Mitglieder** unter **Einstellungen > Organisation**.
+Der erste Benutzer wird automatisch **Inhaber** der Org. Falls du es vergisst: Deine Rolle siehst du später unter **Einstellungen > Mitglieder**.
 
 </Step>
 
 <Step title="Lade den ersten Admin ein">
 
-Öffne **Einstellungen > Organisation**, scroll zum Abschnitt **Mitglieder** und klicke auf **Mitglied hinzufügen**. Gib Name und E-Mail des Admins ein, weise die Rolle **Admin** zu und setz ein Passwort — Tale legt das Konto direkt an und zeigt die Zugangsdaten genau einmal; speichere sie und gib sie dem neuen Admin auf einem anderen Weg weiter (eine Einladungs-E-Mail gibt es nicht). Die Person landet in der Org mit der zugewiesenen Rolle. Die Sicherheitsregel „mindestens 2 Admins" verhindert, dass sich eine Org versehentlich aussperrt, indem sie ihren einzigen Admin entfernt — leg einen zweiten Admin an, bevor du etwas tust, das sie voraussetzt.
+Öffne **Einstellungen > Mitglieder** und klicke auf **Mitglied hinzufügen**. Gib Name und E-Mail des Admins ein, weise die Rolle **Admin** zu und setz ein Passwort — Tale legt das Konto direkt an und zeigt die Zugangsdaten genau einmal; speichere sie und gib sie dem neuen Admin auf einem anderen Weg weiter (eine Einladungs-E-Mail gibt es nicht). Die Person landet in der Org mit der zugewiesenen Rolle. Die Sicherheitsregel „mindestens 2 Admins" verhindert, dass sich eine Org versehentlich aussperrt, indem sie ihren einzigen Admin entfernt — leg einen zweiten Admin an, bevor du etwas tust, das sie voraussetzt.
 
 Die Rollen-Matrix (wer was darf) steht in [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
 

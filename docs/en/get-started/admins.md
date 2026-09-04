@@ -35,11 +35,11 @@ Nothing answers until a provider is connected. If you skipped the wizard's provi
 
 <Step title="Bring in the team">
 
-To add people, open **Settings > Organization**, scroll to the **Members** section, and click **Add member**. Each person lands with a role that bounds what they can do: **Member** reads and chats, **Editor** builds agents and knowledge, **Developer** wires up workflows, automations, and API access, **Admin** runs the workspace. Start people low — raising a role later is one click, and un-leaking access is not.
+To add people, open **Settings > Members** and click **Add member**. Each person lands with a role that bounds what they can do: **Member** reads and chats, **Editor** builds agents and knowledge, **Developer** wires up workflows, automations, and API access, **Admin** runs the workspace. Start people low — raising a role later is one click, and un-leaking access is not.
 
-<Frame caption="The Members section — every account and its role.">
+<Frame caption="The Members page — every account and its role.">
 
-![The Organization settings page with its Members section listing the workspace owner Alex Rivera and an Add member button.](/images/get-started/settings-organization-members.webp)
+![The Members settings page listing five people with their roles — Alex Rivera as Owner, an Admin, an Editor, and two Members — beside an Add member button.](/images/get-started/settings-organization-members.webp)
 
 </Frame>
 
