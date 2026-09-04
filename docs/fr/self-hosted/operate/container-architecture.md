@@ -60,6 +60,24 @@ Le runtime sandbox embarque Chromium et Playwright, si bien que le backend le r�
 
 **`tale-sandbox-llm-gateway` arrêté.** Les tours de harness perdent leur chemin vers un fournisseur de modèle. Le chat ordinaire — qui appelle les fournisseurs directement depuis le backend, pas via la passerelle LLM — n'est pas touché.
 
+## Quand `tale-db` revient après un plantage : l'index de recherche de la base de connaissances
+
+Un arrêt brutal de `tale-db` — plantage, kill, redémarrage de l'hôte — peut laisser un bloc mis à zéro dans l'index de recherche BM25 (pg_search) du corpus de connaissances. Les tables sont intactes, mais chaque nouveau chunk écrit dans le corpus fait alors planter le serveur de base de données (« corrupted page pointers »), le serveur redémarre, et le job d'indexation suivant recommence le cycle. L'index est une donnée dérivée : le reconstruire ne perd rien — et le backend s'en charge lui-même.
+
+Au démarrage, chaque conteneur backend (api et worker) vérifie chaque index BM25 de la base de connaissances avec `pdb.verify_index` avant de servir des requêtes ou de consommer des jobs ; la base de connaissances propre à une organisation est vérifiée de la même façon la première fois que le backend y touche. Un advisory lock sur la base de connaissances fait qu'un seul conteneur répare pendant que les autres passent leur tour. La suite dépend de la taille de l'index :
+
+- Jusqu'à `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` (1 GiB par défaut) : le conteneur reconstruit l'index sur place (`REINDEX INDEX`) et le vérifie à nouveau avant de continuer. Le démarrage est retardé du temps de reconstruction — quelques secondes pour un petit corpus.
+- Au-delà : le démarrage continue, un job d'arrière-plan reconstruit l'index sans bloquer les lectures (`REINDEX INDEX CONCURRENTLY`), et les documents téléversés entre-temps reçoivent le motif « index rebuilding » dans leur statut d'indexation au lieu de faire planter la base. Ils sont remis en file automatiquement dès que l'index reconstruit passe la vérification.
+
+Le backend journalise toute la séquence ; voici à quoi ressemble un index réparé dans `docker logs tale-backend-api` :
+
+```text
+[knowledge] the deployment-default knowledge database: BM25 index private_knowledge.idx_pk_chunks_bm25 is unhealthy (2.9 MB) — rebuilding it now: pdb.verify_index raised: assertion `left == right` failed
+[knowledge] the deployment-default knowledge database: rebuilt BM25 index private_knowledge.idx_pk_chunks_bm25 (2.9 MB, inline, 96 ms) — re-verified healthy (4 checks)
+```
+
+Chaque réparation — et chaque reconstruction qui n'a pas rendu l'index sain — écrit aussi une ligne dans le journal d'audit (acteur `system` ; action `knowledge_index_repaired`, `knowledge_index_rebuild_scheduled` ou `knowledge_index_repair_failed`) et sonne la cloche des admins de chaque organisation dont le corpus vit dans cette base. Une réparation, c'est une tentative par index et par démarrage de conteneur : si l'index reconstruit échoue encore à la vérification, le backend s'arrête là, refuse les écritures vers ce corpus avec une erreur explicite, et la cloche te le dit — reconstruis alors l'index à la main (`REINDEX INDEX private_knowledge.idx_pk_chunks_bm25` dans la base `tale_knowledge`) ou restaure la base depuis une sauvegarde. Des réparations répétées après des redémarrages pointent vers la façon dont le conteneur est arrêté ; `KNOWLEDGE_INDEX_REPAIR_DISABLED=1` désactive complètement la vérification.
+
 ## Où cela s'inscrit
 
 Cette page est la carte de l'opérateur ; l'[Aperçu de l'architecture](/fr/self-hosted/overview) est l'introduction à la même image, la page [Dépannage](/fr/self-hosted/operate/observability/troubleshooting) est l'index par symptôme quand quelque chose a mal tourné. Si tu règles des seuils d'alerte, [Exploitation](/fr/self-hosted/operate/observability/operations) nomme les signaux qui valent la peine d'être câblés.

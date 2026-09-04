@@ -37,6 +37,12 @@
  * same dbmate migrations the bundled database uses. The default pool is never
  * bootstrapped here: its schema is applied at container start, and the
  * application role may not be allowed to create extensions.
+ *
+ * The same single flight runs the corpus health hook the boot sequence
+ * installs ({@link setCorpusBootstrapHook}): the database's BM25 indexes are
+ * verified — and a corrupted one rebuilt — before the organization's first
+ * write can reach them. The deployment-default database gets the same check
+ * from its own boot step, which is why it is not bootstrapped here.
  */
 
 import postgres, { type Sql } from 'postgres';
@@ -55,18 +61,28 @@ import {
   PUBLIC_WEB_SCHEMA,
 } from '../../../lib/knowledge/types';
 
+export interface PoolOptions {
+  /**
+   * ONE connection for maintenance work whose PostgreSQL session state (an
+   * advisory lock, a long REINDEX) must not leak into pooled queries — and
+   * whose notices nobody needs to read.
+   */
+  readonly session?: boolean;
+}
+
 /**
  * How a pool is actually opened. Replaceable so tests can observe which
  * connection string every call resolves to without a database — the tenant
  * chokepoint is asserted at exactly this seam.
  */
-export type PoolFactory = (url: string) => Sql;
+export type PoolFactory = (url: string, options?: PoolOptions) => Sql;
 
-let openPool: PoolFactory = (url) =>
+let openPool: PoolFactory = (url, options) =>
   postgres(url, {
-    max: poolMax(),
-    idle_timeout: 120,
+    max: options?.session ? 1 : poolMax(),
+    idle_timeout: options?.session ? 30 : 120,
     connect_timeout: 30,
+    ...(options?.session ? { onnotice: () => undefined } : {}),
     connection: {
       // Both corpora on the search path so unqualified references resolve; the
       // platform's own SQL still qualifies every table.
@@ -89,6 +105,30 @@ const pools = new Map<string, Sql>();
  * first touches of a new database await one run. A failed bootstrap is dropped
  * so the next call retries rather than caching the failure forever. */
 const bootstraps = new Map<string, Promise<void>>();
+
+/** Runs inside a bring-your-own database's bootstrap, after its schema is
+ * current — the boot sequence installs the corpus health check here. */
+export type CorpusBootstrapHook = (event: {
+  readonly url: string;
+  readonly orgSlug: string;
+}) => Promise<void>;
+
+let corpusBootstrapHook: CorpusBootstrapHook | null = null;
+
+/** Install the hook every later bring-your-own bootstrap runs (`null` removes
+ * it). A hook failure is logged and never fails the bootstrap: the corpus is
+ * usable with its schema in place, whatever the check could not do. */
+export function setCorpusBootstrapHook(hook: CorpusBootstrapHook | null): void {
+  corpusBootstrapHook = hook;
+}
+
+/**
+ * ONE dedicated connection to a knowledge database, for maintenance work that
+ * holds session state — an advisory lock, a REINDEX. Close it when done.
+ */
+export function openKnowledgeSession(url: string): Sql {
+  return openPool(url, { session: true });
+}
 
 interface CachedUrl {
   readonly url: string;
@@ -130,7 +170,7 @@ function poolMax(): number {
 export async function getKnowledgePoolForOrg(orgSlug: string): Promise<Sql> {
   const url = await resolveOrgUrl(orgSlug);
   const sql = poolFor(url);
-  if (url !== defaultKnowledgeUrl()) await bootstrapOnce(url, sql);
+  if (url !== defaultKnowledgeUrl()) await bootstrapOnce(url, sql, orgSlug);
   return sql;
 }
 
@@ -205,16 +245,33 @@ function evictIfFull(incoming: string): void {
   }
 }
 
-/** Apply the corpus schema to a newly seen database, at most once per string. */
-function bootstrapOnce(url: string, sql: Sql): Promise<void> {
+/** Apply the corpus schema to a newly seen database, at most once per string,
+ * then run the corpus health hook in the same flight. */
+function bootstrapOnce(url: string, sql: Sql, orgSlug: string): Promise<void> {
   const running = bootstraps.get(url);
   if (running) return running;
-  const started = applyCorpusSchema(sql).catch((err: unknown) => {
-    bootstraps.delete(url);
-    throw err;
-  });
+  const started = applyCorpusSchema(sql)
+    .then(() => runCorpusBootstrapHook(url, orgSlug))
+    .catch((err: unknown) => {
+      bootstraps.delete(url);
+      throw err;
+    });
   bootstraps.set(url, started);
   return started;
+}
+
+async function runCorpusBootstrapHook(
+  url: string,
+  orgSlug: string,
+): Promise<void> {
+  if (corpusBootstrapHook === null) return;
+  try {
+    await corpusBootstrapHook({ url, orgSlug });
+  } catch (err) {
+    logger.warn(
+      `the corpus health check for organization "${orgSlug}" failed: ${describe(err)}`,
+    );
+  }
 }
 
 /**
@@ -299,6 +356,13 @@ export function isUndefinedSchema(err: unknown): boolean {
  * missing or half-installed. */
 export function isUndefinedFunction(err: unknown): boolean {
   return sqlState(err) === '42883';
+}
+
+/** Class XX — internal error, data corrupted, index corrupted: what a pgrx
+ * panic (`XX000`) or a torn index block (`XX001`/`XX002`) surfaces as. */
+export function isInternalOrCorruptionError(err: unknown): boolean {
+  const state = sqlState(err);
+  return typeof state === 'string' && state.startsWith('XX');
 }
 
 /** 54000 — a program limit was exceeded, e.g. an HNSW index above pgvector's

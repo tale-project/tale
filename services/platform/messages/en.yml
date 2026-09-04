@@ -4300,6 +4300,12 @@ notifications:
     consecutive attempts couldn't reach this organization's knowledge database.
     Check the connection under Settings → Data residency, then resume scanning
     from the Websites page."
+  knowledgeIndexRepaired: 'Knowledge search index repaired: {index}'
+  knowledgeIndexRepairedDetails: "The search index {index} of this organization's knowledge database was found corrupted at startup and rebuilt automatically ({size}). Nothing was lost — the index is derived from the stored documents — and searches and uploads continue as before. Repeated repairs point at how the database container is being stopped."
+  knowledgeIndexRebuilding: 'Knowledge search index rebuilding: {index}'
+  knowledgeIndexRebuildingDetails: "The search index {index} of this organization's knowledge database was found corrupted and is being rebuilt in the background ({size}). New documents can't be indexed until it finishes; every document turned away in the meantime is indexed automatically afterwards."
+  knowledgeIndexRepairFailed: 'Knowledge search index repair failed: {index}'
+  knowledgeIndexRepairFailedDetails: "The search index {index} of this organization's knowledge database is corrupted and the automatic rebuild didn't fix it: {reason}. Indexing new documents is paused for this database until whoever operates the instance rebuilds the index (REINDEX) or restores the database — then retry the affected documents."
   dsarScheduled: Erasure request scheduled
   dsarScheduledBody: An erasure request was filed for a member of this
     organization. It runs in {coolingOffHours} hours — open the receipt to
@@ -5997,6 +6003,9 @@ settings:
         legal_matter_created: Legal matter created
         legal_matter_updated: Legal matter updated
         legal_matter_closed: Legal matter closed
+        knowledge_index_repaired: Knowledge search index repaired
+        knowledge_index_rebuild_scheduled: Knowledge search index rebuild scheduled
+        knowledge_index_repair_failed: Knowledge search index repair failed
         dsar_governance_policy_tightened: DSAR policy tightened
         dsar_governance_policy_loosen_proposed: DSAR loosening proposed
         dsar_governance_policy_loosen_applied: DSAR loosening applied

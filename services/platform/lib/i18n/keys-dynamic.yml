@@ -29,6 +29,15 @@ entries:
   - 'notifications.auditIntegrityUnverifiableDetails'
   - 'notifications.websiteScanPaused'
   - 'notifications.websiteScanPausedDetails'
+  # Knowledge BM25 index self-heal (core/knowledge/index_health.ts +
+  # domains/knowledge/index-health.ts): repaired / rebuild scheduled /
+  # repair failed, each with a details body.
+  - 'notifications.knowledgeIndexRepaired'
+  - 'notifications.knowledgeIndexRepairedDetails'
+  - 'notifications.knowledgeIndexRebuilding'
+  - 'notifications.knowledgeIndexRebuildingDetails'
+  - 'notifications.knowledgeIndexRepairFailed'
+  - 'notifications.knowledgeIndexRepairFailedDetails'
   - 'notifications.dsarScheduled'
   - 'notifications.dsarScheduledBody'
   - 'notifications.dsarScheduledByBody'

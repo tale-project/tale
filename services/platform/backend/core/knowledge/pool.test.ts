@@ -17,6 +17,7 @@ import {
   isConnectionFailure,
   markBm25Unavailable,
   resolveOrgUrl,
+  setCorpusBootstrapHook,
   setPoolFactory,
 } from './pool';
 
@@ -357,5 +358,54 @@ describe('connection-failure classification', () => {
     expect(isConnectionFailure('password authentication failed')).toBe(false);
     expect(isConnectionFailure(null)).toBe(false);
     expect(isConnectionFailure(undefined)).toBe(false);
+  });
+});
+
+describe('the corpus health hook', () => {
+  afterEach(() => {
+    setCorpusBootstrapHook(null);
+  });
+
+  it('runs once inside an own database bootstrap, never for the shared one', async () => {
+    const seen: { url: string; orgSlug: string }[] = [];
+    setCorpusBootstrapHook((event) => {
+      seen.push(event);
+      return Promise.resolve();
+    });
+    writeConnection('acme', {
+      host: 'acme-db.example.com',
+      port: 5432,
+      database: 'acme_knowledge',
+      user: 'acme',
+      sslmode: 'require',
+    });
+
+    // The shared database is never bootstrapped here, so the hook never sees
+    // it — its own boot step verifies it.
+    await getKnowledgePoolForOrg('startup');
+    expect(seen).toEqual([]);
+
+    await getKnowledgePoolForOrg('acme');
+    await getKnowledgePoolForOrg('acme');
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.orgSlug).toBe('acme');
+    expect(seen[0]?.url).toContain('acme-db.example.com');
+    expect(seen[0]?.url).not.toBe(DEFAULT_URL);
+  });
+
+  it('a failing hook never fails the bootstrap — the corpus stays usable', async () => {
+    setCorpusBootstrapHook(() =>
+      Promise.reject(new Error('the verifier exploded')),
+    );
+    writeConnection('globex', {
+      host: 'globex-db.example.com',
+      port: 5432,
+      database: 'globex_knowledge',
+      user: 'globex',
+      sslmode: 'require',
+    });
+
+    const sql = await getKnowledgePoolForOrg('globex');
+    expect(urlOf(sql)).toContain('globex-db.example.com');
   });
 });

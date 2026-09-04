@@ -38927,6 +38927,41 @@ async function main(): Promise<void> {
     await import('./domains/knowledge/service.ts');
   await ensureDefaultCorpusSchema();
 
+  // The boot-time BM25 index verification `main.ts` runs in every role, on the
+  // harness's healthy corpus: both corpora's indexes must be DISCOVERED (by
+  // access method — a corpus the verifier never sees is a corpus it cannot
+  // heal) and verify healthy, and a second run must stay a no-op (no repair,
+  // no refusal). Same hook install as boot, so BYO bootstraps mirror it.
+  const { installCorpusHealthHook, verifyDefaultKnowledgeIndexes } =
+    await import('./domains/knowledge/index-health.ts');
+  installCorpusHealthHook(sql);
+  const indexHealth = await verifyDefaultKnowledgeIndexes(sql);
+  const indexHealthAgain = await verifyDefaultKnowledgeIndexes(sql);
+  const describeIndexHealth = (
+    report: Awaited<ReturnType<typeof verifyDefaultKnowledgeIndexes>>,
+  ): string =>
+    `${report.status}[${report.indexes
+      .map(
+        (entry) =>
+          `${entry.index.schema}.${entry.index.name}=${entry.outcome.kind}`,
+      )
+      .join(',')}]`;
+  const indexNamesFound = new Set(
+    indexHealth.indexes.map((entry) => entry.index.schema),
+  );
+  const indexHealthOk =
+    indexHealth.status === 'done' &&
+    indexNamesFound.has('private_knowledge') &&
+    indexNamesFound.has('public_web') &&
+    indexHealth.indexes.every((entry) => entry.outcome.kind === 'healthy') &&
+    indexHealthAgain.status === 'done' &&
+    indexHealthAgain.indexes.every((entry) => entry.outcome.kind === 'healthy');
+  record(
+    'knowledge BM25 indexes verified at boot (discovered, healthy, no-op rerun)',
+    indexHealthOk,
+    `first=${describeIndexHealth(indexHealth)} second=${describeIndexHealth(indexHealthAgain)}`,
+  );
+
   const app = createApp({ sql, auth });
   const server = serve({ fetch: app.fetch, port });
   let lanes: LaneSummary | null = null;

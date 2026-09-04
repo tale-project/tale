@@ -64,6 +64,15 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     websiteScanPaused: 'Website scans paused: {domain}',
     websiteScanPausedDetails:
       "Scans of {domain} were paused after {failures} consecutive attempts couldn't reach this organization's knowledge database. Check the connection under Settings → Data residency, then resume scanning from the Websites page.",
+    knowledgeIndexRepaired: 'Knowledge search index repaired: {index}',
+    knowledgeIndexRepairedDetails:
+      "The search index {index} of this organization's knowledge database was found corrupted at startup and rebuilt automatically ({size}). Nothing was lost — the index is derived from the stored documents — and searches and uploads continue as before. Repeated repairs point at how the database container is being stopped.",
+    knowledgeIndexRebuilding: 'Knowledge search index rebuilding: {index}',
+    knowledgeIndexRebuildingDetails:
+      "The search index {index} of this organization's knowledge database was found corrupted and is being rebuilt in the background ({size}). New documents can't be indexed until it finishes; every document turned away in the meantime is indexed automatically afterwards.",
+    knowledgeIndexRepairFailed: 'Knowledge search index repair failed: {index}',
+    knowledgeIndexRepairFailedDetails:
+      "The search index {index} of this organization's knowledge database is corrupted and the automatic rebuild didn't fix it: {reason}. Indexing new documents is paused for this database until whoever operates the instance rebuilds the index (REINDEX) or restores the database — then retry the affected documents.",
     dsarScheduled: 'Erasure request scheduled',
     dsarScheduledBody:
       'An erasure request was filed for a member of this organization. It runs in {coolingOffHours} hours — open the receipt to review or cancel it.',
@@ -137,6 +146,17 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     websiteScanPaused: 'Website-Scans pausiert: {domain}',
     websiteScanPausedDetails:
       'Die Scans von {domain} wurden pausiert, nachdem die Wissensdatenbank dieser Organisation {failures} Mal in Folge nicht erreichbar war. Prüfe die Verbindung unter Einstellungen → Datenresidenz und setze die Scans danach auf der Websites-Seite fort.',
+    knowledgeIndexRepaired: 'Suchindex der Wissensdatenbank repariert: {index}',
+    knowledgeIndexRepairedDetails:
+      'Der Suchindex {index} der Wissensdatenbank dieser Organisation war beim Start beschädigt und wurde automatisch neu aufgebaut ({size}). Verloren ging nichts — der Index leitet sich aus den gespeicherten Dokumenten ab — und Suche wie Uploads laufen weiter wie zuvor. Wiederholte Reparaturen deuten darauf hin, wie der Datenbank-Container gestoppt wird.',
+    knowledgeIndexRebuilding:
+      'Suchindex der Wissensdatenbank im Neuaufbau: {index}',
+    knowledgeIndexRebuildingDetails:
+      'Der Suchindex {index} der Wissensdatenbank dieser Organisation ist beschädigt und baut sich gerade im Hintergrund neu auf ({size}). Bis dahin lassen sich neue Dokumente nicht indexieren; jedes Dokument, das währenddessen abgewiesen wurde, wird danach automatisch indexiert.',
+    knowledgeIndexRepairFailed:
+      'Reparatur des Suchindex der Wissensdatenbank fehlgeschlagen: {index}',
+    knowledgeIndexRepairFailedDetails:
+      'Der Suchindex {index} der Wissensdatenbank dieser Organisation ist beschädigt, und der automatische Neuaufbau hat das nicht behoben: {reason}. Für diese Datenbank pausiert die Indexierung neuer Dokumente, bis der Betreiber der Instanz den Index neu aufbaut (REINDEX) oder die Datenbank wiederherstellt — danach indexierst du die betroffenen Dokumente erneut.',
     dsarScheduled: 'Löschungsanfrage geplant',
     dsarScheduledBody:
       'Eine Löschungsanfrage wurde für ein Mitglied dieser Organisation eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt — öffne den Beleg, um sie zu prüfen oder abzubrechen.',
@@ -213,6 +233,18 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     websiteScanPaused: 'Analyses du site web suspendues : {domain}',
     websiteScanPausedDetails:
       "Les analyses de {domain} ont été suspendues après {failures} tentatives consécutives sans parvenir à joindre la base de connaissances de cette organisation. Vérifie la connexion sous Paramètres → Résidence des données, puis reprends l'analyse depuis la page Sites web.",
+    knowledgeIndexRepaired:
+      'Index de recherche de la base de connaissances réparé : {index}',
+    knowledgeIndexRepairedDetails:
+      "L'index de recherche {index} de la base de connaissances de cette organisation était corrompu au démarrage et a été reconstruit automatiquement ({size}). Rien n'a été perdu — l'index se déduit des documents stockés — et la recherche comme les téléversements continuent comme avant. Des réparations répétées pointent vers la façon dont le conteneur de base de données est arrêté.",
+    knowledgeIndexRebuilding:
+      'Index de recherche de la base de connaissances en reconstruction : {index}',
+    knowledgeIndexRebuildingDetails:
+      "L'index de recherche {index} de la base de connaissances de cette organisation est corrompu et se reconstruit en arrière-plan ({size}). Les nouveaux documents ne peuvent pas être indexés avant la fin ; chaque document refusé entre-temps est indexé automatiquement ensuite.",
+    knowledgeIndexRepairFailed:
+      "Échec de la réparation de l'index de recherche : {index}",
+    knowledgeIndexRepairFailedDetails:
+      "L'index de recherche {index} de la base de connaissances de cette organisation est corrompu et la reconstruction automatique n'a rien changé : {reason}. L'indexation des nouveaux documents reste en pause pour cette base jusqu'à ce que l'opérateur de l'instance reconstruise l'index (REINDEX) ou restaure la base — relance ensuite l'indexation des documents concernés.",
     dsarScheduled: "Demande d'effacement planifiée",
     dsarScheduledBody:
       "Une demande d'effacement a été déposée concernant un membre de cette organisation. Elle s'exécute dans {coolingOffHours} heures — ouvre le reçu pour la consulter ou l'annuler.",

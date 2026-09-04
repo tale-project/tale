@@ -60,6 +60,24 @@ The sandbox runtime carries Chromium and Playwright, so the backend reuses it fo
 
 **`tale-sandbox-llm-gateway` down.** Harness turns lose their path to a model provider. Regular chat — which calls providers directly from the backend, not through the LLM gateway — is unaffected.
 
+## When `tale-db` comes back from a crash: the knowledge search index
+
+A hard stop of `tale-db` — a crash, a kill, a host reboot — can leave the knowledge corpus's BM25 search index (pg_search) with a zeroed block. The tables are intact, but every new chunk written to the corpus then crashes the database server ("corrupted page pointers"), the server restarts, and the next indexing job repeats the cycle. The index is derived data, so rebuilding it loses nothing — and the backend performs the rebuild itself.
+
+At boot, every backend container (api and worker) verifies each BM25 index of the knowledge database with `pdb.verify_index` before it serves requests or consumes jobs; an organization's own knowledge database is verified the same way the first time the backend touches it. An advisory lock on the knowledge database makes one container repair while the others skip. What happens next depends on the index size:
+
+- Up to `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` (default 1 GiB): the container rebuilds the index right there (`REINDEX INDEX`) and verifies it again before it goes on. Boot is delayed by the rebuild — seconds for a small corpus.
+- Larger: boot continues, a background job rebuilds the index without blocking reads (`REINDEX INDEX CONCURRENTLY`), and documents uploaded in the meantime get the reason "index rebuilding" in their indexing status instead of crashing the database. They are re-queued automatically once the rebuilt index verifies.
+
+The backend logs the whole sequence; this is what a repaired index looks like in `docker logs tale-backend-api`:
+
+```text
+[knowledge] the deployment-default knowledge database: BM25 index private_knowledge.idx_pk_chunks_bm25 is unhealthy (2.9 MB) — rebuilding it now: pdb.verify_index raised: assertion `left == right` failed
+[knowledge] the deployment-default knowledge database: rebuilt BM25 index private_knowledge.idx_pk_chunks_bm25 (2.9 MB, inline, 96 ms) — re-verified healthy (4 checks)
+```
+
+Every repair — and every rebuild that did not restore health — also writes an audit-log row (actor `system`; action `knowledge_index_repaired`, `knowledge_index_rebuild_scheduled`, or `knowledge_index_repair_failed`) and rings the admin bell of every organization whose corpus lives in that database. A repair is one attempt per index per container start: when the rebuilt index still fails verification, the backend stops, refuses writes to that corpus with a clear error, and the bell says so — rebuild the index by hand (`REINDEX INDEX private_knowledge.idx_pk_chunks_bm25` on the `tale_knowledge` database) or restore the database from a backup. Repeated repairs after restarts point at how the container is being stopped; `KNOWLEDGE_INDEX_REPAIR_DISABLED=1` switches the check off entirely.
+
 ## Where this fits
 
 This page is the operator's map; the [Architecture overview](/self-hosted/overview) is the introduction to the same picture, the [Troubleshooting](/self-hosted/operate/observability/troubleshooting) page is the symptom-first index when something has gone wrong. If you are setting alert thresholds, [Operations](/self-hosted/operate/observability/operations) names the signals worth wiring.

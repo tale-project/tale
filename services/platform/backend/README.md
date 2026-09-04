@@ -137,6 +137,19 @@ and the `/events` hint → `invalidateQueries` hook).
   migrates its own `pgboss` schema on `start()`. Better Auth creates
   unqualified tables — they land in the first `search_path` schema (`tale` on
   the tale-db image).
+- **Knowledge index verification** (`domains/knowledge/index-health.ts` over
+  `core/knowledge/index_health.ts`): every role verifies the default corpus's
+  BM25 indexes with `pdb.verify_index` before it serves or consumes jobs — a
+  block zeroed by a crash-mode stop otherwise PANICs the knowledge database on
+  every chunk insert. An unhealthy index at most
+  `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` (1 GiB) is rebuilt inline; a
+  larger one by the `knowledge.reindex_bm25` job (`REINDEX CONCURRENTLY`)
+  while writes to that corpus are refused with `rag_error_code`
+  `index_rebuilding`. One attempt per index per process, an advisory lock on
+  the knowledge database so one process repairs, and every outcome lands in
+  the logs, the audit log (`knowledge_index_*`, actor `system`), and the admin
+  bell. Bring-your-own corpora get the same check inside their pool bootstrap.
+  `KNOWLEDGE_INDEX_REPAIR_DISABLED=1` switches it off.
 
 ## Surface
 

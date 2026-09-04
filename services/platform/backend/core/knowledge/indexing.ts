@@ -44,6 +44,7 @@ import { PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA } from '../../../lib/knowledge/types
 import type { PiiConfig } from '../../../lib/shared/schemas/pii';
 import { assertVectorWidth } from './dimensions';
 import type { Embedder } from './embedding';
+import { assertCorpusWritable } from './index_health';
 import { applyPiiPolicyForIndexing } from './pii_gate';
 
 /** Chunks committed per slice. Small enough that a slice fits comfortably in
@@ -52,6 +53,9 @@ export const CHUNKS_PER_SLICE = 64;
 
 export interface IndexDocumentArgs {
   readonly sql: Sql;
+  /** The corpus database's connection string — the key its write guard and
+   * dimension pin are kept under (`resolveOrgUrl`). Never logged. */
+  readonly dbUrl: string;
   readonly orgSlug: string;
   /** The organization's own identifier for the document. */
   readonly fileId: string;
@@ -134,6 +138,10 @@ export interface IndexDocumentResult {
 export async function indexDocument(
   args: IndexDocumentArgs,
 ): Promise<IndexDocumentResult> {
+  // A corpus whose BM25 index is being rebuilt (or whose rebuild failed)
+  // refuses the write with a coded error — before any embedding is paid for
+  // — instead of PANICking the database on the first chunk insert.
+  await assertCorpusWritable(args.dbUrl, SCHEMA);
   if (args.bytes !== undefined) {
     const scan = scanForSecrets(args.bytes);
     if (scan.rejected) {
