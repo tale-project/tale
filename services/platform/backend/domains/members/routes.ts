@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
+import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
@@ -103,6 +104,14 @@ export function createMemberRoutes(deps: {
     }
   });
   orgScoped.get('/user-id-by-email', async (c) => {
+    // The lookup serves the admin add-member dialog and answers for ANY
+    // registered account on the deployment (the person being added is not
+    // a member yet), so it is gated exactly like the add itself — otherwise
+    // every member could enumerate which emails hold an account here. The
+    // refusal is one uniform 403 whatever the email says.
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'MEMBER_ADD_FORBIDDEN' }, 403);
+    }
     const email = c.req.query('email') ?? '';
     if (email.trim() === '') {
       return c.json({ error: 'invalid email' }, 400);

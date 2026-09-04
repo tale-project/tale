@@ -18,9 +18,10 @@ function loginRedirect(origin: string, message: string): Response {
 
 /**
  * POST /api/sso/saml/acs — SAML Assertion Consumer Service. Verifies the signed
- * (optionally encrypted) assertion in a Node action, maps attributes to our
- * identity, then funnels into the shared provisioning action and sets the
- * session cookie. RelayState carries the org id for SP-initiated flows.
+ * (and, when the connection requires it, encrypted) assertion in a Node
+ * action, maps attributes to our identity, then funnels into the shared
+ * provisioning action and sets the session cookie. RelayState carries the org
+ * id for SP-initiated flows.
  */
 export async function samlAcsHandler(
   ctx: ActionCtx,
@@ -93,13 +94,17 @@ export async function samlAcsHandler(
         acsUrl,
         spPrivateKey,
         wantAssertionsSigned: config.wantAssertionsSigned,
+        wantAssertionsEncrypted: config.wantAssertionsEncrypted,
       },
     );
     if (!validation.ok) {
       console.error('[SSO] SAML validation failed:', validation.error);
       const message = validation.error || 'SAML validation failed';
-      await auditFailure(message);
-      return loginRedirect(origin, message);
+      // A refusal with its own login-page key (the encryption requirement)
+      // is audited under its readable reason and bounced with the key; every
+      // other validator error is bounced as the readable reason itself.
+      await auditFailure(message, validation.errorKey);
+      return loginRedirect(origin, validation.errorKey ?? message);
     }
 
     const identity = mapSamlIdentity(

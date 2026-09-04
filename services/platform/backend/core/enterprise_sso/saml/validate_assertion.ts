@@ -6,6 +6,7 @@ import {
   type CacheProvider,
   type SamlConfig,
 } from '@node-saml/node-saml';
+import { DOMParser } from '@xmldom/xmldom';
 
 /**
  * SAML 2.0 assertion handling, isolated in a Node action (node-saml needs
@@ -14,6 +15,50 @@ import {
  * a normalized identity. Keeps the node/V8 bundling boundary clean (see the
  * `convex` skill): file I/O and Node-only libs live here, plain data crosses out.
  */
+
+/** The login-page key a connection that requires encrypted assertions
+ * bounces a plaintext one with (audited under its readable reason). */
+export const SAML_ASSERTION_NOT_ENCRYPTED_KEY =
+  'sso.errors.assertionNotEncrypted';
+
+/**
+ * Whether the POSTed Response carries its assertion as an
+ * `EncryptedAssertion`. node-saml has no "require encryption" option — it
+ * decrypts when it finds one and accepts a plaintext `Assertion` otherwise —
+ * so the requirement is enforced here, on the SAME parse node-saml runs:
+ * the same library with the same options, direct children of the root by
+ * local name (`saml.js`'s `validatePostResponseAsync`), so the gate can never
+ * judge a different document than the validator processes. `null` when the
+ * document does not parse: there is no assertion to judge, and node-saml
+ * fails the response with its own error.
+ */
+function carriesEncryptedAssertion(samlResponse: string): boolean | null {
+  let malformed = false;
+  const flag = (): void => {
+    malformed = true;
+  };
+  const doc = new DOMParser({
+    locator: {},
+    errorHandler: { error: flag, fatalError: flag },
+  }).parseFromString(
+    Buffer.from(samlResponse, 'base64').toString('utf8'),
+    'text/xml',
+  );
+  const root = doc.documentElement;
+  if (malformed || !root || root.localName !== 'Response') return null;
+  let encryptedAssertions = 0;
+  for (let index = 0; index < root.childNodes.length; index += 1) {
+    const node = root.childNodes.item(index);
+    if (
+      node !== null &&
+      'localName' in node &&
+      node.localName === 'EncryptedAssertion'
+    ) {
+      encryptedAssertions += 1;
+    }
+  }
+  return encryptedAssertions > 0;
+}
 
 export interface SamlValidationDeps {
   /**
@@ -76,22 +121,38 @@ export interface ValidateSamlResponseArgs {
   acsUrl: string;
   spPrivateKey?: string;
   wantAssertionsSigned?: boolean;
+  /** The connection's "require encrypted assertions" setting: a plaintext
+   * assertion is refused BEFORE validation when set. */
+  wantAssertionsEncrypted?: boolean;
 }
 
 /** Verify a SAMLResponse (POST binding) and return the normalized identity —
  * the plain body {@link validateSamlResponse} wraps (reused by 0.5). A
  * present InResponseTo must match an unconsumed issued-request ID in
- * `deps.cacheProvider` (consumed on success — one-time use). */
+ * `deps.cacheProvider` (consumed on success — one-time use). A refusal
+ * that has its own login-page key carries it as `errorKey`. */
 export async function validateSamlResponseImpl(
   args: ValidateSamlResponseArgs,
   deps: SamlValidationDeps,
 ): Promise<{
   ok: boolean;
   error?: string;
+  errorKey?: string;
   nameId?: string;
   attributes?: Record<string, unknown>;
 }> {
   try {
+    if (
+      args.wantAssertionsEncrypted &&
+      carriesEncryptedAssertion(args.samlResponse) === false
+    ) {
+      return {
+        ok: false,
+        error:
+          'This connection requires encrypted assertions, but the identity provider sent a plaintext assertion',
+        errorKey: SAML_ASSERTION_NOT_ENCRYPTED_KEY,
+      };
+    }
     const saml = buildSaml(args, deps);
     const { profile } = await saml.validatePostResponseAsync({
       SAMLResponse: args.samlResponse,

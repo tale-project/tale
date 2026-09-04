@@ -478,6 +478,11 @@ auth:
       notOrgMember: Dein Konto ist kein Mitglied dieser Organisation. Bitte die
         Administration dieser Organisation, dich einzuladen, und melde dich
         danach erneut an.
+      assertionNotEncrypted:
+        Diese Organisation verlangt verschlüsselte SAML-Assertions, der
+        Identitätsanbieter hat aber eine unverschlüsselte geschickt. Bitte
+        deine Administration, die Verschlüsselung der Assertions im
+        Identitätsanbieter einzuschalten.
       silentAuthFailed: Stille Anmeldung fehlgeschlagen. Melde dich stattdessen manuell an.
       refreshTokenExpired: Deine Sitzung ist abgelaufen. Melde dich erneut an.
       consentRequired: Ein Administrator muss die Zustimmung erteilen, bevor du dich anmelden kannst.

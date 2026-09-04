@@ -195,9 +195,12 @@ entries:
   # in convex/enterprise_sso/entra_id/error_codes.ts; the generic server-error
   # fallback (`sso.errors.serverError`) and the multi-org "enter your email"
   # bounce (`sso.errors.multipleConnections`) are passed as literals from the
-  # handlers but under a namespace the client-source scanner can't resolve.
+  # handlers but under a namespace the client-source scanner can't resolve;
+  # the SAML validator's encryption-required refusal
+  # (`sso.errors.assertionNotEncrypted`) rides the same redirect.
   - 'auth.sso.errors.multipleConnections'
   - 'auth.sso.errors.notOrgMember'
+  - 'auth.sso.errors.assertionNotEncrypted'
 
   # Skill load-error detail titles: skill-load-error.ts maps machine error codes
   # (yaml_syntax, not_found, …) to `skills.loadErrorDetail.title.*` /

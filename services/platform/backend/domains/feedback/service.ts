@@ -1,11 +1,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { toJson } from '../../db/sql.ts';
-
 /**
  * Message feedback — thumbs up/down on assistant messages, one row per
  * (message, user), upsert-on-revote. Every active member may read and write
- * (the one table the 0.4 matrix opens to `member` writes).
+ * (the one table the 0.4 matrix opens to `member` writes). A vote row never
+ * carries metadata — that column belongs to the arena settle lane's verdict
+ * rows (`domains/chat/arena.ts`), and its NULL-ness is what the vote's
+ * partial unique index keys on.
  */
 
 export interface FeedbackScope {
@@ -21,7 +22,6 @@ export interface SubmitFeedbackArgs {
   agentSlug?: string;
   model?: string;
   provider?: string;
-  metadata?: Record<string, unknown>;
 }
 
 export async function submitMessageFeedback(
@@ -30,14 +30,16 @@ export async function submitMessageFeedback(
   args: SubmitFeedbackArgs,
 ): Promise<void> {
   const now = Date.now();
+  // `metadata` is written NULL unconditionally: it is the vote's upsert key
+  // (the partial unique index is `WHERE metadata IS NULL`), so a value here
+  // would fork the key and let one member stack rows for one message.
   await tx`
     INSERT INTO app.message_feedback (
       org_id, thread_id, message_id, user_id, rating, comment, metadata,
       agent_slug, model, provider, created_at_ms
     ) VALUES (
       ${scope.organizationId}, ${args.threadId}, ${args.messageId},
-      ${scope.userId}, ${args.rating}, ${args.comment ?? null},
-      ${args.metadata === undefined ? null : tx.json(toJson(args.metadata))},
+      ${scope.userId}, ${args.rating}, ${args.comment ?? null}, NULL,
       ${args.agentSlug ?? null}, ${args.model ?? null},
       ${args.provider ?? null}, ${now}
     )

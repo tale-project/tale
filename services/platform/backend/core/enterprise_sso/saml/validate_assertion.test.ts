@@ -1,6 +1,15 @@
 // @vitest-environment node
 
-import { createHash, createSign, generateKeyPairSync } from 'node:crypto';
+import {
+  constants as cryptoConstants,
+  createCipheriv,
+  createHash,
+  createSign,
+  generateKeyPairSync,
+  publicEncrypt,
+  randomBytes,
+  type KeyObject,
+} from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 
 import type { CacheItem, CacheProvider } from '@node-saml/node-saml';
@@ -8,6 +17,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   buildSamlAuthnRedirectImpl,
+  SAML_ASSERTION_NOT_ENCRYPTED_KEY,
   validateSamlResponseImpl,
 } from './validate_assertion';
 
@@ -21,7 +31,10 @@ import {
  * The signing fixture mirrors `integration-check.ts`'s checkSamlLogin: a
  * per-run RSA keypair, hand-canonicalized assertion XML signed with
  * node:crypto, and the "certificate" is a bare public-key PEM (node-saml's
- * keyInfoToPem accepts any RFC 7468 PEM) — no committed key material.
+ * keyInfoToPem accepts any RFC 7468 PEM) — no committed key material. The
+ * encryption fixture wraps that signed assertion the way an IdP does
+ * (XML-Enc: AES-256-CBC content key, RSA-OAEP key transport — the shape
+ * xml-encryption's `decrypt` reads), under a per-run SP keypair.
  */
 
 const SP_ENTITY_ID = 'http://sp.itest/http_api/api/sso/saml/metadata';
@@ -51,6 +64,8 @@ function memoryCache(): CacheProvider & { keys: () => string[] } {
 
 let publicKeyPem: string;
 let privateKey: ReturnType<typeof generateKeyPairSync>['privateKey'];
+let spPublicKey: KeyObject;
+let spPrivateKeyPem: string;
 
 beforeAll(() => {
   const pair = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -58,18 +73,25 @@ beforeAll(() => {
     .export({ type: 'spki', format: 'pem' })
     .toString();
   privateKey = pair.privateKey;
+  const spPair = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  spPublicKey = spPair.publicKey;
+  spPrivateKeyPem = spPair.privateKey
+    .export({ type: 'pkcs8', format: 'pem' })
+    .toString();
 });
 
 function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
 
-/** A canonical, signed SAMLResponse (base64), optionally answering a request. */
-function buildSignedResponse(opts: {
+interface ResponseOpts {
   id: string;
   email: string;
   inResponseTo?: string;
-}): string {
+}
+
+/** A canonical, signed `saml:Assertion` (the IdP's signing step). */
+function signedAssertion(opts: ResponseOpts): string {
   const now = Date.now();
   const notOnOrAfter = now + 300_000;
   const subjectConfirmationData = opts.inResponseTo
@@ -108,19 +130,67 @@ function buildSignedResponse(opts: {
   const signature =
     `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">${signedInfo}` +
     `<ds:SignatureValue>${signatureValue}</ds:SignatureValue></ds:Signature>`;
-  const signed = assertion.replace(
-    '</saml:Issuer>',
-    `</saml:Issuer>${signature}`,
-  );
+  return assertion.replace('</saml:Issuer>', `</saml:Issuer>${signature}`);
+}
+
+/** The `samlp:Response` envelope (base64, POST binding) around `body`. */
+function wrapResponse(body: string, opts: ResponseOpts): string {
   const inResponseToAttr = opts.inResponseTo
     ? ` InResponseTo="${opts.inResponseTo}"`
     : '';
   return Buffer.from(
-    `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(now)}" Version="2.0" Destination="${ACS_URL}"${inResponseToAttr}>` +
+    `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(Date.now())}" Version="2.0" Destination="${ACS_URL}"${inResponseToAttr}>` +
       `<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"></samlp:StatusCode></samlp:Status>` +
-      signed +
+      body +
       `</samlp:Response>`,
   ).toString('base64');
+}
+
+/** A canonical, signed SAMLResponse (base64), optionally answering a request. */
+function buildSignedResponse(opts: ResponseOpts): string {
+  return wrapResponse(signedAssertion(opts), opts);
+}
+
+/**
+ * The IdP's encryption step over a signed assertion: a fresh AES-256-CBC
+ * content key (IV prefixed, PKCS#7 padded — what xml-encryption strips),
+ * transported under RSA-OAEP (SHA-1 MGF1, xml-encryption's default) to the
+ * SP's public key, laid out as `EncryptedData/KeyInfo/EncryptedKey`.
+ */
+function encryptedAssertion(
+  assertionXml: string,
+  recipient: KeyObject,
+): string {
+  const contentKey = randomBytes(32);
+  const iv = randomBytes(16);
+  const cipher = createCipheriv('aes-256-cbc', contentKey, iv);
+  const ciphertext = Buffer.concat([
+    iv,
+    cipher.update(assertionXml, 'utf8'),
+    cipher.final(),
+  ]);
+  const wrappedKey = publicEncrypt(
+    {
+      key: recipient,
+      padding: cryptoConstants.RSA_PKCS1_OAEP_PADDING,
+      oaepHash: 'sha1',
+    },
+    contentKey,
+  );
+  return (
+    `<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">` +
+    `<xenc:EncryptedData xmlns:xenc="http://www.w3.org/2001/04/xmlenc#" Type="http://www.w3.org/2001/04/xmlenc#Element">` +
+    `<xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"></xenc:EncryptionMethod>` +
+    `<ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">` +
+    `<xenc:EncryptedKey>` +
+    `<xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"></xenc:EncryptionMethod>` +
+    `<xenc:CipherData><xenc:CipherValue>${wrappedKey.toString('base64')}</xenc:CipherValue></xenc:CipherData>` +
+    `</xenc:EncryptedKey>` +
+    `</ds:KeyInfo>` +
+    `<xenc:CipherData><xenc:CipherValue>${ciphertext.toString('base64')}</xenc:CipherValue></xenc:CipherData>` +
+    `</xenc:EncryptedData>` +
+    `</saml:EncryptedAssertion>`
+  );
 }
 
 function validateArgs(samlResponse: string) {
@@ -217,5 +287,104 @@ describe('SAML InResponseTo replay protection (real node-saml)', () => {
 
     expect(result.ok).toBe(true);
     expect(result.nameId).toBe('idp.initiated@door.test');
+  });
+});
+
+/**
+ * `wantAssertionsEncrypted` is a REQUIREMENT, not a capability flag: with it
+ * set, a validly signed plaintext assertion is refused (bounced under its own
+ * login-page key), while the same assertion encrypted to the SP keypair is
+ * accepted — and everything that is not the encryption question stays
+ * node-saml's call.
+ */
+describe('SAML wantAssertionsEncrypted (real node-saml)', () => {
+  it('refuses a signed plaintext assertion when the connection requires encryption', async () => {
+    const response = buildSignedResponse({
+      id: '_plain1',
+      email: 'saml.user@door.test',
+    });
+
+    const result = await validateSamlResponseImpl(
+      {
+        ...validateArgs(response),
+        spPrivateKey: spPrivateKeyPem,
+        wantAssertionsEncrypted: true,
+      },
+      { cacheProvider: memoryCache() },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.errorKey).toBe(SAML_ASSERTION_NOT_ENCRYPTED_KEY);
+    expect(result.error).toMatch(/requires encrypted assertions/);
+    expect(result.nameId).toBeUndefined();
+  });
+
+  it('keeps accepting the plaintext assertion while encryption is not required', async () => {
+    const response = buildSignedResponse({
+      id: '_plain2',
+      email: 'saml.user@door.test',
+    });
+
+    const relaxed = await validateSamlResponseImpl(
+      { ...validateArgs(response), spPrivateKey: spPrivateKeyPem },
+      { cacheProvider: memoryCache() },
+    );
+    const explicit = await validateSamlResponseImpl(
+      {
+        ...validateArgs(response),
+        spPrivateKey: spPrivateKeyPem,
+        wantAssertionsEncrypted: false,
+      },
+      { cacheProvider: memoryCache() },
+    );
+
+    expect(relaxed.ok).toBe(true);
+    expect(explicit.ok).toBe(true);
+    expect(explicit.nameId).toBe('saml.user@door.test');
+  });
+
+  it('accepts the same assertion encrypted to the SP keypair when required', async () => {
+    const opts = { id: '_enc1', email: 'encrypted.user@door.test' };
+    const response = wrapResponse(
+      encryptedAssertion(signedAssertion(opts), spPublicKey),
+      opts,
+    );
+
+    const result = await validateSamlResponseImpl(
+      {
+        ...validateArgs(response),
+        spPrivateKey: spPrivateKeyPem,
+        wantAssertionsEncrypted: true,
+      },
+      { cacheProvider: memoryCache() },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.ok).toBe(true);
+    expect(result.nameId).toBe('encrypted.user@door.test');
+  });
+
+  it('leaves every other verdict on an encrypted assertion to node-saml', async () => {
+    // Encrypted to a key the SP does NOT hold: the requirement is met, so the
+    // refusal is node-saml's decryption failure — never the encryption key.
+    const opts = { id: '_enc2', email: 'encrypted.user@door.test' };
+    const stranger = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const response = wrapResponse(
+      encryptedAssertion(signedAssertion(opts), stranger.publicKey),
+      opts,
+    );
+
+    const result = await validateSamlResponseImpl(
+      {
+        ...validateArgs(response),
+        spPrivateKey: spPrivateKeyPem,
+        wantAssertionsEncrypted: true,
+      },
+      { cacheProvider: memoryCache() },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.errorKey).toBeUndefined();
+    expect(result.error).not.toMatch(/requires encrypted assertions/);
   });
 });
