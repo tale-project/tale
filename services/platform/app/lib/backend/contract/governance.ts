@@ -586,6 +586,9 @@ export interface GovernanceContract {
           reason: null;
           warnings: Array<{
             code: 'TOKEN_WARNING' | 'COST_WARNING' | 'REQUEST_WARNING';
+            /** Whose bucket: the reader's own usage, the organization's, or
+             * an API key's. Absent on rows written before the field shipped. */
+            scope?: 'user' | 'org' | 'apiKey';
             period: string;
             used: number;
             limit: number;

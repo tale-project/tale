@@ -72,4 +72,4 @@ A registered server is reachable only by agents that opt in. Open any agent, cli
 
 An MCP server is the right shape when a tool needs to live outside Tale — code your team owns, a service in another network, a third-party API you wrap. Custom tools in [Build a custom tool](/tutorials/developer/build-a-custom-tool) are the right shape when the tool is one-off and lives inside one org's settings.
 
-For the bigger picture of how tools widen what an agent can do, see [Agent tools](/platform/agents/tools). For wiring an connector that wraps a third-party API instead of your own code, [Connectors overview](/platform/connectors/overview) is the next read.
+For the bigger picture of how tools widen what an agent can do, see [Agent tools](/platform/agents/tools). For wiring a connector that wraps a third-party API instead of your own code, [Connectors overview](/platform/connectors/overview) is the next read.

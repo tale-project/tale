@@ -539,6 +539,7 @@ automations:
     namePlaceholder: z. B. GlitchTip-Issues triagieren
     slugHint: 'Gespeichert als: {slug}'
     nameTaken: Eine Automatisierung mit diesem Namen gibt es bereits.
+    nameReserved: Dieser Name beginnt mit einem Wort, das die Plattform für eigene Seiten braucht. Fang mit einem anderen Wort an.
     modelLabel: Agent-Modell
     modelPlaceholder: Wähle das Modell, das der Agent aufruft
     modelSearchPlaceholder: Modelle suchen
@@ -1463,6 +1464,7 @@ chat:
   budgetExceededDetail: '{type}-Limit für diesen {period} erreicht ({used} / {limit}). Wende dich an deinen Administrator.'
   budgetExceededDefault: Nutzungslimit für diesen Zeitraum erreicht. Wende dich an deinen Administrator.
   budgetRemaining: 'Noch {remaining} von {limit} {type} in diesem {period}'
+  budgetRemainingOrg: 'Organisation: noch {remaining} von {limit} {type} in diesem {period}'
   budgetLimitReached: 'Nutzungslimit erreicht · setzt sich {period} zurück'
   budgetRequestCredits: Mehr Kontingent anfragen
   budgetRequestCreditsSent: Anfrage an deine Admins gesendet

@@ -5,7 +5,7 @@ import {
   loadConnectorDefinitions,
 } from '../../../../lib/connectors/catalog';
 import { AppError } from '../../../../lib/shared/errors/app-error';
-/** One reason an connector (or call) cannot run, with guidance the agent
+/** One reason a connector (or call) cannot run, with guidance the agent
  * relays to the user verbatim. */
 interface BridgeBlocker {
   code: string;

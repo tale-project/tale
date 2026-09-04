@@ -23,7 +23,7 @@ interface UsageLedgerDiscriminators {
 
 // Classify a usageLedger row by precedence over its natural discriminators.
 // Order matters: connectorName beats audioDurationSec because a hypothetical
-// audio-bearing connector is still an connector row first. TTS rows are
+// audio-bearing connector is still a connector row first. TTS rows are
 // identified by `characterCount` alone — character-billing is unique to TTS
 // in the current schema, so the discriminator works regardless of whether
 // the row carries the synthetic `TTS_SLUG` (legacy) or a real assistant

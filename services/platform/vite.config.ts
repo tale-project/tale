@@ -9,7 +9,6 @@ import { injectBootShellPlugin } from './vite-plugins/inject-boot-shell';
 import { injectEnv } from './vite-plugins/inject-env';
 import { serveBrandingImages } from './vite-plugins/serve-branding-images';
 import { serveCanvasPreview } from './vite-plugins/serve-canvas-preview';
-import { serveScreencast } from './vite-plugins/serve-screencast';
 import { serveStatus } from './vite-plugins/serve-status';
 import { stubSSRImports } from './vite-plugins/stub-ssr';
 import { watchExamples } from './vite-plugins/watch-examples';
@@ -201,7 +200,6 @@ export default defineConfig({
     serveBrandingImages(),
     serveCanvasPreview(),
     serveStatus(),
-    serveScreencast(),
     // Before injectEnv: its middlewares only patch `res.end`, and the patch
     // must be installed before injectEnv's preview SPA-fallback middleware
     // (below) writes the HTML response it intercepts.

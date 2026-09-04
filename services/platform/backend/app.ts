@@ -72,10 +72,7 @@ import {
 } from './domains/webdav/routes.ts';
 import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { appErrorHandler } from './error-reporting.ts';
-import {
-  createScreencastAuthRoutes,
-  createSseAuthRoutes,
-} from './realtime/oracle-routes.ts';
+import { createSseAuthRoutes } from './realtime/oracle-routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
 import { createRestV1Routes } from './rest/v1.ts';
 import {
@@ -129,10 +126,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // organization plugin endpoints, api-key/two-factor/passkey, …).
   app.on(['GET', 'POST'], '/api/auth/*', (c) => deps.auth.handler(c.req.raw));
   app.get('/events', requireSession(deps.auth), createEventsHandler(deps.sql));
-  // Oracles for the platform web tier's own browser connections — it forwards
+  // Oracle for the platform web tier's own browser connection — it forwards
   // the request Cookie and acts on the verdict (realtime/oracle-routes.ts).
   app.route('/api/sse', createSseAuthRoutes(deps));
-  app.route('/api/sandbox', createScreencastAuthRoutes(deps));
   // In-sandbox workspace-tool dispatch (session-token bearer auth, not a
   // browser session) — the container-facing machine door.
   app.route('/api/tools', createToolDispatchRoutes({ sql: deps.sql }));

@@ -513,6 +513,7 @@ automations:
     namePlaceholder: e.g. Triage GlitchTip issues
     slugHint: 'Saved as: {slug}'
     nameTaken: An automation with that name already exists.
+    nameReserved: That name starts with a word the platform keeps for its own pages. Start it with a different word.
     modelLabel: Agent model
     modelPlaceholder: Choose the model the agent calls
     modelSearchPlaceholder: Search models
@@ -1420,6 +1421,7 @@ chat:
   budgetExceededDetail: '{type} limit reached for this {period} ({used} / {limit}). Contact your administrator.'
   budgetExceededDefault: Usage limit reached for this period. Contact your administrator.
   budgetRemaining: '{remaining} of {limit} {type} left this {period}'
+  budgetRemainingOrg: 'Organization: {remaining} of {limit} {type} left this {period}'
   budgetLimitReached: 'Usage limit reached · resets {period}'
   budgetRequestCredits: Request usage credits
   budgetRequestCreditsSent: Request sent to your admins

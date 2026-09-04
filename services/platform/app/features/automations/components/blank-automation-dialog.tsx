@@ -268,11 +268,16 @@ export function BlankAutomationDialog({
         });
       }
     } catch (error) {
-      // The store refuses a create whose name already has versions with a
-      // typed code — send the author back to the name step to pick another.
-      if (automationErrorCode(error) === 'AUTOMATION_NAME_TAKEN') {
+      // The store refuses a create whose name already has versions, or whose
+      // first segment the platform keeps for its own pages, with a typed
+      // code — send the author back to the name step to pick another.
+      const code = automationErrorCode(error);
+      if (code === 'AUTOMATION_NAME_TAKEN') {
         setStep(0);
         setNameError(t('blank.nameTaken'));
+      } else if (code === 'AUTOMATION_NAME_RESERVED') {
+        setStep(0);
+        setNameError(t('blank.nameReserved'));
       } else {
         toast({ title: automationErrorMessage(error), variant: 'destructive' });
       }

@@ -562,6 +562,16 @@ export async function listEntriesForAgent(
 }> {
   const cursor =
     args.cursor !== null && args.cursor !== '' ? Number(args.cursor) : null;
+  // A cursor is a page key THIS listing issued (the last row's seq). Anything
+  // else is refused at the door — `Number('abc')` is NaN, which postgres.js
+  // would serialize into the query and the ::bigint cast would fail as a 500.
+  if (cursor !== null && (!Number.isInteger(cursor) || cursor <= 0)) {
+    throw new KnowledgeEntryError(
+      'KNOWLEDGE_ENTRY_CURSOR_INVALID',
+      `"${args.cursor}" is not a page cursor this listing issued — pass the continueCursor of the previous page, or none for the first page.`,
+      400,
+    );
+  }
   const { rows, nextCursor } = await listKnowledgeEntries(
     sql,
     args.organizationId,

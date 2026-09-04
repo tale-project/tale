@@ -58,7 +58,7 @@ const TOOLS = [
       '(for example web search via the "tavily" connector: ' +
       'connector({slug:"tavily", operation:"search", args:{query:"..."}})). ' +
       'If the result has status "unavailable", relay EVERY blocker.guidance ' +
-      'message to the user verbatim (an connector may need BOTH enabling for ' +
+      'message to the user verbatim (a connector may need BOTH enabling for ' +
       'this agent AND a connected credential) — do not retry, and do not try to ' +
       'scrape a search engine via the browser as a substitute. If status is ' +
       '"requires_approval", tell the user to approve the card in the chat.',

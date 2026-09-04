@@ -13,7 +13,7 @@ Prefer to watch first? Episode 5 opens the triage automation end to end and deci
 
 ## The workflow document
 
-Everything an automation does is declared in one document. Its `name` is also its identity — lowercase slug segments, dash-separated, with `/` grouping related automations into folders, as in `billing/dunning-reminder`. Around the name sit a `description`, an `inputs` JSON Schema describing the runtime input, the `nodes` that do the work, an `output` that is the automation's return value, and the `tests` that decide whether a version may be deployed.
+Everything an automation does is declared in one document. Its `name` is also its identity — lowercase slug segments, dash-separated, with `/` grouping related automations into folders, as in `billing/dunning-reminder`. The first segment can't be one of the words the platform keeps for its own pages — `asks`, `builder`, `catalog`, `listing`, `metrics`, `runs`, `serving-preview`, `upload` — because an automation named that way would save and then never open; the editor refuses such a name when you save. Around the name sit a `description`, an `inputs` JSON Schema describing the runtime input, the `nodes` that do the work, an `output` that is the automation's return value, and the `tests` that decide whether a version may be deployed.
 
 ```yaml
 name: billing/dunning-reminder
