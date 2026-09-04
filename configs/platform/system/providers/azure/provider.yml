@@ -21,6 +21,7 @@ wireDialect: openai-modern
 endpointMode: per-credential
 catalog:
   source: none
+embedding: unknown
 auth:
   - method: api-key
   - method: env

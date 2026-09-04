@@ -13,6 +13,7 @@ apiFormat: openai
 baseUrl: https://portal.nousresearch.com
 catalog:
   source: none
+embedding: unknown
 auth:
   - method: subscription-key
     constraints:
