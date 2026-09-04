@@ -15,7 +15,7 @@
  * data seam both it and `websites/internal_actions.ts` share.
  */
 
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { PUBLIC_WEB_SCHEMA } from '../../../lib/knowledge/types';
 import type {
@@ -75,7 +75,7 @@ export function admitUrlsStatement(count: number, listed: boolean): string {
  * first: a multi-row upsert cannot touch the same key twice.
  */
 export async function admitUrls(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   domain: string,
   urls: readonly string[],
   options: { listed: boolean },
@@ -135,6 +135,19 @@ function toWebsiteStatus(status: string): CrawlerWebsiteInfo['status'] {
 }
 
 /**
+ * Registration and removal of one domain are serialized on the domain row.
+ * Each runs as ONE transaction whose first write locks the
+ * `websites` row (the upsert takes the row lock; the removal asks for it
+ * explicitly), and holds it until the membership write commits. Two
+ * autocommit statements let a removal's "last member?" check run BETWEEN a
+ * concurrent registration's domain upsert and its membership insert: the
+ * check saw no member, the fresh domain row was deleted (cascading its urls
+ * and chunks), and the registration's membership insert then failed on the
+ * foreign key — a domain half-registered for one org and half-removed for
+ * another. Same lock, same order, every door: no interleaving is left.
+ */
+
+/**
  * Register a domain for an organization: upsert the domain row (idle until
  * its first scan) and the membership that makes it visible to this org.
  * Idempotent — re-adding an existing domain only refreshes the interval.
@@ -145,23 +158,25 @@ export async function registerDomain(
   domain: string,
   scanIntervalSeconds: number,
 ): Promise<void> {
-  // `kind = 'site'` on conflict too: kind only ever WIDENS — a domain some
-  // org tracked as a URL list becomes a crawled site the moment any org
-  // registers the site proper (its listed URLs stay as extra seeds).
-  await sql.unsafe(
-    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval, kind)
-     VALUES ($1, $2, 'site')
-     ON CONFLICT (domain)
-     DO UPDATE SET scan_interval = EXCLUDED.scan_interval, kind = 'site',
-                   updated_at = NOW()`,
-    [domain, scanIntervalSeconds],
-  );
-  await sql.unsafe(
-    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships (domain, org_slug)
-     VALUES ($1, $2)
-     ON CONFLICT (domain, org_slug) DO NOTHING`,
-    [domain, orgSlug],
-  );
+  await sql.begin(async (tx) => {
+    // `kind = 'site'` on conflict too: kind only ever WIDENS — a domain some
+    // org tracked as a URL list becomes a crawled site the moment any org
+    // registers the site proper (its listed URLs stay as extra seeds).
+    await tx.unsafe(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval, kind)
+       VALUES ($1, $2, 'site')
+       ON CONFLICT (domain)
+       DO UPDATE SET scan_interval = EXCLUDED.scan_interval, kind = 'site',
+                     updated_at = NOW()`,
+      [domain, scanIntervalSeconds],
+    );
+    await tx.unsafe(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships (domain, org_slug)
+       VALUES ($1, $2)
+       ON CONFLICT (domain, org_slug) DO NOTHING`,
+      [domain, orgSlug],
+    );
+  });
 }
 
 /**
@@ -189,20 +204,25 @@ export async function registerUrlList(
       `[crawl] ${domain}: URL list truncated to the ${MAX_URLS_PER_DOMAIN}-URL cap (${unique.length} given)`,
     );
   }
-  await sql.unsafe(
-    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval, kind)
-     VALUES ($1, $2, 'list')
-     ON CONFLICT (domain)
-     DO UPDATE SET scan_interval = EXCLUDED.scan_interval, updated_at = NOW()`,
-    [domain, scanIntervalSeconds],
-  );
-  await sql.unsafe(
-    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships (domain, org_slug)
-     VALUES ($1, $2)
-     ON CONFLICT (domain, org_slug) DO NOTHING`,
-    [domain, orgSlug],
-  );
-  await admitUrls(sql, domain, admitted, { listed: true });
+  await sql.begin(async (tx) => {
+    await tx.unsafe(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval, kind)
+       VALUES ($1, $2, 'list')
+       ON CONFLICT (domain)
+       DO UPDATE SET scan_interval = EXCLUDED.scan_interval, updated_at = NOW()`,
+      [domain, scanIntervalSeconds],
+    );
+    await tx.unsafe(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships (domain, org_slug)
+       VALUES ($1, $2)
+       ON CONFLICT (domain, org_slug) DO NOTHING`,
+      [domain, orgSlug],
+    );
+    // The shared admission door, inside the same transaction as the domain
+    // row and the membership: revived `deleted` rows and the listed flag land
+    // with them or not at all.
+    await admitUrls(tx, domain, admitted, { listed: true });
+  });
 }
 
 /** Update the scan cadence on the domain row. */
@@ -229,20 +249,29 @@ export async function deregisterDomain(
   orgSlug: string,
   domain: string,
 ): Promise<void> {
-  await sql.unsafe(
-    `DELETE FROM ${PUBLIC_WEB_SCHEMA}.website_org_memberships
-      WHERE domain = $1 AND org_slug = $2`,
-    [domain, orgSlug],
-  );
-  await sql.unsafe(
-    `DELETE FROM ${PUBLIC_WEB_SCHEMA}.websites w
-      WHERE w.domain = $1
-        AND NOT EXISTS (
-          SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
-           WHERE m.domain = w.domain
-        )`,
-    [domain],
-  );
+  await sql.begin(async (tx) => {
+    // Take the domain row first: a registration in flight holds this lock
+    // from its upsert to its commit, so the member count below is read only
+    // after its membership is visible — never between its two writes.
+    await tx.unsafe(
+      `SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.websites WHERE domain = $1 FOR UPDATE`,
+      [domain],
+    );
+    await tx.unsafe(
+      `DELETE FROM ${PUBLIC_WEB_SCHEMA}.website_org_memberships
+        WHERE domain = $1 AND org_slug = $2`,
+      [domain, orgSlug],
+    );
+    await tx.unsafe(
+      `DELETE FROM ${PUBLIC_WEB_SCHEMA}.websites w
+        WHERE w.domain = $1
+          AND NOT EXISTS (
+            SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
+             WHERE m.domain = w.domain
+          )`,
+      [domain],
+    );
+  });
 }
 
 /** True when the organization registered this domain — the guard every
