@@ -360,19 +360,15 @@ function mergeCookieHeader(existing: string, response: Response): string {
 }
 
 /**
- * A fresh user signed up through Better Auth and made a member of `orgId`
- * with `role` — the throwaway identity a lane uses when it must act as
- * someone other than the suite's shared user, or when it is about to do
- * something that INVALIDATES the calling session (2FA enrolment, sign-out,
- * session revocation): the shared session must outlive every lane, so those
- * never run on it.
+ * A fresh user signed up through Better Auth and a member of NO organization
+ * yet — what a lane needs when the membership itself is what it exercises
+ * (the members API, an org the user goes on to create and own) or when the
+ * probe is about the account alone. `signUpOrgMember` builds on it; a lane
+ * that only needs another pair of hands in the suite's org wants that one.
  */
-async function signUpOrgMember(
-  sql: Sql,
+async function signUpUser(
   base: string,
-  orgId: string,
   label: string,
-  role: string,
 ): Promise<{ cookie: string; userId: string; email: string }> {
   const email = `itest-${label}-${Date.now()}@example.com`;
   const res = await fetch(`${base}/api/auth/sign-up/email`, {
@@ -387,12 +383,41 @@ async function signUpOrgMember(
   const parsed = z
     .object({ user: z.object({ id: z.string() }) })
     .safeParse(await res.json());
-  const userId = parsed.success ? parsed.data.user.id : '';
-  await sql`
+  return {
+    cookie: cookieHeaderFrom(res),
+    userId: parsed.success ? parsed.data.user.id : '',
+    email,
+  };
+}
+
+/**
+ * A fresh user signed up through Better Auth and made a member of `orgId`
+ * with `role` — the throwaway identity a lane uses when it must act as
+ * someone other than the suite's shared user, or when it is about to do
+ * something that INVALIDATES the calling session (2FA enrolment, sign-out,
+ * session revocation): the shared session must outlive every lane, so those
+ * never run on it. `memberId` is the membership row, for a lane that
+ * rewrites the role between passes or removes the member when it is done.
+ */
+async function signUpOrgMember(
+  sql: Sql,
+  base: string,
+  orgId: string,
+  label: string,
+  role: string,
+): Promise<{
+  cookie: string;
+  userId: string;
+  email: string;
+  memberId: string;
+}> {
+  const user = await signUpUser(base, label);
+  const inserted = await sql<{ id: string }[]>`
     INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
-    VALUES (gen_random_uuid(), ${orgId}, ${userId}, ${role}, ${new Date()})
+    VALUES (gen_random_uuid(), ${orgId}, ${user.userId}, ${role}, ${new Date()})
+    RETURNING "id"
   `;
-  return { cookie: cookieHeaderFrom(res), userId, email };
+  return { ...user, memberId: inserted[0]?.id ?? '' };
 }
 
 async function checkAuthAndSse(
@@ -2053,20 +2078,10 @@ async function checkTasksOrgIsolation(
   // dedicated user (never the suite's main one) keeps the main user
   // single-org — REST sections later in the suite resolve their API key's
   // org implicitly, and a second membership would poison them.
-  const attackerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `itest-iso-attacker-${now}@example.com`,
-      password: 'itest-password-1',
-      name: 'Iso Attacker',
-    }),
-  });
-  const attackerCookie = cookieHeaderFrom(attackerSignUp);
-  const attackerParsed = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await attackerSignUp.json());
-  const attackerId = attackerParsed.success ? attackerParsed.data.user.id : '';
+  const { cookie: attackerCookie, userId: attackerId } = await signUpUser(
+    base,
+    'iso-attacker',
+  );
   const rivalCreate = await fetch(`${base}/api/auth/organization/create`, {
     method: 'POST',
     headers: {
@@ -2169,27 +2184,13 @@ async function checkTasksOrgIsolation(
   // A read-only MEMBER of the victim org (the harness member idiom): reads
   // pass, but starting or cancelling a run is an EDIT and refuses BEFORE
   // any side effect — the run must still be running afterwards.
-  const viewerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `itest-iso-viewer-${now}@example.com`,
-      password: 'itest-password-1',
-      name: 'Iso Viewer',
-    }),
-  });
-  const viewerCookie = cookieHeaderFrom(viewerSignUp);
-  const viewerParsed = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await viewerSignUp.json());
-  const viewerId = viewerParsed.success ? viewerParsed.data.user.id : '';
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (${`m-iso-${viewerId}`}, ${orgId}, ${viewerId}, 'member',
-            ${new Date()})
-    ON CONFLICT ("id") DO NOTHING
-  `;
+  const { cookie: viewerCookie, userId: viewerId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'iso-viewer',
+    'member',
+  );
   const viewerRead = await api(`/api/app/tasks/${taskId}`, {
     cookie: viewerCookie,
   });
@@ -3546,26 +3547,8 @@ async function checkDocuments(
   // the designee decides, so the lifecycle needs a second writer. An
   // editor-role member joins for this function (membership removed at its
   // end, so later sections see the member set they always did).
-  const reviewerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `doc-reviewer-${Date.now().toString(36)}@example.com`,
-      password: 'itest-password-1',
-      name: 'Doc Reviewer',
-    }),
-  });
-  const reviewerCookie = cookieHeaderFrom(reviewerSignUp);
-  const reviewerBody = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await reviewerSignUp.json());
-  const reviewerUserId = reviewerBody.success ? reviewerBody.data.user.id : '';
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (gen_random_uuid(), ${orgId}, ${reviewerUserId}, 'editor',
-            ${new Date()})
-  `;
+  const { cookie: reviewerCookie, userId: reviewerUserId } =
+    await signUpOrgMember(sql, base, orgId, 'doc-reviewer', 'editor');
   const sendAs = (
     asCookie: string,
     method: 'POST' | 'DELETE',
@@ -4428,46 +4411,22 @@ async function checkDocumentWriteGuards(
 
   // ---- fixtures: a member-role user (session + API key), an owner key.
   const suffix = Date.now().toString(36);
-  const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `doc-guards-member-${suffix}@example.com`,
-      password: 'itest-password-1',
-      name: 'Doc Guards Member',
-    }),
-  });
-  const memberCookie = cookieHeaderFrom(memberSignUp);
-  const memberBody = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await memberSignUp.json());
-  const memberId = memberBody.success ? memberBody.data.user.id : '';
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member', ${new Date()})
-  `;
+  const { cookie: memberCookie, userId: memberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'doc-guards-member',
+    'member',
+  );
   // A second WRITER: the record review is four-eyes, so the owner submits
   // and this editor decides.
-  const editorSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `doc-guards-editor-${suffix}@example.com`,
-      password: 'itest-password-1',
-      name: 'Doc Guards Editor',
-    }),
-  });
-  const editorCookie = cookieHeaderFrom(editorSignUp);
-  const editorBody = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await editorSignUp.json());
-  const editorId = editorBody.success ? editorBody.data.user.id : '';
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (gen_random_uuid(), ${orgId}, ${editorId}, 'editor', ${new Date()})
-  `;
+  const { cookie: editorCookie, userId: editorId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'doc-guards-editor',
+    'editor',
+  );
   const mintKey = async (asCookie: string, name: string): Promise<string> => {
     const minted = z.looseObject({ key: z.string() }).safeParse(
       await (
@@ -5380,20 +5339,10 @@ async function checkSmallDomains(
   // A member of ANOTHER organization, voting through their own org on this
   // message: well-formed request, foreign ids. The door must not confirm the
   // message exists, and must record nothing.
-  const rivalSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `itest-fb-rival-${fbNow}@example.com`,
-      password: 'itest-password-1',
-      name: 'Feedback Rival',
-    }),
-  });
-  const rivalCookie = cookieHeaderFrom(rivalSignUp);
-  const rivalParsed = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await rivalSignUp.json());
-  const rivalId = rivalParsed.success ? rivalParsed.data.user.id : '';
+  const { cookie: rivalCookie, userId: rivalId } = await signUpUser(
+    base,
+    'fb-rival',
+  );
   const rivalOrgCreate = await fetch(`${base}/api/auth/organization/create`, {
     method: 'POST',
     headers: {
@@ -7407,26 +7356,13 @@ async function checkCorpusPurgeConsistency(
     );
 
     // --- 7. Knowledge-entry mutations are role-gated ------------------------
-    const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin: base },
-      body: JSON.stringify({
-        email: `purge-member-${orgSlug}@example.com`,
-        password: 'itest-password-1',
-        name: 'Purge Member',
-      }),
-    });
-    const memberCookie = cookieHeaderFrom(memberSignUp);
-    const memberBody = z
-      .object({ user: z.object({ id: z.string() }) })
-      .safeParse(await memberSignUp.json());
-    const memberId = memberBody.success ? memberBody.data.user.id : '';
-    await sql`
-      INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                            "createdAt")
-      VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member',
-              ${new Date()})
-    `;
+    const { cookie: memberCookie } = await signUpOrgMember(
+      sql,
+      base,
+      orgId,
+      'purge-member',
+      'member',
+    );
     const memberSend = (route: string, body: unknown): Promise<Response> =>
       fetch(`${base}${route}`, {
         method: 'POST',
@@ -9778,25 +9714,13 @@ async function checkMcp(
 
   // The developer gate: a member-role key gets the refusal as DATA on the
   // persisting tools while every read tool keeps answering.
-  const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `mcp-member-${orgSlug}@example.com`,
-      password: 'itest-password-1',
-      name: 'MCP Member',
-    }),
-  });
-  const memberCookie = cookieHeaderFrom(memberSignUp);
-  const memberBody = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await memberSignUp.json());
-  const memberId = memberBody.success ? memberBody.data.user.id : '';
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member', ${new Date()})
-  `;
+  const { cookie: memberCookie } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-member',
+    'member',
+  );
   const memberKey = await mintKey(memberCookie, 'itest-mcp-member');
   const refusal = toolValue(
     (
@@ -17855,26 +17779,11 @@ async function checkConversations(
   // owner/admin/developer/editor, READ_ONLY for `member`. The probe thread is
   // ASSIGNED to the probing user, so assignment privacy passes on every call
   // and the ONLY thing that can refuse is the role.
-  const gateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `conv-gate-${orgId.slice(0, 8)}@door.test`,
-      password: 'itest-password-1',
-      name: 'Inbox Gate Probe',
-    }),
-  });
-  const gateCookie = cookieHeaderFrom(gateSignUp);
-  const gateUser = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await gateSignUp.json());
-  const gateUserId = gateUser.success ? gateUser.data.user.id : '';
-  const gateMemberId = `m-conv-gate-${gateUserId}`;
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (${gateMemberId}, ${orgId}, ${gateUserId}, 'member', ${new Date()})
-  `;
+  const {
+    cookie: gateCookie,
+    userId: gateUserId,
+    memberId: gateMemberId,
+  } = await signUpOrgMember(sql, base, orgId, 'conv-gate', 'member');
   const gated = await sql.begin(async (tx) => {
     const id = await createConversation(tx, {
       organizationId: orgId,
@@ -21049,26 +20958,13 @@ async function checkTts(
     `;
     // The audio door is gated like every other TTS door — ownership of the
     // chunk's thread — so another member holding a leaked chunk id gets 404.
-    const strangerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin: base },
-      body: JSON.stringify({
-        email: `itest-tts-stranger-${Date.now()}@example.com`,
-        password: 'itest-password-1',
-        name: 'TTS stranger',
-      }),
-    });
-    const strangerUser = z
-      .object({ user: z.object({ id: z.string() }) })
-      .safeParse(await strangerSignUp.json());
-    await sql`
-      INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                            "createdAt")
-      VALUES (gen_random_uuid(), ${orgId},
-              ${strangerUser.success ? strangerUser.data.user.id : ''},
-              'member', ${new Date()})
-    `;
-    const strangerCookie = cookieHeaderFrom(strangerSignUp);
+    const { cookie: strangerCookie } = await signUpOrgMember(
+      sql,
+      base,
+      orgId,
+      'tts-stranger',
+      'member',
+    );
     const strangerAudio = await fetch(
       `${base}/api/app/tts/audio/${chunk0?.chunkId ?? 'missing'}?orgId=${orgId}`,
       { headers: { cookie: strangerCookie, origin: base } },
@@ -29068,19 +28964,7 @@ async function checkBrandingAndTeams(
     .safeParse(await get(`/api/app/teams/${teamId}/members?orgId=${orgId}`));
   // Member lifecycle hints: add → role change → remove each land a
   // 'member' outbox hint (what invalidates the shell's member context).
-  const hintUserRes = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `hints-${Date.now()}@example.com`,
-      password: 'itest-password-1',
-      name: 'Hint Target',
-    }),
-  });
-  const hintUser = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await hintUserRes.json());
-  const hintUserId = hintUser.success ? hintUser.data.user.id : '';
+  const { userId: hintUserId } = await signUpUser(base, 'hints');
   const memberAdded = z.object({ memberId: z.string() }).safeParse(
     await (
       await post(`/api/app/members?orgId=${orgId}`, {
@@ -29204,27 +29088,13 @@ async function checkBrandingAndTeams(
   // being added is not a member yet), so only the roles that may add a
   // member get an answer at all — a plain member is refused uniformly,
   // whether or not the email is registered.
-  const lookupSuffix = Date.now().toString(36);
-  const lookupMemberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `email-lookup-member-${lookupSuffix}@example.com`,
-      password: 'itest-password-1',
-      name: 'Email Lookup Member',
-    }),
-  });
-  const lookupMemberCookie = cookieHeaderFrom(lookupMemberSignUp);
-  const lookupMemberBody = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await lookupMemberSignUp.json());
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (gen_random_uuid(), ${orgId},
-            ${lookupMemberBody.success ? lookupMemberBody.data.user.id : ''},
-            'member', ${new Date()})
-  `;
+  const { cookie: lookupMemberCookie } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'email-lookup-member',
+    'member',
+  );
   const lookupAsMember = (email: string): Promise<Response> =>
     fetch(
       `${base}/api/app/members/user-id-by-email?orgId=${orgId}&email=${encodeURIComponent(email)}`,
@@ -29390,25 +29260,13 @@ async function checkAgentSecrets(
   // The developer gate fails OPEN TO EMPTY on the listing (the equipment
   // picker renders for every project admin) and CLOSED on the writes —
   // the 0.4 posture.
-  const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: 'itest-secrets-member@example.com',
-      password: 'itest-password-1',
-      name: 'Secrets Member',
-    }),
-  });
-  const memberCookie = cookieHeaderFrom(memberSignUp);
-  const memberBody = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await memberSignUp.json());
-  const memberId = memberBody.success ? memberBody.data.user.id : '';
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member', ${new Date()})
-  `;
+  const { cookie: memberCookie } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'secrets-member',
+    'member',
+  );
   const memberList = z.object({ secrets: z.array(z.unknown()) }).safeParse(
     await (
       await fetch(`${base}/api/app/agent-secrets?orgId=${orgId}`, {
@@ -29852,20 +29710,10 @@ async function checkBellHintWire(
     });
 
   // The recipient: a teammate with a session of their own.
-  const mateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `bell-wire-${Date.now()}@example.com`,
-      password: 'itest-password-1',
-      name: 'Bell Recipient',
-    }),
-  });
-  const mateCookie = cookieHeaderFrom(mateSignUp);
-  const mateBody = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await mateSignUp.json());
-  const mateId = mateBody.success ? mateBody.data.user.id : '';
+  const { cookie: mateCookie, userId: mateId } = await signUpUser(
+    base,
+    'bell-wire',
+  );
   const joined = await post(`/api/app/members?orgId=${orgId}`, {
     userId: mateId,
     role: 'member',
@@ -30027,19 +29875,7 @@ async function checkBoardMoveEffects(
     ).json(),
   );
   const taskId = task.success ? task.data.taskId : '';
-  const mateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `board-move-${Date.now()}@example.com`,
-      password: 'itest-password-1',
-      name: 'Board Assignee',
-    }),
-  });
-  const mateBody = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await mateSignUp.json());
-  const mateId = mateBody.success ? mateBody.data.user.id : '';
+  const { userId: mateId } = await signUpUser(base, 'board-move');
   await post(`/api/app/members?orgId=${orgId}`, {
     userId: mateId,
     role: 'member',
@@ -30206,16 +30042,7 @@ async function checkChangelogAndAccounts(
   // change MUST prove the current password regardless of the requested
   // trigger; only a genuinely expired/force-change credential is reset without
   // it (that path is exercised by the two-factor/forced-change flows).
-  const fpSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `forced-${Date.now()}@example.com`,
-      password: 'itest-password-1',
-      name: 'Forced Probe',
-    }),
-  });
-  const fpCookie = cookieHeaderFrom(fpSignUp);
+  const { cookie: fpCookie } = await signUpUser(base, 'forced');
   const fpPost = (body: unknown): Promise<Response> =>
     fetch(`${base}/api/app/users/update-password`, {
       method: 'POST',
@@ -31323,28 +31150,13 @@ async function checkErasure(
   // lifecycle action with Admins. A plain member must bounce off every
   // door — list, file, cancel, retry, detail, extend — with the localized
   // 'forbidden' code, not reach the service at all.
-  const erasureMemberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: 'itest-erasure-member@example.com',
-      password: 'itest-password-1',
-      name: 'Erasure Member',
-    }),
-  });
-  const erasureMemberCookie = cookieHeaderFrom(erasureMemberSignUp);
-  const erasureMemberBody = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await erasureMemberSignUp.json());
-  const erasureMemberId = erasureMemberBody.success
-    ? erasureMemberBody.data.user.id
-    : '';
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (gen_random_uuid(), ${orgId}, ${erasureMemberId}, 'member',
-            ${new Date()})
-  `;
+  const { cookie: erasureMemberCookie } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'erasure-member',
+    'member',
+  );
   const memberSend = (
     method: 'GET' | 'POST',
     route: string,
@@ -32545,22 +32357,11 @@ async function checkAuditSurface(
   // must be refused on EVERY audit read entry point — list, summary, errors,
   // by-id, and integrity/status — not just have the menu hidden. (The
   // admin-only /export and /block-counters lanes were already gated.)
-  const auditMemberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `audit-member-${Date.now()}@example.com`,
-      password: 'itest-password-1',
-      name: 'Audit Member',
-    }),
-  });
-  const auditMemberCookie = cookieHeaderFrom(auditMemberSignUp);
-  const auditMemberId = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await auditMemberSignUp.json());
-  if (auditMemberId.success) {
+  const { cookie: auditMemberCookie, userId: auditMemberUserId } =
+    await signUpUser(base, 'audit-member');
+  if (auditMemberUserId.length > 0) {
     await post(`/api/app/members?orgId=${orgId}`, {
-      userId: auditMemberId.data.user.id,
+      userId: auditMemberUserId,
       role: 'member',
     });
   }
@@ -33087,26 +32888,13 @@ async function checkAuditSurface(
   // trail, so 0.4 gated every public audit query on `isAdmin`. One seeded
   // user walks the doors at three roles: the same cookie, the `member` row
   // rewritten between passes (that is where `requireOrgMember` reads from).
-  const gateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `audit-gate-${orgId.slice(0, 8)}@door.test`,
-      password: 'itest-password-1',
-      name: 'Audit Gate Probe',
-    }),
-  });
-  const gateCookie = cookieHeaderFrom(gateSignUp);
-  const gateUser = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await gateSignUp.json());
-  const gateUserId = gateUser.success ? gateUser.data.user.id : '';
-  const gateMemberId = `m-audit-gate-${gateUserId}`;
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (${gateMemberId}, ${orgId}, ${gateUserId}, 'member', ${new Date()})
-  `;
+  const { cookie: gateCookie, memberId: gateMemberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'audit-gate',
+    'member',
+  );
   const asRole = async (role: string): Promise<number[]> => {
     await sql`
       UPDATE "member" SET "role" = ${role} WHERE "id" = ${gateMemberId}
@@ -35562,26 +35350,13 @@ async function checkGovernanceEnforcement(
   // A plain MEMBER can decide neither direction of an erasure approval —
   // dual control means two admins, so the generic decide door kind-gates
   // erasure rows on the session-resolved role.
-  const dsarMemberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: 'itest-dsar-member@example.com',
-      password: 'itest-password-1',
-      name: 'DSAR Member',
-    }),
-  });
-  const dsarMemberCookie = cookieHeaderFrom(dsarMemberSignUp);
-  const dsarMemberBody = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await dsarMemberSignUp.json());
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                          "createdAt")
-    VALUES (gen_random_uuid(), ${orgId},
-            ${dsarMemberBody.success ? dsarMemberBody.data.user.id : ''},
-            'member', ${new Date()})
-  `;
+  const { cookie: dsarMemberCookie } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'dsar-member',
+    'member',
+  );
   const memberDecide = async (
     status: 'executing' | 'rejected',
   ): Promise<Response> =>
@@ -35942,26 +35717,8 @@ async function checkAccountAuthzHardening(
   ctx: { cookie: string },
   suffix: string,
 ): Promise<void> {
-  const signUp = async (
-    label: string,
-  ): Promise<{ cookie: string; userId: string }> => {
-    const res = await fetch(`${base}/api/auth/sign-up/email`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin: base },
-      body: JSON.stringify({
-        email: `authz-${label}-${suffix}-${Date.now()}@example.com`,
-        password: 'itest-password-1',
-        name: `Authz ${label}`,
-      }),
-    });
-    const parsed = z
-      .object({ user: z.object({ id: z.string() }) })
-      .safeParse(await res.json());
-    return {
-      cookie: cookieHeaderFrom(res),
-      userId: parsed.success ? parsed.data.user.id : '',
-    };
-  };
+  const signUp = (label: string): Promise<{ cookie: string; userId: string }> =>
+    signUpUser(base, `authz-${label}-${suffix}`);
   const createOrg = async (cookie: string, slug: string): Promise<string> => {
     const res = await fetch(`${base}/api/auth/organization/create`, {
       method: 'POST',
@@ -38623,26 +38380,6 @@ async function checkOrganizationLifecycle(
 ): Promise<void> {
   const configRoot = process.env.TALE_CONFIG_DIR ?? '';
   const jsonHeaders = { 'content-type': 'application/json', origin: base };
-  const signUp = async (
-    email: string,
-  ): Promise<{ cookie: string; userId: string }> => {
-    const response = await fetch(`${base}/api/auth/sign-up/email`, {
-      method: 'POST',
-      headers: jsonHeaders,
-      body: JSON.stringify({
-        email,
-        password: 'itest-password-1',
-        name: 'Life',
-      }),
-    });
-    const body = z
-      .object({ user: z.object({ id: z.string() }) })
-      .safeParse(await response.json());
-    return {
-      cookie: cookieHeaderFrom(response),
-      userId: body.success ? body.data.user.id : '',
-    };
-  };
   const createOrg = async (
     cookie: string,
     name: string,
@@ -38685,8 +38422,8 @@ async function checkOrganizationLifecycle(
   // must remove and a rename would orphan); A also has a team (Better
   // Auth's own delete strands teams). The owner's last-active pointer aims
   // at A.
-  const owner = await signUp(`itest-life-${orgSuffix}@example.com`);
-  const plain = await signUp(`itest-life-m-${orgSuffix}@example.com`);
+  const owner = await signUpUser(base, `life-${orgSuffix}`);
+  const plain = await signUpUser(base, `life-m-${orgSuffix}`);
   const slugA = `itest-life-a-${orgSuffix}`;
   const slugB = `itest-life-b-${orgSuffix}`;
   const orgA = await createOrg(owner.cookie, 'Life A', slugA);

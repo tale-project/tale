@@ -86,8 +86,12 @@ and the `/events` hint → `invalidateQueries` hook).
   session dead, ends the run as a recorded `RUN TRUNCATED at lane N of M`
   failure — a run that executed fewer checks than it contains never reads as
   green. A probe that must invalidate its own session (2FA enrolment,
-  sign-out, revocation) acts as a throwaway user via `signUpOrgMember`, never
-  as the shared one. Needs a **throwaway** database and an S3 —
+  sign-out, revocation) acts as a throwaway user, never as the shared one —
+  and every extra identity a lane needs comes from `signUpOrgMember` (a
+  member of the suite's org, `memberId` returned for role rewrites) or
+  `signUpUser` (no membership yet: the members API under test, an org the
+  user goes on to create, an account-only probe), never a hand-rolled
+  sign-up. Needs a **throwaway** database and an S3 —
   the blob-backed lanes (files, documents, knowledge, residency, chat) skip
   visibly without `ITEST_S3_ENDPOINT`, and `TALE_CONFIG_DIR` is where the
   probes write the deployment-default config tree:
