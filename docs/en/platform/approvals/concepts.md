@@ -1,37 +1,32 @@
 ---
 title: Approval concepts
-description: An approval is a card in the chat that holds an agent's action until you decide. This page names what fires one, the decisions each card offers, and what every decision leaves behind.
+description: An approval is a parked step in a live automation run — a connector write waiting on the run's detail page until a person approves or rejects it. This page names what fires one, the decision it offers, and what it leaves behind.
 ---
 
-An approval is the seam between an agent's initiative and your judgement: a card that appears in the chat where the action was attempted, holding that action until a person decides. Agents propose — a document write, an outbound API call, a workflow run — and nothing executes while the card is pending. The chat says so explicitly: **Respond to the pending request above to continue**.
+An approval is the seam between an automation's initiative and your judgement. When a live run reaches a connector write that your organization's policy gates — sending mail, posting a message, opening an issue — the step does not run: the run parks, and its detail page shows a card with the operation and the exact input the step would call with, until a person decides. Nothing is sent while the card is pending, and a rejected step fails the run rather than being retried behind your back.
 
-This page is the mental model — what fires an approval, what the card offers, and what a decision leaves behind. The workflow-specific gates live on [Approvals in workflows](/platform/automations/approvals-in-workflows); where the requirements are declared lives on [Configure approvals](/platform/approvals/configure).
+This page is the mental model — what fires an approval, where it appears, and what a decision leaves behind. Where the requirement is declared lives on [Configure approvals](/platform/approvals/configure); the other place a run waits on a person — the question an agent node asks mid-run — lives on [Approvals in workflows](/platform/automations/approvals-in-workflows).
 
 ## What fires an approval
 
-Every card comes from an agent trying to act on something that outlives the conversation:
+One thing: a **connector write in a live run** that the approval policy requires a decision for. The default line is whether the write leaves your tenant — mail, Slack, GitHub, and WebDAV ask; a task moved or a document saved on Tale's own surface does not — and `governance/approval-policy.yml` moves that line per connector or per action. Reads never ask. Test runs never ask either: in mock mode connectors return stand-ins and nothing outside the platform is touched.
 
-- **Plans** — an agent proposes a multi-step plan as a **Proposed plan** card; **Approve & execute** starts it.
-- **Document writes** — a **Save to documents** card holds files an agent wants to store; nothing lands in the document hub until approved.
-- **Knowledge writes** — a **Save to knowledge base** card holds a fact an agent wants to remember org-wide.
-- **Connector calls** — an operation flagged as requiring approval (outbound writes, typically) holds with the exact parameters shown.
-- **MCP tools** — a tool the server marks **Requires approval** asks before it runs.
-- **Workflow creation, updates, and runs** — the workflow-side gates, covered in [Approvals in workflows](/platform/automations/approvals-in-workflows).
+Nothing else produces an approval card in this version. The chat assistant cannot write anywhere — its three tools retrieve and fetch — so there is no card in a chat; a project agent's connector calls are read-only through its broker, so a task run never reaches the gate; and there is no per-tool approval flag on an MCP server, because outbound MCP servers are not part of this version.
 
-## The decisions on a card
+## The decision on the card
 
-Every card carries the action's exact payload — the file, the fact, the parameters — and two decisions: approve (the button names the action, such as **Run workflow** or **Approve & execute**) or reject. Connector cards add a third path, **Suggest changes**: describe what is wrong in free text and the agent revises the call instead of abandoning it.
+Open the run — from the automation's run list, where it shows as **Waiting** — and the card reads **Waiting for your approval**, names the operation as `<connector>.<action>` and the node that requested it, and shows the input under **The step would call with**. Two decisions: **Approve** lets the parked step act on the run's next poll and the run carries on; **Reject** fails the step and stops the run. There is no third path — you cannot edit the parameters or ask the automation to revise the call; a wrong call is rejected and the definition is fixed on the canvas.
 
 <Note>
 
-Approvals are decided in the conversation they interrupt — by whoever holds that chat. There is no separate approval inbox or routing to an approver pool; the person the agent works for is the person who decides.
+Approvals have no inbox in this version. The card lives on the run's detail page, and whoever can open that page decides — there is no routing to an approver pool and no per-person queue. The one decision that demands an Admin is the second signature on an erasure request, covered in [Data subject requests](/platform/admin/governance/data-subject-requests).
 
 </Note>
 
 ## States and the trail
 
-A card moves through **Pending** to **Executing** to **Completed** — or **Rejected** — and keeps its resolved state in the transcript, so a chat rereads as a record of what was allowed. Each decision also lands in the [audit log](/platform/admin/governance/audit-logs) with the actor, the action, and the timestamp. Resolved cards cannot be re-opened; a retry means a fresh proposal and a fresh card.
+A card moves from pending to executing when approved — the step acts on the next poll and the record settles to completed — or to rejected. The decision belongs to the operation it was asked about: loosening the policy afterwards does not release a card already waiting, and a run re-entering the same operation reads the same answer instead of asking twice. Each decision lands in the [audit log](/platform/admin/governance/audit-logs) with the actor and the timestamp, and the run keeps the outcome in its own detail. A decided card cannot be reopened — a rejected run is over, and the retry is a fresh run.
 
 ## Where this fits
 
-Approvals are what let you hand agents real capabilities — files, APIs, workflows — without handing over the record of who allowed what. Read [Configure approvals](/platform/approvals/configure) next to see where a requirement is switched on, and [Approvals in workflows](/platform/automations/approvals-in-workflows) for the gates around workflows.
+Approvals are how an automation reaches outside systems without acting alone: the write waits, a person reads the exact call, and the record says who allowed what. Read [Configure approvals](/platform/approvals/configure) for where the line between asking and not asking is drawn, and [Approvals in workflows](/platform/automations/approvals-in-workflows) for the other place a run waits on a person.

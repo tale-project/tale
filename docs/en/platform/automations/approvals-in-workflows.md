@@ -1,38 +1,32 @@
 ---
 title: Approvals in workflows
-description: Where humans decide around workflows — approving the AI editor's changes to a definition, approving an agent's request to run a workflow, and answering the questions that pause a run.
+description: Where a live run waits on a person — a connector write parked for approval, a question an agent node asks — and how a definition changes and goes live without a proposal card.
 ---
 
-Workflows run without you, but they change and start only with you. Three human gates surround every workflow: the AI editor's changes to a definition apply only after you approve them, an agent that wants to run a workflow needs your sign-off first, and a run that hits a question pauses until someone answers. This page covers the three gates; the org-wide story of what an approval card is lives on [Approval concepts](/platform/approvals/concepts).
+Automations run without you, but a run stops for you in two places. A connector write that leaves your tenant parks until someone approves it, and an agent node that needs an answer parks until someone gives one; both wait on the run's detail page, and both resume exactly where they stopped. Changing the definition itself has no card in this version: you edit and save versions on the canvas, and deploying is a separate, explicit act. This page covers the two gates and the authoring path; what an approval is in general lives on [Approval concepts](/platform/approvals/concepts).
 
-<Frame caption="An automation's canvas with its side panel — a proposed change arrives as an approval card and never edits the document silently.">
+<Frame caption="An automation's canvas with its side panel — the definition changes here by saving a version, and a live run parks on its detail page when a step needs a person.">
 
 ![The workflow canvas of an automation showing a graph of nodes, with a panel open beside it.](/images/platform/automation-editor-canvas.webp)
 
 </Frame>
 
-## Approving changes to a definition
+## Approving a connector write
 
-Ask the assistant to build or rework an automation and its proposal lands as a card rather than as a change. The card names what it would do — create a new automation, patch a single node, or replace the whole document — and holds until you decide. Approve it and the result is saved as a new version exactly like a manual save, so the document you were looking at is untouched and the version that is live stays live until you deploy. Cancel discards the proposal, and nothing reaches the document while the card is pending.
-
-## Approving a run
-
-An agent in chat that holds the automation tools can ask to start one. The request arrives as a card naming the automation, and you can expand it to inspect the exact input it would run with before deciding. After approval the same card follows the live run — which node it is on, how long it has been going, and how it ended — and lets you stop it mid-flight or open the run itself for the full per-node detail.
-
-<Note>
-
-The chat holds while a request is pending, and it tells you so. Decide the card before sending the next message.
-
-</Note>
+When a live run reaches a write your policy gates, the run takes the **Waiting** status in the [run list](/platform/automations/execution-logs) and its detail page shows the approval card: **Waiting for your approval**, the operation as `<connector>.<action>`, the node that requested it, and the exact input under **The step would call with**. **Approve** lets the step act on the run's next poll and the run carries on; **Reject** fails the step and the run stops. Test runs never park here — in mock mode nothing outside the platform is touched. Which writes ask, and how to move the line, is on [Configure approvals](/platform/approvals/configure).
 
 ## Answering a paused run
 
-A run that needs a human answer takes the **Waiting** status in the [run list](/platform/automations/execution-logs) and parks there. The question arrives as a form card — fill it in and submit it, or push back in free text when the form is not asking the right thing. Answering does not restart anything: the run re-enters at the node it stopped on, carries your answer forward as that node's input, and finishes the rest of the graph. Every node it had already completed stays completed, so nothing it did before the pause happens twice.
+An agent node that cannot finish without you asks: the run parks as **Waiting** and its detail page shows the question — as a set of choices when the agent offered some, as a free-text box otherwise. Answer it and the run re-enters at the node it stopped on with your answer in hand, then finishes the rest of the graph; nothing a completed node did happens twice. The agent asks through its `ask_human` tool, which every automation agent node carries, so the pause is the agent's decision rather than a node you place.
+
+## Changing and deploying a definition
+
+There is no proposal card between you and the definition in this version — no AI editor on the canvas, no chat agent that drafts a change for you to approve. You change a definition by editing nodes on the canvas and clicking **Save**, which appends a version with your message and leaves every earlier version as it was; **Test run** exercises it against mocks; and nothing runs live until you click **Deploy this version**, which the automation's own tests gate. A model authoring an automation goes through the [MCP endpoint](/develop/mcp-endpoint) — `save_automation` appends a version the same way, and `deploy_automation` is the same explicit step. [The workflow editor](/platform/automations/editor) walks the three acts.
 
 ## What each decision leaves behind
 
-Every gate moves through the same handful of states on the card itself — pending, then being carried out, then finished or rejected — and the decision lands in the [audit log](/platform/admin/governance/audit-logs) with the actor and the timestamp. A resolved card cannot be reopened; to retry a rejected run, ask again and decide the fresh card. An approval that started a run leaves the run behind as its own record, so what the decision actually caused stays readable in the [run list](/platform/automations/execution-logs) long after the card is gone.
+Both gates leave a record in two places: the run's own detail, where the card settles to approved or rejected and the step's result follows, and the [audit log](/platform/admin/governance/audit-logs), which records who decided and when. A decided card cannot be reopened; a rejected run is over, and running the automation again is a fresh run with a fresh card. Because a decision belongs to the operation it was asked about, a policy loosened afterwards never releases a card already waiting.
 
 ## Where this fits
 
-These gates are the workflow-side face of one product-wide pattern: an agent proposes, a human disposes. [Approval concepts](/platform/approvals/concepts) names every card type beyond workflows — document writes, knowledge writes, connector calls — and [Configure approvals](/platform/approvals/configure) shows where the requirements are declared.
+A run waits on a person for two reasons — a write that leaves the tenant, and a question only a person can answer — and both waits sit on the run's detail page rather than in a chat. [Approval concepts](/platform/approvals/concepts) is the model behind the write gate, [Configure approvals](/platform/approvals/configure) moves the line, and [Execution logs](/platform/automations/execution-logs) is where you find the waiting run in the first place.

@@ -9,7 +9,7 @@ Du brauchst die Rolle Entwickler in der Organisation, eine Automatisierung mit d
 
 ## Bevor du beginnst
 
-Prüf zwei Dinge. Die Automatisierung, die du auslösen willst, hat eine **deployte** Version — eine gespeicherte Version reicht nicht, und deploybar wird eine Version erst, wenn ihre eigenen Tests grün sind; lass sie also zuerst laufen. Deine Rolle ist mindestens Entwickler; Trigger anlegen ist auf Entwickler und höher beschränkt. Hast du noch keine Automatisierung, ist die kanonische kleine „nimm das Payload auf und hör auf“ — bau sie über [Workflow mit Genehmigungen](/de/tutorials/editor/workflow-with-approvals) und lass für diesen Durchlauf den Genehmigungsknoten weg.
+Prüf zwei Dinge. Die Automatisierung, die du auslösen willst, hat eine **deployte** Version — eine gespeicherte Version reicht nicht, und deploybar wird eine Version erst, wenn ihre eigenen Tests grün sind; lass sie also zuerst laufen. Deine Rolle ist mindestens Entwickler; Trigger anlegen ist auf Entwickler und höher beschränkt. Hast du noch keine Automatisierung, ist die kanonische kleine „nimm das Payload auf und hör auf“ — eine einzelne `transform`-Node, auf dem Canvas gebaut, wie [Der Workflow-Editor](/de/platform/automations/editor) es beschreibt.
 
 ## Schritt 1 — Einen Webhook-Trigger anlegen
 

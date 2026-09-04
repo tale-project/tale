@@ -27,7 +27,7 @@ To register one, open **Account > Security** and click **Add a passkey**. Give t
 
 A registered passkey works at three doors. On the login screen, **Sign in with a passkey** signs you in without typing the password — the credential is itself strong proof. On the verification screen after a password login, **Use a passkey instead** replaces the six-digit code. And on the enrolment screen an enforced policy routes unenrolled members to, **Register a passkey instead** sits next to the TOTP setup — a member who registers only a passkey, never TOTP, passes the policy.
 
-When a member loses a device with a passkey on it, an Admin revokes the credential: open **Settings > Organization**, click **Edit member** on the member, and remove the credential from the **Passkeys** section of the dialog. Tale deletes the credential and ends every active session of that member, so a lost or stolen authenticator can't keep a session alive. The admin revocation lands in the audit log as `passkey.revoked_by_admin`.
+When a member loses a device with a passkey on it, an Admin revokes the credential: open **Settings > Members**, click **Edit member** on the member, and remove the credential from the **Passkeys** section of the dialog. Tale deletes the credential and ends every active session of that member, so a lost or stolen authenticator can't keep a session alive. The admin revocation lands in the audit log as `passkey.revoked_by_admin`.
 
 ## The enforce-for-org policy
 
@@ -49,7 +49,7 @@ A member inside the grace window sees a count-down banner in the app pointing th
 
 ## Admin reset for a locked-out member
 
-When a member loses their phone and their backup codes, an Admin clears the second factor on their account. Open **Settings > Organization**, click **Edit member** on the member, and click **Reset two-factor** in the dialog. Tale disables 2FA for the account and ends every active session, so the member re-enrols on their next sign-in.
+When a member loses their phone and their backup codes, an Admin clears the second factor on their account. Open **Settings > Members**, click **Edit member** on the member, and click **Reset two-factor** in the dialog. Tale disables 2FA for the account and ends every active session, so the member re-enrols on their next sign-in.
 
 The reset is recorded in the audit log under `2fa_reset_by_admin`. Reach for it as a recovery action — the member should re-enrol immediately once they are back in.
 

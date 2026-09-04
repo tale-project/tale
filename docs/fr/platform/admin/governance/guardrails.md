@@ -7,7 +7,7 @@ Garde-fous est la surface où tu configures les trois couches de filtres que Tal
 
 <Frame caption="Gouvernance > Garde-fous — les trois cartes de statut des couches de filtres (sécurité du contenu, détection PII, fournisseur de modération), au-dessus du journal des événements récents.">
 
-![La page de gouvernance Garde-fous montrant trois cartes de statut — la sécurité du contenu appliquée à l’entrée et à la sortie sur deux catégories, la détection PII en mode mask sur quatre motifs intégrés, et le fournisseur de modération marqué Désactivé, sans API externe configurée — au-dessus du flux des événements récents, qui n’en signale encore aucun.](/images/platform/governance-guardrails.webp)
+![La page de gouvernance Garde-fous montrant trois cartes de statut — Sécurité du contenu inactive, Détection DCP inactive et Fournisseur de modération non configuré — au-dessus du flux des événements récents, qui n’en signale encore aucun, et des instructions personnalisées de l’organisation.](/images/platform/governance-guardrails.webp)
 
 </Frame>
 

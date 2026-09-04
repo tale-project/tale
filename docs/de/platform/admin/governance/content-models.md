@@ -5,9 +5,9 @@ description: Modell-Ebenen-Kontrollen — welche Modelle pro Rolle oder Team erl
 
 Inhalte und Modelle ist die Oberfläche, auf der du entscheidest, welche LLMs die Personen in deiner Organisation erreichen können und auf welchem jede Gruppe per Default landet. Sie verbindet eine Zulassungs- oder Sperrliste pro Bereich (Organisation, Team, Rolle) mit einer Default-Modell-Regel, die der Resolver anwendet, wenn keine explizite Wahl sie überschrieben hat. Admins und Inhaber lesen diese Seite, wenn eine Compliance-Regel eine Last an ein freigegebenes Modell bindet, wenn ein Team auf einem günstigeren Modell als der Rest der Organisation landen soll, oder wenn ein neues Modell eines bestehenden Anbieters erreichbar gemacht werden muss.
 
-<Frame caption="Einstellungen > Richtlinien > Modelle — die Default-Modell-Regeln pro Bereich, darunter Modellzugriff und das Modell für Bilder.">
+<Frame caption="Einstellungen > Richtlinien > Modelle — die Default-Modell-Regeln pro Bereich, darunter die Allowlist des Modellzugriffs und weiter unten das Modell für Bilder.">
 
-![Die Governance-Seite Inhalte und Modelle zeigt die Felder für den verpflichtenden System-Prompt-Präfix und -Suffix, gefüllt mit den Hausregeln der Organisation, über einer Tabelle mit drei Default-Modell-Regeln — einem Default für alle Benutzer und je einer Rollen-Regel für Entwickler und Mitglied, jede auf ein OpenRouter-Modell festgelegt.](/images/platform/governance-content-models.webp)
+![Die Governance-Seite Modelle zeigt die Tabelle der Default-Modelle mit drei Regeln — einem Default für alle Benutzer und je einer Rollen-Regel für Entwickler und Mitglied, jede auf ein OpenRouter-Modell festgelegt — über dem Abschnitt Modellzugriff im Modus Allowlist mit einer Regel erlaubter Modelle pro Rolle.](/images/platform/governance-content-models.webp)
 
 </Frame>
 

@@ -96,7 +96,6 @@
           "pages": [
             "platform/member/overview",
             "platform/member/preferences",
-            "platform/member/environment",
             "platform/member/install-as-app"
           ]
         },
@@ -133,13 +132,7 @@
           "label": "agents",
           "pages": [
             "platform/agents/concepts",
-            "platform/agents/create",
-            "platform/agents/tools",
             "platform/agents/skills",
-            "platform/agents/knowledge",
-            "platform/agents/delegation",
-            "platform/agents/versions",
-            "platform/agents/image-generation",
             "platform/agents/harnesses"
           ]
         },
@@ -249,8 +242,6 @@
           "label": "tutorialsEditor",
           "pages": [
             "tutorials/editor/first-agent-end-to-end",
-            "tutorials/editor/agent-with-knowledge",
-            "tutorials/editor/delegate-between-agents",
             "tutorials/editor/workflow-with-approvals"
           ]
         },
@@ -258,17 +249,14 @@
           "label": "tutorialsDeveloper",
           "pages": [
             "tutorials/developer/call-tale-from-a-script",
-            "tutorials/developer/trigger-automation-via-webhook",
-            "tutorials/developer/build-a-custom-tool",
-            "tutorials/developer/mcp-server-from-scratch"
+            "tutorials/developer/trigger-automation-via-webhook"
           ]
         },
         {
           "label": "tutorialsAdmin",
           "pages": [
             "tutorials/admin/connect-local-provider",
-            "tutorials/admin/meeting-transcription",
-            "tutorials/admin/office-add-in"
+            "tutorials/admin/meeting-transcription"
           ]
         }
       ]

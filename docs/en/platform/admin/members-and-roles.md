@@ -13,19 +13,19 @@ Prefer to watch first? Episode 8 walks the roster, the role ladder, and the team
 
 </Video>
 
-<Frame caption="The Members section under Settings > Organization — every account and the role that bounds it.">
+<Frame caption="Settings > Members — every account and the role that bounds it.">
 
-![The Organization settings page with its Members section listing the workspace owner and an Add member button.](/images/get-started/settings-organization-members.webp)
+![The Members settings page listing the workspace owner and four more people, each with a role badge, beside an Add member button.](/images/get-started/settings-organization-members.webp)
 
 </Frame>
 
 ## Adding a member
 
-To add a person to your organisation, open **Settings > Organization**, scroll to the **Members** section, and click **Add member**. Fill in their **Name**, **Email**, and **Role**, and set a **Password** — Tale does not send an email invite, so a password is required to create a new account. (If the email already belongs to a Tale account, no password is asked: the person signs in with their existing credentials and is simply added to this organisation.)
+To add a person to your organisation, open **Settings > Members** and click **Add member**. Fill in their **Name**, **Email**, and **Role**, and set a **Password** — Tale does not send an email invite, so a password is required to create a new account. (If the email already belongs to a Tale account, no password is asked: the person signs in with their existing credentials and is simply added to this organisation.)
 
-On **Add member**, Tale shows the new sign-in credentials **once**, with the reminder to save them now because they won't be shown again. Relay them to the new member out of band — there is no reset email. Anyone who later forgets their password contacts an admin, who can set a new one from the same Members section.
+On **Add member**, Tale shows the new sign-in credentials **once**, with the reminder to save them now because they won't be shown again. Relay them to the new member out of band — there is no reset email. Anyone who later forgets their password contacts an admin, who can set a new one from the same page.
 
-Pick the role on the form before you submit; promoting or changing it later is a one-click change in the same Members section.
+Pick the role on the form before you submit; promoting or changing it later is a one-click change on the same page.
 
 ## The six roles
 
@@ -33,7 +33,7 @@ Pick the role on the form before you submit; promoting or changing it later is a
 
 **Admin** governs the organisation: members, providers, branding, governance policies, connectors, the audit log. Admins do everything Editor does and everything Developer does, plus the configuration surface. They cannot transfer ownership.
 
-**Developer** builds: agents, workflows, connectors, API keys, MCP servers. Developers can read every resource and write to most of them, including governance policies (read-only). Reach for Developer when someone needs the API plane and the connector tooling.
+**Developer** builds: agents, workflows, connectors, API keys. Developers can read every resource and write to most of them, including governance policies (read-only). Reach for Developer when someone needs the API plane and the connector tooling.
 
 **Editor** curates and operates: agents, the knowledge base (documents, contacts, products, vendors, websites), the conversation inbox, approvals, the skill library. Editors can read workflows but not modify them; they can read connectors but not configure them. Reach for Editor when someone runs the day-to-day product work without touching the API or connector plane.
 
@@ -68,7 +68,7 @@ R = read, W = write, — = no access. The matrix is the authoritative descriptio
 
 ## The Settings surface and the menu
 
-Members, Editors, and Disabled users do not see the configuration surface — only their personal settings plus the org's skill library. Developers see the developer surface (AI providers, connectors, sandboxes, the API section) but not the governance sub-tree. Admins and Owners see everything. The settings menu is grouped into **Personal** (Account, Preferences, Notifications, Environment — every role), **Organization** (Teams, Members, AI providers, Branding, Governance, Metrics, and the rest — Admin-and-Owner, with Developers seeing a subset), and **Advanced** (the API, Enterprise SSO, and data-residency surface). Governance is an item inside the Organization group, not a group of its own, and it needs Admin access.
+Members, Editors, and Disabled users do not see the configuration surface — only their personal settings plus the org's skill library. Developers see the developer surface (AI providers, connectors, sandboxes, the API section) but not the governance sub-tree. Admins and Owners see everything. The settings menu is grouped into **Personal** (Account, Preferences, Notifications — every role), **Organization** (Teams, Members, AI providers, Branding, Governance, Metrics, and the rest — Admin-and-Owner, with Developers seeing a subset), and **Advanced** (the API, Enterprise SSO, and data-residency surface). Governance is an item inside the Organization group, not a group of its own, and it needs Admin access.
 
 ## Edge cases
 
@@ -76,7 +76,7 @@ Members, Editors, and Disabled users do not see the configuration surface — on
 
 **The last Admin stays.** Tale refuses to demote the last Admin — the change comes back with _The last admin cannot be demoted_. Two more guards sit beside it: the Owner role only moves through **Transfer ownership**, and the organisation creator's role is immutable.
 
-**Resetting 2FA** is on the member's row in the Members section. Resetting clears the second factor; the next sign-in re-enrolls.
+**Resetting 2FA** is on the member's row on the Members page. Resetting clears the second factor; the next sign-in re-enrolls.
 
 ## Where this fits
 

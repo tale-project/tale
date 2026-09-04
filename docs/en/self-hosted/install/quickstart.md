@@ -91,7 +91,7 @@ On an empty instance there is no sign-up page to hunt for: the first visit lands
 
 <Step title="Add a model and publish an agent">
 
-You now have an empty org. Two moves get you to something useful: add your OpenRouter key — the setup wizard prompts for it right after you create the owner account, and **Settings > AI providers** takes it any time later — then publish your first agent with [Create an agent](/platform/agents/create). A confirmation on the provider row means the key works.
+You now have an empty org. Two moves get you to something useful: add your OpenRouter key — the setup wizard prompts for it right after you create the owner account, and **Settings > AI providers** takes it any time later — then [build your first agent](/tutorials/editor/first-agent-end-to-end). A confirmation on the provider row means the key works.
 
 <Check>
 

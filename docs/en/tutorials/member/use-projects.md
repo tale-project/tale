@@ -37,9 +37,9 @@ Save. Every new chat in the project will now run with this preamble in addition 
 
 ## Step 4 — Start a chat and verify the context follows
 
-Open the **Threads** tab and click **New chat**. Pick an agent — the default Assistant is fine for the first run — and ask a question one of the project's files answers (`What does the contract say about the renewal clause?`). The reply should cite the contract; the citation opens the file from the project's Knowledge tab, not from the org-wide library.
+Open the **Threads** tab and click **New chat**. Leave the model picker on **Auto** — there is no agent to pick in chat — and ask a question one of the project's files answers (`What does the contract say about the renewal clause?`). The reply should cite the contract; the citation opens the file from the project's Knowledge tab, not from the org-wide library.
 
-If the agent answers without citing, the project's files were not retrieved — usually because the chosen agent has no retrieval tool enabled. Switch to an agent with RAG on, or enable it on the Assistant for project use.
+If the assistant answers without citing, the file was not retrieved — usually because indexing has not finished. Check that its row on the **Knowledge** tab reads **Indexed**, then ask again.
 
 ## Where this fits
 

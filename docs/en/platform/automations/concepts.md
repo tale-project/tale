@@ -5,7 +5,7 @@ description: The model behind every automation — one workflow document, a vers
 
 An automation is one saved workflow document under a name, plus everything the platform keeps around it: the history of that document's versions, the single version that is live, the triggers allowed to start it, and the record of every run. Open **Automations** in the sidebar and each row is one of those names, with the version that is live beside it. Three ideas on this page decide how the rest of the surface behaves — versions never change, deploying is a separate act, and a trigger binds to the name rather than to a version — so read them before you build anything.
 
-Prefer to watch first? Episode 5 opens the triage automation end to end and decides a real approval card on camera, captions included.
+Prefer to watch first? Episode 5 opens the triage automation end to end and decides an approval card on camera, captions included — recorded on the earlier version, where the card sat in chat; in this version it sits on the run's detail page.
 
 <Video src="/videos/en/tutorials/ep5-automations/ep5-automations.en.mp4" poster="/videos/en/tutorials/ep5-automations/ep5-automations.en.webp" captions="/videos/en/tutorials/ep5-automations/ep5-automations.en.vtt" lang="en" title="Episode 5 — Automations & approvals" caption="Episode 5 — Automations & approvals (2:42)">
 

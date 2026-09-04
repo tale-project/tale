@@ -35,11 +35,11 @@ Rien ne répond tant qu’aucun fournisseur n’est connecté. Si tu as sauté l
 
 <Step title="Fais entrer l’équipe">
 
-Pour ajouter des personnes, ouvre **Paramètres > Organisation**, descends jusqu’à la section **Membres** et clique sur **Ajouter un membre**. Chaque personne arrive avec un rôle qui borne ce qu’elle peut faire : **Membre** lit et discute, **Éditeur** construit agents et connaissances, **Développeur** câble workflows, automatisations et accès API, **Admin** gère l’espace de travail. Commence bas — monter un rôle plus tard prend un clic, et reprendre un accès qui a fuité, non.
+Pour ajouter des personnes, ouvre **Paramètres > Membres** et clique sur **Ajouter un membre**. Chaque personne arrive avec un rôle qui borne ce qu’elle peut faire : **Membre** lit et discute, **Éditeur** construit agents et connaissances, **Développeur** câble workflows, automatisations et accès API, **Admin** gère l’espace de travail. Commence bas — monter un rôle plus tard prend un clic, et reprendre un accès qui a fuité, non.
 
-<Frame caption="La section Membres — chaque compte et son rôle.">
+<Frame caption="La page Membres — chaque compte et son rôle.">
 
-![La page des paramètres de l’organisation avec sa section Membres listant le propriétaire de l’espace de travail Alex Rivera et un bouton Ajouter un membre.](/images/get-started/settings-organization-members.webp)
+![La page de paramètres Membres listant cinq personnes et leur rôle — Alex Rivera en Propriétaire, un Admin, un Éditeur et deux Membres — à côté du bouton Ajouter un membre.](/images/get-started/settings-organization-members.webp)
 
 </Frame>
 

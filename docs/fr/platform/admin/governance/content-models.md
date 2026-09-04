@@ -5,9 +5,9 @@ description: Contrôles au niveau modèle — quels modèles sont autorisés par
 
 Contenu et modèles est la surface où tu décides quels LLMs les personnes de ton organisation peuvent atteindre et celui sur lequel chaque groupe atterrit par défaut. Elle associe une liste d’autorisation ou de blocage par scope (organisation, équipe, rôle) à une règle de modèle par défaut que le résolveur applique quand aucun choix explicite ne l’a outrepassée. Les Administrateurs et Propriétaires lisent cette page quand une règle de conformité épingle une charge à un modèle approuvé, quand une équipe doit avoir un modèle par défaut moins cher que le reste de l’organisation, ou quand un nouveau modèle d’un fournisseur existant doit être rendu joignable.
 
-<Frame caption="Paramètres > Gouvernance > Modèles — les règles de modèle par défaut par scope, avec l’accès aux modèles et le modèle de vision en dessous.">
+<Frame caption="Paramètres > Gouvernance > Modèles — les règles de modèle par défaut par scope, avec la liste d’autorisation de l’accès aux modèles en dessous et le modèle de vision plus bas.">
 
-![La page de gouvernance Contenu et modèles montrant les champs de préfixe et de suffixe de prompt système obligatoires remplis des règles maison de l’organisation, au-dessus d’un tableau de modèles par défaut qui porte trois règles — un défaut pour tous les utilisateurs et une règle de rôle pour Développeur et pour Membre, chacune épinglée à un modèle OpenRouter.](/images/platform/governance-content-models.webp)
+![La page de gouvernance Modèles montrant le tableau des modèles par défaut avec trois règles — un défaut pour tous les utilisateurs et une règle de rôle pour Développeur et pour Membre, chacune épinglée à un modèle OpenRouter — au-dessus de la section d’accès aux modèles en mode liste d’autorisation, avec une règle de modèles autorisés par rôle.](/images/platform/governance-content-models.webp)
 
 </Frame>
 

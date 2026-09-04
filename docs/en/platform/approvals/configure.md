@@ -1,15 +1,15 @@
 ---
 title: Configure approvals
-description: Where approval requirements are declared — per connector operation, per MCP tool, and built in for writes and workflow changes — and where to see what will ask before it runs.
+description: Where approval requirements are declared — per connector operation, with one policy file per organization moving the line — and which human gates sit outside that policy.
 ---
 
-Approval requirements in Tale are declarative: each capability carries its own flag saying whether an agent must ask first, and the flag travels with the connector or server that provides the capability. Nothing has to be configured for the defaults to be right — this page shows where each flag lives, which writes ask by default, and how to change that for your organization.
+Approval requirements in Tale are declarative: each capability carries its own flag saying whether a run must ask first, and the flag travels with the connector that provides the capability. Nothing has to be configured for the defaults to be right — this page shows where each flag lives, which writes ask by default, and how to change that for your organization.
 
 The model of what an approval card is and who decides it lives on [Approval concepts](/platform/approvals/concepts). What follows is the configuration surface, capability by capability.
 
 ## Connector operations
 
-Every connector declares its operations, and each operation carries its own approval flag — for the shipped connectors, that is the write side: sending mail, posting messages, creating issues. Reads run without a card; flagged writes hold in chat with their exact parameters until someone approves.
+Every connector declares its operations, and each operation carries its own approval flag — for the shipped connectors, that is the write side: sending mail, posting messages, creating issues. Reads run without a card; a flagged write parks the automation run, and the run's detail page shows the operation with its exact parameters until someone decides.
 
 The flag is not a separate setting an admin toggles. Every action a connector declares carries an effect — `read` or `write` — and the write side is what the approval policy gates. That keeps the two honest with each other: an action cannot quietly change from a read to a write without also changing what it has to ask for.
 
@@ -40,26 +40,26 @@ An operation that is already waiting on a card keeps its card even if the policy
 
 ## MCP tools
 
-An MCP server's manifest marks which of its tools need sign-off — those ask in chat every time an agent calls them. The flag comes from the server's author; connecting a server is how you accept its tool contract, so review its tool list before wiring one in. [MCP servers](/platform/connectors/mcp-servers) covers how servers reach your agents.
+External MCP servers — and the per-tool approval flags their manifests used to carry — are not part of this version: there is no server to connect and no tool list to review. The one MCP surface is the inbound endpoint under **Settings > API > MCP**, where your client drives Tale, and a connector action invoked through it runs under the same approval rules as everywhere else — a gated action answers a pending-approval result instead of running. [MCP endpoint](/develop/mcp-endpoint) covers the tools and what each role's key may do; [MCP servers](/platform/connectors/mcp-servers) says what replaced the registration form.
 
-## Built-in write gates
+## Gates outside this policy
 
-Some gates ship on and are not configurable, because the action is consequential by nature:
+Three human gates in the product are not approval-policy matters and cannot be switched off here, because each has its own door:
 
-- **Document writes** — an agent saving files to the document hub always asks (**Save to documents**).
-- **Knowledge writes** — an agent storing an org-wide fact always asks (**Save to knowledge base**).
-- **Workflow creation, updates, and runs** — an agent building, editing, or starting a workflow always asks; see [Approvals in workflows](/platform/automations/approvals-in-workflows).
+- **Agent work at In review** — a project agent never completes a task; its result parks at **In review** for a person to accept, and [Task automation](/platform/projects/task-automation) covers who may sign it off.
+- **Controlled documents** — a file marked as controlled walks a submit-review-approve lifecycle with a named reviewer; [Documents](/platform/knowledge/documents) covers it.
+- **Erasure requests** — a GDPR erasure needs a second Admin's approval before the cascade runs; [Data subject requests](/platform/admin/governance/data-subject-requests) covers it.
 
 <Note>
 
-The lever for these is not the approval flag but the capability itself: an agent without the document tools or workflow tools never produces the card. Trim the agent's [tool set](/platform/agents/tools) to remove the capability entirely.
+The chat assistant produces no approval of any kind: its tools are read-only, so there is no document-write card, no knowledge-write card, and no workflow card in a chat. A run that needs an answer rather than a permission — an agent node asking a question — is a **Waiting** run, covered in [Approvals in workflows](/platform/automations/approvals-in-workflows).
 
 </Note>
 
 ## Verifying what will ask
 
-Before putting an agent in front of real systems, read its capabilities the way an approver would: which write actions its connectors declare, which tools its MCP servers flag, and whether the agent holds write tools at all. The [audit log](/platform/admin/governance/audit-logs) then records every decision the setup produces.
+Before deploying an automation against real systems, read its connector nodes the way an approver would: which of them write, and which of those your policy auto-approves. **Test run** shows you the graph without touching anything — mock mode never asks — and the [audit log](/platform/admin/governance/audit-logs) then records every decision the live runs produce.
 
 ## Where this fits
 
-Configuration here is distribution — flags live with the connectors and servers that own the capabilities. Read [Approval concepts](/platform/approvals/concepts) for the card lifecycle those flags produce, and [Agent tools](/platform/agents/tools) for the capability side of the same boundary.
+Configuration here is distribution — flags live with the connectors that own the capabilities, and one policy file per organization moves the line. Read [Approval concepts](/platform/approvals/concepts) for the card those flags produce, and [Approvals in workflows](/platform/automations/approvals-in-workflows) for where the parked run waits.

@@ -27,6 +27,12 @@ A memory is a short fact about you that an agent suggested and you kept — a pr
 
 Proposing one is something the model does by calling a tool, not a background process reading your conversations. The call writes the entry as **pending** and records an audit line at the same time, because proposing durable state about a person is worth logging even before anyone agrees to it. A pending entry does nothing on its own: it waits as a suggestion in **Settings > Preferences** until you save it or discard it, and only a saved memory can ever be read back.
 
+<Frame caption="Settings > Preferences — your custom instructions and the memories the assistant has proposed, each behind its own toggle over the org default.">
+
+![The Preferences settings page with the Custom instructions editor switched on and filled in, and below it the Memories section switched on, listing no pending suggestions and no saved memories yet.](/images/platform/settings-preferences.webp)
+
+</Frame>
+
 <Info>
 
 Nothing is added to a prompt on your behalf. A saved memory reaches a reply only when the model searches for it and the search returns it — a model cannot give itself durable knowledge about you by writing it down, and it cannot quietly consult a suggestion you declined.

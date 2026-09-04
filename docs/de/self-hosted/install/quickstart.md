@@ -91,7 +91,7 @@ Auf einer leeren Instanz gibt es keine Sign-up-Seite zu suchen: Der erste Besuch
 
 <Step title="Verbinde ein Modell und veröffentliche einen Agent">
 
-Du hast jetzt eine leere Org. Zwei Handgriffe bringen dich zu etwas Nützlichem: Füg deinen OpenRouter-Schlüssel hinzu — der Setup-Assistent fragt direkt nach der Erstellung des Inhaber-Kontos danach, und **Einstellungen > KI-Anbieter** nimmt ihn jederzeit später an — und veröffentliche dann deinen ersten Agent mit [Einen Agent erstellen](/de/platform/agents/create). Eine Bestätigung auf der Anbieterzeile heißt, dass der Schlüssel funktioniert.
+Du hast jetzt eine leere Org. Zwei Handgriffe bringen dich zu etwas Nützlichem: Füg deinen OpenRouter-Schlüssel hinzu — der Setup-Assistent fragt direkt nach der Erstellung des Inhaber-Kontos danach, und **Einstellungen > KI-Anbieter** nimmt ihn jederzeit später an — und [bau dann deinen ersten Agent](/de/tutorials/editor/first-agent-end-to-end). Eine Bestätigung auf der Anbieterzeile heißt, dass der Schlüssel funktioniert.
 
 <Check>
 

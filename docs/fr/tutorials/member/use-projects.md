@@ -37,9 +37,9 @@ Enregistre. Chaque nouveau chat du projet tournera désormais avec ce préambule
 
 ## Étape 4 — Démarrer un chat et vérifier que le contexte suit
 
-Ouvre l'onglet **Threads** et clique **Nouveau chat**. Choisis un agent — l'Assistant par défaut suffit pour le premier run — et pose une question à laquelle un des fichiers du projet répond (`What does the contract say about the renewal clause?`). La réponse doit citer le contrat ; la citation ouvre le fichier depuis l'onglet Connaissances du projet, pas depuis la bibliothèque de l'organisation.
+Ouvre l'onglet **Threads** et clique **Nouveau chat**. Laisse le sélecteur de modèle sur **Auto** — il n'y a pas d'agent à choisir dans le chat — et pose une question à laquelle un des fichiers du projet répond (`What does the contract say about the renewal clause?`). La réponse doit citer le contrat ; la citation ouvre le fichier depuis l'onglet Connaissances du projet, pas depuis la bibliothèque de l'organisation.
 
-Si l'agent répond sans citer, les fichiers du projet n'ont pas été récupérés — généralement parce que l'agent choisi n'a pas de tool de retrieval activé. Passe à un agent avec RAG actif, ou active-le sur l'Assistant pour l'usage projet.
+Si l'assistant répond sans citer, le fichier n'a pas été récupéré — le plus souvent parce que l'indexation n'est pas terminée. Vérifie que sa ligne dans l'onglet **Connaissances** indique **Indexed**, puis repose la question.
 
 ## Où ça s'utilise
 

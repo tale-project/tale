@@ -31,7 +31,7 @@ Le contenu indexé est intégré dans la base de données vectorielle intégrée
 
 ## Comment les agents y puisent
 
-Un agent ne voit pas toute la bibliothèque par défaut. L’onglet **Base de connaissances** de l’agent contrôle son périmètre de récupération — les parties de la bibliothèque qu’il interroge au moment de répondre — et les éléments limités à une équipe restent invisibles pour les agents et les membres hors de cette équipe. La récupération passe par les outils RAG de l’agent, et chaque passage récupéré porte sa source : les citations renvoient au fichier, à l’entrée ou à la page d’origine. La mécanique côté agent vit dans [Connaissances de l’agent](/fr/platform/agents/knowledge).
+Un agent ne se choisit pas sa propre tranche de la bibliothèque. L’assistant de chat interroge tout le fonds avec `rag_search` et charge ce qu’il a trouvé avec `rag_fetch` dès qu’une question l’exige, un agent de projet le lit par les outils de la plateforme dont tu l’équipes, et les éléments limités à une équipe restent invisibles pour les agents et les membres hors de cette équipe. Chaque passage récupéré porte sa source : les citations renvoient au fichier, à l’entrée ou à la page d’origine. La mécanique côté agent vit dans [Agents de projet](/fr/platform/projects/project-agents).
 
 ## Pages dans cette section
 
@@ -65,4 +65,4 @@ Contacts, Produits, Sites web — quand une fiche typée bat un document.
 
 ## Où cela s’inscrit
 
-La base de connaissances est la couche de données sur laquelle repose chaque réponse ancrée ; sans elle, les agents ne savent que ce que le modèle sait déjà. Fais entrer le contenu par l’onglet qui correspond à sa forme, puis branche les agents dessus — la suite naturelle est [Documents](/fr/platform/knowledge/documents) pour les fichiers, [Données structurées](/fr/platform/knowledge/structured-data) pour les fiches et [Connaissances de l’agent](/fr/platform/agents/knowledge) pour le volet récupération.
+La base de connaissances est la couche de données sur laquelle repose chaque réponse ancrée ; sans elle, les agents ne savent que ce que le modèle sait déjà. Fais entrer le contenu par l’onglet qui correspond à sa forme, puis branche les agents dessus — la suite naturelle est [Documents](/fr/platform/knowledge/documents) pour les fichiers, [Données structurées](/fr/platform/knowledge/structured-data) pour les fiches et [Agents de projet](/fr/platform/projects/project-agents) pour la façon dont un agent y accède.

@@ -31,7 +31,7 @@ Indexierte Inhalte werden in Tales eingebaute Vektordatenbank eingebettet — ei
 
 ## Wie Agenten hineingreifen
 
-Ein Agent sieht die ganze Bibliothek nicht von selbst. Der Tab **Wissen** des Agenten steuert seinen Abruf-Umfang — welche Teile der Bibliothek er zur Antwortzeit durchsucht —, und team-gebundene Einträge bleiben für Agenten und Mitglieder außerhalb des Teams unsichtbar. Den Abruf treiben die RAG-getaggten Tools des Agenten, und jede abgerufene Passage trägt ihre Quelle, sodass Zitate auf die Datei, den Eintrag oder die Seite zurückzeigen, aus der sie kamen. Die Mechanik auf Agenten-Seite steht in [Agent-Wissen](/de/platform/agents/knowledge).
+Ein Agent sucht sich keinen eigenen Ausschnitt der Bibliothek aus. Der Chat-Assistent durchsucht den ganzen Bestand mit `rag_search` und lädt Gefundenes mit `rag_fetch`, sobald eine Frage danach verlangt, ein Projekt-Agent liest ihn über die Plattform-Tools, mit denen du ihn ausrüstest, und team-gebundene Einträge bleiben für Agenten und Mitglieder außerhalb des Teams unsichtbar. Jede abgerufene Passage trägt ihre Quelle, sodass Zitate auf die Datei, den Eintrag oder die Seite zurückzeigen, aus der sie kamen. Die Mechanik auf Agenten-Seite steht in [Projekt-Agenten](/de/platform/projects/project-agents).
 
 ## Seiten in diesem Bereich
 
@@ -65,4 +65,4 @@ Kontakte, Produkte, Websites — wann ein typisierter Datensatz ein Dokument sch
 
 ## Wo das hingehört
 
-Wissen ist die Datenschicht, auf der jede verankerte Antwort steht; ohne sie wissen Agenten nur, was das Modell ohnehin weiß. Bring Inhalte über den Tab herein, der zu ihrer Form passt, und binde dann Agenten daran — die natürliche nächste Lektüre ist [Dokumente](/de/platform/knowledge/documents) für Dateien, [Strukturierte Daten](/de/platform/knowledge/structured-data) für Datensätze und [Agent-Wissen](/de/platform/agents/knowledge) für die Abrufseite.
+Wissen ist die Datenschicht, auf der jede verankerte Antwort steht; ohne sie wissen Agenten nur, was das Modell ohnehin weiß. Bring Inhalte über den Tab herein, der zu ihrer Form passt, und binde dann Agenten daran — die natürliche nächste Lektüre ist [Dokumente](/de/platform/knowledge/documents) für Dateien, [Strukturierte Daten](/de/platform/knowledge/structured-data) für Datensätze und [Projekt-Agenten](/de/platform/projects/project-agents) dafür, wie ein Agent darauf zugreift.
