@@ -11,6 +11,7 @@ import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveObjectStore, s3PresignGetUrl } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
+import { loadOwnedThread } from '../chat/threads.ts';
 import {
   getChunkForServe,
   getMessageChunks,
@@ -95,11 +96,19 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return c.json({ chunks });
   });
 
-  // The info dialog's per-message voice spend (the 0.4 shape).
+  // The info dialog's per-message voice spend (the 0.4 shape). Same gate as
+  // the listing and the audio door: the caller must own the thread.
   app.get('/messages/:messageId/usage', async (c) => {
     const threadId = c.req.query('threadId') ?? '';
     if (threadId === '') return c.json({ error: 'threadId required' }, 400);
     const { organizationId, userId } = caller(c);
+    const thread = await loadOwnedThread(
+      deps.sql,
+      organizationId,
+      userId,
+      threadId,
+    );
+    if (!thread) return c.json(null);
     const rows = await deps.sql<
       {
         provider: string;
@@ -115,11 +124,9 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
              sum(coalesce(c.cost_estimate_cents, 0))::float8 AS "costCents",
              count(*)::float8 AS "chunkCount"
       FROM app.tts_audio_chunks c
-      JOIN app.threads t ON t.id = c.thread_id
       WHERE c.message_id = ${c.req.param('messageId')}
         AND c.thread_id = ${threadId}
         AND c.org_id = ${organizationId}
-        AND t.user_id = ${userId}
         AND c.status = 'ready'
       GROUP BY c.provider_name, c.model_id, c.voice
     `;
@@ -207,12 +214,13 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  /** Stream one ready chunk's audio. Membership is the session gate; the
+  /** Stream one ready chunk's audio. The gate is ownership of the chunk's
+   * thread (the same `loadOwnedThread` the listing and usage doors use); the
    * bytes are fetched server-side so no replayable URL ever reaches the
    * client. */
   app.get('/audio/:chunkId', async (c) => {
     const chunk = await getChunkForServe(deps.sql, {
-      organizationId: c.get('orgId'),
+      ...caller(c),
       chunkId: c.req.param('chunkId'),
     });
     if (!chunk) return c.json({ error: 'not found' }, 404);

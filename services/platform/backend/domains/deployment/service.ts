@@ -358,7 +358,7 @@ export async function saveDeploymentSecret(
     }
 
     const content = hasSopsKey()
-      ? encryptJsonWithSops(prepared.plaintext)
+      ? await encryptJsonWithSops(prepared.plaintext)
       : prepared.plaintext;
     await atomicWriteSecret(secretsPath, content);
     invalidateSecretsCache(secretsPath);

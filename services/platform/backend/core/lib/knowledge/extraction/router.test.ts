@@ -1,7 +1,12 @@
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 
-import { ALL_SUPPORTED_EXTENSIONS, extractText, isSupported } from './router';
+import {
+  ALL_SUPPORTED_EXTENSIONS,
+  extractText,
+  isImageFile,
+  isSupported,
+} from './router';
 
 const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
 
@@ -97,6 +102,29 @@ describe('ALL_SUPPORTED_EXTENSIONS', () => {
       '.csv',
     ]) {
       expect(ALL_SUPPORTED_EXTENSIONS.has(ext)).toBe(true);
+    }
+  });
+});
+
+describe('isImageFile', () => {
+  it('recognizes every image extension the router routes to the vision extractor', () => {
+    for (const f of [
+      'photo.png',
+      'PHOTO.JPG',
+      'scan.jpeg',
+      'anim.gif',
+      'pic.webp',
+      'raw.bmp',
+      'scan.tiff',
+      'scan.tif',
+    ]) {
+      expect(isImageFile(f)).toBe(true);
+    }
+  });
+
+  it('is false for every non-image format, supported or not', () => {
+    for (const f of ['doc.pdf', 'doc.docx', 'notes.md', 'data.xlsx', 'x.exe']) {
+      expect(isImageFile(f)).toBe(false);
     }
   });
 });

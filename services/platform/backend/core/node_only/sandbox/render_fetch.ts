@@ -44,8 +44,11 @@ const RENDER_IDLE_TIMEOUT_MS = 5_000;
 /** The worker stops STARTING pages this far before the exec hard kill, so
  * it always exits cleanly with its partial results on disk. */
 const WORKER_EXIT_MARGIN_MS = 20_000;
-/** Rendered-DOM caps: per page, and total per batch — `sessionReadFile`
- * serves at most 20MB, so the output file must stay safely under it. */
+/** Rendered-DOM caps in BYTES: per page, and for the whole output file —
+ * `sessionReadFile` serves at most 20MB, and an output the host cannot read
+ * back fails the batch deterministically (the crawl would retry the same
+ * batch forever), so the worker bounds the serialized file before it admits
+ * each page. */
 const RENDER_MAX_HTML_BYTES = 6 * 1024 * 1024;
 const RENDER_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 
@@ -245,7 +248,7 @@ export async function renderUrlsInSandbox(
  * aliases like `convex`) and private/link-local IP literals are refused, on
  * the original URL and again on the post-redirect landing host.
  */
-const RENDER_WORKER_SOURCE = `
+export const RENDER_WORKER_SOURCE = `
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -302,13 +305,23 @@ const startedAt = Date.now();
 const records = new Map();
 for (const url of urls) records.set(url, { url, attempted: false });
 mkdirSync('/agent/output', { recursive: true });
+// Rewrites the whole output after every page and returns its size in BYTES —
+// the budget is what the host reads back (UTF-8, JSON-escaped), never a count
+// of UTF-16 code units.
 function flush() {
-  writeFileSync(
-    '/agent/output/pages.json',
-    JSON.stringify({ pages: Array.from(records.values()) }),
+  const serialized = JSON.stringify({ pages: Array.from(records.values()) });
+  writeFileSync('/agent/output/pages.json', serialized);
+  return Buffer.byteLength(serialized, 'utf8');
+}
+// The bytes a page would add to the output: its record serialized with the
+// rendered fields, minus the record as it stands (escaping included).
+function admissionBytes(record, fields) {
+  return (
+    Buffer.byteLength(JSON.stringify({ ...record, ...fields }), 'utf8') -
+    Buffer.byteLength(JSON.stringify(record), 'utf8')
   );
 }
-flush();
+let fileBytes = flush();
 
 const chromium = loadChromium();
 const proxyServer =
@@ -322,12 +335,11 @@ if (proxyServer) {
 }
 
 const browser = await chromium.launch(launchOptions);
-let totalBytes = 0;
+let budgetExhausted = false;
 try {
   const context = await browser.newContext();
   for (const url of urls) {
     if (Date.now() - startedAt > softBudgetMs) break;
-    if (totalBytes > maxTotalBytes) break;
     const record = records.get(url);
     record.attempted = true;
     let hostname = '';
@@ -384,13 +396,20 @@ try {
         record.error = 'HTTP ' + status + ' at render time';
       } else {
         const html = await page.content();
-        if (html.length > maxHtmlBytes) {
+        if (Buffer.byteLength(html, 'utf8') > maxHtmlBytes) {
           record.error = 'rendered HTML exceeds the per-page bound';
         } else {
-          record.status = status;
-          record.finalUrl = finalUrl;
-          record.html = html;
-          totalBytes += html.length;
+          const fields = { status, finalUrl, html };
+          // Admit the page only while the output stays under the batch cap —
+          // decided BEFORE storing, in bytes. A page that does not fit is
+          // handed back (not attempted) for the next batch, and this batch
+          // ends here.
+          if (fileBytes + admissionBytes(record, fields) > maxTotalBytes) {
+            record.attempted = false;
+            budgetExhausted = true;
+          } else {
+            Object.assign(record, fields);
+          }
         }
       }
     } catch (error) {
@@ -398,7 +417,8 @@ try {
     } finally {
       await page.close().catch(() => {});
     }
-    flush();
+    fileBytes = flush();
+    if (budgetExhausted) break;
   }
 } finally {
   await browser.close().catch(() => {});

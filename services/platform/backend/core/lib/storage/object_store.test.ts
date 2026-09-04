@@ -1,7 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   buildS3ObjectStore,
+  clearOrgObjectStoreCache,
+  ObjectStoreUnconfiguredError,
+  resolveOrgObjectStore,
   s3PresignGetUrl,
   s3PresignPutUrl,
 } from './object_store';
@@ -96,5 +103,108 @@ describe('s3PresignGetUrl — attachment forcing', () => {
     // is covered by the signature — a tampered disposition invalidates it.
     expect(url.searchParams.get('X-Amz-SignedHeaders')).toBe('host');
     expect(url.searchParams.get('X-Amz-Signature')).toBeTruthy();
+  });
+});
+
+describe('resolveOrgObjectStore — fail-closed resolution', () => {
+  const previousConfigDir = process.env.TALE_CONFIG_DIR;
+  let configRoot: string;
+
+  const connectionJson = (bucket: string): string =>
+    JSON.stringify({
+      region: 'us-east-1',
+      endpoint: 'http://minio.internal:9000',
+      forcePathStyle: true,
+      bucket,
+    });
+  const SECRETS = JSON.stringify({
+    accessKeyId: 'test-access',
+    secretAccessKey: 'test-secret',
+  });
+
+  function writeTree(
+    slug: string,
+    connection: string,
+    secrets: string | null = SECRETS,
+  ): void {
+    const dir = path.join(configRoot, slug, 'object-storage');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'connection.json'), connection);
+    if (secrets !== null) {
+      writeFileSync(path.join(dir, 'connection.secrets.json'), secrets);
+    }
+  }
+
+  beforeEach(() => {
+    configRoot = mkdtempSync(path.join(tmpdir(), 'object-store-test-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+    clearOrgObjectStoreCache();
+  });
+
+  afterEach(() => {
+    if (previousConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
+    else process.env.TALE_CONFIG_DIR = previousConfigDir;
+    clearOrgObjectStoreCache();
+    rmSync(configRoot, { recursive: true, force: true });
+  });
+
+  // Regression: an org with no connection AND no default tree used to resolve
+  // to the retired Convex backend, whose `ctx.storage.store` no longer exists
+  // — the misconfiguration surfaced as a TypeError deep inside a blob lane.
+  it('throws ObjectStoreUnconfiguredError when neither the org nor the default tree is configured', async () => {
+    await expect(resolveOrgObjectStore('acme')).rejects.toBeInstanceOf(
+      ObjectStoreUnconfiguredError,
+    );
+  });
+
+  it('serves the deployment default tree to an org without its own connection', async () => {
+    writeTree('default', connectionJson('default-blobs'));
+    const store = await resolveOrgObjectStore('acme');
+    expect(store.backend).toBe('s3');
+    expect(store.config.bucket).toBe('default-blobs');
+  });
+
+  it("prefers the org's own connection over the default tree", async () => {
+    writeTree('default', connectionJson('default-blobs'));
+    writeTree('acme', connectionJson('acme-own-bucket'));
+    const store = await resolveOrgObjectStore('acme');
+    expect(store.config.bucket).toBe('acme-own-bucket');
+  });
+
+  // Regression: a broken default tree was swallowed (`.catch(() => null)`) and
+  // fell through to the dead fallback; it must surface as ITS OWN error.
+  it('surfaces a corrupt default connection as its own error, never a fallback', async () => {
+    writeTree('default', '{"region":"us-east-1"}');
+    const failure = await resolveOrgObjectStore('acme').then(
+      () => null,
+      (err: unknown) => err,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(ObjectStoreUnconfiguredError);
+    expect(String(failure)).toMatch(/Invalid object-storage connection config/);
+  });
+
+  it('surfaces missing default credentials instead of signing with none', async () => {
+    writeTree('default', connectionJson('default-blobs'), null);
+    await expect(resolveOrgObjectStore('acme')).rejects.toThrow(
+      /credentials missing/,
+    );
+  });
+
+  it('caches a resolution until the cache is cleared', async () => {
+    writeTree('default', connectionJson('default-blobs'));
+    expect((await resolveOrgObjectStore('acme')).config.bucket).toBe(
+      'default-blobs',
+    );
+    writeTree('acme', connectionJson('acme-own-bucket'));
+    // Still the cached default within the TTL…
+    expect((await resolveOrgObjectStore('acme')).config.bucket).toBe(
+      'default-blobs',
+    );
+    // …and the org's own bucket once a config write clears the cache.
+    clearOrgObjectStoreCache();
+    expect((await resolveOrgObjectStore('acme')).config.bucket).toBe(
+      'acme-own-bucket',
+    );
   });
 });
