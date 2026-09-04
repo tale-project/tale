@@ -513,6 +513,7 @@ automations:
     namePlaceholder: e.g. Triage GlitchTip issues
     slugHint: 'Saved as: {slug}'
     nameTaken: An automation with that name already exists.
+    nameReserved: That name starts with a word the platform keeps for its own pages. Start it with a different word.
     modelLabel: Agent model
     modelPlaceholder: Choose the model the agent calls
     modelSearchPlaceholder: Search models
@@ -1420,6 +1421,7 @@ chat:
   budgetExceededDetail: '{type} limit reached for this {period} ({used} / {limit}). Contact your administrator.'
   budgetExceededDefault: Usage limit reached for this period. Contact your administrator.
   budgetRemaining: '{remaining} of {limit} {type} left this {period}'
+  budgetRemainingOrg: 'Organization: {remaining} of {limit} {type} left this {period}'
   budgetLimitReached: 'Usage limit reached · resets {period}'
   budgetRequestCredits: Request usage credits
   budgetRequestCreditsSent: Request sent to your admins
@@ -2884,10 +2886,7 @@ governance:
     saveFailed: Failed to save sandbox concurrency limits
   featureFlags:
     title: Feature controls
-    description: Enable or disable features per user, team, or role.
-    webSearch: Web search
-    codeExecution: Code execution
-    fileUpload: File upload
+    description: Cap the context window for AI replies per user, team, or role.
     maxContextTokens: Max context tokens
     maxContextTokensHint:
       Maximum number of context tokens for AI responses. Leave
@@ -2904,7 +2903,7 @@ governance:
       users. You can always re-create it later.
     removeRuleConfirmAction: Delete
     noRulesTitle: No feature control rules configured
-    noRulesDescription: Add a rule to manage features per user, team, or role.
+    noRulesDescription: Add a rule to cap context tokens per user, team, or role.
     saved: Feature controls updated
     saveFailed: Failed to save feature controls
     actions: Actions
@@ -4074,9 +4073,6 @@ metadata:
   notificationPreferences:
     title: Notifications
     description: Choose which events send you a notification.
-  environment:
-    title: Environment variables & secrets
-    description: Environment variables and secrets injected into your sandboxes.
   organization:
     title: Organization
     description: Manage your organization settings.
@@ -4205,7 +4201,6 @@ navigation:
   governance: Governance
   metrics: Metrics
   personalization: Preferences
-  environment: Environment
   account: Account
   agents: Agents
   mcp: MCP
@@ -4377,12 +4372,6 @@ personalization:
     tooLong: Custom instructions exceed {max} characters.
   toasts:
     preferencesUpdated: Preferences updated.
-userEnv:
-  page:
-    title: Environment variables & secrets
-    description: Variables and secrets injected into all of your sandboxes.
-    note: Secrets are encrypted and write-only — once saved they are never shown
-      again. These variables are injected into all of your sandboxes.
 piiConfigPanel:
   modeLabel: Mode
   modeTokenize: Tokenize
@@ -5100,8 +5089,6 @@ settings:
       description: How Tale adapts to you — memory, instructions, and voice.
     notifications:
       description: Choose which events send you a notification.
-    environment:
-      description: Environment variables and secrets injected into your sandboxes.
     organization:
       description: Workspace name and identifiers.
     members:

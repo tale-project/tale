@@ -6,6 +6,10 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  rateLimitExceededCause,
+  rateLimitedResponse,
+} from '../../lib/rate-limit-response.ts';
 import { FileError, getFileUrl } from '../files/service.ts';
 import { FolderError } from '../folders/service.ts';
 import { syncRagDocumentScope } from '../knowledge/service.ts';
@@ -102,6 +106,12 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
+  // A spent budget answers the one 429 every door speaks, whether the
+  // limiter threw it here or a service wrapped it as a coded refusal.
+  const limited = rateLimitExceededCause(error);
+  if (limited !== null) {
+    return rateLimitedResponse(c, limited);
+  }
   if (error instanceof DocumentError) {
     return c.json(
       {

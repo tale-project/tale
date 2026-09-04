@@ -282,4 +282,4 @@ Die API ist über das URL-Präfix versioniert — heute `/api/v1/` — und wäch
 
 ## Wo das hingehört
 
-Diese Seite ist die REST-Hälfte der Außenfläche. Der [MCP-Endpoint](/de/develop/mcp-endpoint) öffnet dieselbe Plattform für MCP-Clients — das Autorieren von Automatisierungen lebt dort, nicht in REST. Die [Webhooks-Seite](/de/develop/webhooks) behandelt den eingehenden Trigger, der Läufe ohne Schlüssel startet. Baust du innerhalb des Produkts — Agenten, Automatisierungen, eigene Tools — ist der [Platform-Tab](/de/platform) dein Alltag; diese Seite ist für draußen.
+Diese Seite ist die REST-Hälfte der Außenfläche. Der [MCP-Endpoint](/de/develop/mcp-endpoint) öffnet dieselbe Plattform für MCP-Clients — das Autorieren von Automatisierungen lebt dort, nicht in REST. Die [Webhooks-Seite](/de/develop/webhooks) behandelt den eingehenden Trigger, der Läufe ohne Schlüssel startet. Baust du innerhalb des Produkts — Projekt-Agenten, Automatisierungen — ist der [Platform-Tab](/de/platform) dein Alltag; diese Seite ist für draußen.

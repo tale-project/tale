@@ -1065,14 +1065,14 @@ platformAgents:
   docs:
     - label: Concepts agents
       path: /platform/agents/concepts
-    - label: Créer un agent
-      path: /platform/agents/create
+    - label: Agents de projet
+      path: /platform/projects/project-agents
     - label: Harnesses
       path: /platform/agents/harnesses
-    - label: Délégation
-      path: /platform/agents/delegation
-    - label: Connaissances agent
-      path: /platform/agents/knowledge
+    - label: Automatisation des tâches
+      path: /platform/projects/task-automation
+    - label: Base de connaissances
+      path: /platform/knowledge/overview
   tour:
     heading: Comment les agents apparaissent dans Tale
     description:

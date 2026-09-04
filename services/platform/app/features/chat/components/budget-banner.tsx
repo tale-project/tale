@@ -40,7 +40,7 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
   const budgetStatusKey = useMemo(
     () =>
       budgetStatus
-        ? `${budgetStatus.exceeded}-${budgetStatus.code}-${budgetStatus.period}-${budgetStatus.warnings?.map((w) => `${w.code}:${w.percent}`).join(',')}`
+        ? `${budgetStatus.exceeded}-${budgetStatus.code}-${budgetStatus.period}-${budgetStatus.warnings?.map((w) => `${w.scope ?? 'user'}:${w.code}:${w.percent}`).join(',')}`
         : null,
     [budgetStatus],
   );
@@ -118,8 +118,8 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
               period: budgetStatus.period ?? 'monthly',
             })
           : budgetStatus.warnings
-              ?.map((w) =>
-                t('budgetRemaining', {
+              ?.map((w) => {
+                const values = {
                   remaining: formatAmount(
                     w.code,
                     Math.max(0, w.limit - w.used),
@@ -127,8 +127,13 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
                   limit: formatAmount(w.code, w.limit),
                   type: typeLabel(w.code),
                   period: w.period,
-                }),
-              )
+                };
+                // An org-bucket warning is about the organization's whole
+                // spend, not the reader's — say so, or "left" reads as theirs.
+                return w.scope === 'org'
+                  ? t('budgetRemainingOrg', values)
+                  : t('budgetRemaining', values);
+              })
               .join(' · ')}
       </span>
       {exceeded ? (

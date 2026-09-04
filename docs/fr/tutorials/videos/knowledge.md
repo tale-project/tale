@@ -25,4 +25,4 @@ Les réponses ancrées de l'épisode 2 venaient toutes d'un seul endroit — dan
 
 ## Pour continuer
 
-[L'aperçu des connaissances](/fr/platform/knowledge/overview) cartographie toute la bibliothèque ; [les documents](/fr/platform/knowledge/documents) couvrent l'indexation, [les entrées de connaissances](/fr/platform/knowledge/knowledge-entries) les faits entretenus, [les données structurées](/fr/platform/knowledge/structured-data) les fiches typées et [le crawling](/fr/platform/knowledge/crawling) les sites web. Pour les périmètres, lis [les connaissances des agents](/fr/platform/agents/knowledge).
+[L'aperçu des connaissances](/fr/platform/knowledge/overview) cartographie toute la bibliothèque ; [les documents](/fr/platform/knowledge/documents) couvrent l'indexation, [les entrées de connaissances](/fr/platform/knowledge/knowledge-entries) les faits entretenus, [les données structurées](/fr/platform/knowledge/structured-data) les fiches typées et [le crawling](/fr/platform/knowledge/crawling) les sites web. Pour la façon dont un agent de projet y accède, lis [les agents de projet](/fr/platform/projects/project-agents).

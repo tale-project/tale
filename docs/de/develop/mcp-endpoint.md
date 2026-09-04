@@ -32,7 +32,7 @@ Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Bl
 }
 ```
 
-`tools/list` liefert das volle Inventar; `GET` auf den Endpoint antwortet **405** — es gibt keinen Event-Stream zum Abonnieren.
+`tools/list` liefert das volle Inventar; `GET` auf den Endpoint antwortet **405** — es gibt keinen Event-Stream zum Abonnieren. Die Endpoint-URL deines Deployments, dasselbe Inventar in seinen drei Gruppen und eine kopierbare `tools/list`-Anfrage findest du unter **Einstellungen > API > MCP**.
 
 ## Die Tools
 
@@ -79,7 +79,7 @@ Nimm `run_deployed`, wenn die Automatisierung schnell ist und du einen Aufruf mi
 | `invoke_capability`   | Eine Capability per id aufrufen. Eine Aktion, die die Organisation gated, antwortet mit einem Pending-Approval-Ergebnis, statt zu laufen. |
 | `get_knowledge`       | Passagen aus dem Wissen der Organisation abrufen — ihren Dokumenten und ihren gecrawlten Webseiten.                                       |
 
-Das ist dieselbe Registry, die ein Chat-Turn sieht: ein Namensraum über Builtins, Connectorsaktionen, Skills, Automatisierungen und verbundene MCP-Tools. Eine Capability, die die Organisation hinter eine Freigabe stellt, läuft nicht lautlos — `invoke_capability` antwortet mit einem Pending-Approval-Ergebnis, das das Modell weitergeben kann.
+In dieser Version hält die Registry die deployten Automatisierungen der Organisation — `invoke_capability` auf einer davon ist derselbe Akt wie `run_deployed`. Builtin-Tools, Skills und externe MCP-Server sind hier nicht registriert; ein Aufruf, der zu einem davon führt, antwortet mit einer lesbaren Ablehnung, nicht mit einem Fehler. Eine Capability, die die Organisation hinter eine Freigabe stellt, läuft nicht lautlos — `invoke_capability` antwortet mit einem Pending-Approval-Ergebnis, das das Modell weitergeben kann.
 
 ## Was der Schlüssel darf
 
@@ -92,4 +92,4 @@ Ein abgelehnter Aufruf ist kein Protokollfehler: das Tool antwortet mit einer le
 
 ## Wo das hingehört
 
-Der MCP-Endpoint und die [REST-API](/de/develop/api-reference) sind eine Oberfläche in zwei Dialekten — derselbe Schlüssel, dieselbe Organisations-Scopung, dieselben Lauf-Objekte (`start_run` hier und `POST .../runs` dort erzeugen denselben durablen Lauf). Einen eigenen MCP-Server bauen, den Tale konsumiert, ist die Gegenrichtung — das sind [MCP-Server](/de/platform/connectors/mcp-servers) unter Connectors.
+Der MCP-Endpoint und die [REST-API](/de/develop/api-reference) sind eine Oberfläche in zwei Dialekten — derselbe Schlüssel, dieselbe Organisations-Scopung, dieselben Lauf-Objekte (`start_run` hier und `POST .../runs` dort erzeugen denselben durablen Lauf). Eigene MCP-Server bindet Tale in dieser Version nicht an — der Endpoint ist seine einzige MCP-Oberfläche, und die Richtung ist immer nach innen: Dein Client steuert Tale.

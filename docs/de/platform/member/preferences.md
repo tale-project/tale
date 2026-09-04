@@ -27,6 +27,12 @@ Eine Erinnerung ist eine kurze Tatsache über dich, die ein Agent vorgeschlagen 
 
 Eine vorzuschlagen tut das Modell, indem es ein Tool aufruft — kein Hintergrundprozess liest dabei deine Gespräche mit. Der Aufruf legt den Eintrag als **ausstehend** an und schreibt zugleich eine Audit-Zeile, denn dauerhaftes Wissen über eine Person vorzuschlagen ist protokollierenswert, noch bevor jemand zustimmt. Ein ausstehender Eintrag bewirkt von sich aus nichts: Er wartet als Vorschlag unter **Einstellungen > Personalisierung**, bis du ihn speicherst oder verwirfst, und nur eine gespeicherte Erinnerung lässt sich je wieder lesen.
 
+<Frame caption="Einstellungen > Personalisierung — deine benutzerdefinierten Anweisungen und die Erinnerungen, die der Assistent vorgeschlagen hat, jeweils hinter einem eigenen Schalter über dem Org-Standard.">
+
+![Die Seite Personalisierung mit dem eingeschalteten, ausgefüllten Editor für benutzerdefinierte Anweisungen und darunter dem eingeschalteten Abschnitt Erinnerungen, der noch keine ausstehenden Vorschläge und keine gespeicherten Erinnerungen listet.](/images/platform/settings-preferences.webp)
+
+</Frame>
+
 <Info>
 
 Nichts wandert in deinem Namen in einen Prompt. Eine gespeicherte Erinnerung erreicht eine Antwort nur, wenn das Modell danach sucht und die Suche sie zurückgibt — ein Modell kann sich kein dauerhaftes Wissen über dich verschaffen, indem es es aufschreibt, und es kann einen Vorschlag, den du abgelehnt hast, nicht heimlich nachschlagen.
@@ -41,4 +47,4 @@ Die Zeile **Abmelden** unten im Profilmenü bestätigt mit einem Dialog, bevor s
 
 ## Wo das hingehört
 
-Einstellungen sind die Linie zwischen dir und dem Rest der Organisation. Der Org-Admin setzt die Standardwerte — die Passwort-Richtlinie, welche Modelle erlaubt sind, welche Governance für einen Chat gilt — und deine Einstellungen überschreiben sie dort, wo Tale es zulässt. Eine persönliche Seite steht abseits dieses Sets: [Umgebungsvariablen & Geheimnisse](/de/platform/member/environment) hält Variablen und Anmeldedaten, die innerhalb einer einzelnen Organisation auf dich begrenzt sind, statt dir über Organisationen hinweg zu folgen — der Ort für den Provider-Schlüssel, den ein BYO-Agent benutzt. Die nächste Lektüre, die sich lohnt, ist [Mitglieds-Übersicht](/de/platform/member/overview) für die Karte des restlichen Mitglieder-Bereichs, oder [Als App installieren](/de/platform/member/install-as-app), wenn du willst, dass Tale in deinem Dock statt in deinen Browser-Tabs lebt.
+Einstellungen sind die Linie zwischen dir und dem Rest der Organisation. Der Org-Admin setzt die Standardwerte — die Passwort-Richtlinie, welche Modelle erlaubt sind, welche Governance für einen Chat gilt — und deine Einstellungen überschreiben sie dort, wo Tale es zulässt. Die nächste Lektüre, die sich lohnt, ist [Mitglieds-Übersicht](/de/platform/member/overview) für die Karte des restlichen Mitglieder-Bereichs, oder [Als App installieren](/de/platform/member/install-as-app), wenn du willst, dass Tale in deinem Dock statt in deinen Browser-Tabs lebt.

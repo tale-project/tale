@@ -40,6 +40,12 @@ export interface Oauth2Tokens {
    * generically instead of switching on the connector.
    */
   readonly teamId?: string;
+  /**
+   * The workspace's display name (`team.name`), when the vendor sends one
+   * alongside the id — it labels a second workspace's credential so an
+   * organization connecting several can tell them apart.
+   */
+  readonly teamName?: string;
 }
 
 export type TokenExchangeResult =
@@ -199,6 +205,7 @@ export async function exchangeAuthorizationCode(
           : undefined,
       scopes: parseScopes(payload.scope),
       teamId: team ? getString(team, 'id') : undefined,
+      teamName: team ? getString(team, 'name') : undefined,
     },
   };
 }

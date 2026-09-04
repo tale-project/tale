@@ -3,23 +3,33 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
+import { PUBLIC_WEB_SCHEMA } from '../../../lib/knowledge/types';
 import {
   admitUrls,
   admitUrlsStatement,
+  deregisterDomain,
+  registerDomain,
   registerUrlList,
   reviveListedUrls,
   URL_INSERT_BATCH,
 } from './crawl';
 
 /**
- * A page that answered 404 once used to be gone for good: the crawler marked
- * its row `deleted`, and every door that re-admits URLs — discovery, rendered
- * links, the operator's own list — skipped rows that already existed. These
- * tests pin the ONE admission statement all doors now speak and its revival
- * semantics; the real-Postgres proof rides the integration check.
+ * Two rules of the crawl frontier, pinned on recording doubles (what matters
+ * is which statements run, with which parameters, inside which transaction —
+ * the real-Postgres proofs ride the integration check):
  *
- * The database is a recording double: what matters is which statements run
- * and with which parameters, not that PostgreSQL executes them.
+ *  - A page that answered 404 once used to be gone for good: the crawler
+ *    marked its row `deleted`, and every door that re-admits URLs — discovery,
+ *    rendered links, the operator's own list — skipped rows that already
+ *    existed. The ONE admission statement all doors now speak revives them.
+ *  - Registration and removal of a domain are serialized on the domain row:
+ *    each runs as ONE transaction whose first write takes the `websites` row
+ *    lock and holds it until the membership write commits. As two autocommit
+ *    statements, a removal's "last member?" check could run between a
+ *    concurrent registration's domain upsert and its membership insert — the
+ *    fresh domain row was deleted under the registration (cascading its urls
+ *    and chunks) and the membership insert then failed on the foreign key.
  */
 
 interface FakeDb {
@@ -35,6 +45,34 @@ function fakeDb(rowsPerCall: (text: string) => unknown[] = () => []): FakeDb {
   };
   const sql = { unsafe } as unknown as Sql;
   return { sql, calls };
+}
+
+interface Recorded {
+  readonly text: string;
+  readonly params: readonly unknown[];
+  readonly inTx: boolean;
+}
+
+/** Like `fakeDb`, but also records whether a statement ran inside `begin`. */
+function recorder(): { sql: Sql; sent: Recorded[]; begins: () => number } {
+  const sent: Recorded[] = [];
+  let begins = 0;
+  const unsafeFor =
+    (inTx: boolean) =>
+    (text: string, params: unknown[] = []): Promise<unknown[]> => {
+      sent.push({ text: text.replace(/\s+/g, ' ').trim(), params, inTx });
+      return Promise.resolve([]);
+    };
+  const sql = {
+    unsafe: unsafeFor(false),
+    begin: (
+      callback: (tx: { unsafe: ReturnType<typeof unsafeFor> }) => unknown,
+    ): unknown => {
+      begins += 1;
+      return callback({ unsafe: unsafeFor(true) });
+    },
+  } as unknown as Sql;
+  return { sql, sent, begins: () => begins };
 }
 
 describe('admitUrlsStatement', () => {
@@ -110,23 +148,78 @@ describe('admitUrls', () => {
   });
 });
 
+describe('deregisterDomain', () => {
+  it('locks the domain row, then removes the membership and the orphaned domain, in one transaction', async () => {
+    const { sql, sent, begins } = recorder();
+
+    await deregisterDomain(sql, 'acme', 'example.com');
+
+    expect(begins()).toBe(1);
+    expect(sent).toHaveLength(3);
+    expect(sent.every((s) => s.inTx)).toBe(true);
+    expect(sent[0]?.text).toBe(
+      `SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.websites WHERE domain = $1 FOR UPDATE`,
+    );
+    expect(sent[0]?.params).toEqual(['example.com']);
+    expect(sent[1]?.text).toContain(
+      `DELETE FROM ${PUBLIC_WEB_SCHEMA}.website_org_memberships`,
+    );
+    expect(sent[1]?.params).toEqual(['example.com', 'acme']);
+    expect(sent[2]?.text).toContain(
+      `DELETE FROM ${PUBLIC_WEB_SCHEMA}.websites`,
+    );
+    expect(sent[2]?.text).toContain('NOT EXISTS');
+  });
+});
+
+describe('registerDomain', () => {
+  it('upserts the domain and inserts the membership under one transaction', async () => {
+    const { sql, sent, begins } = recorder();
+
+    await registerDomain(sql, 'acme', 'example.com', 3600);
+
+    expect(begins()).toBe(1);
+    expect(sent).toHaveLength(2);
+    expect(sent.every((s) => s.inTx)).toBe(true);
+    expect(sent[0]?.text).toContain(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites`,
+    );
+    expect(sent[0]?.text).toContain('ON CONFLICT (domain)');
+    expect(sent[1]?.text).toContain(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships`,
+    );
+  });
+});
+
 describe('registerUrlList', () => {
-  it('admits the listed URLs through the shared door, marked listed', async () => {
-    const db = fakeDb();
+  it('keeps the domain upsert, the membership and the URL admission in one transaction', async () => {
+    const { sql, sent, begins } = recorder();
+
     await registerUrlList(
-      db.sql,
+      sql,
       'acme',
-      'example.test',
-      ['https://example.test/a', 'https://example.test/b'],
+      'example.com',
+      ['https://example.com/a', 'https://example.com/b'],
       3600,
     );
-    const admit = db.calls.find((call) => call.text.includes('website_urls'));
-    expect(admit).toBeDefined();
-    expect(admit?.text).toBe(admitUrlsStatement(2, true));
-    expect(admit?.params).toEqual([
-      'example.test',
-      'https://example.test/a',
-      'https://example.test/b',
+
+    expect(begins()).toBe(1);
+    expect(sent).toHaveLength(3);
+    expect(sent.every((s) => s.inTx)).toBe(true);
+    expect(sent[0]?.text).toContain(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites`,
+    );
+    expect(sent[1]?.text).toContain(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships`,
+    );
+    // The URL rows go through the shared admission door, marked listed.
+    expect(sent[2]?.text).toBe(
+      admitUrlsStatement(2, true).replace(/\s+/g, ' ').trim(),
+    );
+    expect(sent[2]?.params).toEqual([
+      'example.com',
+      'https://example.com/a',
+      'https://example.com/b',
     ]);
   });
 });

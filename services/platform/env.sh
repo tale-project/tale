@@ -3,7 +3,8 @@
 # Sourced by docker-entrypoint.sh and operator tooling; never prints secrets.
 set -eo pipefail
 
-# Normalize and export the environment the platform + Convex backend expect.
+# Normalize and export the environment the platform web tier and the
+# application backend expect.
 env_normalize_common() {
   # Application configuration
   export NODE_ENV="${NODE_ENV:-production}"
@@ -13,8 +14,9 @@ env_normalize_common() {
   # Database configuration.
   # POSTGRES_URL may be given explicitly; otherwise it is derived from
   # DB_PASSWORD (+ DB_USER/DB_HOST/DB_PORT) for the default self-hosted
-  # compose stack. The Convex postgres backend expects the URL WITHOUT a
-  # database name in the path — it manages its own database.
+  # compose stack. The URL carries NO database name in its path: the
+  # knowledge URL below appends `/tale_knowledge`, and the backend tier gets
+  # its own DATABASE_URL (`…/tale_app`) from compose.
   if [ -z "${POSTGRES_URL:-}" ]; then
     local db_user="${DB_USER:-tale}"
     if [ -z "${DB_PASSWORD:-}" ]; then
@@ -37,9 +39,8 @@ env_normalize_common() {
   # Cross-service URLs (Docker service names by default; override in .env).
   export SANDBOX_URL="${SANDBOX_URL:-http://sandbox:8003}"
 
-  # Convex instance identity. INSTANCE_NAME is pinned to the database created
-  # by init-scripts/02-create-convex-database.sql.
-  export INSTANCE_NAME="tale_platform"
+  # Instance identity: the secret every derived key (WebDAV app passwords,
+  # sandbox stage tokens) is seeded from.
   export INSTANCE_SECRET="${INSTANCE_SECRET}"
 
   # Root config directory: per-org subtrees at $TALE_CONFIG_DIR/<orgSlug>/,
@@ -47,7 +48,7 @@ env_normalize_common() {
   # per-domain overrides (AGENTS_DIR etc.) are purged by the entrypoint.
   export TALE_CONFIG_DIR="${TALE_CONFIG_DIR:-/app/data}"
 
-  # Canonical base URL; every other URL (Convex HTTP/WS) is derived in code.
+  # Canonical base URL; every other public URL is derived from it in code.
   if [ -z "${SITE_URL:-}" ]; then
     echo "Error: SITE_URL is required. Set it in your .env file." >&2
     exit 1
@@ -61,13 +62,5 @@ ensure_instance_secret() {
     echo "⚠️  INSTANCE_SECRET not set; using insecure local default."
     echo "   Set INSTANCE_SECRET in .env for production."
     export INSTANCE_SECRET="local-dev-insecure-secret"
-  fi
-}
-
-# Tools that derive keys (generate-admin-key) need a real 64-hex secret.
-ensure_hex_instance_secret() {
-  if ! echo "${INSTANCE_SECRET:-}" | grep -Eq '^[0-9a-fA-F]{64}$'; then
-    echo "Error: INSTANCE_SECRET must be a 64-character hex string. Set INSTANCE_SECRET in your .env." >&2
-    exit 1
   fi
 }

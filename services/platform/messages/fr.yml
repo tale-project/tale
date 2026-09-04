@@ -544,6 +544,7 @@ automations:
     namePlaceholder: p. ex. Trier les issues GlitchTip
     slugHint: 'Enregistrée sous : {slug}'
     nameTaken: Une automatisation portant ce nom existe déjà.
+    nameReserved: Ce nom commence par un mot que la plateforme garde pour ses propres pages. Commence-le par un autre mot.
     modelLabel: Modèle de l'agent
     modelPlaceholder: Choisis le modèle que l'agent appelle
     modelSearchPlaceholder: Rechercher des modèles
@@ -1471,6 +1472,7 @@ chat:
   budgetExceededDetail: Limite de {type} atteinte pour cette période {period} ({used} / {limit}). Contacte ton administrateur.
   budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Contacte ton administrateur."
   budgetRemaining: 'Encore {remaining} sur {limit} {type} pour ce {period}'
+  budgetRemainingOrg: 'Organisation : encore {remaining} sur {limit} {type} pour ce {period}'
   budgetLimitReached: "Limite d'utilisation atteinte · se réinitialise {period}"
   budgetRequestCredits: Demander plus de crédits
   budgetRequestCreditsSent: Demande envoyée à tes admins
@@ -3057,10 +3059,7 @@ governance:
     saveFailed: Échec de l'enregistrement des limites de simultanéité des sandboxes
   featureFlags:
     title: Contrôle des fonctionnalités
-    description: Active ou désactive des fonctionnalités par utilisateur, équipe ou rôle.
-    webSearch: Recherche web
-    codeExecution: Exécution de code
-    fileUpload: Téléversement de fichiers
+    description: Plafonne la fenêtre de contexte des réponses IA par utilisateur, équipe ou rôle.
     maxContextTokens: Tokens de contexte maximum
     maxContextTokensHint:
       Nombre maximum de tokens de contexte pour les réponses IA.
@@ -3078,8 +3077,7 @@ governance:
       correspondants. Tu peux la recréer à tout moment.
     removeRuleConfirmAction: Supprimer
     noRulesTitle: Aucune règle de contrôle de fonctionnalités configurée
-    noRulesDescription: Ajoute une règle pour gérer les fonctionnalités par
-      utilisateur, équipe ou rôle.
+    noRulesDescription: Ajoute une règle pour plafonner les tokens de contexte par utilisateur, équipe ou rôle.
     saved: Le contrôle des fonctionnalités a été mis à jour
     saveFailed: Échec de l'enregistrement du contrôle des fonctionnalités
     actions: Actions
@@ -4302,9 +4300,6 @@ metadata:
   notificationPreferences:
     title: Notifications
     description: Choisis les événements qui t'envoient une notification.
-  environment:
-    title: Variables d'environnement et secrets
-    description: Variables d'environnement et secrets injectés dans tes sandboxes.
   organization:
     title: Organisation
     description: Gère les paramètres de ton organisation.
@@ -4434,7 +4429,6 @@ navigation:
   governance: Gouvernance
   metrics: Métriques
   personalization: Personnalisation
-  environment: Environnement
   account: Compte
   agents: Agents
   mcp: MCP
@@ -4625,14 +4619,6 @@ personalization:
     tooLong: Les instructions personnalisées dépassent {max} caractères.
   toasts:
     preferencesUpdated: Préférences mises à jour.
-userEnv:
-  page:
-    title: Variables d'environnement et secrets
-    description: Variables et secrets injectés dans toutes tes sandboxes.
-    note:
-      Les secrets sont chiffrés et en écriture seule — une fois enregistrés, ils
-      ne sont plus jamais affichés. Ces variables sont injectées dans toutes tes
-      sandboxes.
 piiConfigPanel:
   modeLabel: Mode
   modeTokenize: Tokeniser
@@ -5052,8 +5038,6 @@ settings:
       description: Comment Tale s'adapte à toi — mémoire, instructions et voix.
     notifications:
       description: Choisis les événements qui t'envoient une notification.
-    environment:
-      description: Variables d'environnement et secrets injectés dans tes sandboxes.
     organization:
       description: Nom de l'espace de travail et identifiants.
     members:

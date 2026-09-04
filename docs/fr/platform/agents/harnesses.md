@@ -17,27 +17,27 @@ Le chat ne liste aucun harness. Le sélecteur du composer ne propose que des mod
 
 ## Ce qu’est un tour sur harness
 
-Décris la tâche en langage ordinaire : « écris une petite CLI Python et teste-la », « clone ce dépôt et corrige le bug de l’issue 42 ». Le message part vers le harness, pas directement vers le modèle. Le harness pilote le modèle en boucle à l’intérieur du conteneur et décide lui-même quand lire un fichier, lancer une commande ou refaire un essai ; la réponse arrive quand son tour se termine.
+Décris la tâche en langage ordinaire : « écris une petite CLI Python et teste-la », « clone ce dépôt et corrige le bug de l’issue 42 ». Le message part vers le harness, pas directement vers le modèle. Le harness pilote le modèle en boucle à l’intérieur du conteneur et décide lui-même quand lire un fichier, lancer une commande ou refaire un essai ; son rapport arrive quand le tour se termine — en commentaire sur la tâche d’un agent de projet, en sortie de l’étape dans une automatisation.
 
-Deux conséquences. Le travail est réel plutôt que décrit : les fichiers existent, les commandes ont bel et bien tourné, et c’est leur sortie que le modèle a analysée. Et la forme du tour appartient au harness, pas à Tale — un harness doté d’un mode plan termine sur une proposition que tu peux relire, un harness fait pour les passages uniques va simplement au bout.
+Deux conséquences. Le travail est réel plutôt que décrit : les fichiers existent, les commandes ont bel et bien tourné, et c’est leur sortie que le modèle a analysée. Et le rythme du tour appartient au harness, pas à Tale — il décide quand le travail est fait et termine le tour, et Tale collecte ce qu’il a produit.
 
 ## Les harnesses livrés
 
-Neuf harnesses sont livrés avec la plateforme. Ils diffèrent par la façon dont ils reçoivent un prompt, par la possibilité de les infléchir en cours de tour, et par leur accès aux serveurs MCP.
+Neuf harnesses sont livrés avec la plateforme. Ils diffèrent par la façon dont ils reçoivent un prompt, par la possibilité de les infléchir en cours de tour, et par leur prise du canal MCP — les serveurs que Tale monte dans la sandbox, sur un accès géré, pour tendre à un tour ses connectors connectés et un navigateur ; aucun serveur MCP externe n’entre en jeu.
 
 | Harness     | Accès acceptés     | Bon à savoir                                                                                                                                 |
 | ----------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code | Géré ou le tien    | Le plus capable : infléchissable en cours de tour, avec un mode plan qui se termine par une proposition relisible. Atteint les serveurs MCP. |
-| Codex       | Géré ou le tien    | Tours en un seul passage. Atteint les serveurs MCP.                                                                                          |
+| Claude Code | Géré ou le tien    | Le plus capable : infléchissable en cours de tour — un commentaire de tâche l’atteint pendant que le travail est encore en cours. Prend le canal MCP. |
+| Codex       | Géré ou le tien    | Tours en un seul passage. Prend le canal MCP.                                                                                         |
 | Cursor      | Le tien uniquement | Tours en un seul passage. Sa CLI ne sait pas passer par la passerelle de la plateforme, un accès géré est donc refusé.                       |
-| Gemini CLI  | Géré ou le tien    | Tours en un seul passage. Atteint les serveurs MCP.                                                                                          |
+| Gemini CLI  | Géré ou le tien    | Tours en un seul passage. Prend le canal MCP.                                                                                         |
 | Hermes      | Géré ou le tien    | Tours en un seul passage, sans canal MCP.                                                                                                    |
-| OpenClaw    | Géré ou le tien    | Tours en un seul passage. Atteint les serveurs MCP.                                                                                          |
-| OpenCode    | Géré uniquement    | Tours en un seul passage. Atteint les serveurs MCP. Passe par la passerelle, ta propre clé est refusée.                                      |
+| OpenClaw    | Géré ou le tien    | Tours en un seul passage. Prend le canal MCP.                                                                                         |
+| OpenCode    | Géré uniquement    | Tours en un seul passage. Prend le canal MCP. Passe par la passerelle, ta propre clé est refusée.                                     |
 | Pi          | Géré ou le tien    | Tours en un seul passage, sans canal MCP.                                                                                                    |
-| Qwen Code   | Géré ou le tien    | Tours en un seul passage. Atteint les serveurs MCP.                                                                                          |
+| Qwen Code   | Géré ou le tien    | Tours en un seul passage. Prend le canal MCP.                                                                                         |
 
-En pratique, la différence se joue sur l’inflexion. Avec Claude Code, une correction envoyée pendant que le tour tourne atteint l’agent à sa prochaine frontière d’outil : « prends pnpm, pas npm » arrive donc pendant que le travail est encore en cours. Tous les autres harnesses récupèrent un message en attente à la frontière du tour.
+En pratique, la différence se joue sur l’inflexion. Tu infléchis une exécution en cours en commentant la tâche et en @mentionnant l’agent. Avec Claude Code, le commentaire atteint l’agent à sa prochaine frontière d’outil : « prends pnpm, pas npm » arrive donc pendant que le travail est encore en cours. Tous les autres harnesses n’acceptent plus rien une fois lancés : Tale arrête alors le processus en cours et poursuit la même conversation sur un processus neuf, ton commentaire en main.
 
 ## D’où vient l’accès
 
@@ -55,11 +55,11 @@ Un tour sur harness nomme toujours un harness concret. Rien n’en devine un à 
 
 ## Ce que la sandbox peut atteindre
 
-Le conteneur démarre sur un répertoire de travail vide. Les fichiers et dossiers que tu épingles avec `@` entrent dans la session sous `/agent/uploads/`, de sorte que l’agent ouvre les vrais octets plutôt qu’un extrait de recherche, et ce qu’il écrit sous `/agent/output/` revient dans la conversation sous forme de fichier. Le trafic sortant est ouvert par défaut, les cibles dangereuses restant toujours bloquées — le point de métadonnées cloud et les plages d’adresses privées — si bien que l’agent installe des paquets et clone des dépôts sans jamais atteindre le réseau hôte ; un opérateur auto-hébergé peut resserrer l’egress sur une liste d’hôtes au niveau du déploiement.
+Un agent de projet travaille dans un espace de travail permanent, qui persiste d’une tâche à l’autre ; il démarre vide. Les pièces jointes de la tâche sont recopiées en lecture seule sous `/agent/inputs/<task>/attachments/`, de sorte que l’agent ouvre les vrais octets plutôt qu’un extrait de recherche, et ce qu’il écrit dans sa boîte de livraison sous `/agent/output/<task>/` est collecté à la fin du tour et attaché à la tâche comme **Fichiers produits** ; un nœud agent d’automatisation collecte `/agent/output/` comme sortie de l’étape. Le trafic sortant est ouvert par défaut, les cibles dangereuses restant toujours bloquées — le point de métadonnées cloud et les plages d’adresses privées — si bien que l’agent installe des paquets et clone des dépôts sans jamais atteindre le réseau hôte ; un opérateur auto-hébergé peut resserrer l’egress sur une liste d’hôtes au niveau du déploiement.
 
-Les connectors connectées atteignent l’agent par un broker, pas par la boîte. Quand l’agent en appelle une, la requête repart vers Tale, qui l’exécute avec l’accès stocké et ne renvoie que le résultat : un conteneur compromis ne peut donc pas lire tes clés. Une écriture apparaît comme une carte de validation dans la conversation et se poursuit une fois que tu l’approuves. GitHub est l’exception assumée : `git` et la CLI `gh` ont besoin d’un jeton en local ; un tour s’exécute donc avec un jeton restreint tant que la conversation garde le connecteur GitHub équipé — injecté à chaque tour, disparu dès la fin du tour.
+Les connectors connectées atteignent l’agent par un broker, pas par la boîte. Quand l’agent en appelle une, la requête repart vers Tale, qui l’exécute avec l’accès stocké et ne renvoie que le résultat : un conteneur compromis ne peut donc pas lire tes clés. Le broker ne porte que des actions de lecture : une écriture — poster un message, envoyer un mail, ouvrir un ticket — est refusée avec un motif lisible, si bien qu’un agent ne peut pas modifier un système extérieur depuis sa sandbox ; cette étape revient au nœud connector d’une automatisation. GitHub est l’exception assumée : `git` et la CLI `gh` ont besoin d’un jeton en local ; tant que l’agent a le connecteur GitHub équipé, chaque exécution reçoit un jeton restreint — injecté à chaque exécution, disparu dès sa fin.
 
-Les skills liés à l’agent sont déposés dans la session sous forme de fichiers plutôt que récupérés par un outil, et un skill livré par le dépôt cloné l’emporte sur la copie que Tale déposerait — cette règle de priorité est détaillée dans [Skills d’agent](/fr/platform/agents/skills). Tes propres [variables d’environnement et secrets](/fr/platform/member/environment) sont également posés dans le conteneur : c’est ainsi qu’un jeton personnel ou un point d’accès à toi rejoint le travail sans qu’aucune autre session le voie.
+Les skills liés à l’agent sont déposés dans la session sous forme de fichiers plutôt que récupérés par un outil, et un skill livré par le dépôt cloné l’emporte sur la copie que Tale déposerait — cette règle de priorité est détaillée dans [Skills d’agent](/fr/platform/agents/skills). Les autres valeurs qu’une exécution reçoit sont les **Secrets** de l’organisation dont l’agent est équipé — une clé API en variable d’environnement, posée à chaque exécution et disparue à sa fin —, et c’est ainsi qu’un jeton pour un service sans connecteur rejoint le travail ; [Agents de projet](/fr/platform/projects/project-agents) les décrit.
 
 ## Coût et mesure
 

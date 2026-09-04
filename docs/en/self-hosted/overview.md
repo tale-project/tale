@@ -11,7 +11,7 @@ Read this before you deploy. Come back when you are debugging an outage and need
 
 **tale-proxy** is Caddy at the edge. It terminates TLS, serves the SPA and the platform's own routes from the platform container, and forwards the application surface — everything under `/api/` except `/api/health`, plus `/events` and the WebDAV door — to the backend. Healthchecks live here.
 
-**tale-platform** is the web tier: a Vite + TanStack Router SPA plus the Bun server that serves it. It renders the UI, serves static assets and branding, watches the config store for live changes, and owns a few of its own routes (the health probe, the canvas/screencast preview, the WebDAV fallback). It is the only container the browser talks to directly, and it holds no business state — everything that persists goes through the backend.
+**tale-platform** is the web tier: a Vite + TanStack Router SPA plus the Bun server that serves it. It renders the UI, serves static assets and branding, watches the config store for live changes, and owns a few of its own routes (the health probe, the canvas preview, the WebDAV fallback). It is the only container the browser talks to directly, and it holds no business state — everything that persists goes through the backend.
 
 **tale-backend-api** is the application backend running as the `api` role (`TALE_ROLE=api`): every application door — the app API, Better Auth, the SSE hint stream, the machine doors, and the in-sandbox bridges. Provider keys, agent definitions, automation runs, and audit logs all flow through it. It is a singleton — both platform colours point at the same api — and is dual-homed onto the sandbox network so a session container can reach it directly.
 

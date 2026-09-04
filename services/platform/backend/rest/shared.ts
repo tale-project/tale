@@ -5,6 +5,7 @@ import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
 import { getProjectAuthContext } from '../domains/projects/service.ts';
+import { rateLimitedResponse } from '../lib/rate-limit-response.ts';
 import {
   RateLimitExceededError,
   checkUserRateLimit,
@@ -139,9 +140,7 @@ export async function chargeLane(
     return null;
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
-      return c.json({ error: 'Rate limit exceeded' }, 429, {
-        'retry-after': String(Math.ceil(error.retryAfter / 1000)),
-      });
+      return rateLimitedResponse(c, error);
     }
     throw error;
   }

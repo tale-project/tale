@@ -10,25 +10,20 @@ const { resolveFeatureFlags } = await import('./feature_enforcement');
 const mockCtx = {} as never;
 
 describe('resolveFeatureFlags', () => {
-  it('returns defaults when no policy exists', async () => {
+  it('applies no cap when no policy exists', async () => {
     mockReadPolicyConfig.mockResolvedValue(null);
 
     const result = await resolveFeatureFlags(mockCtx, 'org_1', 'user_1', []);
 
-    expect(result).toEqual({
-      webSearch: true,
-      codeExecution: true,
-      fileUpload: true,
-    });
+    expect(result).toEqual({});
   });
 
-  it('returns defaults when policy is disabled', async () => {
+  it('applies no cap when the policy is disabled', async () => {
     mockReadPolicyConfig.mockResolvedValue({
       enabled: false,
       rules: [
         {
           scope: 'default',
-          webSearch: false,
           maxContextTokens: 8192,
         },
       ],
@@ -36,14 +31,10 @@ describe('resolveFeatureFlags', () => {
 
     const result = await resolveFeatureFlags(mockCtx, 'org_1', 'user_1', []);
 
-    expect(result).toEqual({
-      webSearch: true,
-      codeExecution: true,
-      fileUpload: true,
-    });
+    expect(result).toEqual({});
   });
 
-  it('returns defaults when rules array is empty', async () => {
+  it('applies no cap when the rules array is empty', async () => {
     mockReadPolicyConfig.mockResolvedValue({
       enabled: true,
       rules: [],
@@ -51,20 +42,15 @@ describe('resolveFeatureFlags', () => {
 
     const result = await resolveFeatureFlags(mockCtx, 'org_1', 'user_1', []);
 
-    expect(result).toEqual({
-      webSearch: true,
-      codeExecution: true,
-      fileUpload: true,
-    });
+    expect(result).toEqual({});
   });
 
-  it('applies default rule when no specific rule matches', async () => {
+  it('applies the default rule when no specific rule matches', async () => {
     mockReadPolicyConfig.mockResolvedValue({
       enabled: true,
       rules: [
         {
           scope: 'default',
-          webSearch: false,
           maxContextTokens: 16384,
         },
       ],
@@ -72,12 +58,7 @@ describe('resolveFeatureFlags', () => {
 
     const result = await resolveFeatureFlags(mockCtx, 'org_1', 'user_1', []);
 
-    expect(result).toEqual({
-      webSearch: false,
-      codeExecution: true,
-      fileUpload: true,
-      maxContextTokens: 16384,
-    });
+    expect(result).toEqual({ maxContextTokens: 16384 });
   });
 
   it('user rule takes priority over team, role, and default', async () => {
@@ -143,7 +124,11 @@ describe('resolveFeatureFlags', () => {
     expect(result.maxContextTokens).toBe(131072);
   });
 
-  it('partial rule merges with defaults for missing fields', async () => {
+  // The webSearch / codeExecution / fileUpload toggles were never enforced
+  // anywhere and are retired; a policy file written by an earlier release may
+  // still carry them, and they must resolve to nothing — not reappear on the
+  // wire as controls that do nothing.
+  it('ignores the deprecated toggles a rule may still carry', async () => {
     mockReadPolicyConfig.mockResolvedValue({
       enabled: true,
       rules: [
@@ -151,30 +136,27 @@ describe('resolveFeatureFlags', () => {
           scope: 'user',
           scopeId: 'user_1',
           webSearch: false,
+          codeExecution: false,
+          fileUpload: false,
         },
       ],
     });
 
     const result = await resolveFeatureFlags(mockCtx, 'org_1', 'user_1', []);
 
-    expect(result).toEqual({
-      webSearch: false,
-      codeExecution: true,
-      fileUpload: true,
-      maxContextTokens: undefined,
-    });
+    expect(result).toEqual({});
+    expect(result).not.toHaveProperty('webSearch');
+    expect(result).not.toHaveProperty('codeExecution');
+    expect(result).not.toHaveProperty('fileUpload');
   });
 
-  it('resolves maxContextTokens from matching rule', async () => {
+  it('resolves maxContextTokens from the matching rule', async () => {
     mockReadPolicyConfig.mockResolvedValue({
       enabled: true,
       rules: [
         {
           scope: 'default',
           maxContextTokens: 32768,
-          webSearch: true,
-          codeExecution: true,
-          fileUpload: true,
         },
       ],
     });

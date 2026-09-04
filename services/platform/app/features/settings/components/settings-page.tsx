@@ -24,8 +24,7 @@ import { cn } from '@/lib/utils/cn';
  *     matched by asking whether a child CONTAINS a section;
  *   • a wrapper holding a section header plus its table: those children are
  *     not sections, so they get no line between them — the stray divider that
- *     appeared under Teams / Skills / Sandboxes / Branding / Trash and the
- *     environment page.
+ *     appeared under Teams / Skills / Sandboxes / Branding / Trash.
  *
  * Dialogs and other children that render nothing where they sit never match
  * either rule, so a page can no longer end on a divider with empty space.

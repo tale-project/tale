@@ -32,7 +32,7 @@ Le serveur s'identifie comme `tale-platform`. Dans un client à bloc de config, 
 }
 ```
 
-`tools/list` renvoie l'inventaire complet ; `GET` sur l'endpoint répond **405** — il n'y a pas de flux d'événements à écouter.
+`tools/list` renvoie l'inventaire complet ; `GET` sur l'endpoint répond **405** — il n'y a pas de flux d'événements à écouter. L’URL de l’endpoint de ton déploiement, le même inventaire en trois groupes et une requête `tools/list` à copier se trouvent sous **Paramètres > API > MCP**.
 
 ## Les outils
 
@@ -79,7 +79,7 @@ Prends `run_deployed` quand l'automatisation est rapide et que tu veux un seul a
 | `invoke_capability`   | Invoquer une capacité par id. Une action que l'organisation soumet à validation répond un résultat d'approbation en attente au lieu de s'exécuter. |
 | `get_knowledge`       | Récupérer des passages des connaissances de l'organisation — ses documents et ses pages web crawlées.                                              |
 
-C'est le même registre qu'un tour de chat voit : un seul espace de noms sur les builtins, les actions de connector, les skills, les automatisations et les outils MCP connectés. Une capacité que l'organisation place derrière une approbation ne s'exécute pas en silence — `invoke_capability` répond un résultat d'approbation en attente que le modèle peut relayer.
+Dans cette version, le registre tient les automatisations déployées de l’organisation — `invoke_capability` sur l’une d’elles est le même acte que `run_deployed`. Les outils builtin, les skills et les serveurs MCP externes n’y sont pas enregistrés ; un appel qui mène à l’un d’eux répond un refus lisible, pas une erreur. Une capacité que l'organisation place derrière une approbation ne s'exécute pas en silence — `invoke_capability` répond un résultat d'approbation en attente que le modèle peut relayer.
 
 ## Ce que la clé peut faire
 
@@ -92,4 +92,4 @@ Un appel refusé n'est pas une erreur de protocole : l'outil répond un refus l
 
 ## Où ça se place
 
-L'endpoint MCP et l'[API REST](/fr/develop/api-reference) sont une seule surface en deux dialectes — même clé, même périmètre d'organisation, mêmes objets d'exécution (`start_run` ici et `POST .../runs` là-bas produisent la même exécution durable). Construire ton propre serveur MCP que Tale consomme, c'est la direction inverse — ce sont les [serveurs MCP](/fr/platform/connectors/mcp-servers) côté connectors.
+L'endpoint MCP et l'[API REST](/fr/develop/api-reference) sont une seule surface en deux dialectes — même clé, même périmètre d'organisation, mêmes objets d'exécution (`start_run` ici et `POST .../runs` là-bas produisent la même exécution durable). Tale ne se connecte à aucun serveur MCP tiers dans cette version — l’endpoint est sa seule surface MCP, et la direction est toujours vers l’intérieur : ton client pilote Tale.

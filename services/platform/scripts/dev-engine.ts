@@ -148,8 +148,6 @@ function envNormalizeCommon() {
   const port = process.env.PORT || '3000';
   const host = process.env.HOST || 'localhost';
 
-  if (!process.env.INSTANCE_NAME) process.env.INSTANCE_NAME = 'tale_platform';
-
   if (!process.env.SITE_URL) {
     process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
   }

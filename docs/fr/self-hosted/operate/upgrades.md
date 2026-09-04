@@ -144,6 +144,13 @@ tale deploy
 
 Le contournement expert — `tale deploy --accept-data-loss` — existe pour le cas rare où tu réutilises délibérément un hôte dont tu as déjà traité les anciens volumes. Il fait exactement ce que son nom dit : les données pré-0.5 de cette instance deviennent définitivement illisibles.
 
+**L'ancienne base `tale_platform`.** Chaque conteneur `tale-db` créait au démarrage une base `tale_platform` vide — la base que le service Convex embarqué utilisait en 0.4 et que rien dans la 0.5 ne lit. Les installations neuves ne la créent plus, et rien ne la supprime pour toi : une instance déployée d'abord avec une version 0.5 antérieure la porte encore, comme un hôte 0.4 réutilisé. Elle ne gêne pas. Quand tu es sûr de n'avoir plus besoin de rien de l'ère Convex, prends un snapshot puis supprime-la à la main — sur `db`, et sur `knowledge-db` si ton déploiement en a un :
+
+```bash
+tale backup
+docker compose exec db psql -U tale -d tale -c 'DROP DATABASE IF EXISTS tale_platform;'
+```
+
 ## Où cela s'inscrit
 
 Le flow de montée de version noue chaque autre page d'exploitation — les backups sont ce qui rend une montée de version échouée récupérable, l'observabilité est ce qui te dit que la nouvelle couleur est saine, le durcissement est ce que tu reparcours après une version majeure. Si tu mets en place la CLI pour la première fois, [Installer la CLI tale](/fr/self-hosted/install/cli-install) couvre le setup côté workstation ; si tu prends le pager en plein rollout, [Dépannage](/fr/self-hosted/operate/observability/troubleshooting) nomme les symptômes.

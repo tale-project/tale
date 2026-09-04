@@ -17,7 +17,6 @@ import {
   type SandboxScriptRunner,
   type WorkflowConversationStore,
   type WorkflowDocumentStore,
-  type WorkflowTaskStore,
 } from '../../../lib/connectors/natives/index.ts';
 import type { PortableHostCall } from '../../../lib/connectors/portable-live.ts';
 import { registerConnector } from '../../../lib/connectors/registry.ts';
@@ -53,17 +52,9 @@ import {
   MAX_FOLDER_DEPTH,
 } from '../folders/service.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
-import {
-  addTaskComment,
-  listTaskComments,
-  TASK_COMMENT_PAGE_MAX,
-} from '../tasks/comments.ts';
-import {
-  agentUpdateTaskStatusTrusted,
-  loadTaskOrThrow,
-} from '../tasks/service.ts';
 import { pgWebdavStore } from '../webdav/connector-store.ts';
 import { collectWorkflowFolderFiles } from './document-listing.ts';
+import { pgTaskStore } from './task-store.ts';
 
 /**
  * The 0.5 door to the connector dispatcher — the twin of
@@ -97,79 +88,6 @@ const failLoudScriptRunner: SandboxScriptRunner = async () => {
     'sandbox.run_script is not available yet on this deployment',
   );
 };
-
-/** The task natives over the 0.5 tasks domain — trusted writes (the
- * connector door's callers own authorization), the 0.4 platform-store
- * semantics. */
-function pgTaskStore(sql: Sql): WorkflowTaskStore {
-  const systemAuth = async (organizationId: string) =>
-    getProjectAuthContext(sql, {
-      organizationId,
-      userId: 'system',
-      role: 'owner',
-    });
-  return {
-    async get({ organizationId, taskId }) {
-      try {
-        const task = await loadTaskOrThrow(sql, taskId, organizationId);
-        return {
-          taskId: task.id,
-          title: task.title,
-          status: task.status,
-          ...(task.description !== null
-            ? { description: task.description }
-            : {}),
-          projectId: task.projectId,
-        };
-      } catch {
-        return null;
-      }
-    },
-    async updateStatus({ organizationId, taskId, status }) {
-      const result = await sql.begin((tx) =>
-        agentUpdateTaskStatusTrusted(tx, {
-          organizationId,
-          actorId: 'workflow',
-          taskId,
-          status,
-        }),
-      );
-      return result;
-    },
-    async comment({ organizationId, taskId, body }) {
-      const auth = await systemAuth(organizationId);
-      const result = await sql.begin((tx) =>
-        addTaskComment(tx, auth, {
-          taskId,
-          body,
-          author: { actorType: 'agent', actorId: 'workflow' },
-        }),
-      );
-      return { messageId: result.messageId };
-    },
-    async listComments({ organizationId, taskId }) {
-      const auth = await systemAuth(organizationId);
-      // The newest page at the read ceiling: a workflow reads feedback from
-      // the tail, and `truncated` tells it when the discussion outgrew one
-      // read — never a quietly shortened list.
-      const page = await listTaskComments(sql, auth, taskId, {
-        limit: TASK_COMMENT_PAGE_MAX,
-      });
-      return {
-        comments: page.comments.map((comment) => ({
-          authorType:
-            comment.authorType === 'user'
-              ? ('user' as const)
-              : ('agent' as const),
-          authorId: comment.authorId,
-          body: comment.body,
-          createdAt: comment.createdAt,
-        })),
-        truncated: page.hasMore,
-      };
-    },
-  };
-}
 
 /** The most files one `document.list` answers; past it the listing says
  * `truncated` so the agent narrows the folder instead of trusting a cut. */

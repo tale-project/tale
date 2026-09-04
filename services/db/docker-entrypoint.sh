@@ -85,7 +85,8 @@ echo "=================================================="
 # below. The db and knowledge-db services run the same image, so TALE_DB_ROLE (set
 # per-service in compose.yml), not the image, decides which set applies:
 #   knowledge → migrations/knowledge-db/<schema>/ against the `tale_knowledge` DB
-#   platform  → migrations/db/ against the platform DB (empty; Convex owns it)
+#   platform  → migrations/db/ (empty: the platform DB `tale_app` is migrated by
+#               the platform backend at boot, not by dbmate)
 # Gating /tmp/.db_ready on this (not just pg_isready) is what lets dependents wait
 # for the tables, not just the socket.
 
@@ -108,7 +109,7 @@ run_init_scripts() {
         # the caller never publishes /tmp/.db_ready against a half-initialized
         # cluster. The previous `psql ... | grep || true` swallowed both psql's
         # exit code (it became grep's) and every SQL error, which let a failed
-        # `02-create-convex-database.sql` set readiness with no `tale_platform`.
+        # database-creating script set readiness with that database missing.
         if ! psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$script"; then
             echo "ERROR: init script failed: $(basename "$script")" >&2
             return 1
@@ -180,7 +181,7 @@ apply_migrations_for_role() {
             apply_knowledge_migrations || return 1
             ;;
         platform)
-            echo "TALE_DB_ROLE=platform: platform DB schema is Convex-managed; no dbmate migrations to apply."
+            echo "TALE_DB_ROLE=platform: the tale_app schema is migrated by the platform backend at boot; no dbmate migrations to apply."
             ;;
         *)
             echo "WARN: unknown TALE_DB_ROLE='${TALE_DB_ROLE}'; defaulting to knowledge migrations." >&2
@@ -197,10 +198,10 @@ apply_migrations_for_role() {
 # is reachable on the local UNIX socket but NEVER on TCP. Gating on a socket probe
 # (`psql -d "$POSTGRES_DB"`) therefore races first-time init: the loop can latch
 # onto the bootstrap server and run the init scripts against it just as the
-# entrypoint tears it down — `02-create-convex-database.sql` dies mid-run and
-# `tale_platform` is never created, yet readiness still gets published. Probing
-# TCP on 127.0.0.1 instead proves the *real* server is up (the bootstrap server
-# can't answer there), eliminating the race.
+# entrypoint tears it down — a database-creating script dies mid-run, its
+# database (`tale_knowledge`, `tale_app`) is never created, yet readiness still
+# gets published. Probing TCP on 127.0.0.1 instead proves the *real* server is
+# up (the bootstrap server can't answer there), eliminating the race.
 #
 # Init + migrations are then retried as a unit, and /tmp/.db_ready is touched ONLY
 # after both genuinely succeed, so dependents (gated on `.db_ready`) never start

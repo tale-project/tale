@@ -27,6 +27,12 @@ Une mémoire est un court fait à ton sujet qu’un agent a proposé et que tu a
 
 En proposer une, c’est un tool que le modèle appelle : aucun processus d’arrière-plan ne lit tes conversations pour cela. L’appel inscrit l’entrée comme **en attente** et pose en même temps une ligne d’audit, parce que proposer un savoir durable sur une personne mérite d’être tracé avant même que quiconque soit d’accord. Une entrée en attente ne fait rien d’elle-même : elle patiente comme suggestion sous **Paramètres > Personnalisation** jusqu’à ce que tu l’enregistres ou l’écartes, et seule une mémoire enregistrée pourra être relue.
 
+<Frame caption="Paramètres > Personnalisation — tes instructions personnalisées et les souvenirs que l’assistant a proposés, chacun derrière sa propre bascule au-dessus du défaut de l’org.">
+
+![La page Personnalisation avec l’éditeur d’instructions personnalisées activé et rempli, et en dessous la section Souvenirs activée, qui ne liste encore aucune suggestion en attente ni aucun souvenir enregistré.](/images/platform/settings-preferences.webp)
+
+</Frame>
+
 <Info>
 
 Rien n’est ajouté à un prompt en ton nom. Une mémoire enregistrée n’atteint une réponse que si le modèle la cherche et que la recherche la renvoie — un modèle ne peut pas se donner un savoir durable sur toi en l’écrivant, et il ne peut pas consulter en douce une suggestion que tu as refusée.
@@ -41,4 +47,4 @@ La ligne **Se déconnecter** en bas du menu de profil confirme via une boîte de
 
 ## Où cela s’inscrit
 
-Les préférences sont la ligne entre toi et le reste de l’org. L’Administrateur de l’org pose les valeurs par défaut — la politique de mot de passe, les modèles autorisés, la gouvernance qui s’applique à un chat — et tes préférences les remplacent là où Tale le permet. Une page personnelle se tient à l’écart de cet ensemble : [Variables d’environnement et secrets](/fr/platform/member/environment) porte des variables et des identifiants cantonnés à toi au sein d’une seule organisation plutôt qu’ils ne te suivent d’une org à l’autre — l’endroit où garder la clé de fournisseur qu’utilise un agent BYO. La lecture suivante à mettre en file est [Vue d’ensemble Membre](/fr/platform/member/overview) pour la carte du reste de la surface Membre, ou [Installer en tant qu’app](/fr/platform/member/install-as-app) si tu veux que Tale vive dans ton dock plutôt que dans tes onglets de navigateur.
+Les préférences sont la ligne entre toi et le reste de l’org. L’Administrateur de l’org pose les valeurs par défaut — la politique de mot de passe, les modèles autorisés, la gouvernance qui s’applique à un chat — et tes préférences les remplacent là où Tale le permet. La lecture suivante à mettre en file est [Vue d’ensemble Membre](/fr/platform/member/overview) pour la carte du reste de la surface Membre, ou [Installer en tant qu’app](/fr/platform/member/install-as-app) si tu veux que Tale vive dans ton dock plutôt que dans tes onglets de navigateur.

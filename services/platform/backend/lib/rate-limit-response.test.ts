@@ -6,7 +6,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   chargeOrgRateLimit,
+  rateLimitExceededCause,
+  rateLimitedPlainResponse,
   rateLimitedResponse,
+  retryAfterSeconds,
 } from './rate-limit-response.ts';
 import { RateLimitExceededError } from './rate-limit.ts';
 
@@ -76,5 +79,46 @@ describe('chargeOrgRateLimit', () => {
     expect(spent.status).toBe(429);
     expect(spent.headers.get('retry-after')).toBe('2');
     expect((await app.request('/fresh')).status).toBe(200);
+  });
+});
+
+describe('retryAfterSeconds', () => {
+  it('rounds up to whole seconds and never advertises zero', () => {
+    expect(retryAfterSeconds(1500)).toBe('2');
+    expect(retryAfterSeconds(60_000)).toBe('60');
+    expect(retryAfterSeconds(0)).toBe('1');
+  });
+});
+
+describe('rateLimitedPlainResponse', () => {
+  it('answers a bare 429 with Retry-After and keeps the door headers', async () => {
+    const res = rateLimitedPlainResponse(
+      new RateLimitExceededError('spent', 2001),
+      { 'Cache-Control': 'no-store', Vary: 'Cookie' },
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('3');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(res.headers.get('vary')).toBe('Cookie');
+    expect(res.headers.get('content-type')).toContain('text/plain');
+    expect(await res.text()).toBe('Rate limit exceeded');
+  });
+});
+
+describe('rateLimitExceededCause', () => {
+  it('finds the refusal itself, or the one a domain wrapper carries as cause', () => {
+    const limited = new RateLimitExceededError('spent', 10);
+    expect(rateLimitExceededCause(limited)).toBe(limited);
+    expect(
+      rateLimitExceededCause(new Error('wrapped', { cause: limited })),
+    ).toBe(limited);
+  });
+
+  it('answers null for anything else', () => {
+    expect(rateLimitExceededCause(new Error('plain'))).toBeNull();
+    expect(
+      rateLimitExceededCause(new Error('other cause', { cause: 'x' })),
+    ).toBeNull();
+    expect(rateLimitExceededCause('not an error')).toBeNull();
   });
 });

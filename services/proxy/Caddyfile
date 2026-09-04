@@ -211,20 +211,6 @@
 	}
 
 	# ============================================================================
-	# Live browser screencast WebSocket (/screencast/<threadId> -> platform:3000)
-	# ============================================================================
-	# The platform's Bun server terminates this WS (cookie+org auth) and relays
-	# raw RFB bytes to the sandbox spawner. Declared explicitly BEFORE the
-	# default catch-all so the WS upgrade passes through untouched (Caddy's
-	# reverse_proxy handles the Upgrade/Connection headers automatically). The
-	# `@notWebSocket` matcher below excludes this path from `encode`, and the
-	# global `-Sec-WebSocket-Extensions` already disables permessage-deflate, so
-	# the binary stream is never buffered or compressed.
-	handle /screencast/* {
-		reverse_proxy platform:3000
-	}
-
-	# ============================================================================
 	# Express Server (static files + HTML env injection only)
 	# ============================================================================
 
@@ -264,7 +250,6 @@
 	@notWebSocket {
 		not path /api/*/sync
 		not path /ws_api/*
-		not path /screencast/*
 	}
 	encode @notWebSocket gzip zstd
 

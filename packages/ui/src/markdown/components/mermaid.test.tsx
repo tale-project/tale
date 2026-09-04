@@ -114,16 +114,28 @@ describe('Mermaid', () => {
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40" width="100%"><foreignObject width="100" height="30"><div xmlns="http://www.w3.org/1999/xhtml"><img src="x" onerror="alert(1)"/></div></foreignObject><use href="javascript:alert(1)" x="10" y="10"/></svg>';
     mockMermaid.render.mockResolvedValueOnce({ svg: malicious });
 
-    const { container } = render(<Mermaid chart="flowchart TD\nA --> B" />);
+    const { getByRole } = render(<Mermaid chart="flowchart TD\nA --> B" />);
 
+    // Gate on the diagram slot, not on any <svg> in the tree: the zoom
+    // toolbar's lucide icons are <svg>s too and render synchronously, so a
+    // bare `container.querySelector('svg')` was satisfied before mermaid's
+    // (async, mocked) import had resolved — the assertions then ran against
+    // an empty stage whenever that import lost the race, which it did on a
+    // loaded CI runner (main run 33829189967: "expected undefined to be null").
+    const stage = getByRole('img', { name: 'Mermaid diagram' });
     await waitFor(() => {
-      expect(container.querySelector('svg')).not.toBeNull();
+      expect(stage.querySelector('svg')).not.toBeNull();
     });
 
-    expect(container.querySelector('img')?.getAttribute('onerror')).toBeNull();
-    expect(container.innerHTML).not.toContain('onerror');
-    expect(container.querySelector('use')?.getAttribute('href')).toBeNull();
-    expect(container.innerHTML).not.toContain('javascript:');
+    // The malicious markup is what rendered — its foreignObject label survives
+    // sanitizing — so the negatives below are not passing against nothing.
+    expect(stage.querySelector('foreignObject')).not.toBeNull();
+    expect(
+      stage.querySelector('img')?.getAttribute('onerror') ?? null,
+    ).toBeNull();
+    expect(stage.innerHTML).not.toContain('onerror');
+    expect(stage.querySelector('use')?.getAttribute('href') ?? null).toBeNull();
+    expect(stage.innerHTML).not.toContain('javascript:');
   });
 
   it('renders a realistic flowchart output with its foreignObject label intact', async () => {

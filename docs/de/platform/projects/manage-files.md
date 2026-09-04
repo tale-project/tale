@@ -1,11 +1,11 @@
 ---
 title: Projekt-Dateien verwalten
-description: Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann — Ordner, Hochladen, Index-Status, Anheften und wie Projekt-Dateien auf das Projekt begrenzt bleiben.
+description: Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann — Ordner, Hochladen, Index-Status und wie Projekt-Dateien auf das Projekt begrenzt bleiben.
 ---
 
 Der **Wissen**-Tab eines Projekts ist der geteilte Dateibereich, den jeder Chat im Projekt erreichen kann. Lade eine Datei einmal hoch, und jeder Chat im Projekt — und jeder Agent, der darin läuft — kann sie ohne erneutes Hochladen lesen. Diese Seite deckt den Ordnerbaum, den Upload-Mechanismus, das Anheften und die Grenzen ab.
 
-Der Wissen-Tab ist nicht die org-weite Wissensdatenbank im Sinn von [Dokumente](/de/platform/knowledge/documents). Seine Dateien sind auf ein Projekt begrenzt und tauchen weder in der org-weiten Bibliothek noch in `@`-Pickern ausserhalb des Projekts noch über WebDAV auf; das Projekt zu löschen löscht die Dateien. Für org-weites Referenzmaterial nutz [Dokumente](/de/platform/knowledge/documents) und bind sie an Agents.
+Der Wissen-Tab ist nicht die org-weite Wissensdatenbank im Sinn von [Dokumente](/de/platform/knowledge/documents). Seine Dateien sind auf ein Projekt begrenzt und tauchen weder in der org-weiten Bibliothek noch über WebDAV auf; das Projekt zu löschen löscht die Dateien. Für org-weites Referenzmaterial nutz [Dokumente](/de/platform/knowledge/documents) und bind sie an Agents.
 
 <Frame caption="Der Wissen-Tab — der Dateibaum des Projekts; jede Datei bleibt auf dieses Projekt begrenzt und ist für die Suche indexiert.">
 
@@ -19,7 +19,7 @@ Projekt-Dateien liegen in einem Ordnerbaum. **Neuer Ordner** legt einen Ordner a
 
 ## Ein durchgespielter Upload
 
-Öffne das Projekt, klick **Wissen**, wähl den Zielordner (oder keinen für die Wurzel) und zieh Dateien auf den Drop-Bereich. Die Zeile erscheint im Baum und löst zu **Indexed** auf, sobald das Retrieval sie aufgenommen hat. Derselbe Upload ist nun aus jedem Chat erreichbar, den das Projekt besitzt: Sende eine Nachricht, die das Thema referenziert, und der Agent ruft sie ab — oder tippe `@` im Chat und hefte die Datei oder gleich einen ganzen Ordner an den Turn.
+Öffne das Projekt, klick **Wissen**, wähl den Zielordner (oder keinen für die Wurzel) und zieh Dateien auf den Drop-Bereich. Die Zeile erscheint im Baum und löst zu **Indexed** auf, sobald das Retrieval sie aufgenommen hat. Derselbe Upload ist nun aus jedem Chat erreichbar, den das Projekt besitzt: Sende eine Nachricht, die das Thema nennt, und der Assistent ruft sie ab — und lädt den vollen Text, wenn ein Schnipsel nicht reicht.
 
 ## Ersetzen und Löschen
 
@@ -35,9 +35,9 @@ Pro-Datei- und Pro-Projekt-Limits werden von der Org unter [Richtlinien und Limi
 
 ## Auftauchen in Chats
 
-Ein Chat, der in einem Projekt gestartet wird, hat automatisch Zugriff auf jede Datei im Wissen-Tab des Projekts. Das Retrieval-Tool des Agents sieht Projekt-Dateien neben jeglichen agent-gebundenen Wissensquellen. Zitate aus Projekt-Dateien sind auf den Chat begrenzt, der sie erzeugt hat — einen Chat ausserhalb des Projekts zu teilen bewahrt die Zitate, aber der Betrachter kann nicht zur Quelle durchklicken, ausser er ist auch im Projekt.
+Ein Chat, der in einem Projekt gestartet wird, hat automatisch Zugriff auf jede Datei im Wissen-Tab des Projekts. Das Retrieval-Tool des Assistenten sieht Projekt-Dateien neben dem Wissen der Organisation. Zitate aus Projekt-Dateien sind auf den Chat begrenzt, der sie erzeugt hat — einen Chat ausserhalb des Projekts zu teilen bewahrt die Zitate, aber der Betrachter kann nicht zur Quelle durchklicken, ausser er ist auch im Projekt.
 
-Anheften mit `@` verengt einen einzelnen Turn: `@Datei` heftet eine Datei an, `@Ordner` einen Ordner samt allem darunter (der Picker bietet in Projekt-Chats die Ordner des Projekts an, überall sonst die org-weiten Ordner). Angeheftete Dateien werden zusätzlich in die Sandbox des Agents unter `/agent/uploads` geliefert — ein Projekt-Agent auf einem Coding-Harness wie Claude Code öffnet also die echten Bytes, statt nur Retrieval-Schnipsel zu zitieren.
+Einen `@`-Picker gibt es im Composer dieser Version nicht — eine Nachricht nennt das Thema, das Retrieval findet die Datei, und der Assistent lädt den vollen Text mit seinem Fetch-Tool, wenn er mehr als einen Schnipsel braucht. Ein Projekt-Agent, der eine Board-Aufgabe bearbeitet, bekommt seine Dateien auf einem anderen Weg: Die Anhänge der Aufgabe werden schreibgeschützt unter `/agent/inputs/<task>/attachments/` in seine Sandbox gespiegelt, ein Coding-Harness öffnet also die echten Bytes statt eines Retrieval-Schnipsels — [Harnesses](/de/platform/agents/harnesses) beschreibt diesen Weg.
 
 ## Wo das hineinpasst
 

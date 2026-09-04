@@ -72,6 +72,10 @@ const NON_TERMINAL_STATUSES = [
   'indexing',
 ] as const;
 
+function isNonTerminalStatus(status: string): boolean {
+  return (NON_TERMINAL_STATUSES as readonly string[]).includes(status);
+}
+
 /** FNV-1a double-pass, hex — the 0.4 dedup key (stable, non-crypto). */
 export function hashUrlForDedup(normalized: string): string {
   const fnv = (seed: number, str: string): number => {
@@ -239,10 +243,67 @@ export async function cleanupCancelledVideoLink(
 }
 
 /**
+ * Thrown inside a finalizer transaction when the job is no longer where the
+ * finalizer left it (`indexing`): a cancel, a watchdog flip or a retry moved
+ * it while the transcript was being stored. The throw rolls the file row and
+ * the RAG job back with it — nothing may outlive the state that changed.
+ */
+class FinalizerStateLostError extends Error {
+  constructor(jobId: string, outcome: UpdateJobResult) {
+    super(
+      `[video_links] job ${jobId} left 'indexing' before its finalizer landed (${outcome})`,
+    );
+    this.name = 'FinalizerStateLostError';
+  }
+}
+
+/**
+ * Both finalizers' terminal step: the synthetic file row + RAG enqueue
+ * (`insertRow`) and the job's `indexing → completed` patch ride ONE
+ * transaction, and the patch is a CAS on `indexing`. Without it a cancel
+ * landing during the seconds-wide transcript store (its `skipped` write and
+ * blob delete already done) was overwritten `completed`: the chip came back
+ * Ready over a file row whose bytes were just deleted, and its RAG index
+ * then failed. A lost CAS rolls everything back and reaps the orphan blob;
+ * the caller's `null` means "nothing landed", exactly as a vanished job.
+ */
+async function finalizeVideoLinkFile(
+  sql: Sql,
+  args: { jobId: string; storageId: string; organizationId: string },
+  insertRow: (tx: TransactionSql) => Promise<string>,
+): Promise<string | null> {
+  try {
+    return await sql.begin(async (tx) => {
+      const fileMetadataId = await insertRow(tx);
+      await markRagQueued(tx, fileMetadataId);
+      await addJobInTx(tx, 'rag.index_file', { fileId: fileMetadataId });
+      const patched = await updateJob(tx, {
+        jobId: args.jobId,
+        fileMetadataId,
+        storageRef: args.storageId,
+        status: 'completed',
+        expectedStatus: 'indexing',
+        progress: null,
+      });
+      if (patched !== 'ok') {
+        throw new FinalizerStateLostError(args.jobId, patched);
+      }
+      return fileMetadataId;
+    });
+  } catch (error) {
+    if (!(error instanceof FinalizerStateLostError)) throw error;
+    console.warn(error.message);
+    await deleteOrgBlobRefs(sql, args.organizationId, [args.storageId]);
+    return null;
+  }
+}
+
+/**
  * The captions-branch finalizer (the 0.4 `insertSyntheticFileMetadata`):
  * provenance header + synthetic transcript row (source `video_link`,
  * dual RAG statuses) + RAG enqueue + terminal job patch. Bails (and reaps
- * the orphan blob) when the job row vanished mid-flight.
+ * the orphan blob) when the job row vanished or left `indexing` mid-flight
+ * — the terminal patch is CAS'd, so a cancel is never undone.
  */
 export async function insertSyntheticFileMetadata(
   sql: Sql,
@@ -264,7 +325,7 @@ export async function insertSyntheticFileMetadata(
   },
 ): Promise<string | null> {
   const job = await getJob(sql, args.jobId);
-  if (!job) {
+  if (!job || job.status !== 'indexing') {
     await deleteOrgBlobRefs(sql, args.organizationId, [args.storageId]);
     return null;
   }
@@ -280,7 +341,7 @@ export async function insertSyntheticFileMetadata(
     .join('\n');
   const transcriptWithHeader = `${provenanceHeader}\n\n${args.transcript}`;
 
-  return sql.begin(async (tx) => {
+  return finalizeVideoLinkFile(sql, args, async (tx) => {
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.file_metadata (
         org_id, storage_ref, source, file_name, content_type, size,
@@ -298,22 +359,14 @@ export async function insertSyntheticFileMetadata(
     `;
     const fileMetadataId = inserted[0]?.id;
     if (!fileMetadataId) throw new Error('synthetic file insert failed');
-    await markRagQueued(tx, fileMetadataId);
-    await addJobInTx(tx, 'rag.index_file', { fileId: fileMetadataId });
-    await updateJob(tx, {
-      jobId: args.jobId,
-      fileMetadataId,
-      storageRef: args.storageId,
-      status: 'completed',
-      progress: null,
-    });
     return fileMetadataId;
   });
 }
 
 /** The donor-clone finalizer (the 0.4 twin): transcript stored VERBATIM
  * (the donor text already carries its provenance header), CAS on
- * status='indexing' — a raced cancel reaps the blob and writes nothing. */
+ * status='indexing' inside the transaction — a raced cancel reaps the blob
+ * and writes nothing. */
 export async function finalizeClonedTranscript(
   sql: Sql,
   args: {
@@ -331,7 +384,7 @@ export async function finalizeClonedTranscript(
     await deleteOrgBlobRefs(sql, args.organizationId, [args.storageId]);
     return null;
   }
-  return sql.begin(async (tx) => {
+  return finalizeVideoLinkFile(sql, args, async (tx) => {
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.file_metadata (
         org_id, storage_ref, source, file_name, content_type, size,
@@ -350,15 +403,6 @@ export async function finalizeClonedTranscript(
     `;
     const fileMetadataId = inserted[0]?.id;
     if (!fileMetadataId) throw new Error('clone file insert failed');
-    await markRagQueued(tx, fileMetadataId);
-    await addJobInTx(tx, 'rag.index_file', { fileId: fileMetadataId });
-    await updateJob(tx, {
-      jobId: args.jobId,
-      fileMetadataId,
-      storageRef: args.storageId,
-      status: 'completed',
-      progress: null,
-    });
     return fileMetadataId;
   });
 }
@@ -1193,11 +1237,30 @@ export async function cancelVideoLink(
   }
   if (job.status === 'skipped') return;
 
-  await updateJob(sql, { jobId: args.jobId, status: 'skipped' });
+  // The cancel is a CAS on the state the user saw. The finalizers settle a
+  // job `indexing → completed` in one transaction; a cancel that landed on
+  // that completed row afterwards would take its blob with it (the cleanup
+  // keeps a completed file row) and leave a Ready chip over deleted bytes.
+  // A job that merely ADVANCED (still in flight) is cancelled in its new
+  // state; a job that SETTLED on its own is left as it settled.
+  let cancelled = job;
+  for (;;) {
+    const flipped = await updateJob(sql, {
+      jobId: args.jobId,
+      status: 'skipped',
+      expectedStatus: cancelled.status,
+    });
+    if (flipped === 'ok') break;
+    if (flipped === 'not_found') return;
+    const current = await getJob(sql, args.jobId);
+    if (!current || current.status === 'skipped') return;
+    if (!isNonTerminalStatus(current.status)) return;
+    cancelled = current;
+  }
   if (
-    job.fileMetadataId !== null &&
-    job.storageRef !== null &&
-    job.status === 'transcribing_handoff'
+    cancelled.fileMetadataId !== null &&
+    cancelled.storageRef !== null &&
+    cancelled.status === 'transcribing_handoff'
   ) {
     // Only an in-flight transcription is skipped along; a SETTLED file row
     // keeps its state — clobbering a completed transcript here would hand
@@ -1205,7 +1268,7 @@ export async function cancelVideoLink(
     // donor contract at findReusableTranscriptDonor: cancel keeps the row).
     await sql`
       UPDATE app.file_metadata SET transcription_status = 'skipped'
-      WHERE storage_ref = ${job.storageRef}
+      WHERE storage_ref = ${cancelled.storageRef}
         AND transcription_status IN ('queued', 'running')
     `;
   }

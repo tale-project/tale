@@ -1,6 +1,6 @@
 ---
 title: Cloud onboarding
-description: From demo request to a production-ready organization — get your own instance from the Tale team, create the org, invite the first admin, add a model provider, publish an agent, open chat.
+description: From demo request to a production-ready organization — get your own instance from the Tale team, create the org, invite the first admin, add a model provider, staff a first project agent, open chat.
 ---
 
 <!--
@@ -13,7 +13,7 @@ description: From demo request to a production-ready organization — get your o
   do not change the entry point back to a tale.dev sign-up.
 -->
 
-This journey walks from demo request to a production-ready Cloud org with one working agent. The result is an org where your team can sign in, pick a working agent, and ask it something useful — nothing fancy yet, just the foundation everything else builds on.
+This journey walks from demo request to a production-ready Cloud org with one working agent. The result is an org where your team can sign in, ask the chat assistant something useful, and hand a project agent its first task — nothing fancy yet, just the foundation everything else builds on.
 
 You need a working email address and the ability to verify it. The walk assumes no prior Tale knowledge; if anything below references a concept you have not met, the linked page introduces it. Once your instance is ready, the hands-on part takes under an hour — about half of it in the provider step, the rest mostly clicks.
 
@@ -45,13 +45,13 @@ Open your instance and sign up. The form asks for your name, email, and a passwo
 
 </Frame>
 
-The first user becomes the org's **Owner** automatically. You can see your role in the **Members** section under **Settings > Organization** later if you forget.
+The first user becomes the org's **Owner** automatically. You can see your role under **Settings > Members** later if you forget.
 
 </Step>
 
 <Step title="Invite the first admin">
 
-Open **Settings > Organization**, scroll to the **Members** section, and click **Add member**. Enter the admin's name and email, assign the **Admin** role, and set a password — Tale creates the account directly and shows the sign-in credentials once, so save them and relay them to the new admin out of band (there is no invite email). They land in the org with the role you assigned. The "at least 2 Admins" safety rule means an org cannot accidentally lock itself out by removing its only Admin — add a second admin before doing anything that requires it.
+Open **Settings > Members** and click **Add member**. Enter the admin's name and email, assign the **Admin** role, and set a password — Tale creates the account directly and shows the sign-in credentials once, so save them and relay them to the new admin out of band (there is no invite email). They land in the org with the role you assigned. The "at least 2 Admins" safety rule means an org cannot accidentally lock itself out by removing its only Admin — add a second admin before doing anything that requires it.
 
 For the role matrix (who can do what), see [Members and roles](/platform/admin/members-and-roles).
 
@@ -75,21 +75,21 @@ This step is where most onboarding sessions stall — the provider portal is usu
 
 </Step>
 
-<Step title="Publish your first agent">
+<Step title="Create your first project agent">
 
-Open **Agents** and click **Create agent**. Pick the model you just added. Write a one-paragraph instructions block — the voice the agent should answer in, the domain it knows, the cases it refuses. Save. Flip **Visible in chat** on. The agent is now reachable from any chat in the org.
+Open a project's **Agents** tab and click **New agent**. Pick the **Agent type** — the coding harness the agent runs on — and, under **Model**, the model you just added. Write a one-paragraph instructions block — the voice the agent should answer in, the domain it knows, the cases it refuses — and click **Create agent**. Assign it a board task and click **Start agent**; the result comes back at **In review** for a person to accept. There is no publish step and no agent picker in chat — agents in this version work board tasks.
 
-For a deeper walk on what makes an agent good, see [Create an agent](/platform/agents/create).
+For the dialog field by field, see [Project agents](/platform/projects/project-agents); for what makes an agent good, [Agent concepts](/platform/agents/concepts).
 
 </Step>
 
 <Step title="Open chat">
 
-Click **New chat** in the sidebar. Pick the agent from the picker, type a question the agent's domain covers, send.
+Click **New chat** in the sidebar. The composer's model picker opens on **Auto** — Tale picks a model from the provider you connected — so type a question your team's domain covers, and send.
 
 <Check>
 
-The reply streams back — if it lands the way you wrote the instructions to land, the org is done with onboarding.
+The reply streams back and records which model answered — the org is done with onboarding.
 
 </Check>
 
@@ -105,10 +105,10 @@ Three follow-ups worth doing now while everything is fresh:
 
 ## Troubleshooting
 
-- **Invite email never arrives.** Check the invitee's spam folder. Tale sends from `noreply@tale.dev`; some corporate filters quarantine it.
+- **The Model list is empty when you create the agent.** The provider step has not landed — a model must exist under **Settings > AI providers** before the agent dialog can pick one.
 - **Provider validation fails with "invalid key".** Re-copy the key from the provider portal — copying often grabs a leading or trailing space.
-- **Agent does not show in the chat picker.** Confirm **Visible in chat** is on for the agent.
+- **Start agent fails with a provider reason.** The provider you picked can no longer serve that model — fix it under **Settings > AI providers** and start the agent again.
 
 ## Where this gets used
 
-You now have an org with one working agent and one admin besides yourself. The natural next walk is [Build your first agent end to end](/tutorials/editor/first-agent-end-to-end) — same shape, but builds an agent that does real domain work with knowledge bindings. If you came here to evaluate Cloud against self-hosted, [Migrate to self-hosted](/cloud/migrate-to-self-hosted) is the reverse walk.
+You now have an org with one working agent and one admin besides yourself. The natural next walk is [Build your first agent end to end](/tutorials/editor/first-agent-end-to-end) — same shape, but puts a project agent to work on a real task and reviews what comes back. If you came here to evaluate Cloud against self-hosted, [Migrate to self-hosted](/cloud/migrate-to-self-hosted) is the reverse walk.

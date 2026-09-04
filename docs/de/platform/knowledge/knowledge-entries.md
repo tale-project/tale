@@ -1,23 +1,23 @@
 ---
 title: Wissenseinträge
-description: Wissenseinträge sind kleine Fakten mit Themen-Schlüssel in der Wissensdatenbank — aus dem Chat mit menschlicher Freigabe erfasst oder von Hand hinzugefügt — mit einer aktiven Version pro Thema und vollem Versionsverlauf.
+description: Wissenseinträge sind kleine Fakten mit Themen-Schlüssel in der Wissensdatenbank — von Hand oder über die API hinzugefügt — mit einer aktiven Version pro Thema und vollem Versionsverlauf.
 ---
 
 Wissenseinträge sind die Faktenfläche der Wissensdatenbank. Wo ein Dokument eine ganze Datei trägt, trägt ein Eintrag einen kleinen, haltbaren Fakt — „Der Laden öffnet um 9“, „Das Rückgabefenster beträgt 3 Tage“ —, abgelegt unter einem Themennamen. Einträge fahren auf derselben Indexierungs-Pipeline wie Dokumente, jeder Agent mit passendem Umfang ruft sie also ab und zitiert sie wie jede andere Quelle; besonders macht sie, wie sie hereinkommen und wie Korrekturen ersetzen, was sie korrigieren.
 
 <Frame caption="Der Wissenseinträge-Tab — Thema, Inhalt, Quelle und Indexierungsstatus pro Fakt.">
 
-![Der Wissenseinträge-Tab mit drei von Hand hinzugefügten Fakten, jeder mit dem Quellen-Tag Manuell und dem Status-Badge Indexiert.](/images/platform/knowledge-entries-list.webp)
+![Der Wissenseinträge-Tab mit drei von Hand hinzugefügten Fakten, jeder mit dem Quellen-Tag Manuell, dem Status-Badge Nicht indexiert und dem Knopf zum erneuten Indexieren.](/images/platform/knowledge-entries-list.webp)
 
 </Frame>
 
 ## Woher Einträge kommen
 
-**Aus dem Chat, mit deiner Freigabe.** Agenten mit aktiviertem Wissens-Schreib-Tool können vorschlagen, einen Fakt zu speichern, den du im Chat genannt oder korrigiert hast. Der Vorschlag erscheint als Karte im Chat — **In Wissensdatenbank speichern**, mit dem Thema und dem vollen Inhalt; existiert das Thema bereits, wird die Karte zu **Wissensdatenbank aktualisieren** und warnt, dass die Freigabe den bestehenden Eintrag ersetzt. Nichts landet, bevor du auf **Genehmigen** klickst; **Ablehnen** verwirft den Vorschlag.
+**Nicht aus dem Chat.** Die frühere Version ließ einen Agenten einen Fakt aus einem Gespräch als Karte **In Wissensdatenbank speichern** vorschlagen, die du freigegeben hast. Diese Karte gibt es in dieser Version nicht: Der Chat-Assistent hat kein Schreib-Tool und schlägt nichts zum Speichern vor, kein Agent schreibt also überhaupt in das geteilte Wissen der Organisation. Ein Eintrag, dessen **Quelle** **Chat** zeigt, stammt aus der früheren Version; neue Einträge kommen von Hand oder über den Knowledge-Entries-Endpoint der REST-API.
 
 <Note>
 
-Das Tool ist standardmäßig aus — aktiviere es pro Agent in den Tool-Einstellungen des Agenten. Ein Agent kann nie in das geteilte Wissen der Org schreiben, ohne dass ein Mensch den exakten Text abgesegnet hat.
+Einen Wissens-Schreib-Schalter pro Agent gibt es nicht einzuschalten. Ein Fakt landet in der Wissensdatenbank, weil ein Mensch ihn eingetippt oder ein Programm ihn über die API angelegt hat — nie, weil ein Modell beschlossen hat, sich etwas zu merken.
 
 </Note>
 
@@ -25,7 +25,7 @@ Das Tool ist standardmäßig aus — aktiviere es pro Agent in den Tool-Einstell
 
 ## Eine aktive Version pro Thema
 
-Themen sind der Dedup-Schlüssel: Ein freigegebener Chat-Vorschlag für ein bestehendes Thema oder eine Bearbeitung ersetzt die aktive Version, statt eine zweite daneben zu stellen — die Wissensdatenbank serviert nie zwei Versionen desselben Fakts. Einen neuen Eintrag unter einem bestehenden Thema anzulegen wird mit einem Duplikat-Fehler abgewiesen; bearbeite stattdessen den bestehenden Eintrag.
+Themen sind der Dedup-Schlüssel: Eine Bearbeitung ersetzt die aktive Version, statt eine zweite daneben zu stellen — die Wissensdatenbank serviert nie zwei Versionen desselben Fakts. Einen neuen Eintrag unter einem bestehenden Thema anzulegen wird mit einem Duplikat-Fehler abgewiesen; bearbeite stattdessen den bestehenden Eintrag.
 
 Ersetzte Versionen gehen nicht verloren. Öffne einen Eintrag für seine Details — Indexierungsstatus, letzte Aktualisierung und den **Versionsverlauf** mit jeder abgelösten Version und dem Zeitpunkt der Ablösung. Nur die aktive Version ist für den Abruf indexiert; der Verlauf existiert für Audit und Nachschlagen.
 
@@ -35,4 +35,4 @@ Bearbeiten erzeugt eine neue aktive Version und indexiert im Hintergrund neu —
 
 ## Wo das hingehört
 
-Wissenseinträge schließen die Schleife zwischen Gesprächen und der Wissensdatenbank: Eine einmal im Chat gemachte Korrektur wird ein Fakt, den jeder Agent abruft — ein Mensch gibt den exakten Wortlaut frei, und eine aktive Version pro Thema garantiert, dass der alte Fakt verschwindet, sobald der neue landet. Für die dateiförmige Hälfte lies [Dokumente](/de/platform/knowledge/documents); wie Agenten binden und abrufen, steht in [Agent-Wissen](/de/platform/agents/knowledge).
+Wissenseinträge sind die kleinste Einheit der Wissensdatenbank: Ein einmal notierter Fakt wird etwas, das jede Bahn abruft, und eine aktive Version pro Thema garantiert, dass der alte Fakt verschwindet, sobald der neue landet. Für die dateiförmige Hälfte lies [Dokumente](/de/platform/knowledge/documents); wie der Chat-Assistent und Projekt-Agenten abrufen, steht im [Wissens-Überblick](/de/platform/knowledge/overview).

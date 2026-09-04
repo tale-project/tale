@@ -11,7 +11,7 @@ The default region for new Cloud orgs is Switzerland. Switching region after sig
 
 The user in Zürich opens Chat and sends "summarise the latest customer call". The request hits Tale's edge in the chosen region, lands on `tale-platform`, which forwards it to `tale-backend-api` (the backend), reads knowledge from the corpus database when the agent's knowledge tool asks for it, and emits an outbound call to the provider behind the model the sender picked. Knowledge retrieval runs inside the backend — it queries the corpus database directly, with no separate retrieval service in the path. The model provider returns tokens; Tale streams them back across the same path. The reply and citations land in the operational database, the corpus stays in the knowledge database, and both are replicated within the region.
 
-Two arrows cross the regional boundary in this trip: the call to the model provider (always external) and any sub-processor the agent's tools triggered (web fetch, OneDrive read, MCP server in another region). Everything else stays in region.
+Two arrows cross the regional boundary in this trip: the call to the model provider (always external) and any sub-processor the agent's tools triggered (web fetch, OneDrive read, a connector's vendor API in another region). Everything else stays in region.
 
 ## Primary regions
 

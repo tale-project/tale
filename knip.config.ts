@@ -107,6 +107,10 @@ export default {
       // subsystem is wired (or truly retired) and let knip re-audit it.
       // ----------------------------------------------------------------
       ignore: [
+        // The docs-demo E2E fixture tree is symlinks into configs/platform/custom
+        // (real skill/agent/automation sources with their own tests). Following
+        // them would read those files as platform project files.
+        'tests/e2e/fixtures/config/**',
         'lib/chat/**',
         'lib/knowledge/**',
         'lib/pii/**',
@@ -153,7 +157,6 @@ export default {
         '@ai-sdk/provider',
         '@measured/puck',
         '@modelcontextprotocol/sdk',
-        '@novnc/novnc',
         '@tanstack/react-virtual',
         '@types/mssql',
         '@types/mustache',

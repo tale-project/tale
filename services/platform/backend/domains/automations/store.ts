@@ -58,6 +58,44 @@ export function assertAutomationName(name: string): string {
   return trimmed;
 }
 
+/**
+ * First path segments the automations API keeps for its own fixed routes
+ * (`GET /automations/runs`, `/metrics`, …) and the app keeps for its fixed
+ * pages (`/automations/metrics`). Those routes are matched ahead of the
+ * `/:name{.+}` detail routes, so an automation whose name STARTS with one of
+ * these would save fine and then never open — the fixed route answers first.
+ * `routes.reserved-segments.test.ts` asserts every fixed route lives here.
+ */
+export const RESERVED_AUTOMATION_SEGMENTS: readonly string[] = [
+  'asks',
+  'builder',
+  'catalog',
+  'listing',
+  'metrics',
+  'runs',
+  'serving-preview',
+  'upload',
+];
+
+/**
+ * The create-time half of the name rule: a valid name whose first segment
+ * the router keeps for itself. Checked when the FIRST version of a name is
+ * saved (see `saveVersion`), so no one creates an automation they can never
+ * open — and only then, so a row that predates the rule stays saveable and
+ * runnable instead of turning into a stranded record.
+ */
+export function assertAutomationNameCreatable(name: string): string {
+  const valid = assertAutomationName(name);
+  const first = valid.split('/')[0] ?? '';
+  if (RESERVED_AUTOMATION_SEGMENTS.includes(first)) {
+    throw new AutomationError(
+      'AUTOMATION_NAME_RESERVED',
+      `"${valid}" cannot be an automation name — "${first}" is a word the platform keeps for its own pages. Start the name with a different segment, for example "ops/${valid}".`,
+    );
+  }
+  return valid;
+}
+
 // ------------------------------------------------------------- definitions
 
 export interface SaveVersionArgs {
@@ -84,6 +122,14 @@ export async function saveVersion(
 ): Promise<{ name: string; version: number }> {
   const name = assertAutomationName(args.name);
   return sql.begin(async (tx) => {
+    // The FIRST version is the create: a name the router keeps for itself is
+    // refused here, once, before anything is written.
+    const existing = await tx<{ version: number }[]>`
+      SELECT version FROM app.automations
+      WHERE org_id = ${args.organizationId} AND name = ${name}
+      LIMIT 1
+    `;
+    if (existing.length === 0) assertAutomationNameCreatable(name);
     const rows = await tx<{ version: number }[]>`
       INSERT INTO app.automations (
         org_id, name, version, document, message, tests_passed,

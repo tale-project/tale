@@ -85,8 +85,11 @@ export function createKnowledgeRoutes(deps: {
     };
   };
 
+  // Every body here reads as `null` when it is not JSON, so the schema
+  // refuses it with the same 400 as any other malformed body — a parse error
+  // escaping the handler used to surface as a 500.
   app.post('/search', async (c) => {
-    const body = searchSchema.safeParse(await c.req.json());
+    const body = searchSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -107,7 +110,7 @@ export function createKnowledgeRoutes(deps: {
   });
 
   app.post('/fetch', async (c) => {
-    const body = fetchSchema.safeParse(await c.req.json());
+    const body = fetchSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -193,7 +196,9 @@ export function createKnowledgeRoutes(deps: {
   app.post('/connection', async (c) => {
     const denied = requireKnowledgeAdmin(c);
     if (denied) return denied;
-    const body = connectionBodySchema.safeParse(await c.req.json());
+    const body = connectionBodySchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
@@ -221,7 +226,9 @@ export function createKnowledgeRoutes(deps: {
   app.post('/connection/test', async (c) => {
     const denied = requireKnowledgeAdmin(c);
     if (denied) return denied;
-    const body = connectionBodySchema.safeParse(await c.req.json());
+    const body = connectionBodySchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);

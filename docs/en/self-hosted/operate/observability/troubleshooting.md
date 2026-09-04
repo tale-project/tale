@@ -45,6 +45,55 @@ docker compose ps db
 
 If the logs show connection errors to the corpus database (`knowledge-db` on the network, folded into `db` on a single-host deploy), restart it (`docker compose restart db`); ingestion retries on the next pass, so uploads do not have to be re-submitted. If the database is healthy but a specific upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion and re-upload.
 
+## Knowledge database restarts on every upload
+
+Every document ingestion fails the same way: the corpus database (`knowledge-db`, folded into `db` on a single-host deploy) restarts, the backend worker loses its connection, and the next upload triggers the same restart. The server log — a file under `/var/lib/postgresql/data/log/` inside the container; `docker compose logs` only carries the entrypoint's output — names the failure each time:
+
+```bash
+docker compose exec knowledge-db sh -c 'grep -h -E "PANIC|signal 6" /var/lib/postgresql/data/log/*.log | tail -n 4'
+```
+
+```text
+PANIC:  corrupted page pointers: lower = 0, upper = 0, special = 0
+LOG:  server process (PID 4711) was terminated by signal 6: Aborted
+```
+
+The BM25 keyword index on `private_knowledge.chunks` holds a page that was never initialised, and a crash-mode stop of the database container is what leaves one behind: the server extends the index file for a write in flight, `SIGKILL` lands before the page is written, and crash recovery has no WAL to replay for it. `tale-db` images up to v0.5.7 stopped Postgres with `SIGTERM`, which Postgres reads as a *smart* shutdown — it waits for every client session to end. A client outside compose holding a connection (a host-side backend, an open `psql`) pushed the stop past the grace period, Docker killed the server, and the next start ran crash recovery. Ordinary tables and indexes survive that; `pg_search` meets the all-zero page on its next write and panics, and Postgres restarts to recover — on every upload.
+
+Confirm the index is the culprit before repairing anything. Open a session on the corpus database — both statements only read:
+
+```bash
+docker compose exec knowledge-db psql -U tale -d tale_knowledge
+```
+
+```sql
+select * from pdb.verify_index('private_knowledge.idx_pk_chunks_bm25');
+```
+
+A healthy index passes every check (`passed = t`); a damaged one fails `segment_metadata_valid` or cannot be read at all. To look at the page itself, `pageinspect` prints the header of the index's last page — `0 | 0 | 0` is the never-initialised page, a healthy page reads `24 | 8184 | 8184`:
+
+```sql
+create extension if not exists pageinspect;
+select lower, upper, special
+from page_header(get_raw_page('private_knowledge.idx_pk_chunks_bm25',
+  (pg_relation_size('private_knowledge.idx_pk_chunks_bm25') / 8192 - 1)::int));
+```
+
+Then rebuild the index. It is derived from `private_knowledge.chunks`, so nothing is lost and nothing has to be re-uploaded:
+
+```sql
+REINDEX INDEX private_knowledge.idx_pk_chunks_bm25;
+```
+
+Optionally rebuild the vector index as well (it exists once the first embedding has been stored) and reclaim the orphaned tail pages on the table:
+
+```sql
+REINDEX INDEX private_knowledge.idx_pk_chunks_embedding_hnsw;
+VACUUM private_knowledge.chunks;
+```
+
+Ingestion resumes on the worker's next pass. `tale-db` images newer than v0.5.7 stop Postgres with `SIGINT` — the *fast* shutdown that disconnects clients, checkpoints, and exits within seconds even while clients are attached — and `compose.yml` sets `stop_signal: SIGINT` so an older image receives the same signal. Stop the stack with `docker compose stop` or `docker compose down` and let the 60-second grace period run (the tale CLI stops containers the same way); `docker kill` and pulling the host's plug are the two paths that still end in a crash-mode stop.
+
 ## Chat replies stop mid-stream
 
 The token stream from the upstream provider dropped — either the provider rate-limited, the connection timed out, or the provider's service is degraded. Check the provider's status page first; then look in the platform logs:

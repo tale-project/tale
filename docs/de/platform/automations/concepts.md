@@ -5,7 +5,7 @@ description: Das Modell hinter jeder Automatisierung — ein Workflow-Dokument, 
 
 Eine Automatisierung ist ein gespeichertes Workflow-Dokument unter einem Namen — zusammen mit allem, was die Plattform darum herum aufbewahrt: der Historie seiner Versionen, der einen Version, die live ist, den Triggern, die sie starten dürfen, und dem Protokoll jedes Laufs. Öffne **Automatisierungen** in der Seitenleiste, und jede Zeile ist einer dieser Namen, mit der Version daneben, die live ist. Drei Gedanken auf dieser Seite bestimmen, wie sich alles Weitere verhält — Versionen ändern sich nie, Live-Schalten ist ein eigener Schritt, und ein Trigger hängt am Namen statt an einer Version —, also lies sie, bevor du etwas baust.
 
-Lieber erst zusehen? Episode 5 öffnet die Triage-Automatisierung von vorne bis hinten und entscheidet eine echte Freigabekarte vor der Kamera, mit Untertiteln.
+Lieber erst zusehen? Episode 5 öffnet die Triage-Automatisierung von vorne bis hinten und entscheidet eine Freigabekarte vor der Kamera, mit Untertiteln — aufgenommen auf der früheren Version, wo die Karte im Chat saß; in dieser Version sitzt sie auf der Detailseite des Laufs.
 
 <Video src="/videos/de/tutorials/ep5-automations/ep5-automations.de.mp4" poster="/videos/de/tutorials/ep5-automations/ep5-automations.de.webp" captions="/videos/de/tutorials/ep5-automations/ep5-automations.de.vtt" lang="de" title="Episode 5 — Automatisierungen & Freigaben" caption="Episode 5 — Automatisierungen & Freigaben (3:11)">
 
@@ -13,7 +13,7 @@ Lieber erst zusehen? Episode 5 öffnet die Triage-Automatisierung von vorne bis 
 
 ## Das Workflow-Dokument
 
-Alles, was eine Automatisierung tut, steht in einem einzigen Dokument. Sein `name` ist zugleich seine Identität — kleingeschriebene Slug-Segmente mit Bindestrichen, wobei `/` verwandte Automatisierungen zu Ordnern gruppiert, etwa `billing/dunning-reminder`. Um den Namen herum stehen eine `description`, ein `inputs`-JSON-Schema für die Eingabe zur Laufzeit, die `nodes`, die die Arbeit erledigen, ein `output` als Rückgabewert und die `tests`, die darüber entscheiden, ob eine Version live gehen darf.
+Alles, was eine Automatisierung tut, steht in einem einzigen Dokument. Sein `name` ist zugleich seine Identität — kleingeschriebene Slug-Segmente mit Bindestrichen, wobei `/` verwandte Automatisierungen zu Ordnern gruppiert, etwa `billing/dunning-reminder`. Das erste Segment darf keines der Wörter sein, die die Plattform für eigene Seiten braucht — `asks`, `builder`, `catalog`, `listing`, `metrics`, `runs`, `serving-preview`, `upload` —, denn eine so benannte Automatisierung ließe sich speichern, aber nie öffnen; deshalb lehnt der Editor einen solchen Namen beim Speichern ab. Um den Namen herum stehen eine `description`, ein `inputs`-JSON-Schema für die Eingabe zur Laufzeit, die `nodes`, die die Arbeit erledigen, ein `output` als Rückgabewert und die `tests`, die darüber entscheiden, ob eine Version live gehen darf.
 
 ```yaml
 name: billing/dunning-reminder

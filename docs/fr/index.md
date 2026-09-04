@@ -32,7 +32,7 @@ Ton premier chat, ton premier document, ton premier projet — le premier jour d
 
 <Card title="Je construis des agents" icon="bot" href="/fr/get-started/editors">
 
-Publie un agent minimal et regarde-le répondre dans le chat — le premier jour de l’éditeur.
+Crée un agent de projet et regarde-le travailler une tâche du tableau — le premier jour de l’éditeur.
 
 </Card>
 
@@ -86,7 +86,7 @@ Des parcours indexés par rôle, de « je veux faire X » au résultat qui fon
 
 <Card title="Développement" icon="terminal" href="/fr/develop/overview">
 
-REST API, webhooks, SDK d’connector, workflows pour les contributeurs.
+REST API, webhooks, connectors, workflows pour les contributeurs.
 
 </Card>
 

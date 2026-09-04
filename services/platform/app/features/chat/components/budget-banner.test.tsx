@@ -6,6 +6,7 @@ import { render, screen } from '@/tests/utils/render';
 
 interface TestBudgetWarning {
   code: 'TOKEN_WARNING' | 'COST_WARNING' | 'REQUEST_WARNING';
+  scope?: 'user' | 'org' | 'apiKey';
   period: string;
   used: number;
   limit: number;
@@ -74,6 +75,29 @@ describe('BudgetBanner', () => {
       'bg-warning/10',
       'border-warning/30',
     );
+  });
+
+  it("labels an organization-bucket warning as the organization's, not the reader's", () => {
+    budgetStatusMock.value = {
+      ...WARNING_STATUS,
+      warnings: [
+        {
+          code: 'COST_WARNING',
+          scope: 'org',
+          period: 'monthly',
+          used: 8_500,
+          limit: 10_000,
+          percent: 85,
+        },
+      ],
+    };
+    render(<BudgetBanner organizationId="org-1" />);
+
+    expect(
+      screen.getByText(
+        /Organization: \$15\.00 of \$100\.00 cost left this monthly/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it('renders the destructive tint once the budget is exceeded', () => {

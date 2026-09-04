@@ -1,9 +1,9 @@
 ---
 title: Connectors
-description: Wie ein Connector deklariert wird, was eine seiner Aktionen einem Aufrufer zusichert und wann stattdessen ein MCP-Server die richtige Wahl ist.
+description: Wie ein Connector deklariert wird, was eine seiner Aktionen einem Aufrufer zusichert und wohin dein eigener Code gehört, wenn kein Connector passt.
 ---
 
-Connectoren sind die anbieterspezifische Hälfte davon, wie Tale andere Systeme erreicht, und sie gehören zur Plattform statt zu etwas, das eine Organisation zusammenbaut. Jeder von ihnen ist eine YAML-Datei im Quellbaum und deklariert, mit wem er spricht, wie er sich anmeldet und jede Aktion, die er ausführen kann — daher sieht der Katalog in jedem Deployment gleich aus, und ein Upgrade genügt, um ihn weiterzubewegen. Lies das, wenn du wissen willst, was ein Connector einem Aufrufer tatsächlich zusichert, oder wenn du zwischen einem eigenen Beitrag und einem selbst betriebenen MCP-Server abwägst.
+Connectoren sind die anbieterspezifische Hälfte davon, wie Tale andere Systeme erreicht, und sie gehören zur Plattform statt zu etwas, das eine Organisation zusammenbaut. Jeder von ihnen ist eine YAML-Datei im Quellbaum und deklariert, mit wem er spricht, wie er sich anmeldet und jede Aktion, die er ausführen kann — daher sieht der Katalog in jedem Deployment gleich aus, und ein Upgrade genügt, um ihn weiterzubewegen. Lies das, wenn du wissen willst, was ein Connector einem Aufrufer tatsächlich zusichert, oder wenn du abwägst, ob du einen Connector beisteuerst oder deinen eigenen Dienst aus einem Projekt-Agenten oder einer Automatisierung erreichst.
 
 Die Seite für Organisationen — Zugangsdaten anlegen, Standard setzen, eine abgelaufene Freigabe erneuern — ist [Zugangsdaten für Connectors](/de/platform/admin/connectors); der Katalog selbst steht unter [Connectors](/de/platform/connectors/overview).
 
@@ -42,7 +42,7 @@ actions:
 
 <Info>
 
-Connectoren werden aus dem Baum der Plattform gelesen, nicht aus der Konfiguration einer Organisation, und es gibt keinen Upload-Weg, der zur Laufzeit einen hinzufügt. Einen Connector zu ergänzen ist ein Beitrag am Quellcode — siehe [Contributor-Setup](/de/develop/contributor-setup). Eine eigene Brücke ohne Eingriff in den Quellcode ist genau das, wofür MCP da ist.
+Connectoren werden aus dem Baum der Plattform gelesen, nicht aus der Konfiguration einer Organisation, und es gibt keinen Upload-Weg, der zur Laufzeit einen hinzufügt. Einen Connector zu ergänzen ist ein Beitrag am Quellcode — siehe [Contributor-Setup](/de/develop/contributor-setup). Einen eigenen Dienst ohne Eingriff in den Quellcode erreichst du über die **Secrets** eines Projekt-Agenten oder einen `transform`-Knoten einer Automatisierung — der Abschnitt zur Wahl der Oberfläche unten zeigt, wie.
 
 </Info>
 
@@ -102,10 +102,10 @@ Zwei Oberflächen erreichen Systeme außerhalb von Tale, und die Wahl dreht sich
 | Oberfläche               | Greif dazu, wenn                                                                                                                                                     |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Mitgelieferter Connector | Für das Zielsystem gibt es bereits einen. Deine Arbeit sind die Zugangsdaten, der Anbieter-Vertrag wird für dich gepflegt.                                           |
-| MCP-Server               | Nichts Mitgeliefertes deckt das System ab — eine interne API, ein selbstgebautes Tool, ein Host, den nur dein Netz erreicht. Du schreibst und betreibst den Prozess. |
+| Dein eigener Code        | Nichts Mitgeliefertes deckt das System ab — eine interne API, ein selbstgebautes Tool, ein Host, den nur dein Netz erreicht. Ein Projekt-Agent ruft ihn mit einem **Secrets**-Eintrag aus seiner Sandbox auf; eine Automatisierung aus einem `transform`-Knoten. |
 
-Ein MCP-Server wird unter **Einstellungen > API > MCP** registriert, und jedes Tool, das er freilegt, reiht sich neben den Connector-Aktionen in den Werkzeugkasten des Agents ein, jeweils mit eigenem Genehmigungs-Kennzeichen. Die Referenz ist [MCP-Server](/de/platform/connectors/mcp-servers); den Bau von Anfang bis Ende zeigt [MCP-Server von Grund auf](/de/tutorials/developer/mcp-server-from-scratch).
+Einen externen MCP-Server zu registrieren, gibt es in dieser Version nicht — Tales einzige MCP-Oberfläche ist der eingehende Endpoint unter **Einstellungen > API > MCP**, an dem dein MCP-Client Tale steuert. [MCP-Server](/de/platform/connectors/mcp-servers) sagt, was an die Stelle des Registrierungsformulars getreten ist; [MCP-Endpoint](/de/develop/mcp-endpoint) ist die Referenz für die Oberfläche, die es tatsächlich gibt.
 
 ## Wo das hingehört
 
-Ein Connector ist ein deklarierter Vertrag — Hosts, Authentifizierung und eine typisierte Aktionsliste — der mit der Plattform kommt und aus Zugangsdaten gespeist wird, die der Organisation gehören. Lies [Connectors](/de/platform/connectors/overview) für das, was im Katalog steht, [Zugangsdaten für Connectors](/de/platform/admin/connectors) für den täglichen Umgang mit diesen Einträgen, und [MCP-Server](/de/platform/connectors/mcp-servers), wenn die Brücke, die du brauchst, dein eigener Code sein muss.
+Ein Connector ist ein deklarierter Vertrag — Hosts, Authentifizierung und eine typisierte Aktionsliste — der mit der Plattform kommt und aus Zugangsdaten gespeist wird, die der Organisation gehören. Lies [Connectors](/de/platform/connectors/overview) für das, was im Katalog steht, [Zugangsdaten für Connectors](/de/platform/admin/connectors) für den täglichen Umgang mit diesen Einträgen, und [MCP-Server](/de/platform/connectors/mcp-servers) für die einzige MCP-Oberfläche, die diese Version mitbringt.

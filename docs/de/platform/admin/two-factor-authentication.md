@@ -27,7 +27,7 @@ Zum Registrieren öffne **Konto > Sicherheit** und klick auf **Passkey hinzufüg
 
 Ein registrierter Passkey funktioniert an drei Türen. Auf dem Login-Bildschirm meldet dich **Mit einem Passkey anmelden** ohne Passwort an — das Credential ist selbst ein starker Nachweis. Auf dem Bestätigungs-Bildschirm nach einem Passwort-Login ersetzt **Stattdessen einen Passkey verwenden** den sechsstelligen Code. Und auf dem Registrierungs-Bildschirm, zu dem eine erzwungene Richtlinie nicht registrierte Mitglieder leitet, sitzt **Stattdessen einen Passkey registrieren** neben der TOTP-Einrichtung — ein Mitglied, das nur einen Passkey registriert und nie TOTP, besteht die Richtlinie.
 
-Verliert ein Mitglied ein Gerät mit einem Passkey darauf, widerruft ein Admin das Credential: Öffne **Einstellungen > Organisation**, klick beim Mitglied auf **Mitglied bearbeiten** und entferne das Credential im Abschnitt **Passkeys** des Dialogs. Tale löscht das Credential und beendet jede aktive Sitzung des Mitglieds, sodass ein verlorener oder gestohlener Authenticator keine Sitzung am Leben hält. Der Admin-Widerruf landet im Audit-Log als `passkey.revoked_by_admin`.
+Verliert ein Mitglied ein Gerät mit einem Passkey darauf, widerruft ein Admin das Credential: Öffne **Einstellungen > Mitglieder**, klick beim Mitglied auf **Mitglied bearbeiten** und entferne das Credential im Abschnitt **Passkeys** des Dialogs. Tale löscht das Credential und beendet jede aktive Sitzung des Mitglieds, sodass ein verlorener oder gestohlener Authenticator keine Sitzung am Leben hält. Der Admin-Widerruf landet im Audit-Log als `passkey.revoked_by_admin`.
 
 ## Die Erzwingen-für-Org-Richtlinie
 
@@ -49,7 +49,7 @@ Ein Mitglied innerhalb des Karenzfensters sieht ein Countdown-Banner in der App,
 
 ## Admin-Reset für ein ausgesperrtes Mitglied
 
-Wenn ein Mitglied sein Telefon und seine Backup-Codes verliert, entfernt ein Admin den zweiten Faktor auf seinem Account. Öffne **Einstellungen > Organisation**, klick beim Mitglied auf **Mitglied bearbeiten** und dann auf **Zwei-Faktor zurücksetzen** im Dialog. Tale deaktiviert 2FA für den Account und beendet jede aktive Sitzung, sodass sich das Mitglied beim nächsten Sign-in neu registriert.
+Wenn ein Mitglied sein Telefon und seine Backup-Codes verliert, entfernt ein Admin den zweiten Faktor auf seinem Account. Öffne **Einstellungen > Mitglieder**, klick beim Mitglied auf **Mitglied bearbeiten** und dann auf **Zwei-Faktor zurücksetzen** im Dialog. Tale deaktiviert 2FA für den Account und beendet jede aktive Sitzung, sodass sich das Mitglied beim nächsten Sign-in neu registriert.
 
 Das Zurücksetzen wird im Audit-Log unter `2fa_reset_by_admin` festgehalten. Greif dazu als Wiederherstellungs-Aktion — das Mitglied sollte sich sofort neu registrieren, wenn es wieder drin ist.
 

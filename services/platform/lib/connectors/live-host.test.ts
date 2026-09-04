@@ -173,7 +173,7 @@ describe('host allowlist', () => {
       'https://metadata.google.internal/computeMetadata/v1/',
     ]) {
       expect(() => checkConnectorRequestUrl(url, SELF_HOSTED)).toThrow(
-        /not reachable from an connector/,
+        /not reachable from a connector/,
       );
     }
   });

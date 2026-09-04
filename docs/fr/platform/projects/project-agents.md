@@ -7,7 +7,7 @@ L'onglet **Agents** d'un projet, c'est son équipe : des agents nommés que tu c
 
 <Frame caption="L'onglet Agents — les agents du projet ; chaque ligne nomme le harness, le fournisseur et le modèle.">
 
-![L'onglet Agents d'un projet listant des agents nommés, chacun avec son harness, le fournisseur qui le sert, l'identifiant du modèle et le nombre d'équipements.](/images/platform/project-agents-models.webp)
+![L’onglet Agents du projet Website relaunch listant deux agents nommés — Content editor sur Claude Code et Redirect auditor sur Codex — chaque ligne nommant le fournisseur et l’identifiant du modèle, à côté du bouton Nouvel agent.](/images/platform/project-agents-models.webp)
 
 </Frame>
 

@@ -13,7 +13,7 @@ Ein Bundle mit `disable-model-invocation: true` im Frontmatter verhält sich and
 
 ## Die Agenten eines Projekts ausrüsten
 
-Ein [Projekt-Agent](/de/platform/agents/create) trägt seine eigene Ausrüstung, gewählt im Ausrüstungsmenü im Dialog des Agenten. Die Liste dort folgt der Sichtbarkeit des **Projekts**, nicht deiner: organisationsweite Skills plus Team-Skills, die mit einem der Teams des Projekts geteilt sind. Ein organisationsweites Projekt sieht nur Organisations-Skills, und niemandes alte private Skills tauchen auf — ein Projekt-Agent läuft für jedes Mitglied des Projekts, seine Ausrüstung darf also nie etwas einschmuggeln, das nur seine Autorin sehen könnte.
+Ein [Projekt-Agent](/de/platform/projects/project-agents) trägt seine eigene Ausrüstung, gewählt im Ausrüstungsmenü im Dialog des Agenten. Die Liste dort folgt der Sichtbarkeit des **Projekts**, nicht deiner: organisationsweite Skills plus Team-Skills, die mit einem der Teams des Projekts geteilt sind. Ein organisationsweites Projekt sieht nur Organisations-Skills, und niemandes alte private Skills tauchen auf — ein Projekt-Agent läuft für jedes Mitglied des Projekts, seine Ausrüstung darf also nie etwas einschmuggeln, das nur seine Autorin sehen könnte.
 
 Dieselbe Regel gilt zur Laufzeit. Ein Task-Lauf lädt die Skills des Agenten als das Projekt; eine Automation auf Organisationsebene als die Organisation. Ein Skill, der für diese Sicht unsichtbar wird, lässt den Lauf mit seinem Namen fehlschlagen, statt still ohne ihn zu laufen — bewusst gewählte Ausrüstung, die stumm fehlt, ist schlimmer als ein fehlgeschlagener Lauf.
 

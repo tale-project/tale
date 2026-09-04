@@ -32,7 +32,7 @@ Your first chat, your first document, your first project — the member's first 
 
 <Card title="I build agents" icon="bot" href="/get-started/editors">
 
-Publish a minimal agent and watch it answer in chat — the editor's first day.
+Create a project agent and watch it work a board task — the editor's first day.
 
 </Card>
 
@@ -86,7 +86,7 @@ Role-indexed walks from "I want to do X" to a working result.
 
 <Card title="Develop" icon="terminal" href="/develop/overview">
 
-REST API, webhooks, connector SDK, contributor workflows.
+REST API, webhooks, connectors, contributor workflows.
 
 </Card>
 

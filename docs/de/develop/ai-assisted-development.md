@@ -1,64 +1,61 @@
 ---
 title: AI-gestützte Entwicklung
-description: Wie Claude Code, Cursor, Copilot und Windsurf ein Tale-Projekt bearbeiten — die Rules-Datei, die jeder Editor liest, und der Schema-Spiegel, den Tale unter `.tale/reference/` erzeugt.
+description: Wie ein Coding-Agent ein Tale-Projekt bearbeitet — die AGENTS.md und CLAUDE.md, die die CLI schreibt, der Quell-Spiegel unter .tale/reference/ und die org-first-Struktur der Konfigurationsdateien.
 ---
 
-Tale-Projekte sind JSON — Agents, Workflows, Connectors, Branding — und JSON lässt sich in AI-Editoren gut bearbeiten, wenn der Editor das Schema kennt. Die CLI legt dafür zwei Dinge an: eine Rules-Datei, die jeder Editor im Projekt-Root liest (`CLAUDE.md` für Claude Code, `.cursor/rules/tale.mdc` für Cursor, `.github/copilot-instructions.md` für Copilot, `.windsurfrules` für Windsurf), und einen schreibgeschützten Schema-Spiegel unter `.tale/reference/`, auf den die Rules-Datei den Editor verweist.
+Ein Tale-Projekt ist ein Verzeichnis aus reinen Konfigurationsdateien — Agenten, Skills, Branding, Provider, Connectors —, angelegt pro Organisation, und diese Struktur bearbeitet sich gut mit einem Coding-Agenten, sobald er die Regeln kennt. Die CLI schreibt dir diese Regeln: eine `AGENTS.md` im Projekt-Root mit der vollständigen Anleitung, eine `CLAUDE.md`, die darauf verweist, und einen schreibgeschützten Spiegel des Plattform-Quellcodes unter `.tale/reference/`, den beide Dateien den Agenten lesen lassen, bevor er eine Config anfasst.
 
-Lies das, wenn du ein Tale-Projekt im AI-Editor bearbeiten willst, ohne JSON von Hand zu tippen. Komm zurück, wenn der Editor Felder erfindet oder die falsche Agent-Form verdrahtet — die Antwort ist fast immer, dass das Schema unter `.tale/reference/` veraltet ist.
+Lies das, wenn du ein Tale-Projekt mit Claude Code oder einem anderen Agenten ändern willst, der `AGENTS.md` liest, ohne die Konfiguration von Hand zu tippen. Komm zurück, wenn der Agent Felder erfindet — die Lösung ist fast immer, ihn `.tale/reference/` noch einmal lesen zu lassen oder den Spiegel mit `tale update` aufzufrischen.
 
 ## Ein durchgespieltes Setup
 
-Initialisier ein Projekt — die CLI schreibt die Rules-Datei und den Schema-Spiegel im selben Schritt:
+`tale init` legt Projekt, Anleitungsdateien und Spiegel in einem Schritt an. Das ist der gesamte Baum, den es hinterlässt:
 
 ```bash
-tale init my-org
+tale init my-org --no-env
 cd my-org
 ls -a
-# .cursor/  .github/  .tale/  .windsurfrules
-# CLAUDE.md  agents/  workflows/  connectors/  branding/
 ```
 
-`CLAUDE.md` (gleichzeitig installiert als Cursor-`.mdc`, Copilot-`.md` und Windsurf-Rules) sagt dem Editor, wo er nachschlagen soll, bevor er eine Config bearbeitet:
+```text
+AGENTS.md  CLAUDE.md  default  .gitignore  .tale  tale.json
+```
+
+`--no-env` überspringt für diesen Durchlauf nur die `.env`-Abfrage. Die Zusammenfassung, die der Befehl ausgibt, nennt, was er gesät hat — einen Agenten im Katalog, fünf Skill-Bundles, eine Branding-Datei — und die nächsten Schritte: `tale dev` startet die Instanz lokal, `tale deploy` veröffentlicht sie, wenn du bereit bist.
+
+## Die zwei Anleitungsdateien
+
+`AGENTS.md` trägt die Anleitung: die org-first-Struktur, die Benennungsregeln für Slugs und Dateinamen, den Umgang mit Secrets und eine Direktive, die den größten Teil der Arbeit erledigt:
 
 > Before creating or editing any config, read the relevant schemas and implementation code in `.tale/reference/` to understand the valid structure, fields, and constraints. Use existing config files in the project as examples.
 
-Die Direktive zählt, weil jeder Editor unter Last Schema-Reads überspringt, sofern nicht anders gesagt. Die Rules-Datei ist der Vertrag; der Schema-Spiegel ist die Wahrheit am Boden.
+`CLAUDE.md` gibt es, weil Claude Code `CLAUDE.md` liest und nicht `AGENTS.md`; sie enthält einen Verweis auf `AGENTS.md` und sonst nichts, damit es eine einzige Quelle der Wahrheit gibt. Beide Dateien werden in einem verwalteten Block geschrieben — von `<!-- tale:begin -->` bis `<!-- tale:end -->` —, und alles, was du außerhalb der Marker ergänzt, überlebt jedes `tale init --force` und jedes `tale update`. Editor-spezifische Regeldateien schreibt die CLI nicht: keine `.cursor/rules`, keine `.windsurfrules`, keine Copilot-Anweisungen. Ein Agent, der der `AGENTS.md`-Konvention folgt, liest die Datei von selbst; einen, der das nicht tut, zeigst du von Hand darauf.
 
 ## Was wo liegt
 
-| Pfad                             | Was es ist                                                                          |
-| -------------------------------- | ----------------------------------------------------------------------------------- |
-| `agents/`                        | Eine JSON-Datei pro Agent — Anweisungen, Wissen, Tools, Modell.                     |
-| `workflows/`                     | Workflow-JSON-Configs, gruppiert nach Kategorie-Unterverzeichnis.                   |
-| `connectors/<slug>/config.json`  | Connector-Manifest — Operations, Auth-Methode, erlaubte Hosts.                      |
-| `connectors/<slug>/connector.ts` | Optionaler TypeScript-Connector für REST-Formen, die das Manifest nicht abdeckt.    |
-| `branding/branding.json`         | Org-Branding — Farben, Logos, E-Mail-Absender.                                      |
-| `.tale/reference/`               | Schreibgeschützter Schema-Spiegel; neu erzeugt durch `tale init` und `tale update`. |
+Konfiguration und Spiegel liegen nebeneinander unter dem Projekt-Root. Alles unter `default/` gehört dir — bearbeiten und committen; alles unter `.tale/` ist generiert und von git ignoriert.
 
-Der Reference-Baum ist byte-identisch zu den Schemas, gegen die die Plattform beim Deploy validiert. Behandle ihn als kanonisch: wenn ein Feldname in einer handgeschriebenen Config dem Reference widerspricht, gewinnt das Reference.
+| Pfad                                                              | Was es ist                                                                                                                                                                                    |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `default/agents/`                                                 | Eine YAML-Datei pro Agent-Persona; `coding-agent.yml` kommt mit.                                                                                                                              |
+| `default/skills/`                                                 | Ein Verzeichnis pro Skill-Bundle; `docx`, `pdf`, `pptx`, `xlsx` und `visual-aspect-analyzer` kommen mit.                                                                                      |
+| `default/branding/`                                               | `branding.json` und ein Ordner `images/` für hochgeladene Assets.                                                                                                                             |
+| `default/connectors/`, `default/providers/`, `default/workflows/` | Nach einem frischen Init leer — hier landen die Connector-, Provider- und Workflow-Dateien, die du ergänzt.                                                                                   |
+| `default/README.md`                                               | Erklärt den Baum; verwaltet wie die anderen Gerüstdateien.                                                                                                                                    |
+| `.tale/reference/`                                                | Schreibgeschützter Quellcode der Plattform — `backend/` und `lib/`, inklusive der gemeinsamen Schemas, gegen die eine Config validiert wird. Neu erzeugt durch `tale init` und `tale update`. |
+| `.tale/orgs/<slug>/<domain>/`                                     | Laufzeit-Konfiguration der Organisationen, die in der App entstehen; `tale deploy --override` schiebt sie hoch.                                                                               |
+| `.tale/checksums.json`                                            | Der Hash jeder Gerüstdatei, damit `tale update` deine Änderungen von seinen eigenen unterscheiden kann.                                                                                       |
 
-## Arbeiten mit dem Editor
+`default` ist die Vorlage, aus der jede neue Organisation gesät wird — nie selbst eine deploybare Organisation. Echte Organisationen entstehen in der App und liegen unter `.tale/orgs/`.
 
-Die Rules-Datei nennt drei Regeln, die jeder Editor beim Bearbeiten durchsetzt:
+## Den Spiegel frisch halten
 
-- **Agents binden, delegieren, hängen an.** Ein Agent kann gleichzeitig Connectors binden (`connectorBindings`), an andere Agents delegieren (`delegates`) und Workflows anhängen (`workflows`). Lies bestehende Configs, bevor du eine neue Bindung einführst.
-- **Workflows nutzen Connector-Operations.** Ein Workflow-Schritt referenziert Connector-Operations, die in `connectors/<slug>/config.json` deklariert sind. Ein Schritt gegen eine nicht-existente Operation zu bearbeiten, lässt die Validierung scheitern.
-- **Benennung ist erzwungen.** Agent-Dateinamen matchen `[a-z0-9][a-z0-9_-]*\.json`. Workflow-Step-Slugs matchen `[a-z0-9][a-z0-9_-]*`. Connector-Verzeichnisse sind kleingeschrieben alphanumerisch mit Bindestrichen oder Unterstrichen.
-
-Wenn der Editor eine Änderung vorschlägt, frag ihn, welche Datei in `.tale/reference/` er zugrunde gelegt hat. Wenn er das nicht kann, erzeug den Spiegel mit `tale update` neu und versuch es nochmal.
+`tale update` hebt die CLI auf das neueste Release ihrer Linie und synchronisiert die Projektdateien nach: Es schreibt die verwalteten Blöcke von `AGENTS.md` und `CLAUDE.md` neu, erzeugt `.tale/reference/` frisch, ergänzt neue Gerüstdateien, überschreibt die, die du nie angefasst hast, und lässt jede Datei in Ruhe, deren Prüfsumme deine Änderung zeigt — `--force` setzt das außer Kraft, `--dry-run` zeigt vorher den Plan. Danach rollst du die Container mit `tale deploy`.
 
 ## Cursor: Config-Ebene vs. Runtime-Ebene
 
-Cursor taucht in Tale an zwei getrennten Stellen auf — verwechsle sie nicht.
-
-| Ebene       | Was sie tut                                                                                                                                           | Wo sie lebt                                                                                 |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **Config**  | Hilft Cursor (oder einem anderen AI-Editor), Tale-Projekt-JSON auf deinem Rechner zu bearbeiten                                                       | `.cursor/rules/tale.mdc`, `CLAUDE.md`, `.tale/reference/` — alles, was `tale init` schreibt |
-| **Runtime** | Führt die Cursor Agent CLI headless in einer isolierten Sandbox aus, wenn ein Projekt-Agent oder Automation-Agent-Knoten das Harness **Cursor** nutzt | Projekt-Agent / Automation-Agent-Knoten mit **Harness** = Cursor                            |
-
-Rules-Datei und Schema-Spiegel auf dieser Seite sind die **Config-Ebene**: Sie steuern einen lokalen Editor, während du Agents, Workflows und Connectors änderst. Die **Runtime-Ebene** ist ein verwalteter Harness-Zug — `agent -p --output-format stream-json` mit deinem `CURSOR_API_KEY`, normalisierter Fortschritt im Chat und Session-Resume über Follow-ups. Credentials, Modelle und Abrechnung für Runtime-Turns stehen in [Harnesses](/de/platform/agents/harnesses), nicht hier.
+Cursor taucht in Tale an zwei getrennten Stellen auf — verwechsle sie nicht. Die **Config-Ebene** ist diese Seite: `AGENTS.md`, `CLAUDE.md` und `.tale/reference/` steuern Cursor, während es auf deinem Rechner Konfiguration bearbeitet. Die **Runtime-Ebene** ist ein [Projekt-Agent](/de/platform/projects/project-agents), dessen **Agent-Laufzeit** das Cursor-Harness ist: Tale führt die Cursor Agent CLI (`agent -p`) headless in einer isolierten Sandbox mit deinem `CURSOR_API_KEY` aus und meldet sich auf der Aufgabe zurück, ohne deine Arbeitskopie zu berühren. Credentials, Modelle und Abrechnung dieser Ebene stehen in [Harnesses](/de/platform/agents/harnesses), nicht hier.
 
 ## Wo das hingehört
 
-AI-gestützte Entwicklung ist der Bearbeitungspfad; Deployment ist der Veröffentlichungspfad. Sobald eine Config die Editor-Validierung passiert, gleicht [`tale deploy`](/de/self-hosted/install/cli-install) sie gegen die Plattform ab — derselbe Schema-Check, diesmal als Schranke. Für Features, die der Editor nicht erreicht (der In-Product-Builder, der visuelle Workflow-Editor), ist der [Platform-Reiter](/de/platform) die kanonische Oberfläche; der AI-Editor-Pfad hier ist für Projekte, die Config-as-Code bevorzugen.
+AI-gestützte Entwicklung ist der Bearbeitungspfad; `tale deploy` ist der Veröffentlichungspfad. Der Agent liest `AGENTS.md`, prüft `.tale/reference/` und bearbeitet Dateien unter `default/`; du prüfst den Diff, siehst dir das Ergebnis mit `tale dev` lokal an und veröffentlichst mit `tale deploy` — mit `--override`, wenn die Änderung die Konfiguration überschreiben soll, die die Container bereits halten. Die CLI selbst, ihre Befehle und Flags, ist unter [Die tale-CLI installieren](/de/self-hosted/install/cli-install) dokumentiert.
