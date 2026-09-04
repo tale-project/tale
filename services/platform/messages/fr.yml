@@ -4536,6 +4536,12 @@ notifications:
     {failures} tentatives consécutives sans parvenir à joindre la base de
     connaissances de cette organisation. Vérifie la connexion sous Paramètres →
     Résidence des données, puis reprends l'analyse depuis la page Sites web."
+  knowledgeIndexRepaired: 'Index de recherche de la base de connaissances réparé : {index}'
+  knowledgeIndexRepairedDetails: "L'index de recherche {index} de la base de connaissances de cette organisation était corrompu au démarrage et a été reconstruit automatiquement ({size}). Rien n'a été perdu — l'index se déduit des documents stockés — et la recherche comme les téléversements continuent comme avant. Des réparations répétées pointent vers la façon dont le conteneur de base de données est arrêté."
+  knowledgeIndexRebuilding: 'Index de recherche de la base de connaissances en reconstruction : {index}'
+  knowledgeIndexRebuildingDetails: "L'index de recherche {index} de la base de connaissances de cette organisation est corrompu et se reconstruit en arrière-plan ({size}). Les nouveaux documents ne peuvent pas être indexés avant la fin ; chaque document refusé entre-temps est indexé automatiquement ensuite."
+  knowledgeIndexRepairFailed: "Échec de la réparation de l'index de recherche : {index}"
+  knowledgeIndexRepairFailedDetails: "L'index de recherche {index} de la base de connaissances de cette organisation est corrompu et la reconstruction automatique n'a rien changé : {reason}. L'indexation des nouveaux documents reste en pause pour cette base jusqu'à ce que l'opérateur de l'instance reconstruise l'index (REINDEX) ou restaure la base — relance ensuite l'indexation des documents concernés."
   dsarScheduled: Demande d'effacement planifiée
   dsarScheduledBody: Une demande d'effacement a été déposée concernant un membre
     de cette organisation. Elle s'exécute dans {coolingOffHours} heures — ouvre
@@ -6017,6 +6023,9 @@ settings:
         legal_matter_created: Affaire légale créée
         legal_matter_updated: Affaire légale mise à jour
         legal_matter_closed: Affaire légale clôturée
+        knowledge_index_repaired: Index de recherche réparé
+        knowledge_index_rebuild_scheduled: Reconstruction de l'index de recherche planifiée
+        knowledge_index_repair_failed: Échec de la réparation de l'index de recherche
         dsar_governance_policy_tightened: Politique DSAR renforcée
         dsar_governance_policy_loosen_proposed: Assouplissement DSAR proposé
         dsar_governance_policy_loosen_applied: Assouplissement DSAR appliqué

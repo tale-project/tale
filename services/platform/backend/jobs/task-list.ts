@@ -128,6 +128,12 @@ const slackEventSchema = z.object({
   event: z.record(z.string(), z.unknown()),
 });
 
+const reindexBm25Schema = z.object({
+  orgSlug: z.string().min(1).nullable(),
+  schema: z.string().min(1),
+  name: z.string().min(1),
+});
+
 export interface TaskDeps {
   sql: Sql;
 }
@@ -300,6 +306,12 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const { runCorpusReconcile } =
         await import('../domains/knowledge/release.ts');
       await runCorpusReconcile(deps.sql);
+    },
+    'knowledge.reindex_bm25': async (payload) => {
+      const input = reindexBm25Schema.parse(payload);
+      const { runReindexBm25Job } =
+        await import('../domains/knowledge/index-health.ts');
+      await runReindexBm25Job(deps.sql, input);
     },
     'org.cleanup_files': async (payload) => {
       const input = orgCleanupSchema.parse(payload);

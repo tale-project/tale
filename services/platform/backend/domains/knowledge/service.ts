@@ -13,6 +13,7 @@ import {
   type FetchDocumentByFileIdArgs,
   type FetchedDocument,
 } from '../../core/knowledge/fetch.ts';
+import { KnowledgeIndexUnavailable } from '../../core/knowledge/index_health.ts';
 import { indexDocument } from '../../core/knowledge/indexing.ts';
 import { parsePiiConfig } from '../../core/knowledge/pii_gate.ts';
 import {
@@ -433,9 +434,10 @@ export async function indexUploadedFile(
       { organizationId: file.organizationId, orgSlug, config },
     );
     const pool = await getKnowledgePoolForOrg(orgSlug);
+    const dbUrl = await resolveOrgUrl(orgSlug);
     await pinDimensions({
       sql: pool,
-      dbUrl: await resolveOrgUrl(orgSlug),
+      dbUrl,
       schema: PRIVATE_KNOWLEDGE_SCHEMA,
       dimensions: embedder.dimensions,
       context: `organization "${orgSlug}"`,
@@ -497,6 +499,7 @@ export async function indexUploadedFile(
     const runSlice = (): ReturnType<typeof indexDocument> =>
       indexDocument({
         sql: pool,
+        dbUrl,
         orgSlug,
         fileId: file.storageRef,
         filename: file.fileName,
@@ -536,6 +539,18 @@ export async function indexUploadedFile(
       ragIndexedAt: Date.now(),
     });
   } catch (error) {
+    if (error instanceof KnowledgeIndexUnavailable) {
+      // The corpus's BM25 index is being rebuilt (or its rebuild failed): a
+      // refusal, not a failure — retrying now would hit the same wall, so the
+      // job ends here. A rebuild that verifies re-queues every file refused
+      // while it ran; a failed one names the operator's move in the prose.
+      await writeRagStatus(sql, fileId, {
+        ragStatus: 'failed',
+        ragError: error.message,
+        ragErrorCode: error.code,
+      });
+      return;
+    }
     if (error instanceof EmbeddingNotConfigured) {
       // The one failure a member can route to a fix: the code makes the
       // dialog show the Settings → Data residency deep link (or "ask an

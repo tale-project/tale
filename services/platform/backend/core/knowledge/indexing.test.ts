@@ -93,6 +93,7 @@ function fakeDb(
 }
 
 const ARGS = {
+  dbUrl: 'postgresql://acme-corpus',
   orgSlug: 'acme',
   fileId: 'handbook.pdf',
   filename: 'Employment handbook',

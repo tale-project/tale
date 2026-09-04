@@ -4,6 +4,10 @@ import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import {
+  installCorpusHealthHook,
+  verifyDefaultKnowledgeIndexes,
+} from './domains/knowledge/index-health.ts';
 import { ensureDefaultCorpusSchema } from './domains/knowledge/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { seedDevUser } from './domains/provisioning/dev-seed.ts';
@@ -64,6 +68,25 @@ async function main(): Promise<void> {
   await ensureQueues(boss);
   setEnqueueBoss(boss);
 
+  // Per-org BYO corpora bootstrap on first use inside the pool router; the
+  // hook verifies (and repairs) their BM25 indexes in that same single flight.
+  installCorpusHealthHook(sql);
+  if (env.ROLE !== 'api') {
+    // The deployment-default knowledge corpus bootstraps itself.
+    await ensureDefaultCorpusSchema().catch((error: unknown) => {
+      console.warn('[backend] default corpus bootstrap failed:', error);
+      reportError(error, { tags: { 'tale.lane': 'boot' } });
+    });
+  }
+  // Every role verifies the default corpus's BM25 indexes BEFORE a job or a
+  // request can write to them: a block zeroed by a crash-mode stop makes every
+  // chunk insert PANIC the database, and the rebuild is lossless. An advisory
+  // lock on the knowledge database leaves the repair to one process; the
+  // others skip. Never fails boot — the report is logged, audited, and belled.
+  await verifyDefaultKnowledgeIndexes(sql).catch((error: unknown) => {
+    console.error('[backend] knowledge index verification failed:', error);
+    reportError(error, { tags: { 'tale.lane': 'boot' } });
+  });
   if (env.ROLE !== 'api') {
     await startWorker({
       boss,
@@ -71,12 +94,6 @@ async function main(): Promise<void> {
       concurrency: env.WORKER_CONCURRENCY,
     });
     await registerSchedules(boss);
-    // The deployment-default knowledge corpus bootstraps itself; per-org
-    // BYO corpora bootstrap on first use inside the pool router.
-    await ensureDefaultCorpusSchema().catch((error: unknown) => {
-      console.warn('[backend] default corpus bootstrap failed:', error);
-      reportError(error, { tags: { 'tale.lane': 'boot' } });
-    });
   }
 
   // The deployment-default BLOB store. S3 is the only blob backend, so an

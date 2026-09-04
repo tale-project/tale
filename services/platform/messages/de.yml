@@ -4451,6 +4451,12 @@ notifications:
     die Wissensdatenbank dieser Organisation {failures} Mal in Folge nicht
     erreichbar war. Prüfe die Verbindung unter Einstellungen → Datenresidenz
     und setze die Scans danach auf der Websites-Seite fort.'
+  knowledgeIndexRepaired: 'Suchindex der Wissensdatenbank repariert: {index}'
+  knowledgeIndexRepairedDetails: 'Der Suchindex {index} der Wissensdatenbank dieser Organisation war beim Start beschädigt und wurde automatisch neu aufgebaut ({size}). Verloren ging nichts — der Index leitet sich aus den gespeicherten Dokumenten ab — und Suche wie Uploads laufen weiter wie zuvor. Wiederholte Reparaturen deuten darauf hin, wie der Datenbank-Container gestoppt wird.'
+  knowledgeIndexRebuilding: 'Suchindex der Wissensdatenbank im Neuaufbau: {index}'
+  knowledgeIndexRebuildingDetails: 'Der Suchindex {index} der Wissensdatenbank dieser Organisation ist beschädigt und baut sich gerade im Hintergrund neu auf ({size}). Bis dahin lassen sich neue Dokumente nicht indexieren; jedes Dokument, das währenddessen abgewiesen wurde, wird danach automatisch indexiert.'
+  knowledgeIndexRepairFailed: 'Reparatur des Suchindex der Wissensdatenbank fehlgeschlagen: {index}'
+  knowledgeIndexRepairFailedDetails: 'Der Suchindex {index} der Wissensdatenbank dieser Organisation ist beschädigt, und der automatische Neuaufbau hat das nicht behoben: {reason}. Für diese Datenbank pausiert die Indexierung neuer Dokumente, bis der Betreiber der Instanz den Index neu aufbaut (REINDEX) oder die Datenbank wiederherstellt — danach indexierst du die betroffenen Dokumente erneut.'
   dsarScheduled: Löschungsanfrage geplant
   dsarScheduledBody: Eine Löschungsanfrage wurde für ein Mitglied dieser
     Organisation eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt —
@@ -5895,6 +5901,9 @@ settings:
         legal_matter_created: Legal Matter angelegt
         legal_matter_updated: Legal Matter aktualisiert
         legal_matter_closed: Legal Matter geschlossen
+        knowledge_index_repaired: Suchindex der Wissensdatenbank repariert
+        knowledge_index_rebuild_scheduled: Neuaufbau des Suchindex geplant
+        knowledge_index_repair_failed: Reparatur des Suchindex fehlgeschlagen
         dsar_governance_policy_tightened: DSAR-Richtlinie verschärft
         dsar_governance_policy_loosen_proposed: DSAR-Lockerung vorgeschlagen
         dsar_governance_policy_loosen_applied: DSAR-Lockerung angewendet

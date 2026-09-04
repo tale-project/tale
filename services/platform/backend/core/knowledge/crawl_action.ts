@@ -69,6 +69,7 @@ import { readOrgEmbeddingConfig } from './connection';
 import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
 import { pinDimensions } from './dimensions';
 import { Embedder, embedderForOrg, EmbeddingNotConfigured } from './embedding';
+import { assertCorpusWritable } from './index_health';
 import {
   getKnowledgePoolForOrg,
   isConnectionFailure,
@@ -930,6 +931,13 @@ class PageIndexer {
 
   async indexPage(url: string): Promise<void> {
     const { domain } = this.identity;
+    // A corpus whose BM25 index is being rebuilt refuses the write with a
+    // coded error — recorded on the website row by the scan's error path —
+    // instead of PANICking the database; the next scheduled scan retries.
+    await assertCorpusWritable(
+      await resolveOrgUrl(this.identity.orgSlug),
+      PUBLIC_WEB_SCHEMA,
+    );
     const rows = await this.sql.unsafe<
       Array<{ content: string | null; title: string | null }>
     >(

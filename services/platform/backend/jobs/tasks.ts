@@ -92,6 +92,14 @@ export interface TaskPayloads {
   'knowledge.release_refs': { organizationId: string; refs: string[] };
   /** Daily corpus↔app reconcile: de-index refs nothing references (cron). */
   'knowledge.reconcile_corpus': Record<string, never>;
+  /** Background `REINDEX INDEX CONCURRENTLY` of one corrupted BM25 index the
+   * boot-time verification deferred (above the inline size limit). One job
+   * per index (`orgSlug` null = the deployment-default database). */
+  'knowledge.reindex_bm25': {
+    orgSlug: string | null;
+    schema: string;
+    name: string;
+  };
   /** One stepper turn of an automation run (claim-fenced, idempotent). */
   'automation.step': { organizationId: string; runId: string };
   /** One hop of a parked run's poll chain (chainSeq-fenced). */
@@ -364,6 +372,14 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     expireInSeconds: 600,
   },
   'knowledge.reconcile_corpus': { retryLimit: 1, expireInSeconds: 3600 },
+  // A rebuild is ONE deliberate attempt (a retry would loop on a corruption
+  // REINDEX cannot fix), `short` so a concurrently booting api and worker
+  // queue it once per index, and a day for a very large index to finish.
+  'knowledge.reindex_bm25': {
+    retryLimit: 0,
+    expireInSeconds: 86_400,
+    policy: 'short',
+  },
   'rag.index_file': {
     retryLimit: 5,
     retryDelay: 5,
