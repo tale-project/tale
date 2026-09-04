@@ -84,7 +84,8 @@ COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmat
 # Migration sets, grouped by container role (TALE_DB_ROLE), each schema in its
 # own subdirectory so it gets a schema-scoped dbmate tracking table:
 #   migrations/knowledge-db/<schema>/ → applied to `tale_knowledge` (knowledge-db)
-#   migrations/db/                    → platform DB (Convex-owned; ships empty —
+#   migrations/db/                    → platform role; ships empty (`tale_app` is
+#                                       migrated by the platform backend at boot;
 #                                       its only file is a *.md, dockerignored)
 # docker-entrypoint.sh applies the set matching this container's role.
 COPY services/db/migrations/ /etc/postgresql/migrations/

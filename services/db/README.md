@@ -4,11 +4,12 @@ PostgreSQL 16 with [ParadeDB](https://www.paradedb.com/) (`pg_search` BM25 + `pg
 
 ## Overview
 
-The shared datastore for every Tale service. Init scripts in `init-scripts/` create the databases and extensions on first boot:
+The shared datastore for every Tale service. Init scripts in `init-scripts/` create the databases and extensions on every container start (idempotently), so both databases exist on every container built from this image:
 
 - `tale_app` — the 0.5 platform application database (the Hono API + pg-boss workers in `services/platform/backend`). Its schema is owned by that backend, which applies its own numbered `.sql` migrations at boot; nothing here migrates it.
 - `tale_knowledge` — the knowledge corpus (RAG + crawler), queried in-process by the platform backend
-- `tale_platform` — the legacy Convex database, still created for backward compatibility but unused by the 0.5 backend
+
+These are the only two databases the platform reads. The Convex-era `tale_platform` database is no longer created; an existing deployment keeps the one it has until the operator drops it (see the upgrade docs under `docs/en/self-hosted/operate/upgrades.md`).
 
 `migrations/` holds the dbmate migration sets, grouped by container role and applied on startup by `docker-entrypoint.sh` per the `TALE_DB_ROLE` env var (set per-service in `compose.yml`):
 
