@@ -3,7 +3,6 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
-import { AppError } from '../../lib/shared/errors/app-error';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import { getUserTeamIds } from '../auth/membership.ts';
 import {
@@ -18,6 +17,7 @@ import {
   readSkillForViewer,
   saveSkillForViewer,
 } from '../core/skills/file_actions.ts';
+import { agentErrorResponse } from '../domains/agents/errors.ts';
 import {
   bulkCreateContacts,
   createContact,
@@ -56,6 +56,8 @@ import {
   updateProduct,
   type ProductScope,
 } from '../domains/products/service.ts';
+import { skillErrorResponse } from '../domains/skills/errors.ts';
+import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
 import { checkOrganizationRateLimit } from '../lib/rate-limit.ts';
@@ -737,13 +739,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json(await listAgentsForCaller(await agentCaller(c)));
   });
 
+  // The file layer's coded refusals — an invalid slug, an agent the key
+  // holder may not edit, a malformed file — map onto 400/403/422 exactly as
+  // the app route maps them; uncaught they read as a 500 outage.
   app.get('/agents/:slug', async (c) => {
-    const agent = await readAgentForCaller({
-      ...(await agentCaller(c)),
-      slug: c.req.param('slug'),
-    });
-    if (agent === null) return c.json({ error: 'Agent not found' }, 404);
-    return c.json({ agent });
+    try {
+      const agent = await readAgentForCaller({
+        ...(await agentCaller(c)),
+        slug: c.req.param('slug'),
+      });
+      if (agent === null) return c.json({ error: 'Agent not found' }, 404);
+      return c.json({ agent });
+    } catch (error) {
+      return agentErrorResponse(c, error);
+    }
   });
 
   app.put('/agents/:slug', async (c) => {
@@ -758,57 +767,34 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
-    const agent = await saveAgentForCaller({
-      ...(await agentCaller(c)),
-      slug: c.req.param('slug'),
-      ...body.data,
-    });
-    return c.json({ agent });
-  });
-
-  app.delete('/agents/:slug', async (c) => {
-    return c.json({
-      deleted: await deleteAgentForCaller({
+    try {
+      const agent = await saveAgentForCaller({
         ...(await agentCaller(c)),
         slug: c.req.param('slug'),
-      }),
-    });
+        ...body.data,
+      });
+      return c.json({ agent });
+    } catch (error) {
+      return agentErrorResponse(c, error);
+    }
+  });
+
+  /** Removing a resource that is not there is a 404 — the deletion
+   * semantics the API reference documents, and the skills family's. */
+  app.delete('/agents/:slug', async (c) => {
+    try {
+      const deleted = await deleteAgentForCaller({
+        ...(await agentCaller(c)),
+        slug: c.req.param('slug'),
+      });
+      if (!deleted) return c.json({ error: 'Agent not found' }, 404);
+      return c.body(null, 204);
+    } catch (error) {
+      return agentErrorResponse(c, error);
+    }
   });
 
   // ---- skills (the file layer, reused) -------------------------------------
-  const SKILL_ERROR_STATUS: Record<string, 400 | 403 | 404 | 422> = {
-    INVALID_SKILL_SLUG: 400,
-    INVALID_SKILL: 400,
-    SKILL_PRIVATE_RETIRED: 400,
-    SKILL_FORBIDDEN: 403,
-    SKILL_MALFORMED: 422,
-  };
-
-  const skillErrorResponse = (
-    c: Context<RestEnv>,
-    error: unknown,
-  ): Response => {
-    if (error instanceof AppError) {
-      const data: unknown = error.data;
-      if (data !== null && typeof data === 'object' && 'code' in data) {
-        const record = data as { code?: unknown; message?: unknown };
-        const code = typeof record.code === 'string' ? record.code : 'ERROR';
-        const status = SKILL_ERROR_STATUS[code];
-        if (status !== undefined) {
-          return c.json(
-            {
-              error: code,
-              message:
-                typeof record.message === 'string' ? record.message : code,
-            },
-            status,
-          );
-        }
-      }
-    }
-    throw error;
-  };
-
   /** The key acts as its user: team skills follow the user's own teams. */
   const skillCaller = async (c: Context<RestEnv>) => ({
     orgSlug:
@@ -854,11 +840,16 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
-      const saved = await saveSkillForViewer({
-        ...(await skillCaller(c)),
-        slug: c.req.param('slug'),
-        ...body.data,
-      });
+      const who = await skillCaller(c);
+      const slug = c.req.param('slug');
+      // Serialized with the upload lane and the app editor on the per-slug
+      // writer lock (`writer_lock.ts`).
+      const saved = await withSkillWriterLock(
+        deps.sql,
+        c.get('organizationId'),
+        slug,
+        () => saveSkillForViewer({ ...who, slug, ...body.data }),
+      );
       return c.json(saved);
     } catch (error) {
       return skillErrorResponse(c, error);
@@ -867,10 +858,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   app.delete('/skills/:slug', async (c) => {
     try {
-      const deleted = await deleteSkillForViewer({
-        ...(await skillCaller(c)),
-        slug: c.req.param('slug'),
-      });
+      const who = await skillCaller(c);
+      const slug = c.req.param('slug');
+      const deleted = await withSkillWriterLock(
+        deps.sql,
+        c.get('organizationId'),
+        slug,
+        () => deleteSkillForViewer({ ...who, slug }),
+      );
       if (!deleted) return c.json({ error: 'Skill not found' }, 404);
       return c.body(null, 204);
     } catch (error) {

@@ -428,6 +428,36 @@ describe('deleting an agent', () => {
     ).toBe(true);
   });
 
+  // The regression under test: delete parsed the file first, so a malformed
+  // agent answered AGENT_MALFORMED on the one operation that needs no parsed
+  // definition — and agents have no upload lane to replace it through.
+  it('lets an administrator, and only an administrator, remove a malformed agent', async () => {
+    await seedAgent('acme', 'assistant', 'name: assistant\ncolour: blue\n');
+    const deleteAgent = await load('deleteAgentForCaller');
+    const listAgents = await load('listAgentsForCaller');
+
+    const refused = await deleteAgent({
+      orgSlug: 'acme',
+      slug: 'assistant',
+      ...bob,
+    }).catch((e: unknown) => e);
+    expect(errorCode(refused)).toBe('AGENT_FORBIDDEN');
+    expect((await listAgents({ orgSlug: 'acme', ...admin })).failures).toEqual([
+      expect.objectContaining({ slug: 'assistant' }),
+    ]);
+
+    expect(
+      await deleteAgent({
+        orgSlug: 'acme',
+        slug: 'assistant',
+        ...admin,
+      }),
+    ).toBe(true);
+    expect((await listAgents({ orgSlug: 'acme', ...admin })).failures).toEqual(
+      [],
+    );
+  });
+
   it('cannot delete another organization’s agent — in both directions', async () => {
     await seedAgent('acme', 'assistant', shared);
     await seedAgent(

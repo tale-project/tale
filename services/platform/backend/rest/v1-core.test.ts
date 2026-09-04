@@ -1,8 +1,12 @@
 // @vitest-environment node
 
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { parseKeysetCursor, type RestEnv } from './shared.ts';
 import { createCoreRoutes } from './v1-core.ts';
@@ -187,5 +191,90 @@ describe('GET /products filters', () => {
     const { values } = listQuery(queries, 'products');
     expect(values).toContain('archived');
     expect(values).toContain('tools');
+  });
+});
+
+/**
+ * The agents family reuses the file layer, whose refusals are coded
+ * AppErrors. The regression under test: the routes called it with no error
+ * mapping, so editing an agent the key holder cannot edit or naming an
+ * uppercase slug threw through Hono as a 500 — a permission or validation
+ * failure reading as an outage. The internal /api/app/agents routes mapped
+ * the same codes to 400/403/422 all along; both doors now share one map.
+ * Driven against a real temporary config tree: the org slug falls back to
+ * the door's `orgSlug` when the slug lookup finds no row.
+ */
+describe('agents error mapping', () => {
+  let configRoot: string;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-rest-agents-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+  });
+
+  afterEach(async () => {
+    if (savedConfigDir === undefined) {
+      delete process.env.TALE_CONFIG_DIR;
+    } else {
+      process.env.TALE_CONFIG_DIR = savedConfigDir;
+    }
+    await rm(configRoot, { recursive: true, force: true });
+  });
+
+  async function seedAgent(slug: string, yaml: string): Promise<void> {
+    const dir = path.join(configRoot, 'acme', 'agents');
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, `${slug}.yml`), yaml, 'utf-8');
+  }
+
+  const request = async (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    await mount(fakeSql([]).sql).request(`http://localhost${route}`, {
+      method: init.method ?? 'GET',
+      headers: { 'content-type': 'application/json' },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+  it('answers a permission refusal with 403', async () => {
+    await seedAgent(
+      'drafts',
+      'name: drafts\ndisplay-name: Drafts\ndescription: Someone else’s\nvisibility: private\nowner: user-2\ninstructions: Keep quiet.\n',
+    );
+    const res = await request('/agents/drafts', {
+      method: 'PUT',
+      body: { displayName: 'Hijacked' },
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: 'AGENT_FORBIDDEN' });
+  });
+
+  it('answers an invalid slug with 400', async () => {
+    const res = await request('/agents/Not_A_Slug');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'INVALID_AGENT_SLUG' });
+  });
+
+  it('answers a malformed agent file with 422', async () => {
+    await seedAgent('broken', 'name: broken\ncolour: blue\n');
+    const res = await request('/agents/broken');
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ error: 'AGENT_MALFORMED' });
+  });
+
+  it('deletes with 204, and answers 404 for an agent that is not there', async () => {
+    await seedAgent(
+      'helper',
+      'name: helper\ndisplay-name: Helper\ndescription: Shared\nvisibility: org\nowner: user-1\ninstructions: Help.\n',
+    );
+    expect((await request('/agents/helper', { method: 'DELETE' })).status).toBe(
+      204,
+    );
+    expect((await request('/agents/helper', { method: 'DELETE' })).status).toBe(
+      404,
+    );
   });
 });

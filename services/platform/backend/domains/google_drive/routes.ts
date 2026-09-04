@@ -11,6 +11,7 @@ import {
 import { requireSession } from '../../auth/session.ts';
 import { importFiles } from '../../core/google_drive/import_files.ts';
 import { listFiles } from '../../core/google_drive/list_files.ts';
+import { chargeOrgRateLimit } from '../../lib/rate-limit-response.ts';
 import { SyncConfigError } from '../onedrive/service.ts';
 import {
   cancelSyncConfig,
@@ -25,6 +26,8 @@ import {
  * `knowledgeWrite` — the same gate the cloud-import OAuth start enforces and
  * the UI hides the import behind. Tokens are grant-only and never reach the
  * client. Native Google Workspace files are excluded by the reused listers.
+ * The org-wide vendor budgets mirror the OneDrive twin's and answer a 429
+ * with Retry-After when spent.
  */
 
 function handleError<E extends OrgEnv>(
@@ -79,6 +82,13 @@ export function createGoogleDriveRoutes(deps: {
       })
       .safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const limited = await chargeOrgRateLimit(
+      deps.sql,
+      c,
+      'external:google-drive-list',
+      c.get('orgId'),
+    );
+    if (limited !== null) return limited;
     const token = await tokenFor(c);
     if (!token.success) {
       return c.json({ success: false, error: token.error });
@@ -95,6 +105,13 @@ export function createGoogleDriveRoutes(deps: {
       await c.req.json().catch(() => null),
     );
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const limited = await chargeOrgRateLimit(
+      deps.sql,
+      c,
+      'external:google-drive-read',
+      c.get('orgId'),
+    );
+    if (limited !== null) return limited;
     const token = await tokenFor(c);
     if (!token.success) {
       return c.json({

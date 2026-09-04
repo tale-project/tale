@@ -2,7 +2,7 @@ import type { Sql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { MAX_SKILL_BUNDLE_TOTAL_BYTES } from '../../../lib/shared/schemas/skills.ts';
-import { readOrgSkill } from '../../../lib/skills/listing.ts';
+import { readOrgSkill, type OrgSkill } from '../../../lib/skills/listing.ts';
 import { SkillParseError } from '../../../lib/skills/parse.ts';
 import {
   canEditSkill,
@@ -25,6 +25,7 @@ import {
 } from '../../core/skills/file_utils.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { consumeUploadIntent } from '../files/upload-intents.ts';
+import { withSkillWriterLock } from './writer-lock.ts';
 
 /**
  * The skill bundle-upload lane on pg — the 0.4
@@ -34,9 +35,9 @@ import { consumeUploadIntent } from '../files/upload-intents.ts';
  * the org-prefixed key alone proves tenancy, not ownership, because every
  * document blob in the org carries the same prefix and this lane DELETES
  * its staged blob on every path. The per-(org, slug) claim lock becomes a
- * pg advisory xact lock, and the parse/replace/write protocol
- * (needs_confirm, force + edit rights, owner adoption) is the reused
- * helpers verbatim.
+ * pg advisory xact lock (`writer-lock.ts`, shared with the editor's save and
+ * delete), and the parse/replace/write protocol (needs_confirm, force +
+ * edit rights, owner adoption) is the reused helpers verbatim.
  */
 export async function uploadSkillBundlePg(
   sql: Sql,
@@ -115,7 +116,7 @@ export async function uploadSkillBundlePg(
     });
   }
 
-  let existing = null;
+  let existing: OrgSkill | null = null;
   let existingUnreadable = false;
   try {
     existing = await readOrgSkill(
@@ -152,21 +153,23 @@ export async function uploadSkillBundlePg(
     }
   }
 
-  // Per-(org, slug) writer mutex — the 0.4 claim-slot table collapses into
-  // one advisory xact lock (rule 5).
+  // The owner and sharing rules the editor applies, decided BEFORE the lock
+  // so a refusal never holds it. An unreadable existing document counts as
+  // no bundle: there is nothing left to preserve.
+  let files: ReturnType<typeof normalizedBundleFiles>;
   try {
-    await sql.begin(async (tx) => {
-      await tx`
-        SELECT pg_advisory_xact_lock(
-          hashtext(${`skill:${args.organizationId}:${parsed.slug}`})
-        )
-      `;
-      await writeSkillBundleFiles(
-        args.orgSlug,
-        parsed.slug,
-        normalizedBundleFiles(parsed, args.viewer),
-      );
-    });
+    files = normalizedBundleFiles(parsed, args.viewer, existing);
+  } catch (err) {
+    await cleanup();
+    throw err;
+  }
+
+  // Per-(org, slug) writer mutex — the one every skill writer holds, so the
+  // editor's save and delete cannot land between this swap's two renames.
+  try {
+    await withSkillWriterLock(sql, args.organizationId, parsed.slug, () =>
+      writeSkillBundleFiles(args.orgSlug, parsed.slug, files),
+    );
   } catch (err) {
     if (err instanceof AppError) throw err;
     throw new AppError({

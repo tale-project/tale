@@ -10627,6 +10627,48 @@ async function checkRestResources(
       searchOk,
     `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 duplicate_email), docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}/${docRead.success ? docRead.data.content : 'ERR'}/retry=${retry.success ? retry.data.status : 'ERR'}/del=${docDeleted.status}→${docGone.status}, entry chain=${entryCreated.success}/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/old=${oldEntry.success ? oldEntry.data.status : 'ERR'}/del=${entryDeleted.status}, skill=${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
   );
+
+  // Agents: a refusal is the 4xx it is, never a 500 — an invalid slug 400,
+  // someone else's private agent 403, a malformed file 422, and deleting an
+  // absent agent 404 (the deletion semantics the API reference documents,
+  // which the skills family already answered).
+  const agentsDir = path.join(
+    process.env.TALE_CONFIG_DIR ?? '',
+    orgSlug,
+    'agents',
+  );
+  await mkdir(agentsDir, { recursive: true });
+  const privateAgentFile = path.join(agentsDir, 'itest-private-agent.yml');
+  const brokenAgentFile = path.join(agentsDir, 'itest-broken-agent.yml');
+  await writeFile(
+    privateAgentFile,
+    'name: itest-private-agent\ndisplay-name: Private\ndescription: Someone else’s persona.\nvisibility: private\nowner: user_someone_else\ninstructions: Keep quiet.\n',
+    'utf8',
+  );
+  await writeFile(
+    brokenAgentFile,
+    'name: itest-broken-agent\ncolour: blue\n',
+    'utf8',
+  );
+  const agentBadSlug = await v1('/agents/Not_A_Slug');
+  const agentForbidden = await v1('/agents/itest-private-agent', {
+    method: 'PUT',
+    body: { displayName: 'Hijacked' },
+  });
+  const agentMalformed = await v1('/agents/itest-broken-agent');
+  const agentAbsentDelete = await v1('/agents/itest-absent-agent', {
+    method: 'DELETE',
+  });
+  await rm(privateAgentFile, { force: true });
+  await rm(brokenAgentFile, { force: true });
+  record(
+    'REST resources: agent refusals map to 400/403/422/404, never 500',
+    agentBadSlug.status === 400 &&
+      agentForbidden.status === 403 &&
+      agentMalformed.status === 422 &&
+      agentAbsentDelete.status === 404,
+    `badSlug=${agentBadSlug.status} (want 400), forbidden=${agentForbidden.status} (want 403), malformed=${agentMalformed.status} (want 422), absentDelete=${agentAbsentDelete.status} (want 404)`,
+  );
 }
 
 /** Mint an API key for the session user through the same surface the
@@ -21279,6 +21321,120 @@ async function checkOneDriveSync(
       `created=${tmpCreated}, heldSurvives=${tmpHeld} run=${heldRunStatus} (prune skipped, not failed), prunedAfterRelease=${tmpAfterRelease}`,
     );
 
+    // 4b. Re-import keeps the sync binding. A one-time re-import of a file
+    //     the folder config owns must not detach it (the config keeps
+    //     updating AND pruning it), and a "Sync import" over a file an
+    //     earlier one-time import brought in adopts it even when its content
+    //     is unchanged — both used to leave stale mirrors nothing pruned.
+    const syncBindingOf = async (
+      externalId: string,
+    ): Promise<{
+      sourceMode: string | null;
+      syncConfigId: string | null;
+    } | null> => {
+      const rows = await sql<
+        { sourceMode: string | null; syncConfigId: string | null }[]
+      >`
+        SELECT metadata->>'sourceMode' AS "sourceMode",
+               metadata->>'syncConfigId' AS "syncConfigId"
+        FROM app.documents
+        WHERE org_id = ${orgId} AND external_item_id = ${externalId}
+        LIMIT 1
+      `;
+      return rows[0] ?? null;
+    };
+    seed({
+      id: 'f-bind',
+      name: 'bind.txt',
+      parent: 'folder-reports',
+      content: 'bind v1',
+      hash: 'h-bind-v1',
+      mime: 'text/plain',
+    });
+    await runConfig(folderConfig.id);
+    const bindAfterSync = await docsByExternalId('f-bind');
+    seed({
+      id: 'f-bind',
+      name: 'bind.txt',
+      parent: 'folder-reports',
+      content: 'bind v2 body',
+      hash: 'h-bind-v2',
+      mime: 'text/plain',
+    });
+    const bindReimport = importResultSchema.safeParse(
+      await (
+        await post('/import', {
+          importType: 'one-time',
+          items: [
+            {
+              id: 'f-bind',
+              name: 'bind.txt',
+              size: 12,
+              relativePath: 'ODReports/bind.txt',
+            },
+          ],
+        })
+      ).json(),
+    );
+    await muteRagJobs();
+    const bindAfterReimport = await syncBindingOf('f-bind');
+    drive.delete('f-bind');
+    await runConfig(folderConfig.id);
+    const bindPruned = (await docsByExternalId('f-bind')).length === 0;
+
+    seed({
+      id: 'f-adopt',
+      name: 'adopt.md',
+      content: 'adopt v1',
+      hash: 'h-adopt-v1',
+      mime: 'text/markdown',
+    });
+    const adoptItem = {
+      id: 'f-adopt',
+      name: 'adopt.md',
+      size: 8,
+      relativePath: 'adopt.md',
+      isDirectlySelected: true,
+    };
+    const adoptOneTime = importResultSchema.safeParse(
+      await (
+        await post('/import', { importType: 'one-time', items: [adoptItem] })
+      ).json(),
+    );
+    const adoptBefore = await syncBindingOf('f-adopt');
+    const adoptSync = importResultSchema.safeParse(
+      await (
+        await post('/import', { importType: 'sync', items: [adoptItem] })
+      ).json(),
+    );
+    await muteRagJobs();
+    const adoptConfig = await configByItem('f-adopt');
+    const adoptAfter = await syncBindingOf('f-adopt');
+    // Leave the folder config as the only syncable one for the scan below.
+    if (adoptConfig !== null) {
+      await post(`/sync-configs/${adoptConfig.id}/cancel`, {});
+    }
+    record(
+      'onedrive re-import keeps the sync binding; sync import adopts a one-time doc',
+      bindAfterSync.length === 1 &&
+        bindAfterSync[0]?.syncConfigId === folderConfig.id &&
+        bindReimport.success &&
+        bindReimport.data.successCount === 1 &&
+        bindAfterReimport?.sourceMode === 'auto' &&
+        bindAfterReimport.syncConfigId === folderConfig.id &&
+        bindPruned &&
+        adoptOneTime.success &&
+        adoptOneTime.data.successCount === 1 &&
+        adoptBefore?.sourceMode === 'manual' &&
+        adoptBefore.syncConfigId === null &&
+        adoptSync.success &&
+        adoptSync.data.skippedCount === 1 &&
+        adoptConfig !== null &&
+        adoptAfter?.sourceMode === 'auto' &&
+        adoptAfter.syncConfigId === adoptConfig.id,
+      `bind: synced=${bindAfterSync.length === 1 && bindAfterSync[0]?.syncConfigId === folderConfig.id} reimport=${bindReimport.success ? bindReimport.data.successCount : 'ERR'}/1 → ${bindAfterReimport?.sourceMode}/${bindAfterReimport?.syncConfigId === folderConfig.id ? 'cfg' : String(bindAfterReimport?.syncConfigId)} (want auto/cfg) pruned=${bindPruned}; adopt: oneTime=${adoptOneTime.success ? adoptOneTime.data.successCount : 'ERR'}/1 before=${adoptBefore?.sourceMode}/${adoptBefore?.syncConfigId} sync=${adoptSync.success ? `${adoptSync.data.skippedCount}skipped` : 'ERR'} after=${adoptAfter?.sourceMode}/${adoptAfter?.syncConfigId === adoptConfig?.id ? 'cfg' : String(adoptAfter?.syncConfigId)} (want auto/cfg)`,
+    );
+
     // 5. Single-file config: content change updates the ONE row in place; a
     //    definitive 404 at the source removes the mirror and deactivates.
     seed({
@@ -22577,31 +22733,38 @@ async function checkTranscription(
       : 0;
   const whisperBase = `http://127.0.0.1:${whisperPort}/v1`;
 
-  // A real WAV (16-bit PCM mono 8 kHz, 0.6 s of 440 Hz sine) so ffmpeg's
-  // compress pass has genuine audio — silence-strip must not eat it.
-  const sampleRate = 8000;
-  const seconds = 0.6;
-  const sampleCount = Math.floor(sampleRate * seconds);
-  const wav = Buffer.alloc(44 + sampleCount * 2);
-  wav.write('RIFF', 0);
-  wav.writeUInt32LE(36 + sampleCount * 2, 4);
-  wav.write('WAVE', 8);
-  wav.write('fmt ', 12);
-  wav.writeUInt32LE(16, 16);
-  wav.writeUInt16LE(1, 20);
-  wav.writeUInt16LE(1, 22);
-  wav.writeUInt32LE(sampleRate, 24);
-  wav.writeUInt32LE(sampleRate * 2, 28);
-  wav.writeUInt16LE(2, 32);
-  wav.writeUInt16LE(16, 34);
-  wav.write('data', 36);
-  wav.writeUInt32LE(sampleCount * 2, 40);
-  for (let i = 0; i < sampleCount; i++) {
-    const sample = Math.round(
-      Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 12_000,
-    );
-    wav.writeInt16LE(sample, 44 + i * 2);
-  }
+  // A real WAV (16-bit PCM mono 8 kHz, 0.6 s of a sine) so ffmpeg's compress
+  // pass has genuine audio — silence-strip must not eat it. Two pitches, so
+  // a probe that needs DIFFERENT bytes (a real provider round-trip) does not
+  // collide with the content-hash dedup the identical-bytes probe asserts.
+  const synthWav = (frequencyHz: number): Buffer => {
+    const sampleRate = 8000;
+    const seconds = 0.6;
+    const sampleCount = Math.floor(sampleRate * seconds);
+    const buffer = Buffer.alloc(44 + sampleCount * 2);
+    buffer.write('RIFF', 0);
+    buffer.writeUInt32LE(36 + sampleCount * 2, 4);
+    buffer.write('WAVE', 8);
+    buffer.write('fmt ', 12);
+    buffer.writeUInt32LE(16, 16);
+    buffer.writeUInt16LE(1, 20);
+    buffer.writeUInt16LE(1, 22);
+    buffer.writeUInt32LE(sampleRate, 24);
+    buffer.writeUInt32LE(sampleRate * 2, 28);
+    buffer.writeUInt16LE(2, 32);
+    buffer.writeUInt16LE(16, 34);
+    buffer.write('data', 36);
+    buffer.writeUInt32LE(sampleCount * 2, 40);
+    for (let i = 0; i < sampleCount; i++) {
+      const sample = Math.round(
+        Math.sin((2 * Math.PI * frequencyHz * i) / sampleRate) * 12_000,
+      );
+      buffer.writeInt16LE(sample, 44 + i * 2);
+    }
+    return buffer;
+  };
+  const wav = synthWav(440);
+  const wavAlt = synthWav(880);
 
   try {
     const send = (route: string, body?: unknown): Promise<Response> =>
@@ -22622,14 +22785,14 @@ async function checkTranscription(
       throw new Error('transcription check: no default openai credential');
     }
 
-    const uploadAudio = async (): Promise<string> => {
+    const uploadAudio = async (bytes: Buffer = wav): Promise<string> => {
       const handoff = z
         .object({ storageRef: z.string(), uploadUrl: z.string() })
         .safeParse(
           await (
             await send(`/api/app/files/upload-handoff?orgId=${orgId}`, {
               contentType: 'audio/wav',
-              size: wav.length,
+              size: bytes.length,
             })
           ).json(),
         );
@@ -22638,7 +22801,7 @@ async function checkTranscription(
         method: 'PUT',
         headers: { 'content-type': 'audio/wav' },
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Buffer is a valid BodyInit at runtime
-        body: wav as never,
+        body: bytes as never,
       });
       if (!put.ok) throw new Error(`audio PUT failed: ${put.status}`);
       const registered = await send(`/api/app/files/register?orgId=${orgId}`, {
@@ -22712,10 +22875,44 @@ async function checkTranscription(
       `queued=${queuedRow?.status} drained=${drained} done=${doneRow?.status} transcriptOk=${(doneRow?.transcript ?? '').includes('Second sentence here.')} duration=${doneRow?.duration} calls=${whisperCalls}/1 ledgerSec=${ledger[0]?.seconds}`,
     );
 
+    // 1b. The same bytes uploaded again — a second blob, a second row — reuse
+    //     the completed transcript: no ffmpeg pass, no provider call, no
+    //     ledger minutes. The engine hashes what it reads and stamps
+    //     content_hash, so the next identical upload finds the first.
+    const ledgerBeforeDup = ledger[0]?.seconds ?? 0;
+    const dupRef = await uploadAudio();
+    await drainTranscribe();
+    const dupRow = await rowFor(dupRef);
+    const hashes = await sql<{ hash: string | null }[]>`
+      SELECT content_hash AS hash FROM app.file_metadata
+      WHERE org_id = ${orgId} AND storage_ref IN (${firstRef}, ${dupRef})
+    `;
+    const ledgerAfterDup = await sql<{ seconds: number | null }[]>`
+      SELECT audio_duration_sec::float8 AS seconds
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = '__transcription__'
+        AND granularity = 'daily'
+      LIMIT 1
+    `;
+    record(
+      'transcription dedup: identical bytes reuse the completed transcript',
+      dupRow?.status === 'completed' &&
+        dupRow.transcript === doneRow?.transcript &&
+        dupRow.duration === doneRow?.duration &&
+        whisperCalls === 1 &&
+        hashes.length === 2 &&
+        hashes[0]?.hash !== null &&
+        hashes[0]?.hash === hashes[1]?.hash &&
+        (ledgerAfterDup[0]?.seconds ?? 0) === ledgerBeforeDup,
+      `dup=${dupRow?.status} sameTranscript=${dupRow?.transcript === doneRow?.transcript} calls=${whisperCalls}/1 hashes=${hashes.map((h) => (h.hash ?? 'null').slice(0, 8)).join('=')} ledger=${ledgerAfterDup[0]?.seconds}/${ledgerBeforeDup} (unchanged)`,
+    );
+
     // 2. A permanent 400 fails fast (no 30s retry chain), the error lands
-    //    sanitized (the sk- token redacted); the retry door re-queues.
+    //    sanitized (the sk- token redacted); the retry door re-queues. Other
+    //    bytes than step 1's, or the dedup above would answer before the
+    //    provider is ever asked.
     failNextWith = 400;
-    const secondRef = await uploadAudio();
+    const secondRef = await uploadAudio(wavAlt);
     await drainTranscribe();
     const failedRow = await rowFor(secondRef);
     const retry = await send(
@@ -22927,7 +23124,12 @@ VTT
   exit 0
 fi
 if [[ "$*" == *" -x "* || "\${args[0]}" == "-x" ]]; then
-  /usr/bin/ffmpeg -hide_banner -loglevel error -f lavfi -i sine=frequency=440:duration=2 -b:a 32k "$home_dir/whis1.mp3"
+  # Distinct audio per video: the transcription lane reuses a completed
+  # transcript for identical bytes within an org, and whis2's injected
+  # provider failure must actually reach the provider.
+  freq=440
+  case "$vid" in whis2) freq=660;; esac
+  /usr/bin/ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=$freq:duration=2" -b:a 32k "$home_dir/whis1.mp3"
   exit 0
 fi
 echo "ERROR: itest fake yt-dlp got unexpected args: $*" >&2
@@ -32719,6 +32921,70 @@ async function checkAutomationsSurface(
 }
 
 /**
+ * A spent drive-picker budget is a 429 with Retry-After on BOTH providers.
+ * OneDrive used to let RateLimitExceededError escape as a 500 (plus a
+ * Sentry page), and Google Drive had no limiter at all. The org bucket is
+ * drained by hand (value 0, refilled from now) and restored afterwards so
+ * later probes keep their budget.
+ */
+async function checkDrivePickerRateLimit(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const rules = ['external:onedrive-list', 'external:google-drive-list'];
+  // The org bucket's key, exactly as `checkOrganizationRateLimit` charges it.
+  const bucketKey = `org:${orgId}`;
+  const now = Date.now();
+  // A deep deficit, not an empty bucket: both lanes refill one token every
+  // 600 ms, so a balance of zero would admit the very next request.
+  for (const rule of rules) {
+    await sql`
+      INSERT INTO app.rate_limits (name, key, value, ts)
+      VALUES (${rule}, ${bucketKey}, -600, ${now})
+      ON CONFLICT (name, key) DO UPDATE SET value = -600, ts = ${now}
+    `;
+  }
+  const listFiles = (
+    provider: 'onedrive' | 'google-drive',
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/${provider}/list-files?orgId=${orgId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: '{}',
+    });
+  const codeOf = async (res: Response): Promise<string> => {
+    const parsed = z
+      .object({ error: z.string() })
+      .safeParse(await res.json().catch(() => null));
+    return parsed.success ? parsed.data.error : 'no-json';
+  };
+  try {
+    const onedrive = await listFiles('onedrive');
+    const onedriveCode = await codeOf(onedrive);
+    const google = await listFiles('google-drive');
+    const googleCode = await codeOf(google);
+    record(
+      'drive pickers: a spent budget answers 429 with Retry-After on both providers',
+      onedrive.status === 429 &&
+        onedriveCode === 'RATE_LIMITED' &&
+        onedrive.headers.get('retry-after') !== null &&
+        google.status === 429 &&
+        googleCode === 'RATE_LIMITED' &&
+        google.headers.get('retry-after') !== null,
+      `onedrive=${onedrive.status}/${onedriveCode}/retry-after=${onedrive.headers.get('retry-after') ?? 'none'} (want 429/RATE_LIMITED/header), google=${google.status}/${googleCode}/retry-after=${google.headers.get('retry-after') ?? 'none'} (want 429/RATE_LIMITED/header)`,
+    );
+  } finally {
+    for (const rule of rules) {
+      await sql`
+        DELETE FROM app.rate_limits WHERE name = ${rule} AND key = ${bucketKey}
+      `;
+    }
+  }
+}
+
+/**
  * Inc-95 library surface: the skill BUNDLE-UPLOAD lane on pg — a zip staged
  * through the org byte lane installs a new slug, a repeat answers
  * needs_confirm (nothing written), and force replaces; a foreign/garbage
@@ -32738,9 +33004,13 @@ async function checkLibrarySurface(
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
   const { default: JSZip } = await import('jszip');
-  const stageZip = async (body: string): Promise<string> => {
+  const stageZipFiles = async (
+    files: Record<string, string>,
+  ): Promise<string> => {
     const zip = new JSZip();
-    zip.file('SKILL.md', body);
+    for (const [name, content] of Object.entries(files)) {
+      zip.file(name, content);
+    }
     const blob = await zip.generateAsync({ type: 'blob' });
     // Staged FOR the skill lane (the upload intent's purpose).
     const res = await fetch(
@@ -32755,6 +33025,22 @@ async function checkLibrarySurface(
       .object({ storageId: z.string() })
       .safeParse(await res.json());
     return parsed.success ? parsed.data.storageId : '';
+  };
+  const stageZip = (body: string): Promise<string> =>
+    stageZipFiles({ 'SKILL.md': body });
+  /** A refusal's `{ error, message }`, or null for a body that is not JSON
+   * (a 500 answers plain text — the very shape these probes rule out). */
+  const refusalOf = async (
+    res: Response,
+  ): Promise<{ error: string; message: string } | null> => {
+    try {
+      const parsed = z
+        .object({ error: z.string(), message: z.string().default('') })
+        .safeParse(await res.json());
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
   };
   const skillMd = (description: string): string =>
     `---\nname: itest-bundle-skill\ndescription: ${description}\n---\n\nAudit steps v1.`;
@@ -32821,6 +33107,220 @@ async function checkLibrarySurface(
       foreign.status === 403 &&
       garbage.status === 403,
     `first=${first.success ? first.data.slug : 'ERR'}, repeat=${repeat.success ? repeat.data.status : 'ERR'}, forced=${forced.success}, disk=${replacedOnDisk}, foreign=${foreign.status} (want 403), garbage=${garbage.status} (want 403)`,
+  );
+
+  // The zip parser is the authoritative check, and its refusals must reach
+  // the uploader as the 4xx that says what to fix — a zip without SKILL.md
+  // and one whose frontmatter fails to parse both used to fall through the
+  // route's code map as blank 500s.
+  const noSkillMd = await post(`/api/app/skills/upload?orgId=${orgId}`, {
+    storageId: await stageZipFiles({ 'README.md': 'No SKILL.md in here.' }),
+  });
+  const noSkillMdRefusal = await refusalOf(noSkillMd);
+  const badFrontmatter = await post(`/api/app/skills/upload?orgId=${orgId}`, {
+    storageId: await stageZip(
+      '---\nname: itest-bad-frontmatter\n---\n\nNo description at all.',
+    ),
+  });
+  const badFrontmatterRefusal = await refusalOf(badFrontmatter);
+  record(
+    'library surface: zip refusals answer 400 with the parser’s reason',
+    noSkillMd.status === 400 &&
+      noSkillMdRefusal?.error === 'MISSING_SKILL_MD' &&
+      noSkillMdRefusal.message.includes('SKILL.md') &&
+      badFrontmatter.status === 400 &&
+      badFrontmatterRefusal?.error === 'INVALID_SKILL_MD',
+    `noSkillMd=${noSkillMd.status}/${noSkillMdRefusal?.error ?? 'no-json'} (want 400/MISSING_SKILL_MD), badFrontmatter=${badFrontmatter.status}/${badFrontmatterRefusal?.error ?? 'no-json'} (want 400/INVALID_SKILL_MD)`,
+  );
+
+  // A bundle nobody can parse must still be deletable: the library shows it
+  // as a failure row, and removing it is the only in-product repair (delete
+  // used to load the document first and answer 422). Same for a malformed
+  // agent file, which has no upload lane to replace it through at all.
+  const configDir = process.env.TALE_CONFIG_DIR ?? '';
+  const brokenSkillDir = path.join(
+    configDir,
+    orgSlug,
+    'skills',
+    'itest-broken-skill',
+  );
+  await mkdir(brokenSkillDir, { recursive: true });
+  await writeFile(
+    path.join(brokenSkillDir, 'SKILL.md'),
+    '# no frontmatter\n',
+    'utf8',
+  );
+  const brokenAgentFile = path.join(
+    configDir,
+    orgSlug,
+    'agents',
+    'itest-broken-agent.yml',
+  );
+  await mkdir(path.dirname(brokenAgentFile), { recursive: true });
+  await writeFile(
+    brokenAgentFile,
+    'name: itest-broken-agent\ncolour: blue\n',
+    'utf8',
+  );
+  const del = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'DELETE',
+      headers: { cookie, origin: base },
+    });
+  const isGone = (file: string): Promise<boolean> =>
+    stat(file).then(
+      () => false,
+      () => true,
+    );
+  const brokenSkillDeleted = await del(
+    `/api/app/skills/itest-broken-skill?orgId=${orgId}`,
+  );
+  const brokenSkillGone = await isGone(brokenSkillDir);
+  const brokenAgentDeleted = await del(
+    `/api/app/agents/itest-broken-agent?orgId=${orgId}`,
+  );
+  const brokenAgentGone = await isGone(brokenAgentFile);
+  record(
+    'library surface: an admin deletes a malformed skill and agent',
+    brokenSkillDeleted.status === 200 &&
+      brokenSkillGone &&
+      brokenAgentDeleted.status === 200 &&
+      brokenAgentGone,
+    `skill=${brokenSkillDeleted.status} gone=${brokenSkillGone} (want 200/true), agent=${brokenAgentDeleted.status} gone=${brokenAgentGone} (want 200/true)`,
+  );
+
+  // The upload door applies the editor's rules: `private` is retired for a
+  // new bundle (the docs promise the refusal), and a declared owner is never
+  // honored — the uploader is attributed, exactly as a save would.
+  const privateUpload = await post(`/api/app/skills/upload?orgId=${orgId}`, {
+    storageId: await stageZip(
+      `---\nname: itest-private-upload\ndescription: Mine alone.\nvisibility: private\nowner: ${ctx.userId}\n---\n\nBody.`,
+    ),
+  });
+  const privateRefusal = await refusalOf(privateUpload);
+  const foreignOwnerUpload = z.object({ ok: z.literal(true) }).safeParse(
+    await (
+      await post(`/api/app/skills/upload?orgId=${orgId}`, {
+        storageId: await stageZip(
+          '---\nname: itest-owner-upload\ndescription: Attributed elsewhere.\nowner: user_someone_else\n---\n\nBody.',
+        ),
+      })
+    )
+      .json()
+      .catch(() => null),
+  );
+  const ownerRead = z
+    .object({ skill: z.looseObject({ owner: z.string().optional() }) })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/skills/itest-owner-upload?orgId=${orgId}`,
+          {
+            headers: { cookie, origin: base },
+          },
+        )
+      )
+        .json()
+        .catch(() => null),
+    );
+  record(
+    'library surface: upload applies the editor’s owner and sharing rules',
+    privateUpload.status === 400 &&
+      privateRefusal?.error === 'SKILL_PRIVATE_RETIRED' &&
+      foreignOwnerUpload.success &&
+      ownerRead.success &&
+      ownerRead.data.skill.owner === ctx.userId,
+    `private=${privateUpload.status}/${privateRefusal?.error ?? 'no-json'} (want 400/SKILL_PRIVATE_RETIRED), foreignOwner=${foreignOwnerUpload.success} owner=${ownerRead.success ? ownerRead.data.skill.owner : 'ERR'} (want ${ctx.userId})`,
+  );
+
+  // The editor's save and delete hold the per-slug writer lock the upload
+  // lane takes (the bundle swap is atomic only while writers to one slug are
+  // serialized). With the lock held by another transaction, a PUT and a
+  // DELETE must wait and land only once it is released — they used to write
+  // straight through.
+  const lockKey = `skill:${orgId}:itest-bundle-skill`;
+  const holdLock = (): {
+    held: Promise<void>;
+    release: () => void;
+    done: Promise<void>;
+  } => {
+    let release = (): void => undefined;
+    let taken = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      taken = resolve;
+    });
+    const done = sql
+      .begin(async (tx) => {
+        await tx`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+        taken();
+        await gate;
+      })
+      .then(() => undefined);
+    return { held, release, done };
+  };
+  const bundleSkillMd = path.join(
+    configDir,
+    orgSlug,
+    'skills',
+    'itest-bundle-skill',
+    'SKILL.md',
+  );
+  const editedOnDisk = (): Promise<boolean> =>
+    readFile(bundleSkillMd, 'utf8').then(
+      (content) => content.includes('Edited while locked.'),
+      () => false,
+    );
+  const raceLock = (
+    request: Promise<Response>,
+  ): Promise<'waiting' | `landed:${number}`> =>
+    Promise.race([
+      request.then((res) => `landed:${res.status}` as const),
+      sleep(750).then(() => 'waiting' as const),
+    ]);
+
+  const saveLock = holdLock();
+  await saveLock.held;
+  const lockedPut = fetch(
+    `${base}/api/app/skills/itest-bundle-skill?orgId=${orgId}`,
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        description: 'Locked edit.',
+        body: 'Edited while locked.',
+      }),
+    },
+  );
+  const putWhileLocked = await raceLock(lockedPut);
+  const diskWhileLocked = await editedOnDisk();
+  saveLock.release();
+  await saveLock.done;
+  const putAfter = await lockedPut;
+  const diskAfter = await editedOnDisk();
+
+  const deleteLock = holdLock();
+  await deleteLock.held;
+  const lockedDelete = del(`/api/app/skills/itest-bundle-skill?orgId=${orgId}`);
+  const deleteWhileLocked = await raceLock(lockedDelete);
+  const dirWhileLocked = !(await isGone(path.dirname(bundleSkillMd)));
+  deleteLock.release();
+  await deleteLock.done;
+  const deleteAfter = await lockedDelete;
+  const dirAfter = await isGone(path.dirname(bundleSkillMd));
+  record(
+    'library surface: editor save and delete wait for the per-slug writer lock',
+    putWhileLocked === 'waiting' &&
+      !diskWhileLocked &&
+      putAfter.status === 200 &&
+      diskAfter &&
+      deleteWhileLocked === 'waiting' &&
+      dirWhileLocked &&
+      deleteAfter.status === 200 &&
+      dirAfter,
+    `put: ${putWhileLocked} disk=${diskWhileLocked} → ${putAfter.status} disk=${diskAfter} (want waiting/false → 200/true); delete: ${deleteWhileLocked} dir=${dirWhileLocked} → ${deleteAfter.status} gone=${dirAfter} (want waiting/true → 200/true)`,
   );
 }
 
@@ -37111,6 +37611,7 @@ async function main(): Promise<void> {
     await checkDataResidency(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationsSurface(sql, baseUrl, authCtx);
     await checkLibrarySurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkDrivePickerRateLimit(sql, baseUrl, authCtx);
     await checkEngagementSurface(sql, baseUrl, authCtx);
     await checkMetricsSurface(sql, baseUrl, authCtx);
     await checkArenaAndQuestions(sql, baseUrl, authCtx);

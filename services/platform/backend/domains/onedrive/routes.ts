@@ -14,7 +14,7 @@ import { listFiles } from '../../core/onedrive/list_files.ts';
 import { listSharePointDrives } from '../../core/onedrive/list_sharepoint_drives.ts';
 import { listSharePointFiles } from '../../core/onedrive/list_sharepoint_files.ts';
 import { listSharePointSites } from '../../core/onedrive/list_sharepoint_sites.ts';
-import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
+import { chargeOrgRateLimit } from '../../lib/rate-limit-response.ts';
 import {
   cancelSyncConfig,
   createPgImportDeps,
@@ -30,7 +30,9 @@ import {
  * the UI hides the import behind; a read-only member holding a usable Graph
  * token (the login-account lane) must not import or cancel syncs through the
  * API. Tokens resolve per signed-in member (cloud grant first, login account
- * second) and never reach the client.
+ * second) and never reach the client. The org-wide vendor budgets answer a
+ * 429 with Retry-After when spent — a member browsing briskly is asked to
+ * wait, never shown an outage.
  */
 
 function handleError<E extends OrgEnv>(
@@ -88,11 +90,13 @@ export function createOneDriveRoutes(deps: {
       })
       .safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    await checkOrganizationRateLimit(
+    const limited = await chargeOrgRateLimit(
       deps.sql,
+      c,
       'external:onedrive-list',
       c.get('orgId'),
     );
+    if (limited !== null) return limited;
     const token = await tokenFor(c);
     if (!token.success) {
       return c.json({ success: false, error: token.error });
@@ -107,11 +111,13 @@ export function createOneDriveRoutes(deps: {
       .object({ search: z.string().optional() })
       .safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    await checkOrganizationRateLimit(
+    const limited = await chargeOrgRateLimit(
       deps.sql,
+      c,
       'external:onedrive-list',
       c.get('orgId'),
     );
+    if (limited !== null) return limited;
     const token = await tokenFor(c);
     if (!token.success) {
       return c.json({ success: false, error: token.error });
@@ -129,11 +135,13 @@ export function createOneDriveRoutes(deps: {
       .object({ siteId: z.string().min(1) })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    await checkOrganizationRateLimit(
+    const limited = await chargeOrgRateLimit(
       deps.sql,
+      c,
       'external:onedrive-list',
       c.get('orgId'),
     );
+    if (limited !== null) return limited;
     const token = await tokenFor(c);
     if (!token.success) {
       return c.json({ success: false, error: token.error });
@@ -155,11 +163,13 @@ export function createOneDriveRoutes(deps: {
       })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    await checkOrganizationRateLimit(
+    const limited = await chargeOrgRateLimit(
       deps.sql,
+      c,
       'external:onedrive-list',
       c.get('orgId'),
     );
+    if (limited !== null) return limited;
     const token = await tokenFor(c);
     if (!token.success) {
       return c.json({ success: false, error: token.error });
@@ -183,11 +193,13 @@ export function createOneDriveRoutes(deps: {
       await c.req.json().catch(() => null),
     );
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    await checkOrganizationRateLimit(
+    const limited = await chargeOrgRateLimit(
       deps.sql,
+      c,
       'external:onedrive-read',
       c.get('orgId'),
     );
+    if (limited !== null) return limited;
     const token = await tokenFor(c);
     if (!token.success) {
       return c.json({
