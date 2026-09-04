@@ -11,7 +11,10 @@ import {
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import { deleteFolderCascade, DocumentError } from '../documents/service.ts';
-import { syncRagDocumentScope } from '../knowledge/service.ts';
+import {
+  syncRagDocumentScope,
+  syncRagFolderSubtree,
+} from '../knowledge/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   getProjectAuthContext,
@@ -151,7 +154,7 @@ export function createFolderRoutes(deps: {
       // The cascade re-scoped these documents — re-stamp their corpus rows
       // (retrieval filters on team scope; scope-only, no re-embed).
       for (const doc of touched) {
-        await syncRagDocumentScope(deps.sql, auth.organizationId, doc);
+        await syncRagDocumentScope(deps.sql, auth.organizationId, doc.id);
       }
       return c.json({ ok: true });
     } catch (error) {
@@ -211,6 +214,13 @@ export function createFolderRoutes(deps: {
       );
       await transactSerializable(deps.sql, (tx) =>
         renameFolder(tx, auth, c.req.param('folderId'), body.data.name),
+      );
+      // Every document beneath now has a new path; the corpus copies it
+      // (folder-scoped search matches on it) — re-stamp after commit.
+      await syncRagFolderSubtree(
+        deps.sql,
+        auth.organizationId,
+        c.req.param('folderId'),
       );
       return c.json({ ok: true });
     } catch (error) {

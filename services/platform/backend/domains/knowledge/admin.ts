@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
+import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import { pickEmbeddingRecommendations } from '../../../lib/shared/providers/embedding_recommendations.ts';
 import { zodErrorMessage } from '../../../lib/shared/schemas/format-error.ts';
 import {
@@ -62,6 +63,36 @@ export class KnowledgeAdminError extends Error {
 }
 
 const MAX_HISTORY_ENTRIES = 20;
+
+/**
+ * The outbound-host policy, spoken in this domain's error vocabulary.
+ *
+ * The shared check refuses with a coded `AppError` — cloud metadata endpoints
+ * always, private/loopback hosts unless `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1`
+ * — and its message names the opt-in. That is a legitimate, actionable denial
+ * the admin has to SEE. Left as an `AppError` it fell through the knowledge
+ * routes (which map only `KnowledgeAdminError`) to the generic handler: a bare
+ * 500 "Internal Server Error", an error report filed, and the one sentence
+ * that would have fixed the setup never reached anyone.
+ */
+function assertHostAllowed(url: string): void {
+  try {
+    checkProviderHostPolicy(url);
+  } catch (error) {
+    if (!(error instanceof AppError)) throw error;
+    const data: unknown = error.data;
+    const field = (name: string): string | null => {
+      if (data === null || typeof data !== 'object') return null;
+      const value: unknown = Reflect.get(data, name);
+      return typeof value === 'string' && value.length > 0 ? value : null;
+    };
+    throw new KnowledgeAdminError(
+      field('code') ?? 'HOST_BLOCKED',
+      field('message') ?? `Host policy refused ${url}`,
+      400,
+    );
+  }
+}
 
 function historyDir(orgSlug: string, key: string): string {
   return safeJoinWithinDir(
@@ -165,7 +196,7 @@ export async function writeKnowledgeConnection(
     );
   }
   const connection = parsed.data;
-  checkProviderHostPolicy(`http://${connection.host}:${connection.port}`);
+  assertHostAllowed(`http://${connection.host}:${connection.port}`);
 
   const filePath = connectionFilePath(orgSlug);
   const serialized = serializeConnectionJson(connection);
@@ -224,7 +255,16 @@ export async function probeKnowledgeConnection(args: {
     };
   }
   const connection = parsed.data;
-  checkProviderHostPolicy(`http://${connection.host}:${connection.port}`);
+  // A probe REPORTS — a refused host is a test result, not an exception,
+  // the same way an unparseable body or an unreadable password is.
+  try {
+    assertHostAllowed(`http://${connection.host}:${connection.port}`);
+  } catch (error) {
+    if (error instanceof KnowledgeAdminError) {
+      return { ok: false, error: error.message };
+    }
+    throw error;
+  }
 
   let password: string;
   try {
@@ -323,7 +363,7 @@ export async function writeKnowledgeEmbedding(
     );
   }
   if (parsed.data.baseUrl) {
-    checkProviderHostPolicy(parsed.data.baseUrl);
+    assertHostAllowed(parsed.data.baseUrl);
   }
   const filePath = embeddingFilePath(orgSlug);
   const serialized = serializeEmbeddingJson(parsed.data);

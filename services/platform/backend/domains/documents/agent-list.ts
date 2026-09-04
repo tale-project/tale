@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 
-import { MAX_FOLDER_DEPTH } from '../folders/paths.ts';
+import { MAX_FOLDER_DEPTH, normalizeFolderPath } from '../folders/paths.ts';
 
 /**
  * The agent-facing document listing — ONE helper behind two doors (the 0.4
@@ -9,10 +9,12 @@ import { MAX_FOLDER_DEPTH } from '../folders/paths.ts';
  * passes its pre-resolved scope verbatim. Hub visibility rules live here and
  * nowhere else.
  *
- * `folderPath` prefers the denormalized `documents.folder_path` (connector
- * docs carry their source path) and otherwise derives the breadcrumb from the
- * folder tree in-query — 0.4 walked parents in memory only because Convex
- * cannot join; Postgres does it with one recursive CTE.
+ * `folderPath` is the folder tree's breadcrumb when the document sits in a
+ * folder (fresh across renames — the denormalized `documents.folder_path` a
+ * connector stamped is not), else that stamped source path; spelled the
+ * canonical way (`normalizeFolderPath`) so an agent can hand it straight
+ * back as a knowledge-search `folder` filter. 0.4 walked parents in memory
+ * only because Convex cannot join; Postgres does it with one recursive CTE.
  */
 
 export interface AgentDocumentListArgs {
@@ -80,7 +82,7 @@ export async function listDocumentsForAgent(
         AND fp.depth < ${MAX_FOLDER_DEPTH + 2}
     )
     SELECT d.file_ref AS "fileId", d.title, d.extension,
-           coalesce(d.folder_path, fp.path) AS "folderPath",
+           coalesce(fp.path, d.folder_path) AS "folderPath",
            d.team_id AS "teamId", d.created_at_ms::float8 AS "createdAt",
            (d.metadata ->> 'size')::float8 AS "sizeBytes"
     FROM app.documents d
@@ -109,7 +111,7 @@ export async function listDocumentsForAgent(
       fileId: row.fileId,
       title: row.title ?? 'Untitled',
       extension: row.extension,
-      folderPath: row.folderPath,
+      folderPath: normalizeFolderPath(row.folderPath),
       teamId: row.teamId,
       createdAt: row.createdAt,
       sizeBytes: row.sizeBytes,

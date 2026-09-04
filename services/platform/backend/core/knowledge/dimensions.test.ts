@@ -88,6 +88,9 @@ describe('pinning a fresh corpus', () => {
   });
 
   it('leaves nothing pinned when the corpus does not exist yet', async () => {
+    // No table, no ALTER — and therefore no pin on record: recording one
+    // here would make every later write skip the ALTER for the process
+    // lifetime, leaving the column untyped once the table appears.
     const missing = {
       unsafe: () =>
         Promise.reject(Object.assign(new Error('no table'), { code: '42P01' })),
@@ -99,7 +102,37 @@ describe('pinning a fresh corpus', () => {
       dimensions: 1536,
       context: 'organization "acme"',
     });
-    expect(pinnedDimensions('postgresql://empty')).toBe(1536);
+    expect(pinnedDimensions('postgresql://empty')).toBeUndefined();
+  });
+
+  it('pins once the corpus table appears after a missed first attempt', async () => {
+    // A knowledge database that migrates after the platform boots: the
+    // first write finds no table, the next one (same database) must still
+    // narrow the column and build the index rather than trust a stale memo.
+    const missing = {
+      unsafe: () =>
+        Promise.reject(Object.assign(new Error('no table'), { code: '42P01' })),
+    } as unknown as Sql;
+    await pinDimensions({
+      sql: missing,
+      dbUrl: 'postgresql://late',
+      schema: SCHEMA,
+      dimensions: 1536,
+      context: 'organization "acme"',
+    });
+    const db = fakeDb();
+    await pinDimensions({
+      sql: db.sql,
+      dbUrl: 'postgresql://late',
+      schema: SCHEMA,
+      dimensions: 1536,
+      context: 'organization "acme"',
+    });
+    expect(db.statements.join('\n')).toContain(
+      'ALTER COLUMN embedding TYPE vector(1536)',
+    );
+    expect(db.statements.join('\n')).toContain('create_chunks_hnsw_index');
+    expect(pinnedDimensions('postgresql://late')).toBe(1536);
   });
 
   it('accepts a corpus too wide to index, rather than refusing documents', async () => {

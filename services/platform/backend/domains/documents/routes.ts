@@ -49,7 +49,6 @@ import {
   listDocumentVersionsView,
   listHubDocumentsPaginated,
   listProjectDocuments,
-  loadDocumentOrThrow,
   retryRagIndexingForDocument,
   searchDocumentsForMention,
   searchDocumentsView,
@@ -142,21 +141,6 @@ export function createDocumentRoutes(deps: {
       },
       c.get('sessionBundle').user.email,
     );
-
-  /**
-   * Re-stamp a document's corpus rows with its CURRENT scope (team / project)
-   * after a scope-changing write committed — team change, project attach,
-   * project detach. Runs outside the transaction (it talks to the org's
-   * knowledge pool) and is best-effort by contract: a failure is logged
-   * inside, never surfaced as a failed write.
-   */
-  const resyncCorpusScope = async (
-    organizationId: string,
-    documentId: string,
-  ): Promise<void> => {
-    const doc = await loadDocumentOrThrow(deps.sql, documentId);
-    await syncRagDocumentScope(deps.sql, organizationId, doc);
-  };
 
   app.get('/', async (c) => {
     try {
@@ -505,10 +489,14 @@ export function createDocumentRoutes(deps: {
       const result = await transactSerializable(deps.sql, (tx) =>
         updateDocument(tx, auth, { documentId, ...body.data }),
       );
-      // A team change is a corpus SCOPE change — re-stamp retrieval filters
-      // without re-embedding.
-      if (result.teamScopeChanged && result.fileRef !== null) {
-        await resyncCorpusScope(auth.organizationId, documentId);
+      // A team change or a folder move is a corpus FILTER change — re-stamp
+      // retrieval filters without re-embedding. Best-effort by contract
+      // (logged inside).
+      if (
+        (result.teamScopeChanged || result.folderChanged) &&
+        result.fileRef !== null
+      ) {
+        await syncRagDocumentScope(deps.sql, auth.organizationId, documentId);
       }
       return c.json({ ok: true });
     } catch (error) {
@@ -703,7 +691,7 @@ export function createDocumentRoutes(deps: {
       // file keeps answering org-wide retrieval from inside a restricted
       // project.
       if (attached.fileRef !== null) {
-        await resyncCorpusScope(auth.organizationId, documentId);
+        await syncRagDocumentScope(deps.sql, auth.organizationId, documentId);
       }
       return c.json({ ok: true });
     } catch (error) {
@@ -721,7 +709,7 @@ export function createDocumentRoutes(deps: {
       // Back to the org-wide library: drop the old project's scope from the
       // corpus rows, or the document silently vanishes from hub retrieval.
       if (detached.fileRef !== null) {
-        await resyncCorpusScope(auth.organizationId, documentId);
+        await syncRagDocumentScope(deps.sql, auth.organizationId, documentId);
       }
       return c.json({ ok: true });
     } catch (error) {

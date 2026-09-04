@@ -18,6 +18,11 @@
  *     without a document, so a blanket quarantine would dark a legitimate
  *     lane. Trashed file rows (a WebDAV overwrite's strands) and refs with
  *     no row at all are never retrievable.
+ *
+ * A folder filter narrows further, from the CURRENT folder of each document
+ * (the corpus row's stamp is a copy that can lag a move): only a document
+ * filed in that folder or beneath it admits, and an unbound file — filed
+ * nowhere — never does.
  */
 
 export interface AccessScopeArg {
@@ -34,6 +39,14 @@ export interface DocCandidate {
   projectId: string | null;
   teamId: string | null;
   teamTags: string[] | null;
+  /** Canonical folder path (`normalizeFolderPath` spelling); null = root. */
+  folderPath: string | null;
+}
+
+/** The folder itself, or anything beneath it — never `/reports-archive`
+ * for `/reports`, hence the separator in the prefix. */
+function folderContains(folder: string, path: string | null): boolean {
+  return path !== null && (path === folder || path.startsWith(`${folder}/`));
 }
 
 /** A file row holding the ref WITHOUT a document binding. */
@@ -50,9 +63,15 @@ export function decideRetrievable(
   docs: readonly DocCandidate[],
   unboundFiles: readonly UnboundFileCandidate[],
   access: AccessScopeArg | undefined,
+  /** Canonical folder path to restrict to (the folder and everything under
+   * it); absent = no folder filter. */
+  folder?: string,
 ): boolean {
   for (const doc of docs) {
     if (!isActiveLifecycle(doc.lifecycleStatus)) continue;
+    if (folder !== undefined && !folderContains(folder, doc.folderPath)) {
+      continue;
+    }
     if (access === undefined) return true;
     if (doc.projectId !== null) {
       if ((access.projectIds ?? []).includes(doc.projectId)) return true;
@@ -72,6 +91,9 @@ export function decideRetrievable(
       return true;
     }
   }
+  // A folder is a document concept: a thread upload or a transcript row is
+  // filed nowhere, so a folder-scoped search never surfaces one.
+  if (folder !== undefined) return false;
   for (const file of unboundFiles) {
     if (!isActiveLifecycle(file.lifecycleStatus)) continue;
     if (file.threadId !== null) {

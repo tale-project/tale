@@ -5586,6 +5586,106 @@ async function checkKnowledge(
       : 0;
 
   try {
+    const send = (
+      method: 'POST',
+      route: string,
+      body?: unknown,
+    ): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method,
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    /** Upload a text file, register it, bind a document (optionally into a
+     * folder) — the three-call journey the later lanes repeat. */
+    const uploadTextDocument = async (
+      fileName: string,
+      text: string,
+      extra: { folderId?: string } = {},
+    ): Promise<{ fileId: string; storageRef: string; documentId: string }> => {
+      const handoff = z
+        .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+        .safeParse(
+          await (
+            await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+              contentType: 'text/plain',
+              size: text.length,
+            })
+          ).json(),
+        );
+      if (!handoff.success)
+        throw new Error(`upload handoff failed: ${fileName}`);
+      await fetch(handoff.data.uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': 'text/plain' },
+        body: text,
+      });
+      const registered = z.object({ fileId: z.string() }).safeParse(
+        await (
+          await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+            storageRef: handoff.data.storageRef,
+            fileName,
+            contentType: 'text/plain',
+          })
+        ).json(),
+      );
+      if (!registered.success) throw new Error(`register failed: ${fileName}`);
+      const bound = z.object({ documentId: z.string() }).safeParse(
+        await (
+          await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
+            fileId: registered.data.fileId,
+            fileName,
+            ...extra,
+          })
+        ).json(),
+      );
+      if (!bound.success) throw new Error(`document bind failed: ${fileName}`);
+      return {
+        fileId: registered.data.fileId,
+        storageRef: handoff.data.storageRef,
+        documentId: bound.data.documentId,
+      };
+    };
+    const ragRow = async (
+      fileId: string,
+    ): Promise<{
+      status: string | null;
+      error: string | null;
+      code: string | null;
+    }> => {
+      const rows = await sql<
+        { status: string | null; error: string | null; code: string | null }[]
+      >`
+        SELECT rag_status AS status, rag_error AS error,
+               rag_error_code AS code
+        FROM app.file_metadata WHERE id = ${fileId}
+      `;
+      return rows[0] ?? { status: null, error: null, code: null };
+    };
+
+    // 0. No embedding model configured yet: indexing must FAIL with the
+    //    machine-readable cause the failed-indexing dialog branches on (the
+    //    Settings → Data residency deep link) and prose a member can act
+    //    on. Pre-fix the column was never written and the prose named an
+    //    operator file path.
+    const unconfigured = await uploadTextDocument(
+      'unconfigured.txt',
+      'The embedding gate probe: a document uploaded before any model was configured.',
+    );
+    const unconfiguredFailed = await waitFor(
+      async () => (await ragRow(unconfigured.fileId)).status === 'failed',
+      20_000,
+    );
+    const unconfiguredRow = await ragRow(unconfigured.fileId);
+    record(
+      'knowledge indexing without an embedding model writes rag_error_code',
+      unconfiguredFailed &&
+        unconfiguredRow.code === 'embedding_not_configured' &&
+        (unconfiguredRow.error ?? '').includes('Settings') &&
+        !(unconfiguredRow.error ?? '').includes('embedding.json'),
+      `status=${unconfiguredRow.status}/failed code=${unconfiguredRow.code ?? 'NULL'}/embedding_not_configured, prose=${JSON.stringify((unconfiguredRow.error ?? '').slice(0, 90))}`,
+    );
+
     // Org embedding config + corpus bootstrap.
     const configRoot = process.env.TALE_CONFIG_DIR ?? '';
     const dir = path.join(configRoot, orgSlug, 'knowledge');
@@ -5602,17 +5702,6 @@ async function checkKnowledge(
     const { ensureDefaultCorpusSchema } =
       await import('./domains/knowledge/service.ts');
     await ensureDefaultCorpusSchema();
-
-    const send = (
-      method: 'POST',
-      route: string,
-      body?: unknown,
-    ): Promise<Response> =>
-      fetch(`${base}${route}`, {
-        method,
-        headers: { 'content-type': 'application/json', cookie, origin: base },
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      });
 
     const payload =
       'The Heidelberg quarterly review covers verdigris pigments and the zeppelin ledger.';
@@ -5773,6 +5862,247 @@ async function checkKnowledge(
         corpusDoc.total > 64 &&
         Number(corpusDoc.stored) === corpusDoc.total,
       `indexed=${bigIndexed}, corpus=${corpusDoc?.status ?? 'MISSING'}, chunks=${corpusDoc?.stored ?? '0'}/${corpusDoc?.total ?? 0} (want equal, > 64)`,
+    );
+
+    // The retry door, now that a model IS configured: the failure cause must
+    // clear with the failure — a stale code would keep showing the fix for a
+    // problem that is gone.
+    const retried = await send(
+      'POST',
+      `/api/app/documents/${unconfigured.documentId}/retry-rag?orgId=${orgId}`,
+    );
+    const retriedIndexed = await waitFor(
+      async () => (await ragRow(unconfigured.fileId)).status === 'completed',
+      20_000,
+    );
+    const retriedRow = await ragRow(unconfigured.fileId);
+    record(
+      'knowledge retry after configuring a model clears rag_error_code',
+      retried.status === 200 &&
+        retriedIndexed &&
+        retriedRow.code === null &&
+        retriedRow.error === null,
+      `retry=${retried.status}/200 status=${retriedRow.status}/completed code=${retriedRow.code ?? 'NULL'}/NULL error=${retriedRow.error ?? 'NULL'}/NULL`,
+    );
+
+    // Folder-scoped search: a document filed in a folder is found under that
+    // folder (in either spelling), not under another, and the root document
+    // is not found under any — the corpus stamp is written at ingest and
+    // re-checked against the CURRENT folder. Pre-fix the stamp was never
+    // written, so every folder-scoped search returned nothing at all.
+    const folderHits = async (
+      query: string,
+      folder: string,
+    ): Promise<string[]> => {
+      const body = await (
+        await send('POST', `/api/app/knowledge/search?orgId=${orgId}`, {
+          query,
+          folder,
+          limit: 10,
+        })
+      ).json();
+      const parsed = z
+        .object({
+          hits: z.array(z.object({ source: z.object({ ref: z.string() }) })),
+        })
+        .loose()
+        .safeParse(body);
+      return parsed.success
+        ? parsed.data.hits.map((hit) => hit.source.ref)
+        : [];
+    };
+    const reportsFolder = z.object({ folderId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/folders?orgId=${orgId}`, {
+          name: 'Reports',
+        })
+      ).json(),
+    );
+    const reportsFolderId = reportsFolder.success
+      ? reportsFolder.data.folderId
+      : '';
+    const filed = await uploadTextDocument(
+      'antwerp.txt',
+      'The Antwerp ledger notes cobalt shipments and the harbor tariff schedule for the season.',
+      { folderId: reportsFolderId },
+    );
+    const filedIndexed = await waitFor(
+      async () => (await ragRow(filed.fileId)).status === 'completed',
+      20_000,
+    );
+    const corpusFolderOf = async (fileId: string): Promise<string | null> => {
+      const rows = await corpusPool<{ folderPath: string | null }[]>`
+        SELECT folder_path AS "folderPath" FROM private_knowledge.documents
+        WHERE org_slug = ${orgSlug} AND file_id = ${fileId}
+      `;
+      return rows[0]?.folderPath ?? null;
+    };
+    const stampAtIngest = await corpusFolderOf(filed.storageRef);
+    const inReports = await folderHits('cobalt harbor tariff', 'Reports');
+    const inReportsSlashed = await folderHits(
+      'cobalt harbor tariff',
+      '/Reports/',
+    );
+    const inInvoices = await folderHits('cobalt harbor tariff', 'Invoices');
+    const rootUnderReports = await folderHits(
+      'verdigris zeppelin ledger',
+      'Reports',
+    );
+    record(
+      'knowledge folder-scoped search finds the folder documents',
+      filedIndexed &&
+        stampAtIngest === 'Reports' &&
+        inReports.includes(filed.storageRef) &&
+        inReportsSlashed.includes(filed.storageRef) &&
+        !inInvoices.includes(filed.storageRef) &&
+        !rootUnderReports.includes(handoff.data.storageRef),
+      `indexed=${filedIndexed} stamp=${stampAtIngest ?? 'NULL'}/Reports, Reports=${inReports.includes(filed.storageRef)} '/Reports/'=${inReportsSlashed.includes(filed.storageRef)} Invoices=${inInvoices.includes(filed.storageRef)}(want false) rootDocUnderReports=${rootUnderReports.includes(handoff.data.storageRef)}(want false)`,
+    );
+
+    // The stamp follows the document: a move re-files it, a folder rename
+    // re-paths everything beneath — no re-embedding, the filter just moves.
+    const archiveFolder = z.object({ folderId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/folders?orgId=${orgId}`, {
+          name: 'Archive',
+        })
+      ).json(),
+    );
+    const archiveFolderId = archiveFolder.success
+      ? archiveFolder.data.folderId
+      : '';
+    const moved = await send(
+      'POST',
+      `/api/app/documents/${filed.documentId}?orgId=${orgId}`,
+      { folderId: archiveFolderId },
+    );
+    const stampAfterMove = await corpusFolderOf(filed.storageRef);
+    const reportsAfterMove = await folderHits(
+      'cobalt harbor tariff',
+      'Reports',
+    );
+    const archiveAfterMove = await folderHits(
+      'cobalt harbor tariff',
+      'Archive',
+    );
+    const renamed = await send(
+      'POST',
+      `/api/app/folders/${archiveFolderId}/rename?orgId=${orgId}`,
+      { name: 'Vault' },
+    );
+    const stampAfterRename = await corpusFolderOf(filed.storageRef);
+    const vaultAfterRename = await folderHits('cobalt harbor tariff', 'Vault');
+    record(
+      'knowledge folder stamp follows document moves and folder renames',
+      moved.status === 200 &&
+        stampAfterMove === 'Archive' &&
+        !reportsAfterMove.includes(filed.storageRef) &&
+        archiveAfterMove.includes(filed.storageRef) &&
+        renamed.status === 200 &&
+        stampAfterRename === 'Vault' &&
+        vaultAfterRename.includes(filed.storageRef),
+      `move=${moved.status}/200 stamp=${stampAfterMove ?? 'NULL'}/Archive Reports=${reportsAfterMove.includes(filed.storageRef)}(want false) Archive=${archiveAfterMove.includes(filed.storageRef)}, rename=${renamed.status}/200 stamp=${stampAfterRename ?? 'NULL'}/Vault Vault=${vaultAfterRename.includes(filed.storageRef)}`,
+    );
+
+    // Fetch paging: `page` is a window over the text, with the page count,
+    // not an accepted-and-ignored parameter shipping the whole document.
+    const pageShape = z
+      .object({
+        document: z.object({ text: z.string() }),
+        page: z.number().optional(),
+        totalPages: z.number().optional(),
+        totalChars: z.number().optional(),
+      })
+      .loose();
+    const pageOne = pageShape.safeParse(
+      await (
+        await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
+          fileId: bigHandoff.data.storageRef,
+          page: 1,
+        })
+      ).json(),
+    );
+    const pageTwo = pageShape.safeParse(
+      await (
+        await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
+          fileId: bigHandoff.data.storageRef,
+          page: 2,
+        })
+      ).json(),
+    );
+    const whole = pageShape.safeParse(
+      await (
+        await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
+          fileId: bigHandoff.data.storageRef,
+        })
+      ).json(),
+    );
+    const { FETCH_WINDOW_CHARS } = await import('./core/knowledge/fetch.ts');
+    record(
+      'knowledge fetch honours page as a window over the document',
+      pageOne.success &&
+        pageTwo.success &&
+        whole.success &&
+        whole.data.document.text.length > FETCH_WINDOW_CHARS &&
+        pageOne.data.document.text.length === FETCH_WINDOW_CHARS &&
+        pageTwo.data.document.text.length === FETCH_WINDOW_CHARS &&
+        pageOne.data.document.text !== pageTwo.data.document.text &&
+        pageOne.data.totalChars === whole.data.document.text.length &&
+        (pageOne.data.totalPages ?? 0) ===
+          Math.ceil(whole.data.document.text.length / FETCH_WINDOW_CHARS) &&
+        whole.data.page === undefined,
+      `whole=${whole.success ? whole.data.document.text.length : 'ERR'} chars, page1=${pageOne.success ? pageOne.data.document.text.length : 'ERR'}/${FETCH_WINDOW_CHARS} page2=${pageTwo.success ? pageTwo.data.document.text.length : 'ERR'}/${FETCH_WINDOW_CHARS} distinct=${pageOne.success && pageTwo.success && pageOne.data.document.text !== pageTwo.data.document.text} totalPages=${pageOne.success ? pageOne.data.totalPages : 'ERR'} wholeHasPage=${whole.success ? whole.data.page !== undefined : 'ERR'}(want false)`,
+    );
+
+    // The data-residency doors: `verify-ca` is one of the five modes the
+    // picker offers — the route gate must accept it (pre-fix a hand-rolled
+    // enum copy answered "invalid body"); a host the outbound policy refuses
+    // is a REPORTED test result and a coded 400 on save (pre-fix: a bare
+    // 500 with an error report filed, the fix sentence never shown). The
+    // cloud-metadata host is refused regardless of the private-host opt-in,
+    // and nothing is written, so the org's corpus stays where it is.
+    const blockedConnection = {
+      host: '169.254.169.254',
+      port: 5432,
+      database: 'knowledge',
+      user: 'tale',
+    };
+    const probeVerifyCa = await send(
+      'POST',
+      `/api/app/knowledge/connection/test?orgId=${orgId}`,
+      { ...blockedConnection, sslmode: 'verify-ca' },
+    );
+    const probeBody = z
+      .object({ ok: z.boolean(), error: z.string().optional() })
+      .loose()
+      .safeParse(await probeVerifyCa.json());
+    const saveBlocked = await send(
+      'POST',
+      `/api/app/knowledge/connection?orgId=${orgId}`,
+      { ...blockedConnection, sslmode: 'require', password: 'x' },
+    );
+    const saveBody = z
+      .object({ error: z.string(), message: z.string().optional() })
+      .loose()
+      .safeParse(await saveBlocked.json().catch(() => null));
+    let connectionWritten = true;
+    try {
+      await stat(path.join(dir, 'connection.json'));
+    } catch {
+      connectionWritten = false;
+    }
+    record(
+      'knowledge admin doors: verify-ca accepted, host refusal is a coded 4xx',
+      probeVerifyCa.status === 200 &&
+        probeBody.success &&
+        !probeBody.data.ok &&
+        (probeBody.data.error ?? '').includes('blocked') &&
+        saveBlocked.status === 400 &&
+        saveBody.success &&
+        saveBody.data.error === 'BLOCKED_HOST' &&
+        (saveBody.data.message ?? '').includes('blocked') &&
+        !connectionWritten,
+      `probe(verify-ca)=${probeVerifyCa.status}/200 ok=${probeBody.success ? probeBody.data.ok : 'ERR'}/false error=${JSON.stringify(probeBody.success ? (probeBody.data.error ?? '').slice(0, 60) : 'ERR')}, save(blocked host)=${saveBlocked.status}/400 code=${saveBody.success ? saveBody.data.error : 'ERR'}/BLOCKED_HOST written=${connectionWritten}(want false)`,
     );
   } finally {
     await new Promise<void>((resolve) => {
@@ -20665,6 +20995,15 @@ async function checkWebsitesCrawl(
   const scheduling = await import('./core/websites/scan_scheduling.ts');
 
   const DOMAIN = 'itest-crawl.example';
+  // The URL-list domain of step 4 — served by the same fake so the listed
+  // page really indexes (and can really 404 and come back).
+  const LIST_DOMAIN = 'itest-list.example';
+  const FAKE_HOSTS = new Set([
+    DOMAIN,
+    `www.${DOMAIN}`,
+    LIST_DOMAIN,
+    `www.${LIST_DOMAIN}`,
+  ]);
   const site = new Map<
     string,
     { body: string; type: string; status?: number }
@@ -20702,7 +21041,7 @@ async function checkWebsitesCrawl(
           ? input.toString()
           : input.url;
     const url = new URL(raw);
-    if (url.hostname === DOMAIN || url.hostname === `www.${DOMAIN}`) {
+    if (FAKE_HOSTS.has(url.hostname)) {
       const page = site.get(url.pathname);
       if (!page) return new Response('gone', { status: 404 });
       return new Response(page.body, {
@@ -20887,6 +21226,44 @@ async function checkWebsitesCrawl(
       `aChunks=${aChunks.length} allV2=${aChunks.every((c) => c.content.includes('v2'))}, b=${bRows[0]?.status}/deleted bChunks=${bChunks[0]?.count}/0, pages=${pagesAfterDrift.success ? pagesAfterDrift.data.total : 'ERR'}/2`,
     );
 
+    // 2b. The page comes back (a deploy gap closed, an origin fixed) with the
+    //     SAME bytes as before: the sitemap still lists it, so discovery
+    //     re-admits the `deleted` row and the fetch re-indexes it — identical
+    //     content with no chunks counts as changed. On the pre-fix engine
+    //     nothing ever moved a row out of `deleted`: the restored page stayed
+    //     dark until someone deleted and re-added the whole website.
+    site.set('/docs/b.txt', {
+      body: 'Bravo content. This nested page covers the bravo subsystem and exists to prove nested paths crawl and index correctly.',
+      type: 'text/plain',
+    });
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    const bRevived = await pool<
+      { status: string; failCount: number; chunks: string }[]
+    >`
+      SELECT u.status, u.fail_count AS "failCount",
+             (SELECT count(*)::text FROM public_web.chunks c
+               WHERE c.domain = u.domain AND c.url = u.url) AS chunks
+      FROM public_web.website_urls u
+      WHERE u.domain = ${DOMAIN} AND u.url = ${`https://${DOMAIN}/docs/b.txt`}
+    `;
+    const pagesAfterRevival = z
+      .object({ total: z.number() })
+      .safeParse(await (await get(`/${websiteId}/pages`)).json());
+    record(
+      'websites revival: a page that 404d once re-indexes when it is back',
+      bRevived[0]?.status === 'active' &&
+        bRevived[0].failCount === 0 &&
+        Number(bRevived[0].chunks) >= 1 &&
+        pagesAfterRevival.success &&
+        pagesAfterRevival.data.total === 3,
+      `b=${bRevived[0]?.status ?? 'MISSING'}/active fail=${bRevived[0]?.failCount ?? '?'}/0 chunks=${bRevived[0]?.chunks ?? '0'}>=1, pages=${pagesAfterRevival.success ? pagesAfterRevival.data.total : 'ERR'}/3`,
+    );
+
     // 3. The failure ledger: attempts advance the scheduler clock, repeated
     //    connection failures pause the site + notify admins ONCE, resume
     //    clears the bookkeeping and re-kicks a scan.
@@ -20954,7 +21331,6 @@ async function checkWebsitesCrawl(
         ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
       });
 
-    const LIST_DOMAIN = 'itest-list.example';
     site.set('/list-1.txt', {
       body: 'Listed page one for the curated URL list lane with enough words to index without any discovery pass at all.',
       type: 'text/plain',
@@ -20985,6 +21361,50 @@ async function checkWebsitesCrawl(
     const listKind = await pool<{ kind: string }[]>`
       SELECT kind FROM public_web.websites WHERE domain = ${LIST_DOMAIN}
     `;
+
+    // 4b. A listed page that 404s is pruned like any other — and REVIVED on
+    //     the next scan without anyone re-saving the list: the list is a
+    //     standing instruction, so the scan puts listed `deleted` rows back
+    //     on the frontier and the fetch decides. Pre-fix, a listed page gone
+    //     for one deploy left the list silently one page shorter for good.
+    const listUrl = `https://${LIST_DOMAIN}/list-1.txt`;
+    const listBody = site.get('/list-1.txt');
+    site.delete('/list-1.txt');
+    await websites.runWebsitesScan(sql, {
+      domain: LIST_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    const listPruned = await pool<{ status: string }[]>`
+      SELECT status FROM public_web.website_urls
+      WHERE domain = ${LIST_DOMAIN} AND url = ${listUrl}
+    `;
+    if (listBody) site.set('/list-1.txt', listBody);
+    await websites.runWebsitesScan(sql, {
+      domain: LIST_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    const listRevived = await pool<
+      { status: string; listed: boolean; failCount: number; chunks: string }[]
+    >`
+      SELECT u.status, u.listed, u.fail_count AS "failCount",
+             (SELECT count(*)::text FROM public_web.chunks c
+               WHERE c.domain = u.domain AND c.url = u.url) AS chunks
+      FROM public_web.website_urls u
+      WHERE u.domain = ${LIST_DOMAIN} AND u.url = ${listUrl}
+    `;
+    record(
+      'websites revival: a listed page that 404d is re-probed next scan',
+      listPruned[0]?.status === 'deleted' &&
+        listRevived[0]?.status === 'active' &&
+        listRevived[0].listed &&
+        listRevived[0].failCount === 0 &&
+        Number(listRevived[0].chunks) >= 1,
+      `pruned=${listPruned[0]?.status ?? 'MISSING'}/deleted, revived=${listRevived[0]?.status ?? 'MISSING'}/active listed=${listRevived[0]?.listed} fail=${listRevived[0]?.failCount ?? '?'}/0 chunks=${listRevived[0]?.chunks ?? '0'}>=1`,
+    );
 
     const restList = z
       .object({ page: z.array(z.object({ id: z.string() })) })
@@ -21035,7 +21455,8 @@ async function checkWebsitesCrawl(
         restList.data.page.length >= 2 &&
         restPatch.status === 204 &&
         restPages.success &&
-        restPages.data.total === 2 &&
+        // 3 again: step 2b brought the 404'd page back.
+        restPages.data.total === 3 &&
         restSync.success &&
         restSync.data.status === 'syncing' &&
         restSearch.success &&
@@ -21043,7 +21464,7 @@ async function checkWebsitesCrawl(
         restDeleteSite.status === 204 &&
         Number(corpusGone[0]?.count ?? '9') === 0 &&
         Number(rowsGone[0]?.count ?? '9') === 0,
-      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/204 pages=${restPages.success ? restPages.data.total : 'ERR'}/2 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
+      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/204 pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
     );
   } finally {
     globalThis.fetch = realFetch;
