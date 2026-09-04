@@ -29,8 +29,21 @@ async function* walk(dir: string): AsyncGenerator<string> {
     return;
   }
   for (const entry of entries) {
+    // Never content: a dependency or cache directory (`node_modules`,
+    // `.vite-temp`) that a concurrent build task may create and remove under
+    // the tree while this walk runs.
+    if (entry === 'node_modules' || entry.startsWith('.')) continue;
     const full = join(dir, entry);
-    const info = await stat(full);
+    let info;
+    try {
+      info = await stat(full);
+    } catch (error) {
+      // Listed by readdir, gone by stat: a transient directory another task
+      // just removed. It held no pages, so the walk moves on — a throw here
+      // failed the whole docs build on a race it had nothing to do with.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
     if (info.isDirectory()) {
       yield* walk(full);
     } else if (/\.mdx?$/.test(entry)) {
