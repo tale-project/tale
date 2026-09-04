@@ -15,6 +15,7 @@ import {
   createBackendWorkerService,
 } from '../services/create-backend-services';
 import { createDbService } from '../services/create-db-service';
+import { createObjectStorageService } from '../services/create-object-storage-service';
 import { createPlatformService } from '../services/create-platform-service';
 import { createProxyService } from '../services/create-proxy-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
@@ -163,6 +164,12 @@ export function generateDevCompose(
   const compose: ComposeConfig = {
     services: {
       db: createDbService(config),
+      // The blob store the backend tier depends on (it seeds the deployment-
+      // default blob connection at boot and refuses every upload without
+      // one). Same service as the stateful stack — dev writes real blobs to
+      // the `object-store-data` dev volume, and the proxy forwards the
+      // presigned `/<bucket>/*` URLs to it exactly as in production.
+      'object-store': createObjectStorageService(config),
       proxy,
       'backend-api': backendApi,
       'backend-worker': backendWorker,

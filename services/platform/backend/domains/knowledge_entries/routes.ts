@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkOrganizationRateLimit,
   RateLimitExceededError,
@@ -28,9 +29,7 @@ function handleError<E extends OrgEnv>(
     return c.json({ error: error.code, message: error.message }, error.status);
   }
   if (error instanceof RateLimitExceededError) {
-    return c.json({ error: 'RATE_LIMITED' }, 429, {
-      'retry-after': String(Math.ceil(error.retryAfter / 1000)),
-    });
+    return rateLimitedResponse(c, error);
   }
   throw error;
 }

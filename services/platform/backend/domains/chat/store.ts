@@ -13,6 +13,7 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
+import { MESSAGE_SLOT_ATTEMPTS } from '../threads/store.ts';
 
 /**
  * The Postgres-backed ports the turn pipeline writes through — the 0.5 twin
@@ -51,28 +52,41 @@ export async function appendMessageRow(
     status?: string;
   },
 ): Promise<{ id: string; sequence: number }> {
-  const rows = await sql<{ id: string; order: number }[]>`
-    INSERT INTO app.messages (
-      thread_id, org_id, "order", step_order, role, parts, text, model,
-      provider_slug, usage, blocked_reason, truncation, error, status,
-      created_at_ms
-    )
-    SELECT ${message.threadId}, ${message.organizationId},
-           coalesce(max("order"), -1) + 1, 0, ${message.role},
-           ${message.parts === undefined ? null : sql.json(toJson(message.parts))},
-           ${message.text ?? null}, ${message.model ?? null},
-           ${message.providerSlug ?? null},
-           ${message.usage === undefined ? null : sql.json(toJson(message.usage))},
-           ${message.blockedReason ?? null},
-           ${message.truncation === undefined ? null : sql.json(toJson(message.truncation))},
-           ${message.error ?? null}, ${message.status ?? 'complete'},
-           ${Date.now()}
-    FROM app.messages WHERE thread_id = ${message.threadId}
-    RETURNING id, "order"
-  `;
-  const row = rows[0];
+  // The slot is UNIQUE: two turns appending to one thread at once both read
+  // the same max, and the one the index refuses re-claims the next slot on
+  // a fresh statement instead of tying the winner's ordering.
+  let row: { id: string; order: number } | undefined;
+  for (
+    let attempt = 0;
+    row === undefined && attempt < MESSAGE_SLOT_ATTEMPTS;
+    attempt += 1
+  ) {
+    const rows = await sql<{ id: string; order: number }[]>`
+      INSERT INTO app.messages (
+        thread_id, org_id, "order", step_order, role, parts, text, model,
+        provider_slug, usage, blocked_reason, truncation, error, status,
+        created_at_ms
+      )
+      SELECT ${message.threadId}, ${message.organizationId},
+             coalesce(max("order"), -1) + 1, 0, ${message.role},
+             ${message.parts === undefined ? null : sql.json(toJson(message.parts))},
+             ${message.text ?? null}, ${message.model ?? null},
+             ${message.providerSlug ?? null},
+             ${message.usage === undefined ? null : sql.json(toJson(message.usage))},
+             ${message.blockedReason ?? null},
+             ${message.truncation === undefined ? null : sql.json(toJson(message.truncation))},
+             ${message.error ?? null}, ${message.status ?? 'complete'},
+             ${Date.now()}
+      FROM app.messages WHERE thread_id = ${message.threadId}
+      ON CONFLICT (thread_id, "order", step_order) DO NOTHING
+      RETURNING id, "order"
+    `;
+    row = rows[0];
+  }
   if (!row) {
-    throw new Error('message insert failed');
+    throw new Error(
+      `message insert failed: no free slot after ${MESSAGE_SLOT_ATTEMPTS} attempts`,
+    );
   }
   // A turn just wrote to the thread; keep its list ordering fresh. An
   // assistant row also stamps the unread watermark; activity on a hidden
