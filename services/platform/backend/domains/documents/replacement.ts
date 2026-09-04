@@ -21,7 +21,7 @@ import {
   s3GetObjectBytes,
 } from '../../core/lib/storage/object_store.ts';
 import { toJson } from '../../db/sql.ts';
-import { addJobInTx } from '../../jobs/enqueue.ts';
+import { addJobInTx, PRIORITY_INTERACTIVE } from '../../jobs/enqueue.ts';
 import {
   buildObjectKey,
   resolveObjectStore,
@@ -770,7 +770,14 @@ async function bindReplacement(
     throw rejectionError('DOCUMENT_RECORD_VERSION_MISMATCH');
   }
   if (shouldIndex) {
-    await addJobInTx(tx, 'rag.index_file', { fileId: fileMetadataId });
+    await addJobInTx(
+      tx,
+      'rag.index_file',
+      { fileId: fileMetadataId },
+      {
+        priority: PRIORITY_INTERACTIVE,
+      },
+    );
   }
   if (previousFileRef !== null && previousFileRef !== intent.finalRef) {
     // The corpus is keyed by blob ref, so the replaced version's rows must

@@ -11,10 +11,32 @@ export interface EnqueueOptions {
    * state (a duplicate send is dropped — pg-boss `singletonKey`).
    */
   singletonKey?: string;
+  /**
+   * Fetch order within a queue: pg-boss orders `priority DESC, created_on`,
+   * so a higher number is taken first and work of equal priority stays fair
+   * oldest-first. Omitted = 0.
+   */
   priority?: number;
 }
 
 let bossInstance: PgBoss | null = null;
+
+/**
+ * Indexing a file somebody is watching outranks indexing a backlog.
+ *
+ * `rag.index_file` is one queue for every source: a person's upload, a
+ * OneDrive sync, a crawl, a video link, an emailed attachment. A background
+ * source that mints rows faster than they drain used to put every interactive
+ * upload behind it — on 0.4 by holding a shared per-org cap of 3, and here by
+ * simply being ahead in a FIFO queue. Neither is a bug in the source; the
+ * queue was just undifferentiated.
+ *
+ * One level is enough. pg-boss keeps `created_on` as the tiebreak, so
+ * interactive work is still fair among itself, and the backlog still drains
+ * whenever no one is waiting — no reserved slot, no second queue, no starving
+ * the sources.
+ */
+export const PRIORITY_INTERACTIVE = 10;
 
 /**
  * Install the process-wide pg-boss instance the enqueue façade sends

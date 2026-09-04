@@ -58,7 +58,7 @@ import {
 } from '../domains/products/service.ts';
 import { skillErrorResponse } from '../domains/skills/errors.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
-import { addJobInTx } from '../jobs/enqueue.ts';
+import { addJobInTx, PRIORITY_INTERACTIVE } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
 import { checkOrganizationRateLimit } from '../lib/rate-limit.ts';
 import {
@@ -513,7 +513,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       }
       await deps.sql.begin(async (tx) => {
         await markRagQueued(tx, file.id);
-        await addJobInTx(tx, 'rag.index_file', { fileId: file.id });
+        await addJobInTx(
+          tx,
+          'rag.index_file',
+          { fileId: file.id },
+          {
+            priority: PRIORITY_INTERACTIVE,
+          },
+        );
       });
       return c.json({ status: 'indexing' });
     } catch (error) {
