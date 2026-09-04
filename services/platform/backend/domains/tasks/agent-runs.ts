@@ -4,6 +4,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { AUTO_RETRY_MAX_ATTEMPTS } from '../../core/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
 /**
@@ -203,6 +204,14 @@ export async function settleAgentRun(
   });
 }
 
+/**
+ * Fail exactly once (the watchdog's deadline pass — the drive chain's own
+ * failures go through the shim's `markTaskAgentRunFailed`). The turn died
+ * without reaching `releaseTurnKey`, so its gateway key is reclaimed here:
+ * the winning flip IS the election, so the revoke fires once even when two
+ * sweeps race. Scoped to THIS exec — a sibling turn on the same standing
+ * `pa-<agentId>` session keeps its own key.
+ */
 export async function failAgentRun(
   sql: Sql,
   args: {
@@ -214,17 +223,21 @@ export async function failAgentRun(
   },
 ): Promise<boolean> {
   const now = Date.now();
-  return sql.begin(async (tx) => {
-    const rows = await tx<{ id: string }[]>`
+  const failed = await sql.begin(async (tx) => {
+    const rows = await tx<{ sessionId: string }[]>`
       UPDATE app.project_agent_runs SET
         status = 'failed', error = ${args.error.slice(0, 2000)},
         api_error_status = ${args.apiErrorStatus ?? null},
         settled_at_ms = ${now}, updated_at_ms = ${now}
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND exec_id = ${args.execId} AND status IN ('queued', 'running')
-      RETURNING id
+      RETURNING session_id AS "sessionId"
     `;
-    if (rows.length === 0) return false;
+    const run = rows[0];
+    if (run === undefined) return null;
+    // Inside the election's transaction: the provenance entry still reads
+    // the turn's token row by key id, which the revoke below leaves in
+    // place (it marks `revoked_at_ms`, it does not drop the id).
     await recordTaskAgentRunLedgerEntry(tx, {
       runId: args.runId,
       organizationId: args.organizationId,
@@ -232,8 +245,20 @@ export async function failAgentRun(
       settledAt: now,
       error: args.error.slice(0, 2000),
     });
-    return true;
+    return run.sessionId;
   });
+  if (failed === null) return false;
+  await revokeSessionGatewayKeys(sql, {
+    organizationId: args.organizationId,
+    sessionId: failed,
+    execId: args.execId,
+  }).catch((error: unknown) => {
+    console.error(
+      `[task-agent] gateway key reclaim for deadline-failed run ${args.runId} failed:`,
+      error,
+    );
+  });
+  return true;
 }
 
 export interface CancelAgentRunArgs {

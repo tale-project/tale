@@ -5,6 +5,7 @@ import {
   sessionIsAlive,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
+import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import { reconcileSession } from './service.ts';
 import { markSessionDestroyed, reapStaleAdmissionTickets } from './sessions.ts';
 
@@ -62,8 +63,8 @@ export interface SandboxWatchdogResult {
  * `recoverStuckAdmissionTickets`:
  *
  *  - EXPIRE: unpinned sessions past their TTL among the compute-holding
- *    statuses flip to `expired` (freeing their slots) and the parked-run
- *    wake fires for their orgs. The spawner's own reaper collects the
+ *    statuses flip to `expired` (freeing their slots), their gateway virtual
+ *    keys are revoked, and the parked-run wake fires for their orgs. The spawner's own reaper collects the
  *    container on its TTL — the row must not wait for it.
  *  - RECONCILE: a bounded batch of compute-holding rows is checked against
  *    the spawner; a container gone spawner-side settles the row as destroyed
@@ -89,12 +90,29 @@ export async function runSandboxWatchdog(
   options: SandboxWatchdogOptions = {},
 ): Promise<SandboxWatchdogResult> {
   const now = Date.now();
-  const expired = await sql<{ orgId: string }[]>`
+  const expired = await sql<{ orgId: string; sessionId: string }[]>`
     UPDATE app.sandbox_sessions SET status = 'expired'
     WHERE status IN ('creating', 'active', 'degraded')
       AND pinned = false AND expires_at_ms < ${now}
-    RETURNING org_id AS "orgId"
+    RETURNING org_id AS "orgId", session_id AS "sessionId"
   `;
+  // Reclaim the CREDENTIALS of every session this sweep just expired: the
+  // gateway key has no TTL of its own, so an expired row that keeps its key
+  // leaves a spendable credential live forever (0.4's
+  // `teardownExpiredSessions`). Deliberately NOT a container destroy —
+  // expiry is a lifetime cap, not a user Destroy, and the workspace is the
+  // user's state; the spawner's idle reaper collects the container.
+  for (const row of expired) {
+    await revokeSessionGatewayKeys(sql, {
+      organizationId: row.orgId,
+      sessionId: row.sessionId,
+    }).catch((error: unknown) => {
+      console.error(
+        `[watchdog] gateway key reclaim after expiring ${row.sessionId} failed:`,
+        error,
+      );
+    });
+  }
   for (const orgId of new Set(expired.map((row) => row.orgId))) {
     await wakeParkedAgentRuns(sql, orgId).catch((error: unknown) => {
       console.warn('[watchdog] capacity wake after expiry failed:', error);

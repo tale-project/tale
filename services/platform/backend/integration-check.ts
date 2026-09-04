@@ -26347,6 +26347,294 @@ async function checkAutomationRunToolLane(
 }
 
 /**
+ * TEARDOWN CREDENTIAL RECLAIM — every edge that ends a sandbox session has to
+ * delete its gateway virtual key (fake bifrost records the DELETEs).
+ *
+ * The gateway has NO native TTL and `mintVirtualKey` gives every key a
+ * `reset_duration: '1M'` budget window precisely because teardown deletes it
+ * first, so a key that outlives its session is a permanent bearer credential
+ * with a self-refilling monthly allowance against the org's own provider
+ * keys. Three edges reach the same helper, each asserted on the key ids the
+ * gateway actually saw:
+ *
+ *  - EXPIRY: the sandbox watchdog's TTL pass (0.4 `teardownExpiredSessions`).
+ *  - DESTROY/HEAL: `markSessionDestroyed`, the bottom of the admin Destroy,
+ *    the reconcile phantom heal and the owner cascades (0.4
+ *    `destroySandbox` + `teardownThreadSessions`) — driven TWICE, because
+ *    the token flip is the election and a second teardown must revoke
+ *    nothing rather than fail.
+ *  - DEADLINE: the task-agent watchdog's overdue fail (0.4 `releaseTurnKey`,
+ *    which a died drive chain never reaches) — scoped to the failed exec, so
+ *    a sibling turn on the same standing session keeps its own key.
+ *
+ * Plus the FAILURE POSTURE: one key's revoke answers 503, and the teardown
+ * still settles the row (the leak is logged, never rethrown) — a gateway
+ * outage must not leave sessions undestroyable.
+ */
+async function checkSandboxGatewayKeyReclaim(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const deleted: string[] = [];
+  const attempted: string[] = [];
+  const gateway = createServer((req, res) => {
+    const url = req.url ?? '';
+    res.setHeader('content-type', 'application/json');
+    if (
+      req.method === 'DELETE' &&
+      url.startsWith('/api/governance/virtual-keys/')
+    ) {
+      const keyId = decodeURIComponent(url.split('/').at(-1) ?? '');
+      attempted.push(keyId);
+      if (keyId === 'vk-gk-boom') {
+        // The one key whose revoke fails — the posture lane below.
+        res.statusCode = 503;
+        res.end('{}');
+        return;
+      }
+      deleted.push(keyId);
+      res.end('{}');
+      return;
+    }
+    res.statusCode = 404;
+    res.end('{}');
+  });
+  await new Promise<void>((resolve) => {
+    gateway.listen(0, '127.0.0.1', resolve);
+  });
+  const address = gateway.address();
+  const port =
+    address !== null && typeof address === 'object' ? address.port : 0;
+  const previousGatewayUrl = process.env.SANDBOX_LLM_GATEWAY_URL;
+  const previousGatewayPassword =
+    process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
+  process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${port}`;
+  // The admin client refuses to run anonymous — deliberately, since the
+  // management API is reachable from every sandbox session. The fake gateway
+  // below does not check the value, but without one set every revoke fails
+  // authentication and the check would pass its fail-open lane while proving
+  // nothing about the revoke itself.
+  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD ??= 'itest-gateway-admin';
+  const now = Date.now();
+  const seedSession = async (
+    sessionId: string,
+    args: { expiresAt: number; keyId?: string; ownerType?: string },
+  ): Promise<void> => {
+    await sql`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        llm_gateway_key_id, created_at_ms, expires_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, 'active', ${args.ownerType ?? 'render'},
+        ${sessionId}, 'itest:gk', ${args.keyId ?? null}, ${now},
+        ${args.expiresAt}
+      )
+    `;
+  };
+  const seedToken = async (
+    sessionId: string,
+    tokenHash: string,
+    keyId: string,
+  ): Promise<void> => {
+    await sql`
+      INSERT INTO app.sandbox_session_tokens (
+        org_id, session_id, token_hash, llm_gateway_key_id, scope,
+        created_at_ms, expires_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, ${tokenHash}, ${keyId},
+        ${sql.json({ agentKind: 'claude-code', allowedModels: [], connectorGrants: [], budgetCents: 100 })},
+        ${now}, ${now + 3_600_000}
+      )
+    `;
+  };
+  const tokenRevoked = async (tokenHash: string): Promise<boolean> => {
+    const rows = await sql<{ revokedAt: number | null }[]>`
+      SELECT revoked_at_ms::float8 AS "revokedAt"
+      FROM app.sandbox_session_tokens WHERE token_hash = ${tokenHash}
+    `;
+    return rows[0]?.revokedAt != null;
+  };
+  const sessionKeyId = async (sessionId: string): Promise<string | null> => {
+    const rows = await sql<{ keyId: string | null }[]>`
+      SELECT llm_gateway_key_id AS "keyId" FROM app.sandbox_sessions
+      WHERE session_id = ${sessionId} AND org_id = ${orgId}
+    `;
+    return rows[0]?.keyId ?? null;
+  };
+  const count = (keyId: string): number =>
+    deleted.filter((id) => id === keyId).length;
+
+  try {
+    // --- edge 1: the TTL expiry sweep ------------------------------------
+    await seedSession('gk-ttl-gone', {
+      expiresAt: now - 3_600_000,
+      keyId: 'vk-gk-row',
+    });
+    await seedToken('gk-ttl-gone', 'gk-hash-ttl', 'vk-gk-token');
+    await seedSession('gk-ttl-live', {
+      expiresAt: now + 3_600_000,
+      keyId: 'vk-gk-live',
+    });
+    await seedToken('gk-ttl-live', 'gk-hash-live', 'vk-gk-live-token');
+    const sandboxWatchdogs = await import('./domains/sandbox/watchdogs.ts');
+    await sandboxWatchdogs.runSandboxWatchdog(sql, { skipReconcile: true });
+    const expiryOk =
+      count('vk-gk-row') === 1 &&
+      count('vk-gk-token') === 1 &&
+      (await sessionKeyId('gk-ttl-gone')) === null &&
+      (await tokenRevoked('gk-hash-ttl')) &&
+      count('vk-gk-live') === 0 &&
+      count('vk-gk-live-token') === 0 &&
+      (await sessionKeyId('gk-ttl-live')) === 'vk-gk-live' &&
+      !(await tokenRevoked('gk-hash-live'));
+
+    // --- edge 2: destroy / phantom heal, driven twice --------------------
+    const sessions = await import('./domains/sandbox/sessions.ts');
+    await seedSession('gk-destroy', {
+      expiresAt: now + 3_600_000,
+      keyId: 'vk-gk-destroy-row',
+    });
+    await seedToken('gk-destroy', 'gk-hash-destroy', 'vk-gk-destroy');
+    const destroyedFirst = await sessions.markSessionDestroyed(sql, {
+      organizationId: orgId,
+      sessionId: 'gk-destroy',
+    });
+    const destroyedTwice = await sessions.markSessionDestroyed(sql, {
+      organizationId: orgId,
+      sessionId: 'gk-destroy',
+    });
+    const destroyOk =
+      destroyedFirst &&
+      !destroyedTwice &&
+      count('vk-gk-destroy') === 1 &&
+      count('vk-gk-destroy-row') === 1 &&
+      (await sessionKeyId('gk-destroy')) === null &&
+      (await tokenRevoked('gk-hash-destroy'));
+
+    // --- edge 3: the task-agent deadline fail (exec-scoped) --------------
+    const post = (route: string, body?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    const project = z.object({ projectId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, {
+          name: 'Gateway keys',
+        })
+      ).json(),
+    );
+    const projectId = project.success ? project.data.projectId : '';
+    const task = z.object({ taskId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/tasks?orgId=${orgId}`, {
+          projectId,
+          title: 'Gateway keys',
+        })
+      ).json(),
+    );
+    const taskId = task.success ? task.data.taskId : '';
+    await seedSession('pa-gk-agent', {
+      expiresAt: now + 24 * 3_600_000,
+      ownerType: 'project_agent',
+    });
+    await sql`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms, launched_at_ms,
+        deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${taskId}, 'gk-agent', 'exec-gk-overdue',
+        'pa-gk-agent', 'running', 'claude-code', 'itest-model', 'itest:gk',
+        ${now - 13 * 3_600_000}, ${now - 13 * 3_600_000}, ${now - 3_600_000},
+        ${now}
+      )
+    `;
+    for (const [execId, keyId] of [
+      ['exec-gk-overdue', 'vk-gk-run'],
+      ['exec-gk-sibling', 'vk-gk-sibling'],
+    ]) {
+      await sql`
+        INSERT INTO app.sandbox_session_ops (
+          org_id, session_id, exec_id, kind, status, minted_key_id,
+          heartbeat_at_ms, started_at_ms
+        ) VALUES (
+          ${orgId}, 'pa-gk-agent', ${execId ?? ''}, 'agent-run', 'running',
+          ${keyId ?? ''}, ${now}, ${now}
+        )
+      `;
+      await seedToken('pa-gk-agent', `gk-hash-${execId ?? ''}`, keyId ?? '');
+    }
+    const taskWatchdogs = await import('./domains/tasks/watchdogs.ts');
+    await taskWatchdogs.runTaskAgentWatchdog(sql);
+    const deadlineOk =
+      count('vk-gk-run') === 1 &&
+      (await tokenRevoked('gk-hash-exec-gk-overdue')) &&
+      count('vk-gk-sibling') === 0 &&
+      !(await tokenRevoked('gk-hash-exec-gk-sibling'));
+
+    // --- posture: a failing gateway must not wedge the teardown ----------
+    await seedSession('gk-boom', { expiresAt: now + 3_600_000 });
+    await seedToken('gk-boom', 'gk-hash-boom', 'vk-gk-boom');
+    const boomDestroyed = await sessions.markSessionDestroyed(sql, {
+      organizationId: orgId,
+      sessionId: 'gk-boom',
+    });
+    const boomStatus = await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions
+      WHERE session_id = 'gk-boom' AND org_id = ${orgId}
+    `;
+    const postureOk =
+      boomDestroyed &&
+      boomStatus[0]?.status === 'destroyed' &&
+      attempted.includes('vk-gk-boom') &&
+      !deleted.includes('vk-gk-boom');
+
+    record(
+      'sandbox teardown revokes the session gateway key (expiry/destroy/deadline)',
+      expiryOk && destroyOk && deadlineOk && postureOk,
+      `expiry(gone=${count('vk-gk-row')}/${count('vk-gk-token')} col=${await sessionKeyId('gk-ttl-gone')} live=${count('vk-gk-live')}/${count('vk-gk-live-token')}), destroy(first=${destroyedFirst} again=${destroyedTwice} keys=${count('vk-gk-destroy')}/${count('vk-gk-destroy-row')}), deadline(run=${count('vk-gk-run')} sibling=${count('vk-gk-sibling')}), posture(destroyed=${boomDestroyed} status=${boomStatus[0]?.status} attempted=${attempted.includes('vk-gk-boom')}), deleted=${deleted.join(',')}`,
+    );
+    // Hand the seeded slots back: the sibling op stays `running` on purpose
+    // (that is what keeps its key alive), and the watchdog's running-op
+    // guard therefore leaves the standing session holding a project slot —
+    // which the org cap would charge to whatever check runs next.
+    await sql`
+      UPDATE app.sandbox_session_ops SET
+        status = 'cancelled', finished_at_ms = ${Date.now()},
+        finalized_at_ms = coalesce(finalized_at_ms, ${Date.now()})
+      WHERE session_id = 'pa-gk-agent' AND status = 'running'
+    `;
+    await sql`
+      UPDATE app.sandbox_sessions SET
+        status = 'destroyed', destroyed_at_ms = ${Date.now()}
+      WHERE org_id = ${orgId}
+        AND session_id IN ('gk-ttl-gone', 'gk-ttl-live', 'pa-gk-agent',
+                           'gk-boom')
+    `;
+  } finally {
+    if (previousGatewayUrl === undefined) {
+      delete process.env.SANDBOX_LLM_GATEWAY_URL;
+      if (previousGatewayPassword === undefined) {
+        delete process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
+      } else {
+        process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD =
+          previousGatewayPassword;
+      }
+    } else {
+      process.env.SANDBOX_LLM_GATEWAY_URL = previousGatewayUrl;
+    }
+    await new Promise<void>((resolve) => {
+      gateway.close(() => resolve());
+    });
+  }
+}
+
+/**
  * Sandbox spawner dispatch: the REUSED session client (HMAC signing, drain
  * semantics) against a fake spawner that VERIFIES every signature, plus the
  * provisioning choreography (reuse-in-place, phantom heal, orphan adopt,
@@ -39398,6 +39686,10 @@ async function main(): Promise<void> {
         () => checkAutomationRunToolLane(sql, baseUrl, authCtx),
       ],
       ['checkSandboxSpawner', () => checkSandboxSpawner(sql, baseUrl, authCtx)],
+      [
+        'checkSandboxGatewayKeyReclaim',
+        () => checkSandboxGatewayKeyReclaim(sql, baseUrl, authCtx),
+      ],
       ['checkStuckSendRecovery', () => checkStuckSendRecovery(sql, authCtx)],
       [
         'checkDeferredSendRecovery',
