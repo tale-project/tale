@@ -18,6 +18,13 @@ import {
   listRecentFeedbackPage,
 } from './service.ts';
 
+/**
+ * A vote carries NO client metadata: the one-vote-per-(message, user) upsert
+ * is arbitrated by the partial unique index `WHERE metadata IS NULL`, and the
+ * `metadata.arenaVerdict` rows the analytics count as arena results are
+ * written by the arena settle lane alone (`domains/chat/arena.ts`). Anything
+ * else a client sends under `metadata` is dropped here, never stored.
+ */
 const submitSchema = z.object({
   threadId: z.string().min(1).max(200),
   messageId: z.string().min(1).max(200),
@@ -26,7 +33,6 @@ const submitSchema = z.object({
   agentSlug: z.string().max(100).optional(),
   model: z.string().max(200).optional(),
   provider: z.string().max(100).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 /** /api/app/feedback — thumbs on assistant messages + the insights feed. */

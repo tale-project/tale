@@ -479,6 +479,11 @@ auth:
       notOrgMember: Ton compte n’est pas membre de cette organisation. Demande à
         l’administration de cette organisation de t’inviter, puis
         reconnecte-toi.
+      assertionNotEncrypted:
+        Cette organisation exige des assertions SAML chiffrées, mais le
+        fournisseur d’identité en a envoyé une en clair. Demande à ton
+        administration d’activer le chiffrement des assertions côté
+        fournisseur d’identité.
       silentAuthFailed: La connexion silencieuse a échoué. Connecte-toi de manière interactive.
       refreshTokenExpired: Ta session a expiré. Reconnecte-toi.
       consentRequired:

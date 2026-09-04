@@ -15,7 +15,7 @@ import {
   OAUTH_STATE_TTL_MS,
 } from '../../core/http_connectors/oauth_state.ts';
 import { exchangeAuthorizationCode } from '../../core/http_connectors/token_exchange.ts';
-import { createCredential } from '../connector_credentials/service.ts';
+import { createCredentialInTransaction } from '../connector_credentials/service.ts';
 import {
   applyMicrosoftTenant,
   resolveConnectorOauthApp,
@@ -286,6 +286,15 @@ export async function startOauth2(
   }
 }
 
+/** Thrown inside the store-and-claim transaction so the credential rolls
+ * back with the lost claim — never surfaces past `completeOauth2`. */
+class WorkspaceClaimedError extends Error {
+  constructor() {
+    super('workspace already connected to another organization');
+    this.name = 'WorkspaceClaimedError';
+  }
+}
+
 export type CallbackOutcome =
   | { kind: 'connected'; settingsUrl: string; connectorSlug: string }
   | {
@@ -398,27 +407,43 @@ export async function completeOauth2(
     }
   }
 
-  let credentialId: string;
+  // Store the credential and claim the workspace in ONE transaction. Two
+  // organizations can pass the pre-check for the same workspace at once;
+  // the route's key decides the winner, and the loser must keep nothing —
+  // a committed credential for a workspace routed elsewhere would be a
+  // live foreign token stored (and default) for this organization.
   try {
-    const stored = await createCredential(sql, {
-      organizationId,
-      connectorSlug,
-      authMethod: 'oauth2',
-      name: endpoints.displayName,
-      createdBy: userId,
-      secret: {
-        accessToken: tokens.accessToken,
-        ...(tokens.refreshToken !== undefined
-          ? { refreshToken: tokens.refreshToken }
-          : {}),
-        ...(tokens.expiresAt !== undefined
-          ? { expiresAt: tokens.expiresAt }
-          : {}),
-        scopes: tokens.scopes,
-      },
+    await sql.begin(async (tx) => {
+      const stored = await createCredentialInTransaction(tx, {
+        organizationId,
+        connectorSlug,
+        authMethod: 'oauth2',
+        name: endpoints.displayName,
+        createdBy: userId,
+        secret: {
+          accessToken: tokens.accessToken,
+          ...(tokens.refreshToken !== undefined
+            ? { refreshToken: tokens.refreshToken }
+            : {}),
+          ...(tokens.expiresAt !== undefined
+            ? { expiresAt: tokens.expiresAt }
+            : {}),
+          scopes: tokens.scopes,
+        },
+      });
+      if (tokens.teamId !== undefined) {
+        const claim = await claimTeamRoute(tx, {
+          teamId: tokens.teamId,
+          organizationId,
+          credentialId: stored.credentialId,
+        });
+        if (!claim.ok) throw new WorkspaceClaimedError();
+      }
     });
-    credentialId = stored.credentialId;
   } catch (error) {
+    if (error instanceof WorkspaceClaimedError) {
+      return { kind: 'error', error: 'workspace_claimed', organizationId };
+    }
     // The message may embed the arguments, which include the access token —
     // log the SHAPE of the failure, never the error itself.
     console.error(
@@ -427,17 +452,6 @@ export async function completeOauth2(
       })`,
     );
     return { kind: 'error', error: 'storage_failed', organizationId };
-  }
-
-  if (tokens.teamId !== undefined) {
-    const claim = await claimTeamRoute(sql, {
-      teamId: tokens.teamId,
-      organizationId,
-      credentialId,
-    });
-    if (!claim.ok) {
-      return { kind: 'error', error: 'workspace_claimed', organizationId };
-    }
   }
 
   const settingsUrl = resolveConnectorSettingsUrl(organizationId);

@@ -157,11 +157,16 @@ export function createVideoLinkRoutes(deps: {
       .object({ jobIds: z.array(z.string().min(1)).max(50) })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    await unbindJobsFromMessage(deps.sql, {
-      userId: c.get('sessionBundle').user.id,
-      jobIds: body.data.jobIds,
-    });
-    return c.json({ ok: true });
+    try {
+      await unbindJobsFromMessage(deps.sql, {
+        organizationId: c.get('orgId'),
+        userId: c.get('sessionBundle').user.id,
+        jobIds: body.data.jobIds,
+      });
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.post('/:jobId/cancel', async (c) => {

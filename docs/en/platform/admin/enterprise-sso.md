@@ -58,7 +58,7 @@ If a provider exposes OAuth2 but no discovery document, choose **OAuth2** and en
 3. Under **Import IdP metadata**, paste the IdP's federation-metadata URL and click **Import** — or click **Upload XML** if your IdP only offers a downloadable file. Tale parses the metadata and fills the entity ID, sign-on URL, and signing certificate fields below, so there's nothing to retype by hand. All three stay editable, so review the imported values (or fill them in yourself, if your IdP publishes no metadata document) before saving.
 4. Map the **email**, **name**, and **group** attributes in your IdP; if their names differ from the defaults, set the matching attribute names in Tale's advanced fields.
 
-Tale supports both IdP-initiated SAML (the IdP posts an assertion to the ACS URL) and SP-initiated SAML (a member clicks **Sign in with SSO** and Tale redirects to the IdP). Signed assertions are required; encrypted assertions are supported when you supply an SP keypair.
+Tale supports both IdP-initiated SAML (the IdP posts an assertion to the ACS URL) and SP-initiated SAML (a member clicks **Sign in with SSO** and Tale redirects to the IdP). Signed assertions are required; encrypted assertions are supported when you supply an SP keypair, and a connection that requires them refuses any assertion that arrives unencrypted.
 
 ## Several organizations on one deployment
 

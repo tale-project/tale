@@ -58,7 +58,7 @@ Si un fournisseur expose OAuth2 mais pas de document de découverte, choisis **O
 3. Sous **Importer les métadonnées de l'IdP**, colle l’URL des métadonnées de fédération de ton IdP et clique sur **Importer** — ou clique sur **Téléverser le XML** si ton IdP ne propose qu’un fichier à télécharger. Tale lit les métadonnées et remplit l’ID d’entité, l’URL de connexion et le certificat de signature dans les champs ci-dessous, sans que tu aies à les ressaisir. Les trois champs restent modifiables — vérifie les valeurs importées (ou saisis-les toi-même si ton IdP ne publie aucune métadonnée) avant d’enregistrer.
 4. Mappe les attributs **e-mail**, **nom** et **groupe** dans ton IdP ; si leurs noms diffèrent des valeurs par défaut, indique les noms d’attributs correspondants dans les champs avancés de Tale.
 
-Tale prend en charge le SAML initié par l’IdP (l’IdP envoie une assertion à l’URL ACS) et le SAML initié par le SP (un membre clique sur **Se connecter avec le SSO** et Tale redirige vers l’IdP). Les assertions signées sont requises ; les assertions chiffrées sont prises en charge si tu fournis une paire de clés SP.
+Tale prend en charge le SAML initié par l’IdP (l’IdP envoie une assertion à l’URL ACS) et le SAML initié par le SP (un membre clique sur **Se connecter avec le SSO** et Tale redirige vers l’IdP). Les assertions signées sont requises ; les assertions chiffrées sont prises en charge si tu fournis une paire de clés SP — et une connexion qui les exige refuse toute assertion qui arrive en clair.
 
 ## Plusieurs organisations sur un même déploiement
 

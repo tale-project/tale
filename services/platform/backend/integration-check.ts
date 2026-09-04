@@ -4817,6 +4817,7 @@ async function checkDocumentWriteGuards(
  * feedback upsert/toggle/stats, support case lifecycle.
  */
 async function checkSmallDomains(
+  sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
@@ -4984,6 +4985,50 @@ async function checkSmallDomains(
       stats.data.stats.negative === 1 &&
       stats.data.stats.positive === 0,
     `items=${stats.success ? stats.data.items.length : 'ERR'} (want 1 after toggle), stats=${stats.success ? JSON.stringify(stats.data.stats) : 'ERR'}`,
+  );
+
+  // The vote is keyed by the SERVER: whatever a client puts in `metadata` is
+  // dropped, so a repeated vote upserts (the partial-unique arbiter is
+  // `metadata IS NULL`) and a forged arena verdict never lands as one — the
+  // arena settle lane is the only writer of metadata rows.
+  await send('POST', `/api/app/feedback?orgId=${orgId}`, {
+    threadId: 'itest-thread',
+    messageId: 'itest-msg-2',
+    rating: 'positive',
+    metadata: {},
+  });
+  await send('POST', `/api/app/feedback?orgId=${orgId}`, {
+    threadId: 'itest-thread',
+    messageId: 'itest-msg-2',
+    rating: 'negative',
+    metadata: { stacked: true },
+  });
+  await send('POST', `/api/app/feedback?orgId=${orgId}`, {
+    threadId: 'itest-thread',
+    messageId: 'arena:forged-a:forged-b',
+    rating: 'positive',
+    metadata: {
+      arenaVerdict: 'a_better',
+      modelA: 'forged-a',
+      modelB: 'forged-b',
+    },
+  });
+  const stackedVotes = await sql<{ count: string; rating: string | null }[]>`
+    SELECT count(*)::text AS count, min(rating) AS rating
+    FROM app.message_feedback
+    WHERE org_id = ${orgId} AND message_id = 'itest-msg-2'
+  `;
+  const forgedArenaRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.message_feedback
+    WHERE org_id = ${orgId} AND message_id = 'arena:forged-a:forged-b'
+      AND metadata IS NOT NULL
+  `;
+  record(
+    'message feedback: client metadata cannot fork the vote or forge arena rows',
+    stackedVotes[0]?.count === '1' &&
+      stackedVotes[0].rating === 'negative' &&
+      forgedArenaRows[0]?.count === '0',
+    `rows=${stackedVotes[0]?.count} (want 1) rating=${stackedVotes[0]?.rating} (want negative), forgedArenaRows=${forgedArenaRows[0]?.count} (want 0)`,
   );
 
   // Products: unique-name conflict + translation upsert.
@@ -11753,6 +11798,61 @@ async function checkSamlLogin(
         (refusalAudit[0]?.count ?? 0) >= 1,
       `refused=${crossOrg.status}→${crossOrgLocation.includes('/log-in') ? 'log-in' : crossOrgLocation} key=${crossOrgLocation.includes('notOrgMember')} noCookie=${(crossOrg.headers.get('set-cookie') ?? '') === ''}, joined=${joined.length} (want 0), audited=${refusalAudit[0]?.count}`,
     );
+
+    // ---- required encryption is enforced --------------------------------
+    // With `wantAssertionsEncrypted` on the connection, the SAME validly
+    // signed plaintext assertion that signed a user in above is refused —
+    // bounced under its own login-page key and audited — instead of being
+    // accepted as if the setting were decorative.
+    await writeFile(
+      connectionPath,
+      serializeSsoConnectionYaml({
+        enabled: true,
+        protocol: 'saml',
+        displayName: 'Itest SAML IdP',
+        saml: {
+          idpEntityId: 'https://idp.saml.itest/entity',
+          idpSsoUrl: 'https://idp.saml.itest/sso',
+          idpCertificate: publicKey
+            .export({ type: 'spki', format: 'pem' })
+            .toString(),
+          wantAssertionsSigned: true,
+          wantAssertionsEncrypted: true,
+        },
+        provisioning: {
+          autoProvisionRole: true,
+          defaultRole: 'member',
+          roleMappingRules: [
+            { source: 'group', pattern: 'SamlOps', targetRole: 'developer' },
+          ],
+          autoProvisionTeam: true,
+          excludeGroups: ['Everyone'],
+        },
+      }),
+    );
+    const plaintextRes = await postAssertion(
+      buildResponse({
+        id: '_itestsaml7',
+        email: 'saml.user@door.test',
+        groups: ['SamlOps'],
+        notOnOrAfterMs: Date.now() + 300_000,
+      }),
+    );
+    const plaintextLocation = plaintextRes.headers.get('location') ?? '';
+    const encryptionAudit = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+        AND metadata ->> 'errorKey' = 'sso.errors.assertionNotEncrypted'
+    `;
+    record(
+      'SAML: a connection requiring encrypted assertions refuses a plaintext one',
+      plaintextRes.status === 302 &&
+        plaintextLocation.includes('/log-in') &&
+        plaintextLocation.includes('assertionNotEncrypted') &&
+        (plaintextRes.headers.get('set-cookie') ?? '') === '' &&
+        (encryptionAudit[0]?.count ?? 0) >= 1,
+      `plaintext=${plaintextRes.status}→${plaintextLocation.includes('/log-in') ? 'log-in' : plaintextLocation} key=${plaintextLocation.includes('assertionNotEncrypted')} noCookie=${(plaintextRes.headers.get('set-cookie') ?? '') === ''}, audited=${encryptionAudit[0]?.count} (want ≥1)`,
+    );
   } finally {
     if (savedSiteUrl === undefined) delete process.env.SITE_URL;
     else process.env.SITE_URL = savedSiteUrl;
@@ -16097,6 +16197,7 @@ async function checkConnectorOauth(
   // vendor shape — including `team.id`, which drives the workspace claim.
   const seen: { body: string; auth: string | null }[] = [];
   let denyExchange = false;
+  let vendorTeamId = 'T-ITEST-1';
   const vendor = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -16114,7 +16215,7 @@ async function checkConnectorOauth(
               refresh_token: 'xoxe-itest-refresh',
               expires_in: 3600,
               scope: 'channels:read,chat:write',
-              team: { id: 'T-ITEST-1' },
+              team: { id: vendorTeamId },
             }),
       );
     });
@@ -16340,6 +16441,95 @@ async function checkConnectorOauth(
         routeAfter[0]?.orgId === orgId &&
         resolved?.organizationId === orgId,
       `claim=${claim.ok ? 'ALLOWED' : 'refused'}, routeOwner=${routeAfter[0]?.orgId === orgId}, resolve=${resolved?.organizationId === orgId}`,
+    );
+
+    // ---- the claim race: the pre-check passes, another org claims first --
+    // Two organizations can pass the pre-check for one workspace; the
+    // route's key decides the winner and the LOSER must keep nothing. The
+    // other organization's claim is held open (its route insert
+    // uncommitted), so this org's pre-check sees no route while its own
+    // claim queues behind the key — and loses once the holder commits.
+    // The racing organization is a THIRD org: the happy path above already
+    // holds this org's Slack credential (one credential per connector name),
+    // so only a fresh organization walks the store-then-claim path — and the
+    // credential it must not keep would have been its FIRST, i.e. its default.
+    vendorTeamId = 'T-ITEST-RACE';
+    const raceOrgId = 'itest-race-org';
+    const raceState = 'itest-oauth-state-race';
+    await oauth.createPendingAuthorization(sql, {
+      stateHash: await hashStateToken(raceState),
+      organizationId: raceOrgId,
+      userId,
+      connectorSlug: 'slack',
+      codeVerifier: 'itest-verifier-value-222222222222222222222',
+      redirectUri: `${base}/api/connectors/oauth2/callback`,
+    });
+    const credentialService =
+      await import('./domains/connector_credentials/service.ts');
+    const foreignCredential = await credentialService.createCredential(sql, {
+      organizationId: 'some-other-org',
+      connectorSlug: 'slack',
+      authMethod: 'oauth2',
+      name: 'Foreign workspace',
+      createdBy: userId,
+      secret: { accessToken: 'xoxb-foreign-access', scopes: ['chat:write'] },
+    });
+    let releaseForeignClaim: () => void = () => undefined;
+    const foreignClaimReleased = new Promise<void>((resolve) => {
+      releaseForeignClaim = resolve;
+    });
+    let foreignClaimHeld: () => void = () => undefined;
+    const foreignClaimInPlace = new Promise<void>((resolve) => {
+      foreignClaimHeld = resolve;
+    });
+    const foreignClaim = sql.begin(async (tx) => {
+      await oauth.claimTeamRoute(tx, {
+        teamId: 'T-ITEST-RACE',
+        organizationId: 'some-other-org',
+        credentialId: foreignCredential.credentialId,
+      });
+      foreignClaimHeld();
+      await foreignClaimReleased;
+    });
+    await foreignClaimInPlace;
+    const racing = oauth.completeOauth2(
+      sql,
+      { state: raceState, code: 'itest-auth-code-race', vendorError: null },
+      { fetchImpl: vendorFetch },
+    );
+    // Release the holder once this org's claim is queued behind it — after
+    // a bounded wait regardless, so a regression cannot hang the suite.
+    const queuedBehindHolder = await waitFor(async () => {
+      const rows = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pg_stat_activity
+        WHERE wait_event_type = 'Lock'
+          AND query ILIKE '%connector_team_routes%'
+      `;
+      return rows[0]?.count !== '0';
+    }, 5_000);
+    releaseForeignClaim();
+    await foreignClaim;
+    const raced = await racing;
+    vendorTeamId = 'T-ITEST-1';
+    const raceCredentials = await sql<
+      { count: string; isDefault: boolean | null }[]
+    >`
+      SELECT count(*)::text AS count, bool_or(is_default) AS "isDefault"
+      FROM app.connector_credentials
+      WHERE org_id = ${raceOrgId} AND connector_slug = 'slack'
+    `;
+    const raceRoute = await sql<{ orgId: string }[]>`
+      SELECT org_id AS "orgId" FROM app.connector_team_routes
+      WHERE team_id = 'T-ITEST-RACE'
+    `;
+    record(
+      'connector oauth: losing the workspace-claim race stores no credential',
+      raced.kind === 'error' &&
+        raced.error === 'workspace_claimed' &&
+        queuedBehindHolder &&
+        raceCredentials[0]?.count === '0' &&
+        raceRoute[0]?.orgId === 'some-other-org',
+      `outcome=${raced.kind}/${raced.kind === 'error' ? raced.error : '-'} (want workspace_claimed), queuedBehindHolder=${queuedBehindHolder}, loserCredentials=${raceCredentials[0]?.count} (want 0) default=${raceCredentials[0]?.isDefault}, routeOwner=${raceRoute[0]?.orgId}`,
     );
 
     // ---- a rejected exchange writes nothing -----------------------------
@@ -23298,9 +23488,88 @@ exit 1
           await send(`/api/app/video-links/bind?orgId=${orgId}`, { threadId })
         ).json(),
       );
+    // The unbind door's two guards. The org is the scope: a row this user
+    // uploaded in ANOTHER organization is not theirs here, and a batch that
+    // mixes it in is refused whole (the own row stays bound). And a SENT
+    // message keeps its transcript: while a user message in the thread
+    // carries the attachment, the unbind is a no-op for that job — otherwise
+    // the unbound-GC would strand the sent message's attachment a week later.
+    const boundState = async (jobId: string): Promise<boolean | null> => {
+      const rows = await sql<{ bound: boolean }[]>`
+        SELECT message_bound_at_ms IS NOT NULL AS bound
+        FROM app.video_link_jobs WHERE id = ${jobId}
+      `;
+      return rows[0]?.bound ?? null;
+    };
+    const foreignJob = await sql<{ id: string }[]>`
+      INSERT INTO app.video_link_jobs (
+        org_id, uploaded_by, source_url, source_url_hash, source_platform,
+        pasted_token, status, status_changed_at_ms, message_bound_at_ms,
+        created_at_ms
+      ) VALUES (
+        'itest-other-org', ${userId},
+        'https://www.youtube.com/watch?v=elsewhere', 'itest-elsewhere-hash',
+        'youtube', 'https://www.youtube.com/watch?v=elsewhere', 'completed',
+        ${Date.now()}, ${Date.now()}, ${Date.now()}
+      )
+      RETURNING id
+    `;
+    const foreignJobId = foreignJob[0]?.id ?? '';
+    const crossOrgUnbind = await send(
+      `/api/app/video-links/unbind?orgId=${orgId}`,
+      { jobIds: [foreignJobId] },
+    );
+    const foreignBoundAfter = await boundState(foreignJobId);
+    const mixedUnbind = await send(
+      `/api/app/video-links/unbind?orgId=${orgId}`,
+      { jobIds: [captJobId, foreignJobId] },
+    );
+    const ownBoundAfterMixed = await boundState(captJobId);
+    const captStorageRef = (await jobRow(captJobId))?.storageRef ?? '';
+    const sentMessage = await sql<{ id: string }[]>`
+      INSERT INTO app.messages (
+        thread_id, org_id, "order", step_order, role, parts, text, status,
+        created_at_ms
+      ) VALUES (
+        ${threadId}, ${orgId}, 999, 0, 'user',
+        ${sql.json([
+          { type: 'text', text: 'Summarize the video' },
+          {
+            type: 'attachment',
+            name: 'Captioned itest video',
+            mediaType: 'video/mp4',
+            fileId: captStorageRef,
+            sizeBytes: 1,
+          },
+        ])},
+        'Summarize the video', 'complete', ${Date.now()}
+      )
+      RETURNING id
+    `;
+    const unbindWhileSent = await send(
+      `/api/app/video-links/unbind?orgId=${orgId}`,
+      { jobIds: [captJobId] },
+    );
+    const boundWhileSent = await boundState(captJobId);
+    await sql`
+      DELETE FROM app.messages WHERE id = ${sentMessage[0]?.id ?? ''}
+    `;
+    await sql`DELETE FROM app.video_link_jobs WHERE id = ${foreignJobId}`;
+    record(
+      'video links: unbind is org-scoped and keeps a sent message bound',
+      crossOrgUnbind.status === 404 &&
+        foreignBoundAfter === true &&
+        mixedUnbind.status === 404 &&
+        ownBoundAfterMixed === true &&
+        unbindWhileSent.status === 200 &&
+        boundWhileSent === true,
+      `crossOrg=${crossOrgUnbind.status} (want 404) stillBound=${foreignBoundAfter}, mixed=${mixedUnbind.status} (want 404) ownStillBound=${ownBoundAfterMixed}, whileSent=${unbindWhileSent.status} stillBound=${boundWhileSent} (want true)`,
+    );
+
     const unbind = await send(`/api/app/video-links/unbind?orgId=${orgId}`, {
       jobIds: [captJobId],
     });
+    const unboundAfter = await boundState(captJobId);
 
     const thread2 = z.object({ id: z.string() }).safeParse(
       await (
@@ -23344,11 +23613,12 @@ exit 1
         rebind.success &&
         rebind.data.attachments.length === 0 &&
         unbind.status === 200 &&
+        unboundAfter === false &&
         donorJobId !== captJobId &&
         donorJob?.status === 'completed' &&
         (donorFile[0]?.transcript ?? '').includes('Hello from captions') &&
         Number(donorAudit[0]?.count ?? '0') === 1,
-      `dedup=${dedup.success && dedup.data.jobId === captJobId}, bind=${bind.success ? bind.data.attachments.length : 'ERR'}/1 rebind=${rebind.success ? rebind.data.attachments.length : 'ERR'}/0 unbind=${unbind.status}, donor=${donorJob?.status} sameText=${(donorFile[0]?.transcript ?? '').includes('Hello from captions')} auditReuse=${donorAudit[0]?.count}/1`,
+      `dedup=${dedup.success && dedup.data.jobId === captJobId}, bind=${bind.success ? bind.data.attachments.length : 'ERR'}/1 rebind=${rebind.success ? rebind.data.attachments.length : 'ERR'}/0 unbind=${unbind.status}/unbound=${unboundAfter}, donor=${donorJob?.status} sameText=${(donorFile[0]?.transcript ?? '').includes('Hello from captions')} auditReuse=${donorAudit[0]?.count}/1`,
     );
 
     // 3. Whisper path via the inc-68 pipeline, the never-retry failure +
@@ -28278,6 +28548,50 @@ async function checkBrandingAndTeams(
       emailMiss.success &&
       emailMiss.data.userId === null,
     `teams=${orgTeams.success ? orgTeams.data.teams.length : 'ERR'}, countMine=${countMine.success ? countMine.data.count : 'ERR'}, hit=${emailHit.success ? typeof emailHit.data.userId : 'ERR'}, miss=${emailMiss.success ? String(emailMiss.data.userId) : 'ERR'}`,
+  );
+
+  // The email lookup answers for ANY account on the deployment (the person
+  // being added is not a member yet), so only the roles that may add a
+  // member get an answer at all — a plain member is refused uniformly,
+  // whether or not the email is registered.
+  const lookupSuffix = Date.now().toString(36);
+  const lookupMemberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `email-lookup-member-${lookupSuffix}@example.com`,
+      password: 'itest-password-1',
+      name: 'Email Lookup Member',
+    }),
+  });
+  const lookupMemberCookie = cookieHeaderFrom(lookupMemberSignUp);
+  const lookupMemberBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await lookupMemberSignUp.json());
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId},
+            ${lookupMemberBody.success ? lookupMemberBody.data.user.id : ''},
+            'member', ${new Date()})
+  `;
+  const lookupAsMember = (email: string): Promise<Response> =>
+    fetch(
+      `${base}/api/app/members/user-id-by-email?orgId=${orgId}&email=${encodeURIComponent(email)}`,
+      { headers: { cookie: lookupMemberCookie } },
+    );
+  const memberProbeHit = await lookupAsMember(callerEmailRows[0]?.email ?? '');
+  const memberProbeMiss = await lookupAsMember('nobody@nowhere.test');
+  const memberProbeHitBody = await memberProbeHit.text();
+  const memberProbeMissBody = await memberProbeMiss.text();
+  record(
+    'members: only admins may look an account up by email (uniform refusal)',
+    memberProbeHit.status === 403 &&
+      memberProbeMiss.status === 403 &&
+      memberProbeHitBody === memberProbeMissBody &&
+      emailHit.success &&
+      typeof emailHit.data.userId === 'string',
+    `member: registered=${memberProbeHit.status} unknown=${memberProbeMiss.status} (want 403/403) sameBody=${memberProbeHitBody === memberProbeMissBody}; owner still resolves=${emailHit.success ? typeof emailHit.data.userId : 'ERR'}`,
   );
 
   // Member 2FA/passkey admin: the caller is the org's ONLY owner, so a
@@ -37505,7 +37819,7 @@ async function main(): Promise<void> {
     await checkDocuments(sql, baseUrl, authCtx);
     await checkWorkflowDocumentListing(sql, baseUrl, authCtx);
     await checkBlobRefAuthority(sql, baseUrl, authCtx);
-    await checkSmallDomains(baseUrl, authCtx);
+    await checkSmallDomains(sql, baseUrl, authCtx);
     await checkAgents(baseUrl, authCtx);
     await checkSkills(baseUrl, authCtx);
     await checkProviderCredentials(sql, baseUrl, authCtx);

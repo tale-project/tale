@@ -1552,19 +1552,50 @@ export async function bindCompletedJobsToMessage(
   });
 }
 
-/** Reverse a bind after a failed send (the 0.4 twin) — idempotent,
- * uploader-owned rows only. */
+/**
+ * Reverse a bind after a failed send (the 0.4 twin) — idempotent for the
+ * caller's OWN rows in THIS organization. Every supplied id must resolve to
+ * such a row or the whole batch is refused before anything changes: a job
+ * the caller holds in another organization is not theirs here (the org is
+ * the scope, like every other video-links verb), and an id the composer
+ * never held is a probe, not a chip.
+ *
+ * A job whose transcript already rides a SENT message in its thread stays
+ * bound. The server can tell — the user row carries the attachment part —
+ * and unbinding it would hand the transcript to the unbound-GC a week later
+ * and strand the sent message's attachment; the legitimate caller (a send
+ * that failed) never has such a message.
+ */
 export async function unbindJobsFromMessage(
   sql: Sql,
-  args: { userId: string; jobIds: readonly string[] },
+  args: { organizationId: string; userId: string; jobIds: readonly string[] },
 ): Promise<void> {
-  for (const jobId of args.jobIds) {
-    await sql`
-      UPDATE app.video_link_jobs SET message_bound_at_ms = NULL
-      WHERE id = ${jobId} AND uploaded_by = ${args.userId}
-        AND message_bound_at_ms IS NOT NULL
+  const jobIds = [...new Set(args.jobIds)];
+  if (jobIds.length === 0) return;
+  await sql.begin(async (tx) => {
+    const owned = await tx<{ id: string }[]>`
+      SELECT id FROM app.video_link_jobs
+      WHERE id = ANY(${jobIds}) AND org_id = ${args.organizationId}
+        AND uploaded_by = ${args.userId}
+      FOR UPDATE
     `;
-  }
+    if (owned.length !== jobIds.length) {
+      throw new VideoLinkError('notFound', 'Video link not found', 404);
+    }
+    await tx`
+      UPDATE app.video_link_jobs j SET message_bound_at_ms = NULL
+      WHERE j.id = ANY(${jobIds}) AND j.org_id = ${args.organizationId}
+        AND j.uploaded_by = ${args.userId}
+        AND j.message_bound_at_ms IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM app.messages m
+          WHERE m.thread_id = j.thread_id AND m.role = 'user'
+            AND m.parts @> jsonb_build_array(jsonb_build_object(
+              'type', 'attachment', 'fileId', j.storage_ref
+            ))
+        )
+    `;
+  });
 }
 
 /** Video-link provenance for RAG retrieval wrapping (the 0.4
