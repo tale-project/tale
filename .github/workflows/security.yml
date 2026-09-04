@@ -49,7 +49,9 @@ jobs:
     name: Bun audit
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Budget for a degraded advisory registry: the report step is capped at 4
+    # minutes, the gate below retries hung or 5xx lookups up to three times.
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -72,7 +74,9 @@ jobs:
 
       - name: Run bun audit (report)
         # Full advisory list for visibility; does not fail the build itself.
+        # Bounded so a hung registry request cannot eat the gate's time.
         continue-on-error: true
+        timeout-minutes: 4
         run: bun audit --prod | tee bun-audit.txt
 
       - name: Summary
@@ -85,10 +89,29 @@ jobs:
 
       - name: Gate on high/critical advisories
         # The blocking gate: fail on HIGH or CRITICAL production advisories.
-        # pipefail so tee does not mask a non-zero exit.
+        # pipefail so tee does not mask a non-zero exit. The advisory lookup is
+        # one POST to registry.npmjs.org's bulk endpoint, which on 2026-09-04
+        # alternated between 503s and minute-long hangs; a registry outage must
+        # not read as a finding, so a hung (exit 124) or transport-error attempt
+        # is retried up to three times, 30 s apart. A run that lists advisories
+        # exits 1 with no transport error line and keeps the red on the first
+        # pass, exactly as before.
         run: |
-          set -o pipefail
-          bun audit --prod --audit-level=high | tee bun-audit-gate.txt
+          set +e -o pipefail
+          for attempt in 1 2 3; do
+            timeout 240 bun audit --prod --audit-level=high 2>&1 | tee bun-audit-gate.txt
+            status=${PIPESTATUS[0]}
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+            if [ "$status" -ne 124 ] && ! grep -q -E '^error: (GET|POST) https?://' bun-audit-gate.txt; then
+              exit 1
+            fi
+            echo "advisory registry request failed or hung (attempt $attempt/3, exit $status); retrying in 30s"
+            sleep 30
+          done
+          echo "advisory registry unreachable after 3 attempts" >&2
+          exit 1
 
   # ---------------------------------------------------------------------------
   # Scan source tree for known CVEs in dependencies + misconfigurations + secrets.
