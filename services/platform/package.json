@@ -73,7 +73,7 @@
     "@tanstack/react-router": "1.168.10",
     "@tanstack/react-table": "8.21.3",
     "@tanstack/react-virtual": "3.13.26",
-    "@xmldom/xmldom": "0.8.13",
+    "@xmldom/xmldom": "0.8.15",
     "@xyflow/react": "12.10.2",
     "ai": "6.0.156",
     "ajv": "8.20.0",
