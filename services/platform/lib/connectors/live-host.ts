@@ -174,7 +174,7 @@ export function checkConnectorRequestUrl(
   } catch (cause) {
     throw new ConnectorError(
       'BLOCKED_HOST',
-      `host "${parsed.hostname}" is not reachable from an connector (private, link-local, or cloud-metadata address)`,
+      `host "${parsed.hostname}" is not reachable from a connector (private, link-local, or cloud-metadata address)`,
       { connector: connector.name, cause },
     );
   }

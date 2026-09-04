@@ -1,5 +1,5 @@
 /**
- * The page a user sees when connecting an connector fails.
+ * The page a user sees when connecting a connector fails.
  *
  * Everything on it is a FIXED string chosen from the enum below. Nothing from
  * the vendor's response, the request, or an exception message is rendered:

@@ -1394,7 +1394,7 @@ platformChat:
           can compare replies before you choose.
       - q: Can Chat take actions, or only answer?
         a:
-          Both. When a reply would call an connector or start a workflow, the action
+          Both. When a reply would call a connector or start a workflow, the action
           pauses on an in-chat approval card first — right where the work is
           happening.
   docs:

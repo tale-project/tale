@@ -194,12 +194,6 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 240,
   },
-  'security:screencast-auth': {
-    kind: 'token bucket',
-    rate: 60,
-    period: MINUTE,
-    capacity: 120,
-  },
   'security:login-ip': { kind: 'fixed window', rate: 30, period: MINUTE },
   'webdav:auth-fail-ip': {
     kind: 'token bucket',

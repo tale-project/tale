@@ -5,8 +5,13 @@ import type {
 import type { QueryCtx } from '../lib/ctx';
 import { buildPeriodKey, readPolicyConfig } from './helpers';
 
+/** Whose bucket a warning is about: the caller's own usage, the whole
+ * organization's, or the authenticating API key's. */
+export type BudgetWarningScope = 'user' | 'org' | 'apiKey';
+
 export interface BudgetWarning {
   code: 'TOKEN_WARNING' | 'COST_WARNING' | 'REQUEST_WARNING';
+  scope: BudgetWarningScope;
   period: string;
   used: number;
   limit: number;
@@ -474,47 +479,135 @@ export function collectWarnings(
   prospectiveCostCents: number = 0,
   prospectiveRequests: number = 0,
 ): BudgetWarning[] {
-  const threshold = limits.warningThresholdPercent;
+  return collectBucketWarnings(
+    'user',
+    limits.warningThresholdPercent,
+    limits,
+    usage,
+    period,
+    prospectiveCostCents,
+    prospectiveRequests,
+  );
+}
+
+/**
+ * The org bucket's warnings: the organization-wide caps measured against
+ * the organization's aggregate usage, at the threshold the org-scoped rules
+ * set. Regression: `orgWarningThresholdPercent` was resolved and never read,
+ * so "warn at 80% of the org cap" did nothing — the org budget went from
+ * silent straight to hard-blocked.
+ */
+export function collectOrgWarnings(
+  limits: EffectiveLimits,
+  orgUsage: UsageTotals,
+  period: string,
+  prospectiveCostCents: number = 0,
+  prospectiveRequests: number = 0,
+): BudgetWarning[] {
+  return collectBucketWarnings(
+    'org',
+    limits.orgWarningThresholdPercent,
+    {
+      maxTokens: limits.orgMaxTokens,
+      maxCostCents: limits.orgMaxCostCents,
+      maxRequests: limits.orgMaxRequests,
+    },
+    orgUsage,
+    period,
+    prospectiveCostCents,
+    prospectiveRequests,
+  );
+}
+
+/** The API key's own bucket — its caps against its own usage, at the
+ * threshold its `apiKey`-scoped rules set. */
+export function collectApiKeyWarnings(
+  limits: EffectiveLimits,
+  keyUsage: UsageTotals,
+  period: string,
+  prospectiveCostCents: number = 0,
+  prospectiveRequests: number = 0,
+): BudgetWarning[] {
+  return collectBucketWarnings(
+    'apiKey',
+    limits.apiKeyWarningThresholdPercent,
+    {
+      maxTokens: limits.apiKeyMaxTokens,
+      maxCostCents: limits.apiKeyMaxCostCents,
+      maxRequests: limits.apiKeyMaxRequests,
+    },
+    keyUsage,
+    period,
+    prospectiveCostCents,
+    prospectiveRequests,
+  );
+}
+
+/** One bucket's caps — the triple a warning is measured against. */
+interface WarningBucketCaps {
+  maxTokens?: number | undefined;
+  maxCostCents?: number | undefined;
+  maxRequests?: number | undefined;
+}
+
+/**
+ * The one warning rule, over any bucket: a cap the usage has reached
+ * `threshold` percent of, but not yet exceeded. No threshold, no warnings —
+ * a rule that sets caps without `warningThresholdPercent` asked for a hard
+ * stop only.
+ */
+export function collectBucketWarnings(
+  scope: BudgetWarningScope,
+  threshold: number | undefined,
+  caps: WarningBucketCaps,
+  usage: UsageTotals,
+  period: string,
+  prospectiveCostCents: number = 0,
+  prospectiveRequests: number = 0,
+): BudgetWarning[] {
   if (threshold == null) return [];
 
   const warnings: BudgetWarning[] = [];
 
-  if (limits.maxTokens != null) {
-    const percent = (usage.totalTokens / limits.maxTokens) * 100;
-    if (percent >= threshold && usage.totalTokens < limits.maxTokens) {
+  if (caps.maxTokens != null) {
+    const percent = (usage.totalTokens / caps.maxTokens) * 100;
+    if (percent >= threshold && usage.totalTokens < caps.maxTokens) {
       warnings.push({
         code: 'TOKEN_WARNING',
+        scope,
         period,
         used: usage.totalTokens,
-        limit: limits.maxTokens,
+        limit: caps.maxTokens,
         percent: Math.round(percent),
       });
     }
   }
 
-  if (limits.maxCostCents != null) {
+  if (caps.maxCostCents != null) {
     const projectedCost = usage.costEstimate + prospectiveCostCents;
-    const percent = (projectedCost / limits.maxCostCents) * 100;
-    if (percent >= threshold && projectedCost < limits.maxCostCents) {
+    const percent = (projectedCost / caps.maxCostCents) * 100;
+    if (percent >= threshold && projectedCost < caps.maxCostCents) {
       warnings.push({
         code: 'COST_WARNING',
+        scope,
         period,
         used: projectedCost,
-        limit: limits.maxCostCents,
+        limit: caps.maxCostCents,
         percent: Math.round(percent),
       });
     }
   }
 
-  if (limits.maxRequests != null) {
+  if (caps.maxRequests != null) {
     const projectedRequests = usage.requestCount + prospectiveRequests;
-    const percent = (projectedRequests / limits.maxRequests) * 100;
-    if (percent >= threshold && projectedRequests < limits.maxRequests) {
+    const percent = (projectedRequests / caps.maxRequests) * 100;
+    if (percent >= threshold && projectedRequests < caps.maxRequests) {
       warnings.push({
         code: 'REQUEST_WARNING',
+        scope,
         period,
         used: projectedRequests,
-        limit: limits.maxRequests,
+        limit: caps.maxRequests,
         percent: Math.round(percent),
       });
     }
@@ -646,6 +739,16 @@ export async function checkBudget(
           warnings: allWarnings.length > 0 ? allWarnings : undefined,
         };
       }
+      // The key is under its caps — say so when it is approaching them.
+      allWarnings.push(
+        ...collectApiKeyWarnings(
+          limits,
+          apiKeyUsage,
+          period,
+          prospectiveCostCents,
+          prospectiveRequests,
+        ),
+      );
     }
 
     // Check per-user limits against user's personal usage
@@ -748,6 +851,16 @@ export async function checkBudget(
           warnings: allWarnings.length > 0 ? allWarnings : undefined,
         };
       }
+      // The org is under its caps — the approach signal its rules asked for.
+      allWarnings.push(
+        ...collectOrgWarnings(
+          limits,
+          orgUsage,
+          period,
+          prospectiveCostCents,
+          prospectiveRequests,
+        ),
+      );
     }
   }
 

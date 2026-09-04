@@ -26,9 +26,13 @@ import { createAuditLog } from '../audit_logs/service.ts';
 
 export class CredentialAdminError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404;
+  readonly status: 400 | 403 | 404 | 409;
 
-  constructor(code: string, message: string, status: 400 | 403 | 404 = 400) {
+  constructor(
+    code: string,
+    message: string,
+    status: 400 | 403 | 404 | 409 = 400,
+  ) {
     super(message);
     this.name = 'CredentialAdminError';
     this.code = code;
@@ -51,6 +55,42 @@ function assertCredentialAdmin(scope: CredentialScope): void {
       403,
     );
   }
+}
+
+function nameTakenError(name: string): CredentialAdminError {
+  return new CredentialAdminError(
+    'CREDENTIAL_NAME_TAKEN',
+    `A credential named "${name}" already exists for this provider — pick a different name.`,
+    409,
+  );
+}
+
+/**
+ * Refuse a name another credential of the same (org, provider) already
+ * carries — the friendly face of the 0015 `UNIQUE (org_id, provider_slug,
+ * name)` constraint, which used to be the only guard and answered a bare
+ * 500. An EXACT match, because that is what the constraint refuses; a
+ * looser rule here would refuse names the table accepts.
+ */
+export function assertProviderCredentialNameFree(
+  rows: readonly { id: string; name: string }[],
+  name: string,
+  excludeId?: string,
+): void {
+  const clash = rows.find((row) => row.id !== excludeId && row.name === name);
+  if (clash) throw nameTakenError(clash.name);
+}
+
+/** The constraint's own refusal, for the race the pre-check cannot see: a
+ * concurrent create of the same name commits between our read and our
+ * write. Only the NAME constraint maps to "name taken" — the one-default
+ * partial index is a different fault and stays a real error. */
+function isNameUniqueViolation(error: unknown): boolean {
+  if (!(error instanceof Error) || !('code' in error) || error.code !== '23505')
+    return false;
+  const constraint =
+    'constraint_name' in error ? error.constraint_name : undefined;
+  return typeof constraint !== 'string' || constraint.includes('_name_');
 }
 
 /** The row shape the reused 0.4 resolver and serving walks expect (`_id`,
@@ -308,28 +348,34 @@ export async function createCredential(
     );
   }
 
-  const siblings = await tx<{ id: string }[]>`
-    SELECT id FROM app.provider_credentials
+  const siblings = await tx<{ id: string; name: string }[]>`
+    SELECT id, name FROM app.provider_credentials
     WHERE org_id = ${scope.organizationId}
       AND provider_slug = ${args.providerSlug}
-    LIMIT 1
   `;
+  assertProviderCredentialNameFree(siblings, name);
   const now = Date.now();
-  const rows = await tx<{ id: string }[]>`
-    INSERT INTO app.provider_credentials (
-      org_id, provider_slug, auth_method, name, encrypted_data, env_name,
-      endpoint_url, masked_preview, model_allowlist, is_default, status,
-      created_by, created_at_ms, updated_at_ms
-    ) VALUES (
-      ${scope.organizationId}, ${args.providerSlug}, ${args.authMethod},
-      ${name},
-      ${encryptedData === undefined ? null : tx.json(toJson(encryptedData))},
-      ${envName ?? null}, ${args.endpointUrl ?? null},
-      ${maskedPreview ?? null}, ${args.modelAllowlist ?? null},
-      ${siblings.length === 0}, 'active', ${scope.userId}, ${now}, ${now}
-    )
-    RETURNING id
-  `;
+  let rows: { id: string }[];
+  try {
+    rows = await tx<{ id: string }[]>`
+      INSERT INTO app.provider_credentials (
+        org_id, provider_slug, auth_method, name, encrypted_data, env_name,
+        endpoint_url, masked_preview, model_allowlist, is_default, status,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${scope.organizationId}, ${args.providerSlug}, ${args.authMethod},
+        ${name},
+        ${encryptedData === undefined ? null : tx.json(toJson(encryptedData))},
+        ${envName ?? null}, ${args.endpointUrl ?? null},
+        ${maskedPreview ?? null}, ${args.modelAllowlist ?? null},
+        ${siblings.length === 0}, 'active', ${scope.userId}, ${now}, ${now}
+      )
+      RETURNING id
+    `;
+  } catch (error) {
+    if (isNameUniqueViolation(error)) throw nameTakenError(name);
+    throw error;
+  }
   const id = rows[0]?.id;
   if (!id) {
     throw new CredentialAdminError('CREDENTIAL_CREATE_FAILED', 'Insert failed');
@@ -441,6 +487,16 @@ export async function updateCredential(
   if (name !== undefined && (name.length === 0 || name.length > 120)) {
     throw new CredentialAdminError('CREDENTIAL_NAME_INVALID', 'Invalid name');
   }
+  if (name !== undefined) {
+    // A rename lands on the same UNIQUE (org, provider, name) constraint as
+    // a create — refuse the clash with the same 409, not a bare 500.
+    const siblings = await tx<{ id: string; name: string }[]>`
+      SELECT id, name FROM app.provider_credentials
+      WHERE org_id = ${scope.organizationId}
+        AND provider_slug = ${row.providerSlug}
+    `;
+    assertProviderCredentialNameFree(siblings, name, credentialId);
+  }
   let rotated: EncryptedSecret | undefined;
   let rotatedPreview: string | undefined;
   if (patch.secret !== undefined) {
@@ -467,19 +523,26 @@ export async function updateCredential(
       'Endpoint URLs must be https',
     );
   }
-  await tx`
-    UPDATE app.provider_credentials SET
-      name = coalesce(${name ?? null}, name),
-      status = coalesce(${patch.status ?? null}, status),
-      is_default = coalesce(${patch.isDefault ?? null}, is_default),
-      model_allowlist = ${patch.modelAllowlist === undefined ? tx`model_allowlist` : (patch.modelAllowlist ?? null)},
-      endpoint_url = ${patch.endpointUrl === undefined ? tx`endpoint_url` : patch.endpointUrl},
-      env_name = coalesce(${patch.envName ?? null}, env_name),
-      encrypted_data = ${rotated === undefined ? tx`encrypted_data` : tx.json(toJson(rotated))},
-      masked_preview = coalesce(${rotatedPreview ?? null}, masked_preview),
-      updated_at_ms = ${Date.now()}
-    WHERE id = ${credentialId}
-  `;
+  try {
+    await tx`
+      UPDATE app.provider_credentials SET
+        name = coalesce(${name ?? null}, name),
+        status = coalesce(${patch.status ?? null}, status),
+        is_default = coalesce(${patch.isDefault ?? null}, is_default),
+        model_allowlist = ${patch.modelAllowlist === undefined ? tx`model_allowlist` : (patch.modelAllowlist ?? null)},
+        endpoint_url = ${patch.endpointUrl === undefined ? tx`endpoint_url` : patch.endpointUrl},
+        env_name = coalesce(${patch.envName ?? null}, env_name),
+        encrypted_data = ${rotated === undefined ? tx`encrypted_data` : tx.json(toJson(rotated))},
+        masked_preview = coalesce(${rotatedPreview ?? null}, masked_preview),
+        updated_at_ms = ${Date.now()}
+      WHERE id = ${credentialId}
+    `;
+  } catch (error) {
+    if (name !== undefined && isNameUniqueViolation(error)) {
+      throw nameTakenError(name);
+    }
+    throw error;
+  }
   await createAuditLog(tx, {
     organizationId: scope.organizationId,
     actorId: scope.userId,

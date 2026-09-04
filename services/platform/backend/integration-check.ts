@@ -694,6 +694,7 @@ async function checkNotifications(
  * rows it writes are covered by the final chain verification.
  */
 async function checkIdentityDomains(
+  sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
   email: string,
@@ -929,6 +930,96 @@ async function checkIdentityDomains(
     .safeParse(
       await get(`/api/app/governance/my/feature-flags?orgId=${orgId}`),
     );
+  // An org-scoped budget rule's `warningThresholdPercent` is an APPROACH
+  // signal the reader actually sees: seed the org 60% into a 10.00 monthly
+  // cost cap with a 50% threshold, and the status carries an org-scoped
+  // COST_WARNING — the caller's own usage is 0, so no personal warning rides
+  // along. (It used to be resolved and never read.)
+  const { buildPeriodKey } = await import('./core/governance/helpers.ts');
+  const priorBudgets = z
+    .object({
+      policy: z
+        .object({ config: z.record(z.string(), z.unknown()) })
+        .nullable(),
+    })
+    .safeParse(
+      await get(`/api/app/governance/policies/budgets?orgId=${orgId}`),
+    );
+  const orgWarnPolicy = await post(
+    `/api/app/governance/policies/budgets?orgId=${orgId}`,
+    {
+      config: {
+        enabled: true,
+        rules: [
+          {
+            scope: 'org',
+            period: 'monthly',
+            maxCostCents: 1000,
+            warningThresholdPercent: 50,
+          },
+        ],
+      },
+    },
+  );
+  const orgWarnPeriodKey = buildPeriodKey('monthly');
+  await sql`
+    INSERT INTO app.usage_ledger (
+      org_id, user_id, period_key, granularity, input_tokens, output_tokens,
+      total_tokens, cost_estimate_cents, request_count, connector_call_count,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, 'itest-org-warning-peer', ${orgWarnPeriodKey}, 'monthly',
+      1, 1, 2, 600, 1, 0, ${Date.now()}
+    )
+  `;
+  const orgWarning = z
+    .object({
+      status: z
+        .object({
+          exceeded: z.boolean(),
+          warnings: z
+            .array(
+              z.object({
+                code: z.string(),
+                scope: z.string().optional(),
+                used: z.number(),
+                limit: z.number(),
+              }),
+            )
+            .nullable(),
+        })
+        .nullable(),
+    })
+    .safeParse(
+      await get(`/api/app/governance/my/budget-status?orgId=${orgId}`),
+    );
+  // Leave the org the way this probe found it: no peer spend, the prior
+  // budgets policy (or an inert one) back in place.
+  await sql`
+    DELETE FROM app.usage_ledger
+    WHERE org_id = ${orgId} AND user_id = 'itest-org-warning-peer'
+  `;
+  await post(`/api/app/governance/policies/budgets?orgId=${orgId}`, {
+    config:
+      priorBudgets.success && priorBudgets.data.policy !== null
+        ? priorBudgets.data.policy.config
+        : { enabled: false, rules: [] },
+  });
+  const orgWarningHit = orgWarning.success
+    ? orgWarning.data.status?.warnings?.find((w) => w.scope === 'org')
+    : undefined;
+  record(
+    "governance: an org budget rule's warning threshold surfaces as an org-scoped warning",
+    orgWarnPolicy.ok &&
+      orgWarning.success &&
+      orgWarning.data.status?.exceeded === false &&
+      orgWarningHit?.code === 'COST_WARNING' &&
+      orgWarningHit.used === 600 &&
+      orgWarningHit.limit === 1000 &&
+      !orgWarning.data.status.warnings?.some((w) => w.scope !== 'org'),
+    `policy → ${orgWarnPolicy.status}, status=${orgWarning.success ? JSON.stringify(orgWarning.data.status) : 'UNPARSEABLE'} (want exceeded=false + one org COST_WARNING 600/1000)`,
+  );
+
   const budget = z
     .object({ status: z.unknown().nullable() })
     .safeParse(
@@ -4960,6 +5051,44 @@ async function checkSmallDomains(
     `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed}@${bulk.data.errors[0]?.index}` : 'ERR'} (want 2/1@2), count=${countBefore.success ? countBefore.data.count : 'ERR'}→${contactCount.success ? contactCount.data.count : 'ERR'} (want +2), listed=${listed.success ? listed.data.items.length : 'ERR'}, trashedOut=${listed.success ? !listed.data.items.some((row) => row.id === contactId) : 'ERR'}, search=${hits.success ? `${hits.data.hits.length}/${hits.data.hits[0]?.name}` : 'ERR'}, empty=${emptySearch.success ? emptySearch.data.hits.length : 'ERR'} (want 0)`,
   );
 
+  // The palette hit's `updatedAt` is the row's own update time — the column
+  // the search ranks on — never its creation time under that name.
+  const hopperId = hits.success ? (hits.data.hits[0]?.contactId ?? '') : '';
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await send('POST', `/api/app/contacts/${hopperId}?orgId=${orgId}`, {
+    phone: '+1 555 0100',
+  });
+  const hopperRow = z
+    .object({
+      items: z.array(
+        z.object({
+          id: z.string(),
+          createdAt: z.number(),
+          updatedAt: z.number(),
+        }),
+      ),
+    })
+    .safeParse(await get(`/api/app/contacts?orgId=${orgId}&search=hopper`));
+  const hopperHit = z
+    .object({
+      hits: z.array(z.object({ contactId: z.string(), updatedAt: z.number() })),
+    })
+    .safeParse(await get(`/api/app/contacts/search?orgId=${orgId}&q=hopper`));
+  const hopperListed = hopperRow.success
+    ? hopperRow.data.items.find((row) => row.id === hopperId)
+    : undefined;
+  const hopperSearched = hopperHit.success
+    ? hopperHit.data.hits.find((hit) => hit.contactId === hopperId)
+    : undefined;
+  record(
+    "contacts: a palette hit carries the row's own updatedAt",
+    hopperListed !== undefined &&
+      hopperSearched !== undefined &&
+      hopperListed.updatedAt > hopperListed.createdAt &&
+      hopperSearched.updatedAt === hopperListed.updatedAt,
+    `listed created=${hopperListed?.createdAt} updated=${hopperListed?.updatedAt}, hit updatedAt=${hopperSearched?.updatedAt} (want = listed updatedAt, > createdAt)`,
+  );
+
   // Message feedback: vote → toggle → stats reflect one negative.
   await send('POST', `/api/app/feedback?orgId=${orgId}`, {
     threadId: 'itest-thread',
@@ -5481,6 +5610,53 @@ async function checkProviderCredentials(
   // disabled credential can never be promoted to default (serving reads the
   // ACTIVE default only).
   const envCredentialId = envCred.success ? envCred.data.credentialId : '';
+
+  // A second credential under a name the provider already carries — and a
+  // rename onto one — is a coded 409, not the UNIQUE constraint's bare 500.
+  const dupCreate = await send(
+    'POST',
+    `/api/app/provider-credentials?orgId=${orgId}`,
+    {
+      providerSlug: 'openai',
+      authMethod: 'api-key',
+      name: 'Primary key',
+      secret: 'sk-itest-second-secret-value',
+    },
+  );
+  const dupCreateBody = z
+    .object({ error: z.string(), message: z.string() })
+    .safeParse(await dupCreate.json().catch(() => null));
+  const dupRename = await send(
+    'POST',
+    `/api/app/provider-credentials/${envCredentialId}?orgId=${orgId}`,
+    { name: 'Primary key' },
+  );
+  const dupRenameBody = z
+    .object({ error: z.string() })
+    .safeParse(await dupRename.json().catch(() => null));
+  // A different provider may reuse the name: the constraint is per provider.
+  const otherProvider = await send(
+    'POST',
+    `/api/app/provider-credentials?orgId=${orgId}`,
+    {
+      providerSlug: 'anthropic',
+      authMethod: 'api-key',
+      name: 'Primary key',
+      secret: 'sk-ant-itest-value',
+    },
+  );
+  record(
+    'provider credentials: a duplicate name is a coded 409 (create + rename)',
+    dupCreate.status === 409 &&
+      dupCreateBody.success &&
+      dupCreateBody.data.error === 'CREDENTIAL_NAME_TAKEN' &&
+      dupCreateBody.data.message.includes('"Primary key"') &&
+      dupRename.status === 409 &&
+      dupRenameBody.success &&
+      dupRenameBody.data.error === 'CREDENTIAL_NAME_TAKEN' &&
+      otherProvider.ok,
+    `create dup → ${dupCreate.status} ${dupCreateBody.success ? dupCreateBody.data.error : 'UNPARSEABLE'} (want 409 CREDENTIAL_NAME_TAKEN), rename dup → ${dupRename.status} ${dupRenameBody.success ? dupRenameBody.data.error : 'UNPARSEABLE'} (want 409), other provider same name → ${otherProvider.status} (want 200)`,
+  );
   const listCredentials = async () =>
     z
       .object({
@@ -6926,6 +7102,52 @@ async function checkCorpusPurgeConsistency(
         );
       }
     }
+    // Malformed paging and bodies are the caller's mistake: a 400 naming the
+    // bad input, never the NaN-into-SQL / JSON-parse 500s that shipped.
+    const badCursor = await fetch(
+      `${base}/api/app/knowledge-entries?orgId=${orgId}&cursor=abc`,
+      { headers: { cookie } },
+    );
+    const badCursorBody = z
+      .object({ error: z.string(), message: z.string() })
+      .safeParse(await badCursor.json().catch(() => null));
+    const badLimit = await fetch(
+      `${base}/api/app/knowledge-entries?orgId=${orgId}&limit=0`,
+      { headers: { cookie } },
+    );
+    const notJson = await fetch(
+      `${base}/api/app/knowledge-entries?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: '{not json',
+      },
+    );
+    const notJsonBody = z
+      .object({ error: z.string() })
+      .safeParse(await notJson.json().catch(() => null));
+    const searchNotJson = await fetch(
+      `${base}/api/app/knowledge/search?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: '{not json',
+      },
+    );
+    record(
+      'knowledge routes: malformed cursor/limit/body answer 400, not 500',
+      badCursor.status === 400 &&
+        badCursorBody.success &&
+        badCursorBody.data.error === 'invalid query' &&
+        badCursorBody.data.message.includes('cursor') &&
+        badLimit.status === 400 &&
+        notJson.status === 400 &&
+        notJsonBody.success &&
+        notJsonBody.data.error === 'invalid body' &&
+        searchNotJson.status === 400,
+      `cursor=abc → ${badCursor.status} ${badCursorBody.success ? `${badCursorBody.data.error}: ${badCursorBody.data.message}` : 'UNPARSEABLE'}, limit=0 → ${badLimit.status}, entries non-JSON body → ${notJson.status}, search non-JSON body → ${searchNotJson.status} (want 400 each)`,
+    );
+
     record(
       'knowledge entries: member role is read-only (app + REST seam gate)',
       memberCreate.status === 403 &&
@@ -7956,6 +8178,40 @@ async function checkAutomations(
           message: 'first',
         })
       ).json(),
+    );
+    // A name whose first segment the router keeps for itself (`runs`,
+    // `metrics`, …) would save and then never open — the fixed route answers
+    // first. The create refuses it with a coded 400; a nested `ops/runs` is
+    // fine, since only the FIRST segment is routed.
+    const reservedName = await post(
+      `/api/app/automations/runs/nightly/save?orgId=${orgId}`,
+      { document: { ...document, name: 'runs/nightly' } },
+    );
+    const reservedBody = z
+      .object({ error: z.string(), message: z.string() })
+      .safeParse(await reservedName.json().catch(() => null));
+    const reservedExact = await post(
+      `/api/app/automations/metrics/save?orgId=${orgId}`,
+      { document: { ...document, name: 'metrics' } },
+    );
+    const reservedNested = await post(
+      `/api/app/automations/ops/runs/save?orgId=${orgId}`,
+      { document: { ...document, name: 'ops/runs' } },
+    );
+    const reservedRows = await sql<{ name: string }[]>`
+      SELECT name FROM app.automations
+      WHERE org_id = ${orgId} AND name IN ('runs/nightly', 'metrics')
+    `;
+    record(
+      'automations: a reserved first segment is refused at create (coded 400)',
+      reservedName.status === 400 &&
+        reservedBody.success &&
+        reservedBody.data.error === 'AUTOMATION_NAME_RESERVED' &&
+        reservedBody.data.message.includes('"runs"') &&
+        reservedExact.status === 400 &&
+        reservedNested.status === 201 &&
+        reservedRows.length === 0,
+      `runs/nightly → ${reservedName.status} ${reservedBody.success ? reservedBody.data.error : 'UNPARSEABLE'} (want 400 AUTOMATION_NAME_RESERVED), metrics → ${reservedExact.status} (want 400), ops/runs → ${reservedNested.status} (want 201), stranded rows=${reservedRows.length} (want 0)`,
     );
     const deployed = await post(
       `/api/app/automations/ops/greet/deploy?orgId=${orgId}`,
@@ -14245,124 +14501,18 @@ async function checkWebTierOracles(
     `role='disabled' → slugs=${disabledFeed.success ? `[${disabledFeed.data.orgSlugs.join(',')}]` : 'UNPARSEABLE'} (want the org absent)`,
   );
 
-  // --- /api/sandbox/screencast-auth ------------------------------------
-  const noThread = await fetch(`${base}/api/sandbox/screencast-auth`, {
-    headers: { cookie },
-  });
-  record(
-    'screencast-auth refuses a call with no threadId',
-    noThread.status === 400,
-    `no threadId → ${noThread.status} (want 400)`,
+  // The screencast oracle (`/api/sandbox/screencast-auth`) is gone with the
+  // feature — 0.5 never grew a viewer for it, and its resolver keyed on owner
+  // types the platform no longer creates, so it could only answer 409.
+  const retired = await fetch(
+    `${base}/api/sandbox/screencast-auth?threadId=itest-no-such-thread`,
+    { headers: { cookie } },
   );
-
-  const now = Date.now();
-  const threadRows = await sql<{ id: string }[]>`
-    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
-                             updated_at_ms)
-    VALUES (${orgId}, ${userId}, 'Screencast probe', 'chat', ${now}, ${now})
-    RETURNING id
-  `;
-  const threadId = threadRows[0]?.id ?? '';
-  await sql`
-    INSERT INTO app.thread_metadata (
-      thread_id, org_id, user_id, chat_type, status, created_at_ms
-    ) VALUES (${threadId}, ${orgId}, ${userId}, 'chat', 'active', ${now})
-  `;
-
-  const screencast = (query: string, headers: Record<string, string> = {}) =>
-    fetch(`${base}/api/sandbox/screencast-auth?${query}`, { headers });
-
-  const unknown = await screencast('threadId=itest-no-such-thread', { cookie });
   record(
-    'screencast-auth conflates a missing thread with a denied one',
-    unknown.status === 403,
-    `unknown threadId → ${unknown.status} (want 403 — never 404, which would confirm existence)`,
+    'the retired screencast oracle is no longer mounted',
+    retired.status === 404,
+    `GET /api/sandbox/screencast-auth → ${retired.status} (want 404 — a door that can only refuse is not a door)`,
   );
-
-  const noSession = await screencast(`threadId=${threadId}`, { cookie });
-  const noSessionBody = z
-    .object({ error: z.string() })
-    .safeParse(await noSession.json());
-  record(
-    'screencast-auth answers 409 when nothing is live to stream',
-    noSession.status === 409 &&
-      noSessionBody.success &&
-      noSessionBody.data.error === 'session_not_running',
-    `no live session → ${noSession.status} (want 409), body=${noSessionBody.success ? noSessionBody.data.error : 'UNPARSEABLE'}`,
-  );
-
-  // A live, ACTIVE session for this thread's owner key makes it streamable.
-  const sessions = await import('./domains/sandbox/sessions.ts');
-  const sessionId = `itest-screencast-${now % 100_000}`;
-  await sessions.reserveSessionSlot(sql, {
-    organizationId: orgId,
-    sessionId,
-    profile: { image: 'itest' },
-    ownerType: 'user',
-    ownerId: `${orgId}:${userId}`,
-    createdBy: userId,
-  });
-  const creating = await screencast(`threadId=${threadId}`, { cookie });
-  await sessions.setSessionStatus(sql, {
-    organizationId: orgId,
-    sessionId,
-    status: 'active',
-  });
-
-  const view = await screencast(`threadId=${threadId}`, { cookie });
-  const viewBody = z
-    .object({ sessionId: z.string(), control: z.boolean() })
-    .safeParse(await view.json());
-  record(
-    'screencast-auth streams only an ACTIVE session, read-only by default',
-    creating.status === 409 &&
-      view.status === 200 &&
-      viewBody.success &&
-      viewBody.data.sessionId === sessionId &&
-      !viewBody.data.control,
-    `creating → ${creating.status} (want 409); active → ${view.status} sessionId=${viewBody.success ? viewBody.data.sessionId : 'UNPARSEABLE'}, control=${viewBody.success ? viewBody.data.control : '?'} (want false without ?control=1)`,
-  );
-
-  const control = await screencast(`threadId=${threadId}&control=1`, {
-    cookie,
-  });
-  const controlBody = z
-    .object({ control: z.boolean() })
-    .safeParse(await control.json());
-  record(
-    'screencast-auth grants writable control to the thread owner',
-    control.status === 200 && controlBody.success && controlBody.data.control,
-    `owner ?control=1 → ${control.status}, control=${controlBody.success ? controlBody.data.control : 'UNPARSEABLE'} (want true)`,
-  );
-
-  // A DIFFERENT member of the same org is not the owner: no view, and
-  // therefore no control either.
-  const otherEmail = `itest-screencast-other-${now % 100_000}@example.com`;
-  const otherSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: otherEmail,
-      password: 'itest-password-1',
-      name: 'Other',
-    }),
-  });
-  const otherCookie = cookieHeaderFrom(otherSignUp);
-  const stranger = await screencast(`threadId=${threadId}&control=1`, {
-    cookie: otherCookie,
-  });
-  record(
-    "screencast-auth refuses another user's thread",
-    stranger.status === 403,
-    `non-owner ?control=1 → ${stranger.status} (want 403)`,
-  );
-
-  await sessions.markSessionDestroyed(sql, {
-    organizationId: orgId,
-    sessionId,
-  });
-  await sql`DELETE FROM app.thread_metadata WHERE thread_id = ${threadId}`;
-  await sql`DELETE FROM app.threads WHERE id = ${threadId}`;
 }
 
 async function checkCompetences(
@@ -19668,6 +19818,11 @@ async function checkProvisioning(sql: Sql): Promise<void> {
   const starterTasks = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.tasks WHERE org_id = ${orgId}
   `;
+  // The first content a new customer reads — the connector task shipped as
+  // "Connect an connector" once.
+  const starterTitles = await sql<{ title: string }[]>`
+    SELECT title FROM app.tasks WHERE org_id = ${orgId}
+  `;
   await seedStarterContent(sql, orgId);
   const projectsAfter = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.projects WHERE org_id = ${orgId}
@@ -19688,6 +19843,8 @@ async function checkProvisioning(sql: Sql): Promise<void> {
       starterProjects.length === 1 &&
       starterProjects[0]?.name === 'Getting started' &&
       starterTasks[0]?.count === '3' &&
+      starterTitles.some((row) => row.title === 'Connect a connector') &&
+      !starterTitles.some((row) => /\ban connector\b/i.test(row.title)) &&
       projectsAfter[0]?.count === '1',
     `first=${first.provisioned.length} packs (${first.provisioned.join('|')}) v1+presentation=${versions.every((r) => r.version === 1 && r.hasPresentation)} triggers=${triggers[0]?.count}, again=${again.provisioned.length}/${again.skipped.length} rows=${versionsAfter[0]?.count}, tombstone=${afterTombstone.skipped.includes(tombstoned)}/resurrected=${resurrected[0]?.count} (want 0), starter=${starterProjects[0]?.name}/${starterTasks[0]?.count} tasks (want 3) rerun=${projectsAfter[0]?.count} (want 1)`,
   );
@@ -37802,6 +37959,7 @@ async function main(): Promise<void> {
     await checkNotifications(sql, baseUrl, authCtx);
     await checkOutboxRetention(sql, baseUrl, authCtx);
     await checkIdentityDomains(
+      sql,
       baseUrl,
       authCtx,
       `itest-${orgSuffix}@example.com`,

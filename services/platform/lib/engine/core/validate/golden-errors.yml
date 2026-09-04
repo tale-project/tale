@@ -167,7 +167,7 @@ code-no-io:
     - code: CODE_NO_IO
       nodeId: main
       message: 'node "main": transform code has no network or module access — "fetch(" will fail at runtime'
-      hint: transforms only reshape data; use an connector node for external calls
+      hint: transforms only reshape data; use a connector node for external calls
   warnings: []
 code-no-return:
   errors: []

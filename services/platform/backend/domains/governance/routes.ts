@@ -14,6 +14,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
   collectAllApplicableRules,
+  collectOrgWarnings,
   collectWarnings,
   resolveEffectiveLimits,
   type BudgetWarning,
@@ -389,6 +390,28 @@ export function createGovernanceRoutes(deps: {
           period,
         ),
       );
+      // The organization's own approach signal: an org-scoped rule's
+      // threshold against the org's whole spend. It has no team filter by
+      // nature, so it shows whatever team context is selected — the banner
+      // labels it as the organization's, not the reader's.
+      if (limits.orgWarningThresholdPercent !== undefined) {
+        const orgUsage = await deps.sql<
+          { totalTokens: number; costEstimate: number; requestCount: number }[]
+        >`
+          SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
+                 coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
+                 coalesce(sum(request_count), 0)::float8 AS "requestCount"
+          FROM app.usage_ledger
+          WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+        `;
+        warnings.push(
+          ...collectOrgWarnings(
+            limits,
+            orgUsage[0] ?? { totalTokens: 0, costEstimate: 0, requestCount: 0 },
+            period,
+          ),
+        );
+      }
     }
     if (warnings.length > 0) {
       return c.json({

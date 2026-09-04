@@ -153,7 +153,6 @@ export default {
         '@ai-sdk/provider',
         '@measured/puck',
         '@modelcontextprotocol/sdk',
-        '@novnc/novnc',
         '@tanstack/react-virtual',
         '@types/mssql',
         '@types/mustache',

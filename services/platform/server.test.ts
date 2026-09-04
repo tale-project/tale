@@ -8,10 +8,8 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { wrapCanvasPreviewHtml } from './lib/canvas-preview-shell';
 import {
-  authorizeScreencast,
   cacheControlForStaticPath,
   createApp,
-  SCREENCAST_ROUTE_RE,
   shouldDeliverSseEvent,
 } from './server';
 
@@ -775,134 +773,5 @@ describe('shouldDeliverSseEvent — fan-out predicate', () => {
     ).toBe(false);
     expect(shouldDeliverSseEvent(null, allowed)).toBe(false);
     expect(shouldDeliverSseEvent('acme', allowed)).toBe(false);
-  });
-});
-
-describe('SCREENCAST_ROUTE_RE', () => {
-  test('matches /screencast/<threadId> and captures the (encoded) segment', () => {
-    const m = SCREENCAST_ROUTE_RE.exec('/screencast/thread-abc');
-    expect(m?.[1]).toBe('thread-abc');
-    // Percent-encoded segment (the client encodeURIComponent's the threadId).
-    expect(SCREENCAST_ROUTE_RE.exec('/screencast/a%2Fb')?.[1]).toBe('a%2Fb');
-  });
-
-  test('does NOT match a deeper path or a bare /screencast', () => {
-    expect(SCREENCAST_ROUTE_RE.exec('/screencast/a/b')).toBeNull();
-    expect(SCREENCAST_ROUTE_RE.exec('/screencast/')).toBeNull();
-    expect(SCREENCAST_ROUTE_RE.exec('/screencast')).toBeNull();
-  });
-});
-
-describe('authorizeScreencast — auth oracle propagation', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  test('returns 401 without ever calling the backend when no cookie is present', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    const res = await authorizeScreencast('thread-1', undefined);
-    expect(res).toEqual({
-      ok: false,
-      status: 401,
-      body: 'Unauthenticated',
-      contentType: 'text/plain',
-    });
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  test('returns the resolved sessionId on a 200 from the oracle', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify({ sessionId: 'sess-x' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-    const res = await authorizeScreencast('thread-1', 'better-auth.x=1');
-    // A view request (control omitted) → control:false in the result.
-    expect(res).toEqual({ ok: true, sessionId: 'sess-x', control: false });
-  });
-
-  test('reflects an oracle-granted control flag and requests it', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify({ sessionId: 'sess-x', control: true }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-    const res = await authorizeScreencast('thread-1', 'c=1', true);
-    expect(res).toEqual({ ok: true, sessionId: 'sess-x', control: true });
-    const calledArg = fetchSpy.mock.calls[0]?.[0];
-    if (typeof calledArg !== 'string') {
-      throw new Error('expected fetch to be called with a string URL');
-    }
-    expect(calledArg).toContain('control=1');
-  });
-
-  test('forwards the threadId to the oracle as a query param', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify({ sessionId: 's' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-    await authorizeScreencast('thread/weird', 'c=1');
-    const calledArg = fetchSpy.mock.calls[0]?.[0];
-    // authorizeScreencast always passes a string URL to fetch.
-    if (typeof calledArg !== 'string') {
-      throw new Error('expected fetch to be called with a string URL');
-    }
-    expect(calledArg).toContain('/api/sandbox/screencast-auth');
-    expect(calledArg).toContain(
-      `threadId=${encodeURIComponent('thread/weird')}`,
-    );
-  });
-
-  test('propagates a 403 (cross-org / no thread access) verbatim', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response('Forbidden', { status: 403 }),
-    );
-    const res = await authorizeScreencast('thread-1', 'c=1');
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.status).toBe(403);
-      expect(res.body).toBe('Forbidden');
-      // The oracle sends plain text; we forward whatever content-type it set.
-      expect(res.contentType).toContain('text/plain');
-    }
-  });
-
-  test('propagates a 409 session_not_running with its JSON body', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: 'session_not_running' }), {
-        status: 409,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-    const res = await authorizeScreencast('thread-1', 'c=1');
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.status).toBe(409);
-      expect(res.contentType).toContain('application/json');
-      expect(JSON.parse(res.body)).toEqual({ error: 'session_not_running' });
-    }
-  });
-
-  test('maps a 200 with no sessionId to a 502 (malformed oracle answer)', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify({}), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-    const res = await authorizeScreencast('thread-1', 'c=1');
-    expect(res).toMatchObject({ ok: false, status: 502 });
-  });
-
-  test('maps a fetch transport failure to a 502', async () => {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(
-      new Error('connection refused'),
-    );
-    const res = await authorizeScreencast('thread-1', 'c=1');
-    expect(res).toMatchObject({ ok: false, status: 502 });
   });
 });

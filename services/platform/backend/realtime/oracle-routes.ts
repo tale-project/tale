@@ -1,14 +1,15 @@
 /**
- * Cookie-authenticated ORACLES for the platform web tier.
+ * Cookie-authenticated ORACLE for the platform web tier.
  *
- * Two doors the Bun web process (`services/platform/server.ts`) needs but
- * cannot answer itself: it terminates two browser connections — the
- * `/events/file` SSE fan-out and the screencast WebSocket — and has no
- * database of its own, so it forwards the request's Cookie header here and
- * acts on the verdict. They were Convex http actions until the backend took
- * over the API tier.
+ * The one door the Bun web process (`services/platform/server.ts`) needs but
+ * cannot answer itself: it terminates the `/events/file` SSE fan-out and has
+ * no database of its own, so it forwards the request's Cookie header here and
+ * acts on the verdict. It was a Convex http action until the backend took
+ * over the API tier. (A second oracle, the live-browser screencast's, left
+ * with the feature: 0.5 never grew a viewer for it, and its session resolver
+ * keyed on owner types 0.5 never creates, so it could only ever answer 409.)
  *
- * Both authenticate the FORWARDED cookie themselves rather than riding
+ * It authenticates the FORWARDED cookie itself rather than riding
  * `requireSession`: the refusals carry `Vary: Cookie` + `Cache-Control:
  * no-store` (a TLS-terminating proxy must never cache a 401 against the URL
  * and starve a freshly-logged-in user), and the IP rate limit runs BEFORE the
@@ -22,8 +23,6 @@ import type { Sql } from 'postgres';
 import { loadTrustedProxies, type Auth } from '../auth/auth.ts';
 import { getUserOrganizations } from '../auth/membership.ts';
 import { getClientIp } from '../core/lib/utils/client_ip.ts';
-import { loadProjectSharedThread } from '../domains/chat/threads.ts';
-import { listLiveSessionsForOwner } from '../domains/sandbox/sessions.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
 
 /**
@@ -69,7 +68,7 @@ interface OracleDeps {
 async function authenticateForwardedCookie(
   deps: OracleDeps,
   headers: Headers,
-  limit: 'security:sse-auth' | 'security:screencast-auth',
+  limit: 'security:sse-auth',
 ): Promise<{ user: { id: string; email: string } } | Response> {
   const trusted = await loadTrustedProxies();
   const ip = getClientIp(headers, trusted);
@@ -143,115 +142,6 @@ export function createSseAuthRoutes(deps: OracleDeps): Hono {
             .filter((slug) => slug !== null && slug !== '');
 
     return jsonResponse({ userId: authenticated.user.id, orgSlugs }, 200);
-  });
-
-  return app;
-}
-
-/** The thread's live sandbox session, resolved for a viewer who has already
- *  passed the view boundary. `null` means "no running session" — the
- *  resume-to-view state, never an authorization failure. */
-interface BrowsableSession {
-  sessionId: string | null;
-  status: string | null;
-}
-
-/**
- * Owner key resolution MUST match the session writers': a chat thread with
- * both an org and a user is user-owned (`<orgId>:<userId>`, so one sandbox
- * serves every thread of that person in that org), everything else is
- * thread-owned. Only LIVE incarnations count — the deterministic owner id is
- * reused across restarts, so terminal rows for the same owner are still
- * there.
- */
-async function resolveBrowsableSession(
-  sql: Sql,
-  thread: { id: string; orgId: string; userId: string | null },
-): Promise<BrowsableSession> {
-  const userOwned = thread.userId !== null && thread.userId !== '';
-  const ownerType = userOwned ? 'user' : 'thread';
-  const ownerId = userOwned ? `${thread.orgId}:${thread.userId}` : thread.id;
-  const rows = await listLiveSessionsForOwner(sql, ownerType, ownerId);
-  const row = rows[0];
-  return row
-    ? { sessionId: row.sessionId, status: row.status }
-    : { sessionId: null, status: null };
-}
-
-/**
- * `GET /api/sandbox/screencast-auth?threadId=…[&control=1]` — may this
- * session watch (or drive) the thread's live browser?
- *
- * The web tier propagates our status verbatim, so each one is part of the
- * browser-facing contract: 401 unauthenticated, 403 thread missing OR access
- * denied (conflated on purpose — 403 reveals nothing beyond "you can't have
- * it"), 409 `session_not_running` when there is nothing live to stream,
- * 429 over the IP limit.
- *
- * Writable control is a SEPARATE, stricter grant than view: only the thread
- * OWNER gets it, and only while the session is active. A denied control
- * request still streams read-only, so a second viewer watches while the
- * owner drives.
- */
-export function createScreencastAuthRoutes(deps: OracleDeps): Hono {
-  const app = new Hono();
-
-  app.get('/screencast-auth', async (c) => {
-    const threadId = c.req.query('threadId');
-    if (!threadId) {
-      return new Response('Missing threadId', {
-        status: 400,
-        headers: noStore(),
-      });
-    }
-
-    const authenticated = await authenticateForwardedCookie(
-      deps,
-      c.req.raw.headers,
-      'security:screencast-auth',
-    );
-    if (authenticated instanceof Response) return authenticated;
-    const userId = authenticated.user.id;
-
-    // The view boundary: the thread's own org decides, so resolve it from the
-    // row rather than trusting a caller-supplied org.
-    const threads = await deps.sql<
-      { id: string; orgId: string; userId: string | null }[]
-    >`
-      SELECT t."id", t.org_id AS "orgId", t.user_id AS "userId"
-      FROM app.threads t
-      JOIN app.thread_metadata tm ON tm.thread_id = t.id
-      WHERE t."id" = ${threadId} AND tm.status = 'active'
-      LIMIT 1
-    `;
-    const thread = threads[0];
-    const owner = thread !== undefined && thread.userId === userId;
-    const visible =
-      thread !== undefined &&
-      (owner ||
-        (await loadProjectSharedThread(
-          deps.sql,
-          thread.orgId,
-          userId,
-          threadId,
-        )) !== null);
-    if (thread === undefined || !visible) {
-      console.debug('[/api/sandbox/screencast-auth] access denied', {
-        threadId,
-        userId,
-      });
-      return new Response('Forbidden', { status: 403, headers: noStore() });
-    }
-
-    const session = await resolveBrowsableSession(deps.sql, thread);
-    // Only `active` gets a live screencast: the runnerd raw-VNC tunnel is
-    // reachable once the session is up, not while it is creating or degraded.
-    if (session.sessionId === null || session.status !== 'active') {
-      return jsonResponse({ error: 'session_not_running' }, 409);
-    }
-
-    const control = c.req.query('control') === '1' && owner;
-    return jsonResponse({ sessionId: session.sessionId, control }, 200);
   });
 
   return app;

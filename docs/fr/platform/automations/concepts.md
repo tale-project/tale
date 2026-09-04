@@ -13,7 +13,7 @@ Tu préfères regarder d’abord ? L’épisode 5 ouvre l’automatisation de tr
 
 ## Le document de workflow
 
-Tout ce que fait une automatisation est déclaré dans un seul document. Son `name` est aussi son identité — des segments de slug en minuscules, séparés par des tirets, où `/` regroupe en dossiers les automatisations voisines, comme `billing/dunning-reminder`. Autour du nom viennent une `description`, un schéma JSON `inputs` qui décrit l’entrée d’exécution, les `nodes` qui font le travail, un `output` qui est la valeur de retour, et les `tests` qui décident si une version peut être mise en service.
+Tout ce que fait une automatisation est déclaré dans un seul document. Son `name` est aussi son identité — des segments de slug en minuscules, séparés par des tirets, où `/` regroupe en dossiers les automatisations voisines, comme `billing/dunning-reminder`. Le premier segment ne peut pas être l’un des mots que la plateforme garde pour ses propres pages (`asks`, `builder`, `catalog`, `listing`, `metrics`, `runs`, `serving-preview`, `upload`) : une automatisation nommée ainsi s’enregistrerait sans jamais pouvoir s’ouvrir, donc l’éditeur refuse un tel nom à l’enregistrement. Autour du nom viennent une `description`, un schéma JSON `inputs` qui décrit l’entrée d’exécution, les `nodes` qui font le travail, un `output` qui est la valeur de retour, et les `tests` qui décident si une version peut être mise en service.
 
 ```yaml
 name: billing/dunning-reminder

@@ -22,7 +22,7 @@
  *
  * Input is JSON Schema (machine-validated). Output is a TS-style signature
  * string — documentation only, the vocabulary the engine's output-typing rule
- * reads; an connector action is `structured` by construction.
+ * reads; a connector action is `structured` by construction.
  */
 
 import { z } from 'zod/v4';

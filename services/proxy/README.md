@@ -16,7 +16,7 @@ Ports:
 
 Routes (defined in `Caddyfile`):
 
-- `platform:3000` — the SPA + static assets (catch-all), `/api/health`, `/screencast/*` (live browser WS), and `/dav/*` while WebDAV stays on the platform handler
+- `platform:3000` — the SPA + static assets (catch-all), `/api/health`, and `/dav/*` while WebDAV stays on the platform handler
 - `backend-api:3005` (`$BACKEND_UPSTREAM`) — the 0.5 backend: `/api/*` and the injected lanes (see below)
 - `docs:3002` — the docs site (optional; only the dev/docs compose chain ships it, so passive health-checking only)
 - `/metrics/*` (token-gated) → `platform:3000` (`/metrics/platform`, `/metrics/sla-rules`); `/metrics/backend` joins once `BACKEND_UPSTREAM` is set, and 404s before that
