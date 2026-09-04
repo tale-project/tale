@@ -17,7 +17,7 @@ The Member surface is intentionally narrow. The three buckets are:
 
 Approvals are not a Member surface in this version. A connector write that needs sign-off parks the automation run, and the decision is made on that run's detail page by whoever opens it — [Approval concepts](/platform/approvals/concepts) explains the card.
 
-The org configuration settings — providers, connectors, agents, governance — are hidden for Members; the work surface is the bulk of what is left. The exception is a small personal settings group every role carries: Account, Personalization, and [Environment variables & secrets](/platform/member/environment) — a personal store that, in this version, no run reads.
+The org configuration settings — providers, connectors, agents, governance — are hidden for Members; the work surface is the bulk of what is left. The exception is a small personal settings group every role carries: Account, Personalization, and Notifications.
 
 ## Pages in this section
 

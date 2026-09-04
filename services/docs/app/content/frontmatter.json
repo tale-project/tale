@@ -188,7 +188,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Chats partagés",
-      "description": "Partager un chat avec le reste de l’organisation — le lien de partage en un seul geste, l’instantané en lecture seule que voit le destinataire, et comment arrêter le partage."
+      "description": "Partager un chat avec le reste de l’organisation — le dialogue de partage et son lien, l’instantané en lecture seule que voit le destinataire, et comment arrêter le partage."
     }
   },
   "fr:platform/chat/voice-mode": {
@@ -406,14 +406,6 @@
     "frontmatter": {
       "title": "Installer en tant qu'app",
       "description": "Comment installer Tale en tant que Progressive Web App sur ordinateur et mobile — le raccourci de menu dans les navigateurs Chromium, le chemin iOS Safari, et ce qui change une fois l'app installée."
-    }
-  },
-  "fr:platform/member/environment": {
-    "slug": "platform/member/environment",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Variables d’environnement et secrets",
-      "description": "Ton magasin personnel de variables et de secrets sous Paramètres > Environnement — ce qu’il contient, comment les secrets sont protégés, et le fait qu’aucune exécution ne le lit dans cette version."
     }
   },
   "fr:platform/member/preferences": {
@@ -1277,7 +1269,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Shared chats",
-      "description": "Sharing a chat with the rest of your organization — the one-gesture share link, the read-only snapshot the recipient sees, and how to stop sharing."
+      "description": "Sharing a chat with the rest of your organization — the share dialog and its link, the read-only snapshot the recipient sees, and how to stop sharing."
     }
   },
   "en:platform/chat/voice-mode": {
@@ -1495,14 +1487,6 @@
     "frontmatter": {
       "title": "Install as app",
       "description": "How to install Tale as a Progressive Web App on desktop and mobile — the menu shortcut on Chromium browsers, the iOS Safari path, and what changes once the app is installed."
-    }
-  },
-  "en:platform/member/environment": {
-    "slug": "platform/member/environment",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Environment variables & secrets",
-      "description": "Your personal store of variables and secrets under Settings > Environment — what it holds, how secrets are protected, and the fact that no run reads it in this version."
     }
   },
   "en:platform/member/preferences": {
@@ -2366,7 +2350,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Geteilte Chats",
-      "description": "Einen Chat mit dem Rest deiner Organisation teilen — der Freigabelink in einer Geste, der schreibgeschützte Snapshot, den Empfänger sehen, und wie du das Teilen beendest."
+      "description": "Einen Chat mit dem Rest deiner Organisation teilen — der Freigabe-Dialog und sein Link, der schreibgeschützte Snapshot, den Empfänger sehen, und wie du das Teilen beendest."
     }
   },
   "de:platform/chat/voice-mode": {
@@ -2584,14 +2568,6 @@
     "frontmatter": {
       "title": "Als App installieren",
       "description": "Wie du Tale als Progressive Web App auf Desktop und Mobile installierst — die Menüverknüpfung in Chromium-Browsern, der iOS-Safari-Pfad und was sich ändert, sobald die App installiert ist."
-    }
-  },
-  "de:platform/member/environment": {
-    "slug": "platform/member/environment",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Umgebungsvariablen & Geheimnisse",
-      "description": "Dein persönlicher Speicher für Variablen und Geheimnisse unter Einstellungen > Umgebung — was er hält, wie Geheimnisse geschützt sind, und dass in dieser Version kein Lauf ihn liest."
     }
   },
   "de:platform/member/preferences": {

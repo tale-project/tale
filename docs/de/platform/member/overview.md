@@ -17,7 +17,7 @@ Die Mitglieder-Oberfläche ist bewusst eng. Die drei Kübel sind:
 
 Genehmigungen sind in dieser Version keine Mitglieder-Oberfläche. Ein Connector-Schreibzugriff, der eine Freigabe braucht, parkt den Automatisierungslauf, und die Entscheidung fällt auf der Detailseite dieses Laufs — durch die Person, die sie öffnet. [Genehmigungskonzepte](/de/platform/approvals/concepts) erklärt die Karte.
 
-Die Org-Konfigurationseinstellungen — Anbieter, Connectors, Agents, Governance — sind für Mitglieder ausgeblendet; was bleibt, ist zum Großteil die Arbeits-Oberfläche. Die Ausnahme ist eine kleine persönliche Einstellungs-Gruppe, die jede Rolle trägt: Konto, Personalisierung und [Umgebungsvariablen & Geheimnisse](/de/platform/member/environment) — ein persönlicher Speicher, den in dieser Version kein Lauf liest.
+Die Org-Konfigurationseinstellungen — Anbieter, Connectors, Agents, Governance — sind für Mitglieder ausgeblendet; was bleibt, ist zum Großteil die Arbeits-Oberfläche. Die Ausnahme ist eine kleine persönliche Einstellungs-Gruppe, die jede Rolle trägt: Konto, Personalisierung und Benachrichtigungen.
 
 ## Seiten in diesem Bereich
 

@@ -25,6 +25,7 @@
     "self-hosted/operate/tale-daemon": "self-hosted/operate/container-architecture",
     "platform/integrations/overview": "platform/connectors/overview",
     "platform/integrations/mcp-servers": "platform/connectors/mcp-servers",
+    "platform/member/environment": "platform/member/preferences",
     "platform/integrations/webdav": "platform/connectors/webdav",
     "platform/admin/integrations": "platform/admin/connectors",
     "develop/integrations": "develop/connectors",

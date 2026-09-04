@@ -17,7 +17,7 @@ La surface Membre est volontairement étroite. Les trois seaux sont :
 
 Les approbations ne sont pas une surface Membre dans cette version. Une écriture de connector qui a besoin d’un accord met l’exécution d’automatisation en pause, et la décision se prend sur la page de détail de cette exécution — par la personne qui l’ouvre. [Concepts d’approbation](/fr/platform/approvals/concepts) explique la carte.
 
-Les réglages de configuration de l’org — Fournisseurs, Connectors, Agents, Gouvernance — sont cachés pour les Membres ; la surface travail est l’essentiel de ce qui reste. L’exception est un petit groupe de réglages personnels que porte chaque rôle : Compte, Personnalisation et [Variables d’environnement et secrets](/fr/platform/member/environment) — un magasin personnel qu’aucune exécution ne lit dans cette version.
+Les réglages de configuration de l’org — Fournisseurs, Connectors, Agents, Gouvernance — sont cachés pour les Membres ; la surface travail est l’essentiel de ce qui reste. L’exception est un petit groupe de réglages personnels que porte chaque rôle : Compte, Personnalisation et Notifications.
 
 ## Pages dans cette section
 
