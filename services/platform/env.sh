@@ -63,11 +63,3 @@ ensure_instance_secret() {
     export INSTANCE_SECRET="local-dev-insecure-secret"
   fi
 }
-
-# Tools that derive keys (generate-admin-key) need a real 64-hex secret.
-ensure_hex_instance_secret() {
-  if ! echo "${INSTANCE_SECRET:-}" | grep -Eq '^[0-9a-fA-F]{64}$'; then
-    echo "Error: INSTANCE_SECRET must be a 64-character hex string. Set INSTANCE_SECRET in your .env." >&2
-    exit 1
-  fi
-}
