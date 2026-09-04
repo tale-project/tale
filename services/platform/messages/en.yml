@@ -6792,6 +6792,7 @@ tasks:
     handoffConfirmLiveRun:
       '{name} is working this task right now — reassigning cancels the live
       run first.'
+    liveRunGuard: This task has a live run — cancel it before reassigning.
     handoffConfirmAction: Reassign
     unassign: Unassign
     you: You

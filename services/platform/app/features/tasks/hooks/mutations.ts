@@ -1,6 +1,9 @@
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useT } from '@/lib/i18n/client';
-import { backendUserMessage } from '@/lib/utils/backend-error';
+import {
+  backendErrorCode,
+  backendUserMessage,
+} from '@/lib/utils/backend-error';
 
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 
@@ -17,7 +20,20 @@ export function useUpdateTaskStatus() {
 }
 
 export function useAssignTask() {
-  return useBackendMutation('tasks/mutations:assignTask');
+  const { t } = useT('tasks');
+  const { t: tToast } = useT('toast');
+  // A live run holds the task for its current worker, so the server refuses
+  // a mid-run transfer (`TASK_HAS_LIVE_RUN`) — name the reason on every
+  // picker (board card, list row, sheet) instead of the generic failure copy.
+  return useBackendMutation('tasks/mutations:assignTask', {
+    errorToast: {
+      title: tToast('error.generic.title'),
+      description: (error) =>
+        backendErrorCode(error) === 'TASK_HAS_LIVE_RUN'
+          ? t('assignee.liveRunGuard')
+          : backendUserMessage(error, tToast('error.generic.description')),
+    },
+  });
 }
 
 export function useClaimTask() {

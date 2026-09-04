@@ -6840,6 +6840,7 @@ tasks:
     handoffConfirmLiveRun:
       "{name} travaille sur cette tâche en ce moment — la réassignation
       annule d'abord l'exécution en cours."
+    liveRunGuard: Cette tâche a une exécution en cours — annule-la avant de réassigner.
     handoffConfirmAction: Réassigner
     unassign: Désassigner
     you: Vous

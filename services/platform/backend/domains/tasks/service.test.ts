@@ -4,6 +4,7 @@ import type { ProjectAuthContext, ProjectRow } from '../projects/service.ts';
 import {
   assertTaskReadable,
   assertTaskWritable,
+  assigneeChanges,
   TaskError,
 } from './service.ts';
 
@@ -117,5 +118,35 @@ describe('task guards — write access', () => {
     for (const role of ['owner', 'admin', 'developer', 'editor']) {
       expect(() => assertTaskWritable(project(), auth({ role }))).not.toThrow();
     }
+  });
+});
+
+describe('assigneeChanges — one transfer rule for the picker and the bulk bar', () => {
+  // The live-run gate refuses (single card) or skips (bulk) exactly when the
+  // write TRANSFERS the task; both doors ask this one function, so they can
+  // never disagree about what a transfer is.
+  const held = { assigneeType: 'agent' as const, assigneeId: 'agent-1' };
+  const idle = { assigneeType: null, assigneeId: null };
+
+  it('re-selecting the current assignee is not a transfer', () => {
+    expect(assigneeChanges(held, held)).toBe(false);
+  });
+
+  it('another worker, or clearing a held task, is a transfer', () => {
+    expect(
+      assigneeChanges(held, { assigneeType: 'user', assigneeId: 'user-2' }),
+    ).toBe(true);
+    expect(assigneeChanges(held, null)).toBe(true);
+  });
+
+  it('assigning an idle task is a transfer; clearing an idle task is not', () => {
+    expect(assigneeChanges(idle, held)).toBe(true);
+    expect(assigneeChanges(idle, null)).toBe(false);
+  });
+
+  it('a mid-run transfer refusal is a 409 the picker can name', () => {
+    const error = new TaskError('TASK_HAS_LIVE_RUN', 'held', 409);
+    expect(error.status).toBe(409);
+    expect(error.code).toBe('TASK_HAS_LIVE_RUN');
   });
 });

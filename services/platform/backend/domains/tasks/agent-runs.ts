@@ -236,28 +236,52 @@ export async function failAgentRun(
   });
 }
 
-export async function cancelAgentRun(
-  sql: Sql,
-  args: { organizationId: string; runId: string },
+export interface CancelAgentRunArgs {
+  organizationId: string;
+  runId: string;
+  /** The task the caller was AUTHORIZED on. The cancel binds to it inside
+   * the UPDATE predicate, so a run id lifted from another task (one the
+   * caller may not even read) never matches — there is no unbound cancel
+   * door: every lane that cancels a run holds its task. */
+  taskId: string;
+}
+
+/**
+ * The transactional body of {@link cancelAgentRun} — for callers already
+ * inside a transaction (the task hard delete cancels the subtree's live runs
+ * in the same tx that removes the rows, so the provenance entry lands before
+ * the FK cascade takes the run row). The status guard is the settle
+ * election, so the ledger entry rides the same transaction: a raced cancel
+ * that degrades to a no-op also writes no second row.
+ */
+export async function cancelAgentRunInTx(
+  tx: TransactionSql,
+  args: CancelAgentRunArgs,
 ): Promise<boolean> {
   const now = Date.now();
-  return sql.begin(async (tx) => {
-    const rows = await tx<{ id: string }[]>`
-      UPDATE app.project_agent_runs SET
-        status = 'cancelled', settled_at_ms = ${now}, updated_at_ms = ${now}
-      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-        AND status IN ('queued', 'running')
-      RETURNING id
-    `;
-    if (rows.length === 0) return false;
-    await recordTaskAgentRunLedgerEntry(tx, {
-      runId: args.runId,
-      organizationId: args.organizationId,
-      finalStatus: 'cancelled',
-      settledAt: now,
-    });
-    return true;
+  const rows = await tx<{ id: string }[]>`
+    UPDATE app.project_agent_runs SET
+      status = 'cancelled', settled_at_ms = ${now}, updated_at_ms = ${now}
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+      AND task_id = ${args.taskId}
+      AND status IN ('queued', 'running')
+    RETURNING id
+  `;
+  if (rows.length === 0) return false;
+  await recordTaskAgentRunLedgerEntry(tx, {
+    runId: args.runId,
+    organizationId: args.organizationId,
+    finalStatus: 'cancelled',
+    settledAt: now,
   });
+  return true;
+}
+
+export async function cancelAgentRun(
+  sql: Sql,
+  args: CancelAgentRunArgs,
+): Promise<boolean> {
+  return sql.begin((tx) => cancelAgentRunInTx(tx, args));
 }
 
 /** Park the run on a full session budget: it stays queued, stamped. */

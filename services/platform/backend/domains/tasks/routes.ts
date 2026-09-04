@@ -13,6 +13,7 @@ import {
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import { cancelRunInTx } from '../automations/store.ts';
+import { MentionDirectoryError } from '../collab/mention-directory.ts';
 import { getOrCreateProjectFolder } from '../folders/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
@@ -24,6 +25,7 @@ import {
 } from '../projects/service.ts';
 import {
   cancelAgentRun,
+  getAgentRun,
   getAgentRunSandboxOp,
   getLatestAgentRunCardForTask,
   listAgentRunsForTask,
@@ -170,6 +172,12 @@ function handleError<E extends OrgEnv>(
       { error: 'RATE_LIMITED', data: { retryAfterMs: error.retryAfter } },
       429,
     );
+  }
+  // A comment whose @mentions could not be resolved is NOT posted — the
+  // author sees a retryable failure instead of a comment that silently
+  // notified nobody.
+  if (error instanceof MentionDirectoryError) {
+    return c.json({ error: error.code }, error.status);
   }
   throw error;
 }
@@ -1140,6 +1148,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           : await cancelAgentRun(deps.sql, {
               organizationId: auth.organizationId,
               runId,
+              taskId: task.id,
             });
       return c.json({ cancelled });
     } catch (error) {
@@ -1157,9 +1166,23 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskWritable(project, auth);
+      // Write access was asserted on the URL's task, so the run must be THAT
+      // task's: a run id lifted from another project's task (one the caller
+      // may not even read) answers as missing — the same opaque 404 a garbage
+      // id gets, so probing confirms nothing. The cancel itself binds to the
+      // task once more inside its UPDATE predicate.
+      const run = await getAgentRun(
+        deps.sql,
+        auth.organizationId,
+        c.req.param('runId'),
+      );
+      if (run === null || run.taskId !== task.id) {
+        throw new TaskError('AGENT_RUN_NOT_FOUND', 'Agent run not found', 404);
+      }
       const cancelled = await cancelAgentRun(deps.sql, {
         organizationId: auth.organizationId,
-        runId: c.req.param('runId'),
+        runId: run.id,
+        taskId: task.id,
       });
       return c.json({ cancelled });
     } catch (error) {
