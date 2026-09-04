@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RetentionDefaultsConfig } from '../../../lib/shared/schemas/retention';
 import {
+  RETENTION_CATEGORIES,
+  type RetentionDefaultsConfig,
+} from '../../../lib/shared/schemas/retention';
+import {
+  RETENTION_POLICY_FIELD_BY_CATEGORY,
   RetentionBoundsViolation,
   RetentionConfigMissingError,
   applyEnvTightening,
@@ -376,3 +380,54 @@ describe('isRetentionDisabled', () => {
     expect(isRetentionDisabled()).toBe(false);
   });
 });
+
+describe('RETENTION_POLICY_FIELD_BY_CATEGORY — the one field↔category map', () => {
+  it('names a distinct policy field for every retention category', () => {
+    const fields = RETENTION_CATEGORIES.map(
+      (category) => RETENTION_POLICY_FIELD_BY_CATEGORY[category],
+    );
+    expect(new Set(fields).size).toBe(RETENTION_CATEGORIES.length);
+    for (const field of fields) {
+      expect(field).toMatch(/Retention(Days|Hours)$/);
+    }
+    // The category the hand-rolled lists kept forgetting.
+    expect(RETENTION_POLICY_FIELD_BY_CATEGORY.agentRuns).toBe(
+      'agentRunsRetentionDays',
+    );
+  });
+
+  it('clampConfigToBounds clamps agentRuns like every other category', () => {
+    const bound: EffectiveBoundDefLike = {
+      category: 'agentRuns',
+      min: 30,
+      max: 365,
+      default: 90,
+      unit: 'days',
+      source: 'file',
+      minEnv: { envName: '', source: 'none', applied: false },
+      maxEnv: { envName: '', source: 'none', applied: false },
+      defaultEnv: { envName: '', source: 'none', applied: false },
+    };
+    const out = clampConfigToBounds(
+      { agentRuns: bound },
+      { agentRunsRetentionDays: 7, agentRunsEnabled: true },
+    );
+    expect(out.agentRunsRetentionDays).toBe(30);
+    expect(out.agentRunsEnabled).toBe(true);
+  });
+
+  it('leaves a category the bounds snapshot does not cover untouched', () => {
+    // An applied snapshot that predates a category must not crash the sweep
+    // (nor clamp by a bound nobody applied); the banner proposes it instead.
+    const out = clampConfigToBounds(
+      {},
+      { agentRunsRetentionDays: 7, documentsRetentionDays: 1 },
+    );
+    expect(out).toStrictEqual({
+      agentRunsRetentionDays: 7,
+      documentsRetentionDays: 1,
+    });
+  });
+});
+
+type EffectiveBoundDefLike = Parameters<typeof clampToBounds>[0];

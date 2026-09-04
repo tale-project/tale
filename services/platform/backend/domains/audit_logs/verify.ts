@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { computeAuditHash } from '../../core/lib/helpers/audit_hash.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
+import { auditLogRetentionCutoff } from '../retention/service.ts';
 import { rowToHashInput } from './hash-input.ts';
 import type { AuditLogRow } from './types.ts';
 
@@ -11,7 +12,13 @@ import type { AuditLogRow } from './types.ts';
  *
  * Anchoring: the walk trusts the FIRST REMAINING row's stored
  * `previous_hash` (retention deletes prefixes, so genesis is usually gone);
- * a resume passes the previous page's hash instead. Scrubbed rows (GDPR
+ * a resume passes the previous page's hash instead — unless the resume
+ * anchor itself is gone AND old enough for the retention sweep to have
+ * reaped it (`reapedBefore`), in which case the walk re-anchors on the first
+ * surviving row exactly as a fresh walk would. An anchor that vanished
+ * INSIDE the retention window is not excused: nothing legitimately deletes
+ * an audit row there, so the linkage check runs against the resume hash and
+ * reports the break. Scrubbed rows (GDPR
  * Art 17) skip recompute — their content was intentionally blanked — but
  * still participate in linkage, and each one must be covered by an erasure
  * receipt; a scrubbed row with NO matching receipt counts into
@@ -33,6 +40,9 @@ export interface VerifyChainResult {
     expected: string;
     actual: string;
   };
+  /** The resume anchor had been reaped by retention; the walk re-anchored
+   * on the first surviving row's stored `previous_hash`. */
+  reanchored?: boolean;
 }
 
 const VERIFY_COLUMNS = `
@@ -58,6 +68,11 @@ export async function verifyAuditChain(
     fromTimestamp?: number;
     afterId?: string;
     previousExpectedHash?: string;
+    /** Rows with `ts` below this may have been reaped by the org's retention
+     * sweep (its current cutoff). A resume anchor (`afterId` at
+     * `fromTimestamp`) that is missing AND older than this re-anchors the
+     * walk instead of reading as a break. */
+    reapedBefore?: number;
   } = {},
 ): Promise<VerifyChainResult> {
   const maxEntries = Math.min(Math.max(1, args.maxEntries ?? 1000), 5000);
@@ -74,9 +89,24 @@ export async function verifyAuditChain(
   // Exact resume: rows up to and INCLUDING afterId are skipped, so
   // same-timestamp siblings the `>=` re-returned still get verified.
   let startIndex = 0;
+  let reanchored = false;
   if (afterId !== null) {
     const idx = rows.findIndex((row) => row.id === afterId);
-    if (idx !== -1) startIndex = idx + 1;
+    if (idx !== -1) {
+      startIndex = idx + 1;
+    } else if (
+      args.reapedBefore !== undefined &&
+      fromTs !== null &&
+      fromTs < args.reapedBefore
+    ) {
+      // The anchor row is gone and was old enough for the sweep to have
+      // reaped it (a job outage longer than the window, or a backlog that
+      // outpaced the daily page). Its successors' linkage still proves the
+      // chain from the first survivor on; holding the walk to the reaped
+      // row's hash would report retention as tampering — a false verdict a
+      // broken pass never advances past.
+      reanchored = true;
+    }
   }
   const walk = rows.slice(startIndex, startIndex + maxEntries);
   const truncated = rows.length - startIndex > maxEntries;
@@ -99,10 +129,13 @@ export async function verifyAuditChain(
     for (const row of covered) receiptCovered.add(row.id);
   }
 
-  let previousHash = args.previousExpectedHash ?? walk[0]?.previousHash ?? null;
+  let previousHash = reanchored
+    ? (walk[0]?.previousHash ?? null)
+    : (args.previousExpectedHash ?? walk[0]?.previousHash ?? null);
   let verifiedCount = 0;
   let unsignedScrubCount = 0;
   let lastVerified: AuditLogRow | undefined;
+  const reanchorFlag = reanchored ? { reanchored: true } : {};
 
   for (const row of walk) {
     const expectedPrevious = previousHash ?? null;
@@ -127,6 +160,7 @@ export async function verifyAuditChain(
           expected: expectedPrevious ?? '',
           actual: storedPrevious ?? '',
         },
+        ...reanchorFlag,
       };
     }
     if (row.piiScrubbed === true) {
@@ -157,6 +191,7 @@ export async function verifyAuditChain(
             expected: recomputed,
             actual: row.integrityHash,
           },
+          ...reanchorFlag,
         };
       }
     }
@@ -178,6 +213,7 @@ export async function verifyAuditChain(
         }
       : {}),
     unsignedScrubCount,
+    ...reanchorFlag,
   };
 }
 
@@ -237,16 +273,30 @@ export async function getIntegrityStatus(
 
 const SCHEDULED_PAGE = 2000;
 
+export interface ScheduledIntegrityRun {
+  verified: number;
+  broken: boolean;
+  /** With `broken`: the admins' bell for this break is in place (written
+   * now, or already there from an earlier run). `false` means the write
+   * failed and the next run re-asserts it. */
+  alerted?: boolean;
+  /** The resume anchor had been reaped by retention and the walk
+   * re-anchored on the first surviving row (see `verifyAuditChain`). */
+  reanchored?: boolean;
+}
+
 /**
  * One org's scheduled incremental walk: resume from the progress row,
- * verify up to a page, stamp progress. A break stamps the alert
- * fingerprint and bells the org admins ONCE per fingerprint; a clean pass
- * that re-covers the previously-broken region clears the alert.
+ * verify up to a page, stamp progress. A break stamps the alert fingerprint
+ * and bells the org admins — the bell is re-asserted on EVERY broken run
+ * and deduplicated per fingerprint, so a failed write is retried rather
+ * than lost; a clean pass that re-covers the previously-broken region
+ * clears the alert.
  */
 export async function runScheduledIntegrityCheck(
   sql: Sql,
   organizationId: string,
-): Promise<{ verified: number; broken: boolean }> {
+): Promise<ScheduledIntegrityRun> {
   const progress = await sql<
     {
       lastVerifiedTs: number | null;
@@ -262,6 +312,13 @@ export async function runScheduledIntegrityCheck(
     FROM app.audit_integrity_progress WHERE org_id = ${organizationId}
   `;
   const resume = progress[0];
+  // The sweep may have reaped a resume anchor older than the org's audit
+  // retention window since the last walk; the walk needs that cutoff to
+  // tell a reaped anchor from a row that vanished inside the window.
+  const reapedBefore =
+    resume?.lastVerifiedId != null
+      ? await auditLogRetentionCutoff(sql, organizationId)
+      : null;
   const result = await verifyAuditChain(sql, organizationId, {
     maxEntries: SCHEDULED_PAGE,
     ...(resume?.lastVerifiedTs != null
@@ -273,12 +330,18 @@ export async function runScheduledIntegrityCheck(
     ...(resume?.lastVerifiedHash != null
       ? { previousExpectedHash: resume.lastVerifiedHash }
       : {}),
+    ...(reapedBefore !== null ? { reapedBefore } : {}),
   });
+  const reanchorFlag = result.reanchored === true ? { reanchored: true } : {};
+  if (result.reanchored === true) {
+    console.warn(
+      `[audit-integrity] org ${organizationId}: resume anchor ${resume?.lastVerifiedId ?? '?'} was reaped by retention — re-anchored on the first surviving row`,
+    );
+  }
 
   const now = Date.now();
   if (!result.valid && result.firstBrokenAt !== undefined) {
     const fingerprint = `${result.firstBrokenAt.logId}:${result.firstBrokenAt.actual}`;
-    const alreadyAlerted = resume?.lastAlertedFingerprint === fingerprint;
     await sql`
       INSERT INTO app.audit_integrity_progress (
         org_id, head_reached, updated_at_ms, last_alerted_fingerprint,
@@ -294,31 +357,42 @@ export async function runScheduledIntegrityCheck(
           ELSE app.audit_integrity_progress.last_alerted_at_ms
         END
     `;
-    if (!alreadyAlerted) {
-      try {
-        const brokenLogId = result.firstBrokenAt.logId;
-        await sql.begin((tx) =>
-          writeNotificationForOrgs(tx, {
-            organizationIds: [organizationId],
-            category: 'security',
-            severity: 'critical',
-            titleKey: 'auditIntegrityFailed',
-            bodyKey: 'auditIntegrityFailedDetails',
-            params: {
-              reason: `hash chain broken at log ${brokenLogId}`,
-            },
-            link: { kind: 'audit-logs', logId: brokenLogId },
-            dedupeKey: `audit-integrity:${fingerprint}`,
-          }),
-        );
-      } catch (error) {
-        console.error(
-          `[audit-integrity] alert bell failed for org ${organizationId}:`,
-          error,
-        );
-      }
+    // Re-assert the bell on EVERY broken run. The dedupe key makes a bell
+    // that is already there a no-op, so this costs one idempotent INSERT
+    // per run — and a bell whose write failed last time lands now. Gating
+    // it on the stamped fingerprint is what silently lost the alarm: the
+    // stamp landed, the bell did not, and every later run believed the
+    // admins had already been told.
+    let alerted = false;
+    try {
+      const brokenLogId = result.firstBrokenAt.logId;
+      await sql.begin((tx) =>
+        writeNotificationForOrgs(tx, {
+          organizationIds: [organizationId],
+          category: 'security',
+          severity: 'critical',
+          titleKey: 'auditIntegrityFailed',
+          bodyKey: 'auditIntegrityFailedDetails',
+          params: {
+            reason: `hash chain broken at log ${brokenLogId}`,
+          },
+          link: { kind: 'audit-logs', logId: brokenLogId },
+          dedupeKey: `audit-integrity:${fingerprint}`,
+        }),
+      );
+      alerted = true;
+    } catch (error) {
+      console.error(
+        `[audit-integrity] alert bell failed for org ${organizationId} — re-asserted on the next run:`,
+        error,
+      );
     }
-    return { verified: result.verifiedCount, broken: true };
+    return {
+      verified: result.verifiedCount,
+      broken: true,
+      alerted,
+      ...reanchorFlag,
+    };
   }
 
   await sql`
@@ -349,7 +423,7 @@ export async function runScheduledIntegrityCheck(
       last_alerted_fingerprint = NULL,
       last_alerted_at_ms = NULL
   `;
-  return { verified: result.verifiedCount, broken: false };
+  return { verified: result.verifiedCount, broken: false, ...reanchorFlag };
 }
 
 /** Every org with at least one audit row — the scheduled job's fleet. */

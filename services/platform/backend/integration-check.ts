@@ -9299,6 +9299,141 @@ async function checkGovernance(
   const governance = await import('./domains/governance/service.ts');
   const orgConfig = await import('./lib/org-config.ts');
 
+  const restoreViaTrash = (body: unknown): Promise<Response> =>
+    fetch(`${base}/api/app/governance/trash/restore?orgId=${orgId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify(body),
+    });
+  // A restore must SURVIVE the next sweep. An expired document (aged by its
+  // creation) and an expired chat thread (aged by its last activity) that an
+  // admin restored from the Trash used to be re-expired by the very next
+  // cleanup pass — and, with no grace, hard-deleted — because the restore
+  // stamped neither clock. The restore's lifecycle stamp now restarts the
+  // retention window; an untouched old row (the control) still expires.
+  const longAgo = Date.now() - 400 * 24 * 3_600_000;
+  const recently = Date.now() - 40 * 24 * 3_600_000;
+  const restoreOwner = 'itest-restore-owner';
+  const restoredDocRows = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (
+      org_id, title, created_by, created_at_ms, updated_at_ms,
+      lifecycle_status, status_changed_at_ms
+    ) VALUES (
+      ${orgId}, 'Restore survives the sweep', ${restoreOwner}, ${longAgo},
+      ${longAgo}, 'expired', ${recently}
+    ) RETURNING id
+  `;
+  const restoredDocId = restoredDocRows[0]?.id ?? '';
+  const controlDocRows = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (
+      org_id, title, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, 'Control: still expires', ${restoreOwner}, ${longAgo},
+      ${longAgo}
+    ) RETURNING id
+  `;
+  const controlDocId = controlDocRows[0]?.id ?? '';
+  const restoredThreadRows = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${orgId}, ${restoreOwner}, 'Restore survives the sweep', 'chat',
+            ${longAgo}, ${longAgo})
+    RETURNING id
+  `;
+  const restoredThreadId = restoredThreadRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.thread_metadata (
+      thread_id, org_id, user_id, chat_type, status, status_changed_at_ms,
+      created_at_ms
+    ) VALUES (
+      ${restoredThreadId}, ${orgId}, ${restoreOwner}, 'chat', 'expired',
+      ${recently}, ${longAgo}
+    )
+  `;
+  const restoredConversationRows = await sql<{ id: string }[]>`
+    INSERT INTO app.conversations (
+      org_id, subject, last_message_at_ms, lifecycle_status,
+      status_changed_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, 'Restore survives the sweep', ${longAgo}, 'expired',
+      ${recently}, ${longAgo}
+    ) RETURNING id
+  `;
+  const restoredConversationId = restoredConversationRows[0]?.id ?? '';
+  const restoreDoc = await restoreViaTrash({
+    resourceType: 'document',
+    id: restoredDocId,
+  });
+  const restoreThread = await restoreViaTrash({
+    resourceType: 'chatThread',
+    id: restoredThreadId,
+  });
+  const restoreConversation = await restoreViaTrash({
+    resourceType: 'externalConversation',
+    id: restoredConversationId,
+  });
+  const { sweepOrgPhase2: sweepAfterRestore } =
+    await import('./domains/retention/service.ts');
+  const { loadActiveHolds: holdsAfterRestore } =
+    await import('./domains/legal_holds/service.ts');
+  const holdsNow = await holdsAfterRestore(sql, orgId);
+  await sweepAfterRestore(
+    sql,
+    {
+      organizationId: orgId,
+      config: {
+        documentsEnabled: true,
+        documentsRetentionDays: 30,
+        chatHistoryEnabled: true,
+        chatHistoryRetentionDays: 30,
+        externalConversationsEnabled: true,
+        externalConversationsRetentionDays: 30,
+        deletionGraceDays: 7,
+      },
+    },
+    holdsNow,
+  );
+  const docsAfterSweep = await sql<
+    { id: string; lifecycleStatus: string | null }[]
+  >`
+    SELECT id, lifecycle_status AS "lifecycleStatus" FROM app.documents
+    WHERE id IN (${restoredDocId}, ${controlDocId})
+  `;
+  const restoredDocState = docsAfterSweep.find(
+    (row) => row.id === restoredDocId,
+  )?.lifecycleStatus;
+  const controlDocState = docsAfterSweep.find(
+    (row) => row.id === controlDocId,
+  )?.lifecycleStatus;
+  const conversationAfterSweep = await sql<
+    { lifecycleStatus: string | null }[]
+  >`
+    SELECT lifecycle_status AS "lifecycleStatus" FROM app.conversations
+    WHERE id = ${restoredConversationId}
+  `;
+  const restoredConversationState = conversationAfterSweep[0]?.lifecycleStatus;
+  const threadAfterSweep = await sql<{ status: string }[]>`
+    SELECT status FROM app.thread_metadata WHERE thread_id = ${restoredThreadId}
+  `;
+  const restoredThreadState = threadAfterSweep[0]?.status;
+  await sql`DELETE FROM app.conversations WHERE id = ${restoredConversationId}`;
+  await sql`DELETE FROM app.thread_metadata WHERE thread_id = ${restoredThreadId}`;
+  await sql`DELETE FROM app.threads WHERE id = ${restoredThreadId}`;
+  await sql`
+    DELETE FROM app.documents WHERE id IN (${restoredDocId}, ${controlDocId})
+  `;
+  record(
+    'governance trash: a restored expired document, chat thread, and conversation survive the next sweep',
+    restoreDoc.ok &&
+      restoreThread.ok &&
+      restoredDocState === null &&
+      controlDocState === 'expired' &&
+      restoredThreadState === 'active' &&
+      restoreConversation.ok &&
+      restoredConversationState === null,
+    `restore doc → ${restoreDoc.status}, thread → ${restoreThread.status}; after sweep (orgHeld=${holdsNow.orgHeld}): doc=${String(restoredDocState)} (want null), control=${String(controlDocState)} (want expired), thread=${restoredThreadState ?? 'missing'} (want active), conversation → ${restoreConversation.status}: ${String(restoredConversationState)} (want null)`,
+  );
+
   // The chat turns and tool dispatches already run accumulated buckets.
   const buckets = await governance.readUsageBuckets(sql, {
     organizationId: orgId,
@@ -29534,6 +29669,23 @@ async function checkGovernanceSettingsTail(
     SET effective_at_ms = ${Date.now() - 1000}
     WHERE org_id = ${orgId}
   `;
+  // The matured change applies SERVER-SIDE — here through the scheduled
+  // sweep, further down through the erasure lane's enforcement read — not
+  // only when someone opens the policy page. Before, only the page read
+  // applied it: the owner waited out the grace and filing still enforced
+  // the old policy until an admin happened to revisit the editor.
+  const { applyMaturedDsarPolicyChanges } =
+    await import('./domains/governance/settings-tail.ts');
+  const dsarSwept = await applyMaturedDsarPolicyChanges(sql);
+  const dsarPendingAfterSweep = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.dsar_policy_pending_changes
+    WHERE org_id = ${orgId}
+  `;
+  const dsarAppliedAudits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId}
+      AND action = 'policy.dsar_governance_loosening_applied'
+  `;
   const dsarApplied = z
     .object({
       config: z.object({ coolingOffHours: z.number() }).loose(),
@@ -29569,6 +29721,38 @@ async function checkGovernanceSettingsTail(
       dsarApplied.data.config.coolingOffHours === 1 &&
       dsarPendingGone[0]?.count === '0',
     `read=${dsarRead.success ? dsarRead.data.config.coolingOffHours : 'ERR'} (want 1), tighten=${tightened.success ? tightened.data.staged : 'ERR'} (want false), loosen=${loosened.success ? loosened.data.staged : 'ERR'} (want true), dupPending=${pendingBlocks.status} (want 400), pendingRead=${dsarPendingRead.success ? `${dsarPendingRead.data.config.coolingOffHours}/${dsarPendingRead.data.pending.config.coolingOffHours}` : 'ERR'}, cancel=${dsarCancelled.success}, after=${dsarAfterCancel.success}, applied=${dsarApplied.success ? dsarApplied.data.config.coolingOffHours : 'ERR'} (want 1), leftover=${dsarPendingGone[0]?.count} (want 0)`,
+  );
+
+  // The enforcement read applies a matured change on its own as well: stage
+  // one more loosening (a higher daily limit), age it past its grace, and
+  // read the policy the way filing does — no page view in between.
+  await post(`/api/app/governance/dsar/policy?orgId=${orgId}`, {
+    config: {
+      coolingOffHours: 1,
+      requireDualApproval: false,
+      dailyLimitPerAdmin: 6,
+    },
+  });
+  await sql`
+    UPDATE app.dsar_policy_pending_changes
+    SET effective_at_ms = ${Date.now() - 1000}
+    WHERE org_id = ${orgId}
+  `;
+  const { readEffectiveDsarPolicy } =
+    await import('./domains/erasure/service.ts');
+  const enforcedDsar = await readEffectiveDsarPolicy(sql, orgId);
+  const dsarPendingAfterRead = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.dsar_policy_pending_changes
+    WHERE org_id = ${orgId}
+  `;
+  record(
+    'governance tail: a matured DSAR loosening applies server-side (sweep + enforcement read), not on page open',
+    dsarSwept >= 1 &&
+      dsarPendingAfterSweep[0]?.count === '0' &&
+      dsarAppliedAudits[0]?.count === '1' &&
+      enforcedDsar.dailyLimitPerAdmin === 6 &&
+      dsarPendingAfterRead[0]?.count === '0',
+    `sweep applied=${dsarSwept} (want ≥1), pending after sweep=${dsarPendingAfterSweep[0]?.count} (want 0), applied-audit rows=${dsarAppliedAudits[0]?.count} (want 1), enforcement read limit=${enforcedDsar.dailyLimitPerAdmin} (want 6), pending after read=${dsarPendingAfterRead[0]?.count} (want 0)`,
   );
 
   // --- D. Moderation secret + offline test stub ---------------------------
@@ -29733,6 +29917,29 @@ async function checkGovernanceSettingsTail(
         await get(`/api/app/retention/pending-change?orgId=${orgId}`)
       ).json(),
     );
+  // F0: every bounded category is checked against its floor on save — the
+  // hand-rolled check list once omitted agentRuns, so a value below the
+  // operator's floor saved fine and the sweep deleted by it while the bounds
+  // banner's preview promised a clamp that never happened.
+  const agentRunsBelowFloor = await post(
+    `/api/app/retention/policy?orgId=${orgId}`,
+    { config: fullPolicy({ agentRunsRetentionDays: 0 }) },
+  );
+  const agentRunsRefusal = z
+    .object({
+      error: z.string(),
+      data: z.object({ category: z.string(), bound: z.number() }).loose(),
+    })
+    .loose()
+    .safeParse(await agentRunsBelowFloor.json());
+  record(
+    'retention policy save: agentRuns is bound-checked like every other category',
+    agentRunsBelowFloor.status === 400 &&
+      agentRunsRefusal.success &&
+      agentRunsRefusal.data.error === 'RETENTION_BELOW_FLOOR' &&
+      agentRunsRefusal.data.data.category === 'agentRuns',
+    `save agentRuns=0 → ${agentRunsBelowFloor.status} ${agentRunsRefusal.success ? `${agentRunsRefusal.data.error}/${agentRunsRefusal.data.data.category}/floor=${agentRunsRefusal.data.data.bound}` : 'ERR'} (want 400 RETENTION_BELOW_FLOOR/agentRuns)`,
+  );
   // F1: shorten messageFeedback 7 → 2. The file flips immediately; the
   // SWEEP must keep enforcing 7 until the cooldown elapses.
   const savedShort = z.object({ ok: z.boolean() }).safeParse(
@@ -30227,6 +30434,249 @@ async function checkAuditSurface(
       bells[0]?.count === '1' &&
       recovered,
     `fleet=${fleet.includes(orgId)}, head=${headReached}, broken=${brokenRun.broken}, alert=${alertStatus.success ? alertStatus.data.status.alertActive : 'ERR'}, bells=${bells[0]?.count} (want 1), recovered=${recovered}`,
+  );
+
+  // --- Stored-form hashing: tricky text stores and verifies clean -------
+  // A `.slice()` through an emoji (lone surrogate), binary in an error
+  // (NUL), quotes, control characters, a Date, an array with a hole, a
+  // 200 KB payload. Before the writer hashed the STORED form, a lone
+  // surrogate in a text column verified as TAMPERED forever (Postgres stores
+  // U+FFFD, the canonical carried the escape), and NUL / a lone surrogate in
+  // jsonb failed the INSERT — and the user's action with it.
+  const loneHigh = '🎉'.slice(0, 1);
+  const loneLow = '🎉'.slice(1);
+  const nul = String.fromCharCode(0);
+  const replacement = String.fromCharCode(0xfffd);
+  const holes: unknown[] = [1];
+  holes[2] = 3;
+  let trickyWritten = false;
+  let trickyError = '';
+  try {
+    await sql.begin((tx) =>
+      createAuditLog(tx, {
+        organizationId: orgId,
+        actorId: 'itest',
+        actorEmail: 'zoë@example.com',
+        actorType: 'system',
+        action: 'itest.tricky_text',
+        category: 'admin',
+        resourceType: 'itest',
+        resourceName: `quote " backslash \\ newline \n tab \t emoji 🎉 漢字 é cut ${loneHigh}`,
+        errorMessage: `binary ${nul} in an error, cut emoji ${loneLow}`,
+        previousState: {
+          'we,ird"{key}': 'old',
+          nested: { 'kéy 🎉': ['✓', String.fromCharCode(1)] },
+        },
+        newState: {
+          'we,ird"{key}': 'new',
+          nested: { 'kéy 🎉': ['✓', String.fromCharCode(2)] },
+          when: new Date(0),
+        },
+        metadata: {
+          nul: `a${nul}b`,
+          lone: `${loneLow} head`,
+          holes,
+          gaps: [1, undefined, 'x'],
+          big: 'x'.repeat(200_000),
+          huge: 1e21,
+          [`k${loneHigh}`]: 'lone surrogate in a key',
+        },
+        status: 'failure',
+      }),
+    );
+    trickyWritten = true;
+  } catch (error) {
+    trickyError = String(error);
+  }
+  const trickyRows = await sql<
+    { errorMessage: string | null; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT error_message AS "errorMessage", metadata FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'itest.tricky_text'
+    LIMIT 1
+  `;
+  const trickyRow = trickyRows[0];
+  const trickyNormalized =
+    trickyRow?.errorMessage ===
+      `binary ${replacement} in an error, cut emoji ${replacement}` &&
+    trickyRow.metadata?.nul === `a${replacement}b` &&
+    trickyRow.metadata?.lone === `${replacement} head` &&
+    trickyRow.metadata?.[`k${replacement}`] === 'lone surrogate in a key';
+  const trickyVerify = z
+    .object({ valid: z.boolean(), verifiedCount: z.number() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/audit-logs/integrity/verify?orgId=${orgId}`, {
+          maxEntries: 5000,
+        })
+      ).json(),
+    );
+  record(
+    'audit chain: tricky text (lone surrogate, NUL, quotes, control chars, large jsonb) stores and verifies clean',
+    trickyWritten &&
+      trickyNormalized &&
+      trickyVerify.success &&
+      trickyVerify.data.valid,
+    `written=${trickyWritten}${trickyError === '' ? '' : ` (${trickyError.slice(0, 90)})`}, normalized=${trickyNormalized}, verify=${trickyVerify.success ? `${trickyVerify.data.valid}/${trickyVerify.data.verifiedCount}` : 'ERR'}`,
+  );
+
+  // --- Alert durability: a failed bell write is retried, never lost ------
+  // Break the chain on a fresh row while the bell table refuses the write:
+  // the break is stamped but no bell lands. Lift the block, run again: the
+  // bell lands. Before, the stamped fingerprint suppressed every retry —
+  // one transient failure and the admins were never told.
+  const bellProbesStartedAt = Date.now();
+  const countIntegrityBells = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.notifications
+          WHERE org_id = ${orgId} AND title_key = 'auditIntegrityFailed'
+        `
+      )[0]?.count ?? '0',
+    );
+  const bellsBefore = await countIntegrityBells();
+  // Walk the tricky row above to head first — the scheduled walk verifies it
+  // too — so the break below is the only finding. The row to tamper must sit
+  // AFTER the resume anchor: the incremental walk never re-reads the anchor
+  // itself, so it is appended (and broken) only once the walk is at head.
+  const preBreak = await runScheduledIntegrityCheck(sql, orgId);
+  await sql.begin((tx) =>
+    createAuditLog(tx, {
+      organizationId: orgId,
+      actorId: 'itest',
+      actorType: 'system',
+      action: 'itest.bell_probe',
+      category: 'admin',
+      resourceType: 'itest',
+      status: 'success',
+    }),
+  );
+  const bellProbeRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'itest.bell_probe'
+    ORDER BY ts DESC LIMIT 1
+  `;
+  const bellProbeId = bellProbeRows[0]?.id ?? '';
+  await sql`
+    UPDATE app.audit_logs SET action = 'itest.bell_probe_tampered'
+    WHERE id = ${bellProbeId}
+  `;
+  await sql`
+    ALTER TABLE app.notifications
+    ADD CONSTRAINT itest_bell_blocked
+    CHECK (title_key <> 'auditIntegrityFailed') NOT VALID
+  `;
+  const blockedRun = await runScheduledIntegrityCheck(sql, orgId);
+  const bellsBlocked = await countIntegrityBells();
+  await sql`ALTER TABLE app.notifications DROP CONSTRAINT itest_bell_blocked`;
+  const retriedRun = await runScheduledIntegrityCheck(sql, orgId);
+  const bellsRetried = await countIntegrityBells();
+  await sql`
+    UPDATE app.audit_logs SET action = 'itest.bell_probe'
+    WHERE id = ${bellProbeId}
+  `;
+  const progressSnapshot = async (): Promise<{
+    headReached: boolean;
+    fingerprint: string | null;
+    lastVerifiedId: string | null;
+  }> => {
+    const rows = await sql<
+      {
+        headReached: boolean;
+        fingerprint: string | null;
+        lastVerifiedId: string | null;
+      }[]
+    >`
+      SELECT head_reached AS "headReached",
+             last_alerted_fingerprint AS fingerprint,
+             last_verified_id AS "lastVerifiedId"
+      FROM app.audit_integrity_progress WHERE org_id = ${orgId}
+    `;
+    return (
+      rows[0] ?? { headReached: false, fingerprint: null, lastVerifiedId: null }
+    );
+  };
+  const walkToCleanHead = async (): Promise<boolean> => {
+    for (let i = 0; i < 10; i++) {
+      const run = await runScheduledIntegrityCheck(sql, orgId);
+      const status = await progressSnapshot();
+      if (!run.broken && status.headReached && status.fingerprint === null) {
+        return true;
+      }
+    }
+    return false;
+  };
+  const bellRecovered = await walkToCleanHead();
+  record(
+    'audit surface: integrity bell survives a failed write (re-asserted next run)',
+    !preBreak.broken &&
+      blockedRun.broken &&
+      blockedRun.alerted === false &&
+      bellsBlocked === bellsBefore &&
+      retriedRun.broken &&
+      retriedRun.alerted === true &&
+      bellsRetried === bellsBefore + 1 &&
+      bellRecovered,
+    `blocked → broken=${blockedRun.broken}/alerted=${String(blockedRun.alerted)}/bells=${bellsBlocked} (want ${bellsBefore}), retried → alerted=${String(retriedRun.alerted)}/bells=${bellsRetried} (want ${bellsBefore + 1}), recovered=${bellRecovered}`,
+  );
+
+  // --- Reaped resume anchor: retention pruning is not tampering ----------
+  // Point the progress row at a last-verified row that no longer exists,
+  // older than the org's audit-retention cutoff — what the sweep leaves
+  // behind when the walk falls behind the window. The walk must re-anchor
+  // on the first surviving row and reach head (before: a standing false
+  // tamper verdict + critical bell no later run could clear). The same gap
+  // INSIDE the window stays a break — nothing legitimately deletes there.
+  const { auditLogRetentionCutoff } =
+    await import('./domains/retention/service.ts');
+  const auditCutoff = await auditLogRetentionCutoff(sql, orgId);
+  const firstRows = await sql<{ ts: number }[]>`
+    SELECT ts::float8 AS ts FROM app.audit_logs
+    WHERE org_id = ${orgId} ORDER BY ts ASC, id ASC LIMIT 1
+  `;
+  const firstRowTs = firstRows[0]?.ts ?? Date.now();
+  await sql`
+    UPDATE app.audit_integrity_progress SET
+      last_verified_ts = ${(auditCutoff ?? Date.now()) - 24 * 3_600_000},
+      last_verified_id = 'itest-reaped-anchor',
+      last_verified_hash = 'itest-reaped-hash',
+      head_reached = false
+    WHERE org_id = ${orgId}
+  `;
+  const reanchorRun = await runScheduledIntegrityCheck(sql, orgId);
+  const reanchorHead = await walkToCleanHead();
+  const reanchorProgress = await progressSnapshot();
+  await sql`
+    UPDATE app.audit_integrity_progress SET
+      last_verified_ts = ${firstRowTs - 1},
+      last_verified_id = 'itest-vanished-anchor',
+      last_verified_hash = 'itest-vanished-hash',
+      head_reached = false
+    WHERE org_id = ${orgId}
+  `;
+  const vanishedRun = await runScheduledIntegrityCheck(sql, orgId);
+  // Leave the org as the earlier probes did: a clean walk at head, no alert,
+  // only the bells that were there before this block.
+  await sql`DELETE FROM app.audit_integrity_progress WHERE org_id = ${orgId}`;
+  const cleanAgain = await walkToCleanHead();
+  await sql`
+    DELETE FROM app.notifications
+    WHERE org_id = ${orgId} AND title_key = 'auditIntegrityFailed'
+      AND created_at_ms >= ${bellProbesStartedAt}
+  `;
+  record(
+    'audit surface: reaped resume anchor re-anchors (retention is not tampering); in-window gap is a break',
+    auditCutoff !== null &&
+      !reanchorRun.broken &&
+      reanchorRun.reanchored === true &&
+      reanchorHead &&
+      reanchorProgress.lastVerifiedId !== 'itest-reaped-anchor' &&
+      vanishedRun.broken &&
+      vanishedRun.reanchored !== true &&
+      cleanAgain,
+    `cutoff=${auditCutoff === null ? 'none' : 'set'}, reaped → broken=${reanchorRun.broken}/reanchored=${String(reanchorRun.reanchored)}/head=${reanchorHead}, vanished → broken=${vanishedRun.broken}, clean=${cleanAgain}`,
   );
 
   // --- Export: CSV into the org store behind a presigned GET ------------

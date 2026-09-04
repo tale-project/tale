@@ -7,6 +7,7 @@ import {
   computeChangedFields,
   redactSensitiveFields,
   rowToHashInput,
+  toStoredAuditRecord,
 } from './hash-input.ts';
 import type {
   AuditContext,
@@ -22,7 +23,9 @@ import type {
  * per-org chain head (`FOR UPDATE`), so concurrent appends serialize and the
  * chain cannot fork; the audit row commits or rolls back atomically with the
  * change it describes. Hash algorithm and canonical record layout are the
- * 0.4 ones, so chains imported at cutover keep verifying.
+ * 0.4 ones, so chains imported at cutover keep verifying. The hash covers
+ * the record in its STORED form (`toStoredAuditRecord`) — what a later read
+ * rebuilds — never the caller's in-memory strings.
  */
 
 const ROW_COLUMNS = `
@@ -132,13 +135,20 @@ export async function createAuditLog(
   // before the head it chains off (see the 0.4 writer's tradeoff note).
   const timestamp = Math.max(Date.now(), head.lastTs + 1);
 
-  const recordForHash = buildAuditRecordHashInput({
+  // Hash the STORED form and insert exactly that: every text field and jsonb
+  // payload shaped the way Postgres hands it back (lone surrogates and NUL
+  // → U+FFFD, jsonb through one JSON round-trip). The verifier rebuilds the
+  // record from the row, so anything the caller held that storage would
+  // alter must be altered here first — or an untouched row reads as
+  // tampered, or the INSERT fails and takes the user's transaction with it.
+  const stored = toStoredAuditRecord({
     ...args,
     previousState: redactedPreviousState,
     newState: redactedNewState,
     changedFields,
     timestamp,
   });
+  const recordForHash = buildAuditRecordHashInput(stored);
   const integrityHash = await computeAuditHash(head.lastHash, recordForHash);
 
   const inserted = await tx<{ id: string }[]>`
@@ -149,19 +159,19 @@ export async function createAuditLog(
       ip_address, actor_ip_hash, user_agent, request_id, ts, status,
       error_message, metadata, integrity_hash, previous_hash
     ) VALUES (
-      ${args.organizationId}, ${args.actorId}, ${args.actorEmail ?? null},
-      ${args.actorEmailHash ?? null}, ${args.actorRole ?? null},
-      ${args.actorType}, ${args.action}, ${args.category},
-      ${args.resourceType}, ${args.resourceId ?? null},
-      ${args.resourceName ?? null},
-      ${redactedPreviousState === undefined ? null : tx.json(toJson(redactedPreviousState))},
-      ${redactedNewState === undefined ? null : tx.json(toJson(redactedNewState))},
-      ${changedFields.length > 0 ? changedFields : null},
-      ${args.sessionId ?? null}, ${args.ipAddress ?? null},
-      ${args.actorIpHash ?? null}, ${args.userAgent ?? null},
-      ${args.requestId ?? null}, ${timestamp}, ${args.status},
-      ${args.errorMessage ?? null},
-      ${args.metadata === undefined ? null : tx.json(toJson(args.metadata))},
+      ${stored.organizationId}, ${stored.actorId}, ${stored.actorEmail ?? null},
+      ${stored.actorEmailHash ?? null}, ${stored.actorRole ?? null},
+      ${stored.actorType}, ${stored.action}, ${stored.category},
+      ${stored.resourceType}, ${stored.resourceId ?? null},
+      ${stored.resourceName ?? null},
+      ${stored.previousState === undefined ? null : tx.json(toJson(stored.previousState))},
+      ${stored.newState === undefined ? null : tx.json(toJson(stored.newState))},
+      ${stored.changedFields.length > 0 ? stored.changedFields : null},
+      ${stored.sessionId ?? null}, ${stored.ipAddress ?? null},
+      ${stored.actorIpHash ?? null}, ${stored.userAgent ?? null},
+      ${stored.requestId ?? null}, ${timestamp}, ${stored.status},
+      ${stored.errorMessage ?? null},
+      ${stored.metadata === undefined ? null : tx.json(toJson(stored.metadata))},
       ${integrityHash}, ${head.lastHash === '' ? null : head.lastHash}
     )
     RETURNING id

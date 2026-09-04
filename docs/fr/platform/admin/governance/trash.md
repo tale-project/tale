@@ -11,7 +11,7 @@ Pour restaurer un thread d'historique de chat, ouvre **Paramètres > Gouvernance
 
 ## Les deux statuts
 
-**Mis à la corbeille** est l'état soft-delete normal. La fenêtre de rétention de la ligne a expiré, elle s'est déplacée à la corbeille, et la fenêtre de grâce tourne encore. Restaurer ramène la ligne dans sa liste source sans dépasser la politique.
+**Mis à la corbeille** est l'état soft-delete normal. La fenêtre de rétention de la ligne a expiré, elle s'est déplacée à la corbeille, et la fenêtre de grâce tourne encore. Restaurer ramène la ligne dans sa liste source sans dépasser la politique. La fenêtre de rétention repart de zéro au moment de la restauration — un thread de chat, un document ou une conversation externe restaurés comptent à partir de ce moment, et le prochain nettoyage le laisse tranquille au lieu de le faire expirer à nouveau.
 
 **Expiré** est le second état — la fenêtre de grâce s'est écoulée et la ligne est en file pour suppression définitive au prochain nettoyage. Restaurer reste possible mais est un dépassement : la boîte de dialogue te demande de taper `restore` et le journal d'audit enregistre le dépassement avec ton nom.
 

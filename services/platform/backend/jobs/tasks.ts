@@ -209,6 +209,9 @@ export interface TaskPayloads {
   'watchdog.object_storage': Record<string, never>;
   /** Daily: approved legal-hold releases past their cooldown take effect. */
   'governance.effect_hold_releases': Record<string, never>;
+  /** Every 5 minutes: staged DSAR-policy loosenings past their 24h grace
+   * take effect server-side — whether or not anyone opens the policy page. */
+  'governance.apply_dsar_policy_changes': Record<string, never>;
   /** 2-min backstops for the task-agent lane: deadline-fail overdue runs,
    * wake capacity-parked ones whose release edge was lost. */
   'watchdog.task_agents': Record<string, never>;
@@ -416,6 +419,10 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'object_storage.backfill': { retryLimit: 0, expireInSeconds: 3_600 },
   'watchdog.object_storage': { retryLimit: 1, expireInSeconds: 300 },
   'governance.effect_hold_releases': { retryLimit: 1, expireInSeconds: 300 },
+  'governance.apply_dsar_policy_changes': {
+    retryLimit: 1,
+    expireInSeconds: 300,
+  },
   'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.automation_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },

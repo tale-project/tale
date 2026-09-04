@@ -18,6 +18,7 @@ import {
 import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 
@@ -78,7 +79,21 @@ export function isValidErasureReasonCode(code: string): boolean {
   );
 }
 
-async function dsarPolicy(sql: Sql | TransactionSql, organizationId: string) {
+/**
+ * The DSAR policy the erasure lane ENFORCES. A staged loosening whose grace
+ * has elapsed applies here first, so filing and approval see the policy the
+ * owner was told would be in force at that time — not whatever the last
+ * visit to the policy page happened to leave behind.
+ */
+export async function readEffectiveDsarPolicy(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+): Promise<{
+  coolingOffHours: number;
+  dailyLimitPerAdmin: number;
+  requireDualApproval: boolean;
+}> {
+  await applyMaturedDsarPolicyChange(sql, organizationId);
   const config = await readGovernancePolicyForOrg(
     sql,
     organizationId,
@@ -142,7 +157,7 @@ export async function requestErasure(
   if (args.targetUserId === args.actorId) {
     return deny('self_deletion_forbidden');
   }
-  const policy = await dsarPolicy(sql, args.organizationId);
+  const policy = await readEffectiveDsarPolicy(sql, args.organizationId);
   try {
     await checkOrganizationRateLimit(
       sql,
@@ -1460,7 +1475,7 @@ export async function confirmAndScheduleErasure(
     );
   }
 
-  const policy = await dsarPolicy(tx, row.organizationId);
+  const policy = await readEffectiveDsarPolicy(tx, row.organizationId);
   const effectiveAt = Date.now() + policy.coolingOffHours * HOUR_MS;
   await tx`
     UPDATE app.gdpr_erasure_requests SET effective_at_ms = ${effectiveAt}
