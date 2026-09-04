@@ -26467,6 +26467,100 @@ async function checkAutomationRunToolLane(
 }
 
 /**
+ * CORPUS SCOPE DRIFT — the daily reconcile corrects a stamp the per-edit sync
+ * failed to write, and reports how many it corrected.
+ *
+ * The per-edit syncs are best-effort by contract, so a corpus that was
+ * unreachable for one edit leaves that row mis-stamped with nothing to notice
+ * it: a scope-only change never re-embeds, so the "next re-index" backstop
+ * their note names never fires for exactly this case.
+ *
+ * Simulated by writing the WRONG stamp straight into the corpus — the same
+ * state a failed sync leaves — then asserting the reconcile corrects it, and
+ * that a second run corrects NOTHING. The second half is the load-bearing
+ * one: the `IS DISTINCT FROM` guard is what makes the count a drift count
+ * rather than a row count, and without it every run would report the whole
+ * corpus as drifted.
+ */
+async function checkCorpusScopeReconcile(
+  sql: Sql,
+  ctx: { orgId: string; orgSlug: string },
+): Promise<void> {
+  const { reconcileDocumentScopeStamps } =
+    await import('./domains/knowledge/service.ts');
+  const { getKnowledgePoolForOrg } = await import('./core/knowledge/pool.ts');
+  const { PRIVATE_KNOWLEDGE_SCHEMA } =
+    await import('../lib/knowledge/types.ts');
+
+  const docs = await sql<{ fileRef: string }[]>`
+    SELECT file_ref AS "fileRef" FROM app.documents
+    WHERE org_id = ${ctx.orgId} AND file_ref IS NOT NULL
+      AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+    LIMIT 1
+  `;
+  const fileRef = docs[0]?.fileRef;
+  if (fileRef === undefined) {
+    record(
+      'knowledge: corpus scope drift is corrected and reported',
+      false,
+      'no live file-backed document to drift — the knowledge lane must run first',
+    );
+    return;
+  }
+
+  const pool = await getKnowledgePoolForOrg(ctx.orgSlug);
+  const stampOf = async (): Promise<{
+    teamIds: string[] | null;
+    projectId: string | null;
+  }> => {
+    const rows = await pool.unsafe(
+      `SELECT team_ids AS "teamIds", project_id AS "projectId"
+         FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+        WHERE org_slug = $1 AND file_id = $2`,
+      [ctx.orgSlug, fileRef],
+    );
+    const stamp = z
+      .object({
+        teamIds: z.array(z.string()).nullable(),
+        projectId: z.string().nullable(),
+      })
+      .safeParse(rows[0]);
+    return stamp.success ? stamp.data : { teamIds: null, projectId: null };
+  };
+
+  const before = await stampOf();
+  // The state a failed sync leaves: a stamp that disagrees with the document.
+  await pool.unsafe(
+    `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+        SET team_ids = ARRAY['itest-drifted-team'], project_id = NULL
+      WHERE org_slug = $1 AND file_id = $2`,
+    [ctx.orgSlug, fileRef],
+  );
+  const drifted = await stampOf();
+
+  const first = await reconcileDocumentScopeStamps(sql, {
+    organizationId: ctx.orgId,
+    orgSlug: ctx.orgSlug,
+  });
+  const repaired = await stampOf();
+  const second = await reconcileDocumentScopeStamps(sql, {
+    organizationId: ctx.orgId,
+    orgSlug: ctx.orgSlug,
+  });
+
+  record(
+    'knowledge: corpus scope drift is corrected and reported',
+    drifted.teamIds?.[0] === 'itest-drifted-team' &&
+      first.corrected >= 1 &&
+      first.scanned >= 1 &&
+      JSON.stringify(repaired) === JSON.stringify(before) &&
+      second.corrected === 0 &&
+      second.scanned === first.scanned,
+    `drifted=${JSON.stringify(drifted.teamIds)}, first=corrected ${first.corrected}/scanned ${first.scanned}, repaired=${JSON.stringify(repaired)} (want ${JSON.stringify(before)}), second=corrected ${second.corrected}/scanned ${second.scanned} (want 0 corrected, same scanned)`,
+  );
+}
+
+/**
  * TEARDOWN CREDENTIAL RECLAIM — every edge that ends a sandbox session has to
  * delete its gateway virtual key (fake bifrost records the DELETEs).
  *
@@ -39460,6 +39554,14 @@ async function main(): Promise<void> {
       [
         'checkKnowledge',
         () => checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkCorpusScopeReconcile',
+        () =>
+          checkCorpusScopeReconcile(sql, {
+            orgId: authCtx.orgId,
+            orgSlug: `itest-${orgSuffix}`,
+          }),
       ],
       [
         'checkCorpusPurgeConsistency',

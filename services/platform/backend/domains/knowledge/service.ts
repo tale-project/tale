@@ -742,6 +742,95 @@ export async function syncRagDocumentScope(
   }
 }
 
+/** Documents compared per org per reconcile run. */
+const SCOPE_RECONCILE_LIMIT = 1000;
+
+/**
+ * Correct corpus scope stamps that drifted away from the documents they
+ * describe, and report how many had.
+ *
+ * The per-edit syncs are best-effort BY CONTRACT: `syncRagDocumentScope` and
+ * `syncRagFolderSubtree` catch a corpus failure so an unreachable corpus
+ * cannot fail the edit that committed. Their note names the next re-index as
+ * the backstop — but a scope or folder change never re-embeds, so for exactly
+ * this class of edit there is no next re-index, and a corpus that was
+ * unreachable for one edit leaves that row mis-stamped indefinitely.
+ *
+ * A stale stamp is not a leak: retrieval re-checks every hit against live
+ * truth (`decideRetrievable`), so a wrongly-scoped row is rejected after the
+ * fact. It is a silent cost. Every scope column NULL reads as an ORG-WIDE hub
+ * row in the SQL pre-filter, so the row is handed to every caller and thrown
+ * away afterwards — the pre-filter stops pre-filtering, and nothing reports
+ * that it has.
+ *
+ * One statement per page: the guard is `IS DISTINCT FROM` on all four stamped
+ * columns, so the row count IS the drift count and an in-sync corpus writes
+ * nothing.
+ */
+export async function reconcileDocumentScopeStamps(
+  sql: Sql,
+  args: { organizationId: string; orgSlug: string; limit?: number },
+): Promise<{ scanned: number; corrected: number }> {
+  const docs = await sql<
+    {
+      fileRef: string;
+      teamId: string | null;
+      teamTags: string[];
+      projectId: string | null;
+      folderId: string | null;
+      folderPath: string | null;
+    }[]
+  >`
+    SELECT file_ref AS "fileRef", team_id AS "teamId",
+           team_tags AS "teamTags", project_id AS "projectId",
+           folder_id AS "folderId", folder_path AS "folderPath"
+    FROM app.documents
+    WHERE org_id = ${args.organizationId}
+      AND file_ref IS NOT NULL
+      AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+    ORDER BY id
+    LIMIT ${args.limit ?? SCOPE_RECONCILE_LIMIT}
+  `;
+  if (docs.length === 0) return { scanned: 0, corrected: 0 };
+
+  const treePaths = await folderTreePaths(
+    sql,
+    args.organizationId,
+    docs.flatMap((doc) => (doc.folderId !== null ? [doc.folderId] : [])),
+  );
+  const intended = docs.map((doc) => {
+    // Same precedence as the per-edit sync: the tag array wins, the single
+    // column is its deprecated mirror.
+    const teamIds =
+      doc.teamTags.length > 0 ? doc.teamTags : doc.teamId ? [doc.teamId] : [];
+    return {
+      file_id: doc.fileRef,
+      team_ids: teamIds.length > 0 ? teamIds : null,
+      team_id: teamIds[0] ?? null,
+      project_id: doc.projectId,
+      folder_path: documentFolderPathFrom(doc, treePaths),
+    };
+  });
+
+  const pool = await getKnowledgePoolForOrg(args.orgSlug);
+  const result = await pool.unsafe(
+    `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+        SET team_ids = v.team_ids, team_id = v.team_id,
+            project_id = v.project_id, folder_path = v.folder_path,
+            updated_at = NOW()
+       FROM jsonb_to_recordset($2::jsonb)
+            AS v(file_id text, team_ids text[], team_id text,
+                 project_id text, folder_path text)
+      WHERE d.org_slug = $1 AND d.file_id = v.file_id
+        AND (d.team_ids IS DISTINCT FROM v.team_ids
+          OR d.team_id IS DISTINCT FROM v.team_id
+          OR d.project_id IS DISTINCT FROM v.project_id
+          OR d.folder_path IS DISTINCT FROM v.folder_path)`,
+    [args.orgSlug, JSON.stringify(intended)],
+  );
+  return { scanned: docs.length, corrected: result.count ?? 0 };
+}
+
 /**
  * Re-stamp the corpus folder path of every live, file-backed document under a
  * folder after the folder itself was renamed or moved — the path of each
