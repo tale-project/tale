@@ -3,8 +3,10 @@ import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { confirm } from '../../utils/prompt';
 import {
+  archiveTimeoutSeconds,
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
+  BLOB_VOLUME,
   SNAPSHOT_VOLUMES,
   isValidSnapshotId,
 } from '../backup/constants';
@@ -29,14 +31,36 @@ interface RestoreOptions {
   assumeYes?: boolean;
 }
 
-/** Bounds a single volume extraction; mirrors the snapshot-side tar bound. */
-const RESTORE_TIMEOUT_SECONDS = 1800;
+/**
+ * The collaborators `restore` drives, injectable so its tests can script them
+ * without module-mocking the sibling modules (`list-snapshots`,
+ * `verify-snapshot`) that carry their own test files — bun's `mock.module`
+ * is process-wide, so a mock installed here would leak into those suites and
+ * hand them a mock where they expect the real implementation.
+ */
+export interface RestoreDeps {
+  listSnapshots: typeof listSnapshots;
+  resolveSnapshotPrefix: typeof resolveSnapshotPrefix;
+  verifySnapshot: typeof verifySnapshot;
+  isContainerRunning: typeof isContainerRunning;
+  stopContainer: typeof stopContainer;
+}
+
+const DEFAULT_DEPS: RestoreDeps = {
+  listSnapshots,
+  resolveSnapshotPrefix,
+  verifySnapshot,
+  isContainerRunning,
+  stopContainer,
+};
 
 /**
  * Every container name this project can run: stateful (one instance each),
  * rotatable both uncolored (dev stack) and per blue/green color (prod stack).
  */
-async function findRunningProjectContainers(): Promise<string[]> {
+async function findRunningProjectContainers(
+  deps: RestoreDeps,
+): Promise<string[]> {
   const projectId = getProjectId();
   const candidates: string[] = [];
   for (const service of STATEFUL_SERVICES) {
@@ -49,7 +73,7 @@ async function findRunningProjectContainers(): Promise<string[]> {
   }
   const running: string[] = [];
   for (const name of candidates) {
-    if (await isContainerRunning(name)) {
+    if (await deps.isContainerRunning(name)) {
       running.push(name);
     }
   }
@@ -63,19 +87,26 @@ function totalSizeBytes(manifest: SnapshotManifest): number {
   );
 }
 
+function hasBlobArchive(manifest: SnapshotManifest): boolean {
+  return BLOB_VOLUME in manifest.volumes;
+}
+
 function printSnapshotList(snapshots: SnapshotManifest[]): void {
   logger.table(
     snapshots.map((snapshot) => [
       snapshot.id,
-      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}`,
+      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}${hasBlobArchive(snapshot) ? '' : ' · without blobs'}`,
     ]),
   );
 }
 
-export async function restore(options: RestoreOptions): Promise<void> {
+export async function restore(
+  options: RestoreOptions,
+  deps: RestoreDeps = DEFAULT_DEPS,
+): Promise<void> {
   const { env, snapshotId } = options;
 
-  const prefix = await resolveSnapshotPrefix();
+  const prefix = await deps.resolveSnapshotPrefix();
   if (!prefix) {
     throw new Error(
       'No Tale data volumes found for this project — nothing to restore into. ' +
@@ -84,7 +115,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
     );
   }
 
-  const snapshots = await listSnapshots(prefix);
+  const snapshots = await deps.listSnapshots(prefix);
 
   if (!snapshotId) {
     logger.header('Available Snapshots');
@@ -118,7 +149,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
 
     // Restoring under a live stack guarantees corruption — Postgres would
     // be rewritten underneath a running postmaster. Refuse unless stopped.
-    const running = await findRunningProjectContainers();
+    const running = await findRunningProjectContainers(deps);
     if (running.length > 0) {
       if (!options.stop) {
         throw new Error(
@@ -128,7 +159,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
       }
       logger.step('Stopping running project containers...');
       for (const name of running) {
-        const stopped = await stopContainer(name);
+        const stopped = await deps.stopContainer(name);
         if (!stopped) {
           throw new Error(`Failed to stop ${name} — aborting restore.`);
         }
@@ -142,6 +173,14 @@ export async function restore(options: RestoreOptions): Promise<void> {
     );
     if (volumes.length === 0) {
       throw new Error(`Snapshot ${snapshotId} contains no restorable volumes`);
+    }
+    // Snapshots from before blobs were captured — and snapshots of a
+    // deployment whose blobs live in external S3 — carry no blob archive.
+    // Restore what the snapshot has; say what it does not touch.
+    if (!volumes.includes(BLOB_VOLUME)) {
+      logger.notice(
+        `Snapshot ${snapshotId} has no ${BLOB_VOLUME} archive (taken before blobs were captured, or with an external blob store) — the blob volume is left untouched.`,
+      );
     }
 
     if (!options.assumeYes) {
@@ -158,7 +197,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
     }
 
     logger.step('Verifying snapshot integrity...');
-    await verifySnapshot(prefix, snapshotId);
+    await deps.verifySnapshot(prefix, snapshotId);
 
     // Fresh-host case: re-create any missing target volumes first.
     const volumesReady = await ensureVolumes(volumes, prefix);
@@ -182,7 +221,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
           '-c',
           `find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${volume}.tar.gz -C /data`,
         ],
-        { timeout: RESTORE_TIMEOUT_SECONDS },
+        { timeout: archiveTimeoutSeconds(volume) },
       );
       if (!result.success) {
         throw new Error(

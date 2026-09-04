@@ -92,7 +92,7 @@ Chaque service devrait être `running` ou `healthy`. Parcours **Étape 4 — Cr�
 
 Avant de pointer des utilisateurs sur l'URL, trois crochets te facilitent la vie plus tard :
 
-- **Sauvegardes.** Pointe ton outillage de snapshot existant vers `db-data` et le volume du stockage objet — voir [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore).
+- **Sauvegardes.** `tale backup` snapshotte les volumes de données — blobs compris — dans le volume `backups` ; pointe ton outillage hors-hôte vers ce volume plus le workspace du projet et `.env` — voir [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore).
 - **Logs.** Tale logue sur stdout. Si l'hôte a journald, `journalctl -u docker` transporte tout ; sinon, pipe vers ton agrégateur.
 - **Métriques.** Règle `METRICS_BEARER_TOKEN` dans `.env` et scrape `/metrics` depuis ton Prometheus — voir [Configuration de l'observabilité](/fr/self-hosted/configuration/observability-config).
 
