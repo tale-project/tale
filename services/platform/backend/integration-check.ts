@@ -930,9 +930,17 @@ async function checkIdentityDomains(
     `/api/app/governance/policies/retention_policy?orgId=${orgId}`,
     { config: { enabled: false } },
   );
+  // The flags wire carries only what is enforced: the context cap and the
+  // composer's guardrail gate. The retired webSearch / codeExecution /
+  // fileUpload toggles must never reappear here — strict, not loose.
   const myFlags = z
     .object({
-      flags: z.object({ inputGuardrailsActive: z.boolean() }).loose(),
+      flags: z
+        .object({
+          inputGuardrailsActive: z.boolean(),
+          maxContextTokens: z.number().optional(),
+        })
+        .strict(),
     })
     .safeParse(
       await get(`/api/app/governance/my/feature-flags?orgId=${orgId}`),

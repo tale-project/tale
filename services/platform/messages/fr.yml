@@ -3059,10 +3059,7 @@ governance:
     saveFailed: Échec de l'enregistrement des limites de simultanéité des sandboxes
   featureFlags:
     title: Contrôle des fonctionnalités
-    description: Active ou désactive des fonctionnalités par utilisateur, équipe ou rôle.
-    webSearch: Recherche web
-    codeExecution: Exécution de code
-    fileUpload: Téléversement de fichiers
+    description: Plafonne la fenêtre de contexte des réponses IA par utilisateur, équipe ou rôle.
     maxContextTokens: Tokens de contexte maximum
     maxContextTokensHint:
       Nombre maximum de tokens de contexte pour les réponses IA.
@@ -3080,8 +3077,7 @@ governance:
       correspondants. Tu peux la recréer à tout moment.
     removeRuleConfirmAction: Supprimer
     noRulesTitle: Aucune règle de contrôle de fonctionnalités configurée
-    noRulesDescription: Ajoute une règle pour gérer les fonctionnalités par
-      utilisateur, équipe ou rôle.
+    noRulesDescription: Ajoute une règle pour plafonner les tokens de contexte par utilisateur, équipe ou rôle.
     saved: Le contrôle des fonctionnalités a été mis à jour
     saveFailed: Échec de l'enregistrement du contrôle des fonctionnalités
     actions: Actions

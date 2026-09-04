@@ -2886,10 +2886,7 @@ governance:
     saveFailed: Failed to save sandbox concurrency limits
   featureFlags:
     title: Feature controls
-    description: Enable or disable features per user, team, or role.
-    webSearch: Web search
-    codeExecution: Code execution
-    fileUpload: File upload
+    description: Cap the context window for AI replies per user, team, or role.
     maxContextTokens: Max context tokens
     maxContextTokensHint:
       Maximum number of context tokens for AI responses. Leave
@@ -2906,7 +2903,7 @@ governance:
       users. You can always re-create it later.
     removeRuleConfirmAction: Delete
     noRulesTitle: No feature control rules configured
-    noRulesDescription: Add a rule to manage features per user, team, or role.
+    noRulesDescription: Add a rule to cap context tokens per user, team, or role.
     saved: Feature controls updated
     saveFailed: Failed to save feature controls
     actions: Actions
