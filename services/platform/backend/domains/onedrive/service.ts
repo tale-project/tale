@@ -1371,7 +1371,24 @@ export async function syncOneConfigWith(
 // ------------------------------------------------------------------- engine
 
 /** A run older than this may be re-claimed (crashed worker recovery). */
-const SYNC_CLAIM_STALE_MS = 30 * 60 * 1000;
+export const SYNC_CLAIM_STALE_MS = 30 * 60 * 1000;
+/** A live run refreshes its claim this often — well inside the stale window,
+ * so only a run whose process died (no heartbeat) ever reads as stale. */
+export const SYNC_CLAIM_HEARTBEAT_MS = 5 * 60 * 1000;
+
+/** Refresh a live run's claim stamp; a no-op once the run has stamped its
+ * outcome (the row is no longer 'running'). */
+async function renewSyncClaim(
+  sql: Sql,
+  table: string,
+  payload: { organizationId: string; configId: string },
+): Promise<void> {
+  await sql`
+    UPDATE ${sql.unsafe(table)} SET updated_at_ms = ${Date.now()}
+    WHERE id = ${payload.configId} AND org_id = ${payload.organizationId}
+      AND last_sync_status = 'running'
+  `;
+}
 
 /**
  * Cron scan: one per-config job per syncable config. `error` configs are
@@ -1400,11 +1417,16 @@ export async function runSyncScanWith(
   return rows.length;
 }
 
-/** One per-config sync job: claim, reconcile, stamp the outcome. */
+/**
+ * One per-config sync job: claim, reconcile, stamp the outcome. The claim is
+ * kept fresh by a heartbeat for as long as the run is alive, so the stale
+ * window below only ever re-admits a run whose worker actually died.
+ */
 export async function runSyncConfigJobWith(
   sql: Sql,
   adapter: SyncProviderAdapter,
   payload: { organizationId: string; configId: string },
+  opts: { heartbeatMs?: number } = {},
 ): Promise<void> {
   // Claim fence: a second job for the same config no-ops while a fresh run
   // is in flight; a stale 'running' stamp (crashed worker) is reclaimable.
@@ -1424,6 +1446,23 @@ export async function runSyncConfigJobWith(
     payload.configId,
   );
   if (!config) return;
+
+  // Heartbeat: the fence treats a 'running' stamp older than
+  // SYNC_CLAIM_STALE_MS as a crashed worker. Nothing used to refresh the
+  // stamp during a run, so a folder sync that merely took longer than that
+  // (large folder, slow tenant) was re-claimed by the next cron tick and ran
+  // twice concurrently — racing createDocument into duplicate documents.
+  const heartbeat = setInterval(() => {
+    renewSyncClaim(sql, adapter.configTable, payload).catch(
+      (error: unknown) => {
+        console.warn(
+          `[${adapter.displayName} sync] claim heartbeat failed for config ${payload.configId}:`,
+          error instanceof Error ? error.message : error,
+        );
+      },
+    );
+  }, opts.heartbeatMs ?? SYNC_CLAIM_HEARTBEAT_MS);
+  heartbeat.unref();
 
   try {
     const result = await syncOneConfigWith(sql, adapter, config);
@@ -1458,6 +1497,8 @@ export async function runSyncConfigJobWith(
       lastSyncStatus: 'error',
       errorMessage: error instanceof Error ? error.message : String(error),
     });
+  } finally {
+    clearInterval(heartbeat);
   }
 }
 

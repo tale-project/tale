@@ -36,6 +36,17 @@ export function isSupported(filename: string): boolean {
   return ALL_SUPPORTED_EXTENSIONS.has(extname(filename).toLowerCase());
 }
 
+/**
+ * Does this file route to the IMAGE extractor? Image extraction is entirely
+ * vision-backed (`extractTextFromImageBytes` yields '' without a
+ * `VisionClient`), so a caller with no vision lane can decide up front that
+ * the file has nothing it can index — instead of downloading, extracting
+ * nothing, and reporting a failure.
+ */
+export function isImageFile(filename: string): boolean {
+  return SUPPORTED_IMAGE_EXTENSIONS.has(extname(filename).toLowerCase());
+}
+
 export interface ExtractTextOptions {
   visionClient?: VisionClient | null;
   processImages?: boolean;

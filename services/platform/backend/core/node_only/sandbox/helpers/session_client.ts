@@ -42,6 +42,17 @@ export class SessionNotFoundError extends Error {
   }
 }
 
+/** The spawner answered an attach with its "exec <id> not found" error
+ * event: the session is alive but knows no such exec. Distinguished so the
+ * resilient drain can tell "the exec was never created" (re-POST it) from a
+ * transient stream drop (re-attach). */
+export class ExecNotFoundError extends Error {
+  constructor(execId: string) {
+    super(`sandbox session exec ${execId} not found on the spawner`);
+    this.name = 'ExecNotFoundError';
+  }
+}
+
 /** Spawner already owns a live session under this id (HTTP 409 on create).
  * With deterministic per-(org,user) ids this means an orphan the platform no
  * longer tracks (e.g. a destroy that raced provisioning) — callers reap it
@@ -856,19 +867,30 @@ export async function drainSessionExecResilient(
   const startWithAttach = opts.resumeSinceSeq !== undefined;
   let attempt = 0;
   let seqAtAttemptStart = cursor.lastSeq;
+  // Whether the next attempt (re)POSTs the exec instead of attaching. A fresh
+  // turn POSTs once and every retry attaches — EXCEPT when the spawner has just
+  // answered that it knows no such exec and this drain has consumed nothing
+  // from it: then the original POST never landed (a network drop or a 503
+  // mid-roll swallowed it), and attaching again would fail identically until
+  // the whole budget was gone. Re-POSTing creates it. Never after progress —
+  // an exec that produced output existed, and re-running it would execute
+  // the turn twice — and never on a resume, whose caller owns that recovery.
+  let recreate = !startWithAttach;
   for (;;) {
     try {
-      return startWithAttach || attempt > 0
-        ? await sessionAttachExec(
-            sessionId,
-            body.execId,
-            cursor.lastSeq,
-            signal,
-            callbacks,
-            cursor,
-            body.timeoutMs,
-          )
-        : await sessionExec(sessionId, body, signal, callbacks, cursor);
+      if (recreate) {
+        recreate = false;
+        return await sessionExec(sessionId, body, signal, callbacks, cursor);
+      }
+      return await sessionAttachExec(
+        sessionId,
+        body.execId,
+        cursor.lastSeq,
+        signal,
+        callbacks,
+        cursor,
+        body.timeoutMs,
+      );
     } catch (err) {
       if (signal.aborted) throw err;
       // A 404 means the session is gone, not a transient drop — retrying can't
@@ -889,8 +911,12 @@ export async function drainSessionExecResilient(
       seqAtAttemptStart = cursor.lastSeq;
       attempt += 1;
       if (attempt > MAX_RECONNECT_ATTEMPTS) throw err;
+      recreate =
+        !startWithAttach &&
+        cursor.lastSeq === 0 &&
+        err instanceof ExecNotFoundError;
       console.warn(
-        `[session_client] exec ${body.execId} stream dropped (attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS}, sinceSeq=${cursor.lastSeq}); re-attaching:`,
+        `[session_client] exec ${body.execId} stream dropped (attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS}, sinceSeq=${cursor.lastSeq}); ${recreate ? 're-creating the exec (the spawner does not know it)' : 're-attaching'}:`,
         err instanceof Error ? err.message : String(err),
       );
       await new Promise((r) =>
@@ -936,7 +962,13 @@ async function consumeExecSse(
       if (parsed) result = parsed;
     } else if (event === 'error') {
       const parsed = parseData<{ message?: string }>(data);
-      throw new Error(parsed?.message ?? 'sandbox session exec stream error');
+      const message = parsed?.message ?? 'sandbox session exec stream error';
+      // The spawner's attach grammar for an unknown exec (session-routes.ts):
+      // `exec <id> not found`.
+      if (message === `exec ${execId} not found`) {
+        throw new ExecNotFoundError(execId);
+      }
+      throw new Error(message);
     }
   };
   for (;;) {

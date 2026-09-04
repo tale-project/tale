@@ -27,6 +27,7 @@ import {
 } from '../../core/knowledge/search.ts';
 import {
   extractText,
+  isImageFile,
   isSupported,
 } from '../../core/lib/knowledge/extraction/router.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
@@ -391,6 +392,22 @@ export async function indexUploadedFile(
     await writeRagStatus(sql, fileId, {
       ragStatus: 'unsupported',
       ragError: `No text extractor exists for "${file.fileName}".`,
+    });
+    return;
+  }
+  // Images route to the vision extractor, and the vision seam is retired
+  // (`extraction/vision_client.ts`): `extractText` below is called with no
+  // vision client, so an image can only ever yield '' — which used to land as
+  // 'failed — Indexing skipped (empty)', a badge that invites the user to
+  // retry a capability that does not exist. An image with nothing to index is
+  // the honest, terminal 'unsupported', decided before any bytes are fetched.
+  // Drop this branch when the vision lane returns and a client is wired in.
+  if (isImageFile(file.fileName)) {
+    await writeRagStatus(sql, fileId, {
+      ragStatus: 'unsupported',
+      ragError:
+        `Images cannot be indexed for search: no vision (OCR) model lane is ` +
+        `available to read "${file.fileName}".`,
     });
     return;
   }

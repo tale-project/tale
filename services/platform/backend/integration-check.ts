@@ -5791,6 +5791,75 @@ async function checkKnowledge(
       `indexed=${indexed} (status=${statusRows[0]?.status}${statusRows[0]?.error ? `, err=${statusRows[0].error.slice(0, 80)}` : ''}), hits=${search.success ? search.data.hits.length : 'ERR'}, searchHit=${searchRaw.includes('verdigris')}, fetchHit=${fetchRaw.includes('zeppelin ledger')}, documentHints=${ragHints[0]?.count ?? '0'} (want >= 2)`,
     );
 
+    // An image has no text extractor today (the vision seam is retired), so
+    // its indexing outcome is the honest, terminal 'unsupported' — never
+    // 'failed' with a retry affordance that can only fail again.
+    const PNG_1X1 = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const imageHandoff = z
+      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .safeParse(
+        await (
+          await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+            contentType: 'image/png',
+            size: PNG_1X1.byteLength,
+          })
+        ).json(),
+      );
+    let imageStatus:
+      | { status: string | null; error: string | null }
+      | undefined;
+    if (imageHandoff.success) {
+      await fetch(imageHandoff.data.uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': 'image/png' },
+        body: PNG_1X1,
+      });
+      const imageRegistered = z.object({ fileId: z.string() }).safeParse(
+        await (
+          await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+            storageRef: imageHandoff.data.storageRef,
+            fileName: 'diagram.png',
+            contentType: 'image/png',
+          })
+        ).json(),
+      );
+      const imageFileId = imageRegistered.success
+        ? imageRegistered.data.fileId
+        : '';
+      await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
+        fileId: imageFileId,
+        fileName: 'diagram.png',
+      });
+      await waitFor(async () => {
+        const rows = await sql<{ status: string | null }[]>`
+          SELECT rag_status AS status FROM app.file_metadata
+          WHERE id = ${imageFileId}
+        `;
+        const status = rows[0]?.status;
+        return (
+          status !== null &&
+          status !== undefined &&
+          status !== 'queued' &&
+          status !== 'running'
+        );
+      }, 20_000);
+      const rows = await sql<{ status: string | null; error: string | null }[]>`
+        SELECT rag_status AS status, rag_error AS error FROM app.file_metadata
+        WHERE id = ${imageFileId}
+      `;
+      imageStatus = rows[0];
+    }
+    record(
+      "knowledge image upload lands 'unsupported', never 'failed'",
+      imageHandoff.success &&
+        imageStatus?.status === 'unsupported' &&
+        (imageStatus.error ?? '').includes('vision'),
+      `handoff=${imageHandoff.success}, status=${imageStatus?.status ?? 'none'} (want unsupported), error=${(imageStatus?.error ?? '').slice(0, 90)}`,
+    );
+
     // A document larger than one slice (64 chunks) reaches `completed` only
     // after EVERY slice lands — the regression lock for the port that
     // stamped completed after slice one and left the corpus 'processing'
@@ -19901,6 +19970,23 @@ async function checkTts(
       ).json(),
     );
     const threadId = created.success ? created.data.id : '';
+    // The synthesized message must be a real row of the thread: a messageId
+    // is not secret (shared threads reveal them), so synthesis names the
+    // thread it belongs to and a foreign one is refused (probed below).
+    const insertMessage = async (inThread: string): Promise<string> => {
+      const rows = await sql<{ id: string }[]>`
+        INSERT INTO app.messages (
+          thread_id, org_id, "order", step_order, role, text, status,
+          created_at_ms
+        ) VALUES (
+          ${inThread}, ${orgId}, 0, 0, 'assistant', 'Hello voice world.',
+          'complete', ${Date.now()}
+        )
+        RETURNING id
+      `;
+      return rows[0]?.id ?? '';
+    };
+    const messageId = await insertMessage(threadId);
 
     const capability = z
       .looseObject({
@@ -19919,7 +20005,7 @@ async function checkTts(
       .safeParse(
         await (
           await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
-            messageId: 'itest-tts-msg',
+            messageId,
             threadId,
             index: 0,
             text,
@@ -19934,7 +20020,7 @@ async function checkTts(
       .safeParse(
         await (
           await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
-            messageId: 'itest-tts-msg',
+            messageId,
             threadId,
             index: 0,
             text,
@@ -19958,7 +20044,7 @@ async function checkTts(
       .safeParse(
         await (
           await send(
-            `/api/app/tts/messages/itest-tts-msg/chunks?orgId=${orgId}&threadId=${threadId}`,
+            `/api/app/tts/messages/${messageId}/chunks?orgId=${orgId}&threadId=${threadId}`,
           )
         ).json(),
       );
@@ -19989,7 +20075,7 @@ async function checkTts(
       .safeParse(
         await (
           await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
-            messageId: 'itest-tts-msg',
+            messageId,
             threadId,
             index: 1,
             text: 'Second chunk.',
@@ -20003,7 +20089,7 @@ async function checkTts(
       .safeParse(
         await (
           await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
-            messageId: 'itest-tts-msg',
+            messageId,
             threadId,
             index: 1,
             text: 'Second chunk.',
@@ -20055,7 +20141,7 @@ async function checkTts(
 
     // Guards: out-of-range index, foreign thread.
     const badIndex = await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
-      messageId: 'itest-tts-msg',
+      messageId,
       threadId,
       index: 9_999,
       text: 'nope',
@@ -20068,9 +20154,77 @@ async function checkTts(
       text: 'nope',
       locale: 'en',
     });
+    // A message of ANOTHER (even owned) thread under this thread: refused
+    // and audited — it used to mint the global (message, index) reservation
+    // under the wrong thread and lock the message's real thread out.
+    const otherThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Other voice thread',
+        })
+      ).json(),
+    );
+    const otherMessageId = await insertMessage(
+      otherThread.success ? otherThread.data.id : '',
+    );
+    const foreignMessage = await send(
+      `/api/app/tts/synthesize?orgId=${orgId}`,
+      {
+        messageId: otherMessageId,
+        threadId,
+        index: 0,
+        text: 'nope',
+        locale: 'en',
+      },
+    );
+    const deniedAudit = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'tts.synthesize_denied'
+        AND metadata->>'reason' = 'message_not_in_thread'
+    `;
+    const otherChunks = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.tts_audio_chunks
+      WHERE message_id = ${otherMessageId}
+    `;
+    // The audio door is gated like every other TTS door — ownership of the
+    // chunk's thread — so another member holding a leaked chunk id gets 404.
+    const strangerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({
+        email: `itest-tts-stranger-${Date.now()}@example.com`,
+        password: 'itest-password-1',
+        name: 'TTS stranger',
+      }),
+    });
+    const strangerUser = z
+      .object({ user: z.object({ id: z.string() }) })
+      .safeParse(await strangerSignUp.json());
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${orgId},
+              ${strangerUser.success ? strangerUser.data.user.id : ''},
+              'member', ${new Date()})
+    `;
+    const strangerCookie = cookieHeaderFrom(strangerSignUp);
+    const strangerAudio = await fetch(
+      `${base}/api/app/tts/audio/${chunk0?.chunkId ?? 'missing'}?orgId=${orgId}`,
+      { headers: { cookie: strangerCookie, origin: base } },
+    );
+    const strangerChunks = z
+      .object({ chunks: z.array(z.unknown()) })
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/tts/messages/${messageId}/chunks?orgId=${orgId}&threadId=${threadId}`,
+            { headers: { cookie: strangerCookie, origin: base } },
+          )
+        ).json(),
+      );
 
     record(
-      'tts on pg (reserve/synthesize/serve, ledger, voice-mode cascade)',
+      'tts on pg (reserve/synthesize/serve, ledger, voice-mode cascade, thread-scoped doors)',
       capability.success &&
         capability.data.available &&
         capability.data.modelId === 'gpt-4o-mini-tts' &&
@@ -20109,8 +20263,14 @@ async function checkTts(
         !modeVeto.data.enabled &&
         modeVeto.data.source === 'org_policy' &&
         badIndex.status === 400 &&
-        foreignThread.status === 403,
-      `cap=${capability.success ? `${capability.data.available}/${capability.data.modelId}/${capability.data.voice}` : 'ERR'}, synth=${synth.success ? synth.data.status : 'ERR'} calls=${callsAfterFirst} (want 1) cacheHit=${again.success ? again.data.status : 'ERR'}/calls=${callsAfterSecond} (want 1), chunks=${chunks.success ? chunks.data.chunks.length : 'ERR'} c0=${chunk0?.status}/${chunk0?.voice}/${chunk0?.format}, audio=${audio.status}:${audioBytes.length}B type=${audio.headers.get('content-type')}, ledger chars=${ledger[0]?.characterCount} (want ${text.length}) cost=${ledger[0]?.cost}, fail=${failed.success ? `${failed.data.status}/${failed.data.errorCode}` : 'ERR'} retry=${retried.success ? retried.data.status : 'ERR'}, mode=${modeDefault.success ? modeDefault.data.source : 'ERR'}→${modePref.success ? `${modePref.data.enabled}/${modePref.data.source}` : 'ERR'}→${modeThread.success ? `${modeThread.data.enabled}/${modeThread.data.source}` : 'ERR'}→veto=${modeVeto.success ? `${modeVeto.data.enabled}/${modeVeto.data.source}` : 'ERR'}, badIndex=${badIndex.status} (want 400) foreign=${foreignThread.status} (want 403)`,
+        foreignThread.status === 403 &&
+        foreignMessage.status === 403 &&
+        Number(deniedAudit[0]?.count ?? '0') >= 1 &&
+        Number(otherChunks[0]?.count ?? '0') === 0 &&
+        strangerAudio.status === 404 &&
+        strangerChunks.success &&
+        strangerChunks.data.chunks.length === 0,
+      `cap=${capability.success ? `${capability.data.available}/${capability.data.modelId}/${capability.data.voice}` : 'ERR'}, synth=${synth.success ? synth.data.status : 'ERR'} calls=${callsAfterFirst} (want 1) cacheHit=${again.success ? again.data.status : 'ERR'}/calls=${callsAfterSecond} (want 1), chunks=${chunks.success ? chunks.data.chunks.length : 'ERR'} c0=${chunk0?.status}/${chunk0?.voice}/${chunk0?.format}, audio=${audio.status}:${audioBytes.length}B type=${audio.headers.get('content-type')}, ledger chars=${ledger[0]?.characterCount} (want ${text.length}) cost=${ledger[0]?.cost}, fail=${failed.success ? `${failed.data.status}/${failed.data.errorCode}` : 'ERR'} retry=${retried.success ? retried.data.status : 'ERR'}, mode=${modeDefault.success ? modeDefault.data.source : 'ERR'}→${modePref.success ? `${modePref.data.enabled}/${modePref.data.source}` : 'ERR'}→${modeThread.success ? `${modeThread.data.enabled}/${modeThread.data.source}` : 'ERR'}→veto=${modeVeto.success ? `${modeVeto.data.enabled}/${modeVeto.data.source}` : 'ERR'}, badIndex=${badIndex.status} (want 400) foreignThread=${foreignThread.status} (want 403) foreignMessage=${foreignMessage.status} (want 403, audited=${deniedAudit[0]?.count ?? '0'}, squatRows=${otherChunks[0]?.count ?? '?'} want 0) strangerAudio=${strangerAudio.status} (want 404) strangerChunks=${strangerChunks.success ? strangerChunks.data.chunks.length : 'ERR'} (want 0)`,
     );
   } finally {
     ttsServer.close();
@@ -21303,6 +21463,98 @@ async function checkOneDriveSync(
         (hugeRow.error ?? '').includes('limit') &&
         hugeBodyPulls === 0,
       `browse=${bigBrowse.status}/${bigBody.success ? `${bigBody.data.items?.length}/truncated=${bigBody.data.truncated}` : 'ERR'} (want 250/false), huge=${hugeResult.success ? `${hugeResult.data.failedCount}fail ${hugeRow?.status}: ${hugeRow?.error}` : `PARSE-ERR ${hugeImport.status}`}, bodyPulls=${hugeBodyPulls} (want 0)`,
+    );
+
+    // 10. A live run keeps its claim fresh. The claim fence re-admits a
+    //     'running' stamp older than the stale window as a crashed worker;
+    //     a sync that merely outlives the window (large folder, slow tenant)
+    //     used to be claimed again by the next tick and run twice at once.
+    seed({ id: 'folder-hb', name: 'HbFolder', folder: true });
+    seed({
+      id: 'f-hb',
+      name: 'hb.txt',
+      parent: 'folder-hb',
+      content: 'hb v1',
+      hash: 'h-hb-v1',
+      mime: 'text/plain',
+    });
+    await post('/import', {
+      importType: 'sync',
+      items: [
+        {
+          id: 'f-hb',
+          name: 'hb.txt',
+          size: 5,
+          relativePath: 'HbFolder/hb.txt',
+          selectedParentId: 'folder-hb',
+          selectedParentName: 'HbFolder',
+          selectedParentPath: 'HbFolder',
+        },
+      ],
+    });
+    await muteRagJobs();
+    const hbConfig = await configByItem('folder-hb');
+    const hbConfigId = hbConfig?.id ?? '';
+    let listCalls = 0;
+    let releaseList: () => void = () => undefined;
+    const listGate = new Promise<void>((resolve) => {
+      releaseList = resolve;
+    });
+    const slowAdapter = {
+      ...onedrive.ONEDRIVE_SYNC_ADAPTER,
+      listFolderContents: async (
+        args: Parameters<
+          typeof onedrive.ONEDRIVE_SYNC_ADAPTER.listFolderContents
+        >[0],
+      ) => {
+        listCalls += 1;
+        await listGate;
+        return onedrive.ONEDRIVE_SYNC_ADAPTER.listFolderContents(args);
+      },
+    };
+    const hbPayload = { organizationId: orgId, configId: hbConfigId };
+    const longRun = onedrive.runSyncConfigJobWith(sql, slowAdapter, hbPayload, {
+      heartbeatMs: 100,
+    });
+    const claimLanded = await waitFor(
+      () => Promise.resolve(listCalls === 1),
+      5_000,
+    );
+    // Age the claim past the stale window, as a long run's stamp would be…
+    await sql`
+      UPDATE app.onedrive_sync_configs
+      SET updated_at_ms = ${Date.now() - 31 * 60 * 1000}
+      WHERE id = ${hbConfigId}
+    `;
+    // …give the heartbeat a few periods to refresh it…
+    await sleep(400);
+    const stampRows = await sql<{ updatedAt: number }[]>`
+      SELECT updated_at_ms::float8 AS "updatedAt"
+      FROM app.onedrive_sync_configs WHERE id = ${hbConfigId}
+    `;
+    const stampAgeMs = Date.now() - (stampRows[0]?.updatedAt ?? 0);
+    // …then the next tick's job for the same config must no-op.
+    const secondRun = onedrive.runSyncConfigJobWith(
+      sql,
+      slowAdapter,
+      hbPayload,
+      { heartbeatMs: 100 },
+    );
+    await sleep(300);
+    const listCallsAfterSecond = listCalls;
+    releaseList();
+    await Promise.all([longRun, secondRun]);
+    const hbAfter = await configByItem('folder-hb');
+    const hbDocs = await docsByExternalId('f-hb');
+    record(
+      'onedrive live sync keeps its claim fresh (no concurrent re-claim)',
+      hbConfig?.status === 'active' &&
+        claimLanded &&
+        stampAgeMs < 60_000 &&
+        listCallsAfterSecond === 1 &&
+        hbAfter?.lastSyncStatus === 'success' &&
+        hbDocs.length === 1,
+      `claimed=${claimLanded}, stampAge=${Math.round(stampAgeMs / 1000)}s (want fresh), listCalls=${listCallsAfterSecond} (want 1: the second job no-ops), final=${hbAfter?.lastSyncStatus}, docs=${hbDocs.length} (want 1)`,
     );
   } finally {
     globalThis.fetch = realFetch;

@@ -180,7 +180,9 @@ export async function writeConnection(
       accessKeyId: args.accessKeyId,
       secretAccessKey: args.secretAccessKey,
     });
-    const content = hasSopsKey() ? encryptJsonWithSops(plaintext) : plaintext;
+    const content = hasSopsKey()
+      ? await encryptJsonWithSops(plaintext)
+      : plaintext;
     await atomicWriteSecret(secretsPath, content);
     invalidateSecretsCache(secretsPath);
   }

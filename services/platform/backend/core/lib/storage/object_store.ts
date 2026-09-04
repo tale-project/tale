@@ -4,22 +4,25 @@
  * Per-organization object-store resolution + S3 verbs.
  *
  * The SINGLE per-org routing entry point for file blobs, the object-storage
- * analogue of `getKnowledgePoolForOrg` for the RAG corpus. `resolveOrgObjectStore
- * (orgSlug)` returns either the deployment default (Convex `_storage` — today's
- * behaviour, zero regression) or, when the org has configured
- * `<org>/object-storage/connection.json`, an S3 backend addressing the org's own
- * bucket. Callers that hold an `ActionCtx` use `blob_access.ts`, which routes
- * `ctx.storage.*` vs. these S3 verbs off the resolved backend; this module owns
- * only the resolution + the raw S3 requests.
+ * analogue of `getKnowledgePoolForOrg` for the RAG corpus. S3-compatible
+ * storage is THE blob backend (Convex `_storage` died with the component):
+ * `resolveOrgObjectStore(orgSlug)` returns the org's own bucket when
+ * `<org>/object-storage/connection.json` is configured, else the deployment
+ * default — the `default` config tree's connection — and otherwise FAILS
+ * CLOSED with `ObjectStoreUnconfiguredError`. There is no fallback store: a
+ * missing or broken connection is an operator-visible error at the door, never
+ * a silently different backend deep in a blob lane. Callers that hold an
+ * `ActionCtx` use `blob_access.ts`; this module owns only the resolution + the
+ * raw S3 requests.
  *
  * S3 requests are signed with `aws4fetch` (a few-KB SigV4 signer) rather than
- * `@aws-sdk/client-s3` — the AWS SDK is large and would risk the Convex module
- * push-size cap. Works against any S3-compatible store (AWS S3, MinIO, R2,
- * Wasabi) via `endpoint` + `forcePathStyle`.
+ * `@aws-sdk/client-s3`. Works against any S3-compatible store (AWS S3, MinIO,
+ * R2, Wasabi) via `endpoint` + `forcePathStyle`.
  *
  * TENANT ISOLATION: the store is keyed strictly by `orgSlug`; a per-org bucket is
  * NEVER addressed for another org. Resolution is fail-closed — a present but
- * broken per-org config throws rather than silently using the shared default.
+ * broken config (the org's OR the default tree's) throws rather than silently
+ * using anything else.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -32,28 +35,35 @@ import {
   type ObjectStorageConnectionSecrets,
 } from '../../object_storage/file_utils';
 
-/** Deployment default: blobs live in Convex `_storage` (per-org logical scope). */
-export interface ConvexObjectStore {
-  backend: 'convex';
-}
-
-/** Per-org bring-your-own S3-compatible bucket (physical isolation). */
+/** An S3-compatible bucket: the org's own (physical isolation) or the
+ * deployment default's. */
 export interface S3ObjectStore {
   backend: 's3';
   client: AwsClient;
   config: ObjectStorageConnectionFile;
 }
 
-export type ResolvedObjectStore = ConvexObjectStore | S3ObjectStore;
+/** Neither the org nor the deployment default tree has an object-storage
+ * connection — uploads are refused until an operator configures one. */
+export class ObjectStoreUnconfiguredError extends Error {
+  constructor() {
+    super(
+      'No object storage configured: neither this org nor the deployment ' +
+        'default tree has an object-storage/connection.json',
+    );
+    this.name = 'ObjectStoreUnconfiguredError';
+  }
+}
 
-const CONVEX_STORE: ConvexObjectStore = { backend: 'convex' };
+/** The config tree whose connection serves every org without its own. */
+const DEFAULT_TREE_SLUG = 'default';
 
 // Short-TTL resolution cache, mirroring `knowledge_db.ts` ORG_URL_TTL_MS: a
 // config change (admin edits the org's bucket) takes effect within the TTL
 // without a restart, and the hot path avoids a disk read + SOPS decrypt per blob.
 const ORG_STORE_TTL_MS = 15_000;
 interface CacheEntry {
-  store: ResolvedObjectStore;
+  store: S3ObjectStore;
   expires: number;
 }
 const orgStoreCache = new Map<string, CacheEntry>();
@@ -61,33 +71,38 @@ const orgStoreCache = new Map<string, CacheEntry>();
 /**
  * Resolve an org's object store: its own S3 bucket when
  * `<org>/object-storage/connection.json` is configured, else the deployment
- * default (Convex `_storage`). Cached with a short TTL. Throws (fail-closed) if a
- * present per-org config is invalid or its credentials can't be decrypted.
+ * default tree's connection. Cached with a short TTL. Throws (fail-closed) when
+ * a present config — the org's or the default's — is invalid or its credentials
+ * can't be decrypted, and `ObjectStoreUnconfiguredError` when neither exists.
  */
 export async function resolveOrgObjectStore(
   orgSlug: string,
-): Promise<ResolvedObjectStore> {
+): Promise<S3ObjectStore> {
   const now = Date.now();
   const cached = orgStoreCache.get(orgSlug);
   if (cached && cached.expires > now) {
     return cached.store;
   }
-  // The org's own BYO connection wins; without one, the DEPLOYMENT DEFAULT
-  // tree's connection serves every org (the 0.5 posture — Convex `_storage`
-  // dies at cutover). A 0.4 deployment ships no `default` tree, so its
-  // fallback order is unchanged (org → Convex).
+  const own = await readOrgObjectStorageConnection(orgSlug);
+  // A broken default tree is a real misconfiguration and must surface as its
+  // own error — swallowing it here would hide "undecryptable credentials"
+  // behind a generic "unconfigured" (or, historically, a dead fallback store).
   const resolved =
-    (await readOrgObjectStorageConnection(orgSlug)) ??
-    (await readOrgObjectStorageConnection('default').catch(() => null));
-  let store: ResolvedObjectStore;
+    own ??
+    (orgSlug === DEFAULT_TREE_SLUG
+      ? null
+      : await readOrgObjectStorageConnection(DEFAULT_TREE_SLUG));
   if (resolved === null) {
-    store = CONVEX_STORE;
-  } else {
-    store = buildS3ObjectStore(resolved.connection, resolved.secrets);
-    console.info(`Resolved per-org S3 object store for org '${orgSlug}'`);
+    throw new ObjectStoreUnconfiguredError();
   }
+  const store = buildS3ObjectStore(resolved.connection, resolved.secrets);
   orgStoreCache.set(orgSlug, { store, expires: now + ORG_STORE_TTL_MS });
   return store;
+}
+
+/** Drop every cached resolution (test hook + config-write invalidation). */
+export function clearOrgObjectStoreCache(): void {
+  orgStoreCache.clear();
 }
 
 /**

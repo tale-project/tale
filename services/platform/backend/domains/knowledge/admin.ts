@@ -212,7 +212,9 @@ export async function writeKnowledgeConnection(
       await removeFileSafe(secretsPath);
     } else {
       const plaintext = serializeSecretsJson({ password: args.password });
-      const content = hasSopsKey() ? encryptJsonWithSops(plaintext) : plaintext;
+      const content = hasSopsKey()
+        ? await encryptJsonWithSops(plaintext)
+        : plaintext;
       await atomicWriteSecret(secretsPath, content);
     }
     invalidateSecretsCache(secretsPath);
