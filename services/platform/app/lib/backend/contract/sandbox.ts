@@ -110,30 +110,4 @@ export interface SandboxContract {
       };
     }>;
   };
-  'sandbox/user_env:deleteMyEnvVar': {
-    kind: 'mutation';
-    args: { organizationId: string; key: string };
-    returns: null;
-  };
-  'sandbox/user_env:listMyEnv': {
-    kind: 'query';
-    args: { organizationId: string };
-    returns: Array<{
-      key: string;
-      isSecret: boolean;
-      value?: string;
-      maskedValue?: string;
-      updatedAt: number;
-    }>;
-  };
-  'sandbox/user_env_actions:upsertMyEnvVar': {
-    kind: 'action';
-    args: {
-      organizationId: string;
-      key: string;
-      isSecret: boolean;
-      value: string;
-    };
-    returns: null;
-  };
 }

@@ -2989,10 +2989,7 @@ governance:
     saveFailed: Sandbox-Parallelitätslimits konnten nicht gespeichert werden
   featureFlags:
     title: Feature-Steuerung
-    description: Funktionen pro Benutzer, Team oder Rolle aktivieren oder deaktivieren.
-    webSearch: Websuche
-    codeExecution: Code-Ausführung
-    fileUpload: Datei-Upload
+    description: Begrenze das Kontextfenster für KI-Antworten pro Benutzer, Team oder Rolle.
     maxContextTokens: Max. Kontext-Tokens
     maxContextTokensHint: Maximale Kontext-Tokens für KI-Antworten. Leer lassen für unbegrenzt.
     invalidMaxContextTokens: Max. Kontext-Tokens müssen mindestens {min} betragen.
@@ -3007,9 +3004,7 @@ governance:
       Benutzer. Du kannst sie später jederzeit neu erstellen.
     removeRuleConfirmAction: Löschen
     noRulesTitle: Keine Feature-Regeln konfiguriert
-    noRulesDescription:
-      Füge eine Regel hinzu, um Funktionen pro Benutzer, Team oder
-      Rolle zu steuern.
+    noRulesDescription: Füge eine Regel hinzu, um Kontext-Tokens pro Benutzer, Team oder Rolle zu begrenzen.
     saved: Feature-Steuerung aktualisiert
     saveFailed: Feature-Steuerung konnte nicht gespeichert werden
     actions: Aktionen
@@ -4223,10 +4218,6 @@ metadata:
   notificationPreferences:
     title: Benachrichtigungen
     description: Wähle, welche Ereignisse dir eine Benachrichtigung schicken.
-  environment:
-    title: Umgebungsvariablen & Geheimnisse
-    description: Umgebungsvariablen und Geheimnisse, die in deine Sandboxes
-      eingespeist werden.
   organization:
     title: Organisation
     description: deine Organisationseinstellungen verwalten.
@@ -4357,7 +4348,6 @@ navigation:
   governance: Richtlinien
   metrics: Metriken
   personalization: Personalisierung
-  environment: Umgebung
   account: Konto
   agents: Agenten
   mcp: MCP
@@ -4536,14 +4526,6 @@ personalization:
     tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.
   toasts:
     preferencesUpdated: Einstellungen aktualisiert.
-userEnv:
-  page:
-    title: Umgebungsvariablen & Geheimnisse
-    description: Variablen und Geheimnisse, die in alle deine Sandboxes
-      eingespeist werden.
-    note: Geheimnisse werden verschlüsselt und sind nur beschreibbar — nach dem
-      Speichern werden sie nie wieder angezeigt. Diese Variablen werden in alle
-      deine Sandboxes eingespeist.
 piiConfigPanel:
   modeLabel: Modus
   modeTokenize: Tokenisieren
@@ -4965,9 +4947,6 @@ settings:
       description: Wie Tale sich an dich anpasst — Gedächtnis, Instruktionen und Stimme.
     notifications:
       description: Wähle, welche Ereignisse dir eine Benachrichtigung schicken.
-    environment:
-      description: Umgebungsvariablen und Geheimnisse, die in deine Sandboxes
-        eingespeist werden.
     organization:
       description: Name des Arbeitsbereichs und Identifikatoren.
     members:

@@ -601,9 +601,6 @@ export interface GovernanceContract {
     args: { organizationId: string };
     returns: {
       inputGuardrailsActive: boolean;
-      webSearch: boolean;
-      codeExecution: boolean;
-      fileUpload: boolean;
       maxContextTokens?: number;
     };
   };

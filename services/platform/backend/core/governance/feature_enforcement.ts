@@ -5,18 +5,19 @@ import type {
 import type { QueryCtx } from '../lib/ctx';
 import { readPolicyConfig } from './helpers';
 
+/**
+ * What the `feature_flags` policy actually controls: the context-window cap
+ * for a user's chat turns. The `webSearch` / `codeExecution` / `fileUpload`
+ * toggles older policy files may still carry are deprecated and ignored —
+ * nothing on the server or the client ever enforced them, so resolving them
+ * only advertised controls that did nothing.
+ */
 export interface ResolvedFeatureFlags {
-  webSearch: boolean;
-  codeExecution: boolean;
-  fileUpload: boolean;
+  /** Context-window cap for the user's chat turns; absent = no cap. */
   maxContextTokens?: number;
 }
 
-const DEFAULTS: ResolvedFeatureFlags = {
-  webSearch: true,
-  codeExecution: true,
-  fileUpload: true,
-};
+const DEFAULTS: ResolvedFeatureFlags = {};
 
 /**
  * Find the most specific feature flag rule.
@@ -49,10 +50,10 @@ function findApplicableRule(
 }
 
 /**
- * Resolve feature flags for a user based on governance policies.
+ * Resolve the feature-flag policy for a user.
  *
- * Returns which features are enabled/disabled for this user.
- * When no policy exists, all features default to enabled.
+ * When no policy exists, the policy is disabled, or no rule matches, no cap
+ * applies.
  */
 export async function resolveFeatureFlags(
   ctx: QueryCtx,
@@ -92,10 +93,5 @@ export function evaluateFeatureFlags(
     return { ...DEFAULTS };
   }
 
-  return {
-    webSearch: rule.webSearch ?? DEFAULTS.webSearch,
-    codeExecution: rule.codeExecution ?? DEFAULTS.codeExecution,
-    fileUpload: rule.fileUpload ?? DEFAULTS.fileUpload,
-    maxContextTokens: rule.maxContextTokens,
-  };
+  return { maxContextTokens: rule.maxContextTokens };
 }

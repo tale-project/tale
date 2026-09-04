@@ -68,12 +68,22 @@ const CONTEXT_TOKEN_PRESETS = [
 ];
 
 function emptyRule(): FeatureFlagRule {
-  return {
-    scope: 'default',
-    webSearch: true,
-    codeExecution: true,
-    fileUpload: true,
-  };
+  return { scope: 'default' };
+}
+
+/**
+ * The rule as the editor persists it. The `webSearch` / `codeExecution` /
+ * `fileUpload` toggles are deprecated — nothing ever enforced them — so a rule
+ * that still carries them from an older policy file loses them on the next
+ * save instead of keeping controls that do nothing on disk.
+ */
+function toPersistedRule(rule: FeatureFlagRule): FeatureFlagRule {
+  const persisted: FeatureFlagRule = { scope: rule.scope };
+  if (rule.scopeId !== undefined) persisted.scopeId = rule.scopeId;
+  if (rule.maxContextTokens !== undefined) {
+    persisted.maxContextTokens = rule.maxContextTokens;
+  }
+  return persisted;
 }
 
 function parseFeatureFlagsConfig(policy: unknown): FeatureFlagsConfig {
@@ -255,71 +265,46 @@ function RuleDialog({
           />
         )}
 
-        <Stack gap={3}>
-          <Switch
-            label={t('featureFlags.webSearch')}
-            checked={draft.webSearch ?? true}
-            onCheckedChange={(checked) => updateDraft({ webSearch: checked })}
-            disabled={cannotManage}
-          />
-          <Switch
-            label={t('featureFlags.codeExecution')}
-            checked={draft.codeExecution ?? true}
-            onCheckedChange={(checked) =>
-              updateDraft({ codeExecution: checked })
+        <div>
+          <Input
+            label={t('featureFlags.maxContextTokens')}
+            type="number"
+            value={draft.maxContextTokens ?? ''}
+            onChange={(e) =>
+              updateDraft({
+                maxContextTokens: e.target.value
+                  ? Number(e.target.value)
+                  : undefined,
+              })
             }
             disabled={cannotManage}
+            placeholder="e.g. 50000"
+            min={MIN_MAX_CONTEXT_TOKENS}
+            errorMessage={errors.maxContextTokens}
           />
-          <Switch
-            label={t('featureFlags.fileUpload')}
-            checked={draft.fileUpload ?? true}
-            onCheckedChange={(checked) => updateDraft({ fileUpload: checked })}
-            disabled={cannotManage}
-          />
-
-          <div>
-            <Input
-              label={t('featureFlags.maxContextTokens')}
-              type="number"
-              value={draft.maxContextTokens ?? ''}
-              onChange={(e) =>
-                updateDraft({
-                  maxContextTokens: e.target.value
-                    ? Number(e.target.value)
-                    : undefined,
-                })
-              }
-              disabled={cannotManage}
-              placeholder="e.g. 50000"
-              min={MIN_MAX_CONTEXT_TOKENS}
-              errorMessage={errors.maxContextTokens}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              {t('featureFlags.maxContextTokensHint')}
-            </Text>
-            <HStack gap={1} className="mt-2" wrap>
-              {CONTEXT_TOKEN_PRESETS.map((preset) => (
-                <Button
-                  key={preset.value}
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() =>
-                    updateDraft({ maxContextTokens: preset.value })
-                  }
-                  disabled={cannotManage}
-                  className={
-                    draft.maxContextTokens === preset.value
-                      ? 'border-primary'
-                      : ''
-                  }
-                >
-                  {preset.label}
-                </Button>
-              ))}
-            </HStack>
-          </div>
-        </Stack>
+          <Text className="text-muted-foreground mt-1 text-xs">
+            {t('featureFlags.maxContextTokensHint')}
+          </Text>
+          <HStack gap={1} className="mt-2" wrap>
+            {CONTEXT_TOKEN_PRESETS.map((preset) => (
+              <Button
+                key={preset.value}
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => updateDraft({ maxContextTokens: preset.value })}
+                disabled={cannotManage}
+                className={
+                  draft.maxContextTokens === preset.value
+                    ? 'border-primary'
+                    : ''
+                }
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </HStack>
+        </div>
       </Stack>
     </FormDialog>
   );
@@ -329,7 +314,7 @@ function RuleDialog({
 const PLACEHOLDER_ROW_COUNT = 3;
 /** Column count — single source for the empty-state `colSpan` and the
  *  per-cell placeholder rows so they can never drift from the header. */
-const COLUMN_COUNT = 7;
+const COLUMN_COUNT = 4;
 
 // =============================================================================
 // Single editor — owns data fetching, rules state, dialog state, and save/toast
@@ -398,7 +383,10 @@ export function FeatureFlagsEditor({
     policyType: 'feature_flags',
     savedEnabled: savedConfig.enabled,
     isLoading: loading,
-    buildConfig: (next) => ({ enabled: next, rules: savedConfig.rules }),
+    buildConfig: (next) => ({
+      enabled: next,
+      rules: savedConfig.rules.map(toPersistedRule),
+    }),
     failureTitle: t('toastSaveFailedTitle'),
     failureDescription: t('featureFlags.saveFailed'),
   });
@@ -410,7 +398,7 @@ export function FeatureFlagsEditor({
           organizationId,
           policyType: 'feature_flags',
           // A rule edit is only reachable while the section is on.
-          config: { enabled: true, rules: nextRules },
+          config: { enabled: true, rules: nextRules.map(toPersistedRule) },
         });
         toast({
           title: t('toastSavedTitle'),
@@ -549,15 +537,6 @@ export function FeatureFlagsEditor({
                   <TableRow>
                     <TableHead>{t('featureFlags.scope')}</TableHead>
                     <TableHead>{t('featureFlags.target')}</TableHead>
-                    <TableHead className="text-center">
-                      {t('featureFlags.webSearch')}
-                    </TableHead>
-                    <TableHead className="text-center">
-                      {t('featureFlags.codeExecution')}
-                    </TableHead>
-                    <TableHead className="text-center">
-                      {t('featureFlags.fileUpload')}
-                    </TableHead>
                     <TableHead className="text-right">
                       {t('featureFlags.maxContextTokens')}
                     </TableHead>
@@ -579,21 +558,6 @@ export function FeatureFlagsEditor({
                           <TableCell>
                             <SkeletonBox>
                               <div className="h-3.5 w-24" />
-                            </SkeletonBox>
-                          </TableCell>
-                          <TableCell>
-                            <SkeletonBox fullWidth>
-                              <div className="mx-auto size-4 rounded-sm" />
-                            </SkeletonBox>
-                          </TableCell>
-                          <TableCell>
-                            <SkeletonBox fullWidth>
-                              <div className="mx-auto size-4 rounded-sm" />
-                            </SkeletonBox>
-                          </TableCell>
-                          <TableCell>
-                            <SkeletonBox fullWidth>
-                              <div className="mx-auto size-4 rounded-sm" />
                             </SkeletonBox>
                           </TableCell>
                           <TableCell>
@@ -621,15 +585,6 @@ export function FeatureFlagsEditor({
                           {rule.scope}
                         </TableCell>
                         <TableCell>{resolveTarget(rule)}</TableCell>
-                        <TableCell className="text-center">
-                          {rule.webSearch === false ? '✘' : '✔'}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {rule.codeExecution === false ? '✘' : '✔'}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {rule.fileUpload === false ? '✘' : '✔'}
-                        </TableCell>
                         <TableCell className="text-right">
                           {rule.maxContextTokens != null
                             ? formatNumber(rule.maxContextTokens)

@@ -15,7 +15,6 @@ import {
   User,
   Users,
   UsersRound,
-  Variable,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -63,11 +62,6 @@ export function useSettingsMenuGroups(
         key: 'notifications',
         icon: Bell,
         path: 'notifications',
-      },
-      {
-        key: 'environment',
-        icon: Variable,
-        path: 'environment',
       },
     ];
 

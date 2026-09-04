@@ -31,7 +31,6 @@ import {
   DEMO_CUSTOM_INSTRUCTIONS,
   DEMO_DEPARTING_MEMBER,
   DEMO_DOCUMENTS,
-  DEMO_ENV_VARS,
   DEMO_ERASURE_REQUEST,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LEGAL_HOLD_REASON,
@@ -894,51 +893,6 @@ async function ensureTeams(
   }
 }
 
-/** Personal environment variables and secrets (Settings > Environment). */
-async function ensureEnvVars(page: Page, orgId: string): Promise<void> {
-  await page.goto(`/dashboard/${orgId}/settings/environment`);
-  const addButton = page.getByRole('button', { name: t('envEditor.add') });
-  await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-  // Rows are label-less inputs, so identity is the KEY's current value — a
-  // saved secret re-renders as a mask, so the value can never be the check.
-  const keyInputs = page.getByPlaceholder(t('envEditor.keyPlaceholder'));
-  const existingKeys = await keyInputs.evaluateAll((inputs) =>
-    inputs.map((input) => (input as HTMLInputElement).value),
-  );
-
-  let added = false;
-  for (const variable of DEMO_ENV_VARS) {
-    if (existingKeys.includes(variable.key)) continue;
-    await addButton.click();
-    await page
-      .getByPlaceholder(t('envEditor.keyPlaceholder'))
-      .last()
-      .fill(variable.key);
-    await page
-      .getByPlaceholder(t('envEditor.valuePlaceholder'))
-      .last()
-      .fill(variable.value);
-    if (variable.secret) {
-      await page
-        .getByRole('checkbox', { name: t('envEditor.secret') })
-        .last()
-        .check();
-    }
-    added = true;
-  }
-  if (!added) return;
-  // The row editor runs in externalSave mode: its Save lives in the settings
-  // header, and success is reported by that cluster flashing the button label
-  // to "Saved" (the editor's own toast is suppressed in this mode). Wait for
-  // the flash — it starts only after the persist resolves.
-  const save = page.getByRole('button', { name: t('common.actions.save') });
-  await save.click();
-  await expect(
-    page.getByRole('button', { name: t('common.actions.saved') }),
-  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
-}
-
 /** REST API keys (Settings > API > REST). */
 async function ensureApiKeys(page: Page, orgId: string): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/api/rest`);
@@ -1236,7 +1190,6 @@ export async function seedDemoOrg(
   );
 
   // The settings surfaces that otherwise screenshot as bare empty states.
-  await step('environment variables', () => ensureEnvVars(page, orgId));
   await step('API keys', () => ensureApiKeys(page, orgId));
   await step('WebDAV app-passwords', () => ensureWebdavPasswords(page, orgId));
   await step('custom instructions', () =>
