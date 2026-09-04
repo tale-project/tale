@@ -1,8 +1,12 @@
+import { existsSync, realpathSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { createPwaPlugin } from '@tale/ui/pwa/vite-plugin';
 import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, searchForWorkspaceRoot } from 'vite';
 
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectBootShellPlugin } from './vite-plugins/inject-boot-shell';
@@ -41,6 +45,25 @@ const backendProxy = {
   '/http_api': { target: BACKEND_BASE, changeOrigin: true },
 };
 
+// The dev server's file allow-list. Vite's default is the workspace root, which
+// is right until a worktree symlinks its `node_modules` to a sibling clone:
+// every package then resolves to a real path OUTSIDE the workspace. Imports on
+// the module graph are served regardless, but the plain asset requests a CSS
+// `url()` produces — the @fontsource woff2 files behind `@tale/ui/fonts` — hit
+// the allow-list and 403, and every semibold string silently renders in the
+// metric-matched fallback face. Allowing the resolved node_modules keeps the
+// webfonts loading wherever the packages really live.
+const WORKSPACE_NODE_MODULES = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../node_modules',
+);
+const devFsAllow = [
+  searchForWorkspaceRoot(process.cwd()),
+  ...(existsSync(WORKSPACE_NODE_MODULES)
+    ? [realpathSync(WORKSPACE_NODE_MODULES)]
+    : []),
+];
+
 export default defineConfig({
   base: './',
   resolve: {
@@ -58,6 +81,7 @@ export default defineConfig({
     // `vite`/preview invocations consistent.
     strictPort: true,
     proxy: backendProxy,
+    fs: { allow: devFsAllow },
   },
   // Preview server (`vite preview`) — the prod-build E2E serving path. Serves
   // the built `dist/` assets (no on-the-fly transpilation, the dev-mode CPU
