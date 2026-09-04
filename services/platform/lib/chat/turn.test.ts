@@ -91,7 +91,17 @@ interface StoreCalls {
   readonly ops: string[];
 }
 
-function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
+function fakeStore(
+  options: {
+    cancelAfterStreamWrites?: number;
+    /** Report the Stop on the tool-round boundary flush — a cancel that
+     *  landed while the round streamed its calls, before the tools ran. */
+    cancelOnToolBoundary?: boolean;
+    /** Report the Stop on the post-batch verdict read — a cancel that landed
+     *  while the tools were executing. */
+    cancelOnToolVerdict?: boolean;
+  } = {},
+): {
   store: TurnStore;
   calls: StoreCalls;
 } {
@@ -158,9 +168,20 @@ function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
           text: update.text,
         });
         const cancelAt = options.cancelAfterStreamWrites;
+        // The tool-round boundary is the only write that is both flushed and
+        // empty; the post-batch verdict is the only empty, unflushed one.
+        const isEmpty = update.text === '';
+        const atBoundary =
+          options.cancelOnToolBoundary === true &&
+          isEmpty &&
+          update.flush === true;
+        const atVerdict =
+          options.cancelOnToolVerdict === true && isEmpty && !update.flush;
         return Promise.resolve({
           cancelRequested:
-            cancelAt !== undefined && calls.streamed.length >= cancelAt,
+            atBoundary ||
+            atVerdict ||
+            (cancelAt !== undefined && calls.streamed.length >= cancelAt),
         });
       },
       updateAssistantParts(update) {
@@ -1239,6 +1260,81 @@ describe('runTurn — the tool loop', () => {
     expect(outcome.status === 'completed' && outcome.paused).toBeUndefined();
     const parts = d.store.finalized[0]?.parts as MessagePart[];
     expect(parts.some((part) => part.type === 'human-input')).toBe(false);
+  });
+
+  // The two Stop paths #2962 named. Both break AFTER the round settles its
+  // text, so the finalize would append `streamed` a second time without the
+  // `roundSettled` guard. The pre-tool text has to be NON-EMPTY: a model that
+  // says nothing before calling passes straight through the bug, which is why
+  // it went unnoticed.
+  const introducingModel = (intro: string): ModelCall =>
+    async function* stream() {
+      yield { text: intro };
+      yield {
+        text: '',
+        toolCalls: [
+          { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
+        ],
+      };
+    };
+
+  const searchExecutor = (): ChatToolExecutor => ({
+    wireTools: [
+      {
+        name: 'rag_search',
+        description: 'Search.',
+        parameters: { type: 'object' },
+      },
+    ],
+    execute: () => Promise.resolve({ status: 'ok' }),
+  });
+
+  it('settles pre-tool text once when Stop lands before the tools run', async () => {
+    const intro = 'Let me look that up. ';
+    const { store, calls } = fakeStore({ cancelOnToolBoundary: true });
+    const executed: ToolCallRequest[] = [];
+    const executor = searchExecutor();
+    const d = deps({
+      model: introducingModel(intro),
+      tools: {
+        ...executor,
+        execute: (call) => {
+          executed.push(call);
+          return Promise.resolve({ status: 'ok' });
+        },
+      },
+      store,
+    });
+
+    await runTurn(request(), d.deps);
+
+    // The Stop landed at the boundary, so the tools never started...
+    expect(executed).toEqual([]);
+    // ...and the intro is recorded exactly once.
+    const parts = calls.finalized[0]?.parts as MessagePart[];
+    expect(parts.filter((part) => part.type === 'text')).toEqual([
+      { type: 'text', text: intro },
+    ]);
+  });
+
+  it('settles pre-tool text once when Stop lands while the tools run', async () => {
+    const intro = 'Searching now. ';
+    const { store, calls } = fakeStore({ cancelOnToolVerdict: true });
+    const d = deps({
+      model: introducingModel(intro),
+      tools: searchExecutor(),
+      store,
+    });
+
+    await runTurn(request(), d.deps);
+
+    const parts = calls.finalized[0]?.parts as MessagePart[];
+    expect(parts.filter((part) => part.type === 'text')).toEqual([
+      { type: 'text', text: intro },
+    ]);
+    // The batch that finished keeps its record — the Stop ends the loop, it
+    // does not erase the round.
+    expect(parts.some((part) => part.type === 'tool-result')).toBe(true);
   });
 
   it('deduplicates identical same-round calls, settling a result for every callId', async () => {
