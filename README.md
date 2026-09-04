@@ -29,7 +29,7 @@ Pool their knowledge, delegate real work — on infrastructure you run.
   <tr>
     <td width="33.33%"><a href="https://tale.dev/docs/platform/chat/overview"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena mode running the same prompt through two models side by side" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="A project task board with task cards in all six columns, from Backlog to Cancelled" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/platform/agents/concepts"><img src=".github/assets/readme-gallery-agent-editor.webp" alt="The agent editor bundling instructions, knowledge, tools, and a model" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/projects/project-agents"><img src=".github/assets/readme-gallery-project-agents.webp" alt="A project's Agents tab listing two named agents, each with its harness, provider, and model" width="100%"></a></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Chat & Arena</b> — one prompt, two models side by side</sub></td>
@@ -37,9 +37,9 @@ Pool their knowledge, delegate real work — on infrastructure you run.
     <td align="center"><sub><b>Agents</b> — instructions, knowledge, tools, and a model as one unit</sub></td>
   </tr>
   <tr>
-    <td width="33.33%"><a href="https://tale.dev/docs/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="The workflow editor canvas with the typed, branching steps of an automation" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/platform/connectors/overview"><img src=".github/assets/readme-gallery-connectors.webp" alt="The connectors catalog with Confluence, GitHub, Gmail, Google Drive, Shopify, and more" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Guardrails settings layering content safety, PII detection, and moderation" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="The automation workbench with the typed steps of a workflow on the canvas and the node inspector beside it" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/connectors/overview"><img src=".github/assets/readme-gallery-connectors.webp" alt="The Add credential dialog listing the connector catalog — Tavily, Confluence, Discord, GitHub, Gmail, Google Drive, and more" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Guardrails settings with status cards for content safety, PII detection, and the moderation provider, above the recent-events feed" width="100%"></a></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Workflow editor</b> — typed steps, schedules, and approval gates</sub></td>
@@ -89,7 +89,7 @@ bun run dev
 
 ## See it in action
 
-<img src=".github/assets/readme-tour.webp" alt="Tale product tour cycling through the agent editor, a project task board, the automation workflow canvas, the connectors catalog, and governance guardrails" width="100%">
+<img src=".github/assets/readme-tour.webp" alt="Tale product tour cycling through a project's agents, its task board, the automation workbench, the connector catalog, and governance guardrails" width="100%">
 
 Agents → Projects → Automations → Connectors → Governance — one lap around the platform. Take the full tour in the [docs](https://tale.dev/docs).
 

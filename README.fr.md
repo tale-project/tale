@@ -29,7 +29,7 @@ Mets leur savoir en commun, délègue du vrai travail — sur une infrastructure
   <tr>
     <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/chat/overview"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Le mode Arena fait répondre deux modèles au même prompt, côte à côte" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/projects/task-automation"><img src=".github/assets/readme-gallery-tasks.webp" alt="Le tableau de tâches d’un projet, avec des cartes dans ses six colonnes, de Backlog à Cancelled" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/agents/concepts"><img src=".github/assets/readme-gallery-agent-editor.webp" alt="L’éditeur d’agent réunit instructions, connaissances, outils et modèle" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/projects/project-agents"><img src=".github/assets/readme-gallery-project-agents.webp" alt="L’onglet Agents d’un projet listant deux agents nommés, chacun avec son harness, son fournisseur et son modèle" width="100%"></a></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Chat & Arena</b> — un prompt, deux modèles côte à côte</sub></td>
@@ -37,9 +37,9 @@ Mets leur savoir en commun, délègue du vrai travail — sur une infrastructure
     <td align="center"><sub><b>Agents</b> — instructions, connaissances, outils et modèle en une seule unité</sub></td>
   </tr>
   <tr>
-    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Le canvas de l’éditeur de workflows, avec les étapes typées d’une automatisation" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/connectors/overview"><img src=".github/assets/readme-gallery-connectors.webp" alt="Le catalogue d’connectors avec Confluence, GitHub, Gmail, Google Drive, Shopify et plus" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Les guardrails de gouvernance — filtrage du contenu, détection PII et fournisseur de modération" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="L’atelier d’automatisation avec les étapes typées d’un workflow sur le canvas et l’inspecteur de nœud à côté" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/connectors/overview"><img src=".github/assets/readme-gallery-connectors.webp" alt="Le dialogue Ajouter un identifiant listant le catalogue de connectors — Tavily, Confluence, Discord, GitHub, Gmail, Google Drive et plus" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/fr/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Les guardrails de gouvernance — cartes de statut pour la sécurité du contenu, la détection DCP et le fournisseur de modération, au-dessus du flux des événements récents" width="100%"></a></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Éditeur de workflows</b> — étapes typées, planifications et approbations humaines</sub></td>
@@ -89,7 +89,7 @@ bun run dev
 
 ## Tale en action
 
-<img src=".github/assets/readme-tour.webp" alt="Visite du produit Tale — éditeur d’agent, tableau de tâches d’un projet, canvas d’automatisation, catalogue d’connectors et guardrails de gouvernance" width="100%">
+<img src=".github/assets/readme-tour.webp" alt="Visite du produit Tale — les agents d’un projet, son tableau de tâches, l’atelier d’automatisation, le catalogue de connectors et les guardrails de gouvernance" width="100%">
 
 Agents → Projets → Automatisations → Connectors → Gouvernance — un tour de la plateforme. La visite complète est dans les [docs](https://tale.dev/docs/fr).
 
