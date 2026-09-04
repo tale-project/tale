@@ -34,6 +34,7 @@ import {
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
@@ -662,6 +663,51 @@ export async function indexUploadedFile(
     });
     throw error;
   }
+}
+
+/**
+ * Re-queue every document that failed for want of an embedding model.
+ *
+ * Configuring one did not previously fix anything: each document that failed
+ * while unconfigured stayed `failed`, and the only remedy was knowing to
+ * retry every one by hand. The failure text tells the operator to "set one
+ * under Settings → Data residency … then retry indexing" — following it
+ * exactly left them no better off, one document at a time.
+ *
+ * Scoped by `rag_error_code`, not by status: `embedding_not_configured` is
+ * stamped by exactly this cause, so a document that failed for any other
+ * reason (a secret, a PII block, an unreadable file) is left alone — its
+ * operator still has the per-document Retry.
+ *
+ * The flip and the enqueues share ONE transaction, so a crash between them
+ * cannot leave a row `queued` with no job to drain it — the state the
+ * watchdog would then have to guess about.
+ *
+ * Enqueued at DEFAULT priority: this is a backlog drain, not the one file
+ * somebody is watching, so it must not push ahead of a live upload.
+ */
+export async function requeueEmbeddingBlockedDocuments(
+  sql: Sql,
+  args: { organizationId: string },
+): Promise<{ requeued: number }> {
+  return await sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.file_metadata SET
+        rag_status = 'queued',
+        rag_queued_at_ms = ${Date.now()},
+        rag_error = NULL,
+        rag_error_code = NULL
+      WHERE org_id = ${args.organizationId}
+        AND rag_status = 'failed'
+        AND rag_error_code = ${RAG_ERROR_EMBEDDING_NOT_CONFIGURED}
+        AND skip_rag_indexing IS DISTINCT FROM true
+      RETURNING id
+    `;
+    for (const row of rows) {
+      await addJobInTx(tx, 'rag.index_file', { fileId: row.id });
+    }
+    return { requeued: rows.length };
+  });
 }
 
 /** Enqueue-side marker so the UI shows queued state immediately. */
