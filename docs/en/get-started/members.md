@@ -23,7 +23,7 @@ Knowledge persists across every chat and cites itself in the answers. To make a 
 
 <Frame caption="The Documents table after a few uploads.">
 
-![The Knowledge Documents table listing three uploaded text files with their indexing status.](/images/get-started/documents-list.webp)
+![The Knowledge Documents table listing three uploaded text files and the knowledge entries' markdown documents with their indexing status.](/images/get-started/documents-list.webp)
 
 </Frame>
 

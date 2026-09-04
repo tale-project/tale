@@ -7,7 +7,7 @@ The Documents tab is the knowledge base's file surface. Editors upload files, Ta
 
 <Frame caption="The Documents table — size, source, RAG status, and team scope per file.">
 
-![The Knowledge area's Documents tab listing three uploaded text files with size, source, RAG status, and team columns.](/images/get-started/documents-list.webp)
+![The Knowledge area's Documents tab listing three uploaded text files and the three markdown documents behind the knowledge entries, with size, source, RAG status, and team columns.](/images/get-started/documents-list.webp)
 
 </Frame>
 

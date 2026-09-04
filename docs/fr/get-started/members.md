@@ -23,7 +23,7 @@ Les connaissances persistent d’un chat à l’autre, et les réponses les cite
 
 <Frame caption="Le tableau Documents après quelques téléversements.">
 
-![Le tableau des documents de la section Connaissances listant trois fichiers texte téléversés avec leur statut d’indexation.](/images/get-started/documents-list.webp)
+![Le tableau des documents de la section Connaissances listant trois fichiers texte téléversés et les documents Markdown des entrées de connaissances, avec leur statut d’indexation.](/images/get-started/documents-list.webp)
 
 </Frame>
 

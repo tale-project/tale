@@ -13,7 +13,7 @@ Prefer to watch first? Episode 3 walks the whole library in three minutes — in
 
 <Frame caption="The Documents tab — the most-used corner of the knowledge base.">
 
-![The Knowledge area's Documents tab listing three uploaded text files with size, source, RAG status, and team columns.](/images/get-started/documents-list.webp)
+![The Knowledge area's Documents tab listing three uploaded text files and the three markdown documents behind the knowledge entries, with size, source, RAG status, and team columns.](/images/get-started/documents-list.webp)
 
 </Frame>
 

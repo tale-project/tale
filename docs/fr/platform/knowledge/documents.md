@@ -7,7 +7,7 @@ L’onglet Documents est la surface fichiers de la base de connaissances. Les é
 
 <Frame caption="La table des documents — taille, source, statut RAG et portée d’équipe par fichier.">
 
-![L’onglet Documents de la base de connaissances listant trois fichiers texte téléversés avec les colonnes taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)
+![L’onglet Documents de la base de connaissances listant trois fichiers texte téléversés et les trois documents Markdown des entrées de connaissances, avec les colonnes taille, source, statut RAG et équipes.](/images/get-started/documents-list.webp)
 
 </Frame>
 

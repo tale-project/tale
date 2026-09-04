@@ -13,7 +13,7 @@ Lieber erst zusehen? Episode 3 geht die ganze Bibliothek in gut drei Minuten dur
 
 <Frame caption="Der Dokumente-Tab — die meistgenutzte Ecke der Wissensdatenbank.">
 
-![Der Dokumente-Tab des Wissensbereichs mit drei hochgeladenen Textdateien samt Spalten für Größe, Quelle, RAG-Status und Team.](/images/get-started/documents-list.webp)
+![Der Dokumente-Tab des Wissensbereichs mit drei hochgeladenen Textdateien und den drei Markdown-Dokumenten hinter den Wissenseinträgen, samt Spalten für Größe, Quelle, RAG-Status und Team.](/images/get-started/documents-list.webp)
 
 </Frame>
 
