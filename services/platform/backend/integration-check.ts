@@ -334,6 +334,67 @@ function cookieHeaderFrom(response: Response): string {
     .join('; ');
 }
 
+/**
+ * The cookie jar after a response: every `Set-Cookie` pair overlays the
+ * existing header by name and a cleared cookie (empty value) leaves the jar
+ * — what a browser does. A probe that drives a Better Auth endpoint which
+ * ROTATES the session (`/two-factor/disable`, or enable under
+ * `skipVerificationOnEnable`) must follow the new token this way, because
+ * the old one is deleted in the same call.
+ */
+function mergeCookieHeader(existing: string, response: Response): string {
+  const jar = new Map<string, string>();
+  const put = (pair: string, clearEmpty: boolean): void => {
+    const eq = pair.indexOf('=');
+    if (eq <= 0) return;
+    const name = pair.slice(0, eq);
+    const value = pair.slice(eq + 1);
+    if (clearEmpty && value.length === 0) jar.delete(name);
+    else jar.set(name, value);
+  };
+  for (const pair of existing.split('; ')) put(pair, false);
+  for (const entry of response.headers.getSetCookie()) {
+    put(entry.split(';')[0] ?? '', true);
+  }
+  return [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
+}
+
+/**
+ * A fresh user signed up through Better Auth and made a member of `orgId`
+ * with `role` — the throwaway identity a lane uses when it must act as
+ * someone other than the suite's shared user, or when it is about to do
+ * something that INVALIDATES the calling session (2FA enrolment, sign-out,
+ * session revocation): the shared session must outlive every lane, so those
+ * never run on it.
+ */
+async function signUpOrgMember(
+  sql: Sql,
+  base: string,
+  orgId: string,
+  label: string,
+  role: string,
+): Promise<{ cookie: string; userId: string; email: string }> {
+  const email = `itest-${label}-${Date.now()}@example.com`;
+  const res = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email,
+      password: 'itest-password-1',
+      name: `Itest ${label}`,
+    }),
+  });
+  const parsed = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await res.json());
+  const userId = parsed.success ? parsed.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${userId}, ${role}, ${new Date()})
+  `;
+  return { cookie: cookieHeaderFrom(res), userId, email };
+}
+
 async function checkAuthAndSse(
   sql: Sql,
   base: string,
@@ -2568,33 +2629,21 @@ async function checkBlobRefAuthority(
   });
   const owner = api(ownerCookie);
 
-  const signUpMember = async (
-    label: string,
-    role: string,
-  ): Promise<{ cookie: string; userId: string }> => {
-    const res = await fetch(`${base}/api/auth/sign-up/email`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin: base },
-      body: JSON.stringify({
-        email: `itest-authz-${label}-${Date.now()}@example.com`,
-        password: 'itest-password-1',
-        name: `Authz ${label}`,
-      }),
-    });
-    const parsed = z
-      .object({ user: z.object({ id: z.string() }) })
-      .safeParse(await res.json());
-    const userId = parsed.success ? parsed.data.user.id : '';
-    await sql`
-      INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                            "createdAt")
-      VALUES (gen_random_uuid(), ${orgId}, ${userId}, ${role}, ${new Date()})
-    `;
-    return { cookie: cookieHeaderFrom(res), userId };
-  };
-  const strangerAuth = await signUpMember('stranger', 'member');
+  const strangerAuth = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'authz-stranger',
+    'member',
+  );
   const stranger = api(strangerAuth.cookie);
-  const editorAuth = await signUpMember('editor', 'editor');
+  const editorAuth = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'authz-editor',
+    'editor',
+  );
   const editor = api(editorAuth.cookie);
 
   const storageIdOf = async (res: Response): Promise<string> => {
@@ -2942,30 +2991,45 @@ async function checkBlobRefAuthority(
     `stranger attaches=${strangerAttaches.length} (want 1: the org-wide document), owner attaches=${ownerAttaches.length} (want 3), bound=${boundRows.map((row) => `${row.threadId.replace('itest-authz-', '')}:${row.storageRef === ownerRef ? 'own-staging' : 'DOCUMENT'}`).join(',') || 'none'} (want owner-thread:own-staging only)`,
   );
 
-  // 10. Outbound mail: a stranger cannot mail out the owner's blob.
-  const compose = await stranger.json(
+  // 10. Outbound mail has two doors, in this order: the role gate — a
+  //     read-only `member` may not compose under the org's name at all
+  //     (`viewerCanWrite`, the 0.4 RLS write rule) — and then ownership: an
+  //     editor who MAY compose still cannot mail out a blob they did not
+  //     upload. Both are asserted, so the ownership check stays exercised by
+  //     a caller the gate lets through.
+  const composeWithOwnerBlob = {
+    contactId: 'nope',
+    connectorName: 'nope',
+    subject: 'x',
+    content: 'x',
+    attachments: [
+      {
+        storageId: ownerRef,
+        fileName: 'owner.txt',
+        contentType: 'text/plain',
+        size: 11,
+      },
+    ],
+  };
+  const memberCompose = await stranger.json(
     'POST',
     '/api/app/conversations/compose',
-    {
-      contactId: 'nope',
-      connectorName: 'nope',
-      subject: 'x',
-      content: 'x',
-      attachments: [
-        {
-          storageId: ownerRef,
-          fileName: 'owner.txt',
-          contentType: 'text/plain',
-          size: 11,
-        },
-      ],
-    },
+    composeWithOwnerBlob,
   );
-  const composeCode = await errorCodeOf(compose);
+  const memberComposeCode = await errorCodeOf(memberCompose);
+  const editorCompose = await editor.json(
+    'POST',
+    '/api/app/conversations/compose',
+    composeWithOwnerBlob,
+  );
+  const editorComposeCode = await errorCodeOf(editorCompose);
   record(
     "blob-ref authority: outbound mail attaches only the sender's uploads",
-    compose.status === 403 && composeCode === 'attachment_not_owned',
-    `compose → ${compose.status} ${composeCode} (want 403 attachment_not_owned)`,
+    memberCompose.status === 403 &&
+      memberComposeCode === 'FORBIDDEN' &&
+      editorCompose.status === 403 &&
+      editorComposeCode === 'attachment_not_owned',
+    `member compose → ${memberCompose.status} ${memberComposeCode} (want 403 FORBIDDEN: the write gate), editor compose → ${editorCompose.status} ${editorComposeCode} (want 403 attachment_not_owned: the ownership check, reached through the gate)`,
   );
 
   // 11. The cloud-import doors require knowledgeWrite: a read-only member is
@@ -18612,46 +18676,52 @@ async function checkOutboundSendLane(
     const failedRow = await messageRow(failId);
     failMode = false;
 
-    // A member who cannot open the conversation (unassigned = admin triage)
-    // gets the opaque 404 from retry and discard, and the row is untouched —
-    // holding a messageId is not a licence to act on a colleague's mail.
-    const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin: base },
-      body: JSON.stringify({
-        email: `send-lane-member-${Date.now().toString(36)}@example.com`,
-        password: 'itest-password-1',
-        name: 'Send Lane Member',
-      }),
-    });
-    const memberCookie = cookieHeaderFrom(memberSignUp);
-    const memberBody = z
-      .object({ user: z.object({ id: z.string() }) })
-      .safeParse(await memberSignUp.json());
-    const memberId = memberBody.success ? memberBody.data.user.id : '';
-    await sql`
-      INSERT INTO "member" ("id", "organizationId", "userId", "role",
-                            "createdAt")
-      VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member',
-              ${new Date()})
-    `;
-    const asMember = (route: string): Promise<Response> =>
-      fetch(`${base}/api/app/conversations${route}?orgId=${orgId}`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          cookie: memberCookie,
-          origin: base,
-        },
-        body: '{}',
-      });
+    // The message doors have two layers. The role gate first: a read-only
+    // member may not act on mail at all — retry, discard and undo answer 403
+    // before anything is loaded (`viewerCanWrite`). Then visibility: an
+    // editor who MAY act on mail but cannot open the conversation
+    // (unassigned = admin triage) gets the opaque 404 — holding a messageId
+    // is not a licence to act on a colleague's mail. Either way the row is
+    // untouched.
+    const sendLaneMember = await signUpOrgMember(
+      sql,
+      base,
+      orgId,
+      'send-lane-member',
+      'member',
+    );
+    const sendLaneEditor = await signUpOrgMember(
+      sql,
+      base,
+      orgId,
+      'send-lane-editor',
+      'editor',
+    );
+    const doorAs =
+      (viewerCookie: string) =>
+      (route: string): Promise<Response> =>
+        fetch(`${base}/api/app/conversations${route}?orgId=${orgId}`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: viewerCookie,
+            origin: base,
+          },
+          body: '{}',
+        });
+    const asMember = doorAs(sendLaneMember.cookie);
+    const asEditor = doorAs(sendLaneEditor.cookie);
     const memberRetry = await asMember(`/messages/${failId}/retry`);
     const memberDiscard = await asMember(`/messages/${failId}/discard`);
-    const afterMemberDoors = await messageRow(failId);
+    const editorRetry = await asEditor(`/messages/${failId}/retry`);
+    const editorDiscard = await asEditor(`/messages/${failId}/discard`);
+    const afterForeignDoors = await messageRow(failId);
     const memberRetryDiscardRefused =
-      memberRetry.status === 404 &&
-      memberDiscard.status === 404 &&
-      afterMemberDoors?.deliveryState === 'failed';
+      memberRetry.status === 403 &&
+      memberDiscard.status === 403 &&
+      editorRetry.status === 404 &&
+      editorDiscard.status === 404 &&
+      afterForeignDoors?.deliveryState === 'failed';
 
     // …and retry (immediate, no undo window) re-delivers.
     const retryRes = await api(`/messages/${failId}/retry`, { body: {} });
@@ -18667,10 +18737,13 @@ async function checkOutboundSendLane(
       .object({ messageId: z.string() })
       .safeParse(await undoTarget.json());
     const undoId = undoTargetBody.success ? undoTargetBody.data.messageId : '';
-    // The hidden-conversation member cannot recall the owner's queued reply.
+    // Neither the read-only member (403, the gate) nor the hidden-conversation
+    // editor (404) can recall the owner's queued reply.
     const memberUndo = await asMember(`/messages/${undoId}/undo`);
+    const editorUndo = await asEditor(`/messages/${undoId}/undo`);
     const memberUndoRefused =
-      memberUndo.status === 404 &&
+      memberUndo.status === 403 &&
+      editorUndo.status === 404 &&
       (await messageRow(undoId))?.deliveryState === 'queued';
     const undoRes = await api(`/messages/${undoId}/undo`, { body: {} });
     const undoBody = z
@@ -18807,7 +18880,7 @@ async function checkOutboundSendLane(
         bulkBody.data.failedCount === 1 &&
         drained &&
         finalSendCount === 4,
-      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 404s, row kept=${memberRetryDiscardRefused && memberUndoRefused}), undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
+      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 403s: the write gate) editorDoors=${editorRetry.status}/${editorDiscard.status}/${editorUndo.status} (want 404s: hidden conversation), rows kept=${memberRetryDiscardRefused && memberUndoRefused}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
@@ -36035,11 +36108,17 @@ async function checkAccountAuthzHardening(
 async function checkTwoFactor(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string; userId: string },
+  ctx: { orgId: string },
   orgSlug: string,
-  email: string,
 ): Promise<void> {
-  const { cookie, userId } = ctx;
+  // The whole probe acts as a DEDICATED member, never as the suite's shared
+  // user. Better Auth's `/two-factor/disable` (and enable, under
+  // `skipVerificationOnEnable`) issues a new session and DELETES the calling
+  // one — driven on the shared cookie, the lifecycle half below killed every
+  // later lane's requests and the run stopped ~200 checks early.
+  const enrollee = await signUpOrgMember(sql, base, ctx.orgId, '2fa', 'member');
+  let { cookie } = enrollee;
+  const { userId, email } = enrollee;
   const configRoot = process.env.TALE_CONFIG_DIR ?? '';
   const governanceDir = path.join(configRoot, orgSlug, 'governance');
   await mkdir(governanceDir, { recursive: true });
@@ -36182,22 +36261,21 @@ async function checkTwoFactor(
   // port kept only the failure half, so an attacker who registered their own
   // passkey and turned TOTP off left no trace at all. Action names are 0.4's
   // verbatim — a rename would break any saved query grouping on them.
-  // Better Auth's two-factor plugin deletes the CALLING session on enable
-  // and on disable (its own anti-hijack rule), so these calls ride a
-  // throwaway session of their own — on the shared harness cookie they took
-  // every later cookie-based probe down with them.
-  const lifecycleCookie =
-    ((await signIn()).headers.get('set-cookie') ?? '').split(';')[0] ?? '';
-  const authPost = (route: string, body: unknown): Promise<Response> =>
-    fetch(`${base}/api/auth${route}`, {
+  const authPost = async (route: string, body: unknown): Promise<Response> => {
+    const res = await fetch(`${base}/api/auth${route}`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        cookie: lifecycleCookie,
+        cookie,
         origin: base,
       },
       body: JSON.stringify(body),
     });
+    // Follow the session rotation like a browser would: the next lifecycle
+    // call must ride the NEW token — the old one is deleted server-side.
+    cookie = mergeCookieHeader(cookie, res);
+    return res;
+  };
   const lifecycleActions = async (): Promise<string[]> => {
     const rows = await sql<{ action: string }[]>`
       SELECT action FROM app.audit_logs
@@ -36265,7 +36343,7 @@ async function checkTwoFactor(
     WHERE org_id = ${ctx.orgId} AND resource_type = 'twoFactorAuth'
       AND resource_id = ${userId}
   `;
-  // Leave 2FA OFF: later lanes sign this account in with password alone.
+  // 2FA ends OFF on the enrollee: the row proves disable took effect.
   const enrolled = await sql<{ enabled: boolean | null }[]>`
     SELECT "twoFactorEnabled" AS enabled FROM "user" WHERE "id" = ${userId}
   `;
@@ -38961,6 +39039,76 @@ async function checkOrganizationLifecycle(
   );
 }
 
+type Lane = readonly [name: string, run: () => Promise<void>];
+
+interface LaneSummary {
+  ran: number;
+  total: number;
+  truncatedAt: string | null;
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error
+    ? `${error.name}: ${error.message}`
+    : String(error);
+}
+
+/** Does the suite's shared session still resolve to its user? Better Auth's
+ * own door, outside every org-scoped gate, so a policy probe (2FA
+ * enforcement, idle windows) cannot false-alarm it. */
+async function sharedSessionAlive(
+  base: string,
+  ctx: { cookie: string; userId: string },
+): Promise<boolean> {
+  const res = await fetch(`${base}/api/auth/get-session`, {
+    headers: { cookie: ctx.cookie, origin: base },
+  });
+  const parsed = z
+    .object({ user: z.object({ id: z.string() }) })
+    .loose()
+    .safeParse(await res.json().catch(() => null));
+  return res.ok && parsed.success && parsed.data.user.id === ctx.userId;
+}
+
+/**
+ * Runs the session-bearing lanes in order and makes a TRUNCATION loud. A run
+ * that stops early must never read as green, so: a lane that throws is
+ * recorded as a failed check naming the lane and how many never ran; and
+ * after every lane the shared session is asserted alive — a probe that
+ * enrols/disables 2FA, signs out, or revokes sessions on the shared user
+ * leaves every later lane 401-ing, which used to surface only as a JSON
+ * parse error deep inside an unrelated lane, with no tally at all.
+ */
+async function runLanes(
+  base: string,
+  ctx: { cookie: string; userId: string },
+  lanes: readonly Lane[],
+): Promise<LaneSummary> {
+  for (const [index, [name, run]] of lanes.entries()) {
+    const position = `lane ${index + 1} of ${lanes.length} (${name})`;
+    const notRun = lanes.length - index - 1;
+    try {
+      await run();
+    } catch (error) {
+      record(
+        `harness: ${name} runs to completion`,
+        false,
+        `RUN TRUNCATED at ${position} — ${notRun} later lane(s) never ran; threw ${errorText(error)}`,
+      );
+      return { ran: index + 1, total: lanes.length, truncatedAt: name };
+    }
+    if (!(await sharedSessionAlive(base, ctx))) {
+      record(
+        `harness: the shared session survives ${name}`,
+        false,
+        `RUN TRUNCATED at ${position} — the suite's shared session no longer resolves, so the ${notRun} later lane(s) would only 401; a probe that invalidates its own session must act as a throwaway user (signUpOrgMember)`,
+      );
+      return { ran: index + 1, total: lanes.length, truncatedAt: name };
+    }
+  }
+  return { ran: lanes.length, total: lanes.length, truncatedAt: null };
+}
+
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -39071,6 +39219,7 @@ async function main(): Promise<void> {
 
   const app = createApp({ sql, auth });
   const server = serve({ fetch: app.fetch, port });
+  let lanes: LaneSummary | null = null;
   try {
     await checkSerializableRetry(sql);
     await checkTransactionalEnqueue(sql);
@@ -39096,185 +39245,450 @@ async function main(): Promise<void> {
       `org-create scaffold job consumed=${scaffoldDrained}`,
     );
 
-    await checkNotifications(sql, baseUrl, authCtx);
-    await checkOutboxRetention(sql, baseUrl, authCtx);
-    await checkIdentityDomains(
-      sql,
-      baseUrl,
-      authCtx,
-      `itest-${orgSuffix}@example.com`,
+    // Every lane from here on rides the shared session. `runLanes` makes a
+    // truncation LOUD: a lane that throws, or one that leaves the shared
+    // session dead, ends the run as a recorded FAIL naming the lane and the
+    // lanes that never ran — the tally can never read green for a run that
+    // executed fewer checks than it contains.
+    lanes = await runLanes(baseUrl, authCtx, [
+      ['checkNotifications', () => checkNotifications(sql, baseUrl, authCtx)],
+      [
+        'checkOutboxRetention',
+        () => checkOutboxRetention(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkIdentityDomains',
+        () =>
+          checkIdentityDomains(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}@example.com`,
+          ),
+      ],
+      ['checkProjects', () => checkProjects(baseUrl, authCtx)],
+      ['checkTasks', () => checkTasks(baseUrl, authCtx)],
+      [
+        'checkTasksOrgIsolation',
+        () => checkTasksOrgIsolation(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkTaskDiscussionPaging',
+        () =>
+          checkTaskDiscussionPaging(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+          ),
+      ],
+      ['checkFiles', () => checkFiles(baseUrl, authCtx)],
+      ['checkDocuments', () => checkDocuments(sql, baseUrl, authCtx)],
+      [
+        'checkWorkflowDocumentListing',
+        () => checkWorkflowDocumentListing(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkBlobRefAuthority',
+        () => checkBlobRefAuthority(sql, baseUrl, authCtx),
+      ],
+      ['checkSmallDomains', () => checkSmallDomains(sql, baseUrl, authCtx)],
+      ['checkMessageSlots', () => checkMessageSlots(sql, authCtx)],
+      [
+        'checkRateLimitShapes',
+        () => checkRateLimitShapes(sql, baseUrl, authCtx),
+      ],
+      ['checkAgents', () => checkAgents(baseUrl, authCtx)],
+      ['checkSkills', () => checkSkills(baseUrl, authCtx)],
+      [
+        'checkProviderCredentials',
+        () => checkProviderCredentials(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkKnowledge',
+        () => checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkCorpusPurgeConsistency',
+        () =>
+          checkCorpusPurgeConsistency(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+          ),
+      ],
+      [
+        'checkChat',
+        () => checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      ['checkTts', () => checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
+      ['checkCloudImport', () => checkCloudImport(sql, baseUrl, authCtx)],
+      [
+        'checkConnectorOauthApps',
+        () => checkConnectorOauthApps(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkOauthAppSsoReuse',
+        () =>
+          checkOauthAppSsoReuse(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      ['checkOneDriveSync', () => checkOneDriveSync(sql, baseUrl, authCtx)],
+      [
+        'checkGoogleDriveSync',
+        () => checkGoogleDriveSync(sql, baseUrl, authCtx),
+      ],
+      ['checkWebsitesCrawl', () => checkWebsitesCrawl(sql, baseUrl, authCtx)],
+      ['checkTranscription', () => checkTranscription(sql, baseUrl, authCtx)],
+      ['checkVideoLinks', () => checkVideoLinks(sql, baseUrl, authCtx)],
+      [
+        'checkBrowserSessions',
+        () => checkBrowserSessions(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkChatThreadSurface',
+        () => checkChatThreadSurface(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkBrandingAndTeams',
+        () =>
+          checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      ['checkAgentSecrets', () => checkAgentSecrets(sql, baseUrl, authCtx)],
+      [
+        'checkTurnEquipmentBroker',
+        () => checkTurnEquipmentBroker(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkKnowledgeEntries',
+        () => checkKnowledgeEntries(sql, baseUrl, authCtx),
+      ],
+      ['checkCollabEmitters', () => checkCollabEmitters(sql, baseUrl, authCtx)],
+      ['checkBellHintWire', () => checkBellHintWire(sql, baseUrl, authCtx)],
+      [
+        'checkBoardMoveEffects',
+        () => checkBoardMoveEffects(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkChangelogAndAccounts',
+        () => checkChangelogAndAccounts(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkAccountAuthzHardening',
+        () => checkAccountAuthzHardening(sql, baseUrl, authCtx, orgSuffix),
+      ],
+      ['checkLegalHolds', () => checkLegalHolds(sql, baseUrl, authCtx)],
+      [
+        'checkRetention',
+        () => checkRetention(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkErasure',
+        () => checkErasure(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      // Reliability batch probes (self-contained; each seeds and cleans its
+      // own rows).
+      [
+        'checkAbandonedUploadReclaim',
+        () => checkAbandonedUploadReclaim(sql, authCtx),
+      ],
+      [
+        'checkCrawlRegistrationSerialization',
+        () => checkCrawlRegistrationSerialization(),
+      ],
+      ['checkVideoFinalizerCas', () => checkVideoFinalizerCas(sql, authCtx)],
+      [
+        'checkAgentUpsertConvergence',
+        () => checkAgentUpsertConvergence(sql, authCtx),
+      ],
+      [
+        'checkProjectTextConvergence',
+        () => checkProjectTextConvergence(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkApprovalGateSingleClaim',
+        () => checkApprovalGateSingleClaim(sql, authCtx),
+      ],
+      [
+        'checkRetentionHeldRowsProgress',
+        () => checkRetentionHeldRowsProgress(sql, authCtx),
+      ],
+      ['checkSyncScanFairness', () => checkSyncScanFairness(sql, authCtx)],
+      [
+        'checkTwoFactor',
+        () => checkTwoFactor(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkChatMemoriesDeferredAuto',
+        () =>
+          checkChatMemoriesDeferredAuto(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+          ),
+      ],
+      [
+        'checkAutomations',
+        () => checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkAutomationRunLifecycle',
+        () => checkAutomationRunLifecycle(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkAutomationTriggerDelivery',
+        () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
+      ],
+      ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
+      [
+        'checkBuilderSession',
+        () => checkBuilderSession(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      ['checkRestDoor', () => checkRestDoor(sql, baseUrl, authCtx)],
+      [
+        'checkRestMachineJourney',
+        () => checkRestMachineJourney(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkRestResources',
+        () => checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkRestRateAttribution',
+        () => checkRestRateAttribution(sql, baseUrl, authCtx),
+      ],
+      ['checkRestPagination', () => checkRestPagination(sql, baseUrl, authCtx)],
+      [
+        'checkSsoLogin',
+        () => checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkSamlLogin',
+        () => checkSamlLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkEntraLogin',
+        () =>
+          checkEntraLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`),
+      ],
+      ['checkScim', () => checkScim(sql, baseUrl, authCtx)],
+      [
+        'checkSsoAdminSurface',
+        () => checkSsoAdminSurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      ['checkTrustedHeaders', () => checkTrustedHeaders(sql, baseUrl)],
+      [
+        'checkConnectorCredentials',
+        () => checkConnectorCredentials(sql, baseUrl, authCtx),
+      ],
+      ['checkConnectorOauth', () => checkConnectorOauth(sql, baseUrl, authCtx)],
+      ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
+      ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
+      [
+        'checkPolicySweeps',
+        () => checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`),
+      ],
+      ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
+      [
+        'checkCompetences',
+        () => checkCompetences(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      ['checkProjectTail', () => checkProjectTail(sql, baseUrl, authCtx)],
+      ['checkRunProvenance', () => checkRunProvenance(sql, authCtx)],
+      [
+        'checkManualKickMovesCard',
+        () => checkManualKickMovesCard(sql, authCtx),
+      ],
+      [
+        'checkSandboxBlobDoor',
+        () => checkSandboxBlobDoor(sql, baseUrl, authCtx),
+      ],
+      ['checkTurnReattach', () => checkTurnReattach(sql, authCtx)],
+      ['checkQueuedRunRecovery', () => checkQueuedRunRecovery(sql, authCtx)],
+      [
+        'checkSteerFallbackRecovery',
+        () => checkSteerFallbackRecovery(sql, authCtx),
+      ],
+      [
+        'checkWorkflowTurnReattach',
+        () => checkWorkflowTurnReattach(sql, authCtx),
+      ],
+      ['checkConversations', () => checkConversations(sql, baseUrl, authCtx)],
+      ['checkMailboxSyncLane', () => checkMailboxSyncLane(sql, authCtx)],
+      ['checkUndatedMailIngest', () => checkUndatedMailIngest(sql, authCtx)],
+      [
+        'checkImapFromAddressHeal',
+        () => checkImapFromAddressHeal(sql, authCtx),
+      ],
+      [
+        'checkOutboundSendLane',
+        () => checkOutboundSendLane(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkNotificationEmailSink',
+        () => checkNotificationEmailSink(sql, authCtx),
+      ],
+      [
+        'checkChatConversationSearchLeg',
+        () => checkChatConversationSearchLeg(sql, authCtx),
+      ],
+      [
+        'checkChatEntityWordSearch',
+        () => checkChatEntityWordSearch(sql, authCtx),
+      ],
+      [
+        'checkChatWebsiteCatalogLeg',
+        () => checkChatWebsiteCatalogLeg(sql, authCtx),
+      ],
+      [
+        'checkChatMailAttachmentListing',
+        () => checkChatMailAttachmentListing(sql, authCtx),
+      ],
+      [
+        'checkChatZeroHitListingFallback',
+        () => checkChatZeroHitListingFallback(sql, authCtx),
+      ],
+      [
+        'checkAddressRouting',
+        () => checkAddressRouting(sql, authCtx, `itest-${orgSuffix}`),
+      ],
+      ['checkControlDrain', () => checkControlDrain(sql, baseUrl, authCtx)],
+      ['checkProvisioning', () => checkProvisioning(sql)],
+      [
+        'checkWebdav',
+        () => checkWebdav(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkApprovalsSurface',
+        () => checkApprovalsSurface(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkGovernance',
+        () => checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkGovernanceSettingsTail',
+        () =>
+          checkGovernanceSettingsTail(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+          ),
+      ],
+      ['checkAuditSurface', () => checkAuditSurface(sql, baseUrl, authCtx)],
+      [
+        'checkDataResidency',
+        () => checkDataResidency(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkAutomationsSurface',
+        () => checkAutomationsSurface(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkLibrarySurface',
+        () => checkLibrarySurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkDrivePickerRateLimit',
+        () => checkDrivePickerRateLimit(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkEngagementSurface',
+        () => checkEngagementSurface(sql, baseUrl, authCtx),
+      ],
+      ['checkMetricsSurface', () => checkMetricsSurface(sql, baseUrl, authCtx)],
+      [
+        'checkArenaAndQuestions',
+        () => checkArenaAndQuestions(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkGovernanceEnforcement',
+        () =>
+          checkGovernanceEnforcement(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+          ),
+      ],
+      ['checkTaskAgentRuns', () => checkTaskAgentRuns(sql, baseUrl, authCtx)],
+      [
+        'checkTaskAgentTurnDrive',
+        () =>
+          checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkAutomationAgentNode',
+        () =>
+          checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      ['checkAskAnswer', () => checkAskAnswer(sql, baseUrl, authCtx)],
+      [
+        'checkAnsweredAskRecovery',
+        () => checkAnsweredAskRecovery(sql, authCtx),
+      ],
+      [
+        'checkAutoRetryAndKickPlan',
+        () => checkAutoRetryAndKickPlan(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkReviewArc',
+        () => checkReviewArc(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkTasksCollabIntegrity',
+        () =>
+          checkTasksCollabIntegrity(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+          ),
+      ],
+      ['checkSandboxSessions', () => checkSandboxSessions(sql, authCtx)],
+      [
+        'checkAutomationRunToolLane',
+        () => checkAutomationRunToolLane(sql, baseUrl, authCtx),
+      ],
+      ['checkSandboxSpawner', () => checkSandboxSpawner(sql, baseUrl, authCtx)],
+      ['checkStuckSendRecovery', () => checkStuckSendRecovery(sql, authCtx)],
+      [
+        'checkDeferredSendRecovery',
+        () => checkDeferredSendRecovery(sql, authCtx),
+      ],
+      ['checkBackfillRecovery', () => checkBackfillRecovery(sql, authCtx)],
+      ['checkWatchdogs', () => checkWatchdogs(sql, baseUrl, authCtx)],
+      [
+        'checkDocumentWriteGuards',
+        () => checkDocumentWriteGuards(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkLoginThrottleAndAuditChain',
+        () =>
+          checkLoginThrottleAndAuditChain(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}@example.com`,
+          ),
+      ],
+      ['checkDevSeed', () => checkDevSeed(sql, auth)],
+      ['checkWebTierOracles', () => checkWebTierOracles(sql, baseUrl, authCtx)],
+      [
+        'checkOrganizationLifecycle',
+        () => checkOrganizationLifecycle(sql, baseUrl, orgSuffix),
+      ],
+    ]);
+  } catch (error) {
+    // A throw BEFORE the lanes (setup, the pre-session checks) is a
+    // truncation too: record it so the tally prints and the exit code is red.
+    record(
+      'harness: the run reaches its lanes',
+      false,
+      `RUN TRUNCATED before the lanes: ${errorText(error)}`,
     );
-    await checkProjects(baseUrl, authCtx);
-    await checkTasks(baseUrl, authCtx);
-    await checkTasksOrgIsolation(sql, baseUrl, authCtx);
-    await checkTaskDiscussionPaging(
-      sql,
-      baseUrl,
-      authCtx,
-      `itest-${orgSuffix}`,
-    );
-    await checkFiles(baseUrl, authCtx);
-    await checkDocuments(sql, baseUrl, authCtx);
-    await checkWorkflowDocumentListing(sql, baseUrl, authCtx);
-    await checkBlobRefAuthority(sql, baseUrl, authCtx);
-    await checkSmallDomains(sql, baseUrl, authCtx);
-    await checkMessageSlots(sql, authCtx);
-    await checkRateLimitShapes(sql, baseUrl, authCtx);
-    await checkAgents(baseUrl, authCtx);
-    await checkSkills(baseUrl, authCtx);
-    await checkProviderCredentials(sql, baseUrl, authCtx);
-    await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkCorpusPurgeConsistency(
-      sql,
-      baseUrl,
-      authCtx,
-      `itest-${orgSuffix}`,
-    );
-    await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkCloudImport(sql, baseUrl, authCtx);
-    await checkConnectorOauthApps(sql, baseUrl, authCtx);
-    await checkOauthAppSsoReuse(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkOneDriveSync(sql, baseUrl, authCtx);
-    await checkGoogleDriveSync(sql, baseUrl, authCtx);
-    await checkWebsitesCrawl(sql, baseUrl, authCtx);
-    await checkTranscription(sql, baseUrl, authCtx);
-    await checkVideoLinks(sql, baseUrl, authCtx);
-    await checkBrowserSessions(sql, baseUrl, authCtx);
-    await checkChatThreadSurface(sql, baseUrl, authCtx);
-    await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkAgentSecrets(sql, baseUrl, authCtx);
-    await checkTurnEquipmentBroker(sql, baseUrl, authCtx);
-    await checkKnowledgeEntries(sql, baseUrl, authCtx);
-    await checkCollabEmitters(sql, baseUrl, authCtx);
-    await checkBellHintWire(sql, baseUrl, authCtx);
-    await checkBoardMoveEffects(sql, baseUrl, authCtx);
-    await checkChangelogAndAccounts(sql, baseUrl, authCtx);
-    await checkAccountAuthzHardening(sql, baseUrl, authCtx, orgSuffix);
-    await checkLegalHolds(sql, baseUrl, authCtx);
-    await checkRetention(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkErasure(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    // Reliability batch probes (self-contained; each seeds and cleans its
-    // own rows).
-    await checkAbandonedUploadReclaim(sql, authCtx);
-    await checkCrawlRegistrationSerialization();
-    await checkVideoFinalizerCas(sql, authCtx);
-    await checkAgentUpsertConvergence(sql, authCtx);
-    await checkProjectTextConvergence(sql, baseUrl, authCtx);
-    await checkApprovalGateSingleClaim(sql, authCtx);
-    await checkRetentionHeldRowsProgress(sql, authCtx);
-    await checkSyncScanFairness(sql, authCtx);
-    await checkTwoFactor(
-      sql,
-      baseUrl,
-      authCtx,
-      `itest-${orgSuffix}`,
-      `itest-${orgSuffix}@example.com`,
-    );
-    await checkChatMemoriesDeferredAuto(
-      sql,
-      baseUrl,
-      authCtx,
-      `itest-${orgSuffix}`,
-    );
-    await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkAutomationRunLifecycle(sql, baseUrl, authCtx);
-    await checkAutomationTriggerDelivery(sql, baseUrl, authCtx);
-    await checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkBuilderSession(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkRestDoor(sql, baseUrl, authCtx);
-    await checkRestMachineJourney(sql, baseUrl, authCtx);
-    await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkRestRateAttribution(sql, baseUrl, authCtx);
-    await checkRestPagination(sql, baseUrl, authCtx);
-    await checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
-    await checkSamlLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
-    await checkEntraLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
-    await checkScim(sql, baseUrl, authCtx);
-    await checkSsoAdminSurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkTrustedHeaders(sql, baseUrl);
-    await checkConnectorCredentials(sql, baseUrl, authCtx);
-    await checkConnectorOauth(sql, baseUrl, authCtx);
-    await checkSlackInbound(sql, baseUrl, authCtx);
-    await checkRecoverySweeps(sql, authCtx);
-    await checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`);
-    await checkCollabMentions(sql, baseUrl, authCtx);
-    await checkCompetences(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkProjectTail(sql, baseUrl, authCtx);
-    await checkRunProvenance(sql, authCtx);
-    await checkManualKickMovesCard(sql, authCtx);
-    await checkSandboxBlobDoor(sql, baseUrl, authCtx);
-    await checkTurnReattach(sql, authCtx);
-    await checkQueuedRunRecovery(sql, authCtx);
-    await checkSteerFallbackRecovery(sql, authCtx);
-    await checkWorkflowTurnReattach(sql, authCtx);
-    await checkConversations(sql, baseUrl, authCtx);
-    await checkMailboxSyncLane(sql, authCtx);
-    await checkUndatedMailIngest(sql, authCtx);
-    await checkImapFromAddressHeal(sql, authCtx);
-    await checkOutboundSendLane(sql, baseUrl, authCtx);
-    await checkNotificationEmailSink(sql, authCtx);
-    await checkChatConversationSearchLeg(sql, authCtx);
-    await checkChatEntityWordSearch(sql, authCtx);
-    await checkChatWebsiteCatalogLeg(sql, authCtx);
-    await checkChatMailAttachmentListing(sql, authCtx);
-    await checkChatZeroHitListingFallback(sql, authCtx);
-    await checkAddressRouting(sql, authCtx, `itest-${orgSuffix}`);
-    await checkControlDrain(sql, baseUrl, authCtx);
-    await checkProvisioning(sql);
-    await checkWebdav(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkApprovalsSurface(sql, baseUrl, authCtx);
-    await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkGovernanceSettingsTail(
-      sql,
-      baseUrl,
-      authCtx,
-      `itest-${orgSuffix}`,
-    );
-    await checkAuditSurface(sql, baseUrl, authCtx);
-    await checkDataResidency(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkAutomationsSurface(sql, baseUrl, authCtx);
-    await checkLibrarySurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkDrivePickerRateLimit(sql, baseUrl, authCtx);
-    await checkEngagementSurface(sql, baseUrl, authCtx);
-    await checkMetricsSurface(sql, baseUrl, authCtx);
-    await checkArenaAndQuestions(sql, baseUrl, authCtx);
-    await checkGovernanceEnforcement(
-      sql,
-      baseUrl,
-      authCtx,
-      `itest-${orgSuffix}`,
-    );
-    await checkTaskAgentRuns(sql, baseUrl, authCtx);
-    await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkAskAnswer(sql, baseUrl, authCtx);
-    await checkAnsweredAskRecovery(sql, authCtx);
-    await checkAutoRetryAndKickPlan(sql, baseUrl, authCtx);
-    await checkReviewArc(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
-    await checkTasksCollabIntegrity(
-      sql,
-      baseUrl,
-      authCtx,
-      `itest-${orgSuffix}`,
-    );
-    await checkSandboxSessions(sql, authCtx);
-    await checkAutomationRunToolLane(sql, baseUrl, authCtx);
-    await checkSandboxSpawner(sql, baseUrl, authCtx);
-    await checkStuckSendRecovery(sql, authCtx);
-    await checkDeferredSendRecovery(sql, authCtx);
-    await checkBackfillRecovery(sql, authCtx);
-    await checkWatchdogs(sql, baseUrl, authCtx);
-    await checkDocumentWriteGuards(sql, baseUrl, authCtx);
-    await checkLoginThrottleAndAuditChain(
-      sql,
-      baseUrl,
-      authCtx,
-      `itest-${orgSuffix}@example.com`,
-    );
-    await checkDevSeed(sql, auth);
-    await checkWebTierOracles(sql, baseUrl, authCtx);
-    await checkOrganizationLifecycle(sql, baseUrl, orgSuffix);
   } finally {
     await boss.stop({ graceful: false });
     await new Promise<void>((resolve) => {
@@ -39285,8 +39699,13 @@ async function main(): Promise<void> {
   }
 
   const failed = results.filter((r) => !r.ok);
+  if (lanes === null || lanes.truncatedAt !== null) {
+    console.log(
+      `\n[itest] RUN TRUNCATED${lanes === null ? ' before the lanes' : ` at ${lanes.truncatedAt}`} — ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes ran; the tally below covers only those`,
+    );
+  }
   console.log(
-    `\n[itest] ${results.length - failed.length}/${results.length} checks passed`,
+    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes`,
   );
   process.exit(failed.length === 0 ? 0 : 1);
 }
