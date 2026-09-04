@@ -1,38 +1,32 @@
 ---
 title: Genehmigungen in Workflows
-description: Wo Menschen rund um Workflows entscheiden — Änderungen des KI-Editors an einer Definition genehmigen, die Anfrage eines Agents auf einen Workflow-Lauf genehmigen und die Fragen beantworten, die einen Lauf pausieren.
+description: Wo ein Live-Lauf auf einen Menschen wartet — ein für die Freigabe geparkter Connector-Schreibzugriff, eine Frage einer Agent-Node — und wie eine Definition sich ändert und live geht, ohne Vorschlagskarte.
 ---
 
-Workflows laufen ohne dich, aber sie ändern sich und starten nur mit dir. Drei menschliche Tore umgeben jeden Workflow: Die Änderungen des KI-Editors an einer Definition greifen erst nach deiner Genehmigung, ein Agent, der einen Workflow starten will, braucht zuerst dein Einverständnis, und ein Lauf, der auf eine Frage stößt, pausiert, bis jemand antwortet. Diese Seite behandelt die drei Tore; die organisationsweite Geschichte, was eine Genehmigungskarte ist, steht auf [Genehmigungskonzepte](/de/platform/approvals/concepts).
+Automatisierungen laufen ohne dich, aber ein Lauf hält an zwei Stellen für dich an. Ein Connector-Schreibzugriff, der deinen Mandanten verlässt, parkt, bis jemand ihn freigibt, und eine Agent-Node, die eine Antwort braucht, parkt, bis jemand sie gibt; beide warten auf der Detailseite des Laufs, und beide setzen genau dort fort, wo sie stehen geblieben sind. Die Definition selbst zu ändern hat in dieser Version keine Karte: Du bearbeitest und speicherst Versionen auf dem Canvas, und Live-Schalten ist ein eigener, ausdrücklicher Schritt. Diese Seite behandelt die zwei Tore und den Authoring-Weg; was eine Genehmigung grundsätzlich ist, steht auf [Genehmigungskonzepte](/de/platform/approvals/concepts).
 
-<Frame caption="Der Canvas einer Automatisierung mit dem Panel daneben — eine vorgeschlagene Änderung kommt als Genehmigungskarte an und greift nie still ins Dokument ein.">
+<Frame caption="Der Canvas einer Automatisierung mit dem Panel daneben — die Definition ändert sich hier durch das Speichern einer Version, und ein Live-Lauf parkt auf seiner Detailseite, wenn ein Schritt einen Menschen braucht.">
 
 ![Der Workflow-Canvas einer Automatisierung mit einem Graphen aus Nodes und einem geöffneten Panel daneben.](/images/platform/automation-editor-canvas.webp)
 
 </Frame>
 
-## Änderungen an einer Definition genehmigen
+## Einen Connector-Schreibzugriff freigeben
 
-Bitte den Assistenten, eine Automatisierung zu bauen oder umzubauen, und sein Vorschlag landet als Karte statt als Änderung. Die Karte benennt, was sie tun würde — eine neue Automatisierung anlegen, eine einzelne Node anpassen oder das ganze Dokument ersetzen — und hält, bis du entscheidest. Genehmigst du sie, wird das Ergebnis als neue Version gespeichert, genau wie bei einem manuellen Speichern: Das Dokument, das du angesehen hast, bleibt unangetastet, und die live geschaltete Version bleibt live, bis jemand live schaltet. Abbrechen verwirft den Vorschlag, und solange die Karte aussteht, erreicht nichts das Dokument.
-
-## Einen Lauf genehmigen
-
-Ein Agent im Chat, der die Automatisierungs-Tools hält, kann darum bitten, eine zu starten. Die Anfrage kommt als Karte an, die die Automatisierung benennt, und du kannst sie ausklappen, um vor der Entscheidung genau die Eingabe zu prüfen, mit der sie laufen würde. Nach der Genehmigung verfolgt dieselbe Karte den laufenden Lauf — an welcher Node er ist, wie lange er schon läuft und wie er geendet hat — und lässt dich ihn mitten im Flug stoppen oder den Lauf selbst für die vollständigen Details pro Node öffnen.
-
-<Note>
-
-Der Chat hält an, solange eine Anfrage aussteht, und sagt dir das auch. Entscheide die Karte, bevor du die nächste Nachricht schickst.
-
-</Note>
+Erreicht ein Live-Lauf einen Schreibzugriff, den deine Richtlinie abfängt, nimmt der Lauf in den [Ausführungsprotokollen](/de/platform/automations/execution-logs) den Status **Wartet** an, und seine Detailseite zeigt die Genehmigungskarte: **Wartet auf deine Freigabe**, die Operation als `<connector>.<aktion>`, die Node, die sie angefragt hat, und die exakte Eingabe unter **Der Schritt würde aufrufen mit**. **Freigeben** lässt den Schritt beim nächsten Poll handeln, und der Lauf setzt fort; **Ablehnen** lässt den Schritt fehlschlagen, und der Lauf stoppt. Testläufe parken hier nie — im Mock-Modus wird nichts außerhalb der Plattform berührt. Welche Schreibzugriffe fragen und wie du die Grenze verschiebst, steht auf [Genehmigungen konfigurieren](/de/platform/approvals/configure).
 
 ## Einen pausierten Lauf beantworten
 
-Ein Lauf, der eine menschliche Antwort braucht, nimmt in der [Liste der Läufe](/de/platform/automations/execution-logs) den Status **Wartet** an und parkt dort. Die Frage kommt als Formularkarte an — fülle sie aus und schick sie ab, oder widersprich in freiem Text, wenn das Formular nicht das Richtige fragt. Antworten startet nichts neu: Der Lauf setzt an genau der Node wieder ein, an der er stehen geblieben ist, trägt deine Antwort als deren Eingabe weiter und arbeitet den Rest des Graphen ab. Jede bereits abgeschlossene Node bleibt abgeschlossen, nichts von vorher passiert also zweimal.
+Eine Agent-Node, die ohne dich nicht fertig wird, fragt: Der Lauf parkt als **Wartet**, und seine Detailseite zeigt die Frage — als Auswahl, wenn der Agent Optionen angeboten hat, sonst als Freitextfeld. Beantworte sie, und der Lauf setzt an der Node wieder ein, an der er stehen geblieben ist, mit deiner Antwort in der Hand, und arbeitet den Rest des Graphen ab; nichts, was eine abgeschlossene Node getan hat, passiert zweimal. Der Agent fragt über sein Tool `ask_human`, das jede Automation-Agent-Node trägt — die Pause ist also die Entscheidung des Agents, keine Node, die du platzierst.
+
+## Eine Definition ändern und live schalten
+
+Zwischen dir und der Definition steht in dieser Version keine Vorschlagskarte — kein KI-Editor auf dem Canvas, kein Chat-Agent, der eine Änderung für dich entwirft, die du dann genehmigst. Du änderst eine Definition, indem du Nodes auf dem Canvas bearbeitest und auf **Speichern** klickst, was eine Version mit deiner Notiz anhängt und jede frühere Version unangetastet lässt; **Testlauf** prüft sie gegen Mocks; und nichts läuft live, bevor du auf **Diese Version live schalten** klickst, was die eigenen Tests der Automatisierung absichern. Ein Modell, das eine Automatisierung verfasst, geht über den [MCP-Endpoint](/de/develop/mcp-endpoint) — `save_automation` hängt auf dieselbe Weise eine Version an, und `deploy_automation` ist derselbe ausdrückliche Schritt. [Der Workflow-Editor](/de/platform/automations/editor) geht die drei Schritte durch.
 
 ## Was jede Entscheidung hinterlässt
 
-Jedes Tor durchläuft auf der Karte selbst dieselbe Handvoll Zustände — ausstehend, dann in Ausführung, dann abgeschlossen oder abgelehnt —, und die Entscheidung landet im [Audit-Log](/de/platform/admin/governance/audit-logs) mit Akteur und Zeitstempel. Eine entschiedene Karte lässt sich nicht wieder öffnen; um einen abgelehnten Lauf erneut zu versuchen, frag noch einmal und entscheide die frische Karte. Eine Genehmigung, die einen Lauf gestartet hat, hinterlässt diesen Lauf als eigenen Datensatz — was die Entscheidung tatsächlich bewirkt hat, bleibt also in der [Liste der Läufe](/de/platform/automations/execution-logs) lesbar, lange nachdem die Karte weg ist.
+Beide Tore hinterlassen an zwei Orten eine Spur: in den Details des Laufs selbst, wo die Karte zu freigegeben oder abgelehnt wird und das Ergebnis des Schritts folgt, und im [Audit-Log](/de/platform/admin/governance/audit-logs), das festhält, wer wann entschieden hat. Eine entschiedene Karte lässt sich nicht wieder öffnen; ein abgelehnter Lauf ist vorbei, und die Automatisierung erneut laufen zu lassen ist ein frischer Lauf mit einer frischen Karte. Weil eine Entscheidung zu der Operation gehört, für die sie erbeten wurde, gibt eine danach gelockerte Richtlinie eine bereits wartende Karte nie frei.
 
 ## Wo das hingehört
 
-Diese Tore sind die Workflow-Seite eines produktweiten Musters: Ein Agent schlägt vor, ein Mensch entscheidet. [Genehmigungskonzepte](/de/platform/approvals/concepts) benennt jeden Kartentyp jenseits von Workflows — Dokument-Schreibzugriffe, Wissens-Schreibzugriffe, Connector-Aufrufe — und [Genehmigungen konfigurieren](/de/platform/approvals/configure) zeigt, wo die Anforderungen deklariert sind.
+Ein Lauf wartet aus zwei Gründen auf einen Menschen — ein Schreibzugriff, der den Mandanten verlässt, und eine Frage, die nur ein Mensch beantworten kann —, und beide Wartestellen liegen auf der Detailseite des Laufs statt in einem Chat. [Genehmigungskonzepte](/de/platform/approvals/concepts) ist das Modell hinter dem Schreib-Tor, [Genehmigungen konfigurieren](/de/platform/approvals/configure) verschiebt die Grenze, und [Ausführungsprotokolle](/de/platform/automations/execution-logs) ist der Ort, an dem du den wartenden Lauf überhaupt erst findest.

@@ -1,12 +1,19 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
 import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
 import { resolveTeams } from '../../core/betterAuth/trusted_headers/resolve_team_names.ts';
-import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
+import { publicOrigin } from '../../core/enterprise_sso/login/public_origin.ts';
+import {
+  signCookieValue,
+  verifySignedValue,
+} from '../../core/enterprise_sso/sign_cookie_value.ts';
 import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
 
 /**
  * Trusted-headers authentication — the 0.5 twin of
@@ -28,6 +35,12 @@ export interface TrustedHeadersAuthResult {
   trustedHeadersChanged: boolean;
 }
 
+function secretsMatch(supplied: string, required: string): boolean {
+  const a = Buffer.from(supplied);
+  const b = Buffer.from(required);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function trustedHeadersAuthenticate(
   sql: Sql,
   args: {
@@ -35,14 +48,36 @@ export async function trustedHeadersAuthenticate(
     name: string;
     role: string;
     teams: { id: string; name: string }[] | null;
+    /**
+     * The CALLER-SUPPLIED internal secret (the request header the trusted
+     * proxy chain injects), compared against
+     * `TRUSTED_HEADERS_INTERNAL_SECRET`. It used to be read FROM that env var
+     * at the call site, so the guard compared the secret against itself and
+     * could never fail — anyone reaching the endpoint minted a session as
+     * whoever `Remote-Email` named. Fail closed: no env secret, no door.
+     */
+    secret: string | undefined;
+    /**
+     * The BARE session token from the browser's own cookie, after the route
+     * verified its signature (the cookie carries `${token}.${signature}`; the
+     * row stores the token). Reuse is bound to THIS session and no other:
+     * the door never adopts another device's row for the same user — that
+     * silently shared one session across devices (sign out on one killed
+     * both) — so no cookie, or one that fails verification, mints afresh.
+     */
     existingSessionToken?: string;
     ipAddress?: string;
     userAgent?: string;
-    secret?: string;
   },
 ): Promise<TrustedHeadersAuthResult> {
   const requiredSecret = process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
-  if (requiredSecret && args.secret !== requiredSecret) {
+  if (!requiredSecret) {
+    throw new Error(
+      'TRUSTED_HEADERS_INTERNAL_SECRET is not configured — trusted-headers ' +
+        'authentication refuses to run without it',
+    );
+  }
+  if (args.secret === undefined || !secretsMatch(args.secret, requiredSecret)) {
     throw new Error(
       'Invalid internal secret for trusted headers authentication',
     );
@@ -131,6 +166,11 @@ export async function trustedHeadersAuthenticate(
       }
     }
 
+    // Org 2FA enforcement anchors on this door too — it mints sessions
+    // outside the Better Auth sign-in hook, so without this an enforced
+    // policy's grace clock never started for proxy-authenticated users.
+    await anchorTwoFactorGraceOnSignIn(tx, userId);
+
     // ---- create or reuse the session ------------------------------------
     const nowMs = now.getTime();
     const expiresAt = new Date(sessionExpiryMs(nowMs, 24 * 60 * 60 * 1000));
@@ -179,39 +219,7 @@ export async function trustedHeadersAuthenticate(
       }
     }
 
-    const reusable = await tx<
-      {
-        id: string;
-        token: string;
-        expiresAt: Date;
-        trustedRole: string | null;
-        trustedTeams: string | null;
-      }[]
-    >`
-      SELECT "id", "token", "expiresAt", "trustedRole", "trustedTeams"
-      FROM "session" WHERE "userId" = ${userId} LIMIT 1
-    `;
-    const candidate = reusable[0];
-    if (candidate !== undefined && candidate.expiresAt.getTime() > nowMs) {
-      const trustedHeadersChanged =
-        (candidate.trustedRole ?? null) !== (args.role ?? null) ||
-        (candidate.trustedTeams ?? null) !== (trustedTeams ?? null);
-      await tx`
-        UPDATE "session" SET
-          "expiresAt" = ${expiresAt}, "updatedAt" = ${now},
-          "trustedRole" = ${args.role ?? null},
-          "trustedTeams" = ${trustedTeams ?? null}
-        WHERE "id" = ${candidate.id}
-      `;
-      return {
-        userId,
-        organizationId,
-        sessionToken: candidate.token,
-        shouldClearOldSession: args.existingSessionToken !== undefined,
-        trustedHeadersChanged,
-      };
-    }
-
+    // No (valid, live, same-user) cookie: a fresh session for THIS browser.
     const sessionToken = globalThis.crypto.randomUUID();
     await tx`
       INSERT INTO "session" (
@@ -311,7 +319,10 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
 
   app.get('/authenticate', async (c) => {
     const url = new URL(c.req.url);
-    const frontendOrigin = url.origin;
+    // Public origin, not the internal request origin — this door lives
+    // behind a reverse-proxy chain by definition, and the origin decides the
+    // __Secure-/Secure cookie shape Better Auth will read back.
+    const frontendOrigin = publicOrigin(c.req.url);
     const basePath = process.env.BASE_PATH || '';
     const redirectTo = sanitizeInternalRedirect(
       url.searchParams.get('redirect'),
@@ -321,6 +332,31 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
     if (process.env.TRUSTED_HEADERS_ENABLED !== 'true') {
       return c.html(
         errorPage(basePath, 'Trusted headers authentication is not enabled'),
+      );
+    }
+
+    // The internal secret is what separates "came through the authenticating
+    // proxy" from "reached the endpoint directly" — the identity headers
+    // alone are forgeable by anyone who can speak to the backend. Enabled
+    // without a secret is a misconfiguration, not a weaker mode.
+    if (!process.env.TRUSTED_HEADERS_INTERNAL_SECRET) {
+      console.error(
+        '[Trusted Headers] TRUSTED_HEADERS_ENABLED is true but ' +
+          'TRUSTED_HEADERS_INTERNAL_SECRET is not set. Set the secret and ' +
+          'configure the authenticating proxy to send it in the ' +
+          `"${headerName('TRUSTED_SECRET_HEADER', 'Remote-Internal-Secret')}" header.`,
+      );
+      return c.html(errorPage(basePath, 'Server configuration error'));
+    }
+
+    const secretHeader = headerName(
+      'TRUSTED_SECRET_HEADER',
+      'Remote-Internal-Secret',
+    );
+    const suppliedSecret = c.req.header(secretHeader);
+    if (suppliedSecret === undefined) {
+      return c.html(
+        errorPage(basePath, `Missing required header: ${secretHeader}`),
       );
     }
 
@@ -353,10 +389,20 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
     const cookieName = isHttps
       ? `__Secure-${SESSION_COOKIE_NAME}`
       : SESSION_COOKIE_NAME;
-    const existingSessionToken = extractCookieValue(
+    // The cookie carries what signCookieValue minted — `${token}.${signature}`
+    // — while the session row stores the bare token, so the lookup needs the
+    // verified, stripped value. (Matching the signed string against the token
+    // column never hit: the reuse and account-switch branches were dead, and
+    // every request fell through to adopting an arbitrary row of the user.)
+    // A cookie that fails verification is treated as no cookie at all.
+    const presentedCookie = extractCookieValue(
       c.req.header('cookie'),
       cookieName,
     );
+    const existingSessionToken =
+      presentedCookie !== undefined
+        ? ((await verifySignedValue(presentedCookie, secret)) ?? undefined)
+        : undefined;
     const ip =
       c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
       c.req.header('x-real-ip') ||
@@ -369,12 +415,10 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
         name,
         role,
         teams,
+        secret: suppliedSecret,
         ...(existingSessionToken !== undefined ? { existingSessionToken } : {}),
         ...(ip !== undefined ? { ipAddress: ip } : {}),
         ...(userAgent !== undefined ? { userAgent } : {}),
-        ...(process.env.TRUSTED_HEADERS_INTERNAL_SECRET !== undefined
-          ? { secret: process.env.TRUSTED_HEADERS_INTERNAL_SECRET }
-          : {}),
       });
 
       const signedToken = await signCookieValue(result.sessionToken, secret);

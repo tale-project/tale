@@ -476,6 +476,14 @@ auth:
       userNotAssigned:
         Ton compte n’est pas affecté à cette application. Contacte ton
         administration pour demander l’accès.
+      notOrgMember: Ton compte n’est pas membre de cette organisation. Demande à
+        l’administration de cette organisation de t’inviter, puis
+        reconnecte-toi.
+      assertionNotEncrypted:
+        Cette organisation exige des assertions SAML chiffrées, mais le
+        fournisseur d’identité en a envoyé une en clair. Demande à ton
+        administration d’activer le chiffrement des assertions côté
+        fournisseur d’identité.
       silentAuthFailed: La connexion silencieuse a échoué. Connecte-toi de manière interactive.
       refreshTokenExpired: Ta session a expiré. Reconnecte-toi.
       consentRequired:
@@ -511,9 +519,8 @@ automations:
     title: Changer d'automatisation
     searchPlaceholder: Rechercher des automatisations
     empty: Aucune automatisation trouvée
-    ariaLabel: "Changer d'automatisation, actuelle : {name}"
+    ariaLabel: "Changer d'automatisation, actuel : {name}"
   list:
-    createButton: Créer une automatisation
     searchPlaceholder: Rechercher des automatisations
     columnName: Nom
     columnProjects: Projets
@@ -537,6 +544,7 @@ automations:
     namePlaceholder: p. ex. Trier les issues GlitchTip
     slugHint: 'Enregistrée sous : {slug}'
     nameTaken: Une automatisation portant ce nom existe déjà.
+    nameReserved: Ce nom commence par un mot que la plateforme garde pour ses propres pages. Commence-le par un autre mot.
     modelLabel: Modèle de l'agent
     modelPlaceholder: Choisis le modèle que l'agent appelle
     modelSearchPlaceholder: Rechercher des modèles
@@ -577,6 +585,7 @@ automations:
     noProviders:
       Aucun fournisseur d’IA n’est prêt pour le builder. Ajoute d’abord une
       clé API dans Paramètres → Fournisseurs d’IA.
+    new: Nouvelle automatisation
   notFound:
     title: Automatisation introuvable
     description: Elle a peut-être été renommée, ou elle appartient à une autre
@@ -617,21 +626,28 @@ automations:
   trigger:
     title: Déclencheur
     none: Rien ne démarre encore cette automatisation.
-    kindLabel: Type
+    kindLabel: Type de déclencheur
     kinds:
       schedule: Planification
       webhook: Webhook
       event: Événement de la plateforme
     cronLabel: Cron
+    cronHint: Expression cron standard à 5 champs (minute heure jour mois jour-semaine).
+    cronInvalid: Cette expression cron n’est pas valide.
+    cronNext: 'Prochaine exécution {at}'
+    cronEveryMinutes: '{n, plural, one {Toutes les minutes} other {Toutes les # minutes}}'
+    cronEveryHours: '{n, plural, one {Toutes les heures} other {Toutes les # heures}}'
+    cronDailyAt: 'Tous les jours à {time}'
     timezoneLabel: Fuseau horaire
+    timezoneSearch: Rechercher un fuseau
+    timezoneEmpty: Aucun fuseau ne correspond
     eventLabel: Nom de l’événement
     eventPlaceholder: Choisir un événement
     enabledLabel: Actif
-    enabledBadge: Actif
-    disabledBadge: Coupé
+    unsavedBadge: Non enregistré
     lastFired: 'Dernier déclenchement {at}'
     nothingToSave: La liaison correspond à ce qui est enregistré.
-    save: Enregistrer le déclencheur
+    save: Enregistrer
     remove: Retirer le déclencheur
     removeTitle: Retirer le déclencheur ?
     removeBody: Supprime le déclencheur. L’automatisation et son historique de versions ne sont pas touchés.
@@ -719,16 +735,19 @@ automations:
       forEachDescription: S’exécute une fois par élément du tableau que produit l’expression.
       repeatUntil: Répéter jusqu’à
       repeatUntilDescription: Relancer ce nœud jusqu’à ce que l’expression soit vraie.
+  workflow:
+    save: Enregistrer les réglages
+    nothingToSave: Rien à enregistrer
   bindings:
     title: Projets
-    orgBadge: Toute l’organisation
     countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'
-    hint: Choisis les projets qui peuvent utiliser cette automatisation. Laisse vide pour la partager à toute l’organisation.
+    hint: Limite à des projets précis, ou laisse vide pour tous.
     placeholder: Choisir des projets
     searchPlaceholder: Rechercher des projets
     empty: Aucun projet ne correspond
     noProjects: Cette organisation n’a pas encore de projets.
-    save: Enregistrer les projets
+    save: Enregistrer
+    unsavedBadge: Non enregistré
     nothingToSave: Aucune modification à enregistrer
   versions:
     title: Versions
@@ -1160,6 +1179,9 @@ chat:
       privateIpResolved: Ce lien pointe vers une adresse privée/interne
       inFlightCap: Trop de vidéos en cours de traitement — attends qu'une se termine
       budgetExceeded: Limite d'usage atteinte — contacte ton administrateur
+      notFound: Lien vidéo introuvable — il a peut-être été supprimé
+      notUploader: Seule la personne qui a ajouté cette vidéo peut la modifier
+      notRetryable: Nouvelle tentative impossible pour le moment — la vidéo est peut-être déjà en cours de traitement
     actions:
       removeLink: Retirer
       retry: Réessayer
@@ -1450,6 +1472,7 @@ chat:
   budgetExceededDetail: Limite de {type} atteinte pour cette période {period} ({used} / {limit}). Contacte ton administrateur.
   budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Contacte ton administrateur."
   budgetRemaining: 'Encore {remaining} sur {limit} {type} pour ce {period}'
+  budgetRemainingOrg: 'Organisation : encore {remaining} sur {limit} {type} pour ce {period}'
   budgetLimitReached: "Limite d'utilisation atteinte · se réinitialise {period}"
   budgetRequestCredits: Demander plus de crédits
   budgetRequestCreditsSent: Demande envoyée à tes admins
@@ -1469,6 +1492,8 @@ common:
     yesterday: Hier
   datePicker:
     placeholder: Choisir une date
+    previousMonth: Mois précédent
+    nextMonth: Mois suivant
     presets:
       custom: Personnalisé
       today: Aujourd'hui
@@ -1845,11 +1870,9 @@ conversations:
     send: Envoyer le message
   attachment:
     download: Télécharger
-    downloading: Téléchargement...
     attachments: '{count, plural, one {# pièce jointe} other {# pièces jointes}}'
   panel:
     uploadFailed: Échec du téléversement des pièces jointes. Merci de réessayer.
-    downloadFailed: Échec du téléchargement des pièces jointes. Merci de réessayer.
     noSelected: Aucune conversation sélectionnée
     selectToView: Sélectionne une conversation pour voir les détails
     notFound: Conversation introuvable
@@ -2090,6 +2113,8 @@ documents:
       sendFeedback: Envoyer le feedback
       feedbackPlaceholder: Que faut-il changer ? Ton retour est enregistré
         avec la décision.
+      onlyDesignee: 'Seul {name} peut se prononcer sur cette relecture.'
+      onlyDesigneeNoName: Seul le relecteur désigné peut se prononcer sur cette relecture.
     toast:
       controlled: Ce document est maintenant un document maîtrisé
       controlledFailed: Impossible de marquer le document comme maîtrisé
@@ -2327,6 +2352,14 @@ documents:
     redirecting: Redirection…
     folderEmpty: Ce dossier est vide.
     loadFailed: Échec du chargement des éléments
+    listingTruncated: >-
+      Affiche les {count} premiers éléments — ce dossier en contient
+      davantage. Ouvre un sous-dossier ou lance une recherche pour atteindre
+      le reste.
+    folderTooLargeToImport: >-
+      "{name}" contient plus d'éléments qu'un import ne peut en lister.
+      Importe ses sous-dossiers un par un, ou configure un import
+      synchronisé.
     oneTimeImport: Importation unique
     oneTimeDescription:
       Importe les fichiers une seule fois et stocke-les dans ton
@@ -3026,10 +3059,7 @@ governance:
     saveFailed: Échec de l'enregistrement des limites de simultanéité des sandboxes
   featureFlags:
     title: Contrôle des fonctionnalités
-    description: Active ou désactive des fonctionnalités par utilisateur, équipe ou rôle.
-    webSearch: Recherche web
-    codeExecution: Exécution de code
-    fileUpload: Téléversement de fichiers
+    description: Plafonne la fenêtre de contexte des réponses IA par utilisateur, équipe ou rôle.
     maxContextTokens: Tokens de contexte maximum
     maxContextTokensHint:
       Nombre maximum de tokens de contexte pour les réponses IA.
@@ -3047,8 +3077,7 @@ governance:
       correspondants. Tu peux la recréer à tout moment.
     removeRuleConfirmAction: Supprimer
     noRulesTitle: Aucune règle de contrôle de fonctionnalités configurée
-    noRulesDescription: Ajoute une règle pour gérer les fonctionnalités par
-      utilisateur, équipe ou rôle.
+    noRulesDescription: Ajoute une règle pour plafonner les tokens de contexte par utilisateur, équipe ou rôle.
     saved: Le contrôle des fonctionnalités a été mis à jour
     saveFailed: Échec de l'enregistrement du contrôle des fonctionnalités
     actions: Actions
@@ -3930,6 +3959,7 @@ governance:
       gdpr_erasure_cascade_attempts_exhausted: Tentatives de cascade épuisées
       gdpr_erasure_extended: Échéance prolongée
       gdpr_erasure_retried: Réessayée
+      gdpr_erasure_rejected: Rejetée
       gdpr_erasure_cancelled: Annulée
     categories:
       userMemories: Mémoires personnelles
@@ -4270,9 +4300,6 @@ metadata:
   notificationPreferences:
     title: Notifications
     description: Choisis les événements qui t'envoient une notification.
-  environment:
-    title: Variables d'environnement et secrets
-    description: Variables d'environnement et secrets injectés dans tes sandboxes.
   organization:
     title: Organisation
     description: Gère les paramètres de ton organisation.
@@ -4402,7 +4429,6 @@ navigation:
   governance: Gouvernance
   metrics: Métriques
   personalization: Personnalisation
-  environment: Environnement
   account: Compte
   agents: Agents
   mcp: MCP
@@ -4593,14 +4619,6 @@ personalization:
     tooLong: Les instructions personnalisées dépassent {max} caractères.
   toasts:
     preferencesUpdated: Préférences mises à jour.
-userEnv:
-  page:
-    title: Variables d'environnement et secrets
-    description: Variables et secrets injectés dans toutes tes sandboxes.
-    note:
-      Les secrets sont chiffrés et en écriture seule — une fois enregistrés, ils
-      ne sont plus jamais affichés. Ces variables sont injectées dans toutes tes
-      sandboxes.
 piiConfigPanel:
   modeLabel: Mode
   modeTokenize: Tokeniser
@@ -5020,8 +5038,6 @@ settings:
       description: Comment Tale s'adapte à toi — mémoire, instructions et voix.
     notifications:
       description: Choisis les événements qui t'envoient une notification.
-    environment:
-      description: Variables d'environnement et secrets injectés dans tes sandboxes.
     organization:
       description: Nom de l'espace de travail et identifiants.
     members:
@@ -5136,6 +5152,7 @@ settings:
     deleteLoading: Suppression…
     deleteSuccess: Organisation supprimée
     deleteFailed: Échec de la suppression de l'organisation
+    deleteBlockedByLegalHold: Un legal hold actif préserve les données de cette organisation. Lève chaque hold dans Gouvernance > Conservation légale, puis réessaie.
     editMember: Modifier le membre
     removeMember: Retirer le membre
     memberUpdated: Membre mis à jour avec succès
@@ -6769,6 +6786,7 @@ tasks:
     overview: Aperçu
     comments: Commentaires
     noComments: Aucun commentaire pour le moment.
+    showEarlierComments: Afficher les commentaires précédents
     activity: Activité
     subtasks: Sous-tâches
     addSubtask: Ajouter une sous-tâche…
@@ -6811,6 +6829,7 @@ tasks:
     handoffConfirmLiveRun:
       "{name} travaille sur cette tâche en ce moment — la réassignation
       annule d'abord l'exécution en cours."
+    liveRunGuard: Cette tâche a une exécution en cours — annule-la avant de réassigner.
     handoffConfirmAction: Réassigner
     unassign: Désassigner
     you: Vous
@@ -7009,6 +7028,7 @@ toast:
     logoTooSmall: Le logo doit faire au moins {min}×{min} pixels.
     imageTooLarge: L'image est trop volumineuse. La taille maximale est de 2 Mo.
     imageMimeUnsupported: Format d'image non pris en charge. Utilise PNG, SVG, JPG, WebP ou ICO.
+    imageSvgActiveContent: Le SVG contient des scripts ou des gestionnaires d'événements. Retire-les ou téléverse un PNG.
     imageTypeInvalid: Type d'image invalide
     addMemberFailed:
       title: Impossible d'ajouter le membre

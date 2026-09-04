@@ -58,7 +58,7 @@ If a provider exposes OAuth2 but no discovery document, choose **OAuth2** and en
 3. Under **Import IdP metadata**, paste the IdP's federation-metadata URL and click **Import** — or click **Upload XML** if your IdP only offers a downloadable file. Tale parses the metadata and fills the entity ID, sign-on URL, and signing certificate fields below, so there's nothing to retype by hand. All three stay editable, so review the imported values (or fill them in yourself, if your IdP publishes no metadata document) before saving.
 4. Map the **email**, **name**, and **group** attributes in your IdP; if their names differ from the defaults, set the matching attribute names in Tale's advanced fields.
 
-Tale supports both IdP-initiated SAML (the IdP posts an assertion to the ACS URL) and SP-initiated SAML (a member clicks **Sign in with SSO** and Tale redirects to the IdP). Signed assertions are required; encrypted assertions are supported when you supply an SP keypair.
+Tale supports both IdP-initiated SAML (the IdP posts an assertion to the ACS URL) and SP-initiated SAML (a member clicks **Sign in with SSO** and Tale redirects to the IdP). Signed assertions are required; encrypted assertions are supported when you supply an SP keypair, and a connection that requires them refuses any assertion that arrives unencrypted.
 
 ## Several organizations on one deployment
 
@@ -69,14 +69,14 @@ A deployment can host more than one organization, each with its own connection. 
 Every protocol shares one provisioning policy:
 
 - **Default role** — the role a newly provisioned member receives (Member by default).
-- **Auto-assign roles** — when on, role-mapping rules map a job title, app role, group, or claim to a platform role; the default role applies when nothing matches.
-- **Sync groups to teams** — when on, each of the user's IdP groups becomes (or joins) a team of the same name on sign-in; **Exclude groups** skips noisy groups (comma-separated).
+- **Auto-assign roles from the IdP** — when on, role-mapping rules map a job title, app role, group, or claim to a platform role; the default role applies when nothing matches.
+- **Sync IdP groups to teams** — when on, each of the user's IdP groups becomes (or joins) a team of the same name on sign-in; **Exclude groups** skips noisy groups (comma-separated). The sync only ever takes back what it added: when a group disappears from the user's claim, the membership the sync granted is removed, and a team the sync created is deleted once it empties. Teams and memberships created by admins or through SCIM are never touched, and excluded groups are left alone entirely.
 
 ## SCIM provisioning (users and groups)
 
 SCIM lets your IdP push changes without anyone signing in. In the **SCIM provisioning** section, click **Generate token** — copy it once (it is never shown again) — and paste it, along with the **SCIM base URL** shown, into your IdP's provisioning settings. The IdP authenticates with the token as a bearer credential; Tale resolves the organisation from the token, so it is the tenant boundary.
 
-Tale implements SCIM 2.0 **Users** and **Groups**: create, read, list (with `userName`/`displayName` filters), replace, patch, and delete. Provisioned users map to organisation members; groups map to teams. **Deactivation is soft** — when the IdP sets a user inactive (`active: false`), the member's role is set to `disabled` (which removes their access), and re-activation restores their prior role. A SCIM **delete** removes the membership from the organisation; the user account itself is kept, and re-provisioning attaches it again at the connection's default role. The organisation owner can never be de-provisioned via SCIM.
+Tale implements SCIM 2.0 **Users** and **Groups**: create, read, list (with `userName`/`displayName` filters), replace, patch, and delete. Provisioned users map to organisation members; groups map to teams. **Deactivation is soft** — when the IdP sets a user inactive (`active: false`), the member's role is set to `disabled` (which removes their access), and re-activation restores their prior role. A SCIM **delete** removes the membership from the organisation; the user account itself is kept, and re-provisioning attaches it again at the connection's default role. The organisation owner can never be de-provisioned or deactivated via SCIM. Group members must be members of the organisation — a user from another organisation is refused. A `userName` change is applied only when the address is free and the account belongs to this organisation alone; an account that is also a member elsewhere keeps its sign-in identity, and the IdP receives a refusal instead.
 
 ## Verifying
 

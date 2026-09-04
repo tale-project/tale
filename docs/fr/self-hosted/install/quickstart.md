@@ -83,7 +83,7 @@ Sur une instance vide, il n’y a pas de page d’inscription à chercher : la p
 
 <Note>
 
-[Premier admin](/fr/self-hosted/install/first-admin) couvre l’assistant en détail, comment les coéquipiers arrivent, et la clé admin du tableau de bord Convex — un outil d’inspection du backend qui ne joue aucun rôle dans la connexion.
+[Premier admin](/fr/self-hosted/install/first-admin) couvre l’assistant en détail et comment les coéquipiers arrivent.
 
 </Note>
 
@@ -91,7 +91,7 @@ Sur une instance vide, il n’y a pas de page d’inscription à chercher : la p
 
 <Step title="Ajoute un modèle et publie un agent">
 
-Tu as maintenant une organisation vide. Deux gestes t’amènent à quelque chose d’utile : ajoute ta clé OpenRouter — l’assistant de configuration la demande juste après la création du compte propriétaire, et **Paramètres > Fournisseurs IA** la prend à tout moment — puis publie ton premier agent avec [Créer un agent](/fr/platform/agents/create). Une confirmation sur la ligne du fournisseur signifie que la clé fonctionne.
+Tu as maintenant une organisation vide. Deux gestes t’amènent à quelque chose d’utile : ajoute ta clé OpenRouter — l’assistant de configuration la demande juste après la création du compte propriétaire, et **Paramètres > Fournisseurs IA** la prend à tout moment — puis [construis ton premier agent](/fr/tutorials/editor/first-agent-end-to-end). Une confirmation sur la ligne du fournisseur signifie que la clé fonctionne.
 
 <Check>
 

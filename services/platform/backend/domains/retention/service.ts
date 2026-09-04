@@ -11,17 +11,15 @@ import {
   isRetentionDisabled,
   type EffectiveBoundDef,
 } from '../../core/governance/retention_floors.ts';
-import { deleteKnowledgeDocument } from '../../core/legacy/knowledge_delete.ts';
 import { readDomainConfigFile } from '../../core/lib/config_store/read_domain_file.ts';
 import { getConfigRoot } from '../../core/lib/file_io.ts';
-import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { toJson } from '../../db/sql.ts';
-import { resolveObjectStore, s3DeleteObject } from '../../lib/object-store.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
 import { loadActiveHolds, type ActiveHolds } from '../legal_holds/service.ts';
 import { cascadeDeleteThreadTtsChunks } from '../tts/service.ts';
 
@@ -393,31 +391,44 @@ interface Phase2Stats {
   documents: number;
   chatHistory: number;
   contacts: number;
+  externalConversations: number;
   agentRuns: number;
   automationRuns: number;
   auditLogs: number;
   tempFiles: number;
 }
 
-/** Best-effort blob removal — a missing object is success. */
-async function deleteBlobBestEffort(
-  orgSlug: string,
-  storageRef: string,
-): Promise<void> {
-  try {
-    const parsed = parseBlobRef(storageRef);
-    if (parsed.backend !== 's3') return;
-    const store = await resolveObjectStore(orgSlug);
-    await s3DeleteObject(store, parsed.key);
-  } catch (error) {
-    console.warn(`[retention] blob delete failed for ${storageRef}:`, error);
+/** A purge that could not remove every dead surface (corpus rows, bytes).
+ * The document row is KEPT so the caller can retry — a delete lane must
+ * never report success while content persists. Deliberately not a 4xx: the
+ * request was valid; the infrastructure failed. */
+export class PurgeIncompleteError extends Error {
+  readonly code = 'PURGE_INCOMPLETE';
+  readonly failures: ReleaseFailure[];
+  constructor(documentId: string, failures: ReleaseFailure[]) {
+    super(
+      `Purge incomplete for document ${documentId}: ${failures
+        .map(
+          (failure) => `${failure.ref} (${failure.stage}): ${failure.message}`,
+        )
+        .join('; ')}`,
+    );
+    this.name = 'PurgeIncompleteError';
+    this.failures = failures;
   }
 }
 
-/** Hard-delete one document: corpus entry (keyed by the file REF), blobs
- * (current + `historyFiles` — replaced blobs a sync/replace appended, the
- * 0.4 `eraseDocumentBlobs` contract), file rows, dependent knowledge-entry
- * chains, then the row. */
+/** Hard-delete one document: corpus entries + blobs first, through the
+ * shared refcounted release seam (current ref + `historyFiles` — replaced
+ * blobs a sync/replace appended, the 0.4 `eraseDocumentBlobs` contract; a
+ * ref another document still holds — a WebDAV COPY twin, a shared history
+ * snapshot — is KEPT for the twin), then file rows, dependent knowledge-
+ * entry chains, and the row. Throws `PurgeIncompleteError` when a corpus or
+ * blob delete fails, WITHOUT touching the app rows — every hard-delete lane
+ * funnels here (user delete, folder cascade, REST, retention sweep, erasure
+ * cascade, sync prune), and each retries from its own loop: the daily
+ * sweep re-selects the row, an erasure lands `partial` and can be re-armed,
+ * a user sees the failure instead of a false receipt. Idempotent. */
 export async function purgeDocument(
   sql: Sql,
   orgSlug: string | null,
@@ -428,32 +439,17 @@ export async function purgeDocument(
     historyFiles?: string[];
   },
 ): Promise<void> {
+  // A null slug means the organization row itself is gone — its corpus and
+  // bucket are unaddressable; only the app rows remain to clean up.
   if (orgSlug !== null) {
-    for (const ref of doc.historyFiles ?? []) {
-      if (ref !== doc.fileRef) {
-        await deleteBlobBestEffort(orgSlug, ref);
-      }
-    }
-  }
-  if (doc.fileRef !== null && orgSlug !== null) {
-    try {
-      const result = await deleteKnowledgeDocument({
-        orgSlug,
-        fileId: doc.fileRef,
-      });
-      if (!result.success) {
-        console.warn(
-          `[retention] corpus delete failed for document ${doc.id}: ${result.message}`,
-        );
-      }
-    } catch (error) {
-      console.warn(
-        `[retention] corpus delete failed for document ${doc.id}:`,
-        error,
-      );
-    }
-    if (orgSlug !== null) {
-      await deleteBlobBestEffort(orgSlug, doc.fileRef);
+    const outcome = await releaseRefs(sql, {
+      organizationId: doc.organizationId,
+      orgSlug,
+      refs: [doc.fileRef, ...(doc.historyFiles ?? [])],
+      excludeDocumentId: doc.id,
+    });
+    if (outcome.failures.length > 0) {
+      throw new PurgeIncompleteError(doc.id, outcome.failures);
     }
   }
   await sql.begin(async (tx) => {
@@ -481,7 +477,23 @@ async function sweepDocuments(
   const protectedIds = [...holds.userMembershipIds];
   let processed = 0;
 
-  // Pass A (grace > 0): flip active expired rows into the admin Trash.
+  // The custodian filter lives in SQL, on every pass: a held creator's rows
+  // are never candidates, so they cannot fill the batch. Skipping them in
+  // JS after `LIMIT` starved the sweep — once an org held more than a
+  // batch of trashed rows, the same held rows were re-selected every night
+  // and the unheld rows behind them were never reached. A creator-less row
+  // (a synced document) is nobody's to hold: `NULL <> ALL(...)` is NULL,
+  // so the IS NULL arm keeps it a candidate.
+  const custodianFree = sql`
+    (${protectedIds.length === 0}
+     OR created_by IS NULL OR created_by <> ALL(${protectedIds}))
+  `;
+
+  // Pass A (grace > 0): flip active expired rows into the admin Trash. A
+  // document's age is its creation — or its last lifecycle change, when a
+  // restore from the Trash stamped one: a restore restarts the retention
+  // clock, or the very next sweep re-expires the row the admin just brought
+  // back (and, with no grace, hard-deletes it outright).
   if (graceDays > 0) {
     const flipped = await sql<{ id: string }[]>`
       UPDATE app.documents SET
@@ -489,9 +501,9 @@ async function sweepDocuments(
       WHERE id IN (
         SELECT id FROM app.documents
         WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
-          AND created_at_ms < ${cutoff}
-          AND (${protectedIds.length === 0}
-               OR created_by <> ALL(${protectedIds}))
+          AND GREATEST(created_at_ms, coalesce(status_changed_at_ms, 0))
+              < ${cutoff}
+          AND ${custodianFree}
         LIMIT ${BATCH_LIMIT}
       )
       RETURNING id
@@ -507,45 +519,56 @@ async function sweepDocuments(
           {
             id: string;
             fileRef: string | null;
-            createdBy: string | null;
             historyFiles: string[];
           }[]
         >`
-          SELECT id, file_ref AS "fileRef", created_by AS "createdBy",
-                 history_files AS "historyFiles"
+          SELECT id, file_ref AS "fileRef", history_files AS "historyFiles"
           FROM app.documents
           WHERE org_id = ${org.organizationId}
             AND lifecycle_status IN ('trashed', 'expired')
             AND status_changed_at_ms < ${Date.now() - graceDays * DAY_MS}
+            AND ${custodianFree}
           LIMIT ${BATCH_LIMIT}
         `
-      : await sql<
+      : // No grace window: trashed/expired rows (user trash, a project-
+        // cascade's 'expired' marks) hard-delete on the next sweep, and
+        // active rows past the cutoff go directly. Without the lifecycle
+        // arm, grace=0 orgs kept 'expired' documents forever — the project-
+        // cascade promise ("the retention pipeline hard-deletes blob + RAG
+        // chunks") silently never ran.
+        await sql<
           {
             id: string;
             fileRef: string | null;
-            createdBy: string | null;
             historyFiles: string[];
           }[]
         >`
-          SELECT id, file_ref AS "fileRef", created_by AS "createdBy",
-                 history_files AS "historyFiles"
+          SELECT id, file_ref AS "fileRef", history_files AS "historyFiles"
           FROM app.documents
-          WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
-            AND created_at_ms < ${cutoff}
+          WHERE org_id = ${org.organizationId}
+            AND ((lifecycle_status IS NULL
+                  AND GREATEST(created_at_ms, coalesce(status_changed_at_ms, 0))
+                      < ${cutoff})
+                 OR lifecycle_status IN ('trashed', 'expired'))
+            AND ${custodianFree}
           LIMIT ${BATCH_LIMIT}
         `;
   if (passB.length === 0) return processed;
   const orgSlug = await resolveOrgSlug(sql, org.organizationId);
   for (const doc of passB) {
-    if (doc.createdBy !== null && holds.userMembershipIds.has(doc.createdBy)) {
+    try {
+      await purgeDocument(sql, orgSlug, {
+        id: doc.id,
+        fileRef: doc.fileRef,
+        organizationId: org.organizationId,
+        historyFiles: doc.historyFiles,
+      });
+    } catch (error) {
+      // The row is kept (purgeDocument releases before it deletes), so the
+      // next daily run retries; one stuck document must not starve the rest.
+      console.warn(`[retention] purge failed for document ${doc.id}:`, error);
       continue;
     }
-    await purgeDocument(sql, orgSlug, {
-      id: doc.id,
-      fileRef: doc.fileRef,
-      organizationId: org.organizationId,
-      historyFiles: doc.historyFiles,
-    });
     processed += 1;
   }
   return processed;
@@ -591,21 +614,33 @@ async function sweepChatHistory(
   if (typeof days !== 'number' || days <= 0) return 0;
   const cutoff = Date.now() - days * DAY_MS;
   const graceDays = org.config.deletionGraceDays ?? 0;
+  const protectedIds = [...holds.userMembershipIds];
   let processed = 0;
 
+  // Custodian filter in SQL (see sweepDocuments): a held owner's threads
+  // are never candidates, so they cannot fill a batch and starve the rest.
+  const custodianFree = sql`
+    (${protectedIds.length === 0} OR tm.user_id <> ALL(${protectedIds}))
+  `;
+
   // Pass A (grace > 0): expire active chat threads past the cutoff — they
-  // land in the admin Trash for the grace window.
+  // land in the admin Trash for the grace window. A thread's age is its
+  // last activity — or its last lifecycle change, when a restore from the
+  // Trash stamped one: the restore restarts the retention clock, or the
+  // next sweep re-expires the thread the admin just brought back.
   if (graceDays > 0) {
-    const candidates = await sql<{ threadId: string; userId: string }[]>`
-      SELECT tm.thread_id AS "threadId", tm.user_id AS "userId"
+    const candidates = await sql<{ threadId: string }[]>`
+      SELECT tm.thread_id AS "threadId"
       FROM app.thread_metadata tm
       JOIN app.threads t ON t.id = tm.thread_id
       WHERE tm.org_id = ${org.organizationId} AND tm.chat_type = 'chat'
-        AND tm.status = 'active' AND t.updated_at_ms < ${cutoff}
+        AND tm.status = 'active'
+        AND GREATEST(t.updated_at_ms, coalesce(tm.status_changed_at_ms, 0))
+            < ${cutoff}
+        AND ${custodianFree}
       LIMIT ${BATCH_LIMIT}
     `;
     for (const thread of candidates) {
-      if (holds.userMembershipIds.has(thread.userId)) continue;
       await sql`
         UPDATE app.thread_metadata SET
           status = 'expired', status_changed_at_ms = ${Date.now()}
@@ -620,27 +655,31 @@ async function sweepChatHistory(
   // — hidden siblings travel with their root.
   const passB =
     graceDays > 0
-      ? await sql<{ threadId: string; userId: string }[]>`
-          SELECT tm.thread_id AS "threadId", tm.user_id AS "userId"
+      ? await sql<{ threadId: string }[]>`
+          SELECT tm.thread_id AS "threadId"
           FROM app.thread_metadata tm
           WHERE tm.org_id = ${org.organizationId} AND tm.chat_type = 'chat'
             AND tm.status IN ('trashed', 'expired')
             AND tm.branch_root_id IS NULL
             AND tm.status_changed_at_ms < ${Date.now() - graceDays * DAY_MS}
+            AND ${custodianFree}
           LIMIT ${BATCH_LIMIT}
         `
-      : await sql<{ threadId: string; userId: string }[]>`
-          SELECT tm.thread_id AS "threadId", tm.user_id AS "userId"
+      : await sql<{ threadId: string }[]>`
+          SELECT tm.thread_id AS "threadId"
           FROM app.thread_metadata tm
           JOIN app.threads t ON t.id = tm.thread_id
           WHERE tm.org_id = ${org.organizationId} AND tm.chat_type = 'chat'
             AND tm.branch_root_id IS NULL
-            AND ((tm.status = 'active' AND t.updated_at_ms < ${cutoff})
+            AND ((tm.status = 'active'
+                  AND GREATEST(t.updated_at_ms,
+                               coalesce(tm.status_changed_at_ms, 0))
+                      < ${cutoff})
                  OR tm.status IN ('trashed', 'expired'))
+            AND ${custodianFree}
           LIMIT ${BATCH_LIMIT}
         `;
   for (const thread of passB) {
-    if (holds.userMembershipIds.has(thread.userId)) continue;
     processed += await purgeThreadLineage(
       sql,
       org.organizationId,
@@ -705,6 +744,128 @@ async function sweepContacts(
   return processed + removed.length;
 }
 
+/**
+ * The `externalConversations` category — the Inbox's own payload, and the
+ * heaviest correspondent-PII surface retention governs:
+ * `app.conversation_messages.content` is NOT NULL text holding the inbound
+ * and outbound email BODIES, plus a `metadata` jsonb of envelope detail.
+ *
+ * Ages by `last_message_at_ms` (the 0.4 `lastMessageAt` window, served by
+ * `conversations_org_last_message`). A conversation that never received a
+ * message has no activity timestamp to age against and is intentionally NOT
+ * a candidate — the 0.4 index range said the same, and `NULL < cutoff` is
+ * already false in SQL, so the rule costs nothing to keep. A restore from
+ * the Trash stamps `status_changed_at_ms`, and that stamp restarts the
+ * retention clock (spelled as a second `<` rather than `GREATEST`, which
+ * ignores NULLs and would turn the never-messaged row into a candidate) —
+ * the same rule the document and chat sweeps follow.
+ *
+ * Message rows ride the parent's `ON DELETE CASCADE` (migration 0036).
+ * Stored mail attachments do NOT: `app.file_metadata.conversation_id`
+ * (migration 0037) is a plain column with no FK, and the mail lane stamps
+ * `source` with the CONNECTOR slug, so `sweepTempFiles` — which only takes
+ * `source` 'user'/'agent' — never reaches them. Without the cascade below,
+ * deleting the email body would leave its attachment bytes live forever
+ * behind a dangling pointer, which is the opposite of the promise the
+ * window makes. A file promoted into a Document is left alone: the
+ * `documents` category owns that lifecycle, the same `document_id IS NULL`
+ * guard `sweepTempFiles` uses.
+ */
+async function sweepExternalConversations(
+  sql: Sql,
+  org: OrgPolicy,
+  holds: ActiveHolds,
+): Promise<number> {
+  if (org.config.externalConversationsEnabled !== true) return 0;
+  const days = org.config.externalConversationsRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return 0;
+  if (holds.orgHeld) return 0;
+  const cutoff = Date.now() - days * DAY_MS;
+  const graceDays = org.config.deletionGraceDays ?? 0;
+  let processed = 0;
+  if (graceDays > 0) {
+    const flipped = await sql<{ id: string }[]>`
+      UPDATE app.conversations SET
+        lifecycle_status = 'expired', status_changed_at_ms = ${Date.now()}
+      WHERE id IN (
+        SELECT id FROM app.conversations
+        WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
+          AND last_message_at_ms < ${cutoff}
+          AND coalesce(status_changed_at_ms, 0) < ${cutoff}
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    processed += flipped.length;
+  }
+  const doomed =
+    graceDays > 0
+      ? await sql<{ id: string }[]>`
+          SELECT id FROM app.conversations
+          WHERE org_id = ${org.organizationId}
+            AND lifecycle_status IN ('trashed', 'expired')
+            AND status_changed_at_ms < ${Date.now() - graceDays * DAY_MS}
+          LIMIT ${BATCH_LIMIT}
+        `
+      : await sql<{ id: string }[]>`
+          SELECT id FROM app.conversations
+          WHERE org_id = ${org.organizationId}
+            AND (lifecycle_status IN ('trashed', 'expired')
+                 OR (lifecycle_status IS NULL
+                     AND last_message_at_ms < ${cutoff}
+                     AND coalesce(status_changed_at_ms, 0) < ${cutoff}))
+          LIMIT ${BATCH_LIMIT}
+        `;
+  if (doomed.length === 0) return processed;
+  const doomedIds = doomed.map((row) => row.id);
+  const attachments = await sql<
+    { id: string; storageRef: string; conversationId: string }[]
+  >`
+    SELECT id, storage_ref AS "storageRef",
+           conversation_id AS "conversationId"
+    FROM app.file_metadata
+    WHERE org_id = ${org.organizationId}
+      AND conversation_id IN ${sql(doomedIds)}
+      AND document_id IS NULL
+  `;
+  const stranded = new Set<string>();
+  if (attachments.length > 0) {
+    const orgSlug = await resolveOrgSlug(sql, org.organizationId);
+    for (const file of attachments) {
+      if (orgSlug !== null) {
+        // The same refcounted release `sweepTempFiles` uses: an indexed
+        // attachment's corpus rows die with it, a blob another holder still
+        // references survives, and a failed delete KEEPS the row so the next
+        // sweep retries rather than leaking the bytes forever.
+        const outcome = await releaseRefs(sql, {
+          organizationId: org.organizationId,
+          orgSlug,
+          refs: [file.storageRef],
+          excludeFileMetadataId: file.id,
+        });
+        if (outcome.failures.length > 0) {
+          console.warn(
+            `[retention] conversation-attachment release failed for ${file.id} — keeping the row and its conversation for the next sweep:`,
+            outcome.failures,
+          );
+          stranded.add(file.conversationId);
+          continue;
+        }
+      }
+      await sql`DELETE FROM app.file_metadata WHERE id = ${file.id}`;
+    }
+  }
+  // A conversation whose attachment could not be released stays too: deleting
+  // the parent would orphan the file row behind a dangling pointer, which is
+  // the failure this cascade exists to prevent.
+  const deletable = doomedIds.filter((id) => !stranded.has(id));
+  if (deletable.length === 0) return processed;
+  const removed = await sql<{ id: string }[]>`
+    DELETE FROM app.conversations WHERE id IN ${sql(deletable)} RETURNING id
+  `;
+  return processed + removed.length;
+}
+
 async function sweepAgentRuns(
   sql: Sql,
   org: OrgPolicy,
@@ -765,6 +926,33 @@ async function sweepAutomationRuns(sql: Sql, org: OrgPolicy): Promise<number> {
   return rows.length;
 }
 
+/** The audit-log sweep's cutoff for one clamped policy: rows with `ts`
+ * below it are reap candidates; null when the category is off. */
+function auditLogCutoffFor(config: RetentionPolicyConfig): number | null {
+  if (config.auditLogEnabled !== true) return null;
+  const days = config.auditLogRetentionDays;
+  if (typeof days !== 'number' || days <= 0 || !Number.isFinite(days)) {
+    return null;
+  }
+  return Date.now() - days * DAY_MS;
+}
+
+/**
+ * The oldest audit `ts` the org's sweep would still keep right now — the
+ * same clamped, cooldown-overlaid policy `sweepAuditLogs` enforces — or
+ * null when nothing legitimately deletes the org's audit rows (category
+ * off, no valid policy, bounds never applied). The scheduled integrity walk
+ * uses it to tell a resume anchor the sweep reaped (re-anchor) from a row
+ * that vanished inside the window (a break).
+ */
+export async function auditLogRetentionCutoff(
+  sql: Sql,
+  organizationId: string,
+): Promise<number | null> {
+  const policy = await clampedPolicyFor(sql, organizationId);
+  return policy === null ? null : auditLogCutoffFor(policy.config);
+}
+
 /**
  * Audit logs are PREFIX-ONLY: the hash chain anchors on the oldest
  * remaining row's stored `previous_hash`, so a mid-chain hole would break
@@ -777,12 +965,10 @@ async function sweepAuditLogs(
   org: OrgPolicy,
   holds: ActiveHolds,
 ): Promise<number> {
-  if (org.config.auditLogEnabled !== true) return 0;
-  const days = org.config.auditLogRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
+  const cutoff = auditLogCutoffFor(org.config);
+  if (cutoff === null) return 0;
   // Refuse to delete the very table that records why the hold exists.
   if (holds.orgHeld) return 0;
-  const cutoff = Date.now() - days * DAY_MS;
   const candidates = await sql<
     { id: string; actorId: string | null; ts: number }[]
   >`
@@ -838,11 +1024,31 @@ async function sweepTempFiles(
   `;
   if (rows.length === 0) return 0;
   const orgSlug = await resolveOrgSlug(sql, org.organizationId);
+  let removed = 0;
   for (const row of rows) {
-    if (orgSlug !== null) await deleteBlobBestEffort(orgSlug, row.storageRef);
+    if (orgSlug !== null) {
+      // Refcounted release: an indexed temp/thread file's corpus rows die
+      // with it, a shared blob survives for its other holders, and a failed
+      // delete KEEPS the row so the next daily sweep retries — deleting the
+      // row after a swallowed blob failure leaked the bytes forever.
+      const outcome = await releaseRefs(sql, {
+        organizationId: org.organizationId,
+        orgSlug,
+        refs: [row.storageRef],
+        excludeFileMetadataId: row.id,
+      });
+      if (outcome.failures.length > 0) {
+        console.warn(
+          `[retention] temp-file release failed for ${row.id} — keeping the row for the next sweep:`,
+          outcome.failures,
+        );
+        continue;
+      }
+    }
     await sql`DELETE FROM app.file_metadata WHERE id = ${row.id}`;
+    removed += 1;
   }
-  return rows.length;
+  return removed;
 }
 
 /** The phase-2 categories, run after the row-level ones per org. */
@@ -855,6 +1061,7 @@ export async function sweepOrgPhase2(
     documents: 0,
     chatHistory: 0,
     contacts: 0,
+    externalConversations: 0,
     agentRuns: 0,
     automationRuns: 0,
     auditLogs: 0,
@@ -864,6 +1071,11 @@ export async function sweepOrgPhase2(
   stats.documents = await sweepDocuments(sql, org, holds);
   stats.chatHistory = await sweepChatHistory(sql, org, holds);
   stats.contacts = await sweepContacts(sql, org, holds);
+  stats.externalConversations = await sweepExternalConversations(
+    sql,
+    org,
+    holds,
+  );
   stats.agentRuns = await sweepAgentRuns(sql, org, holds);
   stats.automationRuns = await sweepAutomationRuns(sql, org);
   stats.auditLogs = await sweepAuditLogs(sql, org, holds);

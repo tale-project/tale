@@ -1,16 +1,69 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { toJson } from '../../db/sql.ts';
+import { loadOwnedThread, loadProjectSharedThread } from '../chat/threads.ts';
 
 /**
  * Message feedback — thumbs up/down on assistant messages, one row per
  * (message, user), upsert-on-revote. Every active member may read and write
- * (the one table the 0.4 matrix opens to `member` writes).
+ * (the one table the 0.4 matrix opens to `member` writes). A vote row never
+ * carries metadata — that column belongs to the arena settle lane's verdict
+ * rows (`domains/chat/arena.ts`), and its NULL-ness is what the vote's
+ * partial unique index keys on.
  */
+
+export class FeedbackError extends Error {
+  readonly code: string;
+  readonly status: 404;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = 'FeedbackError';
+    this.code = code;
+    this.status = 404;
+  }
+}
 
 export interface FeedbackScope {
   organizationId: string;
   userId: string;
+}
+
+/**
+ * A vote lands only on a message the caller can READ: it exists in the
+ * caller's organization, inside the thread the client named, and that thread
+ * is the caller's own or one its owner shared with a project the caller can
+ * read — the same two grants the chat surface reads through. Anything else
+ * is one opaque "not found": the ids are client-supplied, and the answer must
+ * not confirm that a foreign message exists.
+ */
+async function assertVotableMessage(
+  tx: TransactionSql,
+  scope: FeedbackScope,
+  threadId: string,
+  messageId: string,
+): Promise<void> {
+  const refuse = (): FeedbackError =>
+    new FeedbackError('MESSAGE_NOT_FOUND', 'Message not found.');
+  const rows = await tx<{ id: string }[]>`
+    SELECT id FROM app.messages
+    WHERE id = ${messageId} AND thread_id = ${threadId}
+      AND org_id = ${scope.organizationId}
+    LIMIT 1
+  `;
+  if (rows.length === 0) throw refuse();
+  const owned = await loadOwnedThread(
+    tx,
+    scope.organizationId,
+    scope.userId,
+    threadId,
+  );
+  if (owned !== null) return;
+  const shared = await loadProjectSharedThread(
+    tx,
+    scope.organizationId,
+    scope.userId,
+    threadId,
+  );
+  if (shared === null) throw refuse();
 }
 
 export interface SubmitFeedbackArgs {
@@ -21,7 +74,6 @@ export interface SubmitFeedbackArgs {
   agentSlug?: string;
   model?: string;
   provider?: string;
-  metadata?: Record<string, unknown>;
 }
 
 export async function submitMessageFeedback(
@@ -29,15 +81,18 @@ export async function submitMessageFeedback(
   scope: FeedbackScope,
   args: SubmitFeedbackArgs,
 ): Promise<void> {
+  await assertVotableMessage(tx, scope, args.threadId, args.messageId);
   const now = Date.now();
+  // `metadata` is written NULL unconditionally: it is the vote's upsert key
+  // (the partial unique index is `WHERE metadata IS NULL`), so a value here
+  // would fork the key and let one member stack rows for one message.
   await tx`
     INSERT INTO app.message_feedback (
       org_id, thread_id, message_id, user_id, rating, comment, metadata,
       agent_slug, model, provider, created_at_ms
     ) VALUES (
       ${scope.organizationId}, ${args.threadId}, ${args.messageId},
-      ${scope.userId}, ${args.rating}, ${args.comment ?? null},
-      ${args.metadata === undefined ? null : tx.json(toJson(args.metadata))},
+      ${scope.userId}, ${args.rating}, ${args.comment ?? null}, NULL,
       ${args.agentSlug ?? null}, ${args.model ?? null},
       ${args.provider ?? null}, ${now}
     )

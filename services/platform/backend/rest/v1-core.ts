@@ -3,7 +3,6 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
-import { AppError } from '../../lib/shared/errors/app-error';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import { getUserTeamIds } from '../auth/membership.ts';
 import {
@@ -18,6 +17,7 @@ import {
   readSkillForViewer,
   saveSkillForViewer,
 } from '../core/skills/file_actions.ts';
+import { agentErrorResponse } from '../domains/agents/errors.ts';
 import {
   bulkCreateContacts,
   createContact,
@@ -28,7 +28,10 @@ import {
   type ContactScope,
 } from '../domains/contacts/service.ts';
 import {
+  assertDocumentsWriteRole,
   createHubDocument,
+  deleteDocumentHard,
+  DocumentError,
   getDocumentById,
   listHubDocumentsPage,
   readDocumentRestExtras,
@@ -36,13 +39,15 @@ import {
   type DocumentRow,
 } from '../domains/documents/service.ts';
 import { searchKnowledgeForOrg } from '../domains/knowledge/service.ts';
-import { markRagQueued } from '../domains/knowledge/service.ts';
+import {
+  markRagQueued,
+  syncRagDocumentScope,
+} from '../domains/knowledge/service.ts';
 import {
   createKnowledgeEntry,
   deleteKnowledgeEntry,
   updateKnowledgeEntry,
 } from '../domains/knowledge_entries/service.ts';
-import { assertNotHeld } from '../domains/legal_holds/service.ts';
 import {
   createProduct,
   deleteProduct,
@@ -51,12 +56,16 @@ import {
   updateProduct,
   type ProductScope,
 } from '../domains/products/service.ts';
-import { purgeDocument } from '../domains/retention/service.ts';
+import { skillErrorResponse } from '../domains/skills/errors.ts';
+import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
 import { checkOrganizationRateLimit } from '../lib/rate-limit.ts';
 import {
   domainErrorResponse,
+  formatKeysetCursor,
+  pageLimit,
+  parseKeysetCursor,
   restProjectAuth,
   type RestEnv,
 } from './shared.ts';
@@ -91,21 +100,30 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     notes: z.string().optional(),
   });
 
+  /** Keyset-paginated (`cursor` = the previous page's `continueCursor`,
+   * `<updatedAt>:<id>`); `limit` 1..200, default 25. */
   app.get('/contacts', async (c) => {
-    const limitRaw = Number(c.req.query('limit') ?? '25');
+    const cursor = parseKeysetCursor(c.req.query('cursor'));
     try {
       const result = await listContacts(deps.sql, scope(c), {
         ...(c.req.query('source') !== undefined
           ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listContacts filters on the free-text column; unknown values match nothing
             { source: c.req.query('source') as never }
           : {}),
-        ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
+        cursor:
+          cursor === null ? null : { updatedAt: cursor.at, id: cursor.id },
+        limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 200 }),
       });
       return c.json({
         page: result.items,
         isDone: result.nextCursor === null,
         continueCursor:
-          result.nextCursor === null ? '' : JSON.stringify(result.nextCursor),
+          result.nextCursor === null
+            ? ''
+            : formatKeysetCursor(
+                result.nextCursor.updatedAt,
+                result.nextCursor.id,
+              ),
       });
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -215,20 +233,32 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     metadata: z.record(z.string(), z.unknown()).optional(),
   });
 
+  /** Keyset-paginated like /contacts; `status` and `category` narrow. */
   app.get('/products', async (c) => {
-    const limitRaw = Number(c.req.query('limit') ?? '25');
+    const cursor = parseKeysetCursor(c.req.query('cursor'));
     try {
       const result = await listProducts(deps.sql, scope(c), {
         ...(c.req.query('category') !== undefined
           ? { category: c.req.query('category') ?? '' }
           : {}),
-        ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
+        ...(c.req.query('status') !== undefined
+          ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listProducts filters on the status column; a value outside the vocabulary matches nothing
+            { status: c.req.query('status') as never }
+          : {}),
+        cursor:
+          cursor === null ? null : { updatedAt: cursor.at, id: cursor.id },
+        limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 200 }),
       });
       return c.json({
         page: result.items,
         isDone: result.nextCursor === null,
         continueCursor:
-          result.nextCursor === null ? '' : JSON.stringify(result.nextCursor),
+          result.nextCursor === null
+            ? ''
+            : formatKeysetCursor(
+                result.nextCursor.updatedAt,
+                result.nextCursor.id,
+              ),
       });
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -411,9 +441,17 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
       const auth = await restProjectAuth(deps.sql, c);
-      await deps.sql.begin((tx) =>
+      const result = await deps.sql.begin((tx) =>
         updateDocument(tx, auth, { documentId: doc.id, ...body.data }),
       );
+      // Same post-commit re-stamp as the app door: a team or folder change
+      // moves the corpus filters, not the embeddings.
+      if (
+        (result.teamScopeChanged || result.folderChanged) &&
+        result.fileRef !== null
+      ) {
+        await syncRagDocumentScope(deps.sql, auth.organizationId, doc.id);
+      }
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -424,50 +462,33 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
-      const extras = await readDocumentRestExtras(deps.sql, doc.id);
-      const record = extras?.record;
-      // Controlled-record gate: an in-review/approved record refuses (409),
-      // exactly like the session trash path.
+      const auth = await restProjectAuth(deps.sql, c);
+      // The SESSION delete whole — org-role write gate, the controlled-record
+      // protection predicate (in_review/approved AND retained approved
+      // history, `assertRecordTrashableJson` — never re-derived from `state`
+      // alone), legal holds, sync stop, the audit row, then the purge.
+      await deleteDocumentHard(deps.sql, auth, doc.id);
+      return c.body(null, 204);
+    } catch (error) {
+      // Wire parity: this door has always refused protected records as 409.
       if (
-        record !== null &&
-        record !== undefined &&
-        typeof record === 'object' &&
-        'state' in record &&
-        (record as { state?: unknown }).state !== 'draft'
+        error instanceof DocumentError &&
+        error.code === 'DOCUMENT_RECORD_PROTECTED'
       ) {
         return c.json(
-          {
-            error: 'DOCUMENT_RECORD_PROTECTED',
-            message: 'This controlled record cannot be deleted.',
-          },
+          { error: 'DOCUMENT_RECORD_PROTECTED', message: error.message },
           409,
         );
       }
-      // Legal holds outrank the delete (the 0.4 `deleteDocumentById` gate) —
-      // the author-scoped custodian cascade included.
-      await assertNotHeld(
-        deps.sql,
-        c.get('organizationId'),
-        'document',
-        doc.id,
-        undefined,
-        doc.createdBy ?? undefined,
-      );
-      const orgSlug = await resolveOrgSlug(deps.sql, c.get('organizationId'));
-      await purgeDocument(deps.sql, orgSlug, {
-        id: doc.id,
-        fileRef: doc.fileRef,
-        organizationId: doc.organizationId,
-        historyFiles: doc.historyFiles,
-      });
-      return c.body(null, 204);
-    } catch (error) {
       return domainErrorResponse(c, error);
     }
   });
 
   app.post('/documents/:id/retry-indexing', async (c) => {
     try {
+      // Write-shaped: it rewrites RAG bookkeeping and enqueues billable
+      // indexing — the same matrix gate as the session Retry affordance.
+      assertDocumentsWriteRole({ role: c.get('role') });
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
       if (doc.fileRef === null) {
@@ -638,6 +659,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const id = await createKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         userId: c.get('userId'),
+        role: c.get('role'),
         topic: body.data.topic,
         content: body.data.content,
         source: 'manual',
@@ -675,6 +697,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const id = await updateKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         userId: c.get('userId'),
+        role: c.get('role'),
         entryId: c.req.param('id'),
         topic: body.data.topic,
         content: body.data.content,
@@ -695,6 +718,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       await deleteKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         entryId: c.req.param('id'),
+        role: c.get('role'),
       });
       return c.body(null, 204);
     } catch (error) {
@@ -715,13 +739,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json(await listAgentsForCaller(await agentCaller(c)));
   });
 
+  // The file layer's coded refusals — an invalid slug, an agent the key
+  // holder may not edit, a malformed file — map onto 400/403/422 exactly as
+  // the app route maps them; uncaught they read as a 500 outage.
   app.get('/agents/:slug', async (c) => {
-    const agent = await readAgentForCaller({
-      ...(await agentCaller(c)),
-      slug: c.req.param('slug'),
-    });
-    if (agent === null) return c.json({ error: 'Agent not found' }, 404);
-    return c.json({ agent });
+    try {
+      const agent = await readAgentForCaller({
+        ...(await agentCaller(c)),
+        slug: c.req.param('slug'),
+      });
+      if (agent === null) return c.json({ error: 'Agent not found' }, 404);
+      return c.json({ agent });
+    } catch (error) {
+      return agentErrorResponse(c, error);
+    }
   });
 
   app.put('/agents/:slug', async (c) => {
@@ -736,57 +767,34 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
-    const agent = await saveAgentForCaller({
-      ...(await agentCaller(c)),
-      slug: c.req.param('slug'),
-      ...body.data,
-    });
-    return c.json({ agent });
-  });
-
-  app.delete('/agents/:slug', async (c) => {
-    return c.json({
-      deleted: await deleteAgentForCaller({
+    try {
+      const agent = await saveAgentForCaller({
         ...(await agentCaller(c)),
         slug: c.req.param('slug'),
-      }),
-    });
+        ...body.data,
+      });
+      return c.json({ agent });
+    } catch (error) {
+      return agentErrorResponse(c, error);
+    }
+  });
+
+  /** Removing a resource that is not there is a 404 — the deletion
+   * semantics the API reference documents, and the skills family's. */
+  app.delete('/agents/:slug', async (c) => {
+    try {
+      const deleted = await deleteAgentForCaller({
+        ...(await agentCaller(c)),
+        slug: c.req.param('slug'),
+      });
+      if (!deleted) return c.json({ error: 'Agent not found' }, 404);
+      return c.body(null, 204);
+    } catch (error) {
+      return agentErrorResponse(c, error);
+    }
   });
 
   // ---- skills (the file layer, reused) -------------------------------------
-  const SKILL_ERROR_STATUS: Record<string, 400 | 403 | 404 | 422> = {
-    INVALID_SKILL_SLUG: 400,
-    INVALID_SKILL: 400,
-    SKILL_PRIVATE_RETIRED: 400,
-    SKILL_FORBIDDEN: 403,
-    SKILL_MALFORMED: 422,
-  };
-
-  const skillErrorResponse = (
-    c: Context<RestEnv>,
-    error: unknown,
-  ): Response => {
-    if (error instanceof AppError) {
-      const data: unknown = error.data;
-      if (data !== null && typeof data === 'object' && 'code' in data) {
-        const record = data as { code?: unknown; message?: unknown };
-        const code = typeof record.code === 'string' ? record.code : 'ERROR';
-        const status = SKILL_ERROR_STATUS[code];
-        if (status !== undefined) {
-          return c.json(
-            {
-              error: code,
-              message:
-                typeof record.message === 'string' ? record.message : code,
-            },
-            status,
-          );
-        }
-      }
-    }
-    throw error;
-  };
-
   /** The key acts as its user: team skills follow the user's own teams. */
   const skillCaller = async (c: Context<RestEnv>) => ({
     orgSlug:
@@ -832,11 +840,16 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
-      const saved = await saveSkillForViewer({
-        ...(await skillCaller(c)),
-        slug: c.req.param('slug'),
-        ...body.data,
-      });
+      const who = await skillCaller(c);
+      const slug = c.req.param('slug');
+      // Serialized with the upload lane and the app editor on the per-slug
+      // writer lock (`writer_lock.ts`).
+      const saved = await withSkillWriterLock(
+        deps.sql,
+        c.get('organizationId'),
+        slug,
+        () => saveSkillForViewer({ ...who, slug, ...body.data }),
+      );
       return c.json(saved);
     } catch (error) {
       return skillErrorResponse(c, error);
@@ -845,10 +858,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   app.delete('/skills/:slug', async (c) => {
     try {
-      const deleted = await deleteSkillForViewer({
-        ...(await skillCaller(c)),
-        slug: c.req.param('slug'),
-      });
+      const who = await skillCaller(c);
+      const slug = c.req.param('slug');
+      const deleted = await withSkillWriterLock(
+        deps.sql,
+        c.get('organizationId'),
+        slug,
+        () => deleteSkillForViewer({ ...who, slug }),
+      );
       if (!deleted) return c.json({ error: 'Skill not found' }, 404);
       return c.body(null, 204);
     } catch (error) {

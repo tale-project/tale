@@ -5,15 +5,15 @@ description: A project bundles chats, files, instructions, and tasks into one sh
 
 A project is the unit Tale reaches for when a body of work needs the same files, the same instructions, and the same working surfaces across many chats and many people. This page hands you the mental model — read it before you create your first project, and come back when you are deciding whether a growing chat should be promoted into one.
 
-<Frame caption="The General tab — identity, sharing, and the stats strip for the project.">
+<Frame caption="The General tab — the project's identity, its standing instructions, and sharing below them.">
 
-![The General tab of the Website relaunch project showing the name and description fields, the sharing section with an Org-wide owning team, and a stats strip reading two files, no chats, and Org-wide.](/images/platform/project-general-tab.webp)
+![The General tab of the Website relaunch project showing the name and description fields, the filled-in Instructions editor that every chat in the project starts from, and the Sharing section heading below, with Save and Discard in the tab strip.](/images/platform/project-general-tab.webp)
 
 </Frame>
 
 ## What a project owns
 
-**Chats** started inside the project carry its context automatically. They stay yours until you flip **Share with project** on a chat — the Chats tab splits into **Your chats** and **Shared with project** accordingly. Sharing a chat hides your personal memories and instructions from the responses other members see.
+**Chats** started inside the project carry its context automatically. They stay yours until you flip **Share with project** on a chat — the Chats tab splits into **Your chats** and **Shared with project** accordingly. Sharing a chat hides your personal memories and instructions from the responses other members see. Moving a shared chat to another project — or out of its project — ends the share, so a new audience never inherits it silently: switch **Share with project** back on if the new project's members should read it.
 
 **Instructions** are context that applies to every chat in the project — the framing, constraints, and vocabulary of the work — so nobody re-pastes them per chat.
 

@@ -16,8 +16,10 @@ import {
   parseBlobRef,
   s3KeyBelongsToOrg,
 } from '../../core/lib/storage/blob_ref.ts';
-import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
-import { checkProjectAccess } from '../../core/projects/access.ts';
+import {
+  browserFacing,
+  s3GetObjectBytes,
+} from '../../core/lib/storage/object_store.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
@@ -30,19 +32,15 @@ import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
-import {
-  loadProjectOrThrow,
-  type ProjectAuthContext,
-} from '../projects/service.ts';
+import type { ProjectAuthContext } from '../projects/service.ts';
 import {
   openRecordRevision,
   parseControlledRecord,
   type ControlledRecord,
 } from './records.ts';
 import {
-  assertDocumentVisible,
   DocumentError,
-  loadDocumentOrThrow,
+  requireDocumentWriteAccess,
   validateDocumentUploadForOrg,
   type DocumentRow,
 } from './service.ts';
@@ -144,26 +142,17 @@ async function requireIntentForPrincipal(
   return intent;
 }
 
-/** The write standard shared with records.ts (project canEdit), plus the
- * controlled + active gates every replacement step re-checks. */
+/** The document-write standard (`requireDocumentWriteAccess`: org write
+ * matrix + visibility + project canEdit), plus the controlled + active gates
+ * every replacement step re-checks. `lock` takes the document's row lock for
+ * the transaction that will rewrite it (the bind). */
 async function requireReplacementDocument(
   db: Sql | TransactionSql,
   auth: ProjectAuthContext,
   documentId: string,
+  options: { lock?: boolean } = {},
 ): Promise<{ doc: DocumentRow; record: ControlledRecord }> {
-  const doc = await loadDocumentOrThrow(db, documentId);
-  await assertDocumentVisible(db, auth, doc);
-  if (doc.projectId !== null) {
-    const project = await loadProjectOrThrow(db, doc.projectId);
-    const access = checkProjectAccess(
-      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-      auth.teamIds,
-      auth.role,
-    );
-    if (!access.canEdit) {
-      throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
-    }
-  }
+  const doc = await requireDocumentWriteAccess(db, auth, documentId, options);
   const record = parseControlledRecord(doc.record);
   if (record === null) {
     throw new DocumentError(
@@ -347,7 +336,11 @@ export async function beginReplacementUpload(
   const uploadContentType =
     args.contentType?.trim() || 'application/octet-stream';
   const uploadExpiresAt = Date.now() + PRESIGN_TTL_SEC * 1000;
-  const url = await s3PresignPutUrl(store, stagingKey, {
+  // The browser executes this PUT (mutations.ts uploadWithProgress), so the
+  // URL must be signed against the origin the browser can reach — this lane
+  // was the one browser-handed presign missing `browserFacing`, which broke
+  // replacement uploads on deployments whose store endpoint is internal.
+  const url = await s3PresignPutUrl(browserFacing(store), stagingKey, {
     contentType: uploadContentType,
     expiresInSec: PRESIGN_TTL_SEC,
   });
@@ -639,10 +632,17 @@ async function bindReplacement(
   const verifiedContentType = intent.verifiedContentType;
   const contentHash = intent.contentHash;
   const size = intent.size;
+  // Under the document's ROW LOCK: two intents minted against the same
+  // current file both pass their mint- and acquire-time checks, and without
+  // the lock both binds would decide on the same snapshot — the second swap
+  // then overwrote the first's blob, which ended up neither current nor in
+  // history (a version lost behind two success responses). Serialized here,
+  // the second bind re-reads the winner's commit and fails the match below.
   const { doc, record } = await requireReplacementDocument(
     tx,
     auth,
     intent.documentId,
+    { lock: true },
   );
   if (!replacementTargetMatches(doc, record, intent)) {
     await supersedeIntent(
@@ -744,8 +744,11 @@ async function bindReplacement(
     lastModified: intent.lastModified ?? now,
   };
   // The content swap: current blob into history, replacement becomes
-  // current (the 0.4 `replaceControlledDocumentContentInternal`).
-  await tx`
+  // current (the 0.4 `replaceControlledDocumentContentInternal`). The
+  // `file_ref` predicate is the compare-and-swap behind the row lock above:
+  // the swap lands only on the exact blob this bind decided on, so a row
+  // that moved underneath can never lose a version silently.
+  const swapped = await tx<{ id: string }[]>`
     UPDATE app.documents SET
       file_ref = ${intent.finalRef},
       mime_type = ${verifiedContentType},
@@ -760,9 +763,25 @@ async function bindReplacement(
       END,
       updated_at_ms = ${now}
     WHERE id = ${doc.id}
+      AND file_ref IS NOT DISTINCT FROM ${previousFileRef}
+    RETURNING id
   `;
+  if (swapped.length === 0) {
+    throw rejectionError('DOCUMENT_RECORD_VERSION_MISMATCH');
+  }
   if (shouldIndex) {
     await addJobInTx(tx, 'rag.index_file', { fileId: fileMetadataId });
+  }
+  if (previousFileRef !== null && previousFileRef !== intent.finalRef) {
+    // The corpus is keyed by blob ref, so the replaced version's rows must
+    // go dark now that the ref is history — otherwise the superseded
+    // content keeps answering RAG queries as if current. Bytes stay (the
+    // retained snapshot in `history_files` holds them); the durable job
+    // keeps network I/O out of this transaction and retries on failure.
+    await addJobInTx(tx, 'knowledge.release_refs', {
+      organizationId: intent.organizationId,
+      refs: [previousFileRef],
+    });
   }
   await createAuditLog(tx, {
     organizationId: auth.organizationId,

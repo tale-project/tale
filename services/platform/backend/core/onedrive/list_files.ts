@@ -1,4 +1,4 @@
-import { fetchJson } from '../../../lib/utils/type-utils';
+import { fetchGraphCollection, GRAPH_LIST_MAX_ITEMS } from './graph_collection';
 
 export interface OneDriveItem {
   id: string;
@@ -14,9 +14,31 @@ export interface OneDriveItem {
 export interface ListFilesResult {
   success: boolean;
   items?: OneDriveItem[];
+  /** The bound cut the listing: the folder (or search) holds more items
+   * than were returned. A consumer must not treat the list as whole. */
+  truncated?: boolean;
   error?: string;
 }
 
+/** A search answers a picker, not an import — a smaller bound is plenty. */
+export const ONEDRIVE_SEARCH_MAX_ITEMS = 500;
+
+interface GraphDriveItem {
+  id: string;
+  name: string;
+  size: number;
+  file?: { mimeType?: string };
+  folder?: { childCount?: number };
+  lastModifiedDateTime?: string;
+  webUrl?: string;
+}
+
+/**
+ * Browse a OneDrive folder (or search the drive): every page Graph has,
+ * followed through `@odata.nextLink` up to the bound, with `truncated` when
+ * the bound cut it. The import dialog expands selected folders through
+ * this, so a short read here silently shrank a one-time import.
+ */
 export async function listFiles(
   token: string,
   folderId?: string,
@@ -24,44 +46,31 @@ export async function listFiles(
 ): Promise<ListFilesResult> {
   try {
     let url: string;
+    let maxItems = GRAPH_LIST_MAX_ITEMS;
 
     if (search) {
       const escapedSearch = search.replace(/'/g, "''");
-      url = `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(escapedSearch)}')?$top=50`;
+      url = `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(escapedSearch)}')?$top=200`;
+      maxItems = ONEDRIVE_SEARCH_MAX_ITEMS;
     } else if (folderId) {
-      url = `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children?$top=100`;
+      url = `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children?$top=200`;
     } else {
-      url = `https://graph.microsoft.com/v1.0/me/drive/root/children?$top=100`;
+      url = `https://graph.microsoft.com/v1.0/me/drive/root/children?$top=200`;
     }
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-      },
+    const listed = await fetchGraphCollection<GraphDriveItem>({
+      url,
+      token,
+      maxItems,
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
+    if (!listed.ok) {
       return {
         success: false,
-        error: `OneDrive API error: ${response.status} ${errorText}`,
+        error: `OneDrive API error: ${listed.status} ${listed.errorText}`,
       };
     }
 
-    const data = await fetchJson<{
-      value: Array<{
-        id: string;
-        name: string;
-        size: number;
-        file?: { mimeType?: string };
-        folder?: { childCount?: number };
-        lastModifiedDateTime?: string;
-        webUrl?: string;
-      }>;
-    }>(response);
-
-    const items = data.value.map((item) => ({
+    const items = listed.items.map((item) => ({
       id: item.id,
       name: item.name,
       size: item.size || 0,
@@ -74,7 +83,7 @@ export async function listFiles(
       webUrl: item.webUrl,
     }));
 
-    return { success: true, items };
+    return { success: true, items, truncated: listed.truncated };
   } catch (error) {
     console.error('[listFiles] Error:', error);
     return {

@@ -102,7 +102,10 @@ const CREDENTIAL_COLUMNS = `
   created_at_ms::float8 AS "createdAt", updated_at_ms::float8 AS "updatedAt"
 `;
 
-const NAME_MAX = 100;
+/** The longest label a credential may carry — the OAuth callback derives
+ * workspace-named labels and must stay within it. */
+export const CREDENTIAL_NAME_MAX = 100;
+const NAME_MAX = CREDENTIAL_NAME_MAX;
 const SECRET_VALUE_MAX = 8192;
 
 function normalizeName(raw: string): string {
@@ -486,6 +489,34 @@ export async function createCredential(
   sql: Sql,
   args: CreateCredentialArgs,
 ): Promise<{ credentialId: string }> {
+  const prepared = prepareCredential(args);
+  return sql.begin((tx) => insertPreparedCredential(tx, args, prepared));
+}
+
+/**
+ * {@link createCredential} on a transaction the CALLER owns — for a flow
+ * whose credential must commit together with another write, or not at all.
+ * The connector OAuth callback claims the Slack workspace in the same
+ * transaction: a lost claim then rolls the credential back instead of
+ * leaving a foreign workspace's live token stored as this organization's
+ * default. Validation and sealing still run before the first statement.
+ */
+export async function createCredentialInTransaction(
+  tx: TransactionSql,
+  args: CreateCredentialArgs,
+): Promise<{ credentialId: string }> {
+  return insertPreparedCredential(tx, args, prepareCredential(args));
+}
+
+interface PreparedCredential {
+  endpointUrl: ReturnType<typeof normalizeEndpointUrl>;
+  config: Record<string, string | number | boolean> | undefined;
+  name: string;
+  sealed: ReturnType<typeof sealPayload>;
+}
+
+/** Everything that can refuse a new credential, before any statement. */
+function prepareCredential(args: CreateCredentialArgs): PreparedCredential {
   const connector = requireConnectorAuthMethod(
     args.connectorSlug,
     args.authMethod,
@@ -501,45 +532,48 @@ export async function createCredential(
   } catch (error) {
     translateAppError(error);
   }
-  const name = normalizeName(args.name);
-  const sealed = sealPayload(buildPayload(args.authMethod, args.secret));
+  return {
+    endpointUrl,
+    config,
+    name: normalizeName(args.name),
+    sealed: sealPayload(buildPayload(args.authMethod, args.secret)),
+  };
+}
 
-  return sql.begin(async (tx) => {
-    const siblings = await rowsForConnector(
-      tx,
-      args.organizationId,
-      args.connectorSlug,
-    );
-    assertNameFree(siblings, name);
-    const isDefault = args.isDefault ?? siblings.length === 0;
-    if (isDefault) {
-      await clearOtherDefaults(
-        tx,
-        args.organizationId,
-        args.connectorSlug,
-        null,
-      );
-    }
-    const now = Date.now();
-    const inserted = await tx<{ id: string }[]>`
-      INSERT INTO app.connector_credentials (
-        org_id, connector_slug, auth_method, name, encrypted_data,
-        endpoint_url, config, masked_preview, is_default, status,
-        created_by, created_at_ms, updated_at_ms
-      ) VALUES (
-        ${args.organizationId}, ${args.connectorSlug}, ${args.authMethod},
-        ${name}, ${tx.json(toJson(sealed.encryptedData))},
-        ${endpointUrl ?? null},
-        ${config === undefined ? null : tx.json(toJson(config))},
-        ${sealed.maskedPreview ?? null}, ${isDefault}, 'active',
-        ${args.createdBy}, ${now}, ${now}
-      )
-      RETURNING id
-    `;
-    const credentialId = inserted[0]?.id;
-    if (!credentialId) throw new Error('credential insert failed');
-    return { credentialId };
-  });
+async function insertPreparedCredential(
+  tx: TransactionSql,
+  args: CreateCredentialArgs,
+  prepared: PreparedCredential,
+): Promise<{ credentialId: string }> {
+  const siblings = await rowsForConnector(
+    tx,
+    args.organizationId,
+    args.connectorSlug,
+  );
+  assertNameFree(siblings, prepared.name);
+  const isDefault = args.isDefault ?? siblings.length === 0;
+  if (isDefault) {
+    await clearOtherDefaults(tx, args.organizationId, args.connectorSlug, null);
+  }
+  const now = Date.now();
+  const inserted = await tx<{ id: string }[]>`
+    INSERT INTO app.connector_credentials (
+      org_id, connector_slug, auth_method, name, encrypted_data,
+      endpoint_url, config, masked_preview, is_default, status,
+      created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${args.organizationId}, ${args.connectorSlug}, ${args.authMethod},
+      ${prepared.name}, ${tx.json(toJson(prepared.sealed.encryptedData))},
+      ${prepared.endpointUrl ?? null},
+      ${prepared.config === undefined ? null : tx.json(toJson(prepared.config))},
+      ${prepared.sealed.maskedPreview ?? null}, ${isDefault}, 'active',
+      ${args.createdBy}, ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const credentialId = inserted[0]?.id;
+  if (!credentialId) throw new Error('credential insert failed');
+  return { credentialId };
 }
 
 export interface UpdateCredentialArgs {
@@ -720,6 +754,39 @@ export async function findCredentialForRef(
   return rows.find((row) => row.name.toLowerCase() === needle) ?? null;
 }
 
+/**
+ * The 0.4 `resolveCredentialRefInternal` answer every reused resolver reads —
+ * the work-lane credential broker and the mailbox sync's IMAP fromAddress
+ * heal alike: the FULL row including the sealed envelope (the reused resolver
+ * decrypts it itself and refuses disabled / needs-reauth rows on `status`), in
+ * the 0.4 wire shape where nullable columns are ABSENT fields, never nulls.
+ * Null on a miss. Internal-only by contract: it carries sealed secret
+ * material and must never reach a client, an agent, or a log.
+ */
+export async function resolveCredentialRowForShim(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    credentialRef?: string;
+  },
+): Promise<Record<string, unknown> | null> {
+  const row = await findCredentialForRef(sql, args);
+  if (row === null) return null;
+  return {
+    _id: row.id,
+    organizationId: row.organizationId,
+    connectorSlug: row.connectorSlug,
+    authMethod: row.authMethod,
+    name: row.name,
+    encryptedData: row.encryptedData,
+    ...(row.endpointUrl !== null ? { endpointUrl: row.endpointUrl } : {}),
+    ...(row.config !== null ? { config: row.config } : {}),
+    status: row.status,
+    ...(row.statusDetail !== null ? { statusDetail: row.statusDetail } : {}),
+  };
+}
+
 /** Load the addressed row (explicit id-or-name ref, else the default). */
 async function loadRowForResolve(
   sql: Sql,
@@ -881,6 +948,27 @@ export async function patchMailSyncWatermarks(
         ${patch.inboundSince ?? null}, mail_sync_inbound_since_ms),
       mail_sync_outbound_since_ms = coalesce(
         ${patch.outboundSince ?? null}, mail_sync_outbound_since_ms),
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${credentialId} AND org_id = ${organizationId}
+  `;
+}
+
+/**
+ * The mailbox sync's config heal (the IMAP `fromAddress` mirror): the caller
+ * derived the whole config from the row's own resolved config plus a login
+ * address it validated, so it is written as given — a system seam, not the
+ * user door, hence no per-field normalization — scoped to the org like the
+ * watermark patch.
+ */
+export async function patchCredentialConfigInternal(
+  sql: Sql,
+  organizationId: string,
+  credentialId: string,
+  config: Record<string, string | number | boolean>,
+): Promise<void> {
+  await sql`
+    UPDATE app.connector_credentials SET
+      config = ${sql.json(toJson(config))},
       updated_at_ms = ${Date.now()}
     WHERE id = ${credentialId} AND org_id = ${organizationId}
   `;

@@ -58,7 +58,20 @@ describe('featureFlagRuleSchema — maxContextTokens validation', () => {
     const result = featureFlagRuleSchema.safeParse({
       scope: 'user',
       scopeId: 'user_1',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // The toggles are deprecated (never enforced, no longer written) but a
+  // policy file from an earlier release may still carry them — it must keep
+  // parsing rather than fail the whole governance read.
+  it('still accepts the deprecated webSearch/codeExecution/fileUpload keys', () => {
+    const result = featureFlagRuleSchema.safeParse({
+      scope: 'user',
+      scopeId: 'user_1',
       webSearch: false,
+      codeExecution: false,
+      fileUpload: true,
     });
     expect(result.success).toBe(true);
   });

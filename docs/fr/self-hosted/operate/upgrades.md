@@ -46,11 +46,11 @@ tale update --dry-run
 `tale deploy` fait le vrai redémarrage rolling, et il déploie toujours la version propre à la CLI — qui, grâce à l'alignement, est la version qu'enregistre ton workspace. Il trie les services en trois étages :
 
 - **Étage app** — `platform` — roule à **chaque** déploiement, sans downtime (blue-green : la nouvelle couleur démarre à côté de l'ancienne, les healthchecks passent, le trafic bascule, l'ancienne couleur draine).
-- **Backend et compute** — `convex`, `sandbox`, `sandbox-egress` — roulent à chaque déploiement eux aussi, pour ne jamais dériver en version d'avec `platform`. Chacun est un conteneur unique qui se recrée **en place** quand son image a réellement changé ; le déploiement draine d'abord le travail en cours (générations de chat pour `convex`, runs d'agent pour `sandbox`) pour que le bref redémarrage ne coupe pas une requête en vol.
-- **Étage à arrêt requis** — `db`, `proxy` — laissés **en marche et intacts** par défaut (recréer Postgres ou le proxy est une brève coupure que tu ne veux pas sur un roll de routine). Passe `--stop` pour les mettre à jour ; le déploiement prévient et les nomme quand il les saute.
+- **Backend et compute** — `backend-api`, `backend-worker`, `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — roulent à chaque déploiement eux aussi, pour ne jamais dériver en version d'avec `platform`. Chacun se recrée **en place** quand son image a réellement changé ; le déploiement draine d'abord le travail en cours (tours de chat pour le backend, runs d'agent pour `sandbox`) pour que le bref redémarrage ne coupe pas une requête en vol.
+- **Étage à arrêt requis** — `db`, `object-store`, `proxy` — laissés **en marche et intacts** par défaut (recréer Postgres, le store de blobs ou le proxy est une brève coupure que tu ne veux pas sur un roll de routine). Passe `--stop` pour les mettre à jour ; le déploiement prévient et les nomme quand il les saute.
 
 ```bash
-# Après tale update, roule les conteneurs pour correspondre (étage app + convex)
+# Après tale update, roule les conteneurs pour correspondre (étage app + backend)
 tale deploy
 
 # Mets aussi à jour db/proxy (brève coupure pendant qu'ils se recréent)
@@ -142,7 +142,14 @@ tale deploy
 # 4. Décommissionner l'instance 0.4 une fois la nouvelle validée.
 ```
 
-Le contournement expert — `tale deploy --accept-data-loss`, ou `TALE_ACCEPT_DATA_LOSS=1` sur le conteneur — existe pour le cas rare où tu réutilises délibérément un hôte dont tu as déjà traité les anciens volumes. Il fait exactement ce que son nom dit : les données pré-0.5 de cette instance deviennent définitivement illisibles.
+Le contournement expert — `tale deploy --accept-data-loss` — existe pour le cas rare où tu réutilises délibérément un hôte dont tu as déjà traité les anciens volumes. Il fait exactement ce que son nom dit : les données pré-0.5 de cette instance deviennent définitivement illisibles.
+
+**L'ancienne base `tale_platform`.** Chaque conteneur `tale-db` créait au démarrage une base `tale_platform` vide — la base que le service Convex embarqué utilisait en 0.4 et que rien dans la 0.5 ne lit. Les installations neuves ne la créent plus, et rien ne la supprime pour toi : une instance déployée d'abord avec une version 0.5 antérieure la porte encore, comme un hôte 0.4 réutilisé. Elle ne gêne pas. Quand tu es sûr de n'avoir plus besoin de rien de l'ère Convex, prends un snapshot puis supprime-la à la main — sur `db`, et sur `knowledge-db` si ton déploiement en a un :
+
+```bash
+tale backup
+docker compose exec db psql -U tale -d tale -c 'DROP DATABASE IF EXISTS tale_platform;'
+```
 
 ## Où cela s'inscrit
 

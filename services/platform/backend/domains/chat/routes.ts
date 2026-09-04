@@ -3,10 +3,12 @@ import { streamSSE } from 'hono/streaming';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { THREAD_BUSY_REASON, ThreadBusyError } from '../../../lib/chat/turn.ts';
 import {
   classifyChatErrorCode,
   encodeChatError,
 } from '../../../lib/shared/chat-errors.ts';
+import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -42,6 +44,32 @@ import {
 import { getPendingQuestion, resolveQuestion } from './questions.ts';
 import { runChatTurn } from './service.ts';
 import { appendMessageRow } from './store.ts';
+
+/** The pre-turn refusals of the serving layer: the model is not available to
+ * the org, or the credential its provider resolves to cannot serve. Every
+ * other error from a turn stays what it is — an internal failure. */
+const SERVING_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  'CHAT_MODEL_UNKNOWN',
+  'CHAT_CREDENTIAL_UNSUPPORTED',
+  'CHAT_PROVIDER_ENDPOINT_MISSING',
+  'CREDENTIAL_NONE_CONFIGURED',
+  'CREDENTIAL_DISABLED',
+  'CREDENTIAL_KEY_ROTATED',
+  'CREDENTIAL_ENV_UNSET',
+]);
+
+function servingRefusalReason(error: unknown): string | null {
+  if (!(error instanceof AppError)) return null;
+  const data: unknown = error.data;
+  if (data === null || typeof data !== 'object') return null;
+  const code = 'code' in data ? data.code : undefined;
+  const message = 'message' in data ? data.message : undefined;
+  return typeof code === 'string' &&
+    SERVING_REFUSAL_CODES.has(code) &&
+    typeof message === 'string'
+    ? message
+    : null;
+}
 import {
   loadProjectSharedThread,
   branchForEdit,
@@ -476,8 +504,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     try {
       const ok = await moveThreadToProject(
         deps.sql,
-        organizationId,
-        userId,
+        {
+          organizationId,
+          userId,
+          email: c.get('sessionBundle').user.email,
+        },
         c.req.param('threadId'),
         body.data.projectId,
       );
@@ -596,16 +627,18 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return c.json(share);
   });
 
+  // Works on a trashed thread too — revoking a link must never depend on
+  // the conversation being visible.
   app.post('/threads/:threadId/unshare', async (c) => {
     const { organizationId, userId } = caller(c);
-    await unshareThread(
+    const ok = await unshareThread(
       deps.sql,
       organizationId,
       userId,
       c.req.param('threadId'),
     );
-    await hintThread(c, c.req.param('threadId'));
-    return c.json({ ok: true });
+    if (ok) await hintThread(c, c.req.param('threadId'));
+    return c.json({ ok });
   });
 
   app.post('/threads/:threadId/branch', async (c) => {
@@ -1125,10 +1158,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       (await hasLiveGeneration(deps.sql, organizationId, pair.threadIdA)) ||
       (await hasLiveGeneration(deps.sql, organizationId, pair.threadIdB))
     ) {
-      const busy = {
-        status: 'refused' as const,
-        reason: 'This conversation is already generating a response.',
-      };
+      const busy = { status: 'refused' as const, reason: THREAD_BUSY_REASON };
       return c.json({ a: busy, b: busy });
     }
 
@@ -1164,6 +1194,12 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
                 : {}),
             };
       } catch (err) {
+        // Lost the column's claim to a send that slipped past the busy read
+        // above: the open rolled back and the other turn owns the thread —
+        // an error row now would land in ITS transcript.
+        if (err instanceof ThreadBusyError) {
+          return { status: 'refused', reason: err.message };
+        }
         // A pre-pipeline throw (model resolution, credential) left nothing
         // in the transcript — write the error row here so the column
         // explains itself instead of sitting silently half-empty.
@@ -1233,41 +1269,54 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         503,
       );
     }
-    // At most one turn per thread — refuse a concurrent send rather than
-    // let two turns interleave and delete each other's generation row.
+    // At most one turn per thread. This read is the fast path that spares a
+    // busy thread the model resolution; the GUARD is the turn's own atomic
+    // open (`beginTurn` claims the generation row and rejects a loser with
+    // ThreadBusyError), so two sends racing through this check cannot both
+    // run and delete each other's row.
     const live = await readGeneration(deps.sql, organizationId, thread.id);
     if (live !== null) {
-      return c.json(
-        {
-          status: 'refused',
-          reason: 'This conversation is already generating a response.',
-        },
-        409,
-      );
+      return c.json({ status: 'refused', reason: THREAD_BUSY_REASON }, 409);
     }
-    const outcome = await runChatTurn(deps.sql, {
-      organizationId,
-      userId,
-      threadId: thread.id,
-      userText: body.data.text,
-      ...(body.data.modelId !== undefined
-        ? { modelId: body.data.modelId }
-        : {}),
-      ...(body.data.modelSelection !== undefined
-        ? { modelSelection: body.data.modelSelection }
-        : {}),
-      ...(body.data.providerSlug !== undefined
-        ? { providerSlug: body.data.providerSlug }
-        : {}),
-      ...(body.data.reasoningEffort !== undefined
-        ? { reasoningEffort: body.data.reasoningEffort }
-        : {}),
-      ...(body.data.attachments !== undefined &&
-      body.data.attachments.length > 0
-        ? { attachments: body.data.attachments }
-        : {}),
-      ...(body.data.resend === true ? { resend: true } : {}),
-    });
+    let outcome;
+    try {
+      outcome = await runChatTurn(deps.sql, {
+        organizationId,
+        userId,
+        threadId: thread.id,
+        userText: body.data.text,
+        ...(body.data.modelId !== undefined
+          ? { modelId: body.data.modelId }
+          : {}),
+        ...(body.data.modelSelection !== undefined
+          ? { modelSelection: body.data.modelSelection }
+          : {}),
+        ...(body.data.providerSlug !== undefined
+          ? { providerSlug: body.data.providerSlug }
+          : {}),
+        ...(body.data.reasoningEffort !== undefined
+          ? { reasoningEffort: body.data.reasoningEffort }
+          : {}),
+        ...(body.data.attachments !== undefined &&
+        body.data.attachments.length > 0
+          ? { attachments: body.data.attachments }
+          : {}),
+        ...(body.data.resend === true ? { resend: true } : {}),
+      });
+    } catch (error) {
+      // The claim loser of two racing sends: nothing was appended, the
+      // other turn streams on — the same refusal the fast path gives.
+      if (error instanceof ThreadBusyError) {
+        return c.json({ status: 'refused', reason: error.message }, 409);
+      }
+      // A turn that could not START because the picked model is not
+      // servable — its provider's default credential was disabled or
+      // deleted, or the composer still holds a model the picker has since
+      // dropped — is a refusal the composer can show, not an internal error.
+      const reason = servingRefusalReason(error);
+      if (reason === null) throw error;
+      return c.json({ status: 'refused', reason });
+    }
     return outcome.status === 'completed'
       ? c.json({ status: 'completed' })
       : c.json({ status: 'refused', reason: outcome.reason });

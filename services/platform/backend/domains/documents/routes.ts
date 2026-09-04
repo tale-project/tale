@@ -6,6 +6,10 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  rateLimitExceededCause,
+  rateLimitedResponse,
+} from '../../lib/rate-limit-response.ts';
 import { FileError, getFileUrl } from '../files/service.ts';
 import { FolderError } from '../folders/service.ts';
 import { syncRagDocumentScope } from '../knowledge/service.ts';
@@ -49,7 +53,6 @@ import {
   listDocumentVersionsView,
   listHubDocumentsPaginated,
   listProjectDocuments,
-  loadDocumentOrThrow,
   retryRagIndexingForDocument,
   searchDocumentsForMention,
   searchDocumentsView,
@@ -103,6 +106,12 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
+  // A spent budget answers the one 429 every door speaks, whether the
+  // limiter threw it here or a service wrapped it as a coded refusal.
+  const limited = rateLimitExceededCause(error);
+  if (limited !== null) {
+    return rateLimitedResponse(c, limited);
+  }
   if (error instanceof DocumentError) {
     return c.json(
       {
@@ -490,11 +499,14 @@ export function createDocumentRoutes(deps: {
       const result = await transactSerializable(deps.sql, (tx) =>
         updateDocument(tx, auth, { documentId, ...body.data }),
       );
-      // A team change is a corpus SCOPE change — re-stamp retrieval filters
-      // without re-embedding. Best-effort by contract (logged inside).
-      if (result.teamScopeChanged && result.fileRef !== null) {
-        const doc = await loadDocumentOrThrow(deps.sql, documentId);
-        await syncRagDocumentScope(deps.sql, auth.organizationId, doc);
+      // A team change or a folder move is a corpus FILTER change — re-stamp
+      // retrieval filters without re-embedding. Best-effort by contract
+      // (logged inside).
+      if (
+        (result.teamScopeChanged || result.folderChanged) &&
+        result.fileRef !== null
+      ) {
+        await syncRagDocumentScope(deps.sql, auth.organizationId, documentId);
       }
       return c.json({ ok: true });
     } catch (error) {
@@ -677,12 +689,20 @@ export function createDocumentRoutes(deps: {
     }
     try {
       const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
+      const documentId = c.req.param('documentId');
+      const attached = await transactSerializable(deps.sql, (tx) =>
         attachDocumentToProject(tx, auth, {
-          documentId: c.req.param('documentId'),
+          documentId,
           projectId: body.data.projectId,
         }),
       );
+      // Moving into a project is a corpus SCOPE change like a team change:
+      // the hub document's org-wide rows must become project-scoped or the
+      // file keeps answering org-wide retrieval from inside a restricted
+      // project.
+      if (attached.fileRef !== null) {
+        await syncRagDocumentScope(deps.sql, auth.organizationId, documentId);
+      }
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
@@ -692,9 +712,15 @@ export function createDocumentRoutes(deps: {
   app.post('/:documentId/detach-from-project', async (c) => {
     try {
       const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        detachDocumentFromProject(tx, auth, c.req.param('documentId')),
+      const documentId = c.req.param('documentId');
+      const detached = await transactSerializable(deps.sql, (tx) =>
+        detachDocumentFromProject(tx, auth, documentId),
       );
+      // Back to the org-wide library: drop the old project's scope from the
+      // corpus rows, or the document silently vanishes from hub retrieval.
+      if (detached.fileRef !== null) {
+        await syncRagDocumentScope(deps.sql, auth.organizationId, documentId);
+      }
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);

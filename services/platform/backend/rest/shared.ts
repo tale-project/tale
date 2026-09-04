@@ -5,7 +5,11 @@ import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
 import { getProjectAuthContext } from '../domains/projects/service.ts';
-import { RateLimitExceededError, checkIpRateLimit } from '../lib/rate-limit.ts';
+import { rateLimitedResponse } from '../lib/rate-limit-response.ts';
+import {
+  RateLimitExceededError,
+  checkUserRateLimit,
+} from '../lib/rate-limit.ts';
 
 /**
  * Shared plumbing of the `/api/v1` REST families: the request variables the
@@ -22,7 +26,8 @@ export interface RestVars {
   role: string;
   /** Whether the caller NAMED the org (`X-Organization-Slug`). */
   orgExplicit: boolean;
-  /** The client IP the door rate-limited on (lane top-ups reuse it). */
+  /** The trusted-proxy-derived client IP (the door's pre-auth limiter key;
+   * kept for attribution — authenticated budgets key on the user). */
   clientIp: string;
 }
 
@@ -121,7 +126,9 @@ export async function assertExplicitOrg(
 
 /**
  * Top-up charge on a second rate lane (`rest:execute`, `rest:upload`) so a
- * route's effective budget is the tighter of its lanes.
+ * route's effective budget is the tighter of its lanes. Keyed like the
+ * door's `rest:api` charge — on the key holder (the key acts as its user),
+ * so the budget is attributable and no header can mint a fresh one.
  */
 export async function chargeLane(
   sql: Sql,
@@ -129,16 +136,51 @@ export async function chargeLane(
   rule: 'rest:api' | 'rest:execute' | 'rest:upload',
 ): Promise<Response | null> {
   try {
-    await checkIpRateLimit(sql, rule, c.get('clientIp'));
+    await checkUserRateLimit(sql, rule, c.get('userId'));
     return null;
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
-      return c.json({ error: 'Rate limit exceeded' }, 429, {
-        'retry-after': String(Math.ceil(error.retryAfter / 1000)),
-      });
+      return rateLimitedResponse(c, error);
     }
     throw error;
   }
+}
+
+/**
+ * The keyset cursor the paginated families exchange: `<timestamp>:<id>` —
+ * the previous page's last row, opaque to the consumer (the spec says
+ * "pass `continueCursor` back as `cursor`"). One codec for every list that
+ * orders on `(<ts>_ms DESC, id DESC)`, so no family invents its own format.
+ */
+export function formatKeysetCursor(at: number, id: string): string {
+  return `${at}:${id}`;
+}
+
+/** The inverse of `formatKeysetCursor`; anything unparseable reads as "no
+ * cursor" (the first page) rather than a 400 — an opaque token has no
+ * shape a consumer could have gotten wrong on purpose. */
+export function parseKeysetCursor(
+  raw: string | null | undefined,
+): { at: number; id: string } | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const split = raw.indexOf(':');
+  if (split <= 0 || split === raw.length - 1) return null;
+  const at = Number(raw.slice(0, split));
+  return Number.isFinite(at) ? { at, id: raw.slice(split + 1) } : null;
+}
+
+/** The page size a list route honours: the documented default, floored at
+ * one row (a negative `LIMIT` is a Postgres error, zero a dead page) and
+ * capped at `max`. */
+export function pageLimit(
+  raw: string | undefined,
+  defaults: { fallback: number; max: number },
+): number {
+  const parsed = Number(raw ?? String(defaults.fallback));
+  const limit = Number.isFinite(parsed)
+    ? Math.trunc(parsed)
+    : defaults.fallback;
+  return Math.min(Math.max(limit, 1), defaults.max);
 }
 
 /** The minting user's project-auth context (visibility matrix). */

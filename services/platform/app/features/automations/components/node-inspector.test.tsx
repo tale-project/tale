@@ -50,7 +50,7 @@ describe('NodeInspector', () => {
   });
 
   it('shows the workflow slot when no node is selected', () => {
-    render(
+    const { container } = render(
       <NodeInspector
         id="inspector"
         node={null}
@@ -63,10 +63,13 @@ describe('NodeInspector', () => {
     );
     expect(screen.getByText('workflow body')).toBeVisible();
     expect(screen.queryByText(/select a node on the canvas/i)).toBeNull();
+    // Same height as the canvas column — Save is pinned to the bottom of the
+    // panel rather than leaving a short card beside a tall graph.
+    expect(container.querySelector('section#inspector')).toHaveClass('h-full');
   });
 
   it('hides the workflow slot while a node is selected', () => {
-    render(
+    const { container } = render(
       <NodeInspector
         id="inspector"
         node={llmNode}
@@ -79,6 +82,7 @@ describe('NodeInspector', () => {
     );
     expect(screen.queryByText('workflow body')).not.toBeVisible();
     expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeVisible();
+    expect(container.querySelector('section#inspector')).toHaveClass('h-full');
   });
 
   it('renders exactly the fields the registry declares for the type', () => {

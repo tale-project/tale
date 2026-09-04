@@ -2,7 +2,7 @@
  * The real backends behind two capability kinds — the ones that MUST NOT get a
  * second path.
  *
- * An connector action reaches a vendor through `executeConnectorAction`
+ * A connector action reaches a vendor through `executeConnectorAction`
  * and nothing else: that is where input-schema enforcement, the mediated live
  * host, approval gating, and the audit trail live, so a chat tool that called
  * a connector directly would bypass all four. The caller mode is `user`,

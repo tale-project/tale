@@ -1,12 +1,24 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { isAdminRole } from '../../auth/membership.ts';
+import {
+  ERASURE_REASON_CODES,
+  ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
+} from '../../core/governance/erasure_constants.ts';
+import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
+import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { resolveObjectStore, s3DeleteObject } from '../../lib/object-store.ts';
+import {
+  readGovernancePolicyForOrg,
+  resolveOrgSlug,
+} from '../../lib/org-config.ts';
 import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 
@@ -22,6 +34,12 @@ import { writeNotificationForOrgs } from '../notifications/service.ts';
  * divergence (the 0.4 signed-checkpoint window collapses to this flag +
  * the receipt + the gdpr audit rows — rule 5).
  */
+
+/** Stands in for the subject on a record that is kept but de-identified. A
+ *  review decision is the audit trail of a governance gate, so the row stays
+ *  and the identity goes. Same value 0.4 used, so old and new rows read
+ *  alike. */
+const ERASED_SUBJECT = 'erased-user';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -48,23 +66,34 @@ export class ErasureError extends Error {
 }
 
 /**
- * The watchdog's verdict text. Load-bearing beyond the message: the retry
- * path refuses a receipt carrying it (see `retryErasureRequest`).
+ * Membership test over the closed reason-code list. The ONE list is
+ * `core/governance/erasure_constants.ts` — the file-request picker, the
+ * i18n labels, and the docs all speak it. (A divergent local copy here
+ * once carried `child_consent` while everything user-facing offered
+ * `child`, making the documented Art 17(1)(f) ground unfileable.)
  */
-export const ERASURE_WATCHDOG_TIMEOUT_MESSAGE =
-  'Erasure timed out and was stopped by the watchdog. File a new request.';
+export function isValidErasureReasonCode(code: string): boolean {
+  return ERASURE_REASON_CODES.includes(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- membership test over the closed list
+    code as (typeof ERASURE_REASON_CODES)[number],
+  );
+}
 
-export const ERASURE_REASON_CODES = [
-  'consent_withdrawn',
-  'no_longer_necessary',
-  'unlawful_processing',
-  'legal_obligation',
-  'objection',
-  'child_consent',
-  'contract_termination',
-] as const;
-
-async function dsarPolicy(sql: Sql | TransactionSql, organizationId: string) {
+/**
+ * The DSAR policy the erasure lane ENFORCES. A staged loosening whose grace
+ * has elapsed applies here first, so filing and approval see the policy the
+ * owner was told would be in force at that time — not whatever the last
+ * visit to the policy page happened to leave behind.
+ */
+export async function readEffectiveDsarPolicy(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+): Promise<{
+  coolingOffHours: number;
+  dailyLimitPerAdmin: number;
+  requireDualApproval: boolean;
+}> {
+  await applyMaturedDsarPolicyChange(sql, organizationId);
   const config = await readGovernancePolicyForOrg(
     sql,
     organizationId,
@@ -120,12 +149,7 @@ export async function requestErasure(
   if (!args.reason.trim()) {
     throw new ErasureError('validation', 'reason is required');
   }
-  if (
-    !ERASURE_REASON_CODES.includes(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- membership test over the closed list
-      args.reasonCode as (typeof ERASURE_REASON_CODES)[number],
-    )
-  ) {
+  if (!isValidErasureReasonCode(args.reasonCode)) {
     throw new ErasureError('validation', 'unknown reason code');
   }
   // Self-deletion guard: erasure scrubs the actor's audit trail — a
@@ -133,7 +157,7 @@ export async function requestErasure(
   if (args.targetUserId === args.actorId) {
     return deny('self_deletion_forbidden');
   }
-  const policy = await dsarPolicy(sql, args.organizationId);
+  const policy = await readEffectiveDsarPolicy(sql, args.organizationId);
   try {
     await checkOrganizationRateLimit(
       sql,
@@ -363,7 +387,12 @@ export async function cancelErasure(
     );
   }
   const now = Date.now();
-  if (row.effectiveAt === null || row.effectiveAt <= now) {
+  // A NULL `effective_at_ms` on a pending row means the request is parked
+  // awaiting the second admin's approval (dual-approval mode): nothing is
+  // scheduled yet, so it is trivially cancellable — the docs promise "any
+  // Admin can cancel" before the cascade runs. Only a stamp in the PAST
+  // means the processor was already dispatched.
+  if (row.effectiveAt !== null && row.effectiveAt <= now) {
     throw new ErasureError(
       'cannotCancelAfterCooldown',
       'The cooling-off window has elapsed; the processor has already been dispatched. Use Retry on the resulting receipt instead.',
@@ -390,6 +419,27 @@ export async function cancelErasure(
         'The request left the cancellable window while cancelling.',
         409,
       );
+    }
+    // Dual-approval mode parks an approvals-inbox row per request; a
+    // cancelled receipt's approval must not stay decidable, so settle any
+    // still-pending row as rejected (an approve that raced ahead flipped
+    // it to 'executing' — this update then no-ops, which is fine: the
+    // receipt cancel above already prevailed and the processor no-ops on
+    // non-pending receipts).
+    const settledApprovals = await tx<{ id: string }[]>`
+      UPDATE app.approvals SET
+        status = 'rejected', approved_by = ${args.actorId},
+        reviewed_at_ms = ${now}
+      WHERE org_id = ${args.organizationId} AND resource_type = 'erasure'
+        AND resource_id = ${row.id} AND status = 'pending'
+      RETURNING id
+    `;
+    for (const approval of settledApprovals) {
+      await emitHintInTx(tx, {
+        orgId: args.organizationId,
+        entity: 'approval',
+        entityId: approval.id,
+      });
     }
     await createAuditLog(tx, {
       organizationId: args.organizationId,
@@ -419,7 +469,13 @@ export async function cancelErasure(
  * or wants a fresh pass). Re-checks the hold gate. */
 export async function retryErasure(
   sql: Sql,
-  args: { organizationId: string; requestId: string },
+  args: {
+    organizationId: string;
+    requestId: string;
+    /** The admin who clicked Retry — audited as the actor. Absent only
+     * for system-driven re-arms, which audit as `system`. */
+    actor?: { userId: string; email?: string };
+  },
 ): Promise<void> {
   const holds = await loadActiveHolds(sql, args.organizationId);
   const rows = await sql<{ targetUserId: string; error: string | null }[]>`
@@ -472,8 +528,11 @@ export async function retryErasure(
     });
     await createAuditLog(tx, {
       organizationId: args.organizationId,
-      actorId: 'system',
-      actorType: 'system',
+      actorId: args.actor?.userId ?? 'system',
+      ...(args.actor?.email !== undefined
+        ? { actorEmail: args.actor.email }
+        : {}),
+      actorType: args.actor !== undefined ? 'user' : 'system',
       action: 'gdpr_erasure_retried',
       category: 'admin',
       resourceType: 'user',
@@ -515,6 +574,69 @@ async function scrubSubjectAuditLogs(
   return scrubbed.length;
 }
 
+/**
+ * `done` is a claim that every category was reached. A pass that threw, or
+ * that a legal hold held off, makes the claim false — so the receipt reads
+ * `partial` and names which, rather than reporting a clean erasure. Under Art
+ * 19 this receipt is the subject's confirmation, so the distinction between
+ * "found nothing" and "never looked" has to survive onto it.
+ */
+export function erasureReceiptStatus(
+  failedPasses: readonly string[],
+  heldOffPasses: readonly string[],
+): 'done' | 'partial' {
+  return failedPasses.length === 0 && heldOffPasses.length === 0
+    ? 'done'
+    : 'partial';
+}
+
+/** One line naming what stopped a `partial` receipt from being `done`, or
+ *  `null` when nothing did. */
+export function erasureReceiptError(
+  failedPasses: readonly string[],
+  heldOffPasses: readonly string[],
+): string | null {
+  const parts: string[] = [];
+  if (failedPasses.length > 0) {
+    parts.push(`failed passes: ${failedPasses.join(', ')}`);
+  }
+  if (heldOffPasses.length > 0) {
+    parts.push(`held off by a legal hold: ${heldOffPasses.join(', ')}`);
+  }
+  return parts.length > 0 ? parts.join('; ') : null;
+}
+
+/**
+ * Does the subject still belong to another organization that has not
+ * disabled them?
+ *
+ * `login_attempts`, `login_block_counters` and the two-factor tables are
+ * keyed globally, by email or by user id, while a GDPR request is scoped to
+ * one organization. Wiping them for one org's request would reset the
+ * lockout and 2FA backoff counters protecting every OTHER org the subject
+ * belongs to, which hands a multi-org user a cross-tenant bypass. 0.4
+ * refused the wipe in that case; so does this.
+ *
+ * 0.4 paged Better Auth's adapter at 256 memberships and failed CLOSED when
+ * the page came back full, because it could not see past the cap. SQL
+ * answers exactly, so neither the cap nor its guard is ported.
+ */
+async function subjectBelongsToOtherActiveOrg(
+  sql: Sql,
+  userId: string,
+  excludeOrgId: string,
+): Promise<boolean> {
+  const rows = await sql<{ elsewhere: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM "member"
+      WHERE "userId" = ${userId}
+        AND "organizationId" <> ${excludeOrgId}
+        AND "role" <> 'disabled'
+    ) AS "elsewhere"
+  `;
+  return rows[0]?.elsewhere ?? false;
+}
+
 /** The cascade — each pass bounded and idempotent; per-pass counts land on
  * the receipt. Reuses the retention purge primitives for threads and the
  * document trash for owned documents. */
@@ -548,10 +670,29 @@ export async function processErasure(
 
   const counts: Record<string, number> = {};
   const failures: string[] = [];
+  const heldOff: string[] = [];
   const pass = async (
     name: string,
     run: () => Promise<number>,
   ): Promise<void> => {
+    // The hold is re-read before EVERY pass, not once before the cascade.
+    // The passes are not one transaction, and two of them fan out per-thread
+    // and per-document deletes, so a hold placed mid-cascade would otherwise
+    // be ignored for everything after it. 0.4 re-read holds inside all 19 of
+    // its arms and named the reason: FRCP 37(e) spoliation.
+    try {
+      const current = await loadActiveHolds(sql, organizationId);
+      if (current.orgHeld || current.userMembershipIds.has(targetUserId)) {
+        heldOff.push(name);
+        return;
+      }
+    } catch (error) {
+      // An unreadable hold table is not evidence that nothing is held, so the
+      // pass is skipped rather than run.
+      console.error(`[erasure] hold re-check before ${name} failed:`, error);
+      heldOff.push(name);
+      return;
+    }
     try {
       counts[name] = await run();
     } catch (error) {
@@ -584,7 +725,6 @@ export async function processErasure(
       FROM app.documents
       WHERE org_id = ${organizationId} AND created_by = ${targetUserId}
     `;
-    const { resolveOrgSlug } = await import('../../lib/org-config.ts');
     const orgSlug = await resolveOrgSlug(sql, organizationId);
     for (const doc of docs) {
       await purgeDocument(sql, orgSlug, {
@@ -598,13 +738,44 @@ export async function processErasure(
   });
 
   await pass('uploads', async () => {
-    const removed = await sql<{ id: string }[]>`
-      DELETE FROM app.file_metadata
+    // Chat/task uploads — document-bound file rows ride the documents pass
+    // (`purgeDocument` deletes them with the document's own blobs).
+    const uploads = await sql<{ id: string; storageRef: string }[]>`
+      SELECT id, storage_ref AS "storageRef" FROM app.file_metadata
       WHERE org_id = ${organizationId} AND uploaded_by = ${targetUserId}
         AND document_id IS NULL
-      RETURNING id
     `;
-    return removed.length;
+    if (uploads.length === 0) return 0;
+    const orgSlug = await resolveOrgSlug(sql, organizationId);
+    if (orgSlug === null) {
+      // Rows exist but no slug resolves a store: fail the pass (receipt
+      // 'partial', rows kept, Retry re-attempts) instead of dropping the
+      // ledger rows while the subject's bytes live on in object storage.
+      throw new Error(
+        `no org slug for ${organizationId}; upload blobs not deletable`,
+      );
+    }
+    // STRICT blob-then-row — deliberately NOT the retention sweeps'
+    // best-effort idiom: an erasure receipt that says done must be TRUE,
+    // so a failed S3 delete throws and keeps the row for Retry. A 404 is
+    // success (already gone — `s3DeleteObject` treats it so); a legacy
+    // Convex ref has no reachable backend left, so only the row remains
+    // to delete. The store resolves lazily inside the s3 branch so a
+    // legacy-only batch never trips over an unconfigured store; upload
+    // keys are minted per object (`buildObjectKey`), and the ref-dedupe
+    // set guards a double-listed ref the way `purgeDocument` guards
+    // `historyFiles` against `fileRef`.
+    const deletedRefs = new Set<string>();
+    for (const upload of uploads) {
+      const parsed = parseBlobRef(upload.storageRef);
+      if (parsed.backend === 's3' && !deletedRefs.has(upload.storageRef)) {
+        const store = await resolveObjectStore(orgSlug);
+        await s3DeleteObject(store, parsed.key);
+        deletedRefs.add(upload.storageRef);
+      }
+      await sql`DELETE FROM app.file_metadata WHERE id = ${upload.id}`;
+    }
+    return uploads.length;
   });
 
   await pass('preferences', async () => {
@@ -667,17 +838,211 @@ export async function processErasure(
     return removed.length;
   });
 
+  // `video_link_jobs` is its own category, not part of `uploads`: the job can
+  // own a blob (Whisper audio, captions transcript) even when the linked
+  // `file_metadata` row never landed, and a welcome-page paste has no thread,
+  // so neither the uploads pass nor the thread cascade reaches it.
+  //
+  // Same STRICT blob-then-row posture the uploads pass above uses, and for
+  // the same reason: a receipt that says done is a claim about the bytes.
+  await pass('videoLinks', async () => {
+    const jobs = await sql<{ id: string; storageRef: string | null }[]>`
+      SELECT id, storage_ref AS "storageRef" FROM app.video_link_jobs
+      WHERE org_id = ${organizationId} AND uploaded_by = ${targetUserId}
+    `;
+    if (jobs.length === 0) return 0;
+    const withBlobs = jobs.filter(
+      (job) => job.storageRef !== null && job.storageRef !== '',
+    );
+    let orgSlug: string | null = null;
+    if (withBlobs.length > 0) {
+      orgSlug = await resolveOrgSlug(sql, organizationId);
+      if (orgSlug === null) {
+        throw new Error(
+          `no org slug for ${organizationId}; video-link blobs not deletable`,
+        );
+      }
+    }
+    const deletedRefs = new Set<string>();
+    for (const job of jobs) {
+      const ref = job.storageRef;
+      if (ref !== null && ref !== '' && orgSlug !== null) {
+        const parsed = parseBlobRef(ref);
+        if (parsed.backend === 's3' && !deletedRefs.has(ref)) {
+          const store = await resolveObjectStore(orgSlug);
+          await s3DeleteObject(store, parsed.key);
+          deletedRefs.add(ref);
+        }
+      }
+      await sql`DELETE FROM app.video_link_jobs WHERE id = ${job.id}`;
+    }
+    return jobs.length;
+  });
+
+  // The subject's own OAuth grant for Documents import — a sealed access +
+  // refresh token per (org, user, provider). It outlives their membership
+  // unless erasure takes it, and an in-flight authorization carries the same
+  // identity in its state row.
+  await pass('cloudGrants', async () => {
+    const grants = await sql<{ id: string }[]>`
+      DELETE FROM app.user_cloud_authorizations
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    const states = await sql<{ id: string }[]>`
+      DELETE FROM app.cloud_import_oauth_states
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return grants.length + states.length;
+  });
+
+  // Sync configs name the member whose grant the sync runs under, so they are
+  // subject data AND a schedule that would keep firing against a revoked
+  // grant. Imported documents are not touched here — they are org content,
+  // reached by the `documents` pass when the subject created them.
+  await pass('syncConfigs', async () => {
+    const onedrive = await sql<{ id: string }[]>`
+      DELETE FROM app.onedrive_sync_configs
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    const googleDrive = await sql<{ id: string }[]>`
+      DELETE FROM app.google_drive_sync_configs
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return onedrive.length + googleDrive.length;
+  });
+
+  // The org-level security and system bells ABOUT the subject, which are a
+  // different table from the per-user inbox the `notifications` pass above
+  // clears. `subject_user_id` exists for exactly this — 0002_notifications
+  // calls it "the data-subject user this notification is ABOUT (GDPR Art 17
+  // erasure matches on it)" — and the lockout alert stamps it on the row
+  // that carries the subject's email and IP in `params`. `notification_reads`
+  // falls with the row on its foreign key.
+  await pass('orgNotifications', async () => {
+    const removed = await sql<{ id: string }[]>`
+      DELETE FROM app.notifications
+      WHERE org_id = ${organizationId}
+        AND subject_user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return removed.length;
+  });
+
+  // Automation runs the subject started. `input`, `output`, `trace` and
+  // `effects` hold every node's resolved values, so the run is subject data
+  // even though the row is org-owned. The two markers are the ones 0.5
+  // writes: `user:<id>` from the app door and `api-key:<id>` from REST.
+  await pass('automationRuns', async () => {
+    const removed = await sql<{ id: string }[]>`
+      DELETE FROM app.automation_runs
+      WHERE org_id = ${organizationId}
+        AND started_by = ANY(${[`user:${targetUserId}`, `api-key:${targetUserId}`]})
+      RETURNING id
+    `;
+    return removed.length;
+  });
+
+  // Review decisions are pseudonymized rather than deleted: the decision is
+  // the audit record of a governance gate, so the row stays and the identity
+  // goes. `tasks.reviewer_user_id` is different — it is live routing, not
+  // history, so it is cleared. Leaving it pointed at an erased user sends
+  // the next review to nobody.
+  await pass('reviewDecisions', async () => {
+    const decisions = await sql<
+      { id: string; approvedBy: string | null; metadata: unknown }[]
+    >`
+      SELECT id, approved_by AS "approvedBy", metadata
+      FROM app.approvals
+      WHERE org_id = ${organizationId} AND resource_type = 'task_review'
+        AND (approved_by = ${targetUserId}
+             OR metadata->>'requestedFor' = ${targetUserId}
+             OR metadata->'response'->>'respondedBy' = ${targetUserId})
+    `;
+    let changed = 0;
+    for (const row of decisions) {
+      const metadata = isRecord(row.metadata) ? { ...row.metadata } : undefined;
+      if (metadata !== undefined) {
+        if (metadata.requestedFor === targetUserId) {
+          metadata.requestedFor = ERASED_SUBJECT;
+        }
+        const response = metadata.response;
+        if (isRecord(response) && response.respondedBy === targetUserId) {
+          metadata.response = { ...response, respondedBy: ERASED_SUBJECT };
+        }
+      }
+      await sql`
+        UPDATE app.approvals SET
+          approved_by = ${row.approvedBy === targetUserId ? ERASED_SUBJECT : row.approvedBy},
+          metadata = ${metadata === undefined ? null : sql.json(toJson(metadata))}
+        WHERE id = ${row.id}
+      `;
+      changed++;
+    }
+    const cleared = await sql<{ id: string }[]>`
+      UPDATE app.tasks SET reviewer_user_id = NULL
+      WHERE org_id = ${organizationId}
+        AND reviewer_user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return changed + cleared.length;
+  });
+
+  // Global auth state: the lockout trail is keyed by email and the two-factor
+  // backoff by user id, so neither is org-scoped. Refused outright while the
+  // subject is still an active member elsewhere, because these counters
+  // protect those organizations too.
+  await pass('authState', async () => {
+    if (
+      await subjectBelongsToOtherActiveOrg(sql, targetUserId, organizationId)
+    ) {
+      console.warn(
+        `[erasure] skipping global auth-state wipe for ${targetUserId}: still an active member of another organization`,
+      );
+      return 0;
+    }
+    const users = await sql<{ email: string | null }[]>`
+      SELECT "email" FROM "user" WHERE "id" = ${targetUserId} LIMIT 1
+    `;
+    const email = users[0]?.email ?? null;
+    let removed = 0;
+    if (email !== null) {
+      const normalized = normalizeAuthEmail(email);
+      const attempts = await sql<{ email: string }[]>`
+        DELETE FROM app.login_attempts WHERE lower(email) = ${normalized}
+        RETURNING email
+      `;
+      const counters = await sql<{ email: string }[]>`
+        DELETE FROM app.login_block_counters WHERE lower(email) = ${normalized}
+        RETURNING email
+      `;
+      removed += attempts.length + counters.length;
+    }
+    const twoFactor = await sql<{ userId: string }[]>`
+      DELETE FROM app.two_factor_attempts WHERE user_id = ${targetUserId}
+      RETURNING user_id AS "userId"
+    `;
+    const grace = await sql<{ userId: string }[]>`
+      DELETE FROM app.two_factor_grace WHERE user_id = ${targetUserId}
+      RETURNING user_id AS "userId"
+    `;
+    return removed + twoFactor.length + grace.length;
+  });
+
   await pass('auditScrub', () =>
     scrubSubjectAuditLogs(sql, organizationId, targetUserId),
   );
 
-  const status = failures.length === 0 ? 'done' : 'partial';
+  const status = erasureReceiptStatus(failures, heldOff);
   await sql.begin(async (tx) => {
     await tx`
       UPDATE app.gdpr_erasure_requests SET
         status = ${status}, finished_at_ms = ${Date.now()},
         counts = ${tx.json(toJson(counts))},
-        error = ${failures.length > 0 ? `failed passes: ${failures.join(', ')}` : null}
+        error = ${erasureReceiptError(failures, heldOff)}
       WHERE id = ${requestId}
     `;
     await createAuditLog(tx, {
@@ -1073,8 +1438,10 @@ export async function getErasureRequest(
  * the cooling-off window starts now and the processor is scheduled (the 0.4
  * `confirmAndScheduleErasure`). Filer ≠ approver is a HARD refusal here, not
  * just a UI gate — the approvals inbox enforces it above, this enforces it
- * again at the write. An already-scheduled or no-longer-pending row is a
- * no-op: approving twice is a double-submit, not an error.
+ * again at the write (the approver-must-be-an-admin half of the contract is
+ * `decideApproval`'s kind gate, which runs before this dispatch). An
+ * already-scheduled or no-longer-pending row is a no-op: approving twice is
+ * a double-submit, not an error.
  */
 export async function confirmAndScheduleErasure(
   tx: TransactionSql,
@@ -1108,7 +1475,7 @@ export async function confirmAndScheduleErasure(
     );
   }
 
-  const policy = await dsarPolicy(tx, row.organizationId);
+  const policy = await readEffectiveDsarPolicy(tx, row.organizationId);
   const effectiveAt = Date.now() + policy.coolingOffHours * HOUR_MS;
   await tx`
     UPDATE app.gdpr_erasure_requests SET effective_at_ms = ${effectiveAt}
@@ -1149,6 +1516,81 @@ export async function confirmAndScheduleErasure(
     },
     subjectUserId: row.targetUserId,
     link: { kind: 'dsar' },
+  });
+}
+
+/**
+ * The dual-approval refusal hand-off: the second admin REJECTED the erasure
+ * row in the approvals inbox. Without this the receipt stayed `pending`
+ * with `effective_at_ms` NULL forever — unschedulable, and the live
+ * partial-unique index blocked ever re-filing the subject. A rejection
+ * lands the receipt in the terminal `cancelled` state (the existing status
+ * vocabulary; the live index covers only pending/running, so the subject
+ * becomes re-filable), attributed to the rejecting admin with a distinct
+ * `gdpr_erasure_rejected` audit action. An already-scheduled or settled
+ * row is a no-op: the decision FSM refuses a second decide anyway, and a
+ * cancel that raced ahead already settled the receipt.
+ */
+export async function rejectErasure(
+  tx: TransactionSql,
+  args: {
+    requestId: string;
+    rejectedBy: string;
+    organizationId: string;
+    comments?: string;
+  },
+): Promise<void> {
+  const rows = await tx<
+    {
+      id: string;
+      targetUserId: string;
+      status: string;
+      effectiveAt: number | null;
+    }[]
+  >`
+    SELECT id, target_user_id AS "targetUserId", status,
+           effective_at_ms::float8 AS "effectiveAt"
+    FROM app.gdpr_erasure_requests
+    WHERE id = ${args.requestId} AND org_id = ${args.organizationId}
+    FOR UPDATE
+  `;
+  const row = rows[0];
+  if (row === undefined) return;
+  if (row.status !== 'pending' || row.effectiveAt !== null) return;
+  const now = Date.now();
+  const trimmed = args.comments?.trim() ?? '';
+  await tx`
+    UPDATE app.gdpr_erasure_requests SET
+      status = 'cancelled', cancelled_by = ${args.rejectedBy},
+      cancellation_reason = ${
+        trimmed !== ''
+          ? `Dual approval rejected: ${trimmed}`
+          : 'Dual approval rejected.'
+      },
+      finished_at_ms = ${now}
+    WHERE id = ${row.id}
+  `;
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    actorId: args.rejectedBy,
+    actorType: 'user',
+    action: 'gdpr_erasure_rejected',
+    category: 'admin',
+    resourceType: 'user',
+    resourceId: row.targetUserId,
+    status: 'success',
+    previousState: { status: 'pending' },
+    newState: {
+      requestId: row.id,
+      status: 'cancelled',
+      rejectedBy: args.rejectedBy,
+      ...(trimmed !== '' ? { comments: trimmed } : {}),
+    },
+  });
+  await emitHintInTx(tx, {
+    orgId: args.organizationId,
+    entity: 'gdpr_erasure',
+    entityId: row.id,
   });
 }
 

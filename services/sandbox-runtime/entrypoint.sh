@@ -724,8 +724,14 @@ fi
 # Session daemon dispatch (sessions plan). The spawner launches a long-lived
 # session container with a single positional arg `daemon` (see
 # session/docker-session-args.ts); everything else is the one-shot
-# /v1/execute path below, untouched. runnerd is PID 1 of a session container,
-# so we `exec` it (SIGTERM from container-stop must reach it directly).
+# /v1/execute path below, untouched. PID 1 of a session container is tini,
+# exec'd here with runnerd as its only child — on EVERY path (plain,
+# transparent-egress, DinD). A long-lived container needs a real init: every
+# cancelled/timed-out exec tree and every SIGKILLed Chromium recycle leaves
+# orphans that reparent to PID 1, and node never wait()s children it did not
+# spawn, so as PID 1 it would let them pile up as zombies against pids-limit
+# until fork() fails. `tini -g` forwards container-stop SIGTERM to runnerd's
+# process group, so graceful shutdown is unchanged.
 # ---------------------------------------------------------------------------
 if [ "$1" = "daemon" ]; then
   # Both DinD and transparent egress boot the container as root (DinD to run the
@@ -815,11 +821,11 @@ if [ "$1" = "daemon" ]; then
     start_browser_stack
   fi
 
-  # DinD: bring up the inner dockerd as root, then hand off. tini becomes PID 1
-  # to reap the many short-lived shims native docker spawns (teardown is a
-  # SIGKILL to PID 1, so runnerd no longer needs to be PID 1 itself); the
-  # already-backgrounded dockerd reparents to tini. setpriv drops to the agent
-  # user so Claude Code's bypassPermissions (refused as root) still works.
+  # DinD: bring up the inner dockerd as root, then hand off under tini like
+  # every session path (here it also reaps the many short-lived shims native
+  # docker spawns); the already-backgrounded dockerd reparents to tini. setpriv
+  # drops to the agent user so Claude Code's bypassPermissions (refused as
+  # root) still works.
   if [ "${TALE_DIND:-}" = "1" ]; then
     start_inner_dockerd
     # Also redirect the session's OWN processes (not just nested containers) when
@@ -833,16 +839,17 @@ if [ "$1" = "daemon" ]; then
       node /usr/local/lib/tale/runnerd.mjs
   fi
 
-  # Non-DinD path. With transparent egress the container booted as root to install
-  # the OUTPUT REDIRECT, so drop to the profile uid for runnerd (setpriv execs it
-  # in place → node stays PID 1, so container-stop SIGTERM still reaches it).
-  # Without transparent egress, runnerd is already PID 1 at the container's
-  # --user — exactly as before.
+  # Non-DinD paths — same reaper. With transparent egress the container booted
+  # as root to install the OUTPUT REDIRECT, so setpriv drops to the profile uid
+  # for runnerd (tini itself stays root, exactly as on the DinD path: it only
+  # reaps and forwards signals). Without transparent egress the container is
+  # already at its --user, so tini runs unprivileged too.
   if [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ]; then
-    exec setpriv --reuid "${TALE_DROP_UID:-10001}" --regid "${TALE_DROP_GID:-10001}" --init-groups -- \
+    exec tini -g -- \
+      setpriv --reuid "${TALE_DROP_UID:-10001}" --regid "${TALE_DROP_GID:-10001}" --init-groups -- \
       node /usr/local/lib/tale/runnerd.mjs
   fi
-  exec node /usr/local/lib/tale/runnerd.mjs
+  exec tini -g -- node /usr/local/lib/tale/runnerd.mjs
 fi
 
 LANG_NAME="$1"

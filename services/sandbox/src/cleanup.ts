@@ -1,25 +1,29 @@
 // Two-layer cleanup, audit-cleaned per round-2 findings.
 //
 //   1. Boot sweep: docker rm any tale.sandbox=1 container left over from a
-//      previous spawner process, AND host-dir sweep over old session dirs
-//      whose mtime is past the watchdog cutoff. The dead "volume sweep"
-//      that the original code shipped is gone — workspaces are host bind
-//      mounts (no volume), and the cache volumes carry a different label
-//      and MUST NOT be reaped.
+//      previous spawner process, AND host-dir sweep over stale legacy
+//      one-shot exec dirs whose mtime is past the watchdog cutoff (session
+//      workspaces, in either layout, are never touched — see
+//      sweepHostSessionDirs). The dead "volume sweep" that the original code
+//      shipped is gone — workspaces are host bind mounts (no volume), and the
+//      cache volumes carry a different label and MUST NOT be reaped.
 //   2. Periodic sweep: every 5 min, kill any tale-sbx-* container whose
 //      `tale.started=<ms>` label is older than 2× max_timeout AND whose
 //      session id isn't in the live in-flight set. Same host-dir sweep
-//      for orphan session dirs.
+//      for orphan one-shot dirs.
 //   3. SIGTERM handler (in server.ts after refactor): stop accepting new
 //      requests, wait for in-flight count to drop, then exit.
 
-import { mkdir, readdir, rm, stat, utimes } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import { mkdir, readdir, rm, rmdir, stat, utimes } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 
 import type { ExecutionBackend } from './backend/types.ts';
-import { runDocker, dockerRm } from './spawn-util.ts';
+import { isSessionWorkspaceDirName } from './session/session-naming.ts';
+import { dockerRm, dockerRmSucceeded, runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
+import { ID_ALPHABET_RE } from './wire.ts';
 
 const PERIODIC_INTERVAL_MS = 5 * 60_000;
 const SPAWNER_LOCK_FILE = '.spawner.lock';
@@ -191,6 +195,27 @@ export async function releaseSpawnerLock(cfg: SpawnerConfig): Promise<void> {
   }
 }
 
+/** A sweep's `docker rm`: true only when the container is verifiably gone.
+ * `dockerRm` never rejects (a timeout is exitCode 124), so the result must be
+ * judged — a swallowed failure would count a still-running container as
+ * removed. Logged, never thrown: one stuck container must not stop the sweep. */
+async function sweepRm(containerName: string, label: string): Promise<boolean> {
+  let removal;
+  try {
+    removal = await dockerRm(containerName);
+  } catch (err) {
+    console.warn(`${label} docker rm ${containerName} failed:`, err);
+    return false;
+  }
+  if (!dockerRmSucceeded(removal)) {
+    console.warn(
+      `${label} docker rm ${containerName} failed (exit ${removal.exitCode}): ${removal.stderr.trim()}`,
+    );
+    return false;
+  }
+  return true;
+}
+
 async function listLabeledContainers(...labels: string[]): Promise<string[]> {
   // Each `-f label=…` is AND-ed by docker.
   const filters = labels.flatMap((l) => ['-f', `label=${l}`]);
@@ -202,36 +227,84 @@ async function listLabeledContainers(...labels: string[]): Promise<string[]> {
     .filter((s) => s.length > 0);
 }
 
-async function sweepHostSessionDirs(
-  cfg: SpawnerConfig,
-  staleThreshold: number,
-): Promise<number> {
-  let entries;
+/**
+ * Read one directory level, or null when it can't be read. A missing dir is
+ * not an error (first boot at the root; a concurrent destroy below it); any
+ * other failure is logged. Callers treat null as "leave it alone".
+ */
+async function readDirEntries(dir: string): Promise<Dirent[] | null> {
   try {
-    entries = await readdir(cfg.hostSessionRoot, { withFileTypes: true });
+    return await readdir(dir, { withFileTypes: true });
   } catch (err) {
-    // Root not yet created (first boot) — fine.
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-      return 0;
+    if (!(err instanceof Error && 'code' in err && err.code === 'ENOENT')) {
+      console.warn(`[sandbox.cleanup] failed to read ${dir}:`, err);
     }
-    console.warn(
-      `[sandbox.cleanup] failed to read host session root ${cfg.hostSessionRoot}:`,
-      err,
-    );
-    return 0;
+    return null;
   }
+}
+
+// Legacy colour roots (`<root>/<colour>/`) sit directly under the session
+// root; nothing deeper was ever a session root.
+const LEGACY_ROOT_MAX_DEPTH = 1;
+
+/**
+ * Host-dir sweep — removes ONLY stale legacy one-shot exec dirs, never a
+ * session workspace. The layout rules it enforces (the resume side of the same
+ * contract is docker-session-backend.ts resolveWorkspaceDir):
+ *
+ *   <root>/ses-<id>            flat session workspace          → never touched
+ *   <root>/<colour>/ses-<id>   legacy colour-rooted workspace  → never touched;
+ *                              a dir holding any such child is a legacy session
+ *                              root — swept one level down, never removed
+ *                              itself (once emptied it is reaped like any
+ *                              stale dir, via a non-recursive rmdir)
+ *   <root>/<execId>            legacy one-shot exec dir (its name was the raw
+ *   <root>/<colour>/<execId>   executionId, ID_ALPHABET_RE) → removed once its
+ *                              mtime is past `staleThreshold` and it's not live
+ *   anything else              files, dot-dirs, names outside the id alphabet,
+ *                              unreadable dirs → never touched
+ *
+ * Session workspaces are lifecycle-managed by destroySession alone: the
+ * TTL/idle reaper STOPS a session and keeps its data, so age says nothing about
+ * whether a `ses-*` dir is wanted — a stopped session resumes against it days
+ * later, and a live one has it bind-mounted. Fail-safe by construction: an
+ * un-swept unknown dir is a small leak; a deleted workspace is user data loss.
+ */
+export async function sweepHostSessionDirs(
+  hostSessionRoot: string,
+  staleThreshold: number,
+  isLive: (executionId: string) => boolean = () => false,
+): Promise<number> {
+  return sweepDirLevel(hostSessionRoot, staleThreshold, isLive, 0);
+}
+
+async function sweepDirLevel(
+  dir: string,
+  staleThreshold: number,
+  isLive: (executionId: string) => boolean,
+  depth: number,
+): Promise<number> {
+  const entries = await readDirEntries(dir);
+  if (entries === null) return 0;
   let removed = 0;
   for (const e of entries) {
     if (!e.isDirectory()) continue;
-    // Persistent agent-session workspaces (`ses-<sessionId>`, see
-    // session-naming.ts) are lifecycle-managed by destroySession + the
-    // session TTL/idle sweep — NEVER by this one-shot dir sweep. Without
-    // this skip the 5-min periodic sweep deletes any live session's
-    // workspace once its top-level mtime passes the one-shot watchdog
-    // cutoff (~10 min), yanking the bind mount out from under a running
-    // container.
-    if (e.name.startsWith('ses-')) continue;
-    const abs = join(cfg.hostSessionRoot, e.name);
+    if (isSessionWorkspaceDirName(e.name)) continue;
+    // Not a name a one-shot exec could have had → unknown provenance → skip.
+    if (!ID_ALPHABET_RE.test(e.name)) continue;
+    const abs = join(dir, e.name);
+    const children = await readDirEntries(abs);
+    if (children === null) continue;
+    if (
+      children.some((c) => c.isDirectory() && isSessionWorkspaceDirName(c.name))
+    ) {
+      // A legacy session root: sweep the one-shot leftovers beside its
+      // sessions, but never the root itself while it holds a workspace.
+      if (depth < LEGACY_ROOT_MAX_DEPTH) {
+        removed += await sweepDirLevel(abs, staleThreshold, isLive, depth + 1);
+      }
+      continue;
+    }
     let st;
     try {
       st = await stat(abs);
@@ -239,11 +312,20 @@ async function sweepHostSessionDirs(
       console.warn(`[sandbox.cleanup] stat ${abs} failed:`, err);
       continue;
     }
-    if (st.mtimeMs >= staleThreshold) continue;
+    if (st.mtimeMs >= staleThreshold || isLive(e.name)) continue;
     try {
-      await rm(abs, { recursive: true, force: true });
+      // An empty dir goes through the non-recursive rmdir: atomic, and it
+      // fails (ENOTEMPTY) instead of racing anything that just landed inside.
+      if (children.length === 0) await rmdir(abs);
+      else await rm(abs, { recursive: true, force: true });
       removed += 1;
+      console.log(
+        `[sandbox.cleanup] removed stale one-shot dir ${abs} (mtime ${st.mtime.toISOString()})`,
+      );
     } catch (err) {
+      if (err instanceof Error && 'code' in err && err.code === 'ENOTEMPTY') {
+        continue;
+      }
       console.warn(`[sandbox.cleanup] rm ${abs} failed:`, err);
     }
   }
@@ -258,21 +340,13 @@ export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
   // here, so re-adoption can recover them.
   const containers = await listLabeledContainers('tale.sandbox=1');
   for (const c of containers) {
-    try {
-      await dockerRm(c);
-    } catch (err) {
-      console.warn(`[sandbox.bootSweep] dockerRm ${c} failed:`, err);
-    }
+    await sweepRm(c, '[sandbox.bootSweep]');
   }
   const stagingContainers = await listLabeledContainers(
     'tale.sandbox-staging=1',
   );
   for (const c of stagingContainers) {
-    try {
-      await dockerRm(c);
-    } catch (err) {
-      console.warn(`[sandbox.bootSweep] dockerRm staging ${c} failed:`, err);
-    }
+    await sweepRm(c, '[sandbox.bootSweep] staging');
   }
   let dirsRemoved = 0;
   if (cfg) {
@@ -286,7 +360,7 @@ export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
     // path's contract and is robust under any future change where the
     // lock acquire is loosened (audit finding R2-B5).
     dirsRemoved = await sweepHostSessionDirs(
-      cfg,
+      cfg.hostSessionRoot,
       Date.now() - 2 * cfg.maxTimeoutMs,
     );
   }
@@ -337,15 +411,7 @@ export async function dockerSweepOrphans(
         // session id is the second component of the name (tale-sbx-<id>).
         const sessionId = name.replace(/^tale-sbx-/, '');
         if (isLive(sessionId)) continue;
-        try {
-          await dockerRm(name);
-        } catch (err) {
-          console.warn(
-            `[sandbox.periodic] dockerRm stale ${name} failed:`,
-            err,
-          );
-          continue;
-        }
+        if (!(await sweepRm(name, '[sandbox.periodic] stale'))) continue;
         removed += 1;
         console.log(
           `[sandbox] periodic sweep removed stale container ${name} (started ${new Date(started).toISOString()})`,
@@ -355,13 +421,18 @@ export async function dockerSweepOrphans(
   } catch (err) {
     console.warn(`[sandbox.periodic] container sweep error:`, err);
   }
-  // Host-dir sweep: per-execution session dirs that lived past the stale
-  // threshold without an active in-flight entry are orphaned. Replaces the
+  // Host-dir sweep: legacy one-shot exec dirs that lived past the stale
+  // threshold without an active in-flight entry are orphaned (session
+  // workspaces are never touched — see sweepHostSessionDirs). Replaces the
   // old volume-sweep block that targeted volumes nobody creates (audit
   // finding R2-3 C5). Gated on the container probe so a wedged daemon defers
   // dir reaping to the next cycle (matches the prior short-circuit).
   if (containerProbeOk) {
-    removed += await sweepHostSessionDirs(cfg, staleThreshold);
+    removed += await sweepHostSessionDirs(
+      cfg.hostSessionRoot,
+      staleThreshold,
+      isLive,
+    );
     // Reap orphaned per-session inner-docker (DinD) storage volumes. A volume
     // still attached to a live session container fails `volume rm` and is
     // skipped; only volumes whose session is gone (crash, missed teardown) are

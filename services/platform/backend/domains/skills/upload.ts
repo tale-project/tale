@@ -2,7 +2,7 @@ import type { Sql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { MAX_SKILL_BUNDLE_TOTAL_BYTES } from '../../../lib/shared/schemas/skills.ts';
-import { readOrgSkill } from '../../../lib/skills/listing.ts';
+import { readOrgSkill, type OrgSkill } from '../../../lib/skills/listing.ts';
 import { SkillParseError } from '../../../lib/skills/parse.ts';
 import {
   canEditSkill,
@@ -24,15 +24,20 @@ import {
   writeSkillBundleFiles,
 } from '../../core/skills/file_utils.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
+import { consumeUploadIntent } from '../files/upload-intents.ts';
+import { withSkillWriterLock } from './writer-lock.ts';
 
 /**
  * The skill bundle-upload lane on pg — the 0.4
  * `file_actions.uploadSkillBundle` re-orchestrated: the staged zip is an
- * ORG BLOB from the byte-lane `POST /files/upload` (ownership IS the
- * org-prefixed key; the 0.4 intent row dies), the per-(org, slug) claim
- * lock becomes a pg advisory xact lock, and the parse/replace/write
- * protocol (needs_confirm, force + edit rights, owner adoption) is the
- * reused helpers verbatim.
+ * ORG BLOB from the byte lane `POST /files/upload?purpose=skill_bundle`,
+ * owned by the caller's single-use upload intent (`app.upload_intents`) —
+ * the org-prefixed key alone proves tenancy, not ownership, because every
+ * document blob in the org carries the same prefix and this lane DELETES
+ * its staged blob on every path. The per-(org, slug) claim lock becomes a
+ * pg advisory xact lock (`writer-lock.ts`, shared with the editor's save and
+ * delete), and the parse/replace/write protocol (needs_confirm, force +
+ * edit rights, owner adoption) is the reused helpers verbatim.
  */
 export async function uploadSkillBundlePg(
   sql: Sql,
@@ -47,12 +52,22 @@ export async function uploadSkillBundlePg(
   | { ok: true; slug: string }
   | { ok: false; status: 'needs_confirm'; slug: string }
 > {
+  // Single-use: the intent is consumed here, and the blob dies with this
+  // attempt (success or failure) — a `needs_confirm` round-trip re-uploads.
+  const owned = await consumeUploadIntent(sql, {
+    organizationId: args.organizationId,
+    userId: args.viewer.userId,
+    purpose: 'skill_bundle',
+    storageRef: args.storageId,
+  });
   let key: string | null = null;
-  try {
-    const parsedRef = parseBlobRef(args.storageId);
-    if (parsedRef.backend === 's3') key = parsedRef.key;
-  } catch {
-    key = null;
+  if (owned) {
+    try {
+      const parsedRef = parseBlobRef(args.storageId);
+      if (parsedRef.backend === 's3') key = parsedRef.key;
+    } catch {
+      key = null;
+    }
   }
   if (key === null || !s3KeyBelongsToOrg(key, args.orgSlug)) {
     throw new AppError({
@@ -101,7 +116,7 @@ export async function uploadSkillBundlePg(
     });
   }
 
-  let existing = null;
+  let existing: OrgSkill | null = null;
   let existingUnreadable = false;
   try {
     existing = await readOrgSkill(
@@ -138,21 +153,23 @@ export async function uploadSkillBundlePg(
     }
   }
 
-  // Per-(org, slug) writer mutex — the 0.4 claim-slot table collapses into
-  // one advisory xact lock (rule 5).
+  // The owner and sharing rules the editor applies, decided BEFORE the lock
+  // so a refusal never holds it. An unreadable existing document counts as
+  // no bundle: there is nothing left to preserve.
+  let files: ReturnType<typeof normalizedBundleFiles>;
   try {
-    await sql.begin(async (tx) => {
-      await tx`
-        SELECT pg_advisory_xact_lock(
-          hashtext(${`skill:${args.organizationId}:${parsed.slug}`})
-        )
-      `;
-      await writeSkillBundleFiles(
-        args.orgSlug,
-        parsed.slug,
-        normalizedBundleFiles(parsed, args.viewer),
-      );
-    });
+    files = normalizedBundleFiles(parsed, args.viewer, existing);
+  } catch (err) {
+    await cleanup();
+    throw err;
+  }
+
+  // Per-(org, slug) writer mutex — the one every skill writer holds, so the
+  // editor's save and delete cannot land between this swap's two renames.
+  try {
+    await withSkillWriterLock(sql, args.organizationId, parsed.slug, () =>
+      writeSkillBundleFiles(args.orgSlug, parsed.slug, files),
+    );
   } catch (err) {
     if (err instanceof AppError) throw err;
     throw new AppError({

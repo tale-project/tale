@@ -185,12 +185,10 @@ export function pgAutomationStore(
           `unknown trigger kind "${trigger.kind}" — one of schedule, webhook, event`,
         );
       }
-      if (trigger.kind === 'schedule' && !trigger.cron) {
-        throw new Error('a schedule trigger needs a cron expression');
-      }
-      if (trigger.kind === 'event' && !trigger.event) {
-        throw new Error('an event trigger needs an event name');
-      }
+      // Cron/timezone/event validation lives in the store's `setTrigger`
+      // (`assertTriggerValid`) so this engine door and the HTTP door converge
+      // on ONE validation — a schedule that cannot parse is refused there with
+      // an actionable AutomationError rather than saving green.
       // The store may mint a webhook token; its plaintext is deliberately
       // DISCARDED here — an engine tool call is not a surface that can show
       // it to a person once (the REST trigger door rotates to reveal).

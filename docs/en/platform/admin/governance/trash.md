@@ -11,7 +11,7 @@ To restore a chat history thread, open **Settings > Governance > Trash** and swi
 
 ## The two statuses
 
-**Trashed** is the normal soft-delete state. The row's retention window elapsed, it moved to trash, and the grace window is still ticking. Restore returns the row to its source list with no policy override.
+**Trashed** is the normal soft-delete state. The row's retention window elapsed, it moved to trash, and the grace window is still ticking. Restore returns the row to its source list with no policy override. The retention clock restarts at the restore — a restored chat thread, document, or external conversation counts from that moment, so the next cleanup pass leaves it alone instead of expiring it again.
 
 **Expired** is the second state — the grace window ran out and the row is queued for permanent deletion at the next cleanup. Restore is still possible but is an override: the dialog asks you to type `restore` and the audit log records the override with your name.
 
@@ -25,11 +25,10 @@ Trash holds rows from many categories. The category filter switches the view per
 - Prompt templates
 - Message feedback
 - Contacts
-- Vendors
 - External conversations
 - Message metadata
-- Workflow runs
-- Workflow trigger logs
+- Automation runs
+- Automation trigger logs
 - Usage ledger
 - Audit logs
 - Chat filter events
@@ -39,7 +38,7 @@ Each category honours its own retention window and its own grace window — set 
 
 ## Legal hold interaction
 
-Rows under legal hold do not appear in trash — the hold pins them out of reach of every retention step. When you try to delete a held row from its source list, Tale refuses with the **Delete is blocked by an active legal hold** message. Release the hold to let retention sweep the row through the trash window the way other categories flow.
+Rows under legal hold do not appear in trash — the hold pins them out of reach of every retention step. When you try to delete a held row from its source list, Tale refuses with a legal-hold error naming the hold. Release the hold to let retention sweep the row through the trash window the way other categories flow.
 
 ## The grace window
 

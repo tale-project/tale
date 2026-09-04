@@ -1480,6 +1480,7 @@ function EditTaskBody({
                 canComment={canComment}
                 currentUserId={me?.userId}
                 isAdmin={me?.isAdmin}
+                commentCount={task.commentCount}
               />
 
               <TaskTimeline

@@ -16,6 +16,7 @@ import {
   LAST_TOOL_ROUND_NOTICE,
   MAX_TOOL_ROUNDS,
   runTurn,
+  ThreadBusyError,
   TOOL_BUDGET_SPENT_NOTICE,
   TURN_STEPS,
   type ModelCall,
@@ -251,6 +252,31 @@ function passFilter(name: GuardrailFilter['name'] = 'pii'): GuardrailFilter {
     },
   };
 }
+
+describe('runTurn — the at-most-one-turn claim', () => {
+  it('propagates a busy refusal from the open and never closes the other turn', async () => {
+    const { store, calls } = fakeStore();
+    const held: TurnStore = {
+      ...store,
+      beginTurn() {
+        calls.ops.push('beginTurn');
+        return Promise.reject(new ThreadBusyError('thread_1'));
+      },
+    };
+    const d = deps({ store: held });
+
+    await expect(runTurn(request(), d.deps)).rejects.toBeInstanceOf(
+      ThreadBusyError,
+    );
+
+    // The generation row belongs to the turn that won it: the loser runs no
+    // endGeneration (which would close the winner's turn), appends no
+    // refusal row, and never dispatches the model.
+    expect(calls.ops).toEqual(['beginTurn']);
+    expect(d.chunks).toEqual([]);
+    expect(d.usage).toEqual([]);
+  });
+});
 
 describe('runTurn — the happy path', () => {
   it('runs every step, in the contracted order', async () => {

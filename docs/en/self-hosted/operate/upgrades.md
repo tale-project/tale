@@ -46,11 +46,11 @@ tale update --dry-run
 `tale deploy` does the actual rolling restart, and it always deploys the CLI's own version — which, thanks to alignment, is the version your workspace records. It sorts the services into three tiers:
 
 - **App tier** — `platform` — rolls on **every** deploy with zero downtime (blue-green: the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains).
-- **Backend & compute** — `convex`, `sandbox`, `sandbox-egress` — roll on every deploy too, so they never version-skew from `platform`. Each is a single container that recreates **in place** when its image actually changed; the deploy first drains its in-flight work (chat generations for `convex`, agent runs for `sandbox`) so the brief restart doesn't cut a live request.
-- **Stop-gated tier** — `db`, `proxy` — left **running and untouched** by default (recreating Postgres or the proxy is a brief outage you don't want on a routine roll). Pass `--stop` to update them; the deploy warns and names them when it skips.
+- **Backend & compute** — `backend-api`, `backend-worker`, `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — roll on every deploy too, so they never version-skew from `platform`. Each recreates **in place** when its image actually changed; the deploy first drains its in-flight work (chat turns for the backend, agent runs for `sandbox`) so the brief restart doesn't cut a live request.
+- **Stop-gated tier** — `db`, `object-store`, `proxy` — left **running and untouched** by default (recreating Postgres, the blob store, or the proxy is a brief outage you don't want on a routine roll). Pass `--stop` to update them; the deploy warns and names them when it skips.
 
 ```bash
-# After tale update, roll the containers to match (app tier + convex)
+# After tale update, roll the containers to match (app tier + backend)
 tale deploy
 
 # Also update db/proxy (brief downtime while they recreate)
@@ -142,7 +142,14 @@ tale deploy
 # 4. Decommission the 0.4 instance once the new one is accepted.
 ```
 
-The expert override — `tale deploy --accept-data-loss`, or `TALE_ACCEPT_DATA_LOSS=1` on the container — exists for the rare case where you deliberately reuse a host whose old volumes you have already dealt with. It does exactly what its name says: pre-0.5 data on that instance becomes permanently unreadable.
+The expert override — `tale deploy --accept-data-loss` — exists for the rare case where you deliberately reuse a host whose old volumes you have already dealt with. It does exactly what its name says: pre-0.5 data on that instance becomes permanently unreadable.
+
+**The legacy `tale_platform` database.** Every `tale-db` container used to create an empty `tale_platform` database on start — the database the bundled Convex service used in 0.4, which nothing in 0.5 reads. Fresh installs no longer create it, and nothing drops it for you: an instance first deployed on an earlier 0.5 release still carries it, and so does a reused 0.4 host. It is harmless. Once you are sure you need nothing from the Convex era, take a snapshot and drop it by hand — on `db`, and on `knowledge-db` where your stack runs one:
+
+```bash
+tale backup
+docker compose exec db psql -U tale -d tale -c 'DROP DATABASE IF EXISTS tale_platform;'
+```
 
 ## Where this fits
 

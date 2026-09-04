@@ -19,6 +19,7 @@ import {
   checkRuleAgainstUsage,
   collectAllApplicableRules,
   resolveEffectiveLimits,
+  teamLimitsHasCap,
   type BudgetCheckResult,
 } from '../../core/governance/budget_enforcement.ts';
 import { estimateTtsCostCents } from '../../core/governance/cost_estimation.ts';
@@ -83,8 +84,10 @@ export class TtsError extends Error {
     message: string,
     status: 400 | 403 | 404 | 429 = 400,
     retryAfterMs?: number,
+    /** The refusal this one wraps (a rate limit), for the door to answer. */
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = 'TtsError';
     this.code = code;
     this.status = status;
@@ -315,12 +318,22 @@ export async function checkTtsBudget(
       args.prospectiveRequests,
     );
     if (violation) return violation;
-    for (const teamId of limits.effectiveTeamIds) {
+    // Each team's SHARED cap against that team's aggregate — the team rule's
+    // own values, never the personal triple (see `EffectiveLimits.teamLimits`).
+    for (const teamLimit of limits.teamLimits) {
+      if (!teamLimitsHasCap(teamLimit)) continue;
       const teamUsage = await periodUsage(sql, args.organizationId, periodKey, {
-        teamId,
+        teamId: teamLimit.teamId,
       });
       const teamViolation = checkRuleAgainstUsage(
-        { scope: 'team', scopeId: teamId, period, ...limitsTriple(limits) },
+        {
+          scope: 'team',
+          scopeId: teamLimit.teamId,
+          period,
+          maxTokens: teamLimit.maxTokens,
+          maxCostCents: teamLimit.maxCostCents,
+          maxRequests: teamLimit.maxRequests,
+        },
         teamUsage,
         args.prospectiveCostCents,
         args.prospectiveRequests,
@@ -485,11 +498,14 @@ async function reserveChunk(
       await checkUserRateLimit(tx, 'tts:synthesize:user', args.userId, 1);
     } catch (error) {
       if (error instanceof RateLimitExceededError) {
+        // Coded for the shim and job consumers; the app door answers the one
+        // 429 from the cause (`rateLimitExceededCause`).
         throw new TtsError(
           'RATE_LIMITED',
           'TTS rate limit exceeded for this user.',
           429,
           error.retryAfter,
+          { cause: error },
         );
       }
       throw error;
@@ -508,6 +524,7 @@ async function reserveChunk(
           'TTS rate limit exceeded for this organization.',
           429,
           error.retryAfter,
+          { cause: error },
         );
       }
       throw error;
@@ -688,6 +705,25 @@ async function markChunkReadyAndRecordUsage(
 
 // ------------------------------------------------------------- synthesize
 
+/**
+ * Is `messageId` a row of `threadId` (in this org)? Ownership of the thread is
+ * checked by the caller (`loadOwnedThread`); this closes the remaining gap —
+ * a message id is not secret (shared threads reveal them), so the thread it
+ * is synthesized under must be the one it actually belongs to.
+ */
+async function messageBelongsToThread(
+  sql: Sql,
+  args: { organizationId: string; threadId: string; messageId: string },
+): Promise<boolean> {
+  const rows = await sql<{ one: number }[]>`
+    SELECT 1 AS one FROM app.messages
+    WHERE id = ${args.messageId} AND thread_id = ${args.threadId}
+      AND org_id = ${args.organizationId}
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
 export interface SynthesizeResult {
   status: 'ready' | 'in-flight' | 'failed';
   errorCode?: string;
@@ -724,6 +760,34 @@ export async function synthesizeChunk(
   );
   if (!thread) {
     throw new TtsError('FORBIDDEN', 'This conversation does not exist.', 403);
+  }
+  if (!(await messageBelongsToThread(sql, args))) {
+    // The caller owns the thread but names a message that is not in it — a
+    // messageId learnt from another (shared, foreign) conversation. The
+    // `(message_id, chunk_index)` reservation is global, so admitting this
+    // would mint the row under the squatter's thread and lock the message's
+    // real owner out of playback with a 403 and an audit row blaming THEM.
+    await sql.begin(async (tx) => {
+      await createAuditLog(tx, {
+        organizationId: args.organizationId,
+        actorId: args.userId,
+        actorType: 'user',
+        action: 'tts.synthesize_denied',
+        category: 'security',
+        resourceType: 'tts_audio_chunk',
+        metadata: {
+          reason: 'message_not_in_thread',
+          requestedMessageId: args.messageId,
+          requestedThreadId: args.threadId,
+        },
+        status: 'denied',
+      });
+    });
+    throw new TtsError(
+      'FORBIDDEN',
+      'This message does not belong to the conversation.',
+      403,
+    );
   }
   const meta = await sql<{ agentSlug: string | null }[]>`
     SELECT agent_slug AS "agentSlug" FROM app.thread_metadata
@@ -941,22 +1005,39 @@ export async function getMessageChunks(
   });
 }
 
-/** The audio-serve read: membership is the route's (session) gate; this
- * enforces the chunk's own org and readiness. */
+/**
+ * The audio-serve read. A chunk is spoken content of a PRIVATE conversation,
+ * so the gate is the one every other TTS door uses — ownership of the chunk's
+ * thread via `loadOwnedThread` — never org membership alone (a chunk id can
+ * leak through logs or referers, and unguessability is not authorization).
+ * Enforces readiness too; `null` covers missing, foreign, and not-ready alike.
+ */
 export async function getChunkForServe(
   sql: Sql,
-  args: { organizationId: string; chunkId: string },
+  args: { organizationId: string; userId: string; chunkId: string },
 ): Promise<{ storageRef: string; contentType: string } | null> {
   const rows = await sql<
-    { storageRef: string | null; status: string; format: string | null }[]
+    {
+      threadId: string;
+      storageRef: string | null;
+      status: string;
+      format: string | null;
+    }[]
   >`
-    SELECT storage_ref AS "storageRef", status, format
+    SELECT thread_id AS "threadId", storage_ref AS "storageRef", status, format
     FROM app.tts_audio_chunks
     WHERE id = ${args.chunkId} AND org_id = ${args.organizationId}
     LIMIT 1
   `;
   const row = rows[0];
   if (!row || row.status !== 'ready' || row.storageRef === null) return null;
+  const thread = await loadOwnedThread(
+    sql,
+    args.organizationId,
+    args.userId,
+    row.threadId,
+  );
+  if (!thread) return null;
   const format = row.format;
   const mime =
     format !== null

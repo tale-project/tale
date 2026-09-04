@@ -402,8 +402,10 @@ async function runWorkspaceTool(
         {
           organizationId: args.organizationId,
           teamIds: [...bound.scope.teamIds],
-          ...(bound.scope.projectIds[0] !== undefined
-            ? { projectId: bound.scope.projectIds[0] }
+          // EVERY authorized project — a multi-bound automation's run lists
+          // the files of all its bound projects, not the first one's.
+          ...(bound.scope.projectIds.length > 0
+            ? { projectIds: [...bound.scope.projectIds] }
             : {}),
           ...(typeof callArgs.fileName === 'string'
             ? { fileName: callArgs.fileName }

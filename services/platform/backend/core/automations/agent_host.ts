@@ -41,6 +41,11 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
+import {
+  refuseBlindImageTurn,
+  visionUnreadableGuidance,
+  type SubscriptionVision,
+} from '../lib/providers/subscription_vision';
 import type { Id } from '../lib/rows';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
@@ -161,7 +166,7 @@ export interface AutomationAgentHost {
   cancel(args: { sessionId: string; execId: string }): Promise<void>;
 }
 
-const DEFAULT_HARNESS = 'claude-code';
+export const DEFAULT_HARNESS = 'claude-code';
 
 /** An `automationHumanAsks` row as the host consumes it — the internal reads
  * return it untyped (`v.any()`), so every consumer narrows through here. */
@@ -388,6 +393,11 @@ export function automationAgentHost(
                 visionProviderSlug: vision.providerSlug,
                 visionModelId: vision.modelId,
               }
+            : {}),
+          // A subscription serving that cannot see images: the start refuses
+          // image inputs and briefs the agent honestly otherwise.
+          ...(serving.lane === 'subscription' && !serving.vision.readable
+            ? { visionUnreadableReason: serving.vision.reason }
             : {}),
           ...(excludeBrokerTokenHashes !== undefined &&
           excludeBrokerTokenHashes.length > 0
@@ -782,8 +792,13 @@ export async function stageWorkflowFiles(
   sessionId: string,
   files: Record<string, unknown> | undefined,
   pathPrefix: string,
-): Promise<string[]> {
-  if (files === undefined) return [];
+): Promise<{
+  /** The mount names, for the prompt. */
+  mounts: string[];
+  /** Every staged file path — what the turn's inputs actually are. */
+  stagedPaths: string[];
+}> {
+  if (files === undefined) return { mounts: [], stagedPaths: [] };
   const toStage: SessionStageFile[] = [];
   const mounts: string[] = [];
   for (const [rawName, rawSource] of Object.entries(files)) {
@@ -862,7 +877,7 @@ export async function stageWorkflowFiles(
       );
     }
   }
-  return mounts;
+  return { mounts, stagedPaths: toStage.map((file) => file.path) };
 }
 /** What one workflow agent turn's exec authenticates with, minted per lane
  * (the task lane's `mintTurnServing` shape, automation-scoped). */
@@ -990,6 +1005,9 @@ export interface StartWorkflowAgentTurnArgs {
   apiBaseUrl?: string;
   visionProviderSlug?: string;
   visionModelId?: string;
+  /** Set when the (subscription) serving cannot see images — the reason the
+   * start refuses image inputs with, or briefs the agent about. */
+  visionUnreadableReason?: string;
   excludeBrokerTokenHashes?: string[];
   deadlineAt: number;
   request: {
@@ -1027,7 +1045,7 @@ export async function startWorkflowAgentTurnImpl(
         args.request.skills ?? [],
         skillViewer,
       );
-      const mounts = await stageWorkflowFiles(
+      const { mounts, stagedPaths } = await stageWorkflowFiles(
         ctx,
         args.organizationId,
         args.sessionId,
@@ -1035,6 +1053,17 @@ export async function startWorkflowAgentTurnImpl(
         args.request.files as Record<string, unknown> | undefined,
         'workspace/',
       );
+      // A serving that cannot see images must not run blind over image
+      // inputs: refuse with the reason (it lands on the run as why the turn
+      // could not start), else brief the agent so it reports an unread image
+      // instead of inventing its contents. Before the mint, so a refusal
+      // leaks nothing.
+      const servingVision: SubscriptionVision =
+        args.visionUnreadableReason === undefined
+          ? { readable: true }
+          : { readable: false, reason: args.visionUnreadableReason };
+      refuseBlindImageTurn(servingVision, stagedPaths);
+      const visionGuidance = visionUnreadableGuidance(servingVision);
 
       const visionRef =
         args.visionProviderSlug !== undefined &&
@@ -1154,6 +1183,7 @@ export async function startWorkflowAgentTurnImpl(
               ].join('\n'),
             ]
           : []),
+        ...(visionGuidance !== '' ? [visionGuidance] : []),
         ASK_HUMAN_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),

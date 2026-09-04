@@ -92,7 +92,7 @@ Every service should be `running` or `healthy`. Walk through **Step 4 — Create
 
 Before pointing users at the URL, three hooks make life easier later:
 
-- **Backups.** Point your existing snapshot tooling at `db-data` and the object store volume — see [Backups and restore](/self-hosted/operate/backups-and-restore).
+- **Backups.** `tale backup` snapshots the data volumes — blobs included — into the `backups` volume; point your off-host tooling at that volume plus the project workspace and `.env` — see [Backups and restore](/self-hosted/operate/backups-and-restore).
 - **Logs.** Tale logs to stdout. If the host has journald, `journalctl -u docker` carries everything; otherwise pipe to your aggregator.
 - **Metrics.** Set `METRICS_BEARER_TOKEN` in `.env` and scrape `/metrics` from your Prometheus — see [Observability config](/self-hosted/configuration/observability-config).
 

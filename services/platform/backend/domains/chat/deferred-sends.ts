@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 
+import { ThreadBusyError } from '../../../lib/chat/turn.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { isBackendDraining } from '../control/service.ts';
@@ -192,7 +193,15 @@ export async function enqueueDeferredSend(
     `;
     const deferredSendId = rows[0]?.id;
     if (!deferredSendId) throw new Error('deferred send insert failed');
-    await addJobInTx(tx, 'chat.deferred_send_poll', { deferredSendId });
+    // The per-send singletonKey (queue policy 'short') collapses the poll
+    // self-chain to at most one queued hop, so the watchdog can blindly
+    // re-enqueue a poll for a stalled row without doubling a live chain.
+    await addJobInTx(
+      tx,
+      'chat.deferred_send_poll',
+      { deferredSendId },
+      { singletonKey: deferredSendId },
+    );
     return { deferredSendId };
   });
 }
@@ -379,7 +388,10 @@ export async function pollDeferredSend(
       sql,
       'chat.deferred_send_poll',
       { deferredSendId },
-      { startAfter: new Date(Date.now() + delayMs) },
+      {
+        startAfter: new Date(Date.now() + delayMs),
+        singletonKey: deferredSendId,
+      },
     );
   };
 
@@ -406,12 +418,14 @@ export async function pollDeferredSend(
   }
 
   const claimed = await sql<{ id: string }[]>`
-    UPDATE app.deferred_sends SET status = 'claimed'
+    UPDATE app.deferred_sends
+    SET status = 'claimed', waiting_since_ms = ${Date.now()}
     WHERE id = ${row.id} AND status = 'waiting'
     RETURNING id
   `;
   if (claimed.length === 0) return 'gone';
 
+  let parkedAgain = false;
   try {
     // The claimed videos' transcripts join the send now (the 0.4
     // `buildBoundJobAttachments` semantics — a job without a completed
@@ -449,11 +463,91 @@ export async function pollDeferredSend(
         `[deferred-send] turn refused for ${row.id}: ${outcome.reason}`,
       );
     }
+  } catch (error) {
+    // Lost the thread to a send that slipped in between the busy read above
+    // and the turn's atomic open. Nothing was appended, so this is the same
+    // "wait our turn" as the read — park the row again rather than drop the
+    // message into a deleted tray row.
+    if (error instanceof ThreadBusyError) {
+      await sql`
+        UPDATE app.deferred_sends
+        SET status = 'waiting', waiting_since_ms = ${Date.now()}
+        WHERE id = ${row.id} AND status = 'claimed'
+      `;
+      await reschedule(READY_POLL_MS);
+      parkedAgain = true;
+      return 'busy';
+    }
+    throw error;
   } finally {
     // The terminal mop-up: the row settles whether the turn completed,
     // refused, or threw — the thread shows the bubble (or nothing), and the
     // tray row would only double-display or wedge.
-    await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+    if (!parkedAgain) {
+      await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+    }
   }
   return 'ran';
+}
+
+/** A waiting row is re-polled once it is older than this — a floor to skip a
+ * row whose first poll simply has not run yet (the re-enqueue is
+ * singletonKey-deduped, so it never doubles a live chain). */
+const WAITING_STALE_MS = 30 * 1000;
+/** A claimed row whose turn never finished — the process died between the
+ * claim and the finally-DELETE. Generous: a turn is quick. */
+const CLAIMED_STALE_MS = 15 * 60 * 1000;
+
+/**
+ * Crash-recovery watchdog for parked sends (the job-liveness class), covering
+ * both dead-ends the poll self-chain leaves behind:
+ *
+ *  - a WAITING row whose poll chain SEVERED (a hop threw, or a worker died
+ *    mid-hop — the poll has retryLimit 0) sits forever with no error and no
+ *    way to cancel. Re-enqueue its poll. The per-send singletonKey ('short'
+ *    queue policy) means a row with a live chain is a no-op and only a dead
+ *    chain is revived, so this never doubles the healthy fast-poll cadence.
+ *  - a CLAIMED row wedged by a crash between the claim and the finally-DELETE
+ *    is uncancellable (cancel needs 'waiting') and a permanent tray chip.
+ *    Clear it. The chat-generation watchdog owns the thread's composer; this
+ *    only removes the tray row. At-most-once LLM spend: the turn is never
+ *    re-run (a crash surfaces through the generation watchdog, not a rerun).
+ *
+ * `waiting_since_ms` is stamped at both park and claim, so it dates the
+ * CURRENT state for either arm.
+ */
+export async function recoverStuckDeferredSends(
+  sql: Sql,
+  options: { waitingStaleMs?: number; claimedStaleMs?: number } = {},
+): Promise<{ repolled: number; cleared: number }> {
+  const now = Date.now();
+  const waitingCutoff = now - (options.waitingStaleMs ?? WAITING_STALE_MS);
+  const claimedCutoff = now - (options.claimedStaleMs ?? CLAIMED_STALE_MS);
+  const waiting = await sql<{ id: string }[]>`
+    SELECT id FROM app.deferred_sends
+    WHERE status = 'waiting' AND waiting_since_ms < ${waitingCutoff}
+    ORDER BY waiting_since_ms
+    LIMIT 200
+  `;
+  let repolled = 0;
+  for (const row of waiting) {
+    await addJobInTx(
+      sql,
+      'chat.deferred_send_poll',
+      { deferredSendId: row.id },
+      { singletonKey: row.id },
+    );
+    repolled += 1;
+  }
+  const cleared = await sql<{ id: string }[]>`
+    DELETE FROM app.deferred_sends
+    WHERE status = 'claimed' AND waiting_since_ms < ${claimedCutoff}
+    RETURNING id
+  `;
+  if (repolled > 0 || cleared.length > 0) {
+    console.warn(
+      `[deferred-send-watchdog] re-polled ${repolled} waiting, cleared ${cleared.length} wedged claimed`,
+    );
+  }
+  return { repolled, cleared: cleared.length };
 }

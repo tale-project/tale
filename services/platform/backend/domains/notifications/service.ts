@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { NOTIFICATION_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -70,7 +71,7 @@ export async function writeNotificationForOrgs(
     if (inserted.count > 0) {
       await emitHintInTx(tx, {
         orgId: organizationId,
-        entity: 'notification',
+        entity: NOTIFICATION_HINT_ENTITY,
         entityId: null,
       });
     }
@@ -203,7 +204,7 @@ export async function markRead(
     await emitHintInTx(tx, {
       orgId: scope.orgId,
       userId: scope.userId,
-      entity: 'notification',
+      entity: NOTIFICATION_HINT_ENTITY,
       entityId: notificationId,
     });
   }
@@ -226,7 +227,7 @@ export async function markAllRead(
     await emitHintInTx(tx, {
       orgId: scope.orgId,
       userId: scope.userId,
-      entity: 'notification',
+      entity: NOTIFICATION_HINT_ENTITY,
       entityId: null,
     });
   }

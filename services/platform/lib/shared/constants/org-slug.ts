@@ -33,3 +33,26 @@ export function assertValidOrgSlug(slug: string): void {
     );
   }
 }
+
+/**
+ * What an organization update's `slug` field would do. The slug is the
+ * tenant key of everything stored outside the database — blob keys embed it
+ * (`s3KeyBelongsToOrg`), the config tree lives at `$TALE_CONFIG_DIR/<slug>`,
+ * the knowledge corpora are scoped by it — so once an organization HAS a
+ * slug it never changes: `rename` is refused at the auth hook. Re-sending
+ * the current slug is `unchanged`; giving a slug-less organization its first
+ * one is `initial`.
+ */
+export function classifyOrgSlugUpdate(
+  currentSlug: string | null | undefined,
+  requestedSlug: string,
+): 'unchanged' | 'initial' | 'rename' {
+  if (currentSlug === null || currentSlug === undefined || currentSlug === '') {
+    return 'initial';
+  }
+  return currentSlug === requestedSlug ? 'unchanged' : 'rename';
+}
+
+/** The refusal an operator reads when they try to rename an org's slug. */
+export const ORG_SLUG_IMMUTABLE_MESSAGE =
+  'The organization slug cannot be changed: files, configuration and knowledge are stored under it. Create a new organization instead.';

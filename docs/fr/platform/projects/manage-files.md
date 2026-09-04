@@ -1,11 +1,11 @@
 ---
 title: Gérer les fichiers du projet
-description: L’onglet Connaissances du projet tient les fichiers où chaque chat du projet peut puiser — dossiers, téléversement, statut d’indexation, épinglage, et comment les fichiers du projet restent scopés au projet.
+description: L’onglet Connaissances du projet tient les fichiers où chaque chat du projet peut puiser — dossiers, téléversement, statut d’indexation, et comment les fichiers du projet restent scopés au projet.
 ---
 
 L’onglet **Connaissances** d’un projet est la zone de fichiers partagée que chaque chat du projet peut atteindre. Téléverse un fichier une fois et chaque chat du projet — et chaque agent qui y tourne — peut le lire sans nouveau téléversement. Cette page couvre l’arborescence de dossiers, le mécanisme de téléversement, l’épinglage et les limites.
 
-L’onglet Connaissances n’est pas la base de connaissances de l’organisation au sens de [Documents](/fr/platform/knowledge/documents). Ses fichiers sont scopés à un projet et n’apparaissent jamais dans la bibliothèque de l’organisation, dans les sélecteurs `@` hors du projet, ni via WebDAV ; supprimer le projet supprime les fichiers. Pour du matériel de référence à l’échelle de l’organisation, utilise [Documents](/fr/platform/knowledge/documents) et lie-les à des agents.
+L’onglet Connaissances n’est pas la base de connaissances de l’organisation au sens de [Documents](/fr/platform/knowledge/documents). Ses fichiers sont scopés à un projet et n’apparaissent jamais dans la bibliothèque de l’organisation ni via WebDAV ; supprimer le projet supprime les fichiers. Pour du matériel de référence à l’échelle de l’organisation, utilise [Documents](/fr/platform/knowledge/documents) et lie-les à des agents.
 
 <Frame caption="L’onglet Connaissances — l’arborescence de fichiers du projet ; chaque fichier reste borné à ce projet et indexé pour la recherche.">
 
@@ -19,7 +19,7 @@ Les fichiers du projet vivent dans une arborescence de dossiers. **Nouveau dossi
 
 ## Un téléversement déroulé
 
-Ouvre le projet, clique **Connaissances**, sélectionne le dossier cible (ou aucun pour la racine), et glisse des fichiers sur la zone de dépôt. La ligne apparaît dans l’arborescence et passe à **Indexed** une fois que la récupération l’a intégrée. Le même téléversement est désormais accessible depuis n’importe quel chat que le projet possède : envoie un message qui référence le sujet et l’agent le récupère, ou tape `@` dans le chat et épingle le fichier — ou un dossier entier — au tour.
+Ouvre le projet, clique **Connaissances**, sélectionne le dossier cible (ou aucun pour la racine), et glisse des fichiers sur la zone de dépôt. La ligne apparaît dans l’arborescence et passe à **Indexed** une fois que la récupération l’a intégrée. Le même téléversement est désormais accessible depuis n’importe quel chat que le projet possède : envoie un message qui nomme le sujet et l’assistant le récupère, en chargeant le texte complet quand un extrait ne suffit pas.
 
 ## Remplacer et supprimer
 
@@ -35,9 +35,9 @@ Les limites par fichier et par projet sont fixées par l’organisation sous [Po
 
 ## Apparition dans les chats
 
-Un chat démarré à l’intérieur d’un projet a automatiquement accès à chaque fichier de l’onglet Connaissances du projet. L’outil de récupération de l’agent voit les fichiers du projet à côté de toute source de Connaissances liée à l’agent. Les citations issues de fichiers du projet sont scopées au chat qui les a produites — partager ce chat hors du projet préserve les citations, mais le visiteur ne peut pas cliquer vers la source à moins d’être lui aussi dans le projet.
+Un chat démarré à l’intérieur d’un projet a automatiquement accès à chaque fichier de l’onglet Connaissances du projet. L’outil de récupération de l’assistant voit les fichiers du projet à côté des connaissances de l’organisation. Les citations issues de fichiers du projet sont scopées au chat qui les a produites — partager ce chat hors du projet préserve les citations, mais le visiteur ne peut pas cliquer vers la source à moins d’être lui aussi dans le projet.
 
-Épingler avec `@` resserre un seul tour : `@fichier` épingle un fichier, `@dossier` épingle un dossier et tout ce qu’il contient (le sélecteur propose les dossiers du projet dans les chats de projet, et les dossiers de l’organisation partout). Les fichiers épinglés sont aussi livrés dans la sandbox de l’agent sous `/agent/uploads` — un agent de projet sur un harness de code comme Claude Code ouvre donc les vrais octets au lieu de ne citer que des extraits de récupération.
+Il n’y a pas de sélecteur `@` dans le composeur de cette version — un message nomme le sujet, la récupération trouve le fichier, et l’assistant charge le texte complet avec son outil de chargement quand il lui faut plus qu’un extrait. Un agent de projet qui travaille une tâche du tableau reçoit ses fichiers autrement : les pièces jointes de la tâche sont recopiées en lecture seule dans sa sandbox sous `/agent/inputs/<task>/attachments/`, de sorte qu’un harness de code ouvre les vrais octets plutôt qu’un extrait de recherche — [Harnesses](/fr/platform/agents/harnesses) couvre cette voie.
 
 ## Où cela s’inscrit
 

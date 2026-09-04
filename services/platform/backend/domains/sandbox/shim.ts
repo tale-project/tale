@@ -5,7 +5,7 @@ import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
 import { automationAskShimHandlers } from '../automations/ask-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
-import { findCredentialForRef } from '../connector_credentials/service.ts';
+import { resolveCredentialRowForShim } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import { addTaskComment } from '../tasks/comments.ts';
 import { getCurrentUser } from '../users/service.ts';
@@ -136,11 +136,19 @@ async function resolveSessionBinding(
   return { kind: 'none' };
 }
 
-/** The project's readable team set for a project-bound knowledge scope. */
-async function projectKnowledgeScope(
+/**
+ * The knowledge scope over a set of ALREADY-AUTHORIZED projects: each
+ * project's team and shared teams, the org pseudo-team, the hub, and the
+ * archived subset (labelling only). One helper for both bindings — a project
+ * session reads its one project, an org-wide run of a multi-bound automation
+ * reads its bound projects. Built from the `projects` rows that EXIST: a bound
+ * id whose project is gone contributes nothing (the fail-closed direction),
+ * never a widening.
+ */
+async function projectsKnowledgeScope(
   sql: Sql,
   organizationId: string,
-  projectId: string,
+  projectIds: readonly string[],
 ): Promise<{
   teamIds: string[];
   projectIds: string[];
@@ -148,23 +156,31 @@ async function projectKnowledgeScope(
   archivedProjectIds: string[];
 }> {
   const rows = await sql<
-    { teamId: string | null; shared: string[]; archivedAt: number | null }[]
+    {
+      id: string;
+      teamId: string | null;
+      shared: string[] | null;
+      archivedAt: number | null;
+    }[]
   >`
-    SELECT team_id AS "teamId", shared_with_team_ids AS shared,
+    SELECT id, team_id AS "teamId", shared_with_team_ids AS shared,
            archived_at_ms::float8 AS "archivedAt"
     FROM app.projects
-    WHERE id = ${projectId} AND org_id = ${organizationId}
-    LIMIT 1
+    WHERE id = ANY(${[...projectIds]}) AND org_id = ${organizationId}
+    ORDER BY created_at_ms, id
   `;
-  const row = rows[0];
   const teamIds = new Set<string>([`org_${organizationId}`]);
-  if (row?.teamId != null) teamIds.add(row.teamId);
-  for (const teamId of row?.shared ?? []) teamIds.add(teamId);
+  const archivedProjectIds: string[] = [];
+  for (const row of rows) {
+    if (row.teamId != null) teamIds.add(row.teamId);
+    for (const teamId of row.shared ?? []) teamIds.add(teamId);
+    if (row.archivedAt != null) archivedProjectIds.push(row.id);
+  }
   return {
     teamIds: [...teamIds],
-    projectIds: [projectId],
+    projectIds: rows.map((row) => row.id),
     includeHub: true,
-    archivedProjectIds: row?.archivedAt != null ? [projectId] : [],
+    archivedProjectIds,
   };
 }
 
@@ -202,24 +218,10 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         connectorSlug: string;
         credentialRef?: string;
       };
-      const row = await findCredentialForRef(sql, args);
-      if (row === null) return null;
-      // The 0.4 row shape the reused resolver reads — nullable columns are
-      // ABSENT fields there, never nulls.
-      return {
-        _id: row.id,
-        organizationId: row.organizationId,
-        connectorSlug: row.connectorSlug,
-        authMethod: row.authMethod,
-        name: row.name,
-        encryptedData: row.encryptedData,
-        ...(row.endpointUrl !== null ? { endpointUrl: row.endpointUrl } : {}),
-        ...(row.config !== null ? { config: row.config } : {}),
-        status: row.status,
-        ...(row.statusDetail !== null
-          ? { statusDetail: row.statusDetail }
-          : {}),
-      };
+      // The 0.4 row shape the reused resolver reads — one shared answer with
+      // the conversations shim (the mailbox sync's heal runs the same
+      // resolver), so the two cannot drift.
+      return resolveCredentialRowForShim(sql, args);
     },
 
     'sandbox/session_mutations:recordCredentialAccess': async (raw) => {
@@ -308,17 +310,31 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
       if (binding.kind === 'project' && binding.projectId !== undefined) {
         return {
           allowed: true,
-          scope: await projectKnowledgeScope(
-            sql,
-            args.organizationId,
+          scope: await projectsKnowledgeScope(sql, args.organizationId, [
             binding.projectId,
-          ),
+          ]),
         };
       }
       if (binding.kind === 'org_run') {
-        // An org-level run reads the org HUB — the knowledge every member
-        // shares — not the union of every project's attached files. The
-        // pseudo-team is what makes a hub document visible at all in 0.5.
+        const bound = binding.boundProjectIds ?? [];
+        if (bound.length > 0) {
+          // A multi-bound automation's run reads ITS bound projects' files —
+          // the same projects `resolveSessionActionContext` confines its task
+          // and document actions to — plus the hub. Hub-only here made the
+          // very documents the run was deployed over `not_found` mid-run.
+          return {
+            allowed: true,
+            scope: await projectsKnowledgeScope(
+              sql,
+              args.organizationId,
+              bound,
+            ),
+          };
+        }
+        // An automation with NO bindings is org-level: it reads the org HUB —
+        // the knowledge every member shares — not the union of every
+        // project's attached files. The pseudo-team is what makes a hub
+        // document visible at all in 0.5.
         return {
           allowed: true,
           scope: {
@@ -418,17 +434,23 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         organizationId: string;
         teamIds: string[];
         projectId?: string;
+        /** The binding's project set — one for a project session, every
+         * bound project for a multi-bound automation's run. */
+        projectIds?: string[];
         fileName?: string;
         extension?: string;
         limit?: number;
         cursor?: number;
       };
-      // The binding door: the bridge already resolved the scope (teams + at
-      // most one project), so it passes straight through.
+      // The binding door: the bridge already resolved the scope (teams + the
+      // authorized projects), so it passes straight through.
       return listDocumentsForAgent(sql, {
         organizationId: args.organizationId,
         teamIds: args.teamIds,
         ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
+        ...(args.projectIds !== undefined
+          ? { projectIds: args.projectIds }
+          : {}),
         ...(args.fileName !== undefined ? { fileName: args.fileName } : {}),
         ...(args.extension !== undefined ? { extension: args.extension } : {}),
         ...(args.limit !== undefined ? { limit: args.limit } : {}),

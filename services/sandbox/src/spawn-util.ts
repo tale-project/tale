@@ -32,7 +32,7 @@ interface RunDockerOptions {
   stderrMaxBytes?: number;
 }
 
-interface RunDockerResult {
+export interface RunDockerResult {
   exitCode: number;
   stdout: string;
   stderr: string;
@@ -218,11 +218,33 @@ export async function runDocker(
   };
 }
 
-export async function dockerRm(containerName: string): Promise<void> {
+/** Does a docker CLI stderr say the named object does not exist? The one
+ * definitive "gone" answer — every other failure (daemon hiccup, timeout, a
+ * container stuck in removal) is "unknown", never "gone". */
+export function isDockerNoSuchObject(stderr: string): boolean {
+  return /no such (object|container)/i.test(stderr);
+}
+
+/**
+ * `docker rm --force <name>`. Resolves with the CLI result — it never rejects,
+ * and a host-side timeout reads as exitCode 124 — so callers MUST judge
+ * `exitCode` (see {@link dockerRmSucceeded}): the removal of a still-running
+ * container is the one step whose silent failure orphans compute.
+ */
+export async function dockerRm(
+  containerName: string,
+): Promise<RunDockerResult> {
   // Bounded: a wedged inner dockerd (DinD) with stuck mounts could otherwise
   // hang teardown indefinitely. SIGKILL of PID 1 normally collapses everything
   // fast, so 30s is generous slack, not a routine wait.
-  await runDocker(['rm', '--force', containerName], { timeoutMs: 30_000 });
+  return runDocker(['rm', '--force', containerName], { timeoutMs: 30_000 });
+}
+
+/** Did a `dockerRm` leave the object gone? A clean exit, or a "no such
+ * container" refusal (already gone — the idempotent success). A timeout (124)
+ * or any other daemon error is a FAILURE: the container may still be running. */
+export function dockerRmSucceeded(result: RunDockerResult): boolean {
+  return result.exitCode === 0 || isDockerNoSuchObject(result.stderr);
 }
 
 /**

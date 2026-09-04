@@ -25,6 +25,8 @@ Notable variables (canonical list in `compose.yml`, which is local-dev only — 
 - `HOST`, `PORT`, `LOG_LEVEL`
 - `DATABASE_URL` — the backend's Postgres
 - `SANDBOX_URL` — internal DNS to the sandbox spawner
+- `SANDBOX_TOKEN` — shared HMAC secret for spawner requests (required — the spawner refuses to boot without it)
+- `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` — LLM-gateway management-API credential (required — the backend refuses management calls without it)
 - `KNOWLEDGE_DATABASE_URL` — knowledge corpus (ParadeDB) used by the in-process RAG/crawler path
 - `INSTANCE_SECRET` — root secret the WebDAV HMAC and encryption keys derive from
 - `TALE_CONFIG_DIR`, `TALE_CONFIG_BUILTIN_DIR`, `TALE_CONFIG_SYSTEM_DIR` — the file-based org-config trees

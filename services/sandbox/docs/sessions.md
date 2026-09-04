@@ -20,10 +20,14 @@ thread / workflow / render budgets); the host ceiling is `SANDBOX_MAX_SESSIONS`.
 
 ## Architecture
 
-A session is a long-lived container (Docker) / Pod (K8s) whose PID 1 is
-**runnerd**, a small control daemon (`services/sandbox-runtime/daemon`, bundled
-to a single `runnerd.mjs` and run by the image's Node 24). The spawner proxies
-every in-session operation to runnerd over plain HTTP on `:8200`:
+A session is a long-lived container (Docker) / Pod (K8s) running **runnerd**, a
+small control daemon (`services/sandbox-runtime/daemon`, bundled to a single
+`runnerd.mjs` and run by the image's Node 24), under the image's `tini` init as
+PID 1 on every dispatch path — a long-lived container needs a real reaper, since
+every cancelled exec tree and browser recycle leaves orphans that node (which
+never `wait()`s children it did not spawn) would otherwise accumulate as zombies
+against `pids-limit`. The spawner proxies every in-session operation to runnerd
+over plain HTTP on `:8200`:
 
 - Docker: container DNS name `tale-sbx-ses-<id>` on `tale-sandbox-net`.
 - K8s: the Pod IP (read from `status.podIP`).
@@ -32,8 +36,9 @@ every in-session operation to runnerd over plain HTTP on `:8200`:
 the exec-free K8s constraint holds. runnerd auth is the per-session token
 `HMAC-SHA256(SANDBOX_TOKEN, "runnerd-v1:" + sessionId)` in the
 `x-tale-runnerd-token` header — derivable by any spawner replica, stored
-nowhere. Unsigned dev mode (`SANDBOX_TOKEN` unset) uses an empty token and
-runnerd skips the check, mirroring the spawner's own opt-in HMAC policy.
+nowhere. `SANDBOX_TOKEN` is required (the spawner refuses to boot without it —
+`loadConfig` fails closed), so every session carries a real token and runnerd
+always verifies; there is no unsigned mode.
 
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity

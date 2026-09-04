@@ -150,7 +150,7 @@ export async function ensureDefaultObjectStore(
   });
   await atomicWriteSecret(
     secretsPath,
-    hasSopsKey() ? encryptJsonWithSops(plaintext) : plaintext,
+    hasSopsKey() ? await encryptJsonWithSops(plaintext) : plaintext,
   );
   invalidateSecretsCache(secretsPath);
   clearObjectStoreCache();

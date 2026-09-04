@@ -1,11 +1,11 @@
 ---
 title: Entwicklung
-description: Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, Webhooks, Connector-SDK, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits.
+description: Entwicklung deckt die API-Konsumenten-Oberfläche ab — REST API, der MCP-Endpoint, Webhooks, Connectors, KI-gestützter Entwicklungs-Workflow, Status-Seite, Rate Limits.
 ---
 
-Entwicklung ist der Abschnitt für Integratoren und Contributors — alle, die Tale an ein anderes System anbinden, auf der API aufsetzen oder eine Änderung am Quellcode liefern. Die Seiten hier beschreiben die externe Oberfläche (REST, Webhooks, OpenAI-kompatible Endpoints) und den Contributor-Workflow.
+Entwicklung ist der Abschnitt für Integratoren und Contributors — alle, die Tale an ein anderes System anbinden, auf der API aufsetzen oder eine Änderung am Quellcode liefern. Die Seiten hier beschreiben die externe Oberfläche (REST, Webhooks, der MCP-Endpoint) und den Contributor-Workflow.
 
-Wenn du innerhalb des Produkts als Entwickler-Rolle arbeitest (Agents, Workflows, eigene Tools), deckt der Reiter Plattform deinen Alltag ab; Entwicklung ist dann gefragt, wenn du außerhalb des Produkts stehst und über die Leitung mit ihm sprichst.
+Wenn du innerhalb des Produkts als Entwickler-Rolle arbeitest (Projekt-Agenten besetzen, Automatisierungen bauen), deckt der Reiter Plattform deinen Alltag ab; Entwicklung ist dann gefragt, wenn du außerhalb des Produkts stehst und über die Leitung mit ihm sprichst.
 
 Lieber erst zusehen? Die Bonus-Episode geht die Entwickler-Oberfläche ab — Schlüssel, APIs, Webhooks, Harnesses — in gut zwei Minuten.
 
@@ -19,13 +19,19 @@ Lieber erst zusehen? Die Bonus-Episode geht die Entwickler-Oberfläche ab — Sc
 
 <Card title="API-Referenz" icon="code" href="/de/develop/api-reference">
 
-Endpoints, Authentifizierung, OpenAI-kompatible Endpoints, Fehlermodell, Versionierung.
+Endpoints, Authentifizierung, Pagination, Fehlermodell, Versionierung.
+
+</Card>
+
+<Card title="MCP-Endpoint" icon="network" href="/de/develop/mcp-endpoint">
+
+Einen MCP-Client auf Tale richten — ein eingehender Endpoint, zweiundzwanzig Tools zum Autorieren und Ausführen von Automatisierungen.
 
 </Card>
 
 <Card title="Webhooks" icon="webhook" href="/de/develop/webhooks">
 
-Ausgehend (Tale → du) und eingehend (du → Tale), Signieren, Idempotenz, Wiederholungen.
+Eingehende Webhook-Trigger (du → Tale), Token-Handling, Idempotenz, Wiederholungen.
 
 </Card>
 

@@ -1,6 +1,12 @@
 'use node';
 
-import { SAML, type SamlConfig } from '@node-saml/node-saml';
+import {
+  SAML,
+  ValidateInResponseTo,
+  type CacheProvider,
+  type SamlConfig,
+} from '@node-saml/node-saml';
+import { DOMParser } from '@xmldom/xmldom';
 
 /**
  * SAML 2.0 assertion handling, isolated in a Node action (node-saml needs
@@ -10,14 +16,71 @@ import { SAML, type SamlConfig } from '@node-saml/node-saml';
  * `convex` skill): file I/O and Node-only libs live here, plain data crosses out.
  */
 
-function buildSaml(args: {
-  idpSsoUrl: string;
-  idpCertificate: string;
-  spEntityId: string;
-  acsUrl: string;
-  spPrivateKey?: string;
-  wantAssertionsSigned?: boolean;
-}): SAML {
+/** The login-page key a connection that requires encrypted assertions
+ * bounces a plaintext one with (audited under its readable reason). */
+export const SAML_ASSERTION_NOT_ENCRYPTED_KEY =
+  'sso.errors.assertionNotEncrypted';
+
+/**
+ * Whether the POSTed Response carries its assertion as an
+ * `EncryptedAssertion`. node-saml has no "require encryption" option — it
+ * decrypts when it finds one and accepts a plaintext `Assertion` otherwise —
+ * so the requirement is enforced here, on the SAME parse node-saml runs:
+ * the same library with the same options, direct children of the root by
+ * local name (`saml.js`'s `validatePostResponseAsync`), so the gate can never
+ * judge a different document than the validator processes. `null` when the
+ * document does not parse: there is no assertion to judge, and node-saml
+ * fails the response with its own error.
+ */
+function carriesEncryptedAssertion(samlResponse: string): boolean | null {
+  let malformed = false;
+  const flag = (): void => {
+    malformed = true;
+  };
+  const doc = new DOMParser({
+    locator: {},
+    errorHandler: { error: flag, fatalError: flag },
+  }).parseFromString(
+    Buffer.from(samlResponse, 'base64').toString('utf8'),
+    'text/xml',
+  );
+  const root = doc.documentElement;
+  if (malformed || !root || root.localName !== 'Response') return null;
+  let encryptedAssertions = 0;
+  for (let index = 0; index < root.childNodes.length; index += 1) {
+    const node = root.childNodes.item(index);
+    if (
+      node !== null &&
+      'localName' in node &&
+      node.localName === 'EncryptedAssertion'
+    ) {
+      encryptedAssertions += 1;
+    }
+  }
+  return encryptedAssertions > 0;
+}
+
+export interface SamlValidationDeps {
+  /**
+   * Shared store of the AuthnRequest IDs this deployment issued — MUST span
+   * instances (the response can land on a different container than the one
+   * that built the request). The runtime injects the PG-backed provider
+   * (`domains/sso/saml-request-cache.ts`); tests inject fakes.
+   */
+  cacheProvider: CacheProvider;
+}
+
+function buildSaml(
+  args: {
+    idpSsoUrl: string;
+    idpCertificate: string;
+    spEntityId: string;
+    acsUrl: string;
+    spPrivateKey?: string;
+    wantAssertionsSigned?: boolean;
+  },
+  deps: SamlValidationDeps,
+): SAML {
   const config: SamlConfig = {
     issuer: args.spEntityId,
     callbackUrl: args.acsUrl,
@@ -26,6 +89,15 @@ function buildSaml(args: {
     audience: args.spEntityId,
     wantAssertionsSigned: args.wantAssertionsSigned ?? true,
     wantAuthnResponseSigned: false,
+    // Replay protection. An SP-initiated response must answer an
+    // AuthnRequest this deployment actually issued (getAuthorizeUrlAsync
+    // saves the generated ID into the cacheProvider), and only ONCE —
+    // node-saml deletes the ID after a successful validation. `ifPresent`
+    // (not `always`) keeps IdP-initiated posts working: they carry no
+    // InResponseTo by design, and their replay window stays bounded by the
+    // assertion's NotBefore/NotOnOrAfter, which node-saml enforces.
+    validateInResponseTo: ValidateInResponseTo.ifPresent,
+    cacheProvider: deps.cacheProvider,
     ...(args.spPrivateKey
       ? { decryptionPvk: args.spPrivateKey, privateKey: args.spPrivateKey }
       : {}),
@@ -49,20 +121,39 @@ export interface ValidateSamlResponseArgs {
   acsUrl: string;
   spPrivateKey?: string;
   wantAssertionsSigned?: boolean;
+  /** The connection's "require encrypted assertions" setting: a plaintext
+   * assertion is refused BEFORE validation when set. */
+  wantAssertionsEncrypted?: boolean;
 }
 
 /** Verify a SAMLResponse (POST binding) and return the normalized identity —
- * the plain body {@link validateSamlResponse} wraps (reused by 0.5). */
+ * the plain body {@link validateSamlResponse} wraps (reused by 0.5). A
+ * present InResponseTo must match an unconsumed issued-request ID in
+ * `deps.cacheProvider` (consumed on success — one-time use). A refusal
+ * that has its own login-page key carries it as `errorKey`. */
 export async function validateSamlResponseImpl(
   args: ValidateSamlResponseArgs,
+  deps: SamlValidationDeps,
 ): Promise<{
   ok: boolean;
   error?: string;
+  errorKey?: string;
   nameId?: string;
   attributes?: Record<string, unknown>;
 }> {
   try {
-    const saml = buildSaml(args);
+    if (
+      args.wantAssertionsEncrypted &&
+      carriesEncryptedAssertion(args.samlResponse) === false
+    ) {
+      return {
+        ok: false,
+        error:
+          'This connection requires encrypted assertions, but the identity provider sent a plaintext assertion',
+        errorKey: SAML_ASSERTION_NOT_ENCRYPTED_KEY,
+      };
+    }
+    const saml = buildSaml(args, deps);
     const { profile } = await saml.validatePostResponseAsync({
       SAMLResponse: args.samlResponse,
       ...(args.relayState ? { RelayState: args.relayState } : {}),
@@ -89,12 +180,15 @@ export interface BuildSamlAuthnRedirectArgs {
 }
 
 /** Build the SP-initiated AuthnRequest redirect URL (Redirect binding) —
- * the plain body {@link buildSamlAuthnRedirect} wraps (reused by 0.5). */
+ * the plain body {@link buildSamlAuthnRedirect} wraps (reused by 0.5). The
+ * generated request ID is saved into `deps.cacheProvider` so the ACS can
+ * validate the response's InResponseTo against it. */
 export async function buildSamlAuthnRedirectImpl(
   args: BuildSamlAuthnRedirectArgs,
+  deps: SamlValidationDeps,
 ): Promise<{ url?: string; error?: string }> {
   try {
-    const saml = buildSaml(args);
+    const saml = buildSaml(args, deps);
     const url = await saml.getAuthorizeUrlAsync(args.relayState, undefined, {});
     return { url };
   } catch (error) {

@@ -432,8 +432,16 @@ export const MIN_MAX_CONTEXT_TOKENS = 4096;
 export const featureFlagRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'default']),
   scopeId: z.string().optional(),
+  /**
+   * @deprecated Never enforced — no server or client code ever read it — and
+   * no longer written by the editor. Accepted only so `feature-flags.yml`
+   * files written by earlier releases keep parsing; the editor drops it on
+   * the rule's next save.
+   */
   webSearch: z.boolean().optional(),
+  /** @deprecated See {@link featureFlagRuleSchema} `webSearch`. */
   codeExecution: z.boolean().optional(),
+  /** @deprecated See {@link featureFlagRuleSchema} `webSearch`. */
   fileUpload: z.boolean().optional(),
   maxContextTokens: z.number().min(MIN_MAX_CONTEXT_TOKENS).optional(),
 });

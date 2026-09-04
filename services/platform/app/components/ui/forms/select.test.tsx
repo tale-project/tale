@@ -36,6 +36,17 @@ describe('Select', () => {
     });
   });
 
+  describe('border visibility', () => {
+    // Same contract as Input (#1478): resting edge must use the stronger
+    // --color-border-input token, not the faint generic ring-border.
+    it('uses the input border token for its ring', () => {
+      render(<Select options={options} label="Fruit" placeholder="Select" />);
+      expect(screen.getByRole('combobox').className).toContain(
+        '--color-border-input',
+      );
+    });
+  });
+
   describe('interactions', () => {
     it('opens dropdown on click', async () => {
       const { user } = render(

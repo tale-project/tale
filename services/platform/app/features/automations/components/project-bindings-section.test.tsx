@@ -37,7 +37,7 @@ vi.mock('@/lib/i18n/client', () => ({
 import { ProjectBindingsSection } from './project-bindings-section';
 
 describe('ProjectBindingsSection', () => {
-  it('shows the org-wide badge for an unbound automation and disables Save until dirty', () => {
+  it('shows no org-wide badge for an unbound automation and disables Save until dirty', () => {
     boundData = [];
     render(
       <ProjectBindingsSection
@@ -48,8 +48,9 @@ describe('ProjectBindingsSection', () => {
     );
 
     expect(
-      screen.getByText('automations.bindings.orgBadge'),
-    ).toBeInTheDocument();
+      screen.queryByText('automations.bindings.orgBadge'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('automations.bindings.hint')).toBeInTheDocument();
     // The Button's disabled affordance is aria-disabled (disabledReason
     // tooltip pattern), not the DOM attribute.
     expect(

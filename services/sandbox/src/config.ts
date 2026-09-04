@@ -262,11 +262,22 @@ export function loadConfig(): SpawnerConfig {
     );
   }
   const cacheMode: 'none' | 'pvc' = rawCacheMode;
-  // Trim so a whitespace-only value (e.g. SANDBOX_TOKEN='  ') is treated as
-  // UNSET like empty-string — otherwise it would silently enable HMAC with a
-  // trivially weak space key. Consistent with numEnv/userEnv above and the
-  // client side (spawner_client / session_client also trim).
-  const rawToken = process.env.SANDBOX_TOKEN?.trim();
+  // SANDBOX_TOKEN is REQUIRED — fail closed. The spawner holds the host docker
+  // socket and is reachable from every session container on the shared sandbox
+  // network, so it must never boot with HMAC verification off; an unset secret
+  // is a hard failure, not a bypass. Trimmed so a whitespace-only value is
+  // treated as unset (otherwise it would enable HMAC with a trivially weak
+  // space key) — consistent with numEnv/userEnv above and the client side
+  // (session_client / screencast-relay also trim).
+  const sandboxToken = process.env.SANDBOX_TOKEN?.trim() ?? '';
+  if (sandboxToken.length === 0) {
+    throw new Error(
+      'SANDBOX_TOKEN is required: the sandbox spawner refuses to start without the shared HMAC ' +
+        'secret (it holds the host docker socket and is reachable from every session container). ' +
+        '`tale deploy` and `bun run dev` mint it into .env; for a hand-rolled compose stack set ' +
+        'SANDBOX_TOKEN=$(openssl rand -hex 32) in .env (compose.dev.yml carries an insecure dev default).',
+    );
+  }
 
   // Cross-backend env combos are accepted (so a single env file can serve
   // both deployment shapes) but warn — a silently-ignored knob reads like a
@@ -324,10 +335,9 @@ export function loadConfig(): SpawnerConfig {
       workspaceSizeLimit: process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT ?? '4Gi',
     },
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),
-    // Token policy: opt-in verification. Unset (or empty-string) = HMAC
-    // disabled; set = enforced. `authorize()` returns null when this is
-    // null, so the wire path simply skips signature checks.
-    sandboxToken: rawToken && rawToken.length > 0 ? rawToken : null,
+    // The shared HMAC secret every state-changing route is verified against
+    // (request-auth.ts). Always set — validated above.
+    sandboxToken,
     runtimeImage:
       process.env.SANDBOX_RUNTIME_IMAGE ?? 'tale-sandbox-runtime:latest',
     runtimeTier,

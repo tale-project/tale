@@ -42,11 +42,25 @@ export function buildSendInput(args: {
   const recipients = joinRecipients(args.to);
 
   if (connector === 'imap-smtp') {
+    // The imap-smtp native carries the same fidelity as the API-mail send
+    // paths now: cc, the References chain, and attachments (streamed from their
+    // presigned URLs) — a reply must send everything the sender attached/cc'd.
     return {
       to: recipients,
+      ...(args.cc && args.cc.length > 0 && { cc: joinRecipients(args.cc) }),
       subject: args.subject,
       ...(html ? { html: args.body } : { text: args.body }),
       ...(args.inReplyTo !== undefined && { inReplyTo: args.inReplyTo }),
+      ...(args.references &&
+        args.references.length > 0 && { references: args.references }),
+      ...(args.attachments.length > 0 && {
+        attachments: args.attachments.map((att) => ({
+          name: att.name,
+          contentType: att.contentType,
+          size: att.size,
+          url: att.url,
+        })),
+      }),
     };
   }
 

@@ -1,25 +1,10 @@
 import {
   RETENTION_CATEGORIES,
   type AppliedBoundsByCategory,
-  type RetentionCategory,
 } from '../../../lib/shared/schemas/retention';
 import { isRecord } from '../../../lib/utils/type-utils';
-const POLICY_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
-  documents: 'documentsRetentionDays',
-  userTempHours: 'userTempRetentionHours',
-  agentTempHours: 'agentTempRetentionHours',
-  chatHistory: 'chatHistoryRetentionDays',
-  auditLog: 'auditLogRetentionDays',
-  workflowLog: 'workflowLogRetentionDays',
-  usageLedger: 'usageLedgerRetentionDays',
-  loginAttempt: 'loginAttemptRetentionDays',
-  chatFilterEvents: 'chatFilterEventsRetentionDays',
-  messageFeedback: 'messageFeedbackRetentionDays',
-  contacts: 'contactsRetentionDays',
-  externalConversations: 'externalConversationsRetentionDays',
-  notifications: 'notificationsRetentionDays',
-  agentRuns: 'agentRunsRetentionDays',
-};
+import { RETENTION_POLICY_FIELD_BY_CATEGORY } from './retention_floors';
+
 export interface BoundDiffEntry {
   category: string;
   field: 'min' | 'max';
@@ -125,7 +110,9 @@ export function diffBounds(
  * For each diffed category, project what would happen to the org's
  * stored retention value if the proposal is applied. Reads
  * `governancePolicies.retention_policy.config` and clamps each
- * `<category>RetentionDays/Hours` field to the proposed `[min, max]`.
+ * `<category>RetentionDays/Hours` field to the proposed `[min, max]` —
+ * the same field↔category pairing `clampConfigToBounds` enforces, so the
+ * preview can only promise what the sweep does.
  */
 export function buildImpactPreview(
   proposed: AppliedBoundsByCategory,
@@ -136,7 +123,7 @@ export function buildImpactPreview(
   for (const cat of RETENTION_CATEGORIES) {
     const bound = proposed[cat];
     if (!bound) continue;
-    const field = POLICY_FIELD_BY_CATEGORY[cat];
+    const field = RETENTION_POLICY_FIELD_BY_CATEGORY[cat];
     const current = storedConfig[field];
     if (typeof current !== 'number' || !Number.isFinite(current)) continue;
     const clamped = Math.min(Math.max(current, bound.min), bound.max);

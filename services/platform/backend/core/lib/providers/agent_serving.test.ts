@@ -98,6 +98,9 @@ const ZAI: ProviderDefinition = providerDefinitionSchema.parse({
       method: 'subscription-key',
       baseUrl: 'https://coding.z.ai/api/anthropic',
       apiFormat: 'anthropic',
+      // The shipped fact: the anthropic-dialect coding door strips image
+      // blocks for every model (live-verified 2026-08-26).
+      imageInputs: 'dropped',
       constraints: { execution: 'sandbox', harness: 'claude-code' },
     },
   ],
@@ -199,6 +202,8 @@ describe('resolveWorkflowAgentServing — subscription pass', () => {
       providerSlug: 'anthropic',
       modelId: 'claude-fable-5',
       apiBaseUrl: 'https://api.anthropic.com',
+      // The fixture entry declares no supportsVision → blind (text-only).
+      vision: expect.objectContaining({ readable: false }),
     });
   });
 
@@ -349,6 +354,7 @@ describe('resolveWorkflowAgentServing — pinned', () => {
       providerSlug: 'anthropic',
       modelId: 'claude-fable-5',
       apiBaseUrl: 'https://api.anthropic.com',
+      vision: expect.objectContaining({ readable: false }),
     });
   });
 
@@ -452,5 +458,203 @@ describe('resolveWorkflowAgentServing — pinned', () => {
     ).rejects.toThrow(
       /provider "openrouter" cannot serve model "claude-fable-5"/,
     );
+  });
+});
+
+/**
+ * The subscription lane has no vision polyfill, so a serving's ability to see
+ * images is a fact of the PATHWAY — the endpoint must forward image blocks
+ * and the model must read them — not of a static per-model flag alone.
+ */
+describe('subscription serving reports whether images are readable', () => {
+  it('reads Z.ai vision-capable GLM as blind: the coding door drops image blocks', async () => {
+    credentials = {
+      'z-ai': { status: 'active', authMethod: 'subscription-key' },
+    };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'glm-4.6v', supportsVision: true },
+    ]);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'glm-4.6v',
+      modelProvider: 'z-ai',
+      harness: 'claude-code',
+    });
+
+    expect(serving.lane).toBe('subscription');
+    if (serving.lane !== 'subscription') return;
+    expect(serving.vision.readable).toBe(false);
+    if (serving.vision.readable) return;
+    expect(serving.vision.reason).toMatch(/silently drops image inputs/);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('cannot see images'),
+    );
+    warn.mockRestore();
+  });
+
+  it('reads a vision model on a forwarding endpoint as readable (unpinned pass too)', async () => {
+    credentials = { anthropic: BROKER };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'claude-fable-5', supportsVision: true },
+    ]);
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toMatchObject({
+      lane: 'subscription',
+      providerSlug: 'anthropic',
+      vision: { readable: true },
+    });
+  });
+
+  it('reads a text-only model as blind on any subscription endpoint', async () => {
+    credentials = { anthropic: BROKER };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'claude-fable-5', supportsVision: false },
+    ]);
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toMatchObject({
+      lane: 'subscription',
+      vision: { readable: false, reason: expect.stringMatching(/text-only/) },
+    });
+  });
+});
+
+/**
+ * Providers that ship NO catalog: the credential's allowlist is the
+ * availability set (Azure deployment names, the Nous Portal marketplace).
+ * The provider files and the docs promised this; every lane used to gate on
+ * the empty catalog instead, so such a connector could never serve.
+ */
+describe('catalog-less providers serve their credential allowlist', () => {
+  const NOUS: ProviderDefinition = providerDefinitionSchema.parse({
+    name: 'nous-portal',
+    displayName: 'Nous Portal (Hermes)',
+    apiFormat: 'openai',
+    baseUrl: 'https://portal.nousresearch.com',
+    catalog: { source: 'none' },
+    auth: [
+      {
+        method: 'subscription-key',
+        constraints: { execution: 'sandbox', harness: 'hermes' },
+      },
+    ],
+  });
+  const AZURE: ProviderDefinition = providerDefinitionSchema.parse({
+    name: 'azure',
+    displayName: 'Azure OpenAI',
+    apiFormat: 'openai',
+    endpointMode: 'per-credential',
+    catalog: { source: 'none' },
+    auth: [{ method: 'api-key' }, { method: 'env' }],
+  });
+
+  beforeEach(() => {
+    resolveConnectors.mockResolvedValue([NOUS, AZURE, OPENROUTER]);
+    // The catalog fetch is never consulted for a catalog-less provider.
+    getProviderCatalog.mockResolvedValue([]);
+    loadHarnesses.mockReturnValue([
+      harness('hermes', { managed: true, byo: true }, true),
+      harness('claude-code', { managed: true, byo: true }, true),
+    ]);
+  });
+
+  it('serves a pinned subscription marketplace model from the allowlist', async () => {
+    credentials = {
+      'nous-portal': {
+        status: 'active',
+        authMethod: 'subscription-key',
+        modelAllowlist: ['hermes-4-405b'],
+      },
+    };
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'hermes-4-405b',
+      modelProvider: 'nous-portal',
+      harness: 'hermes',
+    });
+
+    expect(serving).toMatchObject({
+      lane: 'subscription',
+      providerSlug: 'nous-portal',
+      modelId: 'hermes-4-405b',
+      apiBaseUrl: 'https://portal.nousresearch.com',
+    });
+    expect(getProviderCatalog).not.toHaveBeenCalledWith(NOUS);
+  });
+
+  it('serves a pinned Azure deployment name on the gateway lane', async () => {
+    credentials = {
+      azure: {
+        status: 'active',
+        authMethod: 'api-key',
+        modelAllowlist: ['gpt-5-eu-prod'],
+      },
+    };
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'gpt-5-eu-prod',
+      modelProvider: 'azure',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'azure',
+      modelId: 'gpt-5-eu-prod',
+    });
+  });
+
+  it('finds the deployment on the unpinned direct walk too', async () => {
+    credentials = {
+      azure: {
+        status: 'active',
+        authMethod: 'env',
+        modelAllowlist: ['gpt-5-eu-prod'],
+      },
+      openrouter: DIRECT,
+    };
+    getProviderCatalog.mockResolvedValue([{ id: 'anthropic/claude-fable-5' }]);
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'gpt-5-eu-prod',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'azure',
+      modelId: 'gpt-5-eu-prod',
+    });
+  });
+
+  it('serves nothing from a catalog-less credential with an empty allowlist', async () => {
+    credentials = {
+      azure: { status: 'active', authMethod: 'api-key' },
+    };
+
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'gpt-5-eu-prod',
+        modelProvider: 'azure',
+        harness: 'claude-code',
+      }),
+    ).rejects.toThrow(/provider "azure" cannot serve model "gpt-5-eu-prod"/);
   });
 });

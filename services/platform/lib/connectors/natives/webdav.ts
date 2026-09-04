@@ -70,11 +70,13 @@ export interface WebdavFileBytes {
  * organization explicitly — the store never infers a tenant.
  */
 export interface WebdavStore {
-  /** Entries directly under a folder. `segments` empty is the org root. */
+  /** Entries directly under a folder. `segments` empty is the org root.
+   * `truncated` when the folder holds more children than one listing
+   * answers — the caller must not read the page as the whole folder. */
   list(args: {
     organizationId: string;
     segments: readonly string[];
-  }): Promise<readonly WebdavEntry[]>;
+  }): Promise<{ entries: readonly WebdavEntry[]; truncated: boolean }>;
   /** A file's bytes. Refuses (`too-large`) above `maxBytes` rather than
    * loading a blob it would only truncate. */
   read(args: {
@@ -287,22 +289,25 @@ export function webdavNatives(
     const { path } = parseInput(pathInput, input, 'list');
     const segments = segmentsOf(path, 'list');
     const here = formatOrgPath(segments);
-    let entries: readonly WebdavEntry[];
+    let listed: { entries: readonly WebdavEntry[]; truncated: boolean };
     try {
-      entries = await store.list({
+      listed = await store.list({
         organizationId: ctx.organizationId,
         segments,
       });
     } catch (error) {
       translateStoreError(error, 'list', here);
     }
+    // `truncated` rides the payload so an agent can tell a capped listing
+    // from the whole folder — an entry count alone reads as complete.
     return {
-      entries: entries.map((entry) => ({
+      entries: listed.entries.map((entry) => ({
         path: formatChildPath(segments, entry.name),
         name: entry.name,
         isDir: entry.isDir,
         size: entry.size,
       })),
+      truncated: listed.truncated,
     };
   };
 

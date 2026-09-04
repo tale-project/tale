@@ -40,6 +40,7 @@
  * to take effect; see docs/self-hosted/configuration/retention.md.
  */
 
+import type { RetentionPolicyConfig } from '../../../lib/shared/schemas/governance';
 import {
   RETENTION_CATEGORIES,
   type RetentionCategory,
@@ -340,45 +341,59 @@ export function clampToBounds(
 }
 
 /**
- * Map of every retention-config field to its `RetentionCategory`. Drives
- * `clampConfigToBounds` so an org's stored values never bypass freshly
- * tightened bounds, even when the row was persisted under the old
- * config.
+ * THE pairing of each retention category with the policy field that carries
+ * its value — the one place it lives. The sweep's clamp
+ * (`clampConfigToBounds`), the policy save's bounds check, the bounds
+ * banner's impact preview, and the shortening detector all derive from it,
+ * so a category can no longer be enforced in one and forgotten in another:
+ * `agentRuns` was missing from the clamp and the save check while the
+ * preview promised a clamp that never happened. Exhaustive over
+ * `RETENTION_CATEGORIES` by type; the completeness test pins it.
  */
-const CONFIG_FIELD_TO_CATEGORY: Record<string, RetentionCategory> = {
-  documentsRetentionDays: 'documents',
-  userTempRetentionHours: 'userTempHours',
-  agentTempRetentionHours: 'agentTempHours',
-  chatHistoryRetentionDays: 'chatHistory',
-  auditLogRetentionDays: 'auditLog',
-  workflowLogRetentionDays: 'workflowLog',
-  usageLedgerRetentionDays: 'usageLedger',
-  loginAttemptRetentionDays: 'loginAttempt',
-  chatFilterEventsRetentionDays: 'chatFilterEvents',
-  messageFeedbackRetentionDays: 'messageFeedback',
-  contactsRetentionDays: 'contacts',
-  externalConversationsRetentionDays: 'externalConversations',
-  notificationsRetentionDays: 'notifications',
+export const RETENTION_POLICY_FIELD_BY_CATEGORY: Record<
+  RetentionCategory,
+  keyof RetentionPolicyConfig
+> = {
+  documents: 'documentsRetentionDays',
+  userTempHours: 'userTempRetentionHours',
+  agentTempHours: 'agentTempRetentionHours',
+  chatHistory: 'chatHistoryRetentionDays',
+  auditLog: 'auditLogRetentionDays',
+  workflowLog: 'workflowLogRetentionDays',
+  usageLedger: 'usageLedgerRetentionDays',
+  loginAttempt: 'loginAttemptRetentionDays',
+  chatFilterEvents: 'chatFilterEventsRetentionDays',
+  messageFeedback: 'messageFeedbackRetentionDays',
+  contacts: 'contactsRetentionDays',
+  externalConversations: 'externalConversationsRetentionDays',
+  notifications: 'notificationsRetentionDays',
+  agentRuns: 'agentRunsRetentionDays',
 };
 
 /**
  * Clamp every retention-config field to current effective bounds.
  * Returns a shallow-cloned config; original is unchanged. Fields absent
- * from the input or whose value is non-numeric are left untouched.
+ * from the input or whose value is non-numeric are left untouched, and so
+ * is a category the bounds map does not cover (an applied snapshot that
+ * predates the category — the bounds banner proposes it; the sweep must
+ * not crash on it).
  *
  * Pure: takes a pre-resolved `boundsByCategory` map. Build it via
  * `buildBoundsByCategory(orgConfig)` after loading the file at the IO
  * boundary.
  */
 export function clampConfigToBounds<C extends Record<string, unknown>>(
-  boundsByCategory: Record<RetentionCategory, EffectiveBoundDef>,
+  boundsByCategory: Partial<Record<RetentionCategory, EffectiveBoundDef>>,
   config: C,
 ): C {
   const out = { ...config };
-  for (const [field, category] of Object.entries(CONFIG_FIELD_TO_CATEGORY)) {
+  for (const category of RETENTION_CATEGORIES) {
+    const field = RETENTION_POLICY_FIELD_BY_CATEGORY[category];
+    const bound = boundsByCategory[category];
     const value = out[field];
+    if (bound === undefined) continue;
     if (typeof value !== 'number' || !Number.isFinite(value)) continue;
-    const clamped = clampToBounds(boundsByCategory[category], value);
+    const clamped = clampToBounds(bound, value);
     if (clamped !== value) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- field exists on out (just read above)
       (out as Record<string, unknown>)[field] = clamped;

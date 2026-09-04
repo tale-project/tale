@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ORG = 'org_1';
 const PROVIDER = {
@@ -104,6 +104,16 @@ async function loadModule() {
 function writes(calls: RecordedCall[]): RecordedCall[] {
   return calls.filter((c) => c.method !== 'GET');
 }
+
+// The management plane is fail-closed on the admin password; give every test a
+// default so only the auth-specific cases below vary it.
+const DEFAULT_PW = 'pw-test';
+const basicFor = (pw: string) =>
+  `Basic ${Buffer.from(`admin:${pw}`).toString('base64')}`;
+
+beforeEach(() => {
+  vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', DEFAULT_PW);
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -454,22 +464,48 @@ describe('reprovisionProvider', () => {
     );
   });
 
-  it('sends Basic auth when SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is set', async () => {
+  it('sends Basic auth from SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD on EVERY management call', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-1');
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
     await mod.reprovisionProvider(ORG, PROVIDER);
-    const expected = `Basic ${Buffer.from('admin:pw-1').toString('base64')}`;
-    expect(calls[0]?.headers.authorization).toBe(expected);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(call.headers.authorization).toBe(basicFor('pw-1'));
+    }
   });
 
   it('falls back to the pre-rename LLM_GATEWAY_ADMIN_PASSWORD env name', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
     vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', 'pw-old');
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
     await mod.reprovisionProvider(ORG, PROVIDER);
-    const expected = `Basic ${Buffer.from('admin:pw-old').toString('base64')}`;
-    expect(calls[0]?.headers.authorization).toBe(expected);
+    expect(calls[0]?.headers.authorization).toBe(basicFor('pw-old'));
+  });
+
+  it('fails closed — no management call at all — when no admin password is configured', async () => {
+    // The gateway shares one port on the sandbox network for inference and
+    // /api/*; an anonymous management plane would let sandboxed code mint its
+    // own keys. Unset (both names) must refuse BEFORE touching the gateway.
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
+    vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', undefined);
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(
+      'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set',
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it('treats a blank password as unset (fails closed)', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', '   ');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(
+      'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set',
+    );
+    expect(calls).toHaveLength(0);
   });
 });
 
@@ -675,10 +711,17 @@ describe('applyGatewayConfig', () => {
         enforce_auth_on_inference: true,
         enforce_governance_header: true,
       },
+      // Always pushed — the management plane is never left anonymous.
+      auth_config: {
+        is_enabled: true,
+        admin_username: 'admin',
+        admin_password: DEFAULT_PW,
+        disable_auth_on_inference: true,
+      },
     });
   });
 
-  it('enables admin Basic auth (plaintext password — the gateway hashes it) when configured', async () => {
+  it('pushes admin Basic auth (plaintext password — the gateway hashes it) on every apply', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-2');
     const calls = stubGateway({ clientConfig: { log_retention_days: 14 } });
     const mod = await loadModule();
@@ -692,6 +735,21 @@ describe('applyGatewayConfig', () => {
       admin_password: 'pw-2',
       disable_auth_on_inference: true,
     });
+    // And the apply itself authenticated with the same credential.
+    for (const call of calls) {
+      expect(call.headers.authorization).toBe(basicFor('pw-2'));
+    }
+  });
+
+  it('fails closed before touching the gateway when the admin password is unset', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
+    vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', undefined);
+    const calls = stubGateway({ clientConfig: {} });
+    const mod = await loadModule();
+    await expect(mod.applyGatewayConfig()).rejects.toThrow(
+      'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set',
+    );
+    expect(calls).toHaveLength(0);
   });
 });
 

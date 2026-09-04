@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { Sql, TransactionSql } from 'postgres';
 
 import { extractExtension } from '../../../lib/shared/file-types.ts';
@@ -5,7 +7,10 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
-import { DocumentError } from './service.ts';
+import {
+  assertGenericDocumentContentWritableJson,
+  DocumentError,
+} from './service.ts';
 
 /**
  * The `document_create` workspace tool's lower half — an AGENT writing an
@@ -33,6 +38,7 @@ export async function storeAgentTextBlob(
   },
 ): Promise<{ storageRef: string; fileId: string; size: number }> {
   const bytes = new TextEncoder().encode(args.content);
+  const contentHash = createHash('sha256').update(bytes).digest('hex');
   // The blob first: a failed store must never leave a document row pointing
   // at nothing (the project-text lane's rule, for the same reason).
   const storageRef = await putOrgBlobBytes(sql, args.organizationId, {
@@ -48,6 +54,14 @@ export async function storeAgentTextBlob(
     source: 'agent',
     ...(args.uploadedBy !== undefined ? { uploadedBy: args.uploadedBy } : {}),
   });
+  // Stamp the ledger row so the document upsert can keep `content_hash`
+  // coherent with the bytes `file_ref` actually serves (the knowledge-entry
+  // lane's sha256-hex convention).
+  await sql`
+    UPDATE app.file_metadata
+    SET content_hash = ${contentHash}, sha256 = ${contentHash}
+    WHERE id = ${fileId} AND org_id = ${args.organizationId}
+  `;
   return { storageRef, fileId, size: bytes.byteLength };
 }
 
@@ -73,7 +87,14 @@ export interface UpsertAgentDocumentArgs {
 /**
  * Create or refresh the agent's document, keyed by `(org, externalItemId)`.
  * The lookup deliberately ignores lifecycle: a trashed row with the same key
- * is refreshed in place rather than resurrected as a duplicate.
+ * is refreshed in place rather than resurrected as a duplicate. A row that
+ * became a controlled record refuses the refresh (content freeze) — the
+ * record lifecycle owns those bytes.
+ *
+ * Concurrent runs converge on ONE row: the key is unique in the schema
+ * (0073), the insert is `ON CONFLICT DO NOTHING`, and a run that loses the
+ * insert race re-reads the winner's row under the lock and refreshes it —
+ * FOR UPDATE over zero rows locks nothing, so the check alone never could.
  */
 export async function upsertAgentDocument(
   sql: Sql,
@@ -86,46 +107,105 @@ export async function upsertAgentDocument(
   const extension = args.extension ?? extractExtension(title);
   return sql.begin(async (tx) => {
     const now = Date.now();
-    const existing = await tx<{ id: string }[]>`
-      SELECT id FROM app.documents
-      WHERE org_id = ${args.organizationId}
-        AND external_item_id = ${args.externalItemId}
-      ORDER BY created_at_ms
+    if (args.projectId !== undefined) {
+      // A project id would otherwise land on the row unverified — and a
+      // mistyped or foreign id files the document where nothing reaches it:
+      // the hub lists `project_id IS NULL`, retrieval scopes need a readable
+      // project, so the write answers "ok" and the work is lost. The same
+      // org-scoped gate the task writer applies (`agentCreateTaskTrusted`):
+      // a project in ANOTHER org reads as missing, never as forbidden, so an
+      // opaque id cannot be probed for existence.
+      const owned = await tx<{ id: string }[]>`
+        SELECT id FROM app.projects
+        WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      if (owned.length === 0) {
+        throw new DocumentError('PROJECT_NOT_FOUND', 'Project not found', 404);
+      }
+    }
+    // `content_hash` mirrors the bytes `file_ref` serves — resolved from the
+    // blob's ledger row (`storeAgentTextBlob` stamps it) so a refreshed
+    // document never keeps the previous blob's hash.
+    const ledger = await tx<{ contentHash: string | null }[]>`
+      SELECT content_hash AS "contentHash" FROM app.file_metadata
+      WHERE org_id = ${args.organizationId} AND storage_ref = ${args.fileRef}
       LIMIT 1
-      FOR UPDATE
     `;
-    const documentId = existing[0]?.id;
-    if (documentId !== undefined) {
+    const contentHash = ledger[0]?.contentHash ?? null;
+
+    const refresh = async (existing: {
+      id: string;
+      record: Record<string, unknown> | null;
+    }): Promise<{ documentId: string; action: 'updated' }> => {
+      // 'agent' documents can be controlled records (records.ts): a re-run
+      // is a generic content writer, so the SAME freeze rule every human
+      // content path applies holds here — a controlled record's bytes move
+      // only through the attested replacement flow.
+      assertGenericDocumentContentWritableJson(existing.record);
       await tx`
         UPDATE app.documents SET
           title = ${title}, file_ref = ${args.fileRef},
           mime_type = ${args.mimeType}, extension = ${extension ?? null},
+          content_hash = ${contentHash},
           project_id = ${args.projectId ?? null},
           lifecycle_status = 'active', updated_at_ms = ${now}
-        WHERE id = ${documentId}
+        WHERE id = ${existing.id}
       `;
-      await auditWrite(tx, args, 'updated', documentId, title);
-      return { documentId, action: 'updated' as const };
-    }
+      await auditWrite(tx, args, 'updated', existing.id, title);
+      return { documentId: existing.id, action: 'updated' as const };
+    };
+
+    const existing = await lockAgentDocument(tx, args);
+    if (existing !== null) return refresh(existing);
+
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.documents (
         org_id, title, file_ref, mime_type, extension, source_provider,
-        external_item_id, project_id, created_by, created_at_ms, updated_at_ms
+        external_item_id, content_hash, project_id, created_by,
+        created_at_ms, updated_at_ms
       ) VALUES (
         ${args.organizationId}, ${title}, ${args.fileRef}, ${args.mimeType},
         ${extension ?? null}, ${args.sourceProvider ?? 'agent'},
-        ${args.externalItemId}, ${args.projectId ?? null}, ${args.createdBy},
-        ${now}, ${now}
+        ${args.externalItemId}, ${contentHash}, ${args.projectId ?? null},
+        ${args.createdBy}, ${now}, ${now}
       )
+      ON CONFLICT (org_id, external_item_id)
+        WHERE external_item_id IS NOT NULL
+        DO NOTHING
       RETURNING id
     `;
     const created = inserted[0]?.id;
-    if (created === undefined) {
+    if (created !== undefined) {
+      await auditWrite(tx, args, 'created', created, title);
+      return { documentId: created, action: 'created' as const };
+    }
+    // Lost the insert race: the winner's row is committed by now (ON
+    // CONFLICT waits for it) — refresh it exactly as a re-run would.
+    const winner = await lockAgentDocument(tx, args);
+    if (winner === null) {
       throw new DocumentError('DOCUMENT_CREATE_FAILED', 'Insert failed');
     }
-    await auditWrite(tx, args, 'created', created, title);
-    return { documentId: created, action: 'created' as const };
+    return refresh(winner);
   });
+}
+
+/** The key's row (any lifecycle), locked for the upsert transaction. */
+async function lockAgentDocument(
+  tx: TransactionSql,
+  args: { organizationId: string; externalItemId: string },
+): Promise<{ id: string; record: Record<string, unknown> | null } | null> {
+  const rows = await tx<
+    { id: string; record: Record<string, unknown> | null }[]
+  >`
+    SELECT id, record FROM app.documents
+    WHERE org_id = ${args.organizationId}
+      AND external_item_id = ${args.externalItemId}
+    ORDER BY created_at_ms
+    LIMIT 1
+    FOR UPDATE
+  `;
+  return rows[0] ?? null;
 }
 
 /** The governance trail a standing-grant document write leaves. Rides the

@@ -73,6 +73,20 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 40,
   },
+  // The Google Drive picker and import lanes: the OneDrive twins' budgets,
+  // in buckets of their own.
+  'external:google-drive-list': {
+    kind: 'token bucket',
+    rate: 100,
+    period: MINUTE,
+    capacity: 120,
+  },
+  'external:google-drive-read': {
+    kind: 'token bucket',
+    rate: 50,
+    period: MINUTE,
+    capacity: 60,
+  },
   'external:email-test': {
     kind: 'token bucket',
     rate: 10,
@@ -180,12 +194,6 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 240,
   },
-  'security:screencast-auth': {
-    kind: 'token bucket',
-    rate: 60,
-    period: MINUTE,
-    capacity: 120,
-  },
   'security:login-ip': { kind: 'fixed window', rate: 30, period: MINUTE },
   'webdav:auth-fail-ip': {
     kind: 'token bucket',
@@ -271,6 +279,16 @@ export const RATE_LIMITS = {
     rate: 120,
     period: MINUTE,
     capacity: 200,
+  },
+  // Bearer keys that FAIL to authenticate at the /api/v1 door, keyed on
+  // the trusted-proxy-derived client IP — the pre-auth lane, so a stranger
+  // never draws from a key holder's `rest:api` budget (the `webdav:auth-
+  // fail-ip` posture on the REST door).
+  'rest:auth-fail-ip': {
+    kind: 'token bucket',
+    rate: 20,
+    period: MINUTE,
+    capacity: 40,
   },
   'rest:execute': {
     kind: 'token bucket',

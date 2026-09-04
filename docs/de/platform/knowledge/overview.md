@@ -3,7 +3,7 @@ title: Wissen
 description: Wissen ist die geteilte Bibliothek der Organisation — Dokumente, kleine Fakten, gecrawlte Websites und typisierte Datensätze —, in der Agenten ihre Antworten verankern. Diese Übersicht nennt die Tabs und verweist auf die Seiten pro Bereich.
 ---
 
-Wissen ist der Bereich, in dem die Daten der Organisation liegen, damit Agenten sie lesen und zitieren können. Redakteure kuratieren sie einmal; Agenten rufen zur Antwortzeit darüber ab — deshalb kann ein Agent in Tale mit deiner Realität antworten statt mit den Trainingsdaten des Modells. Der Bereich öffnet auf sechs Tabs: **Dokumente**, **Wissenseinträge**, **Websites**, **Produkte**, **Kontakte** und **Lieferanten**.
+Wissen ist der Bereich, in dem die Daten der Organisation liegen, damit Agenten sie lesen und zitieren können. Redakteure kuratieren sie einmal; Agenten rufen zur Antwortzeit darüber ab — deshalb kann ein Agent in Tale mit deiner Realität antworten statt mit den Trainingsdaten des Modells. Der Bereich öffnet auf fünf Tabs: **Dokumente**, **Wissenseinträge**, **Websites**, **Produkte** und **Kontakte**.
 
 Lieber erst zusehen? Episode 3 geht die ganze Bibliothek in gut drei Minuten durch — Indexierung, Einträge, Datensätze, Crawler und Zugriff, mit Untertiteln.
 
@@ -19,7 +19,7 @@ Lieber erst zusehen? Episode 3 geht die ganze Bibliothek in gut drei Minuten dur
 
 ## Die zwei Formen
 
-Alles in diesem Bereich hat eine von zwei Formen. **Indexierte Inhalte** — die Dateien in Dokumente, die Fakten in Wissenseinträge, die Seiten, die ein Website-Crawl hereinholt — laufen durch die Indexierungs-Pipeline (extrahieren, chunken, einbetten, speichern), damit Agenten relevante Passagen abrufen und zitieren. **Typisierte Datensätze** — Produkte, Kontakte, Lieferanten — sind Zeilen mit benannten Feldern, die Agenten als Daten lesen, nicht als Prosa: exakte Werte, kein Abruf-Rätselraten.
+Alles in diesem Bereich hat eine von zwei Formen. **Indexierte Inhalte** — die Dateien in Dokumente, die Fakten in Wissenseinträge, die Seiten, die ein Website-Crawl hereinholt — laufen durch die Indexierungs-Pipeline (extrahieren, chunken, einbetten, speichern), damit Agenten relevante Passagen abrufen und zitieren. **Typisierte Datensätze** — Produkte und Kontakte (das Korrespondenten-Verzeichnis, das Kunden und Lieferanten umfasst) — sind Zeilen mit benannten Feldern, die Agenten als Daten lesen, nicht als Prosa: exakte Werte, kein Abruf-Rätselraten.
 
 Die Form, die du wählst, entscheidet, wie ein Agent den Inhalt nutzen kann — deshalb ist [Strukturierte Daten](/de/platform/knowledge/structured-data) eine Entscheidungsseite, nicht nur eine Referenz.
 
@@ -31,7 +31,7 @@ Indexierte Inhalte werden in Tales eingebaute Vektordatenbank eingebettet — ei
 
 ## Wie Agenten hineingreifen
 
-Ein Agent sieht die ganze Bibliothek nicht von selbst. Der Tab **Wissen** des Agenten steuert seinen Abruf-Umfang — welche Teile der Bibliothek er zur Antwortzeit durchsucht —, und team-gebundene Einträge bleiben für Agenten und Mitglieder außerhalb des Teams unsichtbar. Den Abruf treiben die RAG-getaggten Tools des Agenten, und jede abgerufene Passage trägt ihre Quelle, sodass Zitate auf die Datei, den Eintrag oder die Seite zurückzeigen, aus der sie kamen. Die Mechanik auf Agenten-Seite steht in [Agent-Wissen](/de/platform/agents/knowledge).
+Ein Agent sucht sich keinen eigenen Ausschnitt der Bibliothek aus. Der Chat-Assistent durchsucht den ganzen Bestand mit `rag_search` und lädt Gefundenes mit `rag_fetch`, sobald eine Frage danach verlangt, ein Projekt-Agent liest ihn über die Plattform-Tools, mit denen du ihn ausrüstest, und team-gebundene Einträge bleiben für Agenten und Mitglieder außerhalb des Teams unsichtbar. Jede abgerufene Passage trägt ihre Quelle, sodass Zitate auf die Datei, den Eintrag oder die Seite zurückzeigen, aus der sie kamen. Die Mechanik auf Agenten-Seite steht in [Projekt-Agenten](/de/platform/projects/project-agents).
 
 ## Seiten in diesem Bereich
 
@@ -57,7 +57,7 @@ Aus einer öffentlichen Website wird Wissen — Domain, Scan-Intervall und die A
 
 <Card title="Strukturierte Daten" icon="table" href="/de/platform/knowledge/structured-data">
 
-Kontakte, Produkte, Lieferanten, Websites — wann ein typisierter Datensatz ein Dokument schlägt.
+Kontakte, Produkte, Websites — wann ein typisierter Datensatz ein Dokument schlägt.
 
 </Card>
 
@@ -65,4 +65,4 @@ Kontakte, Produkte, Lieferanten, Websites — wann ein typisierter Datensatz ein
 
 ## Wo das hingehört
 
-Wissen ist die Datenschicht, auf der jede verankerte Antwort steht; ohne sie wissen Agenten nur, was das Modell ohnehin weiß. Bring Inhalte über den Tab herein, der zu ihrer Form passt, und binde dann Agenten daran — die natürliche nächste Lektüre ist [Dokumente](/de/platform/knowledge/documents) für Dateien, [Strukturierte Daten](/de/platform/knowledge/structured-data) für Datensätze und [Agent-Wissen](/de/platform/agents/knowledge) für die Abrufseite.
+Wissen ist die Datenschicht, auf der jede verankerte Antwort steht; ohne sie wissen Agenten nur, was das Modell ohnehin weiß. Bring Inhalte über den Tab herein, der zu ihrer Form passt, und binde dann Agenten daran — die natürliche nächste Lektüre ist [Dokumente](/de/platform/knowledge/documents) für Dateien, [Strukturierte Daten](/de/platform/knowledge/structured-data) für Datensätze und [Projekt-Agenten](/de/platform/projects/project-agents) dafür, wie ein Agent darauf zugreift.

@@ -11,6 +11,7 @@ import {
 import { getClientIp } from '../../core/lib/utils/client_ip.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../../lib/org-config.ts';
+import { rateLimitedPlainResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkIpRateLimit,
   RateLimitExceededError,
@@ -67,13 +68,7 @@ async function throttleAndRefuse(sql: Sql, req: Request): Promise<Response> {
     await checkIpRateLimit(sql, 'connector:slack-events', ip);
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
-      return new Response('Rate limit exceeded', {
-        status: 429,
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
-        },
-      });
+      return rateLimitedPlainResponse(error);
     }
     console.error(
       '[connectors:slack] rate-limit check failed; refusing the request anyway',

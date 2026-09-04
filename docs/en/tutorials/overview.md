@@ -25,19 +25,19 @@ Chat effectively, work in projects, hold voice conversations.
 
 <Card title="Editor tutorials" icon="bot" href="/tutorials/editor/first-agent-end-to-end">
 
-Build a first agent end to end, bind knowledge, delegate between agents, ship workflows with approvals.
+Build a first project agent end to end, ship workflows with approvals.
 
 </Card>
 
 <Card title="Developer tutorials" icon="terminal" href="/tutorials/developer/call-tale-from-a-script">
 
-Call Tale from a script, trigger workflows via webhooks, build custom tools, stand up an MCP server.
+Call Tale from a script, trigger automations via webhooks.
 
 </Card>
 
-<Card title="Admin tutorials" icon="shield" href="/tutorials/admin/office-add-in">
+<Card title="Admin tutorials" icon="shield" href="/tutorials/admin/connect-local-provider">
 
-Install the Office add-in, wire meeting transcription, connect a local provider.
+Connect a local provider, wire meeting transcription.
 
 </Card>
 

@@ -142,6 +142,85 @@ describe('drainSessionExecResilient', () => {
   }, 15_000);
 });
 
+describe('drainSessionExecResilient — a lost first POST', () => {
+  // Regression: every retry used to ATTACH. When the initial exec POST never
+  // reached the spawner (network drop, 503 mid-roll), the exec did not exist,
+  // so each attach answered `exec <id> not found` and the whole budget burned
+  // against a healthy session.
+  test('re-creates the exec when the spawner answers not-found with nothing consumed', async () => {
+    const calls: { url: string; method: string }[] = [];
+    let n = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (url: any, init?: any) => {
+      calls.push({
+        url: String(url),
+        // oxlint-disable-next-line typescript-eslint/no-unsafe-member-access
+        method: String(init?.method ?? 'GET'),
+      });
+      n += 1;
+      // The POST is lost before any response.
+      if (n === 1) throw new TypeError('fetch failed');
+      if (String(url).includes('/attach')) {
+        return sseResponse([
+          `event: error\ndata: ${JSON.stringify({ message: 'exec exec-3 not found' })}\n\n`,
+        ]);
+      }
+      return sseResponse([
+        `event: stdout\ndata: {"text":"OK","seq":1}\n\n`,
+        RESULT_OK,
+      ]);
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    const stdout: string[] = [];
+    const result = await drainSessionExecResilient(
+      'ses-3',
+      { execId: 'exec-3', command: ['x'], timeoutMs: 1_000 },
+      new AbortController().signal,
+      { onStdout: (t) => stdout.push(t) },
+    );
+
+    expect(result.status).toBe('completed');
+    expect(stdout).toEqual(['OK']);
+    // POST (lost) → attach (not found) → POST again (created) — not a fifth
+    // identical attach.
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'GET', 'POST']);
+    expect(calls[1]?.url).toContain('/attach');
+    expect(calls[2]?.url).not.toContain('/attach');
+  }, 15_000);
+
+  test('never re-creates an exec that already produced output', async () => {
+    const methods: string[] = [];
+    let n = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (_url: any, init?: any) => {
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-member-access
+      methods.push(String(init?.method ?? 'GET'));
+      n += 1;
+      // Progress (seq 2), then the stream drops without a result…
+      if (n === 1) {
+        return sseResponse([`event: stdout\ndata: {"text":"AB","seq":2}\n\n`]);
+      }
+      // …and the spawner has since lost the exec. Re-POSTing here would run
+      // the turn twice; the drain must fail instead.
+      return sseResponse([
+        `event: error\ndata: ${JSON.stringify({ message: 'exec exec-4 not found' })}\n\n`,
+      ]);
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    await expect(
+      drainSessionExecResilient(
+        'ses-4',
+        { execId: 'exec-4', command: ['x'], timeoutMs: 1_000 },
+        new AbortController().signal,
+        {},
+      ),
+    ).rejects.toThrow(/not found/);
+    expect(methods.filter((m) => m === 'POST')).toHaveLength(1);
+  }, 15_000);
+});
+
 describe('chunkStageFiles', () => {
   const stageFile = (path: string, contentBytes: number): SessionStageFile => ({
     path,

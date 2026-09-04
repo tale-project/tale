@@ -59,6 +59,8 @@ export interface OnedriveContract {
         childCount?: number;
         webUrl?: string;
       }>;
+      /** The bound cut the listing — the folder holds more than `items`. */
+      truncated?: boolean;
       error?: string;
     };
   };
@@ -97,6 +99,8 @@ export interface OnedriveContract {
         childCount?: number;
         webUrl?: string;
       }>;
+      /** The bound cut the listing — the folder holds more than `items`. */
+      truncated?: boolean;
       error?: string;
     };
   };

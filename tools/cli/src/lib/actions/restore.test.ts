@@ -2,7 +2,7 @@ import { afterEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DeploymentEnv } from '../../utils/load-env';
 import { setProjectId } from '../project/project-context';
-import { restore } from './restore';
+import { restore, type RestoreDeps } from './restore';
 
 // Seed the shared project-context singleton instead of mocking load-env —
 // bun's mock.module leaks across test files in one process.
@@ -17,23 +17,9 @@ const ensureVolumesMock = mock();
 const execMock = mock();
 const confirmMock = mock();
 const loggerInfoMock = mock();
+const loggerNoticeMock = mock();
 const loggerTableMock = mock();
 
-mock.module('../backup/list-snapshots', () => ({
-  listSnapshots: listSnapshotsMock,
-}));
-mock.module('../backup/resolve-prefix', () => ({
-  resolveSnapshotPrefix: resolveSnapshotPrefixMock,
-}));
-mock.module('../backup/verify-snapshot', () => ({
-  verifySnapshot: verifySnapshotMock,
-}));
-mock.module('../docker/is-container-running', () => ({
-  isContainerRunning: isContainerRunningMock,
-}));
-mock.module('../docker/stop-container', () => ({
-  stopContainer: stopContainerMock,
-}));
 mock.module('../docker/ensure-volumes', () => ({
   ensureVolumes: ensureVolumesMock,
   volumeExists: mock(),
@@ -52,9 +38,23 @@ mock.module('../../utils/logger', () => ({
   header: mock(),
   blank: mock(),
   debug: mock(),
-  notice: mock(),
+  notice: loggerNoticeMock,
   table: loggerTableMock,
 }));
+
+// The collaborators restore drives are INJECTED, not module-mocked: bun's
+// mock.module is process-wide, and mocking `../backup/list-snapshots` or
+// `../backup/verify-snapshot` here leaked into those modules' own test files
+// whenever this file ran first (the sorted order macOS and Windows use),
+// handing them a mock where they test the real implementation.
+const deps: RestoreDeps = {
+  listSnapshots: listSnapshotsMock,
+  resolveSnapshotPrefix: resolveSnapshotPrefixMock,
+  verifySnapshot: verifySnapshotMock,
+  isContainerRunning: isContainerRunningMock,
+  stopContainer: stopContainerMock,
+};
+const run = (options: Parameters<typeof restore>[0]) => restore(options, deps);
 
 const env: DeploymentEnv = {
   BACKEND_UPSTREAM: '',
@@ -65,6 +65,7 @@ const env: DeploymentEnv = {
   DEPLOY_DIR: '/tmp/tale-restore-test',
 };
 
+/** A snapshot from before blobs were captured: no `object-store-data` archive. */
 const MANIFEST = {
   id: '20260611-120000-deploy',
   createdAt: '2026-06-11T12:00:00.000Z',
@@ -77,6 +78,21 @@ const MANIFEST = {
   },
 };
 
+const MANIFEST_WITH_BLOBS = {
+  ...MANIFEST,
+  id: '20260903-090000-manual',
+  createdAt: '2026-09-03T09:00:00.000Z',
+  trigger: 'manual',
+  volumes: {
+    ...MANIFEST.volumes,
+    'object-store-data': { sha256: 'c'.repeat(64), sizeBytes: 4096 },
+  },
+};
+
+function restoreScripts(): string[] {
+  return execMock.mock.calls.map((call) => call[1][call[1].length - 1]);
+}
+
 afterEach(() => {
   listSnapshotsMock.mockReset();
   resolveSnapshotPrefixMock.mockReset();
@@ -87,6 +103,7 @@ afterEach(() => {
   execMock.mockReset();
   confirmMock.mockReset();
   loggerInfoMock.mockReset();
+  loggerNoticeMock.mockReset();
   loggerTableMock.mockReset();
 });
 
@@ -95,7 +112,7 @@ describe('restore', () => {
     resolveSnapshotPrefixMock.mockResolvedValue('tale_');
     listSnapshotsMock.mockResolvedValue([MANIFEST]);
 
-    await restore({ env });
+    await run({ env });
 
     expect(loggerTableMock).toHaveBeenCalled();
     expect(execMock).not.toHaveBeenCalled();
@@ -105,9 +122,9 @@ describe('restore', () => {
     resolveSnapshotPrefixMock.mockResolvedValue('tale_');
     listSnapshotsMock.mockResolvedValue([MANIFEST]);
 
-    await expect(
-      restore({ env, snapshotId: '$(rm -rf /backup)' }),
-    ).rejects.toThrow('Invalid snapshot id');
+    await expect(run({ env, snapshotId: '$(rm -rf /backup)' })).rejects.toThrow(
+      'Invalid snapshot id',
+    );
     expect(execMock).not.toHaveBeenCalled();
   });
 
@@ -116,7 +133,7 @@ describe('restore', () => {
     listSnapshotsMock.mockResolvedValue([MANIFEST]);
 
     await expect(
-      restore({ env, snapshotId: '20990101-000000-manual' }),
+      run({ env, snapshotId: '20990101-000000-manual' }),
     ).rejects.toThrow('not found');
     expect(execMock).not.toHaveBeenCalled();
   });
@@ -129,7 +146,7 @@ describe('restore', () => {
     );
 
     await expect(
-      restore({ env, snapshotId: MANIFEST.id, assumeYes: true }),
+      run({ env, snapshotId: MANIFEST.id, assumeYes: true }),
     ).rejects.toThrow(
       'Refusing to restore while project containers are running',
     );
@@ -153,7 +170,7 @@ describe('restore', () => {
       exitCode: 0,
     });
 
-    await restore({
+    await run({
       env,
       snapshotId: MANIFEST.id,
       stop: true,
@@ -182,10 +199,88 @@ describe('restore', () => {
     isContainerRunningMock.mockResolvedValue(false);
     confirmMock.mockResolvedValue(false);
 
-    await expect(restore({ env, snapshotId: MANIFEST.id })).rejects.toThrow(
+    await expect(run({ env, snapshotId: MANIFEST.id })).rejects.toThrow(
       'Restore aborted',
     );
     expect(verifySnapshotMock).not.toHaveBeenCalled();
     expect(execMock).not.toHaveBeenCalled();
+  });
+
+  describe('the blob archive', () => {
+    test('is restored into the blob volume when the snapshot carries one', async () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS, MANIFEST]);
+      isContainerRunningMock.mockResolvedValue(false);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      await run({
+        env,
+        snapshotId: MANIFEST_WITH_BLOBS.id,
+        assumeYes: true,
+      });
+
+      // The blob volume is re-created alongside the others on a fresh host.
+      expect(ensureVolumesMock).toHaveBeenCalledWith(
+        expect.arrayContaining(['object-store-data']),
+        'tale_',
+      );
+      // One wipe+extract per volume — the blob archive included.
+      expect(execMock).toHaveBeenCalledTimes(3);
+      const blobRestore = execMock.mock.calls.find((call) =>
+        String(call[1][call[1].length - 1]).includes(
+          'object-store-data.tar.gz',
+        ),
+      );
+      expect(blobRestore?.[1]).toContain('tale_object-store-data:/data');
+      // Blobs are proportional to the store: the extract gets the wider bound.
+      expect(blobRestore?.[2]?.timeout).toBeGreaterThan(1800);
+      expect(loggerNoticeMock).not.toHaveBeenCalled();
+    });
+
+    test('is noted as absent when an older snapshot predates blob capture, and the rest restores', async () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS, MANIFEST]);
+      isContainerRunningMock.mockResolvedValue(false);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+
+      await run({ env, snapshotId: MANIFEST.id, assumeYes: true });
+
+      expect(execMock).toHaveBeenCalledTimes(2);
+      expect(
+        restoreScripts().some((script) => script.includes('object-store-data')),
+      ).toBe(false);
+      const notices = loggerNoticeMock.mock.calls.map((call) =>
+        String(call[0]),
+      );
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toContain('no object-store-data archive');
+      expect(notices[0]).toContain('left untouched');
+    });
+
+    test('is visible in the listing: snapshots without one are marked', async () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS, MANIFEST]);
+
+      await run({ env });
+
+      const rows = loggerTableMock.mock.calls[0][0] as [string, string][];
+      const byId = new Map(rows);
+      expect(byId.get(MANIFEST_WITH_BLOBS.id)).not.toContain('without blobs');
+      expect(byId.get(MANIFEST.id)).toContain('without blobs');
+    });
   });
 });

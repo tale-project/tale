@@ -91,6 +91,22 @@ export interface BackendSession {
    * exited). `degraded` here means the object exists but isn't running;
    * runnerd reachability is layered on top by the route/registry layer. */
   state: Extract<SandboxSessionState, 'ready' | 'degraded'>;
+  /** "Always-on" as recorded by {@link SessionBackend.setPinned} — the reaper
+   * exemption a re-adopting spawner must carry over, or a restart (deploy,
+   * crash) TTL/idle-reaps the user's pinned session on its first sweep. */
+  pinned?: boolean;
+}
+
+/** What `createSession()` reports back once the session is `ready`. */
+export interface CreateSessionResult {
+  /**
+   * True when the workspace (host dir / PVC) already existed — this create
+   * RESUMED a stopped session onto preserved data. The route layer keys its
+   * own post-create rollback on it: a resume rolls back with `stopSession`
+   * (compute released, data kept); only a fresh create may `destroySession`
+   * the half-made workspace it provisioned itself.
+   */
+  resumed: boolean;
 }
 
 export interface SessionBackend {
@@ -99,9 +115,10 @@ export interface SessionBackend {
    * Launch the session container/Pod and wait until runnerd's /healthz
    * answers (budget: cfg.session.createHealthTimeoutMs). On failure the
    * backend cleans up whatever it created before throwing — a failed create
-   * never leaks a container. Returns once the session is `ready`.
+   * never leaks a container, and a failed RESUME never deletes the preserved
+   * workspace (stop, not destroy). Returns once the session is `ready`.
    */
-  createSession(spec: SessionSpec): Promise<void>;
+  createSession(spec: SessionSpec): Promise<CreateSessionResult>;
   /** Base URL of the session's runnerd (e.g. http://tale-sbx-ses-<id>:8200).
    * Resolved per call — on K8s the Pod IP can change across container
    * restarts. Throws if the backend object doesn't exist. */
@@ -132,6 +149,18 @@ export interface SessionBackend {
   /** List live session objects (label-selected), for boot re-adoption, the
    * GET /v1/sessions route, and the TTL/idle sweep. */
   listSessions(organizationId?: string): Promise<BackendSession[]>;
+  /**
+   * Record the "always-on" pin on the backend object's DURABLE state (Docker:
+   * a marker beside the workspace under the host session root; Kubernetes: a
+   * Pod annotation) so `listSessions` reports it back on boot re-adoption.
+   * The registry's own `pinned` flag is a cache that dies with the process;
+   * without this a spawner restart forgets every pin and the next sweep reaps
+   * the user's always-on session. A new create always starts unpinned (the
+   * platform row is the truth and re-pushes); stop/destroy clear the record.
+   * THROWS when the backend cannot record it — the caller keeps the in-memory
+   * pin and warns, so the current process still honours it.
+   */
+  setPinned(sessionId: string, pinned: boolean): Promise<void>;
   /**
    * Reconcile the shared cross-session build cache (the per-org buildkitd) at
    * spawner startup, after running sessions are re-adopted. The daemon is

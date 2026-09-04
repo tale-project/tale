@@ -2,8 +2,10 @@
 
 /**
  * Backend-aware blob access — the single seam every org-owned blob operation
- * routes through so a blob transparently lives in Convex `_storage` (deployment
- * default) OR the org's own S3 bucket (bring-your-own object storage).
+ * routes through. New blobs always land in S3-compatible storage (the org's own
+ * bucket, else the deployment default's — see `object_store.ts`, which fails
+ * closed when neither is configured); the Convex-id branches below only read,
+ * serve, or delete a LEGACY reference that predates the cutover.
  *
  * # The blob reference
  *
@@ -34,13 +36,11 @@ import {
 } from './blob_ref';
 import {
   buildObjectKey,
-  DEFAULT_PRESIGN_TTL_SEC,
   resolveOrgObjectStore,
   s3DeleteObject,
   s3GetObjectBytes,
   s3HeadObject,
   s3PresignGetUrl,
-  s3PresignPutUrl,
   s3PutObject,
   type S3ObjectStore,
 } from './object_store';
@@ -49,22 +49,18 @@ export type { BlobRef } from './blob_ref';
 export { encodeS3Ref, parseBlobRef, isS3Ref } from './blob_ref';
 
 /**
- * Store bytes for an org and return the stored reference. Routes to the org's
- * S3 bucket when configured, else Convex `_storage`. Action ctx required (S3
- * signing needs node).
+ * Store bytes for an org and return the stored reference — always an `s3:`
+ * ref into the org's resolved bucket; an unconfigured store throws at this
+ * door instead of failing deeper in the lane. The `ctx` parameter is kept for
+ * the reused 0.4 call shape.
  */
 export async function putBlob(
-  ctx: ActionCtx,
+  _ctx: ActionCtx,
   orgSlug: string,
   bytes: Uint8Array,
   contentType: string,
 ): Promise<BlobRef> {
   const store = await resolveOrgObjectStore(orgSlug);
-  if (store.backend === 'convex') {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
-    const blob = new Blob([bytes as BlobPart], { type: contentType });
-    return await ctx.storage.store(blob);
-  }
   const key = buildObjectKey(store, orgSlug);
   await s3PutObject(store, key, bytes, contentType);
   return encodeS3Ref(key);
@@ -145,84 +141,6 @@ export async function getBlobUrl(
 }
 
 /**
- * Upload handoff for the client. Convex: `generateUploadUrl` (the client POSTs
- * and learns the id from the response). S3: a presigned PUT plus the ref the
- * client will bind (the key is known up front). The caller returns `{ url,
- * method, s3Ref }` to the browser; when `s3Ref` is present the client PUTs to
- * `url` then binds `s3Ref`, else it POSTs and binds the returned storage id.
- */
-export async function generateBlobUpload(
-  ctx: ActionCtx,
-  orgSlug: string,
-  opts: { contentType?: string } = {},
-): Promise<{ url: string; method: 'POST' | 'PUT'; s3Ref?: string }> {
-  const store = await resolveOrgObjectStore(orgSlug);
-  if (store.backend === 'convex') {
-    return { url: await ctx.storage.generateUploadUrl(), method: 'POST' };
-  }
-  const key = buildObjectKey(store, orgSlug);
-  const url = await s3PresignPutUrl(store, key, {
-    contentType: opts.contentType,
-  });
-  return { url, method: 'PUT', s3Ref: encodeS3Ref(key) };
-}
-
-export interface ReplacementBlobUploadHandoff {
-  url: string;
-  method: 'POST' | 'PUT';
-  backend: 'convex' | 's3';
-  uploadContentType: string;
-  uploadExpiresAt: number;
-  stagingRef?: BlobRef;
-  finalRef?: BlobRef;
-}
-
-const CONVEX_UPLOAD_TTL_MS = 60 * 60 * 1000;
-
-/**
- * Mint a replacement-specific upload capability.
- *
- * S3 receives two keys: the browser can write only the staging key, while the
- * final key is reserved for a create-only server PUT after attestation. Convex
- * storage is already immutable, so ownership is proven by an intent nonce in
- * the stored content type.
- */
-export async function generateReplacementBlobUpload(
-  ctx: ActionCtx,
-  orgSlug: string,
-  intentNonce: string,
-  contentType?: string,
-): Promise<ReplacementBlobUploadHandoff> {
-  const store = await resolveOrgObjectStore(orgSlug);
-  const baseContentType = contentType?.trim() || 'application/octet-stream';
-  if (store.backend === 'convex') {
-    return {
-      url: await ctx.storage.generateUploadUrl(),
-      method: 'POST',
-      backend: 'convex',
-      uploadContentType: `${baseContentType}; tale-intent=${intentNonce}`,
-      uploadExpiresAt: Date.now() + CONVEX_UPLOAD_TTL_MS,
-    };
-  }
-
-  const stagingKey = buildObjectKey(store, orgSlug);
-  const finalKey = buildObjectKey(store, orgSlug);
-  const uploadExpiresAt = Date.now() + DEFAULT_PRESIGN_TTL_SEC * 1000;
-  return {
-    url: await s3PresignPutUrl(store, stagingKey, {
-      contentType: baseContentType,
-      expiresInSec: DEFAULT_PRESIGN_TTL_SEC,
-    }),
-    method: 'PUT',
-    backend: 's3',
-    uploadContentType: baseContentType,
-    uploadExpiresAt,
-    stagingRef: encodeS3Ref(stagingKey),
-    finalRef: encodeS3Ref(finalKey),
-  };
-}
-
-/**
  * Write attested bytes to a reserved S3 final reference exactly once.
  *
  * The final key is never returned with a write capability. `exists` supports
@@ -258,11 +176,5 @@ async function requireS3(orgSlug: string, key: string): Promise<S3ObjectStore> {
       `s3 blob key is outside org '${orgSlug}' namespace; refusing`,
     );
   }
-  const store = await resolveOrgObjectStore(orgSlug);
-  if (store.backend !== 's3') {
-    throw new Error(
-      `blob references org '${orgSlug}' S3 storage, but no S3 store is configured`,
-    );
-  }
-  return store;
+  return resolveOrgObjectStore(orgSlug);
 }

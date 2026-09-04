@@ -1,9 +1,9 @@
 ---
 title: Legal hold
-description: The dual-controlled freeze that pauses retention sweeps and erasure cascades for a specific user, document, thread, or the whole organisation during litigation. Admins and Owners read this when counsel asks them to preserve evidence.
+description: The dual-controlled freeze that pauses retention sweeps and erasure cascades for a specific user or the whole organisation during litigation. Admins and Owners read this when counsel asks them to preserve evidence.
 ---
 
-Legal hold is the mechanism Tale ships for preserving evidence under litigation hold. A hold pins a target — a user, a document, a thread, a workflow execution, or the whole organisation — out of reach of the retention sweep and the data-subject erasure cascade. Admins and Owners read this page when counsel asks them to preserve a custodian's data, when a release request needs the dual-control sign-off, or when an audit reconciles which holds were in force on a given date.
+Legal hold is the mechanism Tale ships for preserving evidence under litigation hold. A hold pins a target — a user as custodian, or the whole organisation — out of reach of the retention sweep and the data-subject erasure cascade. Admins and Owners read this page when counsel asks them to preserve a custodian's data, when a release request needs the dual-control sign-off, or when an audit reconciles which holds were in force on a given date.
 
 <Frame caption="Governance > Legal hold — the active-holds table with the Place legal hold action above the dual-control release-requests queue.">
 
@@ -13,7 +13,7 @@ Legal hold is the mechanism Tale ships for preserving evidence under litigation 
 
 ## A worked placement
 
-To place a hold on a user, open **Settings > Governance > Legal hold** and click **Place legal hold**. Pick the target type — user, thread, document, execution, or organisation — pick the specific target, add a reason, and link the hold to a matter if one is open. The hold takes effect immediately; retention sweeps skip the target's rows, the erasure cascade reports them as **Skipped by hold**, and the target row carries the **On legal hold** badge in every list where it appears.
+To place a hold on a user, open **Settings > Governance > Legal hold** and click **Place legal hold**. Pick the target type — a user as custodian, or the whole organisation — pick the user where one is needed, add a reason, and link the hold to a matter if one is open. The hold takes effect immediately: retention sweeps skip the target's rows, an erasure request against the target is refused, and deleting held content is refused at the source.
 
 ## The four sections
 
@@ -27,7 +27,7 @@ To place a hold on a user, open **Settings > Governance > Legal hold** and click
 
 ## Hold-and-cascade interaction
 
-A hold blocks every retention pass and every erasure step for the target. The trash page shows the **Delete is blocked by an active legal hold** banner when an Admin tries to purge a row under hold. A data subject request whose subject is covered by a hold lands in the **Blocked** status until the hold is released; partial coverage (some threads under hold, some not) lands in **Partial** with per-category counters in the receipt.
+A hold blocks every retention pass and every erasure step for the target, and deletion is refused at the source — trashing a held user's threads or documents fails with a legal-hold error, and a folder delete refuses while it contains a held file. It also blocks deleting the organization itself: while any hold — org-wide or on a member — is active, **Delete organization** is refused and the organization stays exactly as it was. A data subject request whose subject is covered by a hold lands in the **Blocked** status until the hold is released; the receipt records the block.
 
 ## Dual-control
 

@@ -29,7 +29,7 @@ Arbeit in der Bibliothek: einen Eintrag anlegen und zitiert zurückhören, verst
 
 <Card title="Episode 4 — Dein erster Agent" icon="play" href="/de/tutorials/videos/your-first-agent">
 
-Ein Agent, vor der Kamera gebaut — Anweisungen, Wissensbereich, Werkzeuge, Modell — und live getestet. Fähigkeit ist Angriffsfläche: fang klein an. Gut drei Minuten.
+Ein Agent, im früheren Agenten-Editor vor der Kamera gebaut — Anweisungen, Wissensbereich, Werkzeuge, Modell — und live getestet; die Ansichten haben sich seither geändert, die Überlegung nicht. Fähigkeit ist Angriffsfläche: fang klein an. Gut drei Minuten.
 
 </Card>
 
@@ -47,7 +47,7 @@ Das Board mitten im Flug, Dateien als begrenzter Kontext und eine vor der Kamera
 
 <Card title="Episode 7 — Connectors & die Außenwelt" icon="play" href="/de/tutorials/videos/connectors">
 
-Connectoren zum Lesen vor dem Öffnen, MCP-Werkzeuge mit Freigabe-Flags und Egress, der im Zweifel schließt. Jede Tür bewusst geöffnet. Knapp drei Minuten.
+Connectoren zum Lesen vor dem Öffnen, die MCP-Tür, wie die frühere Version sie zeigte, und Egress, der im Zweifel schließt. Jede Tür bewusst geöffnet. Knapp drei Minuten.
 
 </Card>
 

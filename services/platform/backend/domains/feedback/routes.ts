@@ -9,6 +9,7 @@ import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
+  FeedbackError,
   listMyThreadFeedback,
   getMyMessageFeedback,
   listMessageFeedback,
@@ -18,6 +19,13 @@ import {
   listRecentFeedbackPage,
 } from './service.ts';
 
+/**
+ * A vote carries NO client metadata: the one-vote-per-(message, user) upsert
+ * is arbitrated by the partial unique index `WHERE metadata IS NULL`, and the
+ * `metadata.arenaVerdict` rows the analytics count as arena results are
+ * written by the arena settle lane alone (`domains/chat/arena.ts`). Anything
+ * else a client sends under `metadata` is dropped here, never stored.
+ */
 const submitSchema = z.object({
   threadId: z.string().min(1).max(200),
   messageId: z.string().min(1).max(200),
@@ -26,7 +34,6 @@ const submitSchema = z.object({
   agentSlug: z.string().max(100).optional(),
   model: z.string().max(200).optional(),
   provider: z.string().max(100).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 /** /api/app/feedback — thumbs on assistant messages + the insights feed. */
@@ -48,9 +55,18 @@ export function createFeedbackRoutes(deps: {
       return c.json({ error: 'invalid body' }, 400);
     }
     const scope = scopeOf(c);
-    await transactSerializable(deps.sql, (tx) =>
-      submitMessageFeedback(tx, scope, body.data),
-    );
+    try {
+      await transactSerializable(deps.sql, (tx) =>
+        submitMessageFeedback(tx, scope, body.data),
+      );
+    } catch (error) {
+      // A message outside the caller's reach — another organization's, a
+      // thread that is not theirs, or none at all — is one opaque refusal.
+      if (error instanceof FeedbackError) {
+        return c.json({ error: error.code }, error.status);
+      }
+      throw error;
+    }
     return c.json({ ok: true });
   });
 

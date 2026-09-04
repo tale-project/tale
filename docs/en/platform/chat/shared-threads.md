@@ -1,18 +1,18 @@
 ---
 title: Shared chats
-description: Sharing a chat with the rest of your organization — the one-gesture share link, the read-only snapshot the recipient sees, and how to stop sharing.
+description: Sharing a chat with the rest of your organization — the share dialog and its link, the read-only snapshot the recipient sees, and how to stop sharing.
 ---
 
-Sharing a chat publishes a read-only snapshot of it at a link anyone in your organization can open. It is one gesture: **Share** copies the link to your clipboard, and you paste it wherever your team talks. The mechanic is light enough to use casually — share a question and its answer the way you would share a document.
+Sharing a chat publishes a read-only snapshot of it at a link anyone in your organization can open. It takes two clicks and a paste: **Share** opens a small dialog where you pick **Share with organization** and create the link, then you paste it wherever your team talks. The mechanic is light enough to use casually — share a question and its answer the way you would share a document.
 
 ## Sharing a chat
 
-Open the chat and click the **⋯** menu in the header, then **Share**. The link lands on your clipboard immediately — a **Link copied** toast confirms it. The same entry lives on each chat's row menu in the sidebar.
+Open the chat and click the **⋯** menu in the header, then **Share**. The **Share chat** dialog opens on **Keep private**; pick **Share with organization** and click **Create share link**. The link appears in the dialog with **Copy link** beside it, and **Preview** opens the snapshot the way a recipient will see it. The chat's row menu in the sidebar carries a shortcut: its **Share** entry creates the link and copies it straight to your clipboard — a **Link copied** toast confirms it.
 
 Two things worth knowing about the link:
 
 - **It is org-scoped.** Only signed-in members of your organization can open it; it is not a public URL.
-- **It is a snapshot.** The recipient sees the conversation as it stood when you shared it. If the chat moves on and you want to share the newer state, click **Share** again — the link stays the same and the snapshot refreshes.
+- **It is a snapshot.** The recipient sees the conversation as it stood when you shared it. If the chat moves on and you want to share the newer state, open the dialog again and click **Include newer messages** — the link stays the same and the snapshot refreshes.
 
 <Frame caption="What the recipient opens: the shared, read-only snapshot with its byline.">
 
@@ -26,7 +26,7 @@ The link opens a read-only **Shared chat** view: the transcript, with a byline n
 
 ## Stopping sharing
 
-The chat's row menu offers **Stop sharing** once a chat is shared. The link stops working immediately; visitors land on a "no longer available" page. Deleting the chat has the same effect on the link. Sharing again later publishes a fresh snapshot.
+Switch the dialog back to **Keep private**, or pick **Stop sharing** on the chat's row menu once a chat is shared. The link stops working immediately; visitors land on a "no longer available" page. Deleting the chat has the same effect on the link. Sharing again later publishes a fresh snapshot.
 
 ## Where this fits
 

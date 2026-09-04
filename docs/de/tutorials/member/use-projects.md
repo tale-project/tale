@@ -37,9 +37,9 @@ Speichern. Jeder neue Chat im Projekt läuft jetzt mit dieser Präambel zusätzl
 
 ## Schritt 4 — Einen Chat starten und prüfen, dass der Kontext mitgeht
 
-Öffne den **Threads**-Tab und klick **Neuer Chat**. Wähl einen Agent — der Default-Assistant reicht für den ersten Lauf — und stell eine Frage, die eine der Projektdateien beantwortet (`What does the contract say about the renewal clause?`). Die Antwort sollte den Vertrag zitieren; das Zitat öffnet die Datei aus dem Wissen-Tab des Projekts, nicht aus der Org-weiten Bibliothek.
+Öffne den **Threads**-Tab und klick **Neuer Chat**. Lass den Modell-Picker auf **Auto** — einen Agent gibt es im Chat nicht zu wählen — und stell eine Frage, die eine der Projektdateien beantwortet (`What does the contract say about the renewal clause?`). Die Antwort sollte den Vertrag zitieren; das Zitat öffnet die Datei aus dem Wissen-Tab des Projekts, nicht aus der Org-weiten Bibliothek.
 
-Antwortet der Agent ohne Zitat, wurden die Projektdateien nicht retrieved — meist weil der gewählte Agent kein Retrieval-Tool aktiviert hat. Wechsle auf einen Agent mit aktivem RAG oder aktivier es am Assistant für den Projektgebrauch.
+Antwortet der Assistent ohne Zitat, wurde die Datei nicht gefunden — meist weil die Indexierung noch nicht fertig ist. Prüf, dass ihre Zeile im **Wissen**-Tab **Indexed** zeigt, und frag noch einmal.
 
 ## Wo das eingesetzt wird
 

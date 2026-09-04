@@ -1,9 +1,9 @@
 ---
 title: Connectors
-description: Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et quand héberger un serveur MCP à la place.
+description: Comment un connecteur est déclaré, ce qu’une de ses actions promet à l’appelant, et où va ton propre code quand aucun connecteur ne convient.
 ---
 
-Les connecteurs sont la moitié propre aux fournisseurs de la façon dont Tale atteint d’autres systèmes, et ils font partie de la plateforme plutôt que d’un assemblage à la charge d’une organisation. Chacun est un fichier YAML dans l’arbre des sources qui déclare à qui il parle, comment il s’authentifie et chaque action qu’il sait exécuter — d’où un catalogue identique dans tous les déploiements, qu’une mise à jour suffit à faire avancer. Lis cette page pour savoir ce qu’un connecteur promet réellement à un appelant, ou quand tu hésites entre contribuer un connecteur et héberger un serveur MCP.
+Les connecteurs sont la moitié propre aux fournisseurs de la façon dont Tale atteint d’autres systèmes, et ils font partie de la plateforme plutôt que d’un assemblage à la charge d’une organisation. Chacun est un fichier YAML dans l’arbre des sources qui déclare à qui il parle, comment il s’authentifie et chaque action qu’il sait exécuter — d’où un catalogue identique dans tous les déploiements, qu’une mise à jour suffit à faire avancer. Lis cette page pour savoir ce qu’un connecteur promet réellement à un appelant, ou quand tu hésites entre contribuer un connecteur et atteindre ton propre service depuis un agent de projet ou une automatisation.
 
 Le versant organisation — ajouter des identifiants, choisir celui par défaut, relancer une autorisation expirée — est [Identifiants d’connector](/fr/platform/admin/connectors), et le catalogue lui-même est [Connectors](/fr/platform/connectors/overview).
 
@@ -42,7 +42,7 @@ actions:
 
 <Info>
 
-Les connecteurs sont lus dans l’arbre de la plateforme, pas dans la configuration d’une organisation, et aucun chemin de téléversement n’en ajoute à l’exécution. Ajouter un connecteur est une contribution au code source — voir [Configuration du contributeur](/fr/develop/contributor-setup). Héberger ton propre pont sans toucher aux sources, c’est précisément ce à quoi sert MCP.
+Les connecteurs sont lus dans l’arbre de la plateforme, pas dans la configuration d’une organisation, et aucun chemin de téléversement n’en ajoute à l’exécution. Ajouter un connecteur est une contribution au code source — voir [Configuration du contributeur](/fr/develop/contributor-setup). Atteindre ton propre service sans toucher aux sources passe par les **Secrets** d’un agent de projet ou un nœud `transform` d’une automatisation — la section sur le choix d’une surface, plus bas, dit comment.
 
 </Info>
 
@@ -102,12 +102,10 @@ Deux surfaces atteignent des systèmes hors de Tale, et le choix porte sur qui p
 | Surface         | Prends-la quand                                                                                                                                    |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Connector livré | Un connecteur existe déjà pour le système visé. Ton travail se limite aux identifiants, et le contrat fournisseur est maintenu pour toi.           |
-| Serveur MCP     | Rien de livré ne couvre le système — une API interne, un outil maison, un hôte que seul ton réseau atteint. Tu écris et fais tourner le processus. |
+| Ton propre code | Rien de livré ne couvre le système — une API interne, un outil maison, un hôte que seul ton réseau atteint. Un agent de projet l’appelle depuis sa sandbox avec une entrée **Secrets** ; une automatisation depuis un nœud `transform`. |
 
-Un serveur MCP s’enregistre sous **Paramètres > API > MCP**, et chaque outil qu’il expose rejoint la trousse de l’agent aux côtés des actions de connecteur, avec son propre drapeau d’approbation. La référence est [Serveurs MCP](/fr/platform/connectors/mcp-servers) ; la construction de bout en bout est [Monter un serveur MCP de zéro](/fr/tutorials/developer/mcp-server-from-scratch).
+Enregistrer un serveur MCP externe ne fait pas partie de cette version — la seule surface MCP de Tale est l’endpoint entrant sous **Paramètres > API > MCP**, où ton client MCP pilote Tale. [Serveurs MCP](/fr/platform/connectors/mcp-servers) dit ce qui a remplacé le formulaire d’enregistrement ; [Endpoint MCP](/fr/develop/mcp-endpoint) est la référence de la surface qui existe vraiment.
 
 ## Où cela s’inscrit
 
-Un connecteur est un contrat déclaré — hôtes, authentification et une liste d’actions typées — livré avec la plateforme et alimenté par des identifiants qui appartiennent à l’organisation. Lis [Connectors](/fr/platform/connectors/overview) pour ce que contient le catalogue, [Identifiants d’connector](/fr/platform/admin/connectors) pour la gestion quotidienne de ces identifiants, et [Serveurs MCP](/fr/platform/connectors/mcp-servers) quand le pont dont tu as besoin doit être ton propre code.
-</content>
-</invoke>
+Un connecteur est un contrat déclaré — hôtes, authentification et une liste d’actions typées — livré avec la plateforme et alimenté par des identifiants qui appartiennent à l’organisation. Lis [Connectors](/fr/platform/connectors/overview) pour ce que contient le catalogue, [Identifiants d’connector](/fr/platform/admin/connectors) pour la gestion quotidienne de ces identifiants, et [Serveurs MCP](/fr/platform/connectors/mcp-servers) pour la seule surface MCP que cette version livre.

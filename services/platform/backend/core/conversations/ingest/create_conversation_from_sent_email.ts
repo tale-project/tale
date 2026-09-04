@@ -9,6 +9,7 @@ import { buildInitialMessage } from './build_initial_message';
 import { checkConversationExists } from './check_conversation_exists';
 import { checkMessageExists } from './check_message_exists';
 import { MAX_EMAILS_PER_BATCH, NO_SUBJECT } from './constants';
+import { byEmailDateAscending, tipOfEmails } from './email_epoch';
 import { findOrCreateContactFromEmail } from './find_or_create_contact_from_email';
 import { normalizeEmails } from './normalize_email';
 import { normalizeExternalMessageId } from './normalize_external_message_id';
@@ -98,12 +99,15 @@ export async function createConversationFromSentEmail(
   const emailsArray: EmailType[] = normalizeEmails(params.emails);
 
   if (emailsArray.length === 0) {
-    return { conversationId: null, created: false, reason: 'no_emails' };
+    return {
+      conversationId: null,
+      created: false,
+      reason: 'no_emails',
+      ingestedTip: null,
+    };
   }
 
-  emailsArray.sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-  );
+  emailsArray.sort(byEmailDateAscending);
 
   if (emailsArray.length > MAX_EMAILS_PER_BATCH) {
     debugLog(
@@ -114,6 +118,11 @@ export async function createConversationFromSentEmail(
     );
     emailsArray.length = MAX_EMAILS_PER_BATCH;
   }
+
+  // The tip of the window this pass covers — the sync advances the outbound
+  // watermark only to here, so a truncated (newer) sent message re-lists next
+  // pass instead of being stepped over.
+  const ingestedTip = tipOfEmails(emailsArray);
 
   debugLog('create_from_sent_email Processing', emailsArray.length, 'emails');
 
@@ -303,6 +312,7 @@ export async function createConversationFromSentEmail(
       processedCount,
       skippedCount,
       conversationIds: [],
+      ingestedTip,
     };
   }
 
@@ -317,5 +327,6 @@ export async function createConversationFromSentEmail(
     processedCount,
     skippedCount,
     newMessagesAdded,
+    ingestedTip,
   };
 }

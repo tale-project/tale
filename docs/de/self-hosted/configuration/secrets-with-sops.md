@@ -46,7 +46,7 @@ echo "AGE-SECRET-KEY-1NEW..." >> /etc/tale/age-keys.txt
 # 3. Richte .env auf die Datei und starte den Plattform-Container neu
 sed -i 's|^SOPS_AGE_KEY=.*|# SOPS_AGE_KEY=|' .env
 sed -i 's|^# SOPS_AGE_KEY_FILE=.*|SOPS_AGE_KEY_FILE=/etc/tale/age-keys.txt|' .env
-docker compose restart tale-platform tale-convex
+docker compose restart platform backend-api backend-worker
 ```
 
 Jetzt können sowohl der alte als auch der neue Schlüssel bestehende Dateien entschlüsseln. Speichere den API-Schlüssel jedes Anbieters unter **Einstellungen > Anbieter** neu — jedes Speichern erzeugt Ciphertext, der von beiden Schlüsseln lesbar ist. Sobald jeder Anbieter neu gespeichert wurde (die Spalte **Zuletzt rotiert** in der Anbieter-Tabelle sagt dir, welche noch alten Ciphertext halten), entferne den alten Schlüssel aus der Datei:
@@ -54,7 +54,7 @@ Jetzt können sowohl der alte als auch der neue Schlüssel bestehende Dateien en
 ```bash
 # 4. Lass die alte Schlüssel-Zeile fallen und starte erneut neu
 sed -i '/^AGE-SECRET-KEY-1OLD/d' /etc/tale/age-keys.txt
-docker compose restart tale-platform tale-convex
+docker compose restart platform backend-api backend-worker
 ```
 
 Die Reihenfolge ist tragend: Entfern den alten Schlüssel nie, bevor jede Datei neu verschlüsselt ist, oder der Plattform-Container scheitert beim Lesen der noch-alten Dateien bei der nächsten Entschlüsselung.

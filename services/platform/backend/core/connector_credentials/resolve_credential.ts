@@ -1,7 +1,7 @@
 'use node';
 
 /**
- * Credential resolution — the ONE internal seam that turns an connector
+ * Credential resolution — the ONE internal seam that turns a connector
  * credential row into usable secret material, for the workflow engine's
  * connector nodes and the chat tool surface. `'use node'` by necessity
  * (secret_box decryption, the connector catalog on disk) and INTERNAL by

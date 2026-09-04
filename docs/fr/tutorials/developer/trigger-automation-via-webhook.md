@@ -9,7 +9,7 @@ Il te faut le rôle Développeur dans l'organisation, une automatisation avec un
 
 ## Avant de commencer
 
-Vérifie deux choses. L'automatisation que tu vas déclencher a une version **déployée** — enregistrer une version ne suffit pas, et une version ne devient déployable qu'une fois ses propres tests au vert ; lance-les d'abord. Ton rôle est au moins Développeur ; ajouter des déclencheurs est réservé à Développeur et au-dessus. Si tu n'as pas encore d'automatisation, la plus petite canonique est « enregistre la charge utile puis arrête-toi » — construis-la via [Workflow avec approbations](/fr/tutorials/editor/workflow-with-approvals) et retire le nœud d'approbation pour ce parcours.
+Vérifie deux choses. L'automatisation que tu vas déclencher a une version **déployée** — enregistrer une version ne suffit pas, et une version ne devient déployable qu'une fois ses propres tests au vert ; lance-les d'abord. Ton rôle est au moins Développeur ; ajouter des déclencheurs est réservé à Développeur et au-dessus. Si tu n'as pas encore d'automatisation, la plus petite canonique est « enregistre la charge utile puis arrête-toi » — un seul nœud `transform`, construit sur le canvas comme le décrit [L’éditeur de workflow](/fr/platform/automations/editor).
 
 ## Étape 1 — Ajouter un déclencheur webhook
 
@@ -41,7 +41,7 @@ Quatre réponses couvrent tout ce que le point de terminaison peut dire, et chac
 
 **404** signifie que le jeton ne correspond à aucun déclencheur actif — il est faux, il a été supprimé, ou le déclencheur est désactivé. La réponse ne dit délibérément jamais lequel, pour que celui qui devine des jetons n'apprenne rien de la différence. **409** avec `{ "error": "automation has no deployed version" }` signifie que l'automatisation existe mais que rien n'est en ligne : déploie une version dont les tests passent et le même appel s'exécute. **413** signifie que le body dépasse 256 Ko ; poste alors une référence plutôt que la charge utile. **202** est le seul succès.
 
-Les retries méritent leur propre phrase : le point de terminaison ne déduplique pas, un POST retenté lance donc une seconde exécution. Ce qui rend cela sûr, c'est l'exécution elle-même — chaque nœud terminé pose un point de reprise, une exécution reprise après une interruption ne rejoue donc jamais les effets de bord déjà produits. Là où une exécution _en double_ resterait fausse, transporte ton propre identifiant d'événement dans la charge utile et branche dessus dans le premier nœud.
+Les retries méritent leur propre phrase : le point de terminaison déduplique, un POST retenté ne lance donc pas de seconde exécution. Envoie un identifiant de livraison — `Idempotency-Key`, ou l’en-tête propre à ton fournisseur comme `X-GitHub-Delivery` — et une répétition dans les 24 heures répond avec l’exécution que la première tentative a lancée, marquée `duplicate: true` ; sans identifiant, un corps identique à l’octet en moins de deux minutes est traité de la même façon. Garde l’identifiant stable d’une tentative à l’autre et une requête restée en suspens se relance sans risque. L’exécution elle-même pose aussi un point de reprise à chaque nœud terminé, une exécution reprise après une interruption ne rejoue donc jamais un effet de bord déjà produit.
 
 ## Où ça s'utilise
 

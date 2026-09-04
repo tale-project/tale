@@ -3,7 +3,7 @@
 // Separate from docker-args.ts on purpose: the one-shot builder is snapshot-
 // tested as a frozen contract and must not change. Sessions differ in ways
 // that would break that snapshot — detached (`-d`), no entry positional (the
-// daemon is PID 1 via the `daemon` entrypoint dispatch), a long-lived
+// daemon runs under tini via the `daemon` entrypoint dispatch), a long-lived
 // resource profile (no cpu-time ulimit, bigger mem/pids, /dev/shm for
 // Chromium), the per-session runnerd token in env, and the session label.
 //
@@ -59,8 +59,9 @@ const VOL_RE = /^[a-zA-Z0-9_.-]{1,128}$/;
 // surface a new env value adds, so validate it like every other interpolation.
 const ENDPOINT_RE = /^tcp:\/\/[a-zA-Z0-9_.-]{1,128}:[0-9]{1,5}$/;
 const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
-// Hex token from deriveRunnerdToken (SHA256 → 64 hex chars), or empty in
-// unsigned dev mode (runnerd skips the check when TALE_RUNNERD_TOKEN is empty).
+// Hex token from deriveRunnerdToken (SHA256 → 64 hex chars). The builder
+// validates shape only; the spawner always derives one (SANDBOX_TOKEN is
+// required), so an empty value never reaches a real session.
 const TOKEN_RE = /^[a-f0-9]{0,128}$/;
 const USER_RE = /^[0-9]{1,10}:[0-9]{1,10}$/;
 const MEM_RE = /^[0-9]+[bkmg]?$/i;
@@ -423,8 +424,8 @@ export function buildDockerSessionRunArgs(
     // Per-org cache volume mounts (empty under DinD — cold caches; see above).
     ...cacheMounts,
     cfg.runtimeImage,
-    // Entrypoint dispatch: `daemon` mode boots runnerd as PID 1 instead of
-    // running a one-shot script. See sandbox-runtime/entrypoint.sh.
+    // Entrypoint dispatch: `daemon` mode boots tini (PID 1) + runnerd instead
+    // of running a one-shot script. See sandbox-runtime/entrypoint.sh.
     'daemon',
   ];
 }

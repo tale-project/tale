@@ -41,7 +41,10 @@ import {
 } from '@/app/components/layout/app-sidebar/sidebar-motion';
 import { IosInstallSheet } from '@/app/components/pwa/ios-install-sheet';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import {
+  Tooltip,
+  tooltipContentClassName,
+} from '@/app/components/ui/overlays/tooltip';
 import { OrganizationListPanel } from '@/app/features/organization/components/organization-list-panel';
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { TeamListPanel } from '@/app/features/settings/teams/components/team-list-panel';
@@ -712,7 +715,7 @@ export function UserButton({
           <TooltipPrimitive.Content
             side="right"
             sideOffset={4}
-            className="bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
+            className={tooltipContentClassName}
           >
             {t('userButton.manageAccount')}
           </TooltipPrimitive.Content>

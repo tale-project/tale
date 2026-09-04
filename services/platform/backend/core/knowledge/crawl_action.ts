@@ -66,7 +66,7 @@ import { extractText } from '../lib/knowledge/extraction/router';
 import { renderUrlsInSandbox } from '../node_only/sandbox/render_fetch';
 import { isDueForScan } from '../websites/scan_scheduling';
 import { readOrgEmbeddingConfig } from './connection';
-import { MAX_URLS_PER_DOMAIN, URL_INSERT_BATCH } from './crawl';
+import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
 import { pinDimensions } from './dimensions';
 import { Embedder, embedderForOrg, EmbeddingNotConfigured } from './embedding';
 import {
@@ -198,6 +198,15 @@ export async function scanWebsiteImpl(
         // next sync is at the link's end, so without this a rescan sits on
         // a stale Active/Idle row the whole first link.
         await fanOutRowSync(ctx, sql, args.domain);
+        // Listed URLs are a standing instruction: one a past scan marked
+        // `deleted` (404 then) goes back on the frontier every scan, so a
+        // page that is back is re-indexed instead of staying dark for good.
+        const revived = await reviveListedUrls(sql, args.domain);
+        if (revived > 0) {
+          console.log(
+            `[crawl] ${args.domain}: ${revived} listed URL(s) revived for re-probe`,
+          );
+        }
         // A URL list has no discovery: its operator-listed rows ARE the
         // frontier, and robots.txt does not govern explicitly requested
         // pages (the same stance web_fetch takes).
@@ -588,19 +597,10 @@ async function discoverAndRecordUrls(
     );
   }
 
-  const discovered = [...urls];
-  for (let start = 0; start < discovered.length; start += URL_INSERT_BATCH) {
-    const batch = discovered.slice(start, start + URL_INSERT_BATCH);
-    const rows = batch
-      .map((_, index) => `($1, $${index + 2}, 'discovered', NOW())`)
-      .join(', ');
-    await sql.unsafe(
-      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_urls (domain, url, status, discovered_at)
-       VALUES ${rows}
-       ON CONFLICT (domain, url) DO NOTHING`,
-      [domain, ...batch],
-    );
-  }
+  // The shared admission door: new rows start `discovered`, and a row a past
+  // scan marked `deleted` is revived — the site links to the page again, so
+  // the fetch (not the memory of a 404) decides whether it is back.
+  await admitUrls(sql, domain, [...urls], { listed: false });
   console.log(`[crawl] ${domain}: ${urls.size} URLs discovered`);
 }
 
@@ -839,14 +839,9 @@ async function admitRenderedLinks(
     }
     const normalized = normalizeCandidateUrl(href, baseUrl, hosts);
     if (!normalized) continue;
-    const inserted = await sql.unsafe<{ url: string }[]>(
-      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_urls (domain, url, status, discovered_at)
-       VALUES ($1, $2, 'discovered', NOW())
-       ON CONFLICT (domain, url) DO NOTHING
-       RETURNING url`,
-      [domain, normalized],
-    );
-    if (inserted.length > 0) tracked += 1;
+    // Inserted or revived rows are newly tracked (`deleted` rows are not in
+    // the count above); unchanged live rows report zero.
+    tracked += await admitUrls(sql, domain, [normalized], { listed: false });
   }
 }
 

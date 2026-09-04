@@ -17,7 +17,6 @@ import {
   type SandboxScriptRunner,
   type WorkflowConversationStore,
   type WorkflowDocumentStore,
-  type WorkflowTaskStore,
 } from '../../../lib/connectors/natives/index.ts';
 import type { PortableHostCall } from '../../../lib/connectors/portable-live.ts';
 import { registerConnector } from '../../../lib/connectors/registry.ts';
@@ -41,14 +40,21 @@ import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
 import { conversationShimHandlers } from '../conversations/shim.ts';
-import { createHubDocument, listDocuments } from '../documents/service.ts';
-import { getProjectAuthContext } from '../projects/service.ts';
-import { addTaskComment, listTaskComments } from '../tasks/comments.ts';
 import {
-  agentUpdateTaskStatusTrusted,
-  loadTaskOrThrow,
-} from '../tasks/service.ts';
+  createHubDocument,
+  listFolderDocumentsBounded,
+} from '../documents/service.ts';
+import { findHubFolderByPath } from '../folders/paths.ts';
+import {
+  FolderError,
+  listFolders,
+  loadFolderOrThrow,
+  MAX_FOLDER_DEPTH,
+} from '../folders/service.ts';
+import { getProjectAuthContext } from '../projects/service.ts';
 import { pgWebdavStore } from '../webdav/connector-store.ts';
+import { collectWorkflowFolderFiles } from './document-listing.ts';
+import { pgTaskStore } from './task-store.ts';
 
 /**
  * The 0.5 door to the connector dispatcher — the twin of
@@ -83,71 +89,9 @@ const failLoudScriptRunner: SandboxScriptRunner = async () => {
   );
 };
 
-/** The task natives over the 0.5 tasks domain — trusted writes (the
- * connector door's callers own authorization), the 0.4 platform-store
- * semantics. */
-function pgTaskStore(sql: Sql): WorkflowTaskStore {
-  const systemAuth = async (organizationId: string) =>
-    getProjectAuthContext(sql, {
-      organizationId,
-      userId: 'system',
-      role: 'owner',
-    });
-  return {
-    async get({ organizationId, taskId }) {
-      try {
-        const task = await loadTaskOrThrow(sql, taskId);
-        if (task.organizationId !== organizationId) return null;
-        return {
-          taskId: task.id,
-          title: task.title,
-          status: task.status,
-          ...(task.description !== null
-            ? { description: task.description }
-            : {}),
-          projectId: task.projectId,
-        };
-      } catch {
-        return null;
-      }
-    },
-    async updateStatus({ organizationId, taskId, status }) {
-      const result = await sql.begin((tx) =>
-        agentUpdateTaskStatusTrusted(tx, {
-          organizationId,
-          actorId: 'workflow',
-          taskId,
-          status,
-        }),
-      );
-      return result;
-    },
-    async comment({ organizationId, taskId, body }) {
-      const auth = await systemAuth(organizationId);
-      const result = await sql.begin((tx) =>
-        addTaskComment(tx, auth, {
-          taskId,
-          body,
-          author: { actorType: 'agent', actorId: 'workflow' },
-        }),
-      );
-      return { messageId: result.messageId };
-    },
-    async listComments({ organizationId, taskId }) {
-      const auth = await systemAuth(organizationId);
-      const comments = await listTaskComments(sql, auth, taskId);
-      return comments.map((comment) => ({
-        authorType:
-          comment.authorType === 'user'
-            ? ('user' as const)
-            : ('agent' as const),
-        authorId: comment.authorId,
-        body: comment.body,
-        createdAt: comment.createdAt,
-      }));
-    },
-  };
-}
+/** The most files one `document.list` answers; past it the listing says
+ * `truncated` so the agent narrows the folder instead of trusting a cut. */
+const WORKFLOW_FOLDER_LIST_CAP = 200;
 
 /** The document natives over the 0.5 documents domain. */
 function pgDocumentStore(sql: Sql): WorkflowDocumentStore {
@@ -158,17 +102,66 @@ function pgDocumentStore(sql: Sql): WorkflowDocumentStore {
       role: 'owner',
     });
   return {
-    async listFolder({ organizationId, folderId }) {
-      if (folderId === undefined) return null;
+    async listFolder({ organizationId, folderId, folderPath, recursive }) {
+      // The folder, by id or by human path ("Clients/Acme" — the same walk
+      // the sync engines resolve with); null = it does not exist in this
+      // org's hub tree, which the native turns into a coded refusal.
+      let rootFolderId: string;
+      if (folderId !== undefined) {
+        const folder = await loadFolderOrThrow(sql, folderId).catch(
+          (error: unknown) => {
+            if (error instanceof FolderError) return null;
+            throw error;
+          },
+        );
+        if (
+          folder === null ||
+          folder.organizationId !== organizationId ||
+          folder.projectId !== null
+        ) {
+          return null;
+        }
+        rootFolderId = folder.id;
+      } else if (folderPath !== undefined) {
+        const resolved = await findHubFolderByPath(
+          sql,
+          organizationId,
+          folderPath.split('/'),
+        );
+        if (resolved === null) return null;
+        rootFolderId = resolved;
+      } else {
+        return null;
+      }
       const auth = await systemAuth(organizationId);
-      const docs = await listDocuments(sql, auth, { folderId });
-      return {
-        files: docs.map((doc) => ({
-          name: doc.title ?? doc.id,
-          storageId: doc.fileRef ?? doc.id,
-        })),
-        truncated: false,
-      };
+      return collectWorkflowFolderFiles(
+        {
+          filesIn: async (id, limit) => {
+            const page = await listFolderDocumentsBounded(sql, auth, {
+              folderId: id,
+              limit,
+            });
+            return {
+              files: page.documents.map((doc) => ({
+                name: doc.title ?? doc.id,
+                storageId: doc.fileRef ?? doc.id,
+              })),
+              truncated: page.truncated,
+            };
+          },
+          subfoldersOf: async (id) =>
+            (await listFolders(sql, auth, { parentId: id })).map((folder) => ({
+              id: folder.id,
+              name: folder.name,
+            })),
+        },
+        {
+          rootFolderId,
+          recursive: recursive ?? false,
+          cap: WORKFLOW_FOLDER_LIST_CAP,
+          maxDepth: MAX_FOLDER_DEPTH,
+        },
+      );
     },
     async create({ organizationId, folderId, name, content, contentType }) {
       const auth = await systemAuth(organizationId);
@@ -200,8 +193,11 @@ function pgConversationStore(sql: Sql): WorkflowConversationStore {
     return ctx as unknown as Parameters<typeof syncMailbox>[0];
   };
   return {
-    ingestEmails: (args) => ingestEmails(shim(), args),
-    ingestSentEmails: (args) => ingestSentEmails(shim(), args),
+    // The native returns the ingest result; the ingestedTip rides alongside it
+    // for the sync watermark only, so the workflow-facing binding drops it.
+    ingestEmails: (args) => ingestEmails(shim(), args).then((o) => o.result),
+    ingestSentEmails: (args) =>
+      ingestSentEmails(shim(), args).then((o) => o.result),
     querySyncCursor: (args) => querySyncCursor(shim(), args),
     syncMailbox: (args) => syncMailbox(shim(), args),
     listMailboxMessages: (args) => listMailboxMessages(shim(), args),

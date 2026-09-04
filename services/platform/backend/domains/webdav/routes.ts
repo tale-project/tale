@@ -14,6 +14,7 @@ import {
   hmacHash,
   requireHmacSecret,
 } from '../../core/webdav/helpers.ts';
+import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkOrganizationRateLimit,
   RateLimitExceededError,
@@ -134,7 +135,7 @@ export function createWebdavAdminRoutes(deps: {
       );
     } catch (error) {
       if (error instanceof RateLimitExceededError) {
-        return c.json({ error: 'RATE_LIMITED' }, 429);
+        return rateLimitedResponse(c, error);
       }
       throw error;
     }

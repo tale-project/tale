@@ -12,7 +12,6 @@ import {
 import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { extractTenantId } from '../../core/enterprise_sso/entra_id/constants.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
-import { deleteKnowledgeDocument } from '../../core/legacy/knowledge_delete.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
 import type { FileItem } from '../../core/onedrive/list_folder_contents.ts';
@@ -30,6 +29,7 @@ import {
   isCloudImportProvider,
   resolveCloudAccessToken,
 } from '../cloud_import/service.ts';
+import { MAX_UPLOAD_BYTES, readBodyBounded } from '../files/bounded-body.ts';
 import { putOrgBlobBytes } from '../files/service.ts';
 import {
   buildHubFolderPath,
@@ -37,7 +37,7 @@ import {
   getOrCreateHubFolderPath,
   reapEmptyAncestorFolders,
 } from '../folders/paths.ts';
-import { markRagQueued } from '../knowledge/service.ts';
+import { markRagQueued, syncRagDocumentScope } from '../knowledge/service.ts';
 import { assertNotHeld, LegalHoldError } from '../legal_holds/service.ts';
 import { purgeDocument } from '../retention/service.ts';
 import { readSsoSecrets, resolveSignInConfig } from '../sso/config.ts';
@@ -568,6 +568,10 @@ const DOC_SYNC_COLUMNS = `
   content_hash AS "contentHash", metadata
 `;
 
+/** How long one vendor download may take, headers to last byte — generous
+ * for a 512 MB file on a slow link, finite for a stalled one. */
+const VENDOR_DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+
 async function fetchVendorContentToStorage(
   sql: Sql,
   adapter: SyncProviderAdapter,
@@ -587,8 +591,10 @@ async function fetchVendorContentToStorage(
 }> {
   const url = adapter.buildDownloadUrl(args);
   try {
+    // A hung vendor download must not park a sync worker forever.
     const download = await fetch(url, {
       headers: { Authorization: `Bearer ${args.token}` },
+      signal: AbortSignal.timeout(VENDOR_DOWNLOAD_TIMEOUT_MS),
     });
     if (!download.ok) {
       const errorText = await download.text();
@@ -599,10 +605,11 @@ async function fetchVendorContentToStorage(
     }
     const mimeType =
       download.headers.get('content-type') || 'application/octet-stream';
-    // Buffered on purpose: the pg worker has no 64 MB isolate cap (the 0.4
-    // streaming constraint), and `putOrgBlobBytes` enforces the same size
-    // ceiling uploads get.
-    const bytes = new Uint8Array(await download.arrayBuffer());
+    // Buffered (the blob store signs whole bodies), but never unbounded: the
+    // declared length is refused before a byte is read and the received
+    // bytes abort at the cap — `putOrgBlobBytes` re-checks the same ceiling,
+    // it just can no longer be the FIRST check a multi-GB file meets.
+    const bytes = await readBodyBounded(download, MAX_UPLOAD_BYTES);
     const ref = await putOrgBlobBytes(sql, args.organizationId, {
       bytes,
       contentType: mimeType,
@@ -704,7 +711,11 @@ export interface PgSyncImportDeps {
   findDocumentByExternalId: (args: {
     organizationId: string;
     externalItemId: string;
-  }) => Promise<{ _id: never; contentHash?: string } | null>;
+  }) => Promise<{
+    _id: never;
+    contentHash?: string;
+    metadata?: Record<string, unknown> | null;
+  } | null>;
   createDocument: (args: {
     organizationId: string;
     title: string;
@@ -745,6 +756,10 @@ export interface PgSyncImportDeps {
   ) => Promise<void>;
   linkDocumentToFile: (storageId: string, documentId: string) => Promise<void>;
   scheduleHubDocumentRagIndexing: (documentId: string) => Promise<void>;
+  bindDocumentToSync: (args: {
+    documentId: string;
+    metadata: Record<string, unknown>;
+  }) => Promise<void>;
   upsertSyncConfig: (
     target: {
       itemType: 'file' | 'folder';
@@ -785,8 +800,14 @@ export function createSyncImportDeps(
       // Deliberately NO lifecycle filter (0.4 contract): a trashed row with
       // the same external id must update in place, or the next sweep would
       // resurrect the document the user just trashed as a duplicate.
-      const rows = await sql<{ id: string; contentHash: string | null }[]>`
-        SELECT id, content_hash AS "contentHash" FROM app.documents
+      const rows = await sql<
+        {
+          id: string;
+          contentHash: string | null;
+          metadata: Record<string, unknown> | null;
+        }[]
+      >`
+        SELECT id, content_hash AS "contentHash", metadata FROM app.documents
         WHERE org_id = ${findArgs.organizationId}
           AND external_item_id = ${findArgs.externalItemId}
         ORDER BY created_at_ms ASC
@@ -798,6 +819,7 @@ export function createSyncImportDeps(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for the reused pipeline's Convex Id<'documents'> brand
         _id: row.id as never,
         ...(row.contentHash !== null ? { contentHash: row.contentHash } : {}),
+        metadata: row.metadata,
       };
     },
     createDocument: async (createArgs) => {
@@ -824,9 +846,27 @@ export function createSyncImportDeps(
           ${createArgs.createdBy ?? null}, ${folderId}, ${folderPath},
           ${now}, ${now}
         )
+        ON CONFLICT (org_id, external_item_id)
+          WHERE external_item_id IS NOT NULL
+          DO NOTHING
         RETURNING id
       `;
-      const id = inserted[0]?.id;
+      let id = inserted[0]?.id;
+      if (id === undefined) {
+        // Lost a race with a concurrent sync of the same item (an
+        // overlapping run, a second config over the same folder): the key
+        // is unique in the schema (0073), so the row exists now — hand it
+        // back and let this run refresh it rather than fail the config on
+        // a unique violation.
+        const existing = await sql<{ id: string }[]>`
+          SELECT id FROM app.documents
+          WHERE org_id = ${createArgs.organizationId}
+            AND external_item_id = ${createArgs.externalItemId}
+          ORDER BY created_at_ms ASC
+          LIMIT 1
+        `;
+        id = existing[0]?.id;
+      }
       if (!id) throw new Error('Document insert failed');
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for the reused pipeline's Convex Id<'documents'> brand
       return id as never;
@@ -887,22 +927,27 @@ export function createSyncImportDeps(
           updated_at_ms = ${Date.now()}
         WHERE id = ${documentId}
       `;
+      // A re-filed document keeps its embeddings but moves in the corpus
+      // FILTER (folder-scoped search matches the stamped path) — re-stamp.
+      // A replaced blob re-indexes via the schedule below and stamps itself.
+      if (updateArgs.folderId !== undefined && !blobReplaced) {
+        await syncRagDocumentScope(sql, organizationId, documentId);
+      }
 
-      // The replaced blob's corpus chunks are keyed by the OLD ref — purge
-      // them best-effort (the 0.4 `reindexDocumentInRag` old-entry purge);
-      // the new blob indexes via the schedule dep below.
+      // The replaced blob's corpus chunks are keyed by the OLD ref — release
+      // them through the shared refcounted seam (the 0.4
+      // `reindexDocumentInRag` old-entry purge, made durable: a swallowed
+      // failure used to strand the stale rows forever). The ref sits in
+      // `history_files` now, so the job de-indexes the corpus and keeps the
+      // bytes; the new blob indexes via the schedule dep below.
       if (blobReplaced && doc.fileRef !== null) {
-        const orgSlug = await resolveOrgSlug(sql, organizationId);
-        if (orgSlug) {
-          try {
-            await deleteKnowledgeDocument({ orgSlug, fileId: doc.fileRef });
-          } catch (error) {
-            console.warn(
-              `[${adapter.sourceProvider}] corpus purge failed for replaced blob ${doc.fileRef}:`,
-              error instanceof Error ? error.message : error,
-            );
-          }
-        }
+        const oldRef = doc.fileRef;
+        await sql.begin(async (tx) => {
+          await addJobInTx(tx, 'knowledge.release_refs', {
+            organizationId,
+            refs: [oldRef],
+          });
+        });
       }
     },
     getOrCreateFolderPath: async (orgId, pathSegments, createdBy, teamId) =>
@@ -961,6 +1006,17 @@ export function createSyncImportDeps(
     },
     scheduleHubDocumentRagIndexing: async (documentId) => {
       await scheduleDocumentRagIndexing(sql, documentId);
+    },
+    // A metadata MERGE, never a replace: the document's content, hash, and
+    // every other key stay; only the sync binding lands.
+    bindDocumentToSync: async ({ documentId, metadata }) => {
+      await sql`
+        UPDATE app.documents SET
+          metadata = COALESCE(metadata, '{}'::jsonb)
+            || ${sql.json(toJson(metadata))}::jsonb,
+          updated_at_ms = ${Date.now()}
+        WHERE id = ${documentId} AND org_id = ${organizationId}
+      `;
     },
     upsertSyncConfig: async (target) =>
       upsertSyncConfigRow(sql, adapter.configTable, target),
@@ -1359,40 +1415,91 @@ export async function syncOneConfigWith(
 // ------------------------------------------------------------------- engine
 
 /** A run older than this may be re-claimed (crashed worker recovery). */
-const SYNC_CLAIM_STALE_MS = 30 * 60 * 1000;
+export const SYNC_CLAIM_STALE_MS = 30 * 60 * 1000;
+/** A live run refreshes its claim this often — well inside the stale window,
+ * so only a run whose process died (no heartbeat) ever reads as stale. */
+export const SYNC_CLAIM_HEARTBEAT_MS = 5 * 60 * 1000;
+
+/** Refresh a live run's claim stamp; a no-op once the run has stamped its
+ * outcome (the row is no longer 'running'). */
+async function renewSyncClaim(
+  sql: Sql,
+  table: string,
+  payload: { organizationId: string; configId: string },
+): Promise<void> {
+  await sql`
+    UPDATE ${sql.unsafe(table)} SET updated_at_ms = ${Date.now()}
+    WHERE id = ${payload.configId} AND org_id = ${payload.organizationId}
+      AND last_sync_status = 'running'
+  `;
+}
+
+/** Configs per scan page — how many sit in memory at once, not how many
+ * the platform syncs. */
+const SYNC_SCAN_PAGE_SIZE = 1000;
 
 /**
  * Cron scan: one per-config job per syncable config. `error` configs are
  * retried too (a transient vendor failure must not silently end a sync
  * forever — the 0.4 active-only listing predates this engine); `inactive`
  * is the only terminal state (cancel, source deleted, folder removed).
+ *
+ * The scan WALKS every syncable config (keyset pages in id order, the
+ * trigger scanner's idiom) rather than taking the first N: a bare
+ * `LIMIT 1000 ORDER BY created_at_ms` handed every config past the
+ * thousandth to never — the newest syncs sat `active` with no job, no
+ * error and no log. The per-config `singletonKey` keeps a config that is
+ * still queued from being enqueued twice, so a complete walk costs one
+ * no-op enqueue per busy config and nothing else.
  */
 export async function runSyncScanWith(
   sql: Sql,
   adapter: SyncProviderAdapter,
+  options: { pageSize?: number } = {},
 ): Promise<number> {
-  const rows = await sql<{ id: string; organizationId: string }[]>`
-    SELECT id, org_id AS "organizationId" FROM ${sql.unsafe(adapter.configTable)}
-    WHERE status IN ('active', 'error')
-    ORDER BY created_at_ms ASC
-    LIMIT 1000
-  `;
-  for (const row of rows) {
-    await addJobInTx(
-      sql,
-      adapter.configJobName,
-      { organizationId: row.organizationId, configId: row.id },
-      { singletonKey: `${adapter.singletonPrefix}${row.id}` },
-    );
+  const pageSize = options.pageSize ?? SYNC_SCAN_PAGE_SIZE;
+  let enqueued = 0;
+  let cursor: string | null = null;
+  for (;;) {
+    const page: SyncScanRow[] = await sql<SyncScanRow[]>`
+      SELECT id, org_id AS "organizationId" FROM ${sql.unsafe(adapter.configTable)}
+      WHERE status IN ('active', 'error')
+        AND (${cursor}::text IS NULL OR id > ${cursor})
+      ORDER BY id
+      LIMIT ${pageSize}
+    `;
+    for (const row of page) {
+      await addJobInTx(
+        sql,
+        adapter.configJobName,
+        { organizationId: row.organizationId, configId: row.id },
+        { singletonKey: `${adapter.singletonPrefix}${row.id}` },
+      );
+      enqueued += 1;
+    }
+    if (page.length < pageSize) break;
+    const last: SyncScanRow | undefined = page.at(-1);
+    if (last === undefined) break;
+    cursor = last.id;
   }
-  return rows.length;
+  return enqueued;
 }
 
-/** One per-config sync job: claim, reconcile, stamp the outcome. */
+interface SyncScanRow {
+  id: string;
+  organizationId: string;
+}
+
+/**
+ * One per-config sync job: claim, reconcile, stamp the outcome. The claim is
+ * kept fresh by a heartbeat for as long as the run is alive, so the stale
+ * window below only ever re-admits a run whose worker actually died.
+ */
 export async function runSyncConfigJobWith(
   sql: Sql,
   adapter: SyncProviderAdapter,
   payload: { organizationId: string; configId: string },
+  opts: { heartbeatMs?: number } = {},
 ): Promise<void> {
   // Claim fence: a second job for the same config no-ops while a fresh run
   // is in flight; a stale 'running' stamp (crashed worker) is reclaimable.
@@ -1412,6 +1519,23 @@ export async function runSyncConfigJobWith(
     payload.configId,
   );
   if (!config) return;
+
+  // Heartbeat: the fence treats a 'running' stamp older than
+  // SYNC_CLAIM_STALE_MS as a crashed worker. Nothing used to refresh the
+  // stamp during a run, so a folder sync that merely took longer than that
+  // (large folder, slow tenant) was re-claimed by the next cron tick and ran
+  // twice concurrently — racing createDocument into duplicate documents.
+  const heartbeat = setInterval(() => {
+    renewSyncClaim(sql, adapter.configTable, payload).catch(
+      (error: unknown) => {
+        console.warn(
+          `[${adapter.displayName} sync] claim heartbeat failed for config ${payload.configId}:`,
+          error instanceof Error ? error.message : error,
+        );
+      },
+    );
+  }, opts.heartbeatMs ?? SYNC_CLAIM_HEARTBEAT_MS);
+  heartbeat.unref();
 
   try {
     const result = await syncOneConfigWith(sql, adapter, config);
@@ -1446,6 +1570,8 @@ export async function runSyncConfigJobWith(
       lastSyncStatus: 'error',
       errorMessage: error instanceof Error ? error.message : String(error),
     });
+  } finally {
+    clearInterval(heartbeat);
   }
 }
 

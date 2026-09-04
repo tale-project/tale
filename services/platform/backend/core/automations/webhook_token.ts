@@ -32,17 +32,24 @@ export function mintWebhookToken(): string {
   return base64UrlEncode(crypto.getRandomValues(new Uint8Array(TOKEN_BYTES)));
 }
 
-/** SHA-256 of a token, hex encoded — what the trigger row stores. */
-export async function hashWebhookToken(token: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(token),
-  );
+/** Hex SHA-256 of a string (UTF-8) or of raw bytes — the one digest the
+ * webhook lane uses for its token verifier and its delivery identities. */
+export async function sha256Hex(
+  input: string | Uint8Array<ArrayBuffer>,
+): Promise<string> {
+  const bytes: Uint8Array<ArrayBuffer> =
+    typeof input === 'string' ? new TextEncoder().encode(input) : input;
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
   let hex = '';
   for (const byte of new Uint8Array(digest)) {
     hex += byte.toString(16).padStart(2, '0');
   }
   return hex;
+}
+
+/** SHA-256 of a token, hex encoded — what the trigger row stores. */
+export function hashWebhookToken(token: string): Promise<string> {
+  return sha256Hex(token);
 }
 
 /** Reject a value that cannot be one of ours before hashing it. */

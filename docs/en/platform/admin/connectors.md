@@ -5,7 +5,7 @@ description: Settings > Connectors is where an organisation adds, names, default
 
 Every connector ships with the platform, so the administrator's job is never installation — it is deciding which accounts Tale may act as, and keeping those credentials healthy. A connector holds as many credentials as you need, one per workspace, store, mailbox, or bot, and one of them answers for any caller that names none. This page is the operations side of that: what the page shows, how each authentication method is filled in, and what happens when you promote, disable, delete, or reconnect a row.
 
-The catalog itself — the thirteen connectors, what each one buys you, and how their actions reach automations and chat — is on [Connectors](/platform/connectors/overview). Reading time here is best spent on the credential lifecycle, because that is the part that differs per organisation and the part that breaks.
+The catalog itself — the thirteen connectors, what each one buys you, and how their actions reach automations and agent runs — is on [Connectors](/platform/connectors/overview). Reading time here is best spent on the credential lifecycle, because that is the part that differs per organisation and the part that breaks.
 
 ## What the page shows
 
@@ -17,7 +17,7 @@ Two warnings appear here, and they mean different things. _No default credential
 
 ## Adding a credential
 
-**Add credential** opens the shipped catalog. Connectors you already hold a credential for come first, under **In use**; everything else follows below it, alphabetically, each with its category tags and how many actions it exposes. Search narrows the list; picking one moves you to the setup step, and **Back to the catalog** returns.
+**Add credential** opens the shipped catalog. Connectors you already hold a credential for come first, under **Configured**; everything else follows below it, each with its category tags and how many actions it exposes. Search narrows the list; picking one moves you to the setup step, and **Back** returns.
 
 Setup asks for a **Name** first, and the field's help text is the reason it matters: the name an action uses to pick this credential. Choose something an automation author will recognise months later, such as `Support inbox` or `EU store`.
 
@@ -53,7 +53,7 @@ No secret to type, so the setup step is the hand-off alone: **Connect** takes yo
 
 </Tabs>
 
-Adding a second credential to a connector that already has one is the same flow again — it simply appears under **In use** in the catalog. There is no limit to work around and nothing to disconnect first.
+Adding a second credential to a connector that already has one is the same flow again — it simply appears under **Configured** in the catalog. There is no limit to work around and nothing to disconnect first.
 
 <Note>
 
@@ -63,15 +63,15 @@ Confluence and Shopify also ask for an **Instance URL**, because neither has a s
 
 ## Choosing the default
 
-One credential per connector can be the **Default**, and **Make default** on any row moves it. The default is what resolution falls back to when an automation node or a chat action names no credential. Mail sync is the exception that proves the rule the other way: `conversation.sync_mailbox` walks every _active_ credential on the connector so adding a second IMAP mailbox (or a second Gmail account) does not leave it unsynced until you promote it. Inbox triage does the same fan-out through `conversation.list_mailbox_messages`.
+One credential per connector can be the **Default**, and **Make default** on any row moves it. The default is what resolution falls back to when an automation node — or an agent's call through the broker — names no credential. Mail sync is the exception that proves the rule the other way: `conversation.sync_mailbox` walks every _active_ credential on the connector so adding a second IMAP mailbox (or a second Gmail account) does not leave it unsynced until you promote it. Inbox triage does the same fan-out through `conversation.list_mailbox_messages`.
 
 A connector with several credentials and no default is a working configuration with a gap in it. Callers that name a row keep running; callers that do not cannot pick one and fail. Promote a row and the gap closes immediately.
 
 ## Replacing a secret
 
-Rotating a key is an edit on the credential, not a separate operation. Open the row and choose **Replace API key**, **Replace token**, or **Replace username & password**, depending on the method. The stored secret is never shown back to you, and entering a new one replaces it everywhere that credential is used — every automation node and every chat action pointed at that row picks up the new secret without being touched.
+Rotating a key is an edit on the credential, not a separate operation. Open the row and choose **Replace API key**, **Replace token**, or **Replace username & password**, depending on the method. The stored secret is never shown back to you, and entering a new one replaces it everywhere that credential is used — every automation node pointed at that row picks up the new secret without being touched.
 
-The credential keeps its name, its default flag, and its instance URL through a replacement, so nothing downstream has to be repointed. **Edit name & instance** covers the other direction: renaming a row, or moving it to a different instance origin.
+The credential keeps its name, its default flag, and its instance URL through a replacement, so nothing downstream has to be repointed. **Edit credential** covers the other direction: renaming a row, or moving it to a different instance origin.
 
 ## Disabling and deleting
 
@@ -79,7 +79,7 @@ The credential keeps its name, its default flag, and its instance URL through a 
 
 <Warning>
 
-**Delete** is immediate and final. Automations and chat actions using that credential lose access to this connector at once — there is no grace period. Deleting the default leaves the connector without one until another row is promoted, and the confirmation says so before you commit.
+**Delete** is immediate and final. Automations and agent runs using that credential lose access to this connector at once — there is no grace period. Deleting the default leaves the connector without one until another row is promoted, and the confirmation says so before you commit.
 
 </Warning>
 
@@ -101,10 +101,8 @@ An OAuth credential whose stored authorization expired or was revoked shows **Re
 
 ## Connectors and MCP servers
 
-Both surfaces let an agent reach past Tale, and the difference is who owns the bridge. A connector is vendor-specific, ships with the platform, and is maintained for you; your side of it is the credential. An MCP server is a process you host and register under **Settings > API > MCP**, exposing whatever tools you write. Reach for the connector when one exists for the target system, and for [MCP servers](/platform/connectors/mcp-servers) when none does.
+A connector is vendor-specific, ships with the platform, and is maintained for you; your side of it is the credential. Registering your own MCP server for agents to call is not part of this version — when no connector exists for a system, your own code reaches it from a project agent's **Secrets** or an automation's `transform` node, and Tale's one MCP surface is the inbound endpoint under **Settings > API > MCP**, where your client drives Tale. [MCP servers](/platform/connectors/mcp-servers) lays out both.
 
 ## Where this fits
 
-Credential management is the whole of connector administration now that nothing is installed: add the accounts, name them well, keep one default per connector, and reconnect the OAuth rows that lapse. [Connectors](/platform/connectors/overview) is the catalog those credentials attach to, [Agent tools](/platform/agents/tools) shows how the resulting actions arrive in an agent's toolbelt, and [Configure approvals](/platform/approvals/configure) is where the write actions are held for a person to release.
-</content>
-</invoke>
+Credential management is the whole of connector administration now that nothing is installed: add the accounts, name them well, keep one default per connector, and reconnect the OAuth rows that lapse. [Connectors](/platform/connectors/overview) is the catalog those credentials attach to, [Project agents](/platform/projects/project-agents) shows how the resulting actions arrive in an agent's equipment, and [Configure approvals](/platform/approvals/configure) is where the write actions are held for a person to release.

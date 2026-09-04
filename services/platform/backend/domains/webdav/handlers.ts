@@ -26,7 +26,11 @@ import {
 } from '../../lib/rate-limit.ts';
 import { registerUploadedBytes } from '../files/service.ts';
 import { MAX_FOLDER_DEPTH } from '../folders/service.ts';
-import { markRagQueued } from '../knowledge/service.ts';
+import {
+  markRagQueued,
+  syncRagDocumentScope,
+  syncRagFolderSubtree,
+} from '../knowledge/service.ts';
 import {
   assertNotHeld,
   LegalHoldError,
@@ -511,7 +515,14 @@ async function purgeLocksAtAndBelow(
   `;
 }
 
-/** PUT-overwrite blob reclaim with the COPY refcount rule. */
+/** PUT-overwrite blob reclaim with the COPY refcount rule: while any ACTIVE
+ * document still exposes the ref, everything stays. Otherwise the file rows
+ * are marked trashed and the physical release rides the durable
+ * `knowledge.release_refs` job — the shared refcounted seam de-indexes the
+ * old ref's corpus rows (a PUT-overwrite used to strand them retrievable
+ * forever) and deletes the bytes ONLY when no document holds the ref in any
+ * lifecycle (a trashed twin is restorable, so its bytes now survive an
+ * overwrite of the live copy), with network I/O out of this transaction. */
 async function purgeOldBlob(
   tx: TransactionSql,
   organizationId: string,
@@ -531,7 +542,10 @@ async function purgeOldBlob(
     WHERE storage_ref = ${oldFileRef}
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
   `;
-  await deleteOrgBlobRef(tx, organizationId, oldFileRef);
+  await addJobInTx(tx, 'knowledge.release_refs', {
+    organizationId,
+    refs: [oldFileRef],
+  });
 }
 
 async function deleteOrgBlobRef(
@@ -1126,7 +1140,7 @@ export function webdavHandlers(
       const destName = nfc(args.destName);
       const destParentSegments = args.destParentSegments.map(nfc);
       const srcSegments = args.srcSegments.map(nfc);
-      return sql.begin(async (tx) => {
+      const moved = await sql.begin(async (tx) => {
         if (args.src.kind === 'folder') {
           await assertVisibleFolderSrc(tx, args.organizationId, args.src.id);
         }
@@ -1220,6 +1234,14 @@ export function webdavHandlers(
         );
         return { created: collision === null };
       });
+      // The corpus copies each document's folder path (folder-scoped search
+      // matches on it) — re-stamp what the MOVE re-filed, after commit.
+      if (args.src.kind === 'document') {
+        await syncRagDocumentScope(sql, args.organizationId, args.src.id);
+      } else {
+        await syncRagFolderSubtree(sql, args.organizationId, args.src.id);
+      }
+      return moved;
     },
 
     'webdav/tree_mutations:copyResource': async (raw) => {

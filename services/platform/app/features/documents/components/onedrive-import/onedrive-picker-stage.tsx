@@ -38,6 +38,9 @@ interface OneDrivePickerStageProps {
   loadingDrives: boolean;
   loadingSpFiles: boolean;
   currentItems: OneDriveApiItem[];
+  /** How many items the listing shows when the folder holds MORE than the
+   *  listing bound (the picker says so); null when the listing is whole. */
+  listingTruncatedCount: number | null;
   selectedSite: SharePointSite | null;
   selectedDrive: SharePointDrive | null;
   spFolderPath: Array<{ id: string | undefined; name: string }>;
@@ -78,6 +81,7 @@ export function OneDrivePickerStage({
   loadingDrives,
   loadingSpFiles,
   currentItems,
+  listingTruncatedCount,
   selectedSite,
   selectedDrive,
   spFolderPath,
@@ -101,6 +105,13 @@ export function OneDrivePickerStage({
   onDisconnected,
   t,
 }: OneDrivePickerStageProps) {
+  // The folder holds more than the listing bound: say so under the table,
+  // so a picker never passes a shorter folder off as the whole one.
+  const truncatedNotice = listingTruncatedCount !== null && (
+    <Text as="p" variant="muted" role="status">
+      {t('onedrive.listingTruncated', { count: listingTruncatedCount })}
+    </Text>
+  );
   return {
     customHeader: (
       <div className="border-border border-b">
@@ -195,6 +206,7 @@ export function OneDrivePickerStage({
               handleFolderClick={handleFolderClick}
               buildItemPath={buildItemPath}
             />
+            {truncatedNotice}
           </>
         )}
 
@@ -257,6 +269,7 @@ export function OneDrivePickerStage({
                   handleFolderClick={onSpFolderClick}
                   buildItemPath={buildItemPath}
                 />
+                {truncatedNotice}
               </>
             )}
           </>

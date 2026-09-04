@@ -3,7 +3,7 @@ import type { Sql } from 'postgres';
 import { htmlToText } from '../../../lib/knowledge/html-to-text.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
-import { rowMatches } from '../../core/lib/search/relevance.ts';
+import { queryTokens, rowMatches } from '../../core/lib/search/relevance.ts';
 import { contactsSearchStrategy } from '../../core/lib/search/strategies/contacts.ts';
 import { viewerIsAdmin } from './service.ts';
 
@@ -19,14 +19,24 @@ import { viewerIsAdmin } from './service.ts';
  * {@link SCAN_CAP} recent conversations; the body pre-pass reads at most
  * {@link MESSAGE_SCAN_CAP} recent messages (ids only cross that boundary —
  * an unreadable conversation's body match is collected and then discarded
- * by the assignment predicate); contact-name matches feed a bounded id set.
- * A match older than a cap is invisible — `truncated` states the limit.
+ * by the assignment predicate); the contact leg prefilters in SQL and reads
+ * at most {@link CONTACT_SCAN_CAP} recent candidates (mail ingest mints a
+ * contact per correspondent, so the address book is the one table here that
+ * grows without bound). A match older than a cap is invisible — `truncated`
+ * states the limit.
  */
 
 const SCAN_CAP = 300;
 const CONTACT_MATCH_CAP = 25;
+const CONTACT_SCAN_CAP = 500;
 const MESSAGE_SCAN_CAP = 400;
 const BODY_MATCH_CAP = 50;
+
+/** A LIKE pattern matching `token` literally anywhere in the value —
+ * `%`, `_` and `\` are LIKE metacharacters and must not widen the match. */
+function likeContains(token: string): string {
+  return `%${token.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+}
 
 /** A one-field strategy: `subject` is the only prose a conversation row
  * carries. Declared here rather than exported from the shared strategies,
@@ -67,10 +77,25 @@ async function matchingConversationIdsByBody(
   return { ids, truncated };
 }
 
+/**
+ * Contacts whose name / email / external id the term hits. The reused matcher
+ * (`'any'` mode) keeps a contact only when a surviving token hits a text
+ * field at word-start or better, or an id field as a substring — every such
+ * hit is a substring hit, so the SQL prefilter below is a SUPERSET the
+ * matcher then narrows in JS. Bounded and recency-biased like the other
+ * legs: the newest {@link CONTACT_SCAN_CAP} candidates, never the whole
+ * address book loaded per query.
+ */
 async function matchingContactIds(
   sql: Sql,
   args: { organizationId: string; term: string },
 ): Promise<Set<string>> {
+  const lower = args.term.toLowerCase();
+  const tokens = queryTokens(lower, 'any');
+  // An all-stopword question carries no searchable signal (the matcher would
+  // keep nothing either) — no read at all.
+  if (tokens.length === 0) return new Set();
+  const patterns = tokens.map(likeContains);
   const rows = await sql<
     {
       _id: string;
@@ -82,10 +107,13 @@ async function matchingContactIds(
     SELECT id AS "_id", name, email, external_id AS "externalId"
     FROM app.contacts
     WHERE org_id = ${args.organizationId}
-    ORDER BY created_at_ms ASC
+      AND (name ILIKE ANY(${patterns}::text[])
+        OR email ILIKE ANY(${patterns}::text[])
+        OR external_id ILIKE ANY(${patterns}::text[]))
+    ORDER BY created_at_ms DESC
+    LIMIT ${CONTACT_SCAN_CAP}
   `;
   const ids = new Set<string>();
-  const lower = args.term.toLowerCase();
   for (const contact of rows) {
     const wire = Object.fromEntries(
       Object.entries(contact).filter(([, value]) => value !== null),

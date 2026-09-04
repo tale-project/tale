@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 
+import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   failAgentRun,
   listOverdueAgentRuns,
@@ -13,11 +14,15 @@ import {
  * capacity machinery:
  *
  *  - DEADLINE: a run past its hard deadline is failed with the deadline
- *    reason, its session op settled `cancelled`, and its session slot
- *    released — a lost drive chain must never strand a run `running`
- *    forever with its gateway key alive. A PARKED run past deadline fails
- *    too (it never launched, so there is no op or slot to settle) — under
- *    permanent capacity pressure the queue must still drain.
+ *    reason, its sandbox exec STOPPED, its session op settled `cancelled`,
+ *    and its session slot released — a lost drive chain must never strand
+ *    a run `running` forever with its gateway key alive, and failing the
+ *    run must not leave the agent process grinding on in the still-warm
+ *    container (the in-chain deadline cut in `agent_run_host` cancels the
+ *    exec too; a Retry that starts a second exec against the same standing
+ *    workspace must never meet the first one). A PARKED run past deadline
+ *    fails too (it never launched, so there is no exec, op or slot to
+ *    settle) — under permanent capacity pressure the queue must still drain.
  *  - PARKED: the release-edge wake is best-effort; this sweep re-runs the
  *    claim per org so a lost edge costs minutes, never forever.
  *
@@ -39,6 +44,18 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
     });
     if (!didFail) continue;
     failed += 1;
+    // Stop the process, not just its ledger: the exec keeps running until
+    // its own end otherwise (its gateway key is revoked, so it grinds on
+    // auth errors), burning the slot this sweep is about to free. Best-
+    // effort — an unreachable spawner must not keep the run `running`.
+    try {
+      await sessionCancelExec(run.sessionId, run.execId);
+    } catch (error) {
+      console.warn(
+        `[task-agent] watchdog: exec cancel failed for run ${run.id}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
     await sql`
       UPDATE app.sandbox_session_ops SET
         status = 'cancelled', finished_at_ms = ${Date.now()},

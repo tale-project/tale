@@ -34,7 +34,11 @@ review + (eventually) lint guards:
    fed by the `app_realtime.outbox` table: writers call `emitHintInTx` in the
    changing transaction, API pods fan hints out over `GET /events` (SSE), the
    web app maps hints to TanStack Query invalidations and refetches through
-   normal authorized endpoints. No LISTEN/NOTIFY on the write path. Tier-1 hot
+   normal authorized endpoints. No LISTEN/NOTIFY on the write path. Delivered
+   hints are kept for an hour (`OUTBOX_RETENTION_MS`) and reclaimed lazily by
+   the tailing API pods — a bounded, strict-id-prefix sweep ticked from the
+   `/events` poll loop, no cron — and a client resuming from a cursor older
+   than that gets a `resync` event and refetches its org scope. Tier-1 hot
    streams (chat tokens, execution logs) will get dedicated SSE lanes, not the
    hint bus.
 
@@ -73,11 +77,21 @@ and the `/events` hint → `invalidateQueries` hook).
 - Unit tests ride the platform vitest `server` project:
   `bun run --filter @tale/platform test`.
 - `bun run --filter @tale/platform backend:integration` — the real-Postgres
-  proof (260+ checks: boot migrations, serializable retry, transactional
+  proof (380+ checks: boot migrations, serializable retry, transactional
   enqueue, worker pickup latency, auth + SSE replay, org scaffold drain, every
   migrated domain's surface, the REST machine door, SSO/SCIM, the task-agent
   and automation lanes, governance, cloud import, login lockout, audit-chain
-  verification, the dev seeder). Needs a **throwaway** database and an S3 —
+  verification, the dev seeder). Every session-bearing lane runs through
+  `runLanes`: a lane that throws, or one that leaves the suite's shared
+  session dead, ends the run as a recorded `RUN TRUNCATED at lane N of M`
+  failure — a run that executed fewer checks than it contains never reads as
+  green. A probe that must invalidate its own session (2FA enrolment,
+  sign-out, revocation) acts as a throwaway user, never as the shared one —
+  and every extra identity a lane needs comes from `signUpOrgMember` (a
+  member of the suite's org, `memberId` returned for role rewrites) or
+  `signUpUser` (no membership yet: the members API under test, an org the
+  user goes on to create, an account-only probe), never a hand-rolled
+  sign-up. Needs a **throwaway** database and an S3 —
   the blob-backed lanes (files, documents, knowledge, residency, chat) skip
   visibly without `ITEST_S3_ENDPOINT`, and `TALE_CONFIG_DIR` is where the
   probes write the deployment-default config tree:

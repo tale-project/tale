@@ -158,9 +158,16 @@ function gmailToEmailType(msg: RawGmailMessage): EmailType {
 
   const attachments = msg.payload ? findAttachmentParts(msg.payload) : [];
 
+  // Thread on the RFC Message-ID, not Gmail's own API id. A reply's
+  // In-Reply-To / References carry the RFC Message-ID, so storing the API id
+  // as the threading key means those lookups never match and every reply opens
+  // a new conversation. Fall back to the API id only when a (malformed)
+  // message carries no Message-ID header at all.
+  const rfcMessageId = getHeader(hdrs, 'Message-ID');
+
   return {
     uid: 0,
-    messageId: msg.id || '',
+    messageId: rfcMessageId || msg.id || '',
     from: [fromParsed],
     to: parseAddressList(getHeader(hdrs, 'To')),
     cc: parseAddressList(getHeader(hdrs, 'Cc')),
@@ -200,10 +207,16 @@ interface OutlookAttachment {
   contentId?: string;
 }
 
+interface RawInternetMessageHeader {
+  name?: string;
+  value?: string;
+}
+
 interface RawOutlookMessage {
   id?: string;
   internetMessageId?: string;
   conversationId?: string;
+  internetMessageHeaders?: RawInternetMessageHeader[];
   subject?: string;
   receivedDateTime?: string;
   sentDateTime?: string;
@@ -239,6 +252,29 @@ function mapOutlookRecipients(
   });
 }
 
+/**
+ * Read one RFC header out of Graph's `internetMessageHeaders` array (present
+ * only when the fetch `$select`s it). Case-insensitive; empty string when the
+ * header — or the array — is absent.
+ */
+function outlookHeader(
+  headers: RawInternetMessageHeader[] | undefined,
+  name: string,
+): string {
+  if (!Array.isArray(headers)) return '';
+  const lower = name.toLowerCase();
+  for (const header of headers) {
+    if (
+      typeof header?.name === 'string' &&
+      header.name.toLowerCase() === lower &&
+      typeof header.value === 'string'
+    ) {
+      return header.value;
+    }
+  }
+  return '';
+}
+
 function outlookToEmailType(msg: RawOutlookMessage): EmailType {
   const fromAddr = msg.from?.emailAddress ?? {};
   const contentType = msg.body?.contentType?.toLowerCase() ?? '';
@@ -256,10 +292,16 @@ function outlookToEmailType(msg: RawOutlookMessage): EmailType {
     text: contentType === 'text' ? bodyContent : '',
     html: contentType === 'html' ? bodyContent : '',
     flags: msg.isRead ? ['\\Seen'] : [],
+    // Graph omits threading headers from the default message shape, so a reply
+    // fetched without them threaded nowhere. Read them from
+    // `internetMessageHeaders` when the connector `$select`s it; the
+    // Message-ID still falls back to `internetMessageId`.
     headers: {
-      'message-id': msg.internetMessageId || '',
-      'in-reply-to': '',
-      references: '',
+      'message-id':
+        msg.internetMessageId ||
+        outlookHeader(msg.internetMessageHeaders, 'Message-ID'),
+      'in-reply-to': outlookHeader(msg.internetMessageHeaders, 'In-Reply-To'),
+      references: outlookHeader(msg.internetMessageHeaders, 'References'),
     },
     attachments: (msg.attachments ?? [])
       .filter((att) => att['@odata.type'] === '#microsoft.graph.fileAttachment')

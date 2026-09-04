@@ -221,6 +221,137 @@ export async function reapEmptyAncestorFolders(
   }
 }
 
+/**
+ * The canonical spelling of a document's folder path — segment names joined
+ * by `/`, no leading or trailing slash, `null` for the root. Two spellings
+ * reach the database today: the WebDAV lane stores the 0.4 `'/A/B'`, the
+ * folder tree and the sync engines produce `'A/B'`. Everything that COMPARES
+ * paths (the knowledge folder filter and the corpus stamp it matches against)
+ * normalizes through here first, so spelling can never decide whether a
+ * document is found.
+ */
+export function normalizeFolderPath(
+  raw: string | null | undefined,
+): string | null {
+  if (raw === null || raw === undefined) return null;
+  const segments = raw
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+  return segments.length > 0 ? segments.join('/') : null;
+}
+
+/**
+ * Root-to-leaf paths for a set of folders in ONE recursive read, keyed by
+ * folder id. The tree is the truth for where a folder sits — a rename or a
+ * move anywhere above is reflected immediately, which no denormalized copy
+ * can promise. Any folder of the organization, hub or project; a missing or
+ * foreign id has no entry.
+ */
+export async function folderTreePaths(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  folderIds: readonly string[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(folderIds)];
+  if (unique.length === 0) return new Map();
+  const rows = await db<{ folderId: string; path: string }[]>`
+    WITH RECURSIVE chain AS (
+      SELECT f.id AS start_id, f.parent_id, f.name, 1 AS depth
+      FROM app.folders f
+      WHERE f.org_id = ${organizationId} AND f.id = ANY(${unique})
+      UNION ALL
+      SELECT chain.start_id, f.parent_id, f.name, chain.depth + 1
+      FROM app.folders f
+      JOIN chain ON f.id = chain.parent_id
+      WHERE f.org_id = ${organizationId}
+        AND chain.depth < ${MAX_FOLDER_DEPTH + 2}
+    )
+    SELECT start_id AS "folderId",
+           string_agg(name, '/' ORDER BY depth DESC) AS path
+    FROM chain
+    GROUP BY start_id
+  `;
+  return new Map(rows.map((row) => [row.folderId, row.path]));
+}
+
+/**
+ * Where a document is filed, in canonical spelling, from an already-loaded
+ * tree lookup: the folder tree when the document sits in a folder (fresh
+ * across renames and moves), else the denormalized `documents.folder_path` a
+ * connector stamped on a document without a hub folder, else `null` (root,
+ * or unfiled). The ONE rule every path-comparing surface applies.
+ */
+export function documentFolderPathFrom(
+  doc: { folderId: string | null; folderPath: string | null },
+  treePaths: ReadonlyMap<string, string>,
+): string | null {
+  const treePath =
+    doc.folderId !== null ? treePaths.get(doc.folderId) : undefined;
+  return normalizeFolderPath(treePath ?? doc.folderPath);
+}
+
+/** {@link documentFolderPathFrom} for one document, reading the tree. */
+export async function resolveDocumentFolderPath(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  doc: { folderId: string | null; folderPath: string | null },
+): Promise<string | null> {
+  const treePaths =
+    doc.folderId !== null
+      ? await folderTreePaths(db, organizationId, [doc.folderId])
+      : new Map<string, string>();
+  return documentFolderPathFrom(doc, treePaths);
+}
+
+/**
+ * Every live, file-backed document under a folder (the folder itself
+ * included) with its canonical folder path — what a rename or a move of that
+ * folder has to re-stamp wherever the path is copied (the knowledge corpus
+ * row the folder filter matches on).
+ */
+export async function subtreeDocumentFolderPaths(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  folderId: string,
+): Promise<Array<{ fileRef: string; folderPath: string | null }>> {
+  const docs = await db<
+    {
+      fileRef: string;
+      folderId: string | null;
+      folderPath: string | null;
+    }[]
+  >`
+    WITH RECURSIVE subtree AS (
+      SELECT f.id, 1 AS depth
+      FROM app.folders f
+      WHERE f.org_id = ${organizationId} AND f.id = ${folderId}
+      UNION ALL
+      SELECT f.id, subtree.depth + 1
+      FROM app.folders f
+      JOIN subtree ON f.parent_id = subtree.id
+      WHERE f.org_id = ${organizationId}
+        AND subtree.depth < ${MAX_FOLDER_DEPTH + 2}
+    )
+    SELECT d.file_ref AS "fileRef", d.folder_id AS "folderId",
+           d.folder_path AS "folderPath"
+    FROM app.documents d
+    JOIN subtree s ON s.id = d.folder_id
+    WHERE d.org_id = ${organizationId}
+      AND d.file_ref IS NOT NULL
+      AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
+  `;
+  const treePaths = await folderTreePaths(
+    db,
+    organizationId,
+    docs.flatMap((doc) => (doc.folderId !== null ? [doc.folderId] : [])),
+  );
+  return docs.map((doc) => ({
+    fileRef: doc.fileRef,
+    folderPath: documentFolderPathFrom(doc, treePaths),
+  }));
+}
+
 /** Root-to-leaf hub path (segment names) for a folder id; used to match
  *  sync-config `item_path` values when a hub folder is deleted. */
 export async function buildHubFolderPath(

@@ -40,7 +40,7 @@ export function isStructuredBackendError(err: unknown): boolean {
 
 /**
  * The `code` string from a structured `AppError`'s `data`, if present.
- * Lets the UI branch on a backend error kind (e.g. an connector that isn't
+ * Lets the UI branch on a backend error kind (e.g. a connector that isn't
  * connected) instead of substring-matching a human message. Returns
  * `undefined` for a plain error or a `data` without a string `code`.
  */

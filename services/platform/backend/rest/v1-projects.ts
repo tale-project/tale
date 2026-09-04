@@ -14,6 +14,7 @@ import {
   getFileUrl,
   registerUpload,
 } from '../domains/files/service.ts';
+import { sweepUploadIntents } from '../domains/files/upload-intents.ts';
 import {
   getOrCreateProjectFolder,
   listFolders,
@@ -30,6 +31,9 @@ import {
   assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
+  formatKeysetCursor,
+  pageLimit,
+  parseKeysetCursor,
   requireEditor,
   restProjectAuth,
   RestRefusal,
@@ -272,13 +276,13 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           ${project.id}, ${handoff.storageRef}, ${expiresAt}, ${now}
         )
       `;
-      // Lazy sweep of dead handshakes (consumed, or expired a day ago).
-      await deps.sql`
-        DELETE FROM app.rest_upload_intents
-        WHERE org_id = ${c.get('organizationId')}
-          AND (consumed_at_ms IS NOT NULL
-            OR expires_at_ms < ${now - 24 * 3_600_000})
-      `;
+      // Lazy sweep of dead handshakes (consumed) and ABANDONED uploads (never
+      // bound: their blob is reclaimed with the row — the intent is the only
+      // record the bytes exist).
+      await sweepUploadIntents(deps.sql, {
+        organizationId: c.get('organizationId'),
+        ledger: 'app.rest_upload_intents',
+      });
       return c.json({
         uploadId,
         url: handoff.uploadUrl,
@@ -345,6 +349,9 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             contentType: body.data.contentType ?? 'application/octet-stream',
             source: 'rest',
           },
+          // Ownership was proven by the `rest_upload_intents` consume above,
+          // in this same transaction.
+          { kind: 'external' },
         );
         const created = await createDocumentFromUpload(tx, auth, {
           fileId: registered.fileId,
@@ -387,22 +394,10 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const project = await loadVisibleProject(c, auth, c.req.param('id'));
     if (project instanceof Response) return project;
     const folderId = c.req.query('folderId')?.trim() || undefined;
-    const limitRaw = Number(c.req.query('limit') ?? '25');
-    const limit = Math.min(
-      Math.max(Number.isFinite(limitRaw) ? limitRaw : 25, 1),
-      100,
-    );
-    const cursor = c.req.query('cursor') ?? null;
-    let cursorCreatedAt: number | null = null;
-    let cursorId: string | null = null;
-    if (cursor !== null && cursor !== '') {
-      const split = cursor.indexOf(':');
-      const createdAt = Number(cursor.slice(0, split));
-      if (split > 0 && Number.isFinite(createdAt)) {
-        cursorCreatedAt = createdAt;
-        cursorId = cursor.slice(split + 1);
-      }
-    }
+    const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
+    const cursor = parseKeysetCursor(c.req.query('cursor'));
+    const cursorCreatedAt = cursor?.at ?? null;
+    const cursorId = cursor?.id ?? null;
     if (folderId !== undefined) {
       const folders = await deps.sql<{ id: string }[]>`
         SELECT id FROM app.folders
@@ -442,7 +437,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json({
       files: page,
       ...(rows.length > limit && last
-        ? { cursor: `${last.createdAt}:${last.id}` }
+        ? { cursor: formatKeysetCursor(last.createdAt, last.id) }
         : {}),
     });
   });

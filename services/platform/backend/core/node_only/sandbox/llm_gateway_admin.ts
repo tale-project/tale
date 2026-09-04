@@ -58,11 +58,26 @@ function adminUsername(): string {
   return gatewayEnv('ADMIN_USERNAME') ?? 'admin';
 }
 
-/** Plaintext admin password, or '' when management auth is not configured
- * (dev). When set, applyGatewayConfig enables auth_config and every /api/*
- * call must carry HTTP Basic auth. */
-function adminPassword(): string {
-  return gatewayEnv('ADMIN_PASSWORD') ?? '';
+/**
+ * Plaintext admin password for the gateway management plane. REQUIRED —
+ * fail closed: the gateway is dual-homed onto the sandbox network with ONE
+ * port serving both inference and `/api/*`, so an anonymous management plane
+ * lets sandboxed code read the config and mint its own unlimited virtual
+ * keys. Every management call sends it as HTTP Basic (managementHeaders) and
+ * applyGatewayConfig enables auth_config with it, so the plane is never left
+ * open. Exported so session provisioning can surface the precondition once,
+ * before any network call.
+ */
+export function requireGatewayAdminPassword(): string {
+  const pw = gatewayEnv('ADMIN_PASSWORD')?.trim();
+  if (!pw) {
+    throw new Error(
+      'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set — the sandbox LLM gateway management API must never ' +
+        'run anonymous (it is reachable from every sandbox session). `tale deploy` and `bun run dev` mint it ' +
+        'into .env; for a hand-rolled compose stack set it in .env (compose.dev.yml carries an insecure dev default).',
+    );
+  }
+  return pw;
 }
 
 /** Total per-request timeout pushed to every provider's `network_config`. */
@@ -83,19 +98,18 @@ const STREAM_IDLE_TIMEOUT_SECONDS = Number(
 );
 
 function managementHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
-    'content-type': 'application/json',
-  };
   // The gateway authenticates /api/* with HTTP Basic
-  // (admin_username/admin_password), not a bearer token. Send Basic when a
-  // password is configured; harmless before auth_config is enabled, required
-  // after. Omitted entirely in dev (no password → management plane open).
-  const pw = adminPassword();
-  if (pw) {
-    const basic = Buffer.from(`${adminUsername()}:${pw}`).toString('base64');
-    headers.authorization = `Basic ${basic}`;
-  }
-  return headers;
+  // (admin_username/admin_password), not a bearer token. ALWAYS sent:
+  // harmless before auth_config is enabled (the first applyGatewayConfig on a
+  // fresh gateway), required after — and requireGatewayAdminPassword() fails
+  // closed, so there is no anonymous management call at all.
+  const basic = Buffer.from(
+    `${adminUsername()}:${requireGatewayAdminPassword()}`,
+  ).toString('base64');
+  return {
+    'content-type': 'application/json',
+    authorization: `Basic ${basic}`,
+  };
 }
 
 /** Provider names the gateway serves with a BUILT-IN implementation (its own
@@ -713,11 +727,11 @@ export async function provisionProviders(
  *   - `enforce_governance_header` → allowed_models / key binding is actually
  *     enforced on that VK (without it the gateway stores allowed_models but
  *     does not enforce it on the inference path).
- *   - `auth_config` (admin Basic auth over /api/*) when
- *     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is set → the management plane stops
- *     being anonymous. The gateway hashes the stored password itself and
- *     compares with bcrypt; managementHeaders() sends the plaintext as
- *     Basic.
+ *   - `auth_config` (admin Basic auth over /api/*) from the REQUIRED
+ *     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD → the management plane is never
+ *     anonymous (it shares the gateway's single port on the sandbox network).
+ *     The gateway hashes the stored password itself and compares with bcrypt;
+ *     managementHeaders() sends the plaintext as Basic.
  *
  * GET-merge-PUT: `PUT /api/config` reads several client_config fields
  * directly from the payload, so the FULL current client_config is sent with
@@ -752,21 +766,20 @@ export async function applyGatewayConfig(): Promise<void> {
     enforce_auth_on_inference: true,
     enforce_governance_header: true,
   };
-  const body: Record<string, unknown> = { client_config: clientConfig };
-  const pw = adminPassword();
-  if (pw) {
+  const body: Record<string, unknown> = {
+    client_config: clientConfig,
     // Send the PLAINTEXT password — the gateway hashes it itself on store
     // and compares with bcrypt at request time. Pre-hashing would
     // double-hash and every Basic-auth call would 401.
-    body.auth_config = {
+    auth_config: {
       is_enabled: true,
       admin_username: adminUsername(),
-      admin_password: pw,
+      admin_password: requireGatewayAdminPassword(),
       // Inference is gated by enforce_auth_on_inference (VK), not admin
       // login.
       disable_auth_on_inference: true,
-    };
-  }
+    },
+  };
   const putRes = await fetch(`${llmGatewayUrl()}/api/config`, {
     method: 'PUT',
     headers: managementHeaders(),

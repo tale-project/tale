@@ -33,6 +33,7 @@ interface StoreCall {
 
 interface StubOptions {
   entries?: readonly WebdavEntry[];
+  truncated?: boolean;
   file?: WebdavFileBytes;
   removed?: boolean;
   fail?: WebdavStoreErrorCode;
@@ -51,12 +52,13 @@ function stubStore(options: StubOptions = {}): WebdavStore & {
     async list({ organizationId, segments }) {
       calls.push({ method: 'list', organizationId, segments });
       if (options.fail) boom();
-      return (
-        options.entries ?? [
+      return {
+        entries: options.entries ?? [
           { name: 'archive', isDir: true, size: 0 },
           { name: 'notes.md', isDir: false, size: 128 },
-        ]
-      );
+        ],
+        truncated: options.truncated ?? false,
+      };
     },
     async read({ organizationId, segments }) {
       calls.push({ method: 'read', organizationId, segments });
@@ -120,7 +122,20 @@ describe('declared output shapes', () => {
           size: 128,
         },
       ],
+      truncated: false,
     });
+  });
+
+  // Regression: the store's truncation bit was dropped on the floor, so a
+  // hub folder past the listing cap read as a clean, complete list.
+  it('list carries the store’s truncated bit through to the agent', async () => {
+    const natives = webdavNatives(stubStore({ truncated: true }));
+    const output = await natives['webdav.list'](
+      { path: '/reports' },
+      context(),
+    );
+
+    expect(output).toMatchObject({ truncated: true });
   });
 
   it('list names entries of the root without doubling its slash', async () => {
@@ -132,6 +147,7 @@ describe('declared output shapes', () => {
         { path: '/archive', name: 'archive', isDir: true, size: 0 },
         { path: '/notes.md', name: 'notes.md', isDir: false, size: 128 },
       ],
+      truncated: false,
     });
   });
 
@@ -371,7 +387,7 @@ describe('content handling', () => {
   it('passes the read ceiling to the store', async () => {
     let seen = 0;
     const store: WebdavStore = {
-      list: () => Promise.resolve([]),
+      list: () => Promise.resolve({ entries: [], truncated: false }),
       read: ({ maxBytes }) => {
         seen = maxBytes;
         return Promise.resolve({

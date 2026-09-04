@@ -36,5 +36,7 @@ export const previewPageShellClasses =
 export const documentPageClasses = cn(
   previewPageShellClasses,
   'mx-auto min-h-full w-full max-w-2xl p-6',
+  // Belt-and-suspenders for any layout styles the converter still emits.
+  '[&_*]:!static [&_*]:!top-auto [&_*]:!right-auto [&_*]:!bottom-auto [&_*]:!left-auto',
   documentProseClasses,
 );

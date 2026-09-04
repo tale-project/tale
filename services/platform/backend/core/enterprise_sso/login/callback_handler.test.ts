@@ -2,8 +2,41 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../../lib/ctx';
 import { signValue } from '../sign_cookie_value';
+import type { SsoProviderAdapter } from '../types';
 import { ssoCallbackHandler } from './callback_handler';
 import type { FinishLogin } from './finish_login';
+
+/** An IdP that answers the token exchange and userinfo without a network —
+ * the provisioning-refusal case needs the callback to get PAST the adapter. */
+const { fakeAdapter } = vi.hoisted(() => ({
+  fakeAdapter: {
+    providerId: 'fake-idp',
+    displayName: 'Fake IdP',
+    capabilities: {
+      supportsGroupSync: false,
+      supportsRoleMapping: false,
+      supportsOneDriveAccess: false,
+      supportsGoogleDriveAccess: false,
+      supportsPkce: false,
+    },
+    buildAuthorizeUrl: vi.fn(),
+    exchangeCodeForTokens: vi.fn(),
+    getUserInfo: vi.fn(),
+    validateConfig: vi.fn(),
+  },
+}));
+
+vi.mock('../registry', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../registry')>();
+  return {
+    ...actual,
+    getAdapter: (providerId: string): SsoProviderAdapter | null =>
+      providerId === 'fake-idp'
+        ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the vi.fn() members satisfy the adapter contract at runtime
+          (fakeAdapter as unknown as SsoProviderAdapter)
+        : actual.getAdapter(providerId),
+  };
+});
 
 /**
  * Regressions for A2.1 error handling:
@@ -183,5 +216,121 @@ describe('ssoCallbackHandler — error redirects land on the public origin', () 
     const target = new URL(res.headers.get('Location') as string);
     expect(target.origin).toBe(PUBLIC_ORIGIN);
     expect(target.searchParams.get('error')).toBe('sso.errors.userNotAssigned');
+  });
+});
+
+describe('ssoCallbackHandler — a refused provisioning is audited', () => {
+  beforeEach(() => {
+    process.env.BETTER_AUTH_SECRET = SECRET;
+    process.env.SITE_URL = PUBLIC_ORIGIN;
+    delete process.env.BASE_PATH;
+    fakeAdapter.exchangeCodeForTokens.mockResolvedValue({
+      accessToken: 'access-token',
+    });
+    fakeAdapter.getUserInfo.mockResolvedValue({
+      externalId: 'ext-outsider',
+      email: 'outsider@example.test',
+      name: 'Outsider',
+    });
+  });
+
+  afterEach(() => {
+    delete process.env.BETTER_AUTH_SECRET;
+    delete process.env.SITE_URL;
+    vi.clearAllMocks();
+  });
+
+  /** ctx whose config resolves to the fake IdP and whose `handleSsoLogin`
+   * answers `outcome`; `runMutation` is the audit sink under test. */
+  function refusingCtx(outcome: unknown): {
+    ctx: ActionCtx;
+    runMutation: ReturnType<typeof vi.fn>;
+  } {
+    const runMutation = vi.fn().mockResolvedValue(undefined);
+    const ctx = {
+      runQuery: vi.fn().mockResolvedValue({
+        organizationId: 'org1',
+        providerId: 'fake-idp',
+        issuer: 'https://idp.example.test',
+        scopes: ['openid'],
+        autoProvisionRole: false,
+        autoProvisionTeam: false,
+        roleMappingRules: [],
+      }),
+      runAction: vi
+        .fn()
+        // getConnectionSecrets, then handleSsoLogin.
+        .mockResolvedValueOnce({ clientId: 'client', clientSecret: 'secret' })
+        .mockResolvedValueOnce(outcome),
+      runMutation,
+    } as unknown as ActionCtx;
+    return { ctx, runMutation };
+  }
+
+  it('writes the audit row for a refused login and bounces with its key', async () => {
+    const state = await signedState({
+      redirectUri: `${PUBLIC_ORIGIN}/http_api/api/sso/callback`,
+      timestamp: Date.now(),
+      organizationId: 'org1',
+    });
+    const { ctx, runMutation } = refusingCtx({
+      success: false,
+      error: 'sso.errors.notOrgMember',
+    });
+
+    const res = await ssoCallbackHandler(
+      ctx,
+      callbackRequest({ code: 'code', state }),
+      { finishLogin: neverFinishes },
+    );
+
+    expect(res.status).toBe(302);
+    const target = new URL(res.headers.get('Location') as string);
+    expect(target.pathname).toBe('/log-in');
+    expect(target.searchParams.get('error')).toBe('sso.errors.notOrgMember');
+    // The refusal happened with org and email already resolved — exactly
+    // the row an operator investigating a locked-out user needs.
+    expect(runMutation).toHaveBeenCalledTimes(1);
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: 'org1',
+        action: 'sso_login_failed',
+        category: 'auth',
+        status: 'failure',
+        actorEmail: 'outsider@example.test',
+        errorMessage: 'sso.errors.notOrgMember',
+        metadata: expect.objectContaining({
+          stage: 'callback',
+          errorKey: 'sso.errors.notOrgMember',
+          providerId: 'fake-idp',
+        }),
+      }),
+    );
+  });
+
+  it('audits a success without a session token the same way', async () => {
+    const state = await signedState({
+      redirectUri: `${PUBLIC_ORIGIN}/http_api/api/sso/callback`,
+      timestamp: Date.now(),
+      organizationId: 'org1',
+    });
+    const { ctx, runMutation } = refusingCtx({ success: true });
+
+    const res = await ssoCallbackHandler(
+      ctx,
+      callbackRequest({ code: 'code', state }),
+      { finishLogin: neverFinishes },
+    );
+
+    expect(res.status).toBe(302);
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'sso_login_failed',
+        errorMessage: 'Failed to create session',
+        actorEmail: 'outsider@example.test',
+      }),
+    );
   });
 });

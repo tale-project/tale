@@ -6,6 +6,7 @@ import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
   bulkReplyToConversations,
   composeEmailConversation,
@@ -31,13 +32,38 @@ import {
   projectConversationForView,
   type ConversationViewer,
   updateConversation,
+  viewerCanWrite,
 } from './service.ts';
 
 /**
- * /api/app/conversations — the shared Inbox surface. Reads are
- * assignment-scoped through the reused predicate (an unassigned row is
- * admin-triage only); assignment writes are admin-gated in the service.
+ * /api/app/conversations — the shared Inbox surface.
+ *
+ * Access has two independent halves, both ported from 0.4:
+ *  - WHO CAN SEE a thread — assignment privacy, per row, through the reused
+ *    `conversationAssignmentAllows` predicate (an unassigned row is
+ *    admin-triage only). Applied by `loadVisibleConversation`.
+ *  - WHO MAY CHANGE one — an editor-or-above role (`viewerCanWrite`, the 0.4
+ *    `conversations`/`conversationMessages` RLS write rule). A read-only
+ *    `member` may read the threads assigned to them but must not reply, send
+ *    outbound mail under the org's name, change status, bulk-act, or delete.
+ *  Assignment itself is stricter than both: admin-only, gated in the service.
+ *
+ * Roles come from `c.get('orgMember')` — the membership `requireOrgMember`
+ * resolves, which prefers the SESSION-carried role in trusted-headers
+ * deployments (there the `member` row is only a proxy-fed placeholder).
  */
+
+/** The write-role refusal, shaped like the service's own `ConversationError`
+ * envelope so every conversation 403 reads the same on the wire. */
+function forbidWrite<E extends OrgEnv>(c: Context<E>): Response {
+  return c.json(
+    {
+      error: 'FORBIDDEN',
+      message: 'Only editors and above can change conversations',
+    },
+    403,
+  );
+}
 
 function handleError<E extends OrgEnv>(
   c: Context<E>,
@@ -70,6 +96,18 @@ const attachmentSchema = z.object({
 });
 
 const statusSchema = z.enum(['open', 'closed', 'spam', 'archived']);
+
+/**
+ * The Inbox connector filter, read from whichever key the caller sent. The
+ * paginated list adapter serializes `connectorName` while the counts adapter
+ * serializes `connector`; accepting both keeps the two entry points on ONE
+ * server contract (canonical `connectorName`) so the list can no longer show
+ * every connector while the sidebar counts filter correctly.
+ */
+function connectorFilter<E extends OrgEnv>(c: Context<E>): string | undefined {
+  const value = c.req.query('connectorName') ?? c.req.query('connector');
+  return value !== undefined && value !== '' ? value : undefined;
+}
 
 export function createConversationRoutes(deps: {
   sql: Sql;
@@ -106,8 +144,8 @@ export function createConversationRoutes(deps: {
       ...(c.req.query('channel') !== undefined
         ? { channel: c.req.query('channel') ?? '' }
         : {}),
-      ...(c.req.query('connector') !== undefined
-        ? { connectorName: c.req.query('connector') ?? '' }
+      ...(connectorFilter(c) !== undefined
+        ? { connectorName: connectorFilter(c) ?? '' }
         : {}),
       ...(c.req.query('contactId') !== undefined
         ? { contactId: c.req.query('contactId') ?? '' }
@@ -128,16 +166,17 @@ export function createConversationRoutes(deps: {
   });
 
   app.get('/counts', async (c) => {
+    const connector = connectorFilter(c);
     return c.json({
       byStatus: await countConversationsByStatus(
         deps.sql,
         c.get('orgId'),
-        c.req.query('connector') ?? undefined,
+        connector,
       ),
       unread: await countUnreadConversations(
         deps.sql,
         c.get('orgId'),
-        c.req.query('connector') ?? undefined,
+        connector,
       ),
     });
   });
@@ -168,6 +207,7 @@ export function createConversationRoutes(deps: {
   });
 
   app.patch('/:id', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
         contactId: z.string().max(64).optional(),
@@ -182,7 +222,9 @@ export function createConversationRoutes(deps: {
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
       await deps.sql.begin((tx) =>
-        updateConversation(tx, c.get('orgId'), c.req.param('id'), body.data),
+        updateConversation(tx, c.get('orgId'), c.req.param('id'), body.data, {
+          userId: c.get('sessionBundle').user.id,
+        }),
       );
       return c.json({ ok: true });
     } catch (error) {
@@ -191,6 +233,7 @@ export function createConversationRoutes(deps: {
   });
 
   app.post('/:id/read', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
       await deps.sql.begin((tx) =>
@@ -205,6 +248,7 @@ export function createConversationRoutes(deps: {
   /** Append a message (an internal note or a manually logged reply — the
    * connector SEND lane is its own increment). */
   app.post('/:id/messages', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
         content: z.string().min(1).max(200_000),
@@ -279,6 +323,7 @@ export function createConversationRoutes(deps: {
 
   /** One reply body to many conversations (cap 50, partial failure). */
   app.post('/bulk/reply', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
         conversationIds: z.array(z.string().max(64)).min(1).max(200),
@@ -314,8 +359,37 @@ export function createConversationRoutes(deps: {
     }
   });
 
+  /**
+   * Outbound attachments are client-named blob refs the connector will READ
+   * and mail out of the organization. Each must be the sender's own upload
+   * (their upload intent, or a row they registered) — a document's ref,
+   * which every reader of that document holds, is not theirs to send.
+   */
+  const assertOwnedAttachments = async (
+    c: Context<OrgEnv>,
+    attachments: readonly { storageId: string }[] | undefined,
+  ): Promise<void> => {
+    if (attachments === undefined || attachments.length === 0) return;
+    const foreign = await firstForeignUpload(
+      deps.sql,
+      {
+        organizationId: c.get('orgId'),
+        userId: c.get('sessionBundle').user.id,
+      },
+      attachments.map((attachment) => attachment.storageId),
+    );
+    if (foreign !== null) {
+      throw new ConversationError(
+        'attachment_not_owned',
+        'An attachment is not one of your uploads. Remove it and attach the file again.',
+        403,
+      );
+    }
+  };
+
   /** Send a reply through the conversation's connector (undo window). */
   app.post('/:id/reply', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
         content: z.string().min(1).max(200_000),
@@ -326,6 +400,7 @@ export function createConversationRoutes(deps: {
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
+      await assertOwnedAttachments(c, body.data.attachments);
       const messageId = await replyToConversation(deps.sql, {
         conversationId: c.req.param('id'),
         organizationId: c.get('orgId'),
@@ -346,6 +421,7 @@ export function createConversationRoutes(deps: {
 
   /** Start a new outbound email conversation with a contact. */
   app.post('/compose', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
         contactId: z.string().min(1).max(64),
@@ -361,6 +437,7 @@ export function createConversationRoutes(deps: {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
+      await assertOwnedAttachments(c, body.data.attachments);
       const result = await composeEmailConversation(deps.sql, {
         organizationId: c.get('orgId'),
         contactId: body.data.contactId,
@@ -388,9 +465,21 @@ export function createConversationRoutes(deps: {
     }
   });
 
+  /**
+   * The message-level doors (undo / retry / discard / attachments) all check
+   * `viewerCanWrite` and then pass `loadMessageForViewer`: the role decides
+   * whether the caller may act on mail at all, and the load decides which
+   * mail they can reach — a member acts on a message only inside a
+   * conversation they can open, because org scoping alone let a member
+   * holding an id cancel or resend a colleague's mail in a conversation
+   * hidden from them.
+   */
+
   /** Cancel a still-queued send; hands the composer draft back. */
   app.post('/messages/:messageId/undo', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
+      await loadMessageForViewer(deps.sql, viewer(c), c.req.param('messageId'));
       const result = await undoSendMessage(deps.sql, {
         organizationId: c.get('orgId'),
         messageId: c.req.param('messageId'),
@@ -403,40 +492,28 @@ export function createConversationRoutes(deps: {
   });
 
   /**
-   * Materialize a received message's attachments. The provider fetch itself
-   * is absent in BOTH versions (0.4's `downloadAttachmentsAction` is a
-   * no-op), so this door is the guards: the message must exist and be
-   * visible, and its conversation must carry a connector — a conversation no
-   * sync has stamped fails CLOSED rather than dispatching through whichever
-   * provider happens to be configured.
+   * On-demand provider attachment fetch. Attachments whose bytes were captured
+   * at sync (IMAP) are served straight from their `storageId` — the detail
+   * projection presigns a download URL, so those chips never reach here. This
+   * door exists only for the providers whose bytes are NOT captured at sync
+   * (Gmail/Outlook, whose connector `ctx.files` sink is unwired), and it answers
+   * HONESTLY that there is nothing to fetch rather than the fake `{ok:true}` the
+   * previous version returned — which left the client polling for a URL forever.
+   * Wiring the Gmail/Outlook fetch (a `get_attachments` connector action into
+   * the org blob store) is the tracked follow-up that lights this up.
    */
   app.post('/messages/:messageId/attachments', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
-      const message = await loadMessageForViewer(
-        deps.sql,
-        viewer(c),
-        c.req.param('messageId'),
+      await loadMessageForViewer(deps.sql, viewer(c), c.req.param('messageId'));
+      return c.json(
+        {
+          error: 'attachment_bytes_unavailable',
+          message:
+            'These attachment bytes were not captured at sync, and on-demand provider download is not yet wired for this mailbox. Downloadable attachments carry their own link.',
+        },
+        501,
       );
-      if (!message.externalMessageId) {
-        return c.json(
-          {
-            error: 'message_no_external_id',
-            message: 'Message has no external ID for attachment download',
-          },
-          400,
-        );
-      }
-      if (!message.connectorName) {
-        return c.json(
-          {
-            error: 'conversation_connector_missing',
-            message:
-              'Conversation has no connector to download attachments through — unavailable until a sync stamps its connectorName',
-          },
-          400,
-        );
-      }
-      return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
     }
@@ -444,7 +521,9 @@ export function createConversationRoutes(deps: {
 
   /** Re-attempt a failed send immediately (no undo window). */
   app.post('/messages/:messageId/retry', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
+      await loadMessageForViewer(deps.sql, viewer(c), c.req.param('messageId'));
       await retrySendMessage(deps.sql, {
         organizationId: c.get('orgId'),
         messageId: c.req.param('messageId'),
@@ -458,7 +537,9 @@ export function createConversationRoutes(deps: {
 
   /** Remove a failed outbound bubble — the email never left. */
   app.post('/messages/:messageId/discard', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
+      await loadMessageForViewer(deps.sql, viewer(c), c.req.param('messageId'));
       await discardOutboundMessage(deps.sql, {
         organizationId: c.get('orgId'),
         messageId: c.req.param('messageId'),
@@ -471,6 +552,7 @@ export function createConversationRoutes(deps: {
   });
 
   app.post('/bulk/:verb', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const verb = z
       .enum(['close', 'reopen', 'spam', 'archive', 'unarchive'])
       .safeParse(c.req.param('verb'));
@@ -504,6 +586,7 @@ export function createConversationRoutes(deps: {
   });
 
   app.delete('/:id', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
       await deleteConversation(deps.sql, c.get('orgId'), c.req.param('id'));

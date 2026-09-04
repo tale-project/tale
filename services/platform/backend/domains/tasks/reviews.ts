@@ -15,18 +15,20 @@ import {
   notifyTaskReviewResolved,
   taskSubscriberUserIds,
 } from '../collab/service.ts';
-import { emitEvent } from '../events/emit.ts';
 import { holdsAllCompetences } from '../governance/competence.ts';
-import { type ProjectAuthContext } from '../projects/service.ts';
+import {
+  loadProjectOrThrow,
+  type ProjectAuthContext,
+} from '../projects/service.ts';
 import { kickAgentRun } from './agent-runs.ts';
 import { addTaskComment } from './comments.ts';
 import {
-  applyTaskCountTransition,
+  assertTaskWritable,
   computeEndRank,
   hasOpenChildren,
   loadTaskOrThrow,
   recordActivity,
-  taskCountBucket,
+  settleTaskStatusChange,
   TaskError,
   type TaskRow,
 } from './service.ts';
@@ -530,10 +532,13 @@ export async function respondToTaskReview(
       typeof approval.metadata?.taskId === 'string'
         ? approval.metadata.taskId
         : '';
-    const task = await loadTaskOrThrow(tx, taskId);
-    if (task.organizationId !== args.auth.organizationId) {
-      throw new TaskReviewError('REVIEW_NOT_FOUND', 'Review not found', 404);
-    }
+    const task = await loadTaskOrThrow(tx, taskId, args.auth.organizationId);
+    // Deciding a review IS deciding the task (approve completes it,
+    // request-changes kicks the agent and moves the card): the responder
+    // needs the same project WRITE access as any other task mutation —
+    // the review_policy checks below only narrow WHO among the writers.
+    const project = await loadProjectOrThrow(tx, task.projectId);
+    assertTaskWritable(project, args.auth);
 
     const policyOutcome = await checkReviewPolicyForResponder(tx, {
       approval,
@@ -616,47 +621,16 @@ export async function respondToTaskReview(
             updated_at_ms = ${now}, status_changed_at_ms = ${now}
           WHERE id = ${task.id}
         `;
-        await applyTaskCountTransition(
-          tx,
-          task.projectId,
-          taskCountBucket(task),
-          taskCountBucket({ status: 'done', archivedAt: task.archivedAt }),
-        );
-        await recordActivity(tx, {
+        // The resolved bell above already told every subscriber what the
+        // responder decided; the seam adds the rollup, activity, audit and
+        // the platform event, not a second bell.
+        await settleTaskStatusChange(tx, {
           task,
+          toStatus: 'done',
           actorType: 'user',
           actorId: args.auth.userId,
-          action: 'status.changed',
-          fromValue: task.status,
-          toValue: 'done',
-        });
-        await createAuditLog(tx, {
-          organizationId: approval.organizationId,
-          actorId: args.auth.userId,
-          ...(args.auth.email !== undefined
-            ? { actorEmail: args.auth.email }
-            : {}),
-          actorType: 'user',
-          action: 'task.status_changed',
-          category: 'data',
-          resourceType: 'task',
-          resourceId: task.id,
-          resourceName: task.title,
-          previousState: { status: task.status },
-          newState: { status: 'done' },
-          status: 'success',
-        });
-        await emitEvent(tx, {
-          organizationId: approval.organizationId,
-          eventType: 'task.status_changed',
-          eventData: {
-            taskId: task.id,
-            projectId: task.projectId,
-            fromStatus: task.status,
-            toStatus: 'done',
-            actorType: 'user',
-            actorId: args.auth.userId,
-          },
+          audit: args.auth,
+          bell: false,
         });
         taskCompleted = true;
       }
@@ -701,7 +675,7 @@ export async function respondToTaskReview(
       }
       // Changes requested hands the work back to the assignee — the card
       // leaves In review even when no agent kick moved it.
-      const fresh = await loadTaskOrThrow(tx, task.id);
+      const fresh = await loadTaskOrThrow(tx, task.id, task.organizationId);
       if (fresh.status === 'in_review') {
         const rank = await computeEndRank(tx, fresh.projectId, 'in_progress');
         await tx`
@@ -710,22 +684,16 @@ export async function respondToTaskReview(
             status_changed_at_ms = ${now}, updated_at_ms = ${now}
           WHERE id = ${fresh.id}
         `;
-        await applyTaskCountTransition(
-          tx,
-          fresh.projectId,
-          taskCountBucket(fresh),
-          taskCountBucket({
-            status: 'in_progress',
-            archivedAt: fresh.archivedAt,
-          }),
-        );
-        await recordActivity(tx, {
+        // Same seam as the approve leg: the reopen now fires the org's
+        // `task.status_changed` triggers too; the changes-requested bell
+        // already carried the news to the subscribers.
+        await settleTaskStatusChange(tx, {
           task: fresh,
+          toStatus: 'in_progress',
           actorType: 'user',
           actorId: args.auth.userId,
-          action: 'status.changed',
-          fromValue: fresh.status,
-          toValue: 'in_progress',
+          audit: args.auth,
+          bell: false,
         });
         taskReopened = true;
       }

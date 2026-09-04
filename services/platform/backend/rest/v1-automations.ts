@@ -24,6 +24,7 @@ import {
 import {
   chargeLane,
   domainErrorResponse,
+  pageLimit,
   requireDeveloper,
   restProjectAuth,
   type RestEnv,
@@ -56,7 +57,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     });
   });
 
-  app.get('/automations/:name{.+}/versions', async (c) => {
+  app.get('/automations/:name{.+?}/versions', async (c) => {
     const name = decodeName(c, '/versions');
     return c.json({
       name,
@@ -64,7 +65,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     });
   });
 
-  app.get('/automations/:name{.+}/triggers', async (c) => {
+  app.get('/automations/:name{.+?}/triggers', async (c) => {
     const name = decodeName(c, '/triggers');
     return c.json({
       name,
@@ -74,7 +75,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   /** Bind what starts the automation. `token` is present exactly once per
    * minted webhook secret — the row keeps only its hash. */
-  app.put('/automations/:name{.+}/triggers', async (c) => {
+  app.put('/automations/:name{.+?}/triggers', async (c) => {
     const body = z
       .object({
         kind: z.enum(['schedule', 'webhook', 'event']),
@@ -107,7 +108,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   /** Unbind the automation's trigger. Versions and run history stay. */
-  app.delete('/automations/:name{.+}/triggers', async (c) => {
+  app.delete('/automations/:name{.+?}/triggers', async (c) => {
     try {
       requireDeveloper(c);
       const name = decodeName(c, '/triggers');
@@ -121,7 +122,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   /** Bind the automation to a project — the machine door's install step.
    * Idempotent single-project ADD; the target must exist in-org AND be
    * visible to the minting user (an invisible project reads as absent). */
-  app.post('/automations/:name{.+}/projects', async (c) => {
+  app.post('/automations/:name{.+?}/projects', async (c) => {
     const body = z
       .object({ projectId: z.string().min(1).max(64) })
       .safeParse(await c.req.json());
@@ -170,10 +171,15 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  app.get('/automations/:name{.+}/runs', async (c) => {
+  /** The newest runs first — a bounded window (`limit` 1..200, default
+   * 50), not a cursor walk; poll `GET /runs/{runId}` for one run. */
+  app.get('/automations/:name{.+?}/runs', async (c) => {
     const name = decodeName(c, '/runs');
     return c.json({
-      runs: await listRuns(deps.sql, c.get('organizationId'), { name }),
+      runs: await listRuns(deps.sql, c.get('organizationId'), {
+        name,
+        limit: pageLimit(c.req.query('limit'), { fallback: 50, max: 200 }),
+      }),
     });
   });
 
@@ -181,7 +187,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * the run's identity — the caller polls `GET /api/v1/runs/{runId}`. A live
    * run can act on the organization's behalf, so it needs the developer
    * capability; a mock run reaches nothing outside the process. */
-  app.post('/automations/:name{.+}/runs', async (c) => {
+  app.post('/automations/:name{.+?}/runs', async (c) => {
     const limited = await chargeLane(deps.sql, c, 'rest:execute');
     if (limited) return limited;
     const body = z
@@ -228,7 +234,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   /** One version's document — the latest deployed-aware read. */
-  app.get('/automations/:name{.+}', async (c) => {
+  app.get('/automations/:name{.+?}', async (c) => {
     const name = decodeName(c, '');
     const versionParam = c.req.query('version');
     let version: number | undefined;

@@ -1,9 +1,19 @@
 import type { Sql } from 'postgres';
 
-import type { TurnStore, UsageLedger } from '../../../lib/chat/turn.ts';
+import {
+  estimateCostCents,
+  ThreadBusyError,
+  type TurnStore,
+  type UsageLedger,
+  type UsageLedgerEntry,
+} from '../../../lib/chat/turn.ts';
+import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
+import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
+import { MESSAGE_SLOT_ATTEMPTS } from '../threads/store.ts';
 
 /**
  * The Postgres-backed ports the turn pipeline writes through — the 0.5 twin
@@ -42,28 +52,41 @@ export async function appendMessageRow(
     status?: string;
   },
 ): Promise<{ id: string; sequence: number }> {
-  const rows = await sql<{ id: string; order: number }[]>`
-    INSERT INTO app.messages (
-      thread_id, org_id, "order", step_order, role, parts, text, model,
-      provider_slug, usage, blocked_reason, truncation, error, status,
-      created_at_ms
-    )
-    SELECT ${message.threadId}, ${message.organizationId},
-           coalesce(max("order"), -1) + 1, 0, ${message.role},
-           ${message.parts === undefined ? null : sql.json(toJson(message.parts))},
-           ${message.text ?? null}, ${message.model ?? null},
-           ${message.providerSlug ?? null},
-           ${message.usage === undefined ? null : sql.json(toJson(message.usage))},
-           ${message.blockedReason ?? null},
-           ${message.truncation === undefined ? null : sql.json(toJson(message.truncation))},
-           ${message.error ?? null}, ${message.status ?? 'complete'},
-           ${Date.now()}
-    FROM app.messages WHERE thread_id = ${message.threadId}
-    RETURNING id, "order"
-  `;
-  const row = rows[0];
+  // The slot is UNIQUE: two turns appending to one thread at once both read
+  // the same max, and the one the index refuses re-claims the next slot on
+  // a fresh statement instead of tying the winner's ordering.
+  let row: { id: string; order: number } | undefined;
+  for (
+    let attempt = 0;
+    row === undefined && attempt < MESSAGE_SLOT_ATTEMPTS;
+    attempt += 1
+  ) {
+    const rows = await sql<{ id: string; order: number }[]>`
+      INSERT INTO app.messages (
+        thread_id, org_id, "order", step_order, role, parts, text, model,
+        provider_slug, usage, blocked_reason, truncation, error, status,
+        created_at_ms
+      )
+      SELECT ${message.threadId}, ${message.organizationId},
+             coalesce(max("order"), -1) + 1, 0, ${message.role},
+             ${message.parts === undefined ? null : sql.json(toJson(message.parts))},
+             ${message.text ?? null}, ${message.model ?? null},
+             ${message.providerSlug ?? null},
+             ${message.usage === undefined ? null : sql.json(toJson(message.usage))},
+             ${message.blockedReason ?? null},
+             ${message.truncation === undefined ? null : sql.json(toJson(message.truncation))},
+             ${message.error ?? null}, ${message.status ?? 'complete'},
+             ${Date.now()}
+      FROM app.messages WHERE thread_id = ${message.threadId}
+      ON CONFLICT (thread_id, "order", step_order) DO NOTHING
+      RETURNING id, "order"
+    `;
+    row = rows[0];
+  }
   if (!row) {
-    throw new Error('message insert failed');
+    throw new Error(
+      `message insert failed: no free slot after ${MESSAGE_SLOT_ATTEMPTS} attempts`,
+    );
   }
   // A turn just wrote to the thread; keep its list ordering fresh. An
   // assistant row also stamps the unread watermark; activity on a hidden
@@ -198,71 +221,132 @@ export function createPgTurnStore(sql: Sql): TurnStore {
     },
 
     async beginTurn(setup) {
-      let userMessage: { id: string; sequence: number } | undefined;
-      if (setup.userParts !== undefined) {
-        userMessage = await appendMessageRow(sql, {
+      // ONE transaction, per the contract: the user row, the placeholder,
+      // and the generation row commit together or not at all — a crash
+      // between them used to leave a question with no reply, or a 'pending'
+      // bubble no watchdog would ever fail (the watchdog keys on the
+      // generation row, which did not exist yet).
+      const opened = await sql.begin(async (tx) => {
+        let userMessage: { id: string; sequence: number } | undefined;
+        if (setup.userParts !== undefined) {
+          userMessage = await appendMessageRow(tx, {
+            organizationId: setup.organizationId,
+            threadId: setup.threadId,
+            role: 'user',
+            parts: setup.userParts,
+            text: setup.userParts
+              .map((part) => (part.type === 'text' ? part.text : ''))
+              .join(''),
+            ...(setup.truncation !== undefined
+              ? { truncation: setup.truncation }
+              : {}),
+          });
+        }
+        const assistantMessage = await appendMessageRow(tx, {
           organizationId: setup.organizationId,
           threadId: setup.threadId,
-          role: 'user',
-          parts: setup.userParts,
-          text: setup.userParts
-            .map((part) => (part.type === 'text' ? part.text : ''))
-            .join(''),
-          ...(setup.truncation !== undefined
-            ? { truncation: setup.truncation }
-            : {}),
+          role: 'assistant',
+          parts: [],
+          status: 'pending',
         });
-      }
-      const assistantMessage = await appendMessageRow(sql, {
-        organizationId: setup.organizationId,
-        threadId: setup.threadId,
-        role: 'assistant',
-        parts: [],
-        status: 'pending',
+        const now = Date.now();
+        // The claim. The row's existence is the at-most-one-turn fact every
+        // lane reads; a conflict means another turn holds the thread, and
+        // rebinding its row (the old DO UPDATE) let two racing sends stream
+        // into one row and delete it from under each other. DO NOTHING plus
+        // the throw rolls the whole open back — the loser leaves no trace.
+        const claimed = await tx<{ threadId: string }[]>`
+          INSERT INTO app.generations (
+            thread_id, org_id, message_id, started_at_ms, heartbeat_at_ms,
+            updated_at_ms
+          ) VALUES (
+            ${setup.threadId}, ${setup.organizationId}, ${assistantMessage.id},
+            ${now}, ${now}, ${now}
+          )
+          ON CONFLICT (thread_id) DO NOTHING
+          RETURNING thread_id AS "threadId"
+        `;
+        if (claimed.length === 0) throw new ThreadBusyError(setup.threadId);
+        await tx`
+          UPDATE app.thread_metadata SET
+            generation_status = 'generating', stream_id = ${assistantMessage.id},
+            generation_start_ms = ${now}, generation_heartbeat_at_ms = ${now},
+            cancelled_at_ms = NULL, cancelled_message_id = NULL
+          WHERE thread_id = ${setup.threadId}
+        `;
+        return {
+          ...(userMessage !== undefined ? { userMessage } : {}),
+          assistantMessage,
+        };
       });
-      const now = Date.now();
-      await sql`
-        INSERT INTO app.generations (
-          thread_id, org_id, message_id, started_at_ms, heartbeat_at_ms,
-          updated_at_ms
-        ) VALUES (
-          ${setup.threadId}, ${setup.organizationId}, ${assistantMessage.id},
-          ${now}, ${now}, ${now}
-        )
-        ON CONFLICT (thread_id) DO UPDATE SET
-          message_id = ${assistantMessage.id}, text = '', reasoning = '',
-          cancel_requested = false, started_at_ms = ${now},
-          heartbeat_at_ms = ${now}, updated_at_ms = ${now}
-      `;
-      await sql`
-        UPDATE app.thread_metadata SET
-          generation_status = 'generating', stream_id = ${assistantMessage.id},
-          generation_start_ms = ${now}, generation_heartbeat_at_ms = ${now},
-          cancelled_at_ms = NULL, cancelled_message_id = NULL
-        WHERE thread_id = ${setup.threadId}
-      `;
       await notifyThread(sql, setup.threadId);
-      return {
-        ...(userMessage !== undefined ? { userMessage } : {}),
-        assistantMessage,
-      };
+      return opened;
     },
 
     async endGeneration(generation) {
-      await sql`
-        DELETE FROM app.generations
-        WHERE thread_id = ${generation.threadId}
-          AND org_id = ${generation.organizationId}
-      `;
-      await sql`
-        UPDATE app.thread_metadata SET
-          generation_status = 'idle', stream_id = NULL,
-          generation_heartbeat_at_ms = NULL
-        WHERE thread_id = ${generation.threadId}
-      `;
+      await sql.begin(async (tx) => {
+        await tx`
+          DELETE FROM app.generations
+          WHERE thread_id = ${generation.threadId}
+            AND org_id = ${generation.organizationId}
+        `;
+        await tx`
+          UPDATE app.thread_metadata SET
+            generation_status = 'idle', stream_id = NULL,
+            generation_heartbeat_at_ms = NULL
+          WHERE thread_id = ${generation.threadId}
+        `;
+        // A settled turn leaves no 'pending' placeholder: the finalize write
+        // precedes this on every path (completed, refused, cancelled, paused,
+        // failed), so a row still pending here is one whose finalize itself
+        // failed — and with the generation row gone, nothing else would ever
+        // mark it. The claim above makes this turn's placeholder the only
+        // pending row the thread can hold.
+        await tx`
+          UPDATE app.messages SET status = 'failed',
+            error = coalesce(error, 'the turn ended before its reply settled')
+          WHERE thread_id = ${generation.threadId}
+            AND org_id = ${generation.organizationId}
+            AND status = 'pending'
+        `;
+      });
       await notifyThread(sql, generation.threadId);
     },
   };
+}
+
+/**
+ * The turn's cost in cents, from the serving connector's catalog `pricing`
+ * through the ONE cost formula the pipeline also stamps on the message
+ * (`estimateCostCents`). A model the catalog does not price books 0 — an
+ * honest under-count, never a fabricated rate — and a failed lookup logs
+ * and books 0 rather than losing the token row.
+ */
+export async function estimateTurnCostCents(
+  sql: Sql,
+  entry: Pick<
+    UsageLedgerEntry,
+    'organizationId' | 'provider' | 'model' | 'inputTokens' | 'outputTokens'
+  >,
+): Promise<number> {
+  try {
+    const orgSlug = await resolveOrgSlug(sql, entry.organizationId);
+    if (orgSlug === null) return 0;
+    const connector = resolveProvidersForOrg(orgSlug).find(
+      (candidate) => candidate.name === entry.provider,
+    );
+    if (connector === undefined) return 0;
+    const pricing = (await getProviderCatalog(connector)).find(
+      (candidate) => candidate.id === entry.model,
+    )?.pricing;
+    return estimateCostCents(entry.inputTokens, entry.outputTokens, pricing);
+  } catch (error) {
+    console.warn(
+      `[usage-ledger] could not price ${entry.provider}/${entry.model} (booking 0):`,
+      error instanceof Error ? error.message : error,
+    );
+    return 0;
+  }
 }
 
 /** The usage ledger: the fine-grained event row plus the governance
@@ -271,6 +355,10 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
   return {
     async record(entry) {
       const now = Date.now();
+      // Priced at booking: the read side (the usage dashboard, the cost
+      // budgets, the budget-status gate) sums THIS column — nothing joins a
+      // price in later, so a 0 here is model spend that never existed.
+      const costEstimateCents = await estimateTurnCostCents(sql, entry);
       await sql`
         INSERT INTO app.usage_events (
           org_id, user_id, agent_slug, model, provider, input_tokens,
@@ -286,10 +374,7 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
         userId: entry.userId,
         inputTokens: entry.inputTokens,
         outputTokens: entry.outputTokens,
-        // Cost estimation joins the catalog at analytics time; the turn
-        // records tokens (the 0.4 ledger stamped a per-turn estimate the
-        // resolved pricing computed — that seam returns with usage pages).
-        costEstimateCents: 0,
+        costEstimateCents,
         timestamp: now,
         ...(entry.agentSlug !== undefined
           ? { agentSlug: entry.agentSlug }

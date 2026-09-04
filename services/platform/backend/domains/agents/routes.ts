@@ -3,7 +3,6 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
-import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -18,6 +17,7 @@ import {
   type AgentCallerArgs,
 } from '../../core/agents/file_actions.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { agentErrorResponse } from './errors.ts';
 
 /**
  * /api/app/agents — the org's agent personas, REUSING the 0.4 file layer
@@ -25,7 +25,8 @@ import { resolveOrgSlug } from '../../lib/org-config.ts';
  * the org config tree, yaml definitions + a history trail). Visibility
  * (`private | org`), owner adoption, verify-before-write, and additive
  * restore all live in the reused functions; this module only authenticates,
- * derives the caller, and maps the reused error codes onto HTTP.
+ * derives the caller, and maps the reused error codes onto HTTP through the
+ * map the REST family shares (`errors.ts`).
  */
 
 const editSchema = z.object({
@@ -41,39 +42,6 @@ const editSchema = z.object({
 });
 
 const restoreSchema = z.object({ entry: z.string().min(1).max(255) });
-
-/** HTTP status for a reused-layer error code. */
-const ERROR_STATUS: Record<string, 400 | 403 | 404 | 422> = {
-  INVALID_AGENT_SLUG: 400,
-  INVALID_AGENT: 400,
-  AGENT_FORBIDDEN: 403,
-  AGENT_HISTORY_ENTRY_NOT_FOUND: 404,
-  AGENT_MALFORMED: 422,
-};
-
-function handleError<E extends OrgEnv>(
-  c: Context<E>,
-  error: unknown,
-): Response {
-  if (error instanceof AppError) {
-    const data: unknown = error.data;
-    if (data !== null && typeof data === 'object' && 'code' in data) {
-      const record = data as { code?: unknown; message?: unknown };
-      const code = typeof record.code === 'string' ? record.code : 'ERROR';
-      const status = ERROR_STATUS[code];
-      if (status !== undefined) {
-        return c.json(
-          {
-            error: code,
-            message: typeof record.message === 'string' ? record.message : code,
-          },
-          status,
-        );
-      }
-    }
-  }
-  throw error;
-}
 
 export function createAgentRoutes(deps: {
   sql: Sql;
@@ -114,7 +82,7 @@ export function createAgentRoutes(deps: {
       }
       return c.json({ agent });
     } catch (error) {
-      return handleError(c, error);
+      return agentErrorResponse(c, error);
     }
   });
 
@@ -130,7 +98,7 @@ export function createAgentRoutes(deps: {
       }
       return c.json({ agent: resolved });
     } catch (error) {
-      return handleError(c, error);
+      return agentErrorResponse(c, error);
     }
   });
 
@@ -147,7 +115,7 @@ export function createAgentRoutes(deps: {
       });
       return c.json({ agent });
     } catch (error) {
-      return handleError(c, error);
+      return agentErrorResponse(c, error);
     }
   });
 
@@ -159,7 +127,7 @@ export function createAgentRoutes(deps: {
       });
       return c.json({ deleted });
     } catch (error) {
-      return handleError(c, error);
+      return agentErrorResponse(c, error);
     }
   });
 
@@ -171,7 +139,7 @@ export function createAgentRoutes(deps: {
       });
       return c.json({ entries });
     } catch (error) {
-      return handleError(c, error);
+      return agentErrorResponse(c, error);
     }
   });
 
@@ -188,7 +156,7 @@ export function createAgentRoutes(deps: {
       });
       return c.json({ agent });
     } catch (error) {
-      return handleError(c, error);
+      return agentErrorResponse(c, error);
     }
   });
 

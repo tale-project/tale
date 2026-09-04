@@ -239,23 +239,67 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       console.log(`[maintenance] rate_limit_gc removed ${deleted.count} rows`);
     },
     'maintenance.login_attempts_ttl': async () => {
-      const attemptsCutoff = Date.now() - 30 * 24 * 3_600_000;
-      const countersCutoff = Date.now() - 90 * 24 * 3_600_000;
+      // ONE window for every table this job touches — the 0.4
+      // `cleanupLoginAttemptsGlobal` contract. `login_attempts` and
+      // `login_block_counters` are both keyed by `email`, and the counters
+      // additionally keep `last_ip`, so a longer counter window would hold
+      // identifying data longer than the attempts it summarises. Nothing
+      // needs it there: `listBlockCounters` reads the most recent 200 rows
+      // by `updated_at` with no time window, and the lockout itself lives
+      // on `login_attempts.locked_until`, never on a counter bucket, so a
+      // shorter counter window releases no lockout early. The durable
+      // forensic record is `app.audit_logs`, under its own retention.
+      const cutoff = Date.now() - 30 * 24 * 3_600_000;
       const attempts = await deps.sql`
         DELETE FROM app.login_attempts
-        WHERE last_failure_at < ${attemptsCutoff}
+        WHERE last_failure_at < ${cutoff}
       `;
       const counters = await deps.sql`
         DELETE FROM app.login_block_counters
-        WHERE window_start < ${countersCutoff}
+        WHERE window_start < ${cutoff}
+      `;
+      // Parity for `two_factor_attempts`: a failed TOTP is a failed password
+      // in brute-force terms, but the table is only cleared on SUCCESS (and
+      // on member removal) — a user who failed 2FA and never came back left
+      // a permanently stuck row.
+      //
+      // `app.two_factor_grace` in the same migration is deliberately NOT
+      // swept. Its `grace_until_ms` is the enforcement anchor written once
+      // by `setGraceUntilIfAbsent` on first sign-in under an enforced
+      // policy, and an ABSENT row reads as "no anchor yet" —
+      // `evaluateTwoFactorEnforcement` then mints a fresh
+      // `now + gracePeriodDays`. Ageing those rows out would hand a user who
+      // already burned their grace a brand-new window just for staying away,
+      // which is a security regression, not data minimisation. The row also
+      // carries no PII beyond `user_id`, and member removal already deletes
+      // it (`domains/members/service.ts`).
+      const twoFactor = await deps.sql`
+        DELETE FROM app.two_factor_attempts
+        WHERE last_failure_at_ms < ${cutoff}
       `;
       console.log(
-        `[maintenance] login_attempts_ttl removed ${attempts.count} attempts, ${counters.count} counters`,
+        `[maintenance] login_attempts_ttl removed ${attempts.count} attempts, ${counters.count} counters, ${twoFactor.count} 2fa attempts`,
       );
     },
     'rag.index_file': async (payload) => {
       const input = z.object({ fileId: z.string().min(1) }).parse(payload);
       await indexUploadedFile(deps.sql, input.fileId);
+    },
+    'knowledge.release_refs': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          refs: z.array(z.string().min(1)).min(1),
+        })
+        .parse(payload);
+      const { runReleaseRefsJob } =
+        await import('../domains/knowledge/release.ts');
+      await runReleaseRefsJob(deps.sql, input);
+    },
+    'knowledge.reconcile_corpus': async () => {
+      const { runCorpusReconcile } =
+        await import('../domains/knowledge/release.ts');
+      await runCorpusReconcile(deps.sql);
     },
     'org.cleanup_files': async (payload) => {
       const input = orgCleanupSchema.parse(payload);
@@ -264,6 +308,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         throw new Error(
           'TALE_CONFIG_DIR is unset — cannot clean up the org config subtree',
         );
+      }
+      // The job is enqueued inside the deletion transaction, so normally
+      // the org is gone by the time it runs. Re-check anyway: a live
+      // organization's config tree is never removed by a queued job
+      // (a stale row from an older release, or the slug re-taken by a new
+      // org whose own scaffold owns the directory now).
+      const owners = await deps.sql<{ id: string }[]>`
+        SELECT "id" FROM "organization" WHERE "slug" = ${input.orgSlug}
+        LIMIT 1
+      `;
+      if (owners.length > 0) {
+        console.error(
+          `[org.cleanup_files] refusing: organization ${owners[0]?.id} still owns slug "${input.orgSlug}"`,
+        );
+        return;
       }
       // Guarded two-phase rename-then-delete (slug validation, traversal +
       // symlink defenses) — reused from the 0.4 module unchanged.
@@ -289,7 +348,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const result = await scanScheduledTriggers(deps.sql);
       if (result.fired > 0) {
         console.log(
-          `[automations] trigger scan fired ${result.fired}/${result.examined}`,
+          `[automations] trigger scan fired ${result.fired}/${result.examined} (${result.pages} page${result.pages === 1 ? '' : 's'})`,
         );
       }
     },
@@ -324,6 +383,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/object_storage/service.ts');
       await runBackfill(deps.sql, input);
     },
+    'watchdog.object_storage': async () => {
+      const { recoverStuckBackfills } =
+        await import('../domains/object_storage/service.ts');
+      const result = await recoverStuckBackfills(deps.sql);
+      if (result.failed > 0) {
+        console.log(
+          `[watchdog] object-storage: failed ${result.failed} stalled backfill run(s)`,
+        );
+      }
+    },
     'audit.integrity_check': async () => {
       const { listAuditedOrgIds, runScheduledIntegrityCheck } =
         await import('../domains/audit_logs/verify.ts');
@@ -350,16 +419,35 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.log(`[legal-holds] effected ${effected} approved releases`);
       }
     },
+    'governance.apply_dsar_policy_changes': async () => {
+      const { applyMaturedDsarPolicyChanges } =
+        await import('../domains/governance/settings-tail.ts');
+      const applied = await applyMaturedDsarPolicyChanges(deps.sql);
+      if (applied > 0) {
+        console.log(
+          `[governance] applied ${applied} matured DSAR policy change(s)`,
+        );
+      }
+    },
     'watchdog.task_agents': async () => {
       // Re-attach BEFORE the deadline pass: a turn whose chain died is
       // still doing work, and failing it for a stale heartbeat would throw
       // away a live agent's output.
-      const { recoverStalledTaskAgentTurns } =
+      const { recoverStalledTaskAgentTurns, recoverStuckQueuedTaskAgentRuns } =
         await import('../domains/tasks/reattach.ts');
       const reattached = await recoverStalledTaskAgentTurns(deps.sql);
       if (reattached.resumed > 0) {
         console.log(
           `[watchdog] task agents: re-attached ${reattached.resumed} of ${reattached.examined} abandoned turn(s)`,
+        );
+      }
+      // The queued-start twin: a start job lost before setAgentRunRunning
+      // leaves the run 'queued' with no op row and no capacity stamp — invisible
+      // to the re-attach above and the deadline sweep below until the 12h wall.
+      const queued = await recoverStuckQueuedTaskAgentRuns(deps.sql);
+      if (queued.requeued > 0 || queued.failed > 0) {
+        console.log(
+          `[watchdog] task agents: re-kicked ${queued.requeued} stranded queued run(s), failed ${queued.failed} with a deleted agent`,
         );
       }
       const result = await runTaskAgentWatchdog(deps.sql);
@@ -373,7 +461,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // The workflow twin of the task-agent re-attach: a drive chain that
       // died mid-turn is resurrected from the run cursor, never failed —
       // the agent in the sandbox is still doing (or has finished) the work.
-      const { recoverStalledWorkflowAgentTurns } =
+      const { recoverAnsweredAskResumes, recoverStalledWorkflowAgentTurns } =
         await import('../domains/automations/reattach.ts');
       const reattached = await recoverStalledWorkflowAgentTurns(deps.sql);
       if (reattached.resumed > 0) {
@@ -381,12 +469,27 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           `[watchdog] automation agents: re-attached ${reattached.resumed} of ${reattached.examined} abandoned turn(s)`,
         );
       }
+      // The answered-ask twin: a resume lost to a restart while the run still
+      // parks on the asking exec (the re-attach above spares it as
+      // awaiting_human) is re-enqueued instead of stranding to the 7-day ask
+      // deadline.
+      const asks = await recoverAnsweredAskResumes(deps.sql);
+      if (asks.requeued > 0) {
+        console.log(
+          `[watchdog] automation agents: re-enqueued ${asks.requeued} lost answered-ask resume(s)`,
+        );
+      }
     },
     'watchdog.sandbox': async () => {
       const result = await runSandboxWatchdog(deps.sql);
-      if (result.expired > 0 || result.healed > 0 || result.reaped > 0) {
+      if (
+        result.expired > 0 ||
+        result.healed > 0 ||
+        result.reclaimed > 0 ||
+        result.reaped > 0
+      ) {
         console.log(
-          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reaped ${result.reaped} tickets`,
+          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reclaimed ${result.reclaimed} ended-run session(s), reaped ${result.reaped} tickets`,
         );
       }
     },
@@ -481,6 +584,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/conversations/send.ts');
       await runSendMessageJob(deps.sql, input);
     },
+    'watchdog.conversation_sends': async () => {
+      const { recoverStuckConversationSends } =
+        await import('../domains/conversations/send.ts');
+      const result = await recoverStuckConversationSends(deps.sql);
+      if (result.failed > 0) {
+        console.log(
+          `[watchdog] conversation sends: failed ${result.failed} stranded queued send(s)`,
+        );
+      }
+    },
     'chat.deferred_send_poll': async (payload) => {
       const input = z
         .object({ deferredSendId: z.string().min(1) })
@@ -493,6 +606,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const cleared = await runChatGenerationWatchdog(deps.sql);
       if (cleared > 0) {
         console.log(`[watchdog] chat: cleared ${cleared} stale generations`);
+      }
+    },
+    'watchdog.deferred_sends': async () => {
+      const { recoverStuckDeferredSends } =
+        await import('../domains/chat/deferred-sends.ts');
+      const result = await recoverStuckDeferredSends(deps.sql);
+      if (result.repolled > 0 || result.cleared > 0) {
+        console.log(
+          `[watchdog] deferred sends: re-polled ${result.repolled} waiting, cleared ${result.cleared} wedged claimed`,
+        );
       }
     },
     'documents.replacement_cleanup': async () => {

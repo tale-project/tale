@@ -19,6 +19,7 @@ import {
   createBackendApiService,
   createBackendWorkerService,
 } from './create-backend-services';
+import { createDbService } from './create-db-service';
 import { createObjectStorageService } from './create-object-storage-service';
 
 // Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
@@ -48,6 +49,7 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       networks?: unknown;
       cap_add?: string[];
       stop_grace_period?: string;
+      stop_signal?: string;
       image?: string;
       build?: unknown;
       ports?: unknown[];
@@ -405,5 +407,32 @@ describe('service → image parity', () => {
     expect(compose.services['object-store']?.image).toBe(
       THIRD_PARTY_IMAGES['object-store'],
     );
+  });
+});
+
+describe('database fast-shutdown parity (SIGINT)', () => {
+  // The tale-db runtime stage is `FROM scratch`, which drops the upstream
+  // postgres image's STOPSIGNAL; without it Docker's SIGTERM is Postgres'
+  // *smart* shutdown, which waits for every client session and gets SIGKILLed
+  // after the grace period whenever a host-side client holds a connection.
+  // That crash-mode stop left a never-initialised page in pg_search's BM25
+  // index (PANIC on every knowledge insert). All three definition sites must
+  // agree on SIGINT — the *fast* shutdown that disconnects clients,
+  // checkpoints, and exits cleanly.
+  test('the tale-db image declares STOPSIGNAL SIGINT', () => {
+    const dockerfile = readFileSync(
+      resolve(repoRoot, 'services/db/Dockerfile'),
+      'utf8',
+    );
+    expect(dockerfile).toMatch(/^STOPSIGNAL SIGINT$/m);
+  });
+
+  test('compose.yml stops both Postgres services with SIGINT', () => {
+    expect(compose.services.db?.stop_signal).toBe('SIGINT');
+    expect(compose.services['knowledge-db']?.stop_signal).toBe('SIGINT');
+  });
+
+  test('CLI generator stops the db with SIGINT', () => {
+    expect(createDbService(config).stop_signal).toBe('SIGINT');
   });
 });

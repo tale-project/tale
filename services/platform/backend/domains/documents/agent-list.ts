@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 
-import { MAX_FOLDER_DEPTH } from '../folders/paths.ts';
+import { MAX_FOLDER_DEPTH, normalizeFolderPath } from '../folders/paths.ts';
 
 /**
  * The agent-facing document listing — ONE helper behind two doors (the 0.4
@@ -9,10 +9,12 @@ import { MAX_FOLDER_DEPTH } from '../folders/paths.ts';
  * passes its pre-resolved scope verbatim. Hub visibility rules live here and
  * nowhere else.
  *
- * `folderPath` prefers the denormalized `documents.folder_path` (connector
- * docs carry their source path) and otherwise derives the breadcrumb from the
- * folder tree in-query — 0.4 walked parents in memory only because Convex
- * cannot join; Postgres does it with one recursive CTE.
+ * `folderPath` is the folder tree's breadcrumb when the document sits in a
+ * folder (fresh across renames — the denormalized `documents.folder_path` a
+ * connector stamped is not), else that stamped source path; spelled the
+ * canonical way (`normalizeFolderPath`) so an agent can hand it straight
+ * back as a knowledge-search `folder` filter. 0.4 walked parents in memory
+ * only because Convex cannot join; Postgres does it with one recursive CTE.
  */
 
 export interface AgentDocumentListArgs {
@@ -23,6 +25,10 @@ export interface AgentDocumentListArgs {
   /** An ALREADY-AUTHORIZED project: set → that project's docs; absent → the
    *  hub lane (project docs excluded). */
   projectId?: string;
+  /** Several ALREADY-AUTHORIZED projects — the binding door's shape for an
+   *  org-wide run of a multi-bound automation (its bound projects). Non-empty
+   *  → those projects' docs; takes precedence over `projectId`. */
+  projectIds?: string[];
   /** Substring match on the title, case-insensitive. */
   fileName?: string;
   /** Exact match; stored lowercased without the dot (e.g. `pdf`). */
@@ -55,7 +61,15 @@ export async function listDocumentsForAgent(
 ): Promise<AgentDocumentPage> {
   const limit = Math.min(Math.max(args.limit ?? 20, 1), 100);
   const offset = Math.max(0, args.cursor ?? 0);
-  const projectId = args.projectId ?? null;
+  // The project lane is a SET: the chat door's one validated project, or the
+  // binding door's bound projects. Empty → the hub lane.
+  const projectIds =
+    args.projectIds !== undefined && args.projectIds.length > 0
+      ? args.projectIds
+      : args.projectId !== undefined
+        ? [args.projectId]
+        : [];
+  const projectLane = projectIds.length > 0;
   const like = `%${args.fileName?.trim() ?? ''}%`;
   const rows = await sql<
     {
@@ -80,7 +94,7 @@ export async function listDocumentsForAgent(
         AND fp.depth < ${MAX_FOLDER_DEPTH + 2}
     )
     SELECT d.file_ref AS "fileId", d.title, d.extension,
-           coalesce(d.folder_path, fp.path) AS "folderPath",
+           coalesce(fp.path, d.folder_path) AS "folderPath",
            d.team_id AS "teamId", d.created_at_ms::float8 AS "createdAt",
            (d.metadata ->> 'size')::float8 AS "sizeBytes"
     FROM app.documents d
@@ -92,8 +106,8 @@ export async function listDocumentsForAgent(
       AND (${args.extension === undefined}
         OR d.extension = ${args.extension ?? ''})
       AND (
-        (${projectId}::text IS NOT NULL AND d.project_id = ${projectId})
-        OR (${projectId}::text IS NULL AND d.project_id IS NULL AND (
+        (${projectLane} AND d.project_id = ANY(${projectIds}))
+        OR (${!projectLane} AND d.project_id IS NULL AND (
           (d.team_id IS NULL AND cardinality(d.team_tags) = 0)
           OR d.team_id = ANY(${args.teamIds})
           OR d.team_tags && ${args.teamIds}
@@ -109,7 +123,7 @@ export async function listDocumentsForAgent(
       fileId: row.fileId,
       title: row.title ?? 'Untitled',
       extension: row.extension,
-      folderPath: row.folderPath,
+      folderPath: normalizeFolderPath(row.folderPath),
       teamId: row.teamId,
       createdAt: row.createdAt,
       sizeBytes: row.sizeBytes,

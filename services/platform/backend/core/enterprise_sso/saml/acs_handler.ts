@@ -2,6 +2,7 @@ import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { type FinishLogin } from '../login/finish_login';
 import { recordSsoLoginFailure } from '../login/login_audit';
+import { publicOrigin } from '../login/public_origin';
 import { mapSamlIdentity } from './attributes';
 import { samlEndpoints } from './metadata_handler';
 
@@ -17,16 +18,21 @@ function loginRedirect(origin: string, message: string): Response {
 
 /**
  * POST /api/sso/saml/acs — SAML Assertion Consumer Service. Verifies the signed
- * (optionally encrypted) assertion in a Node action, maps attributes to our
- * identity, then funnels into the shared provisioning action and sets the
- * session cookie. RelayState carries the org id for SP-initiated flows.
+ * (and, when the connection requires it, encrypted) assertion in a Node
+ * action, maps attributes to our identity, then funnels into the shared
+ * provisioning action and sets the session cookie. RelayState carries the org
+ * id for SP-initiated flows.
  */
 export async function samlAcsHandler(
   ctx: ActionCtx,
   req: Request,
   deps: { finishLogin: FinishLogin },
 ): Promise<Response> {
-  const origin = new URL(req.url).origin;
+  // The PUBLIC origin, never the internal request origin: it decides the
+  // session cookie's __Secure- shape and where every redirect lands (the
+  // OIDC handlers' posture — behind the proxy `req.url` is the unreachable
+  // internal upstream, and `http` even on TLS deployments).
+  const origin = publicOrigin(req.url);
   // Known only once the assertion's connection resolves; every refusal after
   // that point is audited (the OIDC callback's posture — a rejected assertion
   // is exactly the event an operator investigating a locked-out user, or a
@@ -88,13 +94,17 @@ export async function samlAcsHandler(
         acsUrl,
         spPrivateKey,
         wantAssertionsSigned: config.wantAssertionsSigned,
+        wantAssertionsEncrypted: config.wantAssertionsEncrypted,
       },
     );
     if (!validation.ok) {
       console.error('[SSO] SAML validation failed:', validation.error);
       const message = validation.error || 'SAML validation failed';
-      await auditFailure(message);
-      return loginRedirect(origin, message);
+      // A refusal with its own login-page key (the encryption requirement)
+      // is audited under its readable reason and bounced with the key; every
+      // other validator error is bounced as the readable reason itself.
+      await auditFailure(message, validation.errorKey);
+      return loginRedirect(origin, validation.errorKey ?? message);
     }
 
     const identity = mapSamlIdentity(

@@ -32,7 +32,7 @@ curl -sS https://your-host.example.com/api/v1/agents \
 
 <Check>
 
-Ein JSON-Array von Agents — samt dem eingebauten Assistenten — beweist Schlüssel, Header und Route. Ein `401` heißt: Der Token-Header ist fehlerhaft, oder der Schlüssel wurde widerrufen.
+Ein JSON-Objekt mit einem `agents`-Array — samt dem eingebauten Assistenten — beweist Schlüssel, Header und Route. Ein `401` heißt: Der Token-Header ist fehlerhaft, oder der Schlüssel wurde widerrufen.
 
 </Check>
 

@@ -14,7 +14,7 @@ La section est organisée par domaine, puis par fonctionnalité au sein d’un d
 
 <Card title="Chat" icon="message-circle" href="/fr/platform/chat/overview">
 
-Le point d’entrée quotidien — conversations, agents dans le chat, pièces jointes, mode arène, mode vocal, le volet canevas, partage.
+Le point d’entrée quotidien — conversations, l’assistant, pièces jointes, mode arène, mode vocal, le volet canevas, partage.
 
 </Card>
 
@@ -38,7 +38,7 @@ Des paquets installables qui regroupent connectors, agents, compétences et un w
 
 <Card title="Connaissances" icon="library" href="/fr/platform/knowledge/overview">
 
-Documents, contacts, produits, fournisseurs, sites web — le modèle de données structurées que les agents citent.
+Documents, contacts, produits, sites web — le modèle de données structurées que les agents citent.
 
 </Card>
 
@@ -62,7 +62,7 @@ Le catalogue de modèles derrière chaque sélecteur — étiquettes de capacit�
 
 <Card title="Connectors" icon="plug" href="/fr/platform/connectors/overview">
 
-Appariements SaaS tiers et serveurs MCP.
+Connectors SaaS tiers et les identifiants derrière eux.
 
 </Card>
 
@@ -88,7 +88,7 @@ La surface de construction — agents, curation des connaissances, automatisatio
 
 <Card title="Développeur" icon="terminal" href="/fr/platform/developer/overview">
 
-Clés API, outils personnalisés, webhooks, serveurs MCP — brancher Tale à du code externe.
+Clés API, l’endpoint MCP, identifiants de connector — brancher Tale à du code externe.
 
 </Card>
 

@@ -180,18 +180,21 @@ async function signUpOrIn(context: BrowserContext): Promise<void> {
  * waitForSeededOrg waits for the E2E fixture agent, which this stack never
  * seeds. The "scaffold complete" marker is the seeded automation packs on the
  * Automations page — provisioning writes them at org creation, so a listed
- * pack row means the org's catalog scaffold ran. Reload-and-retry so a page
+ * pack row means the org's catalog scaffold ran. Navigate-and-retry so a page
  * that loaded before provisioning finished gets a fresh read.
  */
 async function waitForDemoScaffold(
   page: Page,
   organizationId: string,
 ): Promise<void> {
-  await page.goto(`/dashboard/${organizationId}/automations`);
   const packRow = page.getByText('gmail-triage-inbox', { exact: true }).first();
   const ATTEMPTS = 8;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     try {
+      // The navigation belongs INSIDE the retry: a cold Vite re-optimizes
+      // dependencies on the first visits and reloads the page mid-load, which
+      // surfaces as net::ERR_ABORTED on the goto itself.
+      await page.goto(`/dashboard/${organizationId}/automations`);
       await expect(packRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
       return;
     } catch (err) {
@@ -203,8 +206,37 @@ async function waitForDemoScaffold(
           { cause: err },
         );
       }
-      await page.reload();
     }
+  }
+}
+
+/**
+ * The persisted session dies while `.state/` lives on — the deployment's idle
+ * timeout signs the demo owner out between runs, and a backend restarted with
+ * another secret rejects the cookie outright. Probe it before reusing the
+ * state and sign back in when it is gone; otherwise every stage that follows
+ * meets the login screen and fails on a locator that was never the problem.
+ */
+async function ensureSignedIn(browser: Browser): Promise<void> {
+  const context = await browser.newContext({
+    baseURL: BASE_URL,
+    storageState: AUTH_STATE,
+    serviceWorkers: 'block',
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto('/log-in');
+    const status = await page.evaluate(
+      async () => (await fetch('/api/app/users/me')).status,
+    );
+    if (status === 200) return;
+    console.log(
+      `Stored session rejected (HTTP ${status}) — signing ${DEMO_OWNER.email} back in.`,
+    );
+    await signUpOrIn(context);
+    await context.storageState({ path: AUTH_STATE });
+  } finally {
+    await context.close();
   }
 }
 
@@ -217,6 +249,7 @@ async function bootstrap(
     console.log(
       `Reusing demo org ${cached.orgId} (${cached.email}) from .state/`,
     );
+    await ensureSignedIn(browser);
     return cached;
   }
 

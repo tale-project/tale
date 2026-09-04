@@ -26,9 +26,13 @@ import { createAuditLog } from '../audit_logs/service.ts';
 
 export class CredentialAdminError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404;
+  readonly status: 400 | 403 | 404 | 409;
 
-  constructor(code: string, message: string, status: 400 | 403 | 404 = 400) {
+  constructor(
+    code: string,
+    message: string,
+    status: 400 | 403 | 404 | 409 = 400,
+  ) {
     super(message);
     this.name = 'CredentialAdminError';
     this.code = code;
@@ -53,7 +57,47 @@ function assertCredentialAdmin(scope: CredentialScope): void {
   }
 }
 
-/** The row shape the reused 0.4 resolver expects (`_id`, camelCase). */
+function nameTakenError(name: string): CredentialAdminError {
+  return new CredentialAdminError(
+    'CREDENTIAL_NAME_TAKEN',
+    `A credential named "${name}" already exists for this provider — pick a different name.`,
+    409,
+  );
+}
+
+/**
+ * Refuse a name another credential of the same (org, provider) already
+ * carries — the friendly face of the 0015 `UNIQUE (org_id, provider_slug,
+ * name)` constraint, which used to be the only guard and answered a bare
+ * 500. An EXACT match, because that is what the constraint refuses; a
+ * looser rule here would refuse names the table accepts.
+ */
+export function assertProviderCredentialNameFree(
+  rows: readonly { id: string; name: string }[],
+  name: string,
+  excludeId?: string,
+): void {
+  const clash = rows.find((row) => row.id !== excludeId && row.name === name);
+  if (clash) throw nameTakenError(clash.name);
+}
+
+/** The constraint's own refusal, for the race the pre-check cannot see: a
+ * concurrent create of the same name commits between our read and our
+ * write. Only the NAME constraint maps to "name taken" — the one-default
+ * partial index is a different fault and stays a real error. */
+function isNameUniqueViolation(error: unknown): boolean {
+  if (!(error instanceof Error) || !('code' in error) || error.code !== '23505')
+    return false;
+  const constraint =
+    'constraint_name' in error ? error.constraint_name : undefined;
+  return typeof constraint !== 'string' || constraint.includes('_name_');
+}
+
+/** The row shape the reused 0.4 resolver and serving walks expect (`_id`,
+ * camelCase). `modelAllowlist` rides along for the walks: the direct/pinned
+ * agent serving, the title lane, and the chat lane's catalog-less lookup
+ * all read the default credential's allowlist off this row — without it
+ * every one of them saw "no allowlist" and served outside it. */
 interface ResolverRow {
   _id: string;
   organizationId: string;
@@ -63,13 +107,15 @@ interface ResolverRow {
   encryptedData?: EncryptedSecret;
   envName?: string;
   endpointUrl?: string;
+  modelAllowlist?: string[];
   status: 'active' | 'disabled';
 }
 
 const RESOLVER_COLUMNS = `
   id AS "_id", org_id AS "organizationId", provider_slug AS "providerSlug",
   auth_method AS "authMethod", name, encrypted_data AS "encryptedData",
-  env_name AS "envName", endpoint_url AS "endpointUrl", status
+  env_name AS "envName", endpoint_url AS "endpointUrl",
+  model_allowlist AS "modelAllowlist", status
 `;
 
 function rowOrNull(rows: ResolverRow[]): ResolverRow | null {
@@ -83,6 +129,7 @@ function rowOrNull(rows: ResolverRow[]): ResolverRow | null {
     encryptedData: row.encryptedData ?? undefined,
     envName: row.envName ?? undefined,
     endpointUrl: row.endpointUrl ?? undefined,
+    modelAllowlist: row.modelAllowlist ?? undefined,
   };
 }
 
@@ -158,6 +205,50 @@ export async function resolveProviderCredential(
         : {}),
     },
   );
+}
+
+/** The credential facts a model-serving walk reads. */
+export interface ServingCredentialFacts {
+  providerSlug: string;
+  authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker';
+  modelAllowlist?: string[];
+}
+
+/**
+ * The org's SERVABLE credential per provider — the active default row, and
+ * only that: every serving path (the chat wire, the agent walks, vision,
+ * TTS, the title lane) resolves a provider's default credential, so a model
+ * only a non-default or disabled credential could reach is a model no turn
+ * can run. The composer's picker and the Auto pick read THIS set, which is
+ * what keeps "offered" and "servable" the same world: disable or delete a
+ * connector's default and its models leave the picker (the settings page
+ * says the connector has no default) instead of failing every send.
+ */
+export async function listServingCredentialFacts(
+  sql: Sql,
+  organizationId: string,
+): Promise<ServingCredentialFacts[]> {
+  const rows = await sql<
+    {
+      providerSlug: string;
+      authMethod: ServingCredentialFacts['authMethod'];
+      modelAllowlist: string[] | null;
+    }[]
+  >`
+    SELECT provider_slug AS "providerSlug", auth_method AS "authMethod",
+           model_allowlist AS "modelAllowlist"
+    FROM app.provider_credentials
+    WHERE org_id = ${organizationId} AND is_default AND status = 'active'
+    ORDER BY provider_slug ASC
+  `;
+  return rows.map((row) => {
+    const facts: ServingCredentialFacts = {
+      providerSlug: row.providerSlug,
+      authMethod: row.authMethod,
+    };
+    if (row.modelAllowlist !== null) facts.modelAllowlist = row.modelAllowlist;
+    return facts;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -257,28 +348,34 @@ export async function createCredential(
     );
   }
 
-  const siblings = await tx<{ id: string }[]>`
-    SELECT id FROM app.provider_credentials
+  const siblings = await tx<{ id: string; name: string }[]>`
+    SELECT id, name FROM app.provider_credentials
     WHERE org_id = ${scope.organizationId}
       AND provider_slug = ${args.providerSlug}
-    LIMIT 1
   `;
+  assertProviderCredentialNameFree(siblings, name);
   const now = Date.now();
-  const rows = await tx<{ id: string }[]>`
-    INSERT INTO app.provider_credentials (
-      org_id, provider_slug, auth_method, name, encrypted_data, env_name,
-      endpoint_url, masked_preview, model_allowlist, is_default, status,
-      created_by, created_at_ms, updated_at_ms
-    ) VALUES (
-      ${scope.organizationId}, ${args.providerSlug}, ${args.authMethod},
-      ${name},
-      ${encryptedData === undefined ? null : tx.json(toJson(encryptedData))},
-      ${envName ?? null}, ${args.endpointUrl ?? null},
-      ${maskedPreview ?? null}, ${args.modelAllowlist ?? null},
-      ${siblings.length === 0}, 'active', ${scope.userId}, ${now}, ${now}
-    )
-    RETURNING id
-  `;
+  let rows: { id: string }[];
+  try {
+    rows = await tx<{ id: string }[]>`
+      INSERT INTO app.provider_credentials (
+        org_id, provider_slug, auth_method, name, encrypted_data, env_name,
+        endpoint_url, masked_preview, model_allowlist, is_default, status,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${scope.organizationId}, ${args.providerSlug}, ${args.authMethod},
+        ${name},
+        ${encryptedData === undefined ? null : tx.json(toJson(encryptedData))},
+        ${envName ?? null}, ${args.endpointUrl ?? null},
+        ${maskedPreview ?? null}, ${args.modelAllowlist ?? null},
+        ${siblings.length === 0}, 'active', ${scope.userId}, ${now}, ${now}
+      )
+      RETURNING id
+    `;
+  } catch (error) {
+    if (isNameUniqueViolation(error)) throw nameTakenError(name);
+    throw error;
+  }
   const id = rows[0]?.id;
   if (!id) {
     throw new CredentialAdminError('CREDENTIAL_CREATE_FAILED', 'Insert failed');
@@ -299,26 +396,49 @@ export async function createCredential(
   return id;
 }
 
-/** Name / status / default / allowlist / secret-rotation edits. */
+export interface UpdateCredentialPatch {
+  name?: string;
+  status?: 'active' | 'disabled';
+  isDefault?: boolean;
+  modelAllowlist?: string[] | null;
+  endpointUrl?: string | null;
+  /** Re-point an `env` credential at another TALE_PROVIDER_KEY_* variable. */
+  envName?: string;
+  /** Rotate the stored secret (api-key/subscription-key/broker JSON). */
+  secret?: string;
+}
+
+/** Name / status / default / allowlist / endpoint / env-ref / secret-rotation
+ * edits. An empty patch is refused rather than acknowledged: an ack with an
+ * audit row and no change is how a dropped field once read as a saved edit. */
 export async function updateCredential(
   tx: TransactionSql,
   scope: CredentialScope,
   credentialId: string,
-  patch: {
-    name?: string;
-    status?: 'active' | 'disabled';
-    isDefault?: boolean;
-    modelAllowlist?: string[] | null;
-    endpointUrl?: string | null;
-    /** Rotate the stored secret (api-key/subscription-key/broker JSON). */
-    secret?: string;
-  },
+  patch: UpdateCredentialPatch,
 ): Promise<void> {
   assertCredentialAdmin(scope);
+  if (Object.values(patch).every((value) => value === undefined)) {
+    throw new CredentialAdminError(
+      'CREDENTIAL_PATCH_EMPTY',
+      'Nothing to update — the edit carried no changed field',
+    );
+  }
   const rows = await tx<
-    { providerSlug: string; isDefault: boolean; name: string }[]
+    {
+      providerSlug: string;
+      isDefault: boolean;
+      name: string;
+      authMethod:
+        | 'api-key'
+        | 'env'
+        | 'subscription-key'
+        | 'subscription-broker';
+      status: 'active' | 'disabled';
+    }[]
   >`
-    SELECT provider_slug AS "providerSlug", is_default AS "isDefault", name
+    SELECT provider_slug AS "providerSlug", is_default AS "isDefault", name,
+           auth_method AS "authMethod", status
     FROM app.provider_credentials
     WHERE id = ${credentialId} AND org_id = ${scope.organizationId}
     LIMIT 1
@@ -330,6 +450,29 @@ export async function updateCredential(
       'Credential not found',
       404,
     );
+  }
+  // The documented contract: a disabled credential cannot become (or stay
+  // being promoted as) the default — serving reads the ACTIVE default only,
+  // so a disabled default is a connector that serves nothing.
+  if (patch.isDefault === true && (patch.status ?? row.status) === 'disabled') {
+    throw new CredentialAdminError(
+      'CREDENTIAL_DISABLED_DEFAULT',
+      'A disabled credential cannot be the default — enable it first',
+    );
+  }
+  if (patch.envName !== undefined) {
+    if (row.authMethod !== 'env') {
+      throw new CredentialAdminError(
+        'CREDENTIAL_ENV_NAME_INVALID',
+        'Only an environment-variable credential carries an env name',
+      );
+    }
+    if (!ENV_NAME_REGEX.test(patch.envName)) {
+      throw new CredentialAdminError(
+        'CREDENTIAL_ENV_NAME_INVALID',
+        'Env credentials must reference a TALE_PROVIDER_KEY_* variable',
+      );
+    }
   }
   if (patch.isDefault === true) {
     await tx`
@@ -344,6 +487,16 @@ export async function updateCredential(
   if (name !== undefined && (name.length === 0 || name.length > 120)) {
     throw new CredentialAdminError('CREDENTIAL_NAME_INVALID', 'Invalid name');
   }
+  if (name !== undefined) {
+    // A rename lands on the same UNIQUE (org, provider, name) constraint as
+    // a create — refuse the clash with the same 409, not a bare 500.
+    const siblings = await tx<{ id: string; name: string }[]>`
+      SELECT id, name FROM app.provider_credentials
+      WHERE org_id = ${scope.organizationId}
+        AND provider_slug = ${row.providerSlug}
+    `;
+    assertProviderCredentialNameFree(siblings, name, credentialId);
+  }
   let rotated: EncryptedSecret | undefined;
   let rotatedPreview: string | undefined;
   if (patch.secret !== undefined) {
@@ -354,20 +507,42 @@ export async function updateCredential(
       );
     }
     rotated = encryptSecret(patch.secret);
-    rotatedPreview = maskSecret(patch.secret);
+    // A broker configuration is JSON, not a key — same rule as creation:
+    // it gets no masked preview.
+    if (row.authMethod !== 'subscription-broker') {
+      rotatedPreview = maskSecret(patch.secret);
+    }
   }
-  await tx`
-    UPDATE app.provider_credentials SET
-      name = coalesce(${name ?? null}, name),
-      status = coalesce(${patch.status ?? null}, status),
-      is_default = coalesce(${patch.isDefault ?? null}, is_default),
-      model_allowlist = ${patch.modelAllowlist === undefined ? tx`model_allowlist` : (patch.modelAllowlist ?? null)},
-      endpoint_url = ${patch.endpointUrl === undefined ? tx`endpoint_url` : patch.endpointUrl},
-      encrypted_data = ${rotated === undefined ? tx`encrypted_data` : tx.json(toJson(rotated))},
-      masked_preview = coalesce(${rotatedPreview ?? null}, masked_preview),
-      updated_at_ms = ${Date.now()}
-    WHERE id = ${credentialId}
-  `;
+  if (
+    patch.endpointUrl !== undefined &&
+    patch.endpointUrl !== null &&
+    !patch.endpointUrl.startsWith('https://')
+  ) {
+    throw new CredentialAdminError(
+      'CREDENTIAL_ENDPOINT_INVALID',
+      'Endpoint URLs must be https',
+    );
+  }
+  try {
+    await tx`
+      UPDATE app.provider_credentials SET
+        name = coalesce(${name ?? null}, name),
+        status = coalesce(${patch.status ?? null}, status),
+        is_default = coalesce(${patch.isDefault ?? null}, is_default),
+        model_allowlist = ${patch.modelAllowlist === undefined ? tx`model_allowlist` : (patch.modelAllowlist ?? null)},
+        endpoint_url = ${patch.endpointUrl === undefined ? tx`endpoint_url` : patch.endpointUrl},
+        env_name = coalesce(${patch.envName ?? null}, env_name),
+        encrypted_data = ${rotated === undefined ? tx`encrypted_data` : tx.json(toJson(rotated))},
+        masked_preview = coalesce(${rotatedPreview ?? null}, masked_preview),
+        updated_at_ms = ${Date.now()}
+      WHERE id = ${credentialId}
+    `;
+  } catch (error) {
+    if (name !== undefined && isNameUniqueViolation(error)) {
+      throw nameTakenError(name);
+    }
+    throw error;
+  }
   await createAuditLog(tx, {
     organizationId: scope.organizationId,
     actorId: scope.userId,

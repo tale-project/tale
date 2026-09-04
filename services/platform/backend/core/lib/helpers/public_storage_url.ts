@@ -30,29 +30,40 @@ export function getPublicHttpApiUrl(): string {
 }
 
 /**
- * Build a download URL for a file stored in Convex storage.
- *
- * Uses the custom HTTP endpoint that sets Content-Disposition header,
- * ensuring the downloaded file has the correct filename.
+ * Public base for the backend's session-facing app API (`/api/app/...`) —
+ * mounted in backend/app.ts and forwarded whole by the proxy's `/api/app/*`
+ * lane.
  */
-export function buildDownloadUrl(storageId: string, fileName: string): string {
-  return `${getPublicHttpApiUrl()}/storage?id=${storageId}&filename=${encodeURIComponent(fileName)}`;
+export function getPublicAppApiUrl(): string {
+  const siteUrl = process.env.SITE_URL;
+  if (!siteUrl) {
+    throw new Error('Missing required environment variable: SITE_URL');
+  }
+  const basePath = process.env.BASE_PATH ?? '';
+  return `${siteUrl.replace(/\/$/, '')}${basePath}/api/app`;
 }
 
 /**
- * Build the `/storage` route URL for an `s3:` blob reference. A Convex query
- * cannot presign S3, so it hands the browser this URL instead; the node
- * `/storage` httpAction resolves the org's bucket (from `org`, the Better Auth
- * organization id) and 302-redirects to a short-lived presigned GET. `org` is
- * REQUIRED for an S3 ref — the route needs it to address the right bucket.
+ * Stable, link-shaped URL for an org blob — stored on ingested email
+ * attachments and opened directly by the browser (the download anchor and
+ * the inline cid images in conversation messages). Points at the backend's
+ * session-gated serve lane (`GET /api/app/files/serve`), which answers a 302
+ * to a short-lived presigned GET at OPEN time: a presigned URL minted here
+ * would expire in storage, and the 0.4 `/http_api/storage` door this used to
+ * mint is mounted nowhere in 0.5 — those URLs fell through to the SPA
+ * catch-all as dead links. `orgId` addresses the org's bucket and is what
+ * the lane's membership gate checks the session against.
  */
 export function buildBlobServeUrl(
   ref: string,
   orgId: string,
   fileName?: string,
 ): string {
-  const base = `${getPublicHttpApiUrl()}/storage?ref=${encodeURIComponent(ref)}&org=${encodeURIComponent(orgId)}`;
-  return fileName ? `${base}&filename=${encodeURIComponent(fileName)}` : base;
+  const params = new URLSearchParams({ orgId, ref });
+  if (fileName !== undefined && fileName !== '') {
+    params.set('filename', fileName);
+  }
+  return `${getPublicAppApiUrl()}/files/serve?${params.toString()}`;
 }
 
 /**

@@ -15,7 +15,7 @@
  * data seam both it and `websites/internal_actions.ts` share.
  */
 
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { PUBLIC_WEB_SCHEMA } from '../../../lib/knowledge/types';
 import type {
@@ -34,6 +34,87 @@ export const MAX_URLS_PER_DOMAIN = 10_000;
 /** URL rows per INSERT when recording a frontier — one statement per URL
  * would turn a large discovery into thousands of round trips. */
 export const URL_INSERT_BATCH = 500;
+
+/**
+ * The ONE statement that admits URLs to a domain's frontier — discovery, the
+ * rendered-link admission, and operator URL lists all speak it, so a row
+ * behaves the same however it arrives.
+ *
+ * A new row starts `discovered`. A row a past scan marked `deleted` (the page
+ * answered 404/410 then) is REVIVED to `discovered` with its failure count
+ * cleared: the site links to it again, or the operator listed it again, and
+ * that is the only signal a restored page ever sends — nothing else moves a
+ * row out of `deleted`, which is how a deploy gap or a misconfigured origin
+ * used to drop a page from the index for good. A live row is left alone
+ * except `listed`, which only ever widens. `RETURNING url` names the rows the
+ * statement inserted or changed, so a caller can count what it newly tracks.
+ *
+ * `count` is how many URL placeholders follow the domain (`$2..$count+1`).
+ */
+export function admitUrlsStatement(count: number, listed: boolean): string {
+  const flag = listed ? 'TRUE' : 'FALSE';
+  const rows = Array.from(
+    { length: count },
+    (_, index) => `($1, $${index + 2}, 'discovered', NOW(), ${flag})`,
+  ).join(', ');
+  return `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_urls AS u (domain, url, status, discovered_at, listed)
+     VALUES ${rows}
+     ON CONFLICT (domain, url) DO UPDATE SET
+       status = CASE WHEN u.status = 'deleted' THEN 'discovered' ELSE u.status END,
+       fail_count = CASE WHEN u.status = 'deleted' THEN 0 ELSE u.fail_count END,
+       discovered_at = CASE WHEN u.status = 'deleted' THEN NOW() ELSE u.discovered_at END,
+       listed = u.listed OR EXCLUDED.listed
+     WHERE u.status = 'deleted' OR (EXCLUDED.listed AND NOT u.listed)
+     RETURNING u.url`;
+}
+
+/**
+ * Admit URLs to a domain's frontier (see {@link admitUrlsStatement}), in
+ * batches. Returns how many rows were newly tracked or changed — inserted,
+ * revived from `deleted`, or newly marked listed. Duplicates are collapsed
+ * first: a multi-row upsert cannot touch the same key twice.
+ */
+export async function admitUrls(
+  sql: Sql | TransactionSql,
+  domain: string,
+  urls: readonly string[],
+  options: { listed: boolean },
+): Promise<number> {
+  const unique = [...new Set(urls)];
+  let admitted = 0;
+  for (let start = 0; start < unique.length; start += URL_INSERT_BATCH) {
+    const batch = unique.slice(start, start + URL_INSERT_BATCH);
+    const rows = await sql.unsafe<{ url: string }[]>(
+      admitUrlsStatement(batch.length, options.listed),
+      [domain, ...batch],
+    );
+    admitted += rows.length;
+  }
+  return admitted;
+}
+
+/**
+ * Put the operator's listed URLs that a past scan marked `deleted` back on
+ * the frontier. A URL list is a standing instruction — "index these" — so a
+ * listed page that once answered 404 is probed again on every scan; the
+ * scan interval is the backoff and one request per scan the bounded cost.
+ * Without this the list silently shrank: a page gone for one deploy never
+ * came back, and re-saving the identical list changed nothing. Returns how
+ * many rows were revived.
+ */
+export async function reviveListedUrls(
+  sql: Sql,
+  domain: string,
+): Promise<number> {
+  const rows = await sql.unsafe<{ url: string }[]>(
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+        SET status = 'discovered', fail_count = 0, discovered_at = NOW()
+      WHERE domain = $1 AND listed AND status = 'deleted'
+      RETURNING url`,
+    [domain],
+  );
+  return rows.length;
+}
 
 /** Corpus → Convex status vocabulary. The corpus distinguishes `completed`
  * (a finished scan) from `active`; the websites row treats both as a healthy
@@ -54,6 +135,19 @@ function toWebsiteStatus(status: string): CrawlerWebsiteInfo['status'] {
 }
 
 /**
+ * Registration and removal of one domain are serialized on the domain row.
+ * Each runs as ONE transaction whose first write locks the
+ * `websites` row (the upsert takes the row lock; the removal asks for it
+ * explicitly), and holds it until the membership write commits. Two
+ * autocommit statements let a removal's "last member?" check run BETWEEN a
+ * concurrent registration's domain upsert and its membership insert: the
+ * check saw no member, the fresh domain row was deleted (cascading its urls
+ * and chunks), and the registration's membership insert then failed on the
+ * foreign key — a domain half-registered for one org and half-removed for
+ * another. Same lock, same order, every door: no interleaving is left.
+ */
+
+/**
  * Register a domain for an organization: upsert the domain row (idle until
  * its first scan) and the membership that makes it visible to this org.
  * Idempotent — re-adding an existing domain only refreshes the interval.
@@ -64,31 +158,35 @@ export async function registerDomain(
   domain: string,
   scanIntervalSeconds: number,
 ): Promise<void> {
-  // `kind = 'site'` on conflict too: kind only ever WIDENS — a domain some
-  // org tracked as a URL list becomes a crawled site the moment any org
-  // registers the site proper (its listed URLs stay as extra seeds).
-  await sql.unsafe(
-    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval, kind)
-     VALUES ($1, $2, 'site')
-     ON CONFLICT (domain)
-     DO UPDATE SET scan_interval = EXCLUDED.scan_interval, kind = 'site',
-                   updated_at = NOW()`,
-    [domain, scanIntervalSeconds],
-  );
-  await sql.unsafe(
-    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships (domain, org_slug)
-     VALUES ($1, $2)
-     ON CONFLICT (domain, org_slug) DO NOTHING`,
-    [domain, orgSlug],
-  );
+  await sql.begin(async (tx) => {
+    // `kind = 'site'` on conflict too: kind only ever WIDENS — a domain some
+    // org tracked as a URL list becomes a crawled site the moment any org
+    // registers the site proper (its listed URLs stay as extra seeds).
+    await tx.unsafe(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval, kind)
+       VALUES ($1, $2, 'site')
+       ON CONFLICT (domain)
+       DO UPDATE SET scan_interval = EXCLUDED.scan_interval, kind = 'site',
+                     updated_at = NOW()`,
+      [domain, scanIntervalSeconds],
+    );
+    await tx.unsafe(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships (domain, org_slug)
+       VALUES ($1, $2)
+       ON CONFLICT (domain, org_slug) DO NOTHING`,
+      [domain, orgSlug],
+    );
+  });
 }
 
 /**
  * Register a curated URL list for an organization. The listed rows in
  * `website_urls` ARE the list — there is no separate list table. Idempotent
- * and merging: re-registering adds new URLs and re-marks existing ones as
- * listed. On a domain some org already crawls as a site, the row's kind
- * stays 'site' ('list' never narrows) and the URLs become extra seeds.
+ * and merging: re-registering adds new URLs, re-marks existing ones as
+ * listed, and revives any the crawler had marked `deleted` (an explicit
+ * re-listing is the operator saying the page is back). On a domain some org
+ * already crawls as a site, the row's kind stays 'site' ('list' never
+ * narrows) and the URLs become extra seeds.
  */
 export async function registerUrlList(
   sql: Sql,
@@ -106,31 +204,25 @@ export async function registerUrlList(
       `[crawl] ${domain}: URL list truncated to the ${MAX_URLS_PER_DOMAIN}-URL cap (${unique.length} given)`,
     );
   }
-  await sql.unsafe(
-    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval, kind)
-     VALUES ($1, $2, 'list')
-     ON CONFLICT (domain)
-     DO UPDATE SET scan_interval = EXCLUDED.scan_interval, updated_at = NOW()`,
-    [domain, scanIntervalSeconds],
-  );
-  await sql.unsafe(
-    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships (domain, org_slug)
-     VALUES ($1, $2)
-     ON CONFLICT (domain, org_slug) DO NOTHING`,
-    [domain, orgSlug],
-  );
-  for (let start = 0; start < admitted.length; start += URL_INSERT_BATCH) {
-    const batch = admitted.slice(start, start + URL_INSERT_BATCH);
-    const rows = batch
-      .map((_, index) => `($1, $${index + 2}, 'discovered', NOW(), TRUE)`)
-      .join(', ');
-    await sql.unsafe(
-      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_urls (domain, url, status, discovered_at, listed)
-       VALUES ${rows}
-       ON CONFLICT (domain, url) DO UPDATE SET listed = TRUE`,
-      [domain, ...batch],
+  await sql.begin(async (tx) => {
+    await tx.unsafe(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval, kind)
+       VALUES ($1, $2, 'list')
+       ON CONFLICT (domain)
+       DO UPDATE SET scan_interval = EXCLUDED.scan_interval, updated_at = NOW()`,
+      [domain, scanIntervalSeconds],
     );
-  }
+    await tx.unsafe(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships (domain, org_slug)
+       VALUES ($1, $2)
+       ON CONFLICT (domain, org_slug) DO NOTHING`,
+      [domain, orgSlug],
+    );
+    // The shared admission door, inside the same transaction as the domain
+    // row and the membership: revived `deleted` rows and the listed flag land
+    // with them or not at all.
+    await admitUrls(tx, domain, admitted, { listed: true });
+  });
 }
 
 /** Update the scan cadence on the domain row. */
@@ -157,20 +249,29 @@ export async function deregisterDomain(
   orgSlug: string,
   domain: string,
 ): Promise<void> {
-  await sql.unsafe(
-    `DELETE FROM ${PUBLIC_WEB_SCHEMA}.website_org_memberships
-      WHERE domain = $1 AND org_slug = $2`,
-    [domain, orgSlug],
-  );
-  await sql.unsafe(
-    `DELETE FROM ${PUBLIC_WEB_SCHEMA}.websites w
-      WHERE w.domain = $1
-        AND NOT EXISTS (
-          SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
-           WHERE m.domain = w.domain
-        )`,
-    [domain],
-  );
+  await sql.begin(async (tx) => {
+    // Take the domain row first: a registration in flight holds this lock
+    // from its upsert to its commit, so the member count below is read only
+    // after its membership is visible — never between its two writes.
+    await tx.unsafe(
+      `SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.websites WHERE domain = $1 FOR UPDATE`,
+      [domain],
+    );
+    await tx.unsafe(
+      `DELETE FROM ${PUBLIC_WEB_SCHEMA}.website_org_memberships
+        WHERE domain = $1 AND org_slug = $2`,
+      [domain, orgSlug],
+    );
+    await tx.unsafe(
+      `DELETE FROM ${PUBLIC_WEB_SCHEMA}.websites w
+        WHERE w.domain = $1
+          AND NOT EXISTS (
+            SELECT 1 FROM ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
+             WHERE m.domain = w.domain
+          )`,
+      [domain],
+    );
+  });
 }
 
 /** True when the organization registered this domain — the guard every

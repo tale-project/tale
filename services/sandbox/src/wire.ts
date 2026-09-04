@@ -143,6 +143,8 @@ export interface SessionInfo {
   lastActivityAtMs: number;
   expiresAtMs: number;
   idleTimeoutMs: number;
+  /** "Always-on": exempt from the idle/TTL reaper (PATCH /pin). */
+  pinned: boolean;
 }
 
 /** execId shares the sessionId alphabet; unique within its session. */

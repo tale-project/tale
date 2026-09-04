@@ -1,62 +1,65 @@
 ---
 title: Container-Architektur
-description: Welcher Container welchen Job in einer laufenden Tale-Instanz hat, der Request-Pfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht.
+description: Welcher Container in einer laufenden Tale-Instanz welche Aufgabe besitzt, der Anfragepfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht.
 ---
 
-Eine Tale-Instanz besteht aus acht Containern, verdrahtet durch docker compose. Die Architektur-Seite hat behandelt, wofür jeder Container da ist; diese Seite ist die Operator-Version — welcher Container welchen Job besitzt, wie eine Chat-Nachricht durch sie fliesst und wie der Fehlermodus aussieht, wenn einer von ihnen stirbt.
+Eine Tale-Instanz besteht aus neun Containern, verdrahtet über docker compose, plus einem kleinen Video-Ingestion-Sidecar. Die Architekturseite behandelte, wofür jeder Container da ist; diese Seite ist die Operator-Version — welcher Container welche Aufgabe besitzt, wie eine Chat-Nachricht durch sie fließt und wie der Fehlermodus aussieht, wenn einer von ihnen stirbt.
 
-Lies das, wenn du Bereitschaft hast. Komm zurück, wenn du entscheidest, welchen Container du während eines Upgrades zuerst rollst.
+Lies das, wenn du Bereitschaft hast. Komm zurück, wenn du entscheidest, welchen Container du bei einem Upgrade zuerst rollst.
 
-## Die acht Container, mit ihren Jobs
+## Die Container und ihre Aufgaben
 
-| Container                  | Job                                                                                          | Ausfälle betreffen                                                          |
-| -------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `tale-proxy`               | TLS-Terminierung + Edge-Routing                                                              | Jeden Ingress — kein Client erreicht die UI                                 |
-| `tale-platform`            | UI-Server, statische Asset-Auslieferung                                                      | Browser sieht 502; die API ist erreichbar                                   |
-| `tale-convex`              | Backend Actions/Queries/Mutations + WebSocket, plus In-Process-RAG, Crawling und Dokumentgen | UI lädt, aber ohne Daten; laufende Chats stocken; Ingestion stockt          |
-| `tale-db`                  | Operatives Postgres für Convex                                                               | Convex fällt in Read-only; Writes blockieren                                |
-| `tale-knowledge-db`        | Postgres des Wissens-Korpus (Dokument-Chunks, Embeddings, gecrawlte Seiten)                  | Wissens-Suche liefert leer; Ingestion scheitert                             |
-| `tale-sandbox-llm-gateway` | LLM-Gateway für Harness-Züge                                                                 | Harness-Züge erreichen kein Modell; Chat ist unbetroffen                    |
-| `tale-sandbox-egress`      | Netzwerk-Egress für sandboxierten Code                                                       | **Code-ausführen**-Tool scheitert mit „Egress denied"; Web-Render scheitert |
-| `tale-sandbox`             | Sandbox-Laufzeit + Headless-Browser für Web-Render und Dokumentgenerierung                   | **Code-ausführen**, Web-Crawl-Render und Dokumentgenerierung scheitern alle |
+| Container                  | Aufgabe                                                                           | Crash betrifft                                                              |
+| -------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `tale-proxy`               | TLS-Terminierung + Edge-Routing                                                   | Jeden Ingress — kein Client erreicht die UI                                 |
+| `tale-platform`            | Web-Tier: SPA + statische Assets, Branding, der Config-SSE-Watch                  | Browser sieht die Ladeseite; die API bedient gecachte Tabs weiter           |
+| `tale-backend-api`         | Jede Anwendungstür: App-API, Auth, der SSE-Hinweis-Stream, die Maschinentüren     | UI lädt, aber keine Daten; Anmeldung, Chat und Uploads scheitern            |
+| `tale-backend-worker`      | Job-Runner: Schedules, Agent-Turns, Ingestion, Crawling, RAG-Indexierung, Doc-Gen | Chat antwortet weiter; Hintergrund-Jobs, Automationen und Ingestion stocken |
+| `tale-db`                  | Operatives Postgres — der `tale_app`-Speicher und der `tale_knowledge`-Korpus     | Schreibvorgänge blockieren; Wissenssuche liefert leer                       |
+| `tale-object-store`        | S3-kompatibler Blob-Store (Uploads, Anhänge, generierte Medien)                   | Jeder Up-/Download scheitert; laufende Chats ohne Dateien laufen weiter     |
+| `tale-sandbox-llm-gateway` | LLM-Gateway für Harness-Turns                                                     | Harness-Turns erreichen kein Modell; Chat ist unbetroffen                   |
+| `tale-sandbox-egress`      | Netz-Egress für sandboxten Code                                                   | `Run code` scheitert mit „egress denied“; Web-Rendering scheitert           |
+| `tale-sandbox`             | Sandbox-Laufzeit + Headless-Browser für Web-Rendering und Dokumentgenerierung     | `Run code`, Web-Crawl-Rendering und Dokumentgenerierung scheitern alle      |
 
-Ein Container ist dem öffentlichen Netz exponiert (`tale-proxy` für HTTPS, optional `tale-sandbox-egress` ausgehend für die Sandbox); der Rest nur intern.
+Ein Container ist dem öffentlichen Netz exponiert (`tale-proxy` für HTTPS); der Rest ist rein intern. Der `tale-bgutil-provider`-Sidecar ist Best-Effort — sein Ausfall verschlechtert nur die YouTube-Video-Link-Ingestion.
 
-## Der Request-Pfad
+## Der Anfragepfad
 
-Eine Chat-Nachricht macht einen Durchlauf durch die Container:
+Eine Chat-Nachricht macht einen Roundtrip durch die Container:
 
 1. Browser → `tale-proxy` (TLS terminiert).
-2. `tale-proxy` → `tale-platform` für HTML/JS, → `tale-convex` für API + WebSocket.
-3. `tale-convex` liest die Provider-Config der Organisation, wählt das Modell, öffnet einen Stream zum Upstream-Provider.
-4. Holt der Agent Wissen: `tale-convex` fährt die RAG-Suche im Prozess und fragt `tale-knowledge-db` direkt ab — kein separater Retrieval-Dienst im Pfad.
-5. Führt der Agent Code aus: `tale-convex` → `tale-sandbox` → `tale-sandbox-egress` für ausgehende Netzwerk-Aufrufe.
-6. Der Provider-Stream gibt Tokens durch `tale-convex` zurück an den Browser über den WebSocket.
+2. `tale-proxy` → `tale-platform` für die SPA-Hülle und Assets, → `tale-backend-api` für die App-API (`/api/app/*`, `/api/auth/*`) und den `/events`-SSE-Stream.
+3. `tale-backend-api` liest die Provider-Config der Org, wählt das Modell und öffnet einen Stream zum Upstream-Provider, wobei es Tokens über die `/events`-SSE-Bahn zurückreicht.
+4. Ruft der Agent Wissen ab: das Backend führt die RAG-Suche direkt gegen die `tale_knowledge`-Datenbank von `tale-db` aus — kein separater Retrieval-Service im Pfad.
+5. Führt der Agent Code aus: `tale-backend-api` → `tale-sandbox` → `tale-sandbox-egress` für jeglichen ausgehenden Netzverkehr.
+6. Schwerere Arbeit, die ein Agent-Turn abzweigt — Dokument-Ingestion, Generierung, eine geplante Automation — nimmt `tale-backend-worker` auf, nicht die api.
 
-Der heisse Pfad ist kurz. Fühlt sich die Chat-Latenz falsch an, ist der Container, der schuld ist, fast immer der Upstream-Provider, nicht Tale; die Metric-Endpoints auf `tale-convex` (das jetzt auch die RAG- und Crawl-Timings trägt) zeigen die Zeit in jedem Sprung.
+Der Hot-Path ist kurz. Fühlt sich die Chat-Latenz falsch an, ist der Schuldige fast immer der Upstream-Provider, nicht Tale; der Metrics-Endpunkt auf `tale-backend-api` zeigt die in jedem Hop verbrachte Zeit.
 
 ## Die Sandbox-Ebene
 
-Sandboxierte Code-Ausführung läuft in `tale-sandbox`, mit `tale-sandbox-egress` als der einzigen Netzwerk-Naht. Die Zwei-Container-Trennung ist Absicht: `tale-sandbox` selbst hat kein ausgehendes Netz; jeder Request, den der sandboxierte Code macht, geht durch `tale-sandbox-egress`, der Cloud-Metadaten und private Adressbereiche auf IP-Ebene blockiert und — wenn der Operator `SANDBOX_EGRESS_ALLOWLIST` setzt — zusätzlich eine Default-Deny-Hostname-Allowlist durchsetzt. Ist der Egress-Container down, scheitert sandboxierter Code, der das Netz braucht, geschlossen mit „Egress denied" — nicht stiller Timeout.
+Sandboxte Code-Ausführung läuft in `tale-sandbox` mit `tale-sandbox-egress` als einziger Netznaht. Die Zwei-Container-Trennung ist Absicht: `tale-sandbox` selbst hat kein ausgehendes Netz; jede Anfrage, die der sandboxte Code stellt, läuft durch `tale-sandbox-egress`, das Cloud-Metadaten- und Private-Range-Ziele auf IP-Ebene blockiert und — wenn der Operator `SANDBOX_EGRESS_ALLOWLIST` setzt — obendrauf eine Default-Deny-Hostname-Allowlist erzwingt. Ist der Egress-Container aus, scheitert sandboxter Code, der das Netz braucht, geschlossen mit „egress denied“ — kein stiller Timeout.
 
-Die Sandbox-Laufzeit trägt Chromium und Playwright, also nutzt das Convex-Backend sie für die Headless-Arbeit, die es im Prozess nicht erledigen kann, erneut: das Rendern einer JavaScript-Seite während eines Web-Crawls und das Verwandeln von generiertem HTML in ein PDF oder Bild. Diese Jobs laufen als ephemere Sandbox-Ausführungen statt als User-Code, reiten aber dieselbe Egress- und Isolations-Naht. Die Sandbox ist der einzige Container, der eher-nicht-vertrauenswürdigen Code läuft (User-gelieferte Fähigkeits-Skripte, Agent-**Code-ausführen**-Aufrufe); der Rest des Stacks läuft den eigenen Code der Plattform.
+Die Sandbox-Laufzeit bringt Chromium und Playwright mit, sodass das Backend sie für die Headless-Arbeit wiederverwendet, die es nicht im Prozess erledigen kann: eine JavaScript-Seite bei einem Web-Crawl rendern und generiertes HTML in ein PDF oder Bild verwandeln. Diese Jobs laufen als ephemere Sandbox-Ausführungen statt als Nutzer-Code, reiten aber auf derselben Egress- und Isolationsnaht. Die Sandbox ist der einzige Container, der halbwegs nicht vertrauenswürdigen Code ausführt (nutzergelieferte Skill-Skripte, `Run code`-Aufrufe von Agents); der Rest des Stacks führt den eigenen Code der Plattform aus.
 
-## Fehler-Modi — wie der Ausfall jedes Containers aussieht
+## Fehlermodi — wie der Ausfall jedes Containers aussieht
 
-**`tale-proxy` down.** TLS-Handshake scheitert; jeder Client sieht einen Verbindungsfehler. Im Host sind die Plattform- und Convex-Container weiter up — starte Proxy zuerst neu.
+**`tale-proxy` aus.** Der TLS-Handshake scheitert; jeder Client sieht einen Verbindungsfehler. Im Host sind die Plattform- und Backend-Container noch oben — starte zuerst den Proxy neu.
 
-**`tale-platform` down.** Browser bekommt 502 vom Proxy; die API arbeitet weiter. Bestehende Browser-Tabs mit gecachten Assets sprechen weiter mit Convex über den WebSocket und merken es vielleicht erst beim Reload.
+**`tale-platform` aus.** Der Browser bekommt die Ladeseite des Proxys statt der App-Hülle; die API läuft weiter. Bestehende Tabs mit gecachten Assets sprechen weiter mit dem Backend und merken es womöglich erst beim Neuladen.
 
-**`tale-convex` down.** Browser lädt die UI-Shell, aber nichts wird befüllt. WebSocket-Reconnect schleift. Convex neu zu starten ist sicher — Sessions sind serverseitig; Clients reabonnieren beim Reconnect.
+**`tale-backend-api` aus.** Der Browser lädt die UI-Hülle, aber nichts füllt sich, und Anmeldung, Chat und Uploads scheitern alle — das ist der Container, von dem jede Anwendungsanfrage abhängt. Beide Plattform-Farben zeigen auf dieselbe api, das ist also per Design ein Single Point of Failure; ein Neustart ist sicher (Sessions sind serverseitig, Clients verbinden den SSE-Stream neu).
 
-**`tale-db` down.** Convex tritt in seinen degradierten Modus: Reads aus dem Cache, Writes werden gepuffert. Lange Ausfälle zeigen sich irgendwann als „Speichern fehlgeschlagen"-Toasts.
+**`tale-backend-worker` aus.** Chat antwortet weiter — die api bedient ihn —, aber geplante Automationen, Agent-Task-Läufe, Dokument-Ingestion und RAG-Indexierung stocken, bis der Worker zurück ist. Jobs sind at-least-once, also nimmt laufende Arbeit beim nächsten Durchlauf wieder auf, statt verloren zu gehen. Skaliere den Worker (`--scale backend-worker=N`), wenn die Job-Queue der Flaschenhals ist.
 
-**`tale-knowledge-db` down.** Dokument-Ingestion scheitert und die Wissens-Suche liefert leer — Agents, die Wissen abrufen, bekommen eine leere Ergebnismenge und eine Warnung im Ausführungs-Log. Der Rest der App arbeitet weiter; Chats ohne Wissen sind unbetroffen. Den Container neu zu starten räumt das, und laufende Uploads versuchen es beim nächsten Durchlauf erneut.
+**`tale-db` aus.** Schreibvorgänge blockieren und die Wissenssuche liefert leer; die App zeigt bei jeder Mutation „Speichern fehlgeschlagen“-Toasts. Das ist der eine Container, dessen Daten nicht ableitbar sind — starte ihn zuerst neu und bestätige, dass er gesund zurückkommt, bevor du dich um den Rest sorgst.
 
-**`tale-sandbox` / `tale-sandbox-egress` down.** **Code-ausführen**-Tool-Aufrufe geben einen Fehler zurück und Fähigkeits-Skripte scheitern. Weil das Convex-Backend Webseiten rendert und Dokumente über die Sandbox-Laufzeit generiert, scheitern auch ein Web-Crawl, der JavaScript-Rendering braucht, und die Dokumentgenerierung geschlossen, solange die Sandbox down ist. Agents, die keines davon nutzen, arbeiten weiter.
+**`tale-object-store` aus.** Jeder Upload und jeder Download einer gespeicherten Datei scheitert; Agents, die Dokumente lesen oder schreiben, geben Fehler, während Chats ohne Dateien weiterlaufen. Ein Neustart des Containers behebt es — die Blobs liegen auf dem `object-store-data`-Volume, nicht im Container.
 
-**`tale-sandbox-llm-gateway` down.** Harness-Züge verlieren ihren Pfad zu einem Modell-Provider. Regulärer Chat — der Provider direkt aus Convex aufruft, nicht über das LLM-Gateway — ist unbetroffen.
+**`tale-sandbox` / `tale-sandbox-egress` aus.** `Run code`-Tool-Aufrufe geben einen Fehler, und Skill-Skripte scheitern. Weil das Backend Webseiten rendert und Dokumente über die Sandbox-Laufzeit generiert, scheitern auch ein Web-Crawl, der JavaScript-Rendering braucht, und die Dokumentgenerierung geschlossen, während die Sandbox aus ist. Agents, die nichts davon nutzen, laufen weiter.
+
+**`tale-sandbox-llm-gateway` aus.** Harness-Turns verlieren ihren Pfad zu einem Modell-Provider. Regulärer Chat — der Provider direkt aus dem Backend aufruft, nicht über das LLM-Gateway — ist unbetroffen.
 
 ## Wo das hingehört
 
-Diese Seite ist die Karte des Operators; die [Architektur-Übersicht](/de/self-hosted/overview) ist die Einführung ins selbe Bild, die [Troubleshooting-Seite](/de/self-hosted/operate/observability/troubleshooting) ist der symptomorientierte Index, wenn etwas schiefgegangen ist. Wenn du Alert-Schwellen setzt, benennt [Operations](/de/self-hosted/operate/observability/operations) die Signale, die sich zu verdrahten lohnen.
+Diese Seite ist die Karte des Operators; die [Architektur-Übersicht](/de/self-hosted/overview) ist die Einführung ins selbe Bild, die [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting)-Seite ist der symptomorientierte Index, wenn etwas schiefgegangen ist. Wenn du Alert-Schwellen setzt, benennt [Betrieb](/de/self-hosted/operate/observability/operations) die Signale, die sich zu verdrahten lohnen.

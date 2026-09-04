@@ -13,6 +13,14 @@ const CLI = new URL('./cli.ts', import.meta.url).pathname;
 const RECORDING = new URL('../examples/sample-recording.json', import.meta.url)
   .pathname;
 
+// Each test here spawns a cold Bun process that loads the analyzer and the
+// recording. Locally that is well under a second; on CI the whole repo's
+// suites run at once on a two-core runner, and a sibling spawned-CLI test
+// (analyze-cli.test.ts) took over bun's 5 s default and was killed mid-spawn
+// (2026-09-04, main run 33843933336). Give the out-of-process tests the time
+// a cold start under load actually needs.
+const SPAWNED_CLI_TIMEOUT_MS = 60_000;
+
 async function runCli(
   args: readonly string[],
 ): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -29,46 +37,66 @@ async function runCli(
 }
 
 describe('cli (offline recording analysis)', () => {
-  test('default: prints the compact report (numeric score) and exits 0', async () => {
-    const { code, stdout, stderr } = await runCli([RECORDING]);
-    expect(code).toBe(0);
-    const parsed: unknown = JSON.parse(stdout);
-    // The compact report carries a numeric `score`; the faithful Report does not.
-    expect(typeof (parsed as { score?: unknown }).score === 'number').toBe(
-      true,
-    );
-    expect(stderr).toBe('');
-  });
+  test(
+    'default: prints the compact report (numeric score) and exits 0',
+    async () => {
+      const { code, stdout, stderr } = await runCli([RECORDING]);
+      expect(code).toBe(0);
+      const parsed: unknown = JSON.parse(stdout);
+      // The compact report carries a numeric `score`; the faithful Report does not.
+      expect(typeof (parsed as { score?: unknown }).score === 'number').toBe(
+        true,
+      );
+      expect(stderr).toBe('');
+    },
+    SPAWNED_CLI_TIMEOUT_MS,
+  );
 
-  test('--full: prints the faithful Report (session, no compact score)', async () => {
-    const { code, stdout } = await runCli([RECORDING, '--full']);
-    expect(code).toBe(0);
-    const parsed: unknown = JSON.parse(stdout);
-    expect(Reflect.has(parsed as object, 'session')).toBe(true);
-    expect(Reflect.has(parsed as object, 'score')).toBe(false);
-  });
+  test(
+    '--full: prints the faithful Report (session, no compact score)',
+    async () => {
+      const { code, stdout } = await runCli([RECORDING, '--full']);
+      expect(code).toBe(0);
+      const parsed: unknown = JSON.parse(stdout);
+      expect(Reflect.has(parsed as object, 'session')).toBe(true);
+      expect(Reflect.has(parsed as object, 'score')).toBe(false);
+    },
+    SPAWNED_CLI_TIMEOUT_MS,
+  );
 
-  test('--full before the path still works (path = first non-flag arg)', async () => {
-    const { code, stdout } = await runCli(['--full', RECORDING]);
-    expect(code).toBe(0);
-    expect(Reflect.has(JSON.parse(stdout) as object, 'session')).toBe(true);
-  });
+  test(
+    '--full before the path still works (path = first non-flag arg)',
+    async () => {
+      const { code, stdout } = await runCli(['--full', RECORDING]);
+      expect(code).toBe(0);
+      expect(Reflect.has(JSON.parse(stdout) as object, 'session')).toBe(true);
+    },
+    SPAWNED_CLI_TIMEOUT_MS,
+  );
 
-  test('no path: prints usage to stderr and exits 1 (stdout stays clean)', async () => {
-    const { code, stdout, stderr } = await runCli([]);
-    expect(code).toBe(1);
-    expect(stderr).toContain('usage: bun src/cli.ts');
-    expect(stdout).toBe('');
-  });
+  test(
+    'no path: prints usage to stderr and exits 1 (stdout stays clean)',
+    async () => {
+      const { code, stdout, stderr } = await runCli([]);
+      expect(code).toBe(1);
+      expect(stderr).toContain('usage: bun src/cli.ts');
+      expect(stdout).toBe('');
+    },
+    SPAWNED_CLI_TIMEOUT_MS,
+  );
 
-  test('a missing file is reduced to a one-line error and exit 1 (no stack trace)', async () => {
-    const { code, stdout, stderr } = await runCli([
-      '/no/such/recording-xyz.json',
-    ]);
-    expect(code).toBe(1);
-    expect(stdout).toBe('');
-    expect(stderr.trim().length).toBeGreaterThan(0);
-    // The `import.meta.main` catch prints `error.message`, never a raw stack.
-    expect(stderr).not.toContain('\n    at ');
-  });
+  test(
+    'a missing file is reduced to a one-line error and exit 1 (no stack trace)',
+    async () => {
+      const { code, stdout, stderr } = await runCli([
+        '/no/such/recording-xyz.json',
+      ]);
+      expect(code).toBe(1);
+      expect(stdout).toBe('');
+      expect(stderr.trim().length).toBeGreaterThan(0);
+      // The `import.meta.main` catch prints `error.message`, never a raw stack.
+      expect(stderr).not.toContain('\n    at ');
+    },
+    SPAWNED_CLI_TIMEOUT_MS,
+  );
 });

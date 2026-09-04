@@ -179,15 +179,35 @@ export interface ImapSession {
   close(): Promise<void>;
 }
 
+/**
+ * One outbound attachment. Bytes are NOT inlined here: the send lane presigns a
+ * short-lived GET against the org's own blob store (the same `getFileUrl` the
+ * Gmail/Graph send paths use) and the transport streams from that URL, so a
+ * reply carries the files the sender attached without holding them in memory.
+ */
+export interface OutboundAttachment {
+  readonly filename: string;
+  readonly contentType?: string;
+  /** Presigned org-blob GET the transport fetches the bytes from. */
+  readonly url: string;
+}
+
 export interface OutboundMail {
   readonly from: string;
   readonly to: string;
+  /** Carbon-copy recipients, already joined into one address-list line. */
+  readonly cc?: string;
   readonly subject: string;
   readonly text?: string;
   readonly html?: string;
   /** Message-ID this replies to; the transport also carries it in
    * `References` so a client threads the reply. */
   readonly inReplyTo?: string;
+  /** The thread's Message-ID chain (root … parent), sent as `References` so a
+   * reply threads even when the client keys on the full chain, not just
+   * `In-Reply-To`. Falls back to `[inReplyTo]` when omitted. */
+  readonly references?: readonly string[];
+  readonly attachments?: readonly OutboundAttachment[];
 }
 
 export interface SmtpSession {
@@ -484,12 +504,23 @@ const listInput = z.object({
   mailbox: z.string().optional(),
 });
 
+const sendAttachmentInput = z.object({
+  name: z.string().min(1),
+  contentType: z.string().optional(),
+  size: z.number().optional(),
+  url: z.string().min(1),
+});
+
 const sendInput = z.object({
   to: z.string().min(1),
+  /** Carbon-copy recipients as one address-list line (`a@x, b@y`). */
+  cc: z.string().optional(),
   subject: z.string(),
   text: z.string().optional(),
   html: z.string().optional(),
   inReplyTo: z.string().optional(),
+  references: z.array(z.string()).optional(),
+  attachments: z.array(sendAttachmentInput).optional(),
   /** When true, send From `notification@` on the mailbox domain so system
    * mail is distinct from conversation replies on the same SMTP account. */
   notificationSender: z.boolean().optional(),
@@ -602,6 +633,15 @@ export function imapSmtpNatives(
         'pass one recipient address, e.g. person@example.com',
       );
     }
+    // Cc is a header like To — a line break would end it and inject the rest as
+    // its own headers, so it is checked before it reaches the transport.
+    const cc = parsed.cc?.trim();
+    if (cc !== undefined && cc !== '') {
+      assertSingleLine(cc, 'cc', 'send');
+    }
+    for (const reference of parsed.references ?? []) {
+      assertSingleLine(reference, 'references', 'send');
+    }
 
     const config = await configFor(ctx, 'send');
     // A message with no body at all still needs one part or the server has
@@ -612,13 +652,23 @@ export function imapSmtpNatives(
       parsed.notificationSender === true
         ? notificationSenderFrom(config.from)
         : config.from;
+    const attachments: OutboundAttachment[] = (parsed.attachments ?? []).map(
+      (att) =>
+        att.contentType !== undefined
+          ? { filename: att.name, url: att.url, contentType: att.contentType }
+          : { filename: att.name, url: att.url },
+    );
     const message: OutboundMail = {
       from,
       to,
+      ...(cc !== undefined && cc !== '' && { cc }),
       subject: parsed.subject,
       ...(text !== undefined && { text }),
       ...(parsed.html !== undefined && { html: parsed.html }),
       ...(parsed.inReplyTo !== undefined && { inReplyTo: parsed.inReplyTo }),
+      ...(parsed.references !== undefined &&
+        parsed.references.length > 0 && { references: parsed.references }),
+      ...(attachments.length > 0 && { attachments }),
     };
 
     const session = await deps.transport.openSmtp(config);
@@ -1059,18 +1109,40 @@ export function nodeMailTransport(): MailTransport {
 
       return {
         async send(message: OutboundMail): Promise<{ messageId: string }> {
+          // `In-Reply-To` names the parent; `References` carries the thread and
+          // clients need the pair to thread a reply. Prefer the caller's full
+          // chain, falling back to the parent alone.
+          const references =
+            message.references !== undefined && message.references.length > 0
+              ? [...message.references]
+              : message.inReplyTo !== undefined
+                ? [message.inReplyTo]
+                : undefined;
           const info = await transport.sendMail({
             from: message.from,
             to: message.to,
+            ...(message.cc !== undefined && { cc: message.cc }),
             subject: message.subject,
             ...(message.text !== undefined && { text: message.text }),
             ...(message.html !== undefined && { html: message.html }),
-            // Both headers: `In-Reply-To` names the parent, `References`
-            // carries the thread, and clients need the pair to thread a reply.
             ...(message.inReplyTo !== undefined && {
               inReplyTo: message.inReplyTo,
-              references: [message.inReplyTo],
             }),
+            ...(references !== undefined && { references }),
+            // Stream each part from its presigned org-blob GET rather than
+            // buffering the bytes here.
+            ...(message.attachments !== undefined &&
+              message.attachments.length > 0 && {
+                attachments: message.attachments.map((att) =>
+                  att.contentType !== undefined
+                    ? {
+                        filename: att.filename,
+                        path: att.url,
+                        contentType: att.contentType,
+                      }
+                    : { filename: att.filename, path: att.url },
+                ),
+              }),
           });
           // Empty falls through to the action's own Message-ID check.
           return { messageId: info.messageId ?? '' };
@@ -1155,7 +1227,7 @@ async function resolveMailboxPath(
  * bodies in memory for nothing. `SEARCH SINCE` is date-granular, so the
  * millisecond cursor is applied again here.
  */
-async function fetchSummaries(
+export async function fetchSummaries(
   client: ImapClientLike,
   query: MailboxQuery,
 ): Promise<readonly MailMessageSummary[]> {
@@ -1166,7 +1238,13 @@ async function fetchSummaries(
       { since: new Date(query.since) },
       { uid: true },
     );
-    const uids = (found === false ? [] : found).slice(-query.limit);
+    // Oldest first: a cursored pass DRAINS forward, so it takes the OLDEST
+    // window after the cursor (SEARCH returns UIDs ascending ≈ arrival order).
+    // The watermark then advances over this window and the next pass continues.
+    // Taking the newest window instead would re-read the tail every pass and
+    // strand everything older than it behind the advancing cursor — the loss
+    // this drains against.
+    const uids = (found === false ? [] : found).slice(0, query.limit);
     if (uids.length === 0) return [];
     for await (const message of client.fetch(
       uids,
@@ -1192,10 +1270,14 @@ async function fetchSummaries(
   }
 
   const cursor = query.since;
-  return summaries
+  const ordered = summaries
     .filter((message) => cursor === undefined || message.sentAt >= cursor)
-    .sort((a, b) => a.sentAt - b.sentAt)
-    .slice(-query.limit);
+    .sort((a, b) => a.sentAt - b.sentAt);
+  // A cursored pass keeps the OLDEST window (drain forward from the watermark);
+  // the initial no-cursor pass keeps the newest tail.
+  return cursor === undefined
+    ? ordered.slice(-query.limit)
+    : ordered.slice(0, query.limit);
 }
 
 async function fetchMessageBody(

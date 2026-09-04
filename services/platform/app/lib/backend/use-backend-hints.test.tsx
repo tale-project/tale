@@ -90,6 +90,16 @@ describe('useBackendHints', () => {
     });
   });
 
+  it('refetches the whole org scope when the server cannot replay the gap (resync)', () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      FakeEventSource.instances[0]?.emit('resync', '');
+    });
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['backend', 'org1'] });
+  });
+
   it('ignores malformed hint payloads without throwing', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     vi.spyOn(console, 'warn').mockImplementation(() => {});

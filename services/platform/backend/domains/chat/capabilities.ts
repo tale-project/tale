@@ -128,7 +128,7 @@ function unavailableBackend(kind: string): () => Promise<BackendResult> {
   return async () => ({
     status: 'refused',
     reason: `${kind} capabilities are not available on this deployment yet.`,
-    hint: 'Use an automation or an connector action instead.',
+    hint: 'Use an automation or a connector action instead.',
   });
 }
 

@@ -92,7 +92,7 @@ Jeder Service sollte `running` oder `healthy` zeigen. Folg dem **Schritt 4 — D
 
 Bevor du User auf die URL zeigst, machen dir drei Haken später das Leben leichter:
 
-- **Backups.** Richt dein bestehendes Snapshot-Tooling auf `db-data` und das Object-Store-Volume — siehe [Backups und Restore](/de/self-hosted/operate/backups-and-restore).
+- **Backups.** `tale backup` snapshottet die Daten-Volumes — Blobs eingeschlossen — ins `backups`-Volume; richte dein Off-Host-Tooling auf dieses Volume plus Projekt-Workspace und `.env` — siehe [Backups und Restore](/de/self-hosted/operate/backups-and-restore).
 - **Logs.** Tale loggt auf stdout. Hat der Host journald, trägt `journalctl -u docker` alles; sonst pipe zu deinem Aggregator.
 - **Metriken.** Setze `METRICS_BEARER_TOKEN` in `.env` und scrap `/metrics` aus deinem Prometheus — siehe [Observability-Konfiguration](/de/self-hosted/configuration/observability-config).
 

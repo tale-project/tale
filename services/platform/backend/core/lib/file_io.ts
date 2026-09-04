@@ -378,11 +378,23 @@ export async function readJsonFile<T>(
   let fileStat;
   try {
     fileStat = await stat(filePath);
-  } catch {
+  } catch (err) {
+    // Only a genuinely missing file is `not_found` (a component that is not
+    // a directory means the same thing). A permission or I/O failure is
+    // `inaccessible`: callers treat `not_found` as "use the defaults", and a
+    // mis-permissioned config volume must surface, never read as absent.
+    const code = errnoCode(err);
+    if (code === 'ENOENT' || code === 'ENOTDIR') {
+      return {
+        ok: false,
+        error: 'not_found',
+        message: `File not found: ${path.basename(filePath)}`,
+      };
+    }
     return {
       ok: false,
-      error: 'not_found',
-      message: `File not found: ${path.basename(filePath)}`,
+      error: 'inaccessible',
+      message: `Failed to stat file: ${path.basename(filePath)} — ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 
@@ -403,16 +415,9 @@ export async function readJsonFile<T>(
       await fd.close();
     }
   } catch (err) {
-    const code = err instanceof Error && 'code' in err ? err.code : undefined;
-    const errorType =
-      code === 'ENOENT'
-        ? 'not_found'
-        : code === 'EACCES' || code === 'EPERM'
-          ? 'inaccessible'
-          : 'inaccessible';
     return {
       ok: false,
-      error: errorType,
+      error: errnoCode(err) === 'ENOENT' ? 'not_found' : 'inaccessible',
       message: `Failed to read file: ${path.basename(filePath)} — ${err instanceof Error ? err.message : String(err)}`,
     };
   }

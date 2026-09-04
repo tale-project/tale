@@ -1,20 +1,18 @@
 ---
 title: Projekt-Backlog
-description: Backlog ist ein Board-Status für vorgeschlagene Arbeit — Automatisierungen synchronisieren Issues hierher, und du bewegst Aufgaben mit denselben Drag-, Status- und Zuweisungs-Steuerelementen wie in jeder anderen Spalte.
+description: Backlog ist der Eingangsstatus des Boards für Arbeit, zu der sich noch niemand verpflichtet hat — wie eine Aufgabe dort landet und wie du sie mit denselben Steuerelementen wie in jeder anderen Spalte weiterbewegst.
 ---
 
-Eine Aufgabe im Status **`backlog`** ist vorgeschlagene Arbeit, für die sich noch niemand verpflichtet hat — meist eingespeist von einer Automatisierung wie [GitHub-Issues sichten](/de/platform/automations/builtin). Sie liegt in der **linken Spalte** auf dem Board und im **obersten Abschnitt** in der Liste, mit derselben Karte, demselben Detail-Sheet, demselben Status-Picker und demselben Zuweisungs-Picker wie jeder andere Status. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) behandelt, was passiert, sobald eine Aufgabe **Zu erledigen** erreicht und in die Zuweisungs-Schleife eintritt.
+Eine Aufgabe im Status **Backlog** ist vorgeschlagene Arbeit, zu der sich noch niemand verpflichtet hat. Sie liegt in der linken Spalte des Boards und im obersten Abschnitt der Liste, mit derselben Karte, demselben Detail-Sheet, demselben Status-Picker und demselben Zuweisungs-Picker wie jeder andere Status — Backlog-eigene Steuerelemente gibt es nicht. Nichts Mitgeliefertes füllt die Spalte in dieser Version von selbst: [GitHub-Issues sichten](/de/platform/automations/builtin) bewertet Issues und liefert einen Bericht, und keine Automatisierung synchronisiert Issues in Aufgaben. Das Backlog füllt sich, wenn ein Mensch oder ein Agent einen Vorschlag ablegt.
 
-## Eine synchronisierte Aufgabe
+## Wie eine Aufgabe ins Backlog kommt
 
-GitHub-Issues sichten schlägt eine Aufgabe pro umsetzbarem offenem Issue vor, verankert am Issue, sodass ein späterer Abgleich sie nie doppelt anlegt: Der Titel lautet `#<Nummer> <Titel>` — zum Beispiel `#482 Login-Button auf Safari verschoben` —, die Beschreibung beginnt mit der eigenen GitHub-URL des Issues, und ihre Labels spiegeln die GitHub-Labels des Issues. Eine Aufgabe, die du vom Board aus mit dem Standardstatus anlegst, startet bei **Zu erledigen**; wähle **Backlog** im Erstellungsformular, wenn du selbst einen Vorschlag ablegen willst.
+Leg eine Aufgabe an und wähl im Status-Picker des Erstellungsformulars **Backlog** — voreingestellt ist **Zu erledigen**. Auch ein Agent kann eine ablegen: Ein Projekt-Agent, der mit dem Tool zum Anlegen von Aufgaben ausgerüstet ist, darf nur nach **Backlog** oder **Zu erledigen** anlegen und nirgendwo sonst; ein Vorschlag eines Agenten landet also nie in einer Arbeits- oder Endspalte. Dieselbe Regel gilt für eine Automatisierung, die mit den Aufgaben-Tools eines Projekts läuft.
 
 ## Arbeit weiterbewegen
 
-Es gibt keine Backlog-spezifischen Buttons. Ziehe eine Karte in eine andere Spalte, öffne das Detail-Sheet und wähle einen neuen Status, oder weise einen Owner zu — dieselben Wege wie bei **Zu erledigen** oder **In Bearbeitung**. Auto-Zuweisung und Zuweisungs-Vorschläge von Agenten laufen nur bei **Zu erledigen**, nicht solange die Aufgabe im **Backlog** liegt. Wenn du einen Vorschlag direkt nach **In Bearbeitung** schiebst oder von Hand zuweist, übernimmst du die Verantwortung selbst.
+Zieh die Karte in eine andere Spalte, öffne das Detail-Sheet und wähl einen neuen Status, oder weis jemanden zu — dieselben Wege wie bei **Zu erledigen** oder **In Bearbeitung**. Zuweisen ist erlaubt, solange eine Aufgabe im Backlog liegt; du kannst einen Vorschlag also einer Person oder einem Projekt-Agenten übergeben, bevor er sich bewegt. Weist du einen Projekt-Agenten zu und klickst auf **Agent starten**, legt er los, und [Aufgaben-Automatisierung](/de/platform/projects/task-automation) behandelt, was von da an passiert. Einen Vorschlag verwirfst du wie jede andere Aufgabe: Setz seinen Status auf **Abgebrochen**.
 
-Lehne einen Vorschlag ab wie jede andere Aufgabe: Setze den Status im Picker auf **Abgebrochen**. Eine menschliche Stornierung bleibt bestehen — ein späterer GitHub-Abgleich holt einen abgelehnten Vorschlag nicht zurück, solange das Issue auf GitHub offen bleibt. War eine Aufgabe auf dem Board **Erledigt** und jemand öffnet das Issue auf GitHub wieder, setzt der Abgleich die Aufgabe zurück ins **Backlog**.
+## Wo das hingehört
 
-## Wo das hineinpasst
-
-Backlog ist die Eingangsspalte zwischen einer Automatisierung, die Arbeit vorschlägt, und deinem Team, das sich dazu verpflichtet. Die natürliche nächste Lektüre ist [Aufgaben-Automatisierung](/de/platform/projects/task-automation) für das, was bei **Zu erledigen** passiert, oder [Mitgelieferte Automatisierungen](/de/platform/automations/builtin) dafür, was überhaupt Aufgaben vorschlägt.
+Das Backlog ist die Eingangsspalte zwischen einem Vorschlag — deinem, dem einer Kollegin oder dem eines Agenten — und dem Team, das sich dazu verpflichtet. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) ist die nächste Lektüre für die Schleife, in die eine Aufgabe nach der Zuweisung eintritt; [Mitgelieferte Automatisierungen](/de/platform/automations/builtin) erklärt, warum das mitgelieferte GitHub-Paket berichtet, statt Aufgaben anzulegen.

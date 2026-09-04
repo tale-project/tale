@@ -26,7 +26,6 @@ type MyPreferencesResult =
   ReturnsOf<'user_preferences/queries:getMyPreferences'>;
 type NotificationPrefsResult =
   ReturnsOf<'collab/preferences:getNotificationPreferences'>;
-type MyEnvItem = ItemOf<'sandbox/user_env:listMyEnv'>;
 type AppPasswordItem = ItemOf<'webdav/app_password_queries:listAppPasswords'>;
 type CreateAppPasswordResult =
   ReturnsOf<'webdav/app_password_mutations:createAppPassword'>;
@@ -273,17 +272,6 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<NotificationPrefsResult>('/collab/preferences', {
           orgId,
         }),
-    };
-  },
-  'sandbox/user_env:listMyEnv': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return {
-      queryKey: backendKey(orgId, 'sandbox_user_env', 'mine'),
-      queryFn: () =>
-        backendFetch<{ env: MyEnvItem[] }>('/sandbox/user-env', {
-          orgId,
-        }).then((body) => body.env),
     };
   },
   'governance/queries:getPolicy': (args, ctx) => {
@@ -869,18 +857,6 @@ function invalidateUserPrefs(
   });
 }
 
-function invalidateUserEnv(
-  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
-  args: Record<string, unknown>,
-  ctx: AdapterContext,
-): void {
-  const orgId = orgOf(args, ctx);
-  if (orgId === undefined) return;
-  void client.invalidateQueries({
-    queryKey: backendEntityPrefix(orgId, 'sandbox_user_env'),
-  });
-}
-
 function invalidateProviderCredentials(
   client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
   args: Record<string, unknown>,
@@ -1139,26 +1115,6 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         },
       }).then(() => null),
   },
-  'sandbox/user_env_actions:upsertMyEnvVar': {
-    run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>('/sandbox/user-env', {
-        orgId: requireOrg(args, ctx),
-        body: {
-          key: stringArg(args, 'key'),
-          value: typeof args.value === 'string' ? args.value : '',
-          isSecret: args.isSecret === true,
-        },
-      }).then(() => null),
-    invalidate: invalidateUserEnv,
-  },
-  'sandbox/user_env:deleteMyEnvVar': {
-    run: (args, ctx) =>
-      backendFetch<{ deleted: boolean }>(
-        `/sandbox/user-env/${encodeURIComponent(stringArg(args, 'key'))}`,
-        { orgId: requireOrg(args, ctx), method: 'DELETE' },
-      ).then(() => null),
-    invalidate: invalidateUserEnv,
-  },
   'webdav/app_password_mutations:createAppPassword': {
     run: (args, ctx) =>
       backendFetch<CreateAppPasswordResult>('/webdav/app-passwords', {
@@ -1206,13 +1162,29 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
         {
           orgId: requireOrg(args, ctx),
+          // Mirrors the create row field for field: everything the edit and
+          // replace dialogs can submit must reach the wire, or a save reads
+          // as success while nothing changed (the broker Replace-configuration
+          // and the Azure endpoint edit were exactly that).
           body: {
             ...(typeof args.name === 'string' ? { name: args.name } : {}),
             ...(typeof args.status === 'string' ? { status: args.status } : {}),
+            ...(typeof args.isDefault === 'boolean'
+              ? { isDefault: args.isDefault }
+              : {}),
             ...(args.modelAllowlist !== undefined
               ? { modelAllowlist: args.modelAllowlist }
               : {}),
+            ...(typeof args.endpointUrl === 'string'
+              ? { endpointUrl: args.endpointUrl }
+              : {}),
+            ...(typeof args.envName === 'string'
+              ? { envName: args.envName }
+              : {}),
             ...(typeof args.secret === 'string' ? { secret: args.secret } : {}),
+            ...(args.broker !== undefined
+              ? { secret: JSON.stringify(args.broker) }
+              : {}),
           },
         },
       ).then(() => null),

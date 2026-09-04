@@ -1,49 +1,30 @@
 ---
 title: MCP-Server
-description: Registriere externe Tool-Server unter Einstellungen > API > MCP — Transport, Authentifizierung, die Liste der erkannten Tools und die Genehmigungs-Flags pro Tool, die die Vertrauensgrenze eng halten.
+description: Externe MCP-Server zu registrieren, damit Agenten sie aufrufen, gibt es in dieser Version nicht — Tales einzige MCP-Oberfläche ist der eingehende Endpoint unter Einstellungen > API > MCP.
 ---
 
-Ein MCP-Server ist ein externer Prozess, der Tales Agents über das Model Context Protocol Tools bereitstellt. Wo eine [Connector](/de/platform/connectors/overview) ein anbieterspezifischer Konnektor ist, den Tale mitliefert, ist ein MCP-Server eine generische Brücke, die jeder hosten kann — eine interne API, ein Anbieter ohne Konnektor, ein Skript, das etwas berechnet, was Tales eingebaute Tools nicht können. Du hostest den Server; Tale spricht nur mit ihm.
+Diese Seite hat früher ein Formular **MCP-Server hinzufügen** beschrieben: einen Transport, eine Authentifizierungsmethode, eine Liste erlaubter Agenten und eine Tabelle erkannter Tools mit Genehmigungs-Flags pro Tool. Nichts davon gibt es in dieser Version von Tale. Es gibt kein Panel für MCP-Server, kein Registrierungsformular und keinen Werkzeugkasten der Agenten, in den sich ein externer Server einreihen könnte — eine Capability, die zu einem externen MCP-Tool führen würde, lehnt die Laufzeit mit einer lesbaren Begründung ab. Ausgeliefert wird die Gegenrichtung: Tale ist selbst ein MCP-Server, mit dem sich Clients von außen verbinden.
 
-<Frame caption="Das Formular MCP-Server hinzufügen — eine Verbindung und eine Authentifizierungsmethode sind die ganze Registrierung.">
+<Note>
 
-![Der Dialog MCP-Server hinzufügen unter Einstellungen API MCP, ausgefüllt für einen Server für Support-Tickets — Anzeigename Support Tickets, eine einzeilige Beschreibung, Streamable HTTP als Transporttyp, die Server-URL und Keine als Authentifizierungsmethode — über der MCP-Seite, auf der bereits ein Server Internal Wiki registriert ist.](/images/platform/settings-mcp-add-dialog.webp)
+Ausgehende MCP-Server sind in dieser Version nicht verfügbar. Die frühere Adresse **Einstellungen > MCP-Server** leitet auf **Einstellungen > Connectors** weiter, und dort stehen die von Tale mitgelieferten Connectors — nichts MCP-Spezifisches.
+
+</Note>
+
+## Die MCP-Oberfläche, die es gibt
+
+Tale stellt pro Deployment einen MCP-Endpoint unter `/api/v1/mcp` bereit, authentifiziert mit einem API-Schlüssel der Organisation. Dahinter liegen zweiundzwanzig Tools in drei Gruppen — Automatisierungen autorieren und live schalten, sie ausführen und ihre Läufe lesen, und durchsuchen und aufrufen, was die Organisation kann. Unter **Einstellungen > API > MCP** findest du die Endpoint-URL deines Deployments, das Inventar in genau diesen drei Gruppen und unter **Ausprobieren** eine kopierbare `tools/list`-Anfrage. [MCP-Endpoint](/de/develop/mcp-endpoint) ist die Referenz — Protokoll, Tool-Tabelle und was der Schlüssel jeder Rolle darf; wie du den Schlüssel erzeugst, steht auf [API-Schlüssel](/de/platform/admin/api-keys).
+
+<Frame caption="Einstellungen > API > MCP — die Endpoint-URL für deinen Client, das Tool-Inventar in seinen drei Gruppen und eine Anfrage, mit der du den Schlüssel ausprobierst.">
+
+![Die MCP-Seite unter Einstellungen > API mit der Zeile MCP-Endpunkt, deren URL auf /api/v1/mcp endet und einen Kopieren-Button trägt, drei Zeilen mit Tool-Namen nach Gruppe — Autorieren, Lauf- & Trigger-Verwaltung, Capabilities & Wissen — und einer Zeile Ausprobieren mit einer curl-Anfrage, die tools/list mit einem API-Schlüssel als Bearer-Token aufruft.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 
-## Einen Server registrieren
+## Eigenen Code heute aus einem Agenten erreichen
 
-Öffne **Einstellungen > API > MCP** und klicke auf **MCP-Server hinzufügen**. Das Formular nimmt:
-
-- **Name** und **Anzeigename** — die Kennung und das Label, das Agents und Genehmigungskarten zeigen.
-- **Transporttyp** — **Streamable HTTP**, **SSE** oder **stdio**. Die HTTP-Transporte nehmen eine **URL** — das Formular markiert eine fehlerhafte URL inline, bevor du speichern kannst; stdio nimmt den Befehl, den Tale startet.
-- **Authentifizierung** — **Keine**, **API-Key** oder **OAuth 2.0** (Token-URL, Client-ID und -Geheimnis, Bereiche).
-- **Erlaubte Agents** — welche Agents sich an diesen Server binden dürfen. Standard ist keine Agents; greif zu **Alle Agents** nur, wenn der Server generisch genug ist, dass jeder Agent profitiert.
-
-**Server speichern**, dann **Verbindung testen** auf der Zeile, um den Handshake zu prüfen — der Status der Zeile zeigt **Verbunden**, **Getrennt** oder **Fehler** mit der Meldung der Gegenseite.
-
-## Die erkannten Tools
-
-Sobald die Verbindung steht, holt Tale das Manifest des Servers und listet es als **Erkannte Tools** — Name und Beschreibung jedes Tools und ob der Server es mit **Genehmigung erforderlich** markiert. Markierte Tools fragen im Chat bei jedem Aufruf durch einen Agent, mit den exakten Argumenten auf der Karte; unmarkierte laufen wie jedes eingebaute Tool.
-
-<Warning>
-
-Jedes MCP-Tool weitet aus, was deine Agents erreichen können, und die Genehmigungs-Flags stammen vom Autor des Servers — einen Server zu verbinden heißt, seinen Tool-Vertrag anzunehmen. Lies die erkannte Liste, bevor du Agents auf einen Server richtest, den du nicht selbst geschrieben hast.
-
-</Warning>
-
-## Aus Agents heraus nutzen
-
-Die Tools eines registrierten, aktiven Servers reihen sich in das Tool-Set ein, das Agents aufrufen können; die Anfrage reist durch Tale zu deinem Server, und die Antwort kommt zurück ins Gespräch. Der Server kann auch Ressourcen und Prompts bereitstellen, wo sein Autor sie implementiert — Tools sind die gemeinsame Oberfläche.
-
-## Deaktivieren und entfernen
-
-Jede Server-Zeile lässt sich deaktivieren — seine Tools fallen aus den Tool-Sets der Agents heraus, bis du ihn wieder aktivierst; die Registrierung bleibt erhalten. Den Server zu löschen entfernt die Registrierung nach einer Bestätigung vollständig; ihn später erneut hinzuzufügen ist eine frische Registrierung mit einem frischen Manifest-Abruf.
-
-## MCP-Server oder Connector
-
-Beide lassen einen Agent über Tale hinausgreifen; der Unterschied ist, wem der Konnektor gehört. Connectors sind anbieterspezifisch, mitgeliefert und im Katalog gepflegt; MCP-Server sind generisch, und du betreibst sie selbst. Greif zur Connector, wenn eine für das Zielsystem existiert; greif zu MCP, wenn die Brücke dein eigener Code sein soll.
+Einen eigenen Dienst so zu verpacken, dass ein Agent ihn nutzen kann, hat in dieser Version drei Formen. Ein [Connector](/de/platform/connectors/overview) ist die herstellerspezifische Brücke, die Tale mitliefert — nimm ihn, wenn es für das Zielsystem einen gibt. Eine [Automatisierung](/de/platform/automations/catalog) ruft Connector-Aktionen auf und führt dein eigenes JavaScript in `transform`-Knoten aus, nach Zeitplan oder per Webhook; du lädst sie als Paket hoch. Ein [Projekt-Agent](/de/platform/projects/project-agents) trägt **Secrets** — einen API-Schlüssel, den er als Umgebungsvariable bekommt — und ruft damit direkt aus seiner Sandbox einen Dienst auf, für den es keinen Connector gibt.
 
 ## Wo das hingehört
 
-MCP ist die offene Erweiterungsfläche des Agent-Tool-Sets. Die natürlichen nächsten Lektüren sind [Agent-Tools](/de/platform/agents/tools) dafür, wie Tools an einem Agent auftauchen, [Genehmigungen konfigurieren](/de/platform/approvals/configure) für die Flags, die riskante Aufrufe anhalten, und das Tutorial [MCP-Server von Grund auf](/de/tutorials/developer/mcp-server-from-scratch) für den Bau von Anfang bis Ende.
+Die MCP-Oberfläche dieser Version zeigt nach innen: Externe Clients steuern Tale, nicht umgekehrt. Soll ein Modell außerhalb von Tale Automatisierungen autorieren oder das Wissen der Organisation durchsuchen, verbinde es mit dem [MCP-Endpoint](/de/develop/mcp-endpoint); soll ein Agent in Tale deinen Code erreichen, nimm einen Connector, eine Automatisierung oder die Secrets eines Projekt-Agenten — der [Connectors-Überblick](/de/platform/connectors/overview) öffnet diesen Weg.

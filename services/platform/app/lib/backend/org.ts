@@ -188,20 +188,20 @@ export function ssoSelectableQuery() {
 }
 
 /**
- * Org-scoped writes that belong to no feature module. `prepareDeletion` is
- * the cleanup pass Better Auth's own delete needs BEFORE it removes the
- * organization row — it runs on the session alone (the caller is about to
- * lose the org, so an org-scoped gate would be circular).
+ * Org-scoped writes that belong to no feature module. `deleteOrganization`
+ * is the whole teardown in one server transaction (Better Auth's own delete
+ * endpoint is disabled) — it runs on the session alone (the caller is about
+ * to lose the org, so an org-scoped gate would be circular).
  */
 export const orgWriteAdapters: Record<string, WriteAdapter> = {
-  'organizations/delete_cleanup:prepareOrganizationDeletion': {
+  'organizations/delete:deleteOrganization': {
     run: (args) => {
       const organizationId = args.organizationId;
       if (typeof organizationId !== 'string' || organizationId === '') {
-        throw new Error('prepareOrganizationDeletion needs an organization');
+        throw new Error('deleteOrganization needs an organization');
       }
       return backendFetch<unknown>(
-        `/organizations/${encodeURIComponent(organizationId)}/prepare-deletion`,
+        `/organizations/${encodeURIComponent(organizationId)}/delete`,
         { body: {} },
       );
     },

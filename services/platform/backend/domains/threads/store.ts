@@ -88,44 +88,66 @@ export interface SaveMessageArgs {
 }
 
 /**
+ * How many times an appender re-claims the next (order, step) slot after
+ * another appender took the one it computed. The slot is UNIQUE
+ * (`messages_thread_slot`), so a lost race is refused at the index rather
+ * than landing two rows on one slot; under READ COMMITTED each attempt is a
+ * fresh statement that sees the winner's row, so one retry is the norm and a
+ * handful is generous. Under SERIALIZABLE the same conflict surfaces as a
+ * serialization failure and `transactSerializable` reruns the whole
+ * transaction instead, so this loop never spins there.
+ */
+export const MESSAGE_SLOT_ATTEMPTS = 8;
+
+/**
  * Append a message as the next turn: claims `max(order)+1` with
- * `step_order = 0`. Callers appending STEPS of an existing turn use
- * `saveMessageStep`. Runs inside the caller's serializable transaction, so
- * two concurrent appends to one thread serialize (one retries).
+ * `step_order = 0` in ONE statement (read and write together), and re-claims
+ * the following slot when a concurrent append took it first. Runs inside the
+ * caller's transaction; under a serializable one, two concurrent appends to
+ * one thread serialize (one retries the transaction).
  */
 export async function saveMessage(
   tx: TransactionSql,
   args: SaveMessageArgs,
 ): Promise<{ messageId: string; order: number }> {
-  const orderRows = await tx<{ next: number }[]>`
-    SELECT coalesce(max("order"), -1) + 1 AS next FROM app.messages
-    WHERE thread_id = ${args.threadId}
-  `;
-  const order = orderRows[0]?.next ?? 0;
-  const rows = await tx<{ id: string }[]>`
-    INSERT INTO app.messages (
-      thread_id, org_id, "order", step_order, role, parts, text, author_id,
-      status, created_at_ms
-    ) VALUES (
-      ${args.threadId}, ${args.organizationId}, ${order}, 0, ${args.role},
-      ${args.parts === undefined ? null : tx.json(toJson(args.parts))},
-      ${args.text ?? null}, ${args.authorId ?? null},
-      ${args.status ?? 'complete'}, ${Date.now()}
-    )
-    RETURNING id
-  `;
-  const id = rows[0]?.id;
-  if (!id) {
-    throw new Error('message insert failed');
+  for (let attempt = 0; attempt < MESSAGE_SLOT_ATTEMPTS; attempt += 1) {
+    const rows = await tx<{ id: string; order: number }[]>`
+      INSERT INTO app.messages (
+        thread_id, org_id, "order", step_order, role, parts, text, author_id,
+        status, created_at_ms
+      )
+      SELECT ${args.threadId}, ${args.organizationId},
+             coalesce(max("order"), -1) + 1, 0, ${args.role},
+             ${args.parts === undefined ? null : tx.json(toJson(args.parts))},
+             ${args.text ?? null}, ${args.authorId ?? null},
+             ${args.status ?? 'complete'}, ${Date.now()}
+      FROM app.messages WHERE thread_id = ${args.threadId}
+      ON CONFLICT (thread_id, "order", step_order) DO NOTHING
+      RETURNING id, "order"
+    `;
+    const row = rows[0];
+    if (row === undefined) continue; // the slot went to a concurrent append
+    await tx`
+      UPDATE app.threads SET updated_at_ms = ${Date.now()}
+      WHERE id = ${args.threadId}
+    `;
+    return { messageId: row.id, order: row.order };
   }
-  await tx`
-    UPDATE app.threads SET updated_at_ms = ${Date.now()}
-    WHERE id = ${args.threadId}
-  `;
-  return { messageId: id, order };
+  throw new Error(
+    `message insert failed: no free slot after ${MESSAGE_SLOT_ATTEMPTS} attempts`,
+  );
 }
 
-/** Ordered page of a thread's messages (ascending, keyset by order). */
+/** The most messages one read may ask for, on either lane below. */
+export const THREAD_MESSAGES_READ_MAX = 500;
+
+/**
+ * Ordered page of a thread's messages (ascending, keyset by order) — the
+ * REPLAY lane: a reader walking a thread from its start (`afterOrder` = the
+ * previous page's last order). A surface that must show what is NEWEST reads
+ * {@link listThreadMessagesTail} instead — a fixed ascending window keeps
+ * the first N turns forever and hides every later one.
+ */
 export async function listThreadMessages(
   sql: Sql | TransactionSql,
   threadId: string,
@@ -135,7 +157,7 @@ export async function listThreadMessages(
     excludeToolRoles?: boolean;
   } = {},
 ): Promise<MessageRow[]> {
-  const limit = Math.min(options.limit ?? 200, 500);
+  const limit = Math.min(options.limit ?? 200, THREAD_MESSAGES_READ_MAX);
   const afterOrder = options.afterOrder ?? -1;
   const excludeTools = options.excludeToolRoles ?? true;
   return sql<MessageRow[]>`
@@ -146,6 +168,65 @@ export async function listThreadMessages(
     ORDER BY "order" ASC, step_order ASC
     LIMIT ${limit}
   `;
+}
+
+/** A position in a thread's (order, step_order) sequence — the keyset the
+ * tail read walks backwards from. */
+export interface ThreadMessageCursor {
+  order: number;
+  stepOrder: number;
+}
+
+/**
+ * The NEWEST page of a thread — the last `limit` messages (or the `limit`
+ * strictly before `before`), answered in chronological order with whether
+ * older ones remain. The SURFACE lane: a discussion or feed reads its tail
+ * first so a fresh message is always visible, and walks older pages through
+ * `nextBefore`. One row past the limit is fetched to answer `hasMore`
+ * without a count.
+ */
+export async function listThreadMessagesTail(
+  sql: Sql | TransactionSql,
+  threadId: string,
+  options: {
+    before?: ThreadMessageCursor;
+    limit?: number;
+    excludeToolRoles?: boolean;
+  } = {},
+): Promise<{
+  /** Chronological within the page (oldest first). */
+  messages: MessageRow[];
+  /** Whether messages older than this page exist. */
+  hasMore: boolean;
+  /** The cursor for the next older page; null once the start is reached. */
+  nextBefore: ThreadMessageCursor | null;
+}> {
+  const limit = Math.min(
+    Math.max(options.limit ?? 200, 1),
+    THREAD_MESSAGES_READ_MAX,
+  );
+  const excludeTools = options.excludeToolRoles ?? true;
+  const before = options.before ?? null;
+  const rows = await sql<MessageRow[]>`
+    SELECT ${sql.unsafe(MESSAGE_COLUMNS)} FROM app.messages
+    WHERE thread_id = ${threadId}
+      AND (${before === null}
+        OR ("order", step_order) < (${before?.order ?? 0}, ${before?.stepOrder ?? 0}))
+      AND (${!excludeTools} OR role IN ('user', 'assistant'))
+    ORDER BY "order" DESC, step_order DESC
+    LIMIT ${limit + 1}
+  `;
+  const hasMore = rows.length > limit;
+  const page = (hasMore ? rows.slice(0, limit) : rows).reverse();
+  const oldest = page[0];
+  return {
+    messages: page,
+    hasMore,
+    nextBefore:
+      hasMore && oldest !== undefined
+        ? { order: oldest.order, stepOrder: oldest.stepOrder }
+        : null,
+  };
 }
 
 export async function updateMessageText(

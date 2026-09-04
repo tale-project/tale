@@ -43,4 +43,4 @@ Each row shows the domain (URL-list sources carry a **URL list** badge beside it
 
 ## Where this fits
 
-Crawling is the cheap way to bring a public site into agent context: a domain — or a hand-picked URL list — a cadence, and the rest is the crawler's problem. The trade-off is the anonymous-visitor boundary — private content needs [Documents](/platform/knowledge/documents) or an connector. For how the Website rows sit beside Contacts, Products, and Vendors, read [Structured data](/platform/knowledge/structured-data).
+Crawling is the cheap way to bring a public site into agent context: a domain — or a hand-picked URL list — a cadence, and the rest is the crawler's problem. The trade-off is the anonymous-visitor boundary — private content needs [Documents](/platform/knowledge/documents) or a connector. For how the Website rows sit beside Contacts and Products, read [Structured data](/platform/knowledge/structured-data).

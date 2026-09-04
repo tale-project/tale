@@ -13,19 +13,19 @@ Lieber erst zusehen? Episode 8 geht in gut zwei Minuten durch Besetzung, Rollenl
 
 </Video>
 
-<Frame caption="Der Mitglieder-Abschnitt unter Einstellungen > Organisation — jeder Account und die Rolle, die ihn begrenzt.">
+<Frame caption="Einstellungen > Mitglieder — jeder Account und die Rolle, die ihn begrenzt.">
 
-![Die Organisations-Einstellungsseite mit ihrem Mitglieder-Abschnitt, der den Inhaber des Workspace und eine Schaltfläche Mitglied hinzufügen zeigt.](/images/get-started/settings-organization-members.webp)
+![Die Einstellungsseite Mitglieder, die den Inhaber des Workspace und vier weitere Personen mit je einem Rollen-Badge listet, neben der Schaltfläche Mitglied hinzufügen.](/images/get-started/settings-organization-members.webp)
 
 </Frame>
 
 ## Ein Mitglied hinzufügen
 
-Um eine Person in deine Organisation aufzunehmen, öffne **Einstellungen > Organisation**, scroll zum Abschnitt **Mitglieder** und klick auf **Mitglied hinzufügen**. Trag **Name**, **E-Mail** und **Rolle** ein und vergib ein **Passwort** — Tale verschickt keine Einladungs-E-Mail, deshalb ist ein Passwort erforderlich, um ein neues Konto zu erstellen. (Gehört die E-Mail bereits zu einem Tale-Konto, wird kein Passwort verlangt: die Person meldet sich mit ihren bestehenden Zugangsdaten an und wird einfach dieser Organisation hinzugefügt.)
+Um eine Person in deine Organisation aufzunehmen, öffne **Einstellungen > Mitglieder** und klick auf **Mitglied hinzufügen**. Trag **Name**, **E-Mail** und **Rolle** ein und vergib ein **Passwort** — Tale verschickt keine Einladungs-E-Mail, deshalb ist ein Passwort erforderlich, um ein neues Konto zu erstellen. (Gehört die E-Mail bereits zu einem Tale-Konto, wird kein Passwort verlangt: die Person meldet sich mit ihren bestehenden Zugangsdaten an und wird einfach dieser Organisation hinzugefügt.)
 
-Beim **Mitglied hinzufügen** zeigt Tale die neuen Zugangsdaten **einmalig** an, mit dem Hinweis, sie jetzt zu speichern — sie werden nicht erneut angezeigt. Gib sie dem neuen Mitglied auf einem anderen Weg weiter; es gibt keine Reset-E-Mail. Wer sein Passwort später vergisst, wendet sich an einen Admin, der im selben Mitglieder-Abschnitt ein neues setzen kann.
+Beim **Mitglied hinzufügen** zeigt Tale die neuen Zugangsdaten **einmalig** an, mit dem Hinweis, sie jetzt zu speichern — sie werden nicht erneut angezeigt. Gib sie dem neuen Mitglied auf einem anderen Weg weiter; es gibt keine Reset-E-Mail. Wer sein Passwort später vergisst, wendet sich an einen Admin, der auf derselben Seite ein neues setzen kann.
 
-Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder zu ändern ist eine Ein-Klick-Änderung im selben Mitglieder-Abschnitt.
+Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder zu ändern ist eine Ein-Klick-Änderung auf derselben Seite.
 
 ## Die sechs Rollen
 
@@ -33,7 +33,7 @@ Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder z
 
 **Admin** regelt die Organisation: Mitglieder, Anbieter, Branding, Governance-Richtlinien, Connectors, das Audit-Log. Admins tun alles, was Redakteur und Entwickler tun, plus die Konfigurationsoberfläche. Sie können das Eigentum nicht übertragen.
 
-**Entwickler** baut: Agents, Workflows, Connectors, API-Keys, MCP-Server. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Connector-Tooling braucht.
+**Entwickler** baut: Agents, Workflows, Connectors, API-Keys. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Connector-Tooling braucht.
 
 **Redakteur** kuratiert und betreibt: Agents, die Wissensdatenbank (Dokumente, Kontakte, Produkte, Lieferanten, Websites), den Konversations-Posteingang, Genehmigungen, die Skill-Bibliothek. Redakteure können Workflows lesen, aber nicht ändern; sie können Connectors lesen, aber nicht konfigurieren. Greif zu Redakteur, wenn jemand die tägliche Produktarbeit erledigt, ohne die API- oder Connectorsebene zu berühren.
 
@@ -59,25 +59,24 @@ Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder z
 | Workflow-Processing       | R / W   | R / W | R / W      | R         | R        | —           |
 | Connectors                | R / W   | R / W | R / W      | R         | R        | —           |
 | OneDrive-Sync-Konfigs     | R / W   | R / W | R / W      | R         | R        | —           |
-| Prompt-Templates          | R / W   | R / W | R / W      | R / W     | R        | —           |
+| Google-Drive-Sync-Konfigs | R / W   | R / W | R / W      | R         | R        | —           |
 | Audit-Logs                | R / W   | R / W | R / W      | R / W     | R        | —           |
 | Governance-Richtlinien    | R / W   | R / W | R          | R         | R        | —           |
 | Nachrichten-Feedback      | R / W   | R / W | R / W      | R / W     | R / W    | —           |
-| MCP-Server                | R / W   | R / W | R / W      | R         | R        | —           |
 
-R = lesen, W = schreiben, — = kein Zugriff. Die Matrix ist die autoritative Beschreibung, was jede Rolle über die Ressourcen tun kann, die Tale verfolgt; die Zeilen sind dieselbe Menge, die das In-Produkt-Berechtigungssystem zur Request-Zeit nutzt.
+R = lesen, W = schreiben, — = kein Zugriff. Die Matrix ist die autoritative Beschreibung, was jede Rolle über die Ressourcen tun kann, die Tale verfolgt; die Zeilen sind dieselbe Menge, die das In-Produkt-Berechtigungssystem zur Request-Zeit nutzt. Die Audit-Log-Seiten selbst sehen nur Admins und Inhaber, egal was die Matrix-Zeile über Lesen sagt.
 
 ## Die Einstellungs-Oberfläche und das Menü
 
-Mitglieder, Redakteure und deaktivierte Benutzer sehen die Konfigurationsoberfläche nicht — nur ihre eigenen persönlichen Einstellungen. Entwickler sehen die Organisationseinstellungen, aber nicht den Governance-Unterzweig (außer Lese-Ansichten). Admins und Inhaber sehen alles. Das Einstellungsmenü ist gruppiert in **Persönlich** (Konto, Einstellungen, Umgebung — jede Rolle), **Organisation** (Teams, der Mitglieder-Abschnitt, KI-Anbieter, Branding, Governance und der Rest — Admin und Inhaber, wobei Entwickler eine Teilmenge sehen) und **Entwicklung** (die API- und Data-Residency-Oberfläche). Governance ist ein Eintrag innerhalb der Organisations-Gruppe, keine eigene Gruppe, und braucht Admin-Zugriff.
+Mitglieder, Redakteure und deaktivierte Benutzer sehen die Konfigurationsoberfläche nicht — nur ihre persönlichen Einstellungen plus die Skill-Bibliothek der Organisation. Entwickler sehen die Entwickler-Oberfläche (KI-Anbieter, Connectors, Sandboxes, den API-Bereich), aber nicht den Governance-Unterzweig. Admins und Inhaber sehen alles. Das Einstellungsmenü ist gruppiert in **Persönlich** (Konto, Einstellungen, Benachrichtigungen — jede Rolle), **Organisation** (Teams, Mitglieder, KI-Anbieter, Branding, Governance, Metriken und der Rest — Admin und Inhaber, wobei Entwickler eine Teilmenge sehen) und **Erweitert** (die API-, Enterprise-SSO- und Data-Residency-Oberfläche). Governance ist ein Eintrag innerhalb der Organisations-Gruppe, keine eigene Gruppe, und braucht Admin-Zugriff.
 
 ## Randfälle
 
-**Eigentum übertragen** verlangt, dass ein bestehender Inhaber einen aktuellen Admin oder Inhaber nominiert; die neue Inhaber-Rolle wirkt sofort. Der vorherige Inhaber wird zu Admin, außer er wird explizit herabgestuft.
+**Eigentum übertragen** liegt im Zeilenmenü des Mitglieds — bestätige, und die Zielperson wird Inhaber, während du zu Admin herabgestuft wirst, mit sofortiger Wirkung.
 
-**Warnung „letzter Admin".** Der Mitglieder-Abschnitt warnt, wenn der letzte Admin oder Inhaber entfernt oder herabgestuft wird. Die Aktion ist erlaubt — Tale sperrt dich nicht aus — aber du solltest mindestens zwei Admin- oder Inhaber-Accounts für Kontinuität halten.
+**Der letzte Admin bleibt.** Tale verweigert, den letzten Admin herabzustufen — die Änderung kommt mit _Der letzte Admin kann nicht herabgestuft werden_ zurück. Zwei weitere Wächter stehen daneben: Die Inhaber-Rolle wandert nur über **Eigentum übertragen**, und die Rolle der Person, die die Organisation angelegt hat, ist unveränderlich.
 
-**Zwei-Faktor zurücksetzen** liegt auf der Zeile des Mitglieds im Mitglieder-Abschnitt. Zurücksetzen entfernt den zweiten Faktor; der nächste Sign-in registriert neu.
+**Zwei-Faktor zurücksetzen** liegt auf der Zeile des Mitglieds auf der Seite Mitglieder. Zurücksetzen entfernt den zweiten Faktor; der nächste Sign-in registriert neu.
 
 ## Wo das hingehört
 

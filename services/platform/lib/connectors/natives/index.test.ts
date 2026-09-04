@@ -197,10 +197,13 @@ const NATIVE_ACTIONS: Array<{
 /** The store double: enough shape for the actions, no Convex. */
 const store: WebdavStore = {
   list: () =>
-    Promise.resolve([
-      { name: 'archive', isDir: true, size: 0 },
-      { name: 'notes.md', isDir: false, size: 128 },
-    ]),
+    Promise.resolve({
+      entries: [
+        { name: 'archive', isDir: true, size: 0 },
+        { name: 'notes.md', isDir: false, size: 128 },
+      ],
+      truncated: false,
+    }),
   read: () =>
     Promise.resolve({
       bytes: new TextEncoder().encode('# Q3'),
@@ -291,14 +294,17 @@ const taskStore: WorkflowTaskStore = {
   updateStatus: () => Promise.resolve({ ok: true }),
   comment: () => Promise.resolve({ messageId: 'msg_1' }),
   listComments: () =>
-    Promise.resolve([
-      {
-        authorType: 'user' as const,
-        authorId: 'usr_double',
-        body: 'Please re-check page 3.',
-        createdAt: 1_750_000_000_000,
-      },
-    ]),
+    Promise.resolve({
+      comments: [
+        {
+          authorType: 'user' as const,
+          authorId: 'usr_double',
+          body: 'Please re-check page 3.',
+          createdAt: 1_750_000_000_000,
+        },
+      ],
+      truncated: false,
+    }),
 };
 
 const documentStore: WorkflowDocumentStore = {

@@ -9,7 +9,7 @@ Du brauchst die Rolle Entwickler in der Organisation, eine Automatisierung mit d
 
 ## Bevor du beginnst
 
-Prüf zwei Dinge. Die Automatisierung, die du auslösen willst, hat eine **deployte** Version — eine gespeicherte Version reicht nicht, und deploybar wird eine Version erst, wenn ihre eigenen Tests grün sind; lass sie also zuerst laufen. Deine Rolle ist mindestens Entwickler; Trigger anlegen ist auf Entwickler und höher beschränkt. Hast du noch keine Automatisierung, ist die kanonische kleine „nimm das Payload auf und hör auf“ — bau sie über [Workflow mit Genehmigungen](/de/tutorials/editor/workflow-with-approvals) und lass für diesen Durchlauf den Genehmigungsknoten weg.
+Prüf zwei Dinge. Die Automatisierung, die du auslösen willst, hat eine **deployte** Version — eine gespeicherte Version reicht nicht, und deploybar wird eine Version erst, wenn ihre eigenen Tests grün sind; lass sie also zuerst laufen. Deine Rolle ist mindestens Entwickler; Trigger anlegen ist auf Entwickler und höher beschränkt. Hast du noch keine Automatisierung, ist die kanonische kleine „nimm das Payload auf und hör auf“ — eine einzelne `transform`-Node, auf dem Canvas gebaut, wie [Der Workflow-Editor](/de/platform/automations/editor) es beschreibt.
 
 ## Schritt 1 — Einen Webhook-Trigger anlegen
 
@@ -41,7 +41,7 @@ Vier Antworten decken alles ab, was der Endpunkt sagen kann, und jede zeigt auf 
 
 **404** heißt: Das Token passt zu keinem aktiven Trigger — es ist falsch, es wurde gelöscht, oder der Trigger ist deaktiviert. Die Antwort sagt bewusst nie, welcher Fall zutrifft, damit jemand, der Tokens rät, aus dem Unterschied nichts lernt. **409** mit `{ "error": "automation has no deployed version" }` heißt: Die Automatisierung existiert, aber nichts ist live — deploy eine Version, deren Tests grün sind, und derselbe Aufruf läuft. **413** heißt: Der Body liegt über 256 KB; poste dann eine Referenz statt der Nutzlast. **202** ist der einzige Erfolg.
 
-Retries verdienen einen eigenen Satz: Der Endpunkt dedupliziert nicht, ein wiederholter POST startet also einen zweiten Lauf. Sicher macht das der Lauf selbst — jeder abgeschlossene Knoten bekommt einen Checkpoint, ein nach einer Unterbrechung wiederaufgenommener Lauf wiederholt seine bereits erzeugten Seiteneffekte also nie. Wäre ein _doppelter_ Lauf trotzdem falsch, führ deine eigene Ereignis-ID im Payload mit und verzweig im ersten Knoten darauf.
+Retries verdienen einen eigenen Satz: Der Endpunkt dedupliziert, ein wiederholter POST startet also keinen zweiten Lauf. Schick eine Zustellungs-ID mit — `Idempotency-Key` oder den eigenen Header deines Anbieters wie `X-GitHub-Delivery` — und eine Wiederholung innerhalb von 24 Stunden antwortet mit dem Lauf, den der erste Versuch gestartet hat, markiert mit `duplicate: true`; ohne ID gilt dasselbe für einen byteidentischen Body innerhalb von zwei Minuten. Halte die ID über alle Versuche stabil, dann ist eine hängende Anfrage gefahrlos wiederholbar. Der Lauf selbst setzt zusätzlich nach jedem abgeschlossenen Knoten einen Checkpoint, ein nach einer Unterbrechung wiederaufgenommener Lauf wiederholt einen bereits erzeugten Seiteneffekt also nie.
 
 ## Wo das eingesetzt wird
 

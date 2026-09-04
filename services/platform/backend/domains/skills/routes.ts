@@ -3,7 +3,6 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
-import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -16,7 +15,9 @@ import {
   saveSkillForViewer,
 } from '../../core/skills/file_actions.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { skillErrorResponse } from './errors.ts';
 import { uploadSkillBundlePg } from './upload.ts';
+import { withSkillWriterLock } from './writer-lock.ts';
 
 /**
  * /api/app/skills — the org's skill bundles, REUSING the 0.4 file layer
@@ -24,8 +25,9 @@ import { uploadSkillBundlePg } from './upload.ts';
  * files on the org config tree). Visibility (`org | team`), owner
  * adoption, and verify-before-write live in the reused functions; this
  * module authenticates, derives the viewer (teams + the orgSettings admin
- * capability), and maps error codes onto HTTP. The zip-upload lane rides a
- * later increment with the upload-intent flow.
+ * capability), and maps error codes onto HTTP through the map the REST
+ * family shares (`errors.ts`). The zip-upload lane rides the upload-intent
+ * flow (`upload.ts`).
  */
 
 const editSchema = z.object({
@@ -36,43 +38,6 @@ const editSchema = z.object({
   icon: z.string().max(100).optional(),
   labels: z.array(z.string().max(100)).max(50).optional(),
 });
-
-const ERROR_STATUS: Record<string, 400 | 403 | 404 | 422> = {
-  INVALID_SKILL_SLUG: 400,
-  INVALID_SKILL: 400,
-  SKILL_PRIVATE_RETIRED: 400,
-  SKILL_FORBIDDEN: 403,
-  SKILL_MALFORMED: 422,
-  STORAGE_NOT_OWNED: 403,
-  STORAGE_NOT_FOUND: 404,
-  BUNDLE_TOO_LARGE: 400,
-  INVALID_BUNDLE: 400,
-  WRITE_FAILED: 400,
-};
-
-function handleError<E extends OrgEnv>(
-  c: Context<E>,
-  error: unknown,
-): Response {
-  if (error instanceof AppError) {
-    const data: unknown = error.data;
-    if (data !== null && typeof data === 'object' && 'code' in data) {
-      const record = data as { code?: unknown; message?: unknown };
-      const code = typeof record.code === 'string' ? record.code : 'ERROR';
-      const status = ERROR_STATUS[code];
-      if (status !== undefined) {
-        return c.json(
-          {
-            error: code,
-            message: typeof record.message === 'string' ? record.message : code,
-          },
-          status,
-        );
-      }
-    }
-  }
-  throw error;
-}
 
 export function createSkillRoutes(deps: {
   sql: Sql;
@@ -114,7 +79,7 @@ export function createSkillRoutes(deps: {
       if (skill === null) return c.json({ error: 'skill not found' }, 404);
       return c.json({ skill });
     } catch (error) {
-      return handleError(c, error);
+      return skillErrorResponse(c, error);
     }
   });
 
@@ -128,7 +93,7 @@ export function createSkillRoutes(deps: {
       if (asset === null) return c.json({ error: 'asset not found' }, 404);
       return c.json({ asset });
     } catch (error) {
-      return handleError(c, error);
+      return skillErrorResponse(c, error);
     }
   });
 
@@ -138,14 +103,19 @@ export function createSkillRoutes(deps: {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
-      const skill = await saveSkillForViewer({
-        ...(await caller(c)),
-        slug: c.req.param('slug'),
-        ...body.data,
-      });
+      const who = await caller(c);
+      const slug = c.req.param('slug');
+      // Serialized with the upload lane on the per-slug writer lock: a save
+      // must never land between an upload's two swap renames.
+      const skill = await withSkillWriterLock(
+        deps.sql,
+        c.get('orgId'),
+        slug,
+        () => saveSkillForViewer({ ...who, slug, ...body.data }),
+      );
       return c.json({ skill });
     } catch (error) {
-      return handleError(c, error);
+      return skillErrorResponse(c, error);
     }
   });
 
@@ -170,19 +140,23 @@ export function createSkillRoutes(deps: {
         }),
       );
     } catch (error) {
-      return handleError(c, error);
+      return skillErrorResponse(c, error);
     }
   });
 
   app.delete('/:slug', async (c) => {
     try {
-      const deleted = await deleteSkillForViewer({
-        ...(await caller(c)),
-        slug: c.req.param('slug'),
-      });
+      const who = await caller(c);
+      const slug = c.req.param('slug');
+      const deleted = await withSkillWriterLock(
+        deps.sql,
+        c.get('orgId'),
+        slug,
+        () => deleteSkillForViewer({ ...who, slug }),
+      );
       return c.json({ deleted });
     } catch (error) {
-      return handleError(c, error);
+      return skillErrorResponse(c, error);
     }
   });
 

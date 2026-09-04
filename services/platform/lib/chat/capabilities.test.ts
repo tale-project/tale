@@ -266,7 +266,7 @@ describe('invoke_capability — one backend per kind', () => {
     expect(calls.connector).not.toHaveBeenCalled();
   });
 
-  it('dispatches an connector action to the connectors dispatcher', async () => {
+  it('dispatches a connector action to the connectors dispatcher', async () => {
     const { surface: s, calls } = surface({}, catalog);
     await s.invokeCapability({
       id: 'connector.github.list_issues',

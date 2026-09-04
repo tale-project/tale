@@ -482,11 +482,11 @@ export async function searchContacts(
       name: string | null;
       email: string | null;
       externalId: string | null;
-      createdAt: number;
+      updatedAt: number;
     }[]
   >`
     SELECT id, name, email, external_id AS "externalId",
-           created_at_ms::float8 AS "createdAt"
+           updated_at_ms::float8 AS "updatedAt"
     FROM app.contacts
     WHERE org_id = ${scope.organizationId}
       AND lifecycle_status IS DISTINCT FROM 'trashed'
@@ -501,6 +501,9 @@ export async function searchContacts(
     snippet: [row.email?.trim(), row.externalId]
       .filter((part): part is string => !!part && part !== '')
       .join(' · '),
-    updatedAt: row.createdAt,
+    // The field the palette labels "updated" carries the row's update time —
+    // the same column the ORDER BY ranks on, so the shown time and the sort
+    // order agree (a hit used to ship created_at under this name).
+    updatedAt: row.updatedAt,
   }));
 }

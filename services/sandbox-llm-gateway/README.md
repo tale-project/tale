@@ -4,7 +4,7 @@ The sandbox LLM gateway ([maximhq/bifrost](https://github.com/maximhq/bifrost) c
 
 ## Overview
 
-Raw provider API keys live ONLY here and in the platform. The sandbox holds a session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at session destroy. The platform is the source of truth for providers/models; it provisions the gateway via the management API on session create (`convex/node_only/sandbox/llm_gateway_admin.ts`).
+Raw provider API keys live ONLY here and in the platform. The sandbox holds a session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at session destroy. The platform is the source of truth for providers/models; it provisions the gateway via the management API on session create (`services/platform/backend/core/node_only/sandbox/llm_gateway_admin.ts`).
 
 Dual-homed onto two Docker networks:
 
@@ -21,7 +21,7 @@ Ports:
 
 - `SANDBOX_LLM_GATEWAY_URL` — where the platform reaches the management API (default `http://sandbox-llm-gateway:8080`).
 - `SANDBOX_LLM_GATEWAY_ADMIN_USERNAME` — management API basic-auth user (default `admin`).
-- `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` — management API basic-auth password. When set, the management plane stops being anonymous on the internal network.
+- `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` — management API basic-auth password. **Required**: the backend refuses every management call without it, so the plane is never anonymous on the sandbox network (`tale deploy` / `bun run dev` mint it; `compose.dev.yml` carries an insecure dev default). Keep it stable — the gateway stores its hash in its volume.
 - `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` — per-stream idle timeout passed to the gateway.
 
 The pre-rename `LLM_GATEWAY_*` names are still read as a fallback for one release.

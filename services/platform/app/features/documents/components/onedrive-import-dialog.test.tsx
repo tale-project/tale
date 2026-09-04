@@ -83,6 +83,10 @@ vi.mock('../hooks/actions', () => ({
   }),
 }));
 
+// Whether the CURRENT folder's listing was cut at the bound — the picker's
+// notice keys on it.
+const listingState = vi.hoisted(() => ({ truncated: false }));
+
 vi.mock('../hooks/queries', () => ({
   useCloudImportAuthorizationStatus: () => ({
     data: { status: 'active', provider: 'microsoft' },
@@ -90,14 +94,22 @@ vi.mock('../hooks/queries', () => ({
     error: null,
   }),
   useOneDriveFiles: () => ({
-    data: [{ id: 'folder-1', name: 'Meetings', size: 0, isFolder: true }],
+    data: {
+      items: [{ id: 'folder-1', name: 'Meetings', size: 0, isFolder: true }],
+      truncated: listingState.truncated,
+    },
     isLoading: false,
     error: null,
   }),
   useSharePointSites: () => ({ data: [], isLoading: false }),
   useSharePointDrives: () => ({ data: [], isLoading: false }),
-  useSharePointFiles: () => ({ data: [], isLoading: false }),
+  useSharePointFiles: () => ({
+    data: { items: [], truncated: false },
+    isLoading: false,
+  }),
 }));
+
+import { toast } from '@/app/hooks/use-toast';
 
 import { OneDriveImportDialog } from './onedrive-import-dialog';
 
@@ -110,7 +122,86 @@ describe('OneDriveImportDialog', () => {
 
   beforeEach(() => {
     mockListFiles.mockClear();
+    mockListFiles.mockResolvedValue({
+      success: true,
+      items: [
+        { id: 'file-1', name: 'notes.docx', size: 10, isFolder: false },
+        { id: 'file-2', name: 'standup.docx', size: 20, isFolder: false },
+      ],
+    });
     mockImportFiles.mockClear();
+    vi.mocked(toast).mockClear();
+    listingState.truncated = false;
+  });
+
+  // Regression: the listers took Graph's first page only and the dialog
+  // imported whatever came back, so a 300-file folder imported 100 and the
+  // toast said success. A folder the listing could not cover whole now stops
+  // the import — nothing is sent, and the user is told which folder.
+  it('refuses to import a folder whose listing was cut at the bound', async () => {
+    mockListFiles.mockResolvedValue({
+      success: true,
+      items: [{ id: 'file-1', name: 'notes.docx', size: 10, isFolder: false }],
+      truncated: true,
+    });
+    const user = userEvent.setup();
+    render(<OneDriveImportDialog {...defaultProps} />);
+
+    const [, rowCheckbox] = screen.getAllByRole('checkbox');
+    await user.click(rowCheckbox);
+    await user.click(
+      screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: /documents\.onedrive\.importItems/ }),
+    );
+
+    expect(mockImportFiles).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: 'documents.onedrive.importFailed',
+        description: 'documents.onedrive.folderTooLargeToImport',
+      }),
+    );
+  });
+
+  it('stops the import when a folder cannot be listed at all', async () => {
+    mockListFiles.mockResolvedValue({ success: false, error: 'Graph 503' });
+    const user = userEvent.setup();
+    render(<OneDriveImportDialog {...defaultProps} />);
+
+    const [, rowCheckbox] = screen.getAllByRole('checkbox');
+    await user.click(rowCheckbox);
+    await user.click(
+      screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: /documents\.onedrive\.importItems/ }),
+    );
+
+    expect(mockImportFiles).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        description: 'Graph 503',
+      }),
+    );
+  });
+
+  it('says when the shown folder holds more than the listing bound', () => {
+    listingState.truncated = true;
+    render(<OneDriveImportDialog {...defaultProps} />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'documents.onedrive.listingTruncated',
+    );
+  });
+
+  it('shows no such notice for a whole listing', () => {
+    render(<OneDriveImportDialog {...defaultProps} />);
+
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   // Regression test: the picker and settings stages are plain functions called

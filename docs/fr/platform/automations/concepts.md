@@ -5,7 +5,7 @@ description: Le modèle derrière chaque automatisation — un document de workf
 
 Une automatisation, c’est un document de workflow enregistré sous un nom, plus tout ce que la plateforme conserve autour : l’historique des versions de ce document, la seule version en service, les déclencheurs autorisés à la lancer, et la trace de chaque exécution. Ouvre **Automatisations** dans la barre latérale et chaque ligne est l’un de ces noms, avec à côté la version en service. Trois idées de cette page commandent tout le reste — les versions ne changent jamais, la mise en service est un geste distinct, et un déclencheur se rattache au nom plutôt qu’à une version —, alors lis-les avant de construire quoi que ce soit.
 
-Tu préfères regarder d’abord ? L’épisode 5 ouvre l’automatisation de triage de bout en bout et décide une vraie carte de validation à l’écran, sous-titres compris.
+Tu préfères regarder d’abord ? L’épisode 5 ouvre l’automatisation de triage de bout en bout et décide une carte de validation à l’écran, sous-titres compris — enregistré sur l’ancienne version, où la carte se trouvait dans le chat ; dans cette version, elle se trouve sur la page de détail de l’exécution.
 
 <Video src="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.mp4" poster="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.webp" captions="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.vtt" lang="fr" title="Épisode 5 — Automatisations & validations" caption="Épisode 5 — Automatisations & validations (2:34)">
 
@@ -13,7 +13,7 @@ Tu préfères regarder d’abord ? L’épisode 5 ouvre l’automatisation de tr
 
 ## Le document de workflow
 
-Tout ce que fait une automatisation est déclaré dans un seul document. Son `name` est aussi son identité — des segments de slug en minuscules, séparés par des tirets, où `/` regroupe en dossiers les automatisations voisines, comme `billing/dunning-reminder`. Autour du nom viennent une `description`, un schéma JSON `inputs` qui décrit l’entrée d’exécution, les `nodes` qui font le travail, un `output` qui est la valeur de retour, et les `tests` qui décident si une version peut être mise en service.
+Tout ce que fait une automatisation est déclaré dans un seul document. Son `name` est aussi son identité — des segments de slug en minuscules, séparés par des tirets, où `/` regroupe en dossiers les automatisations voisines, comme `billing/dunning-reminder`. Le premier segment ne peut pas être l’un des mots que la plateforme garde pour ses propres pages (`asks`, `builder`, `catalog`, `listing`, `metrics`, `runs`, `serving-preview`, `upload`) : une automatisation nommée ainsi s’enregistrerait sans jamais pouvoir s’ouvrir, donc l’éditeur refuse un tel nom à l’enregistrement. Autour du nom viennent une `description`, un schéma JSON `inputs` qui décrit l’entrée d’exécution, les `nodes` qui font le travail, un `output` qui est la valeur de retour, et les `tests` qui décident si une version peut être mise en service.
 
 ```yaml
 name: billing/dunning-reminder
@@ -62,13 +62,15 @@ Brancher et répéter sont des champs du nœud plutôt que des types d’étape 
 
 ### Les types de nœud
 
-Trois types sont intégrés, et chaque action d’connector comme chaque capacité native de la plateforme — recherche dans les connaissances, opérations sur documents — rejoint la même table à côté d’eux.
+Quatre types sont intégrés, et chaque action d’connector comme chaque capacité native de la plateforme — recherche dans les connaissances, opérations sur documents — rejoint la même table à côté d’eux.
 
 **`transform`** exécute du JavaScript pur pour remettre des données en forme. Sans réseau ni imports : le corps lit l’`input` résolue du nœud et doit retourner une valeur.
 
 **`llm`** appelle un modèle de langage avec un prompt en template. `model` est obligatoire et toujours explicite — une automatisation n’en choisit jamais un à ta place (l’Auto du composer est une affaire de chat, et de chat seulement). La sortie est `{text}`, ou l’objet à la forme du schéma quand le nœud déclare un `outputSchema`.
 
-**`subworkflow`** exécute une autre automatisation enregistrée comme un seul nœud, référencée en `"name"` ou `"name@version"`. Sans version, c’est celle en service, et l’imbrication s’arrête à trois niveaux.
+**`agent`** exécute un tour d’un agent de code (Claude Code, Codex et les autres harnesses) dans la sandbox. Il lit les `files` mis en place, utilise des `skills`, des `connectors` relayés, des `tools` de plateforme accordés et des `secrets` injectés, et renvoie `{text, files, status}` ; `model` est obligatoire. Prends `llm` quand une complétion unique suffit, et `agent` seulement quand l’étape a besoin d’outils, de fichiers ou de plusieurs tours — un nœud agent en service s’exécute comme un tour asynchrone, il siège donc au niveau supérieur plutôt que dans une `subautomation` et n’itère pas avec `forEach`.
+
+**`subautomation`** exécute une autre automatisation enregistrée comme un seul nœud ; son champ `automation` nomme `"name"` ou `"name@version"`. Sans version, c’est celle en service, et l’imbrication s’arrête à trois niveaux.
 
 ### Sortie structurée et non structurée
 

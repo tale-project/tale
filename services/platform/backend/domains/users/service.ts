@@ -10,6 +10,7 @@ import {
 import { getString, isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import {
+  evaluateCredentialResetAuthority,
   findOrganizationMember,
   getUserOrganizations,
   isAdminRole,
@@ -264,7 +265,28 @@ async function forcedResetCredentialPassword(
 export interface UpdateUserPasswordArgs {
   currentPassword?: string;
   newPassword: string;
+  /**
+   * ADVISORY ONLY — accepted for wire compatibility but never trusted. Whether
+   * a forced (current-password-skipping) reset is allowed is decided
+   * server-side by `forcedResetEligible`; a client cannot select 'forced' to
+   * bypass re-authentication.
+   */
   trigger?: 'voluntary' | 'forced';
+}
+
+/**
+ * A forced reset SKIPS the current-password check, so it is legitimate ONLY
+ * when the credential is genuinely in a forced-change state — an admin-set
+ * force-change-on-next-login or an elapsed rotation policy, both reported by
+ * `computePasswordExpiry().expired`. Deliberately takes no `trigger` argument:
+ * the decision can never depend on client input, which is what stops a stolen
+ * session from rotating the password without proving the old one.
+ */
+export function forcedResetEligible(
+  hasCredential: boolean,
+  expiry: Pick<PasswordExpiryStatus, 'expired'>,
+): boolean {
+  return hasCredential && expiry.expired;
 }
 
 /**
@@ -295,9 +317,14 @@ export async function updateUserPassword(
   }
 
   const hasPassword = await hasCredentialAccount(sql, actor.userId);
-  const trigger = args.trigger ?? 'voluntary';
+  // Forced eligibility is derived from the credential's real state, NOT the
+  // request body: the client cannot pick 'forced' to skip current-password
+  // re-authentication (finding: client-chosen trigger:'forced').
+  const forcedReset = hasPassword
+    ? forcedResetEligible(true, await computePasswordExpiry(sql, actor.userId))
+    : false;
 
-  if (hasPassword && trigger === 'forced') {
+  if (forcedReset) {
     await forcedResetCredentialPassword(sql, actor.userId, args.newPassword);
     await auth.api.revokeOtherSessions({ headers });
   } else if (hasPassword) {
@@ -347,7 +374,7 @@ export async function updateUserPassword(
         resourceType: 'user',
         resourceId: actor.userId,
         status: 'success',
-        metadata: { trigger },
+        metadata: { trigger: forcedReset ? 'forced' : 'voluntary' },
       });
     }
   });
@@ -357,6 +384,20 @@ export async function updateUserPassword(
  * Admin sets a member's password: policy-checked, credential upserted,
  * EVERY session of that member revoked, rotation anchor set with
  * force-change-on-next-login, audit row written.
+ *
+ * AUTHORITY (the enforced contract): this door writes the GLOBAL credential
+ * (one `account` row per user across every org) and chooses the replacement
+ * password, so it is account seizure, not mere factor removal. It is gated on
+ * TWO things:
+ *   1. the caller is an owner/admin of the target's org (the admin door), and
+ *   2. `evaluateCredentialResetAuthority` — the caller must strictly outrank
+ *      the target in EVERY org the target belongs to, and never targets
+ *      themselves.
+ * Together these guarantee an admin can never seize an owner or a peer admin,
+ * and one org's admin can never reset a user who also belongs to an org the
+ * actor does not administer (cross-org takeover). This is deliberately
+ * stricter than the passkey/2FA sibling admin ops (which only protect owners),
+ * because those remove a factor whereas this hands the actor a working login.
  */
 export async function setMemberPassword(
   deps: { sql: Sql },
@@ -384,6 +425,28 @@ export async function setMemberPassword(
       'Only admins can set member passwords',
       403,
     );
+  }
+
+  // Global-credential authority: the caller must strictly outrank the target
+  // in every org the target belongs to (owner-protection + cross-org guard).
+  const [actorMemberships, targetMemberships] = await Promise.all([
+    getUserOrganizations(sql, actor.userId),
+    getUserOrganizations(sql, member.userId),
+  ]);
+  const authority = evaluateCredentialResetAuthority({
+    actorUserId: actor.userId,
+    targetUserId: member.userId,
+    actorMemberships,
+    targetMemberships,
+  });
+  if (!authority.allowed) {
+    const message =
+      authority.reason === 'self'
+        ? 'Use account settings to change your own password'
+        : authority.reason === 'cross_org_authority'
+          ? 'Cannot reset a member who belongs to organizations you do not administer'
+          : 'Cannot reset a member whose role is not below yours';
+    throw new UserServiceError('forbidden', message, 403);
   }
 
   const { policy } = await getStrictestPasswordPolicyForUser(sql, [

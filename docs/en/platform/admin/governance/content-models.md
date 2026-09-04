@@ -3,31 +3,31 @@ title: Content and models
 description: Model-level controls — which models are allowed per role or team, and the default model each user group lands on. Admins and Owners read this when a compliance rule pins a workload to an approved model or when a team needs a cheaper default.
 ---
 
-Content and models is the surface where you decide which LLMs the people in your organisation can reach and which one each group lands on by default. It pairs an allowlist or blocklist per scope (org, team, role, user) with a default-model rule the resolver applies when no agent or conversation has overridden the choice. Admins and Owners read this page when a compliance rule pins a workload to an approved model, when a team should default to a cheaper model than the rest of the org, or when a new model from an existing provider needs to be made reachable.
+Content and models is the surface where you decide which LLMs the people in your organisation can reach and which one each group lands on by default. It pairs an allowlist or blocklist per scope (org, team, role) with a default-model rule the resolver applies when no explicit choice has overridden it. Admins and Owners read this page when a compliance rule pins a workload to an approved model, when a team should default to a cheaper model than the rest of the org, or when a new model from an existing provider needs to be made reachable.
 
-<Frame caption="Governance > Content & Models — the mandatory system-prompt prefix and suffix above the per-scope default-model rules.">
+<Frame caption="Settings > Governance > Models — the per-scope default-model rules, with the model-access allowlist below them and the vision model further down.">
 
-![The Content and Models governance page showing the mandatory system-prompt prefix and suffix fields filled with the org's house rules, above a default-models table carrying three rules: a default for all users, and role rules for Developer and Member, each pinned to an OpenRouter model.](/images/platform/governance-content-models.webp)
+![The Models governance page showing the default-models table with three rules — a default for all users, and role rules for Developer and Member, each pinned to an OpenRouter model — above the model-access section set to Allowlist with one allowed-models rule per role.](/images/platform/governance-content-models.webp)
 
 </Frame>
 
 ## A worked default
 
-To set the default model for the Editor role, open **Settings > Governance > Default Models** and click **Add rule**. Pick **Role** as the scope, **Editor** as the target, then pick the provider and model. Save and the next request from any Editor without an explicit per-agent or per-conversation model lands on the rule's model. More specific scopes win — a user rule beats a team rule beats a role rule beats the org default.
+To set the default model for the Editor role, open **Settings > Governance > Models** and click **Add rule** under **Default models**. Pick **Role** as the scope, **Editor** as the target, then pick the provider and model. Save and the next chat any Editor starts without an explicit model choice lands on the rule's model. More specific scopes win — a team rule beats a role rule beats the org default.
 
 ## The two layers
 
-**Model access** is the allowlist or blocklist that gates which models a scope can use at all. A model not on the allowlist is invisible to that scope — the picker hides it and the resolver refuses to bind to it, even if an agent has it pinned. Reach for the allowlist when a regulator names the approved models; reach for the blocklist when a single model should be off-limits everywhere else.
+**Model access** is the allowlist or blocklist that gates which models a scope can use at all. A model not on the allowlist is refused at request time — the turn comes back with a refusal naming the policy, even if an agent has it pinned. Reach for the allowlist when a regulator names the approved models; reach for the blocklist when a single model should be off-limits everywhere else.
 
-**Default models** is the resolver rule that picks the model when nothing else has — no per-agent override, no per-conversation override. The default applies the moment the user starts a fresh chat and applies as the fallback when an agent's pinned model is unreachable.
+**Default models** is the resolver rule that picks the model when nothing else has — no explicit pick, no per-conversation override. The default applies when a chat runs on **Auto**: the resolver takes the governance default ahead of the automatic pick, and when the default itself is denied by model access, it skips it and auto-picks a model the caller is permitted to use.
 
 ## Scopes and precedence
 
-Both layers carry a scope: org, team, role, or user. The resolver evaluates from narrowest to widest — user wins over team wins over role wins over org default. The model access layer composes with the default-model layer; the default the resolver picks must also pass the access check for the same scope, otherwise the resolver falls back to the nearest permitted model.
+Both layers carry a scope: the whole org, a team, or a role. The resolver evaluates from narrowest to widest — a team rule wins over a role rule wins over the org default. The model access layer composes with the default-model layer; the default the resolver picks must also pass the access check, otherwise the resolver skips it and auto-picks a model the caller is permitted to use.
 
 ## Allowlist and blocklist warnings
 
-The default-models editor surfaces a warning when a rule names a model the allowlist for the same scope does not permit, or when the blocklist for the same scope blocks it. The warning does not block saving — the resolver will fall back at request time — but it flags the mismatch so you can fix one or the other.
+The default-models editor surfaces a warning when a rule names a model the allowlist for the same scope does not permit, or when the blocklist for the same scope blocks it. The warning does not block saving — the resolver skips the denied default at request time — but it flags the mismatch so you can fix one or the other.
 
 ## The model that reads images
 

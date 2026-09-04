@@ -7,13 +7,13 @@ Garde-fous est la surface où tu configures les trois couches de filtres que Tal
 
 <Frame caption="Gouvernance > Garde-fous — les trois cartes de statut des couches de filtres (sécurité du contenu, détection PII, fournisseur de modération), au-dessus du journal des événements récents.">
 
-![La page de gouvernance Garde-fous montrant trois cartes de statut — la sécurité du contenu appliquée à l’entrée et à la sortie sur deux catégories, la détection PII en mode mask sur quatre motifs intégrés, et le fournisseur de modération marqué Désactivé, sans API externe configurée — au-dessus du flux des événements récents, qui n’en signale encore aucun.](/images/platform/governance-guardrails.webp)
+![La page de gouvernance Garde-fous montrant trois cartes de statut — Sécurité du contenu inactive, Détection DCP inactive et Fournisseur de modération non configuré — au-dessus du flux des événements récents, qui n’en signale encore aucun, et des instructions personnalisées de l’organisation.](/images/platform/governance-guardrails.webp)
 
 </Frame>
 
 ## Un layering mis en pratique
 
-Pour configurer les couches, ouvre **Paramètres > Gouvernance > Garde-fous**. L’aperçu affiche trois cartes de statut, une par couche — sécurité du contenu, détection PII, modération. Chaque carte renvoie vers sa propre page de configuration où tu choisis si la couche tourne sur l’entrée, sur la sortie ou les deux, et ce qu’elle fait à un match (bloquer le message, masquer le match, ou marquer et laisser passer). Le tableau des événements récents en bas de l’aperçu affiche les 50 dernières détections, blocages et erreurs fournisseur avec leur couche, leur direction et leur catégorie de match.
+Pour configurer les couches, ouvre **Paramètres > Gouvernance > Garde-fous**. L’aperçu affiche trois cartes de statut, une par couche — sécurité du contenu, détection PII, modération — et l’éditeur de chaque couche se trouve plus bas sur la même page ; tu y choisis si la couche tourne sur l’entrée, sur la sortie ou les deux, et ce qu’elle fait à un match. Les instructions personnalisées obligatoires de l’organisation vivent ici aussi — elles contraignent chaque agent, donc elles siègent avec les autres contrôles de contenu. Le tableau des événements récents sous l’aperçu affiche les 50 dernières détections, blocages et erreurs fournisseur avec leur couche, leur direction et leur catégorie de match.
 
 ## Sécurité du contenu
 
@@ -23,7 +23,7 @@ Les listes de mots et motifs de cette couche ne quittent jamais le déploiement.
 
 ## Détection PII
 
-La détection PII embarque des motifs pour les e-mails, téléphones, IDs gouvernementaux, numéros de paiement et une longue traîne de formats régionaux. Ajoute des motifs personnalisés si ton régulateur nomme un format que les motifs intégrés ratent. Choisis un mode — Bloquer, Masquer avec un placeholder, ou Marquer — et une direction d’application. Masquer est le choix typique pour le filtrage de sortie quand le modèle a eu accès à des enregistrements contenant des PII qu’il ne doit pas répéter.
+La détection PII embarque des motifs pour les e-mails, téléphones, IDs gouvernementaux, numéros de paiement et une longue traîne de formats régionaux. Ajoute des motifs personnalisés si ton régulateur nomme un format que les motifs intégrés ratent. Choisis un mode — Bloquer, Masquer avec un placeholder, ou Tokeniser, qui échange les PII contre des jetons indexés à l’aller et les restaure dans la réponse du modèle. Masquer est le choix typique quand le modèle a eu accès à des enregistrements contenant des PII qu’il ne doit pas répéter.
 
 ## Fournisseur de modération
 
@@ -33,7 +33,7 @@ Le fournisseur se trouve sur le chemin d’egress réseau. Les pannes sont confi
 
 ## Événements récents
 
-Chaque détection, blocage et erreur fournisseur atterrit dans le tableau des événements récents pour 30 jours. Filtre par couche ou par type ; clique sur une ligne pour voir les catégories trouvées, l’acteur, l’identifiant de message et l’horodatage. Le texte brut trouvé n’est jamais stocké — les événements sont une surface de réglage, pas une archive de contenu.
+Chaque détection, blocage et erreur fournisseur atterrit dans le tableau des événements récents — gardé 90 jours par défaut, ajustable sur la page de politique de rétention. Filtre par couche ou par type ; chaque ligne porte les catégories trouvées, l’acteur et l’horodatage. Le texte brut trouvé n’est jamais stocké — les événements sont une surface de réglage, pas une archive de contenu.
 
 ## Où cela s’inscrit
 

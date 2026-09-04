@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../../lib/ctx';
 import type { Id } from '../../lib/rows';
 import { createConversationFromEmail } from './create_conversation_from_email';
@@ -155,6 +156,155 @@ describe('createConversationFromEmail', () => {
     expect(createdConversationIds).toHaveLength(1);
     expect(addMessageCalls).toHaveLength(1);
     expect(addMessageCalls[0]?.conversationId).toBe(createdConversationIds[0]);
+  });
+
+  it('reports the ingestedTip as the newest email it covered', async () => {
+    const { ctx } = createMockCtx();
+    const result = await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [
+        makeEmail('a@thread.com', '2026-07-01T09:00:00.000Z'),
+        makeEmail('b@thread.com', '2026-07-03T09:00:00.000Z'),
+        makeEmail('c@thread.com', '2026-07-02T09:00:00.000Z'),
+      ],
+    });
+    // The sync advances the watermark to exactly this, never past it.
+    expect(result.ingestedTip).toBe(Date.parse('2026-07-03T09:00:00.000Z'));
+  });
+});
+
+/**
+ * A Gmail message without a Date header arrives with `date` = internalDate (an
+ * epoch-ms STRING); a malformed one may carry no readable date at all. The
+ * ingest shim validates every stamp as a number, so a NaN stamp rejects the
+ * write — and with no per-message isolation one such message wedged the whole
+ * mailbox pass forever (the watermark never advanced past it). Every writer
+ * (create / thread / update) must ingest such a message with the stamp
+ * omitted, and the rest of the batch must land.
+ */
+describe('createConversationFromEmail — messages without a readable Date', () => {
+  const INTERNAL_DATE = String(Date.UTC(2026, 6, 2, 12));
+
+  /** The shim's contract: a stamp is a finite number or absent. */
+  function assertShimStamps(args: Record<string, unknown>): void {
+    const initial = args.initialMessage;
+    const carriers: unknown[] = [args];
+    if (typeof initial === 'object' && initial !== null) carriers.push(initial);
+    for (const carrier of carriers) {
+      for (const key of ['sentAt', 'deliveredAt']) {
+        const value = Reflect.get(Object(carrier), key);
+        if (value !== undefined && !Number.isFinite(value)) {
+          throw new Error(
+            `Invalid input: expected number, received ${String(value)} at ${key}`,
+          );
+        }
+      }
+    }
+  }
+
+  function strictCtx() {
+    const mutations: Record<string, unknown>[] = [];
+    const ctx = {
+      runQuery: vi.fn(async (ref: unknown, args: Record<string, unknown>) => {
+        // One conversation already exists from an earlier pass; its root
+        // Message-ID is what a later undated reply threads onto.
+        if (
+          functionRefName(ref) ===
+            'conversations/internal_queries:getMessageByExternalId' &&
+          args.externalMessageId === 'root@existing'
+        ) {
+          return {
+            _id: 'msg_root',
+            conversationId: 'conv_existing',
+            deliveryState: 'delivered',
+          };
+        }
+        return null;
+      }),
+      runMutation: vi.fn(async (_ref, args: Record<string, unknown>) => {
+        assertShimStamps(args);
+        mutations.push(args);
+        if ('source' in args && args.source === 'conversation') {
+          return { contactId: 'cont_1', created: true };
+        }
+        if (isCreateConversationArgs(args)) {
+          return {
+            conversationId: `conv_${mutations.length}`,
+            messageId: `msg_${mutations.length}`,
+          };
+        }
+        return null;
+      }),
+    } as unknown as ActionCtx;
+    return { ctx, mutations };
+  }
+
+  it('ingests the whole batch: the readable instants are stamped, the rest carry none', async () => {
+    const { ctx, mutations } = strictCtx();
+    const result = await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [
+        makeEmail('<dated@x>', '2026-07-01T09:00:00.000Z'),
+        makeEmail('<internal@x>', INTERNAL_DATE),
+        makeEmail('<undated@x>', ''),
+        makeEmail('<undated-reply@x>', '', {
+          headers: {
+            'message-id': '<undated-reply@x>',
+            'in-reply-to': '<root@existing>',
+            references: '<root@existing>',
+          },
+        }),
+      ],
+      connectorName: 'gmail',
+    });
+
+    expect(result.processedCount).toBe(4);
+    expect(result.skippedCount).toBe(0);
+    // Three new conversations + one message threaded onto the existing one.
+    const created = mutations.filter(isCreateConversationArgs);
+    const threaded = mutations.filter(isAddMessageArgs);
+    expect(created).toHaveLength(3);
+    expect(threaded).toHaveLength(1);
+    expect(threaded[0]?.conversationId).toBe('conv_existing');
+    expect(threaded[0]).not.toHaveProperty('sentAt');
+
+    const initialOf = (externalMessageId: string): unknown => {
+      const args = created.find(
+        (candidate) => candidate.externalMessageId === externalMessageId,
+      );
+      return args === undefined
+        ? undefined
+        : Reflect.get(args, 'initialMessage');
+    };
+    expect(initialOf('internal@x')).toMatchObject({
+      sentAt: Number(INTERNAL_DATE),
+      deliveredAt: Number(INTERNAL_DATE),
+    });
+    expect(initialOf('dated@x')).toMatchObject({
+      sentAt: Date.UTC(2026, 6, 1, 9),
+    });
+    expect(initialOf('undated@x')).not.toHaveProperty('sentAt');
+    expect(initialOf('undated@x')).not.toHaveProperty('deliveredAt');
+    // The watermark tip is the newest READABLE instant — undated mail never
+    // moves it, and never freezes it either.
+    expect(result.ingestedTip).toBe(Number(INTERNAL_DATE));
+  });
+
+  it('re-syncing an already-ingested undated message updates it without a NaN stamp', async () => {
+    const { ctx, mutations } = strictCtx();
+    const result = await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [makeEmail('<root@existing>', '')],
+    });
+    expect(result.processedCount).toBe(1);
+    const update = mutations.find(
+      (args) => 'messageId' in args && 'deliveryState' in args,
+    );
+    expect(update).toMatchObject({
+      messageId: 'msg_root',
+      deliveryState: 'delivered',
+    });
+    expect(update).not.toHaveProperty('deliveredAt');
   });
 });
 

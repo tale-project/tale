@@ -63,6 +63,10 @@ tests/e2e/fixtures/config/*/
 # lockstep with builtin-configs/automations.
 !tests/e2e/fixtures/config/qa-guides-org/
 !tests/e2e/fixtures/config/docs-demo/
+# The backend bootstraps the deployment's object-store connection under the
+# `default` org tree when a stack runs against these fixtures — rig output
+# (with secrets), never a fixture.
+tests/e2e/fixtures/config/default/object-storage/
 
 # Docs screenshot pipeline: cached auth/org state between capture runs
 tests/docs-screenshots/.state/

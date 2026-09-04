@@ -3,7 +3,7 @@ title: Policies and limits
 description: Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, role, or individual API key. Admins and Owners read this when a workload is over budget or when a feature needs a tighter blast radius.
 ---
 
-Policies and limits is the surface where you cap what your members and agents can consume. Budgets cap tokens, cost, and requests per billing period; feature controls toggle web search, code execution, and file upload by scope; upload policy gates the file types and sizes a member can attach; retention policy decides how long each data type lives before cleanup. Admins and Owners read this page when a workload is over budget, when a feature should be off for a subset of users, or when a regulator names a retention window that differs from the default.
+Policies and limits is the surface where you cap what your members and agents can consume. Budgets cap tokens, cost, and requests per billing period; feature controls cap the context window per scope; upload policy gates the file types and sizes a member can attach; retention policy decides how long each data type lives before cleanup. Admins and Owners read this page when a workload is over budget, when one group's replies should run with a smaller context window, or when a regulator names a retention window that differs from the default.
 
 <Frame caption="Governance > Policies & Limits — the budget-rules table above the upload policy and retention controls.">
 
@@ -13,13 +13,13 @@ Policies and limits is the surface where you cap what your members and agents ca
 
 ## A worked budget
 
-To cap an Editor's monthly spend, open **Settings > Governance > Budgets** and click **Add rule**. Pick **Role** as the scope, **Editor** as the target, set the period to **Monthly**, and fill in a max-cost in USD. Save and the next month-period request that would push an Editor over the cap is refused with a budget-exceeded error. A warning threshold below the cap fires an alert before the cap hits. Narrower scopes override broader ones — a user rule beats a team rule beats a role rule — and org-wide limits always apply on top as an additional cap.
+To cap an Editor's monthly spend, open **Settings > Governance > Policies & Limits** and click **Add rule** under **Budget rules**. Pick **Role** as the scope, **Editor** as the target, set the period to **Monthly**, and fill in a max-cost in USD. Save and once an Editor's period spend crosses the cap, the chat composer blocks new sends with a budget-exceeded notice — and voice requests are refused outright. A warning threshold below the cap surfaces a warning banner before the cap hits. Narrower scopes override broader ones — a user rule beats a team rule beats a role rule — and org-wide limits always apply on top as an additional cap.
 
 ## The four policy layers
 
-**Budgets** are token, cost, and request caps per scope and period. Scopes are org, role, team, user, or API key. Each rule carries a token cap, a cost cap in USD, an optional request cap, and a warning threshold expressed as a percentage of the cap. An API-key rule targets one issued key (pick **API key** as the scope, then the key from **Settings > API**) and caps only the traffic authenticated with that key — the REST and OpenAI-compatible API — so you can meter a single connector without touching in-app usage. Image generation is metered by cost and request count, not tokens — an image request reports no tokens, so cap image spend with the cost or request limit, not the token limit.
+**Budgets** are token, cost, and request caps per scope and period. Scopes are org, role, team, user, or API key. Each rule carries a token cap, a cost cap in USD, an optional request cap, and a warning threshold expressed as a percentage of the cap. An API-key rule targets one issued key (pick **API key** as the scope, then the key from **Settings > API**) and caps only the traffic authenticated with that key — the REST API — so you can meter a single connector without touching in-app usage. Image generation is metered by cost and request count, not tokens — an image request reports no tokens, so cap image spend with the cost or request limit, not the token limit.
 
-**Feature controls** toggle web search, code execution, and file upload per scope, and cap the max context tokens for AI replies. A feature off for a scope hides the toggle in chat and refuses the request server-side.
+**Feature controls** cap the max context tokens for AI replies per user, team, or role. There are no per-feature toggles.
 
 **Upload policy** gates the file extensions, MIME types, and sizes a member can attach. It also caps the total volume per user — useful when storage is metered. Toggle the policy off for a permissive default; toggle it on to enforce the lists.
 
@@ -35,7 +35,7 @@ Retention policy sits inside operator-imposed bounds — the self-hosted operato
 
 ## Session idle timeout
 
-Session idle timeout signs members out after a period of inactivity — the session-bound control compliance frameworks ask for (SOC 2 CC6.1). Open **Settings > Governance > Security & Monitoring**, switch on **Enable session idle timeout**, and set **Idle timeout (minutes)** (1–1440, default 30). Members see a warning shortly before the cut-off; after it, the active tab signs out and the login page explains the sign-out instead of presenting a bare form.
+Session idle timeout signs members out after a period of inactivity — the session-bound control compliance frameworks ask for (SOC 2 CC6.1). Open **Settings > Governance > Security**, switch on **Enable session idle timeout**, and set **Idle timeout (minutes)** (1–1440, default 30). Members see a warning shortly before the cut-off; after it, the active tab signs out and the login page explains the sign-out instead of presenting a bare form.
 
 The window can only tighten the deployment-wide limit, never loosen it. Self-hosted operators set that hard cap with an environment variable (see the [environment reference](/self-hosted/configuration/environment-reference)); the org policy applies on top, and the stricter of the two windows wins. A member of several organisations gets the strictest window across all of them.
 

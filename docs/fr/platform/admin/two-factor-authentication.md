@@ -27,15 +27,15 @@ Pour en enregistrer un, ouvre **Compte > Sécurité** et clique sur **Ajouter un
 
 Un passkey enregistré fonctionne à trois portes. Sur l’écran de connexion, **Se connecter avec un passkey** te connecte sans taper le mot de passe — l’identifiant est lui-même une preuve forte. Sur l’écran de vérification après une connexion par mot de passe, **Utiliser un passkey à la place** remplace le code à six chiffres. Et sur l’écran d’inscription vers lequel une politique appliquée route les membres non inscrits, **Enregistrer un passkey à la place** se trouve à côté de la configuration TOTP — un membre qui n’enregistre qu’un passkey, jamais TOTP, passe la politique.
 
-Quand un membre perd un appareil qui porte un passkey, un Administrateur révoque l’identifiant : ouvre **Paramètres > Organisation**, clique sur **Modifier le membre** et supprime l’identifiant dans la section **Passkeys** du dialogue. Tale supprime l’identifiant et met fin à chaque session active du membre, donc un authentificateur perdu ou volé ne garde aucune session en vie. L’enregistrement, la suppression par soi-même, la révocation admin et chaque connexion par passkey atterrissent dans le journal d’audit (`passkey_added`, `passkey_removed`, `passkey_revoked_by_admin`, `passkey_sign_in`).
+Quand un membre perd un appareil qui porte un passkey, un Administrateur révoque l’identifiant : ouvre **Paramètres > Membres**, clique sur **Modifier le membre** et supprime l’identifiant dans la section **Passkeys** du dialogue. Tale supprime l’identifiant et met fin à chaque session active du membre, donc un authentificateur perdu ou volé ne garde aucune session en vie. La révocation admin atterrit dans le journal d’audit sous `passkey.revoked_by_admin`.
 
 ## La politique d’application pour l’org
 
-Les Administrateurs peuvent exiger le second facteur pour chaque membre authentifié par mot de passe de l’organisation. Ouvre **Paramètres > Gouvernance > Security & Monitoring** et, sous **Authentification à deux facteurs**, bascule **Exiger l'authentification à deux facteurs**. La politique porte une période de grâce (en jours) qui donne à chaque membre du temps pour s’inscrire à partir de sa première connexion sous la politique ; mets-la à zéro pour une application immédiate.
+Les Administrateurs peuvent exiger le second facteur pour chaque membre authentifié par mot de passe de l’organisation. Ouvre **Paramètres > Gouvernance > Sécurité** et, sous **Authentification à deux facteurs**, bascule **Exiger l'authentification à deux facteurs**. La politique porte une période de grâce (en jours) qui donne à chaque membre du temps pour s’inscrire à partir de sa première connexion sous la politique ; mets-la à zéro pour une application immédiate.
 
-<Frame caption="Gouvernance > Security & Monitoring — limites de tentatives de connexion et politique de mot de passe ; la politique d’authentification à deux facteurs se trouve plus bas sur la même page.">
+<Frame caption="Paramètres > Gouvernance > Sécurité — limites de tentatives de connexion et politique de mot de passe ; la politique d’authentification à deux facteurs se trouve plus bas sur la même page.">
 
-![La page de gouvernance Security & Monitoring montrant les champs de limite de tentatives de connexion et les exigences de classes de caractères de la politique de mot de passe ; la politique de deux facteurs se trouve plus bas sur la même page.](/images/platform/governance-security-monitoring.webp)
+![La page de gouvernance Sécurité montrant les champs de limite de tentatives de connexion et les exigences de classes de caractères de la politique de mot de passe ; la politique de deux facteurs se trouve plus bas sur la même page.](/images/platform/governance-security-monitoring.webp)
 
 </Frame>
 
@@ -49,7 +49,7 @@ Un membre dans la fenêtre de grâce voit une bannière de compte à rebours dan
 
 ## Réinitialisation admin pour un membre verrouillé
 
-Quand un membre perd son téléphone et ses codes de secours, un Administrateur efface le second facteur sur son compte. Ouvre **Paramètres > Organisation**, clique sur **Modifier le membre** puis sur **Réinitialiser le double facteur** dans le dialogue. Tale désactive la 2FA pour le compte et met fin à chaque session active, donc le membre se réinscrit à sa prochaine connexion.
+Quand un membre perd son téléphone et ses codes de secours, un Administrateur efface le second facteur sur son compte. Ouvre **Paramètres > Membres**, clique sur **Modifier le membre** puis sur **Réinitialiser le double facteur** dans le dialogue. Tale désactive la 2FA pour le compte et met fin à chaque session active, donc le membre se réinscrit à sa prochaine connexion.
 
 La réinitialisation est enregistrée dans le journal d’audit sous `2fa_reset_by_admin`. Va vers ça comme action de récupération — le membre doit se réinscrire immédiatement une fois revenu.
 

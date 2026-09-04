@@ -404,7 +404,7 @@ export async function validateNodes(
             `node "${label}": transform code has no network or module access — "${io[0]}" will fail at runtime`,
             {
               nodeId: id,
-              hint: 'transforms only reshape data; use an connector node for external calls',
+              hint: 'transforms only reshape data; use a connector node for external calls',
             },
           ),
         );

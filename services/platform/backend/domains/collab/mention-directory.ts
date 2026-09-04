@@ -24,9 +24,13 @@ import { listAutomations } from '../automations/store.ts';
  *    reaches the live lane;
  *  - an `agentMode` that is not `restricted` is PERMISSIVE: a token nobody
  *    claims is treated as an agent handle rather than reported unresolved;
- *  - every leg degrades on its own — a listing that throws is logged and
- *    skipped, because a directory missing its automations is still better
- *    than a comment that cannot be posted.
+ *  - a leg that cannot be listed FAILS the build (`MentionDirectoryError`,
+ *    503, retryable) — 0.4 logged and skipped it, but a partial directory
+ *    turns `@teammate` into plain text: no bell, no steer, no owning-
+ *    automation run, and nothing tells the author. The "quiet refusal"
+ *    contract covers PERMISSION misses (an outsider is not mentionable),
+ *    never infrastructure failures; the surface fails loudly and the comment
+ *    is posted again.
  *
  * The scanning itself (`extractMentions`, `findUnresolvedMentionTokens`,
  * `parseMentionTokens`) is REUSED from the 0.4 pure module: one grammar for
@@ -37,6 +41,33 @@ export interface MentionDirectory {
   entries: MentionDirectoryEntry[];
   /** Non-restricted projects: an unclaimed token reads as an agent handle. */
   permissiveAgents: boolean;
+}
+
+export type MentionDirectoryLeg = 'members' | 'automations' | 'agents';
+
+/**
+ * A directory leg could not be listed. The task-comment door maps it to a
+ * 503 with this code so the composer shows a failure the author can retry,
+ * instead of a posted comment whose mentions silently did nothing.
+ */
+export class MentionDirectoryError extends Error {
+  readonly code = 'MENTION_DIRECTORY_UNAVAILABLE';
+  readonly status = 503;
+  readonly leg: MentionDirectoryLeg;
+
+  constructor(leg: MentionDirectoryLeg, cause: unknown) {
+    super(`mention directory: ${leg} listing failed`, { cause });
+    this.name = 'MentionDirectoryError';
+    this.leg = leg;
+  }
+}
+
+function directoryUnavailable(
+  leg: MentionDirectoryLeg,
+  cause: unknown,
+): MentionDirectoryError {
+  console.error(`[collab] mention directory: ${leg} listing failed`, cause);
+  return new MentionDirectoryError(leg, cause);
 }
 
 function memberHandles(member: {
@@ -156,7 +187,7 @@ export async function buildMentionDirectory(
   try {
     entries.push(...(await accessibleMembers(sql, args)));
   } catch (error) {
-    console.warn('[collab] mention directory: member listing failed', error);
+    throw directoryUnavailable('members', error);
   }
   if (args.projectId === null) {
     // Org-wide surfaces (private agent chat) mention people only — agent
@@ -208,10 +239,7 @@ export async function buildMentionDirectory(
       });
     }
   } catch (error) {
-    console.warn(
-      '[collab] mention directory: automation listing failed',
-      error,
-    );
+    throw directoryUnavailable('automations', error);
   }
 
   // The project's agent INSTANCES go LAST so their handles shadow a
@@ -228,10 +256,7 @@ export async function buildMentionDirectory(
       }
     }
   } catch (error) {
-    console.warn(
-      '[collab] mention directory: agent instance listing failed',
-      error,
-    );
+    throw directoryUnavailable('agents', error);
   }
 
   return {

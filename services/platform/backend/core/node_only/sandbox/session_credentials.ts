@@ -34,7 +34,7 @@ import { internal } from '../../lib/handler_names';
  */
 export const BROKERABLE_GRANTS: readonly string[] = ['github'];
 
-/** Map an connector slug + its decrypted secret to session env. v1 is a
+/** Map a connector slug + its decrypted secret to session env. v1 is a
  * small static map (github) + a generic fallback; new connector types add
  * one case here, the pipeline is unchanged. */
 function toSessionEnv(

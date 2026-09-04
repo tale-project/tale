@@ -11,7 +11,7 @@ Pour restaurer un thread d'historique de chat, ouvre **Paramètres > Gouvernance
 
 ## Les deux statuts
 
-**Mis à la corbeille** est l'état soft-delete normal. La fenêtre de rétention de la ligne a expiré, elle s'est déplacée à la corbeille, et la fenêtre de grâce tourne encore. Restaurer ramène la ligne dans sa liste source sans dépasser la politique.
+**Mis à la corbeille** est l'état soft-delete normal. La fenêtre de rétention de la ligne a expiré, elle s'est déplacée à la corbeille, et la fenêtre de grâce tourne encore. Restaurer ramène la ligne dans sa liste source sans dépasser la politique. La fenêtre de rétention repart de zéro au moment de la restauration — un thread de chat, un document ou une conversation externe restaurés comptent à partir de ce moment, et le prochain nettoyage le laisse tranquille au lieu de le faire expirer à nouveau.
 
 **Expiré** est le second état — la fenêtre de grâce s'est écoulée et la ligne est en file pour suppression définitive au prochain nettoyage. Restaurer reste possible mais est un dépassement : la boîte de dialogue te demande de taper `restore` et le journal d'audit enregistre le dépassement avec ton nom.
 
@@ -25,11 +25,10 @@ La corbeille contient des lignes de nombreuses catégories. Le filtre de catégo
 - Modèles de prompt
 - Retours sur messages
 - Contacts
-- Fournisseurs
 - Conversations externes
 - Métadonnées de message
-- Exécutions de workflow
-- Logs de déclencheur de workflow
+- Exécutions d'automatisation
+- Logs de déclencheur d'automatisation
 - Registre d'utilisation
 - Logs d'audit
 - Événements de filtre de chat
@@ -39,7 +38,7 @@ Chaque catégorie respecte sa propre fenêtre de rétention et sa propre fenêtr
 
 ## Interaction avec la conservation légale
 
-Les lignes sous conservation légale n'apparaissent pas dans la corbeille — le hold les épingle hors de portée de chaque étape de rétention. Quand tu tentes de supprimer une ligne sous hold depuis sa liste source, Tale refuse avec le message **La suppression est bloquée par un legal hold actif**. Lever le hold laisse la rétention faire passer la ligne par la fenêtre de corbeille comme les autres catégories.
+Les lignes sous conservation légale n'apparaissent pas dans la corbeille — le hold les épingle hors de portée de chaque étape de rétention. Quand tu tentes de supprimer une ligne sous hold depuis sa liste source, Tale refuse avec une erreur de conservation légale qui nomme le hold. Lever le hold laisse la rétention faire passer la ligne par la fenêtre de corbeille comme les autres catégories.
 
 ## La fenêtre de grâce
 

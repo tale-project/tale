@@ -320,3 +320,76 @@ export interface DeleteDocumentsBatchResult {
   deleted_count: number;
   failed_file_ids: string[];
 }
+
+/**
+ * Delete MANY corpus documents over one connection — the batch twin of
+ * `deleteKnowledgeDocument`, with the same idempotent-on-missing semantics
+ * per ref. The ref-release seam (`domains/knowledge/release.ts`) drives it
+ * for purge cascades and the reconcile sweep, where a connection per ref
+ * would be pure overhead. All-or-nothing per call: a thrown connection
+ * error means NO ref was acknowledged (the two deletes run in one
+ * transaction), so callers retry the whole batch safely.
+ */
+export async function deleteKnowledgeDocumentsBatch(
+  args: DeleteDocumentsBatchArgs,
+): Promise<DeleteDocumentsBatchResult> {
+  if (args.fileIds.length === 0) {
+    return { success: true, deleted_count: 0, failed_file_ids: [] };
+  }
+  const url = await resolveKnowledgeUrlForOrg(args.orgSlug);
+  const sql = postgres(url, { max: 1 });
+  try {
+    const rows = await sql.unsafe<{ id: string }[]>(
+      `SELECT id FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents WHERE org_slug = $1 AND file_id = ANY($2)`,
+      [args.orgSlug, args.fileIds],
+    );
+    if (rows.length === 0) {
+      return { success: true, deleted_count: 0, failed_file_ids: [] };
+    }
+    const idsToDelete = rows.map((row) => row.id);
+    await sql.begin(async (tx) => {
+      await tx.unsafe(
+        `DELETE FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks WHERE org_slug = $1 AND document_id = ANY($2)`,
+        [args.orgSlug, idsToDelete],
+      );
+      await tx.unsafe(
+        `DELETE FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents WHERE org_slug = $1 AND id = ANY($2)`,
+        [args.orgSlug, idsToDelete],
+      );
+    });
+    return {
+      success: true,
+      deleted_count: idsToDelete.length,
+      failed_file_ids: [],
+    };
+  } finally {
+    await sql.end();
+  }
+}
+
+/**
+ * Enumerate one page of an org's corpus documents by file ref (keyset on
+ * `file_id`) — the reconcile sweep's walk. Opens one connection per call,
+ * like the deletes above (a daily sweep, not a hot path).
+ */
+export async function listKnowledgeDocumentRefs(args: {
+  orgSlug: string;
+  afterFileId: string | null;
+  limit: number;
+}): Promise<string[]> {
+  const url = await resolveKnowledgeUrlForOrg(args.orgSlug);
+  const sql = postgres(url, { max: 1 });
+  try {
+    const rows = await sql.unsafe<{ fileId: string }[]>(
+      `SELECT DISTINCT file_id AS "fileId"
+         FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+        WHERE org_slug = $1 AND ($2::text IS NULL OR file_id > $2)
+        ORDER BY file_id ASC
+        LIMIT $3`,
+      [args.orgSlug, args.afterFileId, args.limit],
+    );
+    return rows.map((row) => row.fileId);
+  } finally {
+    await sql.end();
+  }
+}

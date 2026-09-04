@@ -5,15 +5,15 @@ description: Un projet regroupe chats, fichiers, instructions et tâches dans un
 
 Un projet est l’unité que Tale sort quand un chantier a besoin des mêmes fichiers, des mêmes instructions et des mêmes surfaces de travail à travers beaucoup de chats et beaucoup de personnes. Cette page te donne le modèle mental — lis-la avant de créer ton premier projet, et reviens-y au moment de décider si un chat qui grossit mérite d’être promu en projet.
 
-<Frame caption="L’onglet Général — identité, partage et bandeau de statistiques du projet.">
+<Frame caption="L’onglet Général — l’identité du projet, ses instructions permanentes et, en dessous, le partage.">
 
-![L’onglet Général du projet Website relaunch montrant les champs de nom et de description, la section de partage où l’équipe propriétaire est Toute l’organisation, et un bandeau de statistiques indiquant deux fichiers, aucun chat et Toute l’organisation.](/images/platform/project-general-tab.webp)
+![L’onglet Général du projet Website relaunch montrant les champs de nom et de description, l’éditeur d’instructions rempli dont part chaque chat du projet, et en dessous le titre de la section Partage, avec Enregistrer et Annuler dans la barre d’onglets.](/images/platform/project-general-tab.webp)
 
 </Frame>
 
 ## Ce qu’un projet possède
 
-Les **chats** démarrés dans le projet portent son contexte automatiquement. Ils restent les tiens jusqu’à ce que tu actives **Partager avec le projet** sur un chat — l’onglet Chats se divise en **Tes chats** et **Partagés avec le projet** en conséquence. Partager un chat masque tes souvenirs et tes instructions personnels dans les réponses que voient les autres membres.
+Les **chats** démarrés dans le projet portent son contexte automatiquement. Ils restent les tiens jusqu’à ce que tu actives **Partager avec le projet** sur un chat — l’onglet Chats se divise en **Tes chats** et **Partagés avec le projet** en conséquence. Partager un chat masque tes souvenirs et tes instructions personnels dans les réponses que voient les autres membres. Déplacer un chat partagé vers un autre projet — ou le sortir de son projet — met fin au partage, pour qu’un nouveau public n’en hérite jamais en silence : réactive **Partager avec le projet** si les membres du nouveau projet doivent le lire.
 
 Les **instructions** sont du contexte qui s’applique à chaque chat du projet — le cadre, les contraintes et le vocabulaire du travail — pour que personne ne les recolle chat par chat.
 

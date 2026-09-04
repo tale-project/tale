@@ -19,25 +19,36 @@ export function sessionContainerName(sessionId: string): string {
   return `tale-sbx-ses-${sessionId}`;
 }
 
-/** Per-session workspace dir under the host session root (Docker backend).
- * The `ses-` prefix is also what the one-shot host-dir sweep skips. */
+// Prefix of every per-session workspace dir under the host session root
+// (Docker backend), in BOTH layouts the resolver knows — flat `<root>/ses-<id>`
+// and legacy colour-rooted `<root>/<colour>/ses-<id>`. It is the one marker
+// the host-dir sweep keys its "never delete" rule on.
+const SESSION_WORKSPACE_DIR_PREFIX = 'ses-';
+
+/** Per-session workspace dir under the host session root (Docker backend). */
 export function sessionWorkspaceDirName(sessionId: string): string {
-  return `ses-${sessionId}`;
+  return `${SESSION_WORKSPACE_DIR_PREFIX}${sessionId}`;
+}
+
+/** Is this dir name a session workspace (either layout)? Session workspaces
+ * are lifecycle-managed by destroySession alone — the reaper only ever STOPS
+ * a session and keeps its data — so nothing else may delete one. */
+export function isSessionWorkspaceDirName(name: string): boolean {
+  return name.startsWith(SESSION_WORKSPACE_DIR_PREFIX);
 }
 
 /**
  * Per-session runnerd token. HMAC-SHA256(SANDBOX_TOKEN, "runnerd-v1:" +
  * sessionId): derivable by any replica, stored nowhere, and one-way — a
  * compromised session learns only its own token, not the platform secret or
- * any peer's. When SANDBOX_TOKEN is unset (dev/unsigned mode) the caller
- * passes a per-boot random key instead (dev sessions don't survive a spawner
- * restart; acceptable — see config sandboxToken policy).
+ * any peer's. SANDBOX_TOKEN is required (loadConfig fails closed), so every
+ * session gets a real token — there is no unsigned mode.
  */
 export function deriveRunnerdToken(
-  sandboxTokenOrDevKey: string,
+  sandboxToken: string,
   sessionId: string,
 ): string {
-  return createHmac('sha256', sandboxTokenOrDevKey)
+  return createHmac('sha256', sandboxToken)
     .update(`${RUNNERD_TOKEN_CONTEXT}${sessionId}`)
     .digest('hex');
 }

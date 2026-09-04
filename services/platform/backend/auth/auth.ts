@@ -7,7 +7,11 @@ import { organization, twoFactor } from 'better-auth/plugins';
 import pg from 'pg';
 import type { Sql } from 'postgres';
 
-import { assertValidOrgSlug } from '../../lib/shared/constants/org-slug.ts';
+import {
+  assertValidOrgSlug,
+  classifyOrgSlugUpdate,
+  ORG_SLUG_IMMUTABLE_MESSAGE,
+} from '../../lib/shared/constants/org-slug.ts';
 import { isReservedOrgSlug } from '../../lib/shared/constants/reserved-org-slugs.ts';
 import { DEFAULT_TRUSTED_PROXIES } from '../../lib/shared/schemas/governance.ts';
 import { organizationNameSchema } from '../../lib/shared/schemas/organizations.ts';
@@ -22,11 +26,12 @@ import {
   recordFailure,
 } from '../domains/login_attempts/service.ts';
 import {
-  evaluateTwoFactorEnforcement,
+  anchorTwoFactorGraceOnSignIn,
   getTwoFactorLockState,
   recordTwoFactorFailure,
+  recordTwoFactorLifecycleEvent,
   recordTwoFactorSuccess,
-  setGraceUntilIfAbsent,
+  type TwoFactorLifecycleAction,
 } from '../domains/two_factor/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
@@ -58,6 +63,32 @@ export interface AuthConfig {
 }
 
 const SIGN_IN_EMAIL_PATH = '/sign-in/email';
+
+/**
+ * The second-factor LIFECYCLE endpoints. Every one of them audits on success
+ * — the 0.4 posture (#1508), carried by the deleted `two_factor/auth_hooks.ts`
+ * whose lockout half this file already re-implements. These are
+ * account-takeover-relevant: an attacker who registers their own passkey and
+ * turns TOTP off must not be able to do it without leaving a trail.
+ */
+const TWO_FACTOR_ENABLE_PATH = '/two-factor/enable';
+const TWO_FACTOR_DISABLE_PATH = '/two-factor/disable';
+const TWO_FACTOR_BACKUP_CODES_PATH = '/two-factor/generate-backup-codes';
+const PASSKEY_REGISTER_PATH = '/passkey/verify-registration';
+const PASSKEY_DELETE_PATH = '/passkey/delete-passkey';
+const PASSKEY_AUTHENTICATE_PATH = '/passkey/verify-authentication';
+
+/** The user on a Better Auth middleware session payload (`context.session`
+ * or the freshly issued `context.newSession`), or null. */
+function sessionPayloadUser(
+  payload: unknown,
+): { id: string; email?: string } | null {
+  if (!isRecord(payload)) return null;
+  const user = payload.user;
+  if (!isRecord(user) || typeof user.id !== 'string') return null;
+  const email = typeof user.email === 'string' ? user.email : undefined;
+  return { id: user.id, ...(email !== undefined ? { email } : {}) };
+}
 
 // Random delay (ms) added to lockout responses to fuzz the timing channel
 // between "wrong password" (bcrypt, ~100ms) and "locked" (a single read).
@@ -103,6 +134,23 @@ const apiKeySuffixPlugin = {
     },
   },
 } satisfies BetterAuthPlugin;
+
+/**
+ * Per-API-key rate limit. Better Auth's apiKey plugin interprets `timeWindow`
+ * in MILLISECONDS — it resets the per-key counter whenever
+ * `now - lastRequest > timeWindow` (see `evaluateRateLimit` in
+ * `@better-auth/api-key`). A bare `60` therefore means a 60-MILLISECOND
+ * window: any two requests more than 60ms apart reset the counter, so the
+ * limit never accumulates and API keys are effectively unthrottled. 60_000 is
+ * the intended 60-second window; the value is persisted per key as
+ * `apikey.rateLimitTimeWindow` at creation time.
+ */
+export const API_KEY_RATE_LIMIT = {
+  enabled: true,
+  /** 60 seconds, expressed in milliseconds (Better Auth's unit). */
+  timeWindow: 60_000,
+  maxRequests: 100,
+} as const;
 
 export function createAuth(config: AuthConfig) {
   const siteUrl = config.baseUrl;
@@ -159,6 +207,73 @@ export function createAuth(config: AuthConfig) {
       console.warn('[two-factor] user resolution failed:', error);
       return null;
     }
+  };
+
+  /**
+   * The successful second-factor lifecycle event on this request, or null.
+   * Success detection is 0.4's, endpoint by endpoint: `/two-factor/enable`
+   * only answers `{ totpURI, backupCodes }` when it worked and regeneration
+   * only answers `{ backupCodes }`, while disable / passkey add / remove park
+   * an `APIError` on `context.returned` when they fail. Passkey sign-in is
+   * read off the freshly issued session, exactly like `login_success` on the
+   * password path — a passkey FAILURE is challenge-based and attributable to
+   * no user, so there is nothing to log.
+   */
+  const resolveTwoFactorLifecycle = (
+    // oxlint-disable-next-line typescript/no-explicit-any -- better-auth middleware generics are unstable across minors
+    mw: any,
+  ): {
+    userId: string;
+    action: TwoFactorLifecycleAction;
+    email?: string;
+    metadata?: Record<string, unknown>;
+  } | null => {
+    const returned: unknown = mw.context.returned;
+    if (returned instanceof APIError) return null;
+
+    if (mw.path === PASSKEY_AUTHENTICATE_PATH) {
+      const signedIn = sessionPayloadUser(mw.context.newSession);
+      if (signedIn === null) return null;
+      return {
+        userId: signedIn.id,
+        action: 'passkey_sign_in',
+        ...(signedIn.email !== undefined ? { email: signedIn.email } : {}),
+      };
+    }
+
+    // Every remaining endpoint requires an active session, so the actor is
+    // the caller themselves; without one there is nothing to attribute.
+    const actor = sessionPayloadUser(mw.context.session);
+    if (actor === null) return null;
+    const base = {
+      userId: actor.id,
+      ...(actor.email !== undefined ? { email: actor.email } : {}),
+    };
+
+    if (mw.path === TWO_FACTOR_ENABLE_PATH) {
+      return isRecord(returned) && 'totpURI' in returned
+        ? { ...base, action: '2fa_enrolled' }
+        : null;
+    }
+    if (mw.path === TWO_FACTOR_BACKUP_CODES_PATH) {
+      return isRecord(returned) && 'backupCodes' in returned
+        ? {
+            ...base,
+            action: '2fa_enrolled',
+            metadata: { backupCodesRegenerated: true },
+          }
+        : null;
+    }
+    if (mw.path === TWO_FACTOR_DISABLE_PATH) {
+      return { ...base, action: '2fa_disabled' };
+    }
+    if (mw.path === PASSKEY_REGISTER_PATH) {
+      return { ...base, action: 'passkey_added' };
+    }
+    if (mw.path === PASSKEY_DELETE_PATH) {
+      return { ...base, action: 'passkey_removed' };
+    }
+    return null;
   };
 
   return betterAuth({
@@ -329,20 +444,10 @@ export function createAuth(config: AuthConfig) {
                 ? sessionUser.id
                 : null;
             if (sessionUserId !== null) {
-              const enforcement = await evaluateTwoFactorEnforcement(
+              const enforcement = await anchorTwoFactorGraceOnSignIn(
                 sql,
                 sessionUserId,
               );
-              if (
-                enforcement.decision === 'grace' &&
-                enforcement.graceUntilToSet !== null
-              ) {
-                await setGraceUntilIfAbsent(
-                  sql,
-                  sessionUserId,
-                  enforcement.graceUntilToSet,
-                );
-              }
               if (enforcement.decision === 'blocked') {
                 return mw.json({
                   twoFactorRedirect: true,
@@ -374,6 +479,34 @@ export function createAuth(config: AuthConfig) {
             } else {
               await recordTwoFactorSuccess(sql, userId);
             }
+          }
+        }
+
+        // Second-factor lifecycle audit: 2FA enable / disable / backup-code
+        // regeneration and passkey add / remove / sign-in. Non-fatal — the
+        // state change already happened inside Better Auth's own adapter, so
+        // refusing the response here would leave the user with a passkey
+        // registered and an error on screen. A failed write is LOUD instead.
+        const lifecycle = resolveTwoFactorLifecycle(mw);
+        if (lifecycle !== null) {
+          try {
+            await recordTwoFactorLifecycleEvent(sql, {
+              userId: lifecycle.userId,
+              action: lifecycle.action,
+              ...(lifecycle.email !== undefined
+                ? { actorEmail: lifecycle.email }
+                : {}),
+              ...(ip !== undefined ? { ip } : {}),
+              ...(userAgent !== undefined ? { userAgent } : {}),
+              ...(lifecycle.metadata !== undefined
+                ? { metadata: lifecycle.metadata }
+                : {}),
+            });
+          } catch (error) {
+            console.error(
+              `[two-factor] failed to write the ${lifecycle.action} audit row`,
+              error instanceof Error ? error.message : error,
+            );
           }
         }
 
@@ -412,6 +545,12 @@ export function createAuth(config: AuthConfig) {
           allowRemovingAllTeams: true,
           defaultTeam: { enabled: false },
         },
+        // Deletion is served by the app door only
+        // (`POST /api/app/organizations/:id/delete`, one transaction with the
+        // legal-hold gate, the audit row, the app-side cascade and the
+        // config-tree cleanup). The plugin's own `/organization/delete`
+        // would bypass all of that, so it answers 404.
+        disableOrganizationDeletion: true,
         organizationHooks: {
           beforeCreateOrganization: async (data) => {
             const slug = data.organization.slug;
@@ -484,6 +623,27 @@ export function createAuth(config: AuthConfig) {
             const selfOrgId = (
               data.member as { organizationId?: unknown } | undefined
             )?.organizationId;
+            // The slug is the tenant key of every blob, the config tree and
+            // the knowledge corpora; a rename would strand all of them. Once
+            // set it is immutable — the current value may be re-sent, and a
+            // slug-less org may receive its first. Fail closed when the org
+            // being updated cannot be identified.
+            const current =
+              typeof selfOrgId === 'string'
+                ? await sql<{ slug: string | null }[]>`
+                    SELECT "slug" FROM "organization"
+                    WHERE "id" = ${selfOrgId} LIMIT 1
+                  `
+                : [];
+            if (
+              current.length === 0 ||
+              classifyOrgSlugUpdate(current[0]?.slug, normalizedSlug) ===
+                'rename'
+            ) {
+              throw new APIError('BAD_REQUEST', {
+                message: ORG_SLUG_IMMUTABLE_MESSAGE,
+              });
+            }
             const collision = await sql<{ id: string }[]>`
               SELECT "id" FROM "organization"
               WHERE "slug" = ${normalizedSlug} LIMIT 1
@@ -561,11 +721,7 @@ export function createAuth(config: AuthConfig) {
         defaultPrefix: 'tale',
         apiKeyHeaders: ['x-api-key'],
         enableSessionForAPIKeys: true,
-        rateLimit: {
-          enabled: true,
-          timeWindow: 60,
-          maxRequests: 100,
-        },
+        rateLimit: { ...API_KEY_RATE_LIMIT },
       }),
       apiKeySuffixPlugin,
       // TOTP two-factor. The verify-endpoint lockout + org enforcement hooks

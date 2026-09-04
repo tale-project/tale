@@ -14,7 +14,7 @@ The section is organised by area, then by feature within an area. Most readers d
 
 <Card title="Chat" icon="message-circle" href="/platform/chat/overview">
 
-The everyday entry point — threads, agents in chat, attachments, arena mode, voice mode, the Canvas pane, sharing.
+The everyday entry point — threads, the assistant, attachments, arena mode, voice mode, the Canvas pane, sharing.
 
 </Card>
 
@@ -38,7 +38,7 @@ Installable bundles of connectors, agents, skills, and a workflow — the catalo
 
 <Card title="Knowledge" icon="library" href="/platform/knowledge/overview">
 
-Documents, contacts, products, vendors, websites — the structured-data model agents cite.
+Documents, contacts, products, websites — the structured-data model agents cite.
 
 </Card>
 
@@ -62,7 +62,7 @@ The model catalog behind every picker — capability tags, defaults, and the shi
 
 <Card title="Connectors" icon="plug" href="/platform/connectors/overview">
 
-Third-party SaaS pairings and MCP servers.
+Third-party SaaS connectors and the credentials behind them.
 
 </Card>
 
@@ -88,7 +88,7 @@ The build surface — agents, knowledge curation, automations, projects.
 
 <Card title="Developer" icon="terminal" href="/platform/developer/overview">
 
-API keys, custom tools, webhooks, MCP servers — wiring Tale to external code.
+API keys, the MCP endpoint, connector credentials — wiring Tale to external code.
 
 </Card>
 

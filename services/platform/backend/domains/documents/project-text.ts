@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { parseYamlMap } from '../../core/documents/parse_yaml_map.ts';
 import { serializeYamlMap } from '../../core/documents/serialize_yaml_map.ts';
@@ -8,7 +8,11 @@ import { resolveObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
 import { getOrCreateProjectFolder } from '../folders/service.ts';
-import type { ProjectAuthContext } from '../projects/service.ts';
+import {
+  assertReadable,
+  loadProjectOrThrow,
+  type ProjectAuthContext,
+} from '../projects/service.ts';
 import { DocumentError } from './service.ts';
 
 /**
@@ -145,34 +149,44 @@ export async function ensureProjectTextDocument(
       name: args.folderName,
     });
     const now = Date.now();
-    const existing = await tx<{ id: string }[]>`
-      SELECT id FROM app.documents
-      WHERE org_id = ${auth.organizationId}
-        AND external_item_id = ${externalItemId}
-        AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
-      LIMIT 1
-      FOR UPDATE
-    `;
-    if (existing[0]) {
+    // The key is unique per org in the schema (0073), so the lookup ignores
+    // lifecycle on purpose: the panel writing its file again brings a
+    // TRASHED twin back in place (the document IS the file; a second row
+    // under the same key can no longer exist).
+    const refresh = async (
+      documentId: string,
+    ): Promise<EnsureProjectTextResult> => {
       await tx`
         UPDATE app.documents SET
           title = ${fileName}, file_ref = ${storageRef},
           mime_type = ${contentType}, extension = ${extension},
           folder_id = ${folder.folderId}, project_id = ${args.projectId},
+          status_changed_at_ms = CASE
+            WHEN lifecycle_status IS NULL OR lifecycle_status = 'active'
+              THEN status_changed_at_ms
+            ELSE ${now}
+          END,
+          lifecycle_status = NULL,
           updated_at_ms = ${now}
-        WHERE id = ${existing[0].id}
+        WHERE id = ${documentId}
       `;
       await tx`
-        UPDATE app.file_metadata SET document_id = ${existing[0].id}
+        UPDATE app.file_metadata SET document_id = ${documentId}
         WHERE id = ${fileId}
       `;
       return {
         folderId: folder.folderId,
-        documentId: existing[0].id,
+        documentId,
         createdFolder: folder.created,
         action: 'updated' as const,
       };
-    }
+    };
+    const existing = await lockProjectTextDocument(tx, auth, externalItemId);
+    if (existing !== null) return refresh(existing);
+    // FOR UPDATE over zero rows locks nothing: two panels saving at once
+    // both reach this insert, the unique key admits one, and the loser
+    // refreshes the winner's row instead of failing (or, before 0073,
+    // parking a duplicate).
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.documents (
         org_id, title, file_ref, mime_type, extension, source_provider,
@@ -182,11 +196,19 @@ export async function ensureProjectTextDocument(
         ${auth.organizationId}, ${fileName}, ${storageRef}, ${contentType},
         ${extension}, 'project_text', ${externalItemId}, ${args.projectId},
         ${folder.folderId}, ${auth.userId}, ${now}, ${now}
-      ) RETURNING id
+      )
+      ON CONFLICT (org_id, external_item_id)
+        WHERE external_item_id IS NOT NULL
+        DO NOTHING
+      RETURNING id
     `;
     const documentId = inserted[0]?.id;
     if (documentId === undefined) {
-      throw new DocumentError('DOCUMENT_CREATE_FAILED', 'Insert failed');
+      const winner = await lockProjectTextDocument(tx, auth, externalItemId);
+      if (winner === null) {
+        throw new DocumentError('DOCUMENT_CREATE_FAILED', 'Insert failed');
+      }
+      return refresh(winner);
     }
     await tx`
       UPDATE app.file_metadata SET document_id = ${documentId}
@@ -201,11 +223,32 @@ export async function ensureProjectTextDocument(
   });
 }
 
+/** The key's row (any lifecycle), locked for the write transaction. */
+async function lockProjectTextDocument(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  externalItemId: string,
+): Promise<string | null> {
+  const rows = await tx<{ id: string }[]>`
+    SELECT id FROM app.documents
+    WHERE org_id = ${auth.organizationId}
+      AND external_item_id = ${externalItemId}
+    ORDER BY created_at_ms
+    LIMIT 1
+    FOR UPDATE
+  `;
+  return rows[0]?.id ?? null;
+}
+
 /**
  * Read the folder's flat-YAML file back into `{key: value}`. Absence in any
  * of its forms — no folder, no file, no blob — is an EMPTY MAP, never an
  * error: a form that cannot find its file falls back to its declared
- * defaults, which is exactly what a first-run panel must do.
+ * defaults, which is exactly what a first-run panel must do. Access is not
+ * absence: the caller needs READ access to the project (the write half runs
+ * the project's edit gate through `getOrCreateProjectFolder`), or any org
+ * member could read another team's settings by guessing the well-known
+ * folder and file names.
  */
 export async function readProjectTextValues(
   sql: Sql,
@@ -213,6 +256,7 @@ export async function readProjectTextValues(
   args: { projectId: string; folderName: string; fileName: string },
 ): Promise<Record<string, string>> {
   const fileName = validateFileName(args.fileName);
+  assertReadable(await loadProjectOrThrow(sql, args.projectId), auth);
   const rows = await sql<{ fileRef: string | null }[]>`
     SELECT d.file_ref AS "fileRef"
     FROM app.documents d

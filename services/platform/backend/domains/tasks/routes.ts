@@ -8,11 +8,13 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { resolveTaskServing } from '../../core/tasks/task_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
-import { cancelRun } from '../automations/store.ts';
+import { cancelRunInTx } from '../automations/store.ts';
+import { MentionDirectoryError } from '../collab/mention-directory.ts';
 import { getOrCreateProjectFolder } from '../folders/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
@@ -24,6 +26,7 @@ import {
 } from '../projects/service.ts';
 import {
   cancelAgentRun,
+  getAgentRun,
   getAgentRunSandboxOp,
   getLatestAgentRunCardForTask,
   listAgentRunsForTask,
@@ -34,6 +37,8 @@ import {
   editTaskComment,
   listTaskComments,
   TASK_COMMENT_MAX,
+  TASK_COMMENT_PAGE_MAX,
+  taskCommentCursorSchema,
 } from './comments.ts';
 import {
   findLiveAutomationRunForTask,
@@ -164,10 +169,13 @@ function handleError<E extends OrgEnv>(
     );
   }
   if (error instanceof RateLimitExceededError) {
-    return c.json(
-      { error: 'RATE_LIMITED', data: { retryAfterMs: error.retryAfter } },
-      429,
-    );
+    return rateLimitedResponse(c, error);
+  }
+  // A comment whose @mentions could not be resolved is NOT posted — the
+  // author sees a retryable failure instead of a comment that silently
+  // notified nobody.
+  if (error instanceof MentionDirectoryError) {
+    return c.json({ error: error.code }, error.status);
   }
   throw error;
 }
@@ -506,7 +514,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       }
       let executionId: string | null | undefined;
       if (args.runWorkflowSlug !== undefined && result.upserted.created) {
-        const task = await loadTaskOrThrow(deps.sql, taskId);
+        const task = await loadTaskOrThrow(
+          deps.sql,
+          taskId,
+          auth.organizationId,
+        );
         const started = await startWorkflowForTask(deps.sql, {
           organizationId: auth.organizationId,
           task,
@@ -764,15 +776,55 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
+  /** The discussion, newest page first — the page envelope the infinite-
+   * query lane walks (`cursor` = the previous page's `continueCursor`, an
+   * older page each time), so a busy task's freshest comment is always on
+   * the first page and no fixed window ever hides the rest. */
   app.get('/:taskId/comments', async (c) => {
+    const query = z
+      .object({
+        numItems: z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(TASK_COMMENT_PAGE_MAX)
+          .optional(),
+        cursor: taskCommentCursorSchema,
+      })
+      .safeParse({
+        numItems: c.req.query('numItems'),
+        cursor: c.req.query('cursor'),
+      });
+    if (!query.success) {
+      return c.json({ error: 'invalid query' }, 400);
+    }
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
+      const page = await listTaskComments(
+        deps.sql,
+        auth,
+        c.req.param('taskId'),
+        {
+          ...(query.data.numItems !== undefined
+            ? { limit: query.data.numItems }
+            : {}),
+          ...(query.data.cursor !== undefined
+            ? { before: query.data.cursor }
+            : {}),
+        },
+      );
       return c.json({
-        // The 0.4 discussion envelope: the lazily-created thread id (null =
-        // the threadless-task bootstrap) beside the ordered messages.
+        // The lazily-created thread id (null = the threadless-task
+        // bootstrap) beside the page, newest comment first.
         threadId: task.discussionThreadId,
-        messages: await listTaskComments(deps.sql, auth, c.req.param('taskId')),
+        page: page.comments.reverse(),
+        isDone: !page.hasMore,
+        continueCursor: page.nextCursor === null ? '' : String(page.nextCursor),
       });
     } catch (error) {
       return handleError(c, error);
@@ -901,7 +953,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.get('/:taskId/agent-runs', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskReadable(project, auth);
       const runs = await listAgentRunsForTask(
@@ -919,7 +975,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.get('/:taskId/agent-runs/latest', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskReadable(project, auth);
       return c.json({
@@ -938,7 +998,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.get('/:taskId/live-automation-run', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskReadable(project, auth);
       return c.json({
@@ -976,9 +1040,15 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      assertTaskReadable(project, auth);
+      // Starting a run is a WRITE (it spends budget and moves the card) —
+      // same gate as the manual agent-run kick, not the read-level banner.
+      assertTaskWritable(project, auth);
       const started = await startWorkflowForTask(deps.sql, {
         organizationId: auth.organizationId,
         task,
@@ -1010,28 +1080,38 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/:taskId/workflow/cancel', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      assertTaskReadable(project, auth);
+      // The WRITE gate must precede the run cancel: `updateTaskStatus` below
+      // asserts writable too, but by then the live run would already be dead
+      // — a read-only member must be refused before any side effect.
+      assertTaskWritable(project, auth);
       const live = await findLiveAutomationRunForTask(deps.sql, {
         organizationId: auth.organizationId,
         projectId: task.projectId,
         taskId: task.id,
       });
-      let executionCancelled = false;
-      if (live !== null) {
-        const cancelled = await cancelRun(
-          deps.sql,
-          auth.organizationId,
-          live.runId,
-        );
-        executionCancelled = cancelled.cancelled;
-      }
-      if (task.status !== 'cancelled') {
-        await transactSerializable(deps.sql, (tx) =>
-          updateTaskStatus(tx, auth, task.id, 'cancelled'),
-        );
-      }
+      // ONE transaction for the run cancel and the status flip: if the flip
+      // refuses (open subtasks, archived), the cancel rolls back with it —
+      // never a dead run behind a task that answered an error.
+      const executionCancelled = await transactSerializable(
+        deps.sql,
+        async (tx) => {
+          const cancelled =
+            live === null
+              ? false
+              : (await cancelRunInTx(tx, auth.organizationId, live.runId))
+                  .cancelled;
+          if (task.status !== 'cancelled') {
+            await updateTaskStatus(tx, auth, task.id, 'cancelled');
+          }
+          return cancelled;
+        },
+      );
       return c.json({
         taskCancelled: true,
         executionCancelled,
@@ -1046,7 +1126,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/:taskId/agent-runs/cancel-live', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskWritable(project, auth);
       const live = await deps.sql<{ id: string }[]>`
@@ -1062,6 +1146,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           : await cancelAgentRun(deps.sql, {
               organizationId: auth.organizationId,
               runId,
+              taskId: task.id,
             });
       return c.json({ cancelled });
     } catch (error) {
@@ -1072,12 +1157,30 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/:taskId/agent-runs/:runId/cancel', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskWritable(project, auth);
+      // Write access was asserted on the URL's task, so the run must be THAT
+      // task's: a run id lifted from another project's task (one the caller
+      // may not even read) answers as missing — the same opaque 404 a garbage
+      // id gets, so probing confirms nothing. The cancel itself binds to the
+      // task once more inside its UPDATE predicate.
+      const run = await getAgentRun(
+        deps.sql,
+        auth.organizationId,
+        c.req.param('runId'),
+      );
+      if (run === null || run.taskId !== task.id) {
+        throw new TaskError('AGENT_RUN_NOT_FOUND', 'Agent run not found', 404);
+      }
       const cancelled = await cancelAgentRun(deps.sql, {
         organizationId: auth.organizationId,
-        runId: c.req.param('runId'),
+        runId: run.id,
+        taskId: task.id,
       });
       return c.json({ cancelled });
     } catch (error) {

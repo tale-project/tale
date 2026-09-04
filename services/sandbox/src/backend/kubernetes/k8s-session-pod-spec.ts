@@ -1,7 +1,7 @@
 // Canonical session-Pod builder — the K8s analogue of docker-session-args.ts.
 //
-// One LONG-LIVED Pod per session running runnerd as PID 1 (the image's
-// `daemon` entrypoint dispatch). Unlike the one-shot pod-per-exec shape there
+// One LONG-LIVED Pod per session running runnerd under the image's tini init
+// (the `daemon` entrypoint dispatch). Unlike the one-shot pod-per-exec shape there
 // is no stage initContainer / harvest sidecar — runnerd does staging, exec,
 // and harvest at runtime over HTTP. `restartPolicy: Always` so a runner crash
 // restarts in place against the surviving emptyDir workspace; the daemon is
@@ -252,7 +252,7 @@ export function buildSessionPod(
           name: 'runner',
           image: cfg.runtimeImage,
           imagePullPolicy: 'IfNotPresent',
-          // `daemon` entrypoint dispatch → runnerd as PID 1.
+          // `daemon` entrypoint dispatch → tini (PID 1, reaps orphans) + runnerd.
           args: ['daemon'],
           envFrom,
           env: [

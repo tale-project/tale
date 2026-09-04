@@ -3,7 +3,7 @@ title: Knowledge
 description: Knowledge is the org's shared library — documents, small facts, crawled websites, and typed records — that agents ground their replies in. This overview names the tabs and points at the per-area pages.
 ---
 
-Knowledge is the area where the org's data lives so agents can read and cite it. Editors curate it once; agents retrieve over it at reply time, which is why an agent in Tale can answer with your reality instead of the model's training data. The area opens on six tabs: **Documents**, **Knowledge entries**, **Websites**, **Products**, **Contacts**, and **Vendors**.
+Knowledge is the area where the org's data lives so agents can read and cite it. Editors curate it once; agents retrieve over it at reply time, which is why an agent in Tale can answer with your reality instead of the model's training data. The area opens on five tabs: **Documents**, **Knowledge entries**, **Websites**, **Products**, and **Contacts**.
 
 Prefer to watch first? Episode 3 walks the whole library in three minutes — indexing, entries, records, the crawler, and scopes, captions included.
 
@@ -19,7 +19,7 @@ Prefer to watch first? Episode 3 walks the whole library in three minutes — in
 
 ## The two shapes
 
-Everything in the area is one of two shapes. **Indexed content** — the files in Documents, the facts in Knowledge entries, the pages a website crawl brings in — runs through the indexing pipeline (extract, chunk, embed, store) so agents retrieve relevant passages and cite them. **Typed records** — Products, Contacts, Vendors — are rows with named fields that agents read as data, not prose: exact values, no retrieval guesswork.
+Everything in the area is one of two shapes. **Indexed content** — the files in Documents, the facts in Knowledge entries, the pages a website crawl brings in — runs through the indexing pipeline (extract, chunk, embed, store) so agents retrieve relevant passages and cite them. **Typed records** — Products and Contacts (the correspondent directory that covers both customers and vendors) — are rows with named fields that agents read as data, not prose: exact values, no retrieval guesswork.
 
 The shape you pick decides how an agent can use the content, which is why [Structured data](/platform/knowledge/structured-data) is a decision page, not just a reference.
 
@@ -31,7 +31,7 @@ Indexed content is embedded into Tale's built-in vector database — a **Postgre
 
 ## How agents reach in
 
-An agent does not see the whole library by default. The agent's **Knowledge** tab controls its retrieval scope — which parts of the library it searches at reply time — and team-scoped items stay invisible to agents and members outside the team. Retrieval is driven by the agent's RAG-tagged tools, and every retrieved passage carries its source, so citations point back at the file, entry, or page it came from. The agent-side mechanics live in [Agent knowledge](/platform/agents/knowledge).
+An agent does not pick its own slice of the library. The chat assistant searches the whole pool with `rag_search` and loads what it found with `rag_fetch` whenever a question calls for it, a project agent reads it through the platform tools you equip it with, and team-scoped items stay invisible to agents and members outside the team. Every retrieved passage carries its source, so citations point back at the file, entry, or page it came from. The agent-side mechanics live in [Project agents](/platform/projects/project-agents).
 
 ## Pages in this section
 
@@ -57,7 +57,7 @@ Turning a public website into knowledge — domain, scan interval, and the index
 
 <Card title="Structured data" icon="table" href="/platform/knowledge/structured-data">
 
-Contacts, Products, Vendors, Websites — when a typed record beats a document.
+Contacts, Products, Websites — when a typed record beats a document.
 
 </Card>
 
@@ -65,4 +65,4 @@ Contacts, Products, Vendors, Websites — when a typed record beats a document.
 
 ## Where this fits
 
-Knowledge is the data layer every grounded reply stands on; without it, agents only know what the model already knows. Bring content in through the tab that matches its shape, then wire agents to it — the natural next read is [Documents](/platform/knowledge/documents) for files, [Structured data](/platform/knowledge/structured-data) for records, and [Agent knowledge](/platform/agents/knowledge) for the retrieval side.
+Knowledge is the data layer every grounded reply stands on; without it, agents only know what the model already knows. Bring content in through the tab that matches its shape, then wire agents to it — the natural next read is [Documents](/platform/knowledge/documents) for files, [Structured data](/platform/knowledge/structured-data) for records, and [Project agents](/platform/projects/project-agents) for how an agent reads it.

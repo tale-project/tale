@@ -6,6 +6,7 @@ import {
   isAllowedDocumentUpload,
   resolveFileType,
 } from '../../../lib/shared/file-types.ts';
+import { authorizeRls } from '../../auth/access.ts';
 import { hasTeamAccess } from '../../core/lib/team_access.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
@@ -26,6 +27,7 @@ import {
   registerUploadedBytes,
   statOrgBlob,
 } from '../files/service.ts';
+import { ownsUploadedBlob } from '../files/upload-intents.ts';
 import { buildHubFolderPath } from '../folders/paths.ts';
 import { assertFolderMutable, loadFolderOrThrow } from '../folders/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
@@ -64,8 +66,10 @@ export class DocumentError extends Error {
     message: string,
     status: 400 | 403 | 404 | 429 = 400,
     data?: Record<string, unknown>,
+    /** The refusal this one wraps (a rate limit), for the door to answer. */
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = 'DocumentError';
     this.code = code;
     this.status = status;
@@ -137,6 +141,50 @@ export async function loadDocumentOrThrow(
   return doc;
 }
 
+/**
+ * `loadDocumentOrThrow` under a row lock — for a transaction that decides on
+ * the row's CURRENT state and then rewrites it (the replacement bind), so two
+ * such transactions serialize on the row instead of both deciding on the
+ * same snapshot and the second silently overwriting the first. Meaningful
+ * only inside a transaction; the lock is released with it.
+ */
+export async function loadDocumentForUpdate(
+  tx: Sql | TransactionSql,
+  documentId: string,
+): Promise<DocumentRow> {
+  const rows = await tx<DocumentRow[]>`
+    SELECT ${tx.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
+    WHERE id = ${documentId} LIMIT 1
+    FOR UPDATE
+  `;
+  const doc = rows[0];
+  if (!doc) {
+    throw new DocumentError('DOCUMENT_NOT_FOUND', 'Document not found', 404);
+  }
+  return doc;
+}
+
+/**
+ * Every document whose content is the blob `storageRef` — a multi-team upload
+ * creates one document per team from ONE blob, and the file row's own
+ * `document_id` names only the last of them — plus the document that row
+ * names (a replaced document keeps its old file row's pointer). The files
+ * read gate (`files/access.ts`) walks these: the blob is readable when any
+ * one of them is.
+ */
+export async function listDocumentsForBlob(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  args: { storageRef: string; documentId: string | null },
+): Promise<DocumentRow[]> {
+  return sql<DocumentRow[]>`
+    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
+    WHERE org_id = ${organizationId}
+      AND (file_ref = ${args.storageRef} OR id = ${args.documentId ?? ''})
+    LIMIT 50
+  `;
+}
+
 function isProjectScoped(doc: Pick<DocumentRow, 'projectId'>): boolean {
   return doc.projectId != null;
 }
@@ -181,6 +229,112 @@ export async function assertDocumentVisible(
   }
 }
 
+/**
+ * The org-role write gate every document mutation consults (the
+ * products/contacts idiom): `documents: write` in the role matrix — owner,
+ * admin, developer and editor pass; the read-only `member` and `disabled`
+ * roles refuse. This is the org-wide floor; project lanes ADD their
+ * project-`canEdit` check on top, and team scoping stays a separate
+ * visibility question. Agent standing-grant writes (`agent-write.ts`) are
+ * authorized by their dispatch, not this matrix.
+ */
+export function assertDocumentsWriteRole(
+  auth: Pick<ProjectAuthContext, 'role'>,
+): void {
+  if (!authorizeRls(auth.role, 'documents', 'write')) {
+    throw new DocumentError('RBAC_FORBIDDEN', 'Insufficient role', 403);
+  }
+}
+
+/**
+ * The 0.4 `assertGenericDocumentContentWritable` on the jsonb record
+ * projection (twin of `assertRecordTrashableJson` below; the typed original
+ * lives in `core/documents/access.ts` and guards the WebDAV lane). Generic
+ * writers may change an uncontrolled document's content, but a controlled
+ * record's bytes and identity fields have exactly one door — the attested
+ * replacement flow in `records.ts`: `in_review`/`approved` are frozen, and
+ * even a `draft` refuses here so its content moves only through that flow.
+ */
+export function assertGenericDocumentContentWritableJson(
+  record: Record<string, unknown> | null,
+): void {
+  if (record === null) return;
+  if (record.state === 'in_review' || record.state === 'approved') {
+    throw new DocumentError(
+      'DOCUMENT_RECORD_FROZEN',
+      record.state === 'in_review'
+        ? 'This controlled record is in review and frozen. Wait for the review decision (or request changes) before editing its content.'
+        : 'This controlled record is approved and immutable. Open a new revision to edit its content.',
+      400,
+      { state: record.state },
+    );
+  }
+  throw new DocumentError(
+    'DOCUMENT_RECORD_REPLACEMENT_REQUIRED',
+    'Replace controlled-record content through the dedicated replacement flow.',
+    400,
+    { state: typeof record.state === 'string' ? record.state : null },
+  );
+}
+
+/**
+ * A hub team assignment must come from the caller's own teams — the rule the
+ * plural `teamIds` lane established (`TEAM_ACCESS_DENIED`), applied to every
+ * lane that stamps `team_id`/`team_tags`. Membership implies the team exists
+ * and is in-org, and it keeps the invariant that you can never file a
+ * document into a scope nobody — including you — can see (`hasTeamAccess`
+ * has no admin bypass, so an unknown id would hide the row from everyone).
+ */
+export function assertHubTeamAssignable(
+  auth: Pick<ProjectAuthContext, 'teamIds'>,
+  teamId: string,
+): void {
+  if (!auth.teamIds.includes(teamId)) {
+    throw new DocumentError(
+      'TEAM_ACCESS_DENIED',
+      'Cannot assign document to a team you do not belong to',
+      403,
+    );
+  }
+}
+
+/**
+ * The document-write standard every mutating lane consults — the app update
+ * and trash doors, the REST PATCH, the controlled-record transitions and the
+ * replacement flow: the org-role write matrix, visibility (404-shaped), and
+ * for a project file EDIT access to the owning project. Today the write
+ * matrix and `EDITOR_ROLES` admit the same roles, so a writer who can see a
+ * project file can also edit it; the explicit `canEdit` check keeps the rule
+ * true if either matrix ever moves (`write-guards.test.ts` pins the pair).
+ * `lock` takes the row lock (`loadDocumentForUpdate`) for a transaction that
+ * rewrites the row it decided on.
+ */
+export async function requireDocumentWriteAccess(
+  db: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  documentId: string,
+  options: { lock?: boolean } = {},
+): Promise<DocumentRow> {
+  assertDocumentsWriteRole(auth);
+  const doc =
+    options.lock === true
+      ? await loadDocumentForUpdate(db, documentId)
+      : await loadDocumentOrThrow(db, documentId);
+  await assertDocumentVisible(db, auth, doc);
+  if (doc.projectId !== null) {
+    const project = await loadProjectOrThrow(db, doc.projectId);
+    const access = checkProjectAccess(
+      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
+      auth.teamIds,
+      auth.role,
+    );
+    if (!access.canEdit) {
+      throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
+    }
+  }
+  return doc;
+}
+
 // ---------------------------------------------------------------------------
 // Create from upload
 // ---------------------------------------------------------------------------
@@ -206,6 +360,7 @@ export async function createDocumentFromUpload(
   auth: ProjectAuthContext,
   args: CreateDocumentFromUploadArgs,
 ): Promise<string> {
+  assertDocumentsWriteRole(auth);
   const file = await getFileMetadata(tx, auth.organizationId, args.fileId);
   if (!file) {
     throw new DocumentError('FILE_NOT_FOUND', 'Upload not found', 404);
@@ -243,7 +398,10 @@ export async function createDocumentFromUpload(
         throw new DocumentError('FOLDER_NOT_FOUND', 'Folder not found', 404);
       }
     }
-  } else if (args.folderId) {
+  } else if (args.teamId) {
+    assertHubTeamAssignable(auth, args.teamId);
+  }
+  if (!args.projectId && args.folderId) {
     const folder = await loadFolderOrThrow(tx, args.folderId);
     if (
       folder.organizationId !== auth.organizationId ||
@@ -348,9 +506,23 @@ export async function updateDocument(
     extension?: string | null;
     sourceProvider?: string | null;
   },
-): Promise<{ teamScopeChanged: boolean; fileRef: string | null }> {
-  const doc = await loadDocumentOrThrow(tx, args.documentId);
-  await assertDocumentVisible(tx, auth, doc);
+): Promise<{
+  teamScopeChanged: boolean;
+  folderChanged: boolean;
+  fileRef: string | null;
+}> {
+  const doc = await requireDocumentWriteAccess(tx, auth, args.documentId);
+  // Content-freeze guard (core/documents/access.ts doctrine): the bytes and
+  // their identity fields move ONLY while uncontrolled — renames, folder
+  // moves, team and metadata edits stay allowed in every record state.
+  if (
+    args.content !== undefined ||
+    args.mimeType !== undefined ||
+    args.extension !== undefined ||
+    args.sourceProvider !== undefined
+  ) {
+    assertGenericDocumentContentWritableJson(doc.record);
+  }
 
   let title = doc.title;
   if (args.title !== undefined) {
@@ -381,6 +553,9 @@ export async function updateDocument(
         'DOCUMENT_SCOPE_CONFLICT',
         'A project document cannot carry a team',
       );
+    }
+    if (args.teamId !== null) {
+      assertHubTeamAssignable(auth, args.teamId);
     }
     teamId = args.teamId;
     teamTags = args.teamId ? [args.teamId] : [];
@@ -420,6 +595,9 @@ export async function updateDocument(
     teamId !== doc.teamId ||
     teamTags.length !== doc.teamTags.length ||
     teamTags.some((tag, index) => tag !== doc.teamTags[index]);
+  // A folder move is a corpus FILTER change too (folder-scoped search
+  // matches the stamped path) — the caller re-stamps after commit.
+  const folderChanged = folderId !== doc.folderId;
 
   await tx`
     UPDATE app.documents SET
@@ -438,7 +616,7 @@ export async function updateDocument(
     entity: 'document',
     entityId: args.documentId,
   });
-  return { teamScopeChanged, fileRef: doc.fileRef };
+  return { teamScopeChanged, folderChanged, fileRef: doc.fileRef };
 }
 
 /** Soft trash / restore. Hard delete + blob erasure land with governance. */
@@ -448,8 +626,7 @@ export async function setDocumentTrashed(
   documentId: string,
   trashed: boolean,
 ): Promise<void> {
-  const doc = await loadDocumentOrThrow(tx, documentId);
-  await assertDocumentVisible(tx, auth, doc);
+  const doc = await requireDocumentWriteAccess(tx, auth, documentId);
   if (trashed) {
     // Controlled-record protection: reviewed/approved records never trash.
     assertRecordTrashableJson(doc.record);
@@ -502,12 +679,20 @@ export async function setDocumentTrashed(
 // Project attach/detach (the projects-domain gap, closed here)
 // ---------------------------------------------------------------------------
 
-/** Attach a hub document to a project (requires teamless doc + edit access). */
+/**
+ * Attach a hub document to a project (requires teamless doc + edit access).
+ * Answers the blob ref so the caller can re-stamp the corpus scope AFTER the
+ * transaction commits (`syncRagDocumentScope` talks to the knowledge pool):
+ * a project file is retrievable only inside its project, so a hub document's
+ * org-wide corpus rows must follow it in — the same re-stamp a team change
+ * gets.
+ */
 export async function attachDocumentToProject(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: { documentId: string; projectId: string },
-): Promise<void> {
+): Promise<{ fileRef: string | null }> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(tx, args.documentId);
   await assertDocumentVisible(tx, auth, doc);
   if (doc.projectId) {
@@ -550,14 +735,21 @@ export async function attachDocumentToProject(
     metadata: { documentId: args.documentId },
     status: 'success',
   });
+  return { fileRef: doc.fileRef };
 }
 
-/** Detach back to the org-wide library (explicit destination, audited). */
+/**
+ * Detach back to the org-wide library (explicit destination, audited). Like
+ * attach, answers the blob ref for the post-commit corpus re-stamp: the
+ * detached document is org-wide again, so its corpus rows must stop carrying
+ * the old project's scope or it silently vanishes from hub retrieval.
+ */
 export async function detachDocumentFromProject(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   documentId: string,
-): Promise<void> {
+): Promise<{ fileRef: string | null }> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(tx, documentId);
   await assertDocumentVisible(tx, auth, doc);
   if (!doc.projectId) {
@@ -593,11 +785,39 @@ export async function detachDocumentFromProject(
     metadata: { documentId, destination: 'org-library' },
     status: 'success',
   });
+  return { fileRef: doc.fileRef };
 }
 
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
+
+/** The most rows one hub listing read pulls. */
+const HUB_LIST_READ_MAX = 500;
+
+/** The hub listing's rows as stored, newest first — BEFORE the caller's
+ * team filter, so a bound judged on them is the truth about the folder. */
+async function selectHubDocuments(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  options: {
+    folderId?: string | null;
+    includeTrashed?: boolean;
+    limit: number;
+  },
+): Promise<DocumentRow[]> {
+  return sql<DocumentRow[]>`
+    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
+    WHERE org_id = ${auth.organizationId}
+      AND project_id IS NULL
+      AND (${options.includeTrashed ?? false}
+        OR lifecycle_status IS NULL OR lifecycle_status = 'active')
+      AND (${options.folderId === undefined}
+        OR folder_id IS NOT DISTINCT FROM ${options.folderId ?? null})
+    ORDER BY created_at_ms DESC
+    LIMIT ${options.limit}
+  `;
+}
 
 /** Hub listing (project docs never appear); optional folder filter. */
 export async function listDocuments(
@@ -609,19 +829,36 @@ export async function listDocuments(
     limit?: number;
   } = {},
 ): Promise<DocumentRow[]> {
-  const limit = Math.min(options.limit ?? 200, 500);
-  const rows = await sql<DocumentRow[]>`
-    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
-    WHERE org_id = ${auth.organizationId}
-      AND project_id IS NULL
-      AND (${options.includeTrashed ?? false}
-        OR lifecycle_status IS NULL OR lifecycle_status = 'active')
-      AND (${options.folderId === undefined}
-        OR folder_id IS NOT DISTINCT FROM ${options.folderId ?? null})
-    ORDER BY created_at_ms DESC
-    LIMIT ${limit}
-  `;
+  const rows = await selectHubDocuments(sql, auth, {
+    ...options,
+    limit: Math.min(options.limit ?? 200, HUB_LIST_READ_MAX),
+  });
   return rows.filter((doc) => hasKnowledgeHubDocumentAccess(doc, auth.teamIds));
+}
+
+/**
+ * One folder's active documents for a BOUNDED reader, with the truth about
+ * the bound: `truncated` says the folder holds more rows than `limit` —
+ * judged on the stored rows, so a row the caller may not see never masks a
+ * cut. The workflow `document.list` native reads folders through this.
+ */
+export async function listFolderDocumentsBounded(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  args: { folderId: string | null; limit: number },
+): Promise<{ documents: DocumentRow[]; truncated: boolean }> {
+  const limit = Math.min(Math.max(args.limit, 1), HUB_LIST_READ_MAX);
+  const rows = await selectHubDocuments(sql, auth, {
+    folderId: args.folderId,
+    limit: limit + 1,
+  });
+  const truncated = rows.length > limit;
+  return {
+    documents: (truncated ? rows.slice(0, limit) : rows).filter((doc) =>
+      hasKnowledgeHubDocumentAccess(doc, auth.teamIds),
+    ),
+    truncated,
+  };
 }
 
 /** One project's documents (project read access required). */
@@ -712,9 +949,13 @@ export async function createHubDocument(
   auth: ProjectAuthContext,
   args: CreateHubDocumentArgs,
 ): Promise<string> {
+  assertDocumentsWriteRole(auth);
   const title = args.title.trim();
   if (title.length === 0 || title.length > 512) {
     throw new DocumentError('DOCUMENT_TITLE_INVALID', 'Invalid title');
+  }
+  if (args.teamId !== undefined) {
+    assertHubTeamAssignable(auth, args.teamId);
   }
   if (args.folderId !== undefined) {
     const folder = await loadFolderOrThrow(tx, args.folderId);
@@ -1177,6 +1418,9 @@ export async function retryRagIndexingForDocument(
   auth: ProjectAuthContext,
   documentId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  // A write-shaped door (it re-queues billable indexing work and rewrites
+  // the file row's RAG bookkeeping); the UI shows Retry only to writers.
+  assertDocumentsWriteRole(auth);
   try {
     await checkUserRateLimit(sql, 'file:rag-retry', auth.userId);
   } catch (error) {
@@ -1268,9 +1512,15 @@ export async function validateDocumentUploadForOrg(
     await checkOrganizationRateLimit(sql, 'file:upload', auth.organizationId);
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
-      throw new DocumentError('RATE_LIMITED', error.message, 429, {
-        retryAfterMs: error.retryAfter,
-      });
+      // Coded for the REST helpers and bridges that read codes; the app door
+      // answers the one 429 from the cause (`rateLimitExceededCause`).
+      throw new DocumentError(
+        'RATE_LIMITED',
+        error.message,
+        429,
+        { retryAfterMs: error.retryAfter },
+        { cause: error },
+      );
     }
     throw error;
   }
@@ -1405,9 +1655,11 @@ export interface CreateDocumentFromBlobUploadArgs {
 
 /**
  * The session upload lane's bind step (0.4 `createDocumentFromUpload` with a
- * blob ref): HEAD-attest the landed blob, validate against policy with the
- * AUTHORITATIVE size, register the metadata row, then bind the document —
- * all in the caller's transaction, so a refusal strands nothing.
+ * blob ref): prove the caller owns the blob, HEAD-attest it landed, validate
+ * against policy with the AUTHORITATIVE size, register the metadata row,
+ * then bind the document — all in the caller's transaction, so a refusal
+ * strands nothing. Ownership is proven WITHOUT consuming the upload intent:
+ * one blob legitimately becomes one document per selected team.
  */
 export async function createDocumentFromBlobUpload(
   sql: Sql,
@@ -1415,6 +1667,19 @@ export async function createDocumentFromBlobUpload(
   auth: ProjectAuthContext,
   args: CreateDocumentFromBlobUploadArgs,
 ): Promise<string> {
+  assertDocumentsWriteRole(auth);
+  const owned = await ownsUploadedBlob(tx, {
+    organizationId: auth.organizationId,
+    userId: auth.userId,
+    storageRef: args.storageRef,
+  });
+  if (!owned) {
+    throw new DocumentError(
+      'UPLOAD_NOT_OWNED',
+      'This upload is not yours to bind, or the upload session expired. Upload the file again.',
+      403,
+    );
+  }
   const stat = await statOrgBlob(sql, auth.organizationId, args.storageRef);
   if (stat === null) {
     throw new DocumentError(
@@ -1501,6 +1766,7 @@ export async function deleteDocumentHard(
   auth: ProjectAuthContext,
   documentId: string,
 ): Promise<void> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(sql, documentId);
   await assertDocumentVisible(sql, auth, doc);
   if (isProjectScoped(doc)) {
@@ -1579,6 +1845,7 @@ export async function deleteFolderCascade(
   auth: ProjectAuthContext,
   folderId: string,
 ): Promise<void> {
+  assertDocumentsWriteRole(auth);
   const folder = await loadFolderOrThrow(sql, folderId);
   await assertFolderMutable(sql, auth, folder);
   await assertNotHeld(sql, auth.organizationId, 'folder', folderId);

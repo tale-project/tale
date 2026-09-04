@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { taskReadAdapters, taskWriteAdapters } from './tasks';
+import {
+  taskPaginatedAdapters,
+  taskReadAdapters,
+  taskWriteAdapters,
+} from './tasks';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -135,41 +139,63 @@ describe('task read adapters', () => {
     await expect(row?.queryFn()).resolves.toBeNull();
   });
 
-  it('projects the discussion envelope with nulls stripped', async () => {
-    vi.spyOn(window, 'fetch').mockResolvedValue(
-      jsonResponse(200, {
-        threadId: 'th1',
-        messages: [
-          {
-            messageId: 'm1',
-            authorType: 'user',
-            authorId: 'u1',
-            body: 'hello',
-            createdAt: 5,
-            editedAt: null,
-            mentions: null,
-            bodyByLocale: null,
-          },
-        ],
-      }),
+  // The discussion is a newest-first PAGE walk: the cursor from one page is
+  // sent for the next, and each wire row is projected with nulls stripped —
+  // the shape a fixed 200-message read could never grow into.
+  it('walks the discussion newest-first by cursor with nulls stripped', async () => {
+    // A fresh Response per call — a body reads once.
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(200, {
+          threadId: 'th1',
+          page: [
+            {
+              messageId: 'm1',
+              authorType: 'user',
+              authorId: 'u1',
+              body: 'hello',
+              createdAt: 5,
+              editedAt: null,
+              mentions: null,
+              bodyByLocale: null,
+            },
+          ],
+          isDone: false,
+          continueCursor: '41',
+        }),
+      ),
     );
 
-    const row = taskReadAdapters['tasks/queries:getTaskDiscussion']?.(
+    const row = taskPaginatedAdapters['tasks/queries:listTaskDiscussion']?.(
       { organizationId: 'org-1', taskId: 't1' },
       {},
     );
-    const result = (await row?.queryFn()) as {
-      threadId: string | null;
-      messages: Record<string, unknown>[];
-    };
-    expect(result.threadId).toBe('th1');
-    expect(result.messages[0]).toEqual({
-      messageId: 'm1',
-      authorType: 'user',
-      authorId: 'u1',
-      body: 'hello',
-      createdAt: 5,
+    const first = await row?.fetchPage(null, 50);
+    expect(first).toEqual({
+      page: [
+        {
+          messageId: 'm1',
+          authorType: 'user',
+          authorId: 'u1',
+          body: 'hello',
+          createdAt: 5,
+        },
+      ],
+      isDone: false,
+      continueCursor: '41',
     });
+    await row?.fetchPage('41', 50);
+    const urls = fetchSpy.mock.calls.map(([input]) =>
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url,
+    );
+    expect(urls[0]).toBe('/api/app/tasks/t1/comments?numItems=50&orgId=org-1');
+    expect(urls[1]).toBe(
+      '/api/app/tasks/t1/comments?numItems=50&cursor=41&orgId=org-1',
+    );
   });
 });
 

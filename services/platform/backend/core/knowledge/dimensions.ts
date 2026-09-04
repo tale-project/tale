@@ -112,7 +112,16 @@ export async function pinDimensions(args: {
   }
 
   const run = applyPin(args.sql, args.schema, args.dimensions)
-    .then(() => {
+    .then((applied) => {
+      if (!applied) {
+        // Nothing was pinned: the corpus table is not there yet (a knowledge
+        // database that migrates after the platform boots). Recording the
+        // pin anyway would make every later write skip the ALTER and the
+        // index build for the process lifetime — the column would stay an
+        // untyped `vector`, accepting any width, once the table appeared.
+        // Leave nothing recorded so the next write tries again.
+        return;
+      }
       pinned.set(args.dbUrl, args.dimensions);
       const schemas = appliedSchemas.get(args.dbUrl) ?? new Set<string>();
       schemas.add(args.schema);
@@ -163,12 +172,16 @@ export function pinnedDimensions(dbUrl: string): number | undefined {
   return pinned.get(dbUrl);
 }
 
-/** Narrow the vector columns and build the index. */
+/**
+ * Narrow the vector columns and build the index. Resolves `true` when the
+ * width now holds on `${schema}.chunks`, `false` when that table does not
+ * exist yet — the caller must not record a pin that never took effect.
+ */
 async function applyPin(
   sql: Sql,
   schema: string,
   dimensions: number,
-): Promise<void> {
+): Promise<boolean> {
   const expected = `vector(${dimensions})`;
   let current: string | null;
   try {
@@ -184,7 +197,7 @@ async function applyPin(
       logger.warn(
         `${schema}.chunks does not exist yet, so there is nothing to pin`,
       );
-      return;
+      return false;
     }
     throw err;
   }
@@ -239,4 +252,5 @@ async function applyPin(
       );
     }
   }
+  return true;
 }

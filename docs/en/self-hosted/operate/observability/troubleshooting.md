@@ -26,24 +26,73 @@ If the mode is already `letsencrypt`, check the proxy logs for ACME failures —
 
 ## UI loads but no data appears
 
-The UI shell is static assets served by `tale-platform`; everything else flows through `tale-convex` over a WebSocket. When the WebSocket cannot connect, the shell loads and stays empty. Symptoms: spinners that never resolve, "reconnecting" toasts, the chat input that never accepts a message.
+The UI shell is static assets served by `tale-platform`; everything else flows through `tale-backend-api` — the app API over HTTP and the live-update SSE stream on `/events`. When the backend cannot be reached, the shell loads and stays empty. Symptoms: spinners that never resolve, "reconnecting" toasts, the chat input that never accepts a message.
 
 ```bash
-docker compose logs --tail=200 tale-convex
+docker compose logs --tail=200 backend-api
 ```
 
-The convex container is probably restarting (look for `panic` in the logs) or unreachable from the proxy. Restart with `docker compose restart tale-convex` — sessions are server-side and clients re-subscribe on reconnect, so the restart is safe.
+The backend-api container is probably restarting (look for a crash in the logs) or unreachable from the proxy. Restart with `docker compose restart backend-api` — sessions are server-side and clients reconnect the SSE stream, so the restart is safe.
 
 ## Uploads stuck in "indexing"
 
-Document ingestion runs inside the Convex backend and writes the extracted chunks and embeddings to the knowledge corpus database. A long "indexing" state means either the backend cannot reach `tale-knowledge-db` or the file itself failed to extract. Check the convex logs and the corpus database first:
+Document ingestion runs inside the backend worker and writes the extracted chunks and embeddings to the knowledge corpus database. A long "indexing" state means either the worker cannot reach the corpus database or the file itself failed to extract. Check the worker logs and the corpus database first:
 
 ```bash
-docker compose logs --tail=200 tale-convex | grep -iE "knowledge|ingest|embed"
-docker compose ps tale-knowledge-db
+docker compose logs --tail=200 backend-worker | grep -iE "knowledge|ingest|embed"
+docker compose ps db
 ```
 
-If the logs show connection errors to `knowledge-db`, restart the corpus database (`docker compose restart tale-knowledge-db`); ingestion retries on the next pass, so uploads do not have to be re-submitted. If the database is healthy but a specific upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion and re-upload.
+If the logs show connection errors to the corpus database (`knowledge-db` on the network, folded into `db` on a single-host deploy), restart it (`docker compose restart db`); ingestion retries on the next pass, so uploads do not have to be re-submitted. If the database is healthy but a specific upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion and re-upload.
+
+## Knowledge database restarts on every upload
+
+Every document ingestion fails the same way: the corpus database (`knowledge-db`, folded into `db` on a single-host deploy) restarts, the backend worker loses its connection, and the next upload triggers the same restart. The server log — a file under `/var/lib/postgresql/data/log/` inside the container; `docker compose logs` only carries the entrypoint's output — names the failure each time:
+
+```bash
+docker compose exec knowledge-db sh -c 'grep -h -E "PANIC|signal 6" /var/lib/postgresql/data/log/*.log | tail -n 4'
+```
+
+```text
+PANIC:  corrupted page pointers: lower = 0, upper = 0, special = 0
+LOG:  server process (PID 4711) was terminated by signal 6: Aborted
+```
+
+The BM25 keyword index on `private_knowledge.chunks` holds a page that was never initialised, and a crash-mode stop of the database container is what leaves one behind: the server extends the index file for a write in flight, `SIGKILL` lands before the page is written, and crash recovery has no WAL to replay for it. `tale-db` images up to v0.5.7 stopped Postgres with `SIGTERM`, which Postgres reads as a *smart* shutdown — it waits for every client session to end. A client outside compose holding a connection (a host-side backend, an open `psql`) pushed the stop past the grace period, Docker killed the server, and the next start ran crash recovery. Ordinary tables and indexes survive that; `pg_search` meets the all-zero page on its next write and panics, and Postgres restarts to recover — on every upload.
+
+Confirm the index is the culprit before repairing anything. Open a session on the corpus database — both statements only read:
+
+```bash
+docker compose exec knowledge-db psql -U tale -d tale_knowledge
+```
+
+```sql
+select * from pdb.verify_index('private_knowledge.idx_pk_chunks_bm25');
+```
+
+A healthy index passes every check (`passed = t`); a damaged one fails `segment_metadata_valid` or cannot be read at all. To look at the page itself, `pageinspect` prints the header of the index's last page — `0 | 0 | 0` is the never-initialised page, a healthy page reads `24 | 8184 | 8184`:
+
+```sql
+create extension if not exists pageinspect;
+select lower, upper, special
+from page_header(get_raw_page('private_knowledge.idx_pk_chunks_bm25',
+  (pg_relation_size('private_knowledge.idx_pk_chunks_bm25') / 8192 - 1)::int));
+```
+
+Then rebuild the index. It is derived from `private_knowledge.chunks`, so nothing is lost and nothing has to be re-uploaded:
+
+```sql
+REINDEX INDEX private_knowledge.idx_pk_chunks_bm25;
+```
+
+Optionally rebuild the vector index as well (it exists once the first embedding has been stored) and reclaim the orphaned tail pages on the table:
+
+```sql
+REINDEX INDEX private_knowledge.idx_pk_chunks_embedding_hnsw;
+VACUUM private_knowledge.chunks;
+```
+
+Ingestion resumes on the worker's next pass. `tale-db` images newer than v0.5.7 stop Postgres with `SIGINT` — the *fast* shutdown that disconnects clients, checkpoints, and exits within seconds even while clients are attached — and `compose.yml` sets `stop_signal: SIGINT` so an older image receives the same signal. Stop the stack with `docker compose stop` or `docker compose down` and let the 60-second grace period run (the tale CLI stops containers the same way); `docker kill` and pulling the host's plug are the two paths that still end in a crash-mode stop.
 
 ## Chat replies stop mid-stream
 
@@ -57,14 +106,14 @@ A `429` is the common case. Either the org's budget is hitting the provider's ra
 
 ## Saving fails with "saving failed" toast
 
-The convex container could not write to Postgres. Either `tale-db` is down or its disk is full:
+The backend could not write to Postgres. Either `tale-db` is down or its disk is full:
 
 ```bash
 docker compose ps tale-db
 docker compose exec db df -h /var/lib/postgresql/data
 ```
 
-A disk at 100 % is the failure that produces the most surprised faces. Free space, restart `tale-db`, and the queued writes flush. If the disk has room, the suspect is connection-pool exhaustion or a lock — restart `tale-convex` to clear the pool.
+A disk at 100 % is the failure that produces the most surprised faces. Free space, restart `tale-db`, and the queued writes flush. If the disk has room, the suspect is connection-pool exhaustion or a lock — restart `backend-api` to clear the pool.
 
 ## "Run code" tool errors with "egress denied"
 

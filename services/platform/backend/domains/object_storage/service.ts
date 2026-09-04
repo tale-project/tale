@@ -180,7 +180,9 @@ export async function writeConnection(
       accessKeyId: args.accessKeyId,
       secretAccessKey: args.secretAccessKey,
     });
-    const content = hasSopsKey() ? encryptJsonWithSops(plaintext) : plaintext;
+    const content = hasSopsKey()
+      ? await encryptJsonWithSops(plaintext)
+      : plaintext;
     await atomicWriteSecret(secretsPath, content);
     invalidateSecretsCache(secretsPath);
   }
@@ -581,4 +583,42 @@ export async function runBackfill(
       WHERE id = ${args.runId}
     `;
   }
+}
+
+/**
+ * A backfill that has not stamped progress in this long is dead. The engine
+ * stamps `updated_at_ms` per ~100-blob batch, so silence past this window
+ * means its process died mid-copy — generous, because a single batch of large
+ * blobs can be slow.
+ */
+const BACKFILL_STALE_MS = 30 * 60 * 1000;
+
+/**
+ * Crash-recovery watchdog for the blob backfill (the job-liveness class): a
+ * run whose process died mid-copy is left `status='running'` forever, and the
+ * `object_storage_backfill_one_running` partial unique index then rejects
+ * every future backfill for the org (409). Fail stale runs so the status UI
+ * stops spinning and the org can re-run — re-running is idempotent
+ * (`handleRef` skips blobs already present in the target bucket), so a fresh
+ * run finishes the copy cheaply.
+ */
+export async function recoverStuckBackfills(
+  sql: Sql,
+  options: { staleMs?: number } = {},
+): Promise<{ failed: number }> {
+  const now = Date.now();
+  const cutoff = now - (options.staleMs ?? BACKFILL_STALE_MS);
+  const failed = await sql<{ id: string }[]>`
+    UPDATE app.object_storage_backfill_runs SET
+      status = 'failed', finished_at_ms = ${now}, updated_at_ms = ${now},
+      last_error = 'the backfill process stopped before finishing (watchdog)'
+    WHERE status = 'running' AND updated_at_ms < ${cutoff}
+    RETURNING id
+  `;
+  if (failed.length > 0) {
+    console.warn(
+      `[object-storage] watchdog failed ${failed.length} stalled backfill run(s)`,
+    );
+  }
+  return { failed: failed.length };
 }

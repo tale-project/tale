@@ -8,8 +8,11 @@ import { useUserOrganizationsWithDetails } from '@/app/features/organization/hoo
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useToast } from '@/app/hooks/use-toast';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
-import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import {
+  backendErrorCode,
+  backendErrorMessage,
+} from '@/lib/utils/backend-error';
 
 interface DeleteOrganizationArgs {
   organizationId: string;
@@ -22,10 +25,11 @@ interface DeleteOrganizationArgs {
 }
 
 /**
- * Encapsulates the full organization-deletion flow: the Convex cleanup
- * preparation, the Better Auth delete call, success/failure toasts, and the
- * post-delete navigation. Shared so any surface that deletes an org (currently
- * the organization settings page) behaves identically.
+ * Encapsulates the full organization-deletion flow: the ONE server call
+ * (the backend tears the organization down in a single transaction — a
+ * refusal or failure leaves it exactly as it was), success/failure toasts,
+ * and the post-delete navigation. Shared so any surface that deletes an org
+ * (currently the organization settings page) behaves identically.
  */
 export function useDeleteOrganization() {
   const { t: tSettings } = useT('settings');
@@ -34,8 +38,11 @@ export function useDeleteOrganization() {
   const { toast } = useToast();
 
   const { organizations: userOrgs } = useUserOrganizationsWithDetails();
-  const prepareOrganizationDeletion = useBackendMutation(
-    'organizations/delete_cleanup:prepareOrganizationDeletion',
+  // This hook owns the failure feedback (the reason matters: a legal hold
+  // is actionable), so the generic mutation toast is opted out.
+  const deleteOrganizationMutation = useBackendMutation(
+    'organizations/delete:deleteOrganization',
+    { errorToast: false },
   );
 
   const [isDeleting, setIsDeleting] = useState(false);
@@ -44,14 +51,7 @@ export function useDeleteOrganization() {
     async ({ organizationId, isCurrent }: DeleteOrganizationArgs) => {
       setIsDeleting(true);
       try {
-        await prepareOrganizationDeletion.mutateAsync({ organizationId });
-
-        const result = await authClient.organization.delete({
-          organizationId,
-        });
-        if (result?.error) {
-          throw new Error(result.error.message ?? 'Delete failed');
-        }
+        await deleteOrganizationMutation.mutateAsync({ organizationId });
 
         toast({
           title: tSettings('organization.deleteSuccess'),
@@ -79,9 +79,16 @@ export function useDeleteOrganization() {
         return true;
       } catch (err) {
         console.error('Failed to delete organization:', err);
+        // The server refused under an active legal hold: the org is intact
+        // and the way forward is releasing the hold — say so, in the
+        // reader's language, instead of echoing the wire text.
+        const description =
+          backendErrorCode(err) === 'LEGAL_HOLD_ACTIVE'
+            ? tSettings('organization.deleteBlockedByLegalHold')
+            : backendErrorMessage(err, err instanceof Error ? err.message : '');
         toast({
           title: tSettings('organization.deleteFailed'),
-          description: err instanceof Error ? err.message : undefined,
+          ...(description !== '' ? { description } : {}),
           variant: 'destructive',
         });
         return false;
@@ -90,7 +97,7 @@ export function useDeleteOrganization() {
       }
     },
     [
-      prepareOrganizationDeletion,
+      deleteOrganizationMutation,
       toast,
       userOrgs,
       queryClient,

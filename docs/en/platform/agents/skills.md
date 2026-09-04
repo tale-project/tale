@@ -13,7 +13,7 @@ A bundle whose frontmatter carries `disable-model-invocation: true` behaves diff
 
 ## Equip a project's agents
 
-A [project agent](/platform/agents/create) carries its own equipment, picked in the capability menu on the agent's dialog. The list there follows the **project's** visibility, not yours: organization-wide skills, plus team skills shared with any of the project's teams. An org-wide project sees organization skills only, and nobody's legacy private skills ever appear — a project agent runs for every member of the project, so its equipment must never smuggle in something only its author could see.
+A [project agent](/platform/projects/project-agents) carries its own equipment, picked in the capability menu on the agent's dialog. The list there follows the **project's** visibility, not yours: organization-wide skills, plus team skills shared with any of the project's teams. An org-wide project sees organization skills only, and nobody's legacy private skills ever appear — a project agent runs for every member of the project, so its equipment must never smuggle in something only its author could see.
 
 The same scope holds at run time. A task run stages the agent's skills as the project; an org-level automation stages as the organization. A skill that stops being visible to that scope fails the run by name rather than quietly running without it — deliberate equipment silently missing is worse than a failed run.
 

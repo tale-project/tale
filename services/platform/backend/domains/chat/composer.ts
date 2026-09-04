@@ -12,6 +12,7 @@ import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';
 import { getAccessibleModelsForUser } from '../governance/service.ts';
+import { listServingCredentialFacts } from '../provider_credentials/service.ts';
 import { chatShimHandlers } from './shim.ts';
 import { projectChatAccess, ChatThreadError } from './threads.ts';
 
@@ -78,42 +79,21 @@ export async function listComposerModels(
   harnesses: Array<{ harness: string; label: string; iconUrl?: string }>;
   voice: { ttsAvailable: boolean; transcriptionAvailable: boolean };
 }> {
-  const credentials = await sql<
-    {
-      providerSlug: string;
-      authMethod:
-        | 'api-key'
-        | 'env'
-        | 'subscription-key'
-        | 'subscription-broker';
-      modelAllowlist: string[] | null;
-    }[]
-  >`
-    SELECT provider_slug AS "providerSlug", auth_method AS "authMethod",
-           model_allowlist AS "modelAllowlist"
-    FROM app.provider_credentials
-    WHERE org_id = ${args.organizationId} AND status = 'active'
-  `;
+  // The SERVABLE set: each provider's active default credential — the row
+  // every serving path resolves — never every active row, or the picker
+  // offers models no turn can run the moment a default is disabled.
   const directFirst = (method: string): number =>
     method === 'api-key' || method === 'env' ? 0 : 1;
-  const active = credentials
-    .map((row) => {
-      const fact: {
-        providerSlug: string;
-        authMethod: typeof row.authMethod;
-        modelAllowlist?: string[];
-      } = { providerSlug: row.providerSlug, authMethod: row.authMethod };
-      if (row.modelAllowlist !== null) fact.modelAllowlist = row.modelAllowlist;
-      return fact;
-    })
-    .sort((a, b) => directFirst(a.authMethod) - directFirst(b.authMethod));
+  const servable = (
+    await listServingCredentialFacts(sql, args.organizationId)
+  ).sort((a, b) => directFirst(a.authMethod) - directFirst(b.authMethod));
 
   const shim = createCtxShim(chatShimHandlers(sql));
   const hits = await walkChatCatalog(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 walk; its only ctx facility (the org-slug read) is covered by chatShimHandlers
     shim as unknown as Parameters<typeof walkChatCatalog>[0],
     args.organizationId,
-    active,
+    servable,
   );
   const { byId, ttsAvailable, transcriptionAvailable } =
     collectComposerOptions(hits);

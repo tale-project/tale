@@ -1,6 +1,8 @@
 // @vitest-environment node
 
 import {
+  chmodSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -12,7 +14,10 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { atomicWriteSecret } from './file_io';
+import { atomicWriteSecret, readJsonFile } from './file_io';
+
+/** Root bypasses file permissions, so the EACCES lane cannot be produced. */
+const IS_ROOT = typeof process.getuid === 'function' && process.getuid() === 0;
 
 let dir: string;
 let prevUmask: number;
@@ -72,4 +77,53 @@ describe('atomicWriteSecret', () => {
     const remaining = readdirSync(dir);
     expect(remaining).toEqual([path.basename(target)]);
   });
+});
+
+describe('readJsonFile', () => {
+  const parse = (content: string): unknown => JSON.parse(content);
+
+  it('reads and hashes a well-formed file', async () => {
+    const target = path.join(dir, 'config.json');
+    writeFileSync(target, '{"a":1}');
+    const result = await readJsonFile(target, 1024, parse);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data).toEqual({ a: 1 });
+  });
+
+  it('labels a genuinely missing file not_found', async () => {
+    const result = await readJsonFile(path.join(dir, 'nope.json'), 1024, parse);
+    expect(result).toMatchObject({ ok: false, error: 'not_found' });
+  });
+
+  it('labels a path through a regular file not_found (ENOTDIR)', async () => {
+    const file = path.join(dir, 'file.txt');
+    writeFileSync(file, 'x');
+    const result = await readJsonFile(
+      path.join(file, 'config.json'),
+      1024,
+      parse,
+    );
+    expect(result).toMatchObject({ ok: false, error: 'not_found' });
+  });
+
+  // Regression: every stat() failure used to read as `not_found`, so a
+  // mis-permissioned config volume silently downgraded governance policies
+  // to their defaults. Only ENOENT/ENOTDIR are "absent"; EACCES is a fault.
+  it.skipIf(IS_ROOT)(
+    'labels a present-but-unreadable file inaccessible, not not_found',
+    async () => {
+      const locked = path.join(dir, 'locked');
+      mkdirSync(locked);
+      const target = path.join(locked, 'config.json');
+      writeFileSync(target, '{"a":1}');
+      chmodSync(locked, 0o000);
+      try {
+        const result = await readJsonFile(target, 1024, parse);
+        expect(result).toMatchObject({ ok: false, error: 'inaccessible' });
+        if (!result.ok) expect(result.message).toMatch(/EACCES|permission/i);
+      } finally {
+        chmodSync(locked, 0o700);
+      }
+    },
+  );
 });

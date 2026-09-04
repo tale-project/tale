@@ -1,11 +1,11 @@
 ---
 title: Develop
-description: Develop covers the API-consumer surface — REST API, webhooks, connector SDK, AI-assisted development workflow, status page, rate limits.
+description: Develop covers the API-consumer surface — REST API, the MCP endpoint, webhooks, connectors, AI-assisted development workflow, status page, rate limits.
 ---
 
-Develop is the section for integrators and contributors — anyone wiring Tale into another system, building on top of the API, or shipping a change to the source. The pages here describe the external surface (REST, webhooks, OpenAI-compatible endpoints) and the contributor workflow.
+Develop is the section for integrators and contributors — anyone wiring Tale into another system, building on top of the API, or shipping a change to the source. The pages here describe the external surface (REST, webhooks, the MCP endpoint) and the contributor workflow.
 
-If you are inside the product as a Developer-role user (building agents, workflows, custom tools), the Platform tab covers your day to day; Develop is for when you are outside the product, talking to it across the wire.
+If you are inside the product as a Developer-role user (staffing project agents, building automations), the Platform tab covers your day to day; Develop is for when you are outside the product, talking to it across the wire.
 
 Prefer to watch first? The bonus episode walks the developer surface — keys, APIs, webhooks, harnesses — in two minutes.
 
@@ -19,13 +19,19 @@ Prefer to watch first? The bonus episode walks the developer surface — keys, A
 
 <Card title="API reference" icon="code" href="/develop/api-reference">
 
-Endpoints, authentication, OpenAI-compatible endpoints, error model, versioning.
+Endpoints, authentication, pagination, error model, versioning.
+
+</Card>
+
+<Card title="MCP endpoint" icon="network" href="/develop/mcp-endpoint">
+
+Point an MCP client at Tale — one inbound endpoint, twenty-two tools for authoring and running automations.
 
 </Card>
 
 <Card title="Webhooks" icon="webhook" href="/develop/webhooks">
 
-Outbound (Tale → you) and inbound (you → Tale), signing, idempotency, retries.
+Inbound webhook triggers (you → Tale), token handling, idempotency, retries.
 
 </Card>
 

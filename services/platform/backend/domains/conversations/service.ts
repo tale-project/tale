@@ -2,7 +2,12 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { projectConversationItem } from '../../../lib/shared/conversations/conversation-item.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
-import { getUserTeamIds } from '../../auth/membership.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
+import { authorizeRls } from '../../auth/access.ts';
+import {
+  findOrganizationMember,
+  getUserTeamIds,
+} from '../../auth/membership.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -12,6 +17,7 @@ import {
   notifyConversationAssignedTeam,
 } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
+import { getFileUrl } from '../files/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
 
 /**
@@ -113,6 +119,27 @@ export interface ConversationViewer {
 export function viewerIsAdmin(role: string): boolean {
   const normalized = role.toLowerCase();
   return normalized === 'owner' || normalized === 'admin';
+}
+
+/**
+ * May this role CHANGE a conversation? Editor-or-above, which is the 0.4
+ * gate: every conversation mutation ran through `mutationWithRLS`, and the
+ * `conversations` / `conversationMessages` RLS rules put each insert/modify
+ * (and delete) through `authorizeRls(role, …, 'write')` — ALL for
+ * owner/admin/developer/editor, READ_ONLY for `member`, NONE for `disabled`.
+ *
+ * This is the WRITE half of conversation access and it is role-shaped, org
+ * wide. The other half is assignment privacy — `conversationAssignmentAllows`
+ * per row, which decides who can SEE a thread at all — and the two compose:
+ * a write door checks this first, then loads the row through
+ * `loadVisibleConversation`. Assignment itself is stricter still
+ * (`viewerIsAdmin`).
+ */
+export function viewerCanWrite(role: string): boolean {
+  return (
+    authorizeRls(role, 'conversations', 'write') &&
+    authorizeRls(role, 'conversationMessages', 'write')
+  );
 }
 
 /** One conversation readable by the viewer, or the opaque 404. Evaluates the
@@ -570,7 +597,9 @@ export async function countConversationsByStatus(
   return out;
 }
 
-/** Unread among OPEN conversations (`metadata.unread_count` positive). */
+/** Unread among OPEN conversations (`metadata.unread_count` positive). The
+ * cast runs only on a JSON number — one row carrying junk in that key (an
+ * API metadata patch) must not 500 the whole org's count tiles. */
 export async function countUnreadConversations(
   sql: Sql,
   organizationId: string,
@@ -581,7 +610,9 @@ export async function countUnreadConversations(
     WHERE org_id = ${organizationId} AND status = 'open'
       AND (${connectorName ?? null}::text IS NULL
         OR connector_name = ${connectorName ?? null})
-      AND (metadata->>'unread_count')::numeric > 0
+      AND CASE WHEN jsonb_typeof(metadata->'unread_count') = 'number'
+            THEN (metadata->>'unread_count')::numeric > 0
+            ELSE false END
   `;
   return Number(rows[0]?.count ?? '0');
 }
@@ -597,32 +628,75 @@ export interface ConversationUpdates {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * The metadata stamps one status flip carries — SHARED by the PATCH door and
+ * the bulk verbs, so a singly-closed conversation shows the same resolution
+ * record as a bulk-closed one: `closed` stamps who resolved it and when,
+ * `spam` when it was flagged; the other statuses stamp nothing.
+ */
+export function statusChangeStamps(
+  status: ConversationStatus,
+  actorUserId: string,
+  now: number,
+): Record<string, unknown> {
+  if (status === 'closed') {
+    return {
+      resolved_at: new Date(now).toISOString(),
+      resolved_by: actorUserId,
+    };
+  }
+  if (status === 'spam') {
+    return { marked_spam_at: new Date(now).toISOString() };
+  }
+  return {};
+}
+
+/**
+ * The PATCH door. Metadata is a shallow MERGE onto the stored object (the
+ * `patchWebsite` contract), never a wholesale replace — a caller patching one
+ * key must not wipe `unread_count` or routing state — and a status flip
+ * carries the same stamps the bulk verbs write, so close/reopen/spam mean one
+ * thing whichever door they come through.
+ */
 export async function updateConversation(
   tx: TransactionSql,
   organizationId: string,
   conversationId: string,
   updates: ConversationUpdates,
+  actor: { userId: string },
 ): Promise<void> {
-  const rows = await tx<{ id: string; metadata: unknown }[]>`
+  const rows = await tx<
+    { id: string; metadata: Record<string, unknown> | null }[]
+  >`
     SELECT id, metadata FROM app.conversations
     WHERE id = ${conversationId} AND org_id = ${organizationId} LIMIT 1
   `;
-  if (rows.length === 0) {
+  const row = rows[0];
+  if (!row) {
     throw new ConversationError(
       'conversation_not_found',
       'Conversation not found',
       404,
     );
   }
+  const now = Date.now();
+  const stamps =
+    updates.status !== undefined
+      ? statusChangeStamps(updates.status, actor.userId, now)
+      : {};
+  const nextMetadata =
+    updates.metadata !== undefined || Object.keys(stamps).length > 0
+      ? { ...row.metadata, ...updates.metadata, ...stamps }
+      : undefined;
   await tx`
     UPDATE app.conversations SET
       contact_id = ${updates.contactId ?? tx.unsafe('contact_id')},
       subject = ${updates.subject ?? tx.unsafe('subject')},
       status = ${updates.status ?? tx.unsafe('status')},
-      status_changed_at_ms = ${updates.status !== undefined ? Date.now() : tx.unsafe('status_changed_at_ms')},
+      status_changed_at_ms = ${updates.status !== undefined ? now : tx.unsafe('status_changed_at_ms')},
       priority = ${updates.priority ?? tx.unsafe('priority')},
       type = ${updates.type ?? tx.unsafe('type')},
-      metadata = ${updates.metadata !== undefined ? tx.json(toJson(updates.metadata)) : tx.unsafe('metadata')}
+      metadata = ${nextMetadata !== undefined ? tx.json(toJson(nextMetadata)) : tx.unsafe('metadata')}
     WHERE id = ${conversationId}
   `;
   await emitHintInTx(tx, {
@@ -669,8 +743,31 @@ export async function markConversationAsRead(
 
 // ---------------------------------------------------------------- assign
 
-/** Admin-only individual assignment; unchanged = silent no-op; the new
- * assignee is notified (never on self-assignment or unassign). */
+/**
+ * The assignee gate shared by EVERY door that sets `assignee_user_id` — the
+ * admin assign door, address routing, and compose: the user must hold an
+ * ACTIVE membership of the conversation's organization. A non-member (or a
+ * disabled seat) as assignee is a silent triage black hole — the row is
+ * hidden from every non-admin while the "assignee" can never open it.
+ */
+export async function assertAssignableMember(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  userId: string,
+): Promise<void> {
+  const member = await findOrganizationMember(db, organizationId, userId);
+  if (member === null || member.role === 'disabled') {
+    throw new ConversationError(
+      'user_not_in_org',
+      'Assignee is not a member of this organization',
+      400,
+    );
+  }
+}
+
+/** Admin-only individual assignment; unchanged = silent no-op; the assignee
+ * must be an active org member; the new assignee is notified (never on
+ * self-assignment or unassign). */
 export async function assignConversation(
   sql: Sql,
   args: {
@@ -704,6 +801,9 @@ export async function assignConversation(
     const previous = conversation.assigneeUserId;
     const next = args.assigneeUserId;
     if (previous === next) return;
+    if (next !== null) {
+      await assertAssignableMember(tx, args.organizationId, next);
+    }
     await tx`
       UPDATE app.conversations SET assignee_user_id = ${next}
       WHERE id = ${args.conversationId}
@@ -889,15 +989,7 @@ export async function bulkSetConversationStatus(
         result.errors.push(`Conversation ${conversationId} not found`);
         continue;
       }
-      const stamps: Record<string, unknown> =
-        args.verb === 'close'
-          ? {
-              resolved_at: new Date(now).toISOString(),
-              resolved_by: args.actor.userId,
-            }
-          : args.verb === 'spam'
-            ? { marked_spam_at: new Date(now).toISOString() }
-            : {};
+      const stamps = statusChangeStamps(target.status, args.actor.userId, now);
       await tx`
         UPDATE app.conversations SET
           status = ${target.status}, status_changed_at_ms = ${now},
@@ -957,6 +1049,51 @@ export async function deleteConversation(
 }
 
 /**
+ * Mint a fresh presigned download URL for each stored mail attachment from its
+ * durable `storageId`. Materialize stores only the storageId (a stored URL
+ * baked in the retired proxy path that now 404s), so the servable URL is minted
+ * HERE, at read time. Best-effort per attachment: a blob whose presign fails
+ * (deleted, or a metadata-only chip the connector never fetched bytes for) drops
+ * its URL so the client shows the chip WITHOUT a broken download affordance.
+ */
+export async function presignMessageAttachments(
+  sql: Sql,
+  organizationId: string,
+  messages: ConversationMessageRow[],
+): Promise<ConversationMessageRow[]> {
+  return Promise.all(
+    messages.map(async (message) => {
+      const metadata = message.metadata;
+      if (metadata === null || !Array.isArray(metadata.attachments)) {
+        return message;
+      }
+      const attachments = await Promise.all(
+        metadata.attachments.map(async (raw) => {
+          if (!isRecord(raw) || typeof raw.storageId !== 'string') return raw;
+          try {
+            const url = await getFileUrl(
+              sql,
+              { organizationId },
+              raw.storageId,
+            );
+            return { ...raw, url };
+          } catch (error) {
+            console.warn(
+              `[conversations] attachment presign failed for ${raw.storageId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+            const { url: _drop, ...rest } = raw;
+            return rest;
+          }
+        }),
+      );
+      return { ...message, metadata: { ...metadata, attachments } };
+    }),
+  );
+}
+
+/**
  * One conversation in the shape the Inbox reads — the SHARED projection
  * (`lib/shared/conversations/conversation-item.ts`), so this lane and 0.4
  * cannot drift into two different "same" shapes. `withMessages: false`
@@ -969,7 +1106,11 @@ export async function projectConversationForView(
   options: { withMessages: boolean },
 ): Promise<Record<string, unknown>> {
   const messages = options.withMessages
-    ? await listConversationMessages(sql, conversation.id)
+    ? await presignMessageAttachments(
+        sql,
+        conversation.organizationId,
+        await listConversationMessages(sql, conversation.id),
+      )
     : await sql<ConversationMessageRow[]>`
         SELECT ${sql.unsafe(MESSAGE_COLUMNS)} FROM app.conversation_messages
         WHERE conversation_id = ${conversation.id}

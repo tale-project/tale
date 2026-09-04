@@ -10,21 +10,50 @@
  * /v1/drain; spawner_client retries land on the restarted spawner) and waits
  * for in-flight one-shots to finish before the recreate.
  *
- * The control channel is `docker exec <sandbox-container> curl localhost:8003`
- * — the spawner is not host-exposed, and `docker exec` implies host-root.
- * Mirrors the backend tier's drain (drain-backend.ts), which reaches its own
- * control door through the api container instead.
+ * The control channel is `docker exec <sandbox-container> bun
+ * /app/src/control-cli.ts drain|drain-status` — the spawner's control routes
+ * are HMAC-gated like every other route (they share the listener that sits on
+ * the sandbox network every session container reaches), and the signed client
+ * shipped in the spawner image signs with the SANDBOX_TOKEN the container
+ * already holds. So the shared secret never crosses this process, its argv, or
+ * its logs — the same shape as the backend tier's control door
+ * (docker/control-call.ts expands `$TALE_CONTROL_TOKEN` inside its container).
  *
- * Best-effort by design: an older spawner that predates the drain endpoint, a
- * spawner that isn't running yet (first deploy), or any transient error just
- * skips the drain and proceeds — the spawner's own SIGTERM drain +
- * `stop_grace_period` is the backstop for whatever the recreate cuts.
+ * Best-effort by design: a spawner that isn't running yet (first deploy) or
+ * any transient error just skips the drain and proceeds — the spawner's own
+ * SIGTERM drain + `stop_grace_period` is the backstop for whatever the recreate
+ * cuts.
  */
 
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { docker } from '../docker/docker';
 import { isContainerRunning } from '../docker/is-container-running';
+
+/** The signed control client baked into the spawner image (WORKDIR /app). */
+const CONTROL_CLIENT = '/app/src/control-cli.ts';
+
+type ControlCommand = 'drain' | 'drain-status';
+
+/**
+ * The in-container shell line for one control call. The signed client is the
+ * door; the `curl` branch fires ONLY when the running image predates it (the
+ * single deploy that rolls a pre-signed-client spawner, whose routes were still
+ * open) — a one-release shim to drop once no such spawner can be running.
+ * Nothing secret appears here: the token is read by the client from the
+ * container's own environment.
+ */
+export function controlScript(command: ControlCommand): string {
+  const method = command === 'drain' ? 'POST' : 'GET';
+  return (
+    `if [ -f ${CONTROL_CLIENT} ]; then exec bun ${CONTROL_CLIENT} ${command}; ` +
+    `else exec curl -fsS -X ${method} http://localhost:8003/v1/${command}; fi`
+  );
+}
+
+function controlCall(container: string, command: ControlCommand) {
+  return docker('exec', container, 'sh', '-c', controlScript(command));
+}
 
 // One-shot sandbox executions are short (default 30s, max 5min), so the drain
 // poll is bounded — past the ceiling we recreate anyway (the spawner's own
@@ -43,13 +72,7 @@ interface DrainStatus {
  * `null` as "unknown", NOT as "0 in flight".
  */
 async function readDrainStatus(container: string): Promise<DrainStatus | null> {
-  const res = await docker(
-    'exec',
-    container,
-    'curl',
-    '-fsS',
-    'http://localhost:8003/v1/drain-status',
-  );
+  const res = await controlCall(container, 'drain-status');
   if (!res.success) return null;
   try {
     const parsed: unknown = JSON.parse(res.stdout);
@@ -92,15 +115,7 @@ export async function drainSandbox(opts: {
   }
 
   logger.step('Draining in-flight sandbox executions before recreate...');
-  const drain = await docker(
-    'exec',
-    container,
-    'curl',
-    '-fsS',
-    '-X',
-    'POST',
-    'http://localhost:8003/v1/drain',
-  );
+  const drain = await controlCall(container, 'drain');
   if (!drain.success) {
     logger.warn(
       `Sandbox drain unavailable — proceeding (the spawner's SIGTERM drain handles in-flight executions): ${drain.stderr.trim().slice(0, 200)}`,

@@ -56,7 +56,10 @@ describe('normalizeEmail', () => {
   it('converts a raw Gmail API message to EmailType', () => {
     const result = normalizeEmail(RAW_GMAIL_MESSAGE);
 
-    expect(result.messageId).toBe('msg123');
+    // The threading key is the RFC Message-ID header, not Gmail's API id
+    // (`msg123`) — a reply's In-Reply-To carries the RFC id, so this is what
+    // resolveEmailConversationTarget must match on.
+    expect(result.messageId).toBe('<abc@example.com>');
     expect(result.from).toEqual([
       { name: 'Alice', address: 'alice@example.com' },
     ]);
@@ -74,6 +77,19 @@ describe('normalizeEmail', () => {
     });
     expect(result.uid).toBe(0);
     expect(result.direction).toBeUndefined();
+  });
+
+  it('falls back to the Gmail API id only when no Message-ID header exists', () => {
+    const noRfcId = {
+      ...RAW_GMAIL_MESSAGE,
+      payload: {
+        ...RAW_GMAIL_MESSAGE.payload,
+        headers: RAW_GMAIL_MESSAGE.payload.headers.filter(
+          (h) => h.name !== 'Message-ID',
+        ),
+      },
+    };
+    expect(normalizeEmail(noRfcId).messageId).toBe('msg123');
   });
 
   it('extracts text body from Gmail payload', () => {
@@ -204,6 +220,26 @@ describe('normalizeEmail (Outlook)', () => {
     });
     expect(result.uid).toBe(0);
     expect(result.direction).toBeUndefined();
+  });
+
+  it('threads on In-Reply-To / References from internetMessageHeaders', () => {
+    const reply = {
+      ...RAW_OUTLOOK_MESSAGE,
+      internetMessageId: '<reply-9@prod.outlook.com>',
+      internetMessageHeaders: [
+        { name: 'In-Reply-To', value: '<outlook-msg-123@prod.outlook.com>' },
+        {
+          name: 'References',
+          value: '<root@prod.outlook.com> <outlook-msg-123@prod.outlook.com>',
+        },
+        { name: 'X-Unrelated', value: 'ignored' },
+      ],
+    };
+    expect(normalizeEmail(reply).headers).toEqual({
+      'message-id': '<reply-9@prod.outlook.com>',
+      'in-reply-to': '<outlook-msg-123@prod.outlook.com>',
+      references: '<root@prod.outlook.com> <outlook-msg-123@prod.outlook.com>',
+    });
   });
 
   it('populates headers with empty message-id when internetMessageId is missing', () => {
@@ -344,7 +380,7 @@ describe('normalizeEmail (Outlook)', () => {
     };
     const result = normalizeEmail(ambiguous);
     // Should be detected as Gmail (payload wins), not Outlook
-    expect(result.messageId).toBe('msg123');
+    expect(result.messageId).toBe('<abc@example.com>');
     expect(result.subject).toBe('Test subject');
   });
 });
@@ -353,7 +389,7 @@ describe('normalizeEmails', () => {
   it('normalizes an array of mixed raw and mapped emails', () => {
     const results = normalizeEmails([RAW_GMAIL_MESSAGE, ALREADY_MAPPED_EMAIL]);
     expect(results).toHaveLength(2);
-    expect(results[0].messageId).toBe('msg123');
+    expect(results[0].messageId).toBe('<abc@example.com>');
     expect(results[1].messageId).toBe('msg789');
   });
 
@@ -366,7 +402,7 @@ describe('normalizeEmails', () => {
   it('wraps a single raw Gmail message in an array', () => {
     const results = normalizeEmails(RAW_GMAIL_MESSAGE);
     expect(results).toHaveLength(1);
-    expect(results[0].messageId).toBe('msg123');
+    expect(results[0].messageId).toBe('<abc@example.com>');
   });
 
   it('normalizes a mixed array of Gmail, Outlook, and pre-mapped emails', () => {
@@ -376,7 +412,7 @@ describe('normalizeEmails', () => {
       ALREADY_MAPPED_EMAIL,
     ]);
     expect(results).toHaveLength(3);
-    expect(results[0].messageId).toBe('msg123');
+    expect(results[0].messageId).toBe('<abc@example.com>');
     expect(results[1].messageId).toBe('<outlook-msg-123@prod.outlook.com>');
     expect(results[1].headers?.['message-id']).toBe(
       '<outlook-msg-123@prod.outlook.com>',

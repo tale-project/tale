@@ -1,4 +1,5 @@
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 
 type TaskStatusFilter =
@@ -131,16 +132,31 @@ export function useProjectDependencies(projectId: string | undefined) {
   return { edges: data ?? [], isLoading };
 }
 
+/** How many comments the discussion shows before asking to load earlier
+ * ones — the whole discussion for every task under it. */
+export const TASK_DISCUSSION_PAGE_SIZE = 200;
+
+/**
+ * The task's discussion, NEWEST comment first, as a page walk: the first
+ * page is the latest comments, `loadEarlier` fetches the ones before them,
+ * and `hasEarlier` says whether any remain. Live invalidation refetches the
+ * loaded pages in sequence (each page's cursor comes from the one before),
+ * so a comment posted meanwhile never opens a gap between pages.
+ */
 export function useTaskDiscussion(taskId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
-    'tasks/queries:getTaskDiscussion',
+  const { results, status, isLoading, loadMore } = useCachedPaginatedQuery(
+    'tasks/queries:listTaskDiscussion',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
+    { initialNumItems: TASK_DISCUSSION_PAGE_SIZE },
   );
   return {
-    threadId: data?.threadId ?? null,
-    comments: data?.messages ?? [],
+    /** Newest first. */
+    comments: results,
     isLoading,
+    hasEarlier: status === 'CanLoadMore' || status === 'LoadingMore',
+    isLoadingEarlier: status === 'LoadingMore',
+    loadEarlier: () => loadMore(TASK_DISCUSSION_PAGE_SIZE),
   };
 }
 

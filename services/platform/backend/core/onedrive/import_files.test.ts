@@ -54,6 +54,153 @@ const baseArgs = {
   userId: 'user-1',
 };
 
+/**
+ * The sync binding — `sourceMode: 'auto'` + `syncConfigId` — is what lets a
+ * later run update and prune a document. The regression under test: the
+ * metadata was rebuilt from the CURRENT import type and written whole, so a
+ * one-time re-import of a changed file inside a synced folder rewrote it to
+ * manual (never pruned again once the source file was deleted), while a
+ * sync import over an unchanged one-time document skipped it without ever
+ * adopting it.
+ */
+describe('importFiles keeps the sync binding', () => {
+  const syncOwned = {
+    _id: 'doc-9' as Id<'documents'>,
+    contentHash: 'old',
+    metadata: {
+      sourceMode: 'auto',
+      syncConfigId: 'cfg-9',
+      isDirectlySelected: true,
+      selectedParentId: 'file-a',
+    },
+  };
+
+  it('keeps a sync-owned document bound when a one-time import re-imports it changed', async () => {
+    const deps = makeDeps({
+      findDocumentByExternalId: vi.fn().mockResolvedValue(syncOwned),
+      getFileMetadata: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { hash: 'new' } }),
+    });
+
+    const result = await importFiles(
+      {
+        ...baseArgs,
+        items: [{ id: 'file-a', name: 'a.docx', size: 10 }],
+        importType: 'one-time',
+      },
+      deps,
+    );
+
+    expect(result.successCount).toBe(1);
+    expect(deps.updateDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'doc-9',
+        metadata: expect.objectContaining({
+          sourceMode: 'auto',
+          syncConfigId: 'cfg-9',
+          isDirectlySelected: true,
+          selectedParentId: 'file-a',
+        }),
+      }),
+    );
+  });
+
+  it('still re-imports a manual document as manual', async () => {
+    const updateDocument = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      findDocumentByExternalId: vi.fn().mockResolvedValue({
+        _id: 'doc-2' as Id<'documents'>,
+        contentHash: 'old',
+        metadata: { sourceMode: 'manual' },
+      }),
+      getFileMetadata: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { hash: 'new' } }),
+      updateDocument,
+    });
+
+    await importFiles(
+      {
+        ...baseArgs,
+        items: [{ id: 'file-a', name: 'a.docx', size: 10 }],
+        importType: 'one-time',
+      },
+      deps,
+    );
+
+    expect(updateDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.not.objectContaining({
+          syncConfigId: expect.anything(),
+        }),
+      }),
+    );
+    expect(updateDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ sourceMode: 'manual' }),
+      }),
+    );
+  });
+
+  it('adopts an unchanged document from an earlier one-time import into the sync config', async () => {
+    const bindDocumentToSync = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      findDocumentByExternalId: vi.fn().mockResolvedValue({
+        _id: 'doc-1' as Id<'documents'>,
+        contentHash: 'same',
+        metadata: { sourceMode: 'manual' },
+      }),
+      getFileMetadata: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { hash: 'same' } }),
+      bindDocumentToSync,
+    });
+
+    const result = await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'sync' },
+      deps,
+    );
+
+    expect(result.skippedCount).toBe(1);
+    expect(bindDocumentToSync).toHaveBeenCalledWith({
+      documentId: 'doc-1',
+      metadata: {
+        sourceMode: 'auto',
+        syncConfigId: 'cfg-1',
+        selectedParentId: 'folder-meetings',
+        selectedParentName: 'Meetings',
+        selectedParentPath: 'Meetings',
+        isDirectlySelected: false,
+      },
+    });
+    expect(deps.downloadToStorage).not.toHaveBeenCalled();
+    expect(deps.updateDocument).not.toHaveBeenCalled();
+  });
+
+  it('leaves an unchanged document alone when it is already bound to this config', async () => {
+    const bindDocumentToSync = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      findDocumentByExternalId: vi.fn().mockResolvedValue({
+        _id: 'doc-1' as Id<'documents'>,
+        contentHash: 'same',
+        metadata: { sourceMode: 'auto', syncConfigId: 'cfg-1' },
+      }),
+      getFileMetadata: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { hash: 'same' } }),
+      bindDocumentToSync,
+    });
+
+    await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'sync' },
+      deps,
+    );
+
+    expect(bindDocumentToSync).not.toHaveBeenCalled();
+  });
+});
+
 describe('importFiles sync configs', () => {
   it('registers a sync config per selected folder on sync import', async () => {
     const deps = makeDeps();

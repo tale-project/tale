@@ -4,6 +4,7 @@ import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
 } from '../../../lib/shared/task-label-colors.ts';
+import { findOrganizationMember } from '../../auth/membership.ts';
 import {
   checkProjectAccess,
   EDITOR_ROLES,
@@ -16,12 +17,15 @@ import {
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
 import { REVIEW_POLICY_REFUSAL_CODES } from '../../core/tasks/review_shared.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { cancelRunInTx } from '../automations/store.ts';
 import {
   autoSubscribe,
   notifyTaskAssigned,
+  notifyTaskReviewerAssigned,
   notifyTaskStatusChanged,
 } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
@@ -31,11 +35,12 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
-import { kickAgentRun } from './agent-runs.ts';
+import { cancelAgentRunInTx, kickAgentRun } from './agent-runs.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
   collectPendingReviewsForProjects,
   requestTaskReview,
+  type TaskReviewTrigger,
 } from './reviews.ts';
 
 /**
@@ -81,13 +86,13 @@ export const TASK_BOARD_CAP = 2000;
 
 export class TaskError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404;
+  readonly status: 400 | 403 | 404 | 409;
   readonly data: Record<string, unknown> | undefined;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 = 400,
+    status: 400 | 403 | 404 | 409 = 400,
     data?: Record<string, unknown>,
   ) {
     super(message);
@@ -167,10 +172,24 @@ export const TASK_COLUMNS = `
 // Guards
 // ---------------------------------------------------------------------------
 
+/** A project in another org answers as MISSING (the projects-domain
+ * `assertSameOrg` idiom): the role matrix is org-relative, so it must never
+ * run across a foreign project row — an org-A admin is nobody in org B, and
+ * a 403 would confirm the foreign id exists. */
+function assertTaskProjectSameOrg(
+  project: ProjectRow,
+  auth: ProjectAuthContext,
+): void {
+  if (project.organizationId !== auth.organizationId) {
+    throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
+  }
+}
+
 export function assertTaskReadable(
   project: ProjectRow,
   auth: ProjectAuthContext,
 ): void {
+  assertTaskProjectSameOrg(project, auth);
   const access = checkProjectAccess(
     { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
     auth.teamIds,
@@ -185,6 +204,7 @@ export function assertTaskWritable(
   project: ProjectRow,
   auth: ProjectAuthContext,
 ): void {
+  assertTaskProjectSameOrg(project, auth);
   const access = checkProjectAccess(
     { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
     auth.teamIds,
@@ -233,13 +253,17 @@ function assertScheduleOrder(
   }
 }
 
+/** The ONE task-by-id load — always org-scoped: a task in another org answers
+ * exactly like one that does not exist (opaque 404), so a leaked id is worth
+ * nothing across a tenant boundary. */
 export async function loadTaskOrThrow(
   sql: Sql | TransactionSql,
   taskId: string,
+  organizationId: string,
 ): Promise<TaskRow> {
   const rows = await sql<TaskRow[]>`
     SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
-    WHERE id = ${taskId} LIMIT 1
+    WHERE id = ${taskId} AND org_id = ${organizationId} LIMIT 1
   `;
   const task = rows[0];
   if (!task) {
@@ -616,9 +640,26 @@ function taskAudit(
 // Assignee validation
 // ---------------------------------------------------------------------------
 
-interface AssigneeRef {
+export interface AssigneeRef {
   assigneeType: TaskAssigneeType;
   assigneeId: string;
+}
+
+/**
+ * Whether writing `assignee` onto `task` changes who holds it — ONE rule for
+ * the picker (`assignTask`) and the bulk bar (`bulkUpdateTasks`), so the
+ * live-run transfer gate they share can never disagree about what counts as
+ * a transfer. A same-assignee re-select and clearing an already-unassigned
+ * task are not transfers.
+ */
+export function assigneeChanges(
+  task: Pick<TaskRow, 'assigneeType' | 'assigneeId'>,
+  assignee: AssigneeRef | null,
+): boolean {
+  return (
+    task.assigneeId !== (assignee?.assigneeId ?? null) ||
+    task.assigneeType !== (assignee?.assigneeType ?? null)
+  );
 }
 
 function normalizeAssignee(args: {
@@ -706,6 +747,146 @@ async function assertAssigneeValid(
 }
 
 // ---------------------------------------------------------------------------
+// The settle seams — what every status / assignee door does after its write
+// ---------------------------------------------------------------------------
+
+/**
+ * The post-write step EVERY status door shares: the picker, the board drag,
+ * the bulk bar, the mention-kick hand-off, the agent's park and the review
+ * decision all flip `app.tasks.status` their own way, then land here — the
+ * rollup transition, the activity line (which is also the board's hint), the
+ * audit row, the `task.status_changed` platform event, and the subscribers'
+ * bell. One seam, so no door can drift: the drag used to skip the event and
+ * the bell while the picker fired both.
+ *
+ * `task` is the row as it stood BEFORE the write (its old status and
+ * archive state drive the rollup delta and the from→to copy).
+ */
+export async function settleTaskStatusChange(
+  tx: TransactionSql,
+  args: {
+    task: TaskRow;
+    toStatus: TaskStatus;
+    actorType: 'user' | 'agent';
+    actorId: string;
+    /** The human doors' audit row — the auth context carries the actor's
+     * email. The kick hand-off and the agent lanes carry none. */
+    audit?: ProjectAuthContext;
+    /** `false` when the door already told every subscriber what happened
+     * in its own words (the review decision's resolved bell) — a second
+     * "status changed" row would be noise. */
+    bell?: boolean;
+  },
+): Promise<void> {
+  const { task, toStatus } = args;
+  await applyTaskCountTransition(
+    tx,
+    task.projectId,
+    taskCountBucket(task),
+    taskCountBucket({ status: toStatus, archivedAt: task.archivedAt }),
+  );
+  await recordActivity(tx, {
+    task,
+    actorType: args.actorType,
+    actorId: args.actorId,
+    action: 'status.changed',
+    fromValue: task.status,
+    toValue: toStatus,
+  });
+  if (args.audit !== undefined) {
+    await createAuditLog(
+      tx,
+      taskAudit(args.audit, task, TASK_AUDIT_ACTIONS.statusChanged, {
+        previousState: { status: task.status },
+        newState: { status: toStatus },
+      }),
+    );
+  }
+  // The platform event is the HUMAN doors' — every gesture a person makes
+  // on the board or in the sheet fires the org's `task.status_changed`
+  // triggers alike. The agent lane stays event-less on purpose: dispatch
+  // cannot yet tell a run's own flips apart from a person's (nothing
+  // passes `dispatchAutomationEvent` its 'automation' origin), so an
+  // automation reacting to the event by moving the card would re-trigger
+  // itself. That plumbing is the precondition for turning it on.
+  if (args.actorType === 'user') {
+    await emitEvent(tx, {
+      organizationId: task.organizationId,
+      eventType: 'task.status_changed',
+      eventData: {
+        taskId: task.id,
+        projectId: task.projectId,
+        fromStatus: task.status,
+        toStatus,
+        actorType: 'user',
+        actorId: args.actorId,
+      },
+    });
+  }
+  if (args.bell !== false) {
+    await notifyTaskStatusChanged(tx, {
+      task,
+      fromStatus: task.status,
+      toStatus,
+      actorType: args.actorType,
+      actorId: args.actorId,
+    });
+  }
+}
+
+/**
+ * The post-write step every ASSIGNEE door shares (the assign verb and the
+ * bulk bar): the activity line, the audit row, and the assignment fan-out —
+ * the new human assignee is subscribed and belled, the one who lost the
+ * work is told. `task` is the row BEFORE the write.
+ */
+export async function settleTaskAssigneeChange(
+  tx: TransactionSql,
+  args: {
+    task: TaskRow;
+    assignee: AssigneeRef | null;
+    auth: ProjectAuthContext;
+  },
+): Promise<void> {
+  const { task, assignee, auth } = args;
+  await recordActivity(tx, {
+    task,
+    actorType: 'user',
+    actorId: auth.userId,
+    action: 'assignee.changed',
+    ...(task.assigneeId !== null ? { fromValue: task.assigneeId } : {}),
+    ...(assignee !== null ? { toValue: assignee.assigneeId } : {}),
+  });
+  await createAuditLog(
+    tx,
+    taskAudit(
+      auth,
+      task,
+      assignee ? TASK_AUDIT_ACTIONS.assigned : TASK_AUDIT_ACTIONS.unassigned,
+      {
+        previousState: {
+          assigneeType: task.assigneeType,
+          assigneeId: task.assigneeId,
+        },
+        newState: {
+          assigneeType: assignee?.assigneeType ?? null,
+          assigneeId: assignee?.assigneeId ?? null,
+        },
+      },
+    ),
+  );
+  await notifyTaskAssigned(tx, {
+    task,
+    assigneeType: assignee?.assigneeType ?? null,
+    assigneeId: assignee?.assigneeId ?? null,
+    actorType: 'user',
+    actorId: auth.userId,
+    previousAssigneeType: task.assigneeType,
+    previousAssigneeId: task.assigneeId,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Task CRUD
 // ---------------------------------------------------------------------------
 
@@ -729,9 +910,6 @@ export async function createTask(
   args: CreateTaskArgs,
 ): Promise<string> {
   const project = await loadProjectOrThrow(tx, args.projectId);
-  if (project.organizationId !== auth.organizationId) {
-    throw new TaskError('ORG_FORBIDDEN', 'Wrong organization', 403);
-  }
   assertTaskWritable(project, auth);
 
   const title = validateTitle(args.title);
@@ -748,7 +926,11 @@ export async function createTask(
   await assertAssigneeValid(tx, { project, auth, assignee });
 
   if (args.parentTaskId) {
-    const parent = await loadTaskOrThrow(tx, args.parentTaskId);
+    const parent = await loadTaskOrThrow(
+      tx,
+      args.parentTaskId,
+      auth.organizationId,
+    );
     if (parent.projectId !== args.projectId) {
       throw new TaskError('TASK_PARENT_PROJECT_MISMATCH', 'Parent mismatch');
     }
@@ -847,7 +1029,7 @@ export async function updateTask(
   auth: ProjectAuthContext,
   args: UpdateTaskArgs,
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, args.taskId);
+  const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -906,6 +1088,29 @@ export async function updateTask(
     previousState.reviewerUserId = task.reviewerUserId;
     newState.reviewerUserId = reviewerUserId;
   }
+  // A NEW designee (not a clear, not a re-select) is about to be subscribed
+  // and belled: only a live member of THIS org can be on the hook — the
+  // picker offers members only, so a miss is a stale or hand-built request,
+  // and a disabled account cannot review.
+  const designatedReviewer =
+    args.reviewerUserId !== undefined &&
+    reviewerUserId !== null &&
+    reviewerUserId !== task.reviewerUserId
+      ? reviewerUserId
+      : null;
+  if (designatedReviewer !== null) {
+    const member = await findOrganizationMember(
+      tx,
+      auth.organizationId,
+      designatedReviewer,
+    );
+    if (member === null || member.role === 'disabled') {
+      throw new TaskError(
+        'TASK_REVIEWER_INVALID',
+        'The reviewer must be an active member of this organization',
+      );
+    }
+  }
 
   if (Object.keys(newState).length === 0) {
     return;
@@ -931,6 +1136,26 @@ export async function updateTask(
       newState,
     }),
   );
+  if (designatedReviewer !== null) {
+    // The designee owns the gate from now on: they follow the task (its
+    // progress, not just the request moment) and get the heads-up bell —
+    // "you're on the hook for this one". The actionable request + email
+    // follow when the card reaches In review. Before this, the column was
+    // written and nobody was told.
+    await autoSubscribe(tx, {
+      organizationId: auth.organizationId,
+      taskId: task.id,
+      subscriberType: 'user',
+      subscriberId: designatedReviewer,
+      reason: 'reviewer',
+    });
+    await notifyTaskReviewerAssigned(tx, {
+      organizationId: auth.organizationId,
+      task: { id: task.id, projectId: task.projectId, title },
+      reviewerUserId: designatedReviewer,
+      actorUserId: auth.userId,
+    });
+  }
 }
 
 export async function hasOpenChildren(
@@ -953,7 +1178,7 @@ export async function updateTaskStatus(
   taskId: string,
   status: TaskStatus,
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -987,38 +1212,12 @@ export async function updateTaskStatus(
       updated_at_ms = ${now}, status_changed_at_ms = ${now}
     WHERE id = ${taskId}
   `;
-  await applyTaskCountTransition(
-    tx,
-    task.projectId,
-    taskCountBucket(task),
-    taskCountBucket({ status, archivedAt: task.archivedAt }),
-  );
-  await recordActivity(tx, {
+  await settleTaskStatusChange(tx, {
     task,
+    toStatus: status,
     actorType: 'user',
     actorId: auth.userId,
-    action: 'status.changed',
-    fromValue: task.status,
-    toValue: status,
-  });
-  await createAuditLog(
-    tx,
-    taskAudit(auth, task, TASK_AUDIT_ACTIONS.statusChanged, {
-      previousState: { status: task.status },
-      newState: { status },
-    }),
-  );
-  await emitEvent(tx, {
-    organizationId: auth.organizationId,
-    eventType: 'task.status_changed',
-    eventData: {
-      taskId,
-      projectId: task.projectId,
-      fromStatus: task.status,
-      toStatus: status,
-      actorType: 'user',
-      actorId: auth.userId,
-    },
+    audit: auth,
   });
   // The status choreography's agent kick: an agent-owned task moving to
   // in_progress starts (or reuses) a run in the SAME transaction as the
@@ -1067,13 +1266,6 @@ export async function updateTaskStatus(
       trigger: { kind: 'human', actorId: auth.userId },
     });
   }
-  await notifyTaskStatusChanged(tx, {
-    task,
-    fromStatus: task.status,
-    toStatus: status,
-    actorType: 'user',
-    actorId: auth.userId,
-  });
 }
 
 /**
@@ -1113,11 +1305,13 @@ export async function agentCreateTaskTrusted(
   const status = args.status ?? 'backlog';
 
   if (args.parentTaskId !== undefined) {
-    const parent = await loadTaskOrThrow(tx, args.parentTaskId);
-    if (
-      parent.organizationId !== args.organizationId ||
-      parent.projectId !== args.projectId
-    ) {
+    // Org-scoped load: a parent id from another org reads as missing.
+    const parent = await loadTaskOrThrow(
+      tx,
+      args.parentTaskId,
+      args.organizationId,
+    );
+    if (parent.projectId !== args.projectId) {
       throw new TaskError('TASK_PARENT_PROJECT_MISMATCH', 'Parent mismatch');
     }
     if (parent.archivedAt !== null) {
@@ -1206,8 +1400,9 @@ export async function agentCreateTaskTrusted(
  * TRUSTED agent-side status flip — the settle's park to `in_review` (and the
  * failure paths that leave `in_progress` alone). The turn host already
  * resolved authority (the run belongs to the agent); this is the lower half:
- * status + rank + rollup + activity, attributed to the agent actor. The
- * review-row mint (task_review + reviewer bell) lands with the review arc.
+ * status + rank + rollup + activity, attributed to the agent actor, plus the
+ * review-gate mint (task_review row + reviewer bell) whenever the park lands
+ * at `in_review`.
  */
 export async function agentUpdateTaskStatusTrusted(
   tx: TransactionSql,
@@ -1216,27 +1411,47 @@ export async function agentUpdateTaskStatusTrusted(
     actorId: string;
     taskId: string;
     status: TaskStatus;
-    /** Present only on the settle park to `in_review`: mint the run's
-     * workflow-free review in the SAME transaction as the flip (find-or-
-     * insert by runId — the burned-claim replay never double-mints). */
+    /** The settle park to `in_review` names its run: the review is minted
+     * in the SAME transaction as the flip, keyed on the runId (find-or-
+     * insert — the burned-claim replay never double-mints). Lanes without a
+     * run key (the agent tool, the workflow native) still mint; see
+     * `mintReview`. */
     review?: { runId: string };
   },
   // `reason` is a CODE, not prose: the workspace-tool bridge branches on
   // `AGENTS_CANNOT_COMPLETE` to tell the agent to park at `in_review`
   // instead, and the connector native renders each code as a sentence.
 ): Promise<{ ok: boolean; reason?: string }> {
-  const task = await loadTaskOrThrow(tx, args.taskId);
-  if (task.organizationId !== args.organizationId) {
-    return { ok: false, reason: 'TASK_WRONG_ORGANIZATION' };
-  }
+  // Org-scoped load: a task in another org answers as missing (opaque 404
+  // through the tool bridge) — one refusal shape for foreign and garbage ids.
+  const task = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
+  // Reaching `in_review` IS the request for review, whichever trusted lane
+  // parked the card: the settle carries its run key; the agent's own
+  // `task_update_status` tool and the workflow `task.update_status` native
+  // carry none, so the key is the task's LIVE run when one exists (the
+  // settle's later park then finds this same row instead of superseding it
+  // with a second bell) and an automation-keyed row otherwise. Idempotent.
   const mintReview = async (): Promise<void> => {
-    if (args.review === undefined || args.status !== 'in_review') return;
-    const fresh = await loadTaskOrThrow(tx, args.taskId);
+    if (args.status !== 'in_review') return;
+    const fresh = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
     if (fresh.status !== 'in_review') return;
-    await requestTaskReview(tx, {
-      task: fresh,
-      trigger: { kind: 'agent_run', runId: args.review.runId },
-    });
+    let trigger: TaskReviewTrigger;
+    if (args.review !== undefined) {
+      trigger = { kind: 'agent_run', runId: args.review.runId };
+    } else {
+      const live = await tx<{ id: string }[]>`
+        SELECT id FROM app.project_agent_runs
+        WHERE task_id = ${args.taskId} AND org_id = ${args.organizationId}
+          AND status IN ('queued', 'running')
+        ORDER BY started_at_ms DESC
+        LIMIT 1
+      `;
+      trigger =
+        live[0] !== undefined
+          ? { kind: 'agent_run', runId: live[0].id }
+          : { kind: 'automation' };
+    }
+    await requestTaskReview(tx, { task: fresh, trigger });
   };
   if (task.status === args.status) {
     await mintReview();
@@ -1278,23 +1493,8 @@ export async function agentUpdateTaskStatusTrusted(
       updated_at_ms = ${now}, status_changed_at_ms = ${now}
     WHERE id = ${args.taskId}
   `;
-  await applyTaskCountTransition(
-    tx,
-    task.projectId,
-    taskCountBucket(task),
-    taskCountBucket({ status: args.status, archivedAt: task.archivedAt }),
-  );
-  await recordActivity(tx, {
+  await settleTaskStatusChange(tx, {
     task,
-    actorType: 'agent',
-    actorId: args.actorId,
-    action: 'status.changed',
-    fromValue: task.status,
-    toValue: args.status,
-  });
-  await notifyTaskStatusChanged(tx, {
-    task,
-    fromStatus: task.status,
     toStatus: args.status,
     actorType: 'agent',
     actorId: args.actorId,
@@ -1315,9 +1515,9 @@ export async function agentUpdateTaskStatusTrusted(
  */
 export async function handTaskToInProgressForKick(
   tx: TransactionSql,
-  args: { taskId: string; userId: string },
+  args: { organizationId: string; taskId: string; userId: string },
 ): Promise<boolean> {
-  const fresh = await loadTaskOrThrow(tx, args.taskId);
+  const fresh = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
   if (fresh.status === 'in_progress') return false;
   await closePendingTaskReviewOnStatusLeave(tx, {
     task: fresh,
@@ -1332,19 +1532,14 @@ export async function handTaskToInProgressForKick(
       status_changed_at_ms = ${now}, updated_at_ms = ${now}
     WHERE id = ${fresh.id}
   `;
-  await applyTaskCountTransition(
-    tx,
-    fresh.projectId,
-    taskCountBucket(fresh),
-    taskCountBucket({ status: 'in_progress', archivedAt: fresh.archivedAt }),
-  );
-  await recordActivity(tx, {
+  // The kick is the person's gesture, so the card's move bells and fires
+  // triggers like their drag would; the lane carries no auth context, so
+  // (as before) no audit row.
+  await settleTaskStatusChange(tx, {
     task: fresh,
+    toStatus: 'in_progress',
     actorType: 'user',
     actorId: args.userId,
-    action: 'status.changed',
-    fromValue: fresh.status,
-    toValue: 'in_progress',
   });
   return true;
 }
@@ -1367,8 +1562,7 @@ export async function agentRecordTaskOutputsTrusted(
   },
 ): Promise<void> {
   if (args.files.length === 0) return;
-  const task = await loadTaskOrThrow(tx, args.taskId);
-  if (task.organizationId !== args.organizationId) return;
+  const task = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
   const next: Array<{
     fileId: string;
     fileName: string;
@@ -1407,16 +1601,28 @@ export async function assignTask(
     assigneeId?: string;
   },
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, args.taskId);
+  const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
 
   const assignee = normalizeAssignee(args);
   await assertAssigneeValid(tx, { project, auth, assignee });
-  // TODO(agent runs/automations): reject while a live run holds the task.
+  // A live run holds the task for its current worker: transferring it
+  // mid-flight would leave the old agent driving (settle comments, the
+  // in_review park) a card that now shows someone else's name, and "Run
+  // agent" answering already_running for the wrong agent. The bulk bar
+  // applies the same rule as a skip; here the caller asked for one card, so
+  // the refusal names itself — the picker cancels the run first, then
+  // reassigns (its confirmed-handoff flow).
+  if (assigneeChanges(task, assignee) && (await taskHasLiveRun(tx, task))) {
+    throw new TaskError(
+      'TASK_HAS_LIVE_RUN',
+      'A live run holds this task; cancel it before reassigning',
+      409,
+    );
+  }
 
-  const previousAssigneeId = task.assigneeId;
   await tx`
     UPDATE app.tasks SET
       assignee_type = ${assignee?.assigneeType ?? null},
@@ -1424,41 +1630,7 @@ export async function assignTask(
       updated_at_ms = ${Date.now()}
     WHERE id = ${args.taskId}
   `;
-  await recordActivity(tx, {
-    task,
-    actorType: 'user',
-    actorId: auth.userId,
-    action: 'assignee.changed',
-    ...(previousAssigneeId !== null ? { fromValue: previousAssigneeId } : {}),
-    ...(assignee !== null ? { toValue: assignee.assigneeId } : {}),
-  });
-  await createAuditLog(
-    tx,
-    taskAudit(
-      auth,
-      task,
-      assignee ? TASK_AUDIT_ACTIONS.assigned : TASK_AUDIT_ACTIONS.unassigned,
-      {
-        previousState: {
-          assigneeType: task.assigneeType,
-          assigneeId: task.assigneeId,
-        },
-        newState: {
-          assigneeType: assignee?.assigneeType ?? null,
-          assigneeId: assignee?.assigneeId ?? null,
-        },
-      },
-    ),
-  );
-  await notifyTaskAssigned(tx, {
-    task,
-    assigneeType: assignee?.assigneeType ?? null,
-    assigneeId: assignee?.assigneeId ?? null,
-    actorType: 'user',
-    actorId: auth.userId,
-    previousAssigneeType: task.assigneeType,
-    previousAssigneeId: task.assigneeId,
-  });
+  await settleTaskAssigneeChange(tx, { task, assignee, auth });
 }
 
 /** Self-serve claim of an unassigned task. */
@@ -1467,7 +1639,7 @@ export async function claimTask(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<{ claimed: boolean; reason?: string }> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -1511,7 +1683,7 @@ export async function moveTask(
     afterTaskId?: string;
   },
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, args.taskId);
+  const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -1574,27 +1746,15 @@ export async function moveTask(
     WHERE id = ${args.taskId}
   `;
   if (statusChanges) {
-    await applyTaskCountTransition(
-      tx,
-      task.projectId,
-      taskCountBucket(task),
-      taskCountBucket({ status: args.status, archivedAt: task.archivedAt }),
-    );
-    await recordActivity(tx, {
+    // The drag is the same status door as the picker: it bells the
+    // subscribers and fires the org's triggers through the shared seam.
+    await settleTaskStatusChange(tx, {
       task,
+      toStatus: args.status,
       actorType: 'user',
       actorId: auth.userId,
-      action: 'status.changed',
-      fromValue: task.status,
-      toValue: args.status,
+      audit: auth,
     });
-    await createAuditLog(
-      tx,
-      taskAudit(auth, task, TASK_AUDIT_ACTIONS.statusChanged, {
-        previousState: { status: task.status },
-        newState: { status: args.status },
-      }),
-    );
     if (args.status === 'in_review') {
       await requestTaskReview(tx, {
         task: { ...task, status: 'in_review' },
@@ -1609,7 +1769,7 @@ export async function archiveTask(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   if (task.archivedAt !== null) {
@@ -1640,7 +1800,7 @@ export async function restoreTask(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<void> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   if (task.archivedAt === null) {
@@ -1667,16 +1827,55 @@ export async function restoreTask(
 }
 
 /**
+ * Every blob ref a set of task rows holds — the `fileId` of each
+ * attachment/output element (the `s3:` ref both columns carry, the same
+ * vocabulary `files/access.ts` reads back), de-duplicated in first-seen
+ * order. Malformed elements are skipped: a hard delete must never fail on a
+ * row it is about to remove.
+ */
+export function collectTaskBlobRefs(
+  rows: ReadonlyArray<{ attachments: unknown; outputs: unknown }>,
+): string[] {
+  const refs = new Set<string>();
+  for (const row of rows) {
+    for (const column of [row.attachments, row.outputs]) {
+      if (!Array.isArray(column)) continue;
+      for (const element of column) {
+        if (
+          element !== null &&
+          typeof element === 'object' &&
+          'fileId' in element &&
+          typeof element.fileId === 'string' &&
+          element.fileId !== ''
+        ) {
+          refs.add(element.fileId);
+        }
+      }
+    }
+  }
+  return [...refs];
+}
+
+/**
  * Hard delete — admin-only (0.4 contract). Deletes the WHOLE SUBTREE
  * (subtasks recursively) with each task's discussion thread; returns how
  * many children went with it (the confirm dialog names the count).
+ *
+ * Nothing the subtree owned outlives it: its live runs are cancelled in
+ * this transaction (the agent run through the ledgered cancel door, so the
+ * provenance entry lands before the FK cascade takes the row and the turn
+ * host reaps the exec as an orphan; a bound automation run through its own
+ * terminal door), and its attachment/output blobs are handed to the shared
+ * ref-release seam — the tasks' unbound file rows are trashed here and the
+ * durable `knowledge.release_refs` job deletes the bytes after commit,
+ * keeping any ref another task, document or file row still holds.
  */
 export async function deleteTask(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<{ deletedChildCount: number }> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   if (!['owner', 'admin'].includes(auth.role)) {
@@ -1688,22 +1887,57 @@ export async function deleteTask(
       status: TaskStatus;
       archivedAt: number | null;
       discussionThreadId: string | null;
+      attachments: unknown;
+      outputs: unknown;
     }[]
   >`
     WITH RECURSIVE tree AS (
-      SELECT id, status, archived_at_ms, discussion_thread_id, 0 AS depth
+      SELECT id, status, archived_at_ms, discussion_thread_id, attachments,
+             outputs, 0 AS depth
       FROM app.tasks WHERE id = ${taskId}
       UNION ALL
       SELECT t.id, t.status, t.archived_at_ms, t.discussion_thread_id,
-             tree.depth + 1
+             t.attachments, t.outputs, tree.depth + 1
       FROM app.tasks t JOIN tree ON t.parent_task_id = tree.id
       WHERE tree.depth < 32
     )
     SELECT id, status, archived_at_ms::float8 AS "archivedAt",
-           discussion_thread_id AS "discussionThreadId"
+           discussion_thread_id AS "discussionThreadId", attachments, outputs
     FROM tree
   `;
   const ids = tree.map((row) => row.id);
+
+  // Live runs die WITH their tasks, not after them. The agent run's row
+  // would FK-cascade away mid-turn, leaving the sandbox turn executing with
+  // nowhere to land and no provenance entry; cancelling it here writes the
+  // ledger row first, and the turn host's orphan check reaps the exec. A
+  // bound automation run keeps its own terminal contract (audit row,
+  // sessions released).
+  let cancelledRunCount = 0;
+  const liveAgentRuns = await tx<{ id: string; taskId: string }[]>`
+    SELECT id, task_id AS "taskId" FROM app.project_agent_runs
+    WHERE org_id = ${auth.organizationId} AND task_id = ANY(${ids})
+      AND status IN ('queued', 'running')
+  `;
+  for (const run of liveAgentRuns) {
+    const cancelled = await cancelAgentRunInTx(tx, {
+      organizationId: auth.organizationId,
+      runId: run.id,
+      taskId: run.taskId,
+    });
+    if (cancelled) cancelledRunCount += 1;
+  }
+  const liveAutomationRuns = await tx<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${auth.organizationId} AND project_id = ${task.projectId}
+      AND status IN ('queued', 'running', 'waiting')
+      AND input -> 'task' ->> 'id' = ANY(${ids})
+  `;
+  for (const run of liveAutomationRuns) {
+    const outcome = await cancelRunInTx(tx, auth.organizationId, run.id);
+    if (outcome.cancelled) cancelledRunCount += 1;
+  }
+
   for (const row of tree) {
     await applyTaskCountTransition(
       tx,
@@ -1738,11 +1972,54 @@ export async function deleteTask(
       )
   `;
   await tx`DELETE FROM app.tasks WHERE id = ANY(${ids})`;
+
+  // Blob reclaim through the shared release seam. A ref some SURVIVING task
+  // still lists stays (the same deliverable can sit on two cards); for the
+  // rest, the tasks' own unbound file rows are trashed so the release sees
+  // them dead, and the durable job deletes the bytes after commit — network
+  // I/O never runs inside this transaction, and the release re-checks
+  // liveness itself (a document or a chat thread holding the same ref keeps
+  // its bytes). Before this, every deleted task leaked its files for good.
+  const refs = collectTaskBlobRefs(tree);
+  let releasedRefs: string[] = [];
+  if (refs.length > 0) {
+    const orphaned = await tx<{ ref: string }[]>`
+      SELECT r.ref FROM unnest(${refs}::text[]) AS r(ref)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM app.tasks t
+        WHERE t.org_id = ${auth.organizationId}
+          AND (t.outputs @> jsonb_build_array(jsonb_build_object('fileId', r.ref))
+               OR t.attachments
+                  @> jsonb_build_array(jsonb_build_object('fileId', r.ref)))
+      )
+    `;
+    releasedRefs = orphaned.map((row) => row.ref);
+    if (releasedRefs.length > 0) {
+      await tx`
+        UPDATE app.file_metadata SET
+          lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
+        WHERE org_id = ${auth.organizationId}
+          AND storage_ref = ANY(${releasedRefs})
+          AND document_id IS NULL AND thread_id IS NULL
+          AND conversation_id IS NULL
+          AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+      `;
+      await addJobInTx(tx, 'knowledge.release_refs', {
+        organizationId: auth.organizationId,
+        refs: releasedRefs,
+      });
+    }
+  }
+
   await createAuditLog(
     tx,
     taskAudit(auth, task, TASK_AUDIT_ACTIONS.deleted, {
       previousState: { status: task.status, title: task.title },
-      metadata: { deletedChildCount: ids.length - 1 },
+      metadata: {
+        deletedChildCount: ids.length - 1,
+        cancelledRunCount,
+        releasedBlobRefCount: releasedRefs.length,
+      },
     }),
   );
   // Deletes leave no activity row (the task is gone) — hint explicitly.
@@ -1751,7 +2028,6 @@ export async function deleteTask(
     entity: 'task',
     entityId: taskId,
   });
-  // TODO(storage router): delete attachment/output blobs with the task.
   return { deletedChildCount: ids.length - 1 };
 }
 
@@ -1804,8 +2080,16 @@ export async function addTaskDependency(
   if (args.blockerTaskId === args.blockedTaskId) {
     throw new TaskError('TASK_DEPENDENCY_SELF', 'A task cannot block itself');
   }
-  const blocker = await loadTaskOrThrow(tx, args.blockerTaskId);
-  const blocked = await loadTaskOrThrow(tx, args.blockedTaskId);
+  const blocker = await loadTaskOrThrow(
+    tx,
+    args.blockerTaskId,
+    auth.organizationId,
+  );
+  const blocked = await loadTaskOrThrow(
+    tx,
+    args.blockedTaskId,
+    auth.organizationId,
+  );
   if (blocker.projectId !== blocked.projectId) {
     throw new TaskError(
       'TASK_DEPENDENCY_PROJECT_MISMATCH',
@@ -1860,7 +2144,11 @@ export async function removeTaskDependency(
   auth: ProjectAuthContext,
   args: { blockerTaskId: string; blockedTaskId: string },
 ): Promise<void> {
-  const blocked = await loadTaskOrThrow(tx, args.blockedTaskId);
+  const blocked = await loadTaskOrThrow(
+    tx,
+    args.blockedTaskId,
+    auth.organizationId,
+  );
   const project = await loadProjectOrThrow(tx, blocked.projectId);
   assertTaskWritable(project, auth);
   const deleted = await tx`
@@ -2313,7 +2601,7 @@ export async function getTask(
   canClaim: boolean;
   canComment: boolean;
 }> {
-  const task = await loadTaskOrThrow(sql, taskId);
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   const canEdit = checkProjectAccess(
@@ -2345,7 +2633,7 @@ export async function listSubtasks(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<DecoratedTaskRow[]> {
-  const task = await loadTaskOrThrow(sql, taskId);
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   const rows = await sql<TaskRow[]>`
@@ -2375,7 +2663,7 @@ export async function listTaskActivity(
   taskId: string,
   limit = 100,
 ): Promise<TaskActivityRow[]> {
-  const task = await loadTaskOrThrow(sql, taskId);
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   return sql<TaskActivityRow[]>`
@@ -2538,7 +2826,7 @@ export async function mentionTriggerPreview(
 
   let project: ProjectRow;
   if (args.taskId !== undefined) {
-    const task = await loadTaskOrThrow(sql, args.taskId);
+    const task = await loadTaskOrThrow(sql, args.taskId, auth.organizationId);
     project = await loadProjectOrThrow(sql, task.projectId);
   } else if (args.projectId !== undefined) {
     project = await loadProjectOrThrow(sql, args.projectId);
@@ -2712,9 +3000,10 @@ export async function bulkUpdateTasks(
     }
     const assigneeChanged =
       (args.clearAssignee === true || assignee !== null) &&
-      task.assigneeId !== (assignee?.assigneeId ?? null);
+      assigneeChanges(task, assignee);
     if (assigneeChanged && (await taskHasLiveRun(tx, task))) {
-      // Same live-run transfer gate as `assignTask`, applied as a skip.
+      // Same live-run transfer gate as `assignTask` (one `assigneeChanges`
+      // rule), applied as a skip.
       skipped += 1;
       continue;
     }
@@ -2751,7 +3040,6 @@ export async function bulkUpdateTasks(
     }
     push('updated_at_ms', now);
 
-    const previousBucket = taskCountBucket(task);
     const assignments = sets
       .map((column, index) => `${column} = $${index + 1}`)
       .join(', ');
@@ -2760,8 +3048,46 @@ export async function bulkUpdateTasks(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- positional params for a column list closed over literals
       [...values, taskId] as never[],
     );
+    // A bulk status change is every single card's status door at once:
+    // the same seam (rollup, activity, audit, event, bell) per task.
+    const statusAfter = args.status ?? task.status;
+    if (statusChanged) {
+      await settleTaskStatusChange(tx, {
+        task,
+        toStatus: statusAfter,
+        actorType: 'user',
+        actorId: auth.userId,
+        audit: auth,
+      });
+      // Reaching `in_review` IS the request for review from the bulk bar
+      // too — the gate belongs to the STATE, not to the door that moved the
+      // card. Without the mint the cards sat In review with nobody belled
+      // and nothing to respond to. The row reflects this patch's assignee
+      // so the review names the right driver.
+      if (statusAfter === 'in_review') {
+        await requestTaskReview(tx, {
+          task: {
+            ...task,
+            status: 'in_review',
+            ...(assigneeChanged
+              ? {
+                  assigneeType: assignee?.assigneeType ?? null,
+                  assigneeId: assignee?.assigneeId ?? null,
+                }
+              : {}),
+          },
+          trigger: { kind: 'human', actorId: auth.userId },
+        });
+      }
+    }
+    // An archive/restore riding the same patch moves the rollup bucket
+    // once more, from where the status step left the row.
+    const settledBucket = taskCountBucket({
+      status: statusAfter,
+      archivedAt: task.archivedAt,
+    });
     const nextBucket = taskCountBucket({
-      status: args.status ?? task.status,
+      status: statusAfter,
       archivedAt:
         args.archived !== undefined
           ? args.archived
@@ -2769,25 +3095,18 @@ export async function bulkUpdateTasks(
             : null
           : task.archivedAt,
     });
-    if (previousBucket !== nextBucket) {
+    if (settledBucket !== nextBucket) {
       await applyTaskCountTransition(
         tx,
         task.projectId,
-        previousBucket,
+        settledBucket,
         nextBucket,
       );
     }
-    if (statusChanged) {
-      await recordActivity(tx, {
-        task,
-        actorType: 'user',
-        actorId: auth.userId,
-        action: 'status.changed',
-        fromValue: task.status,
-        // args.status is defined whenever statusChanged is true.
-        toValue: args.status ?? task.status,
-      });
-    } else {
+    if (assigneeChanged) {
+      await settleTaskAssigneeChange(tx, { task, assignee, auth });
+    }
+    if (!statusChanged && !assigneeChanged) {
       await emitHintInTx(tx, {
         orgId: auth.organizationId,
         entity: 'task',
@@ -2855,7 +3174,7 @@ export async function startTaskAgentRunManual(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<{ started: boolean; reason?: string }> {
-  const task = await loadTaskOrThrow(tx, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
@@ -3074,7 +3393,7 @@ export async function listTaskDependencies(
   auth: ProjectAuthContext,
   taskId: string,
 ): Promise<{ blockedBy: DecoratedTaskRow[]; blocks: DecoratedTaskRow[] }> {
-  const task = await loadTaskOrThrow(sql, taskId);
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   const blockedBy = await sql<TaskRow[]>`

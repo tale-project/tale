@@ -1,8 +1,8 @@
 'use node';
 
 /**
- * Pure-JS DOM-global polyfills for running pdfjs-dist in the Convex node
- * action runtime.
+ * Pure-JS DOM-global polyfills, plus the ES2025 shims pdfjs expects, for
+ * running pdfjs-dist on the backend's Node worker.
  *
  * pdfjs 5.x's Node setup polyfills `DOMMatrix` / `ImageData` / `Path2D` by
  * `require("@napi-rs/canvas")` — a NATIVE module. Convex extracts a bundled
@@ -319,6 +319,37 @@ function ensureEs2025Shims(): void {
     Object.defineProperty(Promise, 'try', {
       value: (fn: (...args: unknown[]) => unknown, ...args: unknown[]) =>
         new Promise((resolve) => resolve(fn(...args))),
+      writable: true,
+      configurable: true,
+    });
+  }
+
+  // pdfjs 5.x calls this on plain Maps in both the main and worker builds
+  // (`_intentStates`, `methodPromises`, `objs`, …). Node 22 lacks it, and the
+  // failure is quiet: the operator-list read throws once per page, and that is
+  // the path that finds embedded images and decides "scanned page → OCR". Text
+  // extraction still runs, so a digital PDF looks fine while a scanned one
+  // indexes thin or empty with only a warning to say so (#3018).
+  //
+  // Spec shape: return the existing value when the key is present; otherwise
+  // compute, insert, and return. Presence, not truthiness — a callback that
+  // returns `undefined` still counts, so a second call does not recompute.
+  // `set` runs after the callback, as the proposal does: the callback may have
+  // inserted the key itself, and the computed value wins.
+  if (typeof Map.prototype.getOrInsertComputed !== 'function') {
+    // oxlint-disable-next-line no-extend-native -- deliberate spec-shaped polyfill of an ES2025 method Node 22 lacks; guarded so a real runtime implementation wins
+    Object.defineProperty(Map.prototype, 'getOrInsertComputed', {
+      value: function <K, V>(this: Map<K, V>, key: K, callbackfn: (k: K) => V) {
+        if (typeof callbackfn !== 'function') {
+          throw new TypeError(
+            'Map.prototype.getOrInsertComputed: callback is not a function',
+          );
+        }
+        if (this.has(key)) return this.get(key);
+        const value = callbackfn(key);
+        this.set(key, value);
+        return value;
+      },
       writable: true,
       configurable: true,
     });

@@ -2,7 +2,7 @@
  * The unified capability surface — ONE registry and ONE dispatcher for
  * everything a model can call.
  *
- * A builtin tool, an connector action, a skill, an automation, and an MCP
+ * A builtin tool, a connector action, a skill, an automation, and an MCP
  * tool are five different things to the platform and exactly one thing to the
  * model: something with a name, a description, an input schema, and a result.
  * Keeping them in one registry is what makes discovery honest — a search that

@@ -5,7 +5,7 @@ description: The model behind every automation — one workflow document, a vers
 
 An automation is one saved workflow document under a name, plus everything the platform keeps around it: the history of that document's versions, the single version that is live, the triggers allowed to start it, and the record of every run. Open **Automations** in the sidebar and each row is one of those names, with the version that is live beside it. Three ideas on this page decide how the rest of the surface behaves — versions never change, deploying is a separate act, and a trigger binds to the name rather than to a version — so read them before you build anything.
 
-Prefer to watch first? Episode 5 opens the triage automation end to end and decides a real approval card on camera, captions included.
+Prefer to watch first? Episode 5 opens the triage automation end to end and decides an approval card on camera, captions included — recorded on the earlier version, where the card sat in chat; in this version it sits on the run's detail page.
 
 <Video src="/videos/en/tutorials/ep5-automations/ep5-automations.en.mp4" poster="/videos/en/tutorials/ep5-automations/ep5-automations.en.webp" captions="/videos/en/tutorials/ep5-automations/ep5-automations.en.vtt" lang="en" title="Episode 5 — Automations & approvals" caption="Episode 5 — Automations & approvals (2:42)">
 
@@ -13,7 +13,7 @@ Prefer to watch first? Episode 5 opens the triage automation end to end and deci
 
 ## The workflow document
 
-Everything an automation does is declared in one document. Its `name` is also its identity — lowercase slug segments, dash-separated, with `/` grouping related automations into folders, as in `billing/dunning-reminder`. Around the name sit a `description`, an `inputs` JSON Schema describing the runtime input, the `nodes` that do the work, an `output` that is the automation's return value, and the `tests` that decide whether a version may be deployed.
+Everything an automation does is declared in one document. Its `name` is also its identity — lowercase slug segments, dash-separated, with `/` grouping related automations into folders, as in `billing/dunning-reminder`. The first segment can't be one of the words the platform keeps for its own pages — `asks`, `builder`, `catalog`, `listing`, `metrics`, `runs`, `serving-preview`, `upload` — because an automation named that way would save and then never open; the editor refuses such a name when you save. Around the name sit a `description`, an `inputs` JSON Schema describing the runtime input, the `nodes` that do the work, an `output` that is the automation's return value, and the `tests` that decide whether a version may be deployed.
 
 ```yaml
 name: billing/dunning-reminder
@@ -62,13 +62,15 @@ Branching and looping are fields on a node rather than separate step types, so t
 
 ### Node types
 
-Three types are built in, and every connector action and platform native — knowledge search, document operations — joins the same table alongside them.
+Four types are built in, and every connector action and platform native — knowledge search, document operations — joins the same table alongside them.
 
 **`transform`** runs pure JavaScript to reshape data. It has no network and no imports: the body reads the node's resolved `input` and must return a value.
 
 **`llm`** calls a language model with a templated prompt. `model` is required and always explicit — an automation never picks one on your behalf (the chat composer's Auto is a chat-only affordance). The output is `{text}`, or the schema-shaped object when the node declares an `outputSchema`.
 
-**`subworkflow`** runs another saved automation as a single node, referenced as `"name"` or `"name@version"`. Without a version it uses the deployed one, and nesting is capped at three levels.
+**`agent`** runs one turn of a coding agent (Claude Code, Codex, and the other harnesses) in the sandbox. It reads staged `files`, uses `skills`, brokered `connectors`, granted platform `tools`, and injected `secrets`, and returns `{text, files, status}`; `model` is required. Reach for `llm` when a one-shot completion is enough, and for `agent` only when the step needs tools, files, or several turns — a live agent node runs as an asynchronous turn, so it sits at the top level rather than inside a `subautomation` and does not iterate with `forEach`.
+
+**`subautomation`** runs another saved automation as a single node, its `automation` field naming `"name"` or `"name@version"`. Without a version it uses the deployed one, and nesting is capped at three levels.
 
 ### Structured and unstructured output
 

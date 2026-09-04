@@ -7,7 +7,7 @@ A project's **Agents** tab is its crew: named agents you configure once and then
 
 <Frame caption="The Agents tab — the project's own agents, each row naming its harness, serving provider, and model.">
 
-![The Agents tab of a project listing named agents, each with a harness label, the serving provider, the model id, and an equipped count.](/images/platform/project-agents-models.webp)
+![The Agents tab of the Website relaunch project listing two named agents — Content editor on Claude Code and Redirect auditor on Codex — each row naming the serving provider and model id, beside a New agent button.](/images/platform/project-agents-models.webp)
 
 </Frame>
 

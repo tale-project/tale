@@ -12,10 +12,6 @@ import {
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
 import { createOrgObjectStorageOriginsProvider } from './lib/org-storage-origins';
-import {
-  createScreencastRelayHandler,
-  type ScreencastWsData,
-} from './lib/screencast-relay';
 import { injectBootShell, shouldServeBootShell } from './lib/shared/boot-shell';
 import { isValidOrgSlug } from './lib/shared/constants/org-slug';
 import { parseSessionIdleTimeoutMinutes } from './lib/shared/session-idle';
@@ -122,6 +118,12 @@ function backendBaseUrl(): string {
   return configured === '' ? 'http://127.0.0.1:3005' : configured;
 }
 
+/**
+ * Validate the request's session cookie against the backend's `/api/sse/auth`
+ * door and answer the caller's org memberships — `null` means "no valid
+ * session". Shared by the `/events/file` SSE gate and the `/canvas-preview`
+ * gate; this process has no database, so the backend is the oracle.
+ */
 async function resolveAllowedOrgSlugs(
   cookieHeader: string | undefined,
 ): Promise<Set<string> | null> {
@@ -132,7 +134,7 @@ async function resolveAllowedOrgSlugs(
     });
     if (res.status === 401) return null;
     if (!res.ok) {
-      console.warn(`[/events/file] backend auth lookup returned ${res.status}`);
+      console.warn(`[session auth] backend auth lookup returned ${res.status}`);
       return null;
     }
     const body: unknown = await res.json();
@@ -145,96 +147,10 @@ async function resolveAllowedOrgSlugs(
       slugs.filter((s): s is string => typeof s === 'string' && s.length > 0),
     );
   } catch (err) {
-    console.warn('[/events/file] backend auth lookup failed', err);
+    console.warn('[session auth] backend auth lookup failed', err);
     return null;
   }
 }
-
-// ---------------------------------------------------------------------------
-// Screencast (live browser view) WebSocket termination.
-//
-// The browser opens `wss://<site>/screencast/<threadId>` (noVNC). This is the
-// ONLY browser-facing WS termination in the deployment. server.ts authenticates
-// the upgrade (cookie+org) by forwarding the Cookie header to the backend's
-// `/api/sandbox/screencast-auth` oracle — this process has no database, so the
-// oracle runs the thread-view boundary and maps the thread → its live sandbox
-// session. On 200 we upgrade and relay raw binary RFB
-// frames to the spawner WS (lib/screencast-relay.ts). The chain:
-//   browser → [here] → spawner WS (HMAC) → runnerd tunnel → x11vnc.
-// ---------------------------------------------------------------------------
-
-/** `GET /screencast/<threadId>` — the (percent-encoded) threadId is the single
- * path segment. Anchored so it can't match a deeper path. */
-export const SCREENCAST_ROUTE_RE = /^\/screencast\/([^/]+)$/;
-
-type ScreencastAuthResult =
-  | { ok: true; sessionId: string; control: boolean }
-  | { ok: false; status: number; body: string; contentType: string };
-
-/**
- * Authorize a screencast WS upgrade by forwarding the request Cookie to the
- * backend's `/api/sandbox/screencast-auth` door (the same mechanism
- * `resolveAllowedOrgSlugs` uses). The oracle resolves identity from the
- * session cookie and runs the thread-view boundary, returning the live
- * sessionId on success. We propagate its status (401/403/409/429) verbatim
- * so the browser sees the same refusal the workspace-file route would give.
- */
-export async function authorizeScreencast(
-  threadId: string,
-  cookieHeader: string | undefined,
-  control = false,
-): Promise<ScreencastAuthResult> {
-  const deny = (
-    status: number,
-    body: string,
-    contentType = 'text/plain',
-  ): ScreencastAuthResult => ({ ok: false, status, body, contentType });
-  if (!cookieHeader) return deny(401, 'Unauthenticated');
-  let res: Response;
-  try {
-    const target = `${backendBaseUrl()}/api/sandbox/screencast-auth?threadId=${encodeURIComponent(
-      threadId,
-    )}${control ? '&control=1' : ''}`;
-    res = await fetch(target, { headers: { cookie: cookieHeader } });
-  } catch (err) {
-    console.warn('[/screencast] backend auth lookup failed', err);
-    return deny(502, 'Bad Gateway');
-  }
-  if (res.status === 200) {
-    let sessionId: unknown;
-    let controlGranted = false;
-    try {
-      const body: unknown = await res.json();
-      sessionId =
-        body && typeof body === 'object' && 'sessionId' in body
-          ? body.sessionId
-          : undefined;
-      controlGranted =
-        body !== null &&
-        typeof body === 'object' &&
-        (body as { control?: unknown }).control === true;
-    } catch (err) {
-      console.warn('[/screencast] backend auth 200 with unreadable body', err);
-      return deny(502, 'Bad Gateway');
-    }
-    if (typeof sessionId === 'string' && sessionId.length > 0) {
-      return { ok: true, sessionId, control: controlGranted };
-    }
-    return deny(502, 'Bad Gateway');
-  }
-  // Non-200: forward the oracle's status + body so the client sees the same
-  // refusal (409 session_not_running is JSON; 401/403/429 are plain text).
-  const contentType = res.headers.get('content-type') ?? 'text/plain';
-  let body: string;
-  try {
-    body = await res.text();
-  } catch {
-    body = '';
-  }
-  return deny(res.status, body, contentType);
-}
-
-const screencastWsHandler = createScreencastRelayHandler();
 
 // ---------------------------------------------------------------------------
 
@@ -639,14 +555,62 @@ export function createApp(
   // header overrides. The Canvas preview shell needs its own permissive
   // CSP; bypass `secureHeaders` for that single path explicitly. Path
   // guard, not registration order — the latter is fragile to refactors.
+  // Branding images are org-admin-uploaded bytes (SVG included) served on
+  // the app origin. In the app they are embedded ONLY as `<img>` / `<link
+  // rel="icon">`, where a response CSP is irrelevant — but a direct
+  // NAVIGATION to the URL makes an SVG a same-origin document whose scripts
+  // run with the app origin (stored XSS from any org's admin against every
+  // user of every org on the deployment). A bare `sandbox` CSP directive (no
+  // allow-* flags) turns any such navigation into an inert opaque-origin
+  // document — no script, no same-origin reach — while pixel rendering in
+  // image contexts is untouched. nosniff pins the allowlisted Content-Type.
+  const secureForBrandingImages = secureHeaders({
+    contentSecurityPolicy: { sandbox: [] },
+    strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
+    xContentTypeOptions: 'nosniff',
+    xFrameOptions: 'DENY',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+  });
   app.use('*', async (c, next) => {
-    if (c.req.path === '/canvas-preview') return next();
+    // Only the POST (preview render) escapes the strict headers — its
+    // handler sets the bespoke sandboxed CSP itself. A GET here falls
+    // through to the SPA shell and must keep the standard policy.
+    if (c.req.path === '/canvas-preview' && c.req.method === 'POST')
+      return next();
+    if (c.req.path.startsWith('/branding/images/'))
+      return secureForBrandingImages(c, next);
     if (c.req.path.startsWith('/dav/') || c.req.path === '/dav')
       return secureForDav(c, next);
     return currentSecure()(c, next);
   });
 
   app.post('/canvas-preview', async (c) => {
+    // Session gate. This response deliberately escapes the SPA's strict CSP
+    // (inline/eval script allowed), so it must never render for an anonymous
+    // caller: an attacker could otherwise form-POST a victim's browser here
+    // and have their HTML echoed on the app origin. The backend session
+    // oracle (the same door `/events/file` uses) validates the cookie. The
+    // in-app preview posts same-origin, so the session cookie always rides
+    // along. Defense-in-depth on top of the gate, the response CSP carries a
+    // `sandbox` directive (see buildCanvasPreviewCsp) so even an
+    // authenticated victim navigated here top-level gets an opaque-origin
+    // document with no reach into the app.
+    const allowedOrgSlugs = await resolveAllowedOrgSlugs(
+      c.req.header('cookie'),
+    );
+    if (allowedOrgSlugs === null) {
+      return new Response('Unauthenticated', {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store',
+          Vary: 'Cookie',
+          'WWW-Authenticate': 'Cookie',
+        },
+      });
+    }
     const body = await c.req.parseBody();
     const userHtml = typeof body.html === 'string' ? body.html : '';
     return new Response(wrapCanvasPreviewHtml(userHtml), {
@@ -658,6 +622,7 @@ export function createApp(
         'X-Frame-Options': 'SAMEORIGIN',
         // Per-request bespoke HTML — no caching.
         'Cache-Control': 'no-store',
+        Vary: 'Cookie',
       },
     });
   });
@@ -912,67 +877,13 @@ export function createApp(
 if (import.meta.main) {
   initTelemetry();
   const app = createApp();
-  Bun.serve<ScreencastWsData>({
+  Bun.serve({
     port,
     hostname: '0.0.0.0',
     // Bun's default idleTimeout (10s) would kill the long-lived `/events/file`
-    // SSE stream and an idle (no input/no framebuffer delta) screencast WS.
-    // Match the spawner's screencast server: 255 (Bun's max). RFB sends
-    // periodic framebuffer updates and noVNC pings, so a healthy viewer never
-    // trips this; it only backstops a wedged socket.
+    // SSE stream; 255 is Bun's max. The stream's own heartbeats keep a healthy
+    // client well inside it, so this only backstops a wedged socket.
     idleTimeout: 255,
-    // Wrapper around the Hono app: intercept the browser-facing screencast WS
-    // upgrade (which needs the live Server instance for `server.upgrade`, only
-    // available here), and delegate EVERYTHING else to app.fetch unchanged so
-    // every existing route (incl. the `/events/file` SSE) is preserved.
-    async fetch(req, server) {
-      const url = new URL(req.url);
-      const screencastMatch =
-        req.method === 'GET' &&
-        req.headers.get('upgrade')?.toLowerCase() === 'websocket'
-          ? SCREENCAST_ROUTE_RE.exec(url.pathname)
-          : null;
-      if (screencastMatch) {
-        // The captured segment is percent-encoded by the client
-        // (buildScreencastUrl → encodeURIComponent). Decode before handing it
-        // to the auth oracle / session resolver.
-        let threadId: string;
-        try {
-          threadId = decodeURIComponent(screencastMatch[1] ?? '');
-        } catch {
-          return new Response('Bad Request', { status: 400 });
-        }
-        if (!threadId) return new Response('Bad Request', { status: 400 });
-
-        // `?control=1` requests a WRITABLE browser (human takeover); the oracle
-        // decides whether to grant it (pending handoff + owner + lease) and a
-        // denied control request still streams read-only.
-        const wantControl = url.searchParams.get('control') === '1';
-        // Auth BEFORE upgrade: a denied viewer never reaches the relay.
-        const auth = await authorizeScreencast(
-          threadId,
-          req.headers.get('cookie') ?? undefined,
-          wantControl,
-        );
-        if (!auth.ok) {
-          return new Response(auth.body, {
-            status: auth.status,
-            headers: {
-              'Content-Type': auth.contentType,
-              'Cache-Control': 'no-store',
-              Vary: 'Cookie',
-            },
-          });
-        }
-        const upgraded = server.upgrade(req, {
-          data: { sessionId: auth.sessionId, threadId, control: auth.control },
-        });
-        // On success Bun owns the socket and `fetch` must return undefined.
-        if (upgraded) return undefined;
-        return new Response('Upgrade failed', { status: 500 });
-      }
-      return app.fetch(req, server);
-    },
-    websocket: screencastWsHandler,
+    fetch: (req, server) => app.fetch(req, server),
   });
 }

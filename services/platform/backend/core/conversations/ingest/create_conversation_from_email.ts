@@ -13,6 +13,7 @@ import { buildInitialMessage } from './build_initial_message';
 import { checkConversationExists } from './check_conversation_exists';
 import { checkMessageExists } from './check_message_exists';
 import { MAX_EMAILS_PER_BATCH, NO_SUBJECT } from './constants';
+import { byEmailDateAscending, tipOfEmails } from './email_epoch';
 import { findOrCreateContactFromEmail } from './find_or_create_contact_from_email';
 import { normalizeEmails } from './normalize_email';
 import { normalizeExternalMessageId } from './normalize_external_message_id';
@@ -95,12 +96,15 @@ export async function createConversationFromEmail(
   const emailsArray: EmailType[] = normalizeEmails(params.emails);
 
   if (emailsArray.length === 0) {
-    return { conversationId: null, created: false, reason: 'no_emails' };
+    return {
+      conversationId: null,
+      created: false,
+      reason: 'no_emails',
+      ingestedTip: null,
+    };
   }
 
-  emailsArray.sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-  );
+  emailsArray.sort(byEmailDateAscending);
 
   if (emailsArray.length > MAX_EMAILS_PER_BATCH) {
     debugLog(
@@ -111,6 +115,12 @@ export async function createConversationFromEmail(
     );
     emailsArray.length = MAX_EMAILS_PER_BATCH;
   }
+
+  // The tip of what this pass COVERS — the newest email in the (post-truncation)
+  // window it walks. The sync advances the watermark to this, never past it, so
+  // a message truncated off the end (always a newer one, since the window is
+  // oldest-first) is re-listed next pass instead of being stepped over and lost.
+  const ingestedTip = tipOfEmails(emailsArray);
 
   debugLog('create_from_email Processing', emailsArray.length, 'emails');
 
@@ -312,6 +322,9 @@ export async function createConversationFromEmail(
   }
 
   if (processedCount === 0 && skippedCount > 0) {
+    // Every email was unpersistable (no Message-ID / no resolvable contact).
+    // They can never be ingested, so the watermark advances over them rather
+    // than re-fetching the same dead window forever.
     return {
       conversationId: null,
       created: false,
@@ -319,6 +332,7 @@ export async function createConversationFromEmail(
       processedCount,
       skippedCount,
       conversationIds: [],
+      ingestedTip,
     };
   }
 
@@ -348,5 +362,6 @@ export async function createConversationFromEmail(
     messageCount: processedCount,
     processedCount,
     skippedCount,
+    ingestedTip,
   };
 }

@@ -6,6 +6,15 @@ export function createDbService(config: ServiceConfig): ComposeService {
   return {
     image: imageRef(config, 'db'),
     container_name: `${getProjectId()}-db`,
+    // SIGINT = PostgreSQL's *fast* shutdown (disconnect every client,
+    // checkpoint, exit cleanly). Docker's default SIGTERM is the *smart*
+    // shutdown, which waits for every client session to end — with a backend
+    // or psql holding connections it never finishes, and Docker SIGKILLs the
+    // server after the grace period: a crash-mode stop that left a
+    // never-initialised page in pg_search's BM25 index (PANIC on every write).
+    // The tale-db image sets the same STOPSIGNAL; this covers an older image.
+    // Keep in lockstep with the canonical compose.yml db service.
+    stop_signal: 'SIGINT',
     stop_grace_period: '60s',
     shm_size: '256mb',
     volumes: [
@@ -41,7 +50,7 @@ export function createDbService(config: ServiceConfig): ComposeService {
     // is set here or in .env). The split `compose.yml` runs a SEPARATE
     // `knowledge-db` service, so the in-process RAG/crawler code resolves its
     // datastore at host `knowledge-db` by default
-    // (convex/lib/knowledge/db/knowledge_db.ts → getKnowledgeDatabaseUrl). We
+    // (the backend resolves it via getKnowledgeDatabaseUrl). We
     // alias this service to `knowledge-db` so that same default URL resolves
     // here, with no extra env wiring — keeping the runtime identical across
     // both topologies.

@@ -1,15 +1,15 @@
 ---
 title: Configurer les approbations
-description: Là où les exigences d’approbation sont déclarées — par opération d’connector, par outil MCP, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter.
+description: Là où les exigences d’approbation sont déclarées — par opération de connector, avec un fichier de politique par organisation qui déplace la ligne — et quelles portes humaines se tiennent hors de cette politique.
 ---
 
-Les exigences d’approbation dans Tale sont déclaratives : chaque capacité porte son propre drapeau disant si un agent doit d’abord demander, et le drapeau voyage avec l’connector ou le serveur qui fournit la capacité. Rien n’est à configurer pour que les valeurs par défaut soient justes — cette page montre où vit chaque drapeau, quelles écritures demandent d’elles-mêmes et comment changer cela pour ton organisation.
+Les exigences d’approbation dans Tale sont déclaratives : chaque capacité porte son propre drapeau disant si une exécution doit d’abord demander, et le drapeau voyage avec l’connector qui fournit la capacité. Rien n’est à configurer pour que les valeurs par défaut soient justes — cette page montre où vit chaque drapeau, quelles écritures demandent d’elles-mêmes et comment changer cela pour ton organisation.
 
 Le modèle de ce qu’est une carte d’approbation et de qui la décide vit sur [Concepts d’approbation](/fr/platform/approvals/concepts). Ce qui suit est la surface de configuration, capacité par capacité.
 
 ## Opérations d’connector
 
-Chaque connector déclare ses opérations, et chaque opération porte son propre drapeau d’approbation. Ouvre **Paramètres > Connectors**, clique sur une connector, et sa liste d’opérations badge celles marquées **Nécessite une approbation** — pour les connecteurs livrés, c’est le versant écriture : envoyer du courrier, poster des messages, créer des tickets. Les lectures s’exécutent sans carte ; les écritures marquées tiennent dans le chat avec leurs paramètres exacts jusqu’à ce que quelqu’un approuve.
+Chaque connector déclare ses opérations, et chaque opération porte son propre drapeau d’approbation — pour les connecteurs livrés, c’est le versant écriture : envoyer du courrier, poster des messages, créer des tickets. Les lectures s’exécutent sans carte ; une écriture marquée met l’exécution d’automatisation en pause, et la page de détail de l’exécution montre l’opération avec ses paramètres exacts jusqu’à ce que quelqu’un décide.
 
 Le drapeau n’est pas un réglage séparé qu’un administrateur bascule. Chaque action déclarée par un connecteur porte un effet — `read` ou `write` — et c’est le versant écriture que la politique d’approbation retient. Cela garde les deux honnêtes l’un envers l’autre : une action ne peut pas passer discrètement d’une lecture à une écriture sans changer aussi ce pour quoi elle doit demander.
 
@@ -40,26 +40,26 @@ Une opération déjà en attente sur une carte garde sa carte même si la politi
 
 ## Outils MCP
 
-Le manifeste d’un serveur MCP marque lesquels de ses outils exigent un accord. Ouvre **Paramètres > API > MCP**, déplie un serveur, et sa liste **Outils découverts** badge chaque outil marqué avec **Nécessite une approbation** — ceux-là demandent dans le chat chaque fois qu’un agent les appelle. Le drapeau vient de l’auteur du serveur ; connecter un serveur, c’est accepter son contrat d’outils, donc relis la liste avant d’en activer un. [Serveurs MCP](/fr/platform/connectors/mcp-servers) couvre l’enregistrement.
+Les serveurs MCP externes — et les drapeaux d’approbation par outil que leurs manifestes portaient — ne font pas partie de cette version : il n’y a aucun serveur à connecter ni aucune liste d’outils à relire. La seule surface MCP est l’endpoint entrant sous **Paramètres > API > MCP**, où ton client pilote Tale, et une action de connector invoquée par là suit les mêmes règles d’approbation que partout ailleurs — une action retenue répond par une approbation en attente au lieu de s’exécuter. [Endpoint MCP](/fr/develop/mcp-endpoint) couvre les outils et ce que la clé de chaque rôle peut faire ; [Serveurs MCP](/fr/platform/connectors/mcp-servers) dit ce qui a remplacé le formulaire d’enregistrement.
 
-## Garde-fous d’écriture intégrés
+## Portes hors de cette politique
 
-Certaines portes sont livrées actives et ne se configurent pas, parce que l’action est lourde de conséquences par nature :
+Trois portes humaines du produit ne relèvent pas de la politique d’approbation et ne se désactivent pas ici, parce que chacune a sa propre entrée :
 
-- **Écritures de documents** — un agent qui enregistre des fichiers dans le hub documentaire demande toujours (**Enregistrer dans les documents**).
-- **Écritures de connaissances** — un agent qui stocke un fait à l’échelle de l’org demande toujours (**Enregistrer dans la base de connaissances**).
-- **Création, mises à jour et exécutions de workflows** — un agent qui construit, modifie ou démarre un workflow demande toujours ; voir [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows).
+- **Travail d’agent en revue** — un agent de projet ne termine jamais une tâche ; son résultat se met en pause à **En revue** jusqu’à ce qu’une personne l’accepte, et [Automatisation des tâches](/fr/platform/projects/task-automation) couvre qui peut le valider.
+- **Documents contrôlés** — un fichier marqué comme contrôlé suit un cycle de soumission, de relecture et d’approbation avec un relecteur nommé ; [Documents](/fr/platform/knowledge/documents) le couvre.
+- **Demandes d’effacement** — un effacement RGPD exige l’approbation d’un second Admin avant que la cascade s’exécute ; [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests) la couvre.
 
 <Note>
 
-Le levier pour celles-ci n’est pas le drapeau d’approbation mais la capacité elle-même : un agent sans les outils de documents ou de workflows ne produit jamais la carte. Taille le [jeu d’outils](/fr/platform/agents/tools) de l’agent pour retirer la capacité entièrement.
+L’assistant de chat ne produit aucune approbation d’aucune sorte : ses outils sont en lecture seule, il n’y a donc ni carte d’écriture de document, ni carte d’écriture de connaissances, ni carte de workflow dans un chat. Une exécution qui a besoin d’une réponse plutôt que d’une permission — un nœud agent qui pose une question — est une exécution **En attente**, couverte dans [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows).
 
 </Note>
 
 ## Vérifier ce qui demandera
 
-Avant de mettre un agent devant de vrais systèmes, lis ses capacités comme le ferait un approbateur : la liste d’opérations de l’connector pour les écritures marquées, les **Outils découverts** du serveur MCP pour les outils marqués, et l’onglet outils de l’agent pour savoir s’il tient des outils d’écriture tout court. Le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre ensuite chaque décision que produit l’installation.
+Avant de mettre une automatisation en service face à de vrais systèmes, lis ses nœuds connector comme le ferait un approbateur : lesquels écrivent, et lesquels ta politique approuve d’office. **Essai** te montre le graphe sans rien toucher — le mode simulation ne demande jamais — et le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre ensuite chaque décision que produisent les exécutions réelles.
 
 ## Où cela s’inscrit
 
-Configurer ici, c’est distribuer — les drapeaux vivent avec les connectors et les serveurs qui possèdent les capacités. Lis [Concepts d’approbation](/fr/platform/approvals/concepts) pour le cycle de vie de carte que ces drapeaux produisent, et [Outils d’agent](/fr/platform/agents/tools) pour le versant capacité de la même frontière.
+Configurer ici, c’est distribuer — les drapeaux vivent avec les connectors qui possèdent les capacités, et un fichier de politique par organisation déplace la ligne. Lis [Concepts d’approbation](/fr/platform/approvals/concepts) pour la carte que ces drapeaux produisent, et [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) pour l’endroit où l’exécution en pause attend.

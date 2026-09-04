@@ -107,10 +107,11 @@ actions:
           type: string
           description: Only comments newer than the last one containing this text.
         limit: { type: number, description: 'Newest N comments (max 100).' }
-    output: '{ count: number, comments: Array<{ authorType: string, authorId: string, body: string, createdAt: number }> }'
+    output: '{ count: number, truncated: boolean, comments: Array<{ authorType: string, authorId: string, body: string, createdAt: number }> }'
     mock: |
       return {
         count: 1,
+        truncated: false,
         comments: [
           { authorType: 'user', authorId: 'usr_mock', body: 'Please re-check page 3.', createdAt: 1_750_000_000_000 },
         ],

@@ -26,7 +26,6 @@ import { lazyComponent } from '@/lib/utils/lazy-component';
 import {
   useDeleteConversation,
   useDiscardOutboundMessage,
-  useDownloadAttachments,
   useGenerateUploadUrl,
   useMarkAsRead,
   useReopenConversation,
@@ -132,7 +131,6 @@ export function ConversationPanel({
   const { mutate: markAsRead } = useMarkAsRead();
   const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
-  const { mutate: downloadAttachments } = useDownloadAttachments();
   const { mutate: reopenConversation, isPending: isReopening } =
     useReopenConversation();
   const { mutate: deleteConversation, isPending: isDeleting } =
@@ -592,27 +590,6 @@ export function ConversationPanel({
                             onUndoSend={handleUndoSend}
                             onRetrySend={handleRetrySend}
                             onDiscard={handleDiscardOutbound}
-                            onDownloadAttachments={(messageId) => {
-                              downloadAttachments(
-                                {
-                                  messageId: messageId,
-                                },
-                                {
-                                  onError: (error) => {
-                                    console.error(
-                                      'Failed to download attachments:',
-                                      error,
-                                    );
-                                    toast({
-                                      title: tConversations(
-                                        'panel.downloadFailed',
-                                      ),
-                                      variant: 'destructive',
-                                    });
-                                  },
-                                },
-                              );
-                            }}
                           />
                         ))}
                       </Stack>

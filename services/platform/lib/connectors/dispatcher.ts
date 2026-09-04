@@ -3,7 +3,7 @@
  * connector action.
  *
  * Automation nodes, chat tools, conversation email replies, and actionable
- * notifications all arrive here, so the rules that make an connector call
+ * notifications all arrive here, so the rules that make a connector call
  * safe are written once: the action's JSON Schema is enforced before anything
  * leaves the process, live traffic is mediated by the host (allowlist,
  * https-only, host-owned Authorization), and the caller mode decides what
@@ -482,7 +482,7 @@ export async function executeConnectorAction(
   if (!ctx.organizationId) {
     throw new ConnectorError(
       'ORGANIZATION_REQUIRED',
-      'an connector invocation must name the organization it acts for',
+      'a connector invocation must name the organization it acts for',
       { connector: args.connector, action: args.action },
     );
   }
