@@ -4,9 +4,6 @@ export const TOPIC_MAX_LENGTH = 120;
 /** Maximum length of a knowledge entry's markdown content (characters). */
 export const CONTENT_MAX_LENGTH = 8000;
 
-/** Reserved documents-hub folder that holds the markdown backing documents. */
-export const KNOWLEDGE_ENTRIES_FOLDER = 'Knowledge entries';
-
 /** `documents.sourceProvider` value for knowledge-entry backing documents. */
 export const KNOWLEDGE_SOURCE_PROVIDER = 'knowledge';
 
