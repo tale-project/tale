@@ -6722,6 +6722,9 @@ tasks:
     handoffConfirmLiveRun:
       '{name} arbeitet gerade an dieser Aufgabe — die Neuzuweisung bricht
       den laufenden Lauf zuerst ab.'
+    liveRunGuard:
+      Diese Aufgabe hat gerade einen laufenden Lauf — brich ihn ab, bevor du
+      sie neu zuweist.
     handoffConfirmAction: Neu zuweisen
     unassign: Zuweisung aufheben
     you: Du

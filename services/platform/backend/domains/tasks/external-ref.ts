@@ -11,7 +11,10 @@ import {
 import { createAuditLog } from '../audit_logs/service.ts';
 import { beginRun } from '../automations/store.ts';
 import { emitEvent } from '../events/emit.ts';
-import { closePendingTaskReviewOnStatusLeave } from './reviews.ts';
+import {
+  closePendingTaskReviewOnStatusLeave,
+  requestTaskReview,
+} from './reviews.ts';
 import {
   applyTaskCountTransition,
   computeEndRank,
@@ -291,6 +294,28 @@ export async function upsertTaskByExternalRef(
         action: 'status.changed',
         fromValue: statusFrom,
         toValue: newStatus,
+      });
+    }
+    // A non-workflow external close PARKS the card at `in_review`, and that
+    // park IS the request for review — the gate belongs to the state, so the
+    // reviewer is belled, the board gets its chip, and the later leave to
+    // done records a real approval. Idempotent: a pending row is reused, so
+    // a re-close of an already parked card heals a missing gate rather than
+    // minting twice.
+    if (newStatus === 'in_review') {
+      await requestTaskReview(tx, {
+        task: {
+          ...existing,
+          status: 'in_review',
+          assigneeType: assigneePatch?.assigneeType ?? existing.assigneeType,
+          assigneeId: assigneePatch?.assigneeId ?? existing.assigneeId,
+        },
+        trigger: {
+          kind: 'automation',
+          ...(args.automationSlug !== undefined
+            ? { slug: args.automationSlug }
+            : {}),
+        },
       });
     }
     await externalRefAudit(tx, {

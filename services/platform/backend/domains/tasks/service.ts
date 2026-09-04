@@ -4,6 +4,7 @@ import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
 } from '../../../lib/shared/task-label-colors.ts';
+import { findOrganizationMember } from '../../auth/membership.ts';
 import {
   checkProjectAccess,
   EDITOR_ROLES,
@@ -16,12 +17,15 @@ import {
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
 import { REVIEW_POLICY_REFUSAL_CODES } from '../../core/tasks/review_shared.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { cancelRunInTx } from '../automations/store.ts';
 import {
   autoSubscribe,
   notifyTaskAssigned,
+  notifyTaskReviewerAssigned,
   notifyTaskStatusChanged,
 } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
@@ -31,11 +35,12 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
-import { kickAgentRun } from './agent-runs.ts';
+import { cancelAgentRunInTx, kickAgentRun } from './agent-runs.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
   collectPendingReviewsForProjects,
   requestTaskReview,
+  type TaskReviewTrigger,
 } from './reviews.ts';
 
 /**
@@ -81,13 +86,13 @@ export const TASK_BOARD_CAP = 2000;
 
 export class TaskError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404;
+  readonly status: 400 | 403 | 404 | 409;
   readonly data: Record<string, unknown> | undefined;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 = 400,
+    status: 400 | 403 | 404 | 409 = 400,
     data?: Record<string, unknown>,
   ) {
     super(message);
@@ -635,9 +640,26 @@ function taskAudit(
 // Assignee validation
 // ---------------------------------------------------------------------------
 
-interface AssigneeRef {
+export interface AssigneeRef {
   assigneeType: TaskAssigneeType;
   assigneeId: string;
+}
+
+/**
+ * Whether writing `assignee` onto `task` changes who holds it — ONE rule for
+ * the picker (`assignTask`) and the bulk bar (`bulkUpdateTasks`), so the
+ * live-run transfer gate they share can never disagree about what counts as
+ * a transfer. A same-assignee re-select and clearing an already-unassigned
+ * task are not transfers.
+ */
+export function assigneeChanges(
+  task: Pick<TaskRow, 'assigneeType' | 'assigneeId'>,
+  assignee: AssigneeRef | null,
+): boolean {
+  return (
+    task.assigneeId !== (assignee?.assigneeId ?? null) ||
+    task.assigneeType !== (assignee?.assigneeType ?? null)
+  );
 }
 
 function normalizeAssignee(args: {
@@ -1066,6 +1088,29 @@ export async function updateTask(
     previousState.reviewerUserId = task.reviewerUserId;
     newState.reviewerUserId = reviewerUserId;
   }
+  // A NEW designee (not a clear, not a re-select) is about to be subscribed
+  // and belled: only a live member of THIS org can be on the hook — the
+  // picker offers members only, so a miss is a stale or hand-built request,
+  // and a disabled account cannot review.
+  const designatedReviewer =
+    args.reviewerUserId !== undefined &&
+    reviewerUserId !== null &&
+    reviewerUserId !== task.reviewerUserId
+      ? reviewerUserId
+      : null;
+  if (designatedReviewer !== null) {
+    const member = await findOrganizationMember(
+      tx,
+      auth.organizationId,
+      designatedReviewer,
+    );
+    if (member === null || member.role === 'disabled') {
+      throw new TaskError(
+        'TASK_REVIEWER_INVALID',
+        'The reviewer must be an active member of this organization',
+      );
+    }
+  }
 
   if (Object.keys(newState).length === 0) {
     return;
@@ -1091,6 +1136,26 @@ export async function updateTask(
       newState,
     }),
   );
+  if (designatedReviewer !== null) {
+    // The designee owns the gate from now on: they follow the task (its
+    // progress, not just the request moment) and get the heads-up bell —
+    // "you're on the hook for this one". The actionable request + email
+    // follow when the card reaches In review. Before this, the column was
+    // written and nobody was told.
+    await autoSubscribe(tx, {
+      organizationId: auth.organizationId,
+      taskId: task.id,
+      subscriberType: 'user',
+      subscriberId: designatedReviewer,
+      reason: 'reviewer',
+    });
+    await notifyTaskReviewerAssigned(tx, {
+      organizationId: auth.organizationId,
+      task: { id: task.id, projectId: task.projectId, title },
+      reviewerUserId: designatedReviewer,
+      actorUserId: auth.userId,
+    });
+  }
 }
 
 export async function hasOpenChildren(
@@ -1335,8 +1400,9 @@ export async function agentCreateTaskTrusted(
  * TRUSTED agent-side status flip — the settle's park to `in_review` (and the
  * failure paths that leave `in_progress` alone). The turn host already
  * resolved authority (the run belongs to the agent); this is the lower half:
- * status + rank + rollup + activity, attributed to the agent actor. The
- * review-row mint (task_review + reviewer bell) lands with the review arc.
+ * status + rank + rollup + activity, attributed to the agent actor, plus the
+ * review-gate mint (task_review row + reviewer bell) whenever the park lands
+ * at `in_review`.
  */
 export async function agentUpdateTaskStatusTrusted(
   tx: TransactionSql,
@@ -1345,9 +1411,11 @@ export async function agentUpdateTaskStatusTrusted(
     actorId: string;
     taskId: string;
     status: TaskStatus;
-    /** Present only on the settle park to `in_review`: mint the run's
-     * workflow-free review in the SAME transaction as the flip (find-or-
-     * insert by runId — the burned-claim replay never double-mints). */
+    /** The settle park to `in_review` names its run: the review is minted
+     * in the SAME transaction as the flip, keyed on the runId (find-or-
+     * insert — the burned-claim replay never double-mints). Lanes without a
+     * run key (the agent tool, the workflow native) still mint; see
+     * `mintReview`. */
     review?: { runId: string };
   },
   // `reason` is a CODE, not prose: the workspace-tool bridge branches on
@@ -1357,14 +1425,33 @@ export async function agentUpdateTaskStatusTrusted(
   // Org-scoped load: a task in another org answers as missing (opaque 404
   // through the tool bridge) — one refusal shape for foreign and garbage ids.
   const task = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
+  // Reaching `in_review` IS the request for review, whichever trusted lane
+  // parked the card: the settle carries its run key; the agent's own
+  // `task_update_status` tool and the workflow `task.update_status` native
+  // carry none, so the key is the task's LIVE run when one exists (the
+  // settle's later park then finds this same row instead of superseding it
+  // with a second bell) and an automation-keyed row otherwise. Idempotent.
   const mintReview = async (): Promise<void> => {
-    if (args.review === undefined || args.status !== 'in_review') return;
+    if (args.status !== 'in_review') return;
     const fresh = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
     if (fresh.status !== 'in_review') return;
-    await requestTaskReview(tx, {
-      task: fresh,
-      trigger: { kind: 'agent_run', runId: args.review.runId },
-    });
+    let trigger: TaskReviewTrigger;
+    if (args.review !== undefined) {
+      trigger = { kind: 'agent_run', runId: args.review.runId };
+    } else {
+      const live = await tx<{ id: string }[]>`
+        SELECT id FROM app.project_agent_runs
+        WHERE task_id = ${args.taskId} AND org_id = ${args.organizationId}
+          AND status IN ('queued', 'running')
+        ORDER BY started_at_ms DESC
+        LIMIT 1
+      `;
+      trigger =
+        live[0] !== undefined
+          ? { kind: 'agent_run', runId: live[0].id }
+          : { kind: 'automation' };
+    }
+    await requestTaskReview(tx, { task: fresh, trigger });
   };
   if (task.status === args.status) {
     await mintReview();
@@ -1521,7 +1608,20 @@ export async function assignTask(
 
   const assignee = normalizeAssignee(args);
   await assertAssigneeValid(tx, { project, auth, assignee });
-  // TODO(agent runs/automations): reject while a live run holds the task.
+  // A live run holds the task for its current worker: transferring it
+  // mid-flight would leave the old agent driving (settle comments, the
+  // in_review park) a card that now shows someone else's name, and "Run
+  // agent" answering already_running for the wrong agent. The bulk bar
+  // applies the same rule as a skip; here the caller asked for one card, so
+  // the refusal names itself — the picker cancels the run first, then
+  // reassigns (its confirmed-handoff flow).
+  if (assigneeChanges(task, assignee) && (await taskHasLiveRun(tx, task))) {
+    throw new TaskError(
+      'TASK_HAS_LIVE_RUN',
+      'A live run holds this task; cancel it before reassigning',
+      409,
+    );
+  }
 
   await tx`
     UPDATE app.tasks SET
@@ -1727,9 +1827,48 @@ export async function restoreTask(
 }
 
 /**
+ * Every blob ref a set of task rows holds — the `fileId` of each
+ * attachment/output element (the `s3:` ref both columns carry, the same
+ * vocabulary `files/access.ts` reads back), de-duplicated in first-seen
+ * order. Malformed elements are skipped: a hard delete must never fail on a
+ * row it is about to remove.
+ */
+export function collectTaskBlobRefs(
+  rows: ReadonlyArray<{ attachments: unknown; outputs: unknown }>,
+): string[] {
+  const refs = new Set<string>();
+  for (const row of rows) {
+    for (const column of [row.attachments, row.outputs]) {
+      if (!Array.isArray(column)) continue;
+      for (const element of column) {
+        if (
+          element !== null &&
+          typeof element === 'object' &&
+          'fileId' in element &&
+          typeof element.fileId === 'string' &&
+          element.fileId !== ''
+        ) {
+          refs.add(element.fileId);
+        }
+      }
+    }
+  }
+  return [...refs];
+}
+
+/**
  * Hard delete — admin-only (0.4 contract). Deletes the WHOLE SUBTREE
  * (subtasks recursively) with each task's discussion thread; returns how
  * many children went with it (the confirm dialog names the count).
+ *
+ * Nothing the subtree owned outlives it: its live runs are cancelled in
+ * this transaction (the agent run through the ledgered cancel door, so the
+ * provenance entry lands before the FK cascade takes the row and the turn
+ * host reaps the exec as an orphan; a bound automation run through its own
+ * terminal door), and its attachment/output blobs are handed to the shared
+ * ref-release seam — the tasks' unbound file rows are trashed here and the
+ * durable `knowledge.release_refs` job deletes the bytes after commit,
+ * keeping any ref another task, document or file row still holds.
  */
 export async function deleteTask(
   tx: TransactionSql,
@@ -1748,22 +1887,57 @@ export async function deleteTask(
       status: TaskStatus;
       archivedAt: number | null;
       discussionThreadId: string | null;
+      attachments: unknown;
+      outputs: unknown;
     }[]
   >`
     WITH RECURSIVE tree AS (
-      SELECT id, status, archived_at_ms, discussion_thread_id, 0 AS depth
+      SELECT id, status, archived_at_ms, discussion_thread_id, attachments,
+             outputs, 0 AS depth
       FROM app.tasks WHERE id = ${taskId}
       UNION ALL
       SELECT t.id, t.status, t.archived_at_ms, t.discussion_thread_id,
-             tree.depth + 1
+             t.attachments, t.outputs, tree.depth + 1
       FROM app.tasks t JOIN tree ON t.parent_task_id = tree.id
       WHERE tree.depth < 32
     )
     SELECT id, status, archived_at_ms::float8 AS "archivedAt",
-           discussion_thread_id AS "discussionThreadId"
+           discussion_thread_id AS "discussionThreadId", attachments, outputs
     FROM tree
   `;
   const ids = tree.map((row) => row.id);
+
+  // Live runs die WITH their tasks, not after them. The agent run's row
+  // would FK-cascade away mid-turn, leaving the sandbox turn executing with
+  // nowhere to land and no provenance entry; cancelling it here writes the
+  // ledger row first, and the turn host's orphan check reaps the exec. A
+  // bound automation run keeps its own terminal contract (audit row,
+  // sessions released).
+  let cancelledRunCount = 0;
+  const liveAgentRuns = await tx<{ id: string; taskId: string }[]>`
+    SELECT id, task_id AS "taskId" FROM app.project_agent_runs
+    WHERE org_id = ${auth.organizationId} AND task_id = ANY(${ids})
+      AND status IN ('queued', 'running')
+  `;
+  for (const run of liveAgentRuns) {
+    const cancelled = await cancelAgentRunInTx(tx, {
+      organizationId: auth.organizationId,
+      runId: run.id,
+      taskId: run.taskId,
+    });
+    if (cancelled) cancelledRunCount += 1;
+  }
+  const liveAutomationRuns = await tx<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${auth.organizationId} AND project_id = ${task.projectId}
+      AND status IN ('queued', 'running', 'waiting')
+      AND input -> 'task' ->> 'id' = ANY(${ids})
+  `;
+  for (const run of liveAutomationRuns) {
+    const outcome = await cancelRunInTx(tx, auth.organizationId, run.id);
+    if (outcome.cancelled) cancelledRunCount += 1;
+  }
+
   for (const row of tree) {
     await applyTaskCountTransition(
       tx,
@@ -1798,11 +1972,54 @@ export async function deleteTask(
       )
   `;
   await tx`DELETE FROM app.tasks WHERE id = ANY(${ids})`;
+
+  // Blob reclaim through the shared release seam. A ref some SURVIVING task
+  // still lists stays (the same deliverable can sit on two cards); for the
+  // rest, the tasks' own unbound file rows are trashed so the release sees
+  // them dead, and the durable job deletes the bytes after commit — network
+  // I/O never runs inside this transaction, and the release re-checks
+  // liveness itself (a document or a chat thread holding the same ref keeps
+  // its bytes). Before this, every deleted task leaked its files for good.
+  const refs = collectTaskBlobRefs(tree);
+  let releasedRefs: string[] = [];
+  if (refs.length > 0) {
+    const orphaned = await tx<{ ref: string }[]>`
+      SELECT r.ref FROM unnest(${refs}::text[]) AS r(ref)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM app.tasks t
+        WHERE t.org_id = ${auth.organizationId}
+          AND (t.outputs @> jsonb_build_array(jsonb_build_object('fileId', r.ref))
+               OR t.attachments
+                  @> jsonb_build_array(jsonb_build_object('fileId', r.ref)))
+      )
+    `;
+    releasedRefs = orphaned.map((row) => row.ref);
+    if (releasedRefs.length > 0) {
+      await tx`
+        UPDATE app.file_metadata SET
+          lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
+        WHERE org_id = ${auth.organizationId}
+          AND storage_ref = ANY(${releasedRefs})
+          AND document_id IS NULL AND thread_id IS NULL
+          AND conversation_id IS NULL
+          AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+      `;
+      await addJobInTx(tx, 'knowledge.release_refs', {
+        organizationId: auth.organizationId,
+        refs: releasedRefs,
+      });
+    }
+  }
+
   await createAuditLog(
     tx,
     taskAudit(auth, task, TASK_AUDIT_ACTIONS.deleted, {
       previousState: { status: task.status, title: task.title },
-      metadata: { deletedChildCount: ids.length - 1 },
+      metadata: {
+        deletedChildCount: ids.length - 1,
+        cancelledRunCount,
+        releasedBlobRefCount: releasedRefs.length,
+      },
     }),
   );
   // Deletes leave no activity row (the task is gone) — hint explicitly.
@@ -1811,7 +2028,6 @@ export async function deleteTask(
     entity: 'task',
     entityId: taskId,
   });
-  // TODO(storage router): delete attachment/output blobs with the task.
   return { deletedChildCount: ids.length - 1 };
 }
 
@@ -2784,9 +3000,10 @@ export async function bulkUpdateTasks(
     }
     const assigneeChanged =
       (args.clearAssignee === true || assignee !== null) &&
-      task.assigneeId !== (assignee?.assigneeId ?? null);
+      assigneeChanges(task, assignee);
     if (assigneeChanged && (await taskHasLiveRun(tx, task))) {
-      // Same live-run transfer gate as `assignTask`, applied as a skip.
+      // Same live-run transfer gate as `assignTask` (one `assigneeChanges`
+      // rule), applied as a skip.
       skipped += 1;
       continue;
     }
@@ -2842,6 +3059,26 @@ export async function bulkUpdateTasks(
         actorId: auth.userId,
         audit: auth,
       });
+      // Reaching `in_review` IS the request for review from the bulk bar
+      // too — the gate belongs to the STATE, not to the door that moved the
+      // card. Without the mint the cards sat In review with nobody belled
+      // and nothing to respond to. The row reflects this patch's assignee
+      // so the review names the right driver.
+      if (statusAfter === 'in_review') {
+        await requestTaskReview(tx, {
+          task: {
+            ...task,
+            status: 'in_review',
+            ...(assigneeChanged
+              ? {
+                  assigneeType: assignee?.assigneeType ?? null,
+                  assigneeId: assignee?.assigneeId ?? null,
+                }
+              : {}),
+          },
+          trigger: { kind: 'human', actorId: auth.userId },
+        });
+      }
     }
     // An archive/restore riding the same patch moves the rollup bucket
     // once more, from where the status step left the row.

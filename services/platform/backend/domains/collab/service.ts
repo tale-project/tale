@@ -600,6 +600,48 @@ export async function notifyTaskReviewRequested(
   });
 }
 
+/**
+ * Heads-up to a freshly designated reviewer while the work is still in
+ * flight — "you're on the hook for this one". Bell only: the review is not
+ * due yet, so the type stays out of `ACTIONABLE_NOTIFICATION_TYPES` (no
+ * email); the actionable request + email follow when the task reaches
+ * `in_review`. Skips the preference gate like the request (the review group
+ * is locked on) and never pings a person about designating themselves. The
+ * 0.4 emitter existed only in the dead Convex shim — this is the live one.
+ */
+export async function notifyTaskReviewerAssigned(
+  db: Db,
+  args: {
+    organizationId: string;
+    task: { id: string; projectId: string; title: string };
+    reviewerUserId: string;
+    actorUserId: string;
+  },
+): Promise<void> {
+  if (args.reviewerUserId === args.actorUserId) return;
+  const actorName = await resolveUserDisplayName(db, args.actorUserId);
+  await writeCoalescedNotification(db, {
+    userId: args.reviewerUserId,
+    organizationId: args.organizationId,
+    type: 'task_reviewer_assigned',
+    titleKey: 'taskReviewerAssigned',
+    bodyKey: actorName
+      ? 'taskReviewerAssignedByBody'
+      : 'taskReviewerAssignedBody',
+    params: {
+      taskId: args.task.id,
+      projectId: args.task.projectId,
+      taskTitle: args.task.title,
+      ...(actorName ? { actor: actorName } : {}),
+    },
+    resourceType: 'task',
+    resourceId: args.task.id,
+    taskId: args.task.id,
+    actorType: 'user',
+    actorId: args.actorUserId,
+  });
+}
+
 /** Review outcome to watchers (minus the deciding actor), pref-gated. */
 export async function notifyTaskReviewResolved(
   db: Db,
@@ -1156,9 +1198,10 @@ export async function notifyConversationAssignedTeam(
 
 // ------------------------------------------------------------- attention
 
-/** Cap on every list this summary walks — the badge is a nudge, not a
- * report, and an unbounded count would make the return loop the most
- * expensive query on the page. */
+/** Cap on the task-id LISTS this summary walks — the badge is a nudge, not
+ * a report, and an unbounded list would make the return loop the most
+ * expensive query on the page. The COUNTS are exact: they come from SQL
+ * aggregates, never from the size of a capped page. */
 const ATTENTION_LIST_CAP = 100;
 
 export interface AttentionSummary {
@@ -1181,50 +1224,48 @@ export async function getMyAttentionSummary(
   sql: Sql,
   args: { organizationId: string; userId: string; projectId?: string },
 ): Promise<AttentionSummary> {
-  const unread = await sql<{ type: string }[]>`
-    SELECT type FROM app.user_notifications
+  // Exact unread counts from one aggregate bounded by the number of
+  // distinct types — a capped page scan skewed both counts once a person
+  // had more than the cap unread.
+  const unreadByType = await sql<{ type: string; count: number }[]>`
+    SELECT type, count(*)::int AS count FROM app.user_notifications
     WHERE user_id = ${args.userId} AND org_id = ${args.organizationId}
       AND read = false
-    LIMIT ${ATTENTION_LIST_CAP}
+    GROUP BY type
   `;
   let unreadActionableCount = 0;
-  for (const row of unread) {
-    if (isActionableNotificationType(row.type)) unreadActionableCount += 1;
+  let unreadTotalCount = 0;
+  for (const row of unreadByType) {
+    unreadTotalCount += row.count;
+    if (isActionableNotificationType(row.type)) {
+      unreadActionableCount += row.count;
+    }
   }
 
-  const waitingOnMe = new Set<string>();
-  const reviews = await sql<{ taskId: string; metadata: unknown }[]>`
-    SELECT a.resource_id AS "taskId", a.metadata
+  // Reviews waiting on THIS person: the reviewer filter (and the project
+  // scope) run in SQL before the cap, newest gate first, so a busy org's
+  // backlog can never push someone's own reviews out of the window — the
+  // old filter-after-LIMIT shape missed them nondeterministically past 100
+  // pending reviews org-wide. The window count is the exact total.
+  const projectId = args.projectId ?? null;
+  const reviews = await sql<{ taskId: string; total: number }[]>`
+    SELECT coalesce(a.metadata ->> 'taskId', a.resource_id) AS "taskId",
+           (count(*) OVER ())::int AS total
     FROM app.approvals a
     WHERE a.org_id = ${args.organizationId} AND a.status = 'pending'
       AND a.resource_type = 'task_review'
+      AND a.metadata ->> 'requestedFor' = ${args.userId}
+      AND (${projectId}::text IS NULL OR EXISTS (
+        SELECT 1 FROM app.tasks t
+        WHERE t.id = coalesce(a.metadata ->> 'taskId', a.resource_id)
+          AND t.project_id = ${projectId}
+      ))
+    ORDER BY a.seq DESC
     LIMIT ${ATTENTION_LIST_CAP}
   `;
-  let pendingReviewCount = 0;
-  for (const review of reviews) {
-    const metadata = review.metadata;
-    if (metadata === null || typeof metadata !== 'object') continue;
-    if (
-      !('requestedFor' in metadata) ||
-      metadata.requestedFor !== args.userId
-    ) {
-      continue;
-    }
-    const taskId =
-      'taskId' in metadata && typeof metadata.taskId === 'string'
-        ? metadata.taskId
-        : review.taskId;
-    if (args.projectId !== undefined) {
-      const owned = await sql<{ one: number }[]>`
-        SELECT 1 AS one FROM app.tasks
-        WHERE id = ${taskId} AND project_id = ${args.projectId} LIMIT 1
-      `;
-      if (owned.length === 0) continue;
-    }
-    waitingOnMe.add(taskId);
-    pendingReviewCount += 1;
-    if (waitingOnMe.size >= ATTENTION_LIST_CAP) break;
-  }
+  const waitingOnMe = new Set<string>();
+  for (const review of reviews) waitingOnMe.add(review.taskId);
+  const pendingReviewCount = reviews[0]?.total ?? 0;
 
   const assigned = await sql<{ id: string }[]>`
     SELECT id FROM app.tasks
@@ -1232,8 +1273,8 @@ export async function getMyAttentionSummary(
       AND assignee_type = 'user' AND assignee_id = ${args.userId}
       AND archived_at_ms IS NULL
       AND status IN ('todo', 'in_progress', 'in_review')
-      AND (${args.projectId ?? null}::text IS NULL
-           OR project_id = ${args.projectId ?? null})
+      AND (${projectId}::text IS NULL OR project_id = ${projectId})
+    ORDER BY updated_at_ms DESC
     LIMIT ${ATTENTION_LIST_CAP}
   `;
   for (const task of assigned) {
@@ -1243,7 +1284,7 @@ export async function getMyAttentionSummary(
 
   return {
     unreadActionableCount,
-    unreadTotalCount: unread.length,
+    unreadTotalCount,
     waitingOnMeTaskIds: [...waitingOnMe],
     pendingReviewCount,
   };

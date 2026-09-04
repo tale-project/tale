@@ -14304,6 +14304,577 @@ async function checkCompetences(
   await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
 }
 
+/**
+ * The tasks/collab integrity batch — the user-expectation lens on the task
+ * board: you cannot cancel another task's run through your own task's door;
+ * a card parked at In review (by the bulk bar, an external close, the
+ * agent's tool, or the workflow native) always carries a review gate that a
+ * person can resolve.
+ */
+async function checkTasksCollabIntegrity(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const idOf = async (
+    response: Response,
+    key: 'projectId' | 'taskId' | 'agentId',
+  ): Promise<string> => {
+    const parsed = z
+      .object({ [key]: z.string() })
+      .loose()
+      .safeParse(await response.json());
+    const value = parsed.success ? parsed.data[key] : undefined;
+    return typeof value === 'string' ? value : '';
+  };
+  const projectId = await idOf(
+    await post(`/api/app/projects?orgId=${orgId}`, { name: 'Integrity' }),
+    'projectId',
+  );
+  const agentId = await idOf(
+    await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+      name: 'Integrity Bot',
+      harness: 'claude-code',
+      model: 'itest-model',
+      skills: [],
+      connectors: [],
+    }),
+    'agentId',
+  );
+  const newTask = async (title: string): Promise<string> =>
+    idOf(
+      await post(`/api/app/tasks?orgId=${orgId}`, { projectId, title }),
+      'taskId',
+    );
+  const seedRun = async (
+    taskId: string,
+    exec: string,
+    status: 'queued' | 'running',
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms, launched_at_ms,
+        deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${taskId}, ${agentId}, ${exec},
+        ${`pa-${agentId}`}, ${status}, 'claude-code', 'itest-model',
+        ${userId}, ${Date.now()}, ${Date.now()}, ${Date.now() + 3_600_000},
+        ${Date.now()}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const pendingGate = async (
+    taskId: string,
+  ): Promise<{ id: string; metadata: Record<string, unknown> | null }[]> =>
+    sql<{ id: string; metadata: Record<string, unknown> | null }[]>`
+      SELECT id, metadata FROM app.approvals
+      WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+        AND status = 'pending'
+    `;
+
+  // ---- run cancel binds the run to the AUTHORIZED task --------------------
+  // Task A is the door the caller is authorized on; the run belongs to task
+  // B. Cancelling B's run through A's door must be refused (opaque 404) and
+  // leave the run live; B's own door cancels it exactly once.
+  const doorTask = await newTask('Cancel door');
+  const heldTask = await newTask('Held by a run');
+  const foreignRun = await seedRun(
+    heldTask,
+    'exec-integrity-foreign',
+    'running',
+  );
+  const throughOtherDoor = await post(
+    `/api/app/tasks/${doorTask}/agent-runs/${foreignRun}/cancel?orgId=${orgId}`,
+  );
+  const refusal = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await throughOtherDoor.json());
+  const stillLive = await sql<{ status: string }[]>`
+    SELECT status FROM app.project_agent_runs WHERE id = ${foreignRun}
+  `;
+  const ownDoor = z
+    .object({ cancelled: z.boolean() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/tasks/${heldTask}/agent-runs/${foreignRun}/cancel?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  const afterOwn = await sql<{ status: string }[]>`
+    SELECT status FROM app.project_agent_runs WHERE id = ${foreignRun}
+  `;
+  const ledger = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'agent.run_settled'
+      AND resource_id = ${foreignRun}
+  `;
+  record(
+    "tasks/collab: a run cancel is refused through another task's door",
+    throughOtherDoor.status === 404 &&
+      refusal.success &&
+      refusal.data.error === 'AGENT_RUN_NOT_FOUND' &&
+      stillLive[0]?.status === 'running' &&
+      ownDoor.success &&
+      ownDoor.data.cancelled &&
+      afterOwn[0]?.status === 'cancelled' &&
+      ledger[0]?.count === '1',
+    `foreign door → ${throughOtherDoor.status}/${refusal.success ? refusal.data.error : 'ERR'} (want 404/AGENT_RUN_NOT_FOUND), run after=${stillLive[0]?.status} (want running); own door → ${ownDoor.success ? ownDoor.data.cancelled : 'ERR'}, run=${afterOwn[0]?.status}, ledger=${ledger[0]?.count} (want 1)`,
+  );
+
+  // ---- every in_review park mints the review gate --------------------------
+  // The bulk bar: the card reaches In review with a pending gate the creator
+  // (the resolved reviewer) can close — the leave to done records the
+  // approve instead of nothing.
+  const bulkTask = await newTask('Bulk parked');
+  await post(`/api/app/tasks/bulk?orgId=${orgId}`, {
+    taskIds: [bulkTask],
+    status: 'in_review',
+  });
+  const bulkGate = await pendingGate(bulkTask);
+  await post(`/api/app/tasks/${bulkTask}/status?orgId=${orgId}`, {
+    status: 'done',
+  });
+  const bulkClosed = await sql<
+    { status: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.approvals WHERE id = ${bulkGate[0]?.id ?? ''}
+  `;
+  const bulkDecision =
+    bulkClosed[0]?.metadata !== null &&
+    typeof bulkClosed[0]?.metadata === 'object' &&
+    'response' in bulkClosed[0].metadata &&
+    typeof bulkClosed[0].metadata.response === 'object' &&
+    bulkClosed[0].metadata.response !== null &&
+    'decision' in bulkClosed[0].metadata.response
+      ? String(bulkClosed[0].metadata.response.decision)
+      : 'none';
+  record(
+    'tasks/collab: a bulk move to In review mints the gate the leave resolves',
+    bulkGate.length === 1 &&
+      bulkGate[0]?.metadata?.requestedFor === userId &&
+      bulkClosed[0]?.status === 'completed' &&
+      bulkDecision === 'approve',
+    `gate rows=${bulkGate.length} (want 1) reviewer=${String(bulkGate[0]?.metadata?.requestedFor)} → after done: ${bulkClosed[0]?.status}/${bulkDecision} (want completed/approve)`,
+  );
+
+  // An external close by a non-workflow actor parks the card at In review;
+  // that park carries the gate too.
+  const { upsertTaskByExternalRef } =
+    await import('./domains/tasks/external-ref.ts');
+  const externalArgs = {
+    organizationId: orgId,
+    actorId: userId,
+    projectId,
+    externalSystem: 'itest-gate',
+    externalId: 'GATE-1',
+    title: 'External item',
+    creatorType: 'user' as const,
+    dedupeScope: 'project' as const,
+  };
+  const created = await transactSerializable(sql, (tx) =>
+    upsertTaskByExternalRef(tx, externalArgs),
+  );
+  await transactSerializable(sql, (tx) =>
+    upsertTaskByExternalRef(tx, { ...externalArgs, externalState: 'closed' }),
+  );
+  const externalTask = created.taskId ?? '';
+  const externalStatus = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${externalTask}
+  `;
+  const externalGate = await pendingGate(externalTask);
+  record(
+    'tasks/collab: an external close parks at In review WITH the review gate',
+    created.created &&
+      externalStatus[0]?.status === 'in_review' &&
+      externalGate.length === 1 &&
+      externalGate[0]?.metadata?.requestedFor === userId,
+    `status=${externalStatus[0]?.status} (want in_review), gate rows=${externalGate.length} (want 1), reviewer=${String(externalGate[0]?.metadata?.requestedFor)}`,
+  );
+
+  // The agent's own `task_update_status` tool parks without a run key: the
+  // gate is minted on the task's LIVE run, so the settle's later park (which
+  // names the run) finds the same row instead of superseding it with a
+  // second bell. The workflow native (no live run) mints an automation row.
+  const { agentTurnShimHandlers } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const statusDoor =
+    agentTurnShimHandlers(sql)[
+      'tasks/internal_mutations:agentUpdateTaskStatus'
+    ];
+  const toolTask = await newTask('Tool parked');
+  await post(`/api/app/tasks/${toolTask}/assign?orgId=${orgId}`, {
+    assigneeType: 'agent',
+    assigneeId: agentId,
+  });
+  await sql`UPDATE app.tasks SET status = 'in_progress' WHERE id = ${toolTask}`;
+  const toolRun = await seedRun(toolTask, 'exec-integrity-tool', 'running');
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: agentId,
+    taskId: toolTask,
+    status: 'in_review',
+  });
+  const toolGate = await pendingGate(toolTask);
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: agentId,
+    taskId: toolTask,
+    status: 'in_review',
+    review: { runId: toolRun },
+  });
+  const toolRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${toolTask}
+  `;
+  const workflowTask = await newTask('Workflow parked');
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: 'workflow',
+    taskId: workflowTask,
+    status: 'in_review',
+  });
+  const workflowGate = await pendingGate(workflowTask);
+  record(
+    'tasks/collab: agent-tool and workflow parks mint the gate (run-keyed, replay-safe)',
+    toolGate.length === 1 &&
+      toolGate[0]?.metadata?.runId === toolRun &&
+      toolRows[0]?.count === '1' &&
+      workflowGate.length === 1 &&
+      workflowGate[0]?.metadata?.runId === undefined &&
+      workflowGate[0]?.metadata?.requestedFor === userId,
+    `tool gate rows=${toolGate.length} runKeyed=${toolGate[0]?.metadata?.runId === toolRun}, after settle replay rows=${toolRows[0]?.count} (want 1); workflow gate rows=${workflowGate.length} runId=${String(workflowGate[0]?.metadata?.runId)} (want none)`,
+  );
+
+  // ---- hard delete: nothing the subtree owned outlives it -------------------
+  // A parent with a live agent run and a bound live automation run, and a
+  // child carrying a deliverable blob. Deleting the parent must cancel both
+  // runs (the agent run through the ledgered door — its provenance entry
+  // survives the FK cascade), and hand the child's blob to the release seam:
+  // the file row is trashed in the delete's transaction and the durable job
+  // deletes the bytes after commit.
+  const { putOrgBlobBytes, registerUploadedBytes } =
+    await import('./domains/files/service.ts');
+  const { s3BlobSize } = await import('./core/lib/storage/blob_access.ts');
+  const parentTask = await newTask('Delete me');
+  const childTask = await idOf(
+    await post(`/api/app/tasks?orgId=${orgId}`, {
+      projectId,
+      title: 'Child deliverable',
+      parentTaskId: parentTask,
+    }),
+    'taskId',
+  );
+  await post(`/api/app/tasks/${parentTask}/assign?orgId=${orgId}`, {
+    assigneeType: 'agent',
+    assigneeId: agentId,
+  });
+  await sql`
+    UPDATE app.tasks SET status = 'in_progress' WHERE id = ${parentTask}
+  `;
+  const doomedRun = await seedRun(
+    parentTask,
+    'exec-integrity-doomed',
+    'running',
+  );
+  const doomedAutomation = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, project_id, status, mode, started_by, input,
+      checkpoints, claim_epoch, started_at_ms
+    ) VALUES (
+      ${orgId}, 'itest-delete-flow', 1, ${projectId}, 'running', 'live',
+      ${userId}, ${sql.json({ task: { id: parentTask } })},
+      ${sql.json({ nodes: {}, executions: 0 })}, 0, ${Date.now()}
+    ) RETURNING id
+  `;
+  const doomedAutomationId = doomedAutomation[0]?.id ?? '';
+  const blobLane = process.env.ITEST_S3_ENDPOINT !== undefined;
+  let deliverableRef = '';
+  let blobBefore: number | null = null;
+  if (blobLane) {
+    const bytes = new TextEncoder().encode('deliverable bytes');
+    deliverableRef = await putOrgBlobBytes(sql, orgId, {
+      bytes,
+      contentType: 'text/plain',
+    });
+    await registerUploadedBytes(sql, {
+      organizationId: orgId,
+      storageRef: deliverableRef,
+      fileName: 'deliverable.txt',
+      contentType: 'text/plain',
+      size: bytes.byteLength,
+      source: 'task_output',
+      skipRagIndexing: true,
+    });
+    await sql`
+      UPDATE app.tasks SET outputs = ${sql.json([
+        {
+          fileId: deliverableRef,
+          fileName: 'deliverable.txt',
+          fileType: 'text/plain',
+          fileSize: bytes.byteLength,
+        },
+      ])}
+      WHERE id = ${childTask}
+    `;
+    blobBefore = await s3BlobSize(orgSlug, deliverableRef);
+  }
+  const deletion = await fetch(
+    `${base}/api/app/tasks/${parentTask}?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  const deletionBody = z
+    .object({ deletedChildCount: z.number() })
+    .loose()
+    .safeParse(await deletion.json());
+  const rowsLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.tasks
+    WHERE id IN (${parentTask}, ${childTask})
+  `;
+  const doomedLedger = await sql<
+    { metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT metadata FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'agent.run_settled'
+      AND resource_id = ${doomedRun}
+  `;
+  const automationAfter = await sql<{ status: string }[]>`
+    SELECT status FROM app.automation_runs WHERE id = ${doomedAutomationId}
+  `;
+  let blobGone = !blobLane;
+  let fileRowDead = !blobLane;
+  if (blobLane) {
+    // The release job runs on the harness worker after the delete commits.
+    blobGone = await waitFor(
+      async () => (await s3BlobSize(orgSlug, deliverableRef)) === null,
+      30_000,
+    );
+    const fileRows = await sql<{ lifecycleStatus: string | null }[]>`
+      SELECT lifecycle_status AS "lifecycleStatus" FROM app.file_metadata
+      WHERE org_id = ${orgId} AND storage_ref = ${deliverableRef}
+    `;
+    // Reaped by the release (bytes gone — no rows) or, at minimum, trashed
+    // by the delete — never left as a live row pointing at leaked bytes.
+    fileRowDead = fileRows.every((row) => row.lifecycleStatus === 'trashed');
+  }
+  record(
+    `tasks/collab: hard delete stops the subtree's live runs and reclaims its blobs${blobLane ? '' : ' (blob lane SKIPPED: no ITEST_S3_ENDPOINT)'}`,
+    deletion.ok &&
+      deletionBody.success &&
+      deletionBody.data.deletedChildCount === 1 &&
+      rowsLeft[0]?.count === '0' &&
+      doomedLedger.length === 1 &&
+      doomedLedger[0]?.metadata?.finalStatus === 'cancelled' &&
+      automationAfter[0]?.status === 'cancelled' &&
+      (!blobLane || blobBefore !== null) &&
+      blobGone &&
+      fileRowDead,
+    `delete → ${deletion.status} children=${deletionBody.success ? deletionBody.data.deletedChildCount : 'ERR'} rowsLeft=${rowsLeft[0]?.count} (want 0); agent run ledger=${doomedLedger.length}/${String(doomedLedger[0]?.metadata?.finalStatus)} (want 1/cancelled); automation run=${automationAfter[0]?.status} (want cancelled); blob before=${String(blobBefore)} gone=${blobGone} fileRowDead=${fileRowDead}`,
+  );
+
+  // ---- designating a reviewer tells them -----------------------------------
+  // The designee is subscribed (reason 'reviewer') and gets the heads-up
+  // bell on the wire entity the app keys the bell on; designating yourself
+  // rings nothing, and a non-member cannot be put on the hook at all.
+  const reviewer = 'integrity-reviewer-1';
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (${reviewer}, 'Integrity Reviewer', ${`${reviewer}@example.com`},
+            true, ${new Date()}, ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${`m-${reviewer}`}, ${orgId}, ${reviewer}, 'member', ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  const reviewedTask = await newTask('Needs a reviewer');
+  const designated = await post(
+    `/api/app/tasks/${reviewedTask}?orgId=${orgId}`,
+    {
+      reviewerUserId: reviewer,
+    },
+  );
+  const reviewerBell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${reviewer}
+      AND type = 'task_reviewer_assigned' AND task_id = ${reviewedTask}
+  `;
+  const reviewerFollows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.task_subscriptions
+    WHERE task_id = ${reviewedTask} AND subscriber_id = ${reviewer}
+      AND reason = 'reviewer'
+  `;
+  const reviewerHint = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND user_id = ${reviewer}
+      AND entity = 'notification'
+  `;
+  const selfTask = await newTask('Self reviewed');
+  await post(`/api/app/tasks/${selfTask}?orgId=${orgId}`, {
+    reviewerUserId: userId,
+  });
+  const selfBell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND type = 'task_reviewer_assigned' AND task_id = ${selfTask}
+  `;
+  const bogus = await post(`/api/app/tasks/${reviewedTask}?orgId=${orgId}`, {
+    reviewerUserId: 'nobody-here',
+  });
+  const bogusBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await bogus.json());
+  record(
+    'tasks/collab: designating a reviewer subscribes and bells them (never yourself, never a non-member)',
+    designated.ok &&
+      reviewerBell[0]?.count === '1' &&
+      reviewerFollows[0]?.count === '1' &&
+      Number(reviewerHint[0]?.count ?? '0') >= 1 &&
+      selfBell[0]?.count === '0' &&
+      bogus.status === 400 &&
+      bogusBody.success &&
+      bogusBody.data.error === 'TASK_REVIEWER_INVALID',
+    `designate → ${designated.status}, bell=${reviewerBell[0]?.count} (want 1), follows=${reviewerFollows[0]?.count} (want 1), hint=${reviewerHint[0]?.count} (want ≥1); self bell=${selfBell[0]?.count} (want 0); non-member → ${bogus.status}/${bogusBody.success ? bogusBody.data.error : 'ERR'} (want 400/TASK_REVIEWER_INVALID)`,
+  );
+  // ---- a mention directory that cannot be listed fails the surface -------
+  // Against the real schema: the same resolution with the agent-instance
+  // leg failing rejects (MENTION_DIRECTORY_UNAVAILABLE, 503) instead of
+  // answering a partial directory that turns `@teammate` into plain text;
+  // the healthy resolution still names the teammate.
+  const { MentionDirectoryError, resolveSurfaceMentions } =
+    await import('./domains/collab/mention-directory.ts');
+  const instanceLegDown = Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]): unknown => {
+      if (strings.join('').includes('app.project_agents')) {
+        throw new Error('itest: instance listing down');
+      }
+      // Every other statement reaches the real handle unchanged.
+      const forwarded: unknown = Reflect.apply(sql, undefined, [
+        strings,
+        ...values,
+      ]);
+      return forwarded;
+    },
+    { json: sql.json.bind(sql), unsafe: sql.unsafe.bind(sql) },
+  );
+  const degraded: unknown = await resolveSurfaceMentions(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tag + json/unsafe stand-in over the real handle
+    instanceLegDown as unknown as Sql,
+    { organizationId: orgId, body: `@${reviewer} please look`, projectId },
+  ).then(
+    () => 'resolved',
+    (error: unknown) => error,
+  );
+  const healthy = await resolveSurfaceMentions(sql, {
+    organizationId: orgId,
+    body: `@${reviewer} please look`,
+    projectId,
+  });
+  // Typed against the module's export so the probe stays a plain FAIL (not
+  // a crash) on a tree that has no `MentionDirectoryError` yet.
+  const degradedError =
+    typeof MentionDirectoryError === 'function' &&
+    degraded instanceof MentionDirectoryError
+      ? degraded
+      : null;
+  record(
+    'tasks/collab: a mention directory that cannot be listed fails loudly, never silently degrades',
+    degradedError !== null &&
+      degradedError.code === 'MENTION_DIRECTORY_UNAVAILABLE' &&
+      degradedError.status === 503 &&
+      degradedError.leg === 'agents' &&
+      healthy.mentions.some(
+        (mention) => mention.type === 'user' && mention.id === reviewer,
+      ),
+    `degraded → ${degradedError !== null ? `${degradedError.code}/${degradedError.status}/${degradedError.leg}` : String(degraded)} (want MENTION_DIRECTORY_UNAVAILABLE/503/agents); healthy mentions=${healthy.mentions.map((m) => `${m.type}:${m.id}`).join(',') || 'none'}`,
+  );
+
+  // ---- "waiting on me" never misses my reviews ----------------------------
+  // 120 pending reviews for OTHER people land first; the caller's own review
+  // is minted last. The old org-wide unordered LIMIT 100 scan filtered the
+  // reviewer in JS and dropped it; the summary must name the task and count
+  // the caller's pending reviews exactly, org-wide and project-scoped.
+  const busyTask = await newTask('Everyone else is busy');
+  const mineTask = await newTask('Waiting on me');
+  for (let i = 0; i < 120; i += 1) {
+    await sql`
+      INSERT INTO app.approvals (
+        org_id, status, resource_type, resource_id, priority, metadata,
+        created_at_ms
+      ) VALUES (
+        ${orgId}, 'pending', 'task_review', ${busyTask}, 'medium',
+        ${sql.json({ requestedFor: `busy-reviewer-${i}`, taskId: busyTask })},
+        ${Date.now()}
+      )
+    `;
+  }
+  await sql`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'pending', 'task_review', ${mineTask}, 'medium',
+      ${sql.json({ requestedFor: userId, taskId: mineTask, projectId })},
+      ${Date.now()}
+    )
+  `;
+  const minePending = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.approvals
+    WHERE org_id = ${orgId} AND status = 'pending'
+      AND resource_type = 'task_review'
+      AND metadata ->> 'requestedFor' = ${userId}
+  `;
+  const attentionSchema = z
+    .object({
+      waitingOnMeTaskIds: z.array(z.string()),
+      pendingReviewCount: z.number(),
+    })
+    .loose();
+  const attention = attentionSchema.safeParse(
+    await (
+      await fetch(`${base}/api/app/collab/attention?orgId=${orgId}`, {
+        headers: { cookie },
+      })
+    ).json(),
+  );
+  const attentionScoped = attentionSchema.safeParse(
+    await (
+      await fetch(
+        `${base}/api/app/collab/attention?orgId=${orgId}&projectId=${projectId}`,
+        { headers: { cookie } },
+      )
+    ).json(),
+  );
+  record(
+    'tasks/collab: the attention summary finds my review behind 120 other pending ones',
+    attention.success &&
+      attention.data.waitingOnMeTaskIds.includes(mineTask) &&
+      attention.data.pendingReviewCount === Number(minePending[0]?.count) &&
+      attentionScoped.success &&
+      attentionScoped.data.waitingOnMeTaskIds.includes(mineTask),
+    `org-wide: mine listed=${attention.success ? attention.data.waitingOnMeTaskIds.includes(mineTask) : 'ERR'} count=${attention.success ? attention.data.pendingReviewCount : 'ERR'} (want ${minePending[0]?.count}); scoped: mine listed=${attentionScoped.success ? attentionScoped.data.waitingOnMeTaskIds.includes(mineTask) : 'ERR'}`,
+  );
+  await sql`
+    DELETE FROM app.approvals
+    WHERE org_id = ${orgId} AND resource_id IN (${busyTask}, ${mineTask})
+  `;
+  await sql`DELETE FROM "member" WHERE "id" = ${`m-${reviewer}`}`;
+}
+
 async function checkCollabMentions(
   sql: Sql,
   base: string,
@@ -35915,6 +36486,12 @@ async function main(): Promise<void> {
     await checkAnsweredAskRecovery(sql, authCtx);
     await checkAutoRetryAndKickPlan(sql, baseUrl, authCtx);
     await checkReviewArc(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkTasksCollabIntegrity(
+      sql,
+      baseUrl,
+      authCtx,
+      `itest-${orgSuffix}`,
+    );
     await checkSandboxSessions(sql, authCtx);
     await checkAutomationRunToolLane(sql, baseUrl, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
