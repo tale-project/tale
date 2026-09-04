@@ -117,7 +117,6 @@ compose.*.yml
 # =============================================================================
 services/platform/
 services/web/
-services/convex/
 services/proxy/
 packages/
 tools/

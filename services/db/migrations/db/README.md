@@ -1,14 +1,14 @@
 # Platform DB migrations (`db` service)
 
-dbmate migration set for the **platform** Postgres (`db` service: the `tale` /
-`tale_platform` databases). Applied by `docker-entrypoint.sh` when
-`TALE_DB_ROLE=platform`.
+dbmate migration set for the **platform** role of the Postgres image (the `db`
+service). Applied by `docker-entrypoint.sh` when `TALE_DB_ROLE=platform`.
 
-**This directory is intentionally empty.** The platform/auth schema in
-`tale_platform` is owned and migrated by the Convex backend (`bunx convex
-deploy`), not by dbmate. Put a timestamped `*.sql` here only if the platform DB
-ever needs a raw-SQL migration that Convex cannot express (extensions, roles,
-grants beyond `init-scripts/`).
+**This directory is intentionally empty.** The 0.5 application database
+(`tale_app`) is owned and migrated by the platform backend, which applies its
+own numbered `.sql` migrations from `services/platform/backend/db/migrations/`
+at boot — not by dbmate. Put a timestamped `*.sql` here only if the platform
+Postgres ever needs a raw-SQL migration outside the backend's reach
+(extensions, roles, grants beyond `init-scripts/`).
 
 The knowledge-corpus migrations live in the sibling [`../knowledge-db/`](../knowledge-db/)
 (applied when `TALE_DB_ROLE=knowledge`).
