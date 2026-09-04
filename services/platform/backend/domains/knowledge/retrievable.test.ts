@@ -20,6 +20,7 @@ const unboundFile = (
 ): UnboundFileCandidate => ({
   lifecycleStatus: null,
   threadId: null,
+  conversationId: null,
   ...overrides,
 });
 
@@ -222,5 +223,88 @@ describe('decideRetrievable', () => {
         decideRetrievable([], [unboundFile({ threadId: 'th1' })], undefined),
       ).toBe(true);
     });
+  });
+});
+
+/**
+ * An emailed attachment is scoped by the CONVERSATION it arrived on, and
+ * conversations are scoped more narrowly than anything else the platform
+ * retrieves: an unassigned inbox row is admin-triage only. So the caller
+ * supplies the conversations it may read (already decided by
+ * `conversationAssignmentAllows`) rather than this decision deriving them
+ * from org membership — a second copy of that rule is how a reader ends up
+ * publishing an inbox.
+ */
+describe('decideRetrievable — the conversation branch', () => {
+  const mail = (conversationId: string) =>
+    unboundFile({ conversationId, threadId: null });
+
+  it('admits an attachment whose conversation the caller may read', () => {
+    expect(
+      decideRetrievable([], [mail('conv_1')], { conversationIds: ['conv_1'] }),
+    ).toBe(true);
+  });
+
+  it('denies one whose conversation the caller may not read', () => {
+    // The row exists and is alive; the caller simply is not on that inbox
+    // row. Org membership must not be enough.
+    expect(
+      decideRetrievable([], [mail('conv_2')], { conversationIds: ['conv_1'] }),
+    ).toBe(false);
+  });
+
+  it('denies when the caller has no conversations at all', () => {
+    expect(decideRetrievable([], [mail('conv_1')], {})).toBe(false);
+  });
+
+  it('is not widened by team or project scope', () => {
+    // The document branches' scope says nothing about an inbox row — a
+    // member of every team still sees only their own conversations.
+    expect(
+      decideRetrievable([], [mail('conv_1')], {
+        teamIds: ['team_a'],
+        projectIds: ['proj_a'],
+        includeHub: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('honours the conversation-scoped opt-out', () => {
+    // The turn asked for hub-only retrieval; an allowed conversation must
+    // still not be searched.
+    expect(
+      decideRetrievable([], [mail('conv_1')], {
+        conversationIds: ['conv_1'],
+        includeConversationScoped: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('denies a trashed attachment even inside an allowed conversation', () => {
+    expect(
+      decideRetrievable(
+        [],
+        [unboundFile({ conversationId: 'conv_1', lifecycleStatus: 'trashed' })],
+        { conversationIds: ['conv_1'] },
+      ),
+    ).toBe(false);
+  });
+
+  it('admits for the system caller, which is not a person', () => {
+    // Ingest and purge run unscoped; `access === undefined` is that lane.
+    expect(decideRetrievable([], [mail('conv_1')], undefined)).toBe(true);
+  });
+
+  it('never surfaces an attachment under a folder filter', () => {
+    // A folder is a document concept; an emailed attachment is filed
+    // nowhere, so a folder-scoped search must not reach it.
+    expect(
+      decideRetrievable(
+        [],
+        [mail('conv_1')],
+        { conversationIds: ['conv_1'] },
+        'Reports',
+      ),
+    ).toBe(false);
   });
 });
