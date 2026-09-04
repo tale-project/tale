@@ -144,6 +144,13 @@ tale deploy
 
 The expert override — `tale deploy --accept-data-loss` — exists for the rare case where you deliberately reuse a host whose old volumes you have already dealt with. It does exactly what its name says: pre-0.5 data on that instance becomes permanently unreadable.
 
+**The legacy `tale_platform` database.** Every `tale-db` container used to create an empty `tale_platform` database on start — the database the bundled Convex service used in 0.4, which nothing in 0.5 reads. Fresh installs no longer create it, and nothing drops it for you: an instance first deployed on an earlier 0.5 release still carries it, and so does a reused 0.4 host. It is harmless. Once you are sure you need nothing from the Convex era, take a snapshot and drop it by hand — on `db`, and on `knowledge-db` where your stack runs one:
+
+```bash
+tale backup
+docker compose exec db psql -U tale -d tale -c 'DROP DATABASE IF EXISTS tale_platform;'
+```
+
 ## Where this fits
 
 The upgrade flow ties together every other operate page — backups are what makes a failed upgrade recoverable, observability is what tells you the new colour is healthy, hardening is what you re-walk after a major version. If you are setting up the CLI for the first time, [Install the tale CLI](/self-hosted/install/cli-install) covers the workstation-side setup; if you are picking up the pager mid-rollout, [Troubleshooting](/self-hosted/operate/observability/troubleshooting) names the symptoms.
