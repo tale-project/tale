@@ -100,6 +100,29 @@ describe('schemaViolations', () => {
     );
     expect(schemaViolations(schema, {})).toMatch(/score/);
   });
+
+  it('checks a schema carrying $id as many times as replies arrive', () => {
+    // Ordinary author JSON Schema names itself. A per-module Ajv without a
+    // cache clear accepted the first reply and threw "schema with key or id
+    // … already exists" on every later one — each forEach item, repeat pass
+    // and run on the worker after the first.
+    const named = {
+      $id: 'https://example.test/schemas/score',
+      type: 'object',
+      properties: { score: { type: 'number' } },
+      required: ['score'],
+    };
+    expect(schemaViolations(named, { score: 1 })).toBeNull();
+    expect(schemaViolations(named, { score: 2 })).toBeNull();
+    expect(schemaViolations(named, { score: 'no' })).toMatch(/\/score/);
+    // The node's document is not Ajv's to annotate.
+    expect(named).toEqual({
+      $id: 'https://example.test/schemas/score',
+      type: 'object',
+      properties: { score: { type: 'number' } },
+      required: ['score'],
+    });
+  });
 });
 
 describe('automationLlmCall', () => {
