@@ -5,10 +5,15 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
+import {
+  deleteOrgBlobRefs,
+  putOrgBlobBytes,
+  registerUploadedBytes,
+} from '../files/service.ts';
 import { connectorBlobSink } from './blob-sink.ts';
 
 vi.mock('../files/service.ts', () => ({
+  deleteOrgBlobRefs: vi.fn(),
   putOrgBlobBytes: vi.fn(),
   registerUploadedBytes: vi.fn(),
 }));
@@ -16,6 +21,8 @@ vi.mock('../files/service.ts', () => ({
 const sql = {} as unknown as Sql;
 
 beforeEach(() => {
+  vi.mocked(deleteOrgBlobRefs).mockReset();
+  vi.mocked(deleteOrgBlobRefs).mockResolvedValue(undefined);
   vi.mocked(putOrgBlobBytes).mockReset();
   vi.mocked(registerUploadedBytes).mockReset();
   vi.mocked(putOrgBlobBytes).mockResolvedValue('s3:org-1/blob-1');
@@ -101,5 +108,31 @@ describe('connectorBlobSink', () => {
       }),
     ).rejects.toThrow('Invalid blob size');
     expect(vi.mocked(registerUploadedBytes)).not.toHaveBeenCalled();
+    expect(vi.mocked(deleteOrgBlobRefs)).not.toHaveBeenCalled();
+  });
+
+  it('reclaims the stored blob when the metadata row cannot be written', async () => {
+    vi.mocked(registerUploadedBytes).mockRejectedValue(
+      new Error('Insert failed'),
+    );
+    const sink = connectorBlobSink(sql, {
+      organizationId: 'org-1',
+      connector: 'gmail',
+      caller: { kind: 'workflow', runId: 'run-1', nodeId: 'n1' },
+    });
+
+    await expect(
+      sink.store({
+        data: Buffer.from([1, 2, 3]).toString('base64'),
+        encoding: 'base64',
+        contentType: 'application/pdf',
+        fileName: 'orphan.pdf',
+      }),
+    ).rejects.toThrow('Insert failed');
+    // The bytes landed before the row failed: nothing lists them, so they
+    // are handed back to the org store rather than left behind.
+    expect(vi.mocked(deleteOrgBlobRefs)).toHaveBeenCalledWith(sql, 'org-1', [
+      's3:org-1/blob-1',
+    ]);
   });
 });

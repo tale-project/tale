@@ -2,7 +2,11 @@ import type { Sql } from 'postgres';
 
 import type { ConnectorCaller } from '../../../lib/connectors/dispatcher.ts';
 import type { ConnectorBlobSink } from '../../../lib/connectors/live-host.ts';
-import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
+import {
+  deleteOrgBlobRefs,
+  putOrgBlobBytes,
+  registerUploadedBytes,
+} from '../files/service.ts';
 
 /**
  * What a live connector body's `ctx.files` writes to: the organization's own
@@ -33,18 +37,27 @@ export function connectorBlobSink(
         bytes,
         contentType,
       });
-      await registerUploadedBytes(sql, {
-        organizationId: scope.organizationId,
-        storageRef,
-        fileName,
-        contentType,
-        size: bytes.byteLength,
-        source: scope.connector,
-        ...(scope.caller.kind === 'user'
-          ? { uploadedBy: scope.caller.userId }
-          : {}),
-        skipRagIndexing: true,
-      });
+      try {
+        await registerUploadedBytes(sql, {
+          organizationId: scope.organizationId,
+          storageRef,
+          fileName,
+          contentType,
+          size: bytes.byteLength,
+          source: scope.connector,
+          ...(scope.caller.kind === 'user'
+            ? { uploadedBy: scope.caller.userId }
+            : {}),
+          skipRagIndexing: true,
+        });
+      } catch (error) {
+        // The bytes landed but nothing references them: reclaim the blob
+        // (best-effort, the shared helper never throws) so a failed row
+        // write does not leave an unlisted object behind, then surface the
+        // failure to the body as it happened.
+        await deleteOrgBlobRefs(sql, scope.organizationId, [storageRef]);
+        throw error;
+      }
       return { id: storageRef, fileName, contentType, size: bytes.byteLength };
     },
   };
