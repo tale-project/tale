@@ -394,6 +394,55 @@ describe('dispatch — run and trigger management', () => {
     expect(result.error).toContain('must be a whole number');
   });
 
+  it('get_automation and deploy_automation refuse a version that is not a whole number instead of forwarding NaN', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
+    // A store that would take the NaN straight into a query.
+    const gets: unknown[] = [];
+    const spying: DispatchStore = {
+      ...store,
+      get: (name, version) => {
+        gets.push(version);
+        return store.get(name, version);
+      },
+    };
+
+    const latest = (await dispatch(
+      'get_automation',
+      { name: 'order-report', version: 'latest' },
+      { store: spying },
+    )) as { error?: string; hint?: string };
+    expect(latest.error).toContain('must be a whole number');
+    expect(latest.error).toContain('"latest"');
+    expect(latest.hint).toContain('omit it');
+
+    const fractional = (await dispatch(
+      'deploy_automation',
+      { name: 'order-report', version: 1.5 },
+      { store: spying },
+    )) as { error?: string };
+    expect(fractional.error).toContain('must be a whole number');
+
+    const missing = (await dispatch(
+      'deploy_automation',
+      { name: 'order-report' },
+      { store: spying },
+    )) as { error?: string; hint?: string };
+    expect(missing.error).toBe('missing params.version');
+    expect(missing.hint).toContain('list_versions');
+
+    expect(gets).toEqual([]);
+
+    // The string form of a whole number is still accepted.
+    const asText = (await dispatch(
+      'get_automation',
+      { name: 'order-report', version: '1' },
+      { store: spying },
+    )) as { meta?: { version: number } };
+    expect(asText.meta?.version).toBe(1);
+    expect(gets).toEqual([1]);
+  });
+
   it('start_run refuses an automation with nothing deployed', async () => {
     const store = dispatchStore();
     const result = (await dispatch(

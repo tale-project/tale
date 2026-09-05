@@ -174,6 +174,27 @@ function asString(v: unknown): string {
   return '';
 }
 
+/**
+ * Read a present `params.version`: a whole number (or its string form) is the
+ * version, anything else is a refusal the caller returns as-is. Never
+ * forwards NaN — a store binds the value into a query, and a raw database
+ * error would blame the storage layer for a bad param. Callers that accept
+ * an omitted version branch on `undefined` before asking.
+ */
+function versionParam(
+  v: unknown,
+  hint: string,
+): { value: number } | { error: string; hint: string } {
+  const n = typeof v === 'number' || typeof v === 'string' ? Number(v) : NaN;
+  if (!Number.isInteger(n)) {
+    return {
+      error: `params.version must be a whole number — got ${JSON.stringify(v)}`,
+      hint,
+    };
+  }
+  return { value: n };
+}
+
 function paramsObject(params: unknown): Record<string, unknown> {
   return params !== null && typeof params === 'object' && !Array.isArray(params)
     ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the object check above
@@ -308,10 +329,12 @@ export async function dispatch(
 
     case 'get_automation': {
       const name = asString(p.name);
-      const found = await store.get(
-        name,
-        p.version === undefined ? undefined : Number(p.version),
-      );
+      const version =
+        p.version === undefined
+          ? { value: undefined }
+          : versionParam(p.version, 'omit it to read the latest saved version');
+      if ('error' in version) return version;
+      const found = await store.get(name, version.value);
       return found ?? { error: `no saved automation named "${name}"` };
     }
 
@@ -322,10 +345,21 @@ export async function dispatch(
       // The deploy gate: a version only becomes live-eligible if it still
       // validates AND its tests pass, so triggers never run a broken flow.
       const name = asString(p.name);
-      const version = Number(p.version);
+      if (p.version === undefined) {
+        return {
+          error: 'missing params.version',
+          hint: '{method: deploy_automation, params: {name: "billing/dunning", version: 3}} — list_versions shows the saved ones',
+        };
+      }
+      const wanted = versionParam(
+        p.version,
+        'name one saved version to promote — list_versions shows them',
+      );
+      if ('error' in wanted) return wanted;
+      const version = wanted.value;
       const saved = await store.get(name, version);
       if (!saved) {
-        return { error: `no saved automation "${name}@${String(p.version)}"` };
+        return { error: `no saved automation "${name}@${version}"` };
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
       const automation = saved.automation as Automation;
@@ -413,13 +447,12 @@ export async function dispatch(
           hint: '{method: start_run, params: {name: "billing/dunning", input: {…}}}',
         };
       }
-      const version = p.version === undefined ? undefined : Number(p.version);
-      if (version !== undefined && !Number.isInteger(version)) {
-        return {
-          error: `params.version must be a whole number — got "${String(p.version)}"`,
-          hint: 'omit it to run the deployed version',
-        };
-      }
+      const wanted =
+        p.version === undefined
+          ? { value: undefined }
+          : versionParam(p.version, 'omit it to run the deployed version');
+      if ('error' in wanted) return wanted;
+      const version = wanted.value;
       // The host's own execution mode: a deployment runs live, a test session
       // runs against mocks — the same rule `run_deployed` follows.
       const mode = ctx.allowLive ? 'live' : 'mock';
