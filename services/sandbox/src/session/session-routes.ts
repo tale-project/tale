@@ -50,9 +50,19 @@ export class SessionRoutes {
   // oversubscribe the host by the number of creates in flight.
   private readonly creating = new Map<string, string>();
 
+  /**
+   * @param isDraining Read on every registry miss: a lingering (draining)
+   * spawner must never adopt — the miss is a session its replacement created
+   * behind the shared alias / VIP, and adopting it would keep the deploy
+   * lingering and let the max-linger reap stop a live session another
+   * replica owns. Same rule as server.ts skipping adoptExisting while
+   * draining. Defaults to "never draining" for a routes instance with no
+   * deploy control (tests).
+   */
   constructor(
     private readonly cfg: SpawnerConfig,
     private readonly backend: SessionBackend,
+    private readonly isDraining: () => boolean = () => false,
   ) {}
 
   /** Number of live sessions this spawner currently manages (drain readiness). */
@@ -225,6 +235,8 @@ export class SessionRoutes {
    * that is alive elsewhere (and on K8s that create 409s against the live
    * Pod). So a miss re-resolves: list the backend, adopt a RUNNING match, then
    * route to it. A stopped/exited object (or nothing) stays a genuine 404.
+   * NOT while draining: a lingering spawner answers 404 for anything it does
+   * not already own and leaves the session to the replacement serving it.
    */
   private async ensureRegistered(
     sessionId: string,
@@ -233,6 +245,9 @@ export class SessionRoutes {
     if (hit !== undefined) return hit;
     // Our own in-flight create registers itself on completion.
     if (this.creating.has(sessionId)) return undefined;
+    // A lingering spawner never adopts — 404 is the status quo; the
+    // replacement serves the session (see the constructor's isDraining).
+    if (this.isDraining()) return undefined;
     let sessions: BackendSession[];
     try {
       sessions = await this.backend.listSessions();

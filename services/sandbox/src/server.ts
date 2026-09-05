@@ -37,7 +37,14 @@ const backend = createBackend(cfg);
 let sessionRoutes: SessionRoutes | null = null;
 function getSessionRoutes(): SessionRoutes {
   if (sessionRoutes === null) {
-    sessionRoutes = new SessionRoutes(cfg, createSessionBackend(cfg));
+    // controlRoutes is module-scope below; this closure only runs from main()
+    // (after module init), and a draining spawner must never adopt a session
+    // its replacement created — the same rule as the sweep tick.
+    sessionRoutes = new SessionRoutes(
+      cfg,
+      createSessionBackend(cfg),
+      () => controlRoutes.isDraining,
+    );
   }
   return sessionRoutes;
 }

@@ -1320,6 +1320,27 @@ describe('SessionRoutes (fake runnerd)', () => {
         expect((await routes.handleGet('unaddressable-peer')).status).toBe(404);
         expect(routes.sessionCount()).toBe(0);
       });
+
+      // REGRESSION: the route-path adopt used to ignore the drain — while the
+      // sweep tick (server.ts) skips adoptExisting for exactly this reason. A
+      // draining spawner that adopted a replacement-created session inflated
+      // its drain-status (the deploy kept lingering) and at max-linger stopped
+      // a live session another replica owns.
+      test('a registry miss while draining is a 404 without adopting — or even listing', async () => {
+        const backend = peerBackend(mkBackendSession('repl1', 'org_peer'));
+        let draining = true;
+        const routes = new SessionRoutes(cfg, backend, () => draining);
+        expect((await routes.handleGet('repl1')).status).toBe(404);
+        expect((await routes.handleExecStatus('repl1', 'e1')).status).toBe(404);
+        expect(routes.sessionCount()).toBe(0);
+        expect(routes.sessionIds()).toEqual([]);
+        expect(backend.lists).toBe(0);
+        // The same instance, no longer draining: the miss re-resolves as usual.
+        draining = false;
+        expect((await routes.handleGet('repl1')).status).toBe(200);
+        expect(routes.sessionCount()).toBe(1);
+        expect(backend.lists).toBe(1);
+      });
     });
 
     // REGRESSION (periodic adoption): a session the boot-time list missed used
