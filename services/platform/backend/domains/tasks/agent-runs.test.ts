@@ -1,7 +1,8 @@
-import type { TransactionSql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { cancelAgentRunInTx } from './agent-runs.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
+import { cancelAgentRunInTx, wakeParkedAgentRuns } from './agent-runs.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
 vi.mock('./run-ledger.ts', () => ({ recordTaskAgentRunLedgerEntry: vi.fn() }));
@@ -66,6 +67,71 @@ describe('cancelAgentRunInTx — the run must belong to the authorized task', ()
         organizationId: 'org-1',
         finalStatus: 'cancelled',
       }),
+    );
+  });
+});
+
+describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its deadline', () => {
+  /** A `sql` whose `begin` runs the callback against the scripted tx. */
+  function fakeSql(answer: (text: string) => Row[]): {
+    sql: Sql;
+    statements: string[];
+  } {
+    const { tx, statements } = fakeTx(answer);
+    const begin = (cb: (tx: TransactionSql) => Promise<unknown>) => cb(tx);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for postgres.js `sql.begin`
+    return { sql: { begin } as unknown as Sql, statements };
+  }
+
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+  });
+
+  it('skips a parked run whose deadline has passed in the claim predicate itself', async () => {
+    // Regression: the release-edge wake fires from the SAME watchdog sweep
+    // that fails overdue parked runs. Without the deadline guard the wake
+    // un-parked an overdue run (clearing waiting_for_capacity_at_ms and
+    // enqueueing its turn) before the deadline lane looked for it, so the
+    // run launched past its time limit instead of being stopped.
+    const { sql, statements } = fakeSql(() => []);
+    const woken = await wakeParkedAgentRuns(sql, 'org-1');
+    expect(woken).toBe(0);
+    const claim = statements.find((text) =>
+      text.startsWith(
+        'SELECT id, exec_id AS "execId" FROM app.project_agent_runs',
+      ),
+    );
+    expect(claim).toBeDefined();
+    expect(claim).toContain("status = 'queued'");
+    expect(claim).toContain('waiting_for_capacity_at_ms IS NOT NULL');
+    expect(claim).toContain('deadline_at_ms > ?');
+    expect(claim).toContain('FOR UPDATE SKIP LOCKED');
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('un-parks the claimed run and re-enqueues its turn in the same transaction', async () => {
+    const { sql, statements } = fakeSql((text) =>
+      text.startsWith('SELECT id, exec_id AS "execId"')
+        ? [{ id: 'run-1', execId: 'exec-1' }]
+        : [],
+    );
+    const woken = await wakeParkedAgentRuns(sql, 'org-1');
+    expect(woken).toBe(1);
+    expect(
+      statements.some(
+        (text) =>
+          text.startsWith('UPDATE app.project_agent_runs SET') &&
+          text.includes('waiting_for_capacity_at_ms = NULL'),
+      ),
+    ).toBe(true);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'task.agent_turn',
+      {
+        organizationId: 'org-1',
+        runId: 'run-1',
+        execId: 'exec-1',
+      },
     );
   });
 });

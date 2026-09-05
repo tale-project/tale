@@ -341,7 +341,12 @@ export async function claimParkedAgentRun(
 /**
  * The release-edge wake: claim the org's OLDEST parked run and re-enqueue
  * its turn. A spurious wake (nobody parked) is a cheap no-op; a failed
- * restart re-parks, re-arming the claim.
+ * restart re-parks, re-arming the claim. A parked run already past its
+ * deadline is NOT a candidate: it belongs to the task-agent watchdog's
+ * deadline lane (failed as "waited for capacity past its time limit"), and
+ * waking it would launch a turn the drive's deadline cut stops on arrival —
+ * un-parking it first would also hide it from that lane, which keys on
+ * `waiting_for_capacity_at_ms IS NOT NULL`.
  */
 export async function wakeParkedAgentRuns(
   sql: Sql,
@@ -352,6 +357,7 @@ export async function wakeParkedAgentRuns(
       SELECT id, exec_id AS "execId" FROM app.project_agent_runs
       WHERE org_id = ${organizationId} AND status = 'queued'
         AND waiting_for_capacity_at_ms IS NOT NULL
+        AND deadline_at_ms > ${Date.now()}
       ORDER BY waiting_for_capacity_at_ms
       LIMIT 1
       FOR UPDATE SKIP LOCKED
