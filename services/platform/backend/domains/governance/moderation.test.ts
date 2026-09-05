@@ -308,6 +308,25 @@ describe('runModerationProvider', () => {
     expect(safeFetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('never opens the circuit on a misconfiguration — nothing reached the provider', async () => {
+    readGovernanceSecret.mockResolvedValue(null);
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const run = await runModerationProvider(sql, {
+        organizationId: ORG,
+        direction: 'input',
+        text: 'x',
+        config: config(),
+      });
+      expect(run.outcome).toMatchObject({
+        kind: 'step_error',
+        reason: 'config',
+      });
+      expect(run.extras.circuitOpened).toBeUndefined();
+    }
+    expect(isCircuitOpen(ORG, 'input')).toBe(false);
+    expect(safeFetchMock).not.toHaveBeenCalled();
+  });
+
   it('opens the circuit after repeated failures and stops calling out', async () => {
     safeFetchMock.mockResolvedValue(ok('nope', 400));
     let opened = false;

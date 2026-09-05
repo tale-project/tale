@@ -613,11 +613,18 @@ export async function runModerationProvider(
     },
     extras,
   });
+  // The breaker guards against a provider that is DOWN — a misconfiguration
+  // (no secret stored, a refused host) never reached the provider, so it
+  // must not open the breaker and turn the settings probe's honest
+  // `config` verdict into "repeated failures" ten turns later.
   const failed = (extras: ModerationExtras): ModerationRun =>
-    stepError({
-      ...extras,
-      circuitOpened: recordCircuitFailure(organizationId, direction).justOpened,
-    });
+    extras.errorClass === 'config'
+      ? stepError(extras)
+      : stepError({
+          ...extras,
+          circuitOpened: recordCircuitFailure(organizationId, direction)
+            .justOpened,
+        });
 
   if (isCircuitOpen(organizationId, direction)) {
     return stepError({ errorClass: 'unknown', circuitOpen: true });
