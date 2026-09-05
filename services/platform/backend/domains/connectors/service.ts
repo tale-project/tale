@@ -17,6 +17,7 @@ import {
   type SandboxScriptRunner,
   type WorkflowConversationStore,
   type WorkflowDocumentStore,
+  type WorkflowFolderFile,
 } from '../../../lib/connectors/natives/index.ts';
 import type { PortableHostCall } from '../../../lib/connectors/portable-live.ts';
 import { registerConnector } from '../../../lib/connectors/registry.ts';
@@ -62,15 +63,17 @@ import { pgTaskStore } from './task-store.ts';
  * `convex/connectors/execute_action.ts`: assembles the REUSED engine seams
  * (catalog + registry, the node-vm code runner, the native backends) and
  * supplies the PG credential resolver, the approvals gate, and the audit
- * sink, so the mailbox sync, automation connector nodes, and (later) chat
- * tools all invoke connectors the same way.
+ * sink, so the mailbox sync, automation connector nodes, and chat tools all
+ * invoke connectors the same way.
  *
  * INTERNAL by contract — callers do their own authorization first.
  *
- * Deliberately fail-loud until its domain lands: the sandbox script runner
- * (it says what is missing instead of silently degrading). Live yaml-js bodies run on the data-only in-process
- * runner, which refuses host capabilities by design — the out-of-process
- * sandbox runner rides the external-turn bridge increment.
+ * The sandbox script runner (`sandbox.run_script`) runs in the automation
+ * run's own workflow session over the automations ctx shim — the same
+ * session the run's agent nodes use. Live yaml-js bodies run on the
+ * data-only in-process runner, which refuses host capabilities by design —
+ * the out-of-process sandbox runner rides the external-turn bridge
+ * increment.
  */
 
 let mailTransportOverride: MailTransport | undefined;
@@ -83,89 +86,147 @@ export function setMailTransportForTesting(
   mailTransportOverride = transport;
 }
 
-const failLoudScriptRunner: SandboxScriptRunner = async () => {
-  throw new ConnectorError(
-    'NATIVE_IMPL_UNAVAILABLE',
-    'sandbox.run_script is not available yet on this deployment',
-  );
-};
+/**
+ * The `sandbox.run_script` runner over the automations ctx shim — the run's
+ * workflow session, skill staging and output harvest are the agent host's
+ * seams, answered by the same handler map the stepper runs on. The shim
+ * module is loaded lazily: it imports this door for the stepper's connector
+ * nodes, and a static import back would close a cycle.
+ */
+function workflowScripts(sql: Sql): SandboxScriptRunner {
+  return async (run) => {
+    const [
+      { automationShimHandlers, automationShimScheduler },
+      { workflowScriptRunner },
+    ] = await Promise.all([
+      import('../automations/shim.ts'),
+      import('../../core/automations/script_host.ts'),
+    ]);
+    const ctx = createCtxShim(automationShimHandlers(sql), {
+      scheduler: automationShimScheduler(sql),
+    });
+    return workflowScriptRunner(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by automationShimHandlers
+      ctx as unknown as Parameters<typeof workflowScriptRunner>[0],
+    )(run);
+  };
+}
 
 /** The most files one `document.list` answers; past it the listing says
  * `truncated` so the agent narrows the folder instead of trusting a cut. */
 const WORKFLOW_FOLDER_LIST_CAP = 200;
 
+const systemAuthFor = async (sql: Sql, organizationId: string) =>
+  getProjectAuthContext(sql, {
+    organizationId,
+    userId: 'system',
+    role: 'owner',
+  });
+
+/**
+ * The bounded hub-folder walk behind the workflow `document.list` native AND
+ * the agent/script hosts' `files` mounts — one implementation of "which files
+ * does this folder hold for a run". The folder is named by id or by human
+ * path ("Clients/Acme" — the same walk the sync engines resolve with); null
+ * = it does not exist in this org's hub tree.
+ */
+export async function listWorkflowFolderFiles(
+  sql: Sql,
+  {
+    organizationId,
+    folderId,
+    folderPath,
+    recursive,
+  }: {
+    organizationId: string;
+    folderId?: string;
+    folderPath?: string;
+    recursive?: boolean;
+  },
+): Promise<{
+  files: Array<WorkflowFolderFile & { blobRef: string | null }>;
+  truncated: boolean;
+} | null> {
+  let rootFolderId: string;
+  if (folderId !== undefined) {
+    const folder = await loadFolderOrThrow(sql, folderId).catch(
+      (error: unknown) => {
+        if (error instanceof FolderError) return null;
+        throw error;
+      },
+    );
+    if (
+      folder === null ||
+      folder.organizationId !== organizationId ||
+      folder.projectId !== null
+    ) {
+      return null;
+    }
+    rootFolderId = folder.id;
+  } else if (folderPath !== undefined) {
+    const resolved = await findHubFolderByPath(
+      sql,
+      organizationId,
+      folderPath.split('/'),
+    );
+    if (resolved === null) return null;
+    rootFolderId = resolved;
+  } else {
+    return null;
+  }
+  const auth = await systemAuthFor(sql, organizationId);
+  const walked = await collectWorkflowFolderFiles(
+    {
+      filesIn: async (id, limit) => {
+        const page = await listFolderDocumentsBounded(sql, auth, {
+          folderId: id,
+          limit,
+        });
+        return {
+          files: page.documents.map((doc) => ({
+            name: doc.title ?? doc.id,
+            storageId: doc.fileRef ?? doc.id,
+            blobRef: doc.fileRef ?? null,
+          })),
+          truncated: page.truncated,
+        };
+      },
+      subfoldersOf: async (id) =>
+        (await listFolders(sql, auth, { parentId: id })).map((folder) => ({
+          id: folder.id,
+          name: folder.name,
+        })),
+    },
+    {
+      rootFolderId,
+      recursive: recursive ?? false,
+      cap: WORKFLOW_FOLDER_LIST_CAP,
+      maxDepth: MAX_FOLDER_DEPTH,
+    },
+  );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walk preserves the file shape it was fed, blobRef included
+  return walked as {
+    files: Array<WorkflowFolderFile & { blobRef: string | null }>;
+    truncated: boolean;
+  };
+}
+
 /** The document natives over the 0.5 documents domain. */
 function pgDocumentStore(sql: Sql): WorkflowDocumentStore {
-  const systemAuth = async (organizationId: string) =>
-    getProjectAuthContext(sql, {
-      organizationId,
-      userId: 'system',
-      role: 'owner',
-    });
   return {
-    async listFolder({ organizationId, folderId, folderPath, recursive }) {
-      // The folder, by id or by human path ("Clients/Acme" — the same walk
-      // the sync engines resolve with); null = it does not exist in this
-      // org's hub tree, which the native turns into a coded refusal.
-      let rootFolderId: string;
-      if (folderId !== undefined) {
-        const folder = await loadFolderOrThrow(sql, folderId).catch(
-          (error: unknown) => {
-            if (error instanceof FolderError) return null;
-            throw error;
-          },
-        );
-        if (
-          folder === null ||
-          folder.organizationId !== organizationId ||
-          folder.projectId !== null
-        ) {
-          return null;
-        }
-        rootFolderId = folder.id;
-      } else if (folderPath !== undefined) {
-        const resolved = await findHubFolderByPath(
-          sql,
-          organizationId,
-          folderPath.split('/'),
-        );
-        if (resolved === null) return null;
-        rootFolderId = resolved;
-      } else {
-        return null;
-      }
-      const auth = await systemAuth(organizationId);
-      return collectWorkflowFolderFiles(
-        {
-          filesIn: async (id, limit) => {
-            const page = await listFolderDocumentsBounded(sql, auth, {
-              folderId: id,
-              limit,
-            });
-            return {
-              files: page.documents.map((doc) => ({
-                name: doc.title ?? doc.id,
-                storageId: doc.fileRef ?? doc.id,
-              })),
-              truncated: page.truncated,
-            };
-          },
-          subfoldersOf: async (id) =>
-            (await listFolders(sql, auth, { parentId: id })).map((folder) => ({
-              id: folder.id,
-              name: folder.name,
-            })),
-        },
-        {
-          rootFolderId,
-          recursive: recursive ?? false,
-          cap: WORKFLOW_FOLDER_LIST_CAP,
-          maxDepth: MAX_FOLDER_DEPTH,
-        },
-      );
+    async listFolder(args) {
+      const listing = await listWorkflowFolderFiles(sql, args);
+      if (listing === null) return null;
+      return {
+        files: listing.files.map(({ name, storageId }) => ({
+          name,
+          storageId,
+        })),
+        truncated: listing.truncated,
+      };
     },
     async create({ organizationId, folderId, name, content, contentType }) {
-      const auth = await systemAuth(organizationId);
+      const auth = await systemAuthFor(sql, organizationId);
       const documentId = await sql.begin((tx) =>
         createHubDocument(tx, auth, {
           title: name,
@@ -289,7 +350,7 @@ function assembleConnectorHost(sql: Sql): void {
   for (const connector of connectors) registerConnector(connector);
   registerNativeConnectors({
     webdav: pgWebdavStore(sql),
-    sandboxScripts: failLoudScriptRunner,
+    sandboxScripts: workflowScripts(sql),
     tasks: pgTaskStore(sql),
     documents: pgDocumentStore(sql),
     conversations: pgConversationStore(sql),

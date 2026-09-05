@@ -8,7 +8,10 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { dismissAgentQuestionNotifications } from '../collab/service.ts';
-import { runConnectorAction } from '../connectors/service.ts';
+import {
+  listWorkflowFolderFiles,
+  runConnectorAction,
+} from '../connectors/service.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
 import {
@@ -166,6 +169,29 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     },
 
     // ------------------------------------------- the agent node's run seams
+    // A `files` mount of an agent or script node: the hub folder's tree as
+    // blob refs the session stages by URL. Text-only documents carry no
+    // blob and cannot be staged, so they are not listed — the walk tells
+    // the truth about a cut through `truncated`.
+    'documents/internal_queries:listFilesByFolderInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        folderId?: string;
+        folderPath?: string;
+        recursive?: boolean;
+      };
+      const listing = await listWorkflowFolderFiles(sql, args);
+      if (listing === null) return null;
+      return {
+        files: listing.files.flatMap((file) =>
+          file.blobRef === null
+            ? []
+            : [{ fileId: file.blobRef, name: file.name }],
+        ),
+        truncated: listing.truncated,
+      };
+    },
     'automations/queries:readAgentCursor': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { organizationId: string; runId: string };
