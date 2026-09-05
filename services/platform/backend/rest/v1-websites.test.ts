@@ -2,10 +2,28 @@
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import {
+  fetchWebsitePages,
+  listWebsites,
+  searchWebsiteContent,
+} from '../domains/websites/service.ts';
 import type { RestEnv } from './shared.ts';
 import { createRestWebsiteRoutes } from './v1-websites.ts';
+
+// The corpus reads reach the per-org knowledge pool; here only the bounds
+// the route hands them are under test.
+vi.mock('../domains/websites/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../domains/websites/service.ts')>()),
+  fetchWebsitePages: vi.fn(() =>
+    Promise.resolve({ pages: [], total: 0, offset: 0, hasMore: false }),
+  ),
+  listWebsites: vi.fn(() =>
+    Promise.resolve({ page: [], isDone: true, continueCursor: '' }),
+  ),
+  searchWebsiteContent: vi.fn(() => Promise.resolve({ results: [], total: 0 })),
+}));
 
 /**
  * The /websites family validates what it parses. The regression under test:
@@ -117,5 +135,64 @@ describe('website domain and field validation', () => {
       description: 'y'.repeat(2001),
     });
     expect(patched.status).toBe(400);
+  });
+});
+
+/**
+ * The three corpus reads bound what they pass on. The regression under
+ * test: `?limit=2.5` / `?offset=-1` reached `OFFSET`/`LIMIT` raw (a Postgres
+ * error → 500), and pages/search accepted an unbounded limit — any key could
+ * walk the organization's whole crawl inventory in one request.
+ */
+describe('website list bounds', () => {
+  it('clamps and truncates limit for GET /websites', async () => {
+    const { sql } = fakeSql();
+    const app = mount(sql);
+    for (const [limit, expected] of [
+      ['2.5', 2],
+      ['-1', 1],
+      ['9999', 200],
+      ['abc', 25],
+    ] as const) {
+      vi.mocked(listWebsites).mockClear();
+      expect(
+        (await app.request(`http://localhost/websites?limit=${limit}`)).status,
+      ).toBe(200);
+      expect(vi.mocked(listWebsites).mock.calls[0]?.[2]).toMatchObject({
+        limit: expected,
+      });
+    }
+  });
+
+  it('floors offset at zero and caps limit for GET /websites/{id}/pages', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/websites/w-1/pages?offset=-1.5&limit=1e8',
+    );
+    expect(res.status).toBe(200);
+    expect(vi.mocked(fetchWebsitePages).mock.calls.at(-1)?.[2]).toEqual({
+      offset: 0,
+      limit: 500,
+    });
+    await mount(sql).request(
+      'http://localhost/websites/w-1/pages?offset=2.7&limit=2.5',
+    );
+    expect(vi.mocked(fetchWebsitePages).mock.calls.at(-1)?.[2]).toEqual({
+      offset: 2,
+      limit: 2,
+    });
+  });
+
+  it('caps the search limit for POST /websites/{id}/search', async () => {
+    const { sql } = fakeSql();
+    const res = await send(sql, '/websites/w-1/search', 'POST', {
+      query: 'refunds',
+      limit: 1e9,
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(searchWebsiteContent).mock.calls.at(-1)?.[2]).toEqual({
+      query: 'refunds',
+      limit: 100,
+    });
   });
 });

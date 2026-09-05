@@ -20,7 +20,7 @@ import {
 } from '../domains/websites/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
-import type { RestEnv } from './shared.ts';
+import { pageLimit, type RestEnv } from './shared.ts';
 
 /**
  * The /websites REST family (the 0.4 `websites/rest_api.ts` contract):
@@ -95,7 +95,7 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ? { scanInterval: c.req.query('scanInterval') ?? '' }
         : {}),
       cursor: c.req.query('cursor') ?? null,
-      limit: Number(c.req.query('limit') ?? '25') || 25,
+      limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 200 }),
     });
     return c.json(result);
   });
@@ -204,10 +204,14 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/websites/:id/pages', async (c) => {
     const website = await loadOwned(c.get('organizationId'), c.req.param('id'));
     if (!website) return restJsonError(c, 'Website not found', 404);
+    // Whole, non-negative rows only: the inventory query ships these as
+    // `OFFSET`/`LIMIT`, where `-1` and `2.5` are Postgres errors and an
+    // unbounded limit walks the whole per-domain corpus.
+    const offset = Math.max(0, Math.trunc(Number(c.req.query('offset')) || 0));
     return c.json(
       await fetchWebsitePages(deps.sql, website, {
-        offset: Number(c.req.query('offset') ?? '0') || 0,
-        limit: Number(c.req.query('limit') ?? '100') || 100,
+        offset,
+        limit: pageLimit(c.req.query('limit'), { fallback: 100, max: 500 }),
       }),
     );
   });
@@ -229,7 +233,10 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
     // The domain re-parses `domain` itself; refusing the unparseable here
     // keeps its TypeError out of the 500 handler.
-    if (typeof body.domain === 'string' && parseWebsiteDomain(body.domain) === null) {
+    if (
+      typeof body.domain === 'string' &&
+      parseWebsiteDomain(body.domain) === null
+    ) {
       return restJsonError(c, 'Invalid domain', 400);
     }
     const title = boundedString(body.title, MAX_TITLE);
@@ -299,7 +306,9 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json(
       await searchWebsiteContent(deps.sql, website, {
         query: body.query,
-        ...(typeof body.limit === 'number' ? { limit: body.limit } : {}),
+        ...(typeof body.limit === 'number'
+          ? { limit: pageLimit(body.limit, { fallback: 10, max: 100 }) }
+          : {}),
       }),
     );
   });

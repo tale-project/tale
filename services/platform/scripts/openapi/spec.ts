@@ -369,10 +369,16 @@ export function buildSpec(): Json {
       security: sec,
       parameters: [
         pathParam('id', 'Website ID'),
-        queryParam('offset', 'Rows to skip (default 0)', { type: 'integer' }),
-        queryParam('limit', 'Rows to return (default 100)', {
-          type: 'integer',
-        }),
+        queryParam(
+          'offset',
+          'Rows to skip (default 0; a negative or fractional value is clamped to a whole, non-negative row count)',
+          { type: 'integer' },
+        ),
+        queryParam(
+          'limit',
+          'Rows to return, 1..500 (default 100; out-of-range values are clamped)',
+          { type: 'integer' },
+        ),
       ],
       responses: {
         '200': jsonResponse('The pages window', ref('WebsitePageList')),
@@ -417,7 +423,14 @@ export function buildSpec(): Json {
       requestBody: jsonBody({
         type: 'object',
         required: ['query'],
-        properties: { query: str, limit: int },
+        properties: {
+          query: str,
+          limit: {
+            type: 'integer',
+            description:
+              'Matches to return, 1..100 (default 10; out-of-range values are clamped)',
+          },
+        },
       }),
       responses: {
         '200': jsonResponse('Matches', ref('WebsiteSearchResults')),

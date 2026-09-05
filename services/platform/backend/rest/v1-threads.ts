@@ -168,11 +168,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/threads/:id/messages', async (c) => {
     const thread = await loadRestThread(c, c.req.param('id'));
     if (thread === null) return c.json({ error: 'Thread not found' }, 404);
-    const limitRaw = Number(c.req.query('limit') ?? '25');
-    const limit = Math.min(
-      Math.max(Number.isFinite(limitRaw) ? limitRaw : 25, 1),
-      100,
-    );
+    const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
     const cursorParam = c.req.query('cursor');
     // Number('') is 0 — only a present, non-empty cursor filters the page.
     const cursor =

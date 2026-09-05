@@ -320,12 +320,15 @@ describe('malformed JSON bodies', () => {
     ['PATCH', '/knowledge-entries/k-1', ''],
     ['PUT', '/agents/helper', '{'],
     ['PUT', '/skills/helper', ''],
-  ])('%s %s with body %j answers 400 in the JSON envelope', async (method, route, body) => {
-    const res = await send(route, method, body);
-    expect(res.status).toBe(400);
-    expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toMatchObject({ error: expect.any(String) });
-  });
+  ])(
+    '%s %s with body %j answers 400 in the JSON envelope',
+    async (method, route, body) => {
+      const res = await send(route, method, body);
+      expect(res.status).toBe(400);
+      expect(res.headers.get('content-type')).toContain('application/json');
+      expect(await res.json()).toMatchObject({ error: expect.any(String) });
+    },
+  );
 });
 
 /**
@@ -343,23 +346,55 @@ describe('knowledge-entry writes over the knowledge:mutate budget', () => {
     ['POST', '/knowledge-entries'],
     ['PATCH', '/knowledge-entries/k-1'],
     ['DELETE', '/knowledge-entries/k-1'],
-  ])('%s %s answers 429 with Retry-After, and touches nothing else', async (method, route) => {
-    const { sql, queries } = fakeSql([], spentBucket);
-    const res = await mount(sql).request(`http://localhost${route}`, {
-      method,
-      headers: { 'content-type': 'application/json' },
-      ...(method === 'DELETE' ? {} : { body: JSON.stringify(entry) }),
-    });
-    expect(res.status).toBe(429);
-    expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
-    expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
-    const charge = queries.find((q) =>
-      q.text.includes('INSERT INTO app.rate_limits'),
-    );
-    expect(charge?.values).toContain('knowledge:mutate');
-    expect(charge?.values).toContain('org:org-1');
-    expect(
-      queries.some((q) => q.text.includes('app.knowledge_entries')),
-    ).toBe(false);
-  });
+  ])(
+    '%s %s answers 429 with Retry-After, and touches nothing else',
+    async (method, route) => {
+      const { sql, queries } = fakeSql([], spentBucket);
+      const res = await mount(sql).request(`http://localhost${route}`, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        ...(method === 'DELETE' ? {} : { body: JSON.stringify(entry) }),
+      });
+      expect(res.status).toBe(429);
+      expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+      expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
+      const charge = queries.find((q) =>
+        q.text.includes('INSERT INTO app.rate_limits'),
+      );
+      expect(charge?.values).toContain('knowledge:mutate');
+      expect(charge?.values).toContain('org:org-1');
+      expect(
+        queries.some((q) => q.text.includes('app.knowledge_entries')),
+      ).toBe(false);
+    },
+  );
+});
+
+/**
+ * Every list route truncates AND clamps `limit` through the shared
+ * `pageLimit`. The regression under test: `/documents` and
+ * `/knowledge-entries` clamped without truncating, so `?limit=2.5` reached
+ * Postgres as the text `3.5` and `int8in` refused it — a 500 plus an error
+ * report for a malformed query string.
+ */
+describe.each([
+  { route: '/documents', table: 'documents' },
+  { route: '/knowledge-entries', table: 'knowledge_entries' },
+])('GET $route limit', ({ route, table }) => {
+  it.each([
+    ['2.5', 3],
+    ['-4', 2],
+    ['999', 101],
+    ['abc', 26],
+  ])(
+    'turns ?limit=%s into a whole LIMIT of %i (page + 1)',
+    async (limit, expected) => {
+      const { sql, queries } = fakeSql([]);
+      const res = await mount(sql).request(
+        `http://localhost${route}?limit=${limit}`,
+      );
+      expect(res.status).toBe(200);
+      expect(listQuery(queries, table).values).toContain(expected);
+    },
+  );
 });

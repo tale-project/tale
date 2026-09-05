@@ -1035,7 +1035,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Rows to skip (default 0)"
+            "description": "Rows to skip (default 0; a negative or fractional value is clamped to a whole, non-negative row count)"
           },
           {
             "name": "limit",
@@ -1044,7 +1044,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Rows to return (default 100)"
+            "description": "Rows to return, 1..500 (default 100; out-of-range values are clamped)"
           }
         ],
         "responses": {
@@ -1218,7 +1218,8 @@
                     "type": "string"
                   },
                   "limit": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Matches to return, 1..100 (default 10; out-of-range values are clamped)"
                   }
                 }
               }

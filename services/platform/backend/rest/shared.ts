@@ -202,11 +202,13 @@ export function parseKeysetCursor(
   return Number.isFinite(at) ? { at, id: raw.slice(split + 1) } : null;
 }
 
-/** The page size a list route honours: the documented default, floored at
- * one row (a negative `LIMIT` is a Postgres error, zero a dead page) and
- * capped at `max`. */
+/** The page size a list route honours: the documented default, truncated
+ * to a whole row (the driver ships a JS number as text, so `2.5` is an
+ * `int8in` error), floored at one row (a negative `LIMIT` is a Postgres
+ * error, zero a dead page) and capped at `max`. Takes the query string or
+ * an already-numeric body field. */
 export function pageLimit(
-  raw: string | undefined,
+  raw: string | number | undefined,
   defaults: { fallback: number; max: number },
 ): number {
   const parsed = Number(raw ?? String(defaults.fallback));

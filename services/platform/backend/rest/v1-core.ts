@@ -347,7 +347,6 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.get('/documents', async (c) => {
-    const limitRaw = Number(c.req.query('limit') ?? '25');
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const result = await listHubDocumentsPage(deps.sql, auth, {
@@ -358,7 +357,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           ? { folderId: c.req.query('folderId') ?? '' }
           : {}),
         cursor: c.req.query('cursor') ?? null,
-        limit: Number.isFinite(limitRaw) ? limitRaw : 25,
+        limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 100 }),
       });
       return c.json({
         page: result.page.map((doc) => hubDocumentPayload(doc, null)),
@@ -599,11 +598,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (status !== 'active' && status !== 'superseded') {
       return c.json({ error: '"status" must be active or superseded' }, 400);
     }
-    const limitRaw = Number(c.req.query('limit') ?? '25');
-    const limit = Math.min(
-      Math.max(Number.isFinite(limitRaw) ? limitRaw : 25, 1),
-      100,
-    );
+    const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
     const cursorParam = c.req.query('cursor');
     // Number('') is 0 — only a present, non-empty cursor filters the page.
     const cursor =
@@ -640,7 +635,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * limiter's error carries no wire code, so left inside the domain-error
    * mapping it read as a 500 outage and landed in error reporting. */
   const chargeKnowledgeMutate = (c: Context<RestEnv>) =>
-    chargeOrgRateLimit(deps.sql, c, 'knowledge:mutate', c.get('organizationId'));
+    chargeOrgRateLimit(
+      deps.sql,
+      c,
+      'knowledge:mutate',
+      c.get('organizationId'),
+    );
 
   const loadEntry = async (
     c: Context<RestEnv>,
