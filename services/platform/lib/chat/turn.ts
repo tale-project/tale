@@ -442,7 +442,7 @@ export type TurnOutcome =
  * any tool sees it; the chain may rewrite the text (a PII mask), and a refusal
  * ends the turn here.
  */
-export async function runInputGuardrails(
+async function runInputGuardrails(
   text: string,
   deps: TurnDeps,
 ): Promise<{ text: string; refusal?: GuardrailRefusal }> {
@@ -461,7 +461,7 @@ export async function runInputGuardrails(
  * pair runs directly or in a sandbox harness, per the one case split every
  * caller shares.
  */
-export function resolveAgentAndExecution(
+function resolveAgentAndExecution(
   request: TurnRequest,
   deps: TurnDeps,
 ): { agent?: ResolvedAgent; execution: ExecutionResolution } {
@@ -501,7 +501,7 @@ export function userTurnParts(
   ];
 }
 
-export function assembleTurnContext(
+function assembleTurnContext(
   request: TurnRequest,
   filteredUserText: string,
   now: Date,
@@ -560,7 +560,7 @@ interface StreamRoundOptions {
  * Longer than the store's write throttle, so nearly every poll is a real
  * read; short enough that Stop answers within a second even when the
  * provider is between bytes. */
-export const CANCEL_POLL_INTERVAL_MS = 750;
+const CANCEL_POLL_INTERVAL_MS = 750;
 
 const CANCEL_POLL_TICK = Symbol('cancel-poll-tick');
 
@@ -590,7 +590,7 @@ function raceCancelPoll<T>(
  * One call is ONE model round. The tool loop in `runTurn` calls it again with
  * an extended transcript after executing the round's tool calls.
  */
-export async function streamWithOutputGuardrails(
+async function streamWithOutputGuardrails(
   request: TurnRequest,
   context: AssembledContext,
   execution: ExecutionResolution,
@@ -850,7 +850,7 @@ export function estimateCostCents(
  * output included: the tokens were spent either way, and a ledger that only
  * counts good answers under-reports what the org is paying for.
  */
-export async function recordUsage(
+async function recordUsage(
   request: TurnRequest,
   usage: TurnUsage,
   deps: TurnDeps,
