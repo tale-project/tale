@@ -55,6 +55,8 @@ export interface EnterpriseSsoContract {
       scopes: string[];
       providerId: 'oauth2' | 'entra-id' | 'generic-oidc';
       clientId: string;
+      /** The secret as typed; omitted, the backend probes with the stored one. */
+      clientSecret?: string;
       issuer: string;
     };
     returns: { valid: boolean; error?: string };

@@ -11659,23 +11659,6 @@ async function checkSsoLogin(
     );
     void configRoot;
 
-    // --- discover ----------------------------------------------------------
-    const discovered = z
-      .object({
-        ssoEnabled: z.boolean(),
-        organizationId: z.string().optional(),
-        protocol: z.string().optional(),
-      })
-      .safeParse(
-        await (
-          await fetch(`${base}/api/sso/discover`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email: 'sso.user@door.test' }),
-          })
-        ).json(),
-      );
-
     // --- one full login round, reusable ------------------------------------
     const loginRound = async (): Promise<{
       authorizeStatus: number;
@@ -11697,12 +11680,17 @@ async function checkSsoLogin(
         state = idpUrl.searchParams.get('state') ?? '';
         seenChallenge = idpUrl.searchParams.get('code_challenge') ?? '';
       }
+      // The authorize door binds the flow to this browser with a cookie the
+      // callback demands back — carry it, as a browser would.
       const callbackRes = await fetch(
         `${base}/api/sso/callback?code=itest-code&state=${encodeURIComponent(state)}`,
-        { redirect: 'manual' },
+        {
+          redirect: 'manual',
+          headers: { cookie: cookieHeaderFrom(authorizeRes) },
+        },
       );
-      const setCookie = callbackRes.headers.get('set-cookie') ?? '';
-      const cookiePair = setCookie.split(';')[0] ?? '';
+      // The callback also spends the flow cookie; only the session survives.
+      const cookiePair = mergeCookieHeader('', callbackRes);
       return {
         authorizeStatus: authorizeRes.status,
         idpHost,
@@ -11871,10 +11859,7 @@ async function checkSsoLogin(
 
     record(
       'enterprise SSO login (OIDC + PKCE + provisioning over PG)',
-      discovered.success &&
-        discovered.data.ssoEnabled &&
-        discovered.data.protocol === 'oidc' &&
-        first.authorizeStatus === 302 &&
+      first.authorizeStatus === 302 &&
         first.idpHost &&
         seenChallenge !== '' &&
         first.callbackStatus === 302 &&
@@ -11891,7 +11876,41 @@ async function checkSsoLogin(
         rows2[0]?.teams === 'Board,Everyone,Finance,Scim Managed' &&
         opsTeamGone.length === 0 &&
         aliasRes.status === 302,
-      `discover=${discovered.success ? `${discovered.data.ssoEnabled}/${discovered.data.protocol ?? ''}` : 'ERR'}, authorize=${first.authorizeStatus} idp=${first.idpHost} pkce=${firstPkce}, callback=${first.callbackStatus}→${first.location.includes('/dashboard') ? 'dashboard' : first.location}, session=${sessionBody.success ? (sessionBody.data.user?.email ?? 'none') : 'ERR'}, first role/teams=${rows1[0]?.role}/${rows1[0]?.teams} (want developer/Ops), second role/teams=${rows2[0]?.role}/${rows2[0]?.teams} (want member/Board,Everyone,Finance,Scim Managed), opsReaped=${opsTeamGone.length === 0}, alias=${aliasRes.status}`,
+      `authorize=${first.authorizeStatus} idp=${first.idpHost} pkce=${firstPkce}, callback=${first.callbackStatus}→${first.location.includes('/dashboard') ? 'dashboard' : first.location}, session=${sessionBody.success ? (sessionBody.data.user?.email ?? 'none') : 'ERR'}, first role/teams=${rows1[0]?.role}/${rows1[0]?.teams} (want developer/Ops), second role/teams=${rows2[0]?.role}/${rows2[0]?.teams} (want member/Board,Everyone,Finance,Scim Managed), opsReaped=${opsTeamGone.length === 0}, alias=${aliasRes.status}`,
+    );
+
+    // --- the completion must arrive in the browser that started it ---------
+    // A valid, unexpired state is exactly what a login-CSRF attacker holds for
+    // their OWN flow: without the authorize door's flow cookie the callback
+    // refuses with a readable key, mints no session, and audits the attempt.
+    const unboundAuthorize = await fetch(
+      `${base}/api/sso/authorize?organizationId=${orgId}`,
+      { redirect: 'manual' },
+    );
+    const unboundState =
+      new URL(
+        unboundAuthorize.headers.get('location') ?? 'http://unset.invalid/',
+      ).searchParams.get('state') ?? '';
+    const unbound = await fetch(
+      `${base}/api/sso/callback?code=itest-code&state=${encodeURIComponent(unboundState)}`,
+      { redirect: 'manual' },
+    );
+    const unboundLocation = unbound.headers.get('location') ?? '';
+    const unboundAudit = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+        AND metadata ->> 'errorKey' = 'sso.errors.flowMismatch'
+    `;
+    record(
+      'an SSO callback outside the browser that started the flow is refused',
+      unboundAuthorize.status === 302 &&
+        cookieHeaderFrom(unboundAuthorize).includes('sso_flow=') &&
+        unbound.status === 302 &&
+        unboundLocation.includes('/log-in') &&
+        unboundLocation.includes('error=sso.errors.flowMismatch') &&
+        !cookieHeaderFrom(unbound).includes('better-auth.session_token=') &&
+        (unboundAudit[0]?.count ?? 0) === 1,
+      `authorize=${unboundAuthorize.status} flowCookie=${cookieHeaderFrom(unboundAuthorize).includes('sso_flow=')}, callback=${unbound.status}→${unboundLocation.includes('/log-in') ? 'log-in' : unboundLocation} key=${unboundLocation.includes('error=sso.errors.flowMismatch')} session=${cookieHeaderFrom(unbound).includes('better-auth.session_token=') ? 'MINTED' : 'none'}, audited=${unboundAudit[0]?.count} (want 1)`,
     );
 
     // --- fourth round: org 2FA enforcement anchors on the SSO door ---------
@@ -12039,11 +12058,19 @@ async function checkSamlLogin(
       )?.[1] ?? '';
 
     // ---- SP-initiated: 302 to the IdP carrying the org as RelayState ----
+    // RelayState is `<org>.<sha256(flow nonce)>`: the org resolves the
+    // connection on the way back, the hash binds the response to the browser
+    // holding the flow cookie this redirect set.
     const loginRes = await fetch(`${base}/api/sso/saml/login?org=${orgId}`, {
       redirect: 'manual',
     });
     const loginLocation = loginRes.headers.get('location') ?? '';
     const loginUrl = loginLocation === '' ? null : new URL(loginLocation);
+    const loginRelay = loginUrl?.searchParams.get('RelayState') ?? '';
+    const loginFlowCookie = cookieHeaderFrom(loginRes);
+    const boundRelay = (relay: string): boolean =>
+      relay.startsWith(`${orgId}.`) &&
+      /^[A-Za-z0-9_-]{43}$/.test(relay.slice(orgId.length + 1));
 
     // The AuthnRequest ID inside the redirect (deflate+base64, Redirect
     // binding) — building it must have stored the ID in the shared
@@ -12071,8 +12098,9 @@ async function checkSamlLogin(
         loginRes.status === 302 &&
         loginUrl?.origin === 'https://idp.saml.itest' &&
         (loginUrl?.searchParams.get('SAMLRequest') ?? '') !== '' &&
-        loginUrl?.searchParams.get('RelayState') === orgId,
-      `metadata=${metadataRes.status} entityId=${spEntityId} acs=${acsUrl}, login=${loginRes.status}→${loginUrl?.origin ?? loginLocation} relay=${loginUrl?.searchParams.get('RelayState') === orgId} request=${(loginUrl?.searchParams.get('SAMLRequest') ?? '') !== ''}`,
+        boundRelay(loginRelay) &&
+        loginFlowCookie.includes('sso_flow='),
+      `metadata=${metadataRes.status} entityId=${spEntityId} acs=${acsUrl}, login=${loginRes.status}→${loginUrl?.origin ?? loginLocation} relay=${boundRelay(loginRelay)} flowCookie=${loginFlowCookie.includes('sso_flow=')} request=${(loginUrl?.searchParams.get('SAMLRequest') ?? '') !== ''}`,
     );
 
     // ---- the fixture IdP: a canonical, signed assertion -------------------
@@ -12151,14 +12179,22 @@ async function checkSamlLogin(
       ).toString('base64');
     };
 
-    const postAssertion = (samlResponse: string): Promise<Response> =>
+    // IdP-initiated shape by default (a bare org RelayState, no flow cookie);
+    // an SP-initiated post passes the login redirect's RelayState and cookie.
+    const postAssertion = (
+      samlResponse: string,
+      browser: { relayState?: string; cookie?: string } = {},
+    ): Promise<Response> =>
       fetch(`${base}/api/sso/saml/acs`, {
         method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          ...(browser.cookie === undefined ? {} : { cookie: browser.cookie }),
+        },
         redirect: 'manual',
         body: new URLSearchParams({
           SAMLResponse: samlResponse,
-          RelayState: orgId,
+          RelayState: browser.relayState ?? orgId,
         }).toString(),
       });
 
@@ -12282,13 +12318,13 @@ async function checkSamlLogin(
       notOnOrAfterMs: Date.now() + 300_000,
       inResponseTo: authnRequestId,
     });
-    const spFirst = await postAssertion(spResponse);
-    const spFirstCookie =
-      (spFirst.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const spBrowser = { relayState: loginRelay, cookie: loginFlowCookie };
+    const spFirst = await postAssertion(spResponse, spBrowser);
+    const spFirstCookie = mergeCookieHeader('', spFirst);
     const consumedRow = await sql<{ id: string }[]>`
       SELECT id FROM app.saml_request_ids WHERE id = ${authnRequestId}
     `;
-    const spReplay = await postAssertion(spResponse);
+    const spReplay = await postAssertion(spResponse, spBrowser);
     const forged = await postAssertion(
       buildResponse({
         id: '_itestsaml5',
@@ -12308,11 +12344,63 @@ async function checkSamlLogin(
         consumedRow.length === 0 &&
         spReplay.status === 302 &&
         (spReplay.headers.get('location') ?? '').includes('/log-in') &&
-        (spReplay.headers.get('set-cookie') ?? '') === '' &&
+        !mergeCookieHeader('', spReplay).includes(
+          'better-auth.session_token=',
+        ) &&
         forged.status === 302 &&
         (forged.headers.get('location') ?? '').includes('/log-in') &&
         (forged.headers.get('set-cookie') ?? '') === '',
-      `issued=${authnRequestId !== ''}/row=${issuedRow.length} (want 1), first=${spFirst.status}→${(spFirst.headers.get('location') ?? '').includes('/dashboard') ? 'dashboard' : spFirst.headers.get('location')} cookie=${spFirstCookie !== ''}, consumed=${consumedRow.length === 0}, replay=${spReplay.status}→${(spReplay.headers.get('location') ?? '').includes('/log-in') ? 'log-in' : 'ERR'} noCookie=${(spReplay.headers.get('set-cookie') ?? '') === ''}, forged=${forged.status} noCookie=${(forged.headers.get('set-cookie') ?? '') === ''}`,
+      `issued=${authnRequestId !== ''}/row=${issuedRow.length} (want 1), first=${spFirst.status}→${(spFirst.headers.get('location') ?? '').includes('/dashboard') ? 'dashboard' : spFirst.headers.get('location')} cookie=${spFirstCookie !== ''}, consumed=${consumedRow.length === 0}, replay=${spReplay.status}→${(spReplay.headers.get('location') ?? '').includes('/log-in') ? 'log-in' : 'ERR'} noSession=${!mergeCookieHeader('', spReplay).includes('better-auth.session_token=')}, forged=${forged.status} noCookie=${(forged.headers.get('set-cookie') ?? '') === ''}`,
+    );
+
+    // ---- browser binding of an SP-initiated response -------------------
+    // The response answers an AuthnRequest this deployment issued, but it is
+    // posted from a browser WITHOUT the flow cookie the login redirect set —
+    // the insider's captured response auto-submitted from a victim's browser.
+    // Refused readably, audited, no session; a fresh AuthnRequest, since the
+    // first one above is spent.
+    const secondLogin = await fetch(`${base}/api/sso/saml/login?org=${orgId}`, {
+      redirect: 'manual',
+    });
+    const secondLoginUrl = new URL(
+      secondLogin.headers.get('location') ?? 'http://unset.invalid/',
+    );
+    const secondRequestParam =
+      secondLoginUrl.searchParams.get('SAMLRequest') ?? '';
+    const secondRequestId =
+      secondRequestParam === ''
+        ? ''
+        : (/ID="([^"]+)"/.exec(
+            inflateRawSync(Buffer.from(secondRequestParam, 'base64')).toString(
+              'utf8',
+            ),
+          )?.[1] ?? '');
+    const unboundSaml = await postAssertion(
+      buildResponse({
+        id: '_itestsaml8',
+        email: 'saml.user@door.test',
+        groups: ['SamlOps'],
+        notOnOrAfterMs: Date.now() + 300_000,
+        inResponseTo: secondRequestId,
+      }),
+      { relayState: secondLoginUrl.searchParams.get('RelayState') ?? '' },
+    );
+    const unboundSamlLocation = unboundSaml.headers.get('location') ?? '';
+    const unboundSamlAudit = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+        AND metadata ->> 'providerId' = 'saml'
+        AND metadata ->> 'errorKey' = 'sso.errors.flowMismatch'
+    `;
+    record(
+      'SAML: an SP-initiated response outside the browser that started it is refused',
+      secondRequestId !== '' &&
+        unboundSaml.status === 302 &&
+        unboundSamlLocation.includes('/log-in') &&
+        unboundSamlLocation.includes('error=sso.errors.flowMismatch') &&
+        (unboundSaml.headers.get('set-cookie') ?? '') === '' &&
+        (unboundSamlAudit[0]?.count ?? 0) === 1,
+      `issued=${secondRequestId !== ''}, acs=${unboundSaml.status}→${unboundSamlLocation.includes('/log-in') ? 'log-in' : unboundSamlLocation} key=${unboundSamlLocation.includes('error=sso.errors.flowMismatch')} noCookie=${(unboundSaml.headers.get('set-cookie') ?? '') === ''}, audited=${unboundSamlAudit[0]?.count} (want 1)`,
     );
 
     // ---- org binding ----------------------------------------------------
@@ -12577,10 +12665,12 @@ async function checkEntraLogin(
     const state = authorizeUrl?.searchParams.get('state') ?? '';
     const callbackRes = await fetch(
       `${base}/api/sso/callback?code=itest-entra-code&state=${encodeURIComponent(state)}`,
-      { redirect: 'manual' },
+      {
+        redirect: 'manual',
+        headers: { cookie: cookieHeaderFrom(authorizeRes) },
+      },
     );
-    const cookie =
-      (callbackRes.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const cookie = mergeCookieHeader('', callbackRes);
     const session = z
       .looseObject({
         user: z.looseObject({ email: z.string() }).nullable().optional(),

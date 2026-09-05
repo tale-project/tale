@@ -108,8 +108,8 @@ const samlConfig: SsoConnectionView = {
   },
 };
 
-/** A SAML connection carrying an SP keypair + assertion/attribute options the
- *  form has no inputs for — used to assert they survive an unrelated re-save. */
+/** A SAML connection carrying an SP keypair + assertion/attribute options —
+ *  the Advanced inputs round-trip them, and a stored key is kept on omit. */
 const samlWithSpKeypair: SsoConnectionView = {
   ...samlConfig,
   saml: {
@@ -386,14 +386,28 @@ describe('EnterpriseSsoForm validation + save', () => {
     ).toHaveValue('https://auth.acme.com/userinfo');
   });
 
-  it('preserves stored SAML SP keypair + options the form cannot edit on re-save', async () => {
-    // Regression: the form has no inputs for spCertificate / wantAssertions* /
-    // attributeMappings, so an unrelated re-save must NOT drop them (dropping
-    // spCertificate would also flip the backend-derived hasSpKeypair off).
+  it('round-trips stored SAML SP options through the Advanced inputs on re-save', async () => {
+    // The SP certificate, the assertion switches and the attribute names are
+    // seeded into the Advanced inputs and saved back as stored; the private
+    // key is a secret the view never carries, so it is omitted (= keep).
     upsertSamlMock.mockClear();
     const { user } = renderForm(samlWithSpKeypair);
 
-    // Edit a field the form DOES expose so the form goes dirty + Save enables.
+    expect(
+      screen.getByRole('textbox', { name: /sp certificate/i }),
+    ).toHaveValue(
+      '-----BEGIN CERTIFICATE-----\nSPCERT\n-----END CERTIFICATE-----',
+    );
+    expect(
+      screen.getByRole('switch', { name: /require signed assertions/i }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole('switch', { name: /require encrypted assertions/i }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole('textbox', { name: /email attribute/i }),
+    ).toHaveValue('mail');
+
     const displayName = screen.getByRole('textbox', { name: /display name/i });
     await user.clear(displayName);
     await user.type(displayName, 'Renamed SSO');
@@ -410,6 +424,89 @@ describe('EnterpriseSsoForm validation + save', () => {
       wantAssertionsEncrypted: false,
       attributeMappings: { email: 'mail' },
     });
+    // Omitted on the wire (`undefined` never serialises) → the backend keeps it.
+    expect(upsertSamlMock.mock.calls[0][0].spPrivateKey).toBeUndefined();
+  });
+
+  it('saves a typed SP keypair, the encryption switch and attribute names (SAML Advanced)', async () => {
+    upsertSamlMock.mockClear();
+    const { user } = renderForm(samlConfig);
+
+    // Advanced is a closed disclosure; its inputs are in the DOM already.
+    const spCert = screen.getByRole('textbox', { name: /sp certificate/i });
+    expect(spCert.closest('details')).not.toHaveAttribute('open');
+    await user.type(spCert, 'CERT');
+    await user.type(
+      screen.getByRole('textbox', { name: /sp private key/i }),
+      'KEY',
+    );
+    await user.click(
+      screen.getByRole('switch', { name: /require encrypted assertions/i }),
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: /groups attribute/i }),
+      'memberOf',
+    );
+
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
+    await waitFor(() => expect(upsertSamlMock).toHaveBeenCalledTimes(1));
+    expect(upsertSamlMock.mock.calls[0][0]).toMatchObject({
+      spCertificate: 'CERT',
+      spPrivateKey: 'KEY',
+      wantAssertionsSigned: true,
+      wantAssertionsEncrypted: true,
+      attributeMappings: { groups: 'memberOf' },
+    });
+  });
+
+  it('blocks requiring encrypted assertions without an SP private key', async () => {
+    // No key stored (hasSpKeypair false) and none typed: the toggle alone
+    // would persist a connection that refuses every login, so the save is
+    // refused under the key field and never reaches the backend.
+    upsertSamlMock.mockClear();
+    const { user } = renderForm(samlConfig);
+
+    await user.click(
+      screen.getByRole('switch', { name: /require encrypted assertions/i }),
+    );
+    // `isValid` gates Save, so it stays disabled while the key is missing …
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeDisabled());
+
+    // … and the inline error surfaces under the key field once it is touched
+    // (shared `mode: 'onTouched'`).
+    await user.click(screen.getByRole('textbox', { name: /sp private key/i }));
+    await user.tab();
+    expect(
+      await screen.findByText(/an sp private key is required/i),
+    ).toBeInTheDocument();
+    expect(upsertSamlMock).not.toHaveBeenCalled();
+  });
+
+  it('pins a rejected SP key under its own input instead of toasting', async () => {
+    // A stored key satisfies the client-side check; the backend still
+    // decides (sso_sp_key_required) and its answer lands under the field.
+    upsertSamlMock.mockClear();
+    toastMock.mockClear();
+    upsertSamlMock.mockRejectedValueOnce(
+      new AppError({ code: 'sso_sp_key_required' }),
+    );
+    const { user } = renderForm(samlWithSpKeypair);
+
+    await user.click(
+      screen.getByRole('switch', { name: /require encrypted assertions/i }),
+    );
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
+    expect(
+      await screen.findByText(/an sp private key is required/i),
+    ).toBeInTheDocument();
+    expect(toastMock).not.toHaveBeenCalled();
   });
 
   it('does not log uncontrolled→controlled warnings when config resolves after load', async () => {

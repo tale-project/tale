@@ -8,18 +8,34 @@ import {
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
-  discoverByEmail,
   readSsoSecrets,
-  resolveProvisioning,
   resolveSamlConfig,
   resolveSignInConfig,
 } from './config.ts';
 import { createSamlRequestCache } from './saml-request-cache.ts';
 import { handleSsoLogin } from './service.ts';
 
+/** The identity every protocol hands to provisioning (`HandleSsoLoginArgs`);
+ * `accessToken` may be empty — SAML carries none. */
+const handleSsoLoginArgs = z.object({
+  email: z.string().min(1),
+  name: z.string(),
+  externalId: z.string().min(1),
+  providerId: z.string().min(1),
+  jobTitle: z.string().optional(),
+  appRoles: z.array(z.string()).optional(),
+  groups: z.array(z.string()).optional(),
+  rawClaims: z.record(z.string(), z.unknown()).optional(),
+  accessToken: z.string(),
+  refreshToken: z.string().optional(),
+  accessTokenExpiresAt: z.number().optional(),
+  scope: z.string().optional(),
+  organizationId: z.string().min(1),
+});
+
 /**
  * Shim handlers for the REUSED 0.4 SSO protocol handlers (OIDC authorize/
- * callback, SAML login/ACS/metadata, discover): every `ctx.run*` those
+ * callback, SAML login/ACS/metadata): every `ctx.run*` those
  * handlers make, answered from the 0.5 config files + PG services. The
  * fail-loud shim guarantees any new ctx dependency surfaces in integration.
  */
@@ -29,19 +45,11 @@ export function ssoShimHandlers(sql: Sql): ShimHandlers {
   // wherever it lands.
   const samlRequestCache = createSamlRequestCache(sql);
   return {
-    'enterprise_sso/internal_queries:discoverByEmail': async (raw) => {
-      const args = z.object({ email: z.string() }).parse(raw);
-      return discoverByEmail(sql, args.email);
-    },
     'enterprise_sso/internal_queries:resolveSignInConfig': async (raw) => {
       const args = z
         .object({ organizationId: z.string().optional() })
         .parse(raw);
       return resolveSignInConfig(sql, args.organizationId);
-    },
-    'enterprise_sso/internal_queries:resolveProvisioning': async (raw) => {
-      const args = z.object({ organizationId: z.string() }).parse(raw);
-      return resolveProvisioning(sql, args.organizationId);
     },
     'enterprise_sso/internal_queries:resolveSamlConfig': async (raw) => {
       const args = z
@@ -54,8 +62,17 @@ export function ssoShimHandlers(sql: Sql): ShimHandlers {
       return readSsoSecrets(sql, args.organizationId);
     },
     'enterprise_sso/internal_actions:handleSsoLogin': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused handlers assemble exactly this arg shape
-      return handleSsoLogin(sql, raw as Parameters<typeof handleSsoLogin>[1]);
+      // The protocol handlers assemble this from IdP output; 0.4's Convex
+      // validator rejected a bad shape at this boundary and the 0.5 port
+      // must too — an undefined email otherwise reaches `.toLowerCase()`
+      // and the raw TypeError lands on the login page and in the audit row.
+      const parsed = handleSsoLoginArgs.safeParse(raw);
+      if (!parsed.success) {
+        throw new Error(
+          `SSO identity payload rejected: ${z.prettifyError(parsed.error)}`,
+        );
+      }
+      return handleSsoLogin(sql, parsed.data);
     },
     'enterprise_sso/saml/validate_assertion:validateSamlResponse': async (
       raw,

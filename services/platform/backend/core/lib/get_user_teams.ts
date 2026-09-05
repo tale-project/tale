@@ -73,7 +73,7 @@ export async function getUserTeamIds(
   // prime (parallel with getUserOrganizations); on the self-hosted backend the
   // old cross-component read here pushed queryWithRLS queries (listConversations,
   // listDocuments, …) over the 1s budget. Synced inline on every teamMember
-  // write path + an hourly reconcile (see members/mirror_sync.ts).
+  // write path + an hourly reconcile.
   //
   // Unlike memberships, a user commonly has ZERO teams, so an empty mirror is
   // the normal team-less case — we treat the mirror as authoritative (empty ⇒
