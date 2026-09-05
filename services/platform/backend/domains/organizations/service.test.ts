@@ -1,13 +1,15 @@
 import type { PgBoss } from 'pg-boss';
-import type { TransactionSql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { MembershipError } from '../../auth/membership.ts';
 import { setEnqueueBoss } from '../../jobs/enqueue.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
+import { MEMBER_ROLES } from '../members/service.ts';
 import {
   deleteOrganization,
   describeOrganizationHoldBlock,
+  listUserOrganizations,
   OrganizationError,
 } from './service.ts';
 
@@ -117,6 +119,55 @@ const isWrite = (statement: Statement): boolean =>
 afterEach(() => {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reset the module-level boss between tests
   setEnqueueBoss(null as unknown as PgBoss);
+});
+
+describe('listUserOrganizations', () => {
+  function sqlAnswering(
+    rows: {
+      organizationId: string;
+      role: string;
+      name: string;
+      slug: string | null;
+    }[],
+  ): Sql {
+    const tag = () => Promise.resolve(rows);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- read-only stub for an unconstructable third-party branded type
+    return tag as unknown as Sql;
+  }
+
+  it('answers every assignable role verbatim — one membership, one role everywhere', async () => {
+    const roles = MEMBER_ROLES.filter((role) => role !== 'disabled');
+    const listed = await listUserOrganizations(
+      sqlAnswering(
+        roles.map((role, index) => ({
+          organizationId: `org-${index}`,
+          role,
+          name: `Org ${index}`,
+          slug: `org-${index}`,
+        })),
+      ),
+      OWNER_ID,
+    );
+    // The regression: an 'editor' membership used to be listed as 'member'
+    // here while /members/me answered 'editor' for the same row.
+    expect(listed.map((o) => o.role)).toEqual(roles);
+    expect(listed.map((o) => o.role)).toContain('editor');
+  });
+
+  it('drops disabled memberships and normalizes an off-vocabulary role to member', async () => {
+    const listed = await listUserOrganizations(
+      sqlAnswering([
+        { organizationId: 'a', role: 'Disabled', name: 'A', slug: 'a' },
+        { organizationId: 'b', role: 'viewer', name: 'B', slug: null },
+        { organizationId: 'c', role: 'EDITOR', name: 'C', slug: 'c' },
+      ]),
+      OWNER_ID,
+    );
+    expect(listed).toEqual([
+      { organizationId: 'b', role: 'member', name: 'B' },
+      { organizationId: 'c', role: 'editor', name: 'C', slug: 'c' },
+    ]);
+  });
 });
 
 describe('describeOrganizationHoldBlock', () => {

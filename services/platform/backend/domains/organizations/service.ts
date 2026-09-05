@@ -12,6 +12,7 @@ import {
   LegalHoldError,
   type ActiveHolds,
 } from '../legal_holds/service.ts';
+import { MEMBER_ROLES } from '../members/service.ts';
 
 /**
  * Organizations domain — reads, the org-switch record, and the deletion
@@ -44,8 +45,10 @@ export interface OrganizationRow {
   metadata: string | null;
 }
 
-/** One org, for a caller whose membership the route has already verified. */
-const VALID_MEMBER_ROLES = new Set(['owner', 'admin', 'developer', 'member']);
+/** The ONE role vocabulary (members domain) — the same membership row must
+ * answer the same role on /members/me and here, so this list is derived,
+ * never a second hand-written copy. */
+const VALID_MEMBER_ROLES: ReadonlySet<string> = new Set(MEMBER_ROLES);
 
 /** The 0.4 `members/queries:getUserOrganizationsWithDetails` shape — every
  * organization the user belongs to, with the display fields the picker
