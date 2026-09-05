@@ -1609,12 +1609,15 @@ async function checkTasks(
     fileType: 'application/pdf',
     fileSize: 12,
   };
+  // An empty list has ONE stored spelling (NULL, as createTask writes it),
+  // so a task emptied by update reads back exactly like one created bare.
   const attachmentsRead = z
     .object({
       task: z
         .object({
           attachments: z
             .array(z.object({ fileId: z.string(), fileName: z.string() }))
+            .nullable()
             .optional(),
         })
         .loose(),
