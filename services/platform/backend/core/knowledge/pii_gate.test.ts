@@ -6,6 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { MAX_MESSAGE_BYTES } from '../../../lib/pii';
 import {
   applyPiiPolicyForIndexing,
   parsePiiConfig,
@@ -139,9 +140,11 @@ describe('applyPiiPolicyForIndexing', () => {
   // as long as a window, so the only separators in the cut's range are the
   // spaces inside the card number itself — the shape of a single-line CSV
   // export. Pre-fix neither window saw the number: block passed, mask
-  // indexed it raw.
-  const WINDOW_CHARS = 12_500;
-  const STRADDLE = `${'a'.repeat(WINDOW_CHARS - 10)} 4111 1111 1111 1111 rest of the line`;
+  // indexed it raw. The filler sits outside every pattern's character
+  // classes: on a letter run the email regex backtracks quadratically, and a
+  // policy that enables it would push this file past the test timeout.
+  const WINDOW_CHARS = Math.floor(MAX_MESSAGE_BYTES / 4);
+  const STRADDLE = `${'#'.repeat(WINDOW_CHARS - 10)} 4111 1111 1111 1111 rest of the line`;
 
   it('refuses an identifier that straddles the window cut', () => {
     const decision = applyPiiPolicyForIndexing(
@@ -158,7 +161,7 @@ describe('applyPiiPolicyForIndexing', () => {
     );
     expect(decision.kind).toBe('index');
     if (decision.kind !== 'index') return;
-    expect(decision.text).toContain('a [CREDIT_CARD] rest of the line');
+    expect(decision.text).toContain('# [CREDIT_CARD] rest of the line');
     expect(decision.text).not.toContain('4111');
     expect(decision.text).not.toContain('1111');
   });

@@ -287,6 +287,9 @@ async function main(): Promise<number> {
   // in a boot log line. Load the registry inside the built image exactly as
   // the backend does — the same node flags and loader — so a packaging
   // regression fails this job rather than a customer's governance policy.
+  // The flags and loader path mirror the `backend)` launch line in
+  // docker-entrypoint.sh by hand: change them together, or this probe fails
+  // for the wrong reason.
   if (
     await dockerExecOk(backendContainer, [
       'node',

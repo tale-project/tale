@@ -55,18 +55,22 @@ function fakeScrubber(
  * Identifiers placed so that the preferred cut — the last space in the
  * second half of the first window — falls inside them: the head is one
  * unbroken word, so the only separators in range are the identifier's own.
- * A single-line CSV export or minified text has exactly this shape.
+ * A single-line CSV export or minified text has exactly this shape. The
+ * filler is a character outside every enabled pattern's classes: on a
+ * letter run the email regex backtracks quadratically (hundreds of
+ * milliseconds per scan here, past the test timeout on a saturated CI
+ * worker) without changing any verdict.
  */
-const STRADDLE_HEAD = 'a'.repeat(WINDOW_CHARS - 10);
+const STRADDLE_HEAD = '#'.repeat(WINDOW_CHARS - 10);
 const STRADDLE_CARD = `${STRADDLE_HEAD} 4111 1111 1111 1111 rest of the line`;
 const STRADDLE_IBAN = `${STRADDLE_HEAD} DE89 3704 0044 0532 0130 00 rest`;
 const STRADDLE_PHONE = `${STRADDLE_HEAD} +49 30 12345678 rest of the line`;
 /**
- * No separator at all: the hard cut lands inside the address. The filler
- * is a character the email pattern's classes exclude — a letter head would
- * be swallowed into the local part and make the whole text one match.
+ * No separator at all: the hard cut lands inside the address. A letter head
+ * would also be swallowed into the local part and make the whole text one
+ * match.
  */
-const STRADDLE_EMAIL = `${'#'.repeat(WINDOW_CHARS - 10)}ada.lovelace@example.com${'#'.repeat(50)}`;
+const STRADDLE_EMAIL = `${STRADDLE_HEAD}ada.lovelace@example.com${'#'.repeat(50)}`;
 
 describe('splitIntoWindows', () => {
   it('keeps every window under the size and joins back to the input', () => {
@@ -102,19 +106,22 @@ describe('splitIntoWindows', () => {
     expect(splitIntoWindows('short', WINDOW_CHARS)).toEqual(['short']);
   });
 
+  it('baseline: cuts inside a spaced identifier when given no patterns to check', () => {
+    // The pre-fix defect, pinned as the baseline the checked cut below is
+    // measured against, not as desired behaviour: without patterns the
+    // space inside the card number is the preferred cut. The only
+    // production caller (`scrubDocument`) always passes the scrubber's
+    // patterns.
+    const [first, second] = splitIntoWindows(STRADDLE_CARD, WINDOW_CHARS);
+    expect(first?.endsWith(' 4111 ')).toBe(true);
+    expect(second?.startsWith('1111 1111 1111 ')).toBe(true);
+  });
+
   describe('with the patterns to keep whole', () => {
     const { patterns } = createScrubber({
       mode: 'mask',
       registry: REGISTRY,
       patterns: { email: true, creditCard: true, iban: true, phone: true },
-    });
-
-    it('cuts inside a spaced identifier when it has no patterns to check', () => {
-      // The defect, pinned as the baseline the checked cut is measured
-      // against: the space inside the card number is the preferred cut.
-      const [first, second] = splitIntoWindows(STRADDLE_CARD, WINDOW_CHARS);
-      expect(first?.endsWith(' 4111 ')).toBe(true);
-      expect(second?.startsWith('1111 1111 1111 ')).toBe(true);
     });
 
     it.each([
@@ -262,7 +269,7 @@ describe('scrubDocument over the engine', () => {
       expect(o.categoryIds).toEqual([category]);
       expect(o.matchCount).toBe(1);
       // Neither half of the identifier survives raw around the token.
-      expect(o.text).toMatch(/a \[(CREDIT_CARD|IBAN|PHONE)\] rest|#\[EMAIL\]#/);
+      expect(o.text).toMatch(/# \[(CREDIT_CARD|IBAN|PHONE)\] rest|#\[EMAIL\]#/);
     });
   });
 

@@ -44,7 +44,15 @@
  *
  * The check costs one extra window-sized detection per window (twice the
  * engine's own work) and more only when a cut actually moves, which is
- * rare: the first candidate already sits at a separator.
+ * rare: the first candidate already sits at a separator. Doubling the
+ * detector execs also doubles the cost of a pattern that is super-linear on
+ * a pathological window: the email regex, unanchored at its start, retries
+ * at every position of an unbroken run of its own class and backtracks the
+ * rest of the run each time — tens of milliseconds per exec on a
+ * 12,500-letter word here, seconds across a test on a saturated CI worker.
+ * The exec budget bounds the scan between execs, not inside one; a fixture
+ * that needs a long unbroken head uses a character outside every pattern's
+ * classes.
  *
  * The engine's `truncated` flag stays the authority on every verdict kind,
  * a `pass` included, as a guard: a scrubber built with a smaller `maxBytes`
