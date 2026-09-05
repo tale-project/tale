@@ -9295,7 +9295,27 @@ async function checkAutomationRunLifecycle(
       ${cancelRunId}, 'itest', false, ${Date.now()}, ${Date.now() + 3_600_000}
     )
   `;
+  // A gated node parked the run on this card; nothing can consume it after
+  // the cancel, so the terminal door withdraws it.
+  await sql`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'pending', 'connector_operation', ${`${cancelRunId}:send`},
+      'medium',
+      ${sql.json({ source: 'automation', connector: 'imap-smtp', action: 'send', runId: cancelRunId, nodeId: 'send' })},
+      ${Date.now()}
+    )
+  `;
   const cancelled = await store.cancelRun(sql, orgId, cancelRunId);
+  const cancelApproval = await sql<
+    { status: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.approvals
+    WHERE org_id = ${orgId} AND resource_type = 'connector_operation'
+      AND resource_id = ${`${cancelRunId}:send`}
+  `;
   const cancelAudit = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.audit_logs
     WHERE org_id = ${orgId} AND action = 'automation.run.cancelled'
@@ -9306,11 +9326,13 @@ async function checkAutomationRunLifecycle(
     WHERE org_id = ${orgId} AND owner_id = ${cancelRunId}
   `;
   record(
-    'cancelRun writes the terminal audit row and stops the run sandbox sessions',
+    'cancelRun writes the terminal audit row, stops the run sandbox sessions and withdraws its approvals',
     cancelled.cancelled &&
       Number(cancelAudit[0]?.count ?? '0') === 1 &&
-      cancelSession[0]?.status === 'stopped',
-    `cancelled=${cancelled.cancelled}, audit=${cancelAudit[0]?.count} (want 1), session=${cancelSession[0]?.status} (want stopped)`,
+      cancelSession[0]?.status === 'stopped' &&
+      cancelApproval[0]?.status === 'rejected' &&
+      cancelApproval[0]?.metadata?.withdrawn === true,
+    `cancelled=${cancelled.cancelled}, audit=${cancelAudit[0]?.count} (want 1), session=${cancelSession[0]?.status} (want stopped), approval=${cancelApproval[0]?.status}/${String(cancelApproval[0]?.metadata?.withdrawn)} (want rejected/true)`,
   );
 
   // ---- #3: deleting an automation with a LIVE run is refused; deletable once

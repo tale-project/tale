@@ -793,6 +793,42 @@ async function stopRunSandboxSessions(
   `;
 }
 
+/**
+ * Close the run's open connector-operation approvals — the cards the gate
+ * minted for its live writes (`metadata.runId` names the run). Once the run
+ * is terminal nothing consumes them: a decision only pokes a WAITING run, so
+ * an approval given afterwards parked the row at `executing` forever and a
+ * pending one kept an actionable card in the inbox for a write that will
+ * never happen. Withdrawn the way the review lane withdraws a request nobody
+ * can answer any more (`rejected` + `withdrawn`), never deleted — the ledger
+ * keeps every row it minted. Called on every terminal door.
+ */
+async function closeRunApprovals(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  runId: string,
+): Promise<number> {
+  const closed = await tx<{ id: string }[]>`
+    UPDATE app.approvals SET
+      status = 'rejected', reviewed_at_ms = ${Date.now()},
+      metadata = coalesce(metadata, '{}'::jsonb)
+        || ${tx.json(toJson({ withdrawn: true, withdrawnBy: 'run_terminal' }))}
+    WHERE org_id = ${organizationId}
+      AND resource_type = 'connector_operation'
+      AND status IN ('pending', 'executing')
+      AND metadata->>'runId' = ${runId}
+    RETURNING id
+  `;
+  for (const approval of closed) {
+    await emitHintInTx(tx, {
+      orgId: organizationId,
+      entity: 'approval',
+      entityId: approval.id,
+    });
+  }
+  return closed.length;
+}
+
 export async function getRun(
   sql: Sql,
   organizationId: string,
@@ -976,6 +1012,7 @@ export async function cancelRunInTx(
       });
     }
     await stopRunSandboxSessions(tx, organizationId, runId);
+    await closeRunApprovals(tx, organizationId, runId);
     await emitRunHint(tx, organizationId, runId);
     return { cancelled: true };
   }
@@ -1332,9 +1369,11 @@ export async function finishRun(
         },
       });
     }
-    // The run's sandbox sessions are per-execution — free their slots now
-    // (the terminal contract, shared with cancelRun).
+    // The run's sandbox sessions are per-execution — free their slots now,
+    // and withdraw the approval cards no node will ever consume (the
+    // terminal contract, shared with cancelRun).
     await stopRunSandboxSessions(tx, args.organizationId, args.runId);
+    await closeRunApprovals(tx, args.organizationId, args.runId);
     await emitRunHint(tx, args.organizationId, args.runId);
     return { status: args.status };
   });
