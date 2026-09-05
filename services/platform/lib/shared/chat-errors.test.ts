@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildHumanErrorSentence,
   CHAT_ERROR_CODES,
   CHAT_ERROR_I18N_KEY,
   classifyChatErrorCode,
   decodeChatError,
   encodeChatError,
   isChatErrorCode,
-  PROVIDER_SCOPED_ERROR_CODES,
 } from './chat-errors';
 
 describe('classifyChatErrorCode', () => {
@@ -120,22 +118,6 @@ describe('classifyChatErrorCode', () => {
   });
 });
 
-describe('PROVIDER_SCOPED_ERROR_CODES', () => {
-  it('contains exactly the deterministic provider-level codes', () => {
-    expect([...PROVIDER_SCOPED_ERROR_CODES].sort()).toEqual([
-      'auth_error',
-      'credit_exhausted',
-      'provider_unreachable',
-    ]);
-  });
-
-  it('does not include transient or model-scoped codes', () => {
-    for (const code of ['provider_error', 'rate_limited', 'model_not_found']) {
-      expect(PROVIDER_SCOPED_ERROR_CODES.has(code as never)).toBe(false);
-    }
-  });
-});
-
 describe('isChatErrorCode', () => {
   it('accepts every declared code and rejects others', () => {
     for (const code of CHAT_ERROR_CODES) {
@@ -151,21 +133,6 @@ describe('i18n key coverage', () => {
     for (const code of CHAT_ERROR_CODES) {
       expect(CHAT_ERROR_I18N_KEY[code]).toMatch(/^error/);
     }
-  });
-});
-
-describe('buildHumanErrorSentence', () => {
-  it('names the provider for funds/auth/unreachable', () => {
-    expect(
-      buildHumanErrorSentence('credit_exhausted', { provider: 'OpenRouter' }),
-    ).toContain('OpenRouter');
-    expect(
-      buildHumanErrorSentence('auth_error', { provider: 'OpenRouter' }),
-    ).toContain('OpenRouter');
-  });
-
-  it('falls back gracefully when no provider is known', () => {
-    expect(buildHumanErrorSentence('credit_exhausted')).toContain('credits');
   });
 });
 

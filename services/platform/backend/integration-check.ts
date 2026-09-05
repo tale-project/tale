@@ -10172,13 +10172,18 @@ async function checkGovernance(
   );
 
   // The chat turns and tool dispatches already run accumulated buckets.
-  const buckets = await governance.readUsageBuckets(sql, {
-    organizationId: orgId,
-    userId,
-  });
-  const chatBucket = buckets.find(
-    (bucket) => bucket.model === 'itest-chat' && bucket.granularity === 'daily',
-  );
+  const buckets = await sql<
+    { totalTokens: number; costEstimateCents: number }[]
+  >`
+    SELECT total_tokens::float8 AS "totalTokens",
+           cost_estimate_cents AS "costEstimateCents"
+    FROM app.usage_ledger
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND model = 'itest-chat' AND granularity = 'daily'
+    ORDER BY period_key DESC
+    LIMIT 1
+  `;
+  const chatBucket = buckets[0];
   const connectorBuckets = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.usage_ledger
     WHERE org_id = ${orgId} AND connector_name = 'chat-tools'
