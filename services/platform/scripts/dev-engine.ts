@@ -349,6 +349,15 @@ function loadEnvFiles() {
   }
 }
 
+/**
+ * The step helpers currently running under {@link runCommand} — `docker
+ * compose up`, `wait-on`, `vite build`. `shutdown()` tree-kills them with the
+ * backend and Vite: a SIGTERM that lands during `waitForBackend` used to leave
+ * `bunx wait-on tcp:127.0.0.1:3005` polling for its full 180 s timeout after
+ * the orchestrator was gone.
+ */
+const stepChildren = new Set<ChildProcess>();
+
 function runCommand(
   cmd: string,
   args: string[],
@@ -366,11 +375,13 @@ function runCommand(
       cwd,
       env: { ...process.env, ...env },
     });
+    stepChildren.add(child);
     const piped = pipeChild(child, {
       label: output.label ?? cmd,
       classifier: output.classifier,
     });
     child.on('exit', (code) => {
+      stepChildren.delete(child);
       if (code === 0) {
         resolve();
         return;
@@ -386,7 +397,10 @@ function runCommand(
       if (lines.length > 0) detailLines(lines);
       reject(new Error(`${cmd} exited with code ${code}`));
     });
-    child.on('error', (err) => reject(err));
+    child.on('error', (err) => {
+      stepChildren.delete(child);
+      reject(err);
+    });
   });
 }
 
@@ -857,13 +871,14 @@ export async function runDevFleet() {
   };
 
   /**
-   * Stop both children and exit. Tolerates children that were never spawned
-   * (`killProcessTree` null-guards), so it is safe from the first line of the
-   * bring-up: the signal handlers below are registered BEFORE the docker,
-   * backend and Vite steps, because a SIGTERM that lands while the backend is
-   * still booting used to kill only the orchestrator (default signal action)
-   * and leave `node backend/main.ts` holding :3005 for the next `bun run dev`
-   * to trip over.
+   * Stop every child — backend, Vite and any step helper still running — and
+   * exit. Tolerates children that were never spawned (`killProcessTree`
+   * null-guards), so it is safe from the first line of the bring-up: the
+   * signal handlers below are registered BEFORE the docker, backend and Vite
+   * steps, because a SIGTERM that lands while the backend is still booting
+   * used to kill only the orchestrator (default signal action) and leave
+   * `node backend/main.ts` holding :3005 for the next `bun run dev` to trip
+   * over.
    */
   async function shutdown(exitCode = 0): Promise<never> {
     if (shuttingDown) {
@@ -884,6 +899,7 @@ export async function runDevFleet() {
     await Promise.all([
       killProcessTree(backendProcess, 'SIGTERM'),
       killProcessTree(viteProcess, 'SIGTERM'),
+      ...[...stepChildren].map((child) => killProcessTree(child, 'SIGTERM')),
     ]);
 
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -1154,6 +1170,10 @@ export async function runDevFleet() {
 
     await new Promise(() => {});
   } catch (err) {
+    // A step helper that `shutdown()` just killed rejects its step too (the
+    // wait-on timeout wording, mid-Ctrl-C): the signal path owns that exit,
+    // so it is not a boot failure to report.
+    if (shuttingDown) return;
     errorLine(
       `Development environment failed: ${err instanceof Error ? err.message : String(err)}`,
     );
@@ -1161,7 +1181,6 @@ export async function runDevFleet() {
     // database when waitForBackend gave up, or Vite — must not outlive the
     // orchestrator: it would bind :3005 later and the next `bun run dev`
     // would fail at waitForBackend blaming "another one holding the port".
-    // A signal that already started the shutdown exits on its own.
-    if (!shuttingDown) await shutdown(1);
+    await shutdown(1);
   }
 }
