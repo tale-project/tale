@@ -26,8 +26,10 @@
 
 import { z } from 'zod/v4';
 
+import { checkProviderHostPolicy } from '../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { isPrivateIp } from '../../../lib/shared/net/private-ip';
 import {
   BROKER_SECRET_ENV_REGEX,
   brokerCredentialDataSchema,
@@ -203,14 +205,46 @@ function brokerAuthSecret(broker: BrokerCredentialData): string | undefined {
 }
 
 /**
- * Fetch the broker's token pool through the SSRF-guarded client. Thin by
- * design: config in, parsed JSON out; every failure is classified without
- * echoing the URL, headers, or body.
+ * The deployment's outbound-host policy over the broker endpoint, applied
+ * at every resolution: cloud-metadata hosts are refused unconditionally and
+ * private hosts unless the operator opted in — exactly the gate every other
+ * operator-URL fetch runs. `safeFetch` alone cannot stand in for it: its
+ * auto-derived own-host allowlist admits the initial URL's host, so its
+ * private-IP refusal never fires for the URL it was handed. An org admin is
+ * not the deployment operator, so a broker aimed at `169.254.169.254` must
+ * die here, before any request. Returns the hosts `safeFetch` must
+ * additionally allow (a policy-admitted private host), else `undefined`.
+ */
+function policeBrokerEndpoint(
+  row: CredentialRow,
+  endpoint: string,
+): readonly string[] | undefined {
+  let hostname: string;
+  try {
+    hostname = checkProviderHostPolicy(endpoint).hostname;
+  } catch (err) {
+    if (err instanceof AppError) {
+      throw credentialError(
+        'CREDENTIAL_BROKER_ENDPOINT_BLOCKED',
+        `The token broker endpoint behind credential "${row.name}" is refused by this deployment's host policy: ${err.message}`,
+      );
+    }
+    throw err;
+  }
+  return isPrivateIp(hostname) ? [hostname] : undefined;
+}
+
+/**
+ * Fetch the broker's token pool through the SSRF-guarded client, after the
+ * host policy admitted the endpoint. Thin by design: config in, parsed JSON
+ * out; every failure is classified without echoing the URL, headers, or
+ * body.
  */
 async function fetchBrokerJson(
   row: CredentialRow,
   broker: BrokerCredentialData,
 ): Promise<unknown> {
+  const allowedHosts = policeBrokerEndpoint(row, broker.endpoint);
   let response;
   try {
     response = await safeFetch(broker.endpoint, {
@@ -218,6 +252,9 @@ async function fetchBrokerJson(
       headers: buildBrokerAuthHeaders(broker.auth, brokerAuthSecret(broker)),
       timeoutMs: broker.timeoutMs,
       maxResponseBytes: broker.maxResponseBytes,
+      ...(allowedHosts !== undefined
+        ? { allowedHosts: [...allowedHosts] }
+        : {}),
     });
   } catch (err) {
     const kind = err instanceof SafeFetchError ? err.kind : 'network_error';
