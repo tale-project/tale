@@ -2472,6 +2472,7 @@ documents:
     clearSelection: Auswahl löschen
     dropOrClick: Datei hier ablegen oder klicken zum Hochladen
     selectDocument: Dokument auswählen
+    listTruncated: Hier stehen nur die neuesten Dokumente. Lade die Datei hoch, um ein älteres zu vergleichen.
   history:
     dialogTitle: Versionsverlauf — {name}
     dialogDescription: Wähle zwei Versionen zum Vergleich. Die aktuelle Datei steht zuerst.

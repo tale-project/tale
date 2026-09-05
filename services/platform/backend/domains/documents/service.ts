@@ -828,7 +828,13 @@ async function selectHubDocuments(
   `;
 }
 
-/** Hub listing (project docs never appear); optional folder filter. */
+/**
+ * Hub listing (project docs never appear); optional folder filter. Bounded,
+ * and honest about the bound: `truncated` says the hub holds more rows than
+ * `limit` — judged on the stored rows, so a row the caller may not see never
+ * masks a cut. A reader that pre-fills a picker from this list can tell the
+ * user to narrow by search instead of offering a complete-looking subset.
+ */
 export async function listDocuments(
   sql: Sql,
   auth: ProjectAuthContext,
@@ -837,12 +843,19 @@ export async function listDocuments(
     includeTrashed?: boolean;
     limit?: number;
   } = {},
-): Promise<DocumentRow[]> {
+): Promise<{ documents: DocumentRow[]; truncated: boolean }> {
+  const limit = Math.min(Math.max(options.limit ?? 200, 1), HUB_LIST_READ_MAX);
   const rows = await selectHubDocuments(sql, auth, {
     ...options,
-    limit: Math.min(options.limit ?? 200, HUB_LIST_READ_MAX),
+    limit: limit + 1,
   });
-  return rows.filter((doc) => hasKnowledgeHubDocumentAccess(doc, auth.teamIds));
+  const truncated = rows.length > limit;
+  return {
+    documents: (truncated ? rows.slice(0, limit) : rows).filter((doc) =>
+      hasKnowledgeHubDocumentAccess(doc, auth.teamIds),
+    ),
+    truncated,
+  };
 }
 
 /**

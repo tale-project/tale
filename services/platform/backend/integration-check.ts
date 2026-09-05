@@ -3147,7 +3147,11 @@ async function checkDocuments(
   );
   const documentId = created.success ? created.data.documentId : '';
   const hubList = z
-    .object({ documents: z.array(z.object({ id: z.string() })) })
+    .object({
+      documents: z.array(z.object({ id: z.string() })),
+      // The bounded hub read tells the truth about its bound.
+      truncated: z.literal(false),
+    })
     .safeParse(await get(`/api/app/documents?orgId=${orgId}`));
   const docUrl = z
     .object({ url: z.string().url() })

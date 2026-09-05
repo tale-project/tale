@@ -2503,6 +2503,7 @@ documents:
     clearSelection: Effacer la sélection
     dropOrClick: Dépose un fichier ici ou clique pour téléverser
     selectDocument: Sélectionner un document
+    listTruncated: Seuls les documents les plus récents sont listés ici. Charge le fichier pour en comparer un plus ancien.
   history:
     dialogTitle: Historique des versions — {name}
     dialogDescription:

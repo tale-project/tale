@@ -163,12 +163,17 @@ export function createDocumentRoutes(deps: {
       const folderParam = c.req.query('folderId');
       const folderId =
         folderParam === undefined ? undefined : folderParam || null;
-      const rows = await listDocuments(deps.sql, auth, {
+      const { documents, truncated } = await listDocuments(deps.sql, auth, {
         ...(folderId !== undefined ? { folderId } : {}),
         includeTrashed: c.req.query('includeTrashed') === 'true',
       });
       return c.json({
-        documents: await toDocumentItems(deps.sql, auth.organizationId, rows),
+        documents: await toDocumentItems(
+          deps.sql,
+          auth.organizationId,
+          documents,
+        ),
+        truncated,
       });
     } catch (error) {
       return handleError(c, error);

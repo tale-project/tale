@@ -2389,6 +2389,7 @@ documents:
     clearSelection: Clear selection
     dropOrClick: Drop a file here or click to upload
     selectDocument: Select a document
+    listTruncated: Only the newest documents are listed here. Upload the file to compare an older one.
   history:
     dialogTitle: Version history — {name}
     dialogDescription: Select two versions to compare. The current file is listed first.
