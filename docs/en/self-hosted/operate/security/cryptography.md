@@ -13,7 +13,7 @@ Tale encrypts two classes of secret at rest, with two different mechanisms.
 
 **Provider API keys** live in `providers/*.secrets.json` and are encrypted with [SOPS](/self-hosted/configuration/secrets-with-sops) using an **age** key. SOPS encrypts each value with **AES-256-GCM** and wraps the data key to the age recipient, whose key agreement is **X25519**. An encrypted value reads `ENC[AES256_GCM,data:…,iv:…,tag:…]` on disk; decryption happens in-process and the age private key never leaves the platform container's memory.
 
-**Application-encrypted fields** — OAuth connector tokens and similar credentials stored in the database — are encrypted with **AES-256-GCM** through a compact JWE (`alg: dir`, `enc: A256GCM`). The 32-byte key comes from `ENCRYPTION_SECRET` (base64) or `ENCRYPTION_SECRET_HEX` (hex); the platform refuses to start the encryption path with a key that is not exactly 32 bytes.
+**Application-encrypted fields** — OAuth connector tokens and similar credentials stored in the database — are encrypted with **AES-256-GCM** through a compact JWE (`alg: dir`, `enc: A256GCM`). The 32-byte key is `ENCRYPTION_SECRET_HEX` (64 hex characters), the same root the guardrails secret box derives its key from; the platform refuses to boot with a value that is not exactly 32 bytes.
 
 The Postgres volumes and the blob store are protected by the host: run them on an encrypted filesystem (LUKS, or your cloud provider's volume encryption). Tale does not store credentials in plaintext — a provider key or OAuth token is either SOPS-encrypted on disk or AES-256-GCM-encrypted in the database, never written in the clear.
 
@@ -42,7 +42,7 @@ Every primitive below is in the recommended set of BSI TR-02102-1. Tale does not
 | Use                     | Algorithm                         | Key / output size | Controlled by                                 |
 | ----------------------- | --------------------------------- | ----------------- | --------------------------------------------- |
 | Provider secrets (disk) | AES-256-GCM + age (X25519)        | 256-bit           | `SOPS_AGE_KEY` / `SOPS_AGE_KEY_FILE`          |
-| App fields (database)   | AES-256-GCM (JWE `dir`/`A256GCM`) | 256-bit           | `ENCRYPTION_SECRET` / `ENCRYPTION_SECRET_HEX` |
+| App fields (database)   | AES-256-GCM (JWE `dir`/`A256GCM`) | 256-bit           | `ENCRYPTION_SECRET_HEX`                       |
 | Transport               | TLS 1.3 (AES-256-GCM, ECDHE)      | 256-bit           | Reverse proxy / `tls-and-domains`             |
 | Password hashing        | bcrypt                            | per-hash salt     | Better Auth (built in)                        |
 | Session signing         | HMAC-SHA-256                      | 256-bit           | `BETTER_AUTH_SECRET`                          |
@@ -50,7 +50,7 @@ Every primitive below is in the recommended set of BSI TR-02102-1. Tale does not
 
 ## Key storage and rotation
 
-Three secrets are load-bearing, and each has a rotation path. The **age private key** (`SOPS_AGE_KEY`) decrypts provider secrets; rotate it by adding a new recipient and re-encrypting, following the walk in [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops). The **field-encryption key** (`ENCRYPTION_SECRET`) decrypts database credentials; rotating it requires re-encrypting the affected rows, so plan it as a maintenance step rather than a hot swap. The **auth secret** (`BETTER_AUTH_SECRET`) signs sessions; rotating it logs everyone out on their next request. All three live only in the platform container's environment — never commit them, and store them in your secret manager of record.
+Three secrets are load-bearing, and each has a rotation path. The **age private key** (`SOPS_AGE_KEY`) decrypts provider secrets; rotate it by adding a new recipient and re-encrypting, following the walk in [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops). The **field-encryption key** (`ENCRYPTION_SECRET_HEX`) decrypts database credentials; rotating it requires re-encrypting the affected rows, so plan it as a maintenance step rather than a hot swap. The **auth secret** (`BETTER_AUTH_SECRET`) signs sessions; rotating it logs everyone out on their next request. All three live only in the platform container's environment — never commit them, and store them in your secret manager of record.
 
 ## Where this fits
 
