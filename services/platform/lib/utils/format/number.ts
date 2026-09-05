@@ -132,9 +132,11 @@ export function formatPercentShare(
 }
 
 /**
- * Format bytes to human-readable size
+ * Format bytes to human-readable size — THE byte formatter every surface
+ * uses, so a file's size reads the same in every dialog and list.
  *
- * @param bytes - Number of bytes
+ * @param bytes - Number of bytes; a non-finite or negative value has no
+ *   size to show and renders as an em dash (no data, not 0 B)
  * @param locale - The locale to use (defaults to app default locale)
  * @param decimals - Number of decimal places (default: 1)
  * @returns Formatted size string with appropriate unit
@@ -148,11 +150,17 @@ export function formatBytes(
   locale: string = defaultLocale,
   decimals: number = 1,
 ): string {
-  if (bytes === 0) return '0 B';
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (bytes < 1) return '0 B';
 
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  // Clamped: beyond the largest unit the number grows instead of the unit
+  // vanishing into `undefined`.
+  const i = Math.min(
+    sizes.length - 1,
+    Math.floor(Math.log(bytes) / Math.log(k)),
+  );
   const size = bytes / Math.pow(k, i);
 
   return `${formatNumber(size, locale, { maximumFractionDigits: decimals })} ${sizes[i]}`;

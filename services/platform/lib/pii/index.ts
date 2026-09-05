@@ -9,7 +9,8 @@
  *
  *  1. Hot path — `createScrubber(options).scrub(text)`: patterns resolve
  *     and compile once at construction; per-message work is regex
- *     execution only.
+ *     execution only. `scrubDocument(scrubber, text)` runs the same
+ *     scrubber over text of any length in clamp-sized windows.
  *  2. Round-trips — `createTokenizer(options)`: indexed tokens
  *     (`[EMAIL_1]`) with a restore mapping, so model output detokenizes
  *     back to the user's original details.
@@ -43,6 +44,11 @@ export type {
 } from './core/types';
 export { loadPiiData, type PiiData } from './data/loader';
 export { detectPii } from './engine/detector';
+export {
+  scrubDocument,
+  splitIntoWindows,
+  type ScrubDocumentOptions,
+} from './engine/document';
 export { maskPii } from './engine/masker';
 export type { PatternToggle, ScrubberOptions } from './engine/options';
 export { PatternRegistry } from './engine/registry';

@@ -1,4 +1,4 @@
-import { formatBytes } from '@/lib/utils/format-bytes';
+import { formatBytes } from '@/lib/utils/format/number';
 
 /**
  * Translate function scoped to the `documents` namespace (from `useT`).
