@@ -28712,6 +28712,51 @@ async function checkAskAnswer(
     WHERE org_id = ${orgId} AND type = 'agent_escalation'
       AND params ->> 'askId' = ${bellAskId}
   `;
+  // Two ask_human calls RACING inside one turn (an at-least-once tool lane)
+  // converge on ONE pending row carrying both questions — the partial unique
+  // index (0082) plus the single INSERT … ON CONFLICT fold; the former
+  // SELECT-then-INSERT left a second pending row nothing ever read.
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, 'wf-ask-race', 'active', 'workflow_run', ${runAId},
+      'itest:ask', ${now}, ${now + 3_600_000}
+    )
+  `;
+  const raceShape = z
+    .object({ askId: z.string(), folded: z.boolean() })
+    .loose();
+  const raced = await Promise.all(
+    ['First racing question?', 'Second racing question?'].map((question) =>
+      createAsk?.({
+        organizationId: orgId,
+        sessionId: 'wf-ask-race',
+        question,
+      }),
+    ),
+  );
+  const racedAsks = raced.map((result) => raceShape.safeParse(result));
+  const racePending = await sql<{ id: string; question: string }[]>`
+    SELECT id, question FROM app.automation_human_asks
+    WHERE session_id = 'wf-ask-race' AND exec_id = 'exec-ask-other'
+      AND status = 'pending'
+  `;
+  record(
+    'racing ask_human calls in one turn fold into a single pending ask',
+    racedAsks.every((result) => result.success) &&
+      racePending.length === 1 &&
+      racedAsks.every(
+        (result) => result.success && result.data.askId === racePending[0]?.id,
+      ) &&
+      racedAsks.filter((result) => result.success && result.data.folded)
+        .length === 1 &&
+      (racePending[0]?.question.includes('First racing question?') ?? false) &&
+      (racePending[0]?.question.includes('Second racing question?') ?? false),
+    `results=${racedAsks.map((result) => (result.success ? `${result.data.askId === racePending[0]?.id}/${result.data.folded}` : 'ERR')).join(',')} (want one folded, same id), pending=${racePending.length} (want 1), merged=${JSON.stringify(racePending[0]?.question ?? '').slice(0, 80)}`,
+  );
+
   await answerRoute(bellAskId, 'Account 4400, box 81.');
   const bellAfterAnswer = await sql<{ read: boolean }[]>`
     SELECT read FROM app.user_notifications
@@ -28833,7 +28878,7 @@ async function checkAskAnswer(
   // org's live workflow sessions.
   await sql`
     UPDATE app.sandbox_sessions SET status = 'destroyed'
-    WHERE session_id IN ('wf-ask-bell', 'wf-ask-task')
+    WHERE session_id IN ('wf-ask-bell', 'wf-ask-task', 'wf-ask-race')
   `;
   record(
     'ask bells: fan-out on create, fold carries the merged question, answer dismisses',
