@@ -316,7 +316,10 @@ export async function listAuditLogs(
   items: AuditLogRow[];
   nextCursor: { ts: number; id: string } | null;
 }> {
-  const limit = Math.min(options.limit ?? 50, 200);
+  // Clamped here, not only at the doors: a negative or fractional limit
+  // reaching `LIMIT` is a Postgres error, and every caller pages through
+  // this one function.
+  const limit = Math.min(Math.max(1, Math.trunc(options.limit ?? 50)), 200);
   const filter = options.filter ?? {};
   const cursor = options.cursor ?? null;
   const search = filter.search ? `%${filter.search}%` : null;
@@ -453,14 +456,22 @@ const EXPORT_CSV_HEADERS = [
   'errorMessage',
 ] as const;
 
+/** A cell whose first character a spreadsheet would read as a formula
+ * (`=`, `+`, `-`, `@`, tab, CR). Titles and e-mails are member-authored,
+ * and the export's reader is the most privileged one in the org, so such
+ * a cell is neutralised with a leading apostrophe (the OWASP CSV-injection
+ * mitigation) before the ordinary quoting runs. */
+const FORMULA_PREFIX = /^[=+\-@\t\r]/;
+
 function csvCell(value: unknown): string {
   if (value == null) return '';
-  const str =
+  const raw =
     typeof value === 'string'
       ? value
       : typeof value === 'number' || typeof value === 'boolean'
         ? String(value)
         : JSON.stringify(value);
+  const str = FORMULA_PREFIX.test(raw) ? `'${raw}` : raw;
   if (str.includes(',') || str.includes('"') || str.includes('\n')) {
     return '"' + str.replaceAll('"', '""') + '"';
   }
