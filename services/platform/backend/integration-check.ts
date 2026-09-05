@@ -9098,6 +9098,85 @@ async function checkAutomationRunLifecycle(
     `running→${liveOpView.success ? `${liveOpView.data.providerSlug}/${liveOpView.data.gatewayModel}` : 'ERR'}, settled→${settledOp === null ? 'null' : JSON.stringify(settledOp)}`,
   );
 
+  // ---- #5b: the agent node's folder mounts list through the run's shim —
+  // recursive walk with subfolder-relative names, blob-backed live rows only,
+  // hub path addressing, and null for a folder the org does not have.
+  const mountRoot = await sql<{ id: string }[]>`
+    INSERT INTO app.folders (org_id, name, created_by, created_at_ms)
+    VALUES (${orgId}, 'Mount probe', 'itest:mount', ${Date.now()})
+    RETURNING id
+  `;
+  const mountRootId = mountRoot[0]?.id ?? '';
+  const mountChild = await sql<{ id: string }[]>`
+    INSERT INTO app.folders (org_id, name, parent_id, created_by, created_at_ms)
+    VALUES (${orgId}, 'Documentation', ${mountRootId}, 'itest:mount',
+            ${Date.now()})
+    RETURNING id
+  `;
+  const mountChildId = mountChild[0]?.id ?? '';
+  const mountDocs = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (
+      org_id, title, file_ref, extension, folder_id, lifecycle_status,
+      created_by, created_at_ms, updated_at_ms
+    ) VALUES
+      (${orgId}, 'Invoice 123', 's3:itest/mount-a', 'pdf', ${mountRootId},
+       NULL, 'itest:mount', ${Date.now()}, ${Date.now()}),
+      (${orgId}, 'notes.md', 's3:itest/mount-b', 'md', ${mountChildId},
+       'active', 'itest:mount', ${Date.now()}, ${Date.now()}),
+      (${orgId}, 'text only', NULL, NULL, ${mountRootId},
+       NULL, 'itest:mount', ${Date.now()}, ${Date.now()}),
+      (${orgId}, 'gone.txt', 's3:itest/mount-c', 'txt', ${mountChildId},
+       'trashed', 'itest:mount', ${Date.now()}, ${Date.now()})
+    RETURNING id
+  `;
+  const mountListing = z.object({
+    files: z.array(z.object({ fileId: z.string(), name: z.string() })),
+    truncated: z.boolean(),
+  });
+  const mountHandler =
+    handlers['documents/internal_queries:listFilesByFolderInternal'];
+  const mountTree = mountListing.safeParse(
+    mountHandler
+      ? await mountHandler({
+          organizationId: orgId,
+          folderId: mountRootId,
+          recursive: true,
+        })
+      : null,
+  );
+  const mountByPath = mountListing.safeParse(
+    mountHandler
+      ? await mountHandler({
+          organizationId: orgId,
+          folderPath: 'Mount probe/Documentation',
+        })
+      : null,
+  );
+  const mountMissing = mountHandler
+    ? await mountHandler({ organizationId: orgId, folderId: 'no-such-folder' })
+    : 'no-handler';
+  await sql`
+    DELETE FROM app.documents
+    WHERE id = ANY(${mountDocs.map((row) => row.id)})
+  `;
+  await sql`DELETE FROM app.folders WHERE id = ${mountRootId}`;
+  const treeNames = mountTree.success
+    ? mountTree.data.files.map((file) => file.name)
+    : [];
+  record(
+    'agent-node folder mount lists the tree through the run shim',
+    mountTree.success &&
+      !mountTree.data.truncated &&
+      treeNames.length === 2 &&
+      treeNames.includes('Invoice 123.pdf') &&
+      treeNames.includes('Documentation/notes.md') &&
+      mountByPath.success &&
+      mountByPath.data.files.map((file) => file.name).join(',') ===
+        'notes.md' &&
+      mountMissing === null,
+    `tree=[${treeNames.join(', ')}] (want Invoice 123.pdf + Documentation/notes.md), byPath=${mountByPath.success ? mountByPath.data.files.map((file) => file.name).join(',') : 'ERR'} (want notes.md), missing=${mountMissing === null ? 'null' : JSON.stringify(mountMissing)}`,
+  );
+
   // ---- #6: cancelRun honors the terminal contract — audit row + session stop.
   const cancelRun = await sql<{ id: string }[]>`
     INSERT INTO app.automation_runs (
