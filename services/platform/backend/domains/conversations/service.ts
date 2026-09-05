@@ -411,14 +411,68 @@ export async function listConversationMessages(
 
 // ---------------------------------------------------------------- listing
 
+/** The contact fields the Inbox projection renders. */
+export interface ConversationContact {
+  id: string;
+  name: string | null;
+  email: string | null;
+  locale: string | null;
+  source: string | null;
+  createdAt: number;
+}
+
+/**
+ * The page's contacts in ONE read, org-scoped (a conversation row can name a
+ * foreign contact only through the write door, which refuses it; the scope
+ * here is defense in depth). Shared by the list and the detail door so the
+ * two cannot read a contact two different ways.
+ */
+async function loadContactsById(
+  sql: Sql,
+  organizationId: string,
+  contactIds: readonly string[],
+): Promise<Map<string, ConversationContact>> {
+  if (contactIds.length === 0) return new Map();
+  const rows = await sql<ConversationContact[]>`
+    SELECT id, name, email, locale, source,
+           created_at_ms::float8 AS "createdAt"
+    FROM app.contacts
+    WHERE id = ANY(${[...contactIds]}) AND org_id = ${organizationId}
+  `;
+  return new Map(rows.map((row) => [row.id, row]));
+}
+
+/**
+ * The newest pending approval per conversation, in ONE read — the review
+ * chip the Inbox row and the detail header both show.
+ */
+async function loadPendingApprovals(
+  sql: Sql,
+  organizationId: string,
+  conversationIds: readonly string[],
+): Promise<Map<string, { id: string; metadata: unknown }>> {
+  if (conversationIds.length === 0) return new Map();
+  const rows = await sql<
+    { conversationId: string; id: string; metadata: unknown }[]
+  >`
+    SELECT DISTINCT ON (resource_id)
+      resource_id AS "conversationId", id, metadata
+    FROM app.approvals
+    WHERE org_id = ${organizationId}
+      AND resource_type = 'conversations'
+      AND resource_id = ANY(${[...conversationIds]}) AND status = 'pending'
+    ORDER BY resource_id, created_at_ms DESC
+  `;
+  return new Map(
+    rows.map((row) => [
+      row.conversationId,
+      { id: row.id, metadata: row.metadata },
+    ]),
+  );
+}
+
 export interface ConversationListItem extends ConversationRow {
-  contact: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    locale: string | null;
-    source: string | null;
-  } | null;
+  contact: ConversationContact | null;
   lastMessagePreview: string | null;
   lastMessageDirection: 'inbound' | 'outbound' | null;
   unread: boolean;
@@ -435,6 +489,12 @@ function isUnread(metadata: Record<string, unknown> | null): boolean {
  * Keyset-paginated Inbox listing, newest activity first, assignment-scoped
  * POST-page with the reused predicate (a page may run short, exactly like
  * the 0.4 RLS filter). Cursor = `<lastMessageAt>:<id>` of the last row.
+ *
+ * `items` is the page in the shape the Inbox reads (the SAME shared
+ * projection the detail door applies), built from the page's batched reads
+ * — contacts, newest message, pending approval — so a page costs four
+ * queries whatever its size. The route used to re-project every row through
+ * the detail path, three more queries per row.
  */
 export async function listConversationsPage(
   sql: Sql,
@@ -450,6 +510,7 @@ export async function listConversationsPage(
   },
 ): Promise<{
   page: ConversationListItem[];
+  items: Record<string, unknown>[];
   isDone: boolean;
   continueCursor: string;
 }> {
@@ -509,38 +570,21 @@ export async function listConversationsPage(
     if (allowed) visible.push(row);
   }
 
-  // Batch the page's contacts + last messages (no N+1).
-  const contactIds = [
+  // Batch the page's contacts, newest messages and pending approvals (no
+  // N+1). The newest message is the FULL row: the projection renders it
+  // (preview, direction, delivery state, its attachments as chips).
+  const contactById = await loadContactsById(sql, viewer.organizationId, [
     ...new Set(
       visible
         .map((row) => row.contactId)
         .filter((id): id is string => id !== null),
     ),
-  ];
-  const contacts =
-    contactIds.length > 0
-      ? await sql<
-          {
-            id: string;
-            name: string | null;
-            email: string | null;
-            locale: string | null;
-            source: string | null;
-          }[]
-        >`
-          SELECT id, name, email, locale, source FROM app.contacts
-          WHERE id = ANY(${contactIds}) AND org_id = ${viewer.organizationId}
-        `
-      : [];
-  const contactById = new Map(contacts.map((row) => [row.id, row]));
+  ]);
   const conversationIds = visible.map((row) => row.id);
   const lastMessages =
     conversationIds.length > 0
-      ? await sql<
-          { conversationId: string; content: string; direction: string }[]
-        >`
-          SELECT DISTINCT ON (conversation_id)
-            conversation_id AS "conversationId", content, direction
+      ? await sql<ConversationMessageRow[]>`
+          SELECT DISTINCT ON (conversation_id) ${sql.unsafe(MESSAGE_COLUMNS)}
           FROM app.conversation_messages
           WHERE conversation_id = ANY(${conversationIds})
           ORDER BY conversation_id,
@@ -551,25 +595,38 @@ export async function listConversationsPage(
   const lastByConversation = new Map(
     lastMessages.map((row) => [row.conversationId, row]),
   );
+  const pendingByConversation = await loadPendingApprovals(
+    sql,
+    viewer.organizationId,
+    conversationIds,
+  );
 
+  const page = visible.map((row) => {
+    const lastMessage = lastByConversation.get(row.id);
+    const item: ConversationListItem = Object.assign({}, row, {
+      contact:
+        row.contactId !== null
+          ? (contactById.get(row.contactId) ?? null)
+          : null,
+      lastMessagePreview: lastMessage
+        ? lastMessage.content.slice(0, PREVIEW_MAX)
+        : null,
+      lastMessageDirection: lastMessage ? lastMessage.direction : null,
+      unread: isUnread(row.metadata),
+    });
+    return item;
+  });
   return {
-    page: visible.map((row) => {
+    page,
+    items: page.map((row) => {
       const lastMessage = lastByConversation.get(row.id);
-      const item: ConversationListItem = Object.assign({}, row, {
-        contact:
-          row.contactId !== null
-            ? (contactById.get(row.contactId) ?? null)
-            : null,
-        lastMessagePreview: lastMessage
-          ? lastMessage.content.slice(0, PREVIEW_MAX)
-          : null,
-        lastMessageDirection: lastMessage
-          ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly the direction union
-            (lastMessage.direction as 'inbound' | 'outbound')
-          : null,
-        unread: isUnread(row.metadata),
+      const pending = pendingByConversation.get(row.id);
+      return projectConversationItem({
+        conversation: row,
+        contact: row.contact,
+        messages: lastMessage ? [lastMessage] : [],
+        ...(pending !== undefined ? { pendingApproval: pending } : {}),
       });
-      return item;
     }),
     isDone,
     continueCursor:
@@ -1136,66 +1193,41 @@ export async function presignMessageAttachments(
 }
 
 /**
- * One conversation in the shape the Inbox reads — the SHARED projection
- * (`lib/shared/conversations/conversation-item.ts`), so this lane and 0.4
- * cannot drift into two different "same" shapes. `withMessages: false`
- * carries only the newest message, which is all a list row needs to show a
- * preview.
+ * One conversation with its whole thread in the shape the Inbox reads — the
+ * SHARED projection (`lib/shared/conversations/conversation-item.ts`), so
+ * this lane and 0.4 cannot drift into two different "same" shapes. Takes the
+ * thread the caller already holds (the detail door answers the raw rows
+ * alongside the item) rather than reading it a second time; the attachments
+ * are presigned on the projected copy only.
  */
 export async function projectConversationForView(
   sql: Sql,
   conversation: ConversationRow,
-  options: { withMessages: boolean },
+  messages: ConversationMessageRow[],
 ): Promise<Record<string, unknown>> {
-  const messages = options.withMessages
-    ? await presignMessageAttachments(
-        sql,
-        conversation.organizationId,
-        await listConversationMessages(sql, conversation.id),
-      )
-    : await sql<ConversationMessageRow[]>`
-        SELECT ${sql.unsafe(MESSAGE_COLUMNS)} FROM app.conversation_messages
-        WHERE conversation_id = ${conversation.id}
-        ORDER BY coalesce(sent_at_ms, delivered_at_ms, created_at_ms) DESC,
-                 seq DESC
-        LIMIT 1
-      `;
-  const contactRows =
-    conversation.contactId === null
-      ? []
-      : await sql<
-          {
-            id: string;
-            name: string | null;
-            email: string | null;
-            locale: string | null;
-            source: string | null;
-            createdAt: number;
-          }[]
-        >`
-          SELECT id, name, email, locale, source,
-                 created_at_ms::float8 AS "createdAt"
-          FROM app.contacts
-          WHERE id = ${conversation.contactId}
-            AND org_id = ${conversation.organizationId}
-          LIMIT 1
-        `;
-  const pending = await sql<{ id: string; metadata: unknown }[]>`
-    SELECT id, metadata FROM app.approvals
-    WHERE org_id = ${conversation.organizationId}
-      AND resource_type = 'conversations'
-      AND resource_id = ${conversation.id} AND status = 'pending'
-    ORDER BY created_at_ms DESC
-    LIMIT 1
-  `;
-  return projectConversationItem({
-    conversation: {
-      ...conversation,
-      createdAt: conversation.createdAt,
-    },
-    contact: contactRows[0] ?? null,
+  const presigned = await presignMessageAttachments(
+    sql,
+    conversation.organizationId,
     messages,
-    ...(pending[0] !== undefined ? { pendingApproval: pending[0] } : {}),
+  );
+  const contactById = await loadContactsById(
+    sql,
+    conversation.organizationId,
+    conversation.contactId === null ? [] : [conversation.contactId],
+  );
+  const pending = (
+    await loadPendingApprovals(sql, conversation.organizationId, [
+      conversation.id,
+    ])
+  ).get(conversation.id);
+  return projectConversationItem({
+    conversation,
+    contact:
+      conversation.contactId === null
+        ? null
+        : (contactById.get(conversation.contactId) ?? null),
+    messages: presigned,
+    ...(pending !== undefined ? { pendingApproval: pending } : {}),
   });
 }
 

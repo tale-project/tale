@@ -153,16 +153,9 @@ export function createConversationRoutes(deps: {
       cursor: c.req.query('cursor') ?? null,
       limit: Number.isFinite(limitRaw) ? limitRaw : 25,
     });
-    // The Inbox reads a row one level deep, so every page row carries the
-    // projected item too — the same projection the detail door applies.
-    return c.json({
-      ...result,
-      items: await Promise.all(
-        result.page.map((row) =>
-          projectConversationForView(deps.sql, row, { withMessages: false }),
-        ),
-      ),
-    });
+    // `items` is the page in the shape the Inbox reads, projected from the
+    // page's own batched reads (no per-row re-projection).
+    return c.json(result);
   });
 
   app.get('/counts', async (c) => {
@@ -193,13 +186,15 @@ export function createConversationRoutes(deps: {
         conversation.id,
       );
       // Both shapes: the raw pair the machine door reads, and the projected
-      // Inbox item the app renders (one level deep, messages included).
+      // Inbox item the app renders — built from the SAME read of the thread.
       return c.json({
         conversation,
         messages,
-        item: await projectConversationForView(deps.sql, conversation, {
-          withMessages: true,
-        }),
+        item: await projectConversationForView(
+          deps.sql,
+          conversation,
+          messages,
+        ),
       });
     } catch (error) {
       return handleError(c, error);

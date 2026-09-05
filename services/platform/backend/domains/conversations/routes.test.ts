@@ -24,6 +24,8 @@ const {
   countConversationsByStatus,
   countUnreadConversations,
   projectConversationForView,
+  loadVisibleConversation,
+  listConversationMessages,
   loadMessageForViewer,
   undoSendMessage,
   retrySendMessage,
@@ -33,6 +35,8 @@ const {
   countConversationsByStatus: vi.fn(),
   countUnreadConversations: vi.fn(),
   projectConversationForView: vi.fn(),
+  loadVisibleConversation: vi.fn(),
+  listConversationMessages: vi.fn(),
   loadMessageForViewer: vi.fn(),
   undoSendMessage: vi.fn(),
   retrySendMessage: vi.fn(),
@@ -47,6 +51,8 @@ vi.mock('./service.ts', async (importOriginal) => {
     countConversationsByStatus,
     countUnreadConversations,
     projectConversationForView,
+    loadVisibleConversation,
+    listConversationMessages,
     loadMessageForViewer,
   };
 });
@@ -99,6 +105,7 @@ describe('conversations route — connector filter wire contract', () => {
     vi.clearAllMocks();
     listConversationsPage.mockResolvedValue({
       page: [],
+      items: [],
       isDone: true,
       continueCursor: '',
     });
@@ -136,6 +143,28 @@ describe('conversations route — connector filter wire contract', () => {
     expect(options).not.toHaveProperty('connectorName');
   });
 
+  it("GET / answers the listing's own projected items without re-projecting a row", async () => {
+    const page = [{ id: 'c1' }, { id: 'c2' }];
+    const items = [{ _id: 'c1' }, { _id: 'c2' }];
+    listConversationsPage.mockResolvedValue({
+      page,
+      items,
+      isDone: true,
+      continueCursor: '',
+    });
+    const res = await makeApp().request('/?orgId=o1');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      page,
+      items,
+      isDone: true,
+      continueCursor: '',
+    });
+    // The listing batched contacts, previews and approvals for the page; a
+    // per-row projection here re-read all three, three queries a row.
+    expect(projectConversationForView).not.toHaveBeenCalled();
+  });
+
   it('GET /counts filters on connectorName too', async () => {
     await makeApp().request('/counts?orgId=o1&connectorName=imap-smtp');
     expect(countConversationsByStatus).toHaveBeenCalledWith(
@@ -147,6 +176,34 @@ describe('conversations route — connector filter wire contract', () => {
       expect.anything(),
       'o1',
       'imap-smtp',
+    );
+  });
+});
+
+describe('conversations route — the detail door reads the thread once', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    loadVisibleConversation.mockResolvedValue({
+      id: 'c1',
+      organizationId: 'o1',
+    });
+    listConversationMessages.mockResolvedValue([{ id: 'm1' }, { id: 'm2' }]);
+    projectConversationForView.mockResolvedValue({ _id: 'c1' });
+  });
+
+  it('GET /:id hands the messages it answers raw to the projection instead of re-reading them', async () => {
+    const res = await makeApp().request('/c1?orgId=o1');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      conversation: { id: 'c1', organizationId: 'o1' },
+      messages: [{ id: 'm1' }, { id: 'm2' }],
+      item: { _id: 'c1' },
+    });
+    expect(listConversationMessages).toHaveBeenCalledTimes(1);
+    expect(projectConversationForView).toHaveBeenCalledWith(
+      expect.anything(),
+      { id: 'c1', organizationId: 'o1' },
+      [{ id: 'm1' }, { id: 'm2' }],
     );
   });
 });
