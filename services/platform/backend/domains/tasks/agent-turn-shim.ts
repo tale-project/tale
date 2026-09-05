@@ -2,13 +2,12 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { isFilePolicyType } from '../../../lib/shared/schemas/governance';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
 import { isAutoRetryableFailure } from '../../core/tasks/task_auto_retry.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
-import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { governanceShimHandlers } from '../governance/shim.ts';
 import { orgAdapterShimHandlers } from '../knowledge/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import {
@@ -58,18 +57,10 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     // text-only serving model with no polyfill to catch it.
     ...credentialShimHandlers(sql),
     ...orgAdapterShimHandlers(sql),
-    'governance/internal_queries:getPolicyConfigInternal': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the reused 0.4 caller passes exactly this shape
-      const args = raw as { organizationId: string; policyType: string };
-      // An unknown policy type reads as "no policy configured" — the 0.4
-      // internal query answered null for an absent file the same way.
-      if (!isFilePolicyType(args.policyType)) return null;
-      return readGovernancePolicyForOrg(
-        sql,
-        args.organizationId,
-        args.policyType,
-      );
-    },
+    // The `vision_model` pin is read through the one governance seam every
+    // ctx-shim host shares; the moderation and chat-filter-event seams it
+    // also carries are inert here.
+    ...governanceShimHandlers(sql),
 
     // ------------------------------------------------------- the run ledger
     'tasks/agent_runs:getTaskAgentRunForDrive': async (raw) => {
