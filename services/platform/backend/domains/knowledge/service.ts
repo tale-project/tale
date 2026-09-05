@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
+import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
 import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import { applyCorpusSchema } from '../../core/knowledge/ddl.ts';
 import { pinDimensions } from '../../core/knowledge/dimensions.ts';
@@ -162,7 +163,8 @@ async function filterRetrievableRagFileIds(
     /**
      * Who is asking — needed ONLY by the conversation branch, which is
      * assignment privacy rather than org scope. Absent leaves an emailed
-     * attachment denied, which is the posture until a caller supplies it.
+     * attachment denied: a system caller, or a person the shim could not
+     * resolve to a live member.
      */
     caller?: { userId: string; isAdmin: boolean };
   },
@@ -267,6 +269,24 @@ async function filterRetrievableRagFileIds(
 }
 
 /**
+ * Who is asking, for the conversation branch of the retrievable filter: the
+ * caller's member row decides whether they are an admin (every conversation)
+ * or a member (their assignments). The reused search/fetch modules carry the
+ * identity as `access.userId` and hand it to the filter top-level; nothing
+ * else on that wire says who the person is. No member row, or a disabled
+ * one, is no caller — an emailed attachment then stays denied.
+ */
+async function retrievalCallerFor(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+): Promise<{ userId: string; isAdmin: boolean } | undefined> {
+  const member = await findOrganizationMember(sql, organizationId, userId);
+  if (member === null || member.role === 'disabled') return undefined;
+  return { userId, isAdmin: isAdminRole(member.role) };
+}
+
+/**
  * The betterAuth org-adapter read (`orgSlugFromId`'s one component ref) —
  * its own factory because every reused module that resolves an org's
  * on-disk provider tree needs it: knowledge embedding here, and the agent
@@ -312,13 +332,25 @@ export function knowledgeShimHandlers(sql: Sql): ShimHandlers {
     ...orgAdapterShimHandlers(sql),
     [FILTER_RETRIEVABLE]: async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the reused fetch/search callers pass exactly this shape
-      const args = raw as {
+      const { userId, ...args } = raw as {
         organizationId: string;
         fileIds: string[];
         access?: AccessScopeArg;
         folder?: string;
+        userId?: string;
       };
-      return filterRetrievableRagFileIds(sql, args);
+      // The identity arrives top-level (`access.userId`, lifted by the reused
+      // callers); the filter wants a decided caller. Resolving it HERE is
+      // what makes the #3220 conversation branch reachable from a search —
+      // the cast used to drop the id, so the decision was always deny.
+      const caller =
+        userId === undefined
+          ? undefined
+          : await retrievalCallerFor(sql, args.organizationId, userId);
+      return filterRetrievableRagFileIds(sql, {
+        ...args,
+        ...(caller !== undefined ? { caller } : {}),
+      });
     },
   };
 }
