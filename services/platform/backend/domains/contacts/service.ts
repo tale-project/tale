@@ -119,9 +119,22 @@ export interface ContactInput {
  * is a plain index, and live deployments may already carry twins from the
  * time no door checked — so the three write paths (single create, bulk
  * import, the mail-ingest find-or-create) all serialize here before they
- * look. Two overlapping writers of one email thus see each other's commit:
- * the second finds the row and refuses (or, for find-or-create, adopts it).
- * The lock lives for the caller's transaction, across every api replica.
+ * look. The lock lives for the caller's transaction, across every api
+ * replica. What the second writer then sees depends on the door's isolation:
+ *
+ *  - READ COMMITTED (the REST door, the mail-ingest shim, the bulk import's
+ *    per-item transaction): the post-lock lookup reads the winner's commit,
+ *    so the loser finds the row and refuses (or, for find-or-create, adopts
+ *    it) — the lock alone converges;
+ *  - SERIALIZABLE (the app door runs `createContact` under
+ *    `transactSerializable`): this lock is the transaction's first statement
+ *    and so FIXES the snapshot before the winner commits — the loser's lookup
+ *    cannot see the new row and inserts too. Convergence there is SSI: each
+ *    side read what the other wrote, so the loser fails with 40001 at commit
+ *    and `transactSerializable` reruns it on a fresh snapshot, where the
+ *    lookup finds the row and answers the 409. The serializable wrapper is
+ *    therefore load-bearing on that door — dropping it would let both
+ *    inserts land.
  */
 async function lockContactEmail(
   tx: TransactionSql,

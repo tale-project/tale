@@ -82,10 +82,19 @@ export async function fetchPresignedObject(
   } else {
     opts.signal?.addEventListener('abort', forwardAbort, { once: true });
   }
+  let settledWithHeaders = false;
   try {
-    return await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal });
+    settledWithHeaders = true;
+    return response;
   } finally {
     clearTimeout(timer);
+    // After headers the listener must stay: the body still streams under the
+    // caller's signal. Once the fetch has rejected there is nothing left to
+    // tear down, so the caller's signal stops holding a closure of ours.
+    if (!settledWithHeaders) {
+      opts.signal?.removeEventListener('abort', forwardAbort);
+    }
   }
 }
 

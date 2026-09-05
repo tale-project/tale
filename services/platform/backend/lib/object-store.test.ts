@@ -67,6 +67,31 @@ describe('fetchPresignedObject', () => {
     expect(seen[0]?.signal?.aborted).toBe(false);
   });
 
+  it('lets go of the caller signal once the fetch has rejected, but not after headers', async () => {
+    const { respond } = hangingFetch();
+    const timedOut = new AbortController();
+    const removed = vi.spyOn(timedOut.signal, 'removeEventListener');
+    const pending = fetchPresignedObject('https://bucket.test/k', {
+      signal: timedOut.signal,
+      headerTimeoutMs: 1_000,
+    });
+    const refused = expect(pending).rejects.toMatchObject({
+      name: 'TimeoutError',
+    });
+    await vi.advanceTimersByTimeAsync(1_001);
+    await refused;
+    expect(removed).toHaveBeenCalledWith('abort', expect.any(Function));
+
+    const streaming = new AbortController();
+    const kept = vi.spyOn(streaming.signal, 'removeEventListener');
+    const served = fetchPresignedObject('https://bucket.test/k2', {
+      signal: streaming.signal,
+    });
+    respond(new Response('bytes'));
+    await served;
+    expect(kept).not.toHaveBeenCalled();
+  });
+
   it('forwards the caller abort to the upstream fetch', async () => {
     const { seen } = hangingFetch();
     const client = new AbortController();
