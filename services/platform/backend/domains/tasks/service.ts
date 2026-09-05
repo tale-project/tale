@@ -1014,6 +1014,25 @@ export async function createTask(
     subscriberId: auth.userId,
     reason: 'creator',
   });
+  // The status choreography applies to a card BORN in a column too — the
+  // create dialog offers the full picker: an agent-owned task created
+  // straight at In progress gets its run (the board never shows an
+  // in-progress agent task with no run behind it), and one created at In
+  // review opens the review gate, the same two rules a move enforces.
+  if (status === 'in_progress') {
+    await kickAssignedAgentRun(tx, auth, {
+      id: taskId,
+      projectId: args.projectId,
+      assigneeType: assignee?.assigneeType ?? null,
+      assigneeId: assignee?.assigneeId ?? null,
+    });
+  }
+  if (status === 'in_review') {
+    await requestTaskReview(tx, {
+      task: await loadTaskOrThrow(tx, taskId, auth.organizationId),
+      trigger: { kind: 'human', actorId: auth.userId },
+    });
+  }
   // TODO(collab): description mention fan-out rides the mention directory.
   return taskId;
 }
@@ -1205,6 +1224,7 @@ export async function updateTaskStatus(
       ...(auth.email !== undefined ? { email: auth.email } : {}),
     },
   });
+  await cancelLiveAgentRunOnLeave(tx, task, status);
 
   const now = Date.now();
   const rank = await computeEndRank(tx, task.projectId, status);
@@ -1228,40 +1248,8 @@ export async function updateTaskStatus(
   // in_progress starts (or reuses) a run in the SAME transaction as the
   // status write — the board never shows an in-progress agent task with no
   // run behind it.
-  if (
-    status === 'in_progress' &&
-    task.assigneeType === 'agent' &&
-    task.assigneeId !== null
-  ) {
-    const agents = await tx<
-      {
-        id: string;
-        harness: string;
-        model: string;
-        modelProvider: string | null;
-      }[]
-    >`
-      SELECT id, harness, model, model_provider AS "modelProvider"
-      FROM app.project_agents
-      WHERE id = ${task.assigneeId} AND org_id = ${auth.organizationId}
-      LIMIT 1
-    `;
-    const agent = agents[0];
-    if (agent) {
-      await kickAgentRun(tx, {
-        organizationId: auth.organizationId,
-        projectId: task.projectId,
-        taskId,
-        agentId: agent.id,
-        harness: agent.harness,
-        model: agent.model,
-        ...(agent.modelProvider !== null
-          ? { modelProvider: agent.modelProvider }
-          : {}),
-        startedBy: auth.userId,
-        trigger: 'manual',
-      });
-    }
+  if (status === 'in_progress') {
+    await kickAssignedAgentRun(tx, auth, { ...task, id: taskId });
   }
   // Reaching `in_review` IS the request for review, whoever submitted —
   // the gate belongs to the STATE, not to the agent lane.
@@ -1271,6 +1259,79 @@ export async function updateTaskStatus(
       trigger: { kind: 'human', actorId: auth.userId },
     });
   }
+}
+
+/**
+ * The agent kick every human door that lands a card at `in_progress` shares
+ * (the status picker, the drag, and a card CREATED straight into the column):
+ * an agent-owned task gets its queued run + `task.agent_turn` job in the same
+ * transaction as the status write, attributed to the person whose gesture it
+ * was. A task with no agent assignee, or whose agent is gone, kicks nothing.
+ */
+async function kickAssignedAgentRun(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  task: Pick<TaskRow, 'id' | 'projectId' | 'assigneeType' | 'assigneeId'>,
+): Promise<void> {
+  if (task.assigneeType !== 'agent' || task.assigneeId === null) return;
+  const agents = await tx<
+    {
+      id: string;
+      harness: string;
+      model: string;
+      modelProvider: string | null;
+    }[]
+  >`
+    SELECT id, harness, model, model_provider AS "modelProvider"
+    FROM app.project_agents
+    WHERE id = ${task.assigneeId} AND org_id = ${auth.organizationId}
+    LIMIT 1
+  `;
+  const agent = agents[0];
+  if (!agent) return;
+  await kickAgentRun(tx, {
+    organizationId: auth.organizationId,
+    projectId: task.projectId,
+    taskId: task.id,
+    agentId: agent.id,
+    harness: agent.harness,
+    model: agent.model,
+    ...(agent.modelProvider !== null
+      ? { modelProvider: agent.modelProvider }
+      : {}),
+    startedBy: auth.userId,
+    trigger: 'manual',
+  });
+}
+
+/**
+ * Leaving `in_progress` through a HUMAN door cancels the task's live agent
+ * run: a person who closes, cancels or sends a card back has decided the
+ * agent's work is over, and a run left grinding would park the card back at
+ * In review on settle. The browser choreography cancels first and moves
+ * anyway when that cancel fails; owning the rule here keeps every door (REST,
+ * a stale client) honest. The exec itself is reaped by its next drive window
+ * (the orphan check), exactly as after the cancel-live door.
+ */
+async function cancelLiveAgentRunOnLeave(
+  tx: TransactionSql,
+  task: Pick<TaskRow, 'id' | 'organizationId' | 'status'>,
+  toStatus: TaskStatus,
+): Promise<void> {
+  if (task.status !== 'in_progress' || toStatus === 'in_progress') return;
+  const live = await tx<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE task_id = ${task.id} AND org_id = ${task.organizationId}
+      AND status IN ('queued', 'running')
+    LIMIT 1
+  `;
+  const run = live[0];
+  if (run === undefined) return;
+  await cancelAgentRunInTx(tx, {
+    organizationId: task.organizationId,
+    runId: run.id,
+    taskId: task.id,
+  });
 }
 
 /**
@@ -1461,6 +1522,28 @@ export async function agentUpdateTaskStatusTrusted(
   if (task.status === args.status) {
     await mintReview();
     return { ok: true };
+  }
+  // The settle's park names its run, and may only move a card that is still
+  // In progress FOR that run. A person or an automation who moved the card
+  // meanwhile (closed it, cancelled it, sent it back) made a decision this
+  // lane must not undo by yanking the card back to In review with its
+  // completion stamp cleared and a fresh reviewer bell; and a run cancelled
+  // while its last drive window was already draining must not park the card
+  // either. The auto-retry job refuses the same way (`task_moved`).
+  if (args.review !== undefined) {
+    if (task.status !== 'in_progress') {
+      return { ok: false, reason: 'TASK_MOVED' };
+    }
+    const live = await tx<{ id: string }[]>`
+      SELECT id FROM app.project_agent_runs
+      WHERE id = ${args.review.runId} AND task_id = ${args.taskId}
+        AND org_id = ${args.organizationId}
+        AND status IN ('queued', 'running')
+      LIMIT 1
+    `;
+    if (live.length === 0) {
+      return { ok: false, reason: 'RUN_NOT_LIVE' };
+    }
   }
   // `done` is the REVIEW GATE's to give: an agent or an automation parks
   // finished work at `in_review` and a person certifies it. Cancelling is a
@@ -1718,6 +1801,7 @@ export async function moveTask(
         ...(auth.email !== undefined ? { email: auth.email } : {}),
       },
     });
+    await cancelLiveAgentRunOnLeave(tx, task, args.status);
   }
   const rankOf = async (
     id: string | undefined,

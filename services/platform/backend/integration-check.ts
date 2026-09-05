@@ -13674,6 +13674,60 @@ async function checkOneLiveRunPerTask(
     `kick reused=${outcome.reused} (want true, winner=${outcome.runId === heldRunId}), live rows=${liveRows.length} (want 1), turn jobs for winner=${turnJobs[0]?.count} (want 0), raw twin=${rawRefused || 'accepted'} (want 23505)`,
   );
 
+  // A person closing the card through a human door CANCELS its live run
+  // (the server owns the rule, not just the browser choreography), and the
+  // run's later settle may not yank the closed card back to In review.
+  const { updateTaskStatus, agentUpdateTaskStatusTrusted } =
+    await import('./domains/tasks/service.ts');
+  const humanAuth = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    teamIds: [] as string[],
+  };
+  await transactSerializable(sql, (tx) =>
+    updateTaskStatus(tx, humanAuth, taskId, 'done'),
+  );
+  const cancelledRun = await sql<{ status: string }[]>`
+    SELECT status FROM app.project_agent_runs WHERE id = ${heldRunId}
+  `;
+  const cancelLedger = await sql<{ status: string }[]>`
+    SELECT status FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'agent.run_settled'
+      AND resource_id = ${heldRunId}
+  `;
+  const settleAfterClose = await sql.begin((tx) =>
+    agentUpdateTaskStatusTrusted(tx, {
+      organizationId: orgId,
+      actorId: agentId,
+      taskId,
+      status: 'in_review',
+      review: { runId: heldRunId },
+    }),
+  );
+  const closedTask = await sql<
+    { status: string; completedAt: number | null }[]
+  >`
+    SELECT status, completed_at_ms::float8 AS "completedAt" FROM app.tasks
+    WHERE id = ${taskId}
+  `;
+  const gateAfterClose = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+      AND status = 'pending'
+  `;
+  record(
+    'closing a card cancels its live run, and the run’s settle cannot reopen it',
+    cancelledRun[0]?.status === 'cancelled' &&
+      cancelLedger.length === 1 &&
+      !settleAfterClose.ok &&
+      settleAfterClose.reason === 'TASK_MOVED' &&
+      closedTask[0]?.status === 'done' &&
+      closedTask[0]?.completedAt !== null &&
+      gateAfterClose[0]?.count === '0',
+    `run=${cancelledRun[0]?.status} (want cancelled, ledger rows=${cancelLedger.length}/1), settle=${settleAfterClose.ok}/${settleAfterClose.reason ?? '-'} (want false/TASK_MOVED), task=${closedTask[0]?.status} completed=${closedTask[0]?.completedAt !== null}, pending gates=${gateAfterClose[0]?.count} (want 0)`,
+  );
+
   // Leave nothing the live worker could act on.
   await sql`
     UPDATE app.project_agent_runs SET status = 'cancelled'
