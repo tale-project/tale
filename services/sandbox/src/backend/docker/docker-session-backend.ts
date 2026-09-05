@@ -10,10 +10,7 @@ import { chown, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ensureBuildkitd } from '../../buildkitd.ts';
-import {
-  buildDockerSessionRunArgs,
-  sessionDindEnabled,
-} from '../../session/docker-session-args.ts';
+import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
 import {
   runnerdEnvPatch,
   runnerdHealth,
@@ -25,6 +22,7 @@ import {
   sessionContainerName,
   sessionWorkspaceDirName,
 } from '../../session/session-naming.ts';
+import { sessionDindEnabled } from '../../session/session-profile.ts';
 import {
   dockerRm,
   dockerRmSucceeded,

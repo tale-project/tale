@@ -179,6 +179,58 @@ describe('buildSessionPod', () => {
       ).toBe('unconfined');
     });
 
+    // REGRESSION (backend parity): the Docker argv builder gates DinD on the
+    // agent profile; the Pod builder applied it to EVERY profile, so a
+    // `default` (run_code / crawler render) Pod ran untrusted content as root
+    // (privileged on runc) — or never became ready, because the entrypoint's
+    // DinD branch drops to uid 10001 on a 65534-group workspace.
+    test('default profile stays fully hardened even with DinD on (agent-only capability)', () => {
+      const pod = buildSessionPod(dindCfg, { ...input, profile: 'default' });
+      const sc = pod.spec?.containers[0]?.securityContext;
+      expect(sc?.runAsUser).toBe(65534);
+      expect(sc?.runAsNonRoot).toBe(true);
+      expect(sc?.readOnlyRootFilesystem).toBe(true);
+      expect(sc?.allowPrivilegeEscalation).toBe(false);
+      expect(sc?.privileged).toBeUndefined();
+      expect(sc?.capabilities?.drop).toEqual(['ALL']);
+      expect(sc?.seccompProfile?.type).toBe('RuntimeDefault');
+      expect(pod.spec?.securityContext?.seccompProfile?.type).toBe(
+        'RuntimeDefault',
+      );
+      expect(
+        pod.metadata?.annotations?.[
+          'container.apparmor.security.beta.kubernetes.io/runner'
+        ],
+      ).toBeUndefined();
+      expect(pod.spec?.volumes?.some((v) => v.name === 'docker-storage')).toBe(
+        false,
+      );
+      expect(
+        pod.spec?.containers[0]?.volumeMounts?.some(
+          (m) => m.mountPath === '/var/lib/docker',
+        ),
+      ).toBe(false);
+      const env = pod.spec?.containers[0]?.env ?? [];
+      expect(env.some((e) => e.name === 'TALE_DIND')).toBe(false);
+      expect(env.some((e) => e.name === 'TALE_RUNTIME_TIER')).toBe(false);
+    });
+
+    test('runc tier + DinD: the agent Pod is privileged, the default Pod is not', () => {
+      const runcDind = {
+        ...dindCfg,
+        runtimeTier: 'runc' as const,
+        k8s: { ...cfg.k8s, runtimeClassName: null },
+      };
+      expect(
+        buildSessionPod(runcDind, input).spec?.containers[0]?.securityContext
+          ?.privileged,
+      ).toBe(true);
+      expect(
+        buildSessionPod(runcDind, { ...input, profile: 'default' }).spec
+          ?.containers[0]?.securityContext?.privileged,
+      ).toBeUndefined();
+    });
+
     test('DinD-off keeps the hardened securityContext and no docker-storage', () => {
       const pod = buildSessionPod(cfg, input);
       const sc = pod.spec?.containers[0]?.securityContext;
@@ -193,6 +245,40 @@ describe('buildSessionPod', () => {
           (e) => e.name === 'TALE_DIND',
         ),
       ).toBe(false);
+    });
+  });
+
+  // REGRESSION (dead end on K8s): only the Docker argv builder emitted
+  // TALE_BROWSER_CDP, so with SANDBOX_BROWSER_VIEW on (the default) no Pod
+  // ever started the headed Chromium — the live-browser pane, browser
+  // restart/reset and the in-sandbox Playwright MCP CDP attach were silent
+  // no-ops on the Kubernetes backend.
+  describe('live browser view (SANDBOX_BROWSER_VIEW)', () => {
+    const cdpOf = (pod: ReturnType<typeof buildSessionPod>) =>
+      (pod.spec?.containers[0]?.env ?? []).find(
+        (e) => e.name === 'TALE_BROWSER_CDP',
+      )?.value;
+
+    test('on + agent profile: the runner gets TALE_BROWSER_CDP=1', () => {
+      const pod = buildSessionPod({ ...cfg, browserView: true }, input);
+      expect(cdpOf(pod)).toBe('1');
+      // The signal is additive: the hardened posture is unchanged.
+      expect(pod.spec?.containers[0]?.securityContext?.runAsNonRoot).toBe(true);
+    });
+
+    test('off: no TALE_BROWSER_CDP', () => {
+      expect(cdpOf(buildSessionPod(cfg, input))).toBeUndefined();
+    });
+
+    test('on + default profile: agent-only, no TALE_BROWSER_CDP', () => {
+      expect(
+        cdpOf(
+          buildSessionPod(
+            { ...cfg, browserView: true },
+            { ...input, profile: 'default' },
+          ),
+        ),
+      ).toBeUndefined();
     });
   });
 
