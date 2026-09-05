@@ -284,7 +284,7 @@ async function cachedLiveCatalog(
     !options.forceRefresh &&
     Date.now() - remembered.failedAt < CATALOG_FAILURE_BACKOFF_MS
   ) {
-    return serveDegraded(providerName, cached, defaults, remembered.error);
+    return serveDegraded(cached, defaults, remembered.error);
   }
 
   let inFlight = liveCatalogInFlight.get(cacheKey);
@@ -303,6 +303,7 @@ async function cachedLiveCatalog(
       .catch((err: unknown) => {
         const error = err instanceof Error ? err : new Error(String(err));
         liveCatalogFailures.set(cacheKey, { failedAt: Date.now(), error });
+        warnRememberedFailure(providerName, cached, defaults, error);
         throw error;
       })
       .finally(() => {
@@ -324,32 +325,49 @@ async function cachedLiveCatalog(
       );
       throw err;
     }
-    return serveDegraded(providerName, cached, defaults, err);
+    return serveDegraded(cached, defaults, err);
   }
 }
 
-/** What a failed fetch serves: the previous catalog, else the shipped
- * defaults, else the failure itself. */
-function serveDegraded(
+/** Logged ONCE, when a failed fetch is remembered — not on every read the
+ * back-off answers from memory: what the degraded reads serve meanwhile. */
+function warnRememberedFailure(
   providerName: string,
+  cached: CachedCatalog | undefined,
+  defaults: readonly ModelCatalogEntry[] | undefined,
+  error: Error,
+): void {
+  const backoff = `for the next ${Math.round(CATALOG_FAILURE_BACKOFF_MS / 1000)}s`;
+  if (cached !== undefined) {
+    console.warn(
+      `[catalog] ${providerName}: refresh failed, serving the previous catalog (${cached.entries.length} models) ${backoff}:`,
+      error,
+    );
+    return;
+  }
+  if (defaults !== undefined && defaults.length > 0) {
+    console.warn(
+      `[catalog] ${providerName}: fetch failed with nothing cached; serving the shipped defaults (${defaults.length} models) ${backoff}:`,
+      error,
+    );
+    return;
+  }
+  console.warn(
+    `[catalog] ${providerName}: fetch failed with nothing cached and no shipped defaults; refusing ${backoff}:`,
+    error,
+  );
+}
+
+/** What a failed fetch serves: the previous catalog, else the shipped
+ * defaults, else the failure itself. Silent — the failure was logged when
+ * it was remembered ({@link warnRememberedFailure}). */
+function serveDegraded(
   cached: CachedCatalog | undefined,
   defaults: readonly ModelCatalogEntry[] | undefined,
   err: unknown,
 ): readonly ModelCatalogEntry[] {
-  if (cached !== undefined) {
-    console.warn(
-      `[catalog] ${providerName}: refresh failed, serving the previous catalog (${cached.entries.length} models):`,
-      err,
-    );
-    return mergeWithDefaults(cached.entries, defaults);
-  }
-  if (defaults !== undefined && defaults.length > 0) {
-    console.warn(
-      `[catalog] ${providerName}: fetch failed with nothing cached; serving the shipped defaults (${defaults.length} models):`,
-      err,
-    );
-    return defaults;
-  }
+  if (cached !== undefined) return mergeWithDefaults(cached.entries, defaults);
+  if (defaults !== undefined && defaults.length > 0) return defaults;
   throw err;
 }
 

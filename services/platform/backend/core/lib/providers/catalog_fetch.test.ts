@@ -305,6 +305,27 @@ describe('getProviderCatalog — live sources', () => {
     expect(mockedFetch).toHaveBeenCalledTimes(2);
   });
 
+  it('logs a remembered failure once, not on every read the back-off answers', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockOpenRouterListings();
+    await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+
+    vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
+    mockedFetch.mockRejectedValue(
+      new SafeFetchError('network_error', 'connect refused'),
+    );
+    await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    warn.mockClear();
+
+    // Every read inside the back-off serves the previous catalog silently:
+    // the failure was logged when it was remembered.
+    vi.setSystemTime(Date.now() + 1);
+    await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('serves the shipped defaults from a remembered failure without refetching', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedFetch.mockRejectedValue(new SafeFetchError('timeout', 'timed out'));
