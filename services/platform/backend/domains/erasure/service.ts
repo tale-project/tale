@@ -10,7 +10,7 @@ import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts'
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import { resolveObjectStore, s3DeleteObject } from '../../lib/object-store.ts';
+import { deleteOrgObject } from '../../lib/object-store.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
@@ -769,8 +769,7 @@ export async function processErasure(
     for (const upload of uploads) {
       const parsed = parseBlobRef(upload.storageRef);
       if (parsed.backend === 's3' && !deletedRefs.has(upload.storageRef)) {
-        const store = await resolveObjectStore(orgSlug);
-        await s3DeleteObject(store, parsed.key);
+        await deleteOrgObject(orgSlug, parsed.key);
         deletedRefs.add(upload.storageRef);
       }
       await sql`DELETE FROM app.file_metadata WHERE id = ${upload.id}`;
@@ -869,8 +868,7 @@ export async function processErasure(
       if (ref !== null && ref !== '' && orgSlug !== null) {
         const parsed = parseBlobRef(ref);
         if (parsed.backend === 's3' && !deletedRefs.has(ref)) {
-          const store = await resolveObjectStore(orgSlug);
-          await s3DeleteObject(store, parsed.key);
+          await deleteOrgObject(orgSlug, parsed.key);
           deletedRefs.add(ref);
         }
       }

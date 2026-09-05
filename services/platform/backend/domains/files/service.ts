@@ -5,6 +5,8 @@ import { s3KeyBelongsToOrg } from '../../core/lib/storage/blob_ref.ts';
 import { browserFacing } from '../../core/lib/storage/object_store.ts';
 import {
   buildObjectKey,
+  deleteOrgObject,
+  locateOrgObjectStore,
   resolveObjectStore,
   s3DeleteObject,
   s3HeadObject,
@@ -56,19 +58,52 @@ export interface UploadHandoff {
   uploadUrl: string;
 }
 
-async function requireOrgStore(sql: Sql, organizationId: string) {
+async function requireOrgSlug(
+  sql: Sql,
+  organizationId: string,
+): Promise<string> {
   const orgSlug = await resolveOrgSlug(sql, organizationId);
   if (!orgSlug) {
     throw new FileError('ORG_NOT_FOUND', 'Organization not found', 404);
   }
+  return orgSlug;
+}
+
+function unconfigured(): FileError {
+  return new FileError(
+    'OBJECT_STORE_UNCONFIGURED',
+    'No object storage configured for this deployment',
+    503,
+  );
+}
+
+/** The org's CURRENT store — where a newly minted key lands. */
+async function requireOrgStore(sql: Sql, organizationId: string) {
+  const orgSlug = await requireOrgSlug(sql, organizationId);
   try {
     return { orgSlug, store: await resolveObjectStore(orgSlug) };
   } catch {
-    throw new FileError(
-      'OBJECT_STORE_UNCONFIGURED',
-      'No object storage configured for this deployment',
-      503,
-    );
+    throw unconfigured();
+  }
+}
+
+/**
+ * The store that holds an EXISTING blob of the org's: its own bucket, or the
+ * deployment default the blob was written to before the org connected one
+ * (`locateOrgObjectStore`). Serve lanes presign against this; a key outside
+ * the org's namespace is refused before any store is asked.
+ */
+async function requireOrgStoreForRef(
+  sql: Sql,
+  organizationId: string,
+  storageRef: string,
+) {
+  const orgSlug = await requireOrgSlug(sql, organizationId);
+  const key = requireOrgScopedKey(storageRef, orgSlug);
+  try {
+    return { orgSlug, key, store: await locateOrgObjectStore(orgSlug, key) };
+  } catch {
+    throw unconfigured();
   }
 }
 
@@ -290,8 +325,11 @@ export async function getFileUrl(
   storageRef: string,
   opts: { filename?: string } = {},
 ): Promise<string> {
-  const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
-  const key = requireOrgScopedKey(storageRef, orgSlug);
+  const { key, store } = await requireOrgStoreForRef(
+    sql,
+    scope.organizationId,
+    storageRef,
+  );
   // Handed to the browser, so signed against the origin it can reach.
   return s3PresignGetUrl(browserFacing(store), key, {
     ...(opts.filename !== undefined && { filename: opts.filename }),
@@ -322,7 +360,7 @@ export async function deleteFile(
       409,
     );
   }
-  const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
+  const { orgSlug } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(meta.storageRef, orgSlug);
   await tx`DELETE FROM app.file_metadata WHERE id = ${fileId}`;
   const stillReferenced = await tx<{ referenced: boolean }[]>`
@@ -341,8 +379,10 @@ export async function deleteFile(
   }
   // Blob delete is best-effort AFTER the row delete commits its intent; an
   // orphaned blob is reclaimable by a sweep, a dangling row is user-visible.
+  // Every store that may hold the blob is cleared (own bucket AND the
+  // default store a pre-switch blob was written to).
   try {
-    await s3DeleteObject(store, key);
+    await deleteOrgObject(orgSlug, key);
   } catch (error) {
     console.warn(`[files] blob delete failed for ${key}:`, error);
   }
@@ -364,11 +404,10 @@ export async function deleteOrgBlobRefs(
   try {
     const orgSlug = await resolveOrgSlug(db, organizationId);
     if (!orgSlug) return;
-    const store = await resolveObjectStore(orgSlug);
     for (const ref of refs) {
       const key = ref.startsWith('s3:') ? ref.slice(3) : ref;
       try {
-        await s3DeleteObject(store, key);
+        await deleteOrgObject(orgSlug, key);
       } catch (error) {
         console.warn(`[files] blob delete failed for ${key}:`, error);
       }

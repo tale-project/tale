@@ -12,8 +12,9 @@ import { canonicalResourcePath } from '../../core/webdav/helpers.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   buildObjectKey,
+  deleteOrgObject,
+  locateOrgObjectStore,
   resolveObjectStore,
-  s3DeleteObject,
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
@@ -556,9 +557,8 @@ async function deleteOrgBlobRef(
   try {
     const orgSlug = await resolveOrgSlug(db, organizationId);
     if (!orgSlug) return;
-    const store = await resolveObjectStore(orgSlug);
     const key = ref.startsWith('s3:') ? ref.slice(3) : ref;
-    await s3DeleteObject(store, key);
+    await deleteOrgObject(orgSlug, key);
   } catch (error) {
     console.warn('[webdav] blob delete failed', error);
   }
@@ -911,10 +911,10 @@ export function webdavHandlers(
       try {
         const orgSlug = await resolveOrgSlug(sql, orgId);
         if (!orgSlug) return null;
-        const store = await resolveObjectStore(orgSlug);
         const key = args.storageId.startsWith('s3:')
           ? args.storageId.slice(3)
           : args.storageId;
+        const store = await locateOrgObjectStore(orgSlug, key);
         const head = await s3HeadObject(store, key);
         if (!head) return null;
         return s3PresignGetUrl(store, key);

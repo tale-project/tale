@@ -9,11 +9,16 @@
  * `resolveOrgObjectStore(orgSlug)` returns the org's own bucket when
  * `<org>/object-storage/connection.json` is configured, else the deployment
  * default — the `default` config tree's connection — and otherwise FAILS
- * CLOSED with `ObjectStoreUnconfiguredError`. There is no fallback store: a
- * missing or broken connection is an operator-visible error at the door, never
- * a silently different backend deep in a blob lane. Callers that hold an
- * `ActionCtx` use `blob_access.ts`; this module owns only the resolution + the
- * raw S3 requests.
+ * CLOSED with `ObjectStoreUnconfiguredError`. There is no fallback for a
+ * missing or broken connection: it is an operator-visible error at the door,
+ * never a silently different backend deep in a blob lane. The one deliberate
+ * second store is on READS of an existing blob: an org that connects its own
+ * bucket keeps every blob written before that moment in the deployment
+ * default store until the blob backfill moves it, and a ref carries no store
+ * identity — so `resolveOrgObjectStoresForRead` lists own-then-default and
+ * `locateOrgObjectStore` asks them in turn. Callers that hold an `ActionCtx`
+ * use `blob_access.ts`; this module owns only the resolution + the raw S3
+ * requests.
  *
  * S3 requests are signed with `aws4fetch` (a few-KB SigV4 signer) rather than
  * `@aws-sdk/client-s3`. Works against any S3-compatible store (AWS S3, MinIO,
@@ -98,6 +103,84 @@ export async function resolveOrgObjectStore(
   const store = buildS3ObjectStore(resolved.connection, resolved.secrets);
   orgStoreCache.set(orgSlug, { store, expires: now + ORG_STORE_TTL_MS });
   return store;
+}
+
+/**
+ * The stores a READ (or delete) of an EXISTING org blob may find it in, most
+ * likely first: the org's resolved store, then — only when the org has its
+ * own bucket and the deployment default tree names a different one — the
+ * default store, where every blob written before the org connected its
+ * bucket still lives until the blob backfill moves it. Mint lanes never use
+ * this: a new key always lands in `resolveOrgObjectStore`. A broken default
+ * tree still throws (fail-closed); an absent one contributes no fallback.
+ */
+export async function resolveOrgObjectStoresForRead(
+  orgSlug: string,
+): Promise<S3ObjectStore[]> {
+  const primary = await resolveOrgObjectStore(orgSlug);
+  if (orgSlug === DEFAULT_TREE_SLUG) return [primary];
+  let fallback: S3ObjectStore;
+  try {
+    fallback = await resolveOrgObjectStore(DEFAULT_TREE_SLUG);
+  } catch (error) {
+    if (error instanceof ObjectStoreUnconfiguredError) return [primary];
+    throw error;
+  }
+  return sameObjectStore(primary, fallback) ? [primary] : [primary, fallback];
+}
+
+/** Two connections address the same physical bucket (a key stays one object
+ * however it is signed for). */
+export function sameObjectStore(a: S3ObjectStore, b: S3ObjectStore): boolean {
+  return (
+    a.config.bucket === b.config.bucket &&
+    a.config.region === b.config.region &&
+    (a.config.endpoint ?? null) === (b.config.endpoint ?? null)
+  );
+}
+
+/**
+ * The store that physically holds `key` for `orgSlug`: the org's store when
+ * it is the only candidate (no round-trip), else the first candidate whose
+ * HEAD answers — and the org's own store when none does, so a missing object
+ * surfaces at the caller's verb exactly as it did with one store. Readers
+ * presign, GET or HEAD against the returned store.
+ */
+export async function locateOrgObjectStore(
+  orgSlug: string,
+  key: string,
+): Promise<S3ObjectStore> {
+  const stores = await resolveOrgObjectStoresForRead(orgSlug);
+  const primary = stores[0];
+  if (primary === undefined) throw new ObjectStoreUnconfiguredError();
+  if (stores.length === 1) return primary;
+  for (const store of stores) {
+    if ((await s3HeadObject(store, key)) !== null) return store;
+  }
+  return primary;
+}
+
+/**
+ * DELETE `key` from every store that may hold it — S3 DELETE is idempotent,
+ * so the copies a blob has in the default store and the org bucket (before,
+ * during and after the backfill) all go. Every store is attempted; the first
+ * failure is rethrown afterwards so a caller's best-effort/retry semantics
+ * stay intact.
+ */
+export async function deleteOrgObject(
+  orgSlug: string,
+  key: string,
+): Promise<void> {
+  const stores = await resolveOrgObjectStoresForRead(orgSlug);
+  let failure: { error: unknown } | null = null;
+  for (const store of stores) {
+    try {
+      await s3DeleteObject(store, key);
+    } catch (error) {
+      failure ??= { error };
+    }
+  }
+  if (failure !== null) throw failure.error;
 }
 
 /** Drop every cached resolution (test hook + config-write invalidation). */
@@ -282,11 +365,15 @@ export async function s3PutObject(
   return 'created';
 }
 
-/** GET the raw bytes of an object. Throws on a non-2xx response. */
-export async function s3GetObjectBytes(
+/**
+ * GET an object: its raw bytes plus the Content-Type the store holds for it
+ * (`null` when the store answers none) — the pair a copy between stores needs
+ * to land the object as it was. Throws on a non-2xx response.
+ */
+export async function s3GetObject(
   store: S3ObjectStore,
   key: string,
-): Promise<Uint8Array> {
+): Promise<{ bytes: Uint8Array; contentType: string | null }> {
   const res = await store.client.fetch(objectUrl(store, key), {
     method: 'GET',
   });
@@ -295,7 +382,20 @@ export async function s3GetObjectBytes(
       `S3 GET ${key} failed: ${res.status} ${await safeErrorBody(res)}`,
     );
   }
-  return new Uint8Array(await res.arrayBuffer());
+  const contentType = res.headers.get('content-type');
+  return {
+    bytes: new Uint8Array(await res.arrayBuffer()),
+    contentType:
+      contentType === null || contentType === '' ? null : contentType,
+  };
+}
+
+/** GET the raw bytes of an object. Throws on a non-2xx response. */
+export async function s3GetObjectBytes(
+  store: S3ObjectStore,
+  key: string,
+): Promise<Uint8Array> {
+  return (await s3GetObject(store, key)).bytes;
 }
 
 /**

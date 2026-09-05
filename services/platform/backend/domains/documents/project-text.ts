@@ -4,7 +4,7 @@ import { parseYamlMap } from '../../core/documents/parse_yaml_map.ts';
 import { serializeYamlMap } from '../../core/documents/serialize_yaml_map.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
-import { resolveObjectStore } from '../../lib/object-store.ts';
+import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
 import { getOrCreateProjectFolder } from '../folders/service.ts';
@@ -278,7 +278,7 @@ export async function readProjectTextValues(
     if (orgSlug === null) return {};
     const parsed = parseBlobRef(fileRef);
     if (parsed.backend !== 's3') return {};
-    const store = await resolveObjectStore(orgSlug);
+    const store = await locateOrgObjectStore(orgSlug, parsed.key);
     const bytes = await s3GetObjectBytes(store, parsed.key);
     return parseYamlMap(new TextDecoder().decode(bytes));
   } catch (error) {
