@@ -5,6 +5,7 @@ import {
   CHAT_ERROR_I18N_KEY,
   classifyChatErrorCode,
   decodeChatError,
+  describeChatError,
   encodeChatError,
   isChatErrorCode,
 } from './chat-errors';
@@ -106,6 +107,39 @@ describe('classifyChatErrorCode', () => {
     expect(classifyChatErrorCode(null)).toBe('generic');
   });
 
+  it('reads a platform refusal by its data code and sentence', () => {
+    const appError = (code: string, message: string) =>
+      Object.assign(new Error(JSON.stringify({ code, message })), {
+        data: { code, message },
+      });
+    expect(
+      classifyChatErrorCode(
+        appError('CREDENTIAL_DISABLED', 'Credential "Chat key" is disabled'),
+      ),
+    ).toBe('auth_error');
+    expect(
+      classifyChatErrorCode(
+        appError('CREDENTIAL_KEY_ROTATED', 'encrypted under a previous key'),
+      ),
+    ).toBe('auth_error');
+    expect(
+      classifyChatErrorCode(
+        appError('CREDENTIAL_NONE_CONFIGURED', 'No default credential'),
+      ),
+    ).toBe('missing_api_key');
+    expect(
+      classifyChatErrorCode(
+        appError('CREDENTIAL_ENV_UNSET', 'The env var is empty or unset'),
+      ),
+    ).toBe('missing_api_key');
+    // An unknown code still classifies on the sentence, not the JSON blob.
+    expect(
+      classifyChatErrorCode(
+        appError('SOMETHING_ELSE', 'Rate limit reached on the provider'),
+      ),
+    ).toBe('rate_limited');
+  });
+
   it('treats missing-provider / missing-key as missing_api_key', () => {
     expect(
       classifyChatErrorCode({
@@ -133,6 +167,17 @@ describe('i18n key coverage', () => {
     for (const code of CHAT_ERROR_CODES) {
       expect(CHAT_ERROR_I18N_KEY[code]).toMatch(/^error/);
     }
+  });
+});
+
+describe('describeChatError', () => {
+  it('prefers the refusal sentence over the serialized payload', () => {
+    const error = Object.assign(new Error('{"code":"X","message":"Plain"}'), {
+      data: { code: 'X', message: 'Plain words.' },
+    });
+    expect(describeChatError(error, 'fallback')).toBe('Plain words.');
+    expect(describeChatError(new Error('boom'), 'fallback')).toBe('boom');
+    expect(describeChatError('not an error', 'fallback')).toBe('fallback');
   });
 });
 

@@ -106,9 +106,42 @@ function extractErrorFacts(error: unknown): ErrorFacts {
       : typeof err.statusCode === 'number'
         ? err.statusCode
         : undefined;
-  const code = typeof err.code === 'string' ? err.code : undefined;
-  const message = typeof err.message === 'string' ? err.message : '';
+  // A platform refusal (`AppError`) carries its code and sentence in `data`;
+  // its `message` is the serialized payload, useless to the regexes below.
+  const data =
+    err.data !== null && typeof err.data === 'object'
+      ? (err.data as Record<string, unknown>)
+      : undefined;
+  const code =
+    typeof err.code === 'string'
+      ? err.code
+      : typeof data?.code === 'string'
+        ? data.code
+        : undefined;
+  const message =
+    typeof data?.message === 'string'
+      ? data.message
+      : typeof err.message === 'string'
+        ? err.message
+        : '';
   return { status, code, message: message.toLowerCase() };
+}
+
+/**
+ * The human sentence of a failure for the stored envelope: a platform
+ * refusal's `data.message`, else the Error's own message, else `fallback`.
+ */
+export function describeChatError(error: unknown, fallback: string): string {
+  if (error !== null && typeof error === 'object') {
+    const data = (error as { data?: unknown }).data;
+    if (data !== null && typeof data === 'object') {
+      const message = (data as { message?: unknown }).message;
+      if (typeof message === 'string' && message.length > 0) return message;
+    }
+  }
+  return error instanceof Error && error.message.length > 0
+    ? error.message
+    : fallback;
 }
 
 /**
@@ -120,6 +153,22 @@ function extractErrorFacts(error: unknown): ErrorFacts {
  */
 export function classifyChatErrorCode(error: unknown): ChatErrorCode {
   const { status, code, message } = extractErrorFacts(error);
+
+  // The platform's own credential refusals, by code: no usable key at all
+  // is a setup error; a key that exists but cannot serve is an auth error.
+  if (
+    code === 'CREDENTIAL_NONE_CONFIGURED' ||
+    code === 'CREDENTIAL_ENV_UNSET'
+  ) {
+    return 'missing_api_key';
+  }
+  if (
+    code === 'CREDENTIAL_DISABLED' ||
+    code === 'CREDENTIAL_KEY_ROTATED' ||
+    code === 'CHAT_CREDENTIAL_UNSUPPORTED'
+  ) {
+    return 'auth_error';
+  }
 
   // Org has no usable provider / no API key at all — actionable setup error.
   if (

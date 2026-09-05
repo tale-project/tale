@@ -26,7 +26,11 @@
  * pair or refuses; it never reaches in.
  */
 
-import { classifyChatErrorCode, encodeChatError } from '../shared/chat-errors';
+import {
+  classifyChatErrorCode,
+  describeChatError,
+  encodeChatError,
+} from '../shared/chat-errors';
 import {
   resolveExecution,
   type CredentialAuth,
@@ -1358,8 +1362,7 @@ export async function runTurn(
     // whatever partial text the streaming writes persisted survives. The
     // `finally` still settles the generation; returning `refused` surfaces
     // the reason on the seam.
-    const reason =
-      err instanceof Error ? err.message : 'The model response failed.';
+    const reason = describeChatError(err, 'The model response failed.');
     // The message row is the only durable record of this failure — the log
     // line is the operator's copy of it (the reason text was already
     // secret-redacted and truncated where it was thrown).

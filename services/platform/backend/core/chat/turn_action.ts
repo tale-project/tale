@@ -601,14 +601,15 @@ export async function settleWireAttachments(
   }
 }
 
-/** Build the real streaming model call for direct execution. The wire target
- * is resolved once and reused across the turn's chunks. */
+/** Build the real streaming model call for direct execution over a wire
+ * the host resolved UP FRONT (`resolveDirectWire`) — so a credential fault
+ * is a pre-turn refusal, never a failed bubble inside the stream. */
 export function createDirectModelCall(
   ctx: ActionCtx,
   organizationId: string,
   connector: ProviderDefinition,
+  wire: DirectWire,
 ): ModelCall {
-  let wire: DirectWire | null = null;
   /** Whether the model declares reasoning, per its catalog entry — resolved
    * once per turn, only when the connector's dialect needs the fact. */
   let reasoningModel: boolean | undefined;
@@ -619,7 +620,6 @@ export function createDirectModelCall(
   return async function* directModelCall(
     request,
   ): AsyncGenerator<ModelStreamChunk> {
-    wire ??= await resolveDirectWire(ctx, organizationId, connector);
     // Provider files may name a private-http endpoint (self-hosted model
     // server, e2e mock gateway) — the schema admits the shape, and THIS is
     // the request boundary that decides reachability: metadata endpoints are
@@ -1167,6 +1167,29 @@ export async function executeTurn(
   const policies = unwrap(await pendingPolicies);
   const mandatoryInstructions = mandatoryInstructionsFor(policies);
 
+  // The credential and endpoint are resolved HERE, ahead of the history
+  // read and of any row being written: a disabled, deleted, rotated or
+  // unsupported default credential throws its own code, which the send
+  // route answers as a composer-visible refusal — never a persisted user
+  // message with a generic failed bubble under it. A test's model override
+  // brings its own wire.
+  let model: ModelCall;
+  if (overrides.model !== undefined) {
+    model = overrides.model;
+  } else {
+    const wire = await resolveDirectWire(
+      ctx,
+      args.organizationId,
+      resolved.connector,
+    );
+    model = createDirectModelCall(
+      ctx,
+      args.organizationId,
+      resolved.connector,
+      wire,
+    );
+  }
+
   // The effort → sampling and the effective window come FIRST: the history
   // read is bounded by the same budget the context assembly fits into, so a
   // long thread never materializes whole. The internal read also frees the
@@ -1255,10 +1278,6 @@ export async function executeTurn(
       return modelFacingUserMessage(ctx, message.parts);
     }),
   );
-
-  const model =
-    overrides.model ??
-    createDirectModelCall(ctx, args.organizationId, resolved.connector);
 
   const deps: TurnDeps = {
     model,

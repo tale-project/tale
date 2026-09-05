@@ -7799,12 +7799,19 @@ async function checkChat(
         headers: { 'content-type': 'application/json', cookie, origin: base },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
-    await send(`/api/app/provider-credentials?orgId=${orgId}`, {
-      providerSlug: 'itestchat',
-      authMethod: 'api-key',
-      name: 'Chat key',
-      secret: 'sk-itest-chat-key',
-    });
+    const chatCredential = z.object({ credentialId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+          providerSlug: 'itestchat',
+          authMethod: 'api-key',
+          name: 'Chat key',
+          secret: 'sk-itest-chat-key',
+        })
+      ).json(),
+    );
+    const chatCredentialId = chatCredential.success
+      ? chatCredential.data.credentialId
+      : '';
 
     const created = z.object({ id: z.string() }).safeParse(
       await (
@@ -8459,6 +8466,46 @@ async function checkChat(
       await rm(path.join(governanceDir, file), { force: true });
     }
     (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+
+    // A catalog connector whose default credential is DISABLED: the model
+    // still resolves from the catalog, so the credential fault used to
+    // surface inside the stream — a persisted user row and a generic failed
+    // bubble. It is a pre-turn refusal the composer shows, with no rows.
+    const credThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Credential probe',
+        })
+      ).json(),
+    );
+    const credThreadId = credThread.success ? credThread.data.id : '';
+    await send(
+      `/api/app/provider-credentials/${chatCredentialId}?orgId=${orgId}`,
+      { status: 'disabled' },
+    );
+    const credRes = await send(
+      `/api/app/chat/threads/${credThreadId}/messages?orgId=${orgId}`,
+      { text: 'hello?', modelId: 'itest-chat', providerSlug: 'itestchat' },
+    );
+    const credStatus = credRes.status;
+    const credOutcome = turnOutcome.safeParse(await credRes.json());
+    await send(
+      `/api/app/provider-credentials/${chatCredentialId}?orgId=${orgId}`,
+      { status: 'active' },
+    );
+    const credRows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.messages
+      WHERE thread_id = ${credThreadId}
+    `;
+    record(
+      'chat send with a disabled default credential refuses before any row is written',
+      credStatus === 200 &&
+        credOutcome.success &&
+        credOutcome.data.status === 'refused' &&
+        (credOutcome.data.reason ?? '').includes('disabled') &&
+        credRows[0]?.count === '0',
+      `http=${credStatus}, outcome=${credOutcome.success ? `${credOutcome.data.status} (${credOutcome.data.reason ?? ''})` : 'ERR'} (want refused, naming the disabled credential), rows=${credRows[0]?.count} (want 0)`,
+    );
     record(
       'chat guardrails: chat_filter refuses before the model, pii masks the wire, mandatory instructions lead the prompt, events land',
       blockedTurn.success &&
