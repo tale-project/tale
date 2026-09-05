@@ -17,6 +17,37 @@ const ATTACHMENT = {
   url: 'https://blob.example.test/invoice.pdf?sig=abc',
 };
 
+describe('buildSendInput — the From lane', () => {
+  const base = {
+    to: ['person@example.com'],
+    subject: 'Re: Order 42',
+    body: '<p>On its way.</p>',
+    from: 'billing@example.com',
+    attachments: [],
+  };
+
+  it('forwards the chosen From to imap-smtp, whose native guards it', () => {
+    expect(
+      buildSendInput({ ...base, connectorName: 'imap-smtp' }),
+    ).toHaveProperty('from', 'billing@example.com');
+  });
+
+  it('drops it for gmail and outlook, which declare no From input', () => {
+    expect(
+      buildSendInput({ ...base, connectorName: 'gmail' }),
+    ).not.toHaveProperty('from');
+    expect(
+      buildSendInput({ ...base, connectorName: 'outlook' }),
+    ).not.toHaveProperty('from');
+  });
+
+  it('sends nothing for an empty From', () => {
+    expect(
+      buildSendInput({ ...base, connectorName: 'imap-smtp', from: '' }),
+    ).not.toHaveProperty('from');
+  });
+});
+
 describe('buildSendInput — imap-smtp fidelity', () => {
   it('carries cc, references, and attachments on an imap-smtp reply', () => {
     const input = buildSendInput({

@@ -96,4 +96,4 @@ export function useDocumentMeta(meta: DocumentMeta): void {
 // Re-exported so the SSR entry points import the capture seam + serialiser
 // from one place (`@tale/ui/seo/document-meta`).
 export { HeadSinkContext, createHeadSink } from './head-sink';
-export { renderHeadToHtml } from './head-tags';
+export { renderHeadToHtml, resolveFullTitle } from './head-tags';

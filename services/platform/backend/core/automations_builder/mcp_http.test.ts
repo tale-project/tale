@@ -8,9 +8,10 @@
  * thrown call is an error. So the inventory is asserted in full, name by name,
  * and both failure shapes are pinned.
  *
- * Authentication is deliberately out of scope here: `withRestAuth` owns it and
- * is covered in `convex/lib/rest/helpers.test.ts`, so these tests drive the
- * post-auth handler with a hand-built context.
+ * Authentication is deliberately out of scope here: the `/api/v1/mcp` door
+ * (`backend/rest/v1-mcp.ts`, behind the REST door in `backend/rest/v1.ts`)
+ * owns it, so these tests drive the post-auth handler with a hand-built
+ * context.
  */
 
 import { describe, expect, it, vi } from 'vitest';

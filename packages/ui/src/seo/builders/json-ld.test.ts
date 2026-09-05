@@ -249,9 +249,41 @@ describe('buildItemListJsonLd', () => {
     expect(parsed.itemListElement[0]).toMatchObject({
       '@type': 'ListItem',
       position: 1,
-      name: 'v1.0.0',
-      datePublished: '2026-01-02',
+      item: {
+        '@type': 'CreativeWork',
+        name: 'v1.0.0',
+        url: 'https://github.com/tale-project/tale/releases/tag/v1.0.0',
+        datePublished: '2026-01-02',
+      },
     });
-    expect(parsed.itemListElement[1].datePublished).toBeUndefined();
+
+    const second = parsed.itemListElement[1].item;
+    if (!isJsonObject(second)) {
+      throw new Error('Expected the second entry to nest an item object');
+    }
+    expect(second.datePublished).toBeUndefined();
+    expect(second.name).toBe('v0.9.0');
+  });
+
+  // Regression: `datePublished` is a CreativeWork property. Emitting it on
+  // the ListItem itself made every changelog locale fail schema.org
+  // validation (Ahrefs: "Structured data has schema.org validation error").
+  it('keeps datePublished off the ListItem itself', () => {
+    const parsed = parse(
+      buildItemListJsonLd([
+        {
+          name: 'v1.0.0',
+          url: 'https://example.test/v1',
+          datePublished: '2026-01-02',
+        },
+      ]),
+    );
+    if (!isJsonObjectArray(parsed.itemListElement)) {
+      throw new Error('Expected itemListElement to be an array of objects');
+    }
+    const [first] = parsed.itemListElement;
+    expect(first.datePublished).toBeUndefined();
+    expect(first.name).toBeUndefined();
+    expect(first.url).toBeUndefined();
   });
 });

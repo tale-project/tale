@@ -8,10 +8,8 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { dismissAgentQuestionNotifications } from '../collab/service.ts';
-import {
-  listWorkflowFolderFiles,
-  runConnectorAction,
-} from '../connectors/service.ts';
+import { runConnectorAction } from '../connectors/service.ts';
+import { listFilesByFolder } from '../documents/agent-list.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
 import {
@@ -50,6 +48,23 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     // The ask lane's CREATE side, stated here rather than inherited: it is
     // this domain's own contract, not something the sandbox map lends it.
     ...automationAskShimHandlers(sql),
+
+    // The agent node's `files:` mounts: a folder id string, {folderId} or a
+    // hub {folderPath} stages the folder's TREE into the session workspace.
+    // `handler_names` declared this ref and the host dispatched it from day
+    // one, but no map answered it — every folder mount failed the turn with
+    // an un-shimmed-query error instead of the host's own not-found /
+    // truncated refusals (only inline `{content}` ever worked).
+    'documents/internal_queries:listFilesByFolderInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        folderId?: string;
+        folderPath?: string;
+        recursive?: boolean;
+      };
+      return listFilesByFolder(sql, args);
+    },
 
     'automations/mutations:claimRun': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
@@ -169,29 +184,6 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     },
 
     // ------------------------------------------- the agent node's run seams
-    // A `files` mount of an agent or script node: the hub folder's tree as
-    // blob refs the session stages by URL. Text-only documents carry no
-    // blob and cannot be staged, so they are not listed — the walk tells
-    // the truth about a cut through `truncated`.
-    'documents/internal_queries:listFilesByFolderInternal': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as {
-        organizationId: string;
-        folderId?: string;
-        folderPath?: string;
-        recursive?: boolean;
-      };
-      const listing = await listWorkflowFolderFiles(sql, args);
-      if (listing === null) return null;
-      return {
-        files: listing.files.flatMap((file) =>
-          file.blobRef === null
-            ? []
-            : [{ fileId: file.blobRef, name: file.name }],
-        ),
-        truncated: listing.truncated,
-      };
-    },
     'automations/queries:readAgentCursor': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { organizationId: string; runId: string };

@@ -103,7 +103,13 @@ async function folderDepth(
   return rows[0]?.depth ?? 1;
 }
 
-async function assertProjectFolderWrite(
+/**
+ * The project-folder WRITE gate: project readable and editable by the
+ * caller. Exported for a writer that stores bytes before it opens the
+ * folder transaction (the project-text lane), so authorization runs before
+ * anything lands in the org's store.
+ */
+export async function assertProjectFolderWrite(
   tx: TransactionSql | Sql,
   auth: ProjectAuthContext,
   projectId: string,

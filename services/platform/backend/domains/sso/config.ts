@@ -225,39 +225,6 @@ export async function resolveSamlConfig(
   };
 }
 
-/** The 0.4 `discoverByEmail` routing (deprecated endpoint, kept for parity):
- * domain match wins; else the single enabled connection; else null. */
-export async function discoverByEmail(
-  sql: Sql,
-  email: string,
-): Promise<{ organizationId: string; protocol: string } | null> {
-  const domain = email.split('@')[1]?.toLowerCase();
-  const orgs = await sql<{ id: string }[]>`
-    SELECT "id" FROM "organization"
-  `;
-  let firstEnabled: LoadedSsoConnection | null = null;
-  let enabledCount = 0;
-  let domainMatch: LoadedSsoConnection | null = null;
-  for (const org of orgs) {
-    const conn = await readSsoConnection(sql, org.id);
-    if (!conn || !conn.config.enabled || !conn.config.protocol) {
-      continue;
-    }
-    enabledCount += 1;
-    firstEnabled ??= conn;
-    if (domain !== undefined && conn.config.domain?.toLowerCase() === domain) {
-      domainMatch = conn;
-      break;
-    }
-  }
-  const chosen = domainMatch ?? (enabledCount === 1 ? firstEnabled : null);
-  if (!chosen?.config.protocol) return null;
-  return {
-    organizationId: chosen.organizationId,
-    protocol: chosen.config.protocol,
-  };
-}
-
 /** Secrets sidecar (client secret / SP key) — read-only, never served. */
 export async function readSsoSecrets(
   sql: Sql,

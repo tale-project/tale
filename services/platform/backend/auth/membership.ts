@@ -121,7 +121,9 @@ export async function requireOrganizationMember(
   return member;
 }
 
-const ADMIN_ROLES = new Set(['owner', 'admin']);
+/** The roles that carry an org's elevated seat — Better Auth creates orgs
+ * with `creatorRole: 'owner'`, and `admin` is the granted twin. */
+export const ADMIN_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 const ADMIN_OR_DEVELOPER_ROLES = new Set(['owner', 'admin', 'developer']);
 
 export function isAdminRole(role: string): boolean {

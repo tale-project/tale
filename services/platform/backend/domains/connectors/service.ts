@@ -128,13 +128,16 @@ const systemAuthFor = async (sql: Sql, organizationId: string) =>
   });
 
 /**
- * The bounded hub-folder walk behind the workflow `document.list` native AND
- * the agent/script hosts' `files` mounts — one implementation of "which files
- * does this folder hold for a run". The folder is named by id or by human
- * path ("Clients/Acme" — the same walk the sync engines resolve with); null
- * = it does not exist in this org's hub tree.
+ * The bounded hub-folder walk behind the workflow `document.list` native —
+ * "which files does this folder hold for a run", text-only documents
+ * included (they carry their document id as the handle). The folder is
+ * named by id or by human path ("Clients/Acme" — the same walk the sync
+ * engines resolve with); null = it does not exist in this org's hub tree.
+ * The agent/script hosts' `files` mounts are a different contract (blob
+ * refs only, path-prefixed names) and list through
+ * `documents/agent-list.ts:listFilesByFolder`.
  */
-export async function listWorkflowFolderFiles(
+async function listWorkflowFolderFiles(
   sql: Sql,
   {
     organizationId,

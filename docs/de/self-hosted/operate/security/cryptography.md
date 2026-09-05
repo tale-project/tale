@@ -1,6 +1,6 @@
 ---
 title: Kryptografie
-description: Die Algorithmen, die Tale für Daten im Ruhezustand, Daten bei der Übertragung, Passwort-Hashing und Audit-Log-Integrität nutzt — und wie sie auf BSI TR-02102-1 abgebildet sind.
+description: Die Algorithmen, die Tale für Daten im Ruhezustand, Daten bei der Übertragung, Passwort-Hashing und Audit-Log-Integrität nutzt.
 ---
 
 Diese Seite ist die Inventur jedes kryptografischen Primitivs, auf das sich Tale stützt: was Secrets auf der Festplatte schützt, was den Verkehr auf der Leitung schützt, wie Passwörter gehasht werden und wie das Audit-Log beweist, dass es nicht manipuliert wurde. Sie ist für Betreiber und Compliance-Prüfer geschrieben, die "welche Algorithmen, welche Schlüssellängen, wo liegen die Schlüssel" gegen einen Standard wie BSI TR-02102-1 beantworten müssen — Tale nutzt bereits konforme Primitive, und auf dieser Seite sind sie festgehalten.

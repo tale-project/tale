@@ -6,11 +6,12 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { purgeIncompleteResponse } from '../../lib/purge-incomplete-response.ts';
 import {
   rateLimitExceededCause,
   rateLimitedResponse,
 } from '../../lib/rate-limit-response.ts';
-import { FileError, getFileUrl } from '../files/service.ts';
+import { FileError } from '../files/service.ts';
 import { FolderError } from '../folders/service.ts';
 import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
@@ -19,6 +20,7 @@ import {
   ProjectError,
   type ProjectAuthContext,
 } from '../projects/service.ts';
+import { PurgeIncompleteError } from '../retention/service.ts';
 import {
   ensureProjectTextDocument,
   readProjectTextValues,
@@ -40,10 +42,8 @@ import {
 } from './replacement.ts';
 import {
   approxCountDocumentsForOrg,
-  attachDocumentToProject,
   computeUploadUsageForUser,
   createDocumentFromBlobUpload,
-  createDocumentFromUpload,
   deleteDocumentHard,
   detachDocumentFromProject,
   DocumentError,
@@ -54,9 +54,7 @@ import {
   listHubDocumentsPaginated,
   listProjectDocuments,
   retryRagIndexingForDocument,
-  searchDocumentsForMention,
   searchDocumentsView,
-  setDocumentTrashed,
   updateDocument,
 } from './service.ts';
 import { toDocumentItems } from './view.ts';
@@ -72,15 +70,6 @@ const projectTextWriteSchema = projectTextReadSchema.extend({
   yaml: z.record(z.string(), z.string()).optional(),
   contentType: z.string().max(200).optional(),
   externalItemId: z.string().max(512).optional(),
-});
-
-const createFromUploadSchema = z.object({
-  fileId: z.string().min(1),
-  fileName: z.string().min(1).max(512),
-  teamId: z.string().optional(),
-  projectId: z.string().optional(),
-  folderId: z.string().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const updateSchema = z.object({
@@ -130,6 +119,9 @@ function handleError<E extends OrgEnv>(
   ) {
     return c.json({ error: error.code }, error.status);
   }
+  if (error instanceof PurgeIncompleteError) {
+    return purgeIncompleteResponse(c, error);
+  }
   throw error;
 }
 
@@ -158,12 +150,17 @@ export function createDocumentRoutes(deps: {
       const folderParam = c.req.query('folderId');
       const folderId =
         folderParam === undefined ? undefined : folderParam || null;
-      const rows = await listDocuments(deps.sql, auth, {
+      const { documents, truncated } = await listDocuments(deps.sql, auth, {
         ...(folderId !== undefined ? { folderId } : {}),
         includeTrashed: c.req.query('includeTrashed') === 'true',
       });
       return c.json({
-        documents: await toDocumentItems(deps.sql, auth.organizationId, rows),
+        documents: await toDocumentItems(
+          deps.sql,
+          auth.organizationId,
+          documents,
+        ),
+        truncated,
       });
     } catch (error) {
       return handleError(c, error);
@@ -304,21 +301,6 @@ export function createDocumentRoutes(deps: {
     }
   });
 
-  app.get('/search', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      return c.json({
-        documents: await searchDocumentsForMention(
-          deps.sql,
-          auth,
-          c.req.query('q') ?? '',
-        ),
-      });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
   app.get('/search-hub', async (c) => {
     try {
       const auth = await authCtx(c);
@@ -419,22 +401,6 @@ export function createDocumentRoutes(deps: {
     }
   });
 
-  app.post('/from-upload', async (c) => {
-    const body = createFromUploadSchema.safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      const documentId = await transactSerializable(deps.sql, (tx) =>
-        createDocumentFromUpload(tx, auth, body.data),
-      );
-      return c.json({ documentId });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
   app.post('/from-blob-upload', async (c) => {
     const body = createFromBlobUploadSchema.safeParse(await c.req.json());
     if (!body.success) {
@@ -461,28 +427,6 @@ export function createDocumentRoutes(deps: {
       );
       const items = await toDocumentItems(deps.sql, auth.organizationId, [doc]);
       return c.json({ document: items[0] ?? null });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.get('/:documentId/url', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      const doc = await getDocumentById(
-        deps.sql,
-        auth,
-        c.req.param('documentId'),
-      );
-      if (!doc.fileRef) {
-        return c.json({ error: 'DOCUMENT_HAS_NO_FILE' }, 404);
-      }
-      const url = await getFileUrl(
-        deps.sql,
-        { organizationId: auth.organizationId },
-        doc.fileRef,
-      );
-      return c.json({ url });
     } catch (error) {
       return handleError(c, error);
     }
@@ -650,59 +594,6 @@ export function createDocumentRoutes(deps: {
     try {
       const auth = await authCtx(c);
       await deleteDocumentHard(deps.sql, auth, c.req.param('documentId'));
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/:documentId/trash', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        setDocumentTrashed(tx, auth, c.req.param('documentId'), true),
-      );
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/:documentId/restore', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        setDocumentTrashed(tx, auth, c.req.param('documentId'), false),
-      );
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/:documentId/attach-to-project', async (c) => {
-    const body = z
-      .object({ projectId: z.string().min(1) })
-      .safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      const documentId = c.req.param('documentId');
-      const attached = await transactSerializable(deps.sql, (tx) =>
-        attachDocumentToProject(tx, auth, {
-          documentId,
-          projectId: body.data.projectId,
-        }),
-      );
-      // Moving into a project is a corpus SCOPE change like a team change:
-      // the hub document's org-wide rows must become project-scoped or the
-      // file keeps answering org-wide retrieval from inside a restricted
-      // project.
-      if (attached.fileRef !== null) {
-        await syncRagDocumentScope(deps.sql, auth.organizationId, documentId);
-      }
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);

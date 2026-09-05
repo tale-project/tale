@@ -132,6 +132,42 @@ describe('prerender SEO suite', () => {
     });
   });
 
+  // Regression: the changelog prerendered all 40 release bodies, putting
+  // ~400 KB of GitHub release notes into the HTML and growing with every
+  // release. Ahrefs flags it as a slow page. Every release stays in the
+  // stream; bodies past `PRERENDERED_BODY_COUNT` mount on hydration from
+  // the manifest the JS bundle already ships.
+  describe('changelog page weight', () => {
+    // Mirrors DISPLAY_LIMIT / PRERENDERED_BODY_COUNT in
+    // app/pages/changelog-page.tsx. Update both together.
+    const RELEASES_IN_STREAM = 40;
+    const PRERENDERED_BODIES = 12;
+    // The prose wrapper ReleaseBody renders — one per rendered body.
+    const BODY_MARKER = /max-w-none text-\[15px\]/g;
+
+    for (const url of ['/changelog', '/de/changelog', '/fr/changelog']) {
+      it(`${url} lists every release but prerenders a bounded set of bodies`, () => {
+        const html = readHtml(url);
+        expect(html, `missing ${distIndex(url)}`).not.toBeNull();
+        const found = html ?? '';
+
+        expect((found.match(/<article/g) ?? []).length).toBe(
+          RELEASES_IN_STREAM,
+        );
+        expect((found.match(BODY_MARKER) ?? []).length).toBe(
+          PRERENDERED_BODIES,
+        );
+      });
+
+      it(`${url} stays under the HTML size budget`, () => {
+        const html = readHtml(url);
+        if (!html) return;
+        // Was 407 KB with every body prerendered; 216 KB after.
+        expect(html.length).toBeLessThan(300_000);
+      });
+    }
+  });
+
   // The server computes CSP script-src sha256 hashes once, from dist/index.html.
   // That's only safe if every prerendered page's inline scripts are a subset of
   // the template's — otherwise a page's theme script would be CSP-blocked.

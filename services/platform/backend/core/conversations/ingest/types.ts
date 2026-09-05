@@ -1,9 +1,3 @@
-export type QueryResult<T = unknown> = {
-  page: T[];
-  isDone: boolean;
-  continueCursor: string;
-};
-
 export type ConversationStatus = 'open' | 'closed' | 'archived' | 'spam';
 
 export type ConversationPriority = 'low' | 'medium' | 'high' | 'urgent';

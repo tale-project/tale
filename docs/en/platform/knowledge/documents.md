@@ -1,6 +1,6 @@
 ---
 title: Documents
-description: The Documents tab is where Editors upload files into the knowledge base, watch them index, and manage their lifecycle — upload sources, RAG status, team scoping, folders, and reindexing.
+description: The Documents tab is where Editors upload files into the knowledge base, watch them index, and manage their lifecycle.
 ---
 
 The Documents tab is the knowledge base's file surface. Editors upload files, Tale runs each one through the indexing pipeline — extract the text, chunk it, embed the chunks, store them — and agents whose knowledge scope covers the document retrieve relevant passages at reply time and cite them. This page covers the operator side: uploading, the status column, team scoping, folders, and the document lifecycle.
@@ -43,7 +43,7 @@ Open the draft or approved record's row menu and click **Replace file**, then ch
 
 <Step title="Check and submit the revision">
 
-Open the document preview and confirm that it shows the replacement. Then open the row menu and click **Submit for review**. The picker offers only members who can actually open the document — a project file needs project edit access — and never yourself: only the reviewer you name can approve or request changes, so every review is a second pair of eyes. The draft freezes while the reviewer decides on that exact file; the reviewer is notified in the bell and by email, and the decision comes back to you the same way — a request for changes carries the reviewer's feedback, which the submit dialog also shows before your next attempt.
+Open the document preview and confirm that it shows the replacement. Then open the row menu and click **Submit for review**. The picker offers only members who can actually open the document — a project file needs project edit access — and never yourself: only the reviewer you name can approve or request changes, so every review is a second pair of eyes. The draft freezes while the reviewer decides on that exact file; the reviewer is notified in the bell and by email, and the decision comes back to you the same way — a request for changes carries the reviewer's feedback, which the submit dialog also shows before your next attempt. If the reviewer can no longer decide — they left the organization, were disabled, or lost access to the document — open the row menu and click **Change reviewer**: the pending request moves to the member you name, and the record stays frozen on the same file.
 
 </Step>
 

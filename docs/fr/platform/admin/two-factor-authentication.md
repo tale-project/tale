@@ -1,6 +1,6 @@
 ---
 title: Authentification à deux facteurs
-description: Inscription TOTP, passkeys, codes de secours, la politique d’application org-large et comment un admin réinitialise un membre qui a perdu son authenticator. Lis ceci quand tu câbles la 2FA pour l’org ou que tu récupères un compte.
+description: Inscription TOTP, passkeys, codes de secours, la politique d’application org-large et comment un admin réinitialise un membre qui a perdu son authenticator.
 ---
 
 L’authentification à deux facteurs ajoute une seconde preuve d’identité par-dessus le mot de passe — un code à six chiffres d’une appli authenticator, ou un passkey WebAuthn. Tale embarque TOTP (mots de passe à usage unique basés sur le temps) compatible avec Google Authenticator, 1Password, Authy et toute autre appli qui suit le standard, plus les passkeys comme alternative résistante au phishing. La page couvre l’inscription par utilisateur, les passkeys, les codes de secours qui récupèrent un compte quand le téléphone n’est plus là, la politique d’application org-large et la réinitialisation admin pour un membre verrouillé.

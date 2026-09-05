@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: From nothing to your first agent answer — get an instance, sign in, and send your first message. Five minutes on a ready instance, fifteen if you stand one up on your own machine.
+description: From nothing to your first agent answer — get an instance, sign in, and send your first message.
 ---
 
 This is the shortest path to a working chat with an agent: get an instance, sign in, send a message, watch the reply stream. It takes about five minutes on a ready instance and fifteen if you stand one up on your own machine, and it ends with the screen below — a real answer from an agent over your workspace.

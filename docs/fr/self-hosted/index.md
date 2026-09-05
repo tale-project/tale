@@ -1,6 +1,6 @@
 ---
 title: Auto-hébergé
-description: Tale auto-hébergé tourne sur ton infrastructure — on-premise, dans ton VPC, ou coupé du réseau. Neuf conteneurs, tes données sur ton stockage, aucune facturation au siège.
+description: Tale auto-hébergé tourne sur ton infrastructure — on-premise, dans ton VPC, ou coupé du réseau.
 kind: index
 ---
 

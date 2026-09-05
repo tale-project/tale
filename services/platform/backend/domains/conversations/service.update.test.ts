@@ -158,6 +158,56 @@ describe('updateConversation (the PATCH door)', () => {
     expect(metadata).toBe('metadata');
   });
 
+  /** A double that answers the conversation read with `row` and the contact
+   * lookup with `contactRows`, recording every statement. */
+  function contactTxDouble(contactRows: { id: string }[]) {
+    const statements: { text: string; values: unknown[] }[] = [];
+    const tag = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<unknown[]> => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      statements.push({ text, values });
+      if (text.startsWith('SELECT id, metadata FROM app.conversations')) {
+        return Promise.resolve([{ id: 'c1', metadata: STORED_METADATA }]);
+      }
+      if (text.startsWith('SELECT id FROM app.contacts')) {
+        return Promise.resolve(contactRows);
+      }
+      return Promise.resolve([]);
+    };
+    const tx = Object.assign(tag, {
+      unsafe: (text: string) => text,
+      json: (value: unknown) => value,
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js transaction tag
+    return { tx: tx as unknown as TransactionSql, statements };
+  }
+
+  it('refuses a contactId the org does not own (opaque 404, nothing written)', async () => {
+    const { tx, statements } = contactTxDouble([]);
+    await expect(
+      updateConversation(tx, ORG, 'c1', { contactId: 'ct_foreign' }, actor),
+    ).rejects.toMatchObject({
+      code: 'contact_not_found',
+      status: 404,
+    } satisfies Partial<ConversationError>);
+    const lookup = statements.find((s) =>
+      s.text.startsWith('SELECT id FROM app.contacts'),
+    );
+    // The lookup is scoped to the caller's org, not just the id.
+    expect(lookup?.text).toContain('org_id = ?');
+    expect(lookup?.values).toEqual(['ct_foreign', ORG]);
+    expect(statements.some((s) => s.text.startsWith('UPDATE'))).toBe(false);
+  });
+
+  it('re-points to a contact the org owns', async () => {
+    const { tx, statements } = contactTxDouble([{ id: 'ct_ours' }]);
+    await updateConversation(tx, ORG, 'c1', { contactId: 'ct_ours' }, actor);
+    const update = statements.find((s) => s.text.startsWith('UPDATE'));
+    expect(update?.values[0]).toBe('ct_ours');
+  });
+
   it('answers the opaque 404 for a row outside the org', async () => {
     const { tx, statements } = txDouble(null);
     await expect(

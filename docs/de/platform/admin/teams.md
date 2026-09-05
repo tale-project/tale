@@ -1,6 +1,6 @@
 ---
 title: Teams
-description: Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Dokumente, Projekte, Skills und Konversationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene.
+description: Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Dokumente, Projekte, Skills und Konversationen teilen.
 ---
 
 Ein Team ist eine benannte Gruppe von Mitgliedern, die sich Zugriff auf Dokumente, Projekte, Skills und Konversationen teilt. Wo Rollen definieren, was eine Person tun _kann_, definieren Teams, in welchem Ausschnitt der Organisationsdaten diese Person arbeitet. Die meisten Organisationen landen bei einer Handvoll Teams — Support, Vertrieb, Betrieb — und die meisten alltäglichen Berechtigungs-Entscheidungen liegen auf der Team-Grenze, nicht auf der Rollen-Grenze. Admins verwalten Teams unter **Einstellungen > Teams**.

@@ -585,9 +585,27 @@ export async function markControlled(
 }
 
 /**
+ * Whether a submit while `in_review` repeats the standing request — the same
+ * designee asked again answers the live row (idempotent) — or RE-DESIGNATES:
+ * a different reviewer named means the standing request is superseded, the
+ * way a fresh submit from draft supersedes every older pending row. Without
+ * this distinction the echo won unconditionally, and a designee who left the
+ * org, was disabled or lost the document's scope left the record frozen in
+ * review for good: nobody could decide it, nobody could re-designate, and
+ * every other exit (replace, revise, trash, delete) refuses `in_review`.
+ */
+export function pendingReviewEchoes(
+  pending: { metadata: Record<string, unknown> | null },
+  reviewerUserId: string,
+): boolean {
+  return pending.metadata?.requestedFor === reviewerUserId;
+}
+
+/**
  * draft → in_review: freeze and mint the review approval for a NAMED human
- * reviewer. Idempotent per (document, version): a live pending row returns
- * as-is; a fresh mint supersedes every older pending row.
+ * reviewer. Idempotent per (document, version, designee): a live pending
+ * row for the same designee returns as-is; a fresh mint — from draft, or a
+ * re-designation while in review — supersedes every older pending row.
  */
 export async function submitRecordForReview(
   tx: TransactionSql,
@@ -618,7 +636,7 @@ export async function submitRecordForReview(
         approval.status === 'pending' &&
         approvalRecordVersion(approval) === record.version,
     );
-    if (pending) {
+    if (pending && pendingReviewEchoes(pending, args.reviewerUserId)) {
       return { approvalId: pending.id };
     }
   }

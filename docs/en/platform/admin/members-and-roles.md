@@ -1,6 +1,6 @@
 ---
 title: Members and roles
-description: The six roles that ship with Tale and the resource-level matrix that says who can do what. Admins and Owners read this when they set up a team or when an audit asks who has access to what.
+description: The six roles that ship with Tale and the resource-level matrix that says who can do what.
 ---
 
 Members are the people in your organisation who can sign in to Tale. Roles control what each member can do — read, write, configure, govern. This page is the canonical reference for the six roles and the resource-level permissions each role carries.

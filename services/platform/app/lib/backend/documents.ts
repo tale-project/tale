@@ -26,7 +26,8 @@ import { backendEntityPrefix, backendKey } from './query-keys';
 // Wire rows + 0.4-shape projections
 // ---------------------------------------------------------------------------
 
-type DocumentItem = ItemOf<'documents/queries:listDocuments'>;
+type DocumentItem =
+  ReturnsOf<'documents/queries:listDocuments'>['documents'][number];
 type DocumentVersionsResult =
   ReturnsOf<'documents/queries:listDocumentVersions'>;
 type DocumentByExternalIdResult =
@@ -127,17 +128,18 @@ function orgOf(
   return ctx.organizationId;
 }
 
-/** Hub root listing options — shared by the hook row and route loaders. */
+/** Hub root listing — the bounded read with its truncation flag. */
 function hubDocumentsQuery(orgId: string): {
   queryKey: readonly unknown[];
-  queryFn: () => Promise<DocumentItem[]>;
+  queryFn: () => Promise<{ documents: DocumentItem[]; truncated: boolean }>;
 } {
   return {
     queryKey: backendKey(orgId, 'document', 'list'),
     queryFn: () =>
-      backendFetch<{ documents: DocumentItem[] }>('/documents', {
-        orgId,
-      }).then((body) => body.documents),
+      backendFetch<{ documents: DocumentItem[]; truncated: boolean }>(
+        '/documents',
+        { orgId },
+      ),
   };
 }
 

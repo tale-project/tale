@@ -10,6 +10,7 @@ import {
   formatKeysetCursor,
   pageLimit,
   parseKeysetCursor,
+  readJsonBody,
   type RestEnv,
 } from './shared.ts';
 
@@ -135,6 +136,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .object({
         title: z.string().min(1).max(MAX_TITLE).optional(),
         projectId: z.string().max(100).optional(),
+        agentSlug: z.string().min(1).max(MAX_SLUG).optional(),
       })
       .safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) {
@@ -148,6 +150,12 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ...(body.data.title !== undefined ? { title: body.data.title } : {}),
         ...(body.data.projectId !== undefined
           ? { projectId: body.data.projectId }
+          : {}),
+        // The documented agent pin, forwarded exactly as the session door
+        // does — dropped, every turn would run as the default assistant
+        // behind a 201 that looks like success.
+        ...(body.data.agentSlug !== undefined
+          ? { agentSlug: body.data.agentSlug }
           : {}),
       });
       return c.json({ id: threadId }, 201);
@@ -167,11 +175,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/threads/:id/messages', async (c) => {
     const thread = await loadRestThread(c, c.req.param('id'));
     if (thread === null) return c.json({ error: 'Thread not found' }, 404);
-    const limitRaw = Number(c.req.query('limit') ?? '25');
-    const limit = Math.min(
-      Math.max(Number.isFinite(limitRaw) ? limitRaw : 25, 1),
-      100,
-    );
+    const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
     const cursorParam = c.req.query('cursor');
     // Number('') is 0 — only a present, non-empty cursor filters the page.
     const cursor =
@@ -259,7 +263,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         model: z.string().min(1).max(MAX_SLUG),
         locale: z.string().max(20).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json(
         { error: 'invalid body ("content" and "model" are required)' },

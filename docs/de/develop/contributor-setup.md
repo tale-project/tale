@@ -1,6 +1,6 @@
 ---
 title: Contributor-Setup
-description: Die zentrale Quelle der Wahrheit für das Aufsetzen von Tales Quellcode zur lokalen Entwicklung — Voraussetzungen, bun install, der Pre-flight-Check, was bun run dev tut, Port-Konflikte und die Pre-PR-Checkliste.
+description: Die zentrale Quelle der Wahrheit für das Aufsetzen von Tales Quellcode zur lokalen Entwicklung.
 ---
 
 Diese Seite ist für Contributors, die Tale aus dem Quellcode laufen lassen und eine Änderung zurückgeben wollen. Sie deckt die Voraussetzungen ab, das einmalige Setup, den Pre-flight-Check, der eine kaputte Maschine vor einem langen Boot erkennt, und was du von `bun run dev` erwarten kannst. Es ist nicht der Operator-Weg — willst du Tale benutzen statt verändern, installiert der [Self-hosted Quickstart](/de/self-hosted/install/quickstart) stattdessen den paketierten Stack mit der CLI.

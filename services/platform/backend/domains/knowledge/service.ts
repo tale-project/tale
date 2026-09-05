@@ -859,6 +859,10 @@ export async function reconcileDocumentScopeStamps(
   });
 
   const pool = await getKnowledgePoolForOrg(args.orgSlug);
+  // `pool.json` hands postgres.js the rows as ONE jsonb parameter. A
+  // pre-serialized string would be JSON-encoded a second time once the server
+  // reports the parameter as jsonb, and `jsonb_to_recordset` then refuses the
+  // resulting JSON string ("cannot call jsonb_to_recordset on a non-array").
   const result = await pool.unsafe(
     `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
         SET team_ids = v.team_ids, team_id = v.team_id,
@@ -872,7 +876,7 @@ export async function reconcileDocumentScopeStamps(
           OR d.team_id IS DISTINCT FROM v.team_id
           OR d.project_id IS DISTINCT FROM v.project_id
           OR d.folder_path IS DISTINCT FROM v.folder_path)`,
-    [args.orgSlug, JSON.stringify(intended)],
+    [args.orgSlug, pool.json(intended)],
   );
   return { scanned: docs.length, corrected: result.count ?? 0 };
 }

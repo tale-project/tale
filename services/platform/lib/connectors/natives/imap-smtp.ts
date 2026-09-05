@@ -28,6 +28,7 @@
 
 import { z } from 'zod/v4';
 
+import { resolveReplyFrom } from '../../shared/conversations/reply-from';
 import { CHAT_MAX_FILE_SIZE } from '../../shared/file-types';
 import type {
   NativeConnectorContext,
@@ -541,6 +542,12 @@ const sendInput = z.object({
   to: z.string().min(1),
   /** Carbon-copy recipients as one address-list line (`a@x, b@y`). */
   cc: z.string().optional(),
+  /** The address to send as. Honoured only when it is the mailbox's own
+   * address or a same-domain alias on a verified (non-public) domain —
+   * `resolveReplyFrom`; anything else falls back to the configured From, so a
+   * caller can never send as another domain or another person's consumer
+   * mailbox. */
+  from: z.string().optional(),
   subject: z.string(),
   text: z.string().optional(),
   html: z.string().optional(),
@@ -669,15 +676,23 @@ export function imapSmtpNatives(
       assertSingleLine(reference, 'references', 'send');
     }
 
+    const requestedFrom = parsed.from?.trim();
+    if (requestedFrom !== undefined && requestedFrom !== '') {
+      assertSingleLine(requestedFrom, 'from', 'send');
+    }
     const config = await configFor(ctx, 'send');
     // A message with no body at all still needs one part or the server has
     // nothing to deliver, so a text-less plain send carries an empty body; a
     // caller that sent HTML alone keeps exactly that.
     const text = parsed.text ?? (parsed.html === undefined ? '' : undefined);
+    // The From lane: a same-domain alias the Inbox chose (support@ / billing@
+    // on the mailbox's verified domain) goes out as itself; every other
+    // request is the configured From. The guard lives HERE, not in the
+    // caller, because the connector door is agent-reachable.
     const from =
       parsed.notificationSender === true
         ? notificationSenderFrom(config.from)
-        : config.from;
+        : resolveReplyFrom(requestedFrom, config.from);
     // Resolve every attachment through the host's org-scoped store BEFORE the
     // SMTP session opens: a ref the org does not own is refused here, and the
     // transport only ever sees bytes.

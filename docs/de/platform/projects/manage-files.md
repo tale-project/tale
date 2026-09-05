@@ -1,6 +1,6 @@
 ---
 title: Projekt-Dateien verwalten
-description: Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann — Ordner, Hochladen, Index-Status und wie Projekt-Dateien auf das Projekt begrenzt bleiben.
+description: Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann.
 ---
 
 Der **Wissen**-Tab eines Projekts ist der geteilte Dateibereich, den jeder Chat im Projekt erreichen kann. Lade eine Datei einmal hoch, und jeder Chat im Projekt — und jeder Agent, der darin läuft — kann sie ohne erneutes Hochladen lesen. Diese Seite deckt den Ordnerbaum, den Upload-Mechanismus, das Anheften und die Grenzen ab.

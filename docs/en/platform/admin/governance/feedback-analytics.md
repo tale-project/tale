@@ -1,6 +1,6 @@
 ---
 title: Feedback analytics
-description: Aggregated thumbs-up and thumbs-down on assistant replies plus arena verdicts, broken down per assistant and per model. Admins and Owners read this when an agent regression needs a number behind it.
+description: Aggregated thumbs-up and thumbs-down on assistant replies plus arena verdicts, broken down per assistant and per model.
 ---
 
 Feedback analytics is the dashboard that turns the per-message thumbs and the arena verdicts into trend lines. Members leave the feedback inline in chat; this page aggregates it by assistant, by model, and over time so the regression in last week's voice change is visible as a number, not a hunch. Admins and Owners read this page when a model swap looks like a downgrade, when one assistant is underperforming the others, or when leadership wants the rough quality posture of every assistant in the org.

@@ -63,7 +63,7 @@ const LOCALE_IMPORTS: Record<string, () => Promise<unknown>> = {
 };
 
 const loadedLocales = new Set<string>(['en']);
-const pendingLoads = new Map();
+const pendingLoads = new Map<string, Promise<void>>();
 
 /**
  * Dynamically load a dayjs locale. Returns a promise that resolves once the
@@ -85,8 +85,13 @@ export function loadDayjsLocale(locale: string): Promise<void> {
     .then(() => {
       loadedLocales.add(key);
     })
-    .catch(() => {
-      // Locale import failed — fall back to 'en' silently
+    .catch((error: unknown) => {
+      // The locale chunk did not load (a renamed chunk, a CDN 404): dates
+      // keep rendering in English, and the console says why.
+      console.warn(
+        `[dayjs] failed to load locale "${key}", falling back to en`,
+        error,
+      );
     })
     .finally(() => {
       pendingLoads.delete(key);

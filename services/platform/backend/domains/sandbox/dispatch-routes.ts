@@ -8,6 +8,7 @@ import {
   workspaceToolStatusImpl,
 } from '../../core/node_only/sandbox/workspace_tools_bridge.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { sandboxDoorBodyLimit, toolResultTooLarge } from './door-body-limit.ts';
 import { getSessionTokenByHash } from './sessions.ts';
 import { sandboxToolShimHandlers } from './shim.ts';
 
@@ -22,8 +23,9 @@ import { sandboxToolShimHandlers } from './shim.ts';
  * Auth: `Authorization: Bearer <session VK>` → sha256 → the session-token
  * row; the org, user, and grant set come FROM THAT ROW, never the body — a
  * container cannot spoof another org, widen its grants, or claim another
- * thread/user. The dispatch itself is the REUSED bridge running on the ctx
- * shim.
+ * thread/user. The body itself is capped before it is read (the 413 is the
+ * one other non-2xx; see door-body-limit.ts). The dispatch itself is the
+ * REUSED bridge running on the ctx shim.
  */
 
 const BEARER_PREFIX = 'Bearer ';
@@ -64,6 +66,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function createToolDispatchRoutes(deps: { sql: Sql }): Hono {
   const app = new Hono();
+  app.use('*', sandboxDoorBodyLimit(toolResultTooLarge));
 
   app.post('/execute', async (c) => {
     const auth = await authSessionToken(deps.sql, c.req.raw);

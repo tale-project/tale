@@ -1,6 +1,6 @@
 ---
 title: Dokumente
-description: Auf dem Dokumente-Tab laden Redakteure Dateien in die Wissensdatenbank, sehen ihnen beim Indexieren zu und verwalten ihren Lebenszyklus — Upload-Quellen, RAG-Status, Team-Bindung, Ordner und Neuindexierung.
+description: Auf dem Dokumente-Tab laden Redakteure Dateien in die Wissensdatenbank, sehen ihnen beim Indexieren zu und verwalten ihren Lebenszyklus.
 ---
 
 Der Dokumente-Tab ist die Dateifläche der Wissensdatenbank. Redakteure laden Dateien hoch, Tale schickt jede durch die Indexierungs-Pipeline — Text extrahieren, chunken, die Chunks einbetten, speichern —, und Agenten, deren Wissens-Umfang das Dokument abdeckt, rufen zur Antwortzeit relevante Passagen ab und zitieren sie. Diese Seite behandelt die Operator-Seite: Hochladen, die Status-Spalte, Team-Bindung, Ordner und den Lebenszyklus eines Dokuments.
@@ -43,7 +43,7 @@ Nutze ein gelenktes Dokument, wenn die Freigabe mit genau der Datei verknüpft b
 
 <Step title="Revision prüfen und einreichen">
 
-Öffne die Dokumentvorschau und prüfe, ob sie die Ersatzdatei zeigt. Öffne dann das Zeilenmenü und klicke auf **Zum Review einreichen**. Die Auswahl bietet nur Mitglieder an, die das Dokument auch öffnen können — eine Projekt-Datei verlangt Bearbeitungszugriff auf das Projekt — und nie dich selbst: Nur der Reviewer, den du benennst, kann freigeben oder Änderungen anfordern, jedes Review ist also ein zweites Augenpaar. Der Entwurf bleibt während der Entscheidung für genau diese Datei gesperrt; der Reviewer wird über die Glocke und per E-Mail benachrichtigt, und die Entscheidung kommt auf demselben Weg zu dir zurück — eine Änderungsanforderung trägt das Feedback des Reviewers, das der Einreichen-Dialog vor deinem nächsten Anlauf ebenfalls zeigt.
+Öffne die Dokumentvorschau und prüfe, ob sie die Ersatzdatei zeigt. Öffne dann das Zeilenmenü und klicke auf **Zum Review einreichen**. Die Auswahl bietet nur Mitglieder an, die das Dokument auch öffnen können — eine Projekt-Datei verlangt Bearbeitungszugriff auf das Projekt — und nie dich selbst: Nur der Reviewer, den du benennst, kann freigeben oder Änderungen anfordern, jedes Review ist also ein zweites Augenpaar. Der Entwurf bleibt während der Entscheidung für genau diese Datei gesperrt; der Reviewer wird über die Glocke und per E-Mail benachrichtigt, und die Entscheidung kommt auf demselben Weg zu dir zurück — eine Änderungsanforderung trägt das Feedback des Reviewers, das der Einreichen-Dialog vor deinem nächsten Anlauf ebenfalls zeigt. Kann der Reviewer nicht mehr entscheiden — er hat die Organisation verlassen, wurde deaktiviert oder hat den Zugriff auf das Dokument verloren —, öffne das Zeilenmenü und klicke auf **Reviewer wechseln**: Die offene Anfrage geht an das Mitglied, das du benennst, und der Datensatz bleibt für dieselbe Datei gesperrt.
 
 </Step>
 
