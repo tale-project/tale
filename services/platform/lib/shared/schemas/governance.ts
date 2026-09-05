@@ -528,7 +528,7 @@ export const DEFAULT_PASSWORD_POLICY: PasswordPolicyConfig =
 // - enforced: when true, credential-authenticated users without 2FA are
 //   redirected to enrollment (or blocked after grace).
 // - gracePeriodDays: days from when enforcement first applies to a given
-//   user (persisted per-user as `user.twoFactorGraceUntil`) during which
+//   user (persisted per-user in `app.two_factor_grace`) during which
 //   the user may continue to sign in while enrolment is pending.
 // - exemptSsoUsers: exclude users who authenticate only via SSO (their
 //   IdP handles MFA).

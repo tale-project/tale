@@ -300,14 +300,6 @@ export function createAuth(config: AuthConfig) {
     rateLimit: { enabled: false },
     user: {
       additionalFields: {
-        // Per-user idempotent grace-period anchor for org `enforceTwoFactor`
-        // (set once on first affected sign-in; admin reset clears it).
-        // Enforcement logic lands with the two_factor domain.
-        twoFactorGraceUntil: {
-          type: 'number',
-          required: false,
-          input: false,
-        } as const,
         // Last org the user signed in to — persists across logout/login,
         // unlike session.activeOrganizationId. Written by recordOrgSwitch.
         lastActiveOrganizationId: {
