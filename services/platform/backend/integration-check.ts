@@ -14016,6 +14016,26 @@ async function checkWorkflowTurnReattach(
     agentResultStatus: 'awaiting_human',
   });
 
+  // The fleet: 120 NEWER `waiting` runs — approval parks, no agent cursor —
+  // ahead of every probe run above. The sweep used to page the 100 newest
+  // waiting rows of any kind and filter in JS, so this fleet pushed the
+  // stalled turn out of the page on every sweep; the predicates now live in
+  // SQL and the walk is oldest first, so the fleet is never a candidate.
+  await sql`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, input, checkpoints,
+      claim_epoch, started_at_ms
+    )
+    SELECT ${orgId}, 'wf-reattach-fleet', 1, 'waiting', 'live',
+           'itest:reattach', '{}'::jsonb,
+           jsonb_build_object(
+             'nodes', '{}'::jsonb, 'executions', 1,
+             'cursor', jsonb_build_object('node', 'approve', 'index', 0)
+           ),
+           0, ${now - 60_000} + g
+    FROM generate_series(1, 120) AS g
+  `;
+
   const { recoverStalledWorkflowAgentTurns } =
     await import('./domains/automations/reattach.ts');
   const jobsBefore = await sql<{ count: string }[]>`
@@ -14056,7 +14076,7 @@ async function checkWorkflowTurnReattach(
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
   record(
-    'automations re-attach: abandoned turns resume; live and ask-parked stay',
+    'automations re-attach: abandoned turns resume behind a fleet of newer parks; live and ask-parked stay',
     unreachable.resumed === 0 &&
       jobsAfterUnreachable[0]?.count === jobsBefore[0]?.count &&
       recovered.resumed === 2 &&
@@ -14082,6 +14102,10 @@ async function checkWorkflowTurnReattach(
     UPDATE app.automation_runs SET status = 'cancelled',
                                    finished_at_ms = ${Date.now()}
     WHERE org_id = ${orgId} AND name = 'wf-reattach-probe'
+  `;
+  await sql`
+    DELETE FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = 'wf-reattach-fleet'
   `;
   await sql`
     DELETE FROM app.sandbox_session_ops
