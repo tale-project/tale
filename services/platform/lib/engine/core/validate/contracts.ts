@@ -312,6 +312,10 @@ export async function validateContracts(
  * a connector write the approval policy gates fails the run instead of
  * waiting for a person. The runtime refuses both before spending anything;
  * this says so at save time, where the author can still move the node.
+ *
+ * One level only: the referenced document's own `nodes` are inspected, not
+ * the subautomations THEY reference — a nested offender is still refused by
+ * the runtime guards, just without the save-time hint.
  */
 function checkSubautomationBody(
   n: NodeDef,

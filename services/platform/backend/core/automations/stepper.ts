@@ -120,7 +120,9 @@ export interface AutomationApprovalGate {
     nodeId: string;
     nodeType: string;
     /** Whether the caller can park on a card. False inside a subautomation:
-     * the gate then answers from the policy alone and mints nothing. */
+     * the gate then answers from the policy alone and mints nothing — and
+     * reads nothing, so a card a parent-level node of the same id once had
+     * approved never releases a sub-node. */
     canPark: boolean;
   }): Promise<
     { status: 'allowed' } | { status: 'required'; approvalId?: string }
