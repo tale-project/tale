@@ -115,6 +115,25 @@ const bind = (sql: Sql) =>
  * NOTHING): no read-modify-write, no DELETE.
  */
 describe('POST /automations/{name}/projects', () => {
+  it('answers 400 in the JSON envelope for a malformed body', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/api/v1/automations/invoice-sync/projects',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{',
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: expect.any(String) });
+    expect(
+      queries.some((q) =>
+        q.text.startsWith('INSERT INTO app.automation_project_bindings'),
+      ),
+    ).toBe(false);
+  });
+
   it('adds the one binding with an idempotent INSERT and never rewrites the set', async () => {
     const { sql, queries } = fakeSql();
     const res = await bind(sql);

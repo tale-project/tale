@@ -25,9 +25,10 @@ const thread = {
   updatedAt: 1_700_000_000_001,
 };
 
-/** Tagged-template Sql double: the caller's thread for the loader, empty
- * elsewhere; records every query. `begin` runs the callback on the same
- * tag, so a domain transaction is captured like a plain query. */
+/** Tagged-template Sql double: the caller's thread for the loader, an
+ * unspent limiter, empty elsewhere; records every query. `begin` runs the
+ * callback on the same tag, so a domain transaction is captured like a plain
+ * query. */
 function fakeSql(): { sql: Sql; queries: Captured[] } {
   const queries: Captured[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -35,6 +36,9 @@ function fakeSql(): { sql: Sql; queries: Captured[] } {
     queries.push({ text, values });
     if (text.includes('FROM app.threads t') && text.includes('t.id = $?')) {
       return Promise.resolve([thread]);
+    }
+    if (text.includes('INSERT INTO app.rate_limits')) {
+      return Promise.resolve([{ value: '1' }]);
     }
     if (text.startsWith('INSERT INTO app.threads')) {
       return Promise.resolve([{ id: 't-new' }]);
@@ -97,6 +101,25 @@ describe('GET /threads/{id}/messages limit', () => {
  * `agent_slug` was NULL, so every turn ran as the default assistant with no
  * signal that the pin was dropped.
  */
+describe('POST /threads/{id}/messages body', () => {
+  it('answers 400 in the JSON envelope for a malformed body', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{',
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: expect.any(String) });
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO app.messages')),
+    ).toBe(false);
+  });
+});
+
 describe('POST /threads agentSlug', () => {
   it('writes the agent pin into the thread metadata', async () => {
     const { sql, queries } = fakeSql();

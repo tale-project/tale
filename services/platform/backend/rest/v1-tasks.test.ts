@@ -95,6 +95,23 @@ function mount(sql: Sql) {
  * lane. The key acts as its user, so the budget is the key holder's.
  */
 describe('POST /tasks/{id}/comments task:comment budget', () => {
+  it('answers 400 in the JSON envelope for a malformed body', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/tasks/t-1/comments',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{',
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: expect.any(String) });
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO app.messages')),
+    ).toBe(false);
+  });
+
   it('answers the standard 429 with Retry-After when the budget is spent, writing nothing', async () => {
     const { sql, queries } = fakeSql({ spent: true });
     const res = await mount(sql).request(
