@@ -19,7 +19,7 @@ vi.mock('./llm_gateway_admin', async (importOriginal) => {
   const original = await importOriginal<typeof import('./llm_gateway_admin')>();
   return {
     ...original,
-    provisionProviders: vi.fn(async () => {}),
+    provisionProviders: vi.fn(async () => []),
     applyGatewayConfig: vi.fn(async () => {}),
     mintVirtualKey: vi.fn(async () => ({ key: 'sk-bf-t', keyId: 'vk-9' })),
   };
@@ -312,6 +312,60 @@ describe('provisionSessionGatewayKey', () => {
     expect(mockedResolve).not.toHaveBeenCalled();
     expect(provisionProviders).not.toHaveBeenCalled();
     expect(applyGatewayConfig).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
+  });
+
+  it("refuses to mint when a needed provider's gateway push failed (no stale-key mint)", async () => {
+    // provisionProviders never throws — it returns what did not land. The
+    // gateway still holds the org's key from the last successful push under
+    // the same stable name, so a mint here would bind the session to that
+    // pre-rotation secret: opaque upstream 401s after a key rotation, or
+    // spend on a credential the admin revoked.
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    vi.mocked(provisionProviders).mockResolvedValueOnce([
+      {
+        name: 'openrouter',
+        error: new Error(
+          'llm-gateway update key for openrouter/org org_1 failed (503): upstream unavailable',
+        ),
+      },
+    ]);
+    await expect(
+      provisionSessionGatewayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-2c',
+        allowedModels: MODELS,
+        budgetCents: 100,
+      }),
+    ).rejects.toThrow(
+      'Provider "openrouter" cannot serve this session: its credential could not be pushed to the sandbox LLM gateway (llm-gateway update key for openrouter/org org_1 failed (503): upstream unavailable)',
+    );
+    expect(applyGatewayConfig).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
+  });
+
+  it("names the CONNECTOR, not the per-model record, when a custom provider's push failed", async () => {
+    mockedResolve.mockResolvedValue(apiKeyResolution('sk-ds'));
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    mockedCatalog.mockResolvedValue([
+      { id: 'deepseek-v4-flash' },
+    ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
+    vi.mocked(provisionProviders).mockResolvedValueOnce([
+      {
+        name: 'org_1__deepseek__deepseek-v4-flash',
+        error: new Error('llm-gateway create key failed (500)'),
+      },
+    ]);
+    await expect(
+      provisionSessionGatewayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-2d',
+        allowedModels: [
+          { providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' },
+        ],
+        budgetCents: 100,
+      }),
+    ).rejects.toThrow(/^Provider "deepseek" cannot serve this session/);
     expect(mintVirtualKey).not.toHaveBeenCalled();
   });
 

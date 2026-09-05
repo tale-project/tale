@@ -685,28 +685,19 @@ async function provisionOne(
   pushedProviderFingerprints.set(memoKey, providerFingerprint(p));
 }
 
-/**
- * Push one provider's current key + model list into the gateway for an org.
- * The credential-save actions call this so a key rotation reaches the
- * gateway immediately instead of at the next session create. Throws on
- * failure — callers own the degrade posture; the memo stays unset, so the
- * next session-create provision retries.
- */
-export async function reprovisionProvider(
-  organizationId: string,
-  p: ProviderProvision,
-): Promise<void> {
-  if (skipUnprovisionable(p)) return;
-  await provisionOne(organizationId, p);
+/** One provider the reconcile could not push: the gateway record name and
+ * the error the write failed with. */
+export interface ProviderProvisionFailure {
+  name: string;
+  error: unknown;
 }
 
 /**
  * Reconcile the org's providers into the gateway: ensure each provider's
- * record config + this org's upstream key. Called once per session create so
- * a fresh gateway (or a rotated key) is in place before the first mint; the
- * credential-save actions also push eagerly via reprovisionProvider, making
- * this the self-heal catch-up for pushes that failed (gateway down) or
- * happened in another process.
+ * record config + this org's upstream key. Called once per session create —
+ * this is the ONLY push (no credential-save action pushes eagerly), so a
+ * fresh gateway, a rotated key, or a push that failed in an earlier process
+ * (gateway down) all land here, before the first mint.
  *
  * Per-org keys coexist under one shared STANDARD provider record, so
  * multiple orgs holding distinct keys for the same provider never clobber
@@ -716,13 +707,18 @@ export async function reprovisionProvider(
  *
  * Per-provider resilient: a single provider's failure is logged and skipped
  * rather than aborting the whole reconcile — one misconfigured upstream must
- * not starve the others; a genuinely broken one surfaces via mintVirtualKey's
- * fail-closed error, not a silent gap here.
+ * not starve the others. Never throws; the failures are RETURNED so the
+ * caller decides. The session mint must treat any failure for a provider it
+ * needs as fatal: the gateway still holds that org's key from the last
+ * successful push, and `mintVirtualKey` resolves it by stable name — so a
+ * mint after a swallowed failure would bind a fresh virtual key to the
+ * pre-rotation secret and keep serving a credential the admin replaced.
  */
 export async function provisionProviders(
   organizationId: string,
   providers: ProviderProvision[],
-): Promise<void> {
+): Promise<ProviderProvisionFailure[]> {
+  const failures: ProviderProvisionFailure[] = [];
   for (const p of providers) {
     if (skipUnprovisionable(p)) continue;
     try {
@@ -732,8 +728,10 @@ export async function provisionProviders(
         `[llm-gateway] provisioning provider '${p.name}' for org '${organizationId}' failed (continuing):`,
         err,
       );
+      failures.push({ name: p.name, error: err });
     }
   }
+  return failures;
 }
 
 /**

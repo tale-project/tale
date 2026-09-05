@@ -189,13 +189,16 @@ describe('provisionProviders', () => {
     expect(w[1]?.body).toMatchObject({ value: 'key-B' });
   });
 
-  it('a failed write warns + leaves no memo (no throw), so the next provision retries', async () => {
+  it('a failed write warns, RETURNS the failure and leaves no memo (no throw), so the next provision retries', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     stubGateway({ keyExists: false, writeStatus: 500 });
     const mod = await loadModule();
-    await expect(
-      mod.provisionProviders(ORG, [PROVIDER]),
-    ).resolves.toBeUndefined();
+    const failures = await mod.provisionProviders(ORG, [PROVIDER]);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.name).toBe('openrouter');
+    expect(String(failures[0]?.error)).toContain(
+      'llm-gateway provider config openrouter failed (500)',
+    );
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining("provisioning provider 'openrouter'"),
       expect.anything(),
@@ -448,27 +451,12 @@ describe('provisionProviders', () => {
   });
 });
 
-describe('reprovisionProvider', () => {
-  it('creates the org key on a fresh process', async () => {
-    const calls = stubGateway({ keyExists: false });
-    const mod = await loadModule();
-    await mod.reprovisionProvider(ORG, PROVIDER);
-    expect(writes(calls)).toHaveLength(2);
-  });
-
-  it('throws on a failed write (eager push owns the degrade posture)', async () => {
-    stubGateway({ keyExists: false, writeStatus: 500 });
-    const mod = await loadModule();
-    await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(
-      'llm-gateway provider config openrouter failed (500)',
-    );
-  });
-
+describe('provisionProviders — management-plane auth', () => {
   it('sends Basic auth from SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD on EVERY management call', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-1');
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    await mod.reprovisionProvider(ORG, PROVIDER);
+    await expect(mod.provisionProviders(ORG, [PROVIDER])).resolves.toEqual([]);
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) {
       expect(call.headers.authorization).toBe(basicFor('pw-1'));
@@ -480,29 +468,34 @@ describe('reprovisionProvider', () => {
     vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', 'pw-old');
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    await mod.reprovisionProvider(ORG, PROVIDER);
+    await mod.provisionProviders(ORG, [PROVIDER]);
     expect(calls[0]?.headers.authorization).toBe(basicFor('pw-old'));
   });
 
   it('fails closed — no management call at all — when no admin password is configured', async () => {
     // The gateway shares one port on the sandbox network for inference and
     // /api/*; an anonymous management plane would let sandboxed code mint its
-    // own keys. Unset (both names) must refuse BEFORE touching the gateway.
+    // own keys. Unset (both names) must refuse BEFORE touching the gateway;
+    // the refusal comes back as the provider's failure.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
     vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', undefined);
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(
+    const failures = await mod.provisionProviders(ORG, [PROVIDER]);
+    expect(String(failures[0]?.error)).toContain(
       'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set',
     );
     expect(calls).toHaveLength(0);
   });
 
   it('treats a blank password as unset (fails closed)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', '   ');
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(
+    const failures = await mod.provisionProviders(ORG, [PROVIDER]);
+    expect(String(failures[0]?.error)).toContain(
       'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set',
     );
     expect(calls).toHaveLength(0);
