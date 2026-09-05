@@ -902,7 +902,7 @@ async function assertVideoBudget(
   organizationId: string,
   userId: string,
 ): Promise<void> {
-  const userTeamIds = await getUserTeamIds(sql, userId);
+  const userTeamIds = await getUserTeamIds(sql, organizationId, userId);
   const budget = await checkTtsBudget(sql, {
     organizationId,
     userId,

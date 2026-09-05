@@ -100,7 +100,11 @@ export async function getProjectAuthContext(
   member: { organizationId: string; userId: string; role: string },
   email?: string,
 ): Promise<ProjectAuthContext> {
-  const teamIds = await getUserTeamIds(sql, member.userId);
+  const teamIds = await getUserTeamIds(
+    sql,
+    member.organizationId,
+    member.userId,
+  );
   return {
     organizationId: member.organizationId,
     userId: member.userId,
@@ -358,6 +362,36 @@ function validateSharing(
   }
 }
 
+/**
+ * Every team a project is scoped to must be a team OF THIS ORGANIZATION.
+ * The route schemas only shape the ids; a typo'd, deleted or foreign id
+ * would otherwise persist a scope no member can satisfy (and the Sharing
+ * select cannot render) — or, for another tenant's team, one its members
+ * in this org could satisfy through a membership this org never granted.
+ */
+async function assertTeamsInOrg(
+  tx: TransactionSql,
+  organizationId: string,
+  teamIds: readonly string[],
+): Promise<void> {
+  const wanted = [...new Set(teamIds)];
+  if (wanted.length === 0) return;
+  const rows = await tx<{ id: string }[]>`
+    SELECT "id" FROM "team"
+    WHERE "organizationId" = ${organizationId} AND "id" = ANY(${wanted})
+  `;
+  if (rows.length !== wanted.length) {
+    const known = new Set(rows.map((row) => row.id));
+    const unknown = wanted.filter((id) => !known.has(id));
+    throw new ProjectError(
+      'PROJECT_SHARING_INVALID',
+      'Unknown team in project sharing',
+      400,
+      { unknownTeamIds: unknown },
+    );
+  }
+}
+
 function validateRecommendedSubsetOfAllowed(
   mode: 'all' | 'recommended' | 'restricted',
   recommended: string[] | undefined,
@@ -561,6 +595,10 @@ export async function createProject(
       : await resolveProjectKey(tx, auth.organizationId, args.key, name);
   const sharedWithTeamIds = args.sharedWithTeamIds ?? [];
   validateSharing(args.teamId, args.sharedWithTeamIds);
+  await assertTeamsInOrg(tx, auth.organizationId, [
+    ...(args.teamId ? [args.teamId] : []),
+    ...sharedWithTeamIds,
+  ]);
 
   const now = Date.now();
   const inserted = await tx<{ id: string }[]>`
@@ -810,6 +848,10 @@ export async function updateProjectSharing(
   const nextShared = args.sharedWithTeamIds ?? project.sharedWithTeamIds;
   validateSharing(nextTeamId, nextShared);
   const normalized = normalizeSharing(nextTeamId, nextShared);
+  await assertTeamsInOrg(tx, auth.organizationId, [
+    ...(normalized.teamId ? [normalized.teamId] : []),
+    ...normalized.sharedWithTeamIds,
+  ]);
 
   const previousState = {
     teamId: project.teamId,

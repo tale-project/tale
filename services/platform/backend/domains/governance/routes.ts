@@ -319,7 +319,7 @@ export function createGovernanceRoutes(deps: {
     const organizationId = c.get('orgId');
     const userId = c.get('sessionBundle').user.id;
     const role = c.get('orgMember').role;
-    const allTeamIds = await getUserTeamIds(deps.sql, userId);
+    const allTeamIds = await getUserTeamIds(deps.sql, organizationId, userId);
     const full = await checkTtsBudget(deps.sql, {
       organizationId,
       userId,

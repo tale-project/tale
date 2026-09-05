@@ -208,7 +208,7 @@ export async function projectChatAccess(
     args.userId,
   );
   if (member === null || member.role === 'disabled') return 'forbidden';
-  const teamIds = await getUserTeamIds(sql, args.userId);
+  const teamIds = await getUserTeamIds(sql, args.organizationId, args.userId);
   const access = checkProjectAccess(
     { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
     teamIds,
