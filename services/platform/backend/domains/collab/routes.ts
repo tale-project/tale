@@ -27,6 +27,11 @@ import {
   getMyAttentionSummary,
 } from './service.ts';
 
+const listNotificationsQuerySchema = z.object({
+  cursor: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
 /** /api/app/collab — the bell (per-user content notifications), task
  * subscriptions, and notification preferences. */
 export function createCollabRoutes(deps: {
@@ -37,14 +42,24 @@ export function createCollabRoutes(deps: {
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
 
   app.get('/notifications', async (c) => {
-    const cursorRaw = c.req.query('cursor');
-    const limitRaw = c.req.query('limit');
+    // The cursor is a `seq` (bigint) and the limit a page size: anything
+    // that is not a positive integer is a malformed request, answered 400
+    // here — never handed to Postgres as 'NaN' to fail as a 500.
+    const query = listNotificationsQuerySchema.safeParse({
+      cursor: c.req.query('cursor'),
+      limit: c.req.query('limit'),
+    });
+    if (!query.success) {
+      return c.json({ error: 'invalid query' }, 400);
+    }
     return c.json(
       await listMyNotifications(deps.sql, {
         organizationId: c.get('orgId'),
         userId: c.get('sessionBundle').user.id,
-        ...(cursorRaw !== undefined ? { cursor: Number(cursorRaw) } : {}),
-        ...(limitRaw !== undefined ? { limit: Number(limitRaw) } : {}),
+        ...(query.data.cursor !== undefined
+          ? { cursor: query.data.cursor }
+          : {}),
+        ...(query.data.limit !== undefined ? { limit: query.data.limit } : {}),
         ...(c.req.query('unread') === 'true' ? { unreadOnly: true } : {}),
       }),
     );
