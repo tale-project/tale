@@ -541,7 +541,10 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         // so `mapServerError` can pin it there. Everything else becomes the
         // translated line the cluster shows in one toast.
         const code = backendErrorCode(error);
-        if (code === 'sso_client_secret_required' || code === 'sso_sp_key_required')
+        if (
+          code === 'sso_client_secret_required' ||
+          code === 'sso_sp_key_required'
+        )
           throw error;
         console.error('[sso] save failed', error);
         throw new Error(
@@ -1182,7 +1185,9 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                           <SettingsToggleRow
                             className="py-5"
                             label={t('enterpriseSso.wantSignedLabel')}
-                            description={t('enterpriseSso.wantSignedDescription')}
+                            description={t(
+                              'enterpriseSso.wantSignedDescription',
+                            )}
                             checked={field.value ?? false}
                             onCheckedChange={field.onChange}
                           />
@@ -1214,7 +1219,9 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                           wrapperClassName="w-full"
                         />
                       </SettingsFieldRow>
-                      <SettingsFieldRow label={t('enterpriseSso.attrNameLabel')}>
+                      <SettingsFieldRow
+                        label={t('enterpriseSso.attrNameLabel')}
+                      >
                         <Input
                           id="saml-attr-name"
                           aria-label={t('enterpriseSso.attrNameLabel')}

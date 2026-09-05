@@ -9,7 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SsoProviderAdapter } from '../../core/enterprise_sso/types.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
-import { SsoAdminError, testSsoConnection, upsertSamlConnection } from './admin.ts';
+import {
+  SsoAdminError,
+  testSsoConnection,
+  upsertSamlConnection,
+} from './admin.ts';
 
 /** The adapter under "Test connection": records what it was asked to probe. */
 const { validateConfig } = vi.hoisted(() => ({
@@ -103,7 +107,10 @@ describe('testSsoConnection — the client secret reaches the adapter', () => {
   });
 
   it('falls back to the stored secret when the field is left blank', async () => {
-    await storeSecrets('acme', { clientId: 'client-1', clientSecret: 'stored' });
+    await storeSecrets('acme', {
+      clientId: 'client-1',
+      clientSecret: 'stored',
+    });
 
     await testSsoConnection(slugSql('acme'), 'org-1', {
       ...probe,
@@ -165,7 +172,8 @@ describe('upsertSamlConnection — encryption needs the key that decrypts', () =
     displayName: 'Acme SAML',
     idpEntityId: 'https://idp.acme.test/entity',
     idpSsoUrl: 'https://idp.acme.test/sso',
-    idpCertificate: '-----BEGIN CERTIFICATE-----\nIDP\n-----END CERTIFICATE-----',
+    idpCertificate:
+      '-----BEGIN CERTIFICATE-----\nIDP\n-----END CERTIFICATE-----',
     autoProvisionRole: false,
     defaultRole: 'member' as const,
     roleMappingRules: [],
@@ -176,7 +184,8 @@ describe('upsertSamlConnection — encryption needs the key that decrypts', () =
   it('refuses to require encrypted assertions without any SP private key', async () => {
     const attempt = upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
       ...saml,
-      spCertificate: '-----BEGIN CERTIFICATE-----\nSP\n-----END CERTIFICATE-----',
+      spCertificate:
+        '-----BEGIN CERTIFICATE-----\nSP\n-----END CERTIFICATE-----',
       wantAssertionsEncrypted: true,
     });
 
@@ -191,8 +200,9 @@ describe('upsertSamlConnection — encryption needs the key that decrypts', () =
     await expect(
       upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
         ...saml,
-        spCertificate: '-----BEGIN CERTIFICATE-----\nSP\n-----END CERTIFICATE-----',
-        spPrivateKey: '-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----',
+        spCertificate:
+          '-----BEGIN CERTIFICATE-----\nSP\n-----END CERTIFICATE-----',
+        spPrivateKey: 'typed-key',
         wantAssertionsEncrypted: true,
       }),
     ).resolves.toBeUndefined();
@@ -209,7 +219,8 @@ describe('upsertSamlConnection — encryption needs the key that decrypts', () =
     await expect(
       upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
         ...saml,
-        spCertificate: '-----BEGIN CERTIFICATE-----\nSP\n-----END CERTIFICATE-----',
+        spCertificate:
+          '-----BEGIN CERTIFICATE-----\nSP\n-----END CERTIFICATE-----',
         wantAssertionsEncrypted: true,
       }),
     ).resolves.toBeUndefined();

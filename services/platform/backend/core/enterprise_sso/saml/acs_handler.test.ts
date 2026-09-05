@@ -50,7 +50,10 @@ function acsCtx(validation: Record<string, unknown>): {
   const finished = vi.fn();
   const finishLogin: FinishLogin = async (_ctx, args) => {
     finished(args);
-    return new Response(null, { status: 302, headers: { Location: '/dashboard' } });
+    return new Response(null, {
+      status: 302,
+      headers: { Location: '/dashboard' },
+    });
   };
   const ctx = { runQuery, runAction, runMutation } as unknown as ActionCtx;
   return { ctx, runQuery, runMutation, finished, finishLogin };
@@ -92,7 +95,10 @@ describe('samlAcsHandler — browser binding of SP-initiated responses', () => {
     vi.clearAllMocks();
   });
 
-  async function startedFlow(): Promise<{ relayState: string; cookie: string }> {
+  async function startedFlow(): Promise<{
+    relayState: string;
+    cookie: string;
+  }> {
     const nonce = newFlowNonce();
     return {
       relayState: buildRelayState('org-1', await hashFlowNonce(nonce)),
@@ -107,9 +113,13 @@ describe('samlAcsHandler — browser binding of SP-initiated responses', () => {
       inResponseTo: '_req1',
     });
 
-    const res = await samlAcsHandler(ctx, acsRequest(flow.relayState, flow.cookie), {
-      finishLogin,
-    });
+    const res = await samlAcsHandler(
+      ctx,
+      acsRequest(flow.relayState, flow.cookie),
+      {
+        finishLogin,
+      },
+    );
 
     expect(runQuery).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org-1',
@@ -154,7 +164,7 @@ describe('samlAcsHandler — browser binding of SP-initiated responses', () => {
     );
   });
 
-  it("refuses an SP-initiated response whose RelayState was stripped to the org id", async () => {
+  it('refuses an SP-initiated response whose RelayState was stripped to the org id', async () => {
     // The attacker rewrites RelayState to look IdP-initiated; the signed
     // Subject still says the response answers a request.
     const flow = await startedFlow();

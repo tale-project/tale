@@ -1,5 +1,6 @@
 import { getString, isRecord } from '../../../../lib/utils/type-utils';
 import { requireEmailClaim } from '../claims';
+import { OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';
 import type {
   SsoProviderAdapter,
   SsoProviderConfig,
@@ -11,7 +12,6 @@ import type {
   SsoProviderCapabilities,
   SsoAuthContext,
 } from '../types';
-import { OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';
 import {
   MICROSOFT_LOGIN_BASE,
   MICROSOFT_GRAPH_BASE,
@@ -22,7 +22,8 @@ import {
 // Every call to Microsoft fails fast on a stalled socket, like the generic
 // OIDC/OAuth2 adapters: the callback's 10-minute state window must never be
 // eaten by a hung token exchange or a Graph page.
-const fetchTimeout = (): AbortSignal => AbortSignal.timeout(OIDC_FETCH_TIMEOUT_MS);
+const fetchTimeout = (): AbortSignal =>
+  AbortSignal.timeout(OIDC_FETCH_TIMEOUT_MS);
 
 const capabilities: SsoProviderCapabilities = {
   // PKCE stays off for Entra until verified against confidential-client

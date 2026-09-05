@@ -395,16 +395,18 @@ describe('EnterpriseSsoForm validation + save', () => {
 
     expect(
       screen.getByRole('textbox', { name: /sp certificate/i }),
-    ).toHaveValue('-----BEGIN CERTIFICATE-----\nSPCERT\n-----END CERTIFICATE-----');
+    ).toHaveValue(
+      '-----BEGIN CERTIFICATE-----\nSPCERT\n-----END CERTIFICATE-----',
+    );
     expect(
       screen.getByRole('switch', { name: /require signed assertions/i }),
     ).toBeChecked();
     expect(
       screen.getByRole('switch', { name: /require encrypted assertions/i }),
     ).not.toBeChecked();
-    expect(screen.getByRole('textbox', { name: /email attribute/i })).toHaveValue(
-      'mail',
-    );
+    expect(
+      screen.getByRole('textbox', { name: /email attribute/i }),
+    ).toHaveValue('mail');
 
     const displayName = screen.getByRole('textbox', { name: /display name/i });
     await user.clear(displayName);

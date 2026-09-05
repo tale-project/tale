@@ -386,7 +386,9 @@ describe('trustedHeadersAuthenticate — a new user joins the org with an elevat
     expect(seatLookup?.values[0]).toEqual(
       expect.arrayContaining(['owner', 'admin']),
     );
-    const joined = queries.find((q) => q.text.startsWith('INSERT INTO "member"'));
+    const joined = queries.find((q) =>
+      q.text.startsWith('INSERT INTO "member"'),
+    );
     expect(joined?.values).toEqual(
       expect.arrayContaining(['org-owned', 'user-new']),
     );

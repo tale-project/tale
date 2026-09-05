@@ -145,7 +145,10 @@ describe('ssoAuthorizeHandler — redirect_uri must be one of our origins', () =
     vi.clearAllMocks();
   });
 
-  function requestWith(redirectUri: string, origin = 'https://app.example.com'): Request {
+  function requestWith(
+    redirectUri: string,
+    origin = 'https://app.example.com',
+  ): Request {
     const url = new URL(`${origin}/http_api/api/sso/authorize`);
     url.searchParams.set('redirect_uri', redirectUri);
     url.searchParams.set('organizationId', 'org1');
@@ -156,7 +159,10 @@ describe('ssoAuthorizeHandler — redirect_uri must be one of our origins', () =
     const runQuery = vi.fn();
     const ctx = { runQuery, runAction: vi.fn() } as unknown as ActionCtx;
 
-    const res = await ssoAuthorizeHandler(ctx, requestWith('https://evil.example/x'));
+    const res = await ssoAuthorizeHandler(
+      ctx,
+      requestWith('https://evil.example/x'),
+    );
 
     expect(res.status).toBe(400);
     expect(res.headers.get('Location')).toBeNull();
@@ -198,7 +204,10 @@ describe('ssoAuthorizeHandler — redirect_uri must be one of our origins', () =
 
     await ssoAuthorizeHandler(
       ctx,
-      requestWith('http://localhost:3211/api/sso/callback', 'http://127.0.0.1:3211'),
+      requestWith(
+        'http://localhost:3211/api/sso/callback',
+        'http://127.0.0.1:3211',
+      ),
     );
 
     expect(runQuery).toHaveBeenCalledTimes(1);
@@ -249,9 +258,10 @@ describe('ssoAuthorizeHandler — binds the flow to the browser', () => {
 
     expect(res.status).toBe(302);
     const cookie = res.headers.get('set-cookie') ?? '';
-    const match = /^__Host-sso_flow=([A-Za-z0-9_-]{43}); Max-Age=600; Path=\/; HttpOnly; SameSite=None; Secure$/.exec(
-      cookie,
-    );
+    const match =
+      /^__Host-sso_flow=([A-Za-z0-9_-]{43}); Max-Age=600; Path=\/; HttpOnly; SameSite=None; Secure$/.exec(
+        cookie,
+      );
     expect(match, cookie).not.toBeNull();
     const nonce = match?.[1] ?? '';
 

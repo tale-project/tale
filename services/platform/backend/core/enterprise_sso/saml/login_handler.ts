@@ -32,10 +32,7 @@ export async function samlLoginHandler(
     if (config === 'ambiguous') {
       // Several orgs have SSO enabled and no org context was given — same
       // never-guess rule as the OIDC authorize handler.
-      return redirectWithError(
-        browserOrigin,
-        'sso.errors.multipleConnections',
-      );
+      return redirectWithError(browserOrigin, 'sso.errors.multipleConnections');
     }
     if (!config) {
       return new Response('SAML is not configured', { status: 404 });

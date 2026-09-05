@@ -24,7 +24,10 @@ import { ssoShimHandlers } from './shim.ts';
  */
 
 /** The 0.5 finisher: session cookie + 302 to the dashboard. */
-export const finishLoginPg: FinishLogin = async (_ctx, args: FinishLoginArgs) => {
+export const finishLoginPg: FinishLogin = async (
+  _ctx,
+  args: FinishLoginArgs,
+) => {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret) throw new Error('BETTER_AUTH_SECRET not configured');
   const cookie = await buildSessionCookie(

@@ -30,7 +30,9 @@ describe('allowedRedirectOrigin', () => {
 
   it('refuses every other origin, a different port or scheme included', () => {
     process.env.SITE_URL = 'https://app.example.com';
-    expect(allowedRedirectOrigin('https://evil.example/x', REQUEST)).toBeUndefined();
+    expect(
+      allowedRedirectOrigin('https://evil.example/x', REQUEST),
+    ).toBeUndefined();
     expect(
       allowedRedirectOrigin('https://app.example.com.evil.example/', REQUEST),
     ).toBeUndefined();
@@ -46,6 +48,8 @@ describe('allowedRedirectOrigin', () => {
     expect(allowedRedirectOrigin(undefined, REQUEST)).toBeUndefined();
     expect(allowedRedirectOrigin('', REQUEST)).toBeUndefined();
     expect(allowedRedirectOrigin('not a url', REQUEST)).toBeUndefined();
-    expect(allowedRedirectOrigin('javascript:alert(1)', REQUEST)).toBeUndefined();
+    expect(
+      allowedRedirectOrigin('javascript:alert(1)', REQUEST),
+    ).toBeUndefined();
   });
 });

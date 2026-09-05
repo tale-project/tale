@@ -12330,7 +12330,9 @@ async function checkSamlLogin(
         consumedRow.length === 0 &&
         spReplay.status === 302 &&
         (spReplay.headers.get('location') ?? '').includes('/log-in') &&
-        !mergeCookieHeader('', spReplay).includes('better-auth.session_token=') &&
+        !mergeCookieHeader('', spReplay).includes(
+          'better-auth.session_token=',
+        ) &&
         forged.status === 302 &&
         (forged.headers.get('location') ?? '').includes('/log-in') &&
         (forged.headers.get('set-cookie') ?? '') === '',
@@ -12343,10 +12345,9 @@ async function checkSamlLogin(
     // the insider's captured response auto-submitted from a victim's browser.
     // Refused readably, audited, no session; a fresh AuthnRequest, since the
     // first one above is spent.
-    const secondLogin = await fetch(
-      `${base}/api/sso/saml/login?org=${orgId}`,
-      { redirect: 'manual' },
-    );
+    const secondLogin = await fetch(`${base}/api/sso/saml/login?org=${orgId}`, {
+      redirect: 'manual',
+    });
     const secondLoginUrl = new URL(
       secondLogin.headers.get('location') ?? 'http://unset.invalid/',
     );

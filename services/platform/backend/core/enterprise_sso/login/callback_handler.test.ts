@@ -394,7 +394,10 @@ describe('ssoCallbackHandler — a foreign redirect_uri in the state never becom
       timestamp: Date.now(),
       organizationId: 'org1',
     });
-    const ctx = { runQuery: vi.fn(), runAction: vi.fn() } as unknown as ActionCtx;
+    const ctx = {
+      runQuery: vi.fn(),
+      runAction: vi.fn(),
+    } as unknown as ActionCtx;
 
     const res = await ssoCallbackHandler(
       ctx,
@@ -455,7 +458,11 @@ describe('ssoCallbackHandler — the completion must come from the browser that 
     vi.clearAllMocks();
   });
 
-  function auditingCtx(): { ctx: ActionCtx; runQuery: ReturnType<typeof vi.fn>; runMutation: ReturnType<typeof vi.fn> } {
+  function auditingCtx(): {
+    ctx: ActionCtx;
+    runQuery: ReturnType<typeof vi.fn>;
+    runMutation: ReturnType<typeof vi.fn>;
+  } {
     const runQuery = vi.fn();
     const runMutation = vi.fn().mockResolvedValue(undefined);
     const ctx = {
@@ -570,6 +577,8 @@ describe('ssoCallbackHandler — the completion must come from the browser that 
     expect(target.searchParams.get('error')).toBe(
       'SSO configuration not found',
     );
-    expect(res.headers.get('set-cookie')).toContain('__Host-sso_flow=; Max-Age=0');
+    expect(res.headers.get('set-cookie')).toContain(
+      '__Host-sso_flow=; Max-Age=0',
+    );
   });
 });

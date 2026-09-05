@@ -267,7 +267,8 @@ describe('entraIdAdapter — network calls time out', () => {
 
   const config = {
     providerId: 'entra-id',
-    issuer: 'https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/v2.0',
+    issuer:
+      'https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/v2.0',
     clientId: 'client',
     clientSecret: 'secret',
     scopes: [],
@@ -298,7 +299,8 @@ describe('entraIdAdapter — network calls time out', () => {
 
   it('passes an AbortSignal to both validateConfig probes', async () => {
     const fetchMock = stubJson({
-      token_endpoint: 'https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/oauth2/v2.0/token',
+      token_endpoint:
+        'https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/oauth2/v2.0/token',
       authorization_endpoint:
         'https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/oauth2/v2.0/authorize',
       access_token: 'probe',

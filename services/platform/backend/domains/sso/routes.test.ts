@@ -3,8 +3,8 @@
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { ActionCtx } from '../../core/lib/ctx.ts';
 import { buildSessionCookie } from '../../core/enterprise_sso/login/finish_login.ts';
+import type { ActionCtx } from '../../core/lib/ctx.ts';
 import { createSsoRoutes, finishLoginPg } from './routes.ts';
 
 /**
@@ -53,7 +53,7 @@ describe('/api/sso — retired doors are gone', () => {
   });
 });
 
-describe('finishLoginPg — the session cookie is the shared builder\'s', () => {
+describe("finishLoginPg — the session cookie is the shared builder's", () => {
   beforeEach(() => {
     process.env.BETTER_AUTH_SECRET = SECRET;
     delete process.env.BASE_PATH;
@@ -63,7 +63,7 @@ describe('finishLoginPg — the session cookie is the shared builder\'s', () => 
     delete process.env.BETTER_AUTH_SECRET;
   });
 
-  it('sets exactly buildSessionCookie\'s value and redirects to the dashboard', async () => {
+  it("sets exactly buildSessionCookie's value and redirects to the dashboard", async () => {
     const ctx = {} as unknown as ActionCtx;
 
     const res = await finishLoginPg(ctx, {
