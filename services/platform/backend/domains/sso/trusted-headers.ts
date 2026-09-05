@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 
 import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
+import { ADMIN_ROLES } from '../../auth/membership.ts';
 import { resolveTeams } from '../../core/betterAuth/trusted_headers/resolve_team_names.ts';
 import {
   buildSessionCookie,
@@ -123,13 +124,16 @@ export async function trustedHeadersAuthenticate(
       if (createdId === undefined) throw new Error('user insert failed');
       userId = createdId;
 
-      // Attach to the existing org (the one with an admin) so trusted-
-      // headers users land together; the very first user gets a default org
-      // and the admin seat. The member ROLE is a placeholder — the real
-      // role rides the session.
+      // Attach to the existing org (the one with an elevated seat — its
+      // creating `owner`, or a granted `admin`) so trusted-headers users land
+      // together; the very first user gets a default org and the admin seat.
+      // Matching `admin` alone missed every org created through sign-up
+      // (Better Auth seats the creator as `owner`) and split the deployment
+      // into two tenants on the first proxy login. The member ROLE is a
+      // placeholder — the real role rides the session.
       const admins = await tx<{ organizationId: string }[]>`
         SELECT "organizationId" FROM "member"
-        WHERE lower("role") = 'admin'
+        WHERE lower("role") = ANY(${[...ADMIN_ROLES]})
         ORDER BY "createdAt" ASC LIMIT 1
       `;
       if (admins[0] !== undefined) {

@@ -327,6 +327,74 @@ describe('GET /api/trusted-headers/authenticate — the proxy hand-off door', ()
 });
 
 /**
+ * A first proxy user joins the deployment's existing org — the one that
+ * holds an elevated seat. Better Auth seats an org's creator as `owner`
+ * (never `admin`), so matching `admin` alone missed every org created
+ * through sign-up: the first proxy login founded a SECOND org, and every
+ * later proxy user joined that one (it now had an `admin`), splitting the
+ * deployment across two tenants.
+ */
+describe('trustedHeadersAuthenticate — a new user joins the org with an elevated seat', () => {
+  beforeEach(() => {
+    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
+  });
+
+  const newUser = [
+    { match: /SELECT "id", "name" FROM "user"/, rows: [] },
+    { match: /INSERT INTO "user"/, rows: [{ id: 'user-new' }] },
+  ];
+
+  it('attaches to an org whose only elevated member is its owner', async () => {
+    const { sql, queries } = fakeSql([
+      ...newUser,
+      {
+        match: /FROM "member" WHERE lower\("role"\) = ANY/,
+        rows: [{ organizationId: 'org-owned' }],
+      },
+    ]);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      secret: 'right-secret',
+    });
+
+    expect(result.userId).toBe('user-new');
+    expect(result.organizationId).toBe('org-owned');
+    const seatLookup = queries.find((q) =>
+      /FROM "member" WHERE lower\("role"\) = ANY/.test(q.text),
+    );
+    // Both elevated roles qualify — the creator's `owner` included.
+    expect(seatLookup?.values[0]).toEqual(
+      expect.arrayContaining(['owner', 'admin']),
+    );
+    const joined = queries.find((q) => q.text.startsWith('INSERT INTO "member"'));
+    expect(joined?.values).toEqual(
+      expect.arrayContaining(['org-owned', 'user-new']),
+    );
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "organization"')),
+    ).toBe(false);
+  });
+
+  it('founds a default org only when no org has an elevated seat', async () => {
+    const { sql, queries } = fakeSql([
+      ...newUser,
+      { match: /INSERT INTO "organization"/, rows: [{ id: 'org-founded' }] },
+    ]);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      secret: 'right-secret',
+    });
+
+    expect(result.organizationId).toBe('org-founded');
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "organization"')),
+    ).toBe(true);
+  });
+});
+
+/**
  * Session reuse is bound to the browser's OWN cookie. The fallback that
  * adopted "any session row of this user" silently shared one session across
  * devices (signing out or revoking one killed both; the sessions list showed
