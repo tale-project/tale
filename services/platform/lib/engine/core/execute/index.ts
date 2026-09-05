@@ -10,16 +10,18 @@
  * installed LlmService (host-gated upstream).
  */
 
-import { Ajv } from 'ajv';
+import type { ValidateFunction } from 'ajv';
 
 import type {
   AgentTurnRequest,
   ConnectorHostCapabilities,
+  ConnectorLike,
   StoreAdapter,
 } from '../slots';
 import { agentService, llmService, nodeTypes } from '../slots';
 import { evalCondition, evalTemplates, ExprError, runCode } from '../template';
 import type { Automation, Effect, NodeTrace, RunResult } from '../types';
+import { compileSchema } from '../validate/schema';
 import { refsOf, topoSort } from './controlflow';
 import {
   cloneData,
@@ -30,7 +32,23 @@ import {
   stubFromSchema,
 } from './scope';
 
-const ajv = new Ajv({ allErrors: true, strict: false });
+/**
+ * One compiled validator per registered connector, for the life of the
+ * registration. A connector's input schema is static, so compiling it on
+ * every node of every run only grew the Ajv cache by one entry per run —
+ * and a schema carrying an `$id` threw "already exists" on the second run.
+ * Keyed weakly so a re-registered catalog does not pin the old validators.
+ */
+const connectorValidators = new WeakMap<ConnectorLike, ValidateFunction>();
+
+function connectorValidator(connector: ConnectorLike): ValidateFunction {
+  let check = connectorValidators.get(connector);
+  if (check === undefined) {
+    check = compileSchema(connector.inputSchema);
+    connectorValidators.set(connector, check);
+  }
+  return check;
+}
 
 /** A resolved template destined for prompt text: strings pass through,
  * structured values render as JSON (never "[object Object]"), and absent
@@ -94,9 +112,11 @@ export async function execute(
 
   // Runtime input contract. An unparseable inputs schema is validation's
   // finding, not a run failure — skip the check rather than crash here.
+  // compileSchema clears the Ajv cache per compile, so a long-lived process
+  // does not retain one validator per run and an `$id` compiles every time.
   if (doc.inputs) {
     try {
-      const check = ajv.compile(cloneData(doc.inputs));
+      const check = compileSchema(doc.inputs);
       if (!check(input)) {
         const msg = (check.errors ?? [])
           .map((e) => `input${e.instancePath} ${e.message}`)
@@ -172,7 +192,7 @@ export async function execute(
       }
 
       const connectorCheck = def.connector
-        ? ajv.compile(cloneData(def.connector.inputSchema))
+        ? connectorValidator(def.connector)
         : null;
 
       /** Run the node's behavior once for one scope (per item under

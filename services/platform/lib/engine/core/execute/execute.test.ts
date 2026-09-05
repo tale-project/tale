@@ -698,6 +698,71 @@ describe('guards and contracts', () => {
     expect(result.error?.message).toContain('"inputs" schema');
   });
 
+  it('keeps checking an inputs schema that carries an $id on every run', async () => {
+    // Ajv refuses to compile a cached $id twice; the runtime check must not
+    // silently drop out after the first run of the process.
+    const doc = automationDoc(
+      [{ id: 'a', type: 'transform', code: 'return 1;' }],
+      {
+        inputs: {
+          $id: 'https://example.test/schemas/run-input',
+          type: 'object',
+          properties: { n: { type: 'number' } },
+          required: ['n'],
+        },
+      },
+    );
+    const first = await execute(doc, { input: {} });
+    const second = await execute(doc, { input: {} });
+    expect(first.status).toBe('error');
+    expect(second.status).toBe('error');
+    expect(second.error?.message).toContain('"inputs" schema');
+    expect(await execute(doc, { input: { n: 1 } })).toMatchObject({
+      status: 'success',
+    });
+  });
+
+  it('runs a connector whose input schema carries an $id more than once', async () => {
+    registerNodeType({
+      type: 'ids.echo',
+      kind: 'connector',
+      outputKind: 'structured',
+      description: 'test connector: schema with an $id',
+      allowedFields: ['input'],
+      requiredFields: ['input'],
+      connector: {
+        name: 'ids.echo',
+        description: 'echo',
+        inputSchema: {
+          $id: 'https://example.test/schemas/ids-echo',
+          type: 'object',
+          properties: { v: { type: 'number' } },
+          required: ['v'],
+        },
+        outputSignature: '{ v: number }',
+        hasEffect: false,
+        mock: (input) => input,
+      },
+    });
+    const doc = automationDoc(
+      [{ id: 'echo', type: 'ids.echo', input: { v: 7 } }],
+      { output: '{{ nodes.echo.output.v }}' },
+    );
+    expect(await execute(doc, { input: {} })).toMatchObject({
+      status: 'success',
+      output: 7,
+    });
+    expect(await execute(doc, { input: {} })).toMatchObject({
+      status: 'success',
+      output: 7,
+    });
+    const bad = await execute(
+      automationDoc([{ id: 'echo', type: 'ids.echo', input: { v: 'x' } }]),
+      { input: {} },
+    );
+    expect(bad.error?.message).toContain('does not match the ids.echo schema');
+  });
+
   it('rejects connector input that misses the connector schema', async () => {
     const doc = automationDoc([
       { id: 'bad', type: 'notes.append', input: { wrong: true } },
