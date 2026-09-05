@@ -5,6 +5,7 @@ import {
   executeTurn,
   type ExecuteTurnArgs,
 } from '../../core/chat/turn_action.ts';
+import { settleDeferredSendOnUserAppend } from '../../core/chat/turn_store.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { chatShimHandlers } from './shim.ts';
 import { createPgTurnStore, createPgUsageLedger } from './store.ts';
@@ -40,6 +41,11 @@ export interface ChatTurnRequest {
   /** Auto — the server resolves a concrete (provider, model) pair for THIS
    * message before anything binds. Exactly one of modelId / this. */
   readonly modelSelection?: 'auto';
+  /** Runs the moment the turn-open write persisted the user message — the
+   * deferred-send lane settles its tray row here, so the parked message is
+   * never shown twice (bubble + "sending" row) for the whole generation.
+   * Never called on a turn that refused or threw before that write. */
+  readonly onUserMessageAppended?: () => Promise<void>;
 }
 
 export async function runChatTurn(
@@ -69,13 +75,20 @@ export async function runChatTurn(
     locale: request.locale ?? 'en',
     ...(request.resend === true ? { resend: true } : {}),
   };
+  const store = createPgTurnStore(sql);
   return executeTurn(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by chatShimHandlers
     shim as unknown as Parameters<typeof executeTurn>[0],
     args,
     {
       deps: {
-        store: createPgTurnStore(sql),
+        store:
+          request.onUserMessageAppended !== undefined
+            ? settleDeferredSendOnUserAppend(
+                store,
+                request.onUserMessageAppended,
+              )
+            : store,
         usage: createPgUsageLedger(sql),
       },
     },

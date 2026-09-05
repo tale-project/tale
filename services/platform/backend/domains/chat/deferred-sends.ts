@@ -1,6 +1,15 @@
 import type { Sql } from 'postgres';
 
-import { ThreadBusyError } from '../../../lib/chat/turn.ts';
+import {
+  ThreadBusyError,
+  userTurnParts,
+  type TurnOutcome,
+} from '../../../lib/chat/turn.ts';
+import {
+  classifyChatErrorCode,
+  encodeChatError,
+  type ChatErrorCode,
+} from '../../../lib/shared/chat-errors.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { isBackendDraining } from '../control/service.ts';
@@ -10,6 +19,7 @@ import {
   cancelDeferredJobs,
 } from '../video_links/service.ts';
 import { runChatTurn } from './service.ts';
+import { appendAssistantErrorMessage, appendMessageRow } from './store.ts';
 import { ChatThreadError, loadOwnedThread } from './threads.ts';
 
 /**
@@ -358,9 +368,48 @@ export async function isDeferredSendReady(
 }
 
 /**
+ * The failure trace for a parked send that never reached the pipeline —
+ * refused at a pre-flight gate (model access, attachment ownership, no
+ * model) or thrown before the turn-open write. The direct lane hands such a
+ * refusal back to the composer and the REST lane appends an assistant error
+ * row; this lane has nobody waiting, so the parked message lands as its
+ * user row (the text plus the attachments it carried) followed by the error
+ * row, where the reply would have been. The tray row settles in the caller's
+ * `finally`. A failure INSIDE the pipeline needs none of this: the turn-open
+ * write persisted the user row and the placeholder carries the error.
+ */
+async function leaveFailureTrace(
+  sql: Sql,
+  row: DeferredSendRow,
+  attachments: readonly DeferredAttachment[],
+  failure: { code: ChatErrorCode; raw: string },
+): Promise<void> {
+  await appendMessageRow(sql, {
+    organizationId: row.organizationId,
+    threadId: row.threadId,
+    role: 'user',
+    parts: userTurnParts(row.userText, attachments),
+    text: row.userText,
+  });
+  await appendAssistantErrorMessage(sql, {
+    organizationId: row.organizationId,
+    threadId: row.threadId,
+    ...(row.modelId !== null ? { model: row.modelId } : {}),
+    error: encodeChatError({
+      code: failure.code,
+      ...(row.modelId !== null ? { model: row.modelId } : {}),
+      raw: failure.raw,
+    }),
+  });
+}
+
+/**
  * One poll step: not ready (or the thread busy) → re-enqueue with the aged
- * backoff; ready + idle → claim and run the turn under the stored identity,
- * settling (deleting) the row in a `finally` — the 0.4 mop-up posture. A
+ * backoff; ready + idle → claim and run the turn under the stored identity.
+ * The row settles the moment the turn persists the user message (the tray
+ * row and the bubble must never show together) and, as the mop-up for a
+ * turn that refused or threw before that, in a `finally` — the 0.4 posture,
+ * plus a trace in the thread for a message that would otherwise vanish. A
  * deleted row (user cancelled) ends the chain silently. Returns what it did
  * for the integration run's observability.
  */
@@ -413,7 +462,14 @@ export async function pollDeferredSend(
   `;
   if (claimed.length === 0) return 'gone';
 
+  const settle = async (): Promise<void> => {
+    await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+  };
   let parkedAgain = false;
+  // Flipped by the turn's own store hook once the user row is durable: from
+  // there the thread shows the bubble and the tray row is redundant; before
+  // it, a refusal or a throw has left NOTHING of the message behind.
+  let userAppended = false;
   try {
     // The claimed videos' transcripts join the send now (the 0.4
     // `buildBoundJobAttachments` semantics — a job without a completed
@@ -427,52 +483,85 @@ export async function pollDeferredSend(
           )
         : [];
     const attachments = [...row.attachments, ...videoAttachments];
-    const outcome = await runChatTurn(sql, {
-      organizationId: row.organizationId,
-      userId: row.userId,
-      threadId: row.threadId,
-      userText: row.userText,
-      ...(attachments.length > 0 ? { attachments } : {}),
-      ...(row.modelId !== null ? { modelId: row.modelId } : {}),
-      ...(row.modelSelection === 'auto'
-        ? { modelSelection: 'auto' as const }
-        : {}),
-      ...(row.providerSlug !== null ? { providerSlug: row.providerSlug } : {}),
-      ...(row.reasoningEffort !== null
-        ? {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly the effort union
-            reasoningEffort: row.reasoningEffort as never,
-          }
-        : {}),
-      locale: row.locale,
-    });
+    let outcome: TurnOutcome;
+    try {
+      outcome = await runChatTurn(sql, {
+        organizationId: row.organizationId,
+        userId: row.userId,
+        threadId: row.threadId,
+        userText: row.userText,
+        ...(attachments.length > 0 ? { attachments } : {}),
+        ...(row.modelId !== null ? { modelId: row.modelId } : {}),
+        ...(row.modelSelection === 'auto'
+          ? { modelSelection: 'auto' as const }
+          : {}),
+        ...(row.providerSlug !== null
+          ? { providerSlug: row.providerSlug }
+          : {}),
+        ...(row.reasoningEffort !== null
+          ? {
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly the effort union
+              reasoningEffort: row.reasoningEffort as never,
+            }
+          : {}),
+        locale: row.locale,
+        // The turn-open write persisted the user message: settle the tray
+        // row NOW (the 0.4 `settleDeferredSendOnUserAppend` wiring), not at
+        // the end of a generation that may run for minutes. Idempotent with
+        // the finally below.
+        onUserMessageAppended: async () => {
+          userAppended = true;
+          await settle();
+        },
+      });
+    } catch (error) {
+      // Lost the thread to a send that slipped in between the busy read
+      // above and the turn's atomic open. Nothing was appended, so this is
+      // the same "wait our turn" as the read — park the row again rather
+      // than drop the message into a deleted tray row.
+      if (error instanceof ThreadBusyError) {
+        await sql`
+          UPDATE app.deferred_sends
+          SET status = 'waiting', waiting_since_ms = ${Date.now()}
+          WHERE id = ${row.id} AND status = 'claimed'
+        `;
+        await reschedule(READY_POLL_MS);
+        parkedAgain = true;
+        return 'busy';
+      }
+      if (!userAppended) {
+        // Threw before the turn-open write (an unknown model, an unusable
+        // credential): the thread would show nothing of the message.
+        await leaveFailureTrace(sql, row, attachments, {
+          code: classifyChatErrorCode(error),
+          raw:
+            error instanceof Error
+              ? error.message
+              : 'The turn could not be started.',
+        });
+      }
+      throw error;
+    }
     if (outcome.status === 'refused') {
       console.warn(
         `[deferred-send] turn refused for ${row.id}: ${outcome.reason}`,
       );
+      // `steps` is empty exactly for the pre-flight refusals (`executeTurn`
+      // refuses before the pipeline runs); a guardrail refusal inside the
+      // pipeline already appended its blocked assistant row.
+      if (outcome.steps.length === 0) {
+        await leaveFailureTrace(sql, row, attachments, {
+          code: 'generic',
+          raw: outcome.reason,
+        });
+      }
     }
-  } catch (error) {
-    // Lost the thread to a send that slipped in between the busy read above
-    // and the turn's atomic open. Nothing was appended, so this is the same
-    // "wait our turn" as the read — park the row again rather than drop the
-    // message into a deleted tray row.
-    if (error instanceof ThreadBusyError) {
-      await sql`
-        UPDATE app.deferred_sends
-        SET status = 'waiting', waiting_since_ms = ${Date.now()}
-        WHERE id = ${row.id} AND status = 'claimed'
-      `;
-      await reschedule(READY_POLL_MS);
-      parkedAgain = true;
-      return 'busy';
-    }
-    throw error;
   } finally {
     // The terminal mop-up: the row settles whether the turn completed,
-    // refused, or threw — the thread shows the bubble (or nothing), and the
-    // tray row would only double-display or wedge.
+    // refused, or threw — the thread shows the bubble (or the trace), and
+    // the tray row would only double-display or wedge.
     if (!parkedAgain) {
-      await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+      await settle();
     }
   }
   return 'ran';
