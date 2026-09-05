@@ -25803,9 +25803,11 @@ async function checkAutomationAgentNode(
 
 /**
  * Sandbox session substrate: per-owner and per-budget caps, the slot a
- * hibernated session frees, hibernate/resume slot accounting, hash-only
- * token lifecycle, and durable op rows — all under the per-org
- * advisory-lock admission section.
+ * hibernated session frees, hibernate/resume slot accounting, and the
+ * hash-only token lifecycle (minted → looked up by hash → revoked by the
+ * session's destroy) — all under the per-org advisory-lock admission
+ * section. Op rows ride the turn-drive probes: their one writer is the
+ * host's shim upsert.
  */
 async function checkSandboxSessions(
   sql: Sql,
@@ -25868,10 +25870,26 @@ async function checkSandboxSessions(
     })
     .then(() => 'ok')
     .catch(code);
+  // Tokens: hash-only lifecycle — minted on slot 3, readable by hash, and
+  // revoked by the destroy that frees the slot (the ONE revocation path).
+  await sessions.insertSessionToken(sql, {
+    organizationId: orgId,
+    sessionId: 'itest-sb-3',
+    tokenHash: 'hash-abc',
+    scope: {
+      agentKind: 'claude-code',
+      allowedModels: ['m1'],
+      connectorGrants: [],
+      budgetCents: 100,
+    },
+    ttlMs: 60_000,
+  });
+  const tokenLive = await sessions.getSessionTokenByHash(sql, 'hash-abc');
   await sessions.markSessionDestroyed(sql, {
     organizationId: orgId,
     sessionId: 'itest-sb-3',
   });
+  const tokenRevoked = await sessions.getSessionTokenByHash(sql, 'hash-abc');
   const resumeAfterFree = await sessions
     .resumeSessionSlot(sql, {
       organizationId: orgId,
@@ -25885,53 +25903,8 @@ async function checkSandboxSessions(
     .then(() => 'ok')
     .catch(code);
 
-  // Tokens: hash-only lifecycle.
-  await sessions.insertSessionToken(sql, {
-    organizationId: orgId,
-    sessionId: 'itest-sb-1',
-    tokenHash: 'hash-abc',
-    scope: {
-      agentKind: 'claude-code',
-      allowedModels: ['m1'],
-      connectorGrants: [],
-      budgetCents: 100,
-    },
-    ttlMs: 60_000,
-  });
-  const tokenLive = await sessions.getSessionTokenByHash(sql, 'hash-abc');
-  await sessions.revokeTokensForSession(sql, orgId, 'itest-sb-1');
-  const tokenRevoked = await sessions.getSessionTokenByHash(sql, 'hash-abc');
-
-  // Ops: start → progress → exactly-once finalize; watchdog staleness read.
-  await sessions.startSessionOp(sql, {
-    organizationId: orgId,
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    kind: 'task-agent',
-    threadId: 'itest-thread-1',
-  });
-  await sessions.flushOpProgress(sql, {
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    progressText: 'working…',
-    lastSeq: 7,
-  });
-  const liveOp = await sessions.latestAgentRunForThread(sql, 'itest-thread-1');
-  const abandoned = await sessions.listAbandonedOps(sql, Date.now() + 60_000);
-  const finalizedOnce = await sessions.finalizeSessionOp(sql, {
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    status: 'completed',
-    exitCode: 0,
-  });
-  const finalizedTwice = await sessions.finalizeSessionOp(sql, {
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    status: 'failed',
-  });
-
   record(
-    'sandbox sessions (caps + freed slots + tokens + ops)',
+    'sandbox sessions (caps + freed slots + tokens)',
     dupOwner === 'QUOTA_EXCEEDED' &&
       hardCap === 'QUOTA_EXCEEDED' &&
       admitted3 === 'ok' &&
@@ -25940,12 +25913,8 @@ async function checkSandboxSessions(
       wf === 'ok' &&
       tokenLive !== null &&
       tokenLive.scope.agentKind === 'claude-code' &&
-      tokenRevoked === null &&
-      liveOp?.progressText === 'working…' &&
-      abandoned.some((op) => op.execId === 'exec-1') &&
-      finalizedOnce &&
-      !finalizedTwice,
-    `dupOwner=${dupOwner}, hardCap=${hardCap}, admitAfterStop=${admitted3}, resume(full=${resumeFull},freed=${resumeAfterFree}), wfBudget=${wf}, token(live=${tokenLive !== null},revoked=${tokenRevoked === null}), op(progress=${liveOp?.progressText === 'working…'},finalize=${finalizedOnce}/${finalizedTwice})`,
+      tokenRevoked === null,
+    `dupOwner=${dupOwner}, hardCap=${hardCap}, admitAfterStop=${admitted3}, resume(full=${resumeFull},freed=${resumeAfterFree}), wfBudget=${wf}, token(live=${tokenLive !== null},revokedByDestroy=${tokenRevoked === null})`,
   );
 }
 

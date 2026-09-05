@@ -9,11 +9,9 @@ import {
   type SessionBudget,
 } from '../../core/sandbox/quota_policy.ts';
 import {
-  SANDBOX_AGENT_OP_KINDS,
   SANDBOX_MAX_SESSIONS_PER_OWNER,
   SANDBOX_SESSION_LIVE_STATUSES,
   SANDBOX_SESSION_MAX_LIFETIME_MS,
-  type SandboxAgentOpKind,
 } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
 import { toJson } from '../../db/sql.ts';
@@ -344,10 +342,10 @@ export async function resumeSessionSlot(
   });
 }
 
-/** Terminal: revoke the gateway keys + mark destroyed + revoke tokens +
- * drop the checkpoint. The single bottom of EVERY destroy — the admin
- * Destroy, the watchdog's phantom heal and ended-run reclaim, the session
- * teardown — so credential reclaim cannot be missed on one of them. */
+/** Terminal: revoke the gateway keys + mark destroyed + revoke tokens. The
+ * single bottom of EVERY destroy — the admin Destroy, the watchdog's
+ * phantom heal and ended-run reclaim, the session teardown — so credential
+ * reclaim cannot be missed on one of them. */
 export async function markSessionDestroyed(
   sql: Sql,
   args: { organizationId: string; sessionId: string },
@@ -377,10 +375,6 @@ export async function markSessionDestroyed(
       UPDATE app.sandbox_session_tokens SET revoked_at_ms = ${now}
       WHERE session_id = ${args.sessionId} AND revoked_at_ms IS NULL
     `;
-      await tx`
-      DELETE FROM app.sandbox_agent_checkpoints
-      WHERE session_id = ${args.sessionId}
-    `;
       return true;
     })
     .then(async (destroyed) => {
@@ -394,19 +388,6 @@ export async function markSessionDestroyed(
       }
       return destroyed;
     });
-}
-
-/** Owner lifecycle cascade (thread delete, workflow-run end, erasure). */
-export async function listLiveSessionsForOwner(
-  sql: Sql,
-  ownerType: string,
-  ownerId: string,
-): Promise<SessionRow[]> {
-  return sql<SessionRow[]>`
-    SELECT ${sql.unsafe(SESSION_COLUMNS)} FROM app.sandbox_sessions
-    WHERE owner_type = ${ownerType} AND owner_id = ${ownerId}
-      AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
-  `;
 }
 
 // --- session tokens ---------------------------------------------------------
@@ -477,104 +458,7 @@ export async function getSessionTokenByHash(
   return row;
 }
 
-export async function revokeTokensForSession(
-  sql: Sql,
-  organizationId: string,
-  sessionId: string,
-): Promise<number> {
-  const rows = await sql<{ id: string }[]>`
-    UPDATE app.sandbox_session_tokens SET revoked_at_ms = ${Date.now()}
-    WHERE session_id = ${sessionId} AND org_id = ${organizationId}
-      AND revoked_at_ms IS NULL
-    RETURNING id
-  `;
-  return rows.length;
-}
-
 // --- op rows ----------------------------------------------------------------
-
-export async function startSessionOp(
-  sql: Sql,
-  args: {
-    organizationId: string;
-    sessionId: string;
-    execId: string;
-    kind: SandboxAgentOpKind;
-    threadId?: string;
-    userId?: string;
-    agentSlug?: string;
-    modelRef?: string;
-    deadlineMs?: number;
-  },
-): Promise<string> {
-  const now = Date.now();
-  const rows = await sql<{ id: string }[]>`
-    INSERT INTO app.sandbox_session_ops (
-      org_id, session_id, thread_id, exec_id, kind, status, user_id,
-      agent_slug, model_ref, deadline_ms, heartbeat_at_ms, started_at_ms
-    ) VALUES (
-      ${args.organizationId}, ${args.sessionId}, ${args.threadId ?? null},
-      ${args.execId}, ${args.kind}, 'running', ${args.userId ?? null},
-      ${args.agentSlug ?? null}, ${args.modelRef ?? null},
-      ${args.deadlineMs ?? null}, ${now}, ${now}
-    )
-    ON CONFLICT (session_id, exec_id) DO UPDATE SET heartbeat_at_ms = ${now}
-    RETURNING id
-  `;
-  const id = rows[0]?.id;
-  if (!id) throw new Error('op insert failed');
-  return id;
-}
-
-/** Throttled live-progress flush (the caller owns the throttle). */
-export async function flushOpProgress(
-  sql: Sql,
-  args: {
-    sessionId: string;
-    execId: string;
-    progressText?: string;
-    liveTimeline?: unknown;
-    lastSeq?: number;
-    agentSessionId?: string;
-  },
-): Promise<void> {
-  const now = Date.now();
-  await sql`
-    UPDATE app.sandbox_session_ops SET
-      progress_text = coalesce(${args.progressText ?? null}, progress_text),
-      live_timeline = coalesce(${args.liveTimeline === undefined ? null : sql.json(toJson(args.liveTimeline))}, live_timeline),
-      last_seq = coalesce(${args.lastSeq ?? null}, last_seq),
-      agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
-      heartbeat_at_ms = ${now}, last_event_at_ms = ${now}
-    WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
-      AND status = 'running'
-  `;
-}
-
-/** Settle an op exactly once; a second finalize is a no-op. */
-export async function finalizeSessionOp(
-  sql: Sql,
-  args: {
-    sessionId: string;
-    execId: string;
-    status: 'completed' | 'failed' | 'cancelled';
-    exitCode?: number;
-    agentResultStatus?: string;
-  },
-): Promise<boolean> {
-  const now = Date.now();
-  const rows = await sql<{ id: string }[]>`
-    UPDATE app.sandbox_session_ops SET
-      status = ${args.status},
-      exit_code = ${args.exitCode ?? null},
-      agent_result_status = ${args.agentResultStatus ?? null},
-      finished_at_ms = ${now}, finalized_at_ms = ${now}
-    WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
-      AND finalized_at_ms IS NULL
-    RETURNING id
-  `;
-  return rows.length > 0;
-}
 
 export interface SessionOpRow {
   id: string;
@@ -608,120 +492,6 @@ export async function listRunningOpsBySession(
   return sql<SessionOpRow[]>`
     SELECT ${sql.unsafe(OP_COLUMNS)} FROM app.sandbox_session_ops
     WHERE session_id = ${sessionId} AND status = 'running'
-  `;
-}
-
-/** Latest agent-run op for a thread — the live-progress read. */
-export async function latestAgentRunForThread(
-  sql: Sql,
-  threadId: string,
-): Promise<SessionOpRow | null> {
-  const rows = await sql<SessionOpRow[]>`
-    SELECT ${sql.unsafe(OP_COLUMNS)} FROM app.sandbox_session_ops
-    WHERE thread_id = ${threadId} AND kind = ANY(${[...SANDBOX_AGENT_OP_KINDS]})
-    ORDER BY started_at_ms DESC
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
-}
-
-/** Watchdog scan: running ops whose heartbeat went stale. */
-export async function listAbandonedOps(
-  sql: Sql,
-  staleBeforeMs: number,
-): Promise<SessionOpRow[]> {
-  return sql<SessionOpRow[]>`
-    SELECT ${sql.unsafe(OP_COLUMNS)} FROM app.sandbox_session_ops
-    WHERE status = 'running' AND heartbeat_at_ms < ${staleBeforeMs}
-  `;
-}
-
-// --- workflow re-attach checkpoints ------------------------------------------
-
-export interface AgentCheckpoint {
-  sessionId: string;
-  execId: string;
-  lastSeq: number;
-  agentSessionId?: string;
-  agentResultSeen?: boolean;
-  agentIdle?: boolean;
-  pendingTaskIds?: string[];
-  apiErrorSeen?: boolean;
-  taskRunId?: string;
-  startedAt: number;
-  continuationCount: number;
-}
-
-export async function saveAgentCheckpoint(
-  sql: Sql,
-  organizationId: string,
-  checkpoint: AgentCheckpoint,
-): Promise<void> {
-  const now = Date.now();
-  await sql`
-    INSERT INTO app.sandbox_agent_checkpoints (
-      session_id, org_id, exec_id, last_seq, agent_session_id,
-      agent_result_seen, agent_idle, pending_task_ids, api_error_seen,
-      task_run_id, started_at_ms, continuation_count, updated_at_ms
-    ) VALUES (
-      ${checkpoint.sessionId}, ${organizationId}, ${checkpoint.execId},
-      ${checkpoint.lastSeq}, ${checkpoint.agentSessionId ?? null},
-      ${checkpoint.agentResultSeen ?? null}, ${checkpoint.agentIdle ?? null},
-      ${checkpoint.pendingTaskIds ?? null},
-      ${checkpoint.apiErrorSeen ?? null}, ${checkpoint.taskRunId ?? null},
-      ${checkpoint.startedAt}, ${checkpoint.continuationCount}, ${now}
-    )
-    ON CONFLICT (session_id) DO UPDATE SET
-      exec_id = EXCLUDED.exec_id, last_seq = EXCLUDED.last_seq,
-      agent_session_id = EXCLUDED.agent_session_id,
-      agent_result_seen = EXCLUDED.agent_result_seen,
-      agent_idle = EXCLUDED.agent_idle,
-      pending_task_ids = EXCLUDED.pending_task_ids,
-      api_error_seen = EXCLUDED.api_error_seen,
-      task_run_id = EXCLUDED.task_run_id,
-      continuation_count = EXCLUDED.continuation_count,
-      updated_at_ms = ${now}
-  `;
-}
-
-export async function loadAgentCheckpoint(
-  sql: Sql,
-  organizationId: string,
-  sessionId: string,
-): Promise<AgentCheckpoint | null> {
-  const rows = await sql<
-    (Omit<AgentCheckpoint, 'pendingTaskIds'> & {
-      pendingTaskIds: string[] | null;
-    })[]
-  >`
-    SELECT session_id AS "sessionId", exec_id AS "execId",
-           last_seq::float8 AS "lastSeq",
-           agent_session_id AS "agentSessionId",
-           agent_result_seen AS "agentResultSeen", agent_idle AS "agentIdle",
-           pending_task_ids AS "pendingTaskIds",
-           api_error_seen AS "apiErrorSeen", task_run_id AS "taskRunId",
-           started_at_ms::float8 AS "startedAt",
-           continuation_count AS "continuationCount"
-    FROM app.sandbox_agent_checkpoints
-    WHERE session_id = ${sessionId} AND org_id = ${organizationId}
-    LIMIT 1
-  `;
-  const row = rows[0];
-  if (!row) return null;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the row's columns mirror AgentCheckpoint field-for-field; null-stripping restores the optional shape
-  return Object.fromEntries(
-    Object.entries(row).filter(([, value]) => value !== null),
-  ) as unknown as AgentCheckpoint;
-}
-
-export async function deleteAgentCheckpoint(
-  sql: Sql,
-  organizationId: string,
-  sessionId: string,
-): Promise<void> {
-  await sql`
-    DELETE FROM app.sandbox_agent_checkpoints
-    WHERE session_id = ${sessionId} AND org_id = ${organizationId}
   `;
 }
 
