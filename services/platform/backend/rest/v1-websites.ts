@@ -16,6 +16,7 @@ import {
   patchWebsite,
   searchWebsiteContent,
   WebsiteError,
+  websiteDomainImmutableError,
   type WebsiteRow,
 } from '../domains/websites/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
@@ -231,13 +232,9 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         400,
       );
     }
-    // The domain re-parses `domain` itself; refusing the unparseable here
-    // keeps its TypeError out of the 500 handler.
-    if (
-      typeof body.domain === 'string' &&
-      parseWebsiteDomain(body.domain) === null
-    ) {
-      return restJsonError(c, 'Invalid domain', 400);
+    if (body.domain !== undefined) {
+      const refusal = websiteDomainImmutableError();
+      return c.json({ error: refusal.message, code: refusal.code }, 400);
     }
     const title = boundedString(body.title, MAX_TITLE);
     const description = boundedString(body.description, MAX_DESCRIPTION);
@@ -252,7 +249,6 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       await patchWebsite(deps.sql, {
         websiteId: website.id,
         callerOrgId: c.get('organizationId'),
-        ...(typeof body.domain === 'string' ? { domain: body.domain } : {}),
         ...(title !== undefined ? { title } : {}),
         ...(description !== undefined ? { description } : {}),
         ...(typeof body.scanInterval === 'string'

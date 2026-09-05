@@ -84,6 +84,14 @@ export class WebsiteError extends Error {
   }
 }
 
+/** The refusal both write doors answer when a patch carries `domain`. */
+export function websiteDomainImmutableError(): WebsiteError {
+  return new WebsiteError(
+    'WEBSITE_DOMAIN_IMMUTABLE',
+    'domain is immutable after create; delete the website and re-add it under the new domain',
+  );
+}
+
 function assertScanInterval(scanInterval: string): void {
   if (!isValidScanInterval(scanInterval)) {
     throw new WebsiteError(
@@ -268,16 +276,19 @@ export async function createWebsiteRow(
 /**
  * Patch a row (the 0.4 `updateWebsite` semantics): metadata SHALLOW-MERGES
  * over the stored object (null values persist as explicit clears — the
- * scheduling accessors treat them as absent), a changed domain normalizes
- * and re-checks the (org, domain) uniqueness, `callerOrgId` closes the
+ * scheduling accessors treat them as absent), `callerOrgId` closes the
  * cross-tenant IDOR for REST/agent callers.
+ *
+ * The domain is IMMUTABLE after create: the corpus registration
+ * (`registerDomain`, memberships, frontier, chunks) is keyed by it, so a
+ * renamed row would never claim a scan again and its old registration would
+ * never be released — the doors answer 400 and the user deletes + re-adds.
  */
 export async function patchWebsite(
   db: Sql | TransactionSql,
   args: {
     websiteId: string;
     callerOrgId?: string;
-    domain?: string;
     kind?: 'site' | 'list';
     title?: string;
     description?: string;
@@ -299,25 +310,6 @@ export async function patchWebsite(
     throw new WebsiteError('WEBSITE_NOT_FOUND', 'Website not found', 404);
   }
 
-  let domain = existing.domain;
-  if (args.domain !== undefined) {
-    domain = toWebsiteDomain(args.domain);
-    if (domain !== existing.domain) {
-      const conflict = await getWebsiteByDomain(
-        db,
-        existing.organizationId,
-        domain,
-      );
-      if (conflict && conflict.id !== args.websiteId) {
-        throw new WebsiteError(
-          'DUPLICATE_DOMAIN',
-          `Website with domain ${domain} already exists`,
-          409,
-        );
-      }
-    }
-  }
-
   const metadata =
     args.metadata !== undefined
       ? { ...existing.metadata, ...args.metadata }
@@ -325,7 +317,6 @@ export async function patchWebsite(
 
   const rows = await db<WebsiteRow[]>`
     UPDATE app.websites SET
-      domain = ${domain},
       kind = ${args.kind !== undefined ? args.kind : db.unsafe('kind')},
       title = ${args.title !== undefined ? args.title : db.unsafe('title')},
       description = ${args.description !== undefined ? args.description : db.unsafe('description')},

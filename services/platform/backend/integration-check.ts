@@ -24008,6 +24008,22 @@ async function checkWebsitesCrawl(
       method: 'PATCH',
       body: { scanInterval: '1d' },
     });
+    // The domain is immutable after create: a rename would orphan the
+    // corpus registration (keyed by domain) and never scan again, so both
+    // doors refuse it before touching the row.
+    const restPatchDomain = await v1(`/websites/${websiteId}`, {
+      method: 'PATCH',
+      body: { domain: 'renamed.example', title: 'Renamed' },
+    });
+    const appPatchDomain = await fetch(
+      `${base}/api/app/websites/${websiteId}?orgId=${orgId}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ domain: 'renamed.example' }),
+      },
+    );
+    const rowAfterPatch = await websites.getWebsite(sql, websiteId);
     const restPages = z
       .object({ total: z.number() })
       .safeParse(await (await v1(`/websites/${websiteId}/pages`)).json());
@@ -24049,6 +24065,10 @@ async function checkWebsitesCrawl(
         restList.success &&
         restList.data.page.length >= 2 &&
         restPatch.status === 204 &&
+        restPatchDomain.status === 400 &&
+        appPatchDomain.status === 400 &&
+        rowAfterPatch?.domain === DOMAIN &&
+        rowAfterPatch.title !== 'Renamed' &&
         restPages.success &&
         // 3 again: step 2b brought the 404'd page back.
         restPages.data.total === 3 &&
@@ -24059,7 +24079,7 @@ async function checkWebsitesCrawl(
         restDeleteSite.status === 204 &&
         Number(corpusGone[0]?.count ?? '9') === 0 &&
         Number(rowsGone[0]?.count ?? '9') === 0,
-      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/204 pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
+      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/204 patchDomain=${restPatchDomain.status}/${appPatchDomain.status}(want 400/400) domainKept=${rowAfterPatch?.domain === DOMAIN} pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
     );
   } finally {
     globalThis.fetch = realFetch;

@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -24,6 +25,7 @@ import {
   syncScanIntervalToCorpus,
   syncWebsiteStatuses,
   WebsiteError,
+  websiteDomainImmutableError,
   type WebsiteRow,
 } from './service.ts';
 
@@ -67,7 +69,6 @@ const createBodySchema = z.object({
 });
 
 const updateBodySchema = z.object({
-  domain: z.string().min(1).optional(),
   title: z.string().optional(),
   description: z.string().optional(),
   scanInterval: z.string().min(1).optional(),
@@ -173,11 +174,13 @@ export function createWebsiteRoutes(deps: {
   });
 
   app.patch('/:websiteId', async (c) => {
-    const body = updateBodySchema.safeParse(
-      await c.req.json().catch(() => null),
-    );
+    const raw: unknown = await c.req.json().catch(() => null);
+    const body = updateBodySchema.safeParse(raw);
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
+      if (isRecord(raw) && raw.domain !== undefined) {
+        throw websiteDomainImmutableError();
+      }
       const website = await loadOwnedWebsite(deps.sql, c);
       if (
         body.data.scanInterval !== undefined &&
@@ -192,7 +195,6 @@ export function createWebsiteRoutes(deps: {
       const updated = await patchWebsite(deps.sql, {
         websiteId: website.id,
         callerOrgId: c.get('orgId'),
-        ...(body.data.domain !== undefined ? { domain: body.data.domain } : {}),
         ...(body.data.title !== undefined ? { title: body.data.title } : {}),
         ...(body.data.description !== undefined
           ? { description: body.data.description }

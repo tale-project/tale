@@ -2289,8 +2289,11 @@ curl -H "Authorization: Bearer tale_..." \\
         },
         WebsitePatch: {
           type: 'object',
+          description:
+            'The domain is immutable after create (the crawl registration ' +
+            'is keyed by it): a body carrying `domain` is refused with 400 — ' +
+            'delete the website and re-add it under the new domain.',
           properties: {
-            domain: str,
             title: str,
             description: str,
             scanInterval: str,

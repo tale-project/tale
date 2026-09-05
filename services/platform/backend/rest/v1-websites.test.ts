@@ -111,13 +111,24 @@ describe('website domain and field validation', () => {
     },
   );
 
-  it.each(['::', 'https://', 'a b'])(
-    'PATCH /websites/{id} refuses the unparseable domain %j with 400',
+  // The domain is immutable after create: the corpus registration is
+  // keyed by it, so a renamed row never claims a scan again and its old
+  // registration is never released. Every `domain` — parseable or not —
+  // is refused before the row is touched.
+  it.each(['renamed.example', 'https://renamed.example/x', '::', 'a b'])(
+    'PATCH /websites/{id} refuses domain %j as immutable with 400',
     async (domain) => {
       const { sql, queries } = fakeSql();
-      const res = await send(sql, '/websites/w-1', 'PATCH', { domain });
+      const res = await send(sql, '/websites/w-1', 'PATCH', {
+        domain,
+        title: 'still fine',
+      });
       expect(res.status).toBe(400);
-      expect(await res.json()).toEqual({ error: 'Invalid domain' });
+      expect(await res.json()).toEqual({
+        error:
+          'domain is immutable after create; delete the website and re-add it under the new domain',
+        code: 'WEBSITE_DOMAIN_IMMUTABLE',
+      });
       expect(queries.some((q) => q.text.startsWith('UPDATE'))).toBe(false);
     },
   );
