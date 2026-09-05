@@ -30,6 +30,29 @@ const LEGACY_OFFICE_STREAM_BY_EXTENSION: Readonly<Record<string, string[]>> = {
   xls: ['Workbook', 'Book'],
 };
 
+/**
+ * The UTF-8 text family `file-type` has no signature for, split by the
+ * requested extension — every text-typed member of
+ * `DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS` (the upload lane's floor) must appear
+ * here, or a document of that type uploads fine and can never be replaced.
+ */
+const UTF8_TEXT_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
+  csv: 'text/csv',
+  txt: 'text/plain',
+  md: 'text/markdown',
+  json: 'application/json',
+  yaml: 'application/x-yaml',
+  yml: 'application/x-yaml',
+  py: 'text/x-python',
+};
+
+/**
+ * Opaque vendor containers the upload lane admits as blobs: no signature to
+ * check, no parser, no preview — the bytes are attested only as "not a
+ * document of another format" and stored as an octet stream.
+ */
+const OPAQUE_CONTAINER_EXTENSIONS: ReadonlySet<string> = new Set(['ac2']);
+
 function invalidType() {
   return new AppError({
     code: 'UPLOAD_MIME_MISMATCH',
@@ -159,11 +182,13 @@ function isUtf8Text(bytes: Uint8Array): boolean {
 /**
  * Derive the authoritative MIME from uploaded bytes.
  *
- * `file-type` owns binary signatures and ZIP-container inspection. The two
+ * `file-type` owns binary signatures and ZIP-container inspection. The
  * families it intentionally cannot distinguish are handled narrowly:
- * UTF-8 text is split into CSV/TXT by the requested extension, and legacy
- * Compound File Binary Office documents must contain their format-specific
- * directory stream name before the corresponding MIME is accepted.
+ * UTF-8 text is split by the requested extension
+ * (`UTF8_TEXT_MIME_BY_EXTENSION`), legacy Compound File Binary Office
+ * documents must contain their format-specific directory stream name before
+ * the corresponding MIME is accepted, and an opaque vendor container is
+ * admitted only when no known signature claims the bytes.
  */
 export async function attestDocumentContentType(
   bytes: Uint8Array,
@@ -202,12 +227,13 @@ export async function attestDocumentContentType(
     return legacyMime;
   }
 
-  if (
-    (extension === 'csv' || extension === 'txt') &&
-    detected === undefined &&
-    isUtf8Text(bytes)
-  ) {
-    return extension === 'csv' ? 'text/csv' : 'text/plain';
+  const textMime = UTF8_TEXT_MIME_BY_EXTENSION[extension];
+  if (textMime !== undefined && detected === undefined && isUtf8Text(bytes)) {
+    return textMime;
+  }
+
+  if (OPAQUE_CONTAINER_EXTENSIONS.has(extension) && detected === undefined) {
+    return 'application/octet-stream';
   }
 
   throw invalidType();

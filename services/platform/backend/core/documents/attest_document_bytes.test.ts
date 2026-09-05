@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 
+import { DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS } from '../../../lib/shared/file-types';
 import { attestDocumentContentType } from './attest_document_bytes';
 
 const encoder = new TextEncoder();
@@ -102,7 +103,7 @@ function legacyMarkerSpoof(streamName: string): Uint8Array {
 }
 
 describe('replacement byte-derived MIME attestation', () => {
-  it.each([
+  const attested: [string, Uint8Array, string][] = [
     [
       'file.pdf',
       new Uint8Array([
@@ -117,6 +118,11 @@ describe('replacement byte-derived MIME attestation', () => {
     ],
     [
       'image.jpg',
+      new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 0, 4, 0, 0, 0xff, 0xd9]),
+      'image/jpeg',
+    ],
+    [
+      'photo.jpeg',
       new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 0, 4, 0, 0, 0xff, 0xd9]),
       'image/jpeg',
     ],
@@ -141,6 +147,19 @@ describe('replacement byte-derived MIME attestation', () => {
     ],
     ['notes.txt', encoder.encode('plain UTF-8 text\n'), 'text/plain'],
     ['rows.csv', encoder.encode('name,value\nalpha,1\n'), 'text/csv'],
+    // The text-typed working files the upload lane admits: a controlled
+    // record of these types must be replaceable, so attest must know them.
+    ['report.md', encoder.encode('# Report\n\nDone.\n'), 'text/markdown'],
+    ['seed.json', encoder.encode('{"a":1}\n'), 'application/json'],
+    ['policy.yaml', encoder.encode('key: value\n'), 'application/x-yaml'],
+    ['policy.yml', encoder.encode('key: value\n'), 'application/x-yaml'],
+    ['transform.py', encoder.encode('print("ok")\n'), 'text/x-python'],
+    // The opaque vendor container: no signature to check, stored as bytes.
+    [
+      'ledger.ac2',
+      new Uint8Array([0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77]),
+      'application/octet-stream',
+    ],
     ['legacy.doc', legacyOfficeBytes('WordDocument'), 'application/msword'],
     ['legacy.xls', legacyOfficeBytes('Workbook'), 'application/vnd.ms-excel'],
     [
@@ -148,10 +167,32 @@ describe('replacement byte-derived MIME attestation', () => {
       legacyOfficeBytes('PowerPoint Document'),
       'application/vnd.ms-powerpoint',
     ],
-  ])('attests %s from its bytes', async (fileName, bytes, expected) => {
-    await expect(attestDocumentContentType(bytes, fileName)).resolves.toBe(
-      expected,
+  ];
+
+  it.each(attested)(
+    'attests %s from its bytes',
+    async (fileName, bytes, expected) => {
+      await expect(attestDocumentContentType(bytes, fileName)).resolves.toBe(
+        expected,
+      );
+    },
+  );
+
+  it('knows every extension the upload lane admits', () => {
+    // The upload lane never attests, so a type it admits but this module
+    // does not know uploads fine and can never be replaced: the controlled
+    // record is frozen for good. Every allowed extension needs a passing
+    // fixture above (the Office ZIP family has its own cases below).
+    const covered = new Set(
+      attested.map(([fileName]) => fileName.split('.').at(-1)),
     );
+    for (const extension of ['docx', 'pptx', 'xlsx', 'odt']) {
+      covered.add(extension);
+    }
+    const missing = [...DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS].filter(
+      (extension) => !covered.has(extension),
+    );
+    expect(missing).toEqual([]);
   });
 
   it.each([
@@ -188,6 +229,9 @@ describe('replacement byte-derived MIME attestation', () => {
     ['spoofed.docx', encoder.encode('PK\u0003\u0004not an Office package')],
     ['spoofed.doc', legacyMarkerSpoof('WordDocument')],
     ['spoofed.txt', new Uint8Array([0, 1, 2, 3, 4])],
+    ['spoofed.md', new Uint8Array([0, 1, 2, 3, 4])],
+    ['spoofed.json', new Uint8Array([0xff, 0xd8, 0xff, 0xdb])],
+    ['spoofed.ac2', new Uint8Array([0xff, 0xd8, 0xff, 0xdb])],
     ['wrong-extension.pdf', new Uint8Array([0xff, 0xd8, 0xff, 0xdb])],
   ])('rejects spoofed bytes for %s', async (fileName, bytes) => {
     await expect(attestDocumentContentType(bytes, fileName)).rejects.toThrow(
