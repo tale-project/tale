@@ -1,6 +1,6 @@
 ---
 title: Policies and limits
-description: Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, role, or individual API key. Admins and Owners read this when a workload is over budget or when a feature needs a tighter blast radius.
+description: Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, role, or individual API key.
 ---
 
 Policies and limits is the surface where you cap what your members and agents can consume. Budgets cap tokens, cost, and requests per billing period; feature controls cap the context window per scope; upload policy gates the file types and sizes a member can attach; retention policy decides how long each data type lives before cleanup. Admins and Owners read this page when a workload is over budget, when one group's replies should run with a smaller context window, or when a regulator names a retention window that differs from the default.

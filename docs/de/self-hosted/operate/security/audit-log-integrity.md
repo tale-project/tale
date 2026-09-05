@@ -1,6 +1,6 @@
 ---
 title: Audit-Log-Integritätswarnungen
-description: Wie du reagierst, wenn die tägliche Integritätsprüfung des Audit-Logs eine Warnung auslöst — den Befund lesen, Manipulation von einer harmlosen Konfigurationslücke unterscheiden und Beweise sichern.
+description: Wie du reagierst, wenn die tägliche Integritätsprüfung des Audit-Logs eine Warnung auslöst.
 ---
 
 Tale verifiziert die Audit-Log-Hash-Kette jeder Organisation nach Zeitplan und löst in dem Moment eine Warnung aus, in dem eine Verifizierung fehlschlägt. Diese Seite ist das Runbook für den Operator oder Admin, der diese Warnung erhalten hat: wie du den Befund liest, wie du ein echtes Manipulationssignal von einem gewöhnlichen Aufbewahrungs- oder Konfigurationsartefakt trennst und was du sicherst, bevor du irgendetwas anfasst. Die Warnung ist absichtlich laut, weil ein echter Bruch selten und ernst ist — aber die meisten Brüche, die in der Praxis feuern, haben eine alltägliche Erklärung, also besteht die Arbeit darin, diese methodisch auszuschließen, statt in Panik zu verfallen.

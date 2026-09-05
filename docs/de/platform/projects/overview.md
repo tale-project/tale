@@ -1,6 +1,6 @@
 ---
 title: Projekte
-description: Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und Aufgaben rund um ein Stück Arbeit bündelt. Diese Übersicht führt durch die Projekt-Tabs und verweist auf die Seite, die den jeweiligen Tab vertieft.
+description: Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und Aufgaben rund um ein Stück Arbeit bündelt.
 ---
 
 Ein Projekt ist ein geteilter Arbeitsbereich, der alles bündelt, was ein Stück Arbeit braucht — die Chats, die Referenzdateien, die Anweisungen und das Aufgaben-Board —, damit der Kontext der Arbeit folgt, statt in jeden Chat neu kopiert zu werden. Wo ein einzelner Chat eine Frage beantwortet, ist ein Projekt der Ort, an dem ein Team einen Kontakt, einen Launch oder eine länger laufende Untersuchung in Bewegung hält.

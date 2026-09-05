@@ -1,6 +1,6 @@
 ---
 title: Demandes des personnes concernées
-description: Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, téléversements et préférences. Les Administrateurs et Propriétaires lisent ceci quand un utilisateur dépose une demande ou quand une échéance SLA approche.
+description: Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, téléversements et préférences.
 ---
 
 Demandes des personnes concernées est le workflow que Tale livre pour honorer l’article 17 du RGPD (droit à l’effacement) et le droit équivalent CCPA sous la loi californienne. Chaque demande devient un reçu : il nomme la personne concernée, le code de motif, l’échéance SLA et la cascade de lignes que le système a effacées dans les threads, documents, téléversements et les autres lignes qui identifient la personne. Les Administrateurs et Propriétaires lisent cette page quand une personne dépose une demande, quand une échéance approche, ou quand un audit demande le reçu d’un effacement passé.

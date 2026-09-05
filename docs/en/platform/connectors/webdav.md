@@ -1,6 +1,6 @@
 ---
 title: WebDAV
-description: Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client — generate an app-password under Settings > API > WebDAV and connect from your device.
+description: Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client.
 ---
 
 WebDAV turns Tale's document store into a remote folder you mount like any shared network drive. The backing store is the same one the Document Hub shows — what you drop into the mounted folder appears in the UI, and vice versa. Everything you need is on one panel: **Settings > API > WebDAV** carries the connection details and the app-password generator.

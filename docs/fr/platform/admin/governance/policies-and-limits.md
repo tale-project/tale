@@ -1,6 +1,6 @@
 ---
 title: Politiques et limites
-description: Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d’upload, la génération d’images et l’accès aux fonctionnalités — cadrés par utilisateur, équipe, rôle ou clé API individuelle. Les Administrateurs et Propriétaires lisent ceci quand une charge dépasse le budget ou quand une fonctionnalité a besoin d’un rayon plus serré.
+description: Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d’upload, la génération d’images et l’accès aux fonctionnalités.
 ---
 
 Politiques et limites est la surface où tu plafonnes ce que tes membres et agents peuvent consommer. Les budgets plafonnent les tokens, le coût et les requêtes par période de facturation ; les contrôles de fonctionnalité plafonnent la fenêtre de contexte par scope ; la politique d’upload régit les types et tailles de fichiers qu’un membre peut joindre ; la politique de rétention décide combien de temps chaque type de donnée vit avant le nettoyage. Les Administrateurs et Propriétaires lisent cette page quand une charge dépasse le budget, quand un groupe doit travailler avec une fenêtre de contexte plus petite, ou quand un régulateur nomme une fenêtre de rétention différente du défaut.

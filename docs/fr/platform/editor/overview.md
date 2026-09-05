@@ -1,6 +1,6 @@
 ---
 title: Éditeur
-description: Éditeur est la surface de construction — créer agents, projets, automatisations et la connaissance dans laquelle ils s’étendent. Les pages ici sont ce que fait au quotidien une personne de rôle Éditeur.
+description: Éditeur est la surface de construction — créer agents, projets, automatisations et la connaissance dans laquelle ils s’étendent.
 ---
 
 Éditeur est la surface de construction de Tale. Là où Membre est le rôle qui utilise le produit et Administrateur le rôle qui le gouverne, Éditeur est le rôle qui crée les choses que tout le monde consomme — agents, projets, automatisations, les documents et données structurées que tient la base de connaissances, les prompts enregistrés pour l’équipe. Les personnes de rôle Éditeur voient l’ensemble complet d’onglets de construction sans la surface gouvernance admin et sans les leviers réservés aux développeurs.

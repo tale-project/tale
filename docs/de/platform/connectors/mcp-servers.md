@@ -1,6 +1,6 @@
 ---
 title: MCP-Server
-description: Externe MCP-Server zu registrieren, damit Agenten sie aufrufen, gibt es in dieser Version nicht — Tales einzige MCP-Oberfläche ist der eingehende Endpoint unter Einstellungen > API > MCP.
+description: Externe MCP-Server zu registrieren, damit Agenten sie aufrufen, gibt es in dieser Version nicht.
 ---
 
 Diese Seite hat früher ein Formular **MCP-Server hinzufügen** beschrieben: einen Transport, eine Authentifizierungsmethode, eine Liste erlaubter Agenten und eine Tabelle erkannter Tools mit Genehmigungs-Flags pro Tool. Nichts davon gibt es in dieser Version von Tale. Es gibt kein Panel für MCP-Server, kein Registrierungsformular und keinen Werkzeugkasten der Agenten, in den sich ein externer Server einreihen könnte — eine Capability, die zu einem externen MCP-Tool führen würde, lehnt die Laufzeit mit einer lesbaren Begründung ab. Ausgeliefert wird die Gegenrichtung: Tale ist selbst ein MCP-Server, mit dem sich Clients von außen verbinden.

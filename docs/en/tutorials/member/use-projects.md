@@ -1,6 +1,6 @@
 ---
 title: Use projects to bundle files and chats
-description: Turn a one-off chat into a shared workspace that keeps the same files, instructions, and conversations together — and stops you from re-uploading the same documents every time.
+description: Turn a one-off chat into a shared workspace that keeps the same files, instructions, and conversations together.
 ---
 
 A project is what you reach for the second time you find yourself pasting the same context into a chat. It bundles files, instructions, and chats around one body of work — a contact, a launch, a long investigation — so every new conversation starts with the context already loaded. This walk takes a fresh project from "I keep re-uploading the same brief" to "every chat inside this project already knows the brief" on one instance.

@@ -1,6 +1,6 @@
 ---
 title: API reference
-description: How to call Tale from outside — authentication, the endpoint inventory, pagination, the async run and turn loops, and the error model. The single source of truth for the REST surface.
+description: How to call Tale from outside — authentication, the endpoint inventory, pagination, the async run and turn loops, and the error model.
 i18nLintExclude:
   - terminology-loanword
 ---

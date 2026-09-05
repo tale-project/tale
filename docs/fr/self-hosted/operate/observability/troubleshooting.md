@@ -1,6 +1,6 @@
 ---
 title: Dépannage
-description: Index par symptôme pour les problèmes que les opérateurs ont réellement rencontrés sur des instances Tale — ce que l'utilisateur rapporte, ce qui est cassé et quoi faire à ce sujet.
+description: Index par symptôme pour les problèmes que les opérateurs ont réellement rencontrés sur des instances Tale.
 ---
 
 Cette page est la recherche par symptôme quand quelque chose ne va pas, là, tout de suite. Chaque section commence par ce que l'utilisateur rapporte réellement — ce que le navigateur affiche, sur quoi l'agent échoue, ce que l'écran de téléversement dit — et remonte à la cause et au fix. Tout ce qui n'est pas listé ici est candidat pour une nouvelle section dès qu'il s'est présenté deux fois.

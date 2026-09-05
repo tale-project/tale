@@ -1,6 +1,6 @@
 ---
 title: Enterprise SSO and provisioning
-description: Configure single sign-on (OIDC, OAuth2, SAML 2.0) and SCIM user and group provisioning for your organisation. Step-by-step setup for Microsoft Entra ID, Google, generic OIDC, and SAML, plus role mapping, group-to-team sync, and deactivation. Read this when wiring enterprise identity for the org.
+description: Configure single sign-on (OIDC, OAuth2, SAML 2.0) and SCIM user and group provisioning for your organisation.
 ---
 
 Enterprise SSO lets your members sign in with your identity provider (IdP) instead of a Tale password, and SCIM lets the IdP provision, update, and deactivate members and groups automatically — no manual invites. One connection per organisation carries the sign-in protocol, the provisioning policy, and the SCIM token together. Everything lives on one page: **Settings > Enterprise SSO** (admins only).

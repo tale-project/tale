@@ -1,6 +1,6 @@
 ---
 title: Redakteur
-description: Redakteur ist die Bau-Oberfläche — Agents, Projekte, Automatisierungen und das Wissen erstellen, in das sie reichen. Die Seiten hier sind das, was eine Person mit Redakteurs-Rolle tagtäglich tut.
+description: Redakteur ist die Bau-Oberfläche — Agents, Projekte, Automatisierungen und das Wissen erstellen, in das sie reichen.
 ---
 
 Redakteur ist die Bau-Oberfläche von Tale. Während Mitglied die Rolle ist, die das Produkt nutzt, und Admin die Rolle ist, die es steuert, ist Redakteur die Rolle, die die Dinge erstellt, die alle anderen nutzen — Agents, Projekte, Automatisierungen, die Dokumente und strukturierten Daten, die die Wissensdatenbank hält, die Prompts, die fürs Team gespeichert sind. Personen mit Redakteurs-Rolle sehen das volle Set an Bau-Tabs ohne die Admin-Governance-Oberfläche und ohne die nur-Entwickler-Hebel.

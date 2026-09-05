@@ -1,6 +1,6 @@
 ---
 title: Documents
-description: L’onglet Documents est l’endroit où les éditeurs téléversent des fichiers dans la base de connaissances, suivent leur indexation et gèrent leur cycle de vie — sources de téléversement, statut RAG, portée par équipe, dossiers et réindexation.
+description: L’onglet Documents est l’endroit où les éditeurs téléversent des fichiers dans la base de connaissances, suivent leur indexation et gèrent leur cycle de vie.
 ---
 
 L’onglet Documents est la surface fichiers de la base de connaissances. Les éditeurs téléversent des fichiers, Tale fait passer chacun par le pipeline d’indexation — extraire le texte, le découper, calculer les embeddings, les stocker — et les agents dont le périmètre de connaissances couvre le document récupèrent les passages pertinents au moment de répondre et les citent. Cette page couvre le côté opérateur : le téléversement, la colonne de statut, la portée par équipe, les dossiers et le cycle de vie d’un document.

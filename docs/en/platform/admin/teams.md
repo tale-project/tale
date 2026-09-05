@@ -1,6 +1,6 @@
 ---
 title: Teams
-description: Teams are named groups of members that share access to documents, projects, skills, and conversations. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer.
+description: Teams are named groups of members that share access to documents, projects, skills, and conversations.
 ---
 
 A team is a named group of members that shares access to documents, projects, skills, and conversations. Where roles define what a person _can_ do, teams define which slice of the org's data that person works in. Most orgs end up with a handful of teams — support, sales, ops — and most of the day-to-day permission decisions land on the team boundary, not the role boundary. Admins manage teams under **Settings > Teams**.

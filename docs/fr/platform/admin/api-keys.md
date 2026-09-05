@@ -1,6 +1,6 @@
 ---
 title: Clés API
-description: Identifiants Bearer personnels qui permettent à du code externe d’appeler l’API REST de Tale. Les Administrateurs et Développeurs les créent, rotent et révoquent sous Paramètres > API > REST.
+description: Identifiants Bearer personnels qui permettent à du code externe d’appeler l’API REST de Tale.
 ---
 
 Les clés API sont les identifiants que Tale émet pour qu’un code externe appelle son API REST sans humain dans la boucle. Une clé authentifie l’appelant comme étant la personne qui l’a fabriquée, et porte le rôle de cette personne dans l’organisation. Les Administrateurs et Développeurs gèrent les clés ; les autres rôles ne voient pas la page. Voilà la référence pour ce qu’est une clé, comment en créer une, comment elle est scopée, et comment la retirer sans casser ce qui en dépend.

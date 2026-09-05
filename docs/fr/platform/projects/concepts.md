@@ -1,6 +1,6 @@
 ---
 title: Concepts de projet
-description: Un projet regroupe chats, fichiers, instructions et tâches dans un même espace de travail partagé. Cette page te donne le modèle mental pour savoir quand préférer un projet à un chat isolé.
+description: Un projet regroupe chats, fichiers, instructions et tâches dans un même espace de travail partagé.
 ---
 
 Un projet est l’unité que Tale sort quand un chantier a besoin des mêmes fichiers, des mêmes instructions et des mêmes surfaces de travail à travers beaucoup de chats et beaucoup de personnes. Cette page te donne le modèle mental — lis-la avant de créer ton premier projet, et reviens-y au moment de décider si un chat qui grossit mérite d’être promu en projet.

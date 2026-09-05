@@ -1,6 +1,6 @@
 ---
 title: Enterprise-SSO und Bereitstellung
-description: Single Sign-On (OIDC, OAuth2, SAML 2.0) und SCIM-Bereitstellung von Benutzern und Gruppen für deine Organisation konfigurieren. Schritt-für-Schritt-Einrichtung für Microsoft Entra ID, Google, generisches OIDC und SAML, plus Rollenzuordnung, Gruppe-zu-Team-Synchronisierung und Deaktivierung. Lies dies, wenn du die Unternehmensidentität für die Organisation einrichtest.
+description: Single Sign-On (OIDC, OAuth2, SAML 2.0) und SCIM-Bereitstellung von Benutzern und Gruppen für deine Organisation konfigurieren.
 ---
 
 Mit Enterprise-SSO melden sich deine Mitglieder über deinen Identitätsanbieter (IdP) an, statt mit einem Tale-Passwort, und SCIM lässt den IdP Mitglieder und Gruppen automatisch anlegen, aktualisieren und deaktivieren — ohne manuelle Einladungen. Eine Verbindung pro Organisation trägt das Anmeldeprotokoll, die Bereitstellungsrichtlinie und das SCIM-Token gemeinsam. Alles liegt auf einer Seite: **Einstellungen > Enterprise-SSO** (nur Administratoren).

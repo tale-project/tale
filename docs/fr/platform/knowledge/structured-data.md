@@ -1,6 +1,6 @@
 ---
 title: Données structurées
-description: La base de connaissances de Tale embarque trois entités structurées intégrées — Contacts, Produits, Sites web — à côté des Documents. Cette page te donne le modèle mental pour choisir une fiche typée plutôt qu’un document.
+description: La base de connaissances de Tale embarque trois entités structurées intégrées — Contacts, Produits, Sites web — à côté des Documents.
 ---
 
 La base de connaissances de Tale embarque deux formes côte à côte. Les documents sont du texte dont l’agent récupère des fragments ; les fiches structurées sont des lignes typées dont l’agent lit les champs. La forme que tu choisis est la décision la plus lourde dans la façon dont un agent exploitera tes connaissances — trompe-toi et l’agent dilue une réponse claire, ou devine une valeur que tu as pourtant en stock.

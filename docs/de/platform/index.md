@@ -1,6 +1,6 @@
 ---
 title: Plattform
-description: Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet. Chat, Projekte, Agents, Automatisierungen, Wissen, Genehmigungen, Verwaltung.
+description: Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet.
 kind: index
 ---
 

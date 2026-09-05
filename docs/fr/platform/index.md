@@ -1,6 +1,6 @@
 ---
 title: Plateforme
-description: Plateforme est la référence produit canonique — chaque fonctionnalité visible par l’utilisateur, identique pour Cloud et auto-hébergé. Chat, projets, agents, automatisations, connaissances, approbations, administration.
+description: Plateforme est la référence produit canonique — chaque fonctionnalité visible par l’utilisateur, identique pour Cloud et auto-hébergé.
 kind: index
 ---
 
