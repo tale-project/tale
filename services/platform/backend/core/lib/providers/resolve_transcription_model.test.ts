@@ -38,11 +38,10 @@ const ACTIVE_API_KEY_ROW = { authMethod: 'api-key', status: 'active' };
 /** The provider's default credential row, keyed by provider slug; a
  * provider not listed gets an active api-key row without an allowlist. */
 let defaultRows: Record<string, unknown> = {};
-const runQuery = vi.fn(
-  async (_ref: unknown, args: { providerSlug: string }) =>
-    args.providerSlug in defaultRows
-      ? defaultRows[args.providerSlug]
-      : ACTIVE_API_KEY_ROW,
+const runQuery = vi.fn(async (_ref: unknown, args: { providerSlug: string }) =>
+  args.providerSlug in defaultRows
+    ? defaultRows[args.providerSlug]
+    : ACTIVE_API_KEY_ROW,
 );
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is exercised by this module
 const ctx = { runQuery } as unknown as ActionCtx;
