@@ -13,9 +13,8 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   buildObjectKey,
   deleteOrgObject,
-  locateOrgObjectStore,
+  locateOrgObject,
   resolveObjectStore,
-  s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
 } from '../../lib/object-store.ts';
@@ -914,10 +913,9 @@ export function webdavHandlers(
         const key = args.storageId.startsWith('s3:')
           ? args.storageId.slice(3)
           : args.storageId;
-        const store = await locateOrgObjectStore(orgSlug, key);
-        const head = await s3HeadObject(store, key);
-        if (!head) return null;
-        return s3PresignGetUrl(store, key);
+        const located = await locateOrgObject(orgSlug, key);
+        if (located === null) return null;
+        return s3PresignGetUrl(located.store, key);
       } catch (error) {
         console.warn('[webdav] getWebdavBlobUrl failed', error);
         return null;
