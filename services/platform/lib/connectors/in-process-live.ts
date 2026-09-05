@@ -20,6 +20,17 @@
  * anything agent- or user-authored — stays on the data-only runner or in
  * the sandbox; this module's `runBody` only accepts the async live shape and
  * hands everything else to the data-only backend.
+ *
+ * TIME LIMIT: `limits.timeoutMs` bounds the CALLER's wait, not the body. In
+ * this realm there is no isolate to tear down, so a body whose await
+ * outlives the deadline keeps running in the backend process until that
+ * await settles, and its result is dropped. What it can still do is bounded
+ * by the host it holds — every `ctx.http` call goes through the policed live
+ * host with its own per-request timeout, `ctx.files` writes to the org's own
+ * store — so an overrun costs a request slot and some memory, never a policy.
+ * Cancelling the body itself (an AbortSignal threaded into the live host's
+ * fetch) is not wired; a catalog body is expected to make one or a few
+ * bounded vendor calls.
  */
 
 import vm from 'node:vm';
@@ -51,7 +62,9 @@ function compileLiveBody(code: string, keys: string[]): LiveBody {
 }
 
 /** Race the body against its wall clock: an awaited vendor call the host's
- * own timeouts did not bound must still end the invocation. */
+ * own timeouts did not bound must still end the INVOCATION — the caller is
+ * released; the body runs on until its pending await settles (see the
+ * module header). */
 function withDeadline<T>(work: Promise<T>, limits: RunnerLimits): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {

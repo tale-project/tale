@@ -460,6 +460,12 @@ export async function statOrgBlob(
  * caller that needs the bytes in hand rather than a presigned URL (an
  * outbound mail attachment the SMTP native composes). Throws on a ref outside
  * the org's namespace, so a stranger's ref is refused before any request.
+ *
+ * The check is the org NAMESPACE, deliberately: a ref is a random object key
+ * under the org's prefix (capability-shaped — it is never listed to a caller
+ * who could not see the file), and document/project visibility belongs to
+ * the door that handed the ref out, not to this byte read. A caller that
+ * must enforce visibility resolves the document first and passes its ref.
  */
 export async function getOrgBlobBytes(
   sql: Sql,
