@@ -4,14 +4,20 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  assertCorpusWritable,
   corpusWriteRefusal,
   forgetCorpusWriteRefusals,
+  refuseCorpusWrites,
+  setCorpusWritesResumedHook,
+  WRITE_GUARD_RECHECK_MS,
   type Bm25Index,
   type IndexHealthReport,
   type IndexReport,
 } from '../../core/knowledge/index_health.ts';
+import { setCorpusBootstrapHook } from '../../core/knowledge/pool.ts';
 import {
   applyIndexHealthReport,
+  installCorpusHealthHook,
   runReindexBm25Job,
   type IndexHealthEffects,
 } from './index-health.ts';
@@ -49,6 +55,8 @@ interface Spies extends IndexHealthEffects {
   requeueRefused: ReturnType<
     typeof vi.fn<IndexHealthEffects['requeueRefused']>
   >;
+  failRefused: ReturnType<typeof vi.fn<IndexHealthEffects['failRefused']>>;
+  resumeRefused: ReturnType<typeof vi.fn<IndexHealthEffects['resumeRefused']>>;
 }
 
 function spies(): Spies {
@@ -58,6 +66,12 @@ function spies(): Spies {
     ),
     announce: vi.fn<IndexHealthEffects['announce']>(() => Promise.resolve()),
     requeueRefused: vi.fn<IndexHealthEffects['requeueRefused']>(() =>
+      Promise.resolve(2),
+    ),
+    failRefused: vi.fn<IndexHealthEffects['failRefused']>(() =>
+      Promise.resolve(2),
+    ),
+    resumeRefused: vi.fn<IndexHealthEffects['resumeRefused']>(() =>
       Promise.resolve(2),
     ),
   };
@@ -73,6 +87,8 @@ beforeEach(() => {
 
 afterEach(() => {
   forgetCorpusWriteRefusals();
+  setCorpusWritesResumedHook(null);
+  setCorpusBootstrapHook(null);
   if (previousUrl === undefined) delete process.env.KNOWLEDGE_DATABASE_URL;
   else process.env.KNOWLEDGE_DATABASE_URL = previousUrl;
 });
@@ -300,6 +316,82 @@ describe('the background rebuild job', () => {
       error: 'REINDEX failed: could not read block 357',
     });
     expect(effects.requeueRefused).not.toHaveBeenCalled();
+    // The files parked as "resumes automatically" are told the truth.
+    expect(effects.failRefused).toHaveBeenCalledWith(
+      { kind: 'default' },
+      URL,
+      PK,
+    );
+  });
+
+  it('an index that no longer exists lifts the refusal and re-queues the files it parked', async () => {
+    const effects = spies();
+    refuseCorpusWrites(URL, PK.schema, { state: 'rebuilding', index: PK });
+
+    await runReindexBm25Job(sql, payload, effects, () =>
+      Promise.resolve({
+        index: { ...PK, sizeBytes: 0 },
+        outcome: { kind: 'missing' },
+        verifyMs: 0,
+      }),
+    );
+
+    // Used to lift the refusal and return: writes flowed again while every
+    // parked row kept its "resumes automatically" note, forever.
+    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    expect(effects.requeueRefused).toHaveBeenCalledWith(
+      { kind: 'default' },
+      URL,
+    );
+    expect(effects.announce).not.toHaveBeenCalled();
+  });
+
+  it('an index marked invalid is a failed repair: refused, announced, parked files re-stamped', async () => {
+    const effects = spies();
+    refuseCorpusWrites(URL, PK.schema, { state: 'rebuilding', index: PK });
+
+    await runReindexBm25Job(sql, payload, effects, () =>
+      Promise.resolve({
+        index: { ...PK, valid: false },
+        outcome: { kind: 'invalid' },
+        verifyMs: 0,
+      }),
+    );
+
+    // Nothing rebuilds an invalid index on its own — the job used to return
+    // with the "rebuilding" refusal in place and no follow-up scheduled.
+    expect(corpusWriteRefusal(URL, PK.schema)?.state).toBe('repair_failed');
+    expect(effects.announce.mock.calls[0]?.[2]).toMatchObject({
+      kind: 'repair_failed',
+      error: expect.stringContaining('DROP INDEX CONCURRENTLY'),
+    });
+    expect(effects.failRefused).toHaveBeenCalledTimes(1);
+    expect(effects.requeueRefused).not.toHaveBeenCalled();
+  });
+
+  it('a rebuild that could not verify is tried again later, refusal kept', async () => {
+    const effects = spies();
+    refuseCorpusWrites(URL, PK.schema, { state: 'rebuilding', index: PK });
+
+    await runReindexBm25Job(sql, payload, effects, () =>
+      Promise.resolve({
+        index: PK,
+        outcome: { kind: 'unverifiable', reason: 'pdb.verify_index missing' },
+        verifyMs: 3,
+      }),
+    );
+
+    // Unknown is not healthy: the refusal stays, and the rebuild is queued
+    // again with a delay instead of dropped with the files still parked.
+    expect(corpusWriteRefusal(URL, PK.schema)?.state).toBe('rebuilding');
+    expect(effects.scheduleRebuild).toHaveBeenCalledWith(
+      { kind: 'default' },
+      PK,
+      { delayMs: 5 * 60_000 },
+    );
+    expect(effects.requeueRefused).not.toHaveBeenCalled();
+    expect(effects.failRefused).not.toHaveBeenCalled();
+    expect(effects.announce).not.toHaveBeenCalled();
   });
 
   it('an index rebuilt elsewhere lifts the refusal and re-queues without an announcement', async () => {
@@ -327,5 +419,42 @@ describe('the background rebuild job', () => {
     expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
     expect(effects.announce).not.toHaveBeenCalled();
     expect(effects.requeueRefused).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the write guard lifting a refusal itself', () => {
+  const HEALTHY_ROWS = [
+    { check_name: 'schema_valid', passed: true, details: 'ok' },
+    { check_name: 'index_readable', passed: true, details: 'ok' },
+    { check_name: 'checksums_valid', passed: true, details: 'ok' },
+  ];
+
+  it('re-queues the files parked on that database', async () => {
+    // A write re-verified the index healthy — rebuilt in another process, or
+    // repaired by an operator's REINDEX — outside any rebuild job. Writes
+    // resumed; the parked files did not, with a note saying they would.
+    const effects = spies();
+    installCorpusHealthHook(sql, effects);
+    refuseCorpusWrites(
+      URL,
+      PK.schema,
+      { state: 'repair_failed', index: PK },
+      0,
+    );
+    const session = {
+      unsafe: (text: string) =>
+        text.includes('pdb.verify_index')
+          ? Promise.resolve(HEALTHY_ROWS)
+          : Promise.reject(new Error(`unexpected statement: ${text}`)),
+      end: () => Promise.resolve(),
+    } as unknown as Sql;
+
+    await assertCorpusWritable(URL, PK.schema, {
+      openSession: () => session,
+      now: () => WRITE_GUARD_RECHECK_MS + 1,
+    });
+
+    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    expect(effects.resumeRefused).toHaveBeenCalledWith(URL);
   });
 });

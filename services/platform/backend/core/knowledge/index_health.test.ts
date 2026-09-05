@@ -7,6 +7,7 @@ import {
   allowCorpusWrites,
   assertCorpusWritable,
   corpusWriteRefusal,
+  setCorpusWritesResumedHook,
   DEFAULT_INLINE_REPAIR_MAX_BYTES,
   forgetCorpusWriteRefusals,
   forgetRepairAttempts,
@@ -462,6 +463,27 @@ describe('the write guard', () => {
     expect(db.verifyCalls).toEqual(['private_knowledge.idx_pk_chunks_bm25']);
     expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
     expect(db.ended).toBe(true);
+  });
+
+  it('tells the app when it lifts a refusal, and never fails the write over it', async () => {
+    const resumed: { url: string; schema: string }[] = [];
+    setCorpusWritesResumedHook((args) => {
+      resumed.push(args);
+      return Promise.reject(new Error('requeue unavailable'));
+    });
+    refuseCorpusWrites(URL, PK.schema, { state: 'rebuilding', index: PK }, 0);
+    const db = fakeSession({ verify: [HEALTHY] });
+
+    await expect(
+      assertCorpusWritable(URL, PK.schema, {
+        openSession: db.openSession,
+        now: () => WRITE_GUARD_RECHECK_MS + 1,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(resumed).toEqual([{ url: URL, schema: PK.schema }]);
+    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    setCorpusWritesResumedHook(null);
   });
 
   it('keeps refusing while the re-check fails, and re-checks once per window', async () => {

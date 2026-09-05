@@ -7,8 +7,10 @@ import {
   healBm25Indexes,
   humanBytes,
   indexName,
+  indexUnavailableMessage,
   rebuildBm25IndexInBackground,
   refuseCorpusWrites,
+  setCorpusWritesResumedHook,
   type Bm25Index,
   type IndexCheck,
   type IndexHealthReport,
@@ -20,7 +22,10 @@ import {
   resolveOrgUrl,
   setCorpusBootstrapHook,
 } from '../../core/knowledge/pool.ts';
-import { RAG_ERROR_INDEX_REBUILDING } from '../../core/knowledge/rag_error_codes.ts';
+import {
+  RAG_ERROR_INDEX_REBUILDING,
+  RAG_ERROR_INDEX_REPAIR_FAILED,
+} from '../../core/knowledge/rag_error_codes.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -74,8 +79,13 @@ export type IndexHealthEvent =
 
 /** What an outcome does on the app side — production or spies. */
 export interface IndexHealthEffects {
-  /** Queue the background `REINDEX CONCURRENTLY` of one deferred index. */
-  scheduleRebuild(scope: CorpusScope, index: Bm25Index): Promise<void>;
+  /** Queue the background `REINDEX CONCURRENTLY` of one deferred index —
+   * after `delayMs` when the verification could not run yet. */
+  scheduleRebuild(
+    scope: CorpusScope,
+    index: Bm25Index,
+    options?: { delayMs?: number },
+  ): Promise<void>;
   /** Audit row + admin bell for every organization on that database. */
   announce(
     scope: CorpusScope,
@@ -83,9 +93,25 @@ export interface IndexHealthEffects {
     event: IndexHealthEvent,
     stamp: number,
   ): Promise<void>;
-  /** After a verified rebuild: re-queue the files refused while it ran. */
+  /** Once the index is healthy: re-queue the files it parked. */
   requeueRefused(scope: CorpusScope, url: string): Promise<number>;
+  /** Once a repair is known to have failed: re-stamp the files parked as
+   * "rebuilding — resumes automatically" with the operator prose and code,
+   * so no row promises a resumption nothing will deliver. */
+  failRefused(
+    scope: CorpusScope,
+    url: string,
+    index: Bm25Index,
+  ): Promise<number>;
+  /** The write guard lifted a refusal itself (the index verified healthy
+   * outside any job): re-queue everything parked on that database. */
+  resumeRefused(url: string): Promise<number>;
 }
+
+/** How long an unverifiable background rebuild waits before it is tried
+ * again — long enough for a restarting database, short enough that parked
+ * files do not wait on the next boot. */
+const UNVERIFIABLE_RETRY_MS = 5 * 60_000;
 
 const DEFAULT_LABEL = 'the deployment-default knowledge database';
 
@@ -122,6 +148,17 @@ export function installCorpusHealthHook(
     const scope: CorpusScope = { kind: 'org', orgSlug };
     const report = await healBm25Indexes({ url, label: labelFor(scope) });
     await applyIndexHealthReport(report, scope, url, effects);
+  });
+  // The write guard's own lift — a write re-verified the index healthy
+  // (rebuilt elsewhere, or an operator's REINDEX) — resumes the files that
+  // refusal parked, the same way a job's verified rebuild does.
+  setCorpusWritesResumedHook(async ({ url, schema }) => {
+    const requeued = await effects.resumeRefused(url);
+    if (requeued > 0) {
+      logger.info(
+        `${schema}: re-queued ${requeued} file(s) parked behind an index that verifies healthy again`,
+      );
+    }
   });
 }
 
@@ -276,9 +313,16 @@ export async function runReindexBm25Job(
       await effects.requeueRefused(scope, url);
       return;
     }
-    case 'missing':
+    case 'missing': {
+      // No index to be corrupted: writes flow (the keyword leg is simply
+      // absent), and the files parked behind the refusal flow with them.
       allowCorpusWrites(url, payload.schema);
+      const requeued = await effects.requeueRefused(scope, url);
+      logger.info(
+        `${labelFor(scope)}: re-queued ${requeued} file(s) parked behind ${payload.schema}.${payload.name}, which no longer exists`,
+      );
       return;
+    }
     case 'repair_failed':
       refuseCorpusWrites(url, index.schema, { state: 'repair_failed', index });
       await effects.announce(
@@ -294,6 +338,7 @@ export async function runReindexBm25Job(
         },
         stamp,
       );
+      await effects.failRefused(scope, url, index);
       return;
     case 'not_retried':
       refuseCorpusWrites(url, index.schema, { state: 'repair_failed', index });
@@ -311,9 +356,40 @@ export async function runReindexBm25Job(
         },
         stamp,
       );
+      await effects.failRefused(scope, url, index);
+      return;
+    case 'invalid':
+      // Marked invalid by a failed CREATE/REINDEX CONCURRENTLY: nothing
+      // rebuilds it on its own (the rebuild path refuses to touch it), so
+      // this is a failed repair with an operator move, not a wait.
+      refuseCorpusWrites(url, index.schema, { state: 'repair_failed', index });
+      await effects.announce(
+        scope,
+        url,
+        {
+          kind: 'repair_failed',
+          index,
+          path: 'background',
+          reindexMs: 0,
+          reason: 'the index is marked invalid',
+          error: `the index is marked invalid — drop it (DROP INDEX CONCURRENTLY ${indexName(index)}) and let the next scan rebuild the original`,
+        },
+        stamp,
+      );
+      await effects.failRefused(scope, url, index);
       return;
     case 'unverifiable':
-    case 'invalid':
+      // The verification itself could not run (a restarting database, a
+      // missing extension function) — nothing is known about the index, so
+      // the refusal stays and the rebuild is tried again later rather than
+      // dropped with the files still parked.
+      logger.warn(
+        `${labelFor(scope)}: could not verify ${indexName(index)} — rebuild re-scheduled in ${UNVERIFIABLE_RETRY_MS / 60_000} min: ${outcome.reason}`,
+      );
+      await effects.scheduleRebuild(scope, index, {
+        delayMs: UNVERIFIABLE_RETRY_MS,
+      });
+      return;
     case 'deferred':
       return;
     default:
@@ -326,15 +402,20 @@ export async function runReindexBm25Job(
 /** The real effects: the pg-boss job, the audit chain, the bell, the requeue. */
 export function productionEffects(sql: Sql): IndexHealthEffects {
   return {
-    async scheduleRebuild(scope, index) {
+    async scheduleRebuild(scope, index, options = {}) {
       const orgSlug = scope.kind === 'org' ? scope.orgSlug : null;
       await addJobInTx(
         sql,
         'knowledge.reindex_bm25',
         { orgSlug, schema: index.schema, name: index.name },
-        // One queued rebuild per (database, index): a concurrently booting
-        // api and worker both defer the same index.
-        { singletonKey: `${orgSlug ?? 'default'}:${indexName(index)}` },
+        {
+          // One queued rebuild per (database, index): a concurrently booting
+          // api and worker both defer the same index.
+          singletonKey: `${orgSlug ?? 'default'}:${indexName(index)}`,
+          ...(options.delayMs !== undefined
+            ? { startAfter: new Date(Date.now() + options.delayMs) }
+            : {}),
+        },
       );
     },
     async announce(scope, url, event, stamp) {
@@ -362,6 +443,21 @@ export function productionEffects(sql: Sql): IndexHealthEffects {
         orgs.map((org) => org.id),
       );
     },
+    async failRefused(scope, url, index) {
+      const orgs = await affectedOrganizations(sql, scope, url);
+      return failRefusedFiles(
+        sql,
+        orgs.map((org) => org.id),
+        index,
+      );
+    },
+    async resumeRefused(url) {
+      const orgs = await organizationsOnDatabase(sql, url);
+      return requeueRefusedFiles(
+        sql,
+        orgs.map((org) => org.id),
+      );
+    },
   };
 }
 
@@ -383,6 +479,15 @@ async function affectedOrganizations(
       LIMIT 1
     `;
   }
+  return organizationsOnDatabase(sql, url);
+}
+
+/** Every organization whose corpus resolves to `url` — bring-your-own or
+ * the deployment default alike — by the resolver the pool routes through. */
+async function organizationsOnDatabase(
+  sql: Sql,
+  url: string,
+): Promise<{ id: string; slug: string }[]> {
   const rows = await sql<{ id: string; slug: string | null }[]>`
     SELECT "id", "slug" FROM "organization"
     WHERE "slug" IS NOT NULL
@@ -512,11 +617,19 @@ function notificationArgs(
 /** Rows per requeue transaction — bounded work per lock hold. */
 const REQUEUE_BATCH = 200;
 
+/** The codes a file parks under while its corpus's index is bad: refused
+ * during a rebuild, or after a failed one. A healthy index resumes both —
+ * a repair the job could not do, an operator may have. */
+const PARKED_BY_INDEX = [
+  RAG_ERROR_INDEX_REBUILDING,
+  RAG_ERROR_INDEX_REPAIR_FAILED,
+] as const;
+
 /**
- * Re-queue every file whose indexing was refused because the index was being
- * rebuilt, in id order, a bounded batch per transaction, until none is left.
- * Clearing the code in the same UPDATE is what makes the loop terminate; the
- * hint refreshes the document lists already showing the parked rows.
+ * Re-queue every file whose indexing was refused because the index was bad,
+ * in id order, a bounded batch per transaction, until none is left. Clearing
+ * the code in the same UPDATE is what makes the loop terminate; the hint
+ * refreshes the document lists already showing the parked rows.
  */
 async function requeueRefusedFiles(
   sql: Sql,
@@ -529,7 +642,7 @@ async function requeueRefusedFiles(
       const rows = await tx<{ id: string; orgId: string }[]>`
         WITH picked AS (
           SELECT id FROM app.file_metadata
-           WHERE rag_error_code = ${RAG_ERROR_INDEX_REBUILDING}
+           WHERE rag_error_code = ANY(${[...PARKED_BY_INDEX]})
              AND org_id = ANY(${[...orgIds]})
            ORDER BY id
            LIMIT ${REQUEUE_BATCH}
@@ -553,4 +666,32 @@ async function requeueRefusedFiles(
     total += requeued;
     if (requeued < REQUEUE_BATCH) return total;
   }
+}
+
+/**
+ * Re-stamp the files parked as "being rebuilt — resumes automatically" once
+ * the rebuild is known to have failed: the operator prose and code the
+ * failed-indexing dialog branches on, and a hint so the lists showing the
+ * old note refresh. One statement — a stamp change, not a claim.
+ */
+async function failRefusedFiles(
+  sql: Sql,
+  orgIds: readonly string[],
+  index: Bm25Index,
+): Promise<number> {
+  if (orgIds.length === 0) return 0;
+  return sql.begin(async (tx) => {
+    const rows = await tx<{ orgId: string }[]>`
+      UPDATE app.file_metadata
+         SET rag_error = ${indexUnavailableMessage('repair_failed', indexName(index))},
+             rag_error_code = ${RAG_ERROR_INDEX_REPAIR_FAILED}
+       WHERE rag_error_code = ${RAG_ERROR_INDEX_REBUILDING}
+         AND org_id = ANY(${[...orgIds]})
+      RETURNING org_id AS "orgId"
+    `;
+    for (const orgId of new Set(rows.map((row) => row.orgId))) {
+      await emitHintInTx(tx, { orgId, entity: 'document', entityId: null });
+    }
+    return rows.length;
+  });
 }
