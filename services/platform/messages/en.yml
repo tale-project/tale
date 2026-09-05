@@ -1963,6 +1963,7 @@ documents:
       replaceFile: Replace file
       submitForReview: Submit for review
       review: Review record
+      changeReviewer: Change reviewer
       newRevision: New revision
     replace:
       title: Replace file
@@ -2021,6 +2022,13 @@ documents:
       lastFeedback: 'Changes requested on v{version} by {name}:'
       lastFeedbackNoName: 'Changes requested on v{version}:'
       confirm: Submit
+    reassign:
+      title: Change reviewer
+      hint: 'The pending request to {name} is withdrawn — the new reviewer
+        decides on this version.'
+      hintNoName: The pending request is withdrawn — the new reviewer decides
+        on this version.
+      confirm: Change reviewer
     review:
       title: 'Review record (v{version})'
       frozenHint: Approving locks this version as an immutable snapshot;
@@ -2037,6 +2045,9 @@ documents:
       controlledFailed: Could not mark the document as controlled
       submitted: Submitted for review — the document is frozen
       submitFailed: Could not submit for review
+      reviewerChanged: Reviewer changed — the review request moved to the new
+        reviewer
+      reviewerChangeFailed: Could not change the reviewer
       approved: 'Version {version} approved'
       changesRequested: Changes requested — the record is a draft again
       respondFailed: Could not record the review decision

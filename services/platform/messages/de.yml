@@ -2028,6 +2028,7 @@ documents:
       replaceFile: Datei ersetzen
       submitForReview: Zum Review einreichen
       review: Review öffnen
+      changeReviewer: Reviewer wechseln
       newRevision: Neue Revision
     replace:
       title: Datei ersetzen
@@ -2091,6 +2092,13 @@ documents:
       lastFeedback: 'Änderungen zu v{version} angefordert von {name}:'
       lastFeedbackNoName: 'Änderungen zu v{version} angefordert:'
       confirm: Einreichen
+    reassign:
+      title: Reviewer wechseln
+      hint: 'Tale zieht die offene Anfrage an {name} zurück — der neue Reviewer
+        entscheidet über diese Version.'
+      hintNoName: Tale zieht die offene Anfrage zurück — der neue Reviewer
+        entscheidet über diese Version.
+      confirm: Reviewer wechseln
     review:
       title: 'Review (v{version})'
       frozenHint: Die Freigabe schreibt diese Version unveränderlich fest;
@@ -2107,6 +2115,9 @@ documents:
       controlledFailed: Das Dokument konnte nicht als gelenktes Dokument geführt werden
       submitted: Zum Review eingereicht — das Dokument ist eingefroren
       submitFailed: Einreichen zum Review fehlgeschlagen
+      reviewerChanged: Reviewer gewechselt — die Anfrage liegt jetzt beim neuen
+        Reviewer
+      reviewerChangeFailed: Reviewer konnte nicht gewechselt werden
       approved: 'Version {version} freigegeben'
       changesRequested: Änderungen angefordert — das Dokument ist wieder ein Entwurf
       respondFailed: Die Entscheidung konnte nicht gespeichert werden

@@ -3595,6 +3595,11 @@ async function checkDocuments(
   // end, so later sections see the member set they always did).
   const { cookie: reviewerCookie, userId: reviewerUserId } =
     await signUpOrgMember(sql, base, orgId, 'doc-reviewer', 'editor');
+  // A second eligible reviewer stands in for the designee who can no longer
+  // decide (left the org, disabled, lost scope): the re-designation lane
+  // below names them first, then moves the request back to the reviewer.
+  const { cookie: standInCookie, userId: standInUserId } =
+    await signUpOrgMember(sql, base, orgId, 'doc-reviewer-standin', 'editor');
   const sendAs = (
     asCookie: string,
     method: 'POST' | 'DELETE',
@@ -3758,6 +3763,27 @@ async function checkDocuments(
     `submit=${submit.success ? 'ok' : 'ERR'}, pendingMatch=${pendingReview.success ? pendingReview.data.review?.approvalId === (submit.success ? submit.data.approvalId : '') : 'ERR'}, delete → ${trashWhileInReview.status} (want 400), noFeedback → ${noFeedback.status} (want 400), submitterResponds → ${submitterResponds.status}/${submitterCode} (want 403/REVIEW_NOT_ASSIGNED), changes=${changes.success ? changes.data.state : 'ERR'}, last=${lastReview.success ? `${lastReview.data.review?.decision ?? 'null'} by ${lastReview.data.review?.respondedBy === reviewerUserId ? 'reviewer' : 'OTHER'}` : 'ERR'}`,
   );
 
+  // Re-designation while in review: the draft goes to the stand-in first,
+  // then — with the record frozen in_review — a second submit names the
+  // reviewer. The server must mint a NEW request, supersede the stand-in's
+  // row (rejected + supersededBy), move the record's designee, and refuse
+  // the stand-in's decision on the superseded row. Before this, the echo
+  // won unconditionally and a designee who could not respond froze the
+  // record for good.
+  const standInSubmit = z
+    .object({ approvalId: z.string() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${recordDocId}/record/submit?orgId=${orgId}`,
+          { reviewerUserId: standInUserId },
+        )
+      ).json(),
+    );
+  const standInApprovalId = standInSubmit.success
+    ? standInSubmit.data.approvalId
+    : '';
   const resubmit = z
     .object({ approvalId: z.string() })
     .safeParse(
@@ -3769,6 +3795,57 @@ async function checkDocuments(
         )
       ).json(),
     );
+  const resubmitApprovalId = resubmit.success ? resubmit.data.approvalId : '';
+  const supersededRow = await sql<
+    { status: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.approvals
+    WHERE id = ${standInApprovalId}
+  `;
+  const redesignatedItem = z
+    .object({
+      document: z.object({
+        record: z.object({
+          state: z.string(),
+          reviewerUserId: z.string().optional(),
+        }),
+      }),
+    })
+    .safeParse(await get(`/api/app/documents/${recordDocId}?orgId=${orgId}`));
+  const redesignatedPending = z
+    .object({
+      review: z
+        .object({ approvalId: z.string(), requestedFor: z.string().nullable() })
+        .nullable(),
+    })
+    .safeParse(
+      await get(
+        `/api/app/documents/${recordDocId}/record/pending-review?orgId=${orgId}`,
+      ),
+    );
+  const standInDecides = await sendAs(
+    standInCookie,
+    'POST',
+    `/api/app/documents/records/reviews/${standInApprovalId}/respond?orgId=${orgId}`,
+    { decision: 'approve' },
+  );
+  record(
+    'record re-designation while in_review supersedes the standing request',
+    standInSubmit.success &&
+      resubmit.success &&
+      resubmitApprovalId !== standInApprovalId &&
+      supersededRow[0]?.status === 'rejected' &&
+      supersededRow[0].metadata?.supersededBy === resubmitApprovalId &&
+      redesignatedItem.success &&
+      redesignatedItem.data.document.record.state === 'in_review' &&
+      redesignatedItem.data.document.record.reviewerUserId === reviewerId &&
+      redesignatedPending.success &&
+      redesignatedPending.data.review?.approvalId === resubmitApprovalId &&
+      redesignatedPending.data.review.requestedFor === reviewerId &&
+      standInDecides.status >= 400 &&
+      standInDecides.status < 500,
+    `standIn=${standInSubmit.success ? 'ok' : 'ERR'}, redesignate=${resubmit.success ? (resubmitApprovalId !== standInApprovalId ? 'new-id' : 'SAME-ID') : 'ERR'}, standInRow=${supersededRow[0]?.status ?? 'MISSING'}/supersededBy=${supersededRow[0]?.metadata?.supersededBy === resubmitApprovalId} (want rejected/true), record=${redesignatedItem.success ? `${redesignatedItem.data.document.record.state} → ${redesignatedItem.data.document.record.reviewerUserId === reviewerId ? 'reviewer' : 'OTHER'}` : 'ERR'} (want in_review → reviewer), pending=${redesignatedPending.success ? `${redesignatedPending.data.review?.approvalId === resubmitApprovalId}/${redesignatedPending.data.review?.requestedFor === reviewerId}` : 'ERR'} (want true/true), standInDecides → ${standInDecides.status} (want 4xx)`,
+  );
   const approve = z
     .object({ state: z.literal('approved'), version: z.number() })
     .safeParse(
@@ -4363,11 +4440,12 @@ async function checkDocuments(
     `missing=${readMissing.success ? Object.keys(readMissing.data.values).length : 'ERR'} (want 0), write=${wrote.success ? `${wrote.data.action}/${wrote.data.createdFolder}` : 'ERR'}, readBack=${readBack.success ? JSON.stringify(readBack.data.values) : 'ERR'}, rewrite=${rewrote.success ? `${rewrote.data.action}/${rewrote.data.documentId === (wrote.success ? wrote.data.documentId : '')}` : 'ERR'}, after=${afterRewrite.success ? JSON.stringify(afterRewrite.data.values) : 'ERR'}, traversal=${traversal.status} (want 400)`,
   );
 
-  // Fixture hygiene: the reviewer leaves the org so later sections see the
-  // member set they always did.
+  // Fixture hygiene: the reviewer and the stand-in leave the org so later
+  // sections see the member set they always did.
   await sql`
     DELETE FROM "member"
-    WHERE "organizationId" = ${orgId} AND "userId" = ${reviewerUserId}
+    WHERE "organizationId" = ${orgId}
+      AND "userId" IN (${reviewerUserId}, ${standInUserId})
   `;
 }
 

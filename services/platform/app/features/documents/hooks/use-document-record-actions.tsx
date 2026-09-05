@@ -6,6 +6,7 @@ import {
   FileUp,
   Shield,
   UserCheck,
+  UserCog,
 } from 'lucide-react';
 import { useCallback, useMemo, type ReactNode, type RefObject } from 'react';
 
@@ -58,7 +59,8 @@ interface UseDocumentRecordActionsResult {
 
 /**
  * The controlled-record lifecycle for one document row — mark as controlled,
- * replace file, submit for review, review, open next revision — as row-menu
+ * replace file, submit for review, review, change reviewer, open next
+ * revision — as row-menu
  * actions plus the dialogs they open (convex/documents/records.ts). Shared by
  * the Knowledge Hub documents table and the project Files tab so the state
  * machine has exactly one UI wiring; only the permission gate differs per
@@ -80,6 +82,7 @@ export function useDocumentRecordActions({
   const dialogs = useEntityRowDialogs([
     'recordReplace',
     'recordSubmit',
+    'recordReassign',
     'recordReview',
   ]);
   const { mutateAsync: markControlled, isPending: isMarkingControlled } =
@@ -188,6 +191,18 @@ export function useDocumentRecordActions({
         onClick: dialogs.open.recordReview,
         visible: canWrite && enabled && record?.state === 'in_review',
       },
+      // The stuck-review exit: while in review, any writer can re-designate
+      // the reviewer (the server supersedes the standing request). Without
+      // this door a designee who left the org, was disabled or lost the
+      // document's scope froze the record for good — every other in_review
+      // action is the designee's alone or refuses the state.
+      {
+        key: 'recordReassign',
+        label: tDocuments('record.actions.changeReviewer'),
+        icon: UserCog,
+        onClick: dialogs.open.recordReassign,
+        visible: canWrite && enabled && record?.state === 'in_review',
+      },
       {
         key: 'recordRevision',
         label: tDocuments('record.actions.newRevision'),
@@ -236,6 +251,17 @@ export function useDocumentRecordActions({
             documentId={documentId}
             documentName={documentName}
             organizationId={organizationId}
+          />
+          <DocumentRecordSubmitDialog
+            open={dialogs.isOpen.recordReassign}
+            onOpenChange={dialogs.setOpen.recordReassign}
+            documentId={documentId}
+            documentName={documentName}
+            organizationId={organizationId}
+            standingReviewer={{
+              userId: record?.reviewerUserId,
+              name: record?.reviewerName,
+            }}
           />
         </>
       )}
