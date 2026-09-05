@@ -495,12 +495,6 @@ export const loginPolicyConfigSchema = z.object({
     .min(1)
     .max(10)
     .default(DEFAULT_LOGIN_BACKOFF_MS),
-  perIpLimit: z
-    .object({
-      rate: z.number().int().min(1).max(1000),
-      periodSec: z.number().int().min(1).max(3600),
-    })
-    .optional(),
   // IP address / CIDR / `proxy-addr` keyword (`loopback`, `uniquelocal`,
   // `linklocal`) — these are the reverse proxies the deployment sits
   // behind. Used to extract the real client IP from `X-Forwarded-For`
