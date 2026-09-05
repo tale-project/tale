@@ -14,6 +14,12 @@ import {
   TASK_AUDIT_ACTIONS,
   TASK_RESOURCE_TYPE,
 } from '../../core/tasks/audit_actions.ts';
+import {
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
+  TASK_TITLE_MAX,
+} from '../../core/tasks/helpers.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
 import { REVIEW_POLICY_REFUSAL_CODES } from '../../core/tasks/review_shared.ts';
 import { toJson } from '../../db/sql.ts';
@@ -78,10 +84,12 @@ export const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
   'cancelled',
 ]);
 
-export const TASK_TITLE_MAX = 200;
-export const TASK_DESCRIPTION_MAX = 20_000;
-export const TASK_LABELS_MAX = 50;
-export const TASK_LABEL_CHARS_MAX = 50;
+export {
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
+  TASK_TITLE_MAX,
+} from '../../core/tasks/helpers.ts';
 export const TASK_BOARD_CAP = 2000;
 
 export class TaskError extends Error {

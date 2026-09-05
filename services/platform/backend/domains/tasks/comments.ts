@@ -2,7 +2,11 @@ import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { parseTaskSubjectContract } from '../../../lib/shared/schemas/task_contract.ts';
-import { TASK_AUDIT_ACTIONS } from '../../core/tasks/audit_actions.ts';
+import {
+  TASK_AUDIT_ACTIONS,
+  TASK_COMMENT_RESOURCE_TYPE,
+} from '../../core/tasks/audit_actions.ts';
+import { TASK_COMMENT_MAX } from '../../core/tasks/helpers.ts';
 import {
   addedMentions,
   type ResolvedMention,
@@ -57,7 +61,7 @@ import {
  * agent run stay with the automations/agents lanes.
  */
 
-export const TASK_COMMENT_MAX = 10_000;
+export { TASK_COMMENT_MAX };
 
 interface CommentAuthor {
   actorType: 'user' | 'agent';
@@ -193,7 +197,7 @@ export async function addTaskComment(
     actorType: author.actorType === 'user' ? 'user' : 'system',
     action: TASK_AUDIT_ACTIONS.commentCreated,
     category: 'data',
-    resourceType: 'task_comment',
+    resourceType: TASK_COMMENT_RESOURCE_TYPE,
     resourceId: messageId,
     resourceName: task.title,
     metadata: { taskId: args.taskId },
@@ -469,7 +473,7 @@ export async function editTaskComment(
     actorType: 'user',
     action: TASK_AUDIT_ACTIONS.commentUpdated,
     category: 'data',
-    resourceType: 'task_comment',
+    resourceType: TASK_COMMENT_RESOURCE_TYPE,
     resourceId: args.messageId,
     resourceName: task.title,
     metadata: { taskId: meta.taskId, addedMentionCount: added.length },
@@ -507,7 +511,7 @@ export async function deleteTaskComment(
     actorType: 'user',
     action: TASK_AUDIT_ACTIONS.commentDeleted,
     category: 'data',
-    resourceType: 'task_comment',
+    resourceType: TASK_COMMENT_RESOURCE_TYPE,
     resourceId: messageId,
     resourceName: task.title,
     metadata: { taskId: meta.taskId },
