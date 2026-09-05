@@ -856,6 +856,47 @@ export async function runDevFleet() {
     restarting = s.restarting;
   };
 
+  /**
+   * Stop both children and exit. Tolerates children that were never spawned
+   * (`killProcessTree` null-guards), so it is safe from the first line of the
+   * bring-up: the signal handlers below are registered BEFORE the docker,
+   * backend and Vite steps, because a SIGTERM that lands while the backend is
+   * still booting used to kill only the orchestrator (default signal action)
+   * and leave `node backend/main.ts` holding :3005 for the next `bun run dev`
+   * to trip over.
+   */
+  async function shutdown(exitCode = 0): Promise<never> {
+    if (shuttingDown) {
+      // Second Ctrl-C — don't wait for the graceful path, quit immediately.
+      process.exit(1);
+    }
+    shuttingDown = true;
+
+    if (healthCheckTimer) clearInterval(healthCheckTimer);
+
+    infoLine('Shutting down');
+
+    // Safety net: never hang on a child that refuses to die — force-exit
+    // after 3s so a single Ctrl-C is always enough.
+    const forceExit = setTimeout(() => process.exit(1), 3000);
+    forceExit.unref();
+
+    await Promise.all([
+      killProcessTree(backendProcess, 'SIGTERM'),
+      killProcessTree(viteProcess, 'SIGTERM'),
+    ]);
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    infoLine('All processes stopped');
+    process.exit(exitCode);
+  }
+
+  // Not `process.on('SIGINT', shutdown)`: the signal name would arrive as
+  // the exit code.
+  process.on('SIGINT', () => void shutdown());
+  process.on('SIGTERM', () => void shutdown());
+
   try {
     loadEnvFiles();
     // Re-configure the reporter now that .env is loaded, so a NO_COLOR /
@@ -1103,36 +1144,6 @@ export async function runDevFleet() {
     // port — the messages above only promise the URL.
     void announceWhenReady(appPort, appUrl);
 
-    async function shutdown() {
-      if (shuttingDown) {
-        // Second Ctrl-C — don't wait for the graceful path, quit immediately.
-        process.exit(1);
-      }
-      shuttingDown = true;
-
-      if (healthCheckTimer) clearInterval(healthCheckTimer);
-
-      infoLine('Shutting down');
-
-      // Safety net: never hang on a child that refuses to die — force-exit
-      // after 3s so a single Ctrl-C is always enough.
-      const forceExit = setTimeout(() => process.exit(1), 3000);
-      forceExit.unref();
-
-      await Promise.all([
-        killProcessTree(backendProcess, 'SIGTERM'),
-        killProcessTree(viteProcess, 'SIGTERM'),
-      ]);
-
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      infoLine('All processes stopped');
-      process.exit(0);
-    }
-
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
-
     viteProcess.on('exit', (code) => {
       if (shuttingDown) return;
       infoLine(`Vite dev server exited with code ${code}`);
@@ -1146,6 +1157,11 @@ export async function runDevFleet() {
     errorLine(
       `Development environment failed: ${err instanceof Error ? err.message : String(err)}`,
     );
-    process.exit(1);
+    // A child spawned before the failure — a backend still waiting on its
+    // database when waitForBackend gave up, or Vite — must not outlive the
+    // orchestrator: it would bind :3005 later and the next `bun run dev`
+    // would fail at waitForBackend blaming "another one holding the port".
+    // A signal that already started the shutdown exits on its own.
+    if (!shuttingDown) await shutdown(1);
   }
 }
