@@ -18,6 +18,7 @@ import { pgAutomationStore } from '../automations/dispatch-store.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { searchKnowledgeForOrg } from '../knowledge/service.ts';
 import { saveMemory, searchApprovedMemories } from './memories.ts';
+import { resolveAccessScope } from './shim.ts';
 
 /**
  * The org-scoped capability surface on 0.5 backends — the 0.4
@@ -172,17 +173,29 @@ function toKnowledgeCorpus(
   }
 }
 
-function buildKnowledgeBackend(sql: Sql): KnowledgeBackend {
+function buildKnowledgeBackend(
+  sql: Sql,
+  scope: SurfaceScope,
+): KnowledgeBackend {
   return {
     async search(request) {
       try {
-        // Deliberately NO access scope (the 0.4 posture for this lane): an
-        // organization API key already speaks for the whole org.
+        // The key holder's OWN visibility, like every other surface the same
+        // person has: an API key acts as its minting user with their role
+        // (any non-disabled member can mint one), so team libraries the
+        // holder is not in, projects they cannot open, and other people's
+        // thread uploads stay out — never the whole org.
+        const access = await resolveAccessScope(
+          sql,
+          scope.organizationId,
+          scope.userId,
+        );
         const result = await searchKnowledgeForOrg(sql, {
           organizationId: request.organizationId,
           query: request.query,
           corpus: toKnowledgeCorpus(request.corpus),
           ...(request.limit !== undefined ? { limit: request.limit } : {}),
+          access: { ...access, userId: scope.userId },
         });
         const passages: KnowledgePassage[] = [];
         for (const hit of result.hits) {
@@ -301,7 +314,7 @@ export async function buildCapabilitySurface(
     userId: scope.userId,
     registry,
     backends: buildBackends(sql, scope),
-    knowledge: buildKnowledgeBackend(sql),
+    knowledge: buildKnowledgeBackend(sql, scope),
     memory: buildMemoryStore(sql),
     audit: buildAuditSink(sql),
   });
