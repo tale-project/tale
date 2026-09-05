@@ -23909,7 +23909,7 @@ async function checkWebsitesCrawl(
       INSERT INTO app.websites (org_id, domain, scan_interval, status,
                                 created_at_ms, updated_at_ms)
       SELECT ${orgId}, 'itest-bulk-' || n || '.example', '30d', 'active',
-             ${Date.now() - 86_400_000} - n, ${Date.now()}
+             ${Date.now() - 86_400_000}::bigint - n, ${Date.now()}::bigint
       FROM generate_series(1, 501) AS n
     `;
     const bulkSchedule = await websites.listWebsitesForScanScheduling(sql);
@@ -25048,7 +25048,7 @@ exit 1
       )
       SELECT ${orgId}, ${userId}, 'https://www.youtube.com/watch?v=race' || n,
              'racehash' || n, 'youtube', 'race', 'fetching_metadata',
-             ${Date.now()}, 0, 'active', ${Date.now()}
+             ${Date.now()}::bigint, 0, 'active', ${Date.now()}::bigint
       FROM generate_series(1, 2) AS n
       RETURNING id
     `;
