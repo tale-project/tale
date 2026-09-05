@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
 import { providerDefinitionSchema } from '../../../../lib/shared/schemas/providers';
 import {
+  CATALOG_FAILURE_BACKOFF_MS,
   CATALOG_TTL_MS,
   getProviderCatalog,
   invalidateCatalogFetchCache,
@@ -281,6 +282,114 @@ describe('getProviderCatalog — live sources', () => {
     ).rejects.toThrow('timed out');
   });
 
+  it('remembers a failed fetch and rethrows it without refetching until the back-off lapses', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedFetch.mockRejectedValue(new SafeFetchError('timeout', 'timed out'));
+    await expect(
+      getProviderCatalog(VERCEL, { maxAttempts: 1 }),
+    ).rejects.toThrow('timed out');
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    // Inside the back-off: the remembered failure answers, no retry ladder.
+    vi.setSystemTime(Date.now() + CATALOG_FAILURE_BACKOFF_MS - 1);
+    await expect(
+      getProviderCatalog(VERCEL, { maxAttempts: 1 }),
+    ).rejects.toThrow('timed out');
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    // Past it: the source is asked again.
+    vi.setSystemTime(Date.now() + 2);
+    mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
+    const entries = await getProviderCatalog(VERCEL, { maxAttempts: 1 });
+    expect(entries).toHaveLength(2);
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('logs a remembered failure once, not on every read the back-off answers', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockOpenRouterListings();
+    await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+
+    vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
+    mockedFetch.mockRejectedValue(
+      new SafeFetchError('network_error', 'connect refused'),
+    );
+    await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    warn.mockClear();
+
+    // Every read inside the back-off serves the previous catalog silently:
+    // the failure was logged when it was remembered.
+    vi.setSystemTime(Date.now() + 1);
+    await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('serves the shipped defaults from a remembered failure without refetching', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedFetch.mockRejectedValue(new SafeFetchError('timeout', 'timed out'));
+    const first = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    expect(first.length).toBeGreaterThan(0);
+    const calls = mockedFetch.mock.calls.length;
+
+    const second = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    expect(second).toEqual(first);
+    expect(mockedFetch).toHaveBeenCalledTimes(calls);
+  });
+
+  it('forceRefresh bypasses the failure back-off', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedFetch.mockRejectedValue(new SafeFetchError('timeout', 'timed out'));
+    await expect(
+      getProviderCatalog(VERCEL, { maxAttempts: 1 }),
+    ).rejects.toThrow('timed out');
+    await expect(
+      getProviderCatalog(VERCEL, { maxAttempts: 1, forceRefresh: true }),
+    ).rejects.toThrow('timed out');
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('coalesces concurrent fetches of one catalog into a single request', async () => {
+    let release: (value: ReturnType<typeof listingResponse>) => void = () => {};
+    mockedFetch.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    const first = getProviderCatalog(VERCEL, { maxAttempts: 1 });
+    const second = getProviderCatalog(VERCEL, { maxAttempts: 1 });
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    release(listingResponse(USABLE_PAYLOAD));
+    const [a, b] = await Promise.all([first, second]);
+    expect(a).toEqual(b);
+    expect(a).toHaveLength(2);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces a forced refresh failure instead of the stale catalog, which keeps serving other callers', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockOpenRouterListings();
+    const first = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+
+    mockedFetch.mockRejectedValue(
+      new SafeFetchError('network_error', 'connect refused'),
+    );
+    await expect(
+      getProviderCatalog(OPENROUTER, { maxAttempts: 1, forceRefresh: true }),
+    ).rejects.toThrow('connect refused');
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('forced refresh failed'),
+      expect.anything(),
+    );
+
+    // A plain read still gets the previous catalog.
+    const after = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    expect(after).toEqual(first);
+    warn.mockRestore();
+  });
+
   it('rejects a non-2xx listing response (no defaults to fall back on)', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedFetch.mockResolvedValue({
@@ -302,6 +411,9 @@ describe('getProviderCatalog — live sources', () => {
       getProviderCatalog(VERCEL, { maxAttempts: 1 }),
     ).rejects.toThrow('no usable models');
 
+    // Nothing was cached as a catalog: once the failure back-off lapses the
+    // source is asked again and a good listing serves in full.
+    vi.setSystemTime(Date.now() + CATALOG_FAILURE_BACKOFF_MS + 1);
     mockedFetch.mockResolvedValueOnce(listingResponse(USABLE_PAYLOAD));
     const entries = await getProviderCatalog(VERCEL, { maxAttempts: 1 });
     expect(entries).toHaveLength(2);

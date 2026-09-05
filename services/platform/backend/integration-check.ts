@@ -5814,6 +5814,20 @@ async function checkSkills(
   );
 }
 
+/** A schema-valid subscription-broker document — the save boundary parses
+ * the configuration against `brokerCredentialDataSchema`, so the probe must
+ * post what the form would. */
+function brokerItestDocument(endpoint: string): Record<string, unknown> {
+  return {
+    endpoint,
+    httpMethod: 'GET',
+    auth: { method: 'none' },
+    responseMapping: { tokensPath: '$.tokens', tokenField: 'access_token' },
+    targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+    selection: 'first',
+  };
+}
+
 /**
  * Provider credentials: encrypted round-trip through the REUSED 0.4
  * resolver over PG rows (api-key decrypt + env gate + default swap), with
@@ -6051,7 +6065,7 @@ async function checkProviderCredentials(
         providerSlug: 'anthropic',
         authMethod: 'subscription-broker',
         name: 'Broker pool',
-        secret: JSON.stringify({ endpoint: 'https://broker.itest/v1' }),
+        secret: JSON.stringify(brokerItestDocument('https://broker.itest/v1')),
       })
     ).json(),
   );
@@ -6059,7 +6073,7 @@ async function checkProviderCredentials(
   const brokerReplaced = await send(
     'POST',
     `/api/app/provider-credentials/${brokerId}?orgId=${orgId}`,
-    { secret: JSON.stringify({ endpoint: 'https://broker.itest/v2' }) },
+    { secret: JSON.stringify(brokerItestDocument('https://broker.itest/v2')) },
   );
   const edited = await listCredentials();
   const rowsById = new Map(

@@ -1,44 +1,4 @@
-import {
-  DEFAULT_DSAR_GOVERNANCE,
-  type DsarGovernanceConfig,
-  dsarGovernanceConfigSchema,
-} from '../../../lib/shared/schemas/governance';
-import { readConfigCacheRow } from '../lib/config_cache/read';
-import type { QueryCtx } from '../lib/ctx';
-
-/**
- * Read the per-org `dsar_governance` policy's CURRENT effective config from
- * the file-derived `configCache`. A staged loosening change lives in
- * `dsarPolicyPendingChanges` and does NOT take effect until
- * `applyPendingDsarPolicyChange` flips the file; consumers that gate on policy
- * (e.g. `requestErasure`) only see the active config.
- *
- * Defaults: 24h cooling-off, no dual approval, 5 requests/admin/day.
- */
-export async function getDsarPolicy(
-  ctx: QueryCtx,
-  organizationId: string,
-): Promise<DsarGovernanceConfig> {
-  const row = await readConfigCacheRow(
-    ctx.db,
-    organizationId,
-    'governance',
-    'dsar_governance',
-  );
-
-  if (!row) return DEFAULT_DSAR_GOVERNANCE;
-
-  const parsed = dsarGovernanceConfigSchema.safeParse(row.config);
-  if (!parsed.success) {
-    console.warn(
-      `Invalid dsar_governance config for org ${organizationId}; using defaults`,
-      parsed.error,
-    );
-    return DEFAULT_DSAR_GOVERNANCE;
-  }
-
-  return parsed.data;
-}
+import type { DsarGovernanceConfig } from '../../../lib/shared/schemas/governance';
 
 /**
  * Returns true when `next` is *strictly weaker* than `current` along

@@ -2,9 +2,12 @@
 
 /**
  * Resolve the organization's text-to-speech model against the provider
- * world: the first `text-to-speech`-tagged catalog entry served by an active
- * DIRECT credential (api-key/env), with the voice and speaking instructions
- * picked by locale → base language → default.
+ * world: the first `text-to-speech`-tagged catalog entry the provider's
+ * active DIRECT default credential (api-key/env) may serve — its model
+ * allowlist applied exactly as the composer applies it when deriving the
+ * `voice.ttsAvailable` flag, so a model the admin excluded is never
+ * synthesized (or metered) behind a hidden button — with the voice and
+ * speaking instructions picked by locale → base language → default.
  *
  * Failures are coded `AppError`s that `errorCodeFromCaught` classifies
  * into the closed `TtsErrorCode` enum — the codes fan out to every org
@@ -13,10 +16,13 @@
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import type { AudioFormat } from '../../../../lib/shared/schemas/providers';
+import { modelAllowlistPermits } from '../../../../lib/shared/utils/model-ref';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import type { ActionCtx } from '../ctx';
-import { getProviderCatalog } from './catalog_fetch';
+import { internal } from '../handler_names';
+import { directActiveCredential } from './direct_credential';
 import { resolveProvidersForOrgId } from './org_providers';
+import { getServableCatalog } from './servable_catalog';
 
 export interface ResolvedTtsModel {
   readonly modelId: string;
@@ -43,9 +49,19 @@ export async function resolveTtsModel(
         ];
 
   for (const provider of ordered) {
+    // The default credential decides what this provider may serve — read
+    // it first so a credential-less provider costs no catalog fetch and an
+    // allowlisted one is narrowed the way the composer's flag is.
+    const direct = directActiveCredential(
+      await ctx.runQuery(
+        internal.provider_credentials.queries.getDefaultCredentialInternal,
+        { organizationId: opts.organizationId, providerSlug: provider.name },
+      ),
+    );
+    if (direct === null) continue;
     let catalog;
     try {
-      catalog = await getProviderCatalog(provider);
+      catalog = await getServableCatalog(provider, direct.modelAllowlist);
     } catch (error) {
       // One unreachable catalog must not blank voice for the whole org.
       console.warn(
@@ -54,8 +70,10 @@ export async function resolveTtsModel(
       );
       continue;
     }
-    const entry = catalog.find((candidate) =>
-      candidate.tags.includes('text-to-speech'),
+    const entry = catalog.find(
+      (candidate) =>
+        candidate.tags.includes('text-to-speech') &&
+        modelAllowlistPermits(direct.modelAllowlist, candidate.id),
     );
     if (!entry) continue;
 
