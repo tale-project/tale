@@ -61,11 +61,22 @@ interface StageResult {
 
 const FETCH_MAX_BYTES = 100 * 1024 * 1024;
 const INLINE_MAX_BYTES = 1 * 1024 * 1024;
+/** Per-item deadline on a URL fetch (headers AND body). Under the spawner's
+ * 30 s RPC bound on the whole stage call: without a deadline of its own the
+ * daemon kept a stalled or trickling blob server's handler + accumulated
+ * buffers alive for undici's 300 s defaults (unbounded for a trickle) long
+ * after the spawner had already reported a timeout, and every later item in
+ * the batch waited behind it. */
+const STAGE_FETCH_TIMEOUT_MS = 25_000;
 
 /** Write each item under the workspace (inline bytes, or fetched from its
- * URL). Skips (never throws) on a bad path, fetch failure, or oversize,
- * reporting a structured reason. */
-export async function stageFiles(items: StageItem[]): Promise<StageResult> {
+ * URL). Skips (never throws) on a bad path, fetch failure, timeout, or
+ * oversize, reporting a structured reason. */
+export async function stageFiles(
+  items: StageItem[],
+  opts: { fetchTimeoutMs?: number } = {},
+): Promise<StageResult> {
+  const fetchTimeoutMs = opts.fetchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS;
   const staged: StageResult['staged'] = [];
   const skipped: StageResult['skipped'] = [];
   for (const item of items) {
@@ -75,7 +86,7 @@ export async function stageFiles(items: StageItem[]): Promise<StageResult> {
       continue;
     }
     try {
-      let buf: Buffer;
+      let buf: Buffer | number | 'too_large' | 'no_body';
       if (item.contentBase64 !== undefined) {
         buf = Buffer.from(item.contentBase64, 'base64');
         if (buf.byteLength > INLINE_MAX_BYTES) {
@@ -83,47 +94,21 @@ export async function stageFiles(items: StageItem[]): Promise<StageResult> {
           continue;
         }
       } else if (item.url !== undefined) {
-        const res = await fetch(item.url);
-        if (!res.ok) {
-          skipped.push({ path: item.path, reason: `http_${res.status}` });
+        const ac = new AbortController();
+        const deadline = setTimeout(() => ac.abort(), fetchTimeoutMs);
+        try {
+          buf = await fetchBounded(item.url, ac.signal);
+        } finally {
+          clearTimeout(deadline);
+        }
+        if (buf === 'too_large' || buf === 'no_body') {
+          skipped.push({ path: item.path, reason: buf });
           continue;
         }
-        // Reject up front on a declared length over the cap (cheap, no body
-        // read). A truthful Content-Length avoids streaming a huge body at all.
-        const declared = Number(res.headers.get('content-length') ?? '');
-        if (Number.isFinite(declared) && declared > FETCH_MAX_BYTES) {
-          skipped.push({ path: item.path, reason: 'too_large' });
+        if (typeof buf === 'number') {
+          skipped.push({ path: item.path, reason: `http_${buf}` });
           continue;
         }
-        if (res.body === null) {
-          skipped.push({ path: item.path, reason: 'no_body' });
-          continue;
-        }
-        // Stream-accumulate so a missing/lying Content-Length can't OOM the
-        // daemon: cancel the reader the instant the running total crosses the
-        // cap (don't buffer the whole body first).
-        const reader = res.body.getReader();
-        const parts: Buffer[] = [];
-        let total = 0;
-        let overLimit = false;
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value === undefined) continue;
-          const part = Buffer.from(value);
-          total += part.byteLength;
-          if (total > FETCH_MAX_BYTES) {
-            overLimit = true;
-            await reader.cancel();
-            break;
-          }
-          parts.push(part);
-        }
-        if (overLimit) {
-          skipped.push({ path: item.path, reason: 'too_large' });
-          continue;
-        }
-        buf = Buffer.concat(parts);
       } else {
         skipped.push({ path: item.path, reason: 'no_source' });
         continue;
@@ -136,11 +121,53 @@ export async function stageFiles(items: StageItem[]): Promise<StageResult> {
     } catch (err) {
       skipped.push({
         path: item.path,
-        reason: err instanceof Error ? err.message : 'fetch_failed',
+        reason:
+          err instanceof Error
+            ? err.name === 'AbortError'
+              ? 'timeout'
+              : err.message
+            : 'fetch_failed',
       });
     }
   }
   return { staged, skipped };
+}
+
+/** GET a stage URL under `signal`, stream-accumulating under FETCH_MAX_BYTES.
+ * Returns the bytes, a non-2xx status, or a structured skip reason. */
+async function fetchBounded(
+  url: string,
+  signal: AbortSignal,
+): Promise<Buffer | number | 'too_large' | 'no_body'> {
+  const res = await fetch(url, { signal });
+  if (!res.ok) return res.status;
+  // Reject up front on a declared length over the cap (cheap, no body
+  // read). A truthful Content-Length avoids streaming a huge body at all.
+  const declared = Number(res.headers.get('content-length') ?? '');
+  if (Number.isFinite(declared) && declared > FETCH_MAX_BYTES) {
+    return 'too_large';
+  }
+  if (res.body === null) return 'no_body';
+  // Stream-accumulate so a missing/lying Content-Length can't OOM the
+  // daemon: cancel the reader the instant the running total crosses the
+  // cap (don't buffer the whole body first). The abort signal also rejects
+  // reader.read(), so a trickling body is bounded by the same deadline.
+  const reader = res.body.getReader();
+  const parts: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value === undefined) continue;
+    const part = Buffer.from(value);
+    total += part.byteLength;
+    if (total > FETCH_MAX_BYTES) {
+      await reader.cancel();
+      return 'too_large';
+    }
+    parts.push(part);
+  }
+  return Buffer.concat(parts);
 }
 
 interface DeleteResult {
