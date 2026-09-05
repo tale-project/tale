@@ -54,6 +54,7 @@ import {
 } from '../folders/service.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
 import { pgWebdavStore } from '../webdav/connector-store.ts';
+import { connectorBlobSink } from './blob-sink.ts';
 import { collectWorkflowFolderFiles } from './document-listing.ts';
 import { pgTaskStore } from './task-store.ts';
 
@@ -434,6 +435,12 @@ export async function runConnectorAction(
       credentials: credentialResolver(sql),
       approvals: approvalGate(sql),
       audit: auditSink(sql),
+      // `ctx.files` for an in-process live body: the org's own blob store.
+      blobs: connectorBlobSink(sql, {
+        organizationId: args.organizationId,
+        connector: args.connector,
+        caller: args.caller,
+      }),
       ...(args.idempotencyKey !== undefined
         ? { idempotencyKey: args.idempotencyKey }
         : {}),

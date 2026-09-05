@@ -17415,6 +17415,143 @@ async function checkConnectorOauth(
         slackCalls[0]?.body === '{"limit":5}',
       `error=${liveError || '-'} out=${liveParsed.success ? `${liveParsed.data.channels[0]?.id}/${liveParsed.data.next_cursor}` : JSON.stringify(liveOut).slice(0, 200)} vendorCalls=${slackCalls.length} auth=${slackCalls[0]?.auth ?? '-'} body=${slackCalls[0]?.body ?? '-'}`,
     );
+
+    // ---- ctx.files: a live body stores into the ORG's blob store ---------
+    // Confluence get_page hard-requires ctx.files (it stores the page text).
+    // The in-process lane hands the body the org-scoped sink: bytes land in
+    // the org's store, a file_metadata row names the connector as source, and
+    // the body gets the blob ref back. Needs the object store, like every
+    // blob lane.
+    if (process.env.ITEST_S3_ENDPOINT) {
+      const files = await import('./domains/files/service.ts');
+      const { credentialId: confluenceId } =
+        await credentialService.createCredential(sql, {
+          organizationId: orgId,
+          connectorSlug: 'confluence',
+          authMethod: 'basic',
+          name: 'itest wiki',
+          createdBy: userId,
+          endpointUrl: 'https://itest.atlassian.net',
+          secret: { username: 'itest@door.test', password: 'itest-api-token' },
+        });
+      const realFetchForFiles = globalThis.fetch;
+      const wikiCalls: string[] = [];
+      const wikiFetchStub = async (
+        input: Parameters<typeof globalThis.fetch>[0],
+        init?: Parameters<typeof globalThis.fetch>[1],
+      ): Promise<Response> => {
+        const url =
+          typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        if (
+          !url.startsWith('https://itest.atlassian.net/wiki/rest/api/content/')
+        ) {
+          return realFetchForFiles(input, init);
+        }
+        wikiCalls.push(url);
+        return new Response(
+          JSON.stringify({
+            body: { storage: { value: '<p>Hello <b>wiki</b></p><p>Bye</p>' } },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      };
+      globalThis.fetch = Object.assign(wikiFetchStub, {
+        preconnect: realFetchForFiles.preconnect,
+      });
+      let storedOut: unknown = null;
+      let storedError = '';
+      try {
+        const { runConnectorAction } =
+          await import('./domains/connectors/service.ts');
+        const stored = await runConnectorAction(sql, {
+          organizationId: orgId,
+          connector: 'confluence',
+          action: 'get_page',
+          input: { pageId: '4242', title: 'Onboarding' },
+          credentialRef: confluenceId,
+          mode: 'live',
+          caller: { kind: 'user', userId },
+        });
+        storedOut = stored.status === 'ok' ? stored.output : stored;
+      } catch (err) {
+        storedError = err instanceof Error ? err.message : String(err);
+      } finally {
+        globalThis.fetch = realFetchForFiles;
+      }
+      const storedParsed = z
+        .object({
+          file: z.object({
+            id: z.string(),
+            fileName: z.string(),
+            contentType: z.string(),
+            size: z.number(),
+          }),
+        })
+        .safeParse(storedOut);
+      const storedRef = storedParsed.success ? storedParsed.data.file.id : '';
+      const fileRow = storedRef
+        ? await sql<
+            {
+              source: string | null;
+              fileName: string;
+              size: string;
+              uploadedBy: string | null;
+              skipRag: boolean | null;
+            }[]
+          >`
+            SELECT source, file_name AS "fileName", size::text AS size,
+                   uploaded_by AS "uploadedBy", skip_rag_indexing AS "skipRag"
+            FROM app.file_metadata
+            WHERE org_id = ${orgId} AND storage_ref = ${storedRef}
+          `
+        : [];
+      let storedText = '';
+      if (storedRef) {
+        try {
+          const blob = await files.getOrgBlobBytes(sql, orgId, storedRef);
+          storedText = Buffer.from(blob.bytes).toString('utf8');
+        } catch (err) {
+          storedError += ` blobRead=${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+      // A stranger's org must not be able to read the ref back.
+      let foreignRefused = false;
+      if (storedRef) {
+        try {
+          await files.getOrgBlobBytes(sql, 'some-other-org', storedRef);
+        } catch {
+          foreignRefused = true;
+        }
+      }
+      await credentialService.deleteCredential(sql, orgId, confluenceId);
+      record(
+        'connector live: ctx.files stores into the org blob store and returns the ref',
+        storedError === '' &&
+          storedParsed.success &&
+          storedParsed.data.file.fileName === 'Onboarding.txt' &&
+          storedParsed.data.file.contentType === 'text/plain' &&
+          wikiCalls.length === 1 &&
+          storedText === 'Hello wiki\n\nBye' &&
+          fileRow.length === 1 &&
+          fileRow[0]?.source === 'confluence' &&
+          fileRow[0]?.fileName === 'Onboarding.txt' &&
+          fileRow[0]?.uploadedBy === userId &&
+          fileRow[0]?.skipRag === true &&
+          Number(fileRow[0]?.size) === Buffer.byteLength(storedText) &&
+          foreignRefused,
+        `error=${storedError || '-'} file=${storedParsed.success ? `${storedParsed.data.file.fileName}/${storedParsed.data.file.contentType}/${storedParsed.data.file.size}B` : JSON.stringify(storedOut).slice(0, 200)} wikiCalls=${wikiCalls.length} text=${JSON.stringify(storedText)} row=${fileRow.length ? `${fileRow[0]?.source}/${fileRow[0]?.fileName}/${fileRow[0]?.size}B/by=${fileRow[0]?.uploadedBy === userId}/skipRag=${fileRow[0]?.skipRag}` : 'none'} foreignRefused=${foreignRefused}`,
+      );
+    } else {
+      record(
+        'connector live: ctx.files stores into the org blob store and returns the ref',
+        true,
+        'SKIPPED, no ITEST_S3_ENDPOINT',
+      );
+    }
   } finally {
     vendor.close();
     if (savedSiteUrl === undefined) delete process.env.SITE_URL;

@@ -10,9 +10,9 @@
  * serve layer answers 404 — every materialized attachment chip's download died
  * on it. The storageId is stable; the URL must be fresh, so it is read-time.
  *
- * Connector `ctx.files` is deliberately unwired, so Gmail/Outlook's
- * `downloadAttachments` flag cannot store during `get_message`. IMAP returns
- * `contentBase64` on each part; this helper is the sync-path sink.
+ * Gmail/Outlook store attachments during `get_message` through the
+ * connector's own `ctx.files` sink; IMAP returns `contentBase64` on each part
+ * instead, and this helper is that sync path's sink.
  *
  * `'use node'` because the base64 decode goes through `Buffer` — every other
  * `Buffer` user under `convex/` declares the same, and only the `'use node'`
