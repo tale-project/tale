@@ -104,14 +104,6 @@ export async function getOrganization(
   return rows[0] ?? null;
 }
 
-/** Whether the instance has any organization at all (auth-gated). */
-export async function hasAnyOrganization(sql: Sql): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`
-    SELECT "id" FROM "organization" LIMIT 1
-  `;
-  return rows.length > 0;
-}
-
 const ORG_SWITCH_DEDUP_WINDOW_MS = 30 * 60 * 1000;
 
 /**
