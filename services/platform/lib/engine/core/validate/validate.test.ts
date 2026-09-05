@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { nodeVmRunner } from '../../runners/node-vm';
-import { memoryStore } from '../../store/memory';
+import { memoryStore } from '../../selftest/memory-store';
 import { registerNodeType, setCodeRunner, setStoreAdapter } from '../slots';
 import type { Automation, Issue, NodeDef } from '../types';
 import { validate } from './index';

@@ -7,12 +7,12 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The engine's layering, enforced: `core/`, `api/`, and `store/` are pure —
- * no `node:*` builtins, no Bun globals, no Convex modules — so the exact
- * same code runs under any host (Convex actions, Bun scripts, tests) and
- * every side effect flows through the slots. `runners/node-vm.ts` is the ONE
- * sanctioned exception (it exists to wrap `node:vm`); test files are host
- * code and exempt.
+ * The engine's layering, enforced: `core/` and `api/` are pure — no `node:*`
+ * builtins, no Bun globals, no Convex modules — so the exact same code runs
+ * under any host (Convex actions, Bun scripts, tests) and every side effect
+ * flows through the slots. `runners/node-vm.ts` is the ONE sanctioned
+ * exception (it exists to wrap `node:vm`); test files and the test-support
+ * modules under `selftest/` are host code and exempt.
  */
 
 const ENGINE_ROOT = path.join(
@@ -20,7 +20,7 @@ const ENGINE_ROOT = path.join(
   '..',
 );
 
-const PURE_DIRS = ['core', 'api', 'store'];
+const PURE_DIRS = ['core', 'api'];
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];

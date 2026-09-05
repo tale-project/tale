@@ -5,7 +5,7 @@ import { DOC_EXAMPLE } from '../api/docs';
 import { setCodeRunner } from '../core/slots';
 import type { Automation, RunResult } from '../core/types';
 import { nodeVmRunner } from '../runners/node-vm';
-import { memoryStore } from '../store/memory';
+import { memoryStore } from './memory-store';
 
 /** A dispatch store for the selftest: the versioned in-memory store, which
  * doubles as the reference HOST — it records runs and triggers, so the

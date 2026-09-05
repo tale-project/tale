@@ -21,7 +21,7 @@ import { beforeAll, expect, it } from 'vitest';
 import { parse, stringify } from 'yaml';
 
 import { nodeVmRunner } from '../../runners/node-vm';
-import { memoryStore } from '../../store/memory';
+import { memoryStore } from '../../selftest/memory-store';
 import type { IssueCode } from '../errors';
 import { registerNodeType, setCodeRunner, setStoreAdapter } from '../slots';
 import type { Automation, Issue } from '../types';

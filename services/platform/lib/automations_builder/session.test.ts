@@ -5,7 +5,7 @@ import { DOC_EXAMPLE } from '../engine/api/docs';
 import { setCodeRunner } from '../engine/core/slots';
 import type { RunResult, Automation } from '../engine/core/types';
 import { nodeVmRunner } from '../engine/runners/node-vm';
-import { memoryStore } from '../engine/store/memory';
+import { memoryStore } from '../engine/selftest/memory-store';
 import { stringifyYaml } from '../shared/config/yaml';
 import { CHECKLIST_NUDGE, REFLECTION_NUDGE } from './policy';
 import {
