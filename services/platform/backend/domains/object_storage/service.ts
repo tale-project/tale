@@ -25,9 +25,11 @@ import {
   buildS3ObjectStore,
   invalidateOrgObjectStore,
   probeS3ObjectStore,
-  s3GetObjectBytes,
+  s3DeleteObject,
+  s3GetObject,
   s3HeadObject,
   s3PutObject,
+  sameObjectStore,
   type S3ObjectStore,
 } from '../../core/lib/storage/object_store.ts';
 import {
@@ -48,10 +50,12 @@ import { clearObjectStoreCache } from '../../lib/object-store.ts';
  * Per-org BYO object-storage admin (the 0.4 `object_storage` domain, the
  * file half re-orchestrated over the SAME `file_utils` + `object_store`
  * helpers) + the 0.5 BLOB BACKFILL: 0.4 moved Convex `_storage` blobs into
- * the bucket; in 0.5 every blob is already an S3 key, so the twin copies an
+ * the bucket; in 0.5 every blob is already an S3 key, so the twin MOVES an
  * org's objects from the deployment-default store into its own bucket —
- * keys (and therefore refs) stay identical, reads flip over per object as
- * the copy lands.
+ * each copy is written with its stored content type, verified against the
+ * source's size, and only then is the source deleted. Keys (and therefore
+ * refs) stay identical: reads locate a blob in whichever store holds it
+ * (`locateOrgObjectStore`) before, during and after the move.
  */
 export class ObjectStorageError extends Error {
   readonly code: string;
@@ -244,11 +248,20 @@ export async function probeConnection(args: {
 
 // ---------------------------------------------------------------- backfill
 
+/** The walk order — every org-owned table that holds `s3:` blob refs of
+ * its own (the CHECK in migrations 0053 + 0077 mirrors this list). */
+export type BackfillPhase =
+  | 'documents'
+  | 'fileMetadata'
+  | 'ttsChunks'
+  | 'videoLinks'
+  | 'done';
+
 export interface BackfillStatusView {
   runId: string;
   status: 'running' | 'completed' | 'failed';
   dryRun: boolean;
-  phase: 'documents' | 'fileMetadata' | 'done';
+  phase: BackfillPhase;
   continuation: number;
   rowsScanned: number;
   migrated: number;
@@ -368,6 +381,25 @@ export async function createBackfillRun(
 const BATCH = 100;
 const MAX_SAMPLE = 25;
 
+/**
+ * A progress stamp at least this often while a batch is still copying, so
+ * the watchdog's stale window (`BACKFILL_STALE_MS`) measures real liveness
+ * even through a batch of large blobs — and so a fenced run notices soon.
+ */
+const STAMP_INTERVAL_MS = 60_000;
+
+/**
+ * A progress stamp matched no `running` row: the watchdog (or an operator)
+ * already flipped this run to a terminal state — a fresh run may be copying
+ * — so this engine must stop and leave the terminal row exactly as it is.
+ */
+export class BackfillFencedError extends Error {
+  constructor(runId: string) {
+    super(`backfill run ${runId} is no longer running; stopping`);
+    this.name = 'BackfillFencedError';
+  }
+}
+
 interface BackfillCounters {
   rowsScanned: number;
   migrated: number;
@@ -379,6 +411,17 @@ interface BackfillCounters {
   sample: BackfillStatusView['sample'];
 }
 
+/**
+ * Move ONE blob: HEAD source → HEAD target → GET source → PUT target with
+ * the source's content type → HEAD target to verify the landed size →
+ * DELETE source. A blob already gone from the source has nothing left to
+ * move; a target copy that already matches the source finishes the move
+ * (deletes the source) — the resume path after a run that died between
+ * its verified PUT and its source delete; a target copy of the WRONG size
+ * (an unverified copy from an earlier engine) is re-copied over. A copy
+ * that lands short is deleted again before counting as failed, so the
+ * next run never mistakes it for the real one.
+ */
 async function handleRef(
   ref: string,
   table: string,
@@ -401,12 +444,14 @@ async function handleRef(
     return;
   }
   try {
-    if (target !== null && (await s3HeadObject(target, key)) !== null) {
+    const sourceHead = source === null ? null : await s3HeadObject(source, key);
+    if (sourceHead === null) {
       counters.skipped += 1;
       return;
     }
-    const sourceHead = source === null ? null : await s3HeadObject(source, key);
-    if (sourceHead === null) {
+    const targetHead = target === null ? null : await s3HeadObject(target, key);
+    if (targetHead !== null && targetHead.size === sourceHead.size) {
+      if (!dryRun && source !== null) await s3DeleteObject(source, key);
       counters.skipped += 1;
       return;
     }
@@ -421,8 +466,21 @@ async function handleRef(
       });
     }
     if (dryRun || target === null || source === null) return;
-    const bytes = await s3GetObjectBytes(source, key);
-    await s3PutObject(target, key, bytes, 'application/octet-stream');
+    const { bytes, contentType } = await s3GetObject(source, key);
+    await s3PutObject(
+      target,
+      key,
+      bytes,
+      contentType ?? 'application/octet-stream',
+    );
+    const landed = await s3HeadObject(target, key);
+    if (landed === null || landed.size !== sourceHead.size) {
+      await s3DeleteObject(target, key);
+      throw new Error(
+        `copy landed at ${landed === null ? 'no' : landed.size} bytes, the source has ${sourceHead.size}`,
+      );
+    }
+    await s3DeleteObject(source, key);
     counters.migrated += 1;
     counters.bytesMigrated += bytes.byteLength;
   } catch (error) {
@@ -431,10 +489,19 @@ async function handleRef(
   }
 }
 
+interface BackfillRefSite {
+  ref: string;
+  table: string;
+  name?: string;
+}
+
 /**
- * The backfill engine — one run to completion (batched walks with progress
- * stamped per batch). Documents first (file_ref + history_files), then
- * file_metadata; refs stay identical so nothing is rewritten.
+ * The backfill engine — one run to completion: a keyset walk per phase over
+ * every org-owned table holding blob refs (documents' file_ref + history,
+ * file_metadata, tts_audio_chunks, video_link_jobs), progress stamped per
+ * batch and at least every `STAMP_INTERVAL_MS`. Every stamp is fenced on
+ * `status = 'running'`: a run the watchdog failed stops at its next stamp
+ * instead of copying beside a fresh run and flipping itself to completed.
  */
 export async function runBackfill(
   sql: Sql,
@@ -459,10 +526,9 @@ export async function runBackfill(
     sample: [],
   };
 
-  const stamp = async (
-    phase: 'documents' | 'fileMetadata' | 'done',
-  ): Promise<void> => {
-    await sql`
+  let lastStampAt = Date.now();
+  const stamp = async (phase: BackfillPhase): Promise<void> => {
+    const stamped = await sql<{ id: string }[]>`
       UPDATE app.object_storage_backfill_runs SET
         phase = ${phase},
         rows_scanned = ${counters.rowsScanned},
@@ -473,8 +539,14 @@ export async function runBackfill(
         candidate_bytes = ${counters.candidateBytes},
         sample = ${sql.json(toJson(counters.sample))},
         updated_at_ms = ${Date.now()}
-      WHERE id = ${args.runId}
+      WHERE id = ${args.runId} AND status = 'running'
+      RETURNING id
     `;
+    if (stamped.length === 0) throw new BackfillFencedError(args.runId);
+    lastStampAt = Date.now();
+  };
+  const stampIfDue = async (phase: BackfillPhase): Promise<void> => {
+    if (Date.now() - lastStampAt >= STAMP_INTERVAL_MS) await stamp(phase);
   };
 
   try {
@@ -494,11 +566,49 @@ export async function runBackfill(
         'Configure the object-storage connection before moving existing blobs into it.',
       );
     }
+    // Source and target are one physical bucket: every blob is already
+    // "there", and finishing a move would delete the only copy.
+    if (source !== null && target !== null && sameObjectStore(source, target)) {
+      throw new ObjectStorageError(
+        'SAME_STORE',
+        "The organization's bucket is the deployment's default store; there is nothing to move.",
+      );
+    }
+
+    const walk = async <Row extends { id: string }>(
+      phase: BackfillPhase,
+      page: (cursor: string) => Promise<Row[]>,
+      refsOf: (row: Row) => BackfillRefSite[],
+    ): Promise<void> => {
+      await stamp(phase);
+      let cursor = '';
+      for (;;) {
+        const rows = await page(cursor);
+        if (rows.length === 0) break;
+        for (const row of rows) {
+          counters.rowsScanned += 1;
+          for (const site of refsOf(row)) {
+            await handleRef(
+              site.ref,
+              site.table,
+              site.name,
+              source,
+              target,
+              run.dryRun,
+              counters,
+            );
+            await stampIfDue(phase);
+          }
+        }
+        cursor = rows[rows.length - 1]?.id ?? cursor;
+        await stamp(phase);
+      }
+    };
 
     // Phase 1: documents (file_ref + every historyFiles entry).
-    let cursor = '';
-    for (;;) {
-      const docs = await sql<
+    await walk(
+      'documents',
+      (cursor) => sql<
         { id: string; title: string; fileRef: string; historyFiles: string[] }[]
       >`
         SELECT id, title, file_ref AS "fileRef",
@@ -507,40 +617,21 @@ export async function runBackfill(
         WHERE org_id = ${args.organizationId} AND id > ${cursor}
         ORDER BY id ASC
         LIMIT ${BATCH}
-      `;
-      if (docs.length === 0) break;
-      for (const doc of docs) {
-        counters.rowsScanned += 1;
-        await handleRef(
-          doc.fileRef,
-          'documents',
-          doc.title,
-          source,
-          target,
-          run.dryRun,
-          counters,
-        );
-        for (const historyRef of doc.historyFiles) {
-          await handleRef(
-            historyRef,
-            'documents.history',
-            doc.title,
-            source,
-            target,
-            run.dryRun,
-            counters,
-          );
-        }
-      }
-      cursor = docs[docs.length - 1]?.id ?? cursor;
-      await stamp('documents');
-    }
+      `,
+      (doc) => [
+        { ref: doc.fileRef, table: 'documents', name: doc.title },
+        ...doc.historyFiles.map((ref) => ({
+          ref,
+          table: 'documents.history',
+          name: doc.title,
+        })),
+      ],
+    );
 
     // Phase 2: loose file_metadata rows.
-    await stamp('fileMetadata');
-    cursor = '';
-    for (;;) {
-      const files = await sql<
+    await walk(
+      'fileMetadata',
+      (cursor) => sql<
         { id: string; fileName: string | null; storageRef: string }[]
       >`
         SELECT id, file_name AS "fileName", storage_ref AS "storageRef"
@@ -548,48 +639,83 @@ export async function runBackfill(
         WHERE org_id = ${args.organizationId} AND id > ${cursor}
         ORDER BY id ASC
         LIMIT ${BATCH}
-      `;
-      if (files.length === 0) break;
-      for (const file of files) {
-        counters.rowsScanned += 1;
-        await handleRef(
-          file.storageRef,
-          'fileMetadata',
-          file.fileName ?? undefined,
-          source,
-          target,
-          run.dryRun,
-          counters,
-        );
-      }
-      cursor = files[files.length - 1]?.id ?? cursor;
-      await stamp('fileMetadata');
-    }
+      `,
+      (file) => [
+        {
+          ref: file.storageRef,
+          table: 'fileMetadata',
+          ...(file.fileName !== null ? { name: file.fileName } : {}),
+        },
+      ],
+    );
+
+    // Phase 3: synthesized TTS audio. Nameless in the sample on purpose —
+    // the chunk's text is message content.
+    await walk(
+      'ttsChunks',
+      (cursor) => sql<{ id: string; storageRef: string }[]>`
+        SELECT id, storage_ref AS "storageRef"
+        FROM app.tts_audio_chunks
+        WHERE org_id = ${args.organizationId} AND storage_ref IS NOT NULL
+          AND id > ${cursor}
+        ORDER BY id ASC
+        LIMIT ${BATCH}
+      `,
+      (chunk) => [{ ref: chunk.storageRef, table: 'ttsChunks' }],
+    );
+
+    // Phase 4: video-link captions / extracted audio.
+    await walk(
+      'videoLinks',
+      (cursor) => sql<
+        { id: string; videoTitle: string | null; storageRef: string }[]
+      >`
+        SELECT id, video_title AS "videoTitle", storage_ref AS "storageRef"
+        FROM app.video_link_jobs
+        WHERE org_id = ${args.organizationId} AND storage_ref IS NOT NULL
+          AND id > ${cursor}
+        ORDER BY id ASC
+        LIMIT ${BATCH}
+      `,
+      (job) => [
+        {
+          ref: job.storageRef,
+          table: 'videoLinks',
+          ...(job.videoTitle !== null ? { name: job.videoTitle } : {}),
+        },
+      ],
+    );
 
     await stamp('done');
-    await sql`
+    const completed = await sql<{ id: string }[]>`
       UPDATE app.object_storage_backfill_runs SET
         status = 'completed', finished_at_ms = ${Date.now()},
         updated_at_ms = ${Date.now()}
-      WHERE id = ${args.runId}
+      WHERE id = ${args.runId} AND status = 'running'
+      RETURNING id
     `;
+    if (completed.length === 0) throw new BackfillFencedError(args.runId);
   } catch (error) {
+    if (error instanceof BackfillFencedError) {
+      console.warn(`[object-storage] ${error.message}`);
+      return;
+    }
     console.error(`[object-storage] backfill run ${args.runId} failed:`, error);
     await sql`
       UPDATE app.object_storage_backfill_runs SET
         status = 'failed', finished_at_ms = ${Date.now()},
         updated_at_ms = ${Date.now()},
         last_error = ${error instanceof Error ? error.message : String(error)}
-      WHERE id = ${args.runId}
+      WHERE id = ${args.runId} AND status = 'running'
     `;
   }
 }
 
 /**
  * A backfill that has not stamped progress in this long is dead. The engine
- * stamps `updated_at_ms` per ~100-blob batch, so silence past this window
- * means its process died mid-copy — generous, because a single batch of large
- * blobs can be slow.
+ * stamps `updated_at_ms` per ~100-row batch and at least every
+ * `STAMP_INTERVAL_MS` while a batch is still copying, so silence past this
+ * window means its process died mid-copy.
  */
 const BACKFILL_STALE_MS = 30 * 60 * 1000;
 
@@ -599,8 +725,9 @@ const BACKFILL_STALE_MS = 30 * 60 * 1000;
  * `object_storage_backfill_one_running` partial unique index then rejects
  * every future backfill for the org (409). Fail stale runs so the status UI
  * stops spinning and the org can re-run — re-running is idempotent
- * (`handleRef` skips blobs already present in the target bucket), so a fresh
- * run finishes the copy cheaply.
+ * (`handleRef` skips blobs already moved and finishes a verified copy whose
+ * source delete was cut off), so a fresh run finishes the move cheaply. The
+ * failed run's engine, if still alive, stops at its next fenced stamp.
  */
 export async function recoverStuckBackfills(
   sql: Sql,
