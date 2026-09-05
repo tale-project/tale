@@ -162,8 +162,6 @@ export interface CreateChatThreadArgs {
   kind?: string;
   title?: string;
   agentSlug?: string;
-  harness?: string;
-  capabilities?: unknown;
   projectId?: string;
   reasoningEffort?: string;
 }

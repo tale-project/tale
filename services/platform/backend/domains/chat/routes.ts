@@ -95,7 +95,6 @@ import {
   searchChats,
   setBranchSelection,
   setThreadArchived,
-  setThreadCapabilities,
   setThreadPinned,
   setThreadReasoningEffort,
   setThreadSharedWithProject,
@@ -115,18 +114,11 @@ import {
  * turns interleave on one thread.
  */
 
-const capabilitiesSchema = z.object({
-  skills: z.array(z.string().max(200)).max(50),
-  connectors: z.array(z.string().max(200)).max(50),
-});
-
 const createThreadSchema = z.object({
   title: z.string().max(200).optional(),
   projectId: z.string().max(128).optional(),
   kind: z.string().max(50).optional(),
   agentSlug: z.string().max(200).optional(),
-  harness: z.string().max(100).optional(),
-  capabilities: capabilitiesSchema.optional(),
   reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
 });
 
@@ -382,12 +374,6 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         ...(body.data.agentSlug !== undefined
           ? { agentSlug: body.data.agentSlug }
           : {}),
-        ...(body.data.harness !== undefined
-          ? { harness: body.data.harness }
-          : {}),
-        ...(body.data.capabilities !== undefined
-          ? { capabilities: body.data.capabilities }
-          : {}),
         ...(body.data.projectId !== undefined
           ? { projectId: body.data.projectId }
           : {}),
@@ -473,25 +459,6 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return status === null
       ? c.json({ error: 'thread not found' }, 404)
       : c.json(status);
-  });
-
-  app.post('/threads/:threadId/capabilities', async (c) => {
-    const body = capabilitiesSchema.safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    const { organizationId, userId } = caller(c);
-    try {
-      const ok = await setThreadCapabilities(
-        deps.sql,
-        organizationId,
-        userId,
-        c.req.param('threadId'),
-        body.data,
-      );
-      if (ok) await hintThread(c, c.req.param('threadId'));
-      return c.json({ ok });
-    } catch (error) {
-      return handleThreadError(c, error);
-    }
   });
 
   app.post('/threads/:threadId/reasoning-effort', async (c) => {
