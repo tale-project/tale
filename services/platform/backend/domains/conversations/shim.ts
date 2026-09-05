@@ -300,13 +300,23 @@ export function conversationShimHandlers(
           retryCount: z.number().optional(),
         })
         .parse(raw);
+      // Metadata MERGES onto the stored object (the same `||` every other
+      // message metadata write uses): a re-sync of an already-ingested
+      // message hands back only the envelope (`buildEmailMetadata`: from/to/
+      // cc/…), and a wholesale replace dropped the insert-time `sender` /
+      // `isCustomer` the Inbox renders — on every mailbox, every second poll,
+      // because the sync re-fetches the message sitting on its cursor.
       await sql`
         UPDATE app.conversation_messages SET
           external_message_id = ${args.externalMessageId ?? sql.unsafe('external_message_id')},
           delivery_state = ${args.deliveryState ?? sql.unsafe('delivery_state')},
           sent_at_ms = ${args.sentAt ?? sql.unsafe('sent_at_ms')},
           delivered_at_ms = ${args.deliveredAt ?? sql.unsafe('delivered_at_ms')},
-          metadata = ${args.metadata !== undefined ? sql.json(toJson(args.metadata)) : sql.unsafe('metadata')},
+          metadata = ${
+            args.metadata !== undefined
+              ? sql`coalesce(metadata, '{}'::jsonb) || ${sql.json(toJson(args.metadata))}`
+              : sql.unsafe('metadata')
+          },
           retry_count = ${args.retryCount ?? sql.unsafe('retry_count')}
         WHERE id = ${args.messageId}
       `;

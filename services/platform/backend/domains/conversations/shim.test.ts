@@ -84,6 +84,74 @@ describe('conversationShimHandlers', () => {
     );
   });
 });
+/**
+ * A `sql` stand-in that records every statement it is handed. Each call
+ * answers an empty row set, and the promise carries the statement's text and
+ * parameters, so a nested fragment (`sql\`…\`` used as a parameter) stays
+ * inspectable from the outer statement's values.
+ */
+function recordingSql() {
+  const statements: { text: string; values: unknown[] }[] = [];
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const statement = {
+      text: strings.join('?').replace(/\s+/g, ' ').trim(),
+      values,
+    };
+    statements.push(statement);
+    return Object.assign(Promise.resolve([] as unknown[]), statement);
+  };
+  const sql = Object.assign(tag, {
+    unsafe: (text: string) => text,
+    json: (value: unknown) => value,
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
+  return { sql: sql as unknown as import('postgres').Sql, statements };
+}
+
+describe('updateConversationMessage shim', () => {
+  it('merges the re-synced envelope onto the stored metadata instead of replacing it', async () => {
+    const { sql, statements } = recordingSql();
+    const handler = conversationShimHandlers(sql, () => {
+      throw new Error('no connector calls in this test');
+    })['conversations/internal_mutations:updateConversationMessage'];
+    if (!handler) throw new Error('handler missing');
+    const envelope = { from: [{ address: 'carla@ext.test' }], to: [] };
+    await handler({
+      messageId: 'm1',
+      deliveryState: 'delivered',
+      deliveredAt: 1_000,
+      metadata: envelope,
+    });
+    const update = statements.find((s) => s.text.startsWith('UPDATE'));
+    if (!update) throw new Error('no UPDATE issued');
+    // The metadata column is set from a fragment, not a bare parameter…
+    const fragment = update.values.find(
+      (value): value is { text: string; values: unknown[] } =>
+        typeof value === 'object' &&
+        value !== null &&
+        'text' in value &&
+        typeof value.text === 'string' &&
+        value.text.includes('coalesce(metadata'),
+    );
+    expect(fragment).toBeDefined();
+    // …and the fragment is the `||` merge carrying exactly the envelope, so
+    // insert-time `sender` / `isCustomer` survive the re-sync.
+    expect(fragment?.text).toBe("coalesce(metadata, '{}'::jsonb) || ?");
+    expect(fragment?.values).toEqual([envelope]);
+  });
+
+  it('leaves metadata untouched when the update names none', async () => {
+    const { sql, statements } = recordingSql();
+    const handler = conversationShimHandlers(sql, () => {
+      throw new Error('no connector calls in this test');
+    })['conversations/internal_mutations:updateConversationMessage'];
+    if (!handler) throw new Error('handler missing');
+    await handler({ messageId: 'm1', deliveryState: 'sent' });
+    const update = statements.find((s) => s.text.startsWith('UPDATE'));
+    expect(update?.values).toContain('metadata');
+  });
+});
+
 const patch = () => {
   const handler = conversationShimHandlers(SQL, () => {
     throw new Error('no connector calls in this test');
