@@ -25,7 +25,7 @@ Il n’y a aucune carte de proposition entre toi et la définition dans cette ve
 
 ## Ce que chaque décision laisse derrière elle
 
-Les deux portes laissent une trace à deux endroits : le détail de l’exécution elle-même, où la carte se fixe sur approuvé ou rejeté et où suit le résultat de l’étape, et le [journal d’audit](/fr/platform/admin/governance/audit-logs), qui enregistre qui a décidé et quand. Une carte décidée ne se rouvre pas ; une exécution rejetée est terminée, et relancer l’automatisation est une exécution neuve avec une carte neuve. Parce qu’une décision appartient à l’opération pour laquelle elle a été demandée, une politique assouplie ensuite ne libère jamais une carte déjà en attente.
+Les deux portes laissent une trace à deux endroits : le détail de l’exécution elle-même, où la carte se fixe sur approuvé ou rejeté et où suit le résultat de l’étape, et le [journal d’audit](/fr/platform/admin/governance/audit-logs), qui enregistre qui a décidé et quand. Une carte décidée ne se rouvre pas ; une exécution rejetée est terminée, et relancer l’automatisation est une exécution neuve avec une carte neuve. Parce qu’une décision appartient à l’opération pour laquelle elle a été demandée, une politique assouplie ensuite ne libère jamais une carte déjà en attente. Une exécution qui se termine alors que sa carte attend encore — arrêtée par quelqu’un, ou échouée sur une autre branche — retire la carte : elle passe à rejeté dans le détail de l’exécution, puisque l’écriture qu’elle demandait n’aura jamais lieu.
 
 ## Où cela s’inscrit
 

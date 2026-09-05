@@ -25,7 +25,7 @@ There is no proposal card between you and the definition in this version — no 
 
 ## What each decision leaves behind
 
-Both gates leave a record in two places: the run's own detail, where the card settles to approved or rejected and the step's result follows, and the [audit log](/platform/admin/governance/audit-logs), which records who decided and when. A decided card cannot be reopened; a rejected run is over, and running the automation again is a fresh run with a fresh card. Because a decision belongs to the operation it was asked about, a policy loosened afterwards never releases a card already waiting.
+Both gates leave a record in two places: the run's own detail, where the card settles to approved or rejected and the step's result follows, and the [audit log](/platform/admin/governance/audit-logs), which records who decided and when. A decided card cannot be reopened; a rejected run is over, and running the automation again is a fresh run with a fresh card. Because a decision belongs to the operation it was asked about, a policy loosened afterwards never releases a card already waiting. A run that ends while its card is still waiting — stopped by a person, or failed on another branch — withdraws the card: it settles to rejected on the run's detail, because the write it asked about will never happen.
 
 ## Where this fits
 
