@@ -12912,18 +12912,36 @@ async function checkScim(
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
-  const before = z
-    .object({ enabled: z.boolean() })
-    .loose()
-    .safeParse(await (await admin('')).json());
+  // SCIM status rides the SSO settings view — the only reader the admin UI
+  // has; the token surface itself is regenerate / disable.
+  const scimStatus = async (): Promise<
+    | { success: true; data: { enabled: boolean; tokenPrefix: string | null } }
+    | { success: false }
+  > => {
+    const parsed = z
+      .object({
+        scim: z
+          .object({ enabled: z.boolean(), tokenPrefix: z.string().nullable() })
+          .loose(),
+      })
+      .loose()
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/sso/config?orgId=${orgId}`, {
+            headers: { cookie, origin: base },
+          })
+        ).json(),
+      );
+    return parsed.success
+      ? { success: true, data: parsed.data.scim }
+      : { success: false };
+  };
+  const before = await scimStatus();
   const minted = z
     .object({ token: z.string(), tokenPrefix: z.string() })
     .safeParse(await (await admin('/regenerate-token', {})).json());
   const token = minted.success ? minted.data.token : '';
-  const after = z
-    .object({ enabled: z.boolean(), tokenPrefix: z.string() })
-    .loose()
-    .safeParse(await (await admin('')).json());
+  const after = await scimStatus();
 
   const scim = (
     route: string,
@@ -13348,14 +13366,17 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
         ORDER BY t."name"
       `
     ).map((row) => row.name);
-    const refused = await fetch(`${base}/api/app/scim?orgId=${landedOrg}`, {
+    // An admin-gated read (the security page's block counters) refuses the
+    // proxy-role member and opens for the proxy-role admin below.
+    const adminSurface = `${base}/api/app/audit-logs/block-counters`;
+    const refused = await fetch(`${adminSurface}?orgId=${landedOrg}`, {
       headers: { cookie: first.cookie, origin: base },
     });
 
     // Re-auth as proxy-role ADMIN: the SAME session is reused (token equal),
     // its trustedRole updated, and the admin surface opens.
     const second = await authWith('admin', first.cookie);
-    const allowed = await fetch(`${base}/api/app/scim?orgId=${landedOrg}`, {
+    const allowed = await fetch(`${adminSurface}?orgId=${landedOrg}`, {
       headers: { cookie: second.cookie, origin: base },
     });
     const sessionsAfter = await sql<{ trustedRole: string | null }[]>`
@@ -13384,7 +13405,7 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
         allowed.status === 200 &&
         sessionsAfter.length === 1 &&
         sessionsAfter[0]?.trustedRole === 'admin',
-      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${teamNames.join('|')} (want Finance|Operations), member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
+      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${teamNames.join('|')} (want Finance|Operations), member→admin surface=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→admin surface=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
     );
 
     // Session reuse is bound to the browser's OWN cookie: a second device
