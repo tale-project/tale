@@ -7,6 +7,12 @@ import {
   normalizeProjectKey,
   PROJECT_KEY_MAX,
 } from '../../../lib/shared/project_key.ts';
+import {
+  PROJECT_DESCRIPTION_MAX,
+  PROJECT_INSTRUCTIONS_MAX_CHARS,
+  PROJECT_NAME_MAX,
+  PROJECT_SHARED_TEAMS_MAX,
+} from '../../../lib/shared/schemas/projects.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import {
   ADMIN_ROLES,
@@ -47,11 +53,9 @@ import { retireTasksInTx } from '../tasks/retire.ts';
  * land with the machine door.
  */
 
-const PROJECT_NAME_MAX = 80;
-const PROJECT_DESCRIPTION_MAX = 500;
+// Name/description/instructions/sharing caps come from the shared schema
+// file — the editor counts against the same constants.
 const PROJECT_EXTERNAL_ITEM_ID_MAX = 256;
-const PROJECT_INSTRUCTIONS_MAX_CHARS = 6000;
-const PROJECT_SHARED_TEAMS_MAX = 20;
 
 const MAX_PROJECT_AGENT_SKILLS = 25;
 const MAX_PROJECT_AGENT_CONNECTORS = 25;

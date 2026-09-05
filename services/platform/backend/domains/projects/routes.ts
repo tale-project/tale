@@ -3,6 +3,16 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import {
+  createProjectInputSchema,
+  deleteProjectInputSchema,
+  projectKnowledgeModeSchema,
+  updateProjectAgentSettingsSchema,
+  updateProjectIdentitySchema,
+  updateProjectInstructionsSchema,
+  updateProjectModelSettingsSchema,
+  updateProjectSharingSchema,
+} from '../../../lib/shared/schemas/projects.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -48,42 +58,17 @@ import {
   type ProjectAuthContext,
 } from './service.ts';
 
-const restrictionModeSchema = z.enum(['all', 'recommended', 'restricted']);
-
-const createProjectSchema = z.object({
-  name: z.string().min(1).max(200),
-  key: z.string().max(10).optional(),
-  description: z.string().max(2000).optional(),
-  icon: z.string().max(100).optional(),
-  color: z.string().max(50).optional(),
-  externalItemId: z.string().max(512).optional(),
-  teamId: z.string().optional(),
-  sharedWithTeamIds: z.array(z.string()).max(50).optional(),
-});
-
-const identitySchema = z.object({
-  name: z.string().max(200).optional(),
-  description: z.string().max(2000).nullable().optional(),
-  icon: z.string().max(100).nullable().optional(),
-  color: z.string().max(50).nullable().optional(),
-});
-
-const sharingSchema = z.object({
-  teamId: z.string().nullable().optional(),
-  sharedWithTeamIds: z.array(z.string()).max(50).optional(),
-});
-
-const agentSettingsSchema = z.object({
-  agentMode: restrictionModeSchema,
-  recommendedAgentSlugs: z.array(z.string()).max(200).optional(),
-  allowedAgentSlugs: z.array(z.string()).max(200).optional(),
-});
-
-const modelSettingsSchema = z.object({
-  modelMode: restrictionModeSchema,
-  recommendedModels: z.array(z.string()).max(200).optional(),
-  allowedModels: z.array(z.string()).max(200).optional(),
-});
+// The project bodies parse with the SHARED schemas (`lib/shared/schemas/
+// projects.ts`) — the one copy the editor, this door and the service read,
+// so the icon/color allowlists and every cap are enforced here rather than
+// in a looser hand copy. Only the fields the session door adds on top
+// (`key`, `externalItemId`) are declared locally.
+const createProjectSchema = createProjectInputSchema
+  .omit({ organizationId: true })
+  .extend({
+    key: z.string().max(10).optional(),
+    externalItemId: z.string().max(512).optional(),
+  });
 
 const connectorSettingsSchema = z.object({
   connectorsMode: z.enum(['all', 'restricted']),
@@ -100,11 +85,6 @@ const projectAgentSchema = z.object({
   tools: z.array(z.string()).max(100).optional(),
   secrets: z.array(z.string()).max(100).optional(),
   instructions: z.string().max(30_000).optional(),
-});
-
-const deleteSchema = z.object({
-  mode: z.enum(['detach', 'cascade']),
-  confirmPhrase: z.string().max(200).optional(),
 });
 
 function handleError<E extends OrgEnv>(
@@ -285,7 +265,7 @@ export function createProjectRoutes(deps: {
   });
 
   app.post('/:id/identity', async (c) => {
-    const body = identitySchema.safeParse(await c.req.json());
+    const body = updateProjectIdentitySchema.safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -304,9 +284,7 @@ export function createProjectRoutes(deps: {
   });
 
   app.post('/:id/instructions', async (c) => {
-    const body = z
-      .object({ instructions: z.string().max(20_000) })
-      .safeParse(await c.req.json());
+    const body = updateProjectInstructionsSchema.safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -327,7 +305,7 @@ export function createProjectRoutes(deps: {
   });
 
   app.post('/:id/sharing', async (c) => {
-    const body = sharingSchema.safeParse(await c.req.json());
+    const body = updateProjectSharingSchema.safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -347,7 +325,7 @@ export function createProjectRoutes(deps: {
 
   app.post('/:id/knowledge-mode', async (c) => {
     const body = z
-      .object({ knowledgeMode: z.enum(['off', 'tool', 'context', 'both']) })
+      .object({ knowledgeMode: projectKnowledgeModeSchema })
       .safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
@@ -369,7 +347,7 @@ export function createProjectRoutes(deps: {
   });
 
   app.post('/:id/agent-settings', async (c) => {
-    const body = agentSettingsSchema.safeParse(await c.req.json());
+    const body = updateProjectAgentSettingsSchema.safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -388,7 +366,7 @@ export function createProjectRoutes(deps: {
   });
 
   app.post('/:id/model-settings', async (c) => {
-    const body = modelSettingsSchema.safeParse(await c.req.json());
+    const body = updateProjectModelSettingsSchema.safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -426,7 +404,7 @@ export function createProjectRoutes(deps: {
   });
 
   app.delete('/:id', async (c) => {
-    const body = deleteSchema.safeParse(await c.req.json());
+    const body = deleteProjectInputSchema.safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
