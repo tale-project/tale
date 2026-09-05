@@ -44,11 +44,11 @@ import { markRagQueued } from '../knowledge/service.ts';
 
 export class KnowledgeEntryError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404 | 409;
+  readonly status: 400 | 403 | 404 | 409 | 503;
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 409 = 400,
+    status: 400 | 403 | 404 | 409 | 503 = 400,
   ) {
     super(message);
     this.name = 'KnowledgeEntryError';
@@ -119,6 +119,11 @@ interface StoredEntryBlob {
   contentHash: string;
 }
 
+/** How long the object store gets to accept an entry's markdown. Node's
+ * `fetch` has no timeout of its own: a stalled connection held the request
+ * (and the caller's spinner) indefinitely, with its rate-limit token spent. */
+const ENTRY_BLOB_STORE_TIMEOUT_MS = 30_000;
+
 /** Upload the entry's markdown BEFORE the transaction — the write path never
  * holds a tx open over network I/O; an orphaned blob from a failed tx is
  * inert (never referenced). */
@@ -137,11 +142,27 @@ async function storeEntryBlob(
   const putUrl = await s3PresignPutUrl(store, key, {
     contentType: 'text/markdown',
   });
-  const putRes = await fetch(putUrl, {
-    method: 'PUT',
-    headers: { 'content-type': 'text/markdown' },
-    body: bytes,
-  });
+  let putRes: Response;
+  try {
+    putRes = await fetch(putUrl, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/markdown' },
+      body: bytes,
+      signal: AbortSignal.timeout(ENTRY_BLOB_STORE_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.name === 'TimeoutError' || error.name === 'AbortError')
+    ) {
+      throw new KnowledgeEntryError(
+        'KNOWLEDGE_ENTRY_STORE_TIMEOUT',
+        `The object store did not accept the entry within ${ENTRY_BLOB_STORE_TIMEOUT_MS / 1000} seconds. Try again; if it keeps happening, check the object store.`,
+        503,
+      );
+    }
+    throw error;
+  }
   if (!putRes.ok) {
     throw new Error(`knowledge entry blob store failed: ${putRes.status}`);
   }

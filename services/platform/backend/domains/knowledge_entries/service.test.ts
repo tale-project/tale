@@ -1,7 +1,15 @@
 // @vitest-environment node
 
 import type { Sql, TransactionSql } from 'postgres';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type MockInstance,
+} from 'vitest';
 
 /**
  * The entry write path around its two seams: the blob store it uploads to
@@ -40,7 +48,7 @@ vi.mock('../../lib/object-store.ts', async (importOriginal) => ({
   ...store,
 }));
 
-const { createKnowledgeEntry, updateKnowledgeEntry } =
+const { createKnowledgeEntry, updateKnowledgeEntry, KnowledgeEntryError } =
   await import('./service.ts');
 
 interface Statement {
@@ -107,7 +115,7 @@ function fakeSql(script: Script): { sql: Sql; statements: Statement[] } {
 const ORG = 'org-1';
 const WRITER = { organizationId: ORG, userId: 'u-1', role: 'admin' };
 
-let fetchSpy: ReturnType<typeof vi.spyOn>;
+let fetchSpy: MockInstance<typeof fetch>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -124,7 +132,6 @@ beforeEach(() => {
 
 afterEach(() => {
   fetchSpy.mockRestore();
-  vi.useRealTimers();
 });
 
 describe('materializing an entry', () => {
@@ -183,5 +190,69 @@ describe('materializing an entry', () => {
       'knowledge.release_refs',
       { organizationId: ORG, refs: ['s3:acme/old-blob'] },
     );
+  });
+});
+
+describe('storing the entry blob', () => {
+  it('gives up on a hung object store with a coded 503, not a hung request', async () => {
+    // The budget is a real `AbortSignal.timeout`, which fake timers do not
+    // drive; the test owns the signal and fires it the way the runtime does
+    // (a `TimeoutError` reason), and checks the budget the path asked for.
+    const controller = new AbortController();
+    const timeoutSpy = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(controller.signal);
+    // A PUT that never answers — but honours its abort signal, the way
+    // undici does when the timeout signal fires.
+    fetchSpy.mockImplementation(
+      (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(init.signal?.reason),
+          );
+        }),
+    );
+    const { sql, statements } = fakeSql({});
+
+    const outcome = createKnowledgeEntry(sql, {
+      ...WRITER,
+      topic: 'Store hours',
+      content: 'Open 9-5',
+    }).then(
+      () => 'resolved',
+      (error: unknown) => error,
+    );
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    controller.abort(
+      new DOMException(
+        'The operation was aborted due to timeout',
+        'TimeoutError',
+      ),
+    );
+
+    const error = await outcome;
+    expect(error).toBeInstanceOf(KnowledgeEntryError);
+    expect(error).toMatchObject({
+      code: 'KNOWLEDGE_ENTRY_STORE_TIMEOUT',
+      status: 503,
+    });
+    expect(timeoutSpy).toHaveBeenCalledWith(30_000);
+    expect(fetchSpy.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+    // The upload runs BEFORE the transaction: nothing was written.
+    expect(statements.some((s) => s.text.includes('INSERT'))).toBe(false);
+    timeoutSpy.mockRestore();
+  });
+
+  it('passes any other store failure through unchanged', async () => {
+    fetchSpy.mockRejectedValue(new TypeError('fetch failed'));
+    const { sql } = fakeSql({});
+
+    await expect(
+      createKnowledgeEntry(sql, {
+        ...WRITER,
+        topic: 'Store hours',
+        content: 'Open 9-5',
+      }),
+    ).rejects.toThrow('fetch failed');
   });
 });
