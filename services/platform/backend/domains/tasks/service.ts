@@ -17,11 +17,9 @@ import {
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
 import { REVIEW_POLICY_REFUSAL_CODES } from '../../core/tasks/review_shared.ts';
 import { toJson } from '../../db/sql.ts';
-import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { cancelRunInTx } from '../automations/store.ts';
 import {
   autoSubscribe,
   notifyTaskAssigned,
@@ -35,7 +33,8 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
-import { cancelAgentRunInTx, kickAgentRun } from './agent-runs.ts';
+import { kickAgentRun } from './agent-runs.ts';
+import { retireTasksInTx } from './retire.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
   collectPendingReviewsForProjects,
@@ -1827,48 +1826,15 @@ export async function restoreTask(
 }
 
 /**
- * Every blob ref a set of task rows holds — the `fileId` of each
- * attachment/output element (the `s3:` ref both columns carry, the same
- * vocabulary `files/access.ts` reads back), de-duplicated in first-seen
- * order. Malformed elements are skipped: a hard delete must never fail on a
- * row it is about to remove.
- */
-export function collectTaskBlobRefs(
-  rows: ReadonlyArray<{ attachments: unknown; outputs: unknown }>,
-): string[] {
-  const refs = new Set<string>();
-  for (const row of rows) {
-    for (const column of [row.attachments, row.outputs]) {
-      if (!Array.isArray(column)) continue;
-      for (const element of column) {
-        if (
-          element !== null &&
-          typeof element === 'object' &&
-          'fileId' in element &&
-          typeof element.fileId === 'string' &&
-          element.fileId !== ''
-        ) {
-          refs.add(element.fileId);
-        }
-      }
-    }
-  }
-  return [...refs];
-}
-
-/**
  * Hard delete — admin-only (0.4 contract). Deletes the WHOLE SUBTREE
  * (subtasks recursively) with each task's discussion thread; returns how
  * many children went with it (the confirm dialog names the count).
  *
- * Nothing the subtree owned outlives it: its live runs are cancelled in
- * this transaction (the agent run through the ledgered cancel door, so the
- * provenance entry lands before the FK cascade takes the row and the turn
- * host reaps the exec as an orphan; a bound automation run through its own
- * terminal door), and its attachment/output blobs are handed to the shared
- * ref-release seam — the tasks' unbound file rows are trashed here and the
- * durable `knowledge.release_refs` job deletes the bytes after commit,
- * keeping any ref another task, document or file row still holds.
+ * Nothing the subtree owned outlives it — the live-run cancel, the thread
+ * delete, the approval close, the row delete and the blob release are the
+ * shared retirement walk (`retire.ts` `retireTasksInTx`), which the project
+ * door runs over ITS tasks too. This door adds the project rollup
+ * transitions (the project survives its task) and the audit row.
  */
 export async function deleteTask(
   tx: TransactionSql,
@@ -1882,61 +1848,20 @@ export async function deleteTask(
     throw new TaskError('ROLE_FORBIDDEN', 'Admin role required', 403);
   }
   const tree = await tx<
-    {
-      id: string;
-      status: TaskStatus;
-      archivedAt: number | null;
-      discussionThreadId: string | null;
-      attachments: unknown;
-      outputs: unknown;
-    }[]
+    { id: string; status: TaskStatus; archivedAt: number | null }[]
   >`
     WITH RECURSIVE tree AS (
-      SELECT id, status, archived_at_ms, discussion_thread_id, attachments,
-             outputs, 0 AS depth
+      SELECT id, status, archived_at_ms, 0 AS depth
       FROM app.tasks WHERE id = ${taskId}
       UNION ALL
-      SELECT t.id, t.status, t.archived_at_ms, t.discussion_thread_id,
-             t.attachments, t.outputs, tree.depth + 1
+      SELECT t.id, t.status, t.archived_at_ms, tree.depth + 1
       FROM app.tasks t JOIN tree ON t.parent_task_id = tree.id
       WHERE tree.depth < 32
     )
-    SELECT id, status, archived_at_ms::float8 AS "archivedAt",
-           discussion_thread_id AS "discussionThreadId", attachments, outputs
+    SELECT id, status, archived_at_ms::float8 AS "archivedAt"
     FROM tree
   `;
   const ids = tree.map((row) => row.id);
-
-  // Live runs die WITH their tasks, not after them. The agent run's row
-  // would FK-cascade away mid-turn, leaving the sandbox turn executing with
-  // nowhere to land and no provenance entry; cancelling it here writes the
-  // ledger row first, and the turn host's orphan check reaps the exec. A
-  // bound automation run keeps its own terminal contract (audit row,
-  // sessions released).
-  let cancelledRunCount = 0;
-  const liveAgentRuns = await tx<{ id: string; taskId: string }[]>`
-    SELECT id, task_id AS "taskId" FROM app.project_agent_runs
-    WHERE org_id = ${auth.organizationId} AND task_id = ANY(${ids})
-      AND status IN ('queued', 'running')
-  `;
-  for (const run of liveAgentRuns) {
-    const cancelled = await cancelAgentRunInTx(tx, {
-      organizationId: auth.organizationId,
-      runId: run.id,
-      taskId: run.taskId,
-    });
-    if (cancelled) cancelledRunCount += 1;
-  }
-  const liveAutomationRuns = await tx<{ id: string }[]>`
-    SELECT id FROM app.automation_runs
-    WHERE org_id = ${auth.organizationId} AND project_id = ${task.projectId}
-      AND status IN ('queued', 'running', 'waiting')
-      AND input -> 'task' ->> 'id' = ANY(${ids})
-  `;
-  for (const run of liveAutomationRuns) {
-    const outcome = await cancelRunInTx(tx, auth.organizationId, run.id);
-    if (outcome.cancelled) cancelledRunCount += 1;
-  }
 
   for (const row of tree) {
     await applyTaskCountTransition(
@@ -1946,70 +1871,12 @@ export async function deleteTask(
       'none',
     );
   }
-  // Discussion threads die with their tasks (messages + meta cascade by FK).
-  const threadIds = tree
-    .map((row) => row.discussionThreadId)
-    .filter((id): id is string => id !== null);
-  if (threadIds.length > 0) {
-    await tx`DELETE FROM app.threads WHERE id = ANY(${threadIds})`;
-  }
-  // Pending approvals that named these tasks die with them. Leaving them
-  // would show a reviewer an inbox row for work that no longer exists —
-  // undecidable, because every decision path resolves the task first. They
-  // are REJECTED rather than deleted so the audit trail keeps the fact that
-  // a review was once requested (0.4 orphaned them; this is the fix, not a
-  // port of the shortcoming).
-  await tx`
-    UPDATE app.approvals SET
-      status = 'rejected', reviewed_at_ms = ${Date.now()},
-      metadata = coalesce(metadata, '{}'::jsonb)
-        || jsonb_build_object('closedReason', 'task_deleted')
-    WHERE org_id = ${auth.organizationId} AND status = 'pending'
-      AND (
-        (resource_type IN ('task_review', 'document_record_review')
-          AND resource_id = ANY(${ids}))
-        OR metadata->>'taskId' = ANY(${ids})
-      )
-  `;
-  await tx`DELETE FROM app.tasks WHERE id = ANY(${ids})`;
-
-  // Blob reclaim through the shared release seam. A ref some SURVIVING task
-  // still lists stays (the same deliverable can sit on two cards); for the
-  // rest, the tasks' own unbound file rows are trashed so the release sees
-  // them dead, and the durable job deletes the bytes after commit — network
-  // I/O never runs inside this transaction, and the release re-checks
-  // liveness itself (a document or a chat thread holding the same ref keeps
-  // its bytes). Before this, every deleted task leaked its files for good.
-  const refs = collectTaskBlobRefs(tree);
-  let releasedRefs: string[] = [];
-  if (refs.length > 0) {
-    const orphaned = await tx<{ ref: string }[]>`
-      SELECT r.ref FROM unnest(${refs}::text[]) AS r(ref)
-      WHERE NOT EXISTS (
-        SELECT 1 FROM app.tasks t
-        WHERE t.org_id = ${auth.organizationId}
-          AND (t.outputs @> jsonb_build_array(jsonb_build_object('fileId', r.ref))
-               OR t.attachments
-                  @> jsonb_build_array(jsonb_build_object('fileId', r.ref)))
-      )
-    `;
-    releasedRefs = orphaned.map((row) => row.ref);
-    if (releasedRefs.length > 0) {
-      await tx`
-        UPDATE app.file_metadata SET
-          lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
-        WHERE org_id = ${auth.organizationId}
-          AND storage_ref = ANY(${releasedRefs})
-          AND document_id IS NULL AND thread_id IS NULL
-          AND conversation_id IS NULL
-          AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
-      `;
-      await addJobInTx(tx, 'knowledge.release_refs', {
-        organizationId: auth.organizationId,
-        refs: releasedRefs,
-      });
-    }
-  }
+  const retired = await retireTasksInTx(tx, {
+    organizationId: auth.organizationId,
+    projectId: task.projectId,
+    taskIds: ids,
+    closedReason: 'task_deleted',
+  });
 
   await createAuditLog(
     tx,
@@ -2017,8 +1884,8 @@ export async function deleteTask(
       previousState: { status: task.status, title: task.title },
       metadata: {
         deletedChildCount: ids.length - 1,
-        cancelledRunCount,
-        releasedBlobRefCount: releasedRefs.length,
+        cancelledRunCount: retired.cancelledRunCount,
+        releasedBlobRefCount: retired.releasedRefs.length,
       },
     }),
   );

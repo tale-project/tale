@@ -29,6 +29,7 @@ import {
   LegalHoldError,
   loadActiveHolds,
 } from '../legal_holds/service.ts';
+import { retireTasksInTx } from '../tasks/retire.ts';
 
 /**
  * Projects domain — ported from `convex/projects/*` with the pure access
@@ -1060,12 +1061,15 @@ export interface DeleteProjectResult {
 
 /**
  * Delete a project ('detach' releases children, 'cascade' destroys them —
- * requires the confirm phrase). Project agents, folders, and tasks die with
- * the row (FK cascade — tasks cannot exist without a project); documents
- * detach (or expire into the retention pipeline on cascade) and threads
- * detach (cascade trashes only the CALLER's own threads), exactly the 0.4
- * walk. A cascade is a delete of every document in the project, so it asks
- * the documents domain's own pre-walk first: one protected controlled record
+ * requires the confirm phrase). Project agents and folders die with the row
+ * (FK cascade); tasks cannot exist without a project either, but they go
+ * through the tasks domain's retirement walk (`retireTasksInTx`) in BOTH
+ * modes so their live runs, discussion threads, pending reviews and blobs
+ * are settled rather than dropped by the FK; documents detach (or expire
+ * into the retention pipeline on cascade) and threads detach (cascade
+ * trashes only the CALLER's own threads), exactly the 0.4 walk. A cascade is
+ * a delete of every document in the project, so it asks the documents
+ * domain's own pre-walk first: one protected controlled record
  * (in review, approved, or carrying an approved version) or one held
  * document refuses the WHOLE cascade before anything is written — the same
  * all-or-nothing the folder cascade applies. Without it the cascade was the
@@ -1165,12 +1169,35 @@ export async function deleteProject(
   `;
   counts.detachedThreadCount = detachedThreads.length;
 
+  // Tasks cannot outlive their project, so BOTH modes retire every task the
+  // way the task door does — live runs cancelled through their ledgered
+  // doors, discussion threads deleted, pending reviews closed for the
+  // reviewers' inboxes, blob refs released. Letting the FK cascade take the
+  // rows skipped all of that: phantom pending reviews, sandbox turns still
+  // executing against a vanished run row, leaked files.
+  const taskRows = await tx<{ id: string }[]>`
+    SELECT id FROM app.tasks
+    WHERE org_id = ${auth.organizationId} AND project_id = ${args.projectId}
+  `;
+  const retired = await retireTasksInTx(tx, {
+    organizationId: auth.organizationId,
+    projectId: args.projectId,
+    taskIds: taskRows.map((row) => row.id),
+    closedReason: 'project_deleted',
+  });
+
   await tx`DELETE FROM app.projects WHERE id = ${args.projectId}`;
 
   await createAuditLog(
     tx,
     projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.deleted, {
-      metadata: { mode: args.mode, ...counts },
+      metadata: {
+        mode: args.mode,
+        ...counts,
+        deletedTaskCount: taskRows.length,
+        cancelledRunCount: retired.cancelledRunCount,
+        releasedBlobRefCount: retired.releasedRefs.length,
+      },
     }),
   );
   await hintProject(tx, auth.organizationId, args.projectId);
