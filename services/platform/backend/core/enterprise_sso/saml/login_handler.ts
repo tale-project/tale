@@ -32,6 +32,7 @@ export async function samlLoginHandler(
     const result = await ctx.runAction(
       internal.enterprise_sso.saml.validate_assertion.buildSamlAuthnRedirect,
       {
+        idpEntityId: config.idpEntityId,
         idpSsoUrl: config.idpSsoUrl,
         idpCertificate: config.idpCertificate,
         spEntityId,

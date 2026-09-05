@@ -88,6 +88,7 @@ export async function samlAcsHandler(
       {
         samlResponse,
         relayState,
+        idpEntityId: config.idpEntityId,
         idpSsoUrl: config.idpSsoUrl,
         idpCertificate: config.idpCertificate,
         spEntityId,

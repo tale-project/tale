@@ -72,6 +72,7 @@ export interface SamlValidationDeps {
 
 function buildSaml(
   args: {
+    idpEntityId: string;
     idpSsoUrl: string;
     idpCertificate: string;
     spEntityId: string;
@@ -86,6 +87,9 @@ function buildSaml(
     callbackUrl: args.acsUrl,
     entryPoint: args.idpSsoUrl,
     idpCert: args.idpCertificate,
+    // node-saml 5.1 applies `idpIssuer` to logout messages only; the
+    // assertion's Issuer is checked below on the validated profile.
+    idpIssuer: args.idpEntityId,
     audience: args.spEntityId,
     wantAssertionsSigned: args.wantAssertionsSigned ?? true,
     wantAuthnResponseSigned: false,
@@ -115,6 +119,8 @@ function toAttributeRecord(value: unknown): Record<string, unknown> {
 export interface ValidateSamlResponseArgs {
   samlResponse: string;
   relayState?: string;
+  /** The connection's IdP entity ID — the assertion's Issuer must match. */
+  idpEntityId: string;
   idpSsoUrl: string;
   idpCertificate: string;
   spEntityId: string;
@@ -159,6 +165,20 @@ export async function validateSamlResponseImpl(
       ...(args.relayState ? { RelayState: args.relayState } : {}),
     });
     if (!profile) return { ok: false, error: 'No SAML profile returned' };
+    // The connection's IdP entity ID is REQUIRED by the admin door and is
+    // what the assertion's Issuer must match — a valid signature under a
+    // shared or rotated certificate is not enough on its own. node-saml
+    // exposes the (decrypted, signature-verified) assertion's Issuer on the
+    // profile but compares it to `idpIssuer` only for logout messages.
+    if (typeof profile.issuer !== 'string' || profile.issuer === '') {
+      return { ok: false, error: 'Missing SAML issuer' };
+    }
+    if (profile.issuer !== args.idpEntityId) {
+      return {
+        ok: false,
+        error: `Unknown SAML issuer. Expected: ${args.idpEntityId} Received: ${profile.issuer}`,
+      };
+    }
     const nameId =
       typeof profile.nameID === 'string' ? profile.nameID : undefined;
     // node-saml exposes the asserted attributes on `profile.attributes`.
@@ -172,6 +192,7 @@ export async function validateSamlResponseImpl(
   }
 }
 export interface BuildSamlAuthnRedirectArgs {
+  idpEntityId: string;
   idpSsoUrl: string;
   idpCertificate: string;
   spEntityId: string;
