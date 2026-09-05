@@ -115,7 +115,10 @@ export type WireDialect = z.infer<typeof wireDialectSchema>;
  * `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1`, and cloud-metadata endpoints are
  * refused unconditionally. A private-http provider file on a deployment
  * without the opt-in is inert, not a hole.
- * Exported for the per-credential endpoint validation (Azure-style providers).
+ * Exported for the per-credential endpoint validation (Azure-style providers)
+ * and the broker `endpoint`, so the refusal names no field itself: the
+ * formatter prefixes the path (`baseUrl: …`, `endpoint: …`) and the
+ * credential service its own label.
  */
 export const providerBaseUrlSchema = z
   .string()
@@ -128,7 +131,7 @@ export const providerBaseUrlSchema = z
     } catch {
       return false;
     }
-  }, 'baseUrl must be an https:// URL (plain http:// is allowed only for ' + 'private/loopback hosts, e.g. a self-hosted model server)');
+  }, 'must be an https:// URL (plain http:// is allowed only for private/loopback hosts, e.g. a self-hosted model server)');
 
 /**
  * Where a provider's model catalog comes from. The four cases:

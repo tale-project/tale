@@ -151,6 +151,18 @@ describe('assertCredentialEndpointUrl', () => {
       );
     }
   });
+
+  it('names the endpoint field, not the provider baseUrl the rule is shared with', async () => {
+    const error = await caught(
+      (async () => {
+        assertCredentialEndpointUrl('http://api.example.com/v1');
+      })(),
+    );
+    expect(error.message).toMatch(
+      /^Endpoint URL is invalid — must be an https:\/\/ URL/,
+    );
+    expect(error.message).not.toContain('baseUrl');
+  });
 });
 
 describe('createCredential — refusals land before any statement', () => {
