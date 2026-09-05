@@ -11,7 +11,6 @@ import { emitEvent } from '../events/emit.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
 import {
   agentUpdateTaskStatusTrusted,
-  bulkUpdateTasks,
   handTaskToInProgressForKick,
   moveTask,
   type TaskRow,
@@ -230,61 +229,6 @@ describe('every status door lands on the same settle seam', () => {
       audits: 0,
       hints: [],
     });
-  });
-
-  it('the bulk bar (/bulk) with a status is every card through the picker seam', async () => {
-    const task = taskRow();
-    const { tx } = fakeTx(task);
-    await expect(
-      bulkUpdateTasks(tx, auth, { taskIds: [task.id], status: 'done' }),
-    ).resolves.toEqual({ updated: 1, skipped: 0 });
-    const effects = sideEffects();
-    expect(effects.bells).toEqual([
-      {
-        task,
-        fromStatus: 'todo',
-        toStatus: 'done',
-        actorType: 'user',
-        actorId: 'u-owner',
-      },
-    ]);
-    expect(effects.events.map((e) => e.eventType)).toEqual([
-      'task.status_changed',
-    ]);
-    expect(effects.events[0]?.eventData).toMatchObject({
-      taskId: 't-1',
-      fromStatus: 'todo',
-      toStatus: 'done',
-      actorType: 'user',
-    });
-    expect(effects.audits).toBe(1);
-    // The activity line carries the board hint; no second bare hint.
-    expect(effects.hints).toEqual(['task:t-1']);
-  });
-
-  it('the bulk bar with a new assignee fans out like the assign verb', async () => {
-    const task = taskRow();
-    const { tx } = fakeTx(task);
-    await expect(
-      bulkUpdateTasks(tx, auth, {
-        taskIds: [task.id],
-        assigneeType: 'user',
-        assigneeId: 'u-mate',
-      }),
-    ).resolves.toEqual({ updated: 1, skipped: 0 });
-    expect(vi.mocked(notifyTaskAssigned)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(notifyTaskAssigned).mock.calls[0]?.[1]).toEqual({
-      task,
-      assigneeType: 'user',
-      assigneeId: 'u-mate',
-      actorType: 'user',
-      actorId: 'u-owner',
-      previousAssigneeType: null,
-      previousAssigneeId: null,
-    });
-    expect(vi.mocked(notifyTaskStatusChanged)).not.toHaveBeenCalled();
-    expect(vi.mocked(emitEvent)).not.toHaveBeenCalled();
-    expect(sideEffects().hints).toEqual(['task:t-1']);
   });
 
   it('the mention-kick hand-off bells and fires the event as the person’s gesture (no audit: no auth context)', async () => {

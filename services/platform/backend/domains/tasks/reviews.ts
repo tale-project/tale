@@ -35,7 +35,7 @@ import {
 
 /**
  * The task review gate over PG — the 0.4 Driver/Reviewer arc
- * (`tasks/review_shared.ts` + `tasks/review_mutations.ts`) on `app.approvals`:
+ * (`tasks/review_mutations.ts`) on `app.approvals`:
  * an agent settle's park to `in_review` mints one workflow-free review row in
  * the SAME transaction as the status flip (find-or-insert by runId, so the
  * settle's burned-claim replay never double-mints); every leave from

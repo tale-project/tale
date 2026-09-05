@@ -21,7 +21,6 @@ import {
   TASK_TITLE_MAX,
 } from '../../core/tasks/helpers.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
-import { REVIEW_POLICY_REFUSAL_CODES } from '../../core/tasks/review_shared.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
@@ -654,10 +653,8 @@ export interface AssigneeRef {
 }
 
 /**
- * Whether writing `assignee` onto `task` changes who holds it — ONE rule for
- * the picker (`assignTask`) and the bulk bar (`bulkUpdateTasks`), so the
- * live-run transfer gate they share can never disagree about what counts as
- * a transfer. A same-assignee re-select and clearing an already-unassigned
+ * Whether writing `assignee` onto `task` changes who holds it — the ONE rule
+ * behind the picker's (`assignTask`) live-run transfer gate. A same-assignee re-select and clearing an already-unassigned
  * task are not transfers.
  */
 export function assigneeChanges(
@@ -1619,10 +1616,9 @@ export async function assignTask(
   // A live run holds the task for its current worker: transferring it
   // mid-flight would leave the old agent driving (settle comments, the
   // in_review park) a card that now shows someone else's name, and "Run
-  // agent" answering already_running for the wrong agent. The bulk bar
-  // applies the same rule as a skip; here the caller asked for one card, so
-  // the refusal names itself — the picker cancels the run first, then
-  // reassigns (its confirmed-handoff flow).
+  // agent" answering already_running for the wrong agent. The refusal
+  // names itself — the picker cancels the run first, then reassigns (its
+  // confirmed-handoff flow).
   if (assigneeChanges(task, assignee) && (await taskHasLiveRun(tx, task))) {
     throw new TaskError(
       'TASK_HAS_LIVE_RUN',
@@ -2180,122 +2176,6 @@ export async function removeTaskDependency(
       metadata: { blockerTaskId: args.blockerTaskId },
     }),
   );
-}
-
-// ---------------------------------------------------------------------------
-// Board views
-// ---------------------------------------------------------------------------
-
-export interface BoardViewInput {
-  projectId: string;
-  viewId?: string;
-  name: string;
-  scope: 'personal' | 'shared';
-  viewType: 'board' | 'table' | 'timeline';
-  filters: Record<string, unknown>;
-  sort?: { field: string; desc: boolean };
-  isDefault?: boolean;
-}
-
-export async function saveBoardView(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  args: BoardViewInput,
-): Promise<string> {
-  const project = await loadProjectOrThrow(tx, args.projectId);
-  assertTaskReadable(project, auth);
-  const now = Date.now();
-  if (args.viewId) {
-    const rows = await tx<{ ownerId: string; scope: string }[]>`
-      SELECT owner_id AS "ownerId", scope FROM app.board_views
-      WHERE id = ${args.viewId} AND project_id = ${args.projectId} LIMIT 1
-    `;
-    const view = rows[0];
-    if (!view) {
-      throw new TaskError('BOARD_VIEW_NOT_FOUND', 'View not found', 404);
-    }
-    if (view.ownerId !== auth.userId && view.scope === 'personal') {
-      throw new TaskError('BOARD_VIEW_FORBIDDEN', 'Not your view', 403);
-    }
-    await tx`
-      UPDATE app.board_views SET
-        name = ${args.name}, scope = ${args.scope},
-        view_type = ${args.viewType},
-        filters = ${tx.json(toJson(args.filters))},
-        sort = ${args.sort === undefined ? null : tx.json(toJson(args.sort))},
-        is_default = ${args.isDefault ?? null}, updated_at_ms = ${now}
-      WHERE id = ${args.viewId}
-    `;
-    return args.viewId;
-  }
-  const inserted = await tx<{ id: string }[]>`
-    INSERT INTO app.board_views (
-      org_id, project_id, owner_id, name, scope, view_type, filters, sort,
-      is_default, created_at_ms, updated_at_ms
-    ) VALUES (
-      ${auth.organizationId}, ${args.projectId}, ${auth.userId}, ${args.name},
-      ${args.scope}, ${args.viewType}, ${tx.json(toJson(args.filters))},
-      ${args.sort === undefined ? null : tx.json(toJson(args.sort))},
-      ${args.isDefault ?? null}, ${now}, ${now}
-    )
-    RETURNING id
-  `;
-  const id = inserted[0]?.id;
-  if (!id) {
-    throw new TaskError('BOARD_VIEW_SAVE_FAILED', 'Insert failed');
-  }
-  return id;
-}
-
-export async function deleteBoardView(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  viewId: string,
-): Promise<void> {
-  const rows = await tx<
-    { ownerId: string; scope: string; projectId: string }[]
-  >`
-    SELECT owner_id AS "ownerId", scope, project_id AS "projectId"
-    FROM app.board_views WHERE id = ${viewId} LIMIT 1
-  `;
-  const view = rows[0];
-  if (!view) {
-    return;
-  }
-  const project = await loadProjectOrThrow(tx, view.projectId);
-  assertTaskReadable(project, auth);
-  if (view.ownerId !== auth.userId && view.scope === 'personal') {
-    throw new TaskError('BOARD_VIEW_FORBIDDEN', 'Not your view', 403);
-  }
-  await tx`DELETE FROM app.board_views WHERE id = ${viewId}`;
-}
-
-export interface BoardViewRow {
-  id: string;
-  name: string;
-  scope: string;
-  viewType: string;
-  filters: unknown;
-  sort: unknown;
-  isDefault: boolean | null;
-  ownerId: string;
-}
-
-export async function listBoardViews(
-  sql: Sql,
-  auth: ProjectAuthContext,
-  projectId: string,
-): Promise<BoardViewRow[]> {
-  const project = await loadProjectOrThrow(sql, projectId);
-  assertTaskReadable(project, auth);
-  return sql<BoardViewRow[]>`
-    SELECT id, name, scope, view_type AS "viewType", filters, sort,
-           is_default AS "isDefault", owner_id AS "ownerId"
-    FROM app.board_views
-    WHERE project_id = ${projectId}
-      AND (scope = 'shared' OR owner_id = ${auth.userId})
-    ORDER BY created_at_ms ASC
-  `;
 }
 
 // ---------------------------------------------------------------------------
@@ -2863,269 +2743,6 @@ export async function mentionTriggerPreview(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Bulk board ops (the multi-select bar)
-// ---------------------------------------------------------------------------
-
-const BULK_UPDATE_MAX = 100;
-
-/**
- * Apply one patch to many tasks with the 0.4 skip semantics: per-task
- * failures SKIP (missing row, read-only project, archived content edit,
- * open-subtask terminal close, review-policy refusal, live-run assignee
- * transfer, assignee without project access) instead of aborting the batch.
- */
-export async function bulkUpdateTasks(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  args: {
-    taskIds: string[];
-    status?: TaskStatus;
-    priority?: TaskPriority | null;
-    assigneeType?: TaskAssigneeType;
-    assigneeId?: string;
-    clearAssignee?: boolean;
-    archived?: boolean;
-  },
-): Promise<{ updated: number; skipped: number }> {
-  if (args.taskIds.length === 0) return { updated: 0, skipped: 0 };
-  if (args.taskIds.length > BULK_UPDATE_MAX) {
-    throw new TaskError('TASK_BULK_TOO_LARGE', 'Too many tasks');
-  }
-  const assignee = args.clearAssignee
-    ? null
-    : normalizeAssignee({
-        ...(args.assigneeType !== undefined
-          ? { assigneeType: args.assigneeType }
-          : {}),
-        ...(args.assigneeId !== undefined
-          ? { assigneeId: args.assigneeId }
-          : {}),
-      });
-
-  let updated = 0;
-  let skipped = 0;
-  const now = Date.now();
-  const canEditByProject = new Map<string, boolean>();
-  const assigneeAllowedByProject = new Map<string, boolean>();
-  const projectById = new Map<string, ProjectRow>();
-
-  for (const taskId of args.taskIds) {
-    const rows = await tx<TaskRow[]>`
-      SELECT ${tx.unsafe(TASK_COLUMNS)} FROM app.tasks
-      WHERE id = ${taskId} AND org_id = ${auth.organizationId} LIMIT 1
-    `;
-    const task = rows[0];
-    if (!task) {
-      skipped += 1;
-      continue;
-    }
-    let project = projectById.get(task.projectId);
-    if (project === undefined) {
-      try {
-        project = await loadProjectOrThrow(tx, task.projectId);
-      } catch (error) {
-        console.warn(
-          '[tasks] bulkUpdate: project load failed, skipping',
-          error,
-        );
-        skipped += 1;
-        continue;
-      }
-      projectById.set(task.projectId, project);
-    }
-    let canEdit = canEditByProject.get(task.projectId);
-    if (canEdit === undefined) {
-      canEdit = checkProjectAccess(
-        {
-          teamId: project.teamId,
-          sharedWithTeamIds: project.sharedWithTeamIds,
-        },
-        auth.teamIds,
-        auth.role,
-      ).canEdit;
-      canEditByProject.set(task.projectId, canEdit);
-    }
-    if (!canEdit) {
-      skipped += 1;
-      continue;
-    }
-    // Archived rows are read-only unless this bulk op is itself an
-    // archive/restore — never mutate their content.
-    if (task.archivedAt !== null && args.archived === undefined) {
-      skipped += 1;
-      continue;
-    }
-
-    const statusChanged =
-      args.status !== undefined && args.status !== task.status;
-    const sets: string[] = [];
-    // oxlint-disable-next-line typescript/no-explicit-any -- positional params for a closed column list
-    const values: any[] = [];
-    const push = (column: string, value: unknown): void => {
-      sets.push(column);
-      values.push(value);
-    };
-
-    if (args.status !== undefined) {
-      if (
-        TERMINAL_STATUSES.has(args.status) &&
-        (await hasOpenChildren(tx, taskId))
-      ) {
-        skipped += 1;
-        continue;
-      }
-      if (statusChanged) {
-        // A bulk leave from `in_review` closes the gate like the single-card
-        // paths; a `review_policy` refusal skips the task instead of
-        // aborting (the close validates before writing).
-        try {
-          await closePendingTaskReviewOnStatusLeave(tx, {
-            task,
-            toStatus: args.status,
-            actor: {
-              kind: 'user',
-              userId: auth.userId,
-              ...(auth.email !== undefined ? { email: auth.email } : {}),
-            },
-          });
-        } catch (error) {
-          if (!isReviewPolicyRefusalError(error)) throw error;
-          skipped += 1;
-          continue;
-        }
-      }
-      push('status', args.status);
-      push('rank', await computeEndRank(tx, task.projectId, args.status));
-      push(
-        'completed_at_ms',
-        TERMINAL_STATUSES.has(args.status) ? (task.completedAt ?? now) : null,
-      );
-      if (statusChanged) push('status_changed_at_ms', now);
-    }
-    if (args.priority !== undefined) {
-      push('priority', args.priority);
-    }
-    const assigneeChanged =
-      (args.clearAssignee === true || assignee !== null) &&
-      assigneeChanges(task, assignee);
-    if (assigneeChanged && (await taskHasLiveRun(tx, task))) {
-      // Same live-run transfer gate as `assignTask` (one `assigneeChanges`
-      // rule), applied as a skip.
-      skipped += 1;
-      continue;
-    }
-    if (args.clearAssignee === true || assignee !== null) {
-      if (assignee !== null) {
-        let allowed = assigneeAllowedByProject.get(task.projectId);
-        if (allowed === undefined) {
-          try {
-            await assertAssigneeValid(tx, { project, auth, assignee });
-            allowed = true;
-          } catch (error) {
-            if (!(error instanceof TaskError)) throw error;
-            allowed = false;
-          }
-          assigneeAllowedByProject.set(task.projectId, allowed);
-        }
-        if (!allowed) {
-          skipped += 1;
-          continue;
-        }
-      }
-      push('assignee_type', assignee?.assigneeType ?? null);
-      push('assignee_id', assignee?.assigneeId ?? null);
-    }
-    if (args.archived !== undefined) {
-      const nowArchived = task.archivedAt !== null;
-      if (args.archived !== nowArchived) {
-        push('archived_at_ms', args.archived ? now : null);
-      }
-    }
-    if (sets.length === 0) {
-      skipped += 1;
-      continue;
-    }
-    push('updated_at_ms', now);
-
-    const assignments = sets
-      .map((column, index) => `${column} = $${index + 1}`)
-      .join(', ');
-    await tx.unsafe(
-      `UPDATE app.tasks SET ${assignments} WHERE id = $${sets.length + 1}`,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- positional params for a column list closed over literals
-      [...values, taskId] as never[],
-    );
-    // A bulk status change is every single card's status door at once:
-    // the same seam (rollup, activity, audit, event, bell) per task.
-    const statusAfter = args.status ?? task.status;
-    if (statusChanged) {
-      await settleTaskStatusChange(tx, {
-        task,
-        toStatus: statusAfter,
-        actorType: 'user',
-        actorId: auth.userId,
-        audit: auth,
-      });
-      // Reaching `in_review` IS the request for review from the bulk bar
-      // too — the gate belongs to the STATE, not to the door that moved the
-      // card. Without the mint the cards sat In review with nobody belled
-      // and nothing to respond to. The row reflects this patch's assignee
-      // so the review names the right driver.
-      if (statusAfter === 'in_review') {
-        await requestTaskReview(tx, {
-          task: {
-            ...task,
-            status: 'in_review',
-            ...(assigneeChanged
-              ? {
-                  assigneeType: assignee?.assigneeType ?? null,
-                  assigneeId: assignee?.assigneeId ?? null,
-                }
-              : {}),
-          },
-          trigger: { kind: 'human', actorId: auth.userId },
-        });
-      }
-    }
-    // An archive/restore riding the same patch moves the rollup bucket
-    // once more, from where the status step left the row.
-    const settledBucket = taskCountBucket({
-      status: statusAfter,
-      archivedAt: task.archivedAt,
-    });
-    const nextBucket = taskCountBucket({
-      status: statusAfter,
-      archivedAt:
-        args.archived !== undefined
-          ? args.archived
-            ? now
-            : null
-          : task.archivedAt,
-    });
-    if (settledBucket !== nextBucket) {
-      await applyTaskCountTransition(
-        tx,
-        task.projectId,
-        settledBucket,
-        nextBucket,
-      );
-    }
-    if (assigneeChanged) {
-      await settleTaskAssigneeChange(tx, { task, assignee, auth });
-    }
-    if (!statusChanged && !assigneeChanged) {
-      await emitHintInTx(tx, {
-        orgId: auth.organizationId,
-        entity: 'task',
-        entityId: taskId,
-      });
-    }
-    updated += 1;
-  }
-  return { updated, skipped };
-}
-
 /** Whether any run family holds this task live (agent turn or automation). */
 async function taskHasLiveRun(
   tx: TransactionSql,
@@ -3157,19 +2774,6 @@ export async function taskHasLiveAutomationRun(
     LIMIT 1
   `;
   return automation.length > 0;
-}
-
-/** The pg twin of the 0.4 `isReviewPolicyRefusal` batch-skip check. */
-function isReviewPolicyRefusalError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    REVIEW_POLICY_REFUSAL_CODES.includes(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to string just above
-      error.code as (typeof REVIEW_POLICY_REFUSAL_CODES)[number],
-    )
-  );
 }
 
 /**

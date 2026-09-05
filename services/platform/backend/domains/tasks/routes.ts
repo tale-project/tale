@@ -26,7 +26,6 @@ import {
 } from '../projects/service.ts';
 import {
   cancelAgentRun,
-  getAgentRun,
   getAgentRunSandboxOp,
   getLatestAgentRunCardForTask,
   listAgentRunsForTask,
@@ -46,7 +45,6 @@ import {
   upsertTaskByExternalRef,
 } from './external-ref.ts';
 import {
-  collectPendingReviewsForProjects,
   getPendingReviewForTask,
   respondToTaskReview,
   TaskReviewError,
@@ -58,14 +56,12 @@ import {
   claimTask,
   createTask,
   createTaskLabel,
-  deleteBoardView,
   deleteTask,
   deleteTaskLabel,
   ensureDefaultProjectLabels,
   getTask,
   getTaskOpsIndicators,
   getTaskOpsIndicatorsForAccessibleProjects,
-  listBoardViews,
   listSubtasks,
   listTaskActivity,
   listTaskDependencies,
@@ -76,10 +72,8 @@ import {
   moveTask,
   removeTaskDependency,
   renameTaskLabel,
-  bulkUpdateTasks,
   mentionTriggerPreview,
   restoreTask,
-  saveBoardView,
   searchTasks,
   startTaskAgentRunManual,
   TaskError,
@@ -139,17 +133,6 @@ const assignSchema = z.object({
 const dependencySchema = z.object({
   blockerTaskId: z.string().min(1),
   blockedTaskId: z.string().min(1),
-});
-
-const boardViewSchema = z.object({
-  projectId: z.string().min(1),
-  viewId: z.string().optional(),
-  name: z.string().min(1).max(120),
-  scope: z.enum(['personal', 'shared']),
-  viewType: z.enum(['board', 'table', 'timeline']),
-  filters: z.record(z.string(), z.unknown()),
-  sort: z.object({ field: z.string().max(60), desc: z.boolean() }).optional(),
-  isDefault: z.boolean().optional(),
 });
 
 function handleError<E extends OrgEnv>(
@@ -338,33 +321,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           slugs,
         }),
       });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  // The multi-select bar: one patch over many tasks, per-task skips.
-  app.post('/bulk', async (c) => {
-    const body = z
-      .object({
-        taskIds: z.array(z.string().min(1)).max(200),
-        status: statusSchema.optional(),
-        priority: prioritySchema.nullable().optional(),
-        assigneeType: assigneeTypeSchema.optional(),
-        assigneeId: z.string().optional(),
-        clearAssignee: z.boolean().optional(),
-        archived: z.boolean().optional(),
-      })
-      .safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      const result = await transactSerializable(deps.sql, (tx) =>
-        bulkUpdateTasks(tx, auth, body.data),
-      );
-      return c.json(result);
     } catch (error) {
       return handleError(c, error);
     }
@@ -656,45 +612,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  app.get('/board-views/:projectId', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      return c.json({
-        views: await listBoardViews(deps.sql, auth, c.req.param('projectId')),
-      });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/board-views', async (c) => {
-    const body = boardViewSchema.safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      const viewId = await transactSerializable(deps.sql, (tx) =>
-        saveBoardView(tx, auth, body.data),
-      );
-      return c.json({ viewId });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.delete('/board-views/:viewId', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        deleteBoardView(tx, auth, c.req.param('viewId')),
-      );
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
   app.post('/dependencies', async (c) => {
     const body = dependencySchema.safeParse(await c.req.json());
     if (!body.success) {
@@ -739,29 +656,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         createTask(tx, auth, body.data),
       );
       return c.json({ taskId });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  // The board's review chips: pending review gates across the given
-  // projects (bounded org-level read).
-  app.get('/pending-reviews', async (c) => {
-    const raw = c.req.query('projectIds') ?? '';
-    const projectIds = raw
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0)
-      .slice(0, 100);
-    try {
-      const auth = await authCtx(c);
-      return c.json({
-        reviews: await collectPendingReviewsForProjects(
-          deps.sql,
-          auth.organizationId,
-          projectIds,
-        ),
-      });
     } catch (error) {
       return handleError(c, error);
     }
@@ -1148,40 +1042,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
               runId,
               taskId: task.id,
             });
-      return c.json({ cancelled });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/:taskId/agent-runs/:runId/cancel', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(
-        deps.sql,
-        c.req.param('taskId'),
-        auth.organizationId,
-      );
-      const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      assertTaskWritable(project, auth);
-      // Write access was asserted on the URL's task, so the run must be THAT
-      // task's: a run id lifted from another project's task (one the caller
-      // may not even read) answers as missing — the same opaque 404 a garbage
-      // id gets, so probing confirms nothing. The cancel itself binds to the
-      // task once more inside its UPDATE predicate.
-      const run = await getAgentRun(
-        deps.sql,
-        auth.organizationId,
-        c.req.param('runId'),
-      );
-      if (run === null || run.taskId !== task.id) {
-        throw new TaskError('AGENT_RUN_NOT_FOUND', 'Agent run not found', 404);
-      }
-      const cancelled = await cancelAgentRun(deps.sql, {
-        organizationId: auth.organizationId,
-        runId: run.id,
-        taskId: task.id,
-      });
       return c.json({ cancelled });
     } catch (error) {
       return handleError(c, error);

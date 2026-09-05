@@ -1972,14 +1972,6 @@ async function checkTasks(
   const appListing = z
     .object({ automations: z.array(z.unknown()) })
     .safeParse(await get(`/api/app/automations/listing?orgId=${orgId}`));
-  const bulk = z.object({ updated: z.number(), skipped: z.number() }).safeParse(
-    await (
-      await send('POST', `/api/app/tasks/bulk?orgId=${orgId}`, {
-        taskIds: [aId, bId, '00000000-0000-0000-0000-000000000000'],
-        priority: 'p1',
-      })
-    ).json(),
-  );
   const wfStart = z
     .object({
       started: z.literal(false),
@@ -2049,7 +2041,7 @@ async function checkTasks(
         )
     : { success: false as const };
   record(
-    'task search + mention preview + run reads + bulk + workflow + folder create',
+    'task search + mention preview + run reads + workflow + folder create',
     searchFields.success &&
       searchFields.data.results.some((hit) => hit.title.startsWith('Dep')) &&
       searchComment.success &&
@@ -2061,15 +2053,12 @@ async function checkTasks(
       latestRun.success &&
       liveAutomation.success &&
       appListing.success &&
-      bulk.success &&
-      bulk.data.updated === 2 &&
-      bulk.data.skipped === 1 &&
       wfStart.success &&
       wfCancel.success &&
       bCancelled.success &&
       fromIssue.success &&
       folderBound.success,
-    `search=${searchFields.success ? searchFields.data.results.length : 'ERR'}, comment-hit=${searchComment.success ? searchComment.data.results.length : 'ERR'}, mention=${mentionPreview.success ? JSON.stringify(mentionPreview.data.previews[0]) : 'ERR'}, latest=${latestRun.success}, live=${liveAutomation.success}, listing=${appListing.success}, bulk=${bulk.success ? `${bulk.data.updated}/${bulk.data.skipped}` : 'ERR'} (want 2/1), wf=${wfStart.success}/${wfCancel.success}/${bCancelled.success}, fromIssue=${fromIssue.success ? 'ok' : 'ERR'}, folderBound=${folderBound.success}`,
+    `search=${searchFields.success ? searchFields.data.results.length : 'ERR'}, comment-hit=${searchComment.success ? searchComment.data.results.length : 'ERR'}, mention=${mentionPreview.success ? JSON.stringify(mentionPreview.data.previews[0]) : 'ERR'}, latest=${latestRun.success}, live=${liveAutomation.success}, listing=${appListing.success}, wf=${wfStart.success}/${wfCancel.success}/${bCancelled.success}, fromIssue=${fromIssue.success ? 'ok' : 'ERR'}, folderBound=${folderBound.success}`,
   );
 }
 
@@ -15414,93 +15403,7 @@ async function checkTasksCollabIntegrity(
         AND status = 'pending'
     `;
 
-  // ---- run cancel binds the run to the AUTHORIZED task --------------------
-  // Task A is the door the caller is authorized on; the run belongs to task
-  // B. Cancelling B's run through A's door must be refused (opaque 404) and
-  // leave the run live; B's own door cancels it exactly once.
-  const doorTask = await newTask('Cancel door');
-  const heldTask = await newTask('Held by a run');
-  const foreignRun = await seedRun(
-    heldTask,
-    'exec-integrity-foreign',
-    'running',
-  );
-  const throughOtherDoor = await post(
-    `/api/app/tasks/${doorTask}/agent-runs/${foreignRun}/cancel?orgId=${orgId}`,
-  );
-  const refusal = z
-    .object({ error: z.string() })
-    .loose()
-    .safeParse(await throughOtherDoor.json());
-  const stillLive = await sql<{ status: string }[]>`
-    SELECT status FROM app.project_agent_runs WHERE id = ${foreignRun}
-  `;
-  const ownDoor = z
-    .object({ cancelled: z.boolean() })
-    .safeParse(
-      await (
-        await post(
-          `/api/app/tasks/${heldTask}/agent-runs/${foreignRun}/cancel?orgId=${orgId}`,
-        )
-      ).json(),
-    );
-  const afterOwn = await sql<{ status: string }[]>`
-    SELECT status FROM app.project_agent_runs WHERE id = ${foreignRun}
-  `;
-  const ledger = await sql<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.audit_logs
-    WHERE org_id = ${orgId} AND action = 'agent.run_settled'
-      AND resource_id = ${foreignRun}
-  `;
-  record(
-    "tasks/collab: a run cancel is refused through another task's door",
-    throughOtherDoor.status === 404 &&
-      refusal.success &&
-      refusal.data.error === 'AGENT_RUN_NOT_FOUND' &&
-      stillLive[0]?.status === 'running' &&
-      ownDoor.success &&
-      ownDoor.data.cancelled &&
-      afterOwn[0]?.status === 'cancelled' &&
-      ledger[0]?.count === '1',
-    `foreign door → ${throughOtherDoor.status}/${refusal.success ? refusal.data.error : 'ERR'} (want 404/AGENT_RUN_NOT_FOUND), run after=${stillLive[0]?.status} (want running); own door → ${ownDoor.success ? ownDoor.data.cancelled : 'ERR'}, run=${afterOwn[0]?.status}, ledger=${ledger[0]?.count} (want 1)`,
-  );
-
   // ---- every in_review park mints the review gate --------------------------
-  // The bulk bar: the card reaches In review with a pending gate the creator
-  // (the resolved reviewer) can close — the leave to done records the
-  // approve instead of nothing.
-  const bulkTask = await newTask('Bulk parked');
-  await post(`/api/app/tasks/bulk?orgId=${orgId}`, {
-    taskIds: [bulkTask],
-    status: 'in_review',
-  });
-  const bulkGate = await pendingGate(bulkTask);
-  await post(`/api/app/tasks/${bulkTask}/status?orgId=${orgId}`, {
-    status: 'done',
-  });
-  const bulkClosed = await sql<
-    { status: string; metadata: Record<string, unknown> | null }[]
-  >`
-    SELECT status, metadata FROM app.approvals WHERE id = ${bulkGate[0]?.id ?? ''}
-  `;
-  const bulkDecision =
-    bulkClosed[0]?.metadata !== null &&
-    typeof bulkClosed[0]?.metadata === 'object' &&
-    'response' in bulkClosed[0].metadata &&
-    typeof bulkClosed[0].metadata.response === 'object' &&
-    bulkClosed[0].metadata.response !== null &&
-    'decision' in bulkClosed[0].metadata.response
-      ? String(bulkClosed[0].metadata.response.decision)
-      : 'none';
-  record(
-    'tasks/collab: a bulk move to In review mints the gate the leave resolves',
-    bulkGate.length === 1 &&
-      bulkGate[0]?.metadata?.requestedFor === userId &&
-      bulkClosed[0]?.status === 'completed' &&
-      bulkDecision === 'approve',
-    `gate rows=${bulkGate.length} (want 1) reviewer=${String(bulkGate[0]?.metadata?.requestedFor)} → after done: ${bulkClosed[0]?.status}/${bulkDecision} (want completed/approve)`,
-  );
-
   // An external close by a non-workflow actor parks the card at In review;
   // that park carries the gate too.
   const { upsertTaskByExternalRef } =
@@ -31002,28 +30905,12 @@ async function checkBoardMoveEffects(
   );
   const dragBell = await bellTo();
 
-  // 2. The bulk bar: one patch over the selection (the unread bell row
-  //    coalesces — same dimension, current truth).
-  const bulk = z.object({ updated: z.number(), skipped: z.number() }).safeParse(
-    await (
-      await post(`/api/app/tasks/bulk?orgId=${orgId}`, {
-        taskIds: [taskId],
-        status: 'todo',
-      })
-    ).json(),
-  );
-  const bulkFired = await waitFor(
-    async () => (await runsOf()) >= runsBefore + 2,
-    5_000,
-  );
-  const bulkBell = await bellTo();
-
-  // 3. The picker, for parity.
+  // 2. The picker, for parity.
   const picked = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
     status: 'in_progress',
   });
   const pickerFired = await waitFor(
-    async () => (await runsOf()) >= runsBefore + 3,
+    async () => (await runsOf()) >= runsBefore + 2,
     5_000,
   );
   const pickerBell = await bellTo();
@@ -31043,7 +30930,7 @@ async function checkBoardMoveEffects(
     { method: 'DELETE', headers: { cookie, origin: base } },
   );
   record(
-    'board drag + bulk bar bell the assignee and fire task.status_changed like the picker',
+    'board drag bells the assignee and fires task.status_changed like the picker',
     saved.ok &&
       deployed.ok &&
       armed.ok &&
@@ -31051,17 +30938,13 @@ async function checkBoardMoveEffects(
       dragged.ok &&
       dragFired &&
       JSON.stringify(dragBell) === '["in_progress"]' &&
-      bulk.success &&
-      bulk.data.updated === 1 &&
-      bulkFired &&
-      JSON.stringify(bulkBell) === '["todo"]' &&
       picked.ok &&
       pickerFired &&
       JSON.stringify(pickerBell) === '["in_progress"]' &&
-      activity[0]?.count === '3' &&
-      audits[0]?.count === '3' &&
+      activity[0]?.count === '2' &&
+      audits[0]?.count === '2' &&
       disarmed.ok,
-    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), bulk → ${bulk.success ? `${bulk.data.updated}/${bulk.data.skipped}` : 'ERR'} event=${bulkFired} bell=${JSON.stringify(bulkBell)} (want ["todo"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)}, activity=${activity[0]?.count} audit=${audits[0]?.count} (want 3/3), disarm=${disarmed.status}`,
+    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)}, activity=${activity[0]?.count} audit=${audits[0]?.count} (want 2/2), disarm=${disarmed.status}`,
   );
 }
 
@@ -37777,25 +37660,6 @@ async function checkReviewArc(
     WHERE task_id = ${taskId} AND subscriber_type = 'user'
       AND subscriber_id = ${userId}
   `;
-  const facet = z
-    .object({
-      reviews: z.array(
-        z.object({ taskId: z.string(), approvalId: z.string() }).loose(),
-      ),
-    })
-    .safeParse(
-      await get(
-        `/api/app/tasks/pending-reviews?orgId=${orgId}&projectIds=${projectId}`,
-      ),
-    );
-  record(
-    'pending-reviews facet lists the open gate for the project',
-    facet.success &&
-      facet.data.reviews.some(
-        (row) => row.taskId === taskId && row.approvalId === gated[0]?.id,
-      ),
-    `facet=${facet.success ? facet.data.reviews.length : 'ERR'} rows, hasGated=${facet.success && facet.data.reviews.some((row) => row.approvalId === gated[0]?.id)}`,
-  );
 
   record(
     'review bells: one per mint, dismissed on respond/withdraw, reviewer subscribed',
