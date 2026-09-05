@@ -112,7 +112,7 @@ export async function kickAgentRun(
   }
   const now = Date.now();
   const execId = randomUUID();
-  // "At most one live run per task" is the schema's rule (migration 0077's
+  // "At most one live run per task" is the schema's rule (migration 0080's
   // partial unique index over the live statuses), not this read's: the human
   // doors kick SERIALIZABLE but the auto-retry job and the steer-miss
   // fallback kick READ COMMITTED, so the probe above can miss a run another

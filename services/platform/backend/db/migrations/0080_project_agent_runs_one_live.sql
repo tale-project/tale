@@ -1,4 +1,4 @@
--- 0.5 app migration 0077: at most ONE live project-agent run per task.
+-- 0.5 app migration 0080: at most ONE live project-agent run per task.
 --
 -- Why: every lane over `app.project_agent_runs` assumes a task has at most
 -- one run at `queued`/`running` — the steer picks "the" running run, the
@@ -34,7 +34,7 @@ WITH ranked AS (
 )
 UPDATE app.project_agent_runs r SET
   status = 'cancelled',
-  error = 'superseded by a newer live run on the same task (migration 0077)',
+  error = 'superseded by a newer live run on the same task (migration 0080)',
   settled_at_ms = (extract(epoch FROM now()) * 1000)::bigint,
   updated_at_ms = (extract(epoch FROM now()) * 1000)::bigint
 FROM ranked
