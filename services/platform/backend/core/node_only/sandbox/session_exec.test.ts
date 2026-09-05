@@ -1,7 +1,8 @@
-// runStepsInSession's install semantics — pip/npm exit codes must fail the
-// run (INSTALL_FAILED) and installs get their own floored budget — plus the
-// harvest's per-file skip semantics. The session wire is mocked at the
-// session_client boundary, the same seam the crawler render tests use.
+// runStepsInSession's run semantics — the staged steps run from /agent/code
+// with the caller's timeout — plus the harvest's per-file skip semantics and
+// its fail-loud rule for an org whose bucket cannot be resolved. The session
+// wire is mocked at the session_client boundary, the same seam the crawler
+// render tests use.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -62,114 +63,12 @@ function callArg(call: number): {
   };
 }
 
-describe('runStepsInSession — install semantics', () => {
+describe('runStepsInSession — run semantics', () => {
   beforeEach(() => {
     drainSessionExecResilient.mockReset();
   });
 
-  it('runs a packages-only call to completed and surfaces installer stdout', async () => {
-    drainSessionExecResilient.mockResolvedValue(
-      execResult({
-        stdoutBase64: Buffer.from(
-          'Successfully installed pandas-2.2.1\n',
-        ).toString('base64'),
-      }),
-    );
-    const run = await runStepsInSession('sid', {
-      stepPaths: [],
-      packagesByLang: { python: ['pandas'] },
-    });
-    expect(run.status).toBe('completed');
-    expect(run.exitCode).toBe(0);
-    expect(run.errorCode).toBeUndefined();
-    expect(run.stdout).toContain('Successfully installed pandas-2.2.1');
-    expect(drainSessionExecResilient).toHaveBeenCalledTimes(1);
-    expect(callArg(0).command).toEqual([
-      'python3',
-      '-m',
-      'pip',
-      'install',
-      '--no-input',
-      'pandas',
-    ]);
-    // Installs run from the workspace root — /agent/code may not exist yet on
-    // a fresh session with nothing staged, and runnerd rejects a missing cwd.
-    expect(callArg(0).cwd).toBe('/agent');
-  });
-
-  it('fails the run when pip exits non-zero: INSTALL_FAILED, nothing else runs', async () => {
-    drainSessionExecResilient.mockResolvedValue(
-      execResult({
-        exitCode: 1,
-        stderrBase64: Buffer.from(
-          'ERROR: No matching distribution found for nope\n',
-        ).toString('base64'),
-      }),
-    );
-    const run = await runStepsInSession('sid', {
-      stepPaths: ['/agent/code/a.py'],
-      packagesByLang: { python: ['nope'], node: ['sharp'] },
-    });
-    expect(run.status).toBe('failed');
-    expect(run.errorCode).toBe('INSTALL_FAILED');
-    expect(run.errorMessage).toContain('pip install failed (exit 1)');
-    expect(run.stderr).toContain('No matching distribution');
-    // Short-circuit: neither the npm install nor the step ran.
-    expect(drainSessionExecResilient).toHaveBeenCalledTimes(1);
-  });
-
-  it('fails on npm after a clean pip and names the failing tool', async () => {
-    drainSessionExecResilient
-      .mockResolvedValueOnce(execResult())
-      .mockResolvedValueOnce(execResult({ exitCode: 127 }));
-    const run = await runStepsInSession('sid', {
-      stepPaths: [],
-      packagesByLang: { python: ['pandas'], node: ['sharp'] },
-    });
-    expect(run.status).toBe('failed');
-    expect(run.errorCode).toBe('INSTALL_FAILED');
-    expect(run.errorMessage).toContain('npm install failed (exit 127)');
-    expect(drainSessionExecResilient).toHaveBeenCalledTimes(2);
-  });
-
-  it('treats a non-completed install status as INSTALL_FAILED even with exit 0', async () => {
-    drainSessionExecResilient.mockResolvedValue(
-      execResult({ status: 'failed', errorCode: 'TIMEOUT' }),
-    );
-    const run = await runStepsInSession('sid', {
-      stepPaths: [],
-      packagesByLang: { python: ['torch'] },
-    });
-    expect(run.status).toBe('failed');
-    expect(run.errorCode).toBe('INSTALL_FAILED');
-    expect(run.errorMessage).toContain('TIMEOUT');
-  });
-
-  it('floors the install budget at 120s while the step keeps its own timeout', async () => {
-    drainSessionExecResilient.mockResolvedValue(execResult());
-    await runStepsInSession('sid', {
-      stepPaths: ['/agent/code/a.py'],
-      packagesByLang: { python: ['pandas'] },
-      timeoutMs: 30_000,
-    });
-    expect(callArg(0).timeoutMs).toBe(120_000);
-    expect(callArg(1).timeoutMs).toBe(30_000);
-    expect(callArg(1).command).toEqual(['python3', '/agent/code/a.py']);
-    expect(callArg(0).cwd).toBe('/agent');
-    expect(callArg(1).cwd).toBe('/agent/code');
-  });
-
-  it('keeps a caller-raised timeout for the install too, capped at 300s', async () => {
-    drainSessionExecResilient.mockResolvedValue(execResult());
-    await runStepsInSession('sid', {
-      stepPaths: [],
-      packagesByLang: { python: ['torch'] },
-      timeoutMs: 240_000,
-    });
-    expect(callArg(0).timeoutMs).toBe(240_000);
-  });
-
-  it('does not add install execs for package-less callers (workflow/crawler path)', async () => {
+  it('runs each staged step from /agent/code with the caller timeout', async () => {
     drainSessionExecResilient.mockResolvedValue(
       execResult({
         stdoutBase64: Buffer.from('hello\n').toString('base64'),
@@ -184,27 +83,19 @@ describe('runStepsInSession — install semantics', () => {
     expect(drainSessionExecResilient).toHaveBeenCalledTimes(1);
     expect(callArg(0).command).toEqual(['python3', '/agent/code/a.py']);
     expect(callArg(0).timeoutMs).toBe(45_000);
+    expect(callArg(0).cwd).toBe('/agent/code');
   });
 
-  it('keeps install noise out of a successful script run stdout', async () => {
+  it('stops at the first failing step and reports its exit code', async () => {
     drainSessionExecResilient
-      .mockResolvedValueOnce(
-        execResult({
-          stdoutBase64: Buffer.from(
-            'Collecting pandas\nSuccessfully installed pandas-2.2.1\n',
-          ).toString('base64'),
-        }),
-      )
-      .mockResolvedValueOnce(
-        execResult({
-          stdoutBase64: Buffer.from('report written\n').toString('base64'),
-        }),
-      );
+      .mockResolvedValueOnce(execResult({ exitCode: 2 }))
+      .mockResolvedValueOnce(execResult());
     const run = await runStepsInSession('sid', {
-      stepPaths: ['/agent/code/a.py'],
-      packagesByLang: { python: ['pandas'] },
+      stepPaths: ['/agent/code/a.py', '/agent/code/b.js'],
     });
-    expect(run.stdout).toBe('report written\n');
+    expect(run.status).toBe('failed');
+    expect(run.exitCode).toBe(2);
+    expect(drainSessionExecResilient).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -213,18 +104,12 @@ const ORG = 'org-1';
 function harvestCtx(over: {
   runQuery?: ReturnType<typeof vi.fn>;
   runMutation?: ReturnType<typeof vi.fn>;
-  store?: ReturnType<typeof vi.fn>;
-  storageDelete?: ReturnType<typeof vi.fn>;
 }) {
   const ctx = {
     runQuery: over.runQuery ?? vi.fn().mockResolvedValue(null),
     runMutation:
       over.runMutation ??
       vi.fn().mockResolvedValue({ id: 'row', replaced: false }),
-    storage: {
-      store: over.store ?? vi.fn().mockResolvedValue('kg-stored'),
-      delete: over.storageDelete ?? vi.fn(),
-    },
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- harvest touches only these ctx members
   return ctx as unknown as ActionCtx;
@@ -247,10 +132,37 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     sessionListFiles.mockReset();
     sessionReadFile.mockReset();
     orgSlugFromIdOrNull.mockReset();
-    orgSlugFromIdOrNull.mockResolvedValue(null);
+    orgSlugFromIdOrNull.mockResolvedValue('acme');
+    putBlob.mockReset();
+    putBlob.mockResolvedValue('s3:acme/blob');
+    deleteBlob.mockReset();
   });
 
   const harvestArgs = { organizationId: ORG, sessionId: 'sid' };
+
+  it('fails LOUD before touching the session when the org has no bucket', async () => {
+    // The org bucket is the only store harvested outputs have. An org whose
+    // slug does not resolve was deleted mid-run — skipping every file would
+    // launder that into "produced nothing".
+    orgSlugFromIdOrNull.mockResolvedValue(null);
+    const ctx = harvestCtx({});
+    await expect(harvestSessionOutput(ctx, harvestArgs)).rejects.toThrow(
+      /does not resolve to a slug/,
+    );
+    expect(sessionListFiles).not.toHaveBeenCalled();
+    expect(putBlob).not.toHaveBeenCalled();
+  });
+
+  it('stores every harvested file in the org bucket', async () => {
+    sessionListFiles.mockResolvedValue([outputEntry('a.txt')]);
+    sessionReadFile.mockResolvedValue(textBytes('hello'));
+    const ctx = harvestCtx({});
+    const { files } = await harvestSessionOutput(ctx, harvestArgs);
+    expect(files).toHaveLength(1);
+    expect(files[0]?.storageId).toBe('s3:acme/blob');
+    expect(putBlob).toHaveBeenCalledTimes(1);
+    expect(putBlob.mock.calls[0]?.[1]).toBe('acme');
+  });
 
   it('treats a subdir 404 on a LIVE session as a legitimately empty harvest', async () => {
     // A turn that wrote nothing never created its output subdir — that is an
@@ -334,12 +246,10 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     sessionReadFile
       .mockResolvedValueOnce(textBytes('content-a'))
       .mockResolvedValueOnce(textBytes('content-b'));
-    const store = vi
-      .fn()
+    putBlob
       .mockRejectedValueOnce(new Error('Workspace would exceed the byte cap.'))
-      .mockResolvedValueOnce('kg-b');
-    const storageDelete = vi.fn();
-    const ctx = harvestCtx({ store, storageDelete });
+      .mockResolvedValueOnce('s3:acme/b');
+    const ctx = harvestCtx({});
     const { files, harvestSkipped } = await harvestSessionOutput(
       ctx,
       harvestArgs,
@@ -350,7 +260,7 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     expect(harvestSkipped[0]?.reason).toContain('not saved to the workspace');
     // Nothing to reap: the rejected store never produced a blob, and b.txt's
     // blob stays.
-    expect(storageDelete).not.toHaveBeenCalled();
+    expect(deleteBlob).not.toHaveBeenCalled();
   });
 
   it('renews the turn lease once per file when the settle names its exec', async () => {
