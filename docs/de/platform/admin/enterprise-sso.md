@@ -60,6 +60,8 @@ Wenn ein Anbieter OAuth2, aber kein Discovery-Dokument bietet, wähle **OAuth2**
 
 Tale unterstützt sowohl IdP-initiiertes SAML (der IdP sendet eine Assertion an die ACS-URL) als auch SP-initiiertes SAML (ein Mitglied klickt auf **Mit SSO anmelden** und Tale leitet zum IdP weiter). Signierte Assertions sind erforderlich; verschlüsselte Assertions werden unterstützt, wenn du ein SP-Schlüsselpaar bereitstellst — und eine Verbindung, die sie verlangt, weist jede unverschlüsselt eintreffende Assertion ab.
 
+Eine Anmeldung, die Tale startet — SP-initiiertes SAML sowie jede OIDC- und OAuth2-Anmeldung — ist an den Browser gebunden, in dem sie beginnt: Tale setzt beim Weiterleiten zum IdP ein kurzlebiges Cookie und weist eine Antwort ab, die in einem anderen Browser ankommt. Ein abgefangener Anmelde-Link meldet so niemand anderen an. Eine IdP-initiierte Assertion beantwortet keine Anfrage von Tale und trägt deshalb keine solche Bindung. Erfährt ein Mitglied, dass die Anmeldung nicht in dem Browser gelandet ist, in dem sie begonnen hat, hat sein Browser dieses Cookie verworfen — meist durch eine Datenschutzeinstellung, die Cookies bei seitenübergreifenden Weiterleitungen blockiert; eine neue Anmeldung aus einem Browser, der es behält, löst das.
+
 ## Mehrere Organisationen auf einem Deployment
 
 Ein Deployment kann mehrere Organisationen mit jeweils eigener Verbindung beherbergen. Klicke auf der Anmeldeseite auf **Weiter mit SSO** und wähle deine Organisation aus der Liste — jeder Eintrag zeigt den **Anzeigenamen** der Verbindung. Dieser Name ist auf der Anmeldeseite für alle sichtbar; setze in **Einstellungen > Enterprise-SSO** pro Verbindung einen klaren Anzeigenamen.

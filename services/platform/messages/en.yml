@@ -454,6 +454,9 @@ auth:
       notOrgMember:
         Your account is not a member of this organization. Ask an admin of
         this organization to invite you, then sign in again.
+      flowMismatch:
+        This sign-in did not finish in the browser it started in. Start the
+        sign-in again from this page.
       assertionNotEncrypted:
         This organization requires encrypted SAML assertions, but the identity
         provider sent one in plain text. Ask your administrator to turn on

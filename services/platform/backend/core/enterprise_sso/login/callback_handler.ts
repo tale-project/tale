@@ -12,7 +12,14 @@ import {
 import { getAdapter } from '../registry';
 import { verifySignedValue } from '../sign_cookie_value';
 import type { FinishLogin } from './finish_login';
+import {
+  clearFlowCookie,
+  flowCookieMatches,
+  hasFlowCookie,
+  SSO_FLOW_MISMATCH_KEY,
+} from './flow_cookie';
 import { recordSsoLoginFailure } from './login_audit';
+import { allowedRedirectOrigin } from './redirect_origins';
 import { redirectWithError } from './redirect_with_error';
 
 function buildAuthorizeRedirectUrl(
@@ -34,8 +41,9 @@ function buildAuthorizeRedirectUrl(
 
 /**
  * GET /api/sso/callback — OIDC/OAuth2 authorization-code callback. Validates
- * the signed state, exchanges the code (with the PKCE verifier carried in
- * state), fetches userinfo, then funnels into the shared provisioning action.
+ * the signed state and its browser binding (the flow cookie), exchanges the
+ * code (with the PKCE verifier carried in state), fetches userinfo, then
+ * funnels into the shared provisioning action.
  */
 export async function ssoCallbackHandler(
   ctx: ActionCtx,
@@ -43,9 +51,30 @@ export async function ssoCallbackHandler(
   deps: { finishLogin: FinishLogin },
 ): Promise<Response> {
   // Behind the reverse proxy the request origin is the INTERNAL Convex address
-  // (unreachable from a browser), so error redirects must target the public
-  // SITE_URL — refined to the state's own origin once the state is parsed.
-  let publicOrigin = process.env.SITE_URL || new URL(req.url).origin;
+  // (unreachable from a browser), so the browser's origin is the public
+  // SITE_URL — it names the flow cookie the authorize door set.
+  const browserOrigin = process.env.SITE_URL || new URL(req.url).origin;
+  const response = await completeCallback(ctx, req, deps, browserOrigin);
+  // The flow cookie is single-use: once the browser has been here it is gone,
+  // whatever the verdict — a retry starts a fresh flow with a fresh nonce.
+  if (hasFlowCookie(req.headers.get('cookie'), browserOrigin)) {
+    response.headers.append(
+      'Set-Cookie',
+      clearFlowCookie({ frontendOrigin: browserOrigin }),
+    );
+  }
+  return response;
+}
+
+async function completeCallback(
+  ctx: ActionCtx,
+  req: Request,
+  deps: { finishLogin: FinishLogin },
+  browserOrigin: string,
+): Promise<Response> {
+  // Error redirects target the public origin — refined to the state's own
+  // (allowlisted) origin once the state is parsed.
+  let publicOrigin = browserOrigin;
   // Hoisted so the catch can write a durable audit row attributing the failure
   // to the right org/connection/user (populated as each is resolved below).
   let resolvedOrganizationId: string | undefined;
@@ -71,9 +100,18 @@ export async function ssoCallbackHandler(
                 .replace(/_/g, '/');
               const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
               const stateData = JSON.parse(atob(padded));
-              if (stateData.redirectUri) {
-                publicOrigin = new URL(stateData.redirectUri).origin;
+              // Signed, but still caller-chosen at /authorize time: only an
+              // origin of ours may become the bounce target.
+              const stateOrigin = allowedRedirectOrigin(
+                stateData.redirectUri,
+                req.url,
+              );
+              if (stateOrigin === undefined) {
+                throw new Error(
+                  `state redirect_uri is outside this deployment: ${String(stateData.redirectUri)}`,
+                );
               }
+              publicOrigin = stateOrigin;
 
               if (isSilentAuthError(error) && stateData.seamless) {
                 const authorizeUrl = buildAuthorizeRedirectUrl(
@@ -129,7 +167,7 @@ export async function ssoCallbackHandler(
               // throwing error mapping) falls through to the generic error;
               // the operator keeps a trace of why.
               console.warn(
-                '[SSO] Could not parse state on IdP error redirect:',
+                '[SSO] Could not use state on IdP error redirect:',
                 e,
               );
             }
@@ -165,6 +203,8 @@ export async function ssoCallbackHandler(
       timestamp: number;
       pkce?: string;
       organizationId?: string;
+      /** sha256 of the flow cookie the authorize door set in this browser. */
+      flow?: string;
     };
     try {
       const base64 = verifiedPayload.replace(/-/g, '+').replace(/_/g, '/');
@@ -179,9 +219,40 @@ export async function ssoCallbackHandler(
     }
 
     // The state's redirectUri is the page the user actually came from — it
-    // wins over SITE_URL from here on (covers multi-host deployments).
-    const frontendOrigin = new URL(state.redirectUri).origin;
+    // wins over SITE_URL from here on, but only when it is one of ours: the
+    // signature proves we minted the state, not that its URI points at us.
+    const frontendOrigin = allowedRedirectOrigin(state.redirectUri, req.url);
+    if (frontendOrigin === undefined) {
+      console.warn(
+        '[SSO] Refusing state whose redirect_uri is outside this deployment:',
+        state.redirectUri,
+      );
+      return redirectWithError(publicOrigin, 'Invalid state parameter');
+    }
     publicOrigin = frontendOrigin;
+
+    // The completion must arrive in the browser that started the flow: the
+    // state's hash has to be of the nonce in this browser's flow cookie. A
+    // valid, unexpired state alone is exactly what a login-CSRF attacker
+    // holds for their own flow.
+    if (
+      !(await flowCookieMatches(
+        req.headers.get('cookie'),
+        state.flow,
+        browserOrigin,
+      ))
+    ) {
+      const message =
+        'SSO completion did not arrive in the browser that started the flow (missing or mismatched flow cookie)';
+      console.warn(`[SSO] ${message}`);
+      await recordSsoLoginFailure(ctx, {
+        organizationId: state.organizationId,
+        stage: 'callback',
+        errorMessage: message,
+        errorKey: SSO_FLOW_MISMATCH_KEY,
+      });
+      return redirectWithError(frontendOrigin, SSO_FLOW_MISMATCH_KEY);
+    }
 
     const config = await ctx.runQuery(
       internal.enterprise_sso.internal_queries.resolveSignInConfig,

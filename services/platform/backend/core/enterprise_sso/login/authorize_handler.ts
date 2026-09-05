@@ -6,7 +6,9 @@ import { generatePkcePair } from '../pkce';
 import { getAdapter } from '../registry';
 import { signValue } from '../sign_cookie_value';
 import type { SsoPromptMode } from '../types';
+import { buildFlowCookie, hashFlowNonce, newFlowNonce } from './flow_cookie';
 import { recordSsoLoginFailure } from './login_audit';
+import { allowedRedirectOrigin } from './redirect_origins';
 import { redirectWithError } from './redirect_with_error';
 
 const VALID_PROMPTS: Record<string, SsoPromptMode> = {
@@ -27,7 +29,9 @@ function normalizeOrigin(origin: string): string {
 /**
  * GET /api/sso/authorize — build the IdP authorization redirect for the org's
  * OIDC/OAuth2 connection. PKCE (when the adapter supports it) is generated here
- * and carried, encrypted, inside the signed state so the flow stays stateless.
+ * and carried, encrypted, inside the signed state so the flow stays stateless
+ * server-side; the one thing the browser keeps is the flow cookie whose hash
+ * rides in the state, so the callback can tell this browser started the flow.
  */
 export async function ssoAuthorizeHandler(
   ctx: ActionCtx,
@@ -56,6 +60,17 @@ export async function ssoAuthorizeHandler(
     const redirectUri =
       url.searchParams.get('redirect_uri') ||
       `${normalizedOrigin}/api/sso/callback`;
+    // The callback adopts this URI's origin for every redirect it answers
+    // with, so it must be ours — signing a caller-chosen value would only
+    // prove we minted an open redirect. No legitimate caller passes another
+    // origin, so a refusal is a plain 400, never a bounce to the value.
+    if (allowedRedirectOrigin(redirectUri, req.url) === undefined) {
+      console.warn(
+        '[SSO] Refusing redirect_uri outside this deployment:',
+        redirectUri,
+      );
+      return new Response('Invalid redirect_uri', { status: 400 });
+    }
 
     const secret = process.env.BETTER_AUTH_SECRET;
     if (!secret) {
@@ -108,6 +123,10 @@ export async function ssoAuthorizeHandler(
       encryptedPkceVerifier = await encryptString(pkce.verifier);
     }
 
+    // Bind the flow to this browser: the nonce stays in an HttpOnly cookie,
+    // its hash travels in the state, and the callback refuses a completion
+    // whose cookie does not hash to the state it carries (login CSRF).
+    const flowNonce = newFlowNonce();
     const statePayload = JSON.stringify({
       redirectUri,
       timestamp: Date.now(),
@@ -115,6 +134,7 @@ export async function ssoAuthorizeHandler(
       // Bind the resolved org to the state so the callback exchanges the code
       // against the SAME connection — not whichever is first enabled (#2082).
       organizationId: config.organizationId,
+      flow: await hashFlowNonce(flowNonce),
       ...(encryptedPkceVerifier ? { pkce: encryptedPkceVerifier } : {}),
     });
     const base64Payload = btoa(statePayload)
@@ -152,7 +172,12 @@ export async function ssoAuthorizeHandler(
 
     return new Response(null, {
       status: 302,
-      headers: { Location: authUrl.toString() },
+      headers: {
+        Location: authUrl.toString(),
+        'Set-Cookie': buildFlowCookie(flowNonce, {
+          frontendOrigin: publicOrigin,
+        }),
+      },
     });
   } catch (error) {
     console.error('[SSO] Authorize error:', error);

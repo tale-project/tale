@@ -4,9 +4,12 @@ import {
   SAML,
   ValidateInResponseTo,
   type CacheProvider,
+  type Profile,
   type SamlConfig,
 } from '@node-saml/node-saml';
 import { DOMParser } from '@xmldom/xmldom';
+
+import { isRecord } from '../../../../lib/utils/type-utils';
 
 /**
  * SAML 2.0 assertion handling, isolated in a Node action (node-saml needs
@@ -109,6 +112,31 @@ function buildSaml(
   return new SAML(config);
 }
 
+/**
+ * The AuthnRequest ID an SP-initiated response answers, from the Response
+ * element or — when a forwarder stripped it there — from the signed
+ * Subject's confirmation data, which node-saml consults only when the
+ * Response-level one is present. Undefined for an IdP-initiated response.
+ */
+function answeredRequestId(profile: Profile): string | undefined {
+  if (typeof profile.inResponseTo === 'string' && profile.inResponseTo !== '') {
+    return profile.inResponseTo;
+  }
+  const assertion = profile.getAssertion?.();
+  const root = isRecord(assertion) ? assertion.Assertion : undefined;
+  const subject = firstRecord(isRecord(root) ? root.Subject : undefined);
+  const confirmation = firstRecord(subject?.SubjectConfirmation);
+  const data = firstRecord(confirmation?.SubjectConfirmationData);
+  const attributes = isRecord(data) ? data.$ : undefined;
+  const id = isRecord(attributes) ? attributes.InResponseTo : undefined;
+  return typeof id === 'string' && id !== '' ? id : undefined;
+}
+
+function firstRecord(value: unknown): Record<string, unknown> | undefined {
+  const first = Array.isArray(value) ? value[0] : undefined;
+  return isRecord(first) ? first : undefined;
+}
+
 function toAttributeRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const out: Record<string, unknown> = {};
@@ -146,6 +174,9 @@ export async function validateSamlResponseImpl(
   errorKey?: string;
   nameId?: string;
   attributes?: Record<string, unknown>;
+  /** The AuthnRequest ID this response answers — set for SP-initiated
+   * responses only, so the ACS knows when to demand the browser binding. */
+  inResponseTo?: string;
 }> {
   try {
     if (
@@ -183,7 +214,13 @@ export async function validateSamlResponseImpl(
       typeof profile.nameID === 'string' ? profile.nameID : undefined;
     // node-saml exposes the asserted attributes on `profile.attributes`.
     const attributes = toAttributeRecord(profile.attributes);
-    return { ok: true, nameId, attributes };
+    const inResponseTo = answeredRequestId(profile);
+    return {
+      ok: true,
+      nameId,
+      attributes,
+      ...(inResponseTo !== undefined ? { inResponseTo } : {}),
+    };
   } catch (error) {
     return {
       ok: false,

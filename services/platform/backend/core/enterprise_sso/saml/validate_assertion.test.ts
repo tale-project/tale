@@ -91,6 +91,9 @@ interface ResponseOpts {
   inResponseTo?: string;
   /** The assertion's Issuer — the connection's IdP entity ID by default. */
   issuer?: string;
+  /** Leave the Response element's InResponseTo off (a forwarder stripping
+   * it) while the signed Subject still carries it. */
+  omitResponseInResponseTo?: boolean;
 }
 
 /** A canonical, signed `saml:Assertion` (the IdP's signing step). */
@@ -138,9 +141,10 @@ function signedAssertion(opts: ResponseOpts): string {
 
 /** The `samlp:Response` envelope (base64, POST binding) around `body`. */
 function wrapResponse(body: string, opts: ResponseOpts): string {
-  const inResponseToAttr = opts.inResponseTo
-    ? ` InResponseTo="${opts.inResponseTo}"`
-    : '';
+  const inResponseToAttr =
+    opts.inResponseTo && !opts.omitResponseInResponseTo
+      ? ` InResponseTo="${opts.inResponseTo}"`
+      : '';
   return Buffer.from(
     `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(Date.now())}" Version="2.0" Destination="${ACS_URL}"${inResponseToAttr}>` +
       `<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"></samlp:StatusCode></samlp:Status>` +
@@ -429,5 +433,60 @@ describe('SAML issuer enforcement (real node-saml)', () => {
 
     expect(result.ok).toBe(true);
     expect(result.nameId).toBe('saml.user@door.test');
+  });
+});
+
+/**
+ * The ACS demands the browser binding exactly when the response answers an
+ * AuthnRequest, so the validator reports which — from the Response element,
+ * or from the signed Subject when the Response-level attribute was stripped
+ * (node-saml checks the Subject's only when the Response's is present).
+ */
+describe('SAML InResponseTo reporting (real node-saml)', () => {
+  it('reports the answered request id of an SP-initiated response', async () => {
+    const cache = memoryCache();
+    await cache.saveAsync('_issued9', iso(Date.now()));
+    const response = buildSignedResponse({
+      id: '_report1',
+      email: 'saml.user@door.test',
+      inResponseTo: '_issued9',
+    });
+
+    const result = await validateSamlResponseImpl(validateArgs(response), {
+      cacheProvider: cache,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.inResponseTo).toBe('_issued9');
+  });
+
+  it('still reports it when only the signed Subject carries it', async () => {
+    const response = buildSignedResponse({
+      id: '_report2',
+      email: 'saml.user@door.test',
+      inResponseTo: '_issued10',
+      omitResponseInResponseTo: true,
+    });
+
+    const result = await validateSamlResponseImpl(validateArgs(response), {
+      cacheProvider: memoryCache(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.inResponseTo).toBe('_issued10');
+  });
+
+  it('reports nothing for an IdP-initiated response', async () => {
+    const response = buildSignedResponse({
+      id: '_report3',
+      email: 'idp.initiated@door.test',
+    });
+
+    const result = await validateSamlResponseImpl(validateArgs(response), {
+      cacheProvider: memoryCache(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.inResponseTo).toBeUndefined();
   });
 });

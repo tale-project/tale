@@ -60,6 +60,8 @@ If a provider exposes OAuth2 but no discovery document, choose **OAuth2** and en
 
 Tale supports both IdP-initiated SAML (the IdP posts an assertion to the ACS URL) and SP-initiated SAML (a member clicks **Sign in with SSO** and Tale redirects to the IdP). Signed assertions are required; encrypted assertions are supported when you supply an SP keypair, and a connection that requires them refuses any assertion that arrives unencrypted.
 
+A sign-in Tale starts — SP-initiated SAML, and every OIDC and OAuth2 sign-in — is bound to the browser it started in: Tale sets a short-lived cookie when it redirects to your IdP and refuses a response that comes back in a different browser, so a captured sign-in link cannot sign someone else in. An IdP-initiated assertion answers no request from Tale and carries no such binding. A member who is told the sign-in did not finish in the browser it started in has a browser that dropped that cookie (typically a privacy setting that blocks cookies on cross-site redirects); signing in again from a browser that keeps it resolves it.
+
 ## Several organizations on one deployment
 
 A deployment can host more than one organization, each with its own connection. Click **Continue with SSO** on the login page, then pick your organization from the list — each entry shows the connection's **Display name**. That name is visible to anyone on the login page, so set a clear display name per connection in **Settings > Enterprise SSO**.

@@ -60,6 +60,8 @@ Si un fournisseur expose OAuth2 mais pas de document de découverte, choisis **O
 
 Tale prend en charge le SAML initié par l’IdP (l’IdP envoie une assertion à l’URL ACS) et le SAML initié par le SP (un membre clique sur **Se connecter avec le SSO** et Tale redirige vers l’IdP). Les assertions signées sont requises ; les assertions chiffrées sont prises en charge si tu fournis une paire de clés SP — et une connexion qui les exige refuse toute assertion qui arrive en clair.
 
+Une connexion que Tale démarre — le SAML initié par le SP, ainsi que toute connexion OIDC ou OAuth2 — est liée au navigateur où elle commence : Tale dépose un cookie de courte durée au moment de rediriger vers ton IdP et refuse une réponse qui revient dans un autre navigateur, si bien qu’un lien de connexion intercepté ne connecte personne d’autre. Une assertion initiée par l’IdP ne répond à aucune requête de Tale et ne porte donc pas ce lien. Si un membre apprend que sa connexion ne s’est pas terminée dans le navigateur où elle a commencé, son navigateur a perdu ce cookie — le plus souvent à cause d’un réglage de confidentialité qui bloque les cookies lors des redirections entre sites ; une nouvelle connexion depuis un navigateur qui le conserve règle le problème.
+
 ## Plusieurs organisations sur un même déploiement
 
 Un déploiement peut héberger plusieurs organisations, chacune avec sa propre connexion. Sur la page de connexion, clique sur **Continuer avec SSO**, puis choisis ton organisation dans la liste — chaque entrée affiche le **Nom affiché** de la connexion. Ce nom est visible par quiconque sur la page de connexion ; définis un nom clair par connexion dans **Paramètres > Enterprise SSO**.

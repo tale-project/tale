@@ -1,10 +1,17 @@
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { type FinishLogin } from '../login/finish_login';
+import {
+  clearFlowCookie,
+  flowCookieMatches,
+  hasFlowCookie,
+  SSO_FLOW_MISMATCH_KEY,
+} from '../login/flow_cookie';
 import { recordSsoLoginFailure } from '../login/login_audit';
 import { publicOrigin } from '../login/public_origin';
 import { mapSamlIdentity } from './attributes';
 import { samlEndpoints } from './metadata_handler';
+import { parseRelayState } from './relay_state';
 
 function loginRedirect(origin: string, message: string): Response {
   const basePath = process.env.BASE_PATH || '';
@@ -21,7 +28,8 @@ function loginRedirect(origin: string, message: string): Response {
  * (and, when the connection requires it, encrypted) assertion in a Node
  * action, maps attributes to our identity, then funnels into the shared
  * provisioning action and sets the session cookie. RelayState carries the org
- * id for SP-initiated flows.
+ * id — and, for SP-initiated flows, the flow-cookie hash that binds the
+ * response to the browser that started the flow.
  */
 export async function samlAcsHandler(
   ctx: ActionCtx,
@@ -33,6 +41,23 @@ export async function samlAcsHandler(
   // OIDC handlers' posture — behind the proxy `req.url` is the unreachable
   // internal upstream, and `http` even on TLS deployments).
   const origin = publicOrigin(req.url);
+  const response = await consumeAssertion(ctx, req, deps, origin);
+  // The flow cookie is single-use, whatever the verdict.
+  if (hasFlowCookie(req.headers.get('cookie'), origin)) {
+    response.headers.append(
+      'Set-Cookie',
+      clearFlowCookie({ frontendOrigin: origin }),
+    );
+  }
+  return response;
+}
+
+async function consumeAssertion(
+  ctx: ActionCtx,
+  req: Request,
+  deps: { finishLogin: FinishLogin },
+  origin: string,
+): Promise<Response> {
   // Known only once the assertion's connection resolves; every refusal after
   // that point is audited (the OIDC callback's posture — a rejected assertion
   // is exactly the event an operator investigating a locked-out user, or a
@@ -61,9 +86,10 @@ export async function samlAcsHandler(
       return loginRedirect(origin, 'Missing SAMLResponse');
     }
 
+    const relay = parseRelayState(relayState);
     const config = await ctx.runQuery(
       internal.enterprise_sso.internal_queries.resolveSamlConfig,
-      { organizationId: relayState },
+      { organizationId: relay.organizationId },
     );
     if (config === 'ambiguous') {
       // IdP-initiated POST without a RelayState org on a deployment where
@@ -106,6 +132,30 @@ export async function samlAcsHandler(
       // other validator error is bounced as the readable reason itself.
       await auditFailure(message, validation.errorKey);
       return loginRedirect(origin, validation.errorKey ?? message);
+    }
+
+    // An SP-initiated response (it answers an AuthnRequest — InResponseTo on
+    // the Response or inside the signed Subject) must land in the browser
+    // that issued that request: the RelayState's hash has to be of the nonce
+    // in this browser's flow cookie. Without it, an insider's own captured
+    // response posted from a victim's browser would sign the victim in as
+    // the insider. An IdP-initiated response answers no request and carries
+    // no binding — that is the protocol's shape, documented as such.
+    if (validation.inResponseTo !== undefined) {
+      const bound =
+        relay.flowHash !== undefined &&
+        (await flowCookieMatches(
+          req.headers.get('cookie'),
+          relay.flowHash,
+          origin,
+        ));
+      if (!bound) {
+        const message =
+          'SAML response did not arrive in the browser that started the flow (missing or mismatched flow cookie)';
+        console.warn(`[SSO] ${message}`);
+        await auditFailure(message, SSO_FLOW_MISMATCH_KEY);
+        return loginRedirect(origin, SSO_FLOW_MISMATCH_KEY);
+      }
     }
 
     const identity = mapSamlIdentity(

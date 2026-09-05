@@ -479,6 +479,9 @@ auth:
       notOrgMember: Ton compte n’est pas membre de cette organisation. Demande à
         l’administration de cette organisation de t’inviter, puis
         reconnecte-toi.
+      flowMismatch:
+        Cette connexion ne s’est pas terminée dans le navigateur où elle a
+        commencé. Relance-la depuis cette page.
       assertionNotEncrypted:
         Cette organisation exige des assertions SAML chiffrées, mais le
         fournisseur d’identité en a envoyé une en clair. Demande à ton
