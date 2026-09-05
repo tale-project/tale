@@ -1,13 +1,12 @@
-// The role matcher is provider-agnostic (it matches jobTitle / appRole /
-// group / claim values against rules) — reused here rather than duplicated.
 import { isRecord } from '../../../../lib/utils/type-utils';
-import { claimValueToStrings, resolveClaimPath } from '../claims';
-import { mapEntraRoleToPlatformRole } from '../entra_id/role_mapping';
+import {
+  claimValueToStrings,
+  requireEmailClaim,
+  resolveClaimPath,
+} from '../claims';
 import { discoverOidc, OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';
 import type {
   AuthorizeUrlParams,
-  PlatformRole,
-  RoleMappingRule,
   SsoGroup,
   SsoProviderAdapter,
   SsoProviderCapabilities,
@@ -18,10 +17,6 @@ import type {
 } from '../types';
 
 const capabilities: SsoProviderCapabilities = {
-  supportsGroupSync: true,
-  supportsRoleMapping: true,
-  supportsOneDriveAccess: false,
-  supportsGoogleDriveAccess: false,
   supportsPkce: true,
 };
 
@@ -149,7 +144,10 @@ async function getUserInfo(
   const mappedEmail = mappings?.email
     ? mappedClaimString(data, mappings.email)
     : undefined;
-  const email = mappedEmail ?? data.email ?? data.preferred_username;
+  const email = requireEmailClaim(
+    mappedEmail ?? data.email ?? data.preferred_username,
+    'OIDC userinfo',
+  );
 
   const groups = mappings?.groups
     ? claimValueToStrings(resolveClaimPath(data, mappings.groups))
@@ -209,14 +207,6 @@ async function validateConfig(
   }
 }
 
-function mapToRole(
-  rules: RoleMappingRule[],
-  defaultRole: PlatformRole,
-  userInfo: SsoUserInfo,
-): PlatformRole {
-  return mapEntraRoleToPlatformRole(rules, defaultRole, userInfo);
-}
-
 export const genericOidcAdapter: SsoProviderAdapter = {
   providerId: 'generic-oidc',
   displayName: 'Generic OIDC',
@@ -226,5 +216,4 @@ export const genericOidcAdapter: SsoProviderAdapter = {
   getUserInfo,
   getGroups,
   validateConfig,
-  mapToRole,
 };

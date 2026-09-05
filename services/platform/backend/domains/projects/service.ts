@@ -22,7 +22,13 @@ import {
 import { normalizeToolGrants } from '../../core/sandbox/tool_names.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { recordTrashRefusalFromJson } from '../documents/service.ts';
 import { emitEvent } from '../events/emit.ts';
+import {
+  assertNotHeld,
+  LegalHoldError,
+  loadActiveHolds,
+} from '../legal_holds/service.ts';
 
 /**
  * Projects domain — ported from `convex/projects/*` with the pure access
@@ -1058,8 +1064,13 @@ export interface DeleteProjectResult {
  * the row (FK cascade — tasks cannot exist without a project); documents
  * detach (or expire into the retention pipeline on cascade) and threads
  * detach (cascade trashes only the CALLER's own threads), exactly the 0.4
- * walk. TODO(governance): legal-hold check (0.4 also lacks it —
- * resourceType 'project' unmodeled).
+ * walk. A cascade is a delete of every document in the project, so it asks
+ * the documents domain's own pre-walk first: one protected controlled record
+ * (in review, approved, or carrying an approved version) or one held
+ * document refuses the WHOLE cascade before anything is written — the same
+ * all-or-nothing the folder cascade applies. Without it the cascade was the
+ * one delete door that skipped the guard, and the retention sweep then
+ * purged the retained snapshots it had expired.
  */
 export async function deleteProject(
   tx: TransactionSql,
@@ -1112,6 +1123,7 @@ export async function deleteProject(
   const now = Date.now();
 
   if (args.mode === 'cascade') {
+    await assertProjectDocumentsDestroyable(tx, auth, args.projectId);
     // Mark for deletion via lifecycle status. 'expired' takes the documents
     // out of the retrievable set IMMEDIATELY (the RAG filter admits only
     // active-lifecycle documents); the retention documents sweep then
@@ -1163,6 +1175,62 @@ export async function deleteProject(
   );
   await hintProject(tx, auth.organizationId, args.projectId);
   return counts;
+}
+
+/**
+ * The cascade's pre-walk over the project's documents: protected controlled
+ * records refuse with the titles named (so the operator knows what to
+ * release first), and a legal hold on the org or on a document's author
+ * refuses as the project door's own hold code. Reads only — nothing is
+ * written until every document has passed.
+ */
+async function assertProjectDocumentsDestroyable(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<void> {
+  const docs = await tx<
+    {
+      id: string;
+      title: string | null;
+      record: Record<string, unknown> | null;
+      createdBy: string | null;
+    }[]
+  >`
+    SELECT id, title, record, created_by AS "createdBy"
+    FROM app.documents
+    WHERE org_id = ${auth.organizationId} AND project_id = ${projectId}
+    ORDER BY created_at_ms, id
+  `;
+  const protectedTitles = docs
+    .filter((doc) => recordTrashRefusalFromJson(doc.record) !== null)
+    .map((doc) => doc.title ?? doc.id);
+  if (protectedTitles.length > 0) {
+    throw new ProjectError(
+      'PROJECT_HAS_PROTECTED_RECORDS',
+      'Controlled records in this project are in review, approved, or retain an approved version and cannot be deleted',
+      400,
+      { documents: protectedTitles },
+    );
+  }
+  const holds = await loadActiveHolds(tx, auth.organizationId);
+  for (const doc of docs) {
+    try {
+      await assertNotHeld(
+        tx,
+        auth.organizationId,
+        'document',
+        doc.id,
+        holds,
+        doc.createdBy ?? undefined,
+      );
+    } catch (error) {
+      if (error instanceof LegalHoldError) {
+        throw new ProjectError('PROJECT_LEGAL_HOLD', error.message, 400);
+      }
+      throw error;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

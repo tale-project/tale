@@ -80,6 +80,33 @@ describe('ProjectDeleteDialog', () => {
     );
   });
 
+  it('names the protected controlled records on PROJECT_HAS_PROTECTED_RECORDS', async () => {
+    // A cascade that would destroy an in-review / approved / retained record
+    // is refused by the backend with the record titles in error.data.documents.
+    mockDeleteProject.mockRejectedValueOnce(
+      new AppError({
+        code: 'PROJECT_HAS_PROTECTED_RECORDS',
+        documents: ['SOP-7.pdf', 'Policy v3.docx'],
+      }),
+    );
+
+    const { user } = renderDialog();
+
+    await user.click(getDeleteButton());
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title:
+          'Resolve or move the controlled records in this project first, then delete it. They are in review, approved, or retain an approved version.',
+        description: 'SOP-7.pdf, Policy v3.docx',
+        variant: 'destructive',
+      }),
+    );
+    expect(mockToast).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Couldn't delete project" }),
+    );
+  });
+
   it('falls back to the generic actionable message when no automation names are returned', async () => {
     mockDeleteProject.mockRejectedValueOnce(
       new AppError({ code: 'PROJECT_HAS_BOUND_AUTOMATIONS' }),

@@ -41,10 +41,21 @@ export async function samlMetadataHandler(
     const { spEntityId, acsUrl } = samlEndpoints();
     const wantSigned = config?.wantAssertionsSigned ?? true;
 
+    // The one SP certificate serves both purposes — node-saml signs the
+    // AuthnRequest with the matching key and decrypts assertions with it —
+    // so it is advertised under BOTH uses. Metadata-driven IdPs (Keycloak,
+    // ADFS, Shibboleth) pick the encryption key from a `use="encryption"`
+    // descriptor; with a signing-only one they never encrypt, and a
+    // connection that requires encrypted assertions refuses every login.
     const keyDescriptor = config?.spCertificate
-      ? `<KeyDescriptor use="signing"><KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><X509Data><X509Certificate>${pemToBase64(
-          config.spCertificate,
-        )}</X509Certificate></X509Data></KeyInfo></KeyDescriptor>`
+      ? ['signing', 'encryption']
+          .map(
+            (use) =>
+              `<KeyDescriptor use="${use}"><KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><X509Data><X509Certificate>${pemToBase64(
+                config.spCertificate,
+              )}</X509Certificate></X509Data></KeyInfo></KeyDescriptor>`,
+          )
+          .join('\n    ')
       : '';
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>

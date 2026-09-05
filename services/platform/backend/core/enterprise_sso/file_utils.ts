@@ -78,28 +78,9 @@ export function resolveSsoHistoryDir(orgSlug: string): string {
   );
 }
 
-/**
- * Serialize the connection config to the pre-conversion `.json` form. Uses a
- * direct `JSON.stringify` (not the `serializeJson` helper) so the
- * schema-required empty arrays (`oidc.scopes`,
- * `provisioning.roleMappingRules`/`excludeGroups`) are preserved, and applies
- * schema defaults via `parse`. Live writes serialize via
- * {@link serializeSsoConnectionYaml}; this stays for the historical SSO
- * cutover migration.
- */
-export function serializeSsoConnectionJson(config: SsoConnectionFile): string {
-  return JSON.stringify(ssoConnectionFileSchema.parse(config), null, 2) + '\n';
-}
-
 /** Serialize the connection config to its canonical `.yml` on-disk form. */
 export function serializeSsoConnectionYaml(config: SsoConnectionFile): string {
   return stringifyYaml(ssoConnectionFileSchema.parse(config));
-}
-
-/** Parse + validate `connection.json`. Throws on invalid input. */
-export function parseSsoConnectionJson(content: string): SsoConnectionFile {
-  const parsed: unknown = JSON.parse(content);
-  return validateSsoConnectionData(parsed);
 }
 
 /** Validate already-parsed connection data (the yml-then-json reader hands

@@ -6,7 +6,7 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
-import { formatBytes } from '@/lib/utils/format-bytes';
+import { formatBytes } from '@/lib/utils/format/number';
 
 import type { ParsedSkillBundle } from '../utils/parse-skill-bundle';
 

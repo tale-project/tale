@@ -368,15 +368,34 @@ export async function s3PutObject(
 /**
  * GET an object: its raw bytes plus the Content-Type the store holds for it
  * (`null` when the store answers none) — the pair a copy between stores needs
- * to land the object as it was. Throws on a non-2xx response.
+ * to land the object as it was. Throws on a non-2xx response, 404 included.
  */
 export async function s3GetObject(
   store: S3ObjectStore,
   key: string,
 ): Promise<{ bytes: Uint8Array; contentType: string | null }> {
+  const got = await s3GetObjectIfExists(store, key);
+  if (got === null) {
+    throw new Error(`S3 GET ${key} failed: 404 the object does not exist`);
+  }
+  return got;
+}
+
+/**
+ * GET an object, distinguishing ABSENCE from failure: `null` when the store
+ * answers 404, the bytes + Content-Type when it has them, a thrown error for
+ * everything else (unreachable store, 5xx, a denied key). For a reader whose
+ * contract treats a missing file as a legitimate state — a settings file
+ * nobody has saved yet — and must not treat an outage the same way.
+ */
+async function s3GetObjectIfExists(
+  store: S3ObjectStore,
+  key: string,
+): Promise<{ bytes: Uint8Array; contentType: string | null } | null> {
   const res = await store.client.fetch(objectUrl(store, key), {
     method: 'GET',
   });
+  if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(
       `S3 GET ${key} failed: ${res.status} ${await safeErrorBody(res)}`,
@@ -388,6 +407,15 @@ export async function s3GetObject(
     contentType:
       contentType === null || contentType === '' ? null : contentType,
   };
+}
+
+/** The bytes half of `s3GetObjectIfExists`: `null` on 404, thrown otherwise. */
+export async function s3GetObjectBytesIfExists(
+  store: S3ObjectStore,
+  key: string,
+): Promise<Uint8Array | null> {
+  const got = await s3GetObjectIfExists(store, key);
+  return got === null ? null : got.bytes;
 }
 
 /** GET the raw bytes of an object. Throws on a non-2xx response. */

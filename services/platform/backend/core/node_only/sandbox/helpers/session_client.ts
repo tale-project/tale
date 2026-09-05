@@ -307,28 +307,6 @@ export async function sessionDestroyIfIdle(
   return { destroyed: parsed.destroyed === true, busy: parsed.busy === true };
 }
 
-/** PATCH /v1/sessions/:id/env — inject/rotate session env (gateway token,
- * connector creds). Returns the names runnerd rejected (deny-list). */
-export async function sessionEnvPatch(
-  sessionId: string,
-  patch: { set?: Record<string, string>; unset?: string[] },
-): Promise<string[]> {
-  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/env`;
-  const bodyJson = JSON.stringify(patch);
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'PATCH',
-    headers: signedHeaders('PATCH', path, bodyJson),
-    body: bodyJson,
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!res.ok) {
-    throw new Error(`sandbox session env patch failed (${res.status})`);
-  }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = (await res.json()) as { denied?: string[] };
-  return parsed.denied ?? [];
-}
-
 /** PATCH /v1/sessions/:id/pin — toggle the spawner-side "always-on" reaper
  * exemption. Best-effort; the platform `sandboxSessions.pinned` row is the
  * durable truth (re-pushed on the next turn after a spawner restart). */
@@ -369,68 +347,6 @@ export async function sessionCancelExec(
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { killed?: boolean };
   return parsed.killed === true;
-}
-
-/** Managed live-browser recycle result (restart preserves logins; reset wipes
- * the profile). `ready` = a CDP session attached again within the wait window. */
-export interface BrowserRecycleResult {
-  signalled: boolean;
-  ready: boolean;
-  tabs: number;
-}
-
-async function sessionBrowserControl(
-  sessionId: string,
-  action: 'restart' | 'reset' | 'close-pages',
-): Promise<Record<string, unknown>> {
-  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/browser/${action}`;
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'POST',
-    headers: signedHeaders('POST', path, ''),
-    body: '',
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!res.ok) {
-    throw new Error(`sandbox browser ${action} failed (${res.status})`);
-  }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  return (await res.json()) as Record<string, unknown>;
-}
-
-/** POST /v1/sessions/:id/browser/restart — recycle a wedged managed browser,
- * PRESERVING saved logins (lock hygiene + respawn). Used by recovery paths. */
-export async function sessionBrowserRestart(
-  sessionId: string,
-): Promise<BrowserRecycleResult> {
-  const b = await sessionBrowserControl(sessionId, 'restart');
-  return {
-    signalled: b.signalled === true,
-    ready: b.ready === true,
-    tabs: typeof b.tabs === 'number' ? b.tabs : 0,
-  };
-}
-
-/** POST /v1/sessions/:id/browser/reset — wipe the persistent profile and start
- * fresh. LOSES saved logins; the explicit user-driven "Reset browser". */
-export async function sessionBrowserReset(
-  sessionId: string,
-): Promise<BrowserRecycleResult> {
-  const b = await sessionBrowserControl(sessionId, 'reset');
-  return {
-    signalled: b.signalled === true,
-    ready: b.ready === true,
-    tabs: typeof b.tabs === 'number' ? b.tabs : 0,
-  };
-}
-
-/** POST /v1/sessions/:id/browser/close-pages — close all open tabs WITHOUT
- * clearing cookies (logins persist). The turn-stop cleanup so a runaway/hung
- * tab can't wedge the next turn's attach. */
-export async function sessionBrowserClosePages(
-  sessionId: string,
-): Promise<number> {
-  const b = await sessionBrowserControl(sessionId, 'close-pages');
-  return typeof b.closed === 'number' ? b.closed : 0;
 }
 
 /** Per-exec liveness, decoupled from `sessionIsAlive` (which is session-level). */

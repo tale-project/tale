@@ -8,8 +8,8 @@ interface OrgIdleWindow {
 /**
  * Resolve the orgs that have an ENABLED `session_idle_timeout` policy into
  * their effective idle window (already tightened against the env backstop).
- * Invalid configs are logged and skipped (parse-or-skip, like
- * `getTwoFactorPolicy`); disabled/absent policies defer to the env backstop,
+ * Invalid configs are logged and skipped (parse-or-skip, like every other
+ * policy reader); disabled/absent policies defer to the env backstop,
  * which Better Auth's own sliding `expiresIn` already enforces server-side —
  * nothing for the sweep to do there.
  *

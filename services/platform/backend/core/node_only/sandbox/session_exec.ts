@@ -2,21 +2,19 @@
 
 /**
  * In-session code execution + output harvest — the shared bottom half every
- * session lane settles through. `runStepsInSession` installs declared
- * packages and runs staged scripts as sequential execs (automation `script`
- * steps, the crawler's render lane); `harvestSessionOutput` reads the
- * session's `/agent/output` delivery box into blob storage + `fileMetadata`
- * (automation agent/script hosts, task-agent runs). The CALLER owns the
- * session lifecycle and stages inputs before calling in.
+ * session lane settles through. `runStepsInSession` runs staged scripts as
+ * sequential execs (the crawler's render lane); `harvestSessionOutput` reads
+ * the session's `/agent/output` delivery box into the org bucket +
+ * `fileMetadata` (automation agent hosts, task-agent runs). The CALLER owns
+ * the session lifecycle and stages inputs before calling in.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
-import { deleteBlob, putBlob } from '../../lib/storage/blob_access';
-import { convexStorageId, type BlobRef } from '../../lib/storage/blob_ref';
+import { putBlob } from '../../lib/storage/blob_access';
 import {
   drainSessionExecResilient,
   sessionIsAlive,
@@ -159,19 +157,20 @@ export interface StepRunResult {
 }
 
 /**
- * Install declared packages, then run each step in order (stopping at the first
- * failure), collecting stdout/stderr. Pure session I/O — no `ctx`, no harvest —
- * so every session caller shares the exact run semantics: the automation
- * `script` step host AND the crawler render (which reads `/agent/output`
- * straight off the session). The CALLER owns the session lifecycle
- * (create/teardown) and stages inputs before calling this.
+ * Run each staged step in order (stopping at the first failure), collecting
+ * stdout/stderr. Pure session I/O — no `ctx`, no harvest. The one caller is
+ * the crawler render lane (which reads `/agent/output` straight off the
+ * session); it stages its scripts, so every step runs from `/agent/code`.
+ * The CALLER owns the session lifecycle (create/teardown) and stages inputs
+ * before calling this. Package installs were a lane for automation `script`
+ * steps, which never landed in 0.5 — a consumer that needs them adds them
+ * with its own budget.
  */
 export async function runStepsInSession(
   sessionId: string,
   args: {
     /** Absolute `/agent/code/<script>` paths to run in order. */
     stepPaths: string[];
-    packagesByLang?: { python?: string[]; node?: string[] };
     timeoutMs?: number;
   },
 ): Promise<StepRunResult> {
@@ -179,71 +178,18 @@ export async function runStepsInSession(
   const abort = new AbortController();
   const stdoutParts: string[] = [];
   const stderrParts: string[] = [];
-  const runExec = async (
-    command: string[],
-    perTimeout: number,
-    // Steps run from /agent/code (staging created it — a step implies a staged
-    // script). Installs run from the workspace root: /agent always exists,
-    // while /agent/code doesn't on a fresh session with nothing staged (an
-    // install-only call), and runnerd rejects a non-existent cwd.
-    cwd: '/agent/code' | '/agent' = '/agent/code',
-  ) =>
+  const runExec = async (command: string[]) =>
     drainSessionExecResilient(
       sessionId,
       {
         execId: randomUUID(),
         command,
-        cwd,
+        cwd: '/agent/code',
         collectOutput: true,
-        timeoutMs: perTimeout,
+        timeoutMs,
       },
       abort.signal,
     );
-
-  // Install declared packages first (persist in the session for later runs).
-  // Installs get their own budget, floored at 120s — a cold pip/npm resolve
-  // rarely fits the 30s interactive default — and capped at the 300s schema
-  // max. A failed install fails the whole run: running the steps anyway would
-  // surface a confusing downstream ImportError (or, with no steps, report a
-  // success that never happened).
-  const py = args.packagesByLang?.python ?? [];
-  const node = args.packagesByLang?.node ?? [];
-  const installTimeoutMs = Math.min(Math.max(timeoutMs, 120_000), 300_000);
-  const installs: Array<{ tool: 'pip' | 'npm'; command: string[] }> = [];
-  if (py.length > 0) {
-    installs.push({
-      tool: 'pip',
-      command: ['python3', '-m', 'pip', 'install', '--no-input', ...py],
-    });
-  }
-  if (node.length > 0) {
-    installs.push({ tool: 'npm', command: ['npm', 'install', '-g', ...node] });
-  }
-  for (const { tool, command } of installs) {
-    const r = await runExec(command, installTimeoutMs, '/agent');
-    const failed = r.status !== 'completed' || (r.exitCode ?? 0) !== 0;
-    // Install-only runs (and failures) surface installer stdout — it carries
-    // the resolved versions / the resolver error. Successful script runs drop
-    // it so install noise never drowns the script's own stdout; warnings
-    // still route to stderr as before.
-    if (args.stepPaths.length === 0 || failed) {
-      stdoutParts.push(Buffer.from(r.stdoutBase64, 'base64').toString('utf8'));
-    }
-    stderrParts.push(Buffer.from(r.stderrBase64, 'base64').toString('utf8'));
-    if (failed) {
-      const detail = r.errorMessage ?? r.errorCode;
-      return {
-        status: r.status === 'cancelled' ? 'cancelled' : 'failed',
-        exitCode: r.exitCode,
-        stdout: stdoutParts.join(''),
-        stderr: stderrParts.join(''),
-        errorCode: 'INSTALL_FAILED',
-        errorMessage: `${tool} install failed${
-          r.exitCode !== null ? ` (exit ${r.exitCode})` : ''
-        }${detail !== undefined ? `: ${detail}` : ''}`,
-      };
-    }
-  }
 
   // Run each step in order; stop at the first failure.
   let exitCode: number | null = 0;
@@ -256,7 +202,7 @@ export async function runStepsInSession(
       exitCode = 1;
       break;
     }
-    const r = await runExec(command, timeoutMs);
+    const r = await runExec(command);
     stdoutParts.push(Buffer.from(r.stdoutBase64, 'base64').toString('utf8'));
     stderrParts.push(Buffer.from(r.stderrBase64, 'base64').toString('utf8'));
     exitCode = r.exitCode;
@@ -283,11 +229,11 @@ export interface HarvestedOutputFile {
 }
 
 /**
- * Harvest top-level `/agent/output` into blob storage: each file becomes a
- * stored blob plus a `fileMetadata` row (`source: 'agent'`, no documentId —
- * retention-eligible until a consumer such as a workflow `document.create`
- * claims it). Lane-neutral: chat run_code and the automation agent/script
- * hosts all settle their outputs through this one door.
+ * Harvest top-level `/agent/output` into the org's bucket: each file becomes
+ * a stored blob plus a `fileMetadata` row (`source: 'agent'`, no documentId
+ * — retention-eligible until a consumer such as a workflow `document.create`
+ * claims it). Lane-neutral: the task-agent and automation agent hosts settle
+ * their outputs through this one door.
  *
  * A file that CANNOT come back (over the read cap, workspace quota, storage
  * hiccup) is recorded in `harvestSkipped` and never fails the harvest — the
@@ -317,9 +263,17 @@ export async function harvestSessionOutput(
 }> {
   const { sessionId, organizationId, execId } = args;
   const outputDir = args.outputDir ?? OUTPUT_DIR;
-  // Backend routing for harvested outputs: the org's own bucket when
-  // configured, else Convex `_storage` (also the unresolvable-slug fallback).
+  // Harvested outputs land in the org's own bucket (`putBlob` routes a
+  // BYO-bucket org to its bucket). There is no other store: an org whose
+  // slug does not resolve is an infra fault (deleted mid-run), and a harvest
+  // that quietly skipped every file would launder it into "produced
+  // nothing" — fail loud before touching the session, like the 404s below.
   const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
+  if (orgSlug === null) {
+    throw new Error(
+      `sandbox output harvest for session ${sessionId} has no bucket: organization ${organizationId} does not resolve to a slug`,
+    );
+  }
 
   const files: HarvestedOutputFile[] = [];
   const harvestSkipped: Array<{ path: string; reason: string }> = [];
@@ -413,11 +367,9 @@ export async function harvestSessionOutput(
       continue;
     }
     const buf = Buffer.from(read.bytes);
-    const sha256 = createHash('sha256').update(buf).digest('hex');
-    // The unchanged-file dedup consulted the thread-file index, which is
-    // offline while the chat backend is rebuilt — every harvested file is
-    // stored fresh. Costs duplicate blobs on re-runs, never correctness;
-    // the retention sweep reclaims unclaimed outputs.
+    // Every harvested file is stored fresh (no unchanged-file dedup). Costs
+    // duplicate blobs on re-runs, never correctness; the retention sweep
+    // reclaims unclaimed outputs.
     // The spawner serves the generic octet-stream — fall back to the
     // extension-derived type (sessionReadFile's documented contract). The
     // Blob MUST carry a non-empty type: the self-hosted backend rejects a
@@ -429,41 +381,15 @@ export async function harvestSessionOutput(
         ? read.contentType
         : inferContentType(absPath);
     // Backend-aware store: harvested outputs are org-user-persistent thread
-    // files — a BYO-bucket org's outputs land in its own bucket.
+    // files — a BYO-bucket org's outputs land in its own bucket. A rejected
+    // store (quota, validation) leaves no blob behind to reap.
     const ab = new ArrayBuffer(buf.byteLength);
     new Uint8Array(ab).set(buf);
     const harvestBytes = new Uint8Array(ab);
-    let storageId: BlobRef | null = null;
+    let storageId: string;
     try {
-      if (orgSlug !== null) {
-        storageId = await putBlob(ctx, orgSlug, harvestBytes, contentType);
-      } else {
-        storageId = await ctx.storage.store(
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
-          new Blob([harvestBytes], { type: contentType }),
-        );
-      }
-      // The thread-file mirror row is chat-thread bookkeeping; its module
-      // is offline while the chat backend is rebuilt. The blob above and the
-      // fileMetadata row below still land, so run outputs stay retrievable.
-      console.debug(
-        `[session_exec] thread-file mirror skipped for ${absPath} (session ${sessionId}, sha ${sha256.slice(0, 8)}) — chat backend offline`,
-      );
+      storageId = await putBlob(ctx, orgSlug, harvestBytes, contentType);
     } catch (err) {
-      // Quota/validation rejection after the blob copy — reap the orphan
-      // (mirrors workspace_uploads' filing reap).
-      if (storageId !== null) {
-        try {
-          const copyConvexId = convexStorageId(storageId);
-          if (copyConvexId !== null) {
-            await ctx.storage.delete(copyConvexId);
-          } else if (orgSlug !== null) {
-            await deleteBlob(ctx, orgSlug, storageId);
-          }
-        } catch (delErr) {
-          console.warn('[session_exec] harvest orphan cleanup failed:', delErr);
-        }
-      }
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[session_exec] harvest skipped ${absPath}: ${message}`);
       harvestSkipped.push({

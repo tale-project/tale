@@ -1,8 +1,8 @@
 import type { ActionCtx } from '../../lib/ctx';
 import { signCookieValue } from '../sign_cookie_value';
 
-export const SESSION_COOKIE_NAME = 'better-auth.session_token';
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days in seconds
+const SESSION_COOKIE_NAME = 'better-auth.session_token';
+const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days in seconds
 
 export interface FinishLoginArgs {
   sessionToken: string;
@@ -26,7 +26,24 @@ export type FinishLogin = (
   args: FinishLoginArgs,
 ) => Promise<Response>;
 
-/** The signed session cookie header value for `frontendOrigin`. */
+/**
+ * The session cookie's name for `frontendOrigin` — Better Auth prefixes it
+ * with `__Secure-` on HTTPS (`useSecureCookies`, `auth/auth.ts`), so every
+ * door that mints or reads the cookie outside Better Auth derives the same
+ * name from the same origin.
+ */
+export function sessionCookieName(frontendOrigin: string): string {
+  return frontendOrigin.startsWith('https://')
+    ? `__Secure-${SESSION_COOKIE_NAME}`
+    : SESSION_COOKIE_NAME;
+}
+
+/**
+ * The signed session cookie header value for `frontendOrigin` — the ONE
+ * builder every login door (OIDC callback, SAML ACS, trusted headers) sets
+ * the Better Auth session cookie through, so the shape cannot drift between
+ * them.
+ */
 export async function buildSessionCookie(
   sessionToken: string,
   frontendOrigin: string,
@@ -34,11 +51,8 @@ export async function buildSessionCookie(
 ): Promise<string> {
   const signedToken = await signCookieValue(sessionToken, secret);
   const isHttps = frontendOrigin.startsWith('https://');
-  const cookieName = isHttps
-    ? `__Secure-${SESSION_COOKIE_NAME}`
-    : SESSION_COOKIE_NAME;
   const cookieParts = [
-    `${cookieName}=${signedToken}`,
+    `${sessionCookieName(frontendOrigin)}=${signedToken}`,
     `Max-Age=${SESSION_MAX_AGE}`,
     'Path=/',
     'HttpOnly',

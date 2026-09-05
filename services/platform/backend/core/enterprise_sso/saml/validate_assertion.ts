@@ -4,9 +4,12 @@ import {
   SAML,
   ValidateInResponseTo,
   type CacheProvider,
+  type Profile,
   type SamlConfig,
 } from '@node-saml/node-saml';
 import { DOMParser } from '@xmldom/xmldom';
+
+import { isRecord } from '../../../../lib/utils/type-utils';
 
 /**
  * SAML 2.0 assertion handling, isolated in a Node action (node-saml needs
@@ -72,6 +75,7 @@ export interface SamlValidationDeps {
 
 function buildSaml(
   args: {
+    idpEntityId: string;
     idpSsoUrl: string;
     idpCertificate: string;
     spEntityId: string;
@@ -86,6 +90,9 @@ function buildSaml(
     callbackUrl: args.acsUrl,
     entryPoint: args.idpSsoUrl,
     idpCert: args.idpCertificate,
+    // node-saml 5.1 applies `idpIssuer` to logout messages only; the
+    // assertion's Issuer is checked below on the validated profile.
+    idpIssuer: args.idpEntityId,
     audience: args.spEntityId,
     wantAssertionsSigned: args.wantAssertionsSigned ?? true,
     wantAuthnResponseSigned: false,
@@ -105,6 +112,31 @@ function buildSaml(
   return new SAML(config);
 }
 
+/**
+ * The AuthnRequest ID an SP-initiated response answers, from the Response
+ * element or — when a forwarder stripped it there — from the signed
+ * Subject's confirmation data, which node-saml consults only when the
+ * Response-level one is present. Undefined for an IdP-initiated response.
+ */
+function answeredRequestId(profile: Profile): string | undefined {
+  if (typeof profile.inResponseTo === 'string' && profile.inResponseTo !== '') {
+    return profile.inResponseTo;
+  }
+  const assertion = profile.getAssertion?.();
+  const root = isRecord(assertion) ? assertion.Assertion : undefined;
+  const subject = firstRecord(isRecord(root) ? root.Subject : undefined);
+  const confirmation = firstRecord(subject?.SubjectConfirmation);
+  const data = firstRecord(confirmation?.SubjectConfirmationData);
+  const attributes = isRecord(data) ? data.$ : undefined;
+  const id = isRecord(attributes) ? attributes.InResponseTo : undefined;
+  return typeof id === 'string' && id !== '' ? id : undefined;
+}
+
+function firstRecord(value: unknown): Record<string, unknown> | undefined {
+  const first = Array.isArray(value) ? value[0] : undefined;
+  return isRecord(first) ? first : undefined;
+}
+
 function toAttributeRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const out: Record<string, unknown> = {};
@@ -115,6 +147,8 @@ function toAttributeRecord(value: unknown): Record<string, unknown> {
 export interface ValidateSamlResponseArgs {
   samlResponse: string;
   relayState?: string;
+  /** The connection's IdP entity ID — the assertion's Issuer must match. */
+  idpEntityId: string;
   idpSsoUrl: string;
   idpCertificate: string;
   spEntityId: string;
@@ -140,6 +174,9 @@ export async function validateSamlResponseImpl(
   errorKey?: string;
   nameId?: string;
   attributes?: Record<string, unknown>;
+  /** The AuthnRequest ID this response answers — set for SP-initiated
+   * responses only, so the ACS knows when to demand the browser binding. */
+  inResponseTo?: string;
 }> {
   try {
     if (
@@ -159,11 +196,31 @@ export async function validateSamlResponseImpl(
       ...(args.relayState ? { RelayState: args.relayState } : {}),
     });
     if (!profile) return { ok: false, error: 'No SAML profile returned' };
+    // The connection's IdP entity ID is REQUIRED by the admin door and is
+    // what the assertion's Issuer must match — a valid signature under a
+    // shared or rotated certificate is not enough on its own. node-saml
+    // exposes the (decrypted, signature-verified) assertion's Issuer on the
+    // profile but compares it to `idpIssuer` only for logout messages.
+    if (typeof profile.issuer !== 'string' || profile.issuer === '') {
+      return { ok: false, error: 'Missing SAML issuer' };
+    }
+    if (profile.issuer !== args.idpEntityId) {
+      return {
+        ok: false,
+        error: `Unknown SAML issuer. Expected: ${args.idpEntityId} Received: ${profile.issuer}`,
+      };
+    }
     const nameId =
       typeof profile.nameID === 'string' ? profile.nameID : undefined;
     // node-saml exposes the asserted attributes on `profile.attributes`.
     const attributes = toAttributeRecord(profile.attributes);
-    return { ok: true, nameId, attributes };
+    const inResponseTo = answeredRequestId(profile);
+    return {
+      ok: true,
+      nameId,
+      attributes,
+      ...(inResponseTo !== undefined ? { inResponseTo } : {}),
+    };
   } catch (error) {
     return {
       ok: false,
@@ -172,6 +229,7 @@ export async function validateSamlResponseImpl(
   }
 }
 export interface BuildSamlAuthnRedirectArgs {
+  idpEntityId: string;
   idpSsoUrl: string;
   idpCertificate: string;
   spEntityId: string;

@@ -7,12 +7,15 @@ import { z } from 'zod';
 import {
   createDocumentFromUpload,
   loadDocumentOrThrow,
+  validateDocumentUploadForOrg,
   type DocumentRow,
 } from '../domains/documents/service.ts';
 import {
   createRestUploadHandoff,
+  FileError,
   getFileUrl,
   registerUpload,
+  statOrgBlob,
 } from '../domains/files/service.ts';
 import { sweepUploadIntents } from '../domains/files/upload-intents.ts';
 import {
@@ -27,6 +30,7 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../domains/projects/service.ts';
+import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
   assertExplicitOrg,
   chargeLane,
@@ -34,10 +38,11 @@ import {
   formatKeysetCursor,
   pageLimit,
   parseKeysetCursor,
+  readJsonBody,
   requireEditor,
+  type RestEnv,
   restProjectAuth,
   RestRefusal,
-  type RestEnv,
 } from './shared.ts';
 
 /**
@@ -158,7 +163,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         description: z.string().max(500).optional(),
         externalItemId: z.string().max(256).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("name" is required)' }, 400);
     }
@@ -211,7 +216,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         name: z.string().min(1).max(255),
         parentId: z.string().max(64).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("name" is required)' }, 400);
     }
@@ -219,6 +224,15 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
       if (project instanceof Response) return project;
+      // The per-org budget the in-app folder actions share, on top of the
+      // general lane — the spec and the rate-limits page promise it.
+      const limited = await chargeOrgRateLimit(
+        deps.sql,
+        c,
+        'folder:mutate',
+        c.get('organizationId'),
+      );
+      if (limited) return limited;
       const result = await deps.sql.begin((tx) =>
         getOrCreateProjectFolder(tx, auth, {
           projectId: project.id,
@@ -308,7 +322,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         contentType: z.string().max(255).optional(),
         skipRagIndexing: z.boolean().optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -336,6 +350,31 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             409,
           );
         }
+        // HEAD → policy → row, in that order — the same choreography as the
+        // session bind lane. The org's upload policy — the `file:upload`
+        // budget, the size caps, the MIME/extension allowlists, the
+        // per-user volume quota — gates the landed bytes with their
+        // AUTHORITATIVE size (the HEAD), and it must run BEFORE the
+        // metadata row exists: the volume quota sums `app.file_metadata`
+        // on this same transaction, so a row written first would count the
+        // file twice. A refusal rolls the whole consume back. The caller's
+        // declared type is a hint the gate resolves against the file name,
+        // so the row is written with the resolved one.
+        const stat = await statOrgBlob(
+          deps.sql,
+          c.get('organizationId'),
+          body.data.fileId,
+        );
+        if (stat === null) {
+          throw new FileError('BLOB_NOT_FOUND', 'Blob was not uploaded', 404);
+        }
+        const validated = await validateDocumentUploadForOrg(tx, auth, {
+          fileName: body.data.fileName,
+          ...(body.data.contentType !== undefined
+            ? { contentType: body.data.contentType }
+            : {}),
+          size: stat.size,
+        });
         const registered = await registerUpload(
           deps.sql,
           tx,
@@ -346,7 +385,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           {
             storageRef: body.data.fileId,
             fileName: body.data.fileName,
-            contentType: body.data.contentType ?? 'application/octet-stream',
+            contentType: validated.contentType,
             source: 'rest',
           },
           // Ownership was proven by the `rest_upload_intents` consume above,
@@ -465,10 +504,13 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
     let presigned: string;
     try {
+      // Object keys are nameless (`<org>/<uuid>`); the document's title is
+      // the filename the documented Content-Disposition carries.
       presigned = await getFileUrl(
         deps.sql,
         { organizationId: c.get('organizationId') },
         doc.fileRef,
+        doc.title !== null ? { filename: doc.title } : {},
       );
     } catch (error) {
       console.warn(

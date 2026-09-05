@@ -490,6 +490,18 @@ describe('brokerCredentialDataSchema', () => {
     ).toBe(true);
   });
 
+  it('rejects a tokensPath without the $ root the reader requires', () => {
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        responseMapping: {
+          ...VALID_BROKER.responseMapping,
+          tokensPath: 'tokens',
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects a non-https broker endpoint', () => {
     expect(
       brokerCredentialDataSchema.safeParse({

@@ -7,8 +7,9 @@
  *
  *  1. resolves each involved provider's credential (explicit id, else the
  *     org default) and pushes its secret + model catalog into the gateway as
- *     the org's upstream key (best-effort per provider — the mint fails
- *     closed on anything that didn't land),
+ *     the org's upstream key (fail-CLOSED: a push that did not land refuses
+ *     the session — the gateway still holds the previous key by the same
+ *     name, and a mint would silently bind to that stale secret),
  *  2. hardens the gateway auth posture (fail-CLOSED: a gateway that cannot
  *     enforce virtual keys must not serve the session),
  *  3. mints one session-scoped virtual key bound to this org's upstream
@@ -185,11 +186,11 @@ export async function provisionSessionGatewayKey(
   // then expand into the EXACT gateway records the mint will bind to. A
   // standard gateway provider routes to one shared record (`<slug>/<model>`),
   // so its raw-slug provision matches as-is. A CUSTOM connector routes per
-  // model (`<slug>__<model>/<model>`, resolveGatewayRouting), so each of its
-  // models needs its own record carrying that name and just that model —
-  // otherwise the record the key lands under (`deepseek`) and the one the
-  // mint looks up (`deepseek__deepseek-v4-flash`) disagree and the mint fails
-  // closed.
+  // (org, model) (`<orgId>__<slug>__<model>/<model>`, resolveGatewayRouting),
+  // so each of its models needs its own record carrying that name and just
+  // that model — otherwise the record the key lands under (`deepseek`) and
+  // the one the mint looks up (`org_1__deepseek__deepseek-v4-flash`) disagree
+  // and the mint fails closed.
   const baseBySlug = new Map<string, ProviderProvision>();
   for (const providerSlug of new Set(
     args.allowedModels.map((ref) => ref.providerSlug),
@@ -216,7 +217,8 @@ export async function provisionSessionGatewayKey(
   }
 
   const provisions: ProviderProvision[] = [];
-  const provisionedNames = new Set<string>();
+  /** Gateway record name → the connector it serves, for the refusal. */
+  const slugByRecord = new Map<string, string>();
   for (const ref of args.allowedModels) {
     const base = baseBySlug.get(ref.providerSlug);
     if (!base) continue;
@@ -224,15 +226,32 @@ export async function provisionSessionGatewayKey(
       ? base
       : {
           ...base,
-          name: resolveGatewayRouting(ref.providerSlug, ref.modelId)
-            .gatewayProvider,
+          name: resolveGatewayRouting(
+            args.organizationId,
+            ref.providerSlug,
+            ref.modelId,
+          ).gatewayProvider,
           models: [ref.modelId],
         };
-    if (provisionedNames.has(provision.name)) continue;
-    provisionedNames.add(provision.name);
+    if (slugByRecord.has(provision.name)) continue;
+    slugByRecord.set(provision.name, ref.providerSlug);
     provisions.push(provision);
   }
-  await provisionProviders(args.organizationId, provisions);
+  const failures = await provisionProviders(args.organizationId, provisions);
+  // Every record here is one the mint below binds to, so a skipped push
+  // never helps: the gateway keeps the org's key from the last successful
+  // provision under the same stable name, and `mintVirtualKey` would resolve
+  // THAT — a rotated-away secret — and serve the session on it. Refuse with
+  // the connector's own name; the hosts post `message` as the reason the
+  // turn could not start.
+  const failed = failures[0];
+  if (failed !== undefined) {
+    const providerSlug = slugByRecord.get(failed.name) ?? failed.name;
+    throw new Error(
+      `Provider "${providerSlug}" cannot serve this session: its credential could not be pushed to the sandbox LLM gateway (${describeFailure(failed.error)})`,
+      { cause: failed.error },
+    );
+  }
 
   await applyGatewayConfig();
 

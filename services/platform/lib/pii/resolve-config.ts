@@ -69,13 +69,19 @@ export function resolveScrubberOptions(
 
 /**
  * Convenience end-to-end: policy in, ready scrubber out (null when the
- * policy is disabled). The registry defaults to the shipped configs tree.
+ * policy is disabled). The registry defaults to the shipped configs tree —
+ * loaded only for an enabled policy, so a disabled one never touches the
+ * data tree and its verdict cannot depend on the tree being there.
  */
 export function createScrubberFromConfig(
   config: PiiConfig,
-  registry: PatternRegistry = PatternRegistry.fromDefaults(),
+  registry?: PatternRegistry,
 ): Scrubber | null {
-  const options = resolveScrubberOptions(config, registry);
+  if (!config.enabled) return null;
+  const options = resolveScrubberOptions(
+    config,
+    registry ?? PatternRegistry.fromDefaults(),
+  );
   if (!options) return null;
   return createScrubber(options);
 }

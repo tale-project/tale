@@ -98,7 +98,7 @@ function pageOf<T>(
 }
 
 /** The turn user's knowledge scope — teams (+ the org pseudo-team), readable
- * projects, the hub — the 0.5 twin of `resolveKnowledgeAccessForUser`. */
+ * projects, the hub — the 0.5 port of 0.4's `resolveKnowledgeAccessForUser`. */
 async function resolveAccessScope(
   sql: Sql,
   organizationId: string,

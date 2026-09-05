@@ -28,8 +28,9 @@ import {
   assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
-  restProjectAuth,
+  readJsonBody,
   type RestEnv,
+  restProjectAuth,
 } from './shared.ts';
 
 /**
@@ -134,7 +135,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         runWorkflowSlug: z.string().max(200).optional(),
         automationSlug: z.string().max(200).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json(
         {
@@ -294,13 +295,17 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.post('/tasks/:id/comments', async (c) => {
     const body = z
       .object({ body: z.string().min(1).max(TASK_COMMENT_MAX) })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("body" is required)' }, 400);
     }
     const auth = await restProjectAuth(deps.sql, c);
     const task = await loadVisibleTask(c, auth, c.req.param('id'));
     if (task === null) return c.json({ error: 'Task not found' }, 404);
+    // The same per-user budget the in-app comment passes (the key acts as
+    // its user), on top of the general lane — as the spec promises.
+    const limited = await chargeLane(deps.sql, c, 'task:comment');
+    if (limited) return limited;
     try {
       const result = await deps.sql.begin((tx) =>
         addTaskComment(tx, auth, { taskId: task.id, body: body.data.body }),
@@ -325,7 +330,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (limited) return limited;
     const body = z
       .object({ workflowSlug: z.string().min(1).max(200) })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json(
         { error: 'invalid body ("workflowSlug" is required)' },

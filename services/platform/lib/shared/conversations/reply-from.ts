@@ -4,9 +4,15 @@
  * One mailbox can serve many addresses (support@, billing@, …): a reply should
  * go out from whichever address the customer originally wrote to. These pure
  * helpers derive that address and decide when it's safe to send as it.
+ *
+ * Shared by the backend send lane (which carries the chosen address in the
+ * job), the imap-smtp native (which enforces the guard against the mailbox's
+ * configured From — the connector door is agent-reachable, so the native is
+ * where a `from` must be checked), and the Inbox UI (which shows the same
+ * answer). `lib/` never imports `backend/`, hence the home here.
  */
 
-import { isRecord } from '../../../lib/utils/type-utils';
+import { isRecord } from '../../utils/type-utils';
 
 /**
  * Consumer / free-mail domains where every local-part is a different person.
@@ -117,13 +123,4 @@ export function resolveReplyFrom(
   return sameMailboxAliasDomain(inboundFrom, fallbackFrom)
     ? inboundFrom
     : fallbackFrom;
-}
-
-/**
- * From address for system notification email on the mailbox's send domain.
- * Falls back to `baseFrom` when it has no `@` (misconfigured SMTP login).
- */
-export function notificationFromAddress(baseFrom: string): string {
-  const domain = emailDomain(baseFrom);
-  return domain ? `notification@${domain}` : baseFrom;
 }

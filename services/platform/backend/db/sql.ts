@@ -14,6 +14,20 @@ export function toJson(value: unknown): JSONValue {
 }
 
 /**
+ * A Postgres unique-index violation (SQLSTATE 23505) — the error a writer
+ * that lets the database arbitrate a race (a partial unique index instead of
+ * a check-then-insert) catches to land on the winner's row.
+ */
+export function isUniqueViolation(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    error.code === '23505'
+  );
+}
+
+/**
  * Per-process postgres.js instance. API handlers run through
  * `transactSerializable` from `@tale/shared/db/serializable`; pg-boss
  * manages its own internal pool, so this pool serves only the app's reads,
