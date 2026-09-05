@@ -18066,11 +18066,13 @@ async function checkConversations(
  */
 async function checkMailboxSyncLane(
   sql: Sql,
-  ctx: { orgId: string },
+  ctx: { orgId: string; userId: string },
 ): Promise<void> {
-  const { orgId } = ctx;
+  const { orgId, userId } = ctx;
   const { runConnectorAction } =
     await import('./domains/connectors/service.ts');
+  const { knowledgeShimHandlers } =
+    await import('./domains/knowledge/service.ts');
   await drainNotificationEmails(sql);
 
   // --- the fake transport (phased inbox) -----------------------------------
@@ -18086,7 +18088,19 @@ async function checkMailboxSyncLane(
     date: string;
     text: string;
     headers: Record<string, string>;
+    attachments?: {
+      id: string;
+      filename: string;
+      contentType: string;
+      size: number;
+      contentBase64: string;
+    }[];
   }
+  // Bob's mail carries a real attachment: the bytes are materialized into
+  // the org's blob store BEFORE the conversation exists (registered
+  // `skip_rag_indexing`), and the bind after ingest is what un-skips, queues
+  // and dispatches it — scoped to the conversation it arrived on.
+  const bobBrief = 'Bob attached this brief about the verdigris shipment.';
   const bodies: Record<string, FakeBody> = {
     '101': {
       uid: '101',
@@ -18109,6 +18123,15 @@ async function checkMailboxSyncLane(
       date: new Date(Date.now() - 3_000_000).toISOString(),
       text: 'Question from Bob.',
       headers: { 'message-id': '<m102@ext.test>' },
+      attachments: [
+        {
+          id: '2',
+          filename: 'bob-brief.txt',
+          contentType: 'text/plain',
+          size: bobBrief.length,
+          contentBase64: Buffer.from(bobBrief).toString('base64'),
+        },
+      ],
     },
     '103': {
       uid: '103',
@@ -18228,6 +18251,81 @@ async function checkMailboxSyncLane(
       SELECT count(*)::text AS count FROM app.conversations
       WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
     `;
+
+    // The emailed attachment after three polls (two of them re-fetching
+    // Bob's mail): ONE row — `reuseStoredAttachments` hands the re-poll its
+    // stored pointer and the bind sees it already queued — bound to Bob's
+    // conversation, un-skipped, marked queued and carrying exactly one
+    // `rag.index_file` job. Before the bind lane queued, `skip_rag_indexing`
+    // was write-once true and every knowledge enqueue gate refused the row.
+    const attachmentRows = await sql<
+      {
+        id: string;
+        storageRef: string;
+        conversationId: string | null;
+        skip: boolean | null;
+        ragStatus: string | null;
+        mailReceivedAt: number | null;
+        contactEmail: string | null;
+      }[]
+    >`
+      SELECT fm.id, fm.storage_ref AS "storageRef",
+             fm.conversation_id AS "conversationId",
+             fm.skip_rag_indexing AS skip, fm.rag_status AS "ragStatus",
+             fm.mail_received_at_ms::float8 AS "mailReceivedAt",
+             ct.email AS "contactEmail"
+      FROM app.file_metadata fm
+      LEFT JOIN app.conversations c ON c.id = fm.conversation_id
+      LEFT JOIN app.contacts ct ON ct.id = c.contact_id
+      WHERE fm.org_id = ${orgId} AND fm.file_name = 'bob-brief.txt'
+    `;
+    const attachment = attachmentRows[0];
+    const indexJobs = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'rag.index_file'
+        AND data ->> 'fileId' = ${attachment?.id ?? ''}
+    `;
+    // The #3220 decision on the row the bind produced: retrievable inside
+    // the scope of the conversation it arrived on — the admin reaches Bob's
+    // unassigned thread, the plain inbox member does not.
+    const filterRetrievable =
+      knowledgeShimHandlers(sql)[
+        'documents/internal_queries:filterRetrievableRagFileIds'
+      ];
+    if (!filterRetrievable) throw new Error('knowledge shim handler missing');
+    const memberRows = await sql<{ id: string }[]>`
+      SELECT "id" FROM "user" WHERE "email" = 'inbox.member@door.test' LIMIT 1
+    `;
+    const retrievableFor = async (caller: {
+      userId: string;
+      isAdmin: boolean;
+    }) =>
+      z.array(z.string()).parse(
+        await filterRetrievable({
+          organizationId: orgId,
+          fileIds: [attachment?.storageRef ?? ''],
+          access: { teamIds: [] },
+          caller,
+        }),
+      );
+    const adminSees = await retrievableFor({ userId, isAdmin: true });
+    const memberSees = await retrievableFor({
+      userId: memberRows[0]?.id ?? 'no-such-user',
+      isAdmin: false,
+    });
+    record(
+      'emailed attachment: the bind un-skips, queues and dispatches indexing inside the conversation scope',
+      attachmentRows.length === 1 &&
+        attachment?.contactEmail === 'bob@ext.test' &&
+        attachment.skip === false &&
+        attachment.ragStatus !== null &&
+        attachment.mailReceivedAt !== null &&
+        indexJobs[0]?.count === '1' &&
+        adminSees.length === 1 &&
+        adminSees[0] === attachment.storageRef &&
+        memberSees.length === 0,
+      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0)`,
+    );
 
     // Outbound send through the same door (system caller: runs + audited).
     const sent = await runConnectorAction(sql, {

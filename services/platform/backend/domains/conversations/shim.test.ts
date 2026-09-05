@@ -19,6 +19,8 @@ const {
   resolveCredentialRowForShim,
   createConversation,
   addMessageToConversation,
+  markRagQueued,
+  addJobInTx,
 } = vi.hoisted(() => ({
   patchMailSyncWatermarks: vi.fn(async () => undefined),
   patchCredentialConfigInternal: vi.fn(async () => undefined),
@@ -27,6 +29,8 @@ const {
   addMessageToConversation: vi.fn<
     () => Promise<{ messageId: string; conversationId: string }>
   >(async () => ({ messageId: 'm-new', conversationId: 'c-new' })),
+  markRagQueued: vi.fn(async () => undefined),
+  addJobInTx: vi.fn(async () => 'job-1'),
 }));
 
 vi.mock('../connector_credentials/service.ts', () => ({
@@ -46,6 +50,8 @@ vi.mock('./service.ts', () => ({
 vi.mock('./routing.ts', () => ({
   applyAddressRouting: vi.fn(async () => undefined),
 }));
+vi.mock('../knowledge/service.ts', () => ({ markRagQueued }));
+vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 
 import { conversationShimHandlers } from './shim.ts';
 
@@ -277,6 +283,114 @@ describe('updateConversationMessage shim', () => {
     await handler({ messageId: 'm1', deliveryState: 'sent' });
     const update = statements.find((s) => s.text.startsWith('UPDATE'));
     expect(update?.values).toContain('metadata');
+  });
+});
+
+/**
+ * Binding is what starts indexing. Materialize registers every emailed
+ * attachment `skip_rag_indexing = true` (no conversation to scope the corpus
+ * row to yet), and every knowledge enqueue gate refuses a skip row — so
+ * before this lane `bindEmailAttachments` counted `queued` forever at 0 and
+ * the conversation-scope retrievability branch had no producer.
+ */
+describe('bindFileToConversation shim', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const FILE: {
+    id: string;
+    organizationId: string;
+    conversationId: string | null;
+    documentId: string | null;
+    ragStatus: string | null;
+    mailReceivedAt: number | null;
+    createdAt: number;
+  } = {
+    id: 'f1',
+    organizationId: 'o1',
+    conversationId: null,
+    documentId: null,
+    ragStatus: null,
+    mailReceivedAt: null,
+    createdAt: 1_000,
+  };
+  const bind = (row: Partial<typeof FILE>) => {
+    const recorded = recordingSql((text) =>
+      text.includes('FROM app.file_metadata') ? [{ ...FILE, ...row }] : [],
+    );
+    const handler = conversationShimHandlers(recorded.sql, NO_CONNECTOR)[
+      'file_metadata/internal_mutations:bindFileToConversation'
+    ];
+    if (!handler) throw new Error('handler missing');
+    return { ...recorded, handler };
+  };
+  const ARGS = {
+    organizationId: 'o1',
+    storageId: 's3://mail/brief.pdf',
+    conversationId: 'c1',
+    receivedAt: 500,
+  };
+
+  it('un-skips, marks queued and dispatches a fresh bind in the binding transaction', async () => {
+    const { handler, statements } = bind({});
+    await expect(handler(ARGS)).resolves.toBe('bound_and_queued');
+    const update = statements.find((s) => s.text.startsWith('UPDATE'));
+    expect(update?.text).toContain('skip_rag_indexing = ?');
+    // conversation_id, mail_received_at_ms, skip_rag_indexing, id
+    expect(update?.values).toEqual(['c1', 500, false, 'f1']);
+    expect(markRagQueued).toHaveBeenCalledWith(expect.anything(), 'f1');
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'rag.index_file',
+      { fileId: 'f1' },
+    );
+    expect(markRagQueued.mock.invocationCallOrder[0]).toBeLessThan(
+      addJobInTx.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it('queues an already-bound row that was never indexed (bound before this lane)', async () => {
+    const { handler, statements } = bind({
+      conversationId: 'c1',
+      mailReceivedAt: 500,
+    });
+    await expect(handler(ARGS)).resolves.toBe('queued');
+    const update = statements.find((s) => s.text.startsWith('UPDATE'));
+    // The link and the stamp are kept as they are; only the skip flips.
+    expect(update?.values).toEqual([
+      'conversation_id',
+      'mail_received_at_ms',
+      false,
+      'f1',
+    ]);
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a bound row alone once it has been queued — a re-poll is a no-op', async () => {
+    const { handler, statements } = bind({
+      conversationId: 'c1',
+      mailReceivedAt: 500,
+      ragStatus: 'queued',
+    });
+    await expect(handler(ARGS)).resolves.toBe('unchanged');
+    expect(statements.some((s) => s.text.startsWith('UPDATE'))).toBe(false);
+    expect(markRagQueued).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it("binds a document's file without queueing it — the document owns its indexing", async () => {
+    const { handler, statements } = bind({ documentId: 'd1' });
+    await expect(handler(ARGS)).resolves.toBe('bound');
+    const update = statements.find((s) => s.text.startsWith('UPDATE'));
+    expect(update?.values).toEqual(['c1', 500, 'skip_rag_indexing', 'f1']);
+    expect(markRagQueued).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('refuses a row of another organization before touching it', async () => {
+    const { handler, statements } = bind({ organizationId: 'o2' });
+    await expect(handler(ARGS)).resolves.toBe('other_org');
+    expect(statements.some((s) => s.text.startsWith('UPDATE'))).toBe(false);
+    expect(addJobInTx).not.toHaveBeenCalled();
   });
 });
 

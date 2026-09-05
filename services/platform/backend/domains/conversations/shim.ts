@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { isUniqueViolation, toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   listActiveCredentials,
   patchCredentialConfigInternal,
@@ -9,6 +10,7 @@ import {
   resolveCredentialRowForShim,
 } from '../connector_credentials/service.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
+import { markRagQueued } from '../knowledge/service.ts';
 import { applyAddressRouting } from './routing.ts';
 import {
   addMessageToConversation,
@@ -477,12 +479,15 @@ export function conversationShimHandlers(
           id: string;
           organizationId: string;
           conversationId: string | null;
+          documentId: string | null;
+          ragStatus: string | null;
           mailReceivedAt: number | null;
           createdAt: number;
         }[]
       >`
         SELECT id, org_id AS "organizationId",
                conversation_id AS "conversationId",
+               document_id AS "documentId", rag_status AS "ragStatus",
                mail_received_at_ms::float8 AS "mailReceivedAt",
                created_at_ms::float8 AS "createdAt"
         FROM app.file_metadata
@@ -495,16 +500,35 @@ export function conversationShimHandlers(
       const alreadyBound = row.conversationId === args.conversationId;
       const receivedAt = row.mailReceivedAt ?? args.receivedAt ?? row.createdAt;
       const needsReceivedAt = row.mailReceivedAt !== receivedAt;
-      if (alreadyBound && !needsReceivedAt) return 'unchanged';
-      await sql`
-        UPDATE app.file_metadata SET
-          conversation_id = ${alreadyBound ? sql.unsafe('conversation_id') : args.conversationId},
-          mail_received_at_ms = ${needsReceivedAt ? receivedAt : sql.unsafe('mail_received_at_ms')}
-        WHERE id = ${row.id}
-      `;
-      // The 0.4 conversation-scope RAG upgrade rides the conversation-corpus
-      // retrieval leg (still honest-empty in 0.5) — bound, never queued here.
-      return 'bound';
+      // Binding is what STARTS indexing. Materialize registers every emailed
+      // attachment `skip_rag_indexing = true` because at storage time there
+      // is no conversation to scope the corpus row to — an unscoped row would
+      // read as org-wide. The conversation is known here, and retrieval
+      // decides on `file_metadata.conversation_id` (`decideRetrievable`), so
+      // a row that was never queued (`rag_status IS NULL`) is un-skipped,
+      // marked queued and dispatched in the SAME transaction as the binding:
+      // a poll that cannot bind leaves the file unindexed rather than
+      // unscoped, and a row bound before this lane existed is queued on its
+      // next poll. A document's file rides the document's own indexing.
+      const neverQueued = row.ragStatus === null && row.documentId === null;
+      if (alreadyBound && !needsReceivedAt && !neverQueued) return 'unchanged';
+      await sql.begin(async (tx) => {
+        await tx`
+          UPDATE app.file_metadata SET
+            conversation_id = ${alreadyBound ? tx.unsafe('conversation_id') : args.conversationId},
+            mail_received_at_ms = ${needsReceivedAt ? receivedAt : tx.unsafe('mail_received_at_ms')},
+            skip_rag_indexing = ${neverQueued ? false : tx.unsafe('skip_rag_indexing')}
+          WHERE id = ${row.id}
+        `;
+        if (neverQueued) {
+          await markRagQueued(tx, row.id);
+          // Default priority: a mailbox backlog must not outrank an upload
+          // somebody is watching.
+          await addJobInTx(tx, 'rag.index_file', { fileId: row.id });
+        }
+      });
+      if (!neverQueued) return 'bound';
+      return alreadyBound ? 'queued' : 'bound_and_queued';
     },
 
     // -------------------------------------------------------- credentials
