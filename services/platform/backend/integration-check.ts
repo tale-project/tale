@@ -6878,7 +6878,9 @@ async function checkKnowledge(
         20_000,
       );
       const maskedRow = await ragRow(masked.fileId);
-      const chunkRows = await sql<{ content: string }[]>`
+      // The corpus lives in the organization's knowledge database, not
+      // the app database.
+      const chunkRows = await corpusPool<{ content: string }[]>`
         SELECT c.chunk_content AS content
         FROM private_knowledge.chunks c
         JOIN private_knowledge.documents d ON d.id = c.document_id
