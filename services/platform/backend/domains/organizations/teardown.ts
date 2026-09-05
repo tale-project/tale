@@ -1,6 +1,10 @@
+import { lstat } from 'node:fs/promises';
+import path from 'node:path';
+
 import type { Sql } from 'postgres';
 
 import { purgeCorpusForOrg } from '../../core/knowledge/teardown.ts';
+import { errnoCode } from '../../core/lib/file_io.ts';
 import { s3KeyBelongsToOrg } from '../../core/lib/storage/blob_ref.ts';
 import {
   invalidateOrgObjectStore,
@@ -24,7 +28,9 @@ import { removeOrgSubtree } from '../../core/organizations/scaffold.ts';
  *   1. corpus — resolved through the org's knowledge connection config, so
  *      it must go while the config tree still exists;
  *   2. blobs — resolved through the org's object-storage config, same reason;
- *   3. config tree;
+ *   3. config tree — fail-closed: `removeOrgSubtree` refuses rather than
+ *      throws (a symlinked dir, a rename that failed), so the job itself
+ *      checks that `<root>/<slug>` is gone before it goes on;
  *   4. the slug tombstone — LAST, because the tombstone is what keeps a new
  *      organization from taking the slug while any of the above remains.
  *
@@ -64,10 +70,34 @@ export async function teardownDeletedOrganization(
   // Guarded two-phase rename-then-delete (slug validation, traversal +
   // symlink defenses) — reused from the 0.4 module unchanged.
   await removeOrgSubtree(configRoot, orgSlug);
+  await assertOrgTreeGone(configRoot, orgSlug);
   invalidateOrgObjectStore(orgSlug);
 
   await sql`DELETE FROM app.organization_tombstones WHERE slug = ${orgSlug}`;
   return { status: 'done', corpusDocuments: corpus.documents, blobs };
+}
+
+/**
+ * `removeOrgSubtree` is non-fatal by contract — every refusal (symlinked org
+ * dir, traversal guard, failed rename) logs and returns, because its other
+ * caller, the scaffolder, must proceed to seed regardless. Here a tree left
+ * standing means the slug still keys files, so the job must fail and keep the
+ * tombstone: only ENOENT on `<root>/<slug>` lets the teardown finish.
+ */
+async function assertOrgTreeGone(
+  configRoot: string,
+  orgSlug: string,
+): Promise<void> {
+  const orgDir = path.join(configRoot, orgSlug);
+  try {
+    await lstat(orgDir);
+  } catch (error) {
+    if (errnoCode(error) === 'ENOENT') return;
+    throw error;
+  }
+  throw new Error(
+    `[org.cleanup_files] config tree "${orgDir}" still exists after removal — keeping the slug tombstone for a retry`,
+  );
 }
 
 /**

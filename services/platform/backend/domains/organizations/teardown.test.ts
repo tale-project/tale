@@ -1,10 +1,12 @@
 // @vitest-environment node
 
 import {
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -28,7 +30,8 @@ import { teardownDeletedOrganization } from './teardown.ts';
  * The `org.cleanup_files` job body: what the slug keys outside the app
  * database — corpus, blobs, config tree — goes in that order, and the slug
  * tombstone is cleared LAST, so a retry after any failure resumes with the
- * slug still reserved. A slug a live organization owns is never touched.
+ * slug still reserved — including a config tree the (non-fatal) remover
+ * refused to delete. A slug a live organization owns is never touched.
  * The corpus purge and the S3 calls are stubbed (their own tests cover
  * them); the config tree is a real temporary directory.
  */
@@ -191,6 +194,29 @@ describe('teardownDeletedOrganization', () => {
 
     expect(resolveOrgObjectStore).not.toHaveBeenCalled();
     expect(exists(path.join(configRoot, SLUG))).toBe(true);
+    expect(statements.some((t) => t.startsWith('DELETE FROM'))).toBe(false);
+  });
+
+  it('keeps the tombstone when the config tree survives the remover — a symlinked org dir is refused, not followed', async () => {
+    const { sql, statements } = fakeSql([]);
+    // The remover refuses a symlinked org dir (it would otherwise rm -rf the
+    // link's target) and returns without throwing; the tree is still there.
+    const orgDir = path.join(configRoot, SLUG);
+    const elsewhere = path.join(configRoot, 'elsewhere');
+    rmSync(orgDir, { recursive: true, force: true });
+    mkdirSync(path.join(elsewhere, 'governance'), { recursive: true });
+    symlinkSync(elsewhere, orgDir);
+
+    await expect(teardownDeletedOrganization(sql, SLUG)).rejects.toThrow(
+      /config tree .* still exists after removal/,
+    );
+
+    // Corpus and blobs went first (their steps are idempotent); the link and
+    // its target are untouched; the tombstone stands for the retry.
+    expect(purgeCorpusForOrg).toHaveBeenCalledWith(SLUG);
+    expect(lstatSync(orgDir).isSymbolicLink()).toBe(true);
+    expect(exists(path.join(elsewhere, 'governance'))).toBe(true);
+    expect(invalidateOrgObjectStore).not.toHaveBeenCalled();
     expect(statements.some((t) => t.startsWith('DELETE FROM'))).toBe(false);
   });
 });
