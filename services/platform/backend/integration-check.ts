@@ -17842,6 +17842,29 @@ async function checkConversations(
     patched.metadata?.unread_count === 3 &&
     patched.metadata?.routing === 'desk' &&
     patched.metadata?.priority_note === 'VIP';
+  // A contact this org does not own is refused at the write door (the same
+  // opaque 404 compose answers) and the row keeps its contact — the list and
+  // reply reads downstream would otherwise render another tenant's contact.
+  const patchForeignContact = await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { contactId: 'ct-not-in-this-org' },
+  });
+  const patchForeignBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await patchForeignContact.json());
+  const contactAfterForeign = await sql<{ contactId: string | null }[]>`
+    SELECT contact_id AS "contactId" FROM app.conversations
+    WHERE id = ${conversationId}
+  `;
+  record(
+    'conversations: PATCH refuses a contact the org does not own',
+    patchForeignContact.status === 404 &&
+      patchForeignBody.success &&
+      patchForeignBody.data.error === 'contact_not_found' &&
+      contactAfterForeign[0]?.contactId === contactId,
+    `status=${patchForeignContact.status} (want 404) error=${patchForeignBody.success ? patchForeignBody.data.error : 'ERR'} contactKept=${contactAfterForeign[0]?.contactId === contactId}`,
+  );
   // Junk in one row's unread_count must not 500 the org's count tiles.
   await sql`
     UPDATE app.conversations

@@ -417,7 +417,7 @@ export async function replyToConversation(
            c.connector_name AS "connectorName", c.subject,
            ct.email AS "contactEmail"
     FROM app.conversations c
-    LEFT JOIN app.contacts ct ON ct.id = c.contact_id
+    LEFT JOIN app.contacts ct ON ct.id = c.contact_id AND ct.org_id = c.org_id
     WHERE c.id = ${args.conversationId} LIMIT 1
   `;
   const row = rows[0];

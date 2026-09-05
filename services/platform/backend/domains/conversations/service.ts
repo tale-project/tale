@@ -529,7 +529,7 @@ export async function listConversationsPage(
           }[]
         >`
           SELECT id, name, email, locale, source FROM app.contacts
-          WHERE id = ANY(${contactIds})
+          WHERE id = ANY(${contactIds}) AND org_id = ${viewer.organizationId}
         `
       : [];
   const contactById = new Map(contacts.map((row) => [row.id, row]));
@@ -678,6 +678,24 @@ export async function updateConversation(
       'Conversation not found',
       404,
     );
+  }
+  // A re-pointed contact must be one of THIS org's: the id is an unguessable
+  // UUID but not a secret (every reader of another org sees theirs in URLs
+  // and exports), and the list/reply reads downstream render whatever row
+  // `contact_id` names. Compose already refuses a foreign contact; the PATCH
+  // door is the other write and answers the same opaque 404.
+  if (updates.contactId !== undefined) {
+    const contacts = await tx<{ id: string }[]>`
+      SELECT id FROM app.contacts
+      WHERE id = ${updates.contactId} AND org_id = ${organizationId} LIMIT 1
+    `;
+    if (!contacts[0]) {
+      throw new ConversationError(
+        'contact_not_found',
+        'Contact not found',
+        404,
+      );
+    }
   }
   const now = Date.now();
   const stamps =
