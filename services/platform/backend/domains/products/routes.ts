@@ -13,6 +13,7 @@ import {
   deleteProduct,
   getProduct,
   listProducts,
+  PRODUCT_CATEGORY_MAX,
   PRODUCT_STATUSES,
   ProductError,
   type ProductScope,
@@ -60,28 +61,38 @@ export function createProductRoutes(deps: {
 
   app.get('/', async (c) => {
     try {
-      const statusParsed = z
-        .enum(PRODUCT_STATUSES)
-        .safeParse(c.req.query('status'));
-      const cursorUpdatedAt = Number(
-        c.req.query('cursorUpdatedAt') ?? Number.NaN,
-      );
-      const cursorId = c.req.query('cursorId');
-      const limitRaw = Number(c.req.query('limit') ?? Number.NaN);
+      // The same query contract the contacts listing enforces: `limit` is an
+      // integer in 1..200 and the keyset cursor a positive integer, refused
+      // with 400 — `Number()` used to forward `-5` (Postgres: LIMIT must not
+      // be negative) and `1.5` (an uncastable bigint) straight to a 500.
+      const query = z
+        .object({
+          search: z.string().max(200).optional(),
+          status: z.enum(PRODUCT_STATUSES).optional(),
+          category: z.string().max(PRODUCT_CATEGORY_MAX).optional(),
+          limit: z.coerce.number().int().min(1).max(200).optional(),
+          cursorUpdatedAt: z.coerce.number().int().positive().optional(),
+          cursorId: z.string().optional(),
+        })
+        .safeParse({
+          search: c.req.query('search'),
+          status: c.req.query('status'),
+          category: c.req.query('category'),
+          limit: c.req.query('limit'),
+          cursorUpdatedAt: c.req.query('cursorUpdatedAt'),
+          cursorId: c.req.query('cursorId'),
+        });
+      if (!query.success) {
+        return c.json({ error: 'invalid query' }, 400);
+      }
+      const { cursorUpdatedAt, cursorId, ...rest } = query.data;
       return c.json(
         await listProducts(deps.sql, scopeOf(c), {
-          ...(c.req.query('search') !== undefined
-            ? { search: c.req.query('search') ?? '' }
-            : {}),
-          ...(statusParsed.success ? { status: statusParsed.data } : {}),
-          ...(c.req.query('category') !== undefined
-            ? { category: c.req.query('category') ?? '' }
-            : {}),
+          ...rest,
           cursor:
-            Number.isFinite(cursorUpdatedAt) && cursorId !== undefined
+            cursorUpdatedAt !== undefined && cursorId !== undefined
               ? { updatedAt: cursorUpdatedAt, id: cursorId }
               : null,
-          ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
         }),
       );
     } catch (error) {
