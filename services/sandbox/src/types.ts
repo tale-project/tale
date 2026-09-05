@@ -61,35 +61,25 @@ export interface SpawnerConfig {
   // gvisor tier (runsc netstack) — loadConfig warns and the session falls back to
   // the HTTPS_PROXY env for proxy-aware clients only. Off ⇒ today's env-only path.
   transparentEgress: boolean;
-  // Kubernetes-backend settings (env SANDBOX_K8S_* / SANDBOX_CACHE). Always
-  // populated by loadConfig; consumed only when backend === 'kubernetes'.
+  // Kubernetes-backend settings (env SANDBOX_K8S_*). Always populated by
+  // loadConfig; consumed only when backend === 'kubernetes'.
   k8s: {
-    // Namespace the per-execution runtime Pods are created in.
+    // Namespace the session Pods / Secrets / workspace PVCs are created in.
     namespace: string;
     // RuntimeClass applied to runtime Pods, resolved per tier (gVisor →
     // 'gvisor', sysbox → 'sysbox-runc', kata → 'kata', runc → null = omit the
     // field). An operator may override the non-null value via
     // SANDBOX_RUNTIME_CLASS for clusters that name the class differently.
     runtimeClassName: string | null;
-    // The SPAWNER's own image ref, used for the per-exec Pod's `stage`
-    // initContainer + `harvest` sidecar (which run the spawner image's in-Pod
-    // entry modes to do presigned-URL workspace I/O). Defaults to a dev tag;
-    // the Helm chart must set SANDBOX_SPAWNER_IMAGE to the deployed image so
-    // the helper containers match the running spawner version.
-    spawnerImage: string;
-    // 'none' (default) installs deps fresh each run via the egress proxy;
-    // 'pvc' mounts per-org ReadWriteMany cache PVCs (operator must provide
-    // an RWX storage class).
-    cacheMode: 'none' | 'pvc';
-    // sizeLimit on the per-exec /agent emptyDir (K8s quantity string,
-    // env SANDBOX_K8S_WORKSPACE_SIZE_LIMIT). Everything the execution
-    // writes — dependency installs, temp files, outputs — lands on this
-    // volume, so without a limit a runaway run can fill the node disk.
-    // Exceeding it gets the pod evicted (classified via the runner-dead
-    // path), the K8s analogue of docker's fsize ulimit.
+    // Size of the per-session /agent workspace PVC (K8s quantity string, env
+    // SANDBOX_K8S_WORKSPACE_SIZE_LIMIT; storage class from
+    // SANDBOX_K8S_CACHE_STORAGECLASS) and, under DinD, the sizeLimit of the
+    // inner-docker emptyDir. Everything the session writes — dependency
+    // installs, temp files, outputs — lands on the workspace, so without a
+    // bound a runaway session can fill the node disk; the K8s analogue of
+    // docker's fsize ulimit.
     workspaceSizeLimit: string;
   };
-  defaultTimeoutMs: number;
   maxTimeoutMs: number;
   // Single flat host session root. The sandbox tier is one container that rolls
   // in-place via a serialized drain — no blue/green colour, so no per-colour
@@ -102,8 +92,6 @@ export interface SpawnerConfig {
   egressProxy: string;
   stdoutMaxBytes: number;
   stderrMaxBytes: number;
-  outputFileMaxBytes: number;
-  outputTotalMaxBytes: number;
   // Maximum request body size (bytes) for /v1/execute. Defaults to 256 KB
   // to bound the unsigned-mode OOM surface (audit finding).
   maxRequestBodyBytes: number;

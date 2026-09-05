@@ -255,13 +255,6 @@ export function loadConfig(): SpawnerConfig {
     );
   }
   const backend: 'docker' | 'kubernetes' = rawBackend;
-  const rawCacheMode = process.env.SANDBOX_CACHE ?? 'none';
-  if (rawCacheMode !== 'none' && rawCacheMode !== 'pvc') {
-    throw new Error(
-      `SANDBOX_CACHE must be 'none' or 'pvc'; got: ${JSON.stringify(rawCacheMode)}`,
-    );
-  }
-  const cacheMode: 'none' | 'pvc' = rawCacheMode;
   // SANDBOX_TOKEN is REQUIRED — fail closed. The spawner holds the host docker
   // socket and is reachable from every session container on the shared sandbox
   // network, so it must never boot with HMAC verification off; an unset secret
@@ -284,7 +277,6 @@ export function loadConfig(): SpawnerConfig {
   // misconfiguration to the operator who set it.
   const K8S_ONLY_ENVS = [
     'SANDBOX_K8S_NAMESPACE',
-    'SANDBOX_SPAWNER_IMAGE',
     'SANDBOX_K8S_WORKSPACE_SIZE_LIMIT',
     'SANDBOX_K8S_CACHE_STORAGECLASS',
     'SANDBOX_K8S_SERVER',
@@ -311,12 +303,6 @@ export function loadConfig(): SpawnerConfig {
       );
     }
   }
-  if (backend === 'docker' && cacheMode === 'pvc') {
-    console.warn(
-      '[sandbox.config] SANDBOX_CACHE=pvc has no effect with SANDBOX_BACKEND=docker (docker always uses named volumes)',
-    );
-  }
-
   return {
     backend,
     k8s: {
@@ -330,8 +316,6 @@ export function loadConfig(): SpawnerConfig {
           ? null
           : (process.env.SANDBOX_RUNTIME_CLASS ??
             k8sRuntimeClassFor(runtimeTier)),
-      spawnerImage: process.env.SANDBOX_SPAWNER_IMAGE ?? 'tale-sandbox:latest',
-      cacheMode,
       workspaceSizeLimit: process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT ?? '4Gi',
     },
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),
@@ -365,7 +349,6 @@ export function loadConfig(): SpawnerConfig {
     // Transparent egress for the session's own processes (default on; resolved +
     // gvisor-warned above). Off ⇒ env-proxy-only (today's behavior).
     transparentEgress,
-    defaultTimeoutMs: numEnv('SANDBOX_DEFAULT_TIMEOUT_MS', 30_000, { min: 1 }),
     maxTimeoutMs: numEnv('SANDBOX_MAX_TIMEOUT_MS', 300_000, { min: 1 }),
     // Single flat session root — the sandbox tier no longer has a blue/green
     // colour, so there is no per-colour sub-directory to scope.
@@ -387,16 +370,6 @@ export function loadConfig(): SpawnerConfig {
     stderrMaxBytes: numEnv('SANDBOX_STDERR_MAX_BYTES', 5 * 1024 * 1024, {
       min: 1024,
     }),
-    outputFileMaxBytes: numEnv(
-      'SANDBOX_OUTPUT_FILE_MAX_BYTES',
-      50 * 1024 * 1024,
-      { min: 1024 },
-    ),
-    outputTotalMaxBytes: numEnv(
-      'SANDBOX_OUTPUT_TOTAL_MAX_BYTES',
-      100 * 1024 * 1024,
-      { min: 1024 },
-    ),
     // Body cap on /v1/execute and the session file endpoints. /v1/execute
     // carries URL lists, but /v1/sessions/:id/files/stage takes INLINE
     // base64 content (bound org skills, useSkills subtrees, steer control
