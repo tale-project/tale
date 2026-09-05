@@ -5510,7 +5510,8 @@ async function checkSmallDomains(
     `crossOrg → ${crossOrgVote.status}/${crossOrgBody.success ? crossOrgBody.data.error : 'ERR'} (want 404/MESSAGE_NOT_FOUND), missing → ${missingVote.status} (want 404), foreignRows=${foreignRows[0]?.count} (want 0)`,
   );
 
-  // Message feedback: vote → toggle → stats reflect one negative.
+  // Message feedback: vote → toggle → the thread latch and the metrics
+  // stats (the two reads the app has) reflect one negative.
   const ownVote = await send('POST', `/api/app/feedback?orgId=${orgId}`, {
     threadId: fbThreadId,
     messageId: fbMessageId,
@@ -5522,20 +5523,29 @@ async function checkSmallDomains(
     rating: 'negative',
     comment: 'wrong answer',
   });
+  const latch = z
+    .object({ feedback: z.array(z.object({ rating: z.string() })) })
+    .safeParse(
+      await get(`/api/app/feedback/thread/${fbThreadId}?orgId=${orgId}`),
+    );
   const stats = z
     .object({
-      items: z.array(z.object({ rating: z.string() })),
-      stats: z.object({ positive: z.number(), negative: z.number() }),
+      message: z.object({
+        byRating: z.object({ positive: z.number(), negative: z.number() }),
+      }),
     })
-    .safeParse(await get(`/api/app/feedback?orgId=${orgId}`));
+    .loose()
+    .safeParse(await get(`/api/app/feedback/stats?orgId=${orgId}`));
   record(
     'message feedback upsert + stats',
     ownVote.status === 200 &&
+      latch.success &&
+      latch.data.feedback.length === 1 &&
+      latch.data.feedback[0]?.rating === 'negative' &&
       stats.success &&
-      stats.data.items.length === 1 &&
-      stats.data.stats.negative === 1 &&
-      stats.data.stats.positive === 0,
-    `ownVote → ${ownVote.status} (want 200), items=${stats.success ? stats.data.items.length : 'ERR'} (want 1 after toggle), stats=${stats.success ? JSON.stringify(stats.data.stats) : 'ERR'}`,
+      stats.data.message.byRating.negative === 1 &&
+      stats.data.message.byRating.positive === 0,
+    `ownVote → ${ownVote.status} (want 200), latch=${latch.success ? `${latch.data.feedback.length}/${latch.data.feedback[0]?.rating}` : 'ERR'} (want 1/negative after toggle), stats=${stats.success ? JSON.stringify(stats.data.message.byRating) : 'ERR'}`,
   );
 
   // The vote is keyed by the SERVER: whatever a client puts in `metadata` is
@@ -5596,7 +5606,7 @@ async function checkSmallDomains(
     `rows=${stackedVotes[0]?.count} (want 1) rating=${stackedVotes[0]?.rating} (want negative), forgedArenaRows=${forgedArenaRows[0]?.count} (want 0)`,
   );
 
-  // Products: unique-name conflict + translation upsert.
+  // Products: unique-name conflict + one-row read.
   const product = z.object({ productId: z.string() }).safeParse(
     await (
       await send('POST', `/api/app/products?orgId=${orgId}`, {
@@ -5611,33 +5621,16 @@ async function checkSmallDomains(
   const dupName = await send('POST', `/api/app/products?orgId=${orgId}`, {
     name: '  widget pro ',
   });
-  await send(
-    'POST',
-    `/api/app/products/${productId}/translations?orgId=${orgId}`,
-    {
-      language: 'de',
-      name: 'Widget Profi',
-    },
-  );
   const productRead = z
-    .object({
-      product: z.object({
-        name: z.string(),
-        translations: z
-          .array(
-            z.object({ language: z.string(), name: z.string().optional() }),
-          )
-          .nullable(),
-      }),
-    })
+    .object({ product: z.object({ name: z.string() }) })
     .safeParse(await get(`/api/app/products/${productId}?orgId=${orgId}`));
   record(
-    'products unique name + translation upsert',
+    'products unique name + one-row read',
     product.success &&
       dupName.status === 400 &&
       productRead.success &&
-      productRead.data.product.translations?.[0]?.name === 'Widget Profi',
-    `dup → ${dupName.status} (want 400), de=${productRead.success ? productRead.data.product.translations?.[0]?.name : 'ERR'}`,
+      productRead.data.product.name === 'Widget Pro',
+    `dup → ${dupName.status} (want 400), read=${productRead.success ? productRead.data.product.name : 'ERR'}`,
   );
 
   const productBulk = z
@@ -21402,16 +21395,6 @@ async function checkTts(
     };
     const messageId = await insertMessage(threadId);
 
-    const capability = z
-      .looseObject({
-        available: z.boolean(),
-        modelId: z.string().optional(),
-        voice: z.string().optional(),
-      })
-      .safeParse(
-        await (await send(`/api/app/tts/capability?orgId=${orgId}`)).json(),
-      );
-
     const text = 'Hello voice world.';
     const synth = z
       .object({ status: z.string() })
@@ -21626,11 +21609,7 @@ async function checkTts(
 
     record(
       'tts on pg (reserve/synthesize/serve, ledger, voice-mode cascade, thread-scoped doors)',
-      capability.success &&
-        capability.data.available &&
-        capability.data.modelId === 'gpt-4o-mini-tts' &&
-        capability.data.voice === 'alloy' &&
-        synth.success &&
+      synth.success &&
         synth.data.status === 'ready' &&
         callsAfterFirst === 1 &&
         again.success &&
@@ -21671,7 +21650,7 @@ async function checkTts(
         strangerAudio.status === 404 &&
         strangerChunks.success &&
         strangerChunks.data.chunks.length === 0,
-      `cap=${capability.success ? `${capability.data.available}/${capability.data.modelId}/${capability.data.voice}` : 'ERR'}, synth=${synth.success ? synth.data.status : 'ERR'} calls=${callsAfterFirst} (want 1) cacheHit=${again.success ? again.data.status : 'ERR'}/calls=${callsAfterSecond} (want 1), chunks=${chunks.success ? chunks.data.chunks.length : 'ERR'} c0=${chunk0?.status}/${chunk0?.voice}/${chunk0?.format}, audio=${audio.status}:${audioBytes.length}B type=${audio.headers.get('content-type')}, ledger chars=${ledger[0]?.characterCount} (want ${text.length}) cost=${ledger[0]?.cost}, fail=${failed.success ? `${failed.data.status}/${failed.data.errorCode}` : 'ERR'} retry=${retried.success ? retried.data.status : 'ERR'}, mode=${modeDefault.success ? modeDefault.data.source : 'ERR'}→${modePref.success ? `${modePref.data.enabled}/${modePref.data.source}` : 'ERR'}→${modeThread.success ? `${modeThread.data.enabled}/${modeThread.data.source}` : 'ERR'}→veto=${modeVeto.success ? `${modeVeto.data.enabled}/${modeVeto.data.source}` : 'ERR'}, badIndex=${badIndex.status} (want 400) foreignThread=${foreignThread.status} (want 403) foreignMessage=${foreignMessage.status} (want 403, audited=${deniedAudit[0]?.count ?? '0'}, squatRows=${otherChunks[0]?.count ?? '?'} want 0) strangerAudio=${strangerAudio.status} (want 404) strangerChunks=${strangerChunks.success ? strangerChunks.data.chunks.length : 'ERR'} (want 0)`,
+      `synth=${synth.success ? synth.data.status : 'ERR'} calls=${callsAfterFirst} (want 1) cacheHit=${again.success ? again.data.status : 'ERR'}/calls=${callsAfterSecond} (want 1), chunks=${chunks.success ? chunks.data.chunks.length : 'ERR'} c0=${chunk0?.status}/${chunk0?.voice}/${chunk0?.format}, audio=${audio.status}:${audioBytes.length}B type=${audio.headers.get('content-type')}, ledger chars=${ledger[0]?.characterCount} (want ${text.length}) cost=${ledger[0]?.cost}, fail=${failed.success ? `${failed.data.status}/${failed.data.errorCode}` : 'ERR'} retry=${retried.success ? retried.data.status : 'ERR'}, mode=${modeDefault.success ? modeDefault.data.source : 'ERR'}→${modePref.success ? `${modePref.data.enabled}/${modePref.data.source}` : 'ERR'}→${modeThread.success ? `${modeThread.data.enabled}/${modeThread.data.source}` : 'ERR'}→veto=${modeVeto.success ? `${modeVeto.data.enabled}/${modeVeto.data.source}` : 'ERR'}, badIndex=${badIndex.status} (want 400) foreignThread=${foreignThread.status} (want 403) foreignMessage=${foreignMessage.status} (want 403, audited=${deniedAudit[0]?.count ?? '0'}, squatRows=${otherChunks[0]?.count ?? '?'} want 0) strangerAudio=${strangerAudio.status} (want 404) strangerChunks=${strangerChunks.success ? strangerChunks.data.chunks.length : 'ERR'} (want 0)`,
     );
   } finally {
     ttsServer.close();
@@ -25189,8 +25168,7 @@ async function checkBrowserSessions(
 }
 
 /**
- * The approvals inbox surface: listing with filters + keyset pagination,
- * per-status counts, one-row read, and the generic decision with the 0.4
+ * The approvals surface: one-row read and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
  * refusal for review-gate rows, approver stamping, the workflow audit row,
  * and the silent-no-op poke for a stale run reference.
@@ -25253,51 +25231,6 @@ async function checkApprovalsSurface(
   const rejectId = await seed('connector_operation', 'itest-appr-op-2');
   const reviewId = await seed('task_review', 'itest-appr-task-1');
 
-  // Listing: pending connector operations include both seeds; limit=1 pages.
-  const listed = z
-    .object({
-      page: z.array(z.looseObject({ id: z.string(), status: z.string() })),
-      cursor: z.string().nullable(),
-    })
-    .safeParse(
-      await (
-        await api('?status=pending&resourceType=connector_operation')
-      ).json(),
-    );
-  const listedIds = listed.success
-    ? new Set(listed.data.page.map((row) => row.id))
-    : new Set<string>();
-  const pageOne = z
-    .object({
-      page: z.array(z.looseObject({ id: z.string() })),
-      cursor: z.string().nullable(),
-    })
-    .safeParse(
-      await (
-        await api('?status=pending&resourceType=connector_operation&limit=1')
-      ).json(),
-    );
-  const pageTwo = pageOne.success
-    ? z
-        .object({ page: z.array(z.looseObject({ id: z.string() })) })
-        .safeParse(
-          await (
-            await api(
-              `?status=pending&resourceType=connector_operation&limit=1&cursor=${pageOne.data.cursor ?? ''}`,
-            )
-          ).json(),
-        )
-    : undefined;
-  const paged =
-    pageOne.success &&
-    pageTwo?.success === true &&
-    pageOne.data.page.length === 1 &&
-    pageTwo.data.page.length === 1 &&
-    pageOne.data.page[0]?.id !== pageTwo.data.page[0]?.id;
-
-  const counts = z
-    .object({ byStatus: z.record(z.string(), z.number()) })
-    .safeParse(await (await api('/counts')).json());
   const gotten = z
     .looseObject({ id: z.string(), resourceType: z.string() })
     .safeParse(await (await api(`/${approveId}`)).json());
@@ -25329,15 +25262,8 @@ async function checkApprovalsSurface(
   `;
 
   record(
-    'approvals inbox surface (list/counts/get + decide FSM)',
-    listed.success &&
-      listedIds.has(approveId) &&
-      listedIds.has(rejectId) &&
-      !listedIds.has(reviewId) &&
-      paged &&
-      counts.success &&
-      (counts.data.byStatus.pending ?? 0) >= 3 &&
-      gotten.success &&
+    'approvals surface (get + decide FSM)',
+    gotten.success &&
       gotten.data.resourceType === 'connector_operation' &&
       foreign.status === 404 &&
       approved.status === 200 &&
@@ -25352,7 +25278,7 @@ async function checkApprovalsSurface(
       reviewRefused.status === 409 &&
       badStatus.status === 400 &&
       Number(auditRows[0]?.count ?? '0') === 2,
-    `list=${listed.success}/${listedIds.has(approveId)}&${listedIds.has(rejectId)}&!${listedIds.has(reviewId)} paged=${paged}, counts=${counts.success ? JSON.stringify(counts.data.byStatus) : 'ERR'}, get=${gotten.success} foreign=${foreign.status}, approve=${approved.status} row=${approvedRow?.status}/${approvedRow?.approvedBy === userId}/name=${typeof approvedRow?.metadata?.approverName} again=${again.status} (want 409), reject=${rejected.status}/${rejectedRow?.status} reviewGate=${reviewRefused.status} (want 409) badStatus=${badStatus.status} (want 400), audits=${auditRows[0]?.count} (want 2)`,
+    `get=${gotten.success} foreign=${foreign.status}, approve=${approved.status} row=${approvedRow?.status}/${approvedRow?.approvedBy === userId}/name=${typeof approvedRow?.metadata?.approverName} again=${again.status} (want 409), reject=${rejected.status}/${rejectedRow?.status} reviewGate=${reviewRefused.status} (want 409) badStatus=${badStatus.status} (want 400), audits=${auditRows[0]?.count} (want 2)`,
   );
 }
 
@@ -29936,8 +29862,10 @@ async function checkBrandingAndTeams(
     method: 'DELETE',
     headers: { cookie, origin: base },
   });
-  await post(`/api/app/branding/reset?orgId=${orgId}`);
-  const afterReset = z
+  // The UI clears branding through two doors, not a reset: drop the image,
+  // then save an empty config (the settings page's submit).
+  await post(`/api/app/branding/save?orgId=${orgId}`, {});
+  const afterClear = z
     .object({
       accentColor: z.string().optional(),
       logoUrl: z.string().nullable(),
@@ -29945,7 +29873,7 @@ async function checkBrandingAndTeams(
     .loose()
     .safeParse(await get(`/api/app/branding?orgId=${orgId}`));
   record(
-    'branding: pre-auth default, admin save/image/snapshot, reset clears',
+    'branding: pre-auth default, admin save/image/snapshot, delete + empty save clears',
     preAuth.success &&
       preAuth.data.logoUrl === null &&
       savedImage.success &&
@@ -29958,10 +29886,10 @@ async function checkBrandingAndTeams(
       typeof branded.data.appName === 'string' &&
       snapshot.success &&
       snapshot.data.snapshot !== null &&
-      afterReset.success &&
-      afterReset.data.accentColor === undefined &&
-      afterReset.data.logoUrl === null,
-    `preAuth=${preAuth.success}, image=${savedImage.success ? savedImage.data.filename : 'ERR'}, accent=${branded.success ? branded.data.accentColor : 'ERR'}, logo=${branded.success ? branded.data.logoUrl : 'ERR'}, snapshot=${snapshot.success && snapshot.data.snapshot !== null}, reset=${afterReset.success ? `${afterReset.data.accentColor}/${afterReset.data.logoUrl}` : 'ERR'}`,
+      afterClear.success &&
+      afterClear.data.accentColor === undefined &&
+      afterClear.data.logoUrl === null,
+    `preAuth=${preAuth.success}, image=${savedImage.success ? savedImage.data.filename : 'ERR'}, accent=${branded.success ? branded.data.accentColor : 'ERR'}, logo=${branded.success ? branded.data.logoUrl : 'ERR'}, snapshot=${snapshot.success && snapshot.data.snapshot !== null}, cleared=${afterClear.success ? `${afterClear.data.accentColor}/${afterClear.data.logoUrl}` : 'ERR'}`,
   );
 
   // Teams: membership add/list/remove over the Better Auth tables.

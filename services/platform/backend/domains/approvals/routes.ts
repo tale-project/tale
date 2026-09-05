@@ -6,20 +6,15 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { ErasureError } from '../erasure/service.ts';
-import {
-  ApprovalError,
-  countApprovalsByStatus,
-  decideApproval,
-  getApproval,
-  listApprovals,
-} from './service.ts';
+import { ApprovalError, decideApproval, getApproval } from './service.ts';
 
 /**
- * /api/app/approvals — the approvals inbox. Reads and the generic decision
- * are org-member operations (the 0.4 posture); review-gate rows refuse
- * toward their dedicated respond doors, and erasure rows additionally
- * demand an org-admin decider (the dual-control half of the GDPR
- * contract) — the service checks the session-resolved role per KIND.
+ * /api/app/approvals — one-row read + the generic decision, both
+ * org-member operations (the 0.4 posture); review-gate rows refuse toward
+ * their dedicated respond doors, and erasure rows additionally demand an
+ * org-admin decider (the dual-control half of the GDPR contract) — the
+ * service checks the session-resolved role per KIND. The 0.4 inbox
+ * listing and per-status counts have no 0.5 consumer and are not served.
  */
 
 function handleError<E extends OrgEnv>(
@@ -37,44 +32,12 @@ function handleError<E extends OrgEnv>(
   throw error;
 }
 
-const STATUSES = ['pending', 'executing', 'completed', 'rejected'] as const;
-const statusSchema = z.enum(STATUSES);
-
 export function createApprovalRoutes(deps: {
   sql: Sql;
   auth: Auth;
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
-
-  app.get('/', async (c) => {
-    const status = c.req.query('status');
-    const excludeStatus = c.req.query('excludeStatus');
-    if (
-      (status !== undefined && !statusSchema.safeParse(status).success) ||
-      (excludeStatus !== undefined &&
-        !statusSchema.safeParse(excludeStatus).success)
-    ) {
-      return c.json({ error: 'invalid status filter' }, 400);
-    }
-    const limitRaw = Number(c.req.query('limit') ?? '30');
-    const result = await listApprovals(deps.sql, c.get('orgId'), {
-      ...(status !== undefined ? { status } : {}),
-      ...(excludeStatus !== undefined ? { excludeStatus } : {}),
-      ...(c.req.query('resourceType') !== undefined
-        ? { resourceType: c.req.query('resourceType') ?? '' }
-        : {}),
-      cursor: c.req.query('cursor') ?? null,
-      limit: Number.isFinite(limitRaw) ? limitRaw : 30,
-    });
-    return c.json(result);
-  });
-
-  app.get('/counts', async (c) => {
-    return c.json({
-      byStatus: await countApprovalsByStatus(deps.sql, c.get('orgId')),
-    });
-  });
 
   app.get('/:id', async (c) => {
     const approval = await getApproval(

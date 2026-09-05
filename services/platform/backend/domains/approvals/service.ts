@@ -11,13 +11,13 @@ import {
 } from '../erasure/service.ts';
 
 /**
- * The approvals INBOX surface — the 0.5 twin of the 0.4 read/decide half of
- * `convex/approvals/{queries,mutations,helpers,list_approvals_paginated}`:
- * paginated listing, per-status counts, one-row read, and the generic
- * human decision (`updateApprovalStatus`) with the same FSM and the same
- * dedicated-door refusals. Kind-scoped authorization rides the decision:
- * erasure rows demand an org admin (`assertRoleMayDecideKind`). The gate
- * half lives in `gate.ts`; the conversations fold lives in the send lane.
+ * The approvals read/decide surface — the 0.5 twin of the 0.4
+ * `convex/approvals/{queries,mutations,helpers}` half that has a consumer:
+ * one-row read and the generic human decision (`updateApprovalStatus`)
+ * with the same FSM and the same dedicated-door refusals. Kind-scoped
+ * authorization rides the decision: erasure rows demand an org admin
+ * (`assertRoleMayDecideKind`). The gate half lives in `gate.ts`; the
+ * conversations fold lives in the send lane.
  */
 
 export class ApprovalError extends Error {
@@ -63,65 +63,6 @@ const APPROVAL_COLUMNS = `
   executed_at_ms::float8 AS "executedAt", metadata,
   created_at_ms::float8 AS "createdAt"
 `;
-
-export interface ListApprovalsArgs {
-  status?: string;
-  resourceType?: string;
-  /** The 0.4 inbox's "everything still open" filter. */
-  excludeStatus?: string;
-  cursor?: string | null;
-  limit?: number;
-}
-
-/** Newest-first keyset page over the org's approvals. */
-export async function listApprovals(
-  sql: Sql,
-  organizationId: string,
-  args: ListApprovalsArgs = {},
-): Promise<{ page: ApprovalRow[]; cursor: string | null }> {
-  const limit = Math.min(Math.max(args.limit ?? 30, 1), 100);
-  const cursorSeq =
-    args.cursor !== undefined && args.cursor !== null && args.cursor !== ''
-      ? Number(args.cursor)
-      : null;
-  const rows = await sql<(ApprovalRow & { seq: number })[]>`
-    SELECT ${sql.unsafe(APPROVAL_COLUMNS)}, seq::float8 AS seq
-    FROM app.approvals
-    WHERE org_id = ${organizationId}
-      AND (${args.status ?? null}::text IS NULL
-        OR status = ${args.status ?? null})
-      AND (${args.resourceType ?? null}::text IS NULL
-        OR resource_type = ${args.resourceType ?? null})
-      AND (${args.excludeStatus ?? null}::text IS NULL
-        OR status <> ${args.excludeStatus ?? null})
-      AND (${cursorSeq}::bigint IS NULL OR seq < ${cursorSeq})
-    ORDER BY seq DESC
-    LIMIT ${limit + 1}
-  `;
-  const page = rows.slice(0, limit);
-  const nextCursor =
-    rows.length > limit ? String(page[page.length - 1]?.seq ?? '') : null;
-  return {
-    page: page.map(({ seq: _seq, ...row }) => row),
-    cursor: nextCursor,
-  };
-}
-
-/** Exact per-status counts (the 0.4 "approx" counter was a Convex cost
- * concession; SQL counts are exact). */
-export async function countApprovalsByStatus(
-  sql: Sql,
-  organizationId: string,
-): Promise<Record<string, number>> {
-  const rows = await sql<{ status: string; count: string }[]>`
-    SELECT status, count(*)::text AS count FROM app.approvals
-    WHERE org_id = ${organizationId}
-    GROUP BY status
-  `;
-  const counts: Record<string, number> = {};
-  for (const row of rows) counts[row.status] = Number(row.count);
-  return counts;
-}
 
 export async function getApproval(
   sql: Sql,

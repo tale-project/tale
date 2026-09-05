@@ -115,36 +115,6 @@ export async function removeMessageFeedback(
   `;
 }
 
-export interface FeedbackRow {
-  id: string;
-  threadId: string;
-  messageId: string;
-  userId: string;
-  rating: string;
-  comment: string | null;
-  agentSlug: string | null;
-  model: string | null;
-  createdAt: number;
-}
-
-/** The caller's own vote on one message (drives the toggle UI). */
-export async function getMyMessageFeedback(
-  sql: Sql,
-  scope: FeedbackScope,
-  messageId: string,
-): Promise<FeedbackRow | null> {
-  const rows = await sql<FeedbackRow[]>`
-    SELECT id, thread_id AS "threadId", message_id AS "messageId",
-           user_id AS "userId", rating, comment, agent_slug AS "agentSlug",
-           model, created_at_ms::float8 AS "createdAt"
-    FROM app.message_feedback
-    WHERE message_id = ${messageId} AND user_id = ${scope.userId}
-      AND org_id = ${scope.organizationId}
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
-}
-
 /** The caller's OWN ratings across one thread (the toolbar's latch read —
  * the 0.4 `listThreadFeedback` shape). */
 export async function listMyThreadFeedback(
@@ -172,46 +142,6 @@ export async function listMyThreadFeedback(
       row.comment !== null ? { comment: row.comment } : {},
     ),
   );
-}
-
-/** Org-wide feedback feed + counts (the admin insights table). */
-export async function listMessageFeedback(
-  sql: Sql,
-  organizationId: string,
-  options: { rating?: 'positive' | 'negative'; limit?: number } = {},
-): Promise<{
-  items: FeedbackRow[];
-  stats: { positive: number; negative: number };
-}> {
-  const limit = Math.min(options.limit ?? 100, 500);
-  const items = await sql<FeedbackRow[]>`
-    SELECT id, thread_id AS "threadId", message_id AS "messageId",
-           user_id AS "userId", rating, comment, agent_slug AS "agentSlug",
-           model, created_at_ms::float8 AS "createdAt"
-    FROM app.message_feedback
-    WHERE org_id = ${organizationId}
-      AND lifecycle_status IS DISTINCT FROM 'trashed'
-      AND (${options.rating ?? null}::text IS NULL OR rating = ${options.rating ?? null})
-    ORDER BY created_at_ms DESC
-    LIMIT ${limit}
-  `;
-  const stats = await sql<{ rating: string; count: string }[]>`
-    SELECT rating, count(*)::text AS count FROM app.message_feedback
-    WHERE org_id = ${organizationId}
-      AND lifecycle_status IS DISTINCT FROM 'trashed'
-    GROUP BY rating
-  `;
-  return {
-    items,
-    stats: {
-      positive: Number(
-        stats.find((s) => s.rating === 'positive')?.count ?? '0',
-      ),
-      negative: Number(
-        stats.find((s) => s.rating === 'negative')?.count ?? '0',
-      ),
-    },
-  };
 }
 
 // ---------------------------------------------------------------- metrics

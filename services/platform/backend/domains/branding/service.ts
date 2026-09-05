@@ -243,30 +243,6 @@ export async function deleteBrandingImage(
   );
 }
 
-export async function resetBranding(orgSlug: string): Promise<void> {
-  await atomicWrite(
-    resolveBrandingFilePath(orgSlug),
-    serializeBrandingJson({}),
-  );
-  const imagesDir = resolveImagesDir(orgSlug);
-  try {
-    const entries = await readdir(imagesDir);
-    await Promise.all(
-      entries.map((entry) => {
-        const file = path.join(imagesDir, entry);
-        return unlink(file).catch((err: unknown) => {
-          if (errnoCode(err) === 'ENOENT') return;
-          console.warn(`[resetBranding] unlink ${file} failed:`, err);
-        });
-      }),
-    );
-  } catch (err) {
-    if (errnoCode(err) !== 'ENOENT') {
-      console.warn(`[resetBranding] readdir ${imagesDir} failed:`, err);
-    }
-  }
-}
-
 export async function snapshotBrandingToHistory(
   orgSlug: string,
 ): Promise<{ timestamp: string } | null> {
