@@ -18561,8 +18561,11 @@ async function checkOutboundSendLane(
       20_000,
     );
 
-  // --- the fake SMTP (deliver or fail on demand) ---------------------------
+  // --- the fake SMTP (deliver, fail, or hold on demand) --------------------
   let failMode = false;
+  // While set, a send waits on it before delivering — the window in which
+  // the job has claimed the row and the connector call is in flight.
+  let holdSend: Promise<void> | null = null;
   const smtpSends: Array<{
     to: string;
     subject: string;
@@ -18583,6 +18586,7 @@ async function checkOutboundSendLane(
         inReplyTo?: string;
       }) => {
         if (failMode) throw new Error('SMTP 451 mailbox busy (itest)');
+        if (holdSend !== null) await holdSend;
         smtpSends.push({
           to: message.to,
           subject: message.subject,
@@ -18754,6 +18758,49 @@ async function checkOutboundSendLane(
     const undoneRow = await messageRow(undoId);
     const undoRepeat = await api(`/messages/${undoId}/undo`, { body: {} });
 
+    // 3b. Undo AFTER the job claimed the row. The SMTP send is held open, so
+    // the connector call is in flight when the undo arrives: it must be
+    // refused (the mail is leaving), and once released exactly one mail goes
+    // out and the row settles `sent`. Before the claim existed the undo
+    // deleted the row here and the settle updated nothing.
+    let releaseHold: () => void = () => {};
+    holdSend = new Promise<void>((resolve) => {
+      releaseHold = resolve;
+    });
+    const claimTarget = await api(`/${conversationId}/reply`, {
+      body: { content: 'Too late to recall.' },
+    });
+    const claimTargetBody = z
+      .object({ messageId: z.string() })
+      .safeParse(await claimTarget.json());
+    const claimId = claimTargetBody.success
+      ? claimTargetBody.data.messageId
+      : '';
+    const claimedOk = await waitFor(
+      async () =>
+        typeof (await messageRow(claimId))?.metadata?.sendClaimedAt ===
+        'number',
+      20_000,
+    );
+    const lateUndo = await api(`/messages/${claimId}/undo`, { body: {} });
+    const lateUndoBody = z
+      .object({ error: z.string() })
+      .loose()
+      .safeParse(await lateUndo.json());
+    const rowStillQueued = (await messageRow(claimId))?.deliveryState;
+    const sendsBeforeRelease = smtpSends.length;
+    releaseHold();
+    holdSend = null;
+    const lateSentOk = await waitForState(claimId, 'sent');
+    const lateUndoRefused =
+      claimedOk &&
+      lateUndo.status === 409 &&
+      lateUndoBody.success &&
+      lateUndoBody.data.error === 'undo_window_closed' &&
+      rowStillQueued === 'queued' &&
+      lateSentOk &&
+      smtpSends.length === sendsBeforeRelease + 1;
+
     // 4. Discard a failed bubble: the row is gone.
     failMode = true;
     const discardTarget = await api(`/${conversationId}/reply`, {
@@ -18870,6 +18917,7 @@ async function checkOutboundSendLane(
         undoBody.data.sourceMarkdown === 'Recall me.' &&
         undoneRow === null &&
         undoRepeat.status === 404 &&
+        lateUndoRefused &&
         discardRes.status === 200 &&
         discardedRow === null &&
         composeRes.status === 201 &&
@@ -18881,8 +18929,8 @@ async function checkOutboundSendLane(
         bulkBody.data.successCount === 1 &&
         bulkBody.data.failedCount === 1 &&
         drained &&
-        finalSendCount === 4,
-      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 403s: the write gate) editorDoors=${editorRetry.status}/${editorDiscard.status}/${editorUndo.status} (want 404s: hidden conversation), rows kept=${memberRetryDiscardRefused && memberUndoRefused}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
+        finalSendCount === 5,
+      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 403s: the write gate) editorDoors=${editorRetry.status}/${editorDiscard.status}/${editorUndo.status} (want 404s: hidden conversation), rows kept=${memberRetryDiscardRefused && memberUndoRefused}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, lateUndo=${lateUndo.status}/${lateUndoBody.success ? lateUndoBody.data.error : 'ERR'} claimed=${claimedOk} stillQueued=${rowStillQueued} sentAfterRelease=${lateSentOk} (want 409/undo_window_closed, one mail), discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 5)`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);

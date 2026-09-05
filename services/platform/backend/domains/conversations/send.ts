@@ -48,9 +48,12 @@ import {
  * The undo window: every send funnels through
  * {@link sendMessageViaConnector}, which inserts a `queued` row and
  * schedules `conversation.send_message` one undo window in the future.
- * {@link undoSendMessage} deletes the still-queued row; the job re-checks
- * the row before sending, so a fired job after an undo is a no-op (stronger
- * than the 0.4 scheduler-cancel — safe under at-least-once delivery).
+ * {@link undoSendMessage} deletes the still-queued row; the job CLAIMS the
+ * row before sending (a conditional update stamping `metadata.sendClaimedAt`
+ * — a fired job after an undo finds nothing to claim and is a no-op, and an
+ * undo after the claim is refused), so the window closes at exactly one
+ * instant for both sides (stronger than the 0.4 scheduler-cancel — safe under
+ * at-least-once delivery).
  */
 
 /** The undo window (0.4 parity: 10s). Read at call time so the integration
@@ -682,6 +685,18 @@ export async function undoSendMessage(
       );
     }
     const metadata = message.metadata ?? {};
+    // The send job claimed the row: the connector call is in flight (or
+    // finished and about to settle). Deleting now would let the mail leave
+    // while the org loses its record of it — refuse, exactly like a settled
+    // send. A claimed row whose worker died is failed by the watchdog and
+    // becomes discardable there.
+    if (typeof metadata.sendClaimedAt === 'number') {
+      throw new ConversationError(
+        'undo_window_closed',
+        'The message is being sent',
+        409,
+      );
+    }
     await tx`
       DELETE FROM app.conversation_messages WHERE id = ${args.messageId}
     `;
@@ -773,12 +788,14 @@ export async function retrySendMessage(
       conversations[0]?.metadata ?? undefined,
     );
     // Clear the failure and the stale undo stamps: a retry is immediate, so
-    // there is no scheduled window to count down or cancel.
+    // there is no scheduled window to count down or cancel. The previous
+    // attempt's claim goes too, or the retried job could never claim the row.
     const retainedMetadata = { ...metadata };
     delete retainedMetadata.error;
     delete retainedMetadata.errorCode;
     delete retainedMetadata.scheduledSendId;
     delete retainedMetadata.scheduledSendAt;
+    delete retainedMetadata.sendClaimedAt;
     const retryCount = (message.retryCount ?? 0) + 1;
     await tx`
       UPDATE app.conversation_messages SET
@@ -958,24 +975,33 @@ export async function resolveSentExternalMessageId(
 
 /**
  * The scheduled delivery — the 0.4 `sendMessageViaConnectorAction` twin:
- * re-checks the row is still queued (an undo deleted it), runs the send
- * through the connector door as the audited system caller, and settles the
- * row `sent` (with the provider's Message-ID) or `failed` (with the error
- * the retry surface shows).
+ * CLAIMS the still-queued row (an undo deleted it; a claimed row is refused
+ * to undo), runs the send through the connector door as the audited system
+ * caller, and settles the row `sent` (with the provider's Message-ID) or
+ * `failed` (with the error the retry surface shows).
  */
 export async function runSendMessageJob(
   sql: Sql,
   payload: TaskPayloads['conversation.send_message'],
 ): Promise<void> {
-  const message = await loadMessage(sql, payload.messageId);
-  if (
-    !message ||
-    message.organizationId !== payload.organizationId ||
-    message.deliveryState !== 'queued'
-  ) {
-    // Undone, already sent, or gone — nothing to deliver.
-    return;
-  }
+  // One conditional update is the whole race: a row that is queued, in this
+  // org and unclaimed becomes ours; anything else — undone (gone), already
+  // sent, failed, or claimed by a duplicate delivery — is nothing to deliver.
+  // A plain read-then-check left the seconds of the connector call open to
+  // an undo that deleted the row under a mail already leaving.
+  const claimedAt = Date.now();
+  const claimed = await sql<ConversationMessageRow[]>`
+    UPDATE app.conversation_messages SET
+      status_changed_at_ms = ${claimedAt},
+      metadata = coalesce(metadata, '{}'::jsonb)
+        || ${sql.json(toJson({ sendClaimedAt: claimedAt }))}
+    WHERE id = ${payload.messageId} AND org_id = ${payload.organizationId}
+      AND direction = 'outbound' AND delivery_state = 'queued'
+      AND metadata->>'sendClaimedAt' IS NULL
+    RETURNING ${sql.unsafe(MESSAGE_COLUMNS)}
+  `;
+  const message = claimed[0];
+  if (!message) return;
   try {
     const { connector, action } = sendConnectorAction(payload.connectorName);
     // Presign a GET per attachment at send time — for EVERY mail connector,
@@ -1034,13 +1060,22 @@ export async function runSendMessageJob(
       output: result.output,
     });
     const now = Date.now();
-    await sql`
+    const settled = await sql<{ id: string }[]>`
       UPDATE app.conversation_messages SET
         delivery_state = 'sent', sent_at_ms = ${now},
         status_changed_at_ms = ${now},
         external_message_id = ${externalMessageId ?? sql.unsafe('external_message_id')}
       WHERE id = ${payload.messageId}
+      RETURNING id
     `;
+    if (settled.length === 0) {
+      // The mail left; the row did not survive to record it (the conversation
+      // was deleted under the send). Loud, because the Sent-folder sync will
+      // later re-create the message as a surprise.
+      console.warn(
+        `[conversation-send] ${payload.messageId} was delivered but its row is gone — nothing recorded the send`,
+      );
+    }
     await emitHintInTx(sql, {
       orgId: payload.organizationId,
       entity: 'conversation',

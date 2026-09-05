@@ -1,21 +1,185 @@
 /**
+ * The outbound send job and its undo window.
+ *
  * The external id stamped on a sent row is the RFC Message-ID, so a customer's
  * reply threads back onto the conversation. Gmail's send returns only its own
  * API id, so the sent message is read back once to recover the RFC id; the
  * other connectors keep whatever the send output already carried.
+ *
+ * The undo window closes at ONE instant for both sides: the job claims the
+ * queued row with a conditional update before the connector call, so a fired
+ * job after an undo finds nothing to claim, and an undo after the claim is
+ * refused — the seconds a connector send takes are no longer a window in which
+ * the mail leaves while the row is deleted.
  */
 
+import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { runConnectorAction } = vi.hoisted(() => ({
+const { runConnectorAction, createAuditLog } = vi.hoisted(() => ({
   runConnectorAction: vi.fn(),
+  createAuditLog: vi.fn(async () => undefined),
 }));
 
 vi.mock('../connectors/service.ts', () => ({ runConnectorAction }));
+vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
+vi.mock('../files/service.ts', () => ({ getFileUrl: vi.fn() }));
+vi.mock('../../realtime/outbox.ts', () => ({
+  emitHintInTx: vi.fn(async () => undefined),
+}));
+vi.mock('../../jobs/enqueue.ts', () => ({
+  addJobInTx: vi.fn(async () => 'job-1'),
+}));
 
-import { resolveSentExternalMessageId } from './send.ts';
+import {
+  resolveSentExternalMessageId,
+  runSendMessageJob,
+  undoSendMessage,
+} from './send.ts';
+import type { ConversationMessageRow } from './service.ts';
 
 const SQL = {} as never;
+
+const QUEUED_ROW: ConversationMessageRow = {
+  id: 'm1',
+  organizationId: 'o1',
+  conversationId: 'c1',
+  channel: 'email',
+  direction: 'outbound',
+  externalMessageId: null,
+  deliveryState: 'queued',
+  retryCount: null,
+  connectorName: 'imap-smtp',
+  content: 'On its way.',
+  sentAt: null,
+  deliveredAt: null,
+  metadata: { subject: 'Re: Order 42', to: ['carla@ext.test'] },
+  createdAt: 1_000,
+};
+
+const JOB_PAYLOAD = {
+  organizationId: 'o1',
+  messageId: 'm1',
+  connectorName: 'imap-smtp',
+  to: ['carla@ext.test'],
+  subject: 'Re: Order 42',
+  body: '<p>On its way.</p>',
+  contentType: 'HTML',
+};
+
+type Statement = { text: string; values: unknown[] };
+
+/**
+ * A `sql` double that records statements and answers by statement shape:
+ * `answer` maps a text fragment to the rows that statement returns; anything
+ * unmatched answers no rows. `begin` runs the callback on the same tag.
+ */
+function fakeSql(answer: Record<string, unknown[]>) {
+  const statements: Statement[] = [];
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?').replace(/\s+/g, ' ').trim();
+    statements.push({ text, values });
+    const hit = Object.entries(answer).find(([needle]) =>
+      text.includes(needle),
+    );
+    return Promise.resolve(hit ? hit[1] : []);
+  };
+  const sql = Object.assign(tag, {
+    unsafe: (text: string) => text,
+    json: (value: unknown) => value,
+    begin: (cb: (tx: unknown) => unknown) => Promise.resolve(cb(sql)),
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
+  return { sql: sql as unknown as Sql, statements };
+}
+
+const CLAIM = "metadata->>'sendClaimedAt' IS NULL";
+const SETTLE = "delivery_state = 'sent'";
+
+describe('runSendMessageJob — the claim', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('does not send when the row cannot be claimed (undone, settled, or already claimed)', async () => {
+    const { sql, statements } = fakeSql({ [CLAIM]: [] });
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+    expect(runConnectorAction).not.toHaveBeenCalled();
+    expect(statements.some((s) => s.text.includes(SETTLE))).toBe(false);
+  });
+
+  it('claims the queued row in one conditional update, then sends and settles it', async () => {
+    runConnectorAction.mockResolvedValue({
+      status: 'ok',
+      output: { messageId: '<smtp-1@door.test>' },
+    });
+    const { sql, statements } = fakeSql({
+      [CLAIM]: [QUEUED_ROW],
+      [SETTLE]: [{ id: 'm1' }],
+    });
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+
+    const claim = statements.find((s) => s.text.includes(CLAIM));
+    expect(claim?.text).toContain('UPDATE app.conversation_messages');
+    // Queued, outbound, in THIS org, unclaimed — and the claim stamp itself.
+    expect(claim?.text).toContain("delivery_state = 'queued'");
+    expect(claim?.text).toContain("direction = 'outbound'");
+    expect(claim?.text).toContain('org_id = ?');
+    expect(claim?.values).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sendClaimedAt: expect.any(Number) }),
+        'm1',
+        'o1',
+      ]),
+    );
+    // The claim precedes the connector call, and the settle follows it.
+    const claimIndex = statements.findIndex((s) => s.text.includes(CLAIM));
+    const settleIndex = statements.findIndex((s) => s.text.includes(SETTLE));
+    expect(runConnectorAction).toHaveBeenCalledTimes(1);
+    expect(claimIndex).toBeGreaterThanOrEqual(0);
+    expect(settleIndex).toBeGreaterThan(claimIndex);
+    expect(statements[settleIndex]?.text).toContain('RETURNING id');
+  });
+
+  it('warns instead of failing when the delivered row is gone at settle time', async () => {
+    runConnectorAction.mockResolvedValue({
+      status: 'ok',
+      output: { messageId: '<smtp-1@door.test>' },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { sql } = fakeSql({ [CLAIM]: [QUEUED_ROW], [SETTLE]: [] });
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('delivered but its row is gone'),
+    );
+    warn.mockRestore();
+  });
+});
+
+describe('undoSendMessage — after the claim', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const actor = { userId: 'u1' };
+  const LOAD = 'FROM app.conversation_messages WHERE id = ?';
+
+  it('refuses a row the send job has claimed (409, nothing deleted)', async () => {
+    const claimedRow = {
+      ...QUEUED_ROW,
+      metadata: { ...QUEUED_ROW.metadata, sendClaimedAt: 1_500 },
+    };
+    const { sql, statements } = fakeSql({ [LOAD]: [claimedRow] });
+    await expect(
+      undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
+    ).rejects.toMatchObject({ code: 'undo_window_closed', status: 409 });
+    expect(statements.some((s) => s.text.startsWith('DELETE'))).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('still recalls an unclaimed queued row', async () => {
+    const { sql, statements } = fakeSql({ [LOAD]: [QUEUED_ROW] });
+    await expect(
+      undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
+    ).resolves.toEqual({ sourceMarkdown: null });
+    expect(statements.some((s) => s.text.startsWith('DELETE'))).toBe(true);
+  });
+});
 
 describe('resolveSentExternalMessageId', () => {
   beforeEach(() => vi.clearAllMocks());
