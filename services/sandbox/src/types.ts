@@ -92,8 +92,11 @@ export interface SpawnerConfig {
   egressProxy: string;
   stdoutMaxBytes: number;
   stderrMaxBytes: number;
-  // Maximum request body size (bytes) for /v1/execute. Defaults to 256 KB
-  // to bound the unsigned-mode OOM surface (audit finding).
+  // Maximum request body size (bytes) on every spawner route (env
+  // SANDBOX_MAX_REQUEST_BODY_BYTES). Defaults to, and is clamped at, runnerd's
+  // RUNNERD_MAX_REQUEST_BODY_BYTES (8 MiB): the session file endpoints forward
+  // their inline stage content to the daemon verbatim, so a body accepted here
+  // must never be refused there as oversize.
   maxRequestBodyBytes: number;
   // Persistent-session knobs (sessions plan; env SANDBOX_SESSION_* /
   // SANDBOX_MAX_SESSIONS*). Always populated by loadConfig; consumed by the

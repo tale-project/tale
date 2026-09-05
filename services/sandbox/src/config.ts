@@ -15,6 +15,7 @@ import {
   transparentEgressSupported,
   type RuntimeTier,
 } from './runtime-tier.ts';
+import { RUNNERD_MAX_REQUEST_BODY_BYTES } from './session/runnerd-protocol.ts';
 import type { SpawnerConfig } from './types.ts';
 
 // Parse a boolean env, returning undefined when UNSET/empty so a caller can
@@ -303,6 +304,31 @@ export function loadConfig(): SpawnerConfig {
       );
     }
   }
+  // Body cap on every spawner route. /v1/sessions/:id/files/stage takes
+  // INLINE base64 content (bound org skills, useSkills subtrees, steer control
+  // files), so the cap must fit a real skill-bundle chunk plus JSON envelope;
+  // the platform client chunks its stage payloads well under it
+  // (session_client.ts STAGE_BODY_BUDGET_BYTES). The same `files` array is
+  // forwarded verbatim to runnerd, which caps its bodies at
+  // RUNNERD_MAX_REQUEST_BODY_BYTES — so the spawner's cap is CLAMPED to that:
+  // a body the spawner accepts can never be refused by the daemon as oversize.
+  // Operators can lower it via SANDBOX_MAX_REQUEST_BODY_BYTES; raising it past
+  // the daemon's cap is a no-op that warns.
+  const requestedMaxRequestBodyBytes = numEnv(
+    'SANDBOX_MAX_REQUEST_BODY_BYTES',
+    RUNNERD_MAX_REQUEST_BODY_BYTES,
+    { min: 4 * 1024 },
+  );
+  const maxRequestBodyBytes = Math.min(
+    requestedMaxRequestBodyBytes,
+    RUNNERD_MAX_REQUEST_BODY_BYTES,
+  );
+  if (maxRequestBodyBytes !== requestedMaxRequestBodyBytes) {
+    console.warn(
+      `[sandbox.config] SANDBOX_MAX_REQUEST_BODY_BYTES=${requestedMaxRequestBodyBytes} exceeds runnerd's request cap; clamped to ${RUNNERD_MAX_REQUEST_BODY_BYTES}`,
+    );
+  }
+
   return {
     backend,
     k8s: {
@@ -370,19 +396,7 @@ export function loadConfig(): SpawnerConfig {
     stderrMaxBytes: numEnv('SANDBOX_STDERR_MAX_BYTES', 5 * 1024 * 1024, {
       min: 1024,
     }),
-    // Body cap on /v1/execute and the session file endpoints. /v1/execute
-    // carries URL lists, but /v1/sessions/:id/files/stage takes INLINE
-    // base64 content (bound org skills, useSkills subtrees, steer control
-    // files), so the cap must fit a real skill-bundle chunk plus JSON
-    // envelope. The platform client chunks its stage payloads well under
-    // this (session_client.ts STAGE_BODY_BUDGET_BYTES); 8 MiB leaves
-    // headroom for growth while still bounding the unsigned-mode OOM
-    // surface. Operators can tune via SANDBOX_MAX_REQUEST_BODY_BYTES.
-    maxRequestBodyBytes: numEnv(
-      'SANDBOX_MAX_REQUEST_BODY_BYTES',
-      8 * 1024 * 1024,
-      { min: 4 * 1024 },
-    ),
+    maxRequestBodyBytes,
     session: {
       // GLOBAL host-capacity ceiling: the max sandbox session containers this
       // host runs at once, across all orgs (each ≈ 2 cpu / 4 g). This is the
