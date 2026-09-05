@@ -135,6 +135,34 @@ describe('applyPiiPolicyForIndexing', () => {
     expect(masked.text).not.toContain('4111 1111 1111 1111');
   });
 
+  // An identifier straddling the window cut: the head is one unbroken word
+  // as long as a window, so the only separators in the cut's range are the
+  // spaces inside the card number itself — the shape of a single-line CSV
+  // export. Pre-fix neither window saw the number: block passed, mask
+  // indexed it raw.
+  const WINDOW_CHARS = 12_500;
+  const STRADDLE = `${'a'.repeat(WINDOW_CHARS - 10)} 4111 1111 1111 1111 rest of the line`;
+
+  it('refuses an identifier that straddles the window cut', () => {
+    const decision = applyPiiPolicyForIndexing(
+      STRADDLE,
+      policy({ mode: 'block', enabledPatterns: ['creditCard'] }),
+    );
+    expect(decision).toEqual({ kind: 'refuse', categoryIds: ['creditCard'] });
+  });
+
+  it('masks an identifier that straddles the window cut', () => {
+    const decision = applyPiiPolicyForIndexing(
+      STRADDLE,
+      policy({ enabledPatterns: ['creditCard'] }),
+    );
+    expect(decision.kind).toBe('index');
+    if (decision.kind !== 'index') return;
+    expect(decision.text).toContain('a [CREDIT_CARD] rest of the line');
+    expect(decision.text).not.toContain('4111');
+    expect(decision.text).not.toContain('1111');
+  });
+
   it('indexes clean text unchanged', () => {
     const clean = 'The handbook covers refunds within 30 days.';
     expect(applyPiiPolicyForIndexing(clean, policy())).toEqual({
