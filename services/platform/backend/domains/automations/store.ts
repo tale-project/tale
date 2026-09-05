@@ -209,12 +209,29 @@ export async function saveVersion(
         ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
       `;
     }
-    await emitHintInTx(tx, {
-      orgId: args.organizationId,
-      entity: 'automation',
-      entityId: name,
-    });
+    await emitDefinitionHint(tx, args.organizationId, name);
     return { name, version };
+  });
+}
+
+/**
+ * Every write to an automation's DEFINITION — a version, a deploy, a trigger,
+ * a project binding, the delete — emits the `automation` hint inside its own
+ * transaction, the realtime contract the run doors already honour for
+ * `automation_run`: the app keys the list, the detail page, the trigger and
+ * the binding reads under one `automation` entity prefix, so this is what
+ * keeps another member's screen from showing a deleted automation, a stale
+ * deployedVersion badge or the previous trigger until reload.
+ */
+async function emitDefinitionHint(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  await emitHintInTx(tx, {
+    orgId: organizationId,
+    entity: 'automation',
+    entityId: name,
   });
 }
 
@@ -294,17 +311,20 @@ export async function deploy(
       409,
     );
   }
-  await sql`
-    INSERT INTO app.automation_deployments (
-      org_id, name, version, deployed_by, deployed_at_ms
-    ) VALUES (
-      ${args.organizationId}, ${args.name}, ${args.version}, ${args.actor},
-      ${Date.now()}
-    )
-    ON CONFLICT (org_id, name) DO UPDATE SET
-      version = EXCLUDED.version, deployed_by = EXCLUDED.deployed_by,
-      deployed_at_ms = EXCLUDED.deployed_at_ms
-  `;
+  await sql.begin(async (tx) => {
+    await tx`
+      INSERT INTO app.automation_deployments (
+        org_id, name, version, deployed_by, deployed_at_ms
+      ) VALUES (
+        ${args.organizationId}, ${args.name}, ${args.version}, ${args.actor},
+        ${Date.now()}
+      )
+      ON CONFLICT (org_id, name) DO UPDATE SET
+        version = EXCLUDED.version, deployed_by = EXCLUDED.deployed_by,
+        deployed_at_ms = EXCLUDED.deployed_at_ms
+    `;
+    await emitDefinitionHint(tx, args.organizationId, args.name);
+  });
   return { name: args.name, version: args.version };
 }
 
@@ -512,6 +532,7 @@ export async function setAutomationProjects(
         ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
       `;
     }
+    await emitDefinitionHint(tx, args.organizationId, args.name);
   });
 }
 
@@ -536,16 +557,21 @@ export async function bindProject(
       404,
     );
   }
-  const inserted = await sql`
-    INSERT INTO app.automation_project_bindings (
-      org_id, automation_name, project_id, bound_at_ms, bound_by
-    ) VALUES (
-      ${args.organizationId}, ${args.name}, ${args.projectId}, ${Date.now()},
-      ${args.actor}
-    )
-    ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-  `;
-  return { bound: inserted.count > 0 };
+  return sql.begin(async (tx) => {
+    const inserted = await tx`
+      INSERT INTO app.automation_project_bindings (
+        org_id, automation_name, project_id, bound_at_ms, bound_by
+      ) VALUES (
+        ${args.organizationId}, ${args.name}, ${args.projectId}, ${Date.now()},
+        ${args.actor}
+      )
+      ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+    `;
+    const bound = inserted.count > 0;
+    // An idempotent re-add changed nothing — no screen needs a refetch.
+    if (bound) await emitDefinitionHint(tx, args.organizationId, args.name);
+    return { bound };
+  });
 }
 
 export async function bindingProjectIds(
@@ -650,30 +676,34 @@ export async function setTrigger(
     minted !== undefined ? await hashWebhookToken(minted) : null;
   const rotate = args.trigger.rotateToken === true;
   const enabled = args.trigger.enabled ?? true;
-  const rows = await sql<{ tokenHash: string | null }[]>`
-    INSERT INTO app.automation_triggers AS t (
-      org_id, name, kind, cron, timezone, event, token_hash, enabled,
-      created_by, created_at_ms, updated_at_ms
-    ) VALUES (
-      ${args.organizationId}, ${args.name}, ${args.trigger.kind},
-      ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
-      ${args.trigger.event ?? null}, ${mintedHash}, ${enabled},
-      ${args.actor}, ${now}, ${now}
-    )
-    ON CONFLICT (org_id, name) DO UPDATE SET
-      kind = EXCLUDED.kind,
-      cron = EXCLUDED.cron,
-      timezone = EXCLUDED.timezone,
-      event = EXCLUDED.event,
-      token_hash = CASE
-        WHEN EXCLUDED.kind <> 'webhook' THEN NULL
-        WHEN ${rotate}::boolean OR t.token_hash IS NULL THEN EXCLUDED.token_hash
-        ELSE t.token_hash
-      END,
-      enabled = EXCLUDED.enabled,
-      updated_at_ms = EXCLUDED.updated_at_ms
-    RETURNING token_hash AS "tokenHash"
-  `;
+  const rows = await sql.begin(async (tx) => {
+    const upserted = await tx<{ tokenHash: string | null }[]>`
+      INSERT INTO app.automation_triggers AS t (
+        org_id, name, kind, cron, timezone, event, token_hash, enabled,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${args.organizationId}, ${args.name}, ${args.trigger.kind},
+        ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
+        ${args.trigger.event ?? null}, ${mintedHash}, ${enabled},
+        ${args.actor}, ${now}, ${now}
+      )
+      ON CONFLICT (org_id, name) DO UPDATE SET
+        kind = EXCLUDED.kind,
+        cron = EXCLUDED.cron,
+        timezone = EXCLUDED.timezone,
+        event = EXCLUDED.event,
+        token_hash = CASE
+          WHEN EXCLUDED.kind <> 'webhook' THEN NULL
+          WHEN ${rotate}::boolean OR t.token_hash IS NULL THEN EXCLUDED.token_hash
+          ELSE t.token_hash
+        END,
+        enabled = EXCLUDED.enabled,
+        updated_at_ms = EXCLUDED.updated_at_ms
+      RETURNING token_hash AS "tokenHash"
+    `;
+    await emitDefinitionHint(tx, args.organizationId, args.name);
+    return upserted;
+  });
   const landed = rows[0]?.tokenHash ?? null;
   return minted !== undefined && landed !== null && landed === mintedHash
     ? { token: minted }
@@ -685,12 +715,16 @@ export async function deleteTrigger(
   organizationId: string,
   name: string,
 ): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`
-    DELETE FROM app.automation_triggers
-    WHERE org_id = ${organizationId} AND name = ${name}
-    RETURNING id
-  `;
-  return rows.length > 0;
+  return sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      DELETE FROM app.automation_triggers
+      WHERE org_id = ${organizationId} AND name = ${name}
+      RETURNING id
+    `;
+    const deleted = rows.length > 0;
+    if (deleted) await emitDefinitionHint(tx, organizationId, name);
+    return deleted;
+  });
 }
 
 export async function listTriggers(
@@ -1475,6 +1509,7 @@ export async function deleteAutomationCascade(
         deleted_by = EXCLUDED.deleted_by,
         deleted_at_ms = EXCLUDED.deleted_at_ms
     `;
+    await emitDefinitionHint(tx, args.organizationId, args.name);
   });
 }
 
