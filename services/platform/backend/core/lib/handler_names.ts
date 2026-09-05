@@ -286,11 +286,6 @@ interface HandlerNames {
       };
     };
   };
-  login_attempts: FunctionRef & {
-    internal_queries: FunctionRef & {
-      getTrustedProxies: FunctionRef;
-    };
-  };
   members: FunctionRef & {
     internal_queries: FunctionRef & {
       getMemberRole: FunctionRef;
@@ -368,12 +363,10 @@ interface HandlerNames {
       provisionGroup: FunctionRef;
       provisionUser: FunctionRef;
       replaceGroup: FunctionRef;
-      touchConfigLastUsed: FunctionRef;
     };
     internal_queries: FunctionRef & {
       findGroupRecordByDisplayName: FunctionRef;
       findUserRecordByUserName: FunctionRef;
-      getConfigByTokenHash: FunctionRef;
       getGroupRecord: FunctionRef;
       getUserRecord: FunctionRef;
       listGroupRecords: FunctionRef;
@@ -421,18 +414,6 @@ interface HandlerNames {
     search_for_chat: FunctionRef & {
       searchProjectsForChat: FunctionRef;
       searchTasksForChat: FunctionRef;
-    };
-  };
-  two_factor: FunctionRef & {
-    internal_mutations: FunctionRef & {
-      clearOnSuccess: FunctionRef;
-      logEnrollmentEvent: FunctionRef;
-      recordFailure: FunctionRef;
-      setGraceUntilIfAbsent: FunctionRef;
-    };
-    internal_queries: FunctionRef & {
-      evaluateEnforcement: FunctionRef;
-      getLockStateByUserId: FunctionRef;
     };
   };
   user_preferences: FunctionRef & {
