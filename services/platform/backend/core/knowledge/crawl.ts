@@ -12,7 +12,7 @@
  * resolves, never a hard-wired connection.
  *
  * The crawl engine itself lives in `crawl_action.ts`; this module is the
- * data seam both it and `websites/internal_actions.ts` share.
+ * data seam both it and `domains/websites/service.ts` share.
  */
 
 import type { Sql, TransactionSql } from 'postgres';
