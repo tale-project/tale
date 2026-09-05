@@ -1,12 +1,35 @@
 /**
- * Query-side access resolution for the workspace-tool bridge
- * (`node_only/sandbox/workspace_tools_bridge.ts` — an action, so the
- * membership read has to cross into a query). One check per dispatch: the
- * turn's user must still be an active member of the session's org AND their
- * role must grant `read` on the table the tool exposes — the same policy the
- * user-side `queryWithRLS` surfaces enforce, via the same primitives
- * (`lib/rls/helpers/agent_read_access.ts`).
+ * Access vocabulary for the workspace-tool bridge
+ * (`node_only/sandbox/workspace_tools_bridge.ts` and the chat assistant
+ * tools). One check per dispatch: the turn's user must still be an active
+ * member of the session's org AND their role must grant `read` on the table
+ * the tool exposes — answered by the `sandbox/workspace_access:
+ * resolveWorkspaceReadAccess` handler in `domains/chat/shim.ts` from the SQL
+ * membership (Tier-A today: an active member reads every subject, the
+ * `disabled` role reads nothing; the per-subject role matrix ports with
+ * governance).
  */
+
+/**
+ * The tables the workspace read tools expose, as role-matrix subjects — the
+ * ONE list every read leg types its subject against, so a table added to
+ * the matrix cannot go missing in a caller's private copy.
+ *
+ * `allowed: true` means only that the caller's ROLE may read the table. Some
+ * subjects need a second, narrower gate this vocabulary does not own:
+ * `documents` and `tasks` narrow to the caller's team/project visibility,
+ * and `conversations` narrows further still to its assignment scope (a
+ * conversation assigned to nobody is admin triage only). Treating `allowed:
+ * true` as "read the whole org" is a leak for those three.
+ */
+export type AgentReadSubject =
+  | 'documents'
+  | 'contacts'
+  | 'products'
+  | 'websites'
+  | 'tasks'
+  | 'projects'
+  | 'conversations';
 
 /**
  * The subjects the SESSION-BINDING gate arbitrates — a strict subset of

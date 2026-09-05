@@ -85,7 +85,7 @@ export function jsonError(
  * Better Auth read. A handler that gates on a capability asks for it here.
  *
  * A missing or `disabled` member row is refused as `ORG_FORBIDDEN` — the same
- * answer `requireOrgMembershipById` gives a session caller, so an API key is
+ * answer `requireOrganizationMember` gives a session caller, so an API key is
  * never a way around a revoked membership.
  */
 export async function resolveRestOrgRole(rc: RestContext): Promise<string> {
@@ -107,8 +107,8 @@ export async function resolveRestOrgRole(rc: RestContext): Promise<string> {
 /**
  * Assert the `developerSettings` capability — the gate on authoring and on
  * starting a LIVE automation run. Throws `FORBIDDEN_DEVELOPER_SETTINGS`, the
- * same coded error `requireOrgAdminOrDeveloper` raises for a session caller,
- * so both surfaces answer a wrong role identically (→ 403).
+ * same coded error the session-caller developer gate raises, so both
+ * surfaces answer a wrong role identically (→ 403).
  */
 export async function requireRestDeveloper(rc: RestContext): Promise<void> {
   const role = await resolveRestOrgRole(rc);

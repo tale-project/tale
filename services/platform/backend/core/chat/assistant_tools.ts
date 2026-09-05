@@ -63,9 +63,9 @@ import { searchKnowledge } from '../knowledge/search';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
-import type { AgentReadSubject } from '../lib/rls/helpers/agent_read_access';
 import type { Doc } from '../lib/rows';
 import { detectListingIntent } from '../lib/search';
+import type { AgentReadSubject } from '../sandbox/workspace_access';
 
 /** Who the tools run for. The user is re-checked per dispatch. */
 export interface ChatToolContext {
