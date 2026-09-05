@@ -110,6 +110,20 @@ export function assertRoleMayDecideKind(
 }
 
 /**
+ * The approval kinds the generic door refuses, each naming the door that
+ * settles it. A kind belongs here when something else owns its lifecycle —
+ * a respond route, or the chat thread itself.
+ */
+const DEDICATED_RESPOND_DOORS: Readonly<Record<string, string>> = {
+  document_record_review:
+    'Controlled-record reviews are answered via the document records respond door.',
+  task_review:
+    'Task reviews are answered via POST /api/app/tasks/reviews/:approvalId/respond.',
+  human_input_request:
+    'Chat questions are answered in their thread (domains/chat/questions.ts), never through the generic decide door.',
+};
+
+/**
  * The generic human decision — the 0.4 `updateApprovalStatus` twin. Valid
  * only from `pending`, only to `executing` (approve) or `rejected`;
  * `completed` is the execution path's to set. Review-gate rows refuse
@@ -141,20 +155,16 @@ export async function decideApproval(
     if (!approval) {
       throw new ApprovalError('NOT_FOUND', 'Approval not found', 404);
     }
-    // Review-gate rows are NOT generically completable: their respond doors
-    // carry the permission checks, the feedback-required rule, and the
-    // resource's own state transition.
-    if (approval.resourceType === 'document_record_review') {
+    // Rows with a dedicated settle path are NOT generically completable:
+    // that path carries the permission checks, the feedback-required rule,
+    // and the resource's own state transition — and, for a chat question,
+    // the only reader (`chat/questions.ts` matches `status = 'pending'`
+    // everywhere, so a row flipped here would never be settled or answered).
+    const dedicatedDoor = DEDICATED_RESPOND_DOORS[approval.resourceType];
+    if (dedicatedDoor !== undefined) {
       throw new ApprovalError(
         'APPROVAL_REQUIRES_DEDICATED_RESPOND',
-        'Controlled-record reviews are answered via the document records respond door.',
-        409,
-      );
-    }
-    if (approval.resourceType === 'task_review') {
-      throw new ApprovalError(
-        'APPROVAL_REQUIRES_DEDICATED_RESPOND',
-        'Task reviews are answered via POST /api/app/tasks/reviews/:approvalId/respond.',
+        dedicatedDoor,
         409,
       );
     }

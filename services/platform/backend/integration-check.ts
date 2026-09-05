@@ -25230,6 +25230,8 @@ async function checkApprovalsSurface(
   });
   const rejectId = await seed('connector_operation', 'itest-appr-op-2');
   const reviewId = await seed('task_review', 'itest-appr-task-1');
+  // A chat question row: settled by the thread, never by this door.
+  const questionId = await seed('human_input_request', 'itest-appr-thread-1');
 
   const gotten = z
     .looseObject({ id: z.string(), resourceType: z.string() })
@@ -25251,6 +25253,10 @@ async function checkApprovalsSurface(
   const reviewRefused = await api(`/${reviewId}/decide`, {
     body: { status: 'executing' },
   });
+  const questionRefused = await api(`/${questionId}/decide`, {
+    body: { status: 'executing' },
+  });
+  const questionRow = await rowOf(questionId);
   const badStatus = await api(`/${rejectId}/decide`, {
     body: { status: 'completed' },
   });
@@ -25276,9 +25282,11 @@ async function checkApprovalsSurface(
       rejectedRow?.status === 'rejected' &&
       rejectedRow?.metadata?.comments === 'not like this' &&
       reviewRefused.status === 409 &&
+      questionRefused.status === 409 &&
+      questionRow?.status === 'pending' &&
       badStatus.status === 400 &&
       Number(auditRows[0]?.count ?? '0') === 2,
-    `get=${gotten.success} foreign=${foreign.status}, approve=${approved.status} row=${approvedRow?.status}/${approvedRow?.approvedBy === userId}/name=${typeof approvedRow?.metadata?.approverName} again=${again.status} (want 409), reject=${rejected.status}/${rejectedRow?.status} reviewGate=${reviewRefused.status} (want 409) badStatus=${badStatus.status} (want 400), audits=${auditRows[0]?.count} (want 2)`,
+    `get=${gotten.success} foreign=${foreign.status}, approve=${approved.status} row=${approvedRow?.status}/${approvedRow?.approvedBy === userId}/name=${typeof approvedRow?.metadata?.approverName} again=${again.status} (want 409), reject=${rejected.status}/${rejectedRow?.status} reviewGate=${reviewRefused.status} (want 409) question=${questionRefused.status}/${questionRow?.status} (want 409/pending) badStatus=${badStatus.status} (want 400), audits=${auditRows[0]?.count} (want 2)`,
   );
 }
 
