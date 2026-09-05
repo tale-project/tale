@@ -12,8 +12,12 @@
 
 import { Ajv } from 'ajv';
 
-import type { AgentTurnRequest, ConnectorHostCapabilities } from '../slots';
-import { agentService, llmService, nodeTypes, storeAdapter } from '../slots';
+import type {
+  AgentTurnRequest,
+  ConnectorHostCapabilities,
+  StoreAdapter,
+} from '../slots';
+import { agentService, llmService, nodeTypes } from '../slots';
 import { evalCondition, evalTemplates, ExprError, runCode } from '../template';
 import type { Automation, Effect, NodeTrace, RunResult } from '../types';
 import { refsOf, topoSort } from './controlflow';
@@ -53,6 +57,13 @@ export interface ExecuteOptions {
    * deterministic mock rather than reaching the network.
    */
   connectorHost?: (connector: string) => ConnectorHostCapabilities;
+  /**
+   * Where `subautomation` nodes resolve the documents they reference. Threaded
+   * per call — never a process-global slot — because a store is scoped to one
+   * organization while one process serves many. Without it a subautomation
+   * node fails with guidance instead of reading another tenant's store.
+   */
+  store?: StoreAdapter;
   /** Transform-code timeout override. */
   timeoutMs?: number;
   /** Guard against runaway documents: total node EXECUTIONS including
@@ -303,11 +314,11 @@ export async function execute(
           effects.push({ node: n.id, connector: 'agent', input: agentInput });
         } else if (n.type === 'subautomation') {
           const ref = n.automation ?? '';
-          const store = storeAdapter();
+          const store = opts.store;
           if (!store) {
             throw new ExprError(
               'subautomation',
-              'no automation store is configured in this environment',
+              'no automation store was supplied for this run — the host must pass one for subautomation nodes',
             );
           }
           const [subName, subVerRaw] = ref.split('@');

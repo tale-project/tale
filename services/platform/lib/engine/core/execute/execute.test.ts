@@ -7,7 +7,6 @@ import {
   setAgentService,
   setCodeRunner,
   setLlmService,
-  setStoreAdapter,
 } from '../slots';
 import type { Automation, NodeDef } from '../types';
 import { execute } from './index';
@@ -62,7 +61,6 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  setStoreAdapter(null as never);
   setLlmService(null as never);
   setAgentService(null);
 });
@@ -360,12 +358,11 @@ describe('subautomation', () => {
         { name: 'child', output: '{{ nodes.double.output }}' },
       ),
     );
-    setStoreAdapter(store);
     return store;
   }
 
   it('runs the referenced automation and folds its effects under the parent node', async () => {
-    installStoreWithChild();
+    const store = installStoreWithChild();
     const doc = automationDoc(
       [
         {
@@ -377,7 +374,7 @@ describe('subautomation', () => {
       ],
       { output: '{{ nodes.call.output }}' },
     );
-    const result = await execute(doc, { input: {} });
+    const result = await execute(doc, { input: {}, store });
     expect(result.status).toBe('success');
     expect(result.output).toBe(42);
     expect(result.effects).toEqual([
@@ -409,22 +406,21 @@ describe('subautomation', () => {
       ],
       { output: '{{ nodes.call.output }}' },
     );
-    const result = await execute(doc, { input: {} });
+    const result = await execute(doc, { input: {}, store });
     expect(result.output).toBe(2);
   });
 
   it('missing reference and missing store both fail with guidance', async () => {
-    installStoreWithChild();
+    const store = installStoreWithChild();
     const missing = await execute(
       automationDoc([
         { id: 'call', type: 'subautomation', automation: 'ghost' },
       ]),
-      { input: {} },
+      { input: {}, store },
     );
     expect(missing.status).toBe('error');
     expect(missing.error?.message).toContain('save_automation it first');
 
-    setStoreAdapter(null as never);
     const storeless = await execute(
       automationDoc([
         { id: 'call', type: 'subautomation', automation: 'child' },
@@ -445,12 +441,11 @@ describe('subautomation', () => {
         },
       ),
     );
-    setStoreAdapter(store);
     const result = await execute(
       automationDoc([
         { id: 'start', type: 'subautomation', automation: 'loop' },
       ]),
-      { input: {} },
+      { input: {}, store },
     );
     expect(result.status).toBe('error');
     expect(result.error?.message).toContain('nest at most 3');

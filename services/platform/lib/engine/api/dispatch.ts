@@ -11,8 +11,11 @@
  *
  * The store is injected (not a module singleton), because the host owns
  * persistence — the selftest passes an in-memory store, the automations host
- * passes a Convex-backed one. Reads use the same `StoreAdapter` the executor
- * resolves subautomations through; the write operations extend it.
+ * passes a Postgres-backed one. Reads use the same `StoreAdapter` the executor
+ * resolves subautomations through; the write operations extend it. Because a
+ * store is scoped to one organization, dispatch threads it into every
+ * `validate()`, `execute()` and test run as an option — there is no
+ * process-global store slot for a host to forget.
  *
  * The table covers two jobs, and the split matters when reading it: the
  * AUTHORING methods (validate/run/test/save/deploy/get/list) work on documents,
@@ -234,7 +237,7 @@ export async function dispatch(
 
     case 'validate_automation': {
       if (!p.automation) return { error: 'missing params.automation' };
-      const { errors, warnings } = await validate(p.automation);
+      const { errors, warnings } = await validate(p.automation, { store });
       return { valid: errors.length === 0, errors, warnings };
     }
 
@@ -258,7 +261,7 @@ export async function dispatch(
           hint: 'test against mocks; live execution is enabled on deployment (host sets allowLive)',
         };
       }
-      const { errors, warnings } = await validate(p.automation);
+      const { errors, warnings } = await validate(p.automation, { store });
       if (errors.length > 0) {
         return {
           status: 'invalid',
@@ -271,6 +274,7 @@ export async function dispatch(
       const result = await execute(p.automation as Automation, {
         input: p.input ?? {},
         mode,
+        store,
       });
       if (warnings.length > 0) result.validation = { errors: [], warnings };
       return result;
@@ -283,15 +287,15 @@ export async function dispatch(
           hint: 'call as {method: test_automation, params: {automation: {...with tests...}}}',
         };
       }
-      const { errors, warnings } = await validate(p.automation);
+      const { errors, warnings } = await validate(p.automation, { store });
       if (errors.length > 0) return { status: 'invalid', errors, warnings };
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
-      return await runAutomationTests(p.automation as Automation);
+      return await runAutomationTests(p.automation as Automation, { store });
     }
 
     case 'save_automation': {
       if (!p.automation) return { error: 'missing params.automation' };
-      const { errors } = await validate(p.automation);
+      const { errors } = await validate(p.automation, { store });
       if (errors.length > 0) {
         return {
           error: 'automation failed validation — fix errors before saving',
@@ -325,7 +329,7 @@ export async function dispatch(
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
       const automation = saved.automation as Automation;
-      const { errors } = await validate(automation);
+      const { errors } = await validate(automation, { store });
       if (errors.length > 0) {
         return {
           error: 'this version no longer validates; it cannot be deployed',
@@ -333,7 +337,7 @@ export async function dispatch(
         };
       }
       if (automation.tests && automation.tests.length > 0) {
-        const report = await runAutomationTests(automation);
+        const report = await runAutomationTests(automation, { store });
         if ('failed' in report && report.failed > 0) {
           return {
             error: 'deploy gate: the automation has failing tests',
@@ -392,6 +396,7 @@ export async function dispatch(
       const result = await execute(found.automation as Automation, {
         input: p.input ?? {},
         mode,
+        store,
       });
       if (store.recordRun) await store.recordRun(name, version, result, mode);
       return { version, ...result };
