@@ -22263,7 +22263,8 @@ async function checkCloudImport(
  * grant is refused with the connect message and no Graph call; an expired
  * grant refreshes, and a 503 from the token endpoint is NOT sticky) → scan
  * enqueue + the cancel door (which an in-flight run's final stamp must
- * never resurrect).
+ * never resurrect, and which settles the run marker so a reactivated
+ * config claims at once).
  */
 async function checkOneDriveSync(
   sql: Sql,
@@ -23009,7 +23010,10 @@ async function checkOneDriveSync(
     );
 
     // 8. The scan enqueues one job per syncable config; cancel wins over an
-    //    in-flight run's final stamp (status write never leaves 'inactive').
+    //    in-flight run's final stamp (status write never leaves 'inactive'),
+    //    and settles the run marker that stamp would have cleared — so a
+    //    cancelled config never reads 'running', and re-activating it claims
+    //    at once instead of waiting out the 30-minute stale window.
     const scanned = await onedrive.runOneDriveSyncScan(sql);
     const scanDrained = await waitFor(async () => {
       const rows = await sql<{ count: string }[]>`
@@ -23019,22 +23023,48 @@ async function checkOneDriveSync(
       `;
       return Number(rows[0]?.count ?? '0') === 0;
     }, 15_000);
+    // A run in flight: the claim stamp is fresh when the cancel lands.
+    await onedrive.updateSyncConfigStatusRow(sql, 'app.onedrive_sync_configs', {
+      configId: folderConfig.id,
+      lastSyncStatus: 'running',
+    });
     const cancel = await post(`/sync-configs/${folderConfig.id}/cancel`, {});
     const cancelMissing = await post('/sync-configs/does-not-exist/cancel', {});
+    const markerAfterCancel = (await configByItem('folder-reports'))
+      ?.lastSyncStatus;
     await onedrive.updateSyncConfigStatusRow(sql, 'app.onedrive_sync_configs', {
       configId: folderConfig.id,
       status: 'active',
       lastSyncStatus: 'success',
     });
     const cancelSticky = (await configByItem('folder-reports'))?.status;
+    // Re-select the folder ("Sync import" again): the config reactivates
+    // with a clean lifecycle and its first job wins the claim.
+    await onedrive.upsertSyncConfigRow(sql, 'app.onedrive_sync_configs', {
+      organizationId: orgId,
+      userId,
+      itemType: 'folder',
+      itemId: 'folder-reports',
+      itemName: 'ODReports',
+      itemPath: 'ODReports',
+      targetBucket: 'documents',
+    });
+    const reactivated = await configByItem('folder-reports');
+    await runConfig(folderConfig.id);
+    const afterReactivatedRun = await configByItem('folder-reports');
+    await post(`/sync-configs/${folderConfig.id}/cancel`, {});
     record(
-      'onedrive scan + cancel door (cancel outlives a late run stamp)',
+      'onedrive scan + cancel door (cancel outlives a late run stamp, settles the run marker)',
       scanned === 1 &&
         scanDrained &&
         cancel.status === 200 &&
         cancelMissing.status === 404 &&
-        cancelSticky === 'inactive',
-      `scan=${scanned}/1 (only the folder config is syncable) drained=${scanDrained}, cancel=${cancel.status} missing=${cancelMissing.status}, lateStampAfterCancel=${cancelSticky} (want inactive)`,
+        markerAfterCancel === 'cancelled' &&
+        cancelSticky === 'inactive' &&
+        reactivated?.status === 'active' &&
+        reactivated.lastSyncStatus === null &&
+        afterReactivatedRun?.lastSyncStatus === 'success',
+      `scan=${scanned}/1 (only the folder config is syncable) drained=${scanDrained}, cancel=${cancel.status} missing=${cancelMissing.status}, markerAfterCancel=${markerAfterCancel} (want cancelled), lateStampAfterCancel=${cancelSticky} (want inactive), reactivated=${reactivated?.status}/${reactivated?.lastSyncStatus} (want active/null), firstRun=${afterReactivatedRun?.lastSyncStatus} (want success)`,
     );
 
     // 9. Truth in listing and transfer: a 250-child folder browses WHOLE

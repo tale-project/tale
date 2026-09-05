@@ -192,7 +192,12 @@ export async function getSyncConfigRow(
 /**
  * Create-or-reactivate the sync config for a selected item (the 0.4
  * `create*SyncConfig`): one config per (org, source item); an
- * inactive/error row is reactivated in place with the fresh selection.
+ * inactive/error row is reactivated in place with the fresh selection. A
+ * reactivation starts a fresh run lifecycle — the previous one's marker is
+ * cleared so the first job claims at once (a 'running' left by a cancelled
+ * run would otherwise hold the claim fence for the stale window). A live
+ * row keeps its marker: re-selecting an item whose sync is in flight must
+ * not admit a second concurrent run.
  */
 export async function upsertSyncConfigRow(
   db: Sql | TransactionSql,
@@ -230,11 +235,27 @@ export async function upsertSyncConfigRow(
       team_id = EXCLUDED.team_id,
       status = 'active',
       error_message = NULL,
+      last_sync_status = CASE
+        WHEN status = 'inactive' THEN NULL ELSE last_sync_status END,
       updated_at_ms = ${now}
     RETURNING id
   `;
   return rows[0]?.id ?? null;
 }
+
+/**
+ * The run marker a deactivation leaves behind. A cancel that lands while a
+ * run is in flight refuses that run's final stamp (see
+ * `updateSyncConfigStatusRow`), so without this the row kept
+ * `last_sync_status = 'running'` forever — the listing showed a running
+ * inactive config, and a reactivation sat behind the claim fence until the
+ * stamp was 30 minutes stale. The heartbeat is gated on 'running', so the
+ * in-flight run also stops renewing a claim it no longer holds.
+ */
+const SETTLE_RUN_MARKER_ON_DEACTIVATE = `
+  last_sync_status = CASE
+    WHEN last_sync_status = 'running' THEN 'cancelled' ELSE last_sync_status END
+`;
 
 /**
  * Patch a config's run outcome (the 0.4 `updateSyncConfig` twin). A status
@@ -280,7 +301,8 @@ export async function cancelSyncConfigRow(
 ): Promise<void> {
   const rows = await db<{ id: string }[]>`
     UPDATE ${db.unsafe(table)} SET
-      status = 'inactive', updated_at_ms = ${Date.now()}
+      status = 'inactive', updated_at_ms = ${Date.now()},
+      ${db.unsafe(SETTLE_RUN_MARKER_ON_DEACTIVATE)}
     WHERE id = ${configId} AND org_id = ${organizationId}
     RETURNING id
   `;
@@ -314,7 +336,8 @@ export async function deactivateSyncConfigsForPath(
   for (const table of ALL_SYNC_CONFIG_TABLES) {
     const rows = await db<{ id: string }[]>`
       UPDATE ${db.unsafe(table)} SET
-        status = 'inactive', updated_at_ms = ${Date.now()}
+        status = 'inactive', updated_at_ms = ${Date.now()},
+        ${db.unsafe(SETTLE_RUN_MARKER_ON_DEACTIVATE)}
       WHERE org_id = ${organizationId} AND status = 'active'
         AND (coalesce(item_path, '') = ${folderPath}
              OR coalesce(item_path, '') LIKE ${folderPath + '/%'})
@@ -348,7 +371,8 @@ export async function stopSyncForTrashedDocument(
   for (const table of ALL_SYNC_CONFIG_TABLES) {
     const rows = await db<{ id: string }[]>`
       UPDATE ${db.unsafe(table)} SET
-        status = 'inactive', updated_at_ms = ${Date.now()}
+        status = 'inactive', updated_at_ms = ${Date.now()},
+        ${db.unsafe(SETTLE_RUN_MARKER_ON_DEACTIVATE)}
       WHERE id = ${meta.syncConfigId} AND org_id = ${document.organizationId}
         AND status <> 'inactive'
       RETURNING id
