@@ -660,10 +660,10 @@ export async function executeConnectorAction(
   if (backend.kind === 'yaml-js' && liveRunner.kind() === 'node-vm') {
     throw new ConnectorError(
       'LIVE_RUNNER_UNAVAILABLE',
-      `${nodeType} has a live body, but this deployment's code runner is the data-only in-process one, which cannot reach credentials or the network`,
+      `${nodeType} has a live body, but this deployment's code runner is the data-only node-vm one, which cannot reach credentials or the network`,
       {
         ...where,
-        hint: 'live yaml-js execution needs the out-of-process sandbox runner, which is not wired up yet — run the action in mock mode until it lands',
+        hint: 'live yaml-js execution needs the isolated sandbox runner, which is not wired up yet — run the action in mock mode until it lands',
       },
     );
   }

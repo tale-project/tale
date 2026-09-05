@@ -67,9 +67,10 @@ import { pgTaskStore } from './task-store.ts';
  * INTERNAL by contract — callers do their own authorization first.
  *
  * Deliberately fail-loud until its domain lands: the sandbox script runner
- * (it says what is missing instead of silently degrading). Live yaml-js bodies run on the data-only in-process
- * runner, which refuses host capabilities by design — the out-of-process
- * sandbox runner rides the external-turn bridge increment.
+ * (it says what is missing instead of silently degrading). Live yaml-js bodies refuse on the data-only node-vm
+ * runner (a fault boundary in a supervised child process, not a host-capable
+ * one) by design — the isolated sandbox runner rides the external-turn
+ * bridge increment.
  */
 
 let mailTransportOverride: MailTransport | undefined;
@@ -308,9 +309,9 @@ export interface RunConnectorArgs {
   caller: ConnectorCaller;
   idempotencyKey?: string;
   /**
-   * A live sandbox session to run a yaml-js body IN, out of process. Only
-   * the external-turn bridge owns one; without it a live yaml-js body
-   * refuses on the data-only in-process runner (which cannot carry host
+   * A live sandbox session to run a yaml-js body IN, isolated from the
+   * host. Only the external-turn bridge owns one; without it a live yaml-js
+   * body refuses on the data-only node-vm runner (which cannot carry host
    * capabilities). The runner is per-invocation ON PURPOSE — the
    * process-global slot is shared by every concurrent org.
    */

@@ -10,9 +10,11 @@ import { describe, expect, it } from 'vitest';
  * The engine's layering, enforced: `core/` and `api/` are pure — no `node:*`
  * builtins, no Bun globals, no Convex modules — so the exact same code runs
  * under any host (Convex actions, Bun scripts, tests) and every side effect
- * flows through the slots. `runners/node-vm.ts` is the ONE sanctioned
- * exception (it exists to wrap `node:vm`); test files and the test-support
- * modules under `selftest/` are host code and exempt.
+ * flows through the slots. The backends under `runners/` are the ONE
+ * sanctioned exception — `node-vm.ts` exists to wrap `node:vm` and to
+ * supervise the child process (`node-vm-child.ts`) it evaluates in; test
+ * files and the test-support modules under `selftest/` are host code and
+ * exempt.
  */
 
 const ENGINE_ROOT = path.join(
@@ -91,9 +93,20 @@ describe('engine purity', () => {
 
   it('the node-vm runner is the only module touching node:vm', () => {
     const runnerDir = path.join(ENGINE_ROOT, 'runners');
-    const runnerImports = sourceFiles(runnerDir).flatMap((f) =>
-      importsOf(f).filter((s) => s.startsWith('node:')),
+    const nodeImportsByFile = Object.fromEntries(
+      sourceFiles(runnerDir).map((f) => [
+        path.basename(f),
+        importsOf(f)
+          .filter((s) => s.startsWith('node:'))
+          .sort(),
+      ]),
     );
-    expect(runnerImports).toEqual(['node:vm']);
+    // The supervisor forks and talks to its child; the child wraps node:vm;
+    // the sandbox-exec backend reaches nothing on the host at all.
+    expect(nodeImportsByFile).toEqual({
+      'node-vm-child.ts': ['node:vm'],
+      'node-vm.ts': ['node:child_process', 'node:net', 'node:url', 'node:vm'],
+      'sandbox-exec.ts': [],
+    });
   });
 });
