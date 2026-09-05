@@ -17,6 +17,7 @@ import {
 } from '../../auth/membership.ts';
 import { getStrictestPasswordPolicyForUser } from '../../lib/governance-policies.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { addMember } from '../members/service.ts';
 
 /**
  * Users domain — account metadata, password lifecycle, changelog
@@ -517,12 +518,15 @@ export interface CreateMemberResult {
 
 /**
  * Create a user (or reuse an existing one by email) and add them to an org.
- * Unlike client sign-up this never touches the admin's session. Member rows
- * are added through the org plugin's server API so its hooks stay in force.
+ * Unlike client sign-up this never touches the admin's session. The member
+ * row is written by the members domain's `addMember` — the ONE add-member
+ * concept — so the door the settings UI uses carries the same `add_member`
+ * audit row and `member` realtime hint as `POST /api/app/members`, in one
+ * transaction with the new user's rotation anchor.
  */
 export async function createMember(
   deps: { sql: Sql; auth: Auth },
-  actor: { userId: string },
+  actor: { userId: string; email?: string },
   args: CreateMemberArgs,
 ): Promise<CreateMemberResult> {
   const { sql, auth } = deps;
@@ -555,32 +559,16 @@ export async function createMember(
   const existingUserId = existingRows[0]?.id;
 
   if (existingUserId) {
-    const existingMember = await findOrganizationMember(
-      sql,
-      args.organizationId,
-      existingUserId,
-    );
-    if (existingMember) {
-      throw new UserServiceError(
-        'DUPLICATE_MEMBER',
-        'User is already a member of this organization',
-        400,
-      );
-    }
-    const added = await auth.api.addMember({
-      body: {
-        userId: existingUserId,
+    // `addMember` refuses a duplicate membership (DUPLICATE_MEMBER) inside
+    // the same transaction that would insert it — no read-then-write gap.
+    const memberId = await transactSerializable(sql, (tx) =>
+      addMember(tx, actor, {
         organizationId: args.organizationId,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- role names are validated against the org roles at the route boundary
-        role: role as 'member',
-      },
-    });
-    const memberId = added && isRecord(added) ? getString(added, 'id') : null;
-    return {
-      userId: existingUserId,
-      memberId: memberId ?? '',
-      isExistingUser: true,
-    };
+        userId: existingUserId,
+        role,
+      }),
+    );
+    return { userId: existingUserId, memberId, isExistingUser: true };
   }
 
   if (!args.password) {
@@ -607,25 +595,17 @@ export async function createMember(
     );
   }
 
-  const added = await auth.api.addMember({
-    body: {
-      userId: newUserId,
+  const memberId = await transactSerializable(sql, async (tx) => {
+    const id = await addMember(tx, actor, {
       organizationId: args.organizationId,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- role names are validated against the org roles at the route boundary
-      role: role as 'member',
-    },
+      userId: newUserId,
+      role,
+    });
+    await recordPasswordChange(tx, newUserId, { forceChangeOnNextLogin: true });
+    return id;
   });
-  const memberId = added && isRecord(added) ? getString(added, 'id') : null;
 
-  await transactSerializable(sql, (tx) =>
-    recordPasswordChange(tx, newUserId, { forceChangeOnNextLogin: true }),
-  );
-
-  return {
-    userId: newUserId,
-    memberId: memberId ?? '',
-    isExistingUser: false,
-  };
+  return { userId: newUserId, memberId, isExistingUser: false };
 }
 
 // ---------------------------------------------------------------------------
