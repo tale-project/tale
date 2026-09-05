@@ -129,14 +129,68 @@ export async function resolveOrgObjectStoresForRead(
   return sameObjectStore(primary, fallback) ? [primary] : [primary, fallback];
 }
 
-/** Two connections address the same physical bucket (a key stays one object
- * however it is signed for). */
+/**
+ * The endpoint an object request really goes to, in one spelling: parsed as
+ * a URL (host case-folded, a trailing slash dropped — `objectUrl` strips it
+ * too) so `http://minio:9000/` and `http://MinIO:9000` compare equal; an
+ * endpoint that does not parse is compared trimmed and case-folded. `null`
+ * for the AWS default.
+ */
+function endpointIdentity(endpoint: string | undefined): string | null {
+  if (endpoint === undefined) return null;
+  const trimmed = endpoint.trim();
+  if (trimmed === '') return null;
+  if (!URL.canParse(trimmed)) {
+    return trimmed.replace(/\/+$/, '').toLowerCase();
+  }
+  const u = new URL(trimmed);
+  return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, '')}`;
+}
+
+/**
+ * Two connections address the same physical bucket as far as their CONFIG
+ * can tell (a key stays one object however it is signed for): the same
+ * bucket at the same endpoint identity, or — with no endpoint on either
+ * side — the same bucket on AWS, where bucket names are global and the
+ * region string only says where the client looks first. Path-style is a
+ * request-shape choice, not a different store. A config compare cannot see
+ * DNS aliases or a proxy in front of the same bucket; a lane that DELETES
+ * on the strength of "different stores" probes with `sharesPhysicalStore`.
+ */
 export function sameObjectStore(a: S3ObjectStore, b: S3ObjectStore): boolean {
-  return (
-    a.config.bucket === b.config.bucket &&
-    a.config.region === b.config.region &&
-    (a.config.endpoint ?? null) === (b.config.endpoint ?? null)
+  if (a.config.bucket !== b.config.bucket) return false;
+  const endpointA = endpointIdentity(a.config.endpoint);
+  const endpointB = endpointIdentity(b.config.endpoint);
+  if (endpointA === null && endpointB === null) return true;
+  return endpointA === endpointB;
+}
+
+/**
+ * Whether `source` and `target` are ONE physical bucket, proven rather than
+ * inferred: a marker object written through `target` under a fresh
+ * org-namespaced key must be invisible through `source`. Every alias the
+ * config compare is blind to — a trailing slash, a DNS name for the same
+ * host, a proxy, an AWS bucket reached through two endpoint strings — makes
+ * the marker show up on both sides. The marker is deleted again on every
+ * path; a PUT or DELETE failure surfaces to the caller. For a lane that is
+ * about to delete a source copy on the strength of "the target is a
+ * different store".
+ */
+export async function sharesPhysicalStore(
+  source: S3ObjectStore,
+  target: S3ObjectStore,
+  orgSlug: string,
+): Promise<boolean> {
+  const key = buildObjectKey(target, orgSlug);
+  const body = new TextEncoder().encode(
+    `tale-object-storage-identity-probe ${new Date().toISOString()}`,
   );
+  await s3PutObject(target, key, body, 'text/plain; charset=utf-8');
+  try {
+    return (await s3HeadObject(source, key)) !== null;
+  } finally {
+    await s3DeleteObject(target, key);
+  }
 }
 
 /**
@@ -154,10 +208,33 @@ export async function locateOrgObjectStore(
   const primary = stores[0];
   if (primary === undefined) throw new ObjectStoreUnconfiguredError();
   if (stores.length === 1) return primary;
+  return (await locateAmong(stores, key))?.store ?? primary;
+}
+
+/**
+ * `locateOrgObjectStore` for a reader that needs the object's HEAD anyway:
+ * the store holding `key` together with that HEAD, in ONE round-trip per
+ * candidate store, or `null` when no store holds it. Saves the second HEAD
+ * a caller would otherwise issue against the located store.
+ */
+export async function locateOrgObject(
+  orgSlug: string,
+  key: string,
+): Promise<{ store: S3ObjectStore; head: S3ObjectHead } | null> {
+  const stores = await resolveOrgObjectStoresForRead(orgSlug);
+  if (stores[0] === undefined) throw new ObjectStoreUnconfiguredError();
+  return locateAmong(stores, key);
+}
+
+async function locateAmong(
+  stores: S3ObjectStore[],
+  key: string,
+): Promise<{ store: S3ObjectStore; head: S3ObjectHead } | null> {
   for (const store of stores) {
-    if ((await s3HeadObject(store, key)) !== null) return store;
+    const head = await s3HeadObject(store, key);
+    if (head !== null) return { store, head };
   }
-  return primary;
+  return null;
 }
 
 /**
@@ -426,16 +503,25 @@ export async function s3GetObjectBytes(
   return (await s3GetObject(store, key)).bytes;
 }
 
+/** What a HEAD says about a stored object: its authoritative size and the
+ * Content-Type the store holds for it (`null` when it answers none). */
+export interface S3ObjectHead {
+  size: number;
+  contentType: string | null;
+}
+
 /**
- * HEAD an object → its size in bytes (the authoritative server-side length).
- * Used to verify an `s3:` upload's real size against the product cap — a
- * presigned PUT enforces no Content-Length, so the client-declared size can't
- * be trusted. Returns `null` when the object is missing (404).
+ * HEAD an object → its size in bytes (the authoritative server-side length)
+ * and stored Content-Type. The size verifies an `s3:` upload's real size
+ * against the product cap — a presigned PUT enforces no Content-Length, so
+ * the client-declared size can't be trusted; the type lets a copy between
+ * stores be recognised as the SAME object rather than a same-length one.
+ * Returns `null` when the object is missing (404).
  */
 export async function s3HeadObject(
   store: S3ObjectStore,
   key: string,
-): Promise<{ size: number } | null> {
+): Promise<S3ObjectHead | null> {
   const res = await store.client.fetch(objectUrl(store, key), {
     method: 'HEAD',
   });
@@ -448,7 +534,12 @@ export async function s3HeadObject(
   if (!Number.isFinite(size)) {
     throw new Error(`S3 HEAD ${key} returned no usable content-length`);
   }
-  return { size };
+  const contentType = res.headers.get('content-type');
+  return {
+    size,
+    contentType:
+      contentType === null || contentType === '' ? null : contentType,
+  };
 }
 
 /** DELETE an object. S3 DELETE is idempotent (204 whether or not it existed). */

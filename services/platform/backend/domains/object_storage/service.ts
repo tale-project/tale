@@ -30,6 +30,8 @@ import {
   s3HeadObject,
   s3PutObject,
   sameObjectStore,
+  sharesPhysicalStore,
+  type S3ObjectHead,
   type S3ObjectStore,
 } from '../../core/lib/storage/object_store.ts';
 import {
@@ -415,12 +417,15 @@ interface BackfillCounters {
  * Move ONE blob: HEAD source → HEAD target → GET source → PUT target with
  * the source's content type → HEAD target to verify the landed size →
  * DELETE source. A blob already gone from the source has nothing left to
- * move; a target copy that already matches the source finishes the move
- * (deletes the source) — the resume path after a run that died between
- * its verified PUT and its source delete; a target copy of the WRONG size
- * (an unverified copy from an earlier engine) is re-copied over. A copy
- * that lands short is deleted again before counting as failed, so the
- * next run never mistakes it for the real one.
+ * move; a target copy that matches the source in BOTH size and content
+ * type finishes the move (deletes the source) — the resume path after a
+ * run that died between its verified PUT and its source delete. A target
+ * copy that differs in either — the wrong size from an unverified copy, or
+ * the same bytes landed as `application/octet-stream` by the copy-only
+ * engine that ran before the move existed — is re-copied over: the source
+ * is the only copy carrying the real type, so it must never be retired on
+ * a size match alone. A copy that lands short is deleted again before
+ * counting as failed, so the next run never mistakes it for the real one.
  */
 async function handleRef(
   ref: string,
@@ -450,7 +455,7 @@ async function handleRef(
       return;
     }
     const targetHead = target === null ? null : await s3HeadObject(target, key);
-    if (targetHead !== null && targetHead.size === sourceHead.size) {
+    if (targetHead !== null && sameObject(sourceHead, targetHead)) {
       if (!dryRun && source !== null) await s3DeleteObject(source, key);
       counters.skipped += 1;
       return;
@@ -487,6 +492,18 @@ async function handleRef(
     counters.failed += 1;
     console.warn(`[object-storage] backfill failed for ${ref}:`, error);
   }
+}
+
+/**
+ * A target copy is the source's finished move only when the size AND the
+ * stored content type agree; a source without a type (a store that answers
+ * none) has nothing for the copy to differ from.
+ */
+function sameObject(source: S3ObjectHead, target: S3ObjectHead): boolean {
+  return (
+    source.size === target.size &&
+    (source.contentType === null || source.contentType === target.contentType)
+  );
 }
 
 interface BackfillRefSite {
@@ -567,8 +584,19 @@ export async function runBackfill(
       );
     }
     // Source and target are one physical bucket: every blob is already
-    // "there", and finishing a move would delete the only copy.
-    if (source !== null && target !== null && sameObjectStore(source, target)) {
+    // "there", and finishing a move would delete the only copy. The config
+    // compare catches the plain case; the probe (a marker written through
+    // the target that must stay invisible through the source) catches every
+    // alias the config cannot see — a trailing slash, a DNS name, a proxy,
+    // an AWS bucket reached through two endpoint strings. Dry runs probe
+    // too: a preview that reports "nothing to move" for a run that would
+    // delete every blob is no preview.
+    if (
+      source !== null &&
+      target !== null &&
+      (sameObjectStore(source, target) ||
+        (await sharesPhysicalStore(source, target, run.orgSlug)))
+    ) {
       throw new ObjectStorageError(
         'SAME_STORE',
         "The organization's bucket is the deployment's default store; there is nothing to move.",

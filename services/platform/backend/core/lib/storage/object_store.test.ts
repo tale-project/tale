@@ -8,13 +8,17 @@ import {
   buildS3ObjectStore,
   clearOrgObjectStoreCache,
   deleteOrgObject,
+  locateOrgObject,
   locateOrgObjectStore,
   ObjectStoreUnconfiguredError,
   resolveOrgObjectStore,
   resolveOrgObjectStoresForRead,
   s3GetObject,
+  s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
+  sameObjectStore,
+  sharesPhysicalStore,
   type S3ObjectStore,
 } from './object_store';
 
@@ -356,6 +360,25 @@ describe('read-side store location — blobs written before the org connected it
     ).toBe('acme-own-bucket');
   });
 
+  it('locates the object together with its HEAD, or answers null when no store holds it', async () => {
+    writeTree('default', connectionJson('default-blobs'));
+    writeTree('acme', connectionJson('acme-own-bucket'));
+    const [own, fallback] = await resolveOrgObjectStoresForRead('acme');
+    if (own === undefined || fallback === undefined) throw new Error('setup');
+    fakeBucket(own, []);
+    fakeBucket(fallback, ['acme/old']);
+    const ownRequests = vi.spyOn(own.client, 'fetch');
+    const fallbackRequests = vi.spyOn(fallback.client, 'fetch');
+
+    const located = await locateOrgObject('acme', 'acme/old');
+    expect(located?.store.config.bucket).toBe('default-blobs');
+    expect(located?.head).toMatchObject({ size: 4 });
+    // One HEAD per candidate store, none repeated for the located one.
+    expect(ownRequests).toHaveBeenCalledTimes(1);
+    expect(fallbackRequests).toHaveBeenCalledTimes(1);
+    expect(await locateOrgObject('acme', 'acme/missing')).toBeNull();
+  });
+
   it('does not round-trip when the org has a single store', async () => {
     writeTree('default', connectionJson('default-blobs'));
     const [only] = await resolveOrgObjectStoresForRead('acme');
@@ -393,5 +416,220 @@ describe('read-side store location — blobs written before the org connected it
       /S3 DELETE/,
     );
     expect(fallbackDeleted).toEqual(['acme/old']);
+  });
+});
+
+describe('s3HeadObject — size and the stored content type', () => {
+  function storeAnswering(res: Response): S3ObjectStore {
+    const store = testStore();
+    Object.assign(store.client, { fetch: vi.fn(() => Promise.resolve(res)) });
+    return store;
+  }
+
+  it('returns the size and the Content-Type the store holds', async () => {
+    const store = storeAnswering(
+      new Response(null, {
+        status: 200,
+        headers: { 'content-length': '10', 'content-type': 'application/pdf' },
+      }),
+    );
+    expect(await s3HeadObject(store, 'acme/doc')).toEqual({
+      size: 10,
+      contentType: 'application/pdf',
+    });
+  });
+
+  it('answers a null content type for a store that sends none', async () => {
+    const store = storeAnswering(
+      new Response(null, { status: 200, headers: { 'content-length': '10' } }),
+    );
+    expect(await s3HeadObject(store, 'acme/doc')).toEqual({
+      size: 10,
+      contentType: null,
+    });
+  });
+
+  it('answers null for a missing object', async () => {
+    const store = storeAnswering(new Response(null, { status: 404 }));
+    expect(await s3HeadObject(store, 'acme/doc')).toBeNull();
+  });
+});
+
+describe('sameObjectStore — one physical bucket as far as the config can tell', () => {
+  function storeOf(config: {
+    bucket: string;
+    region?: string;
+    endpoint?: string;
+    forcePathStyle?: boolean;
+  }): S3ObjectStore {
+    return buildS3ObjectStore(
+      { region: 'us-east-1', forcePathStyle: true, ...config },
+      { accessKeyId: 'k', secretAccessKey: 's' },
+    );
+  }
+
+  it('sees through a trailing slash and host case in the endpoint', () => {
+    const a = storeOf({ bucket: 'blobs', endpoint: 'http://minio:9000' });
+    expect(
+      sameObjectStore(
+        a,
+        storeOf({ bucket: 'blobs', endpoint: 'http://minio:9000/' }),
+      ),
+    ).toBe(true);
+    expect(
+      sameObjectStore(
+        a,
+        storeOf({ bucket: 'blobs', endpoint: 'HTTP://MinIO:9000' }),
+      ),
+    ).toBe(true);
+    expect(
+      sameObjectStore(
+        a,
+        storeOf({ bucket: 'blobs', endpoint: ' http://minio:9000 ' }),
+      ),
+    ).toBe(true);
+  });
+
+  it('ignores path style and region for the same bucket at the same endpoint', () => {
+    const a = storeOf({
+      bucket: 'blobs',
+      endpoint: 'http://minio:9000',
+      forcePathStyle: true,
+    });
+    expect(
+      sameObjectStore(
+        a,
+        storeOf({
+          bucket: 'blobs',
+          endpoint: 'http://minio:9000',
+          forcePathStyle: false,
+          region: 'eu-central-1',
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('treats the same AWS bucket as one store whatever region string names it', () => {
+    expect(
+      sameObjectStore(
+        storeOf({ bucket: 'tale-blobs', region: 'us-east-1' }),
+        storeOf({ bucket: 'tale-blobs', region: 'eu-west-1' }),
+      ),
+    ).toBe(true);
+    expect(
+      sameObjectStore(
+        storeOf({ bucket: 'tale-blobs', region: 'us-east-1' }),
+        storeOf({ bucket: 'tale-blobs', region: 'us-east-1', endpoint: '' }),
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps different buckets, hosts, and AWS-vs-endpoint apart', () => {
+    const a = storeOf({ bucket: 'blobs', endpoint: 'http://minio:9000' });
+    expect(
+      sameObjectStore(
+        a,
+        storeOf({ bucket: 'other', endpoint: 'http://minio:9000' }),
+      ),
+    ).toBe(false);
+    expect(
+      sameObjectStore(
+        a,
+        storeOf({ bucket: 'blobs', endpoint: 'http://minio-2:9000' }),
+      ),
+    ).toBe(false);
+    expect(
+      sameObjectStore(
+        a,
+        storeOf({ bucket: 'blobs', endpoint: 'http://minio:9000/tenant' }),
+      ),
+    ).toBe(false);
+    expect(sameObjectStore(a, storeOf({ bucket: 'blobs' }))).toBe(false);
+  });
+});
+
+describe('sharesPhysicalStore — the identity probe before a destructive move', () => {
+  /** A store whose requests land in `objects`; every verb is recorded. */
+  function physicalStore(
+    endpoint: string,
+    objects: Map<string, number>,
+  ): { store: S3ObjectStore; verbs: string[] } {
+    const store = buildS3ObjectStore(
+      { region: 'us-east-1', endpoint, bucket: 'blobs', forcePathStyle: true },
+      { accessKeyId: 'k', secretAccessKey: 's' },
+    );
+    const verbs: string[] = [];
+    Object.assign(store.client, {
+      fetch: vi.fn((input: string, init?: RequestInit) => {
+        const key = decodeURIComponent(new URL(input).pathname)
+          .split('/')
+          .slice(2)
+          .join('/');
+        const method = init?.method ?? 'GET';
+        verbs.push(`${method} ${key}`);
+        if (method === 'PUT') {
+          const body: unknown = init?.body;
+          if (!(body instanceof Uint8Array)) throw new Error('fake PUT body');
+          objects.set(key, body.byteLength);
+          return Promise.resolve(new Response(null, { status: 200 }));
+        }
+        if (method === 'DELETE') {
+          objects.delete(key);
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+        const size = objects.get(key);
+        return Promise.resolve(
+          size === undefined
+            ? new Response(null, { status: 404 })
+            : new Response(null, {
+                status: 200,
+                headers: { 'content-length': String(size) },
+              }),
+        );
+      }),
+    });
+    return { store, verbs };
+  }
+
+  it('answers true when the marker written through the target is visible through the source, and removes it', async () => {
+    const shared = new Map<string, number>([['acme/doc', 9]]);
+    const source = physicalStore('http://minio:9000', shared);
+    const target = physicalStore('http://minio-alias:9000', shared);
+
+    expect(await sharesPhysicalStore(source.store, target.store, 'acme')).toBe(
+      true,
+    );
+    expect([...shared.keys()]).toEqual(['acme/doc']);
+    expect(target.verbs.map((v) => v.split(' ')[0])).toEqual(['PUT', 'DELETE']);
+    expect(source.verbs).toHaveLength(1);
+    expect(source.verbs[0]).toMatch(/^HEAD acme\/[0-9a-f-]{36}$/);
+  });
+
+  it('answers false for two physical buckets, and still removes the marker', async () => {
+    const sourceObjects = new Map<string, number>([['acme/doc', 9]]);
+    const targetObjects = new Map<string, number>();
+    const source = physicalStore('http://minio:9000', sourceObjects);
+    const target = physicalStore('http://minio-2:9000', targetObjects);
+
+    expect(await sharesPhysicalStore(source.store, target.store, 'acme')).toBe(
+      false,
+    );
+    expect(targetObjects.size).toBe(0);
+    expect(target.verbs.map((v) => v.split(' ')[0])).toEqual(['PUT', 'DELETE']);
+  });
+
+  it('removes the marker even when the source HEAD fails, then surfaces the failure', async () => {
+    const targetObjects = new Map<string, number>();
+    const target = physicalStore('http://minio-2:9000', targetObjects);
+    const source = testStore();
+    Object.assign(source.client, {
+      fetch: vi.fn(() => Promise.resolve(new Response(null, { status: 500 }))),
+    });
+
+    await expect(
+      sharesPhysicalStore(source, target.store, 'acme'),
+    ).rejects.toThrow(/S3 HEAD/);
+    expect(targetObjects.size).toBe(0);
+    expect(target.verbs.map((v) => v.split(' ')[0])).toEqual(['PUT', 'DELETE']);
   });
 });

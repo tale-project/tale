@@ -2,6 +2,7 @@ import {
   buildObjectKey,
   clearOrgObjectStoreCache,
   deleteOrgObject,
+  locateOrgObject,
   locateOrgObjectStore,
   ObjectStoreUnconfiguredError,
   resolveOrgObjectStore,
@@ -53,6 +54,7 @@ export async function resolveObjectStore(
 export {
   buildObjectKey,
   deleteOrgObject,
+  locateOrgObject,
   locateOrgObjectStore,
   resolveOrgObjectStoresForRead,
   s3DeleteObject,
