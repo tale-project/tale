@@ -27,6 +27,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
+import type { ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -39,6 +40,7 @@ import { z } from 'zod';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
 import { runBootMigrations } from './db/migrate.ts';
@@ -26028,6 +26030,92 @@ async function checkAutomationAgentNode(
   const NODE_TEXT = 'Analysis complete; wrote note.md.';
   const NOTE_BYTES = 'automation note';
   const gatewayCalls = { minted: 0, revoked: 0 };
+  // The ask lane: armed before a start, the next FRESH exec asks a question
+  // through the real tool door (the bearer the kick minted, lifted from the
+  // exec body) and ends cleanly; the exec that resumes the conversation
+  // (`resume: ASK_CONVERSATION` in its body) answers with RESUMED_TEXT.
+  const ASK_CONVERSATION = 'wfconv-7';
+  const ASK_QUESTION = 'Which fiscal year do the numbers cover?';
+  const ASKED_TEXT = 'Asked the operator; waiting for the answer.';
+  const RESUMED_TEXT = 'Resumed with the answer; wrote note.md.';
+  const askLane = { armed: false, asked: 0, resumed: 0, lastDispatch: '' };
+  const writeExecStream = (res: ServerResponse, finalText: string): void => {
+    res.setHeader('content-type', 'text/event-stream');
+    const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
+    const events = [
+      line({
+        type: 'system',
+        subtype: 'init',
+        session_id: ASK_CONVERSATION,
+        model: 'itest-agent-model',
+      }),
+      line({
+        type: 'assistant',
+        message: {
+          id: 'wm1',
+          model: 'itest-agent-model',
+          content: [{ type: 'text', text: 'Analyzing…' }],
+          usage: { input_tokens: 80, output_tokens: 25 },
+        },
+      }),
+      line({
+        type: 'result',
+        subtype: 'success',
+        session_id: ASK_CONVERSATION,
+        result: finalText,
+        duration_ms: 400,
+      }),
+    ];
+    let seq = 0;
+    for (const text of events) {
+      seq += 1;
+      res.write(`event: stdout\ndata: ${JSON.stringify({ text, seq })}\n\n`);
+    }
+    res.write(
+      `event: result\ndata: ${JSON.stringify({
+        exitCode: 0,
+        stdoutBase64: '',
+        stderrBase64: '',
+      })}\n\n`,
+    );
+    res.end();
+  };
+  const respondExec = async (
+    res: ServerResponse,
+    exec: { isResume: boolean; bearer: string },
+  ): Promise<void> => {
+    if (exec.isResume) {
+      askLane.resumed += 1;
+      writeExecStream(res, RESUMED_TEXT);
+      return;
+    }
+    if (!askLane.armed) {
+      writeExecStream(res, NODE_TEXT);
+      return;
+    }
+    askLane.armed = false;
+    askLane.asked += 1;
+    // The same door a container knocks on, with the turn's own bearer. The
+    // cursor that names this exec is committed by the stepper right after the
+    // kick returns, so a fast exec may knock a beat early — poll briefly.
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const reply = await fetch(`${base}/api/tools/execute`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${exec.bearer}`,
+        },
+        body: JSON.stringify({
+          tool: 'ask_human',
+          args: { question: ASK_QUESTION },
+        }),
+      });
+      askLane.lastDispatch = (await reply.text()).slice(0, 200);
+      if (askLane.lastDispatch.includes('"askId"')) break;
+      await sleep(100);
+    }
+    writeExecStream(res, ASKED_TEXT);
+  };
 
   const spawner = createServer((req, res) => {
     let body = '';
@@ -26072,47 +26160,14 @@ async function checkAutomationAgentNode(
         return;
       }
       if (method === 'POST' && url.pathname.endsWith('/exec')) {
-        res.setHeader('content-type', 'text/event-stream');
-        const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
-        const events = [
-          line({
-            type: 'system',
-            subtype: 'init',
-            session_id: 'wfconv-7',
-            model: 'itest-agent-model',
-          }),
-          line({
-            type: 'assistant',
-            message: {
-              id: 'wm1',
-              model: 'itest-agent-model',
-              content: [{ type: 'text', text: 'Analyzing…' }],
-              usage: { input_tokens: 80, output_tokens: 25 },
-            },
-          }),
-          line({
-            type: 'result',
-            subtype: 'success',
-            session_id: 'wfconv-7',
-            result: NODE_TEXT,
-            duration_ms: 400,
-          }),
-        ];
-        let seq = 0;
-        for (const text of events) {
-          seq += 1;
-          res.write(
-            `event: stdout\ndata: ${JSON.stringify({ text, seq })}\n\n`,
-          );
-        }
-        res.write(
-          `event: result\ndata: ${JSON.stringify({
-            exitCode: 0,
-            stdoutBase64: '',
-            stderrBase64: '',
-          })}\n\n`,
-        );
-        res.end();
+        respondExec(res, {
+          isResume: body.includes(ASK_CONVERSATION),
+          bearer: /sk-bf-node-\d+/.exec(body)?.[0] ?? '',
+        }).catch((error: unknown) => {
+          console.warn('[itest] fake spawner exec failed:', error);
+          res.statusCode = 500;
+          res.end('{}');
+        });
         return;
       }
       if (url.pathname.endsWith('/files/stage')) {
@@ -26372,6 +26427,294 @@ async function checkAutomationAgentNode(
       WHERE name = 'automation.agent_drive'
         AND data ->> 'execId' = 'wf-seam-probe-exec'
     `;
+
+    // ---- ask → park → answer → resume (automations-core-1) -----------------
+    // The turn asks through the real tool door and ends cleanly: that is the
+    // WAIT, not a settle. Regression: `recordAskParked` read a different arg
+    // shape than the host sends, so the first park threw UNDEFINED_VALUE and
+    // the node settled as `start_failed` — the projection fix made this
+    // branch reachable, and nothing below the unit level ever drove it.
+    const runSessionOps = (
+      forRunId: string,
+    ): Promise<
+      {
+        status: string;
+        execId: string;
+        agentResultStatus: string | null;
+      }[]
+    > => sql<
+      { status: string; execId: string; agentResultStatus: string | null }[]
+    >`
+      SELECT o.status, o.exec_id AS "execId",
+             o.agent_result_status AS "agentResultStatus"
+      FROM app.sandbox_session_ops o
+      JOIN app.sandbox_sessions s ON s.session_id = o.session_id
+      WHERE s.owner_type = 'workflow_run'
+        AND (s.owner_id = ${forRunId} OR s.owner_id LIKE ${forRunId + ':%'})
+        AND o.kind = 'workflow-agent'
+      ORDER BY o.started_at_ms DESC
+    `;
+    askLane.armed = true;
+    const askStarted = z.object({ runId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/ops/agentic/start?orgId=${orgId}`, {
+          input: { subject: 'the numbers behind a question' },
+          mode: 'live',
+        })
+      ).json(),
+    );
+    const askRunId = askStarted.success ? askStarted.data.runId : '';
+    const parked = await waitFor(async () => {
+      const ops = await runSessionOps(askRunId);
+      return ops[0]?.agentResultStatus === 'awaiting_human';
+    }, 60_000);
+    const parkedRun = (
+      await sql<
+        { status: string; checkpoints: unknown; detail: string | null }[]
+      >`
+        SELECT status, checkpoints, detail FROM app.automation_runs
+        WHERE id = ${askRunId}
+      `
+    )[0];
+    const parkedOp = (await runSessionOps(askRunId))[0];
+    const askRow = (
+      await sql<
+        {
+          id: string;
+          status: string;
+          execId: string;
+          agentSessionId: string | null;
+          expiresAtMs: string;
+        }[]
+      >`
+        SELECT id, status, exec_id AS "execId",
+               agent_session_id AS "agentSessionId",
+               expires_at_ms::text AS "expiresAtMs"
+        FROM app.automation_human_asks
+        WHERE run_id = ${askRunId}
+        ORDER BY created_at_ms DESC LIMIT 1
+      `
+    )[0];
+    const parkedCursor = objectAt(
+      objectAt(parkedRun?.checkpoints, 'cursor'),
+      'agent',
+    );
+    const expectedDeadline =
+      Number(askRow?.expiresAtMs ?? '0') + ASK_DEADLINE_MARGIN_MS;
+    record(
+      'automation agent node: a clean turn end with a question parks the run (ask recorded, cursor re-armed, no settle)',
+      parked &&
+        askLane.asked === 1 &&
+        parkedRun?.status === 'waiting' &&
+        askRow?.status === 'pending' &&
+        askRow.agentSessionId === ASK_CONVERSATION &&
+        parkedCursor?.execId === askRow.execId &&
+        parkedCursor.result === undefined &&
+        parkedCursor.deadlineAt === expectedDeadline &&
+        parkedOp?.status === 'completed' &&
+        parkedOp.execId === askRow.execId,
+      `parked=${parked}, asked=${askLane.asked} (dispatch=${askLane.lastDispatch.slice(0, 80)}), run=${parkedRun?.status}${parkedRun?.detail ? ` (${parkedRun.detail.slice(0, 100)})` : ''} (want waiting), ask=${askRow?.status}/handle=${askRow?.agentSessionId ?? 'none'} (want pending/${ASK_CONVERSATION}), cursor(exec=${parkedCursor?.execId === askRow?.execId}, result=${String(parkedCursor?.result)}, deadline=${parkedCursor?.deadlineAt === expectedDeadline}), op=${parkedOp?.status}/${parkedOp?.agentResultStatus}`,
+    );
+
+    // The answer resumes the SAME conversation (the recorded handle rides the
+    // exec as `resume`), the resumed turn settles, and the run finishes.
+    const answered = await fetch(
+      `${base}/api/app/automations/asks/${askRow?.id ?? ''}/answer?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ answer: 'Fiscal year 2025.' }),
+      },
+    );
+    const resumedDone = await waitFor(async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM app.automation_runs WHERE id = ${askRunId}
+      `;
+      return ['success', 'failed', 'cancelled'].includes(rows[0]?.status ?? '');
+    }, 60_000);
+    const resumedRun = (
+      await sql<{ status: string; output: unknown; detail: string | null }[]>`
+        SELECT status, output, detail FROM app.automation_runs
+        WHERE id = ${askRunId}
+      `
+    )[0];
+    const resumedOutput = JSON.stringify(resumedRun?.output ?? null);
+    const answeredAsk = (
+      await sql<{ status: string }[]>`
+        SELECT status FROM app.automation_human_asks WHERE id = ${askRow?.id ?? ''}
+      `
+    )[0];
+    const resumedOps = await runSessionOps(askRunId);
+    record(
+      'automation agent node: the answer resumes the parked conversation and the run finishes',
+      answered.status === 200 &&
+        resumedDone &&
+        askLane.resumed === 1 &&
+        resumedRun?.status === 'success' &&
+        resumedOutput.includes(RESUMED_TEXT) &&
+        answeredAsk?.status === 'answered' &&
+        resumedOps.length === 2 &&
+        resumedOps.every((op) => op.status === 'completed'),
+      `answer=${answered.status}, resumed=${askLane.resumed} (want 1), run=${resumedRun?.status}${resumedRun?.detail ? ` (${resumedRun.detail.slice(0, 100)})` : ''}, output has resumed text=${resumedOutput.includes(RESUMED_TEXT)}, ask=${answeredAsk?.status}, ops=${resumedOps.map((op) => `${op.status}/${op.agentResultStatus ?? '-'}`).join(',')} (want 2 completed)`,
+    );
+
+    // ---- the inline sink's guards (automations-core-3) ----------------------
+    // A subautomation's nodes run inline on a sink that cannot park. The
+    // stepper refuses an agent node BEFORE the op row, the scheduled start
+    // and the sandbox turn a kick spends; a gated write is refused before any
+    // card is minted. The save door runs no validator, so these runtime
+    // guards are the only thing standing on this path.
+    const saveAndDeploy = async (
+      name: string,
+      doc: unknown,
+    ): Promise<string> => {
+      const saved = z.object({ version: z.number() }).safeParse(
+        await (
+          await post(`/api/app/automations/${name}/save?orgId=${orgId}`, {
+            document: doc,
+          })
+        ).json(),
+      );
+      const deployed = await post(
+        `/api/app/automations/${name}/deploy?orgId=${orgId}`,
+        { version: saved.success ? saved.data.version : 0 },
+      );
+      return `${saved.success ? `v${saved.data.version}` : 'save-failed'}/${deployed.status}`;
+    };
+    const startLiveAndSettle = async (
+      name: string,
+    ): Promise<{ runId: string; status: string; detail: string | null }> => {
+      const kicked = z.object({ runId: z.string() }).safeParse(
+        await (
+          await post(`/api/app/automations/${name}/start?orgId=${orgId}`, {
+            input: { subject: 'guarded' },
+            mode: 'live',
+          })
+        ).json(),
+      );
+      const guardedRunId = kicked.success ? kicked.data.runId : '';
+      await waitFor(async () => {
+        const rows = await sql<{ status: string }[]>`
+          SELECT status FROM app.automation_runs WHERE id = ${guardedRunId}
+        `;
+        return ['success', 'failed', 'cancelled'].includes(
+          rows[0]?.status ?? '',
+        );
+      }, 30_000);
+      const row = (
+        await sql<{ status: string; detail: string | null }[]>`
+          SELECT status, detail FROM app.automation_runs
+          WHERE id = ${guardedRunId}
+        `
+      )[0];
+      return {
+        runId: guardedRunId,
+        status: row?.status ?? 'missing',
+        detail: row?.detail ?? null,
+      };
+    };
+
+    const subAgentDeploy = await saveAndDeploy('ops/sub-agentic', {
+      version: 1,
+      name: 'ops/sub-agentic',
+      nodes: [
+        {
+          id: 'work',
+          type: 'agent',
+          model: 'itest-agent-model',
+          prompt: 'Analyze: {{ input.subject }}',
+        },
+      ],
+      output: '{{ nodes.work.output }}',
+    });
+    const parentAgentDeploy = await saveAndDeploy('ops/parent-agentic', {
+      version: 1,
+      name: 'ops/parent-agentic',
+      nodes: [
+        {
+          id: 'sub',
+          type: 'subautomation',
+          automation: 'ops/sub-agentic',
+          input: { subject: '{{ input.subject }}' },
+        },
+      ],
+      output: '{{ nodes.sub.output }}',
+    });
+    const spentBefore = { ...gatewayCalls };
+    const subAgentRun = await startLiveAndSettle('ops/parent-agentic');
+    const subAgentOps = await runSessionOps(subAgentRun.runId);
+    const subAgentSessions = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.sandbox_sessions
+      WHERE owner_type = 'workflow_run'
+        AND (owner_id = ${subAgentRun.runId}
+          OR owner_id LIKE ${subAgentRun.runId + ':%'})
+    `;
+    const subAgentJobs = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name IN ('automation.agent_turn', 'automation.agent_drive')
+        AND data ->> 'runId' = ${subAgentRun.runId}
+    `;
+    record(
+      'automation agent node: a subautomation refuses an agent node before spending a turn',
+      subAgentRun.status === 'failed' &&
+        (subAgentRun.detail ?? '').includes(
+          'an agent node cannot run inside a subautomation',
+        ) &&
+        subAgentOps.length === 0 &&
+        subAgentSessions[0]?.count === '0' &&
+        subAgentJobs[0]?.count === '0' &&
+        gatewayCalls.minted === spentBefore.minted,
+      `deploy(sub=${subAgentDeploy}, parent=${parentAgentDeploy}), run=${subAgentRun.status} (${(subAgentRun.detail ?? '').slice(0, 140)}), ops=${subAgentOps.length} sessions=${subAgentSessions[0]?.count} agentJobs=${subAgentJobs[0]?.count} (want 0/0/0), keysMinted=${gatewayCalls.minted - spentBefore.minted} (want 0)`,
+    );
+
+    // The default policy holds every outbound write for a person; inside a
+    // subautomation nobody could release it, so the run fails honestly and
+    // no card is left behind that nothing would ever consume.
+    const subSendDeploy = await saveAndDeploy('ops/sub-send', {
+      version: 1,
+      name: 'ops/sub-send',
+      nodes: [
+        {
+          id: 'send',
+          type: 'imap-smtp.send',
+          input: {
+            to: 'ops@example.com',
+            subject: '{{ input.subject }}',
+            text: 'Sent from inside a subautomation.',
+          },
+        },
+      ],
+      output: '{{ nodes.send.output }}',
+    });
+    const parentSendDeploy = await saveAndDeploy('ops/parent-send', {
+      version: 1,
+      name: 'ops/parent-send',
+      nodes: [
+        {
+          id: 'sub',
+          type: 'subautomation',
+          automation: 'ops/sub-send',
+          input: { subject: '{{ input.subject }}' },
+        },
+      ],
+      output: '{{ nodes.sub.output }}',
+    });
+    const subSendRun = await startLiveAndSettle('ops/parent-send');
+    const subSendCards = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.approvals
+      WHERE org_id = ${orgId}
+        AND (metadata ->> 'runId' = ${subSendRun.runId}
+          OR resource_id LIKE ${subSendRun.runId + ':%'})
+    `;
+    record(
+      'automation agent node: a subautomation refuses a gated write without minting a card',
+      subSendRun.status === 'failed' &&
+        (subSendRun.detail ?? '').includes(
+          'a subautomation cannot wait for approval',
+        ) &&
+        subSendCards[0]?.count === '0',
+      `deploy(sub=${subSendDeploy}, parent=${parentSendDeploy}), run=${subSendRun.status} (${(subSendRun.detail ?? '').slice(0, 160)}), cards=${subSendCards[0]?.count} (want 0)`,
+    );
   } finally {
     delete process.env.SANDBOX_URL;
     delete process.env.SANDBOX_TOKEN;

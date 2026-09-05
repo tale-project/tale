@@ -219,7 +219,7 @@ function readAskRow(value: unknown): AskRow | null {
 /** The extra margin the parked cursor's deadline gets past the ask's expiry,
  * so the poll-side expiry settle always wins over the stepper's generic
  * time-limit cut (whose message would blame the agent, not the silence). */
-const ASK_DEADLINE_MARGIN_MS = 60 * 60 * 1000;
+export const ASK_DEADLINE_MARGIN_MS = 60 * 60 * 1000;
 
 /** Best-effort close of a turn's pending ask on the cancel paths — an
  * unanswerable card must not keep soliciting an answer. */
