@@ -642,6 +642,27 @@ async function checkOutboxRetention(
     `;
     return rows[0]?.id ?? '0';
   };
+  // The worker's `realtime.reclaim_outbox` cron is the reclaimer a headless
+  // deployment relies on — no `/events` stream open to tick the lazy one. A
+  // row past the horizon is drained by the task handler alone.
+  const cronStale = await insert('cron-stale');
+  await sql`
+    UPDATE app_realtime.outbox
+    SET created_at = ${new Date(Date.now() - 2 * OUTBOX_RETENTION_MS)}
+    WHERE id <= ${cronStale}::bigint
+  `;
+  const cronReclaim = createTaskList({ sql })['realtime.reclaim_outbox'];
+  if (cronReclaim !== undefined) await cronReclaim({});
+  const cronLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE id <= ${cronStale}::bigint
+  `;
+  record(
+    'realtime outbox retention: the worker cron sweep drains without a stream',
+    cronReclaim !== undefined && cronLeft[0]?.count === '0',
+    `handler=${cronReclaim !== undefined ? 'registered' : 'MISSING'}, rows left at or below the stale prefix=${cronLeft[0]?.count} (want 0)`,
+  );
+
   // Three rows in id order: one past the horizon, one fresh, and one past
   // the horizon ABOVE the fresh one (a stamp a long transaction can leave).
   const stale = await insert('stale');

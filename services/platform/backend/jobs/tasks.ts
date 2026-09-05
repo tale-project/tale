@@ -85,6 +85,9 @@ export interface TaskPayloads {
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
   'maintenance.login_attempts_ttl': Record<string, never>;
+  /** Sweep delivered realtime hints past the retention horizon (cron) — the
+   * backstop for a deployment with no `/events` stream open to do it lazily. */
+  'realtime.reclaim_outbox': Record<string, never>;
   /** Index one uploaded file into the org's RAG corpus. */
   'rag.index_file': { fileId: string };
   /** Release rotated-away blob refs: de-index dead corpus rows, delete
@@ -362,6 +365,8 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'task.start_workflow': { retryLimit: 3, retryDelay: 5, expireInSeconds: 300 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
+  // A missed sweep is picked up by the next cron tick; nothing to retry.
+  'realtime.reclaim_outbox': { retryLimit: 0, expireInSeconds: 300 },
   // Releases are idempotent (liveness re-checked at run time; corpus and
   // blob deletes are no-ops on missing targets) — retry generously, and let
   // the daily corpus reconcile catch anything that exhausts the ladder.
