@@ -13,6 +13,19 @@ export function sandboxCapacityWakeEventName(
   return `sandbox_capacity:${wfExecutionId}:${stepSlug}`;
 }
 
+/**
+ * The `kind` an agent-turn op row carries in `app.sandbox_session_ops`: the
+ * task-agent host writes `task-agent`, the automation agent host writes
+ * `workflow-agent`. Every reader that folds "the agent turns" (the external-
+ * turn metrics, the harness-health hint) and every writer that creates an op
+ * row outside the hosts (the re-attach sweeps) must speak this vocabulary —
+ * a row filed under any other kind is invisible to the run-card and metric
+ * reads.
+ */
+export const SANDBOX_AGENT_OP_KINDS = ['task-agent', 'workflow-agent'] as const;
+
+export type SandboxAgentOpKind = (typeof SANDBOX_AGENT_OP_KINDS)[number];
+
 /** Per-owner concurrent-session cap (org cap lives spawner-side too). */
 export const SANDBOX_MAX_SESSIONS_PER_OWNER = 1;
 export const SANDBOX_SESSION_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;

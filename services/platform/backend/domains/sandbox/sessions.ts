@@ -9,9 +9,11 @@ import {
   type SessionBudget,
 } from '../../core/sandbox/quota_policy.ts';
 import {
+  SANDBOX_AGENT_OP_KINDS,
   SANDBOX_MAX_SESSIONS_PER_OWNER,
   SANDBOX_SESSION_LIVE_STATUSES,
   SANDBOX_SESSION_MAX_LIFETIME_MS,
+  type SandboxAgentOpKind,
 } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
 import { toJson } from '../../db/sql.ts';
@@ -616,7 +618,7 @@ export async function startSessionOp(
     organizationId: string;
     sessionId: string;
     execId: string;
-    kind: 'exec' | 'agent-run';
+    kind: SandboxAgentOpKind;
     threadId?: string;
     userId?: string;
     agentSlug?: string;
@@ -735,7 +737,7 @@ export async function latestAgentRunForThread(
 ): Promise<SessionOpRow | null> {
   const rows = await sql<SessionOpRow[]>`
     SELECT ${sql.unsafe(OP_COLUMNS)} FROM app.sandbox_session_ops
-    WHERE thread_id = ${threadId} AND kind = 'agent-run'
+    WHERE thread_id = ${threadId} AND kind = ANY(${[...SANDBOX_AGENT_OP_KINDS]})
     ORDER BY started_at_ms DESC
     LIMIT 1
   `;

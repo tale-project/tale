@@ -13190,7 +13190,7 @@ async function checkTurnReattach(
           org_id, session_id, exec_id, kind, status, heartbeat_at_ms,
           started_at_ms
         ) VALUES (
-          ${orgId}, ${sessionId}, ${execId}, 'agent-run',
+          ${orgId}, ${sessionId}, ${execId}, 'task-agent',
           ${opts.opStatus ?? 'running'},
           ${now - (opts.heartbeatAgoMs ?? 0)}, ${now - 600_000}
         )
@@ -13249,10 +13249,19 @@ async function checkTurnReattach(
       return typeof data?.runId === 'string' ? data.runId : '';
     }),
   );
-  const createdOp = await sql<{ resumedBy: string | null; status: string }[]>`
-    SELECT resumed_by AS "resumedBy", status FROM app.sandbox_session_ops
+  const createdOp = await sql<
+    { resumedBy: string | null; status: string; kind: string }[]
+  >`
+    SELECT resumed_by AS "resumedBy", status, kind
+    FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
+  // The created row must be the one the run card reads: `getAgentRunSandboxOp`
+  // is keyed on the task lane's kind, so a row filed under any other kind
+  // answers `op: null` for exactly the recovered turn an operator inspects.
+  const { getAgentRunSandboxOp } =
+    await import('./domains/tasks/agent-runs.ts');
+  const recoveredCard = await getAgentRunSandboxOp(sql, orgId, noOp.runId);
   const bumpedOp = await sql<{ resumedBy: string | null }[]>`
     SELECT resumed_by AS "resumedBy" FROM app.sandbox_session_ops
     WHERE session_id = ${abandoned.sessionId} AND exec_id = ${abandoned.execId}
@@ -13269,12 +13278,14 @@ async function checkTurnReattach(
       // durable proof the turn exists).
       createdOp[0]?.resumedBy === 'watchdog' &&
       createdOp[0]?.status === 'running' &&
+      createdOp[0]?.kind === 'task-agent' &&
+      recoveredCard?.op?.execId === noOp.execId &&
       bumpedOp[0]?.resumedBy === 'watchdog',
-    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}`,
+    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind} runCard=${recoveredCard?.op?.execId ?? 'null'}`,
   );
 
   // Leave nothing behind: live sessions hold sandbox slots, and settled
-  // `agent-run` ops are counted by the external-turn metrics fold.
+  // `task-agent` ops are counted by the external-turn metrics fold.
   await sql`
     UPDATE app.project_agent_runs SET status = 'cancelled'
     WHERE task_id = ${taskId} AND status IN ('queued', 'running')
@@ -13661,8 +13672,11 @@ async function checkWorkflowTurnReattach(
     }),
   );
   const driveKeys = objectAt(driveJobs[0]?.data ?? null, '');
-  const createdOp = await sql<{ resumedBy: string | null; status: string }[]>`
-    SELECT resumed_by AS "resumedBy", status FROM app.sandbox_session_ops
+  const createdOp = await sql<
+    { resumedBy: string | null; status: string; kind: string }[]
+  >`
+    SELECT resumed_by AS "resumedBy", status, kind
+    FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
   record(
@@ -13678,8 +13692,11 @@ async function checkWorkflowTurnReattach(
       driveKeys?.gatewayModel === 'itestauto/agent-model' &&
       driveKeys?.providerSlug === 'itestauto' &&
       createdOp[0]?.resumedBy === 'watchdog' &&
-      createdOp[0]?.status === 'running',
-    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}`,
+      createdOp[0]?.status === 'running' &&
+      // The lane's own kind — the run dialog's `getAgentNodeSandboxOp` and
+      // the metric folds are keyed on it.
+      createdOp[0]?.kind === 'workflow-agent',
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}`,
   );
 
   // Leave nothing for later sweeps or metrics folds to trip over.
@@ -14038,7 +14055,7 @@ async function checkRunProvenance(
       org_id, session_id, exec_id, kind, status, model_ref,
       vision_model_ref, minted_key_id, spent_cents, started_at_ms
     ) VALUES (
-      ${orgId}, ${sessionId}, ${execId}, 'agent-run', 'running',
+      ${orgId}, ${sessionId}, ${execId}, 'task-agent', 'running',
       'gw/itest-model', 'gw/vision-model', 'key-ledger-1', 42,
       ${now - 60_000}
     )
@@ -25920,7 +25937,7 @@ async function checkSandboxSessions(
     organizationId: orgId,
     sessionId: 'itest-sb-1',
     execId: 'exec-1',
-    kind: 'agent-run',
+    kind: 'task-agent',
     threadId: 'itest-thread-1',
   });
   await sessions.flushOpProgress(sql, {
@@ -26777,7 +26794,7 @@ async function checkSandboxGatewayKeyReclaim(
           org_id, session_id, exec_id, kind, status, minted_key_id,
           heartbeat_at_ms, started_at_ms
         ) VALUES (
-          ${orgId}, 'pa-gk-agent', ${execId ?? ''}, 'agent-run', 'running',
+          ${orgId}, 'pa-gk-agent', ${execId ?? ''}, 'task-agent', 'running',
           ${keyId ?? ''}, ${now}, ${now}
         )
       `;
@@ -34883,7 +34900,7 @@ async function checkMetricsSurface(
       (${orgId}, 'mx-run', 'mx-health-t', 'pii', 'output', 'blocked',
        ARRAY['cat1', 'cat2'], ${now - 1000})
   `;
-  // External turns: one session, four settled agent-run ops (the four
+  // External turns: one session, four settled task-agent ops (the four
   // outcomes; the completed one is a recovered continuation).
   await sql`
     INSERT INTO app.sandbox_sessions (
@@ -34897,13 +34914,13 @@ async function checkMetricsSurface(
       org_id, session_id, exec_id, kind, status, agent_result_status,
       continuation_count, spent_cents, started_at_ms, finished_at_ms
     ) VALUES
-      (${orgId}, 'mx-sess', 'mx-e1', 'agent-run', 'completed', 'completed',
+      (${orgId}, 'mx-sess', 'mx-e1', 'task-agent', 'completed', 'completed',
        1, 5, ${now - 60_000}, ${now - 50_000}),
-      (${orgId}, 'mx-sess', 'mx-e2', 'agent-run', 'failed', 'failed',
+      (${orgId}, 'mx-sess', 'mx-e2', 'task-agent', 'failed', 'failed',
        0, 2, ${now - 40_000}, ${now - 35_000}),
-      (${orgId}, 'mx-sess', 'mx-e3', 'agent-run', 'cancelled', 'cancelled',
+      (${orgId}, 'mx-sess', 'mx-e3', 'task-agent', 'cancelled', 'cancelled',
        0, NULL, ${now - 30_000}, ${now - 29_000}),
-      (${orgId}, 'mx-sess', 'mx-e4', 'agent-run', 'failed', 'timeout',
+      (${orgId}, 'mx-sess', 'mx-e4', 'task-agent', 'failed', 'timeout',
        0, 1, ${now - 20_000}, ${now - 5_000})
   `;
 
@@ -38171,7 +38188,7 @@ async function checkWatchdogs(
       org_id, session_id, exec_id, kind, status, heartbeat_at_ms,
       started_at_ms
     ) VALUES (
-      ${orgId}, 'pa-wd-agent', 'exec-wd-1', 'agent-run', 'running',
+      ${orgId}, 'pa-wd-agent', 'exec-wd-1', 'task-agent', 'running',
       ${now - 3_600_000}, ${now - 13 * 3_600_000}
     )
   `;
