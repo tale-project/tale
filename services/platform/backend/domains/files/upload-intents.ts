@@ -5,7 +5,7 @@ import {
   parseBlobRef,
   s3KeyBelongsToOrg,
 } from '../../core/lib/storage/blob_ref.ts';
-import { resolveObjectStore, s3DeleteObject } from '../../lib/object-store.ts';
+import { deleteOrgObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 
 /**
@@ -239,18 +239,16 @@ export async function sweepUploadIntents(
   if (abandoned.length === 0) return { reclaimed: 0 };
 
   let orgSlug: string | null;
-  let store: Awaited<ReturnType<typeof resolveObjectStore>>;
   try {
     orgSlug = await resolveOrgSlug(sql, args.organizationId);
-    if (orgSlug === null) return { reclaimed: 0 };
-    store = await resolveObjectStore(orgSlug);
   } catch (error) {
     console.warn(
-      '[files] abandoned-upload reclaim skipped (store unresolved):',
+      '[files] abandoned-upload reclaim skipped (org unresolved):',
       error instanceof Error ? error.message : error,
     );
     return { reclaimed: 0 };
   }
+  if (orgSlug === null) return { reclaimed: 0 };
   let reclaimed = 0;
   for (const row of abandoned) {
     const key = orgScopedKey(row.s3Ref, orgSlug);
@@ -264,7 +262,9 @@ export async function sweepUploadIntents(
       continue;
     }
     try {
-      await s3DeleteObject(store, key);
+      // Every store that may hold the key: an intent minted before the org
+      // connected its own bucket left its blob in the deployment default.
+      await deleteOrgObject(orgSlug, key);
     } catch (error) {
       console.warn(
         `[files] abandoned-upload delete failed for ${key}:`,

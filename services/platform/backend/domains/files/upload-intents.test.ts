@@ -15,7 +15,7 @@
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { s3DeleteObject } from '../../lib/object-store.ts';
+import { deleteOrgObject } from '../../lib/object-store.ts';
 import {
   ownsUploadedBlob,
   recordUploadIntent,
@@ -23,8 +23,7 @@ import {
 } from './upload-intents.ts';
 
 vi.mock('../../lib/object-store.ts', () => ({
-  resolveObjectStore: vi.fn(() => Promise.resolve({ bucket: 'itest' })),
-  s3DeleteObject: vi.fn(() => Promise.resolve()),
+  deleteOrgObject: vi.fn(() => Promise.resolve()),
 }));
 vi.mock('../../lib/org-config.ts', () => ({
   resolveOrgSlug: vi.fn(() => Promise.resolve('acme')),
@@ -180,11 +179,10 @@ describe('sweepUploadIntents', () => {
     });
 
     expect(outcome).toEqual({ reclaimed: 1 });
-    expect(s3DeleteObject).toHaveBeenCalledTimes(1);
-    expect(s3DeleteObject).toHaveBeenCalledWith(
-      { bucket: 'itest' },
-      'blobs/acme/aaa',
-    );
+    // Every store that may hold the key — an intent minted before the org
+    // connected its own bucket left its blob in the deployment default.
+    expect(deleteOrgObject).toHaveBeenCalledTimes(1);
+    expect(deleteOrgObject).toHaveBeenCalledWith('acme', 'blobs/acme/aaa');
 
     const issued = sqlStatements(fake.statements);
     // Consumed rows are dead handshakes.
@@ -218,7 +216,9 @@ describe('sweepUploadIntents', () => {
 
   it('keeps the row of a blob whose delete failed, for the next sweep', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    vi.mocked(s3DeleteObject).mockRejectedValueOnce(new Error('503 slow down'));
+    vi.mocked(deleteOrgObject).mockRejectedValueOnce(
+      new Error('503 slow down'),
+    );
     const fake = fakeLedger({
       abandoned: [{ id: 'i-stuck', s3Ref: 's3:blobs/acme/bbb' }],
     });
@@ -252,7 +252,7 @@ describe('sweepUploadIntents', () => {
     });
 
     expect(outcome).toEqual({ reclaimed: 0 });
-    expect(s3DeleteObject).not.toHaveBeenCalled();
+    expect(deleteOrgObject).not.toHaveBeenCalled();
     const rowDrop = fake.statements.find(
       (s) => s.text === 'DELETE FROM app.upload_intents WHERE id = ?',
     );
