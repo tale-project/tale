@@ -6,8 +6,11 @@ import type {
   ModerationOutcome,
   ModerationRun,
 } from '../../../lib/chat/guardrails.ts';
+import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch.ts';
 import type { GuardrailsDirection } from '../../../lib/pii/core/outcome.ts';
+import { AppError } from '../../../lib/shared/errors/app-error.ts';
+import { isPrivateIp } from '../../../lib/shared/net/private-ip.ts';
 import type {
   ModerationProviderConfig,
   ModerationResponseShape,
@@ -235,6 +238,38 @@ interface CallResult {
   attempts: number;
 }
 
+/**
+ * The deployment's outbound-host policy over the moderation endpoint,
+ * applied before every call: cloud-metadata hosts are refused
+ * unconditionally and private hosts unless the operator opted in
+ * (`TALE_ALLOW_PRIVATE_PROVIDER_HOSTS`) — exactly the gate every other
+ * org-admin-supplied URL runs (provider baseUrl, credential endpoint, the
+ * broker fetch). `safeFetch` alone cannot stand in for it: its auto-derived
+ * own-host allowlist admits the initial URL's host, so its private-IP
+ * refusal never fires for the URL it was handed — an org admin is not the
+ * deployment operator, and a moderation endpoint aimed at the IMDS (with
+ * `custom_jsonpath` reading the response back) must die here, before any
+ * request. Returns the hosts `safeFetch` must additionally allow (a
+ * policy-admitted private host), else `undefined`.
+ */
+function policeModerationEndpoint(url: string): readonly string[] | undefined {
+  let hostname: string;
+  try {
+    hostname = checkProviderHostPolicy(url).hostname;
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw new ModerationHttpError(
+        'config',
+        `The moderation endpoint is refused by this deployment's host policy: ${error.message}`,
+        0,
+        0,
+      );
+    }
+    throw error;
+  }
+  return isPrivateIp(hostname) ? [hostname] : undefined;
+}
+
 /** One provider call with one retry on a retryable failure (5xx / 429 /
  * network / timeout). Throws `ModerationHttpError` carrying only the audit
  * facts — never the request or the response. */
@@ -277,6 +312,8 @@ async function callModeration(input: {
     );
   }
 
+  const allowedHosts = policeModerationEndpoint(endpoint.url);
+
   let attempt = 0;
   let lastClass: ModerationErrorClass = 'unknown';
   let lastStatus: number | undefined;
@@ -289,8 +326,13 @@ async function callModeration(input: {
         body,
         timeoutMs: endpoint.timeoutMs,
         maxResponseBytes: endpoint.maxResponseBytes,
-        // No explicit allowedHosts: safeFetch auto-derives the initial host,
+        // A policy-admitted private host is named explicitly so safeFetch's
+        // own private-IP gate does not refuse what the policy just allowed;
+        // otherwise no allowlist — safeFetch auto-derives the initial host,
         // so a redirect to a different host still fails.
+        ...(allowedHosts !== undefined
+          ? { allowedHosts: [...allowedHosts] }
+          : {}),
       });
       if (response.status >= 400) {
         const errorClass: ModerationErrorClass =

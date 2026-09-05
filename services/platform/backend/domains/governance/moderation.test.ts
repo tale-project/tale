@@ -279,6 +279,67 @@ describe('runModerationProvider', () => {
     expect(safeFetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('refuses a cloud-metadata endpoint before any request', async () => {
+    // The deployment host policy, not safeFetch, is the gate: safeFetch
+    // auto-allowlists the initial URL's host, so its private-IP refusal
+    // never fires for the URL it was handed — and an org admin aiming the
+    // moderation endpoint at the IMDS (with custom_jsonpath reading the
+    // response back) is the exact SSRF the policy exists to stop.
+    for (const url of [
+      'http://169.254.169.254/latest/meta-data/',
+      'https://metadata.google.internal/computeMetadata/v1/?alt=json',
+    ]) {
+      const run = await runModerationProvider(sql, {
+        organizationId: ORG,
+        direction: 'input',
+        text: 'x',
+        config: { ...config(), endpoint: { ...config().endpoint, url } },
+      });
+      expect(run.outcome).toMatchObject({
+        kind: 'step_error',
+        reason: 'config',
+      });
+    }
+    expect(safeFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a private endpoint unless the operator opted in, then names it to safeFetch', async () => {
+    const withUrl = (url: string) => ({
+      ...config(),
+      endpoint: { ...config().endpoint, url },
+    });
+    const refused = await runModerationProvider(sql, {
+      organizationId: ORG,
+      direction: 'input',
+      text: 'x',
+      config: withUrl('http://10.0.0.5:8080/moderate'),
+    });
+    expect(refused.outcome).toMatchObject({
+      kind: 'step_error',
+      reason: 'config',
+    });
+    expect(safeFetchMock).not.toHaveBeenCalled();
+
+    vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '1');
+    try {
+      safeFetchMock.mockResolvedValueOnce(ok(openAiBody({})));
+      const run = await runModerationProvider(sql, {
+        organizationId: ORG,
+        direction: 'input',
+        text: 'x',
+        config: withUrl('http://10.0.0.5:8080/moderate'),
+      });
+      expect(run.outcome).toEqual({ kind: 'pass' });
+      const [, options] = safeFetchMock.mock.calls[0] as [
+        string,
+        { allowedHosts?: string[] },
+      ];
+      expect(options.allowedHosts).toEqual(['10.0.0.5']);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('classifies a safeFetch refusal as config and a missing secret likewise', async () => {
     safeFetchMock.mockRejectedValueOnce(
       new SafeFetchError('private_ip', 'Host resolves to private'),

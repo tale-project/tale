@@ -654,10 +654,12 @@ function validateModerationUrl(u: string): string | null {
 
 const moderationEndpointSchema = z.object({
   // Accept http:// and https://. HTTPS is strongly recommended for public
-  // endpoints (the request carries chat text in the clear) but HTTP is
-  // valid for internal / localhost mocks. The URL's own host is auto-
-  // allowlisted by `safeFetch`, so admins don't need to also configure an
-  // SSRF allowlist — redirects to a different host still get rejected.
+  // endpoints (the request carries chat text in the clear); HTTP toward an
+  // internal / localhost mock works only where the deployment operator
+  // opted private hosts in (`TALE_ALLOW_PRIVATE_PROVIDER_HOSTS`) — the
+  // backend runs the deployment host policy over the URL before every call
+  // (`policeModerationEndpoint`), cloud-metadata hosts refused always, and
+  // redirects to a different host are rejected by `safeFetch`.
   //
   // Field-level validation intentionally stops at "is a string" — the
   // well-formed-http(s)-URL check only applies when the provider is enabled
