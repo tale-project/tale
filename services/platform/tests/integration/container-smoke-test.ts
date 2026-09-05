@@ -281,6 +281,33 @@ async function main(): Promise<number> {
     r.fail('Backend api /ping');
   }
 
+  // The PII data tree is baked into the backend image at
+  // TALE_CONFIG_SYSTEM_DIR (/app/system/pii); an image built without it
+  // cannot enforce any organization's `pii_config` policy and only says so
+  // in a boot log line. Load the registry inside the built image exactly as
+  // the backend does — the same node flags and loader — so a packaging
+  // regression fails this job rather than a customer's governance policy.
+  if (
+    await dockerExecOk(backendContainer, [
+      'node',
+      '--experimental-transform-types',
+      '--disable-warning=ExperimentalWarning',
+      '--import',
+      '/app/backend/node-loader.mjs',
+      '--input-type=module',
+      '-e',
+      "const { PatternRegistry } = await import('/app/lib/pii/index.ts'); PatternRegistry.fromDefaults();",
+    ])
+  ) {
+    r.pass(
+      'Backend image loads the PII data tree (PatternRegistry.fromDefaults)',
+    );
+  } else {
+    r.fail(
+      'Backend image loads the PII data tree (PatternRegistry.fromDefaults)',
+    );
+  }
+
   // Platform: Vite server with platform-ready marker.
   const platformContainer = await compose.containerName('platform');
   const viteCode = await httpStatus('http://localhost:13000/api/health', 10);
