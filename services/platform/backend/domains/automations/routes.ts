@@ -376,7 +376,8 @@ export function createAutomationRoutes(deps: {
    * milliseconds); the versions it saves appear in the listing long before
    * the summary resolves. The session authors against the deterministic
    * mocks — `runSessionWithStore` never enables live execution — and a
-   * `projectId` pins the first save to that project via the store scope.
+   * `projectId` pins the first save to that project via the store scope. An
+   * aborted request cancels the session at its next turn boundary.
    */
   app.post('/builder/sessions', async (c) => {
     const denied = requireAuthor(c);
@@ -432,6 +433,10 @@ export function createAutomationRoutes(deps: {
           goal,
           model: body.data.model,
           ...(maxTurns !== undefined ? { maxTurns } : {}),
+          // A closed tab, a reload or a dropped connection aborts the request;
+          // the session sees it at its next turn boundary and ends as
+          // `cancelled` instead of spending model turns nobody will read.
+          isCancelled: () => c.req.raw.signal.aborted,
         },
         store,
       );
