@@ -198,49 +198,6 @@ export function objectUrl(store: S3ObjectStore, key: string): string {
 }
 
 /**
- * List the object keys physically present in the store under an optional
- * `prefix` (S3 ListObjectsV2). Diagnostic/verification helper — proves a blob is
- * really in the bucket rather than trusting a returned ref. Handles the (rare)
- * multi-page case by following the continuation token.
- */
-export async function s3ListObjectKeys(
-  store: S3ObjectStore,
-  prefix?: string,
-): Promise<string[]> {
-  // `objectUrl(store, '')` yields the bucket base with a trailing slash; strip
-  // it so the list query targets the bucket, not a phantom empty-key object.
-  const bucketBase = objectUrl(store, '').replace(/\/+$/, '');
-  const keys: string[] = [];
-  let continuationToken: string | undefined;
-  do {
-    const url = new URL(bucketBase);
-    url.searchParams.set('list-type', '2');
-    if (prefix) url.searchParams.set('prefix', prefix);
-    if (continuationToken)
-      url.searchParams.set('continuation-token', continuationToken);
-    const res = await store.client.fetch(url.toString(), { method: 'GET' });
-    if (!res.ok) {
-      throw new Error(
-        `S3 LIST failed: ${res.status} ${await safeErrorBody(res)}`,
-      );
-    }
-    const xml = await res.text();
-    for (const m of xml.matchAll(/<Key>([^<]*)<\/Key>/g)) {
-      keys.push(
-        m[1]
-          .replaceAll('&amp;', '&')
-          .replaceAll('&lt;', '<')
-          .replaceAll('&gt;', '>'),
-      );
-    }
-    const tokenMatch =
-      /<NextContinuationToken>([^<]*)<\/NextContinuationToken>/.exec(xml);
-    continuationToken = tokenMatch ? tokenMatch[1] : undefined;
-  } while (continuationToken);
-  return keys;
-}
-
-/**
  * Namespaced object key for an org's blob. `<prefix>/<orgSlug>/<uuid>` — the
  * `orgSlug` segment keeps blobs legible/auditable inside a bucket even though a
  * per-org bucket is already dedicated; `prefix` is the org-chosen namespace.

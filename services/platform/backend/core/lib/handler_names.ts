@@ -231,7 +231,6 @@ interface HandlerNames {
   };
   files: FunctionRef & {
     blob_actions: FunctionRef & {
-      deleteOrgBlobs: FunctionRef;
       storeOrgBlob: FunctionRef;
     };
   };
@@ -284,11 +283,6 @@ interface HandlerNames {
       actions: FunctionRef & {
         readConfigArea: FunctionRef;
       };
-    };
-  };
-  login_attempts: FunctionRef & {
-    internal_queries: FunctionRef & {
-      getTrustedProxies: FunctionRef;
     };
   };
   members: FunctionRef & {
