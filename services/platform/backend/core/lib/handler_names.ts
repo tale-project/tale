@@ -236,7 +236,11 @@ interface HandlerNames {
     com: FunctionRef;
   };
   governance: FunctionRef & {
+    internal_actions: FunctionRef & {
+      runModerationProvider: FunctionRef;
+    };
     internal_mutations: FunctionRef & {
+      recordChatFilterEvent: FunctionRef;
       recordConnectorUsage: FunctionRef;
       recordTranscriptionUsage: FunctionRef;
     };

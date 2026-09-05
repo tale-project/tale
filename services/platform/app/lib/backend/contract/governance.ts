@@ -600,7 +600,6 @@ export interface GovernanceContract {
     kind: 'query';
     args: { organizationId: string };
     returns: {
-      inputGuardrailsActive: boolean;
       maxContextTokens?: number;
     };
   };

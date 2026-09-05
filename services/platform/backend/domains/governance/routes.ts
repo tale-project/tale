@@ -35,6 +35,7 @@ import {
   listUserCompetences,
   revokeCompetence,
 } from './competence.ts';
+import { testModerationProvider } from './moderation.ts';
 import {
   getAccessibleModelsForUser,
   resolveFeatureFlagsForUser,
@@ -302,17 +303,7 @@ export function createGovernanceRoutes(deps: {
       organizationId: c.get('orgId'),
       userId: c.get('sessionBundle').user.id,
     });
-    // The composer's pre-send gate: any enabled input guardrail policy.
-    const guardrails = await Promise.all(
-      (['chat_filter', 'pii_config', 'moderation_provider'] as const).map(
-        (key) => readGovernancePolicyForOrg(deps.sql, c.get('orgId'), key),
-      ),
-    );
-    const inputGuardrailsActive = guardrails.some(
-      (policy) =>
-        policy !== null && (policy as { enabled?: unknown }).enabled !== false,
-    );
-    return c.json({ flags: { ...flags, inputGuardrailsActive } });
+    return c.json({ flags });
   });
 
   app.get('/my/budget-status', async (c) => {
@@ -619,18 +610,21 @@ export function createGovernanceRoutes(deps: {
     });
   });
 
+  /** The admin's round trip through the REAL provider path — the same
+   * call a chat turn makes, so a bad URL, key, template, or JSONPath shows
+   * up here with the error class the events page would report. */
   app.post('/moderation/test', async (c) => {
     const denied = requireAdmin(c);
     if (denied) return denied;
-    // Parity with the 0.4 stub: the live probe is offline during the
-    // AI-backend rewrite; the editor shows the refusal message.
+    const body = z
+      .object({
+        text: z.string().min(1).max(4096),
+        direction: z.enum(['input', 'output']).optional(),
+      })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     return c.json(
-      {
-        error: 'MODERATION_TEST_OFFLINE',
-        message:
-          'Testing the moderation provider is offline while the platform AI backend is rewritten.',
-      },
-      400,
+      await testModerationProvider(deps.sql, c.get('orgId'), body.data),
     );
   });
 

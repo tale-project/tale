@@ -9,6 +9,7 @@ import {
   RETENTION_CATEGORIES,
   type RetentionCategory,
 } from '../../../lib/shared/schemas/retention.ts';
+import type { ChatFilterEventInput } from '../../core/governance/chat_filter_events.ts';
 import { isLoosening } from '../../core/governance/dsar_policy.ts';
 import { RETENTION_POLICY_FIELD_BY_CATEGORY } from '../../core/governance/retention_floors.ts';
 import { decryptSecret, encryptSecret } from '../../core/lib/secret_box.ts';
@@ -861,6 +862,31 @@ export interface ChatFilterEventRow {
   attempt: number | null;
   agentSlug: string | null;
   createdAt: number;
+}
+
+/** The PRODUCER of the table the Security page lists and the stats fold
+ * reads — one row per non-pass guardrail verdict of a chat turn. */
+export async function recordChatFilterEvent(
+  sql: Sql,
+  organizationId: string,
+  event: ChatFilterEventInput,
+): Promise<void> {
+  await sql`
+    INSERT INTO app.chat_filter_events (
+      org_id, sanitization_run_id, thread_id, message_id, filter_name,
+      direction, kind, category_ids, match_count, truncated, error_class,
+      http_status, duration_ms, attempt, agent_slug, actor_type,
+      created_at_ms
+    ) VALUES (
+      ${organizationId}, ${event.sanitizationRunId}, ${event.threadId},
+      ${event.messageId ?? null}, ${event.filterName}, ${event.direction},
+      ${event.kind}, ${sql.array([...event.categoryIds])},
+      ${event.matchCount ?? null}, ${event.truncated ?? null},
+      ${event.errorClass ?? null}, ${event.httpStatus ?? null},
+      ${event.durationMs ?? null}, ${event.attempt ?? null},
+      ${event.agentSlug ?? null}, ${event.actorType ?? null}, ${Date.now()}
+    )
+  `;
 }
 
 export async function listRecentChatFilterEvents(

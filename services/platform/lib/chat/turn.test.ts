@@ -741,16 +741,52 @@ describe('runTurn — input guardrails', () => {
     expect(d.store.generations).toEqual([]);
   });
 
-  it('records the refusal on the thread so the UI can explain it', async () => {
+  it('records the user message and the refusal on the thread so the UI can explain it', async () => {
     const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
     await runTurn(request(), d.deps);
 
+    // The transcript shows what was refused: the user's row first, then
+    // the blocked reply — never a refusal answering a message that is not
+    // there.
     expect(d.store.appended).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        parts: [{ type: 'text', text: 'how do I return a printer?' }],
+      }),
       expect.objectContaining({
         role: 'assistant',
         blockedReason: expect.stringContaining('chat_filter'),
       }),
     ]);
+    expect(d.store.generations).toEqual([]);
+  });
+
+  it('persists the text as the chain left it when a later step blocks', async () => {
+    const masking: GuardrailFilter = {
+      name: 'pii',
+      run: (text) => ({
+        kind: 'modified',
+        text: text.replace('printer', '[ITEM]'),
+        categoryIds: ['item'],
+        matchCount: 1,
+      }),
+    };
+    const d = deps({
+      inputFilters: [masking, blockingFilter('moderation_provider')],
+    });
+    await runTurn(request(), d.deps);
+
+    expect(d.store.appended[0]).toMatchObject({
+      role: 'user',
+      parts: [{ type: 'text', text: 'how do I return a [ITEM]?' }],
+    });
+  });
+
+  it('appends only the refusal on a regenerate — the user row already exists', async () => {
+    const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
+    await runTurn(request({ appendUserMessage: false }), d.deps);
+
+    expect(d.store.appended.map((m) => m.role)).toEqual(['assistant']);
   });
 
   it('sends the model the rewritten text when a filter masked something', async () => {

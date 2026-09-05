@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FilterName, FilterOutcome } from '../pii/core/outcome';
 import { PatternRegistry } from '../pii/engine/registry';
 import { createScrubber } from '../pii/engine/scrubber';
+import { createTokenizer } from '../pii/engine/tokenizer';
 import { chatFilterConfigSchema } from '../shared/schemas/governance';
 import {
   createChatFilter,
   createModerationFilter,
   createOutputTransform,
   createPiiFilter,
+  createPiiTokenizeFilter,
   GUARDRAIL_CHAIN_ORDER,
   runGuardrailChain,
   type GuardrailFilter,
@@ -50,6 +52,56 @@ describe('runGuardrailChain', () => {
     expect(log).toEqual(['chat_filter', 'pii', 'moderation_provider']);
     expect(result.ran).toEqual(GUARDRAIL_CHAIN_ORDER);
     expect(result.refusal).toBeUndefined();
+  });
+
+  it('reports every non-pass outcome to the observer, the blocking one included', async () => {
+    const seen: Array<{ filterName: FilterName; kind: string }> = [];
+    const masking: GuardrailFilter = {
+      name: 'chat_filter',
+      run: () => ({
+        kind: 'modified',
+        text: 'masked',
+        categoryIds: ['codenames'],
+        matchCount: 1,
+      }),
+    };
+    const blocking: GuardrailFilter = {
+      name: 'pii',
+      run: () => ({ kind: 'blocked', categoryIds: ['iban'], matchCount: 2 }),
+    };
+    const result = await runGuardrailChain(
+      'hello',
+      'output',
+      [blocking, masking, recordingFilter('moderation_provider', [])],
+      {
+        onOutcome: (event) => {
+          expect(event.direction).toBe('output');
+          seen.push({ filterName: event.filterName, kind: event.outcome.kind });
+        },
+      },
+    );
+
+    // The pass from the third step is not an event, and nothing after the
+    // block ran to produce one.
+    expect(seen).toEqual([
+      { filterName: 'chat_filter', kind: 'modified' },
+      { filterName: 'pii', kind: 'blocked' },
+    ]);
+    expect(result.refusal?.filterName).toBe('pii');
+  });
+
+  it('keeps the verdict when the observer itself fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const blocking: GuardrailFilter = {
+      name: 'chat_filter',
+      run: () => ({ kind: 'blocked', categoryIds: ['x'], matchCount: 1 }),
+    };
+    const result = await runGuardrailChain('hello', 'input', [blocking], {
+      onOutcome: () => Promise.reject(new Error('events table is away')),
+    });
+    warn.mockRestore();
+
+    expect(result.refusal?.filterName).toBe('chat_filter');
   });
 
   it('skips a filter the org has not configured', async () => {
@@ -262,6 +314,47 @@ describe('createPiiFilter', () => {
 
   it('is absent when the org has PII scrubbing switched off', () => {
     expect(createPiiFilter(null)).toBeNull();
+  });
+});
+
+describe('createPiiTokenizeFilter', () => {
+  const tokenizer = createTokenizer({
+    mode: 'tokenize',
+    patterns: { email: true },
+    registry: PatternRegistry.fromDefaults(),
+  });
+
+  it('tokenizes on the way in and restores the same tokens on the way out', async () => {
+    const filter = createPiiTokenizeFilter(tokenizer);
+    if (filter === null) throw new Error('filter expected');
+
+    const inbound = await filter.run('mail anna@example.com today', 'input');
+    expect(inbound).toMatchObject({
+      kind: 'modified',
+      text: 'mail [EMAIL_1] today',
+      categoryIds: ['email'],
+      matchCount: 1,
+    });
+
+    // The model echoes the token; the reader gets the address back — as a
+    // rewrite that DETECTED nothing, so a host logging detections skips it.
+    const outbound = await filter.run('Sent to [EMAIL_1].', 'output');
+    expect(outbound).toEqual({
+      kind: 'modified',
+      text: 'Sent to anna@example.com.',
+      categoryIds: [],
+      matchCount: 0,
+      truncated: undefined,
+    });
+  });
+
+  it('passes output through untouched when nothing was tokenized', () => {
+    const filter = createPiiTokenizeFilter(tokenizer);
+    expect(filter?.run('plain reply', 'output')).toEqual({ kind: 'pass' });
+  });
+
+  it('is absent when the org has PII scrubbing switched off', () => {
+    expect(createPiiTokenizeFilter(null)).toBeNull();
   });
 });
 

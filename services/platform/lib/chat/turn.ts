@@ -894,11 +894,28 @@ export async function runTurn(
   const turnStartedAtMs = now().getTime();
   const steps: TurnStep[] = [];
 
+  /**
+   * A pre-model refusal. The transcript still records the exchange: the
+   * user's message lands first (as the chain left it — a mask applied by an
+   * earlier step stays applied), then the refusal as a blocked assistant
+   * row — so what was refused is visible, not silently dropped. A
+   * regenerate (`appendUserMessage: false`) re-runs a message that is
+   * already the thread's tail and appends only the refusal.
+   */
   const refuse = async (
     step: TurnStep,
     reason: string,
+    userText: string,
     refusal?: GuardrailRefusal,
   ): Promise<TurnOutcome> => {
+    if (request.appendUserMessage !== false) {
+      await deps.store.appendMessage({
+        organizationId: request.organizationId,
+        threadId: request.threadId,
+        role: 'user',
+        parts: userTurnParts(userText, request.attachments),
+      });
+    }
     await deps.store.appendMessage({
       organizationId: request.organizationId,
       threadId: request.threadId,
@@ -915,6 +932,7 @@ export async function runTurn(
     return refuse(
       'input-guardrails',
       refusalReason(input.refusal),
+      input.text,
       input.refusal,
     );
   }
@@ -922,7 +940,7 @@ export async function runTurn(
   steps.push('resolve-execution');
   const { execution } = resolveAgentAndExecution(request, deps);
   if (execution.mode === 'refused') {
-    return refuse('resolve-execution', execution.reason);
+    return refuse('resolve-execution', execution.reason, input.text);
   }
 
   steps.push('assemble-context');

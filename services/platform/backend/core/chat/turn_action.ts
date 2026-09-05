@@ -67,6 +67,11 @@ import { readBlobBytes } from '../lib/storage/blob_access';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { createChatToolExecutor } from './assistant_tools';
+import {
+  buildTurnGuardrails,
+  mandatoryInstructionsFor,
+  readTurnPolicies,
+} from './guardrails';
 import { resolveProjectContext } from './project_context';
 import { createStallGuard, type StallGuard } from './stream_stall';
 
@@ -1058,11 +1063,11 @@ export async function executeTurn(
     modelId = args.modelId;
   }
 
-  // Five independent reads, one wall-clock slot — every syscall from this
+  // Six independent reads, one wall-clock slot — every syscall from this
   // action is an authenticated round-trip, so their SUM is the caller's
   // wait. All are pure reads (policy, lineage, blob ownership, catalog,
-  // context cap); the one side effect (the retroactive attachment bind)
-  // stays behind the verdicts below.
+  // context cap, guardrail policies); the one side effect (the retroactive
+  // attachment bind) stays behind the verdicts below.
   const sentAttachments = args.attachments ?? [];
   const pendingAccess = settled(
     ctx.runQuery(internal.governance.queries.checkModelAccessInternal, {
@@ -1106,6 +1111,11 @@ export async function executeTurn(
       userId: args.userId,
     }),
   );
+  // The org's guardrail and mandatory-instruction policies: the chain the
+  // user's text and the model's reply pass through, and the first block of
+  // the system prompt. Read here so a policy file is one wall-clock slot,
+  // not four serial ones.
+  const pendingPolicies = settled(readTurnPolicies(ctx, args.organizationId));
 
   // Verdicts in the serial order the reads used to run, so refusal
   // precedence is unchanged. The model-access policy holds at the boundary,
@@ -1154,6 +1164,8 @@ export async function executeTurn(
   }
 
   const resolved = unwrap(await pendingResolved);
+  const policies = unwrap(await pendingPolicies);
+  const mandatoryInstructions = mandatoryInstructionsFor(policies);
 
   // The effort → sampling and the effective window come FIRST: the history
   // read is bounded by the same budget the context assembly fits into, so a
@@ -1250,6 +1262,13 @@ export async function executeTurn(
 
   const deps: TurnDeps = {
     model,
+    // The org's guardrail chain, both directions, with its event log.
+    ...buildTurnGuardrails(ctx, {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      agentSlug: CHAT_ASSISTANT.slug,
+      policies,
+    }),
     // The chat assistant's fixed three-tool loadout. A test that wants a
     // tool-free turn overrides `tools` with undefined.
     tools: createChatToolExecutor(ctx, {
@@ -1270,8 +1289,10 @@ export async function executeTurn(
     ...(attachments.length > 0 ? { attachments } : {}),
     history,
     // The one persona the chat page talks to — hardcoded, never a config
-    // file — and the docs block for its fixed tool loadout.
+    // file — and the docs block for its fixed tool loadout. The org's
+    // mandatory instructions, when the policy carries any, come first.
     agent: CHAT_ASSISTANT,
+    ...(mandatoryInstructions !== undefined ? { mandatoryInstructions } : {}),
     toolDocs: CHAT_TOOL_DOCS,
     ...(projectContext !== undefined ? { project: projectContext } : {}),
     locale: args.locale,

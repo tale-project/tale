@@ -91,12 +91,18 @@ export {
   createModerationFilter,
   createOutputTransform,
   createPiiFilter,
+  createPiiTokenizeFilter,
   runGuardrailChain,
   type GuardrailChainResult,
   type GuardrailFailBehavior,
   type GuardrailFilter,
+  type GuardrailOutcomeEvent,
   type GuardrailRefusal,
   type ModerationBackend,
+  type ModerationErrorClass,
+  type ModerationExtras,
+  type ModerationOutcome,
+  type ModerationRun,
   type OutputGuardrailTransform,
 } from './guardrails';
 export { CHAT_ASSISTANT, CHAT_ASSISTANT_SLUG } from './assistant';
