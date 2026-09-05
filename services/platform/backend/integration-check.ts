@@ -16856,6 +16856,34 @@ async function checkConnectorOauth(
       `forged=${forged.status}, declined=${declined.status}, replayed=${replayed.status} (all want 400), pendingLeft=${afterReplay[0]?.count}, vendorCalls=${seen.length} (want 0)`,
     );
 
+    // ---- callback: the completer must be the initiator ------------------
+    // A valid state completed by a browser with NO session (a forwarded
+    // consent link) is refused like a forgery — and burned, so the link
+    // cannot be finished by anyone afterwards.
+    const startedAgain = await get(
+      `/api/connectors/oauth2/start?connector=slack&organizationId=${orgId}`,
+    );
+    const strangerState =
+      new URL(
+        startedAgain.headers.get('location') ?? 'https://x.invalid',
+      ).searchParams.get('state') ?? '';
+    const stranger = await get(
+      `/api/connectors/oauth2/callback?state=${encodeURIComponent(strangerState)}&code=abc`,
+      false,
+    );
+    const afterStranger = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.connector_oauth_states
+    `;
+    record(
+      'connector oauth: a callback without the initiator session is refused and burns the state',
+      startedAgain.status === 302 &&
+        strangerState.length > 0 &&
+        stranger.status === 400 &&
+        afterStranger[0]?.count === '0' &&
+        seen.length === 0,
+      `start=${startedAgain.status}, stranger=${stranger.status} (want 400), pendingLeft=${afterStranger[0]?.count} (want 0), vendorCalls=${seen.length} (want 0)`,
+    );
+
     // ---- callback: the happy path, driven through the service -----------
     // The vendor endpoint comes from the catalog, so the exchange is driven
     // at the service seam with the fake token URL — the routes above already
@@ -16916,7 +16944,12 @@ async function checkConnectorOauth(
       );
     const completed = await oauth.completeOauth2(
       sql,
-      { state: happyState, code: 'itest-auth-code', vendorError: null },
+      {
+        state: happyState,
+        code: 'itest-auth-code',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     const credentialRows = await sql<
@@ -17006,7 +17039,12 @@ async function checkConnectorOauth(
     });
     const reconnected = await oauth.completeOauth2(
       sql,
-      { state: reconnectState, code: 'itest-auth-code-r', vendorError: null },
+      {
+        state: reconnectState,
+        code: 'itest-auth-code-r',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     const afterReconnect = await sql<
@@ -17048,7 +17086,12 @@ async function checkConnectorOauth(
     });
     const secondConnected = await oauth.completeOauth2(
       sql,
-      { state: secondState, code: 'itest-auth-code-s', vendorError: null },
+      {
+        state: secondState,
+        code: 'itest-auth-code-s',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     const afterSecond = await sql<{ id: string; name: string }[]>`
@@ -17121,7 +17164,12 @@ async function checkConnectorOauth(
     await foreignClaimInPlace;
     const racing = oauth.completeOauth2(
       sql,
-      { state: raceState, code: 'itest-auth-code-race', vendorError: null },
+      {
+        state: raceState,
+        code: 'itest-auth-code-race',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     // Release the holder once this org's claim is queued behind it — after
@@ -17172,7 +17220,12 @@ async function checkConnectorOauth(
     });
     const refused = await oauth.completeOauth2(
       sql,
-      { state: denyState, code: 'itest-auth-code-2', vendorError: null },
+      {
+        state: denyState,
+        code: 'itest-auth-code-2',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     if (savedSystemDir === undefined) {
@@ -21551,18 +21604,38 @@ async function checkCloudImport(
   // replay reads as invalid_state.
   const declined = await fetch(
     `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(state)}&error=access_denied`,
-    { redirect: 'manual' },
+    { headers: { cookie, origin: base }, redirect: 'manual' },
   );
   const declinedBody = await declined.text();
   const replay = await fetch(
     `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(state)}&code=abc`,
-    { redirect: 'manual' },
+    { headers: { cookie, origin: base }, redirect: 'manual' },
   );
   const replayBody = await replay.text();
   const consumed = await consumePendingCloudAuthorization(
     sql,
     await hashStateToken(state),
   );
+  // The completer must be the initiator: a valid state finished by a browser
+  // with no session is refused like a forgery, and the state is burned.
+  const strangerStart = await fetch(
+    `${base}/api/cloud-import/oauth2/start?provider=google-drive&organizationId=${orgId}`,
+    { headers: { cookie, origin: base }, redirect: 'manual' },
+  );
+  const strangerState =
+    new URL(
+      strangerStart.headers.get('location') ?? 'https://x.invalid',
+    ).searchParams.get('state') ?? '';
+  const stranger = await fetch(
+    `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(strangerState)}&code=abc`,
+    { redirect: 'manual' },
+  );
+  const strangerBurned = !(
+    await consumePendingCloudAuthorization(
+      sql,
+      await hashStateToken(strangerState),
+    )
+  ).ok;
 
   // Grant lifecycle, service-level (the vendor exchange is live-only).
   await storeCloudAuthorization(sql, {
@@ -21654,6 +21727,9 @@ async function checkCloudImport(
       replay.status === 400 &&
       replayBody.length > 0 &&
       !consumed.ok &&
+      strangerState.length > 20 &&
+      stranger.status === 400 &&
+      strangerBurned &&
       fresh.success &&
       fresh.accessToken === 'itest-oauth-token' &&
       listed.success &&
