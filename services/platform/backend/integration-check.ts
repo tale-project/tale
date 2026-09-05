@@ -8462,10 +8462,10 @@ async function checkChat(
 async function checkAutomations(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
   orgSlug: string,
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const { createServer } = await import('node:http');
 
   // Fake OpenAI-compatible provider for the llm node (non-streaming).
@@ -8622,6 +8622,130 @@ async function checkAutomations(
         reservedRows.length === 0,
       `runs/nightly → ${reservedName.status} ${reservedBody.success ? reservedBody.data.error : 'UNPARSEABLE'} (want 400 AUTOMATION_NAME_RESERVED), metrics → ${reservedExact.status} (want 400), ops/runs → ${reservedNested.status} (want 201), stranded rows=${reservedRows.length} (want 0)`,
     );
+    // The wizard's create-only save: a slug that already has versions is
+    // REFUSED with a coded 409 — never appended to (the trigger rebind that
+    // follows a "create" would otherwise replace a live automation's
+    // schedule or webhook). A fresh name creates as usual.
+    const takenRes = await post(
+      `/api/app/automations/ops/greet/save?orgId=${orgId}`,
+      { document, message: 'wizard', create: true },
+    );
+    const takenBody = z
+      .object({ error: z.string() })
+      .loose()
+      .safeParse(await takenRes.json().catch(() => null));
+    const freshCreate = z
+      .object({ name: z.string(), version: z.number() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/automations/ops/greet-fresh/save?orgId=${orgId}`,
+            {
+              document: { ...document, name: 'ops/greet-fresh' },
+              create: true,
+            },
+          )
+        ).json(),
+      );
+    const greetVersions = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automations
+      WHERE org_id = ${orgId} AND name = 'ops/greet'
+    `;
+    record(
+      'automations: a create-only save refuses a taken name (409) and creates a fresh one',
+      takenRes.status === 409 &&
+        takenBody.success &&
+        takenBody.data.error === 'AUTOMATION_NAME_TAKEN' &&
+        freshCreate.success &&
+        freshCreate.data.version === 1 &&
+        greetVersions[0]?.count === '1',
+      `taken → ${takenRes.status} ${takenBody.success ? takenBody.data.error : 'UNPARSEABLE'} (want 409 AUTOMATION_NAME_TAKEN), fresh → v${freshCreate.success ? freshCreate.data.version : 'ERR'} (want 1), ops/greet versions=${greetVersions[0]?.count} (want 1)`,
+    );
+
+    // The save door carries the install project: a first save from a
+    // project surface binds v1 to that project (so the project's tab lists
+    // it); a later save never moves the binding; a phantom project is
+    // refused before anything is written.
+    const installProject = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES (${orgId}, 'Install target', ${userId}, ${Date.now()},
+              ${Date.now()})
+      RETURNING id
+    `;
+    const installProjectId = installProject[0]?.id ?? '';
+    const boundSave = await post(
+      `/api/app/automations/ops/project-bound/save?orgId=${orgId}`,
+      {
+        document: { ...document, name: 'ops/project-bound' },
+        create: true,
+        projectId: installProjectId,
+      },
+    );
+    await post(`/api/app/automations/ops/project-bound/save?orgId=${orgId}`, {
+      document: { ...document, name: 'ops/project-bound' },
+      projectId: 'some-other-project',
+    });
+    const phantomSave = await post(
+      `/api/app/automations/ops/project-phantom/save?orgId=${orgId}`,
+      {
+        document: { ...document, name: 'ops/project-phantom' },
+        projectId: 'phantom-project-does-not-exist',
+      },
+    );
+    const boundRows = await sql<{ projectId: string }[]>`
+      SELECT project_id AS "projectId" FROM app.automation_project_bindings
+      WHERE org_id = ${orgId} AND automation_name = 'ops/project-bound'
+    `;
+    const phantomRows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automations
+      WHERE org_id = ${orgId} AND name = 'ops/project-phantom'
+    `;
+    const projectListing = z
+      .object({ automations: z.array(z.object({ name: z.string() }).loose()) })
+      .safeParse(
+        await get(
+          `/api/app/automations/listing?orgId=${orgId}&projectId=${encodeURIComponent(installProjectId)}`,
+        ),
+      );
+    record(
+      'automations: the save door binds v1 to the install project',
+      boundSave.status === 201 &&
+        boundRows.length === 1 &&
+        boundRows[0]?.projectId === installProjectId &&
+        phantomSave.status === 404 &&
+        phantomRows[0]?.count === '0' &&
+        projectListing.success &&
+        projectListing.data.automations.some(
+          (row) => row.name === 'ops/project-bound',
+        ),
+      `save=${boundSave.status} (want 201), bindings=${boundRows.map((row) => row.projectId === installProjectId).join(',')} (want one true), phantom=${phantomSave.status}/${phantomRows[0]?.count} (want 404/0), inProjectListing=${projectListing.success ? projectListing.data.automations.some((row) => row.name === 'ops/project-bound') : 'ERR'}`,
+    );
+
+    // Concurrent saves of ONE name serialize on the per-name lock: every
+    // writer lands its own contiguous version, none trips the
+    // (org_id, name, version) UNIQUE constraint into a 500.
+    const racers = await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
+        post(`/api/app/automations/ops/racing/save?orgId=${orgId}`, {
+          document: { ...document, name: 'ops/racing' },
+          message: `racer ${index}`,
+        }),
+      ),
+    );
+    const racerStatuses = racers.map((res) => res.status);
+    const racerRows = await sql<{ version: number }[]>`
+      SELECT version FROM app.automations
+      WHERE org_id = ${orgId} AND name = 'ops/racing'
+      ORDER BY version
+    `;
+    record(
+      'automations: concurrent saves of one name serialize into contiguous versions',
+      racerStatuses.every((status) => status === 201) &&
+        racerRows.map((row) => row.version).join(',') === '1,2,3,4,5,6,7,8',
+      `statuses=${racerStatuses.join(',')} (want all 201), versions=${racerRows.map((row) => row.version).join(',')} (want 1..8)`,
+    );
+
     const deployed = await post(
       `/api/app/automations/ops/greet/deploy?orgId=${orgId}`,
       { version: 1 },

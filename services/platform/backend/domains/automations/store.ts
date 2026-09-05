@@ -109,11 +109,35 @@ export interface SaveVersionArgs {
    * via `setAutomationProjects`, so saving a version cannot move an
    * automation between surfaces. */
   projectId?: string;
+  /** Create-only: refuse with `AUTOMATION_NAME_TAKEN` (409) when the name
+   * already has versions, instead of appending one to — and letting the
+   * caller then rebind the trigger of — a live automation that happens to
+   * share the slug (the wizard's contract, the 0.4 `create: true`). */
+  create?: boolean;
   message?: string;
   testsPassed?: boolean;
   taskContract?: unknown;
   settings?: unknown;
   presentation?: unknown;
+}
+
+/** Serialize every writer of ONE automation name (two tabs, the builder's
+ * autosave racing the editor, MCP `save_automation`): the version number is
+ * `max(version) + 1` read inside the transaction, so without this the loser
+ * of two concurrent saves trips UNIQUE (org_id, name, version) and surfaces
+ * as an opaque 500 — and the create-only check below would be a
+ * check-then-act race. The same idiom the sandbox admission and the skill
+ * writer use. */
+async function lockAutomationName(
+  tx: TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  await tx`
+    SELECT pg_advisory_xact_lock(
+      hashtextextended('automation:' || ${organizationId} || '/' || ${name}, 0)
+    )
+  `;
 }
 
 export async function saveVersion(
@@ -122,6 +146,7 @@ export async function saveVersion(
 ): Promise<{ name: string; version: number }> {
   const name = assertAutomationName(args.name);
   return sql.begin(async (tx) => {
+    await lockAutomationName(tx, args.organizationId, name);
     // The FIRST version is the create: a name the router keeps for itself is
     // refused here, once, before anything is written.
     const existing = await tx<{ version: number }[]>`
@@ -130,6 +155,13 @@ export async function saveVersion(
       LIMIT 1
     `;
     if (existing.length === 0) assertAutomationNameCreatable(name);
+    if (args.create === true && existing.length > 0) {
+      throw new AutomationError(
+        'AUTOMATION_NAME_TAKEN',
+        `An automation named "${name}" already exists — pick a different name.`,
+        409,
+      );
+    }
     const rows = await tx<{ version: number }[]>`
       INSERT INTO app.automations (
         org_id, name, version, document, message, tests_passed,

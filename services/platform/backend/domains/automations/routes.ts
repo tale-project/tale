@@ -56,6 +56,12 @@ const saveSchema = z.object({
   taskContract: z.unknown().optional(),
   settings: z.unknown().optional(),
   presentation: z.unknown().optional(),
+  // The wizard's create-only save: a colliding slug is refused (409) rather
+  // than appended to.
+  create: z.boolean().optional(),
+  // Install target for a NEW automation (capped like every project-id door;
+  // the store validates it exists in the org and binds only version 1).
+  projectId: z.string().min(1).max(128).optional(),
 });
 
 const deploySchema = z.object({ version: z.number().int().min(1) });
@@ -469,6 +475,12 @@ export function createAutomationRoutes(deps: {
             : {}),
           ...(body.data.presentation !== undefined
             ? { presentation: body.data.presentation }
+            : {}),
+          ...(body.data.create !== undefined
+            ? { create: body.data.create }
+            : {}),
+          ...(body.data.projectId !== undefined
+            ? { projectId: body.data.projectId }
             : {}),
         }),
         201,
