@@ -722,7 +722,7 @@ export function indexUnavailableMessage(
 ): string {
   return state === 'rebuilding'
     ? `The knowledge search index ${index} was found corrupted and is being rebuilt. Indexing is paused until the rebuild completes and resumes automatically — no action is needed.`
-    : `The knowledge search index ${index} is corrupted and its automatic rebuild did not succeed. Indexing is paused until an operator repairs the index (REINDEX INDEX ${index}) or restores the knowledge database; it resumes on its own once the index verifies healthy again.`;
+    : `The knowledge search index ${index} is corrupted and its automatic rebuild did not succeed. Indexing is paused until an operator repairs the index (REINDEX INDEX ${index}) or restores the knowledge database; it resumes on its own once the index verifies healthy again — at the next indexing attempt or service start.`;
 }
 
 /**

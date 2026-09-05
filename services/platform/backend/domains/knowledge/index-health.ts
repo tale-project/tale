@@ -162,7 +162,18 @@ export function installCorpusHealthHook(
   });
 }
 
-/** Turn a verification report into effects, index by index. */
+/**
+ * Turn a verification report into effects, index by index — then, when the
+ * report leaves EVERY index verified healthy (found so, or repaired inline),
+ * re-queue the files a previous process parked behind a rebuild or a failed
+ * repair. This is the boot-scan twin of the job's healthy arm: a
+ * `repair_failed` refusal lives in one process's memory, so after an
+ * operator's `REINDEX` and a restart nothing else would ever look at the
+ * parked rows again, and their note ("resumes on its own once the index
+ * verifies healthy again") would be a lie. Decided per report, not per
+ * index, so a database with one healthy and one still-rebuilding index does
+ * not re-queue files the guard would only park again.
+ */
 export async function applyIndexHealthReport(
   report: IndexHealthReport,
   scope: CorpusScope,
@@ -171,6 +182,19 @@ export async function applyIndexHealthReport(
 ): Promise<void> {
   for (const entry of report.indexes) {
     await applyOutcome(entry, scope, url, report.startedAt, effects);
+  }
+  const allVerifiedHealthy =
+    report.indexes.length > 0 &&
+    report.indexes.every(
+      ({ outcome }) =>
+        outcome.kind === 'healthy' || outcome.kind === 'repaired',
+    );
+  if (!allVerifiedHealthy) return;
+  const requeued = await effects.requeueRefused(scope, url);
+  if (requeued > 0) {
+    logger.info(
+      `${labelFor(scope)}: re-queued ${requeued} file(s) parked behind an index that now verifies healthy`,
+    );
   }
 }
 
@@ -223,6 +247,9 @@ async function applyOutcome(
         },
         stamp,
       );
+      // Files a previous process parked as "rebuilding — resumes
+      // automatically" get the operator prose now, as on the job path.
+      await effects.failRefused(scope, url, index);
       return;
     case 'not_retried':
       refuseCorpusWrites(url, index.schema, { state: 'repair_failed', index });
@@ -240,8 +267,12 @@ async function applyOutcome(
         },
         stamp,
       );
+      await effects.failRefused(scope, url, index);
       return;
     case 'healthy':
+      // Nothing to do for the index itself; the re-queue of files a previous
+      // process parked is decided once per report (`applyIndexHealthReport`).
+      return;
     case 'unverifiable':
     case 'invalid':
     case 'missing':

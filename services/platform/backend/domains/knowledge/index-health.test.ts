@@ -169,6 +169,13 @@ describe('acting on a verification report', () => {
     await expect(
       assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
     ).resolves.toBeUndefined();
+    // The database is verified healthy: whatever a previous process parked
+    // behind this index resumes now.
+    expect(effects.requeueRefused).toHaveBeenCalledTimes(1);
+    expect(effects.requeueRefused).toHaveBeenCalledWith(
+      { kind: 'org', orgSlug: 'acme' },
+      URL,
+    );
   });
 
   it('a failed repair refuses writes and announces the failure', async () => {
@@ -199,6 +206,14 @@ describe('acting on a verification report', () => {
       error: 'still failing after REINDEX',
     });
     expect(effects.scheduleRebuild).not.toHaveBeenCalled();
+    // Files a previous process parked as "rebuilding" are re-stamped with
+    // the operator prose, as the job path does; nothing is re-queued.
+    expect(effects.failRefused).toHaveBeenCalledWith(
+      { kind: 'default' },
+      URL,
+      PK,
+    );
+    expect(effects.requeueRefused).not.toHaveBeenCalled();
   });
 
   it('an index this process already rebuilt once is refused, never rebuilt again', async () => {
@@ -223,9 +238,57 @@ describe('acting on a verification report', () => {
       kind: 'repair_failed',
       path: null,
     });
+    expect(effects.failRefused).toHaveBeenCalledWith(
+      { kind: 'default' },
+      URL,
+      PK,
+    );
+    expect(effects.requeueRefused).not.toHaveBeenCalled();
   });
 
-  it('healthy, unverifiable, and invalid outcomes have no effects', async () => {
+  it('a healthy report announces nothing and re-queues the files a previous process parked', async () => {
+    // The realistic operator flow: a rebuild lands `repair_failed`, the
+    // files are parked with "resumes on its own once the index verifies
+    // healthy again", the operator runs REINDEX and restarts. No refusal is
+    // in this process's memory and the job already completed — the boot
+    // scan is the only thing that will ever look at those rows again.
+    const effects = spies();
+
+    await applyIndexHealthReport(
+      report(
+        {
+          index: PK,
+          outcome: { kind: 'healthy', checks: CHECKS },
+          verifyMs: 1,
+        },
+        {
+          index: PW,
+          outcome: { kind: 'healthy', checks: CHECKS },
+          verifyMs: 1,
+        },
+      ),
+      { kind: 'default' },
+      URL,
+      effects,
+    );
+
+    expect(effects.scheduleRebuild).not.toHaveBeenCalled();
+    expect(effects.announce).not.toHaveBeenCalled();
+    expect(effects.failRefused).not.toHaveBeenCalled();
+    // Once per report, not once per index.
+    expect(effects.requeueRefused).toHaveBeenCalledTimes(1);
+    expect(effects.requeueRefused).toHaveBeenCalledWith(
+      { kind: 'default' },
+      URL,
+    );
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('a report with an unverifiable or invalid index has no effects — and re-queues nothing', async () => {
+    // One healthy index does not make the database healthy: the parked
+    // files would only hit the guard again.
     const effects = spies();
 
     await applyIndexHealthReport(
@@ -253,12 +316,53 @@ describe('acting on a verification report', () => {
 
     expect(effects.scheduleRebuild).not.toHaveBeenCalled();
     expect(effects.announce).not.toHaveBeenCalled();
+    expect(effects.requeueRefused).not.toHaveBeenCalled();
+    expect(effects.failRefused).not.toHaveBeenCalled();
     await expect(
       assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
     ).resolves.toBeUndefined();
     await expect(
       assertCorpusWritable(URL, PW.schema, { now: () => 0 }),
     ).resolves.toBeUndefined();
+  });
+
+  it('a healthy index next to a deferred one re-queues nothing — the rebuild job will', async () => {
+    const effects = spies();
+
+    await applyIndexHealthReport(
+      report(
+        {
+          index: PK,
+          outcome: { kind: 'healthy', checks: CHECKS },
+          verifyMs: 1,
+        },
+        {
+          index: PW,
+          outcome: { kind: 'deferred', reason: 'too large to rebuild inline' },
+          verifyMs: 1,
+        },
+      ),
+      { kind: 'default' },
+      URL,
+      effects,
+    );
+
+    expect(effects.scheduleRebuild).toHaveBeenCalledTimes(1);
+    expect(effects.requeueRefused).not.toHaveBeenCalled();
+  });
+
+  it('an empty report (no indexes, locked, disabled) re-queues nothing', async () => {
+    const effects = spies();
+
+    await applyIndexHealthReport(
+      { status: 'locked', startedAt: 1_700_000_000_000, indexes: [] },
+      { kind: 'default' },
+      URL,
+      effects,
+    );
+
+    expect(effects.requeueRefused).not.toHaveBeenCalled();
+    expect(effects.announce).not.toHaveBeenCalled();
   });
 });
 
