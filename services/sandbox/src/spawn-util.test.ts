@@ -6,9 +6,14 @@
 // ReadableStream API drift along with the cap semantics.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 import {
+  IMAGE_PULL_TIMEOUT_MS,
   RUN_DOCKER_DEFAULT_TIMEOUT_MS,
+  ensureImage,
   resolveDockerTimeoutMs,
   runDocker,
 } from './spawn-util.ts';
@@ -120,5 +125,47 @@ describe('runDocker — default timeout', () => {
   test('the default is a real bound, not a formality', () => {
     expect(RUN_DOCKER_DEFAULT_TIMEOUT_MS).toBeGreaterThan(0);
     expect(Number.isFinite(RUN_DOCKER_DEFAULT_TIMEOUT_MS)).toBe(true);
+  });
+
+  // REGRESSION: the default once bounded the boot-time pull of the multi-GB
+  // runtime image too, so on any host without a pre-pull the CLI was killed at
+  // 60 s on all three attempts and no session could ever start. The pull has
+  // its own budget — minutes, not seconds — and it is still a real bound.
+  test('the image pull outlives the default by minutes and stays bounded', () => {
+    expect(IMAGE_PULL_TIMEOUT_MS).toBeGreaterThanOrEqual(
+      10 * RUN_DOCKER_DEFAULT_TIMEOUT_MS,
+    );
+    expect(Number.isFinite(IMAGE_PULL_TIMEOUT_MS)).toBe(true);
+    expect(resolveDockerTimeoutMs(IMAGE_PULL_TIMEOUT_MS)).toBe(
+      IMAGE_PULL_TIMEOUT_MS,
+    );
+  });
+
+  test('ensureImage: an inspect miss pulls exactly once and reports success', async () => {
+    // A fake docker that fails `image inspect` and records every call. This
+    // pins the boot path that carries IMAGE_PULL_TIMEOUT_MS (the budget itself
+    // is pinned above; runDocker's kill timer is exercised by the race test).
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'spawn-util-'));
+    const log = path.join(dir, 'calls.log');
+    const fake = path.join(dir, 'docker');
+    await fs.writeFile(
+      fake,
+      `#!/bin/bash\necho "$*" >> "${log}"\nif [ "$1" = "image" ]; then exit 1; fi\nexit 0\n`,
+      { mode: 0o755 },
+    );
+    const prev = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = fake;
+    try {
+      expect(await ensureImage('tale/runtime:test')).toBe(true);
+      expect((await fs.readFile(log, 'utf8')).trim().split('\n')).toEqual([
+        'image inspect tale/runtime:test',
+        'pull tale/runtime:test',
+      ]);
+    } finally {
+      process.env.DOCKER_BIN = prev;
+      await fs.rm(dir, { recursive: true, force: true }).catch((err) => {
+        console.warn('[spawn-util.test] tmp cleanup failed:', err);
+      });
+    }
   });
 });

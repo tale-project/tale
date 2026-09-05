@@ -124,8 +124,19 @@ async function drainAndCap(
  * with NO bound, so under the exact failure the healthcheck exists to detect
  * the spawner piled up one hung `docker` child per probe and per sweep tick,
  * and session create blocked forever in ensureCacheVolume. Callers with a
- * tighter or looser budget still pass their own; `Infinity` opts out. */
+ * tighter or looser budget still pass their own; `Infinity` opts out. The one
+ * routine call that MUST outlive this default is the boot-time image pull in
+ * {@link ensureImage} — it carries {@link IMAGE_PULL_TIMEOUT_MS}. */
 export const RUN_DOCKER_DEFAULT_TIMEOUT_MS = 60_000;
+
+/** Budget for ONE `docker pull` attempt of the runtime image. The image is
+ * multi-GB (LibreOffice + Playwright/Chromium + Node + Python toolchains), so
+ * on a host without a `tale deploy` pre-pull (kind/dev hosts, a hand-run
+ * compose, K8s-less installs) the warm pull routinely runs for minutes; the
+ * 60 s default would SIGKILL the CLI — which cancels the daemon-side pull —
+ * on every attempt and no session could ever start. 30 min is the slow-link
+ * ceiling; a wedged daemon still cannot pin boot forever (3 attempts). */
+export const IMAGE_PULL_TIMEOUT_MS = 30 * 60_000;
 
 /** The kill-timer budget for one docker CLI invocation: the caller's value,
  * else the default; `null` when the caller opted out with a non-finite value. */
@@ -268,9 +279,12 @@ export function dockerRmSucceeded(result: RunDockerResult): boolean {
 
 /**
  * Best-effort `docker pull` of an image, retried with exponential backoff.
- * Used once at spawner boot so the first /v1/execute call doesn't pay a cold
- * registry round-trip. Returns true on success; the caller decides whether
- * to fail-closed on a persistent failure.
+ * Used once at spawner boot so the first session create doesn't pay a cold
+ * registry round-trip (and doesn't die on its own `docker run -d` bound while
+ * the daemon is still pulling). The local `image inspect` keeps the default
+ * budget; each pull attempt gets {@link IMAGE_PULL_TIMEOUT_MS}. Returns true
+ * on success; the caller decides whether to fail-closed on a persistent
+ * failure.
  */
 export async function ensureImage(
   image: string,
@@ -280,7 +294,9 @@ export async function ensureImage(
   if (inspect.exitCode === 0) return true;
   const attempts = opts.attempts ?? 3;
   for (let i = 0; i < attempts; i++) {
-    const result = await runDocker(['pull', image]);
+    const result = await runDocker(['pull', image], {
+      timeoutMs: IMAGE_PULL_TIMEOUT_MS,
+    });
     if (result.exitCode === 0) return true;
     if (i < attempts - 1) {
       const delayMs = 1000 * (i + 1);
