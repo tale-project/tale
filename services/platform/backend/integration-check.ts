@@ -11645,23 +11645,6 @@ async function checkSsoLogin(
     );
     void configRoot;
 
-    // --- discover ----------------------------------------------------------
-    const discovered = z
-      .object({
-        ssoEnabled: z.boolean(),
-        organizationId: z.string().optional(),
-        protocol: z.string().optional(),
-      })
-      .safeParse(
-        await (
-          await fetch(`${base}/api/sso/discover`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email: 'sso.user@door.test' }),
-          })
-        ).json(),
-      );
-
     // --- one full login round, reusable ------------------------------------
     const loginRound = async (): Promise<{
       authorizeStatus: number;
@@ -11857,10 +11840,7 @@ async function checkSsoLogin(
 
     record(
       'enterprise SSO login (OIDC + PKCE + provisioning over PG)',
-      discovered.success &&
-        discovered.data.ssoEnabled &&
-        discovered.data.protocol === 'oidc' &&
-        first.authorizeStatus === 302 &&
+      first.authorizeStatus === 302 &&
         first.idpHost &&
         seenChallenge !== '' &&
         first.callbackStatus === 302 &&
@@ -11877,7 +11857,7 @@ async function checkSsoLogin(
         rows2[0]?.teams === 'Board,Everyone,Finance,Scim Managed' &&
         opsTeamGone.length === 0 &&
         aliasRes.status === 302,
-      `discover=${discovered.success ? `${discovered.data.ssoEnabled}/${discovered.data.protocol ?? ''}` : 'ERR'}, authorize=${first.authorizeStatus} idp=${first.idpHost} pkce=${firstPkce}, callback=${first.callbackStatus}→${first.location.includes('/dashboard') ? 'dashboard' : first.location}, session=${sessionBody.success ? (sessionBody.data.user?.email ?? 'none') : 'ERR'}, first role/teams=${rows1[0]?.role}/${rows1[0]?.teams} (want developer/Ops), second role/teams=${rows2[0]?.role}/${rows2[0]?.teams} (want member/Board,Everyone,Finance,Scim Managed), opsReaped=${opsTeamGone.length === 0}, alias=${aliasRes.status}`,
+      `authorize=${first.authorizeStatus} idp=${first.idpHost} pkce=${firstPkce}, callback=${first.callbackStatus}→${first.location.includes('/dashboard') ? 'dashboard' : first.location}, session=${sessionBody.success ? (sessionBody.data.user?.email ?? 'none') : 'ERR'}, first role/teams=${rows1[0]?.role}/${rows1[0]?.teams} (want developer/Ops), second role/teams=${rows2[0]?.role}/${rows2[0]?.teams} (want member/Board,Everyone,Finance,Scim Managed), opsReaped=${opsTeamGone.length === 0}, alias=${aliasRes.status}`,
     );
 
     // --- fourth round: org 2FA enforcement anchors on the SSO door ---------

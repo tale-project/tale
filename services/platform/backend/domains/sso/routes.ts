@@ -3,12 +3,10 @@ import type { Sql } from 'postgres';
 
 import { ssoAuthorizeHandler } from '../../core/enterprise_sso/login/authorize_handler.ts';
 import { ssoCallbackHandler } from '../../core/enterprise_sso/login/callback_handler.ts';
-import { ssoDiscoverHandler } from '../../core/enterprise_sso/login/discover_handler.ts';
 import type {
   FinishLogin,
   FinishLoginArgs,
 } from '../../core/enterprise_sso/login/finish_login.ts';
-import { publicOrigin } from '../../core/enterprise_sso/login/public_origin.ts';
 import { samlAcsHandler } from '../../core/enterprise_sso/saml/acs_handler.ts';
 import { samlLoginHandler } from '../../core/enterprise_sso/saml/login_handler.ts';
 import { samlMetadataHandler } from '../../core/enterprise_sso/saml/metadata_handler.ts';
@@ -18,7 +16,7 @@ import { ssoShimHandlers } from './shim.ts';
 
 /**
  * /api/sso — enterprise sign-in, the REUSED 0.4 protocol handlers whole
- * (OIDC discover/authorize/callback, SAML metadata/login/ACS) on the SSO
+ * (OIDC authorize/callback, SAML metadata/login/ACS) on the SSO
  * shim. The one injected difference is the login FINISH: 0.4 warmed up the
  * Convex JWT lane after setting the session cookie; 0.5's Better Auth reads
  * the session row directly, so the finisher just signs the cookie and
@@ -60,70 +58,19 @@ const finishLoginPg: FinishLogin = async (_ctx, args: FinishLoginArgs) => {
   return new Response(null, { status: 302, headers });
 };
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 export function createSsoRoutes(deps: { sql: Sql }): Hono {
   const app = new Hono();
   const shim = () => {
     const ctx = createCtxShim(ssoShimHandlers(deps.sql));
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 handlers; every ctx facility they touch is covered by ssoShimHandlers
-    return ctx as unknown as Parameters<typeof ssoDiscoverHandler>[0];
+    return ctx as unknown as Parameters<typeof ssoAuthorizeHandler>[0];
   };
-
-  app.post('/discover', async (c) => ssoDiscoverHandler(shim(), c.req.raw));
 
   app.get('/authorize', async (c) => ssoAuthorizeHandler(shim(), c.req.raw));
 
   app.get('/callback', async (c) =>
     ssoCallbackHandler(shim(), c.req.raw, { finishLogin: finishLoginPg }),
   );
-
-  /**
-   * GET /set-session — the token→cookie interstitial (desktop/cross-origin
-   * flows hand the browser here). The 0.5 twin of `set_session_handler`:
-   * sign the cookie, answer an HTML page that redirects to the dashboard
-   * (HTML rather than 302 so Set-Cookie is reliably applied).
-   */
-  app.get('/set-session', async (c) => {
-    const token = c.req.query('token');
-    // Public origin, not the internal request origin — it decides the
-    // __Secure-/Secure cookie shape Better Auth will read back.
-    const frontendOrigin = publicOrigin(c.req.url);
-    const basePath = process.env.BASE_PATH || '';
-    if (!token) {
-      const html = `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Login Error</title></head>
-<body>
-  <p>Error: ${escapeHtml('Missing session token')}</p>
-  <p><a href="${basePath}/log-in">Return to login</a></p>
-</body>
-</html>`;
-      return c.html(html);
-    }
-    const cookie = await sessionCookieFor(token, frontendOrigin);
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="refresh" content="0;url=${basePath}/dashboard">
-  <title>Completing login...</title>
-</head>
-<body>
-  <p>Completing login, please wait...</p>
-  <script>window.location.href = '${basePath}/dashboard';</script>
-</body>
-</html>`;
-    c.header('Set-Cookie', cookie);
-    return c.html(html);
-  });
 
   app.get('/saml/metadata', async (c) =>
     samlMetadataHandler(shim(), c.req.raw),

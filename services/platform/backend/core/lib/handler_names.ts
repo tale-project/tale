@@ -195,7 +195,6 @@ interface HandlerNames {
       handleSsoLogin: FunctionRef;
     };
     internal_queries: FunctionRef & {
-      discoverByEmail: FunctionRef;
       resolveSamlConfig: FunctionRef;
       resolveSignInConfig: FunctionRef;
     };

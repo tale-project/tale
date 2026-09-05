@@ -8,7 +8,6 @@ import {
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
-  discoverByEmail,
   readSsoSecrets,
   resolveProvisioning,
   resolveSamlConfig,
@@ -19,7 +18,7 @@ import { handleSsoLogin } from './service.ts';
 
 /**
  * Shim handlers for the REUSED 0.4 SSO protocol handlers (OIDC authorize/
- * callback, SAML login/ACS/metadata, discover): every `ctx.run*` those
+ * callback, SAML login/ACS/metadata): every `ctx.run*` those
  * handlers make, answered from the 0.5 config files + PG services. The
  * fail-loud shim guarantees any new ctx dependency surfaces in integration.
  */
@@ -29,10 +28,6 @@ export function ssoShimHandlers(sql: Sql): ShimHandlers {
   // wherever it lands.
   const samlRequestCache = createSamlRequestCache(sql);
   return {
-    'enterprise_sso/internal_queries:discoverByEmail': async (raw) => {
-      const args = z.object({ email: z.string() }).parse(raw);
-      return discoverByEmail(sql, args.email);
-    },
     'enterprise_sso/internal_queries:resolveSignInConfig': async (raw) => {
       const args = z
         .object({ organizationId: z.string().optional() })

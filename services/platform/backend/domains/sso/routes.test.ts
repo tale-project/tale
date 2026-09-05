@@ -1,0 +1,50 @@
+// @vitest-environment node
+
+import type { Sql } from 'postgres';
+import { describe, expect, it } from 'vitest';
+
+import { createSsoRoutes } from './routes.ts';
+
+/**
+ * The pre-auth `/api/sso` surface: only the protocol doors the login page
+ * and the IdPs actually drive exist. Two doors used to be mounted with no
+ * caller anywhere — `GET /set-session` minted a session cookie for ANY
+ * token in the query string (a login-CSRF primitive), and `POST /discover`
+ * let anonymous callers learn which org owns an email domain — so their
+ * absence is pinned here.
+ */
+
+/** A Sql double that refuses every query — these doors must answer before
+ * touching the database. */
+function refusingSql(): Sql {
+  const tag = () => {
+    throw new Error('the database must not be reached');
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return Object.assign(tag, { begin: tag }) as unknown as Sql;
+}
+
+describe('/api/sso — retired doors are gone', () => {
+  it('answers 404 for GET /set-session (the token→cookie interstitial)', async () => {
+    const app = createSsoRoutes({ sql: refusingSql() });
+
+    const res = await app.request(
+      'http://backend-api:3005/set-session?token=attacker-session-token',
+    );
+
+    expect(res.status).toBe(404);
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('answers 404 for POST /discover (email-domain routing)', async () => {
+    const app = createSsoRoutes({ sql: refusingSql() });
+
+    const res = await app.request('http://backend-api:3005/discover', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'someone@acme.test' }),
+    });
+
+    expect(res.status).toBe(404);
+  });
+});
