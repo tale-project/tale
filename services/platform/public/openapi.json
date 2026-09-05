@@ -73,9 +73,7 @@
   "paths": {
     "/api/v1/documents": {
       "get": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "List documents",
         "description": "Knowledge-hub documents the key holder can see, newest first — project files never appear here (the Projects family owns them). `content` is not carried in the listing; read one document for it.",
         "operationId": "listDocuments",
@@ -129,11 +127,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -186,9 +180,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Create document",
         "description": "Requires a documents-write role. Either inline `content` or a `fileId` (an uploaded blob reference) backs the document.",
         "operationId": "createDocument",
@@ -214,9 +206,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -271,9 +261,7 @@
     },
     "/api/v1/documents/{id}": {
       "get": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Get document",
         "description": "A document with its `content`. A project file, a foreign document and a nonexistent id all answer the same opaque 404.",
         "operationId": "getDocument",
@@ -347,9 +335,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Update document",
         "description": "Partial update; a `null` clears an optional field. Requires a documents-write role; a controlled record under review, approval or legal hold refuses the change.",
         "operationId": "updateDocument",
@@ -446,9 +432,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Delete document",
         "description": "The permanent delete: role gate, controlled-record protection, legal holds, sync stop and the audit row, then the purge.",
         "operationId": "deleteDocument",
@@ -537,9 +521,7 @@
     },
     "/api/v1/documents/{id}/retry-indexing": {
       "post": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "summary": "Retry RAG indexing",
         "description": "Re-queues the document’s blob for knowledge indexing. Requires a documents-write role. Answers `skipped` — honestly — for a content-only document, a blob the platform does not track, or a file whose RAG opt-out is persisted.",
         "operationId": "retryDocumentIndexing",
@@ -566,16 +548,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "indexing",
-                        "skipped"
-                      ]
+                      "enum": ["indexing", "skipped"]
                     }
                   }
                 }
@@ -637,9 +614,7 @@
     },
     "/api/v1/websites": {
       "get": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "List websites",
         "operationId": "listWebsites",
         "security": [
@@ -692,11 +667,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -749,9 +720,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Create website",
         "description": "Registers a domain for crawling and schedules the first crawl. With `urls`, registers (or, for an existing domain, extends) a curated URL list instead of a whole-site crawl.",
         "operationId": "createWebsite",
@@ -777,9 +746,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -824,9 +791,7 @@
     },
     "/api/v1/websites/{id}": {
       "get": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Get website",
         "operationId": "getWebsite",
         "security": [
@@ -899,9 +864,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Update website",
         "operationId": "updateWebsite",
         "security": [
@@ -977,9 +940,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Delete website",
         "description": "Deregisters the crawl and removes the website.",
         "operationId": "deleteWebsite",
@@ -1048,9 +1009,7 @@
     },
     "/api/v1/websites/{id}/pages": {
       "get": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Fetch pages",
         "description": "The crawled pages of a website — OFFSET-paginated (`offset` + `limit`, default 100), answering `{pages, total, offset, hasMore}`.",
         "operationId": "listWebsitePages",
@@ -1144,9 +1103,7 @@
     },
     "/api/v1/websites/{id}/sync": {
       "post": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Sync statuses",
         "description": "Schedules the per-site corpus → row status sync and answers immediately; `syncing` means the job is queued, not finished.",
         "operationId": "syncWebsite",
@@ -1173,15 +1130,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "syncing"
-                      ]
+                      "enum": ["syncing"]
                     }
                   }
                 }
@@ -1233,9 +1186,7 @@
     },
     "/api/v1/websites/{id}/search": {
       "post": {
-        "tags": [
-          "Websites"
-        ],
+        "tags": ["Websites"],
         "summary": "Search content",
         "description": "A POST because it carries a body, not because it writes: semantic search over this website’s crawled content.",
         "operationId": "searchWebsite",
@@ -1261,9 +1212,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "query"
-                ],
+                "required": ["query"],
                 "properties": {
                   "query": {
                     "type": "string"
@@ -1333,9 +1282,7 @@
     },
     "/api/v1/products": {
       "get": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "List products",
         "description": "Most recently updated first.",
         "operationId": "listProducts",
@@ -1389,11 +1336,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -1446,9 +1389,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Create product",
         "operationId": "createProduct",
         "security": [
@@ -1473,9 +1414,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -1530,9 +1469,7 @@
     },
     "/api/v1/products/{id}": {
       "get": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Get product",
         "operationId": "getProduct",
         "security": [
@@ -1605,9 +1542,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Update product",
         "operationId": "updateProduct",
         "security": [
@@ -1700,9 +1635,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Delete product",
         "operationId": "deleteProduct",
         "security": [
@@ -1770,9 +1703,7 @@
     },
     "/api/v1/contacts": {
       "get": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "List contacts",
         "description": "Most recently updated first; trashed contacts are hidden.",
         "operationId": "listContacts",
@@ -1817,11 +1748,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -1874,9 +1801,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "Create contact",
         "description": "`source` defaults to `api_import`.",
         "operationId": "createContact",
@@ -1902,9 +1827,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -1959,9 +1882,7 @@
     },
     "/api/v1/contacts/bulk": {
       "post": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "Create contacts in bulk",
         "description": "Up to 500 contacts per call, each needing an `email`. Rows are created independently: the result counts successes and failures and names each failed row with its reason.",
         "operationId": "bulkCreateContacts",
@@ -1976,9 +1897,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "contacts"
-                ],
+                "required": ["contacts"],
                 "properties": {
                   "contacts": {
                     "type": "array",
@@ -2038,9 +1957,7 @@
     },
     "/api/v1/contacts/{id}": {
       "get": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "Get contact",
         "operationId": "getContact",
         "security": [
@@ -2113,9 +2030,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "Update contact",
         "operationId": "patchContact",
         "security": [
@@ -2208,9 +2123,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Contacts"
-        ],
+        "tags": ["Contacts"],
         "summary": "Delete contact",
         "operationId": "deleteContact",
         "security": [
@@ -2278,9 +2191,7 @@
     },
     "/api/v1/projects": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Look up a project by external item id",
         "description": "A lookup door, not a list-all: `externalItemId` is REQUIRED (400 without it). Answers at most one project — the key is unique per organization. A project the key holder cannot see answers the same empty list as no match. The row carries `archivedAt` when the match is archived, so callers can detect an archived project holding the key. Shares the general REST bucket (120/min, keyed on the key holder).",
         "operationId": "lookupProjects",
@@ -2316,9 +2227,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "projects"
-                  ],
+                  "required": ["projects"],
                   "properties": {
                     "projects": {
                       "type": "array",
@@ -2364,9 +2273,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Create a project",
         "description": "Requires the org editor role. `externalItemId` is an opaque caller-owned key, stored trimmed, unique per organization regardless of lifecycle — a conflict against an archived project is still a 409. A blank or over-long value is a 400. `key` (the task-identifier prefix) is derived from the name when omitted; a derived key that collides gets a numeric suffix, and a name no key can be derived from creates the project keyless — only an EXPLICIT `key` conflict answers 409.",
         "operationId": "createProject",
@@ -2392,9 +2299,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "name"
-                ],
+                "required": ["name"],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -2424,9 +2329,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "project"
-                  ],
+                  "required": ["project"],
                   "properties": {
                     "project": {
                       "$ref": "#/components/schemas/Project"
@@ -2491,9 +2394,7 @@
     },
     "/api/v1/projects/{id}": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Get a project",
         "description": "Answers an opaque 404 for a project that is cross-organization, invisible to the key holder, or does not exist — the three are indistinguishable.",
         "operationId": "getProject",
@@ -2529,9 +2430,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "project"
-                  ],
+                  "required": ["project"],
                   "properties": {
                     "project": {
                       "$ref": "#/components/schemas/Project"
@@ -2586,9 +2485,7 @@
     },
     "/api/v1/projects/{id}/folders": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "List the project’s root folders",
         "description": "Top-level folders only, NOT paginated — a project holds a handful of period folders, not an unbounded tree.",
         "operationId": "listProjectFolders",
@@ -2624,9 +2521,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "folders"
-                  ],
+                  "required": ["folders"],
                   "properties": {
                     "folders": {
                       "type": "array",
@@ -2682,9 +2577,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Get or create a folder",
         "description": "GET-OR-CREATE semantics: an exact-name match under the same parent answers 200 with `created: false`; otherwise the folder is created and answered 201 with `created: true`. `parentId` must name a folder of THIS project (an opaque 404 otherwise); omit it for a root folder. Requires the org editor role and project edit access. Charged against the general REST bucket (120/min) and the per-org `folder:mutate` budget the in-app folder actions share.",
         "operationId": "getOrCreateProjectFolder",
@@ -2719,9 +2612,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "name"
-                ],
+                "required": ["name"],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -2812,9 +2703,7 @@
     },
     "/api/v1/projects/{id}/uploads": {
       "post": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Mint an upload handoff",
         "description": "Answers where to send the bytes: a presigned `PUT` URL for the organization’s bucket (every 0.5 blob is S3-backed) plus the `s3Ref` to bind afterwards as `fileId` — a declared `contentType` is signed into the URL, so the PUT must carry that exact `Content-Type` header (omit `contentType` and the PUT has no header requirement). The `uploadId` is a single-use intent valid until `expiresAt` (30 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; keyed on the key holder like every REST budget).",
         "operationId": "createProjectUpload",
@@ -2927,9 +2816,7 @@
     },
     "/api/v1/projects/{id}/files/{documentId}/content": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Download a project file",
         "description": "The result lane: fetch the bytes of a file in the project — including what an automation filed back (a prepared return, a report). Every blob is object-storage backed, so the answer is a **302** to a short-lived presigned URL — follow redirects. Visibility is the minting user’s; a cross-project, cross-organization, trashed, or absent file answers the same opaque 404.",
         "operationId": "downloadProjectFile",
@@ -3016,9 +2903,7 @@
     },
     "/api/v1/projects/{id}/files": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "List the project’s files",
         "description": "Paginated (`cursor` + `limit`, answering `{files, cursor?}` — no `cursor` in the response means the listing is complete). `folderId` narrows to one folder of this project. Project files never appear in `GET /api/v1/documents` — that is the knowledge hub’s surface.",
         "operationId": "listProjectFiles",
@@ -3081,9 +2966,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "files"
-                  ],
+                  "required": ["files"],
                   "properties": {
                     "files": {
                       "type": "array",
@@ -3143,9 +3026,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "Bind an uploaded blob as a project file",
         "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` the handoff answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. The organization’s upload policy applies to the landed bytes (authoritative size): a size cap, MIME or extension allowlist, or per-user volume refusal answers 400 with code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / `UNSUPPORTED_FILE_TYPE`, and the per-organization `file:upload` budget the in-app upload shares answers 429. A refusal rolls the intent consume back, so the handshake survives a corrected retry. Uses the upload lane bucket (240/min, keyed on the key holder).",
         "operationId": "bindProjectFile",
@@ -3180,12 +3061,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "uploadId",
-                  "fileId",
-                  "folderId",
-                  "fileName"
-                ],
+                "required": ["uploadId", "fileId", "folderId", "fileName"],
                 "properties": {
                   "uploadId": {
                     "type": "string"
@@ -3218,18 +3094,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "file"
-                  ],
+                  "required": ["file"],
                   "properties": {
                     "file": {
                       "type": "object",
-                      "required": [
-                        "id",
-                        "fileName",
-                        "folderId",
-                        "projectId"
-                      ],
+                      "required": ["id", "fileName", "folderId", "projectId"],
                       "properties": {
                         "id": {
                           "type": "string"
@@ -3315,9 +3184,7 @@
     },
     "/api/v1/tasks": {
       "post": {
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "summary": "Create a task from an external ref (idempotent)",
         "description": "Materializes an external item as a task of one project, keyed by `(projectId, externalSystem, externalId)`: the first call creates (201, `created: true`), any repeat answers the SAME task (200, `created: false`) instead of a duplicate — safe for a worker that retries after a crash. `projectId` is REQUIRED: this door never falls back to the org-wide project, and the project must exist AND be visible to the key’s minting user (an opaque 404 otherwise). `externalId` is a caller-owned opaque key the platform never interprets; `externalUrl` is stored verbatim. The task is created by the minting user; over-long titles are truncated to the board cap rather than refused. When `runWorkflowSlug` is sent, a NEWLY created task also starts that workflow on itself, inline — the response then carries the run’s `executionId` (poll `GET /api/v1/runs/{runId}`), or `executionId: null` when the slug names no deployed automation. Skipped on an idempotent re-pick (no `executionId` field at all). Shares the general REST bucket (120/min, keyed on the key holder).",
         "operationId": "createTask",
@@ -3467,9 +3334,7 @@
     },
     "/api/v1/tasks/{id}/comments": {
       "get": {
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "summary": "List the task’s comments",
         "description": "The discussion read lane: what automations reported back (prepared figures, operator questions, setup summaries) and what people replied. Answers the NEWEST `limit` comments (default 200, at most 500), chronological within the page; while `isDone` is false, pass `continueCursor` back as `cursor` to read the older ones — a busy task’s discussion is never silently cut at a fixed window. `authorType` separates `user` and `agent` voices. Visibility is the minting user’s, like every task read.",
         "operationId": "listTaskComments",
@@ -3523,11 +3388,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "comments",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["comments", "isDone", "continueCursor"],
                   "properties": {
                     "comments": {
                       "type": "array",
@@ -3546,10 +3407,7 @@
                           },
                           "authorType": {
                             "type": "string",
-                            "enum": [
-                              "user",
-                              "agent"
-                            ]
+                            "enum": ["user", "agent"]
                           },
                           "authorId": {
                             "type": "string"
@@ -3622,9 +3480,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "summary": "Comment on the task as the key’s user",
         "description": "Posts into the task’s discussion AS THE MINTING USER (author and actor type `user`) — indistinguishable from the same person commenting in the app, @mention behaviour included. Commenting is a READ-level action: any member who can see the task may post. The body is capped at 10000 characters and charged against the same per-user `task:comment` budget as in-app comments (429 with Retry-After beyond it).",
         "operationId": "addTaskComment",
@@ -3659,9 +3515,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "body"
-                ],
+                "required": ["body"],
                 "properties": {
                   "body": {
                     "type": "string",
@@ -3680,15 +3534,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "comment"
-                  ],
+                  "required": ["comment"],
                   "properties": {
                     "comment": {
                       "type": "object",
-                      "required": [
-                        "id"
-                      ],
+                      "required": ["id"],
                       "properties": {
                         "id": {
                           "type": "string"
@@ -3745,9 +3595,7 @@
     },
     "/api/v1/tasks/{id}": {
       "get": {
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "summary": "Get a task",
         "description": "The task’s state for a polling worker. Visibility is the minting user’s (a task inherits its project’s access): a cross-organization id, an invisible task, and a nonexistent one all answer the same opaque 404. The task row carries NO live-run linkage — to follow a workflow run, keep the `executionId` answered by `POST /api/v1/tasks/{id}/start` and poll `GET /api/v1/runs/{runId}`.",
         "operationId": "getTask",
@@ -3783,9 +3631,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "task"
-                  ],
+                  "required": ["task"],
                   "properties": {
                     "task": {
                       "$ref": "#/components/schemas/Task"
@@ -3840,9 +3686,7 @@
     },
     "/api/v1/tasks/{id}/start": {
       "post": {
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "summary": "Start a deployed workflow on the task",
         "description": "Starts a fresh, subject-linked run of `workflowSlug` carrying the task as its input — the REST twin of the task board’s Start. RBAC is deliberately the session action’s: org membership plus the task’s READ visibility, NOT the developer gate `POST /api/v1/automations/{name}/runs` applies — that endpoint starts a run with arbitrary input, while this one is task-subject-bound (its input IS the task), which narrows the blast radius; deploying the workflow was the privileged act. The run is attributed `api-key:<userId>` in the run log, so machine starts stay distinguishable from human UI starts. Answers the session shape: `started: true` with the new run’s `executionId` (poll `GET /api/v1/runs/{runId}`); `already_running` with the in-flight run’s id instead of racing a duplicate over the same task; `not_started` when the slug names no deployed automation (or the start failed) — the task itself is untouched either way. Work-starting lane: charged against the execute bucket (20/min) on top of the general one (120/min); both keyed on the key holder.",
         "operationId": "startTaskWorkflow",
@@ -3877,9 +3721,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "workflowSlug"
-                ],
+                "required": ["workflowSlug"],
                 "properties": {
                   "workflowSlug": {
                     "type": "string",
@@ -3898,20 +3740,14 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "started",
-                    "executionId"
-                  ],
+                  "required": ["started", "executionId"],
                   "properties": {
                     "started": {
                       "type": "boolean"
                     },
                     "reason": {
                       "type": "string",
-                      "enum": [
-                        "already_running",
-                        "not_started"
-                      ],
+                      "enum": ["already_running", "not_started"],
                       "description": "Present only when `started` is false"
                     },
                     "executionId": {
@@ -3969,9 +3805,7 @@
     },
     "/api/v1/automations": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "List automations",
         "description": "Every automation of the organization, by name — a complete set, not paginated (an organization holds tens of automations, not thousands). `projectIds` is the binding set: empty means org-level.",
         "operationId": "listAutomations",
@@ -3987,9 +3821,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "automations"
-                  ],
+                  "required": ["automations"],
                   "properties": {
                     "automations": {
                       "type": "array",
@@ -4037,9 +3869,7 @@
     },
     "/api/v1/automations/{name}": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Get one automation version",
         "operationId": "getAutomation",
         "security": [
@@ -4123,9 +3953,7 @@
     },
     "/api/v1/automations/{name}/versions": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "List an automation’s versions",
         "description": "The immutable version history, complete — not paginated.",
         "operationId": "listAutomationVersions",
@@ -4152,10 +3980,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "versions",
-                    "name"
-                  ],
+                  "required": ["versions", "name"],
                   "properties": {
                     "versions": {
                       "type": "array",
@@ -4206,9 +4031,7 @@
     },
     "/api/v1/automations/{name}/runs": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "List an automation’s runs",
         "description": "The newest runs first — a bounded WINDOW (`limit` 1..200, default 50), not a cursor walk; each row is the full run. To follow one run, poll `GET /api/v1/runs/{runId}`.",
         "operationId": "listAutomationRuns",
@@ -4244,9 +4067,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "runs"
-                  ],
+                  "required": ["runs"],
                   "properties": {
                     "runs": {
                       "type": "array",
@@ -4292,9 +4113,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Start a run of the deployed version",
         "description": "Answers 202 with the run’s identity rather than its result: a run is durable and may take minutes, so poll `GET /api/v1/runs/{runId}`. Starting a run needs no trigger — the API key is the entitlement. `mode` defaults to `live`, which requires the key holder to have the developer capability; a `mock` run needs only membership. `projectId` scopes the run to a project and must exist in this organization; a project-bound automation accepts only one of its bound projects (403 otherwise). Omitted, the run is attributed to the sole binding, or runs organization-wide. Charged against the execute bucket (20/min) on top of the general one.",
         "operationId": "startAutomationRun",
@@ -4327,10 +4146,7 @@
                   },
                   "mode": {
                     "type": "string",
-                    "enum": [
-                      "live",
-                      "mock"
-                    ],
+                    "enum": ["live", "mock"],
                     "default": "live"
                   },
                   "version": {
@@ -4353,12 +4169,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "runId",
-                    "version",
-                    "name",
-                    "mode"
-                  ],
+                  "required": ["runId", "version", "name", "mode"],
                   "properties": {
                     "runId": {
                       "type": "string"
@@ -4371,10 +4182,7 @@
                     },
                     "mode": {
                       "type": "string",
-                      "enum": [
-                        "live",
-                        "mock"
-                      ]
+                      "enum": ["live", "mock"]
                     }
                   }
                 }
@@ -4436,9 +4244,7 @@
     },
     "/api/v1/automations/{name}/projects": {
       "post": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Bind the automation to a project",
         "description": "Idempotently adds ONE project to the automation’s binding set — the machine door’s install step, so a worker that just created a client project can put the automation on it without a human. The binding SET is the scope: an automation with no bindings is org-level (every project sees it); one with bindings runs only in those projects. Requires the developer capability (the same gate as the session binding panel), and a key whose user belongs to several organizations must send `X-Organization-Slug`. The target project must be visible to the key’s minting user — an invisible or foreign project answers the same 404 as an absent one. Answers 201 when the binding was added, 200 when it already existed. Unbinding stays a dashboard operation.",
         "operationId": "bindAutomationProject",
@@ -4473,9 +4279,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "projectId"
-                ],
+                "required": ["projectId"],
                 "properties": {
                   "projectId": {
                     "type": "string",
@@ -4493,19 +4297,14 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "name",
-                    "added"
-                  ],
+                  "required": ["name", "added"],
                   "properties": {
                     "name": {
                       "type": "string"
                     },
                     "added": {
                       "type": "boolean",
-                      "enum": [
-                        false
-                      ]
+                      "enum": [false]
                     }
                   }
                 }
@@ -4518,19 +4317,14 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "name",
-                    "added"
-                  ],
+                  "required": ["name", "added"],
                   "properties": {
                     "name": {
                       "type": "string"
                     },
                     "added": {
                       "type": "boolean",
-                      "enum": [
-                        true
-                      ]
+                      "enum": [true]
                     }
                   }
                 }
@@ -4592,9 +4386,7 @@
     },
     "/api/v1/automations/{name}/triggers": {
       "get": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Read the automation’s trigger",
         "description": "The trigger binding — at most one per automation, answered as a list. Never the webhook secret: `hasToken` says one exists.",
         "operationId": "listAutomationTriggers",
@@ -4621,10 +4413,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "triggers",
-                    "name"
-                  ],
+                  "required": ["triggers", "name"],
                   "properties": {
                     "triggers": {
                       "type": "array",
@@ -4673,9 +4462,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Bind what starts the automation",
         "description": "Requires the developer capability. For a webhook trigger the plaintext token is returned ONCE in this response (and again only with `rotateToken: true`); the platform stores a hash.",
         "operationId": "setAutomationTrigger",
@@ -4701,17 +4488,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "kind"
-                ],
+                "required": ["kind"],
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": [
-                      "schedule",
-                      "webhook",
-                      "event"
-                    ]
+                    "enum": ["schedule", "webhook", "event"]
                   },
                   "cron": {
                     "type": "string",
@@ -4745,9 +4526,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "name"
-                  ],
+                  "required": ["name"],
                   "properties": {
                     "name": {
                       "type": "string"
@@ -4804,9 +4583,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Unbind the automation’s trigger",
         "description": "Idempotent: answers 204 whether or not a trigger existed. Versions and run history stay. Requires the developer capability.",
         "operationId": "deleteAutomationTrigger",
@@ -4875,9 +4652,7 @@
     },
     "/api/v1/runs/{runId}": {
       "get": {
-        "tags": [
-          "Runs"
-        ],
+        "tags": ["Runs"],
         "summary": "Get one run in full",
         "operationId": "getRun",
         "security": [
@@ -4952,9 +4727,7 @@
     },
     "/api/v1/runs/{runId}/cancel": {
       "post": {
-        "tags": [
-          "Runs"
-        ],
+        "tags": ["Runs"],
         "summary": "Stop a run at its next node boundary",
         "description": "Requires the developer capability. Work a node already performed is not undone.",
         "operationId": "cancelRun",
@@ -4981,9 +4754,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "cancelled"
-                  ],
+                  "required": ["cancelled"],
                   "properties": {
                     "cancelled": {
                       "type": "boolean"
@@ -5048,9 +4819,7 @@
     },
     "/api/v1/threads": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "List the key holder’s threads",
         "description": "The key’s own active threads, newest activity first.",
         "operationId": "listThreads",
@@ -5086,11 +4855,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -5143,9 +4908,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Create a thread",
         "description": "A direct chat thread (never a sandbox thread — that needs a harness this surface cannot drive).",
         "operationId": "createThread",
@@ -5183,9 +4946,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -5250,9 +5011,7 @@
     },
     "/api/v1/threads/{id}": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Get a thread",
         "operationId": "getThread",
         "security": [
@@ -5327,9 +5086,7 @@
     },
     "/api/v1/threads/{id}/messages": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "List a thread’s messages",
         "description": "The conversation in sequence order; `cursor` is the previous page’s `continueCursor` (the last message’s `sequence`).",
         "operationId": "listMessages",
@@ -5374,11 +5131,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -5441,9 +5194,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Send a message and start a turn",
         "description": "Answers 202 immediately; the turn runs in the background. Poll `GET /api/v1/threads/{id}/generation` until `{\"status\": \"idle\"}`, then read the messages. A turn that fails before producing output surfaces as an assistant message carrying an error — never silently. Charged against the execute bucket (20/min) on top of the general one.",
         "operationId": "postMessage",
@@ -5469,10 +5220,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "content",
-                  "model"
-                ],
+                "required": ["content", "model"],
                 "properties": {
                   "content": {
                     "type": "string"
@@ -5496,21 +5244,14 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "threadId",
-                    "status",
-                    "model",
-                    "poll"
-                  ],
+                  "required": ["threadId", "status", "model", "poll"],
                   "properties": {
                     "threadId": {
                       "type": "string"
                     },
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "accepted"
-                      ]
+                      "enum": ["accepted"]
                     },
                     "model": {
                       "type": "string"
@@ -5579,9 +5320,7 @@
     },
     "/api/v1/threads/{id}/generation": {
       "get": {
-        "tags": [
-          "Threads"
-        ],
+        "tags": ["Threads"],
         "summary": "Poll the running turn",
         "operationId": "getGeneration",
         "security": [
@@ -5607,17 +5346,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "idle",
-                        "queued",
-                        "streaming"
-                      ]
+                      "enum": ["idle", "queued", "streaming"]
                     },
                     "messageId": {
                       "type": "string",
@@ -5673,9 +5406,7 @@
     },
     "/api/v1/agents": {
       "get": {
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "summary": "List agents",
         "description": "The agents the key holder can see — a complete set, not paginated. `failures` names agent files that could not be read.",
         "operationId": "listAgents",
@@ -5691,10 +5422,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "agents",
-                    "failures"
-                  ],
+                  "required": ["agents", "failures"],
                   "properties": {
                     "agents": {
                       "type": "array",
@@ -5749,9 +5477,7 @@
     },
     "/api/v1/agents/{slug}": {
       "get": {
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "summary": "Get agent",
         "operationId": "getAgent",
         "security": [
@@ -5777,9 +5503,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "agent"
-                  ],
+                  "required": ["agent"],
                   "properties": {
                     "agent": {
                       "$ref": "#/components/schemas/Agent"
@@ -5832,9 +5556,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "summary": "Create or replace agent",
         "operationId": "saveAgent",
         "security": [
@@ -5859,9 +5581,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "displayName"
-                ],
+                "required": ["displayName"],
                 "properties": {
                   "displayName": {
                     "type": "string"
@@ -5874,10 +5594,7 @@
                   },
                   "visibility": {
                     "type": "string",
-                    "enum": [
-                      "private",
-                      "org"
-                    ]
+                    "enum": ["private", "org"]
                   }
                 }
               }
@@ -5891,9 +5608,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "agent"
-                  ],
+                  "required": ["agent"],
                   "properties": {
                     "agent": {
                       "$ref": "#/components/schemas/Agent"
@@ -5946,9 +5661,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "summary": "Delete agent",
         "description": "Removes the agent; deleting one that is not there answers 404 — you asked to remove a thing that does not exist (unlike the idempotent trigger unbind).",
         "operationId": "deleteAgent",
@@ -6027,9 +5740,7 @@
     },
     "/api/v1/skills": {
       "get": {
-        "tags": [
-          "Skills"
-        ],
+        "tags": ["Skills"],
         "summary": "List skills",
         "description": "The skills the key holder can see (their own, their teams’, the organization’s) — a complete set, not paginated. `failures` names skill bundles that could not be read.",
         "operationId": "listSkills",
@@ -6045,10 +5756,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "skills",
-                    "failures"
-                  ],
+                  "required": ["skills", "failures"],
                   "properties": {
                     "skills": {
                       "type": "array",
@@ -6103,9 +5811,7 @@
     },
     "/api/v1/skills/{slug}": {
       "get": {
-        "tags": [
-          "Skills"
-        ],
+        "tags": ["Skills"],
         "summary": "Get skill",
         "operationId": "getSkill",
         "security": [
@@ -6178,9 +5884,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Skills"
-        ],
+        "tags": ["Skills"],
         "summary": "Create or replace skill",
         "operationId": "saveSkill",
         "security": [
@@ -6205,10 +5909,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "description",
-                  "body"
-                ],
+                "required": ["description", "body"],
                 "properties": {
                   "description": {
                     "type": "string",
@@ -6220,11 +5921,7 @@
                   },
                   "visibility": {
                     "type": "string",
-                    "enum": [
-                      "private",
-                      "team",
-                      "org"
-                    ]
+                    "enum": ["private", "team", "org"]
                   },
                   "teams": {
                     "type": "array",
@@ -6312,9 +6009,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Skills"
-        ],
+        "tags": ["Skills"],
         "summary": "Delete skill",
         "operationId": "deleteSkill",
         "security": [
@@ -6392,9 +6087,7 @@
     },
     "/api/v1/knowledge-entries": {
       "get": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "List knowledge entries",
         "description": "Newest first; `cursor` is the previous page’s `continueCursor`.",
         "operationId": "listKnowledgeEntries",
@@ -6439,11 +6132,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "page",
-                    "isDone",
-                    "continueCursor"
-                  ],
+                  "required": ["page", "isDone", "continueCursor"],
                   "properties": {
                     "page": {
                       "type": "array",
@@ -6496,9 +6185,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Create a knowledge entry",
         "description": "Charged against the per-organization `knowledge:mutate` budget the in-app editor shares.",
         "operationId": "createKnowledgeEntry",
@@ -6513,10 +6200,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "topic",
-                  "content"
-                ],
+                "required": ["topic", "content"],
                 "properties": {
                   "topic": {
                     "type": "string",
@@ -6538,9 +6222,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -6595,9 +6277,7 @@
     },
     "/api/v1/knowledge-entries/{id}": {
       "get": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Get a knowledge entry",
         "operationId": "getKnowledgeEntry",
         "security": [
@@ -6670,9 +6350,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Supersede a knowledge entry",
         "description": "Entries are immutable: an update writes a NEW row and answers its id; the old row becomes `superseded`. Both `topic` and `content` are required.",
         "operationId": "updateKnowledgeEntry",
@@ -6698,10 +6376,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "topic",
-                  "content"
-                ],
+                "required": ["topic", "content"],
                 "properties": {
                   "topic": {
                     "type": "string",
@@ -6723,9 +6398,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "string"
@@ -6788,9 +6461,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Delete a knowledge entry",
         "operationId": "deleteKnowledgeEntry",
         "security": [
@@ -6858,9 +6529,7 @@
     },
     "/api/v1/knowledge/search": {
       "post": {
-        "tags": [
-          "Knowledge"
-        ],
+        "tags": ["Knowledge"],
         "summary": "Semantic search over the organization’s knowledge",
         "description": "A POST because it carries a body, not because it writes. Deliberately ORG-WIDE: the key speaks for the organization, not one member’s visibility.",
         "operationId": "searchKnowledge",
@@ -6875,9 +6544,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "query"
-                ],
+                "required": ["query"],
                 "properties": {
                   "query": {
                     "type": "string",
@@ -6885,11 +6552,7 @@
                   },
                   "corpus": {
                     "type": "string",
-                    "enum": [
-                      "documents",
-                      "web",
-                      "all"
-                    ]
+                    "enum": ["documents", "web", "all"]
                   },
                   "limit": {
                     "type": "integer",
@@ -6913,9 +6576,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "hits"
-                  ],
+                  "required": ["hits"],
                   "properties": {
                     "hits": {
                       "type": "array",
@@ -6979,9 +6640,7 @@
     },
     "/api/v1/mcp": {
       "post": {
-        "tags": [
-          "MCP"
-        ],
+        "tags": ["MCP"],
         "summary": "The platform MCP endpoint",
         "description": "JSON-RPC over HTTP (MCP protocol 2025-03-26; JSON responses only, no SSE; one message per request). Authenticate with the same Bearer org API key as the REST API. Call `tools/list` for the tool inventory — automation authoring, run and trigger management, and the organization’s capability surface — and the `get_docs` tool for the in-band authoring reference. GET answers 405. See the MCP endpoint page in the developer docs for the full tour.",
         "operationId": "mcp",
@@ -7040,9 +6699,7 @@
     },
     "/api/automations/webhook/{token}": {
       "post": {
-        "tags": [
-          "Automations"
-        ],
+        "tags": ["Automations"],
         "summary": "Fire a webhook trigger",
         "description": "The URL token IS the credential (minted by `PUT /api/v1/automations/{name}/triggers`, shown once, stored hashed). The request body (≤256 KB) becomes the run’s input.",
         "operationId": "fireAutomationWebhook",
@@ -7075,9 +6732,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "runId"
-                  ],
+                  "required": ["runId"],
                   "properties": {
                     "runId": {
                       "type": "string"
@@ -7132,9 +6787,7 @@
     "schemas": {
       "Error": {
         "type": "object",
-        "required": [
-          "error"
-        ],
+        "required": ["error"],
         "properties": {
           "error": {
             "type": "string",
@@ -7148,13 +6801,7 @@
       },
       "Document": {
         "type": "object",
-        "required": [
-          "id",
-          "title",
-          "createdBy",
-          "createdAt",
-          "updatedAt"
-        ],
+        "required": ["id", "title", "createdBy", "createdAt", "updatedAt"],
         "properties": {
           "id": {
             "type": "string"
@@ -7212,9 +6859,7 @@
       },
       "DocumentInput": {
         "type": "object",
-        "required": [
-          "title"
-        ],
+        "required": ["title"],
         "properties": {
           "title": {
             "type": "string",
@@ -7321,10 +6966,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "site",
-              "list"
-            ],
+            "enum": ["site", "list"],
             "nullable": true
           },
           "title": {
@@ -7372,10 +7014,7 @@
       },
       "WebsiteInput": {
         "type": "object",
-        "required": [
-          "domain",
-          "scanInterval"
-        ],
+        "required": ["domain", "scanInterval"],
         "properties": {
           "domain": {
             "type": "string",
@@ -7418,12 +7057,7 @@
       },
       "WebsitePageList": {
         "type": "object",
-        "required": [
-          "pages",
-          "total",
-          "offset",
-          "hasMore"
-        ],
+        "required": ["pages", "total", "offset", "hasMore"],
         "properties": {
           "pages": {
             "type": "array",
@@ -7445,10 +7079,7 @@
       },
       "WebsiteSearchResults": {
         "type": "object",
-        "required": [
-          "results",
-          "total"
-        ],
+        "required": ["results", "total"],
         "properties": {
           "results": {
             "type": "array",
@@ -7711,11 +7342,7 @@
       },
       "BulkCreateResult": {
         "type": "object",
-        "required": [
-          "success",
-          "failed",
-          "errors"
-        ],
+        "required": ["success", "failed", "errors"],
         "properties": {
           "success": {
             "type": "integer"
@@ -7727,12 +7354,7 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": [
-                "index",
-                "error",
-                "errorCode",
-                "contact"
-              ],
+              "required": ["index", "error", "errorCode", "contact"],
               "properties": {
                 "index": {
                   "type": "integer"
@@ -7753,10 +7375,7 @@
       },
       "Project": {
         "type": "object",
-        "required": [
-          "id",
-          "name"
-        ],
+        "required": ["id", "name"],
         "properties": {
           "id": {
             "type": "string"
@@ -7783,10 +7402,7 @@
       },
       "ProjectFolder": {
         "type": "object",
-        "required": [
-          "id",
-          "name"
-        ],
+        "required": ["id", "name"],
         "properties": {
           "id": {
             "type": "string"
@@ -7798,10 +7414,7 @@
       },
       "ProjectFolderResult": {
         "type": "object",
-        "required": [
-          "folder",
-          "created"
-        ],
+        "required": ["folder", "created"],
         "properties": {
           "folder": {
             "$ref": "#/components/schemas/ProjectFolder"
@@ -7814,13 +7427,7 @@
       },
       "ProjectUploadHandoff": {
         "type": "object",
-        "required": [
-          "uploadId",
-          "url",
-          "method",
-          "s3Ref",
-          "expiresAt"
-        ],
+        "required": ["uploadId", "url", "method", "s3Ref", "expiresAt"],
         "properties": {
           "uploadId": {
             "type": "string",
@@ -7832,9 +7439,7 @@
           },
           "method": {
             "type": "string",
-            "enum": [
-              "PUT"
-            ]
+            "enum": ["PUT"]
           },
           "s3Ref": {
             "type": "string",
@@ -7848,10 +7453,7 @@
       },
       "ProjectFile": {
         "type": "object",
-        "required": [
-          "id",
-          "createdAt"
-        ],
+        "required": ["id", "createdAt"],
         "properties": {
           "id": {
             "type": "string"
@@ -7935,16 +7537,11 @@
       },
       "TaskUpsertResult": {
         "type": "object",
-        "required": [
-          "task"
-        ],
+        "required": ["task"],
         "properties": {
           "task": {
             "type": "object",
-            "required": [
-              "id",
-              "created"
-            ],
+            "required": ["id", "created"],
             "properties": {
               "id": {
                 "type": "string"
@@ -7964,12 +7561,7 @@
       },
       "AutomationSummary": {
         "type": "object",
-        "required": [
-          "name",
-          "latestVersion",
-          "deployedVersion",
-          "projectIds"
-        ],
+        "required": ["name", "latestVersion", "deployedVersion", "projectIds"],
         "properties": {
           "name": {
             "type": "string",
@@ -7997,13 +7589,7 @@
       },
       "Automation": {
         "type": "object",
-        "required": [
-          "name",
-          "version",
-          "document",
-          "createdBy",
-          "createdAt"
-        ],
+        "required": ["name", "version", "document", "createdBy", "createdAt"],
         "properties": {
           "name": {
             "type": "string"
@@ -8034,11 +7620,7 @@
       },
       "AutomationVersion": {
         "type": "object",
-        "required": [
-          "version",
-          "createdBy",
-          "createdAt"
-        ],
+        "required": ["version", "createdBy", "createdAt"],
         "properties": {
           "version": {
             "type": "integer"
@@ -8062,23 +7644,14 @@
       },
       "Trigger": {
         "type": "object",
-        "required": [
-          "name",
-          "kind",
-          "hasToken",
-          "enabled"
-        ],
+        "required": ["name", "kind", "hasToken", "enabled"],
         "properties": {
           "name": {
             "type": "string"
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "schedule",
-              "webhook",
-              "event"
-            ]
+            "enum": ["schedule", "webhook", "event"]
           },
           "cron": {
             "type": "string",
@@ -8150,10 +7723,7 @@
           },
           "mode": {
             "type": "string",
-            "enum": [
-              "mock",
-              "live"
-            ]
+            "enum": ["mock", "live"]
           },
           "startedBy": {
             "type": "string",
@@ -8235,13 +7805,7 @@
       },
       "Message": {
         "type": "object",
-        "required": [
-          "id",
-          "role",
-          "parts",
-          "sequence",
-          "createdAt"
-        ],
+        "required": ["id", "role", "parts", "sequence", "createdAt"],
         "properties": {
           "id": {
             "type": "string"
@@ -8281,11 +7845,7 @@
       },
       "AgentSummary": {
         "type": "object",
-        "required": [
-          "slug",
-          "displayName",
-          "visibility"
-        ],
+        "required": ["slug", "displayName", "visibility"],
         "properties": {
           "slug": {
             "type": "string"
@@ -8298,10 +7858,7 @@
           },
           "visibility": {
             "type": "string",
-            "enum": [
-              "private",
-              "org"
-            ]
+            "enum": ["private", "org"]
           },
           "owner": {
             "type": "string"
@@ -8321,10 +7878,7 @@
       "Agent": {
         "type": "object",
         "description": "The agent file as authored, plus its resolved summary",
-        "required": [
-          "slug",
-          "displayName"
-        ],
+        "required": ["slug", "displayName"],
         "properties": {
           "slug": {
             "type": "string"
@@ -8340,21 +7894,14 @@
           },
           "visibility": {
             "type": "string",
-            "enum": [
-              "private",
-              "org"
-            ]
+            "enum": ["private", "org"]
           }
         },
         "additionalProperties": true
       },
       "SkillSummary": {
         "type": "object",
-        "required": [
-          "slug",
-          "description",
-          "visibility"
-        ],
+        "required": ["slug", "description", "visibility"],
         "properties": {
           "slug": {
             "type": "string"
@@ -8364,11 +7911,7 @@
           },
           "visibility": {
             "type": "string",
-            "enum": [
-              "private",
-              "team",
-              "org"
-            ]
+            "enum": ["private", "team", "org"]
           },
           "teams": {
             "type": "array",
@@ -8385,10 +7928,7 @@
       "Skill": {
         "type": "object",
         "description": "The skill bundle: its summary fields plus the body",
-        "required": [
-          "slug",
-          "description"
-        ],
+        "required": ["slug", "description"],
         "properties": {
           "slug": {
             "type": "string"
@@ -8401,11 +7941,7 @@
           },
           "visibility": {
             "type": "string",
-            "enum": [
-              "private",
-              "team",
-              "org"
-            ]
+            "enum": ["private", "team", "org"]
           },
           "teams": {
             "type": "array",
@@ -8439,10 +7975,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "active",
-              "superseded"
-            ]
+            "enum": ["active", "superseded"]
           },
           "source": {
             "type": "string"

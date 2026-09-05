@@ -53,7 +53,8 @@ function fakeSql(opts: { spent?: boolean } = {}): {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
     queries.push({ text, values });
     if (text.includes('FROM "teamMember"')) return Promise.resolve([]);
-    if (text.includes('FROM app.tasks WHERE id')) return Promise.resolve([task]);
+    if (text.includes('FROM app.tasks WHERE id'))
+      return Promise.resolve([task]);
     if (text.includes('FROM app.projects WHERE id')) {
       return Promise.resolve([project]);
     }
@@ -96,11 +97,14 @@ function mount(sql: Sql) {
 describe('POST /tasks/{id}/comments task:comment budget', () => {
   it('answers the standard 429 with Retry-After when the budget is spent, writing nothing', async () => {
     const { sql, queries } = fakeSql({ spent: true });
-    const res = await mount(sql).request('http://localhost/tasks/t-1/comments', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ body: 'Filed.' }),
-    });
+    const res = await mount(sql).request(
+      'http://localhost/tasks/t-1/comments',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ body: 'Filed.' }),
+      },
+    );
     expect(res.status).toBe(429);
     expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
     expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
@@ -109,20 +113,29 @@ describe('POST /tasks/{id}/comments task:comment budget', () => {
     );
     expect(charge?.values).toContain('task:comment');
     expect(charge?.values).toContain('user:user-1');
-    expect(queries.some((q) => q.text.startsWith('INSERT INTO app.messages'))).toBe(false);
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO app.messages')),
+    ).toBe(false);
   });
 
   it('charges only after the task proved visible, so an unknown task stays an opaque 404', async () => {
     const { sql, queries } = fakeSql({ spent: true });
-    const res = await mount(sql).request('http://localhost/tasks/t-1/comments', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ body: 'Filed.' }),
-    });
+    const res = await mount(sql).request(
+      'http://localhost/tasks/t-1/comments',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ body: 'Filed.' }),
+      },
+    );
     expect(res.status).toBe(429);
     const order = queries.map((q) => q.text);
-    const taskAt = order.findIndex((t) => t.includes('FROM app.tasks WHERE id'));
-    const chargeAt = order.findIndex((t) => t.includes('INSERT INTO app.rate_limits'));
+    const taskAt = order.findIndex((t) =>
+      t.includes('FROM app.tasks WHERE id'),
+    );
+    const chargeAt = order.findIndex((t) =>
+      t.includes('INSERT INTO app.rate_limits'),
+    );
     expect(taskAt).toBeGreaterThanOrEqual(0);
     expect(chargeAt).toBeGreaterThan(taskAt);
   });

@@ -278,11 +278,14 @@ describe('GET /projects/{id}/files/{documentId}/content', () => {
 describe('POST /projects/{id}/folders folder:mutate budget', () => {
   it('answers the standard 429 with Retry-After when the org budget is spent', async () => {
     const { sql, queries } = fakeSql({ spent: true });
-    const res = await mount(sql).request('http://localhost/projects/p-1/folders', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Invoices' }),
-    });
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/folders',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Invoices' }),
+      },
+    );
     expect(res.status).toBe(429);
     expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
     expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });

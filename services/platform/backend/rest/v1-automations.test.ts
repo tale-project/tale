@@ -96,11 +96,14 @@ function mount(sql: Sql) {
 }
 
 const bind = (sql: Sql) =>
-  mount(sql).request('http://localhost/api/v1/automations/invoice-sync/projects', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ projectId: project.id }),
-  });
+  mount(sql).request(
+    'http://localhost/api/v1/automations/invoice-sync/projects',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ projectId: project.id }),
+    },
+  );
 
 /**
  * POST …/projects is ONE atomic add. The regression under test: the route
@@ -120,14 +123,26 @@ describe('POST /automations/{name}/projects', () => {
     const insert = queries.find((q) =>
       q.text.startsWith('INSERT INTO app.automation_project_bindings'),
     );
-    expect(insert?.text).toContain('ON CONFLICT (org_id, automation_name, project_id) DO NOTHING');
-    expect(insert?.values.slice(0, 3)).toEqual(['org-1', 'invoice-sync', 'p-2']);
+    expect(insert?.text).toContain(
+      'ON CONFLICT (org_id, automation_name, project_id) DO NOTHING',
+    );
+    expect(insert?.values.slice(0, 3)).toEqual([
+      'org-1',
+      'invoice-sync',
+      'p-2',
+    ]);
     expect(
-      queries.some((q) => q.text.startsWith('DELETE FROM app.automation_project_bindings')),
+      queries.some((q) =>
+        q.text.startsWith('DELETE FROM app.automation_project_bindings'),
+      ),
     ).toBe(false);
     // No set-derivation read either: the add does not depend on a snapshot.
     expect(
-      queries.some((q) => q.text.includes('SELECT project_id AS "projectId" FROM app.automation_project_bindings')),
+      queries.some((q) =>
+        q.text.includes(
+          'SELECT project_id AS "projectId" FROM app.automation_project_bindings',
+        ),
+      ),
     ).toBe(false);
   });
 
@@ -137,7 +152,9 @@ describe('POST /automations/{name}/projects', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ name: 'invoice-sync', added: false });
     expect(
-      queries.some((q) => q.text.startsWith('DELETE FROM app.automation_project_bindings')),
+      queries.some((q) =>
+        q.text.startsWith('DELETE FROM app.automation_project_bindings'),
+      ),
     ).toBe(false);
   });
 });

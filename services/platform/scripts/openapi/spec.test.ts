@@ -379,18 +379,24 @@ describe('handler statuses and bodies match the documented operation', () => {
   });
 
   it('POST /projects/{id}/uploads answers the one PUT lane the schema names', async () => {
-    const res = await mount(createProjectRestRoutes({ sql: projectSql })).request(
-      'http://localhost/projects/p-1/uploads',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ fileName: 'ledger.pdf' }),
-      },
-    );
+    const res = await mount(
+      createProjectRestRoutes({ sql: projectSql }),
+    ).request('http://localhost/projects/p-1/uploads', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fileName: 'ledger.pdf' }),
+    });
     expect(res.status).toBe(200);
     const body: unknown = await res.json();
-    const validate = responseValidator('/api/v1/projects/{id}/uploads', 'post', '200');
-    expect(validate(body), JSON.stringify({ errors: validate.errors, body })).toBe(true);
+    const validate = responseValidator(
+      '/api/v1/projects/{id}/uploads',
+      'post',
+      '200',
+    );
+    expect(
+      validate(body),
+      JSON.stringify({ errors: validate.errors, body }),
+    ).toBe(true);
     expect(body).toMatchObject({ method: 'PUT', s3Ref: 'acme/blob-1' });
   });
 
@@ -405,27 +411,35 @@ describe('handler statuses and bodies match the documented operation', () => {
     );
     expect(res.status).toBe(200);
     const body: unknown = await res.json();
-    const validate = responseValidator('/api/v1/threads/{id}/generation', 'get', '200');
-    expect(validate(body), JSON.stringify({ errors: validate.errors, body })).toBe(true);
+    const validate = responseValidator(
+      '/api/v1/threads/{id}/generation',
+      'get',
+      '200',
+    );
+    expect(
+      validate(body),
+      JSON.stringify({ errors: validate.errors, body }),
+    ).toBe(true);
     expect(body).toEqual({ status: 'streaming', messageId: 'm-9' });
   });
 
   it('POST /projects/{id}/files documents the 409 the intent refusal throws', async () => {
-    const res = await mount(createProjectRestRoutes({ sql: projectSql })).request(
-      'http://localhost/projects/p-1/files',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          uploadId: 'u-unknown',
-          fileId: 'acme/blob-1',
-          folderId: 'fold-1',
-          fileName: 'ledger.pdf',
-        }),
-      },
-    );
+    const res = await mount(
+      createProjectRestRoutes({ sql: projectSql }),
+    ).request('http://localhost/projects/p-1/files', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        uploadId: 'u-unknown',
+        fileId: 'acme/blob-1',
+        folderId: 'fold-1',
+        fileName: 'ledger.pdf',
+      }),
+    });
     expect(res.status).toBe(409);
-    expect(documentedStatuses('/api/v1/projects/{id}/files', 'post')).toContain('409');
+    expect(documentedStatuses('/api/v1/projects/{id}/files', 'post')).toContain(
+      '409',
+    );
   });
 
   it('DELETE /agents/{slug} documents 204 and 404, not a {deleted} 200', () => {

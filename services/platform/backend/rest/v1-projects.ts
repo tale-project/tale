@@ -16,7 +16,6 @@ import {
   registerUpload,
 } from '../domains/files/service.ts';
 import { sweepUploadIntents } from '../domains/files/upload-intents.ts';
-import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
   getOrCreateProjectFolder,
   listFolders,
@@ -29,6 +28,7 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../domains/projects/service.ts';
+import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
   assertExplicitOrg,
   chargeLane,
