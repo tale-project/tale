@@ -6,11 +6,12 @@ import type { Sql } from 'postgres';
 import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
 import { resolveTeams } from '../../core/betterAuth/trusted_headers/resolve_team_names.ts';
-import { publicOrigin } from '../../core/enterprise_sso/login/public_origin.ts';
 import {
-  signCookieValue,
-  verifySignedValue,
-} from '../../core/enterprise_sso/sign_cookie_value.ts';
+  buildSessionCookie,
+  sessionCookieName,
+} from '../../core/enterprise_sso/login/finish_login.ts';
+import { publicOrigin } from '../../core/enterprise_sso/login/public_origin.ts';
+import { verifySignedValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
 import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
@@ -31,8 +32,6 @@ export interface TrustedHeadersAuthResult {
   userId: string;
   organizationId: string | null;
   sessionToken: string;
-  shouldClearOldSession: boolean;
-  trustedHeadersChanged: boolean;
 }
 
 function secretsMatch(supplied: string, required: string): boolean {
@@ -174,7 +173,6 @@ export async function trustedHeadersAuthenticate(
     // ---- create or reuse the session ------------------------------------
     const nowMs = now.getTime();
     const expiresAt = new Date(sessionExpiryMs(nowMs, 24 * 60 * 60 * 1000));
-    let shouldClearOldSession = false;
 
     if (args.existingSessionToken !== undefined) {
       const existing = await tx<
@@ -194,13 +192,10 @@ export async function trustedHeadersAuthenticate(
       const row = existing[0];
       if (row !== undefined) {
         if (row.userId !== userId) {
-          // Account switch behind the proxy: the other user's session dies.
+          // Account switch behind the proxy: the other user's session dies
+          // (the fresh cookie below replaces it in the browser).
           await tx`DELETE FROM "session" WHERE "id" = ${row.id}`;
-          shouldClearOldSession = true;
         } else if (row.expiresAt.getTime() > nowMs) {
-          const trustedHeadersChanged =
-            (row.trustedRole ?? null) !== (args.role ?? null) ||
-            (row.trustedTeams ?? null) !== (trustedTeams ?? null);
           await tx`
             UPDATE "session" SET
               "expiresAt" = ${expiresAt}, "updatedAt" = ${now},
@@ -208,13 +203,7 @@ export async function trustedHeadersAuthenticate(
               "trustedTeams" = ${trustedTeams ?? null}
             WHERE "id" = ${row.id}
           `;
-          return {
-            userId,
-            organizationId,
-            sessionToken: row.token,
-            shouldClearOldSession: false,
-            trustedHeadersChanged,
-          };
+          return { userId, organizationId, sessionToken: row.token };
         }
       }
     }
@@ -233,13 +222,7 @@ export async function trustedHeadersAuthenticate(
         ${organizationId}
       )
     `;
-    return {
-      userId,
-      organizationId,
-      sessionToken,
-      shouldClearOldSession,
-      trustedHeadersChanged: true,
-    };
+    return { userId, organizationId, sessionToken };
   });
 }
 
@@ -272,9 +255,6 @@ async function joinedAudit(
 }
 
 // ---------------------------------------------------------------- route
-
-const SESSION_COOKIE_NAME = 'better-auth.session_token';
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
 function headerName(envVar: string, fallback: string): string {
   return process.env[envVar] || fallback;
@@ -385,10 +365,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
       return c.html(errorPage(basePath, 'Server configuration error'));
     }
 
-    const isHttps = frontendOrigin.startsWith('https://');
-    const cookieName = isHttps
-      ? `__Secure-${SESSION_COOKIE_NAME}`
-      : SESSION_COOKIE_NAME;
+    const cookieName = sessionCookieName(frontendOrigin);
     // The cookie carries what signCookieValue minted — `${token}.${signature}`
     // — while the session row stores the bare token, so the lookup needs the
     // verified, stripped value. (Matching the signed string against the token
@@ -421,15 +398,11 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
         ...(userAgent !== undefined ? { userAgent } : {}),
       });
 
-      const signedToken = await signCookieValue(result.sessionToken, secret);
-      const cookieParts = [
-        `${cookieName}=${signedToken}`,
-        `Max-Age=${SESSION_MAX_AGE}`,
-        'Path=/',
-        'HttpOnly',
-        'SameSite=Lax',
-      ];
-      if (isHttps) cookieParts.push('Secure');
+      const cookie = await buildSessionCookie(
+        result.sessionToken,
+        frontendOrigin,
+        secret,
+      );
 
       const html = `<!DOCTYPE html>
 <html>
@@ -442,7 +415,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
   <p>Completing login, please wait...</p>
 </body>
 </html>`;
-      c.header('Set-Cookie', cookieParts.join('; '));
+      c.header('Set-Cookie', cookie);
       return c.html(html);
     } catch (error) {
       console.error('[Trusted Headers] Error:', error);

@@ -12,13 +12,7 @@ const { fakeAdapter } = vi.hoisted(() => ({
   fakeAdapter: {
     providerId: 'fake-idp',
     displayName: 'Fake IdP',
-    capabilities: {
-      supportsGroupSync: false,
-      supportsRoleMapping: false,
-      supportsOneDriveAccess: false,
-      supportsGoogleDriveAccess: false,
-      supportsPkce: false,
-    },
+    capabilities: { supportsPkce: false },
     buildAuthorizeUrl: vi.fn(),
     exchangeCodeForTokens: vi.fn(),
     getUserInfo: vi.fn(),

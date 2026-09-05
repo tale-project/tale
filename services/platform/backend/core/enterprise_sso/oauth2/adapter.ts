@@ -7,12 +7,9 @@
 
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { claimValueToStrings, resolveClaimPath } from '../claims';
-import { mapEntraRoleToPlatformRole } from '../entra_id/role_mapping';
 import { OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';
 import type {
   AuthorizeUrlParams,
-  PlatformRole,
-  RoleMappingRule,
   SsoGroup,
   SsoProviderAdapter,
   SsoProviderCapabilities,
@@ -23,10 +20,6 @@ import type {
 } from '../types';
 
 const capabilities: SsoProviderCapabilities = {
-  supportsGroupSync: true,
-  supportsRoleMapping: true,
-  supportsOneDriveAccess: false,
-  supportsGoogleDriveAccess: false,
   supportsPkce: true,
 };
 
@@ -179,14 +172,6 @@ async function validateConfig(
   return { valid: true };
 }
 
-function mapToRole(
-  rules: RoleMappingRule[],
-  defaultRole: PlatformRole,
-  userInfo: SsoUserInfo,
-): PlatformRole {
-  return mapEntraRoleToPlatformRole(rules, defaultRole, userInfo);
-}
-
 export const oauth2Adapter: SsoProviderAdapter = {
   providerId: 'oauth2',
   displayName: 'OAuth2',
@@ -196,5 +181,4 @@ export const oauth2Adapter: SsoProviderAdapter = {
   getUserInfo,
   getGroups,
   validateConfig,
-  mapToRole,
 };

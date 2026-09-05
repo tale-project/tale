@@ -3,14 +3,14 @@ import type { Sql } from 'postgres';
 
 import { ssoAuthorizeHandler } from '../../core/enterprise_sso/login/authorize_handler.ts';
 import { ssoCallbackHandler } from '../../core/enterprise_sso/login/callback_handler.ts';
-import type {
-  FinishLogin,
-  FinishLoginArgs,
+import {
+  buildSessionCookie,
+  type FinishLogin,
+  type FinishLoginArgs,
 } from '../../core/enterprise_sso/login/finish_login.ts';
 import { samlAcsHandler } from '../../core/enterprise_sso/saml/acs_handler.ts';
 import { samlLoginHandler } from '../../core/enterprise_sso/saml/login_handler.ts';
 import { samlMetadataHandler } from '../../core/enterprise_sso/saml/metadata_handler.ts';
-import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { ssoShimHandlers } from './shim.ts';
 
@@ -23,34 +23,15 @@ import { ssoShimHandlers } from './shim.ts';
  * redirects (the seam both handlers take as `deps.finishLogin`).
  */
 
-const SESSION_COOKIE_NAME = 'better-auth.session_token';
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days in seconds
-
-async function sessionCookieFor(
-  sessionToken: string,
-  frontendOrigin: string,
-): Promise<string> {
+/** The 0.5 finisher: session cookie + 302 to the dashboard. */
+export const finishLoginPg: FinishLogin = async (_ctx, args: FinishLoginArgs) => {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret) throw new Error('BETTER_AUTH_SECRET not configured');
-  const signedToken = await signCookieValue(sessionToken, secret);
-  const isHttps = frontendOrigin.startsWith('https://');
-  const cookieName = isHttps
-    ? `__Secure-${SESSION_COOKIE_NAME}`
-    : SESSION_COOKIE_NAME;
-  const parts = [
-    `${cookieName}=${signedToken}`,
-    `Max-Age=${SESSION_MAX_AGE}`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-  ];
-  if (isHttps) parts.push('Secure');
-  return parts.join('; ');
-}
-
-/** The 0.5 finisher: session cookie + 302 to the dashboard. */
-const finishLoginPg: FinishLogin = async (_ctx, args: FinishLoginArgs) => {
-  const cookie = await sessionCookieFor(args.sessionToken, args.frontendOrigin);
+  const cookie = await buildSessionCookie(
+    args.sessionToken,
+    args.frontendOrigin,
+    secret,
+  );
   const basePath = process.env.BASE_PATH || '';
   const headers = new Headers();
   headers.set('Location', `${args.frontendOrigin}${basePath}/dashboard`);

@@ -7,6 +7,7 @@ import path from 'node:path';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { buildSessionCookie } from '../../core/enterprise_sso/login/finish_login.ts';
 import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import {
@@ -296,8 +297,13 @@ describe('GET /api/trusted-headers/authenticate — the proxy hand-off door', ()
     expect(
       queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
     ).toBe(false);
-    expect(res.headers.get('set-cookie')).toContain(
-      `better-auth.session_token=${signed}`,
+    // …and the cookie is the ONE shared builder's output, byte for byte.
+    expect(res.headers.get('set-cookie')).toBe(
+      await buildSessionCookie(
+        'tok-1',
+        'http://backend-api:3005',
+        'session-signing-secret',
+      ),
     );
   });
 
@@ -398,7 +404,6 @@ describe("trustedHeadersAuthenticate — reuse is bound to the browser's own ses
     });
 
     expect(result.sessionToken).toBe('tok-1');
-    expect(result.trustedHeadersChanged).toBe(true);
     const refresh = queries.find((q) => q.text.startsWith('UPDATE "session"'));
     expect(refresh?.values).toContain('admin');
     expect(
@@ -430,7 +435,6 @@ describe("trustedHeadersAuthenticate — reuse is bound to the browser's own ses
       existingSessionToken: 'tok-2',
     });
 
-    expect(result.shouldClearOldSession).toBe(true);
     expect(result.sessionToken).not.toBe('tok-2');
     const killed = queries.find((q) =>
       q.text.startsWith('DELETE FROM "session"'),

@@ -9,7 +9,6 @@ import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
   readSsoSecrets,
-  resolveProvisioning,
   resolveSamlConfig,
   resolveSignInConfig,
 } from './config.ts';
@@ -33,10 +32,6 @@ export function ssoShimHandlers(sql: Sql): ShimHandlers {
         .object({ organizationId: z.string().optional() })
         .parse(raw);
       return resolveSignInConfig(sql, args.organizationId);
-    },
-    'enterprise_sso/internal_queries:resolveProvisioning': async (raw) => {
-      const args = z.object({ organizationId: z.string() }).parse(raw);
-      return resolveProvisioning(sql, args.organizationId);
     },
     'enterprise_sso/internal_queries:resolveSamlConfig': async (raw) => {
       const args = z

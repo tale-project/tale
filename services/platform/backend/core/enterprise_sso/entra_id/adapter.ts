@@ -8,8 +8,6 @@ import type {
   SsoUserInfo,
   SsoGroup,
   SsoProviderCapabilities,
-  PlatformRole,
-  RoleMappingRule,
   SsoAuthContext,
 } from '../types';
 import {
@@ -18,14 +16,8 @@ import {
   EntraIssuerError,
   extractTenantId,
 } from './constants';
-import { mapEntraRoleToPlatformRole } from './role_mapping';
 
 const capabilities: SsoProviderCapabilities = {
-  supportsGroupSync: true,
-  supportsRoleMapping: true,
-  // File import is Knowledge cloud-import OAuth, not SSO.
-  supportsOneDriveAccess: false,
-  supportsGoogleDriveAccess: false,
   // PKCE stays off for Entra until verified against confidential-client
   // tenant policies; the generic OIDC adapter carries it (#1506).
   supportsPkce: false,
@@ -369,14 +361,6 @@ async function validateConfig(
   }
 }
 
-function mapToRole(
-  rules: RoleMappingRule[],
-  defaultRole: PlatformRole,
-  userInfo: SsoUserInfo,
-): PlatformRole {
-  return mapEntraRoleToPlatformRole(rules, defaultRole, userInfo);
-}
-
 export const entraIdAdapter: SsoProviderAdapter = {
   providerId: 'entra-id',
   displayName: 'Microsoft Entra ID',
@@ -387,7 +371,6 @@ export const entraIdAdapter: SsoProviderAdapter = {
   getGroups,
   getAppRoles,
   validateConfig,
-  mapToRole,
 };
 
 export { parseIdTokenAuthContext };

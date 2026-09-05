@@ -20,8 +20,6 @@ export type {
 } from '../../../lib/shared/schemas/enterprise_sso';
 
 import type {
-  PlatformRole,
-  RoleMappingRule,
   SsoGroup,
   SsoProviderCapabilities,
   SsoTokens,
@@ -90,10 +88,4 @@ export interface SsoProviderAdapter {
   validateConfig(
     config: Omit<SsoProviderConfig, 'clientSecret'> & { clientSecret?: string },
   ): Promise<{ valid: boolean; error?: string }>;
-
-  mapToRole?(
-    rules: RoleMappingRule[],
-    defaultRole: PlatformRole,
-    userInfo: SsoUserInfo,
-  ): PlatformRole;
 }
