@@ -384,8 +384,11 @@ describe('the background rebuild job', () => {
     await expect(
       assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
     ).rejects.toMatchObject({ state: 'repair_failed' });
+    // No rebuild ran: the audit row must not claim a 0 ms background one.
     expect(effects.announce.mock.calls[0]?.[2]).toMatchObject({
       kind: 'repair_failed',
+      path: null,
+      reindexMs: 0,
       error: expect.stringContaining('DROP INDEX CONCURRENTLY'),
     });
     expect(effects.failRefused).toHaveBeenCalledTimes(1);

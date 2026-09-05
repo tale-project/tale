@@ -341,6 +341,8 @@ export async function runReindexBm25Job(
       await effects.failRefused(scope, url, index);
       return;
     case 'not_retried':
+      // No rebuild ran on this pass: `path: null` keeps the audit row from
+      // reporting a background rebuild that took 0 ms.
       refuseCorpusWrites(url, index.schema, { state: 'repair_failed', index });
       await effects.announce(
         scope,
@@ -348,7 +350,7 @@ export async function runReindexBm25Job(
         {
           kind: 'repair_failed',
           index,
-          path: 'background',
+          path: null,
           reindexMs: 0,
           reason: outcome.reason,
           error:
@@ -361,7 +363,8 @@ export async function runReindexBm25Job(
     case 'invalid':
       // Marked invalid by a failed CREATE/REINDEX CONCURRENTLY: nothing
       // rebuilds it on its own (the rebuild path refuses to touch it), so
-      // this is a failed repair with an operator move, not a wait.
+      // this is a failed repair with an operator move, not a wait — and no
+      // rebuild ran here either, hence `path: null`.
       refuseCorpusWrites(url, index.schema, { state: 'repair_failed', index });
       await effects.announce(
         scope,
@@ -369,7 +372,7 @@ export async function runReindexBm25Job(
         {
           kind: 'repair_failed',
           index,
-          path: 'background',
+          path: null,
           reindexMs: 0,
           reason: 'the index is marked invalid',
           error: `the index is marked invalid — drop it (DROP INDEX CONCURRENTLY ${indexName(index)}) and let the next scan rebuild the original`,
