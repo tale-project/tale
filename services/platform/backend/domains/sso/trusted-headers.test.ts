@@ -267,7 +267,6 @@ describe('GET /api/trusted-headers/authenticate — the proxy hand-off door', ()
       token: 'tok-1',
       expiresAt: new Date(Date.now() + 3_600_000),
       trustedRole: 'member',
-      trustedTeams: null,
     };
     const { app, queries } = makeApp([
       {
@@ -443,7 +442,6 @@ describe("trustedHeadersAuthenticate — reuse is bound to the browser's own ses
       token: 'other-device-token',
       expiresAt: new Date(Date.now() + 3_600_000),
       trustedRole: 'member',
-      trustedTeams: null,
     };
     const { sql, queries } = fakeSql([
       ...identity,
@@ -479,7 +477,6 @@ describe("trustedHeadersAuthenticate — reuse is bound to the browser's own ses
             token: 'tok-1',
             expiresAt: new Date(Date.now() + 3_600_000),
             trustedRole: 'member',
-            trustedTeams: null,
           },
         ],
       },
@@ -512,7 +509,6 @@ describe("trustedHeadersAuthenticate — reuse is bound to the browser's own ses
             token: 'tok-2',
             expiresAt: new Date(Date.now() + 3_600_000),
             trustedRole: 'member',
-            trustedTeams: null,
           },
         ],
       },
@@ -596,5 +592,115 @@ describe('trustedHeadersAuthenticate — org 2FA enforcement anchors on the prox
     );
     expect(anchor?.values[0]).toBe('user-1');
     expect(anchor?.values[1]).toBeGreaterThan(Date.now());
+  });
+});
+
+/**
+ * The proxy's teams header is authoritative for team membership: it feeds
+ * the provenance-scoped group→team sync (the SSO door's), so the user ends
+ * up in REAL teamMember rows that every team-scoped read consults. The 0.4
+ * port stamped the header onto the session row instead — a column nothing
+ * in 0.5 read, so proxy-asserted teams granted nothing.
+ */
+describe('trustedHeadersAuthenticate — the teams header becomes team memberships', () => {
+  beforeEach(() => {
+    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
+  });
+
+  const teamSync = [
+    { match: /SELECT "id" FROM "team" WHERE "organizationId"/, rows: [] },
+    { match: /INSERT INTO "team"/, rows: [{ id: 'team-fin' }] },
+    { match: /SELECT "id" FROM "teamMember"/, rows: [] },
+  ];
+
+  it('mirrors an asserted team onto a teamMember row in the landed org', async () => {
+    const { sql, queries } = fakeSql([...happyScript(), ...teamSync]);
+
+    await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      teams: [{ id: 't-fin', name: 'Finance' }],
+      secret: 'right-secret',
+    });
+
+    const teamCreated = queries.find((q) =>
+      q.text.startsWith('INSERT INTO "team"'),
+    );
+    expect(teamCreated?.values).toEqual(
+      expect.arrayContaining(['Finance', 'org-1']),
+    );
+    const joined = queries.find((q) =>
+      q.text.startsWith('INSERT INTO "teamMember"'),
+    );
+    expect(joined?.values).toEqual(
+      expect.arrayContaining(['team-fin', 'user-1']),
+    );
+    // Provenance: the sync may later revoke what it granted here.
+    expect(
+      queries.some((q) =>
+        q.text.startsWith('INSERT INTO app.sso_synced_team_members'),
+      ),
+    ).toBe(true);
+    // Nothing is stamped onto the session row any more.
+    const session = queries.find((q) =>
+      q.text.startsWith('INSERT INTO "session"'),
+    );
+    expect(session?.text).not.toContain('trustedTeams');
+  });
+
+  it('runs the sync after the session transaction, never inside it', async () => {
+    const { sql, queries } = fakeSql([...happyScript(), ...teamSync]);
+
+    await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      teams: [{ id: 't-fin', name: 'Finance' }],
+      secret: 'right-secret',
+    });
+
+    const sessionAt = queries.findIndex((q) =>
+      q.text.startsWith('INSERT INTO "session"'),
+    );
+    const teamAt = queries.findIndex((q) =>
+      q.text.startsWith('SELECT "id" FROM "team"'),
+    );
+    expect(sessionAt).toBeGreaterThanOrEqual(0);
+    expect(teamAt).toBeGreaterThan(sessionAt);
+  });
+
+  it('leaves teams alone when the proxy sends no teams header', async () => {
+    const { sql, queries } = fakeSql(happyScript());
+
+    await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      teams: null,
+      secret: 'right-secret',
+    });
+
+    expect(
+      queries.some((q) => /"team"|teamMember|sso_synced/.test(q.text)),
+    ).toBe(false);
+  });
+
+  it('reconciles (revokes what earlier syncs granted) on an empty assertion', async () => {
+    const { sql, queries } = fakeSql([
+      ...happyScript(),
+      {
+        match: /FROM app\.sso_synced_team_members p/,
+        rows: [{ teamId: 'team-old', teamName: 'Old', membershipId: 'tm-old' }],
+      },
+    ]);
+
+    await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      teams: [],
+      secret: 'right-secret',
+    });
+
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "teamMember"')),
+    ).toBe(false);
+    const revoked = queries.find((q) =>
+      q.text.startsWith('DELETE FROM "teamMember"'),
+    );
+    expect(revoked?.values).toEqual(['tm-old']);
   });
 });

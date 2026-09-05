@@ -13216,7 +13216,8 @@ async function checkScim(
 /**
  * Trusted-headers auth — the reverse-proxy hand-off door: identity headers
  * → user + placeholder membership provisioned, session minted with the
- * header-borne role/teams stamped on the SESSION row, cookie accepted by
+ * header-borne role stamped on the SESSION row, the teams header mirrored
+ * onto REAL team memberships (the SSO group→team sync), cookie accepted by
  * Better Auth, and the org middleware applying the session role override
  * at read time (proxy says admin ⇒ admin surface opens; proxy says member
  * ⇒ it refuses — same user, same member row).
@@ -13284,14 +13285,8 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
           })
         ).json(),
       );
-    const rows = await sql<
-      {
-        role: string;
-        trustedRole: string | null;
-        trustedTeams: string | null;
-      }[]
-    >`
-      SELECT m."role", s."trustedRole", s."trustedTeams"
+    const rows = await sql<{ role: string; trustedRole: string | null }[]>`
+      SELECT m."role", s."trustedRole"
       FROM "user" u
       JOIN "member" m ON m."userId" = u."id"
       JOIN "session" s ON s."userId" = u."id"
@@ -13305,6 +13300,22 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
       WHERE u."email" = 'proxy.user@door.test' LIMIT 1
     `;
     const landedOrg = memberOrg[0]?.organizationId ?? '';
+    // The teams header is not a session annotation: it is mirrored onto
+    // teamMember rows in the org the user landed in, with the sync's
+    // provenance so a later header can revoke exactly what it granted.
+    const teamNames = (
+      await sql<{ name: string }[]>`
+        SELECT t."name" FROM "teamMember" tm
+        JOIN "team" t ON t."id" = tm."teamId"
+        JOIN "user" u ON u."id" = tm."userId"
+        JOIN app.sso_synced_team_members p
+          ON p.team_id = t."id" AND p.user_id = u."id"
+          AND p.org_id = t."organizationId"
+        WHERE u."email" = 'proxy.user@door.test'
+          AND t."organizationId" = ${landedOrg}
+        ORDER BY t."name"
+      `
+    ).map((row) => row.name);
     const refused = await fetch(`${base}/api/app/scim?orgId=${landedOrg}`, {
       headers: { cookie: first.cookie, origin: base },
     });
@@ -13335,13 +13346,13 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
         session1.success &&
         session1.data.user?.email === 'proxy.user@door.test' &&
         rows[0]?.trustedRole === 'member' &&
-        (rows[0]?.trustedTeams ?? '').includes('Finance') &&
+        teamNames.join(',') === 'Finance,Operations' &&
         refused.status === 403 &&
         second.cookie === first.cookie &&
         allowed.status === 200 &&
         sessionsAfter.length === 1 &&
         sessionsAfter[0]?.trustedRole === 'admin',
-      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
+      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${teamNames.join('|')} (want Finance|Operations), member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
     );
 
     // Session reuse is bound to the browser's OWN cookie: a second device

@@ -319,10 +319,6 @@ export function createAuth(config: AuthConfig) {
           type: 'string' as const,
           required: false,
         },
-        trustedTeams: {
-          type: 'string' as const,
-          required: false,
-        },
       },
     },
     hooks: {
