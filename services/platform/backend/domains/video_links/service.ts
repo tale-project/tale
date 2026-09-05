@@ -1089,9 +1089,12 @@ export async function ingestVideoUrl(
 /** Enqueue-time claim for a deferred send (the 0.4 `bindJobsForDeferredSend`):
  * stamp `message_bound_at_ms` (+ thread for welcome-page rows) on every
  * claimable job — the stamp releases the chips from the composer and keeps
- * the direct-send bind from double-taking them. Returns the ids claimed. */
+ * the direct-send bind from double-taking them. Returns the ids claimed.
+ * Runs on the CALLER's transaction: the park inserts the row with the
+ * claimed set and enqueues its readiness poll behind this claim, so the
+ * first poll can never observe the row before it knows its videos. */
 export async function bindJobsForDeferredSend(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   args: {
     jobIds: readonly string[];
     userId: string;
@@ -1100,25 +1103,23 @@ export async function bindJobsForDeferredSend(
   },
 ): Promise<string[]> {
   if (args.jobIds.length === 0) return [];
-  return sql.begin(async (tx) => {
-    const now = Date.now();
-    const claimed: string[] = [];
-    for (const jobId of args.jobIds) {
-      const rows = await tx<{ id: string }[]>`
-        UPDATE app.video_link_jobs
-        SET message_bound_at_ms = ${now},
-            thread_id = coalesce(thread_id, ${args.threadId})
-        WHERE id = ${jobId} AND org_id = ${args.organizationId}
-          AND uploaded_by = ${args.userId}
-          AND message_bound_at_ms IS NULL
-          AND status <> 'skipped'
-          AND lifecycle_status IS DISTINCT FROM 'trashed'
-        RETURNING id
-      `;
-      if (rows[0]) claimed.push(rows[0].id);
-    }
-    return claimed;
-  });
+  const now = Date.now();
+  const claimed: string[] = [];
+  for (const jobId of args.jobIds) {
+    const rows = await sql<{ id: string }[]>`
+      UPDATE app.video_link_jobs
+      SET message_bound_at_ms = ${now},
+          thread_id = coalesce(thread_id, ${args.threadId})
+      WHERE id = ${jobId} AND org_id = ${args.organizationId}
+        AND uploaded_by = ${args.userId}
+        AND message_bound_at_ms IS NULL
+        AND status <> 'skipped'
+        AND lifecycle_status IS DISTINCT FROM 'trashed'
+      RETURNING id
+    `;
+    if (rows[0]) claimed.push(rows[0].id);
+  }
+  return claimed;
 }
 
 /** Fire-time payloads for a deferred send's claimed jobs (the 0.4

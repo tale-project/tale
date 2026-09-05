@@ -29,7 +29,6 @@ import {
   listProjectCapabilities,
 } from './composer.ts';
 import {
-  claimDeferredSendVideos,
   cancelDeferredSend,
   enqueueDeferredSend,
   listDeferredSends,
@@ -944,20 +943,6 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           : {}),
         ...(body.data.locale !== undefined ? { locale: body.data.locale } : {}),
       });
-      // The claim releases the composer chips + stamps the row's set — an
-      // unclaimable id (foreign, bound, cancelled) is dropped, 0.4 posture.
-      if (
-        body.data.videoJobIds !== undefined &&
-        body.data.videoJobIds.length > 0
-      ) {
-        await claimDeferredSendVideos(deps.sql, {
-          organizationId,
-          userId,
-          threadId: c.req.param('threadId'),
-          deferredSendId: enqueued.deferredSendId,
-          videoJobIds: body.data.videoJobIds,
-        });
-      }
       return c.json(enqueued, 201);
     } catch (error) {
       return handleThreadError(c, error);

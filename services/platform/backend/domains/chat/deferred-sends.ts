@@ -121,7 +121,8 @@ async function loadRow(
   };
 }
 
-/** Park a send; the poller job rides the insert's transaction. */
+/** Park a send; the video claim and the poller job ride the insert's
+ * transaction, in that order. */
 export async function enqueueDeferredSend(
   sql: Sql,
   args: {
@@ -152,11 +153,8 @@ export async function enqueueDeferredSend(
     throw new ChatThreadError('THREAD_NOT_FOUND', 'Thread not found', 404);
   }
   const trimmed = args.userText.trim();
-  if (
-    trimmed.length === 0 &&
-    (args.attachments?.length ?? 0) === 0 &&
-    (args.videoJobIds?.length ?? 0) === 0
-  ) {
+  const hasBody = trimmed.length > 0 || (args.attachments?.length ?? 0) > 0;
+  if (!hasBody && (args.videoJobIds?.length ?? 0) === 0) {
     throw new ChatThreadError('EMPTY_MESSAGE', 'Nothing to send');
   }
   if (
@@ -173,12 +171,30 @@ export async function enqueueDeferredSend(
     if (Number(pending[0]?.count ?? '0') >= MAX_DEFERRED_PER_THREAD) {
       throw new ChatThreadError('QUEUE_FULL', 'Too many parked sends', 409);
     }
+    // The video claim rides the insert's transaction, BEFORE the row and
+    // its poll exist: the claim releases the composer chips and stamps the
+    // row's set in the same commit the first poll wakes on, so a video-only
+    // send can never fire clip-less because the poll read the row a few ms
+    // before a post-commit claim wrote its ids. An unclaimable id (foreign,
+    // already bound, cancelled) is dropped — the 0.4 posture.
+    const claimedVideos =
+      args.videoJobIds !== undefined && args.videoJobIds.length > 0
+        ? await bindJobsForDeferredSend(tx, {
+            jobIds: args.videoJobIds,
+            userId: args.userId,
+            threadId: args.threadId,
+            organizationId: args.organizationId,
+          })
+        : [];
+    if (!hasBody && claimedVideos.length === 0) {
+      throw new ChatThreadError('EMPTY_MESSAGE', 'Nothing to send');
+    }
     const now = Date.now();
     const rows = await tx<{ id: string }[]>`
       INSERT INTO app.deferred_sends (
-        org_id, user_id, thread_id, user_text, attachments, model_id,
-        model_selection, provider_slug, reasoning_effort, locale, status,
-        created_at_ms, waiting_since_ms
+        org_id, user_id, thread_id, user_text, attachments, video_job_ids,
+        model_id, model_selection, provider_slug, reasoning_effort, locale,
+        status, created_at_ms, waiting_since_ms
       ) VALUES (
         ${args.organizationId}, ${args.userId}, ${args.threadId}, ${trimmed},
         ${
@@ -186,6 +202,7 @@ export async function enqueueDeferredSend(
             ? tx.json(toJson(args.attachments))
             : null
         },
+        ${claimedVideos.length > 0 ? claimedVideos : null},
         ${args.modelId ?? null}, ${args.modelSelection ?? null},
         ${args.providerSlug ?? null}, ${args.reasoningEffort ?? null},
         ${args.locale ?? 'en'}, 'waiting', ${now}, ${now}
@@ -196,6 +213,7 @@ export async function enqueueDeferredSend(
     // The per-send singletonKey (queue policy 'short') collapses the poll
     // self-chain to at most one queued hop, so the watchdog can blindly
     // re-enqueue a poll for a stalled row without doubling a live chain.
+    // Enqueued LAST: the poll wakes on this commit and finds the whole row.
     await addJobInTx(
       tx,
       'chat.deferred_send_poll',
@@ -204,36 +222,6 @@ export async function enqueueDeferredSend(
     );
     return { deferredSendId };
   });
-}
-
-/** The enqueue's video half, OUTSIDE the insert tx: claim the jobs, then
- * stamp the claimed set on the row (the claim releases the composer chips;
- * an unclaimable id — foreign, already bound, cancelled — is dropped, the
- * 0.4 posture). */
-export async function claimDeferredSendVideos(
-  sql: Sql,
-  args: {
-    organizationId: string;
-    userId: string;
-    threadId: string;
-    deferredSendId: string;
-    videoJobIds: readonly string[];
-  },
-): Promise<string[]> {
-  const claimed = await bindJobsForDeferredSend(sql, {
-    jobIds: args.videoJobIds,
-    userId: args.userId,
-    threadId: args.threadId,
-    organizationId: args.organizationId,
-  });
-  if (claimed.length > 0) {
-    await sql`
-      UPDATE app.deferred_sends
-      SET video_job_ids = ${claimed}
-      WHERE id = ${args.deferredSendId} AND org_id = ${args.organizationId}
-    `;
-  }
-  return claimed;
 }
 
 /** Abandon a waiting send. A `claimed` row is already running — too late,
