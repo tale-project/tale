@@ -10,24 +10,27 @@
  * queued row with a conditional update before the connector call, so a fired
  * job after an undo finds nothing to claim, and an undo after the claim is
  * refused — the seconds a connector send takes are no longer a window in which
- * the mail leaves while the row is deleted.
+ * the mail leaves while the row is deleted. The undo's DELETE carries the same
+ * state predicate, so a claim that commits between the undo's read and its
+ * delete (READ COMMITTED re-checks the predicate on the new row version) is
+ * refused too, instead of deleting the claimed row.
  */
 
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { runConnectorAction, createAuditLog, addJobInTx } = vi.hoisted(() => ({
-  runConnectorAction: vi.fn(),
-  createAuditLog: vi.fn(async () => undefined),
-  addJobInTx: vi.fn(async () => 'job-1'),
-}));
+const { runConnectorAction, createAuditLog, addJobInTx, emitHintInTx } =
+  vi.hoisted(() => ({
+    runConnectorAction: vi.fn(),
+    createAuditLog: vi.fn(async () => undefined),
+    addJobInTx: vi.fn(async () => 'job-1'),
+    emitHintInTx: vi.fn(async () => undefined),
+  }));
 
 vi.mock('../connectors/service.ts', () => ({ runConnectorAction }));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../files/service.ts', () => ({ getFileUrl: vi.fn() }));
-vi.mock('../../realtime/outbox.ts', () => ({
-  emitHintInTx: vi.fn(async () => undefined),
-}));
+vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 vi.mock('../events/emit.ts', () => ({
   emitEvent: vi.fn(async () => undefined),
 }));
@@ -35,6 +38,7 @@ vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 
 import {
   composeEmailConversation,
+  discardOutboundMessage,
   resolveSentExternalMessageId,
   runSendMessageJob,
   undoSendMessage,
@@ -302,7 +306,9 @@ describe('composeEmailConversation — one transaction', () => {
 describe('undoSendMessage — after the claim', () => {
   beforeEach(() => vi.clearAllMocks());
   const actor = { userId: 'u1' };
-  const LOAD = 'FROM app.conversation_messages WHERE id = ?';
+  const LOAD = 'FROM app.conversation_messages WHERE id = ? LIMIT 1';
+  const UNDO_DELETE =
+    "DELETE FROM app.conversation_messages WHERE id = ? AND org_id = ? AND direction = 'outbound' AND delivery_state = 'queued' AND metadata->>'sendClaimedAt' IS NULL RETURNING id";
 
   it('refuses a row the send job has claimed (409, nothing deleted)', async () => {
     const claimedRow = {
@@ -317,12 +323,86 @@ describe('undoSendMessage — after the claim', () => {
     expect(createAuditLog).not.toHaveBeenCalled();
   });
 
-  it('still recalls an unclaimed queued row', async () => {
-    const { sql, statements } = fakeSql({ [LOAD]: [QUEUED_ROW] });
+  it('refuses when the claim lands between the read and the delete (0 rows, 409, no audit or hint)', async () => {
+    // The read saw an unclaimed queued row; the send job's claim committed
+    // before our DELETE, whose re-checked predicate then matches nothing.
+    const { sql, statements, begins } = fakeSql({
+      [LOAD]: [QUEUED_ROW],
+      [UNDO_DELETE]: [],
+    });
+    await expect(
+      undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
+    ).rejects.toMatchObject({ code: 'undo_window_closed', status: 409 });
+    expect(statements.filter((s) => s.text.startsWith('DELETE'))).toHaveLength(
+      1,
+    );
+    expect(begins[0]?.status).toBe('rolled_back');
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('recalls an unclaimed queued row through a DELETE that is itself the state check', async () => {
+    const { sql, statements } = fakeSql({
+      [LOAD]: [QUEUED_ROW],
+      [UNDO_DELETE]: [{ id: 'm1' }],
+    });
     await expect(
       undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
     ).resolves.toEqual({ sourceMarkdown: null });
-    expect(statements.some((s) => s.text.startsWith('DELETE'))).toBe(true);
+    const deletes = statements.filter((s) => s.text.startsWith('DELETE'));
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]?.text).toContain("delivery_state = 'queued'");
+    expect(deletes[0]?.text).toContain("metadata->>'sendClaimedAt' IS NULL");
+    expect(deletes[0]?.values).toEqual(['m1', 'o1']);
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('discardOutboundMessage — the delete is the state check', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const actor = { userId: 'u1' };
+  const LOAD = 'FROM app.conversation_messages WHERE id = ? LIMIT 1';
+  const DISCARD_DELETE =
+    "DELETE FROM app.conversation_messages WHERE id = ? AND org_id = ? AND direction = 'outbound' AND delivery_state = 'failed' RETURNING id";
+  const FAILED_ROW: ConversationMessageRow = {
+    ...QUEUED_ROW,
+    deliveryState: 'failed',
+    metadata: { ...QUEUED_ROW.metadata, error: 'SMTP 550' },
+  };
+
+  it('refuses when a retry re-queued the row between the read and the delete', async () => {
+    const { sql, begins } = fakeSql({
+      [LOAD]: [FAILED_ROW],
+      [DISCARD_DELETE]: [],
+    });
+    await expect(
+      discardOutboundMessage(sql, {
+        organizationId: 'o1',
+        messageId: 'm1',
+        actor,
+      }),
+    ).rejects.toMatchObject({ code: 'discard_not_available', status: 409 });
+    expect(begins[0]?.status).toBe('rolled_back');
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('discards a failed row', async () => {
+    const { sql, statements } = fakeSql({
+      [LOAD]: [FAILED_ROW],
+      [DISCARD_DELETE]: [{ id: 'm1' }],
+    });
+    await expect(
+      discardOutboundMessage(sql, {
+        organizationId: 'o1',
+        messageId: 'm1',
+        actor,
+      }),
+    ).resolves.toBeUndefined();
+    const deletes = statements.filter((s) => s.text.startsWith('DELETE'));
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]?.text).toContain("delivery_state = 'failed'");
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
   });
 });
 

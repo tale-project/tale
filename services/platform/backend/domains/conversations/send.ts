@@ -51,9 +51,13 @@ import {
  * {@link undoSendMessage} deletes the still-queued row; the job CLAIMS the
  * row before sending (a conditional update stamping `metadata.sendClaimedAt`
  * — a fired job after an undo finds nothing to claim and is a no-op, and an
- * undo after the claim is refused), so the window closes at exactly one
- * instant for both sides (stronger than the 0.4 scheduler-cancel — safe under
- * at-least-once delivery).
+ * undo after the claim is refused). BOTH sides are conditional statements on
+ * the row's state — the claim UPDATE and the undo DELETE each re-evaluate
+ * `delivery_state = 'queued' AND sendClaimedAt IS NULL` on the row version
+ * the other side committed (READ COMMITTED re-checks the predicate after
+ * waiting on the lock), so exactly one of them wins whatever the ordering:
+ * the window closes at one instant for both sides (stronger than the 0.4
+ * scheduler-cancel — safe under at-least-once delivery).
  */
 
 /** The undo window (0.4 parity: 10s). Read at call time so the integration
@@ -708,9 +712,27 @@ export async function undoSendMessage(
         409,
       );
     }
-    await tx`
-      DELETE FROM app.conversation_messages WHERE id = ${args.messageId}
+    // The DELETE is the arbiter, not the read above: the send job's claim is
+    // an autocommit UPDATE on its own connection, and under READ COMMITTED a
+    // claim that commits between our load and this statement is re-checked
+    // only against THIS predicate on the new row version. A bare `id = ?`
+    // would delete the claimed row under a mail already leaving — the exact
+    // outcome the claim exists to prevent, narrowed to this transaction's
+    // span instead of closed.
+    const deleted = await tx<{ id: string }[]>`
+      DELETE FROM app.conversation_messages
+      WHERE id = ${args.messageId} AND org_id = ${args.organizationId}
+        AND direction = 'outbound' AND delivery_state = 'queued'
+        AND metadata->>'sendClaimedAt' IS NULL
+      RETURNING id
     `;
+    if (deleted.length === 0) {
+      throw new ConversationError(
+        'undo_window_closed',
+        'The message is being sent',
+        409,
+      );
+    }
     await recomputeConversationLastMessageAt(tx, message.conversationId);
     await emitHintInTx(tx, {
       orgId: args.organizationId,
@@ -894,9 +916,24 @@ export async function discardOutboundMessage(
       );
     }
     const metadata = message.metadata ?? {};
-    await tx`
-      DELETE FROM app.conversation_messages WHERE id = ${args.messageId}
+    // Same arbiter shape as the undo: a retry that re-queued the row between
+    // our load and this statement commits first, and the re-checked
+    // predicate then finds a queued row — which a discard must not delete
+    // (its send job would fire on nothing and the retry would silently
+    // vanish).
+    const deleted = await tx<{ id: string }[]>`
+      DELETE FROM app.conversation_messages
+      WHERE id = ${args.messageId} AND org_id = ${args.organizationId}
+        AND direction = 'outbound' AND delivery_state = 'failed'
+      RETURNING id
     `;
+    if (deleted.length === 0) {
+      throw new ConversationError(
+        'discard_not_available',
+        'Only a failed outbound message can be discarded',
+        409,
+      );
+    }
     await recomputeConversationLastMessageAt(tx, message.conversationId);
     await emitHintInTx(tx, {
       orgId: args.organizationId,
