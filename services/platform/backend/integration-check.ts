@@ -29692,14 +29692,22 @@ async function checkChatMemoriesDeferredAuto(
       UPDATE app.file_metadata SET rag_status = 'completed'
       WHERE storage_ref = ${storageRef}
     `;
+    // The tray row settles the moment the turn persists the user message
+    // (well before the reply streams), so "row gone" is not "turn done":
+    // wait for the generation row to disappear too before reading the reply.
     let sendsLeft = -1;
+    let generating = -1;
     for (let i = 0; i < 60; i++) {
-      const rows = await sql<{ count: string }[]>`
-        SELECT count(*)::text AS count FROM app.deferred_sends
-        WHERE thread_id = ${deferThreadId}
+      const rows = await sql<{ sends: string; generating: string }[]>`
+        SELECT
+          (SELECT count(*) FROM app.deferred_sends
+           WHERE thread_id = ${deferThreadId})::text AS sends,
+          (SELECT count(*) FROM app.generations
+           WHERE thread_id = ${deferThreadId})::text AS generating
       `;
-      sendsLeft = Number(rows[0]?.count ?? '-1');
-      if (sendsLeft === 0) break;
+      sendsLeft = Number(rows[0]?.sends ?? '-1');
+      generating = Number(rows[0]?.generating ?? '-1');
+      if (sendsLeft === 0 && generating === 0) break;
       await sleep(300);
     }
     const deferMessages = await sql<{ role: string; text: string | null }[]>`
@@ -29767,7 +29775,7 @@ async function checkChatMemoriesDeferredAuto(
         cancelRow.success &&
         cancelled.success &&
         cancelled.data.ok,
-      `noModel=${noModel.status} (want 400), parkedWhileIndexing=${stillWaiting.success && stillWaiting.data.sends.length > 0}, settled=${sendsLeft === 0}, answered=${deferMessages.filter((row) => row.role === 'assistant').length}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}`,
+      `noModel=${noModel.status} (want 400), parkedWhileIndexing=${stillWaiting.success && stillWaiting.data.sends.length > 0}, settled=${sendsLeft === 0}, turnDone=${generating === 0}, answered=${deferMessages.filter((row) => row.role === 'assistant' && (row.text ?? '').includes('Deferred answer done')).length} (want 1), cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}`,
     );
   } finally {
     // Lift the pick pin — later checks (automation llm nodes, the
