@@ -706,6 +706,18 @@ export async function requeueEmbeddingBlockedDocuments(
     for (const row of rows) {
       await addJobInTx(tx, 'rag.index_file', { fileId: row.id });
     }
+    // The document lists only refetch on a hint (`writeRagStatus`), and the
+    // worker's first 'running' write per file is minutes away behind a
+    // backlog — until then every other viewer kept seeing 'failed — no
+    // embedding model' with the Settings deep link for a problem the admin
+    // had just fixed. Org-wide, like the sibling re-queue's.
+    if (rows.length > 0) {
+      await emitHintInTx(tx, {
+        orgId: args.organizationId,
+        entity: 'document',
+        entityId: null,
+      });
+    }
     return { requeued: rows.length };
   });
 }
