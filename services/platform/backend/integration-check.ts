@@ -18697,6 +18697,7 @@ async function checkOutboundSendLane(
   let holdSend: Promise<void> | null = null;
   const smtpSends: Array<{
     to: string;
+    from: string;
     subject: string;
     html?: string;
     text?: string;
@@ -18709,6 +18710,7 @@ async function checkOutboundSendLane(
     openSmtp: async () => ({
       send: async (message: {
         to: string;
+        from: string;
         subject: string;
         html?: string;
         text?: string;
@@ -18718,6 +18720,7 @@ async function checkOutboundSendLane(
         if (holdSend !== null) await holdSend;
         smtpSends.push({
           to: message.to,
+          from: message.from,
           subject: message.subject,
           ...(message.html !== undefined ? { html: message.html } : {}),
           ...(message.text !== undefined ? { text: message.text } : {}),
@@ -18948,13 +18951,16 @@ async function checkOutboundSendLane(
     });
     const discardedRow = await messageRow(discardId);
 
-    // 5. Compose opens a NEW outbound conversation and delivers.
+    // 5. Compose opens a NEW outbound conversation and delivers — sent AS
+    // the alias the composer chose (a same-domain alias of the mailbox login
+    // `inbox@door.test`), the lane the imap-smtp native now honours.
     const composeRes = await api('/compose', {
       body: {
         contactId,
         connectorName: 'imap-smtp',
         subject: 'Quote 7',
         content: 'Seven units, forty crowns.',
+        from: 'billing@door.test',
       },
     });
     const composeBody = z
@@ -19018,6 +19024,17 @@ async function checkOutboundSendLane(
       return Number(rows[0]?.count ?? '1') === 0;
     }, 20_000);
     const finalSendCount = smtpSends.length;
+
+    // The From lane end to end: the reply into a thread with no recorded
+    // inbound recipient leaves as the mailbox's configured From; the compose
+    // leaves as the chosen same-domain alias — what the Inbox header shows.
+    const composeSend = smtpSends.find((send) => send.subject === 'Quote 7');
+    record(
+      'outbound send lane: a chosen same-domain alias is the From the mail leaves with',
+      firstSend?.from === 'inbox@door.test' &&
+        composeSend?.from === 'billing@door.test',
+      `replyFrom=${firstSend?.from ?? 'none'} (want inbox@door.test) composeFrom=${composeSend?.from ?? 'none'} (want billing@door.test)`,
+    );
 
     record(
       'outbound send lane (reply/compose/undo/retry/discard + undo-window job)',

@@ -7,7 +7,7 @@ import {
   mailboxSideAddress,
   resolveReplyFrom,
   sameMailboxAliasDomain,
-} from './reply_from';
+} from './reply-from';
 
 describe('emailDomain', () => {
   it('returns the lowercased domain part', () => {

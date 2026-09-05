@@ -163,6 +163,25 @@ describe('runSendMessageJob — the claim', () => {
     expect(statements[settleIndex]?.text).toContain('RETURNING id');
   });
 
+  it('hands the chosen From to the connector send', async () => {
+    runConnectorAction.mockResolvedValue({
+      status: 'ok',
+      output: { messageId: '<smtp-1@door.test>' },
+    });
+    const { sql } = fakeSql({
+      [CLAIM]: [QUEUED_ROW],
+      [SETTLE]: [{ id: 'm1' }],
+    });
+    await runSendMessageJob(sql, { ...JOB_PAYLOAD, from: 'billing@door.test' });
+    expect(runConnectorAction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        connector: 'imap-smtp',
+        input: expect.objectContaining({ from: 'billing@door.test' }),
+      }),
+    );
+  });
+
   it('settles a delivered row sent without the Message-ID the Sent-folder sync landed first', async () => {
     runConnectorAction.mockResolvedValue({
       status: 'ok',

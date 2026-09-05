@@ -30,6 +30,11 @@ export function buildSendInput(args: {
   contentType?: string;
   inReplyTo?: string;
   references?: string[];
+  /** The address to send as (the Inbox's chosen alias or the address the
+   * customer wrote to). Forwarded to imap-smtp only — its native resolves it
+   * against the mailbox's configured From; gmail and outlook declare no From
+   * input (the connected account sends as itself), so it is dropped there. */
+  from?: string;
   attachments: Array<{
     name: string;
     contentType: string;
@@ -53,6 +58,7 @@ export function buildSendInput(args: {
       ...(args.inReplyTo !== undefined && { inReplyTo: args.inReplyTo }),
       ...(args.references &&
         args.references.length > 0 && { references: args.references }),
+      ...(args.from !== undefined && args.from !== '' && { from: args.from }),
       ...(args.attachments.length > 0 && {
         attachments: args.attachments.map((att) => ({
           name: att.name,

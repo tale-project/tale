@@ -2,13 +2,13 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
+import { inboundRecipientAddress } from '../../../lib/shared/conversations/reply-from.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { validateConversationAttachmentCaps } from '../../core/conversations/attachments.ts';
 import { buildThreadingHeaders } from '../../core/conversations/build_threading_headers.ts';
 import { sendConnectorAction } from '../../core/conversations/connector_slug.ts';
 import { normalizeEmail } from '../../core/conversations/ingest/normalize_email.ts';
 import { normalizeExternalMessageId } from '../../core/conversations/ingest/normalize_external_message_id.ts';
-import { inboundRecipientAddress } from '../../core/conversations/reply_from.ts';
 import {
   BULK_REPLY_CAP,
   buildReplySubject,
@@ -1087,12 +1087,13 @@ export async function runSendMessageJob(
       ...(payload.references !== undefined
         ? { references: payload.references }
         : {}),
+      // The address the Inbox chose (compose) or the customer wrote to
+      // (reply). imap-smtp's native sends as it when it is the mailbox or a
+      // same-domain alias, else as its configured From; gmail/outlook have no
+      // From input and `buildSendInput` drops it for them.
+      ...(payload.from !== undefined ? { from: payload.from } : {}),
       attachments: attachmentPayloads,
     });
-    // `payload.from` is carried for parity but not injected into the input —
-    // the 0.4 action accepts it and likewise never forwards it (the domain-
-    // validated From lane was never built; the connector's configured From
-    // applies).
     const result = await runConnectorAction(sql, {
       organizationId: payload.organizationId,
       connector,

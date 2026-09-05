@@ -1,6 +1,6 @@
 import type { TransactionSql } from 'postgres';
 
-import { inboundRecipientAddress } from '../../core/conversations/reply_from.ts';
+import { inboundRecipientAddress } from '../../../lib/shared/conversations/reply-from.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
