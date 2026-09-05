@@ -77,12 +77,19 @@ async function listStalledTurns(
         -- op row only after re-staging; in that gap the run is alive, not
         -- abandoned, and claiming it would drive an exec nobody spawned yet.
         (op.id IS NULL AND r.updated_at_ms < ${staleBeforeMs})
-        OR greatest(
-             op.started_at_ms,
-             coalesce(op.heartbeat_at_ms, 0),
-             coalesce(op.finalized_at_ms, 0),
-             coalesce(op.finished_at_ms, 0)
-           ) < ${staleBeforeMs}
+        -- An op row whose lease went silent. The arm is fenced to rows that
+        -- EXIST: over a missing op every mark is NULL and greatest() folds
+        -- the coalesced zeros to 0, which is "stale" for every op-less run
+        -- and would swallow the age rule above.
+        OR (
+          op.id IS NOT NULL
+          AND greatest(
+                op.started_at_ms,
+                coalesce(op.heartbeat_at_ms, 0),
+                coalesce(op.finalized_at_ms, 0),
+                coalesce(op.finished_at_ms, 0)
+              ) < ${staleBeforeMs}
+        )
       )
     ORDER BY r.updated_at_ms
     LIMIT ${SWEEP_LIMIT}

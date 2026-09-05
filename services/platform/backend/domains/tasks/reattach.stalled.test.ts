@@ -40,8 +40,14 @@ describe('recoverStalledTaskAgentTurns — the op-less arm ages on the run row',
     expect(listing).toBeDefined();
     expect(listing).toContain("r.status = 'running'");
     // The two arms: an op-less run must ALSO be quiet on its run row; a run
-    // with an op row is judged on the op's lease alone.
+    // with an op row is judged on the op's lease alone — and ONLY a run with
+    // an op row: over a missing op every mark is NULL and greatest() folds
+    // the coalesced zeros to 0, which reads as stale for every op-less run
+    // and would swallow the age rule of the first arm.
     expect(listing).toContain('(op.id IS NULL AND r.updated_at_ms < ?)');
-    expect(listing).toMatch(/OR greatest\( op\.started_at_ms/);
+    expect(listing).toContain(
+      'OR ( op.id IS NOT NULL AND greatest( op.started_at_ms,',
+    );
+    expect(listing).not.toMatch(/OR greatest\(/);
   });
 });
