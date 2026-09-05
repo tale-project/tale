@@ -395,9 +395,12 @@ export async function listUserRecords(
     ORDER BY u."id"
     LIMIT ${page.limit} OFFSET ${page.offset}
   `;
+  // The same join as the page, so `totalResults` never promises rows the
+  // walk cannot reach (a member row whose user is gone).
   const totals = await sql<{ total: number }[]>`
-    SELECT count(*)::int AS total FROM "member"
-    WHERE "organizationId" = ${organizationId}
+    SELECT count(*)::int AS total FROM "member" m
+    JOIN "user" u ON u."id" = m."userId"
+    WHERE m."organizationId" = ${organizationId}
   `;
   return {
     records: rows.map((row) =>
