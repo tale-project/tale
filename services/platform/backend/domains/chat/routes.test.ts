@@ -11,17 +11,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { trashThread, cancelDeferredSendsForThread, emitHintInTx } = vi.hoisted(
-  () => ({
-    trashThread: vi.fn(),
-    cancelDeferredSendsForThread: vi.fn(),
-    emitHintInTx: vi.fn(),
-  }),
-);
+const {
+  trashThread,
+  listArchivedThreads,
+  searchApprovedMemories,
+  cancelDeferredSendsForThread,
+  emitHintInTx,
+} = vi.hoisted(() => ({
+  trashThread: vi.fn(),
+  listArchivedThreads: vi.fn(),
+  searchApprovedMemories: vi.fn(),
+  cancelDeferredSendsForThread: vi.fn(),
+  emitHintInTx: vi.fn(),
+}));
 
 vi.mock('./threads.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./threads.ts')>()),
   trashThread,
+  listArchivedThreads,
+}));
+vi.mock('./memories.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./memories.ts')>()),
+  searchApprovedMemories,
 }));
 vi.mock('./deferred-sends.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./deferred-sends.ts')>()),
@@ -90,5 +101,70 @@ describe('POST /threads/:threadId/trash', () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: false });
     expect(cancelDeferredSendsForThread).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /threads/archived — the numeric query params are a boundary', () => {
+  beforeEach(() => {
+    listArchivedThreads.mockResolvedValue({ rows: [], nextCursor: null });
+  });
+
+  it('coerces well-formed cursor and limit', async () => {
+    const res = await makeApp().request(
+      '/threads/archived?orgId=o1&cursor=1700000000000&limit=10',
+    );
+
+    expect(res.status).toBe(200);
+    expect(listArchivedThreads).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'u1',
+      { cursor: 1_700_000_000_000, limit: 10 },
+    );
+  });
+
+  it('answers 400 to a malformed cursor instead of binding NaN', async () => {
+    const res = await makeApp().request(
+      '/threads/archived?orgId=o1&cursor=abc',
+    );
+
+    expect(res.status).toBe(400);
+    expect(listArchivedThreads).not.toHaveBeenCalled();
+  });
+
+  it('answers 400 to a limit outside the page ceiling', async () => {
+    const res = await makeApp().request('/threads/archived?orgId=o1&limit=500');
+
+    expect(res.status).toBe(400);
+    expect(listArchivedThreads).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /memories/search — the limit is a boundary', () => {
+  beforeEach(() => {
+    searchApprovedMemories.mockResolvedValue([]);
+  });
+
+  it('passes a well-formed query and limit through', async () => {
+    const res = await makeApp().request(
+      '/memories/search?orgId=o1&q=metric&limit=5',
+    );
+
+    expect(res.status).toBe(200);
+    expect(searchApprovedMemories).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'o1',
+      userId: 'u1',
+      query: 'metric',
+      limit: 5,
+    });
+  });
+
+  it('answers 400 to a malformed limit instead of silently returning nothing', async () => {
+    const res = await makeApp().request(
+      '/memories/search?orgId=o1&q=metric&limit=abc',
+    );
+
+    expect(res.status).toBe(400);
+    expect(searchApprovedMemories).not.toHaveBeenCalled();
   });
 });

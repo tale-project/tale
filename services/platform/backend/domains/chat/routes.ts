@@ -126,6 +126,20 @@ const createThreadSchema = z.object({
   reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
 });
 
+// Query strings are a boundary too: `Number('abc')` is NaN, which postgres
+// serializes as the text 'NaN' — a 500 from `::bigint` / LIMIT instead of a
+// 400 — so the numeric params are coerced and bounded here. The listing's
+// own ceiling is the schema's max.
+const archivedQuerySchema = z.object({
+  cursor: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+const memorySearchQuerySchema = z.object({
+  q: z.string().max(500).optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
 const arenaTurnSchema = z.object({
   userText: z.string().max(200_000),
   modelIdA: z.string().min(1).max(200),
@@ -394,13 +408,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   app.get('/threads/archived', async (c) => {
+    const query = archivedQuerySchema.safeParse(c.req.query());
+    if (!query.success) return c.json({ error: 'invalid query' }, 400);
     const { organizationId, userId } = caller(c);
-    const cursorRaw = c.req.query('cursor');
-    const limitRaw = c.req.query('limit');
     return c.json(
       await listArchivedThreads(deps.sql, organizationId, userId, {
-        ...(cursorRaw !== undefined ? { cursor: Number(cursorRaw) } : {}),
-        ...(limitRaw !== undefined ? { limit: Number(limitRaw) } : {}),
+        ...(query.data.cursor !== undefined
+          ? { cursor: query.data.cursor }
+          : {}),
+        ...(query.data.limit !== undefined ? { limit: query.data.limit } : {}),
       }),
     );
   });
@@ -846,14 +862,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   app.get('/memories/search', async (c) => {
+    const query = memorySearchQuerySchema.safeParse(c.req.query());
+    if (!query.success) return c.json({ error: 'invalid query' }, 400);
     const { organizationId, userId } = caller(c);
-    const limitRaw = c.req.query('limit');
     return c.json({
       memories: await searchApprovedMemories(deps.sql, {
         organizationId,
         userId,
-        ...(c.req.query('q') !== undefined ? { query: c.req.query('q') } : {}),
-        ...(limitRaw !== undefined ? { limit: Number(limitRaw) } : {}),
+        ...(query.data.q !== undefined ? { query: query.data.q } : {}),
+        ...(query.data.limit !== undefined ? { limit: query.data.limit } : {}),
       }),
     });
   });
