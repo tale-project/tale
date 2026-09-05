@@ -7160,6 +7160,12 @@ async function checkCorpusPurgeConsistency(
       return;
     }
     // Point the org's corpus at a dead endpoint — fail-closed by contract.
+    // The purge routes through the same per-org pool as the indexer, whose
+    // resolution is cached, so forget it the way the admin door does when a
+    // connection is saved (domains/knowledge/admin.ts → invalidateOrgUrl);
+    // `corpusPool` above was captured before and keeps reading the real
+    // corpus.
+    const { invalidateOrgUrl } = await import('./core/knowledge/pool.ts');
     const badConnectionPath = path.join(knowledgeDir, 'connection.json');
     await writeFile(
       badConnectionPath,
@@ -7171,6 +7177,7 @@ async function checkCorpusPurgeConsistency(
         sslmode: 'disable',
       }),
     );
+    invalidateOrgUrl(orgSlug);
     const failedDelete = await send(
       'POST',
       `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
@@ -7182,6 +7189,7 @@ async function checkCorpusPurgeConsistency(
     const corpusKept = (await corpusCount(honest.ref)) === 1;
     const blobKept = await blobExists(honest.ref);
     await rm(badConnectionPath, { force: true });
+    invalidateOrgUrl(orgSlug);
     const retryDelete = await send(
       'POST',
       `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
