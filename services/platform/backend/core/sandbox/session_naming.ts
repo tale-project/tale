@@ -1,7 +1,7 @@
 // Shared session-id + owner-key derivation for every sandbox session lane
-// (workflow steps, crawler renders, project agents). Writers and readers must
-// agree on each deterministic id, so the derivations live here rather than
-// private to any caller.
+// (automation agent runs, crawler renders, project agents). Writers and
+// readers must agree on each deterministic id, so the derivations live here
+// rather than private to any caller.
 
 /** 64-bit FNV-1a, hex — a tiny, sync, runtime-agnostic hash to fold a composite
  * key into the sandbox session-id length budget. Not cryptographic; only needs
@@ -24,36 +24,6 @@ function fnv1a64Hex(input: string): string {
   return hex(h2) + hex(h1);
 }
 
-/** Composite owner key for a per-org-user sandbox — used as sandboxSessions
- * `ownerId` so the by_owner reuse + per-owner cap lookups are naturally scoped
- * to (org, user), not just user. */
-export function userOwnerId(organizationId: string, userId: string): string {
-  return `${organizationId}:${userId}`;
-}
-
-/** Deterministic spawner session id for an EPHEMERAL workflow `sandbox` step
- * run — one throwaway sandbox per (execution, step), torn down at step end. The
- * hash suffix folds the composite key into the ≤64-char ID_ALPHABET_RE budget
- * and keeps the id stable across a step retry (so a colliding orphan is reaped,
- * not duplicated). */
-export function sessionIdForWorkflowRun(
-  executionId: string,
-  stepSlug: string,
-): string {
-  const suffix = fnv1a64Hex(`${executionId}:${stepSlug}`);
-  return `wf-${executionId.slice(0, 24)}-${suffix}`.slice(0, 64);
-}
-
-/** Composite owner key for an ephemeral workflow-run sandbox (sandboxSessions
- * `ownerId`), scoped to the (execution, step) so retries reuse/reap the same
- * row and distinct steps never collide. */
-export function workflowRunOwnerId(
-  executionId: string,
-  stepSlug: string,
-): string {
-  return `${executionId}:${stepSlug}`;
-}
-
 /** Deterministic session id for an ephemeral crawler RENDER — one throwaway
  * sandbox per render, created + torn down within the render. The caller passes a
  * unique render key so concurrent renders never collide on the id. */
@@ -62,81 +32,26 @@ export function sessionIdForRender(renderKey: string): string {
   return `rnd-${suffix}`.slice(0, 64);
 }
 
-/** Sandbox session scope for workflow `sandbox` steps. */
-export type SandboxSessionScope = 'step' | 'workflow';
-
-/** Deterministic spawner session id for a WORKFLOW-SCOPED sandbox — one shared
- * workspace per workflow execution, reused across steps that opt into
- * `sessionScope: "workflow"`. Torn down when the execution completes. The `@`
- * in the hash input keeps it disjoint from every `sessionIdForWorkflowRun`
- * derivation: step slugs can never contain `@` (STEP_SLUG_PATTERN), so a step
- * literally named `workflow` cannot collide with the shared session. */
+/** Deterministic spawner session id for an automation run's sandbox — one
+ * workspace per execution, shared by every agent node of the run and torn
+ * down when the execution completes. The hash suffix folds the execution id
+ * into the ≤64-char ID_ALPHABET_RE budget and keeps the id stable across a
+ * resume, so the run dialog can derive the session from the run id alone
+ * (`getAgentNodeSandboxOp`) with no join table. */
 export function sessionIdForWorkflowExecution(executionId: string): string {
   const suffix = fnv1a64Hex(`${executionId}:@workflow`);
   return `wf-${executionId.slice(0, 24)}-${suffix}`.slice(0, 64);
 }
 
-/** Composite owner key for a workflow-scoped sandbox (sandboxSessions
- * `ownerId`). Stays inside the `${executionId}:` range that
- * `listAutomationRunSessionsForExecution` sweeps; the `@` keeps it disjoint
- * from every `${executionId}:<stepSlug>` step owner (slugs never contain `@`). */
+/** Owner key for an automation run's sandbox (sandboxSessions `ownerId`,
+ * with `ownerType: 'workflow_run'`). */
 export function workflowExecutionOwnerId(executionId: string): string {
   return `${executionId}:@workflow`;
 }
 
-/** Per-step durable checkpoint key. Workflow-scoped sessions share one spawner
- * sessionId but each step keeps its own checkpoint row. */
-export function agentCheckpointKey(
-  spawnerSessionId: string,
-  stepSlug: string,
-  sessionScope: SandboxSessionScope = 'step',
-): string {
-  return sessionScope === 'workflow'
-    ? `${spawnerSessionId}::${stepSlug}`
-    : spawnerSessionId;
-}
-
-/** Resolve spawner session id, admission owner id, and checkpoint key. */
-export function resolveWorkflowSandboxSession(args: {
-  executionId: string;
-  stepSlug: string;
-  sessionScope?: SandboxSessionScope;
-}): {
-  sessionId: string;
-  ownerId: string;
-  checkpointKey: string;
-  sessionScope: SandboxSessionScope;
-} {
-  const sessionScope = args.sessionScope ?? 'step';
-  if (sessionScope === 'workflow') {
-    const sessionId = sessionIdForWorkflowExecution(args.executionId);
-    return {
-      sessionId,
-      ownerId: workflowExecutionOwnerId(args.executionId),
-      checkpointKey: agentCheckpointKey(sessionId, args.stepSlug, 'workflow'),
-      sessionScope,
-    };
-  }
-  const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
-  return {
-    sessionId,
-    ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
-    checkpointKey: sessionId,
-    sessionScope,
-  };
-}
-
-/** Deterministic session id for a PROJECT-AGENT standing sandbox — one
- * workspace per created agent, persisting across its task runs so the agent
- * keeps working state between assignments. Never torn down with a run; the
- * idle reaper stops-and-preserves it like any other session. */
-export function sessionIdForProjectAgent(agentId: string): string {
-  const suffix = fnv1a64Hex(`project-agent:${agentId}`);
-  return `pa-${agentId.slice(0, 24)}-${suffix}`.slice(0, 64);
-}
-
 /** Owner key for a project agent's standing sandbox (sandboxSessions
- * `ownerId`, with `ownerType: 'project_agent'`). */
+ * `ownerId`, with `ownerType: 'project_agent'`). The session id itself is
+ * derived by the run ledger (`sessionIdForProjectAgent`, tasks/agent-runs.ts). */
 export function projectAgentOwnerId(agentId: string): string {
   return agentId;
 }
