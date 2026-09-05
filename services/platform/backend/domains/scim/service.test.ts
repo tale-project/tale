@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   deprovisionUser,
+  listGroupRecords,
+  listUserRecords,
   patchGroup,
   patchUser,
   provisionGroup,
@@ -375,5 +377,78 @@ describe('deprovisionUser — the membership cascade', () => {
 
     expect(verdict).toBe('owner-protected');
     expect(writes(queries)).toEqual([]);
+  });
+});
+
+/**
+ * The listings an IdP polls are paged IN SQL: one ordered page plus the
+ * collection total, never the whole org sorted and sliced in memory — and
+ * the groups page aggregates members in the same query instead of two
+ * queries per team.
+ */
+describe('listings page in SQL', () => {
+  it('listUserRecords asks for one ordered page and the collection total', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith('SELECT count(*)::int AS total FROM "member"')) {
+        return [{ total: 7 }];
+      }
+      if (text.startsWith('SELECT u."id"')) {
+        return [
+          {
+            ...userRow('u-3', 'c@x.test'),
+            memberId: 'm-3',
+            role: 'member',
+            externalId: 'ext-3',
+          },
+        ];
+      }
+      return [];
+    });
+
+    const page = await listUserRecords(sql, 'org-1', { offset: 2, limit: 2 });
+
+    expect(page.total).toBe(7);
+    expect(page.records.map((r) => r.userId)).toEqual(['u-3']);
+    expect(page.records[0]?.externalId).toBe('ext-3');
+    const listing = queries.find((q) => q.text.startsWith('SELECT u."id"'));
+    expect(listing?.text).toContain('ORDER BY u."id" LIMIT $? OFFSET $?');
+    expect(listing?.values).toEqual(['org-1', 2, 2]);
+  });
+
+  it('listGroupRecords aggregates members in the page query', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith('SELECT count(*)::int AS total FROM "team"')) {
+        return [{ total: 1 }];
+      }
+      if (text.startsWith('SELECT t."id"')) {
+        return [
+          {
+            id: 't-1',
+            name: 'Crew',
+            organizationId: 'org-1',
+            createdAt: new Date(0),
+            updatedAt: null,
+            memberUserIds: ['u-1', 'u-2'],
+            externalId: null,
+          },
+        ];
+      }
+      return [];
+    });
+
+    const page = await listGroupRecords(sql, 'org-1', { offset: 0, limit: 5 });
+
+    expect(page.total).toBe(1);
+    expect(page.records[0]?.memberUserIds).toEqual(['u-1', 'u-2']);
+    const listing = queries.find((q) => q.text.startsWith('SELECT t."id"'));
+    expect(listing?.text).toContain('array_agg(tm."userId"');
+    expect(listing?.text).toContain('ORDER BY t."id" LIMIT $? OFFSET $?');
+    expect(listing?.values).toEqual(['org-1', 5, 0]);
+    // No per-team member or link lookups ride the page.
+    expect(
+      queries.some((q) =>
+        q.text.startsWith('SELECT "id", "userId" FROM "teamMember"'),
+      ),
+    ).toBe(false);
   });
 });

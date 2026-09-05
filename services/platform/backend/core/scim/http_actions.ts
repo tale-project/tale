@@ -8,6 +8,11 @@ import { extractPathParts, parseIntParam } from '../lib/rest/helpers';
  *  read, so the two cannot drift apart. */
 type ScimUserRecord = Parameters<typeof toScimUser>[0];
 type ScimGroupRecord = Parameters<typeof toScimGroup>[0];
+/** One SQL-paged listing: the page's records plus the collection total. */
+interface ScimListPage<T> {
+  records: T[];
+  total: number;
+}
 import {
   parseEqFilter,
   parseGroupPatch,
@@ -74,19 +79,17 @@ async function listUsers(rc: ScimRc, url: URL): Promise<Response> {
   }
   const startIndex = Math.max(1, parseIntParam(url, 'startIndex', 1));
   const count = Math.min(200, Math.max(0, parseIntParam(url, 'count', 100)));
-  const all = await rc.ctx.runQuery(
+  // Paged in SQL (ordered by user id): the query answers one page and the
+  // collection total, so a poll never scans the whole org per page.
+  const page: ScimListPage<ScimUserRecord> = await rc.ctx.runQuery(
     internal.scim.internal_queries.listUserRecords,
-    { organizationId: rc.organizationId },
+    { organizationId: rc.organizationId, offset: startIndex - 1, limit: count },
   );
-  all.sort((a: ScimUserRecord, b: ScimUserRecord) =>
-    a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0,
-  );
-  const page = all.slice(startIndex - 1, startIndex - 1 + count);
   return scimListResponse(
-    page.map((r: ScimUserRecord) => toScimUser(r, baseUrl)),
-    all.length,
+    page.records.map((r) => toScimUser(r, baseUrl)),
+    page.total,
     startIndex,
-    page.length,
+    page.records.length,
   );
 }
 
@@ -253,19 +256,15 @@ async function listGroups(rc: ScimRc, url: URL): Promise<Response> {
   }
   const startIndex = Math.max(1, parseIntParam(url, 'startIndex', 1));
   const count = Math.min(200, Math.max(0, parseIntParam(url, 'count', 100)));
-  const all = await rc.ctx.runQuery(
+  const page: ScimListPage<ScimGroupRecord> = await rc.ctx.runQuery(
     internal.scim.internal_queries.listGroupRecords,
-    { organizationId: rc.organizationId },
+    { organizationId: rc.organizationId, offset: startIndex - 1, limit: count },
   );
-  all.sort((a: ScimGroupRecord, b: ScimGroupRecord) =>
-    a.teamId < b.teamId ? -1 : a.teamId > b.teamId ? 1 : 0,
-  );
-  const page = all.slice(startIndex - 1, startIndex - 1 + count);
   return scimListResponse(
-    page.map((r: ScimGroupRecord) => toScimGroup(r, baseUrl)),
-    all.length,
+    page.records.map((r) => toScimGroup(r, baseUrl)),
+    page.total,
     startIndex,
-    page.length,
+    page.records.length,
   );
 }
 

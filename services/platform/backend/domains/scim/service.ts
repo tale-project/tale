@@ -357,10 +357,30 @@ export async function findUserRecordByUserName(
   return toUserRecord(user, member, link?.externalId ?? null);
 }
 
+/**
+ * One page of a SCIM listing, paged IN SQL: the IdP polls these doors on a
+ * schedule and walks them 200 at a time, so a reconciliation of N users
+ * must not scan N rows N/200 times (and the groups twin must not issue two
+ * queries per team per page). `offset`/`limit` are the RFC 7644
+ * `startIndex - 1` / `count`; `total` is the whole collection, which the
+ * ListResponse reports as `totalResults`.
+ */
+export interface ScimPage {
+  offset: number;
+  limit: number;
+}
+
+export interface ScimListPage<T> {
+  records: T[];
+  total: number;
+}
+
+/** Org members, ordered by user id (the stable walk order IdPs page over). */
 export async function listUserRecords(
   sql: Sql,
   organizationId: string,
-): Promise<ScimUserRecord[]> {
+  page: ScimPage,
+): Promise<ScimListPage<ScimUserRecord>> {
   const rows = await sql<
     (UserRow & { memberId: string; role: string; externalId: string | null })[]
   >`
@@ -372,10 +392,19 @@ export async function listUserRecords(
     LEFT JOIN app.sso_provisioning_links l
       ON l.org_id = m."organizationId" AND l.internal_id = u."id"
     WHERE m."organizationId" = ${organizationId}
+    ORDER BY u."id"
+    LIMIT ${page.limit} OFFSET ${page.offset}
   `;
-  return rows.map((row) =>
-    toUserRecord(row, { id: row.memberId, role: row.role }, row.externalId),
-  );
+  const totals = await sql<{ total: number }[]>`
+    SELECT count(*)::int AS total FROM "member"
+    WHERE "organizationId" = ${organizationId}
+  `;
+  return {
+    records: rows.map((row) =>
+      toUserRecord(row, { id: row.memberId, role: row.role }, row.externalId),
+    ),
+    total: totals[0]?.total ?? 0,
+  };
 }
 
 /** Create-or-upsert a user + org membership from a SCIM User resource —
@@ -755,27 +784,42 @@ export async function findGroupRecordByDisplayName(
   );
 }
 
+/** Org teams with their member ids, ordered by team id — one query per
+ * page (members aggregated, link joined) instead of two per team. */
 export async function listGroupRecords(
   sql: Sql,
   organizationId: string,
-): Promise<ScimGroupRecord[]> {
-  const teams = await sql<TeamRow[]>`
-    SELECT "id", "name", "organizationId", "createdAt", "updatedAt"
-    FROM "team" WHERE "organizationId" = ${organizationId}
+  page: ScimPage,
+): Promise<ScimListPage<ScimGroupRecord>> {
+  const rows = await sql<
+    (TeamRow & { memberUserIds: string[]; externalId: string | null })[]
+  >`
+    SELECT t."id", t."name", t."organizationId", t."createdAt", t."updatedAt",
+           coalesce(
+             array_agg(tm."userId" ORDER BY tm."userId")
+               FILTER (WHERE tm."userId" IS NOT NULL),
+             '{}'
+           ) AS "memberUserIds",
+           l.external_id AS "externalId"
+    FROM "team" t
+    LEFT JOIN "teamMember" tm ON tm."teamId" = t."id"
+    LEFT JOIN app.sso_provisioning_links l
+      ON l.org_id = t."organizationId" AND l.internal_id = t."id"
+    WHERE t."organizationId" = ${organizationId}
+    GROUP BY t."id", l.external_id
+    ORDER BY t."id"
+    LIMIT ${page.limit} OFFSET ${page.offset}
   `;
-  const records: ScimGroupRecord[] = [];
-  for (const team of teams) {
-    const members = await listTeamMemberUserIds(sql, team.id);
-    const link = await getLink(sql, organizationId, team.id);
-    records.push(
-      toGroupRecord(
-        team,
-        members.map((m) => m.userId),
-        link?.externalId ?? null,
-      ),
-    );
-  }
-  return records;
+  const totals = await sql<{ total: number }[]>`
+    SELECT count(*)::int AS total FROM "team"
+    WHERE "organizationId" = ${organizationId}
+  `;
+  return {
+    records: rows.map((row) =>
+      toGroupRecord(row, row.memberUserIds, row.externalId),
+    ),
+    total: totals[0]?.total ?? 0,
+  };
 }
 
 export async function provisionGroup(
