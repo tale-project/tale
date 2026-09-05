@@ -31,6 +31,8 @@
  * through the connector registry, which reads the filesystem.
  */
 
+import { createHash } from 'node:crypto';
+
 import { Ajv, type ValidateFunction } from 'ajv';
 
 import { stableStringify } from '../engine/api/tests';
@@ -398,8 +400,13 @@ function allowedValues(error: { keyword: string; params?: unknown }): string {
   return Array.isArray(allowed) ? ` (${allowed.join(', ')})` : '';
 }
 
-/** FNV-1a over the canonical call — same call, same key, no crypto import so
- * the derivation runs anywhere the dispatcher does. */
+/**
+ * SHA-256 over the canonical call — same call, same key. The key is the
+ * approvals resource identity (a `completed` approval is honoured on
+ * re-entry by key alone, with no input comparison), so it has to be
+ * collision-resistant: a 32-bit digest let a different write inherit an
+ * earlier approval by padding its body until the hashes matched.
+ */
 function derivedIdempotencyKey(
   organizationId: string,
   nodeType: string,
@@ -412,12 +419,8 @@ function derivedIdempotencyKey(
     credentialRef: credentialRef ?? null,
     input,
   });
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < canonical.length; i++) {
-    hash ^= canonical.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return `${nodeType}:${hash.toString(16).padStart(8, '0')}`;
+  const digest = createHash('sha256').update(canonical).digest('hex');
+  return `${nodeType}:${digest}`;
 }
 
 function resolveConnector(slug: string): Connector {
@@ -689,15 +692,30 @@ export async function executeConnectorAction(
         },
       );
     }
-    const decision = await ctx.approvals.check({
-      organizationId: ctx.organizationId,
-      userId: caller.kind === 'user' ? caller.userId : '',
-      connector: connector.name,
-      action: action.name,
-      input,
-      idempotencyKey,
-      platformInternal: platformAuth,
-    });
+    // The gate's own refusal (a human rejected this operation) is a coded
+    // outcome like any other: it is recorded before it surfaces, so the audit
+    // trail shows the rejection the way it shows a credential failure.
+    let decision: ApprovalDecision;
+    try {
+      decision = await ctx.approvals.check({
+        organizationId: ctx.organizationId,
+        userId: caller.kind === 'user' ? caller.userId : '',
+        connector: connector.name,
+        action: action.name,
+        input,
+        idempotencyKey,
+        platformInternal: platformAuth,
+      });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      await record('error', { error: message });
+      if (cause instanceof ConnectorError) throw cause;
+      throw new ConnectorError(
+        'APPROVAL_GATE_MISSING',
+        `the approvals gate could not answer for ${nodeType}: ${message.slice(0, 300)}`,
+        { ...where, cause },
+      );
+    }
     if (decision.status === 'required') {
       await record('approval-required', {});
       return {

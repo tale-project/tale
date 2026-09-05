@@ -237,7 +237,7 @@ function approvalGate(sql: Sql): ApprovalGate {
         return { status: 'required', approvalId: decision.approvalId };
       }
       throw new ConnectorError(
-        'APPROVAL_GATE_MISSING',
+        'APPROVAL_REJECTED',
         'This operation was rejected and will not run. Ask again with a new request if it should proceed.',
       );
     },

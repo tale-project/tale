@@ -588,6 +588,37 @@ describe('live yaml-js backend', () => {
     expect(keyOf(await run('run_1:n1:0'))).toBe('run_1:n1:0');
   });
 
+  it('derives a collision-resistant key — the approvals identity, not a checksum', async () => {
+    // These two bodies collide under the 32-bit FNV-1a the key used to be
+    // (both hash to 5add3855 for org_test_1/demo.send): with that key the
+    // second write would have inherited the first one's completed approval.
+    const seen: string[] = [];
+    const approvals: ApprovalGate = {
+      check: async (request) => {
+        seen.push(request.idempotencyKey);
+        return { status: 'allowed' };
+      },
+    };
+    for (const message of ['hello 53zx', 'hello cpad']) {
+      await executeConnectorAction({
+        connector: 'demo',
+        action: 'send',
+        input: { message },
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          approvals,
+        },
+      });
+    }
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toMatch(/^demo\.send:[0-9a-f]{64}$/);
+    expect(seen[1]).toMatch(/^demo\.send:[0-9a-f]{64}$/);
+    expect(seen[0]).not.toBe(seen[1]);
+  });
+
   it('reports a failing live body as a coded error, not as output', async () => {
     await expect(
       executeConnectorAction({
@@ -777,6 +808,66 @@ describe('caller modes', () => {
         ctx: { organizationId: ORG, mode: 'live', credentials: resolver() },
       }),
     ).rejects.toMatchObject({ code: 'APPROVAL_GATE_MISSING' });
+  });
+
+  it("records a rejected approval and surfaces the gate's own code", async () => {
+    const audit = auditSink();
+    const approvals: ApprovalGate = {
+      check: async () => {
+        throw new ConnectorError('APPROVAL_REJECTED', 'a human said no');
+      },
+    };
+    await expect(
+      executeConnectorAction({
+        connector: 'demo',
+        action: 'send',
+        input: { message: 'hi' },
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          approvals,
+          audit,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'APPROVAL_REJECTED' });
+    expect(audit.records).toHaveLength(1);
+    expect(audit.records[0]).toMatchObject({
+      outcome: 'error',
+      error: 'a human said no',
+    });
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('records a gate that cannot answer as a gating failure, not a body failure', async () => {
+    const audit = auditSink();
+    const approvals: ApprovalGate = {
+      check: async () => {
+        throw new Error('approvals store unreachable');
+      },
+    };
+    await expect(
+      executeConnectorAction({
+        connector: 'demo',
+        action: 'send',
+        input: { message: 'hi' },
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          approvals,
+          audit,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'APPROVAL_GATE_MISSING' });
+    expect(audit.records).toEqual([
+      expect.objectContaining({
+        outcome: 'error',
+        error: 'approvals store unreachable',
+      }),
+    ]);
   });
 
   it('lets the system caller skip approvals — and records why', async () => {
