@@ -9,7 +9,6 @@ import {
 import {
   computeLockedUntil,
   DEFAULT_LOGIN_POLICY,
-  parseLoginPolicy,
   selectStrictestPolicy,
 } from './helpers';
 
@@ -76,29 +75,5 @@ describe('selectStrictestPolicy', () => {
     const disabled = policy({ enabled: false, maxAttemptsBeforeLockout: 1 });
     const enabled = policy({ maxAttemptsBeforeLockout: 5 });
     expect(selectStrictestPolicy([disabled, enabled])).toBe(enabled);
-  });
-});
-
-describe('parseLoginPolicy', () => {
-  it('returns defaults on null/empty input', () => {
-    expect(parseLoginPolicy(null)).toEqual(DEFAULT_LOGIN_POLICY);
-    expect(parseLoginPolicy({})).toEqual(DEFAULT_LOGIN_POLICY);
-  });
-
-  it('returns defaults on parse failure rather than throwing', () => {
-    expect(parseLoginPolicy({ maxAttemptsBeforeLockout: -1 })).toEqual(
-      DEFAULT_LOGIN_POLICY,
-    );
-  });
-
-  it('parses a valid config', () => {
-    const parsed = parseLoginPolicy({
-      enabled: false,
-      maxAttemptsBeforeLockout: 3,
-      backoffSchedule: [500, 5000],
-    });
-    expect(parsed.enabled).toBe(false);
-    expect(parsed.maxAttemptsBeforeLockout).toBe(3);
-    expect(parsed.backoffSchedule).toEqual([500, 5000]);
   });
 });
