@@ -28812,6 +28812,105 @@ async function checkAskAnswer(
     `results=${racedAsks.map((result) => (result.success ? `${result.data.askId === racePending[0]?.id}/${result.data.folded}` : 'ERR')).join(',')} (want one folded, same id), pending=${racePending.length} (want 1), merged=${JSON.stringify(racePending[0]?.question ?? '').slice(0, 80)}`,
   );
 
+  // The 0082 dedupe, replayed from the shipped file onto planted duplicates
+  // (the index dropped first, as a pre-0082 database has it): the OLDEST
+  // pending row survives carrying both questions, the phantom closes as
+  // cancelled AND the bell the racing loser fanned out under the phantom's
+  // id is marked read — the survivor's bell stays unread — and the partial
+  // unique index comes back.
+  const migrationsDir = new URL('./db/migrations/', import.meta.url);
+  const { readdir } = await import('node:fs/promises');
+  const dedupFile = (await readdir(migrationsDir)).find((file) =>
+    file.startsWith('0082_'),
+  );
+  if (dedupFile === undefined) {
+    record(
+      'migration 0082 keeps the oldest pending ask and dismisses the phantom bells',
+      false,
+      'no 0082_* migration file under backend/db/migrations',
+    );
+  } else {
+    const ddl = await readFile(new URL(dedupFile, migrationsDir), 'utf8');
+    const t0 = now - 600_000;
+    await sql`DROP INDEX IF EXISTS app.automation_asks_pending_exec`;
+    const planted = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_human_asks (
+        org_id, run_id, node_id, session_id, exec_id, question, status,
+        expires_at_ms, created_at_ms
+      ) VALUES
+        (${orgId}, ${runAId}, 'ask_node', 'wf-ask-migrate', 'exec-migrate',
+         'Older racing question?', 'pending', ${now + 3_600_000}, ${t0}),
+        (${orgId}, ${runAId}, 'ask_node', 'wf-ask-migrate', 'exec-migrate',
+         'Newer racing question?', 'pending', ${now + 3_600_000}, ${t0 + 1})
+      RETURNING id
+    `;
+    const survivorId = planted[0]?.id ?? '';
+    const phantomId = planted[1]?.id ?? '';
+    await sql`
+      INSERT INTO app.user_notifications (
+        user_id, org_id, type, title_key, body_key, params, resource_type,
+        resource_id, actor_type, actor_id, created_at_ms
+      ) VALUES
+        (${userId}, ${orgId}, 'agent_escalation', 'agentQuestionAsked',
+         'agentQuestionAskedNoTaskBody',
+         ${sql.json({ askId: survivorId, runId: runAId })}, 'dashboard',
+         ${orgId}, 'agent', 'itest', ${t0}),
+        (${userId}, ${orgId}, 'agent_escalation', 'agentQuestionAsked',
+         'agentQuestionAskedNoTaskBody',
+         ${sql.json({ askId: phantomId, runId: runAId })}, 'dashboard',
+         ${orgId}, 'agent', 'itest', ${t0 + 1})
+    `;
+    await sql.begin(async (tx) => {
+      await tx.unsafe(ddl);
+    });
+    const asksAfter = await sql<
+      { id: string; status: string; question: string }[]
+    >`
+      SELECT id, status, question FROM app.automation_human_asks
+      WHERE session_id = 'wf-ask-migrate' AND exec_id = 'exec-migrate'
+      ORDER BY created_at_ms ASC
+    `;
+    const bellsAfter = await sql<
+      { askId: string | null; read: boolean; readAt: number | null }[]
+    >`
+      SELECT params ->> 'askId' AS "askId", read, read_at_ms::float8 AS "readAt"
+      FROM app.user_notifications
+      WHERE org_id = ${orgId} AND type = 'agent_escalation'
+        AND params ->> 'askId' IN (${survivorId}, ${phantomId})
+    `;
+    const survivorBell = bellsAfter.find((row) => row.askId === survivorId);
+    const phantomBell = bellsAfter.find((row) => row.askId === phantomId);
+    const pendingIndex = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pg_indexes
+      WHERE schemaname = 'app' AND tablename = 'automation_human_asks'
+        AND indexname = 'automation_asks_pending_exec'
+    `;
+    await sql`
+      DELETE FROM app.user_notifications
+      WHERE org_id = ${orgId} AND type = 'agent_escalation'
+        AND params ->> 'askId' IN (${survivorId}, ${phantomId})
+    `;
+    await sql`
+      DELETE FROM app.automation_human_asks
+      WHERE session_id = 'wf-ask-migrate' AND exec_id = 'exec-migrate'
+    `;
+    record(
+      'migration 0082 keeps the oldest pending ask and dismisses the phantom bells',
+      asksAfter.length === 2 &&
+        asksAfter[0]?.id === survivorId &&
+        asksAfter[0]?.status === 'pending' &&
+        asksAfter[0]?.question.includes('Older racing question?') &&
+        asksAfter[0]?.question.includes('Newer racing question?') &&
+        asksAfter[1]?.id === phantomId &&
+        asksAfter[1]?.status === 'cancelled' &&
+        survivorBell?.read === false &&
+        phantomBell?.read === true &&
+        phantomBell.readAt !== null &&
+        pendingIndex[0]?.count === '1',
+      `asks=${asksAfter.map((row) => `${row.id === survivorId ? 'survivor' : 'phantom'}:${row.status}`).join(',')} (want survivor:pending,phantom:cancelled), merged=${asksAfter[0]?.question.includes('Newer racing question?')}, survivor bell read=${survivorBell?.read} (want false), phantom bell read=${phantomBell?.read}/${phantomBell?.readAt !== null} (want true/true), unique index=${pendingIndex[0]?.count} (want 1)`,
+    );
+  }
+
   await answerRoute(bellAskId, 'Account 4400, box 81.');
   const bellAfterAnswer = await sql<{ read: boolean }[]>`
     SELECT read FROM app.user_notifications

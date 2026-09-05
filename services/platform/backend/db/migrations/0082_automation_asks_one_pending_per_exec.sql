@@ -18,7 +18,11 @@
 -- kept; the later rows' questions are folded onto it (same separator, same
 -- 4000-char cap as the door) so no question is lost, and the phantoms close
 -- as `cancelled` (an ask row is history: the answers view reads by run and
--- node, and a cancelled row answers nothing).
+-- node, and a cancelled row answers nothing). Each phantom's unread
+-- `agent_escalation` bells are marked read in the same statement — the
+-- racing loser fanned them out under ITS id, so left alone they would stay
+-- unread forever and deep-link to a cancelled ask; this is the contract the
+-- run-end door (`closePendingAsksForRun`) keeps for every ask it cancels.
 --
 -- Rolling-deploy safe: the previous image's SELECT-then-INSERT keeps working
 -- for every non-racing ask; the formerly-duplicating race now surfaces as a
@@ -58,11 +62,22 @@ WITH ranked AS (
          ) AS keep_rank
   FROM app.automation_human_asks
   WHERE status = 'pending'
+),
+phantoms AS (
+  UPDATE app.automation_human_asks AS a
+  SET status = 'cancelled'
+  FROM ranked
+  WHERE a.id = ranked.id AND ranked.keep_rank > 1
+  RETURNING a.id, a.org_id
 )
-UPDATE app.automation_human_asks AS a
-SET status = 'cancelled'
-FROM ranked
-WHERE a.id = ranked.id AND ranked.keep_rank > 1;
+UPDATE app.user_notifications AS n
+SET read = true,
+    read_at_ms = (extract(epoch FROM now()) * 1000)::bigint
+FROM phantoms
+WHERE n.org_id = phantoms.org_id
+  AND n.type = 'agent_escalation'
+  AND n.read = false
+  AND n.params ->> 'askId' = phantoms.id;
 
 CREATE UNIQUE INDEX IF NOT EXISTS automation_asks_pending_exec
   ON app.automation_human_asks (session_id, exec_id)
