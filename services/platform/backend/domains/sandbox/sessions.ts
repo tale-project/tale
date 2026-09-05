@@ -23,14 +23,23 @@ import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 
 /**
  * The sandbox session substrate over PG — the 0.5 twin of
- * `convex/sandbox/session_mutations.ts` + `admission.ts`, with the SAME
- * external semantics (per-owner cap, per-budget org caps from the
- * `sandbox_quota` governance policy, park-on-capacity FIFO tickets with
- * liveness heartbeats, hibernate/resume that frees and re-admits slots,
- * hash-only session tokens, durable op rows) and one rule-5 simplification:
- * the 0.4 OCC ballet (rank probe + recount + WAIT_FIFO race backstop)
- * becomes a per-org advisory lock — every reserve/resume for one org runs
- * its count + rank + claim + insert as one serialized section.
+ * `convex/sandbox/session_mutations.ts`, with the SAME external semantics
+ * (per-owner cap, per-budget org caps from the `sandbox_quota` governance
+ * policy, hibernate/resume that frees and re-admits slots, hash-only session
+ * tokens) and one rule-5 simplification: the 0.4 OCC ballet (rank probe +
+ * recount) becomes a per-org advisory lock — every reserve/resume for one
+ * org runs its count + claim + insert as one serialized section.
+ *
+ * Capacity parking is NOT a concern of this module: a project-agent run
+ * that meets a full org parks on its own ledger row
+ * (`project_agent_runs.waiting_for_capacity_at_ms`, tasks/agent-runs.ts)
+ * and is woken on the release edges here (`releaseProjectAgentSessionSlot`,
+ * `markSessionDestroyed`) and by the task-agent watchdog. The 0.4 FIFO
+ * admission-ticket lane (`app.sandbox_admission_tickets`) and the
+ * workflow re-attach checkpoints (`app.sandbox_agent_checkpoints`) were
+ * never wired into a 0.5 caller; nothing reads or writes either table any
+ * more, and both are dropped in a later release once no serving image
+ * touches them (rolling-deploy doctrine — see the create-migration skill).
  *
  * The pure policy pieces (`sessionBudgetForOwnerType`, `sessionCapFor`,
  * the status vocabulary, the caps) are REUSED from the 0.4 modules so the
@@ -43,16 +52,6 @@ export class SandboxQuotaError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'SandboxQuotaError';
-  }
-}
-
-/** Park-on-capacity: the caller re-polls; its ticket keeps its FIFO spot. */
-export class WaitFifoError extends Error {
-  readonly code = 'WAIT_FIFO';
-
-  constructor(message: string) {
-    super(message);
-    this.name = 'WaitFifoError';
   }
 }
 
@@ -119,87 +118,6 @@ async function inFlightCount(
   ).length;
 }
 
-export interface AdmissionTicketInput {
-  source: 'chat' | 'workflow';
-  threadId?: string;
-  wfExecutionId?: string;
-  stepSlug?: string;
-}
-
-/** Upsert the owner's WAITING ticket; returns its stable FIFO `createdAt`.
- * Never re-stamps the FIFO key and never resurrects an admitted ticket. */
-async function upsertWaitingTicket(
-  tx: TransactionSql,
-  args: {
-    organizationId: string;
-    ownerType: string;
-    ownerId: string;
-    ticket: AdmissionTicketInput;
-  },
-  now: number,
-): Promise<number> {
-  const rows = await tx<{ createdAt: number; status: string }[]>`
-    INSERT INTO app.sandbox_admission_tickets (
-      org_id, kind, owner_type, owner_id, source, thread_id, wf_execution_id,
-      step_slug, status, created_at_ms, last_seen_at_ms
-    ) VALUES (
-      ${args.organizationId}, 'session', ${args.ownerType}, ${args.ownerId},
-      ${args.ticket.source}, ${args.ticket.threadId ?? null},
-      ${args.ticket.wfExecutionId ?? null}, ${args.ticket.stepSlug ?? null},
-      'waiting', ${now}, ${now}
-    )
-    ON CONFLICT (owner_type, owner_id) DO UPDATE
-      SET last_seen_at_ms = ${now}
-    RETURNING created_at_ms::float8 AS "createdAt", status
-  `;
-  const row = rows[0];
-  if (!row) throw new Error('ticket upsert failed');
-  return row.createdAt;
-}
-
-/** FIFO gate: this waiter may proceed only when it sits within the open
- * slots, ranked by ticket age among same-budget waiters. */
-async function assertFifoEligible(
-  tx: TransactionSql,
-  organizationId: string,
-  ticketCreatedAt: number,
-  budget: SessionBudget,
-): Promise<void> {
-  const quota = await readQuota(tx, organizationId);
-  const cap = sessionCapFor(budget, quota);
-  const inFlight = await inFlightCount(tx, organizationId, budget);
-  const slotsOpen = cap - inFlight;
-  if (slotsOpen <= 0) {
-    throw new WaitFifoError('No sandbox slot open yet; waiting.');
-  }
-  const waiting = await tx<{ ownerType: string }[]>`
-    SELECT owner_type AS "ownerType" FROM app.sandbox_admission_tickets
-    WHERE org_id = ${organizationId} AND kind = 'session'
-      AND status = 'waiting' AND created_at_ms < ${ticketCreatedAt}
-    ORDER BY created_at_ms
-  `;
-  const rank = waiting.filter(
-    (row) => sessionBudgetForOwnerType(row.ownerType) === budget,
-  ).length;
-  if (rank >= slotsOpen) {
-    throw new WaitFifoError('Waiting for an earlier sandbox request to start.');
-  }
-}
-
-async function claimTicket(
-  tx: TransactionSql,
-  ownerType: string,
-  ownerId: string,
-  now: number,
-): Promise<void> {
-  await tx`
-    UPDATE app.sandbox_admission_tickets
-    SET status = 'admitted', last_seen_at_ms = ${now}
-    WHERE owner_type = ${ownerType} AND owner_id = ${ownerId}
-      AND status <> 'admitted'
-  `;
-}
-
 export interface ReserveSessionArgs {
   organizationId: string;
   sessionId: string;
@@ -209,16 +127,14 @@ export interface ReserveSessionArgs {
   createdBy: string;
   agentKind?: string;
   ttlMs?: number;
-  /** Present = park-on-capacity mode: the per-org cap is a FIFO queue. */
-  ticket?: AdmissionTicketInput;
 }
 
 /**
  * Reserve a per-org session slot and insert the `creating` row — one
  * serialized transaction per org, so the slot count and the claim can never
- * race. Throws {@link SandboxQuotaError} on a real conflict (the owner
- * already holds a live session; or the hard cap without a ticket) and
- * {@link WaitFifoError} when parked behind the queue.
+ * race. Throws {@link SandboxQuotaError} on a conflict (the owner already
+ * holds a live session, or the budget's cap is reached) — the task-agent
+ * host parks its run on that code.
  */
 export async function reserveSessionSlot(
   sql: Sql,
@@ -242,28 +158,13 @@ export async function reserveSessionSlot(
     }
 
     const budget = requireSessionBudgetForOwnerType(args.ownerType);
-    if (args.ticket) {
-      const createdAt = await upsertWaitingTicket(
-        tx,
-        {
-          organizationId: args.organizationId,
-          ownerType: args.ownerType,
-          ownerId: args.ownerId,
-          ticket: args.ticket,
-        },
-        now,
+    const quota = await readQuota(tx, args.organizationId);
+    const cap = sessionCapFor(budget, quota);
+    const inFlight = await inFlightCount(tx, args.organizationId, budget);
+    if (inFlight >= cap) {
+      throw new SandboxQuotaError(
+        `At most ${cap} ${budget} sandbox sessions can be active for this organization.`,
       );
-      await assertFifoEligible(tx, args.organizationId, createdAt, budget);
-      await claimTicket(tx, args.ownerType, args.ownerId, now);
-    } else {
-      const quota = await readQuota(tx, args.organizationId);
-      const cap = sessionCapFor(budget, quota);
-      const inFlight = await inFlightCount(tx, args.organizationId, budget);
-      if (inFlight >= cap) {
-        throw new SandboxQuotaError(
-          `At most ${cap} ${budget} sandbox sessions can be active for this organization.`,
-        );
-      }
     }
 
     const ttlMs = args.ttlMs ?? SANDBOX_SESSION_MAX_LIFETIME_MS;
@@ -400,31 +301,20 @@ export async function releaseProjectAgentSessionSlot(
  * Resume in place: normalize the live row to `active`, refresh activity, and
  * reset the TTL window — preserving `createdAt` (same incarnation). A
  * `stopped` row freed its slot, so flipping it back RE-ADMITS through the
- * same FIFO gate as a fresh reserve; already-active rows are an idempotent
+ * same cap check as a fresh reserve; already-active rows are an idempotent
  * refresh that never re-counts.
  */
 export async function resumeSessionSlot(
   sql: Sql,
-  args: {
-    organizationId: string;
-    sessionId: string;
-    ticket?: AdmissionTicketInput;
-  },
+  args: { organizationId: string; sessionId: string },
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
     await lockOrgAdmission(tx, args.organizationId);
     const now = Date.now();
     const rows = await tx<
-      {
-        id: string;
-        status: string;
-        ownerType: string;
-        ownerId: string;
-        pinned: boolean;
-      }[]
+      { id: string; status: string; ownerType: string; pinned: boolean }[]
     >`
-      SELECT id, status, owner_type AS "ownerType", owner_id AS "ownerId",
-             pinned
+      SELECT id, status, owner_type AS "ownerType", pinned
       FROM app.sandbox_sessions
       WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
         AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
@@ -434,28 +324,13 @@ export async function resumeSessionSlot(
     if (!row) return false;
     if (row.status === 'stopped' && !row.pinned) {
       const budget = requireSessionBudgetForOwnerType(row.ownerType);
-      if (args.ticket) {
-        const createdAt = await upsertWaitingTicket(
-          tx,
-          {
-            organizationId: args.organizationId,
-            ownerType: row.ownerType,
-            ownerId: row.ownerId,
-            ticket: args.ticket,
-          },
-          now,
+      const quota = await readQuota(tx, args.organizationId);
+      const cap = sessionCapFor(budget, quota);
+      const inFlight = await inFlightCount(tx, args.organizationId, budget);
+      if (inFlight >= cap) {
+        throw new SandboxQuotaError(
+          `At most ${cap} ${budget} sandbox sessions can be active for this organization.`,
         );
-        await assertFifoEligible(tx, args.organizationId, createdAt, budget);
-        await claimTicket(tx, row.ownerType, row.ownerId, now);
-      } else {
-        const quota = await readQuota(tx, args.organizationId);
-        const cap = sessionCapFor(budget, quota);
-        const inFlight = await inFlightCount(tx, args.organizationId, budget);
-        if (inFlight >= cap) {
-          throw new SandboxQuotaError(
-            `At most ${cap} ${budget} sandbox sessions can be active for this organization.`,
-          );
-        }
       }
     }
     await tx`
@@ -469,10 +344,10 @@ export async function resumeSessionSlot(
   });
 }
 
-/** Terminal: revoke the gateway keys + mark destroyed + revoke tokens + drop
- * the checkpoint + ticket. The single bottom of EVERY destroy — the admin
- * Destroy, the watchdog's phantom heal, `provisionSession`'s heal, the owner
- * cascades — so credential reclaim cannot be missed on one of them. */
+/** Terminal: revoke the gateway keys + mark destroyed + revoke tokens +
+ * drop the checkpoint. The single bottom of EVERY destroy — the admin
+ * Destroy, the watchdog's phantom heal and ended-run reclaim, the session
+ * teardown — so credential reclaim cannot be missed on one of them. */
 export async function markSessionDestroyed(
   sql: Sql,
   args: { organizationId: string; sessionId: string },
@@ -490,15 +365,14 @@ export async function markSessionDestroyed(
   return sql
     .begin(async (tx) => {
       const now = Date.now();
-      const rows = await tx<{ ownerType: string; ownerId: string }[]>`
+      const rows = await tx<{ id: string }[]>`
       UPDATE app.sandbox_sessions SET
         status = 'destroyed', destroyed_at_ms = ${now}
       WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
         AND status <> 'destroyed'
-      RETURNING owner_type AS "ownerType", owner_id AS "ownerId"
+      RETURNING id
     `;
-      const row = rows[0];
-      if (!row) return false;
+      if (rows.length === 0) return false;
       await tx`
       UPDATE app.sandbox_session_tokens SET revoked_at_ms = ${now}
       WHERE session_id = ${args.sessionId} AND revoked_at_ms IS NULL
@@ -506,10 +380,6 @@ export async function markSessionDestroyed(
       await tx`
       DELETE FROM app.sandbox_agent_checkpoints
       WHERE session_id = ${args.sessionId}
-    `;
-      await tx`
-      DELETE FROM app.sandbox_admission_tickets
-      WHERE owner_type = ${row.ownerType} AND owner_id = ${row.ownerId}
     `;
       return true;
     })
@@ -764,91 +634,6 @@ export async function listAbandonedOps(
     SELECT ${sql.unsafe(OP_COLUMNS)} FROM app.sandbox_session_ops
     WHERE status = 'running' AND heartbeat_at_ms < ${staleBeforeMs}
   `;
-}
-
-// --- admission polling / reaping --------------------------------------------
-
-/**
- * Cheap front gate for a parking caller: upsert/refresh the WAITING ticket
- * and answer whether the reserve is worth attempting (the reserve itself
- * re-checks atomically under the org lock).
- */
-export async function pollAdmission(
-  sql: Sql,
-  args: {
-    organizationId: string;
-    ownerType: string;
-    ownerId: string;
-    ticket: AdmissionTicketInput;
-  },
-): Promise<{ proceed: boolean }> {
-  return sql.begin(async (tx) => {
-    await lockOrgAdmission(tx, args.organizationId);
-    const now = Date.now();
-    const createdAt = await upsertWaitingTicket(
-      tx,
-      {
-        organizationId: args.organizationId,
-        ownerType: args.ownerType,
-        ownerId: args.ownerId,
-        ticket: args.ticket,
-      },
-      now,
-    );
-    try {
-      await assertFifoEligible(
-        tx,
-        args.organizationId,
-        createdAt,
-        requireSessionBudgetForOwnerType(args.ownerType),
-      );
-      return { proceed: true };
-    } catch (error) {
-      if (error instanceof WaitFifoError) {
-        return { proceed: false };
-      }
-      throw error;
-    }
-  });
-}
-
-/** 429-after-claim: put an admitted ticket back to WAITING (keeps its FIFO
- * key, so the retry does not lose its place). */
-export async function parkAdmissionTicket(
-  sql: Sql,
-  ownerType: string,
-  ownerId: string,
-): Promise<void> {
-  await sql`
-    UPDATE app.sandbox_admission_tickets
-    SET status = 'waiting', last_seen_at_ms = ${Date.now()}
-    WHERE owner_type = ${ownerType} AND owner_id = ${ownerId}
-  `;
-}
-
-export async function deleteAdmissionTicket(
-  sql: Sql,
-  ownerType: string,
-  ownerId: string,
-): Promise<void> {
-  await sql`
-    DELETE FROM app.sandbox_admission_tickets
-    WHERE owner_type = ${ownerType} AND owner_id = ${ownerId}
-  `;
-}
-
-/** Reap tickets whose poll-chain died — the only guard against permanent
- * queue-head starvation under indefinite wait. Returns reaped count. */
-export async function reapStaleAdmissionTickets(
-  sql: Sql,
-  staleBeforeMs: number,
-): Promise<number> {
-  const rows = await sql<{ id: string }[]>`
-    DELETE FROM app.sandbox_admission_tickets
-    WHERE last_seen_at_ms < ${staleBeforeMs}
-    RETURNING id
-  `;
-  return rows.length;
 }
 
 // --- workflow re-attach checkpoints ------------------------------------------

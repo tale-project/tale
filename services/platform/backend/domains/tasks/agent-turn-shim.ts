@@ -16,7 +16,6 @@ import {
   reserveSessionSlot,
   resumeSessionSlot,
   SandboxQuotaError,
-  WaitFifoError,
 } from '../sandbox/sessions.ts';
 import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import { kickAgentRun } from './agent-runs.ts';
@@ -40,7 +39,7 @@ import {
  */
 
 function quotaAsAppError(error: unknown): never {
-  if (error instanceof SandboxQuotaError || error instanceof WaitFifoError) {
+  if (error instanceof SandboxQuotaError) {
     throw new AppError({ code: 'QUOTA_EXCEEDED', message: error.message });
   }
   throw error;
