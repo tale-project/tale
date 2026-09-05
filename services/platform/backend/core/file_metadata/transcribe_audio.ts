@@ -10,7 +10,7 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { resolveTranscriptionModel } from '../lib/providers/resolve_transcription_model';
 import { readBlobBytes } from '../lib/storage/blob_access';
-import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
+import type { BlobRef } from '../lib/storage/blob_ref';
 import {
   chunkCompressedAudio,
   compressAudio,
@@ -141,21 +141,18 @@ async function patchProgress(
   );
 }
 
-/**
- * The audio blob's bytes: an `s3:` ref through the org's store, a legacy
- * Convex ref through `ctx.storage`. Only the S3 path needs the org slug.
- */
+/** The audio blob's bytes from the org's store; the org slug addresses the
+ * bucket, so an unresolvable org cannot read anything. */
 async function readAudioBytes(
-  ctx: ActionCtx,
   orgSlug: string | null,
   ref: BlobRef,
 ): Promise<Uint8Array> {
-  if (convexStorageId(ref) === null && orgSlug === null) {
+  if (orgSlug === null) {
     throw new Error(
-      `[transcribeAudio] org unresolvable; cannot read S3 audio blob ${ref}`,
+      `[transcribeAudio] org unresolvable; cannot read audio blob ${ref}`,
     );
   }
-  return readBlobBytes(ctx, orgSlug ?? '', ref);
+  return readBlobBytes(orgSlug, ref);
 }
 
 /** The pipeline body, hoisted so the 0.5 backend can run it on a ctx shim
@@ -264,7 +261,7 @@ export async function transcribeAudioImpl(
       // stamped on the row before the lookup, so the NEXT identical upload
       // finds this one. (0.4 read a SHA-256 off Convex `_storage`; an `s3:`
       // ref has no such system row, which is why it is computed here.)
-      const bytes = await readAudioBytes(ctx, orgSlug, args.storageId);
+      const bytes = await readAudioBytes(orgSlug, args.storageId);
       const contentHash = createHash('sha256').update(bytes).digest('hex');
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.updateFileTranscription,

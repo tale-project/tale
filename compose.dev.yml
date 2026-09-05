@@ -185,9 +185,9 @@ services:
   # instead of the dockerized `backend-api` service), the spawner container
   # needs to reach http://host.docker.internal:3005 for the EP1/EP2 callbacks.
   # Linux Docker doesn't add this DNS alias by default; the line below opts in.
-  # In that bun-dev setup, also set in `services/platform/.env.local`:
-  #   SANDBOX_STORAGE_INTERNAL_BASE_URL=http://host.docker.internal:3005
-  # The dockerized backend path uses `http://proxy` from compose.yml.
+  # In that bun-dev setup, also set in `services/platform/.env.local` so the
+  # blob stage URLs handed to a session resolve to the host-run backend:
+  #   SANDBOX_HTTP_API_BASE_URL=http://host.docker.internal:3005
   sandbox:
     extra_hosts:
       - 'host.docker.internal:host-gateway'

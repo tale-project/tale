@@ -44,7 +44,7 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import type { Id } from '../lib/rows';
 import { deleteBlob, putBlob } from '../lib/storage/blob_access';
-import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
+import type { BlobRef } from '../lib/storage/blob_ref';
 import {
   captionsToParagraphSegments,
   parseVtt,
@@ -213,40 +213,34 @@ export async function ingestVideoLinkImpl(
       return fresh.status !== 'skipped' && fresh.status !== 'failed';
     };
 
-    /** Org slug for the backend-aware blob store: an S3-backed org's
-     * transcript/audio blobs land in its own bucket. Unresolvable slug
-     * (org deleted mid-flight) falls back to Convex `_storage` — never
-     * fail an ingest over blob routing. */
+    /** Org slug for the org blob store: transcript/audio blobs land in the
+     * org's own bucket (else the deployment default's). There is no other
+     * store — an org whose slug does not resolve (deleted mid-flight) is an
+     * infra fault the first blob write surfaces, never a silently different
+     * backend. */
     const orgSlug = await orgSlugFromIdOrNull(ctx, job.organizationId);
 
-    /** Store a pipeline artifact through the backend-aware seam (org bucket
-     * when configured, else Convex `_storage`). */
+    /** Store a pipeline artifact in the org's bucket. */
     const storeJobBlob = async (
       bytes: Uint8Array,
       contentType: string,
     ): Promise<BlobRef> => {
-      if (orgSlug !== null) {
-        return await putBlob(ctx, orgSlug, bytes, contentType);
+      if (orgSlug === null) {
+        throw new Error(
+          `video ingest for job ${args.jobId} has no blob store: organization ${job.organizationId} does not resolve to a slug`,
+        );
       }
-      // Copy into a fresh ArrayBuffer so the Blob constructor's BlobPart
-      // constraint accepts it without an unsafe assertion.
-      const ab = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(ab).set(bytes);
-      return await ctx.storage.store(new Blob([ab], { type: contentType }));
+      return await putBlob(orgSlug, bytes, contentType);
     };
 
     /** Best-effort orphan-blob cleanup when we bail between the blob store
      * and the cross-table write that would record the storageId on the job
      * row. Suppresses delete errors (the blob may have already been reaped
-     * by cascade) but logs them. Backend-aware: `s3:` refs delete through
-     * the seam, Convex ids inline. */
+     * by cascade) but logs them. */
     const deleteOrphanBlob = async (storageId: BlobRef): Promise<void> => {
       try {
-        const convexId = convexStorageId(storageId);
-        if (convexId !== null) {
-          await ctx.storage.delete(convexId);
-        } else if (orgSlug !== null) {
-          await deleteBlob(ctx, orgSlug, storageId);
+        if (orgSlug !== null) {
+          await deleteBlob(orgSlug, storageId);
         }
       } catch (err) {
         console.warn(

@@ -545,7 +545,7 @@ async function loadWireImage(
     return null;
   }
   try {
-    const bytes = await readBlobBytes(ctx, orgSlug, ref.fileId);
+    const bytes = await readBlobBytes(orgSlug, ref.fileId);
     if (bytes.byteLength > INLINE_IMAGE_MAX_BYTES) {
       console.warn(
         `[chat] attachment "${ref.name}" is ${bytes.byteLength} bytes — over the ${INLINE_IMAGE_MAX_BYTES}-byte inline bound; sending its text surface instead`,

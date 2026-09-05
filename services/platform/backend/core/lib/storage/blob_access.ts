@@ -1,33 +1,25 @@
 'use node';
 
 /**
- * Backend-aware blob access — the single seam every org-owned blob operation
- * routes through. New blobs always land in S3-compatible storage (the org's own
- * bucket, else the deployment default's — see `object_store.ts`, which fails
- * closed when neither is configured); the Convex-id branches below only read,
- * serve, or delete a LEGACY reference that predates the cutover.
+ * Org-blob access — the single seam every org-owned blob operation routes
+ * through. Blobs live in S3-compatible storage only (the org's own bucket,
+ * else the deployment default's — see `object_store.ts`, which fails closed
+ * when neither is configured); the Convex `_storage` backend the 0.4 runtime
+ * used is retired, and no 0.5 ctx can read, serve or delete a `_storage` id.
  *
  * # The blob reference
  *
- * Historically every blob is an `Id<'_storage'>`. To let a blob live in S3
- * without a repo-wide id-type rewrite, a stored reference is now a STRING that
- * is EITHER:
- *   - a Convex storage id (unchanged — the default), or
- *   - `s3:<objectKey>` — the bytes live in the org's bucket at `<objectKey>`.
- * Schema fields widen from `v.id('_storage')` to `blobRefValidator`
- * (`v.union(v.id('_storage'), v.string())`); existing id values keep validating.
- * `parseBlobRef` / `encodeS3Ref` are the ONLY places that know the encoding.
+ * A stored reference is a STRING: `s3:<objectKey>` for a blob in the org's
+ * bucket (`blob_ref.ts` owns the encoding). Any other string is a legacy
+ * `_storage` id from before the cutover, and every reader here refuses it
+ * with a typed {@link UnsupportedBlobRefError} — a caller sees "this ref
+ * cannot be served" instead of a shim `TypeError` from deep inside a lane.
  *
- * # Why an action context
- *
- * S3 verbs sign requests (crypto) and read per-org config (fs) — both need the
- * `'use node'` runtime, so put/read/delete for an S3-backed org run in ACTIONS.
- * Convex-backed blobs work in any ctx. Serving is the one asymmetry: a Convex
- * query CAN mint a `_storage` URL but CANNOT presign S3, so S3 blobs are served
- * through the node `/storage` HTTP route (see `blobServeThroughHttp`).
+ * Every S3 read / delete is namespace-guarded (`requireS3`): a blob ref is a
+ * client-bindable string, so a key outside the org's own namespace is refused
+ * outright, never resolved against a shared bucket.
  */
 
-import type { ActionCtx } from '../ctx';
 import {
   encodeS3Ref,
   parseBlobRef,
@@ -40,7 +32,6 @@ import {
   s3DeleteObject,
   s3GetObjectBytes,
   s3HeadObject,
-  s3PresignGetUrl,
   s3PutObject,
   type S3ObjectStore,
 } from './object_store';
@@ -48,14 +39,24 @@ import {
 export type { BlobRef } from './blob_ref';
 export { encodeS3Ref, parseBlobRef, isS3Ref } from './blob_ref';
 
+/** A blob reference this deployment cannot resolve: anything but an `s3:`
+ * ref — the retired Convex `_storage` lane, or a malformed string bound by a
+ * client. Typed so a caller can tell "unsupported ref" from an S3 failure. */
+export class UnsupportedBlobRefError extends Error {
+  constructor(ref: BlobRef) {
+    super(
+      `blob ref "${ref}" is not an s3: reference — the Convex _storage backend is retired and cannot be read`,
+    );
+    this.name = 'UnsupportedBlobRefError';
+  }
+}
+
 /**
  * Store bytes for an org and return the stored reference — always an `s3:`
  * ref into the org's resolved bucket; an unconfigured store throws at this
- * door instead of failing deeper in the lane. The `ctx` parameter is kept for
- * the reused 0.4 call shape.
+ * door instead of failing deeper in the lane.
  */
 export async function putBlob(
-  _ctx: ActionCtx,
   orgSlug: string,
   bytes: Uint8Array,
   contentType: string,
@@ -66,22 +67,15 @@ export async function putBlob(
   return encodeS3Ref(key);
 }
 
-/** Read a blob's raw bytes, from whichever backend owns it. Action ctx. */
+/** Read a blob's raw bytes from the org's store. Throws
+ * {@link UnsupportedBlobRefError} for a non-`s3:` ref. */
 export async function readBlobBytes(
-  ctx: ActionCtx,
   orgSlug: string,
   ref: BlobRef,
 ): Promise<Uint8Array> {
-  const parsed = parseBlobRef(ref);
-  if (parsed.backend === 'convex') {
-    const blob = await ctx.storage.get(parsed.storageId);
-    if (blob === null) {
-      throw new Error(`blob not found in _storage: ${parsed.storageId}`);
-    }
-    return new Uint8Array(await blob.arrayBuffer());
-  }
-  const store = await requireS3(orgSlug, parsed.key);
-  return await s3GetObjectBytes(store, parsed.key);
+  const key = requireS3Key(ref);
+  const store = await requireS3(orgSlug, key);
+  return await s3GetObjectBytes(store, key);
 }
 
 /**
@@ -102,42 +96,13 @@ export async function s3BlobSize(
   return head?.size ?? null;
 }
 
-/**
- * Delete a blob from whichever backend owns it. Idempotent. Action ctx (S3
- * delete needs node; Convex `_storage.delete` is also available in mutations,
- * but a mixed-backend caller must schedule this from an action).
- */
-export async function deleteBlob(
-  ctx: ActionCtx,
-  orgSlug: string,
-  ref: BlobRef,
-): Promise<void> {
-  const parsed = parseBlobRef(ref);
-  if (parsed.backend === 'convex') {
-    await ctx.storage.delete(parsed.storageId);
-    return;
-  }
-  const store = await requireS3(orgSlug, parsed.key);
-  await s3DeleteObject(store, parsed.key);
-}
-
-/**
- * A time-limited download URL for a blob. Convex blobs get a `_storage` URL; S3
- * blobs get a presigned GET. Action ctx (S3 presign needs node) — the query
- * serve path uses `blobServeThroughHttp` instead.
- */
-export async function getBlobUrl(
-  ctx: ActionCtx,
-  orgSlug: string,
-  ref: BlobRef,
-  opts: { filename?: string } = {},
-): Promise<string | null> {
-  const parsed = parseBlobRef(ref);
-  if (parsed.backend === 'convex') {
-    return await ctx.storage.getUrl(parsed.storageId);
-  }
-  const store = await requireS3(orgSlug, parsed.key);
-  return await s3PresignGetUrl(store, parsed.key, { filename: opts.filename });
+/** Delete a blob from the org's store. Idempotent (S3 DELETE answers 204
+ * whether or not the object existed). Throws {@link UnsupportedBlobRefError}
+ * for a non-`s3:` ref. */
+export async function deleteBlob(orgSlug: string, ref: BlobRef): Promise<void> {
+  const key = requireS3Key(ref);
+  const store = await requireS3(orgSlug, key);
+  await s3DeleteObject(store, key);
 }
 
 /**
@@ -160,6 +125,13 @@ export async function putImmutableS3Blob(
   return await s3PutObject(store, parsed.key, bytes, contentType, {
     createOnly: true,
   });
+}
+
+/** The S3 object key of `ref`, or a typed refusal for any other reference. */
+function requireS3Key(ref: BlobRef): string {
+  const parsed = parseBlobRef(ref);
+  if (parsed.backend !== 's3') throw new UnsupportedBlobRefError(ref);
+  return parsed.key;
 }
 
 /**

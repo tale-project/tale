@@ -860,11 +860,7 @@ export async function stageWorkflowFiles(
     for (const file of listing.files) {
       // Blob-aware: a BYO-bucket org's documents carry `s3:` refs, which stage
       // via the token-gated stream route instead of a `_storage` URL.
-      const url = await stageUrlForBlobRef(
-        ctx,
-        String(file.fileId),
-        organizationId,
-      );
+      const url = await stageUrlForBlobRef(String(file.fileId), organizationId);
       if (url === null) continue; // blob purged under a live row — skip, don't fail
       toStage.push({ path: `${pathPrefix}${name}/${file.name}`, url });
     }
