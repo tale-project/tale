@@ -28,8 +28,6 @@ export interface ResolvedTranscriptionModel {
   readonly providerName: string;
   readonly baseUrl: string;
   readonly apiKey: string;
-  /** Request convention; absent ⇒ `multipart` (OpenAI Whisper-compatible). */
-  readonly transcriptionMode?: 'multipart' | 'json-base64';
 }
 
 export async function resolveTranscriptionModel(
