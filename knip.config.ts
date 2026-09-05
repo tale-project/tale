@@ -118,7 +118,6 @@ export default {
         // Shared contract layer: types declared for the parked consumers
         // above (schemas, platform run/render vocabulary, provider catalog
         // shapes). Same debt, same exit.
-        'lib/shared/constants/agents.ts',
         'lib/shared/schemas/skills.ts',
         'lib/shared/config/registry.ts',
         'lib/shared/constants/system-message-tags.ts',
