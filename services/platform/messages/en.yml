@@ -1966,6 +1966,7 @@ documents:
       replaceFile: Replace file
       submitForReview: Submit for review
       review: Review record
+      changeReviewer: Change reviewer
       newRevision: New revision
     replace:
       title: Replace file
@@ -2024,6 +2025,13 @@ documents:
       lastFeedback: 'Changes requested on v{version} by {name}:'
       lastFeedbackNoName: 'Changes requested on v{version}:'
       confirm: Submit
+    reassign:
+      title: Change reviewer
+      hint: 'The pending request to {name} is withdrawn — the new reviewer
+        decides on this version.'
+      hintNoName: The pending request is withdrawn — the new reviewer decides
+        on this version.
+      confirm: Change reviewer
     review:
       title: 'Review record (v{version})'
       frozenHint: Approving locks this version as an immutable snapshot;
@@ -2040,6 +2048,9 @@ documents:
       controlledFailed: Could not mark the document as controlled
       submitted: Submitted for review — the document is frozen
       submitFailed: Could not submit for review
+      reviewerChanged: Reviewer changed — the review request moved to the new
+        reviewer
+      reviewerChangeFailed: Could not change the reviewer
       approved: 'Version {version} approved'
       changesRequested: Changes requested — the record is a draft again
       respondFailed: Could not record the review decision
@@ -2392,6 +2403,7 @@ documents:
     clearSelection: Clear selection
     dropOrClick: Drop a file here or click to upload
     selectDocument: Select a document
+    listTruncated: Only the newest documents are listed here. Upload the file to compare an older one.
   history:
     dialogTitle: Version history — {name}
     dialogDescription: Select two versions to compare. The current file is listed first.
@@ -5069,6 +5081,7 @@ projects:
     PROJECT_HAS_BOUND_AUTOMATIONS: Remove this project from the automations bound to it first, then delete it.
     PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Remove this project from these
       automations first, then delete it: {automations}.'
+    PROJECT_HAS_PROTECTED_RECORDS: Resolve or move the controlled records in this project first, then delete it. They are in review, approved, or retain an approved version.
   sharing:
     effectiveAudience: Effective audience
     noTeamsHint: No teams yet.

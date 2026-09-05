@@ -11,6 +11,9 @@ const mockOpenRevision = vi.fn();
 let replacementDialogProps:
   | { open: boolean; recordState?: 'draft' | 'in_review' | 'approved' }
   | undefined;
+let submitDialogOpenings: {
+  standingReviewer?: { userId?: string; name?: string };
+}[] = [];
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -72,12 +75,26 @@ vi.mock('./document-replace-file-dialog', () => ({
   },
 }));
 
+vi.mock('./document-record-submit-dialog', () => ({
+  DocumentRecordSubmitDialog: (props: {
+    open: boolean;
+    standingReviewer?: { userId?: string; name?: string };
+  }) => {
+    if (!props.open) return null;
+    submitDialogOpenings.push({ standingReviewer: props.standingReviewer });
+    return (
+      <div>{props.standingReviewer ? 'reassign-dialog' : 'submit-dialog'}</div>
+    );
+  },
+}));
+
 import { DocumentRowActions } from './document-row-actions';
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockLegalHold = null;
   replacementDialogProps = undefined;
+  submitDialogOpenings = [];
 });
 
 describe('DocumentRowActions', () => {
@@ -328,6 +345,82 @@ describe('DocumentRowActions', () => {
         .getByText('documents.record.replace.blockedByHold')
         .closest('[role="menuitem"]');
       expect(blocked).toHaveAttribute('aria-disabled', 'true');
+    });
+  });
+
+  // The in_review exit: the review decision is the designee's alone, so a
+  // designee who left the org, was disabled or lost the document's scope
+  // froze the record for good until a writer could re-designate. The
+  // server's submit door supersedes the standing request when a different
+  // reviewer is named; this pins that the menu actually offers it.
+  describe('controlled-record re-designation', () => {
+    const openMenu = async () => {
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.openMenu' }),
+      );
+      return user;
+    };
+
+    it('offers Change reviewer while in review and opens the submit dialog in reassign mode', async () => {
+      render(
+        <DocumentRowActions
+          documentId="doc-in-review"
+          itemType="file"
+          name="procedure.pdf"
+          sourceMode="manual"
+          record={{
+            state: 'in_review',
+            version: 1,
+            currentFileId: 'storage-current',
+            reviewerUserId: 'u-gone',
+            reviewerName: 'Gone Reviewer',
+          }}
+        />,
+      );
+      const user = await openMenu();
+
+      expect(
+        screen.queryByText('documents.record.actions.submitForReview'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText('documents.record.actions.review'),
+      ).toBeInTheDocument();
+      await user.click(
+        screen.getByText('documents.record.actions.changeReviewer'),
+      );
+
+      expect(screen.getByText('reassign-dialog')).toBeInTheDocument();
+      expect(submitDialogOpenings.at(-1)?.standingReviewer).toEqual({
+        userId: 'u-gone',
+        name: 'Gone Reviewer',
+      });
+    });
+
+    it('offers Submit for review — not Change reviewer — on a draft', async () => {
+      render(
+        <DocumentRowActions
+          documentId="doc-draft"
+          itemType="file"
+          name="procedure.pdf"
+          sourceMode="manual"
+          record={{
+            state: 'draft',
+            version: 1,
+            currentFileId: 'storage-current',
+          }}
+        />,
+      );
+      const user = await openMenu();
+
+      expect(
+        screen.queryByText('documents.record.actions.changeReviewer'),
+      ).not.toBeInTheDocument();
+      await user.click(
+        screen.getByText('documents.record.actions.submitForReview'),
+      );
+      expect(screen.getByText('submit-dialog')).toBeInTheDocument();
+      expect(submitDialogOpenings.at(-1)?.standingReviewer).toBeUndefined();
     });
   });
 

@@ -2031,6 +2031,7 @@ documents:
       replaceFile: Datei ersetzen
       submitForReview: Zum Review einreichen
       review: Review öffnen
+      changeReviewer: Reviewer wechseln
       newRevision: Neue Revision
     replace:
       title: Datei ersetzen
@@ -2094,6 +2095,13 @@ documents:
       lastFeedback: 'Änderungen zu v{version} angefordert von {name}:'
       lastFeedbackNoName: 'Änderungen zu v{version} angefordert:'
       confirm: Einreichen
+    reassign:
+      title: Reviewer wechseln
+      hint: 'Tale zieht die offene Anfrage an {name} zurück — der neue Reviewer
+        entscheidet über diese Version.'
+      hintNoName: Tale zieht die offene Anfrage zurück — der neue Reviewer
+        entscheidet über diese Version.
+      confirm: Reviewer wechseln
     review:
       title: 'Review (v{version})'
       frozenHint: Die Freigabe schreibt diese Version unveränderlich fest;
@@ -2110,6 +2118,9 @@ documents:
       controlledFailed: Das Dokument konnte nicht als gelenktes Dokument geführt werden
       submitted: Zum Review eingereicht — das Dokument ist eingefroren
       submitFailed: Einreichen zum Review fehlgeschlagen
+      reviewerChanged: Reviewer gewechselt — die Anfrage liegt jetzt beim neuen
+        Reviewer
+      reviewerChangeFailed: Reviewer konnte nicht gewechselt werden
       approved: 'Version {version} freigegeben'
       changesRequested: Änderungen angefordert — das Dokument ist wieder ein Entwurf
       respondFailed: Die Entscheidung konnte nicht gespeichert werden
@@ -2475,6 +2486,7 @@ documents:
     clearSelection: Auswahl löschen
     dropOrClick: Datei hier ablegen oder klicken zum Hochladen
     selectDocument: Dokument auswählen
+    listTruncated: Hier stehen nur die neuesten Dokumente. Lade die Datei hoch, um ein älteres zu vergleichen.
   history:
     dialogTitle: Versionsverlauf — {name}
     dialogDescription: Wähle zwei Versionen zum Vergleich. Die aktuelle Datei steht zuerst.
@@ -7501,6 +7513,7 @@ projects:
       gebunden ist, dann lösche es.
     PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Entferne dieses Projekt zuerst aus
       diesen Automatisierungen, dann lösche es: {automations}.'
+    PROJECT_HAS_PROTECTED_RECORDS: Kläre zuerst die kontrollierten Dokumente in diesem Projekt oder verschiebe sie, dann lösche es — sie sind in Prüfung, freigegeben oder bewahren eine freigegebene Version auf.
   sharing:
     effectiveAudience: Tatsächliche Reichweite
     noTeamsHint: Noch keine Teams.

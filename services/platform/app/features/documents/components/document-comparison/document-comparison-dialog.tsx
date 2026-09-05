@@ -41,7 +41,7 @@ function DocumentComparisonDialogContent({
   );
   const [isUploading, setIsUploading] = useState(false);
 
-  const { documents } = useDocuments(organizationId);
+  const { documents, truncated } = useDocuments(organizationId);
   const { compare, result, error, isPending, reset } = useDocumentComparison({
     organizationId,
   });
@@ -163,6 +163,12 @@ function DocumentComparisonDialogContent({
             inputId="comparison-target-upload"
           />
         </Grid>
+
+        {truncated && (
+          <Text as="div" variant="muted">
+            {t('comparison.listTruncated')}
+          </Text>
+        )}
 
         <Row gap={2} justify="end">
           {error && (

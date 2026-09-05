@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { purgeIncompleteResponse } from '../../lib/purge-incomplete-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkOrganizationRateLimit,
@@ -22,6 +23,7 @@ import {
   ProjectError,
   type ProjectAuthContext,
 } from '../projects/service.ts';
+import { PurgeIncompleteError } from '../retention/service.ts';
 import { buildHubFolderPath } from './paths.ts';
 import {
   createFolder,
@@ -55,6 +57,9 @@ function handleError<E extends OrgEnv>(
   }
   if (error instanceof RateLimitExceededError) {
     return rateLimitedResponse(c, error);
+  }
+  if (error instanceof PurgeIncompleteError) {
+    return purgeIncompleteResponse(c, error);
   }
   throw error;
 }

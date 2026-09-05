@@ -6,10 +6,32 @@ import path from 'node:path';
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { PurgeIncompleteError } from '../domains/retention/service.ts';
 import { parseKeysetCursor, type RestEnv } from './shared.ts';
 import { createCoreRoutes } from './v1-core.ts';
+
+// The documents door is driven against the real routes with only its two
+// service calls replaced: the hub row loads, and the hard delete reports a
+// purge the object store could not finish.
+vi.mock('../domains/documents/service.ts', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../domains/documents/service.ts')>();
+  return {
+    ...actual,
+    getDocumentById: vi.fn(async () => ({
+      id: 'doc-hub',
+      organizationId: 'org-1',
+      projectId: null,
+    })),
+    deleteDocumentHard: vi.fn(async () => {
+      throw new PurgeIncompleteError('doc-hub', [
+        { ref: 's3:acme/doc-hub', stage: 'blob', message: 'store down' },
+      ]);
+    }),
+  };
+});
 
 /**
  * GET /contacts and GET /products honour the pagination they document. The
@@ -289,6 +311,25 @@ describe('agents error mapping', () => {
     expect((await request('/agents/helper', { method: 'DELETE' })).status).toBe(
       404,
     );
+  });
+});
+
+/**
+ * DELETE /documents/:id is the third door onto `deleteDocumentHard`. A purge
+ * that could not remove every dead surface keeps the row for a retry and
+ * throws PurgeIncompleteError — an error without a 4xx status, which
+ * `domainErrorResponse` rethrows as a bare 500. The session and folder doors
+ * answer it as 503 PURGE_INCOMPLETE; this pins the REST door to the same
+ * shape so the three never drift.
+ */
+describe('DELETE /documents/:id purge mapping', () => {
+  it('answers an incomplete purge as 503 PURGE_INCOMPLETE', async () => {
+    const res = await mount(fakeSql([]).sql).request(
+      'http://localhost/documents/doc-hub',
+      { method: 'DELETE' },
+    );
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ error: 'PURGE_INCOMPLETE' });
   });
 });
 

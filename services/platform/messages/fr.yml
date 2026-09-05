@@ -2046,6 +2046,7 @@ documents:
       replaceFile: Remplacer le fichier
       submitForReview: Soumettre à la relecture
       review: Ouvrir la relecture
+      changeReviewer: Changer de relecteur
       newRevision: Nouvelle révision
     replace:
       title: Remplacer le fichier
@@ -2108,6 +2109,13 @@ documents:
       lastFeedback: 'Modifications demandées sur la v{version} par {name} :'
       lastFeedbackNoName: 'Modifications demandées sur la v{version} :'
       confirm: Soumettre
+    reassign:
+      title: Changer de relecteur
+      hint: 'Tale retire la demande en attente adressée à {name} — le nouveau
+        relecteur se prononce sur cette version.'
+      hintNoName: Tale retire la demande en attente — le nouveau relecteur se
+        prononce sur cette version.
+      confirm: Changer de relecteur
     review:
       title: 'Relecture (v{version})'
       frozenHint: Approuver fige cette version en instantané immuable —
@@ -2124,6 +2132,9 @@ documents:
       controlledFailed: Impossible de marquer le document comme maîtrisé
       submitted: Soumis à la relecture — le document est gelé
       submitFailed: Impossible de soumettre à la relecture
+      reviewerChanged: Relecteur changé — la demande est passée au nouveau
+        relecteur
+      reviewerChangeFailed: Impossible de changer de relecteur
       approved: 'Version {version} approuvée'
       changesRequested: Modifications demandées — le document redevient un brouillon
       respondFailed: Impossible d'enregistrer la décision
@@ -2506,6 +2517,7 @@ documents:
     clearSelection: Effacer la sélection
     dropOrClick: Dépose un fichier ici ou clique pour téléverser
     selectDocument: Sélectionner un document
+    listTruncated: Seuls les documents les plus récents sont listés ici. Charge le fichier pour en comparer un plus ancien.
   history:
     dialogTitle: Historique des versions — {name}
     dialogDescription:
@@ -7613,6 +7625,7 @@ projects:
     PROJECT_HAS_BOUND_AUTOMATIONS: Retire d’abord ce projet des automatisations
       qui y sont liées, puis supprime-le.
     PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Retire d’abord ce projet de ces automatisations, puis supprime-le : {automations}.'
+    PROJECT_HAS_PROTECTED_RECORDS: Résous ou déplace d'abord les documents contrôlés de ce projet, puis supprime-le. Ils sont en relecture, approuvés ou conservent une version approuvée.
   sharing:
     effectiveAudience: Audience effective
     noTeamsHint: Aucune équipe pour l'instant.

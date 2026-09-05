@@ -189,50 +189,53 @@ export interface DocumentsContract {
   'documents/queries:listDocuments': {
     kind: 'query';
     args: { organizationId: string };
-    returns: Array<{
-      record?: {
-        reviewerUserId?: string;
-        currentFileId?: string;
-        reviewerName?: string;
-        hasApprovedVersions?: boolean;
-        version: number;
-        state: 'approved' | 'draft' | 'in_review';
-      };
-      name?: string;
-      projectId?: null | string;
-      createdBy?: string;
-      teamId?: null | string;
-      mimeType?: string;
-      extension?: string;
-      sourceProvider?: string;
-      scannedPagesDetected?: number;
-      ocrApplied?: boolean;
-      sourceCreatedAt?: number;
-      sourceModifiedAt?: number;
-      folderId?: string;
-      size?: number;
-      lastModified?: number;
-      ragStatus?:
-        | 'queued'
-        | 'running'
-        | 'failed'
-        | 'completed'
-        | 'unsupported'
-        | 'stale'
-        | 'not_indexed';
-      ragError?: string;
-      ragErrorCode?: string;
-      ragIndexedAt?: number;
-      url?: string;
-      sourceMode?: 'auto' | 'manual';
-      uploadedAt?: number;
-      syncConfigId?: string;
-      isDirectlySelected?: boolean;
-      teamIds?: string[];
-      createdByName?: string;
-      id: string;
-      type: 'file' | 'folder';
-    }>;
+    returns: {
+      documents: Array<{
+        record?: {
+          reviewerUserId?: string;
+          currentFileId?: string;
+          reviewerName?: string;
+          hasApprovedVersions?: boolean;
+          version: number;
+          state: 'approved' | 'draft' | 'in_review';
+        };
+        name?: string;
+        projectId?: null | string;
+        createdBy?: string;
+        teamId?: null | string;
+        mimeType?: string;
+        extension?: string;
+        sourceProvider?: string;
+        scannedPagesDetected?: number;
+        ocrApplied?: boolean;
+        sourceCreatedAt?: number;
+        sourceModifiedAt?: number;
+        folderId?: string;
+        size?: number;
+        lastModified?: number;
+        ragStatus?:
+          | 'queued'
+          | 'running'
+          | 'failed'
+          | 'completed'
+          | 'unsupported'
+          | 'stale'
+          | 'not_indexed';
+        ragError?: string;
+        ragErrorCode?: string;
+        ragIndexedAt?: number;
+        url?: string;
+        sourceMode?: 'auto' | 'manual';
+        uploadedAt?: number;
+        syncConfigId?: string;
+        isDirectlySelected?: boolean;
+        teamIds?: string[];
+        createdByName?: string;
+        id: string;
+        type: 'file' | 'folder';
+      }>;
+      truncated: boolean;
+    };
   };
   'documents/queries:listDocumentsPaginated': {
     kind: 'query';
