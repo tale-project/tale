@@ -9,18 +9,23 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDocumentFromUpload } from '../domains/documents/service.ts';
-import { getFileUrl, registerUpload } from '../domains/files/service.ts';
+import {
+  getFileUrl,
+  registerUpload,
+  statOrgBlob,
+} from '../domains/files/service.ts';
 import { clearOrgConfigCaches } from '../lib/org-config.ts';
 import type { RestEnv } from './shared.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
 
-// The blob store is out of reach here: `registerUpload` stands in for the
-// HEAD-attested row (its size is what the policy gate must see), and the
-// document create for the step a refusal must never reach. The policy gate
-// itself (`validateDocumentUploadForOrg`) runs for real against a seeded
-// config tree.
+// The blob store is out of reach here: `statOrgBlob` stands in for the HEAD
+// (its size is what the policy gate must see), `registerUpload` for the row
+// write a refusal must never reach, and the document create for the step
+// after it. The policy gate itself (`validateDocumentUploadForOrg`) runs for
+// real against a seeded config tree.
 vi.mock('../domains/files/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/files/service.ts')>()),
+  statOrgBlob: vi.fn(() => Promise.resolve({ size: 1234 })),
   registerUpload: vi.fn(() => Promise.resolve({ fileId: 'f-1', size: 1234 })),
   getFileUrl: vi.fn(() => Promise.resolve('https://blobs.example.com/signed')),
 }));
@@ -85,9 +90,10 @@ const document = {
 
 /** Tagged-template Sql double for the bind lane: the visible project, a
  * consumable intent, the org slug for the config tree, the rate limiter's
- * UPSERT (spent or not), and the policy's volume read. `begin` runs the
- * callback on the same tag. */
-function fakeSql(opts: { spent?: boolean } = {}): {
+ * UPSERT (spent or not), and the policy's volume read (`usedBytes` answers
+ * the sum at the moment it is read). `begin` runs the callback on the same
+ * tag. */
+function fakeSql(opts: { spent?: boolean; usedBytes?: () => number } = {}): {
   sql: Sql;
   queries: Captured[];
 } {
@@ -114,7 +120,9 @@ function fakeSql(opts: { spent?: boolean } = {}): {
     if (text.includes('FROM app.rate_limits')) {
       return Promise.resolve([{ value: '0', ts: String(Date.now()) }]);
     }
-    if (text.includes('sum(size)')) return Promise.resolve([{ total: '0' }]);
+    if (text.includes('sum(size)')) {
+      return Promise.resolve([{ total: String(opts.usedBytes?.() ?? 0) }]);
+    }
     return Promise.resolve([]);
   };
   const unsafe = (text: string) => ({ unsafe: text });
@@ -160,8 +168,11 @@ const bind = (sql: Sql, body: Record<string, unknown>) =>
  * API reference told integrators the bind refuses on the org's MIME /
  * extension allowlist, size caps and per-user quota — any editor-role key
  * bypassed a configured policy silently. The gate now runs inside the bind
- * transaction with the HEAD-attested size, so a refusal rolls the intent
- * consume back and the row keeps the type the gate resolved.
+ * transaction with the HEAD-attested size and BEFORE the metadata row is
+ * written (HEAD → policy → row, as the session bind lane goes), so a
+ * refusal rolls the intent consume back, the per-user volume sum never
+ * sees the file it is admitting, and the row is written with the type the
+ * gate resolved.
  */
 describe('POST /projects/{id}/files upload policy', () => {
   let configRoot: string;
@@ -170,6 +181,7 @@ describe('POST /projects/{id}/files upload policy', () => {
   beforeEach(async () => {
     vi.mocked(createDocumentFromUpload).mockClear();
     vi.mocked(registerUpload).mockClear();
+    vi.mocked(statOrgBlob).mockClear();
     clearOrgConfigCaches();
     savedConfigDir = process.env.TALE_CONFIG_DIR;
     configRoot = await mkdtemp(path.join(tmpdir(), 'tale-rest-bind-'));
@@ -199,12 +211,28 @@ describe('POST /projects/{id}/files upload policy', () => {
     const res = await bind(sql, { contentType: 'text/csv' });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ code: 'UPLOAD_POLICY_REJECTED' });
-    // The gate saw the landed size, not a caller-declared one.
-    expect(vi.mocked(registerUpload)).toHaveBeenCalledTimes(1);
+    // The gate saw the landed size (the HEAD), not a caller-declared one —
+    // and refused before any row existed.
+    expect(vi.mocked(statOrgBlob)).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      's3:acme/blob-1',
+    );
+    expect(vi.mocked(registerUpload)).not.toHaveBeenCalled();
     expect(vi.mocked(createDocumentFromUpload)).not.toHaveBeenCalled();
     expect(
       queries.some((q) => q.text.startsWith('UPDATE app.file_metadata')),
     ).toBe(false);
+  });
+
+  it('answers 404 BLOB_NOT_FOUND and registers nothing when the blob never landed', async () => {
+    vi.mocked(statOrgBlob).mockResolvedValueOnce(null);
+    const { sql } = fakeSql();
+    const res = await bind(sql, {});
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'BLOB_NOT_FOUND' });
+    expect(vi.mocked(registerUpload)).not.toHaveBeenCalled();
+    expect(vi.mocked(createDocumentFromUpload)).not.toHaveBeenCalled();
   });
 
   it('refuses over the per-user volume quota', async () => {
@@ -213,19 +241,57 @@ describe('POST /projects/{id}/files upload policy', () => {
     const res = await bind(sql, {});
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ code: 'UPLOAD_POLICY_REJECTED' });
+    expect(vi.mocked(registerUpload)).not.toHaveBeenCalled();
     expect(vi.mocked(createDocumentFromUpload)).not.toHaveBeenCalled();
   });
 
-  it('binds an allowed file and stores the type the gate resolved from the name', async () => {
+  it('counts the file it is admitting once against the per-user volume quota', async () => {
+    // The regression under test: the row was INSERTed (size = HEAD) before
+    // the policy read `sum(size)` on the same transaction, so the sum
+    // already held the file and the gate added it again — a user with
+    // headroom for exactly this file (1234 <= 2000 - 0 < 2 * 1234) was
+    // refused with `volume_exceeded`. The double mirrors the real row: once
+    // `registerUpload` ran, the sum includes the landed bytes.
+    await seedUploadPolicy('enabled: true\nmaxTotalVolumeBytesPerUser: 2000\n');
+    let landedBytes = 0;
+    vi.mocked(registerUpload).mockImplementationOnce(() => {
+      landedBytes = 1234;
+      return Promise.resolve({ fileId: 'f-1', size: 1234 });
+    });
+    const { sql, queries } = fakeSql({ usedBytes: () => landedBytes });
+    const res = await bind(sql, {});
+    expect(res.status).toBe(201);
+    expect(vi.mocked(registerUpload)).toHaveBeenCalledTimes(1);
+    // The volume read ran before the row write: the sum it saw was 0.
+    const volumeRead = queries.find((q) => q.text.includes('sum(size)'));
+    expect(volumeRead).toBeDefined();
+    expect(landedBytes).toBe(1234);
+  });
+
+  it('binds an allowed file and writes the row with the type the gate resolved from the name', async () => {
     await seedUploadPolicy('enabled: true\nallowedMimeTypes:\n  - text/*\n');
     const { sql, queries } = fakeSql();
     const res = await bind(sql, { contentType: 'application/octet-stream' });
     expect(res.status).toBe(201);
     expect(await res.json()).toMatchObject({ file: { id: 'd-1' } });
-    const retyped = queries.find((q) =>
-      q.text.startsWith('UPDATE app.file_metadata SET content_type'),
+    expect(vi.mocked(registerUpload)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { organizationId: 'org-1', userId: 'user-1' },
+      {
+        storageRef: 's3:acme/blob-1',
+        fileName: 'ledger.csv',
+        contentType: 'text/csv',
+        source: 'rest',
+      },
+      { kind: 'external' },
     );
-    expect(retyped?.values).toEqual(['text/csv', 'f-1']);
+    // No retype pass after the fact — the row is born with the resolved type.
+    expect(
+      queries.some((q) =>
+        q.text.startsWith('UPDATE app.file_metadata SET content_type'),
+      ),
+    ).toBe(false);
     expect(vi.mocked(createDocumentFromUpload)).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
@@ -240,6 +306,21 @@ describe('POST /projects/{id}/files upload policy', () => {
     expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
     expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
     expect(vi.mocked(createDocumentFromUpload)).not.toHaveBeenCalled();
+  });
+
+  it('answers 400 in the JSON envelope for a malformed body', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{',
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: expect.any(String) });
+    expect(vi.mocked(registerUpload)).not.toHaveBeenCalled();
   });
 });
 

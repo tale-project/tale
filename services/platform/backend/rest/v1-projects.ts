@@ -12,8 +12,10 @@ import {
 } from '../domains/documents/service.ts';
 import {
   createRestUploadHandoff,
+  FileError,
   getFileUrl,
   registerUpload,
+  statOrgBlob,
 } from '../domains/files/service.ts';
 import { sweepUploadIntents } from '../domains/files/upload-intents.ts';
 import {
@@ -348,6 +350,31 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             409,
           );
         }
+        // HEAD → policy → row, in that order — the same choreography as the
+        // session bind lane. The org's upload policy — the `file:upload`
+        // budget, the size caps, the MIME/extension allowlists, the
+        // per-user volume quota — gates the landed bytes with their
+        // AUTHORITATIVE size (the HEAD), and it must run BEFORE the
+        // metadata row exists: the volume quota sums `app.file_metadata`
+        // on this same transaction, so a row written first would count the
+        // file twice. A refusal rolls the whole consume back. The caller's
+        // declared type is a hint the gate resolves against the file name,
+        // so the row is written with the resolved one.
+        const stat = await statOrgBlob(
+          deps.sql,
+          c.get('organizationId'),
+          body.data.fileId,
+        );
+        if (stat === null) {
+          throw new FileError('BLOB_NOT_FOUND', 'Blob was not uploaded', 404);
+        }
+        const validated = await validateDocumentUploadForOrg(tx, auth, {
+          fileName: body.data.fileName,
+          ...(body.data.contentType !== undefined
+            ? { contentType: body.data.contentType }
+            : {}),
+          size: stat.size,
+        });
         const registered = await registerUpload(
           deps.sql,
           tx,
@@ -358,30 +385,13 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           {
             storageRef: body.data.fileId,
             fileName: body.data.fileName,
-            contentType: body.data.contentType ?? 'application/octet-stream',
+            contentType: validated.contentType,
             source: 'rest',
           },
           // Ownership was proven by the `rest_upload_intents` consume above,
           // in this same transaction.
           { kind: 'external' },
         );
-        // The org's upload policy — the `file:upload` budget, the size caps,
-        // the MIME/extension allowlists, the per-user volume quota — gates
-        // the landed bytes with their AUTHORITATIVE size (the HEAD above),
-        // exactly as the session bind lane does; a refusal rolls the whole
-        // consume back. The caller's declared type is a hint the gate
-        // resolves against the file name, so the row keeps the resolved one.
-        const validated = await validateDocumentUploadForOrg(tx, auth, {
-          fileName: body.data.fileName,
-          ...(body.data.contentType !== undefined
-            ? { contentType: body.data.contentType }
-            : {}),
-          size: registered.size,
-        });
-        await tx`
-          UPDATE app.file_metadata SET content_type = ${validated.contentType}
-          WHERE id = ${registered.fileId}
-        `;
         const created = await createDocumentFromUpload(tx, auth, {
           fileId: registered.fileId,
           fileName: body.data.fileName,
