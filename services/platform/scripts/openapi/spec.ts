@@ -883,9 +883,14 @@ export function buildSpec(): Json {
         'REQUIRED and must belong to this project. `skipRagIndexing` ' +
         'DEFAULTS TO TRUE — project ledger files are working material, not ' +
         'organization knowledge; pass `false` explicitly to index the file ' +
-        'into the knowledge corpus. Upload policy applies (authoritative ' +
-        'size cap → 413, MIME allowlist → 415). Uses the upload lane bucket ' +
-        '(240/min, keyed on the key holder).',
+        'into the knowledge corpus. The organization’s upload policy applies ' +
+        'to the landed bytes (authoritative size): a size cap, MIME or ' +
+        'extension allowlist, or per-user volume refusal answers 400 with ' +
+        'code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / ' +
+        '`UNSUPPORTED_FILE_TYPE`, and the per-organization `file:upload` ' +
+        'budget the in-app upload shares answers 429. A refusal rolls the ' +
+        'intent consume back, so the handshake survives a corrected retry. ' +
+        'Uses the upload lane bucket (240/min, keyed on the key holder).',
       operationId: 'bindProjectFile',
       security: sec,
       parameters: [orgSlugHeaderParam, pathParam('id', 'Project ID')],
@@ -920,13 +925,16 @@ export function buildSpec(): Json {
         }),
         '403': errorResponse('No project edit access'),
         '404': errorResponse('Project or folder not found'),
-        '413': errorResponse('File exceeds the size cap'),
-        '415': errorResponse('Unsupported file type'),
         ...standardErrors,
-        // Richer than the standard 400: the handshake refusals land here too.
+        // Richer than the standard 400: the upload-policy refusals land
+        // here too, each with its code.
         '400': errorResponse(
-          'Malformed body, or the upload intent is unknown, expired, ' +
-            'already consumed, or does not match `fileId`',
+          'Malformed body, or the upload policy refused the file ' +
+            '(`UPLOAD_POLICY_REJECTED`, `FILE_TOO_LARGE`, `UNSUPPORTED_FILE_TYPE`)',
+        ),
+        '409': errorResponse(
+          'The upload intent is unknown, expired, already consumed, or ' +
+            'does not match `fileId`',
         ),
       },
     },
