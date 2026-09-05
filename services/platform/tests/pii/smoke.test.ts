@@ -221,8 +221,11 @@ describe('createScrubber — input clamp', () => {
   it('reports a clamped input as truncated even when nothing matched', () => {
     // A clean prefix says nothing about the tail past the clamp; a caller
     // reading a bare pass as "whole input clean" would index that tail.
+    // Word-broken filler: one unbroken 50k-char "word" sends the email
+    // pattern quadratic (each position scans ahead for a `@` that never
+    // comes) and the scan past vitest's 5s budget on a loaded runner.
     const o = scrubber.scrub(
-      `${'x'.repeat(MAX_MESSAGE_BYTES)} write to ada@example.com`,
+      `${'xxxx '.repeat(MAX_MESSAGE_BYTES / 5)}write to ada@example.com`,
     );
     expect(o).toEqual(pass(true));
   });
