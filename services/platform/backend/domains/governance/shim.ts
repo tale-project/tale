@@ -10,8 +10,8 @@ import { recordChatFilterEvent } from './settings-tail.ts';
 /**
  * The governance seams a reused 0.4 host dispatches by name — hosted on
  * the 0.5 policy reader and the governance tables, so every ctx-shim host
- * that runs a turn (chat today) answers them from ONE table rather than
- * each growing its own copy.
+ * (the chat turn, the providers vision-model read) answers them from ONE
+ * table rather than each growing its own copy.
  */
 export function governanceShimHandlers(sql: Sql): ShimHandlers {
   return {
