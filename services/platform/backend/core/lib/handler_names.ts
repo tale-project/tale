@@ -384,9 +384,6 @@ interface HandlerNames {
     file_actions: FunctionRef & {
       readSkillBundle: FunctionRef;
     };
-    upload_mutations: FunctionRef & {
-      deleteSkillUploadIntent: FunctionRef;
-    };
   };
   tasks: FunctionRef & {
     agent_run_host: FunctionRef & {
