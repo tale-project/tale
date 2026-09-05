@@ -4,7 +4,6 @@ import {
   CapabilityRegistry,
   createAutomationsBackend,
   createCapabilitySurface,
-  type BackendResult,
   type CapabilityAuditSink,
   type CapabilityBackends,
   type CapabilitySurface,
@@ -15,7 +14,6 @@ import {
 import type { KnowledgeCorpus } from '../../../lib/knowledge/types.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { pgAutomationStore } from '../automations/dispatch-store.ts';
-import { runConnectorAction } from '../connectors/service.ts';
 import { searchKnowledgeForOrg } from '../knowledge/service.ts';
 import { saveMemory, searchApprovedMemories } from './memories.ts';
 import { resolveAccessScope } from './shim.ts';
@@ -23,10 +21,9 @@ import { resolveAccessScope } from './shim.ts';
 /**
  * The org-scoped capability surface on 0.5 backends — the 0.4
  * `chat/capabilities_action` twin. The pure registry/dispatcher
- * (`lib/chat`) stays whole; this fills its ports: connector actions run
- * through the inc-52 door (credential resolution, approval gating, audit —
- * no second path), automations run through the pg `DispatchStore` (a
- * chat/MCP-triggered run is the same act as any other run), memory
+ * (`lib/chat`) stays whole; this fills its ports: the registry holds the
+ * org's deployed automations and they run through the pg `DispatchStore`
+ * (a chat/MCP-triggered run is the same act as any other run), memory
  * writes land pending, knowledge retrieval goes through the one search
  * entry point and answers `unavailable`-with-reason rather than an empty
  * list when it cannot run.
@@ -47,92 +44,6 @@ interface SurfaceScope {
   readonly userId: string;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-async function runConnector(
-  sql: Sql,
-  request: {
-    organizationId: string;
-    userId: string;
-    connector: string;
-    action: string;
-    input: unknown;
-    credentialRef?: string;
-  },
-): Promise<BackendResult> {
-  try {
-    const result = await runConnectorAction(sql, {
-      organizationId: request.organizationId,
-      connector: request.connector,
-      action: request.action,
-      input: request.input,
-      ...(request.credentialRef !== undefined
-        ? { credentialRef: request.credentialRef }
-        : {}),
-      mode: 'live',
-      caller: { kind: 'user', userId: request.userId },
-    });
-    if (
-      result !== null &&
-      typeof result === 'object' &&
-      'status' in result &&
-      result.status === 'approval-required'
-    ) {
-      const message =
-        'message' in result && typeof result.message === 'string'
-          ? result.message
-          : 'This action requires approval.';
-      return {
-        status: 'refused',
-        reason: message,
-        hint: 'The organization requires a human to approve this action. Tell the user it is waiting for approval.',
-      };
-    }
-    const output =
-      result !== null && typeof result === 'object' && 'output' in result
-        ? result.output
-        : result;
-    return { status: 'ok', output };
-  } catch (error) {
-    // The dispatcher raises coded refusals (AppError-shaped `data`, or
-    // the 0.5 domain errors carrying `code`); surface message + hint as
-    // data so the caller's model can read and act on them. Anything
-    // uncoded is an infrastructure failure and re-throws.
-    if (error !== null && typeof error === 'object' && 'data' in error) {
-      const data: unknown = error.data;
-      const reason =
-        isRecord(data) && typeof data.message === 'string'
-          ? data.message
-          : 'The action failed.';
-      const hint =
-        isRecord(data) && typeof data.hint === 'string' ? data.hint : undefined;
-      return {
-        status: 'refused',
-        reason,
-        ...(hint !== undefined ? { hint } : {}),
-      };
-    }
-    if (
-      error instanceof Error &&
-      'code' in error &&
-      typeof error.code === 'string'
-    ) {
-      return { status: 'refused', reason: error.message };
-    }
-    throw error;
-  }
-}
-
-function unavailableBackend(kind: string): () => Promise<BackendResult> {
-  return async () => ({
-    status: 'refused',
-    reason: `${kind} capabilities are not available on this deployment yet.`,
-    hint: 'Use an automation or a connector action instead.',
-  });
-}
-
 function buildBackends(sql: Sql, scope: SurfaceScope): CapabilityBackends {
   const automation = createAutomationsBackend({
     store: pgAutomationStore(sql, {
@@ -141,23 +52,7 @@ function buildBackends(sql: Sql, scope: SurfaceScope): CapabilityBackends {
     }),
     allowLive: true,
   });
-  return {
-    builtin: unavailableBackend('Builtin'),
-    connector: (request) =>
-      runConnector(sql, {
-        organizationId: request.organizationId,
-        userId: request.userId,
-        connector: request.connector,
-        action: request.action,
-        input: request.input,
-        ...(request.credentialRef !== undefined
-          ? { credentialRef: request.credentialRef }
-          : {}),
-      }),
-    skill: unavailableBackend('Skill'),
-    automation,
-    mcp: unavailableBackend('MCP tool'),
-  };
+  return { automation };
 }
 
 function toKnowledgeCorpus(
@@ -291,7 +186,6 @@ async function registerAutomations(
         description: `Run the "${item.name}" automation.`,
         inputSchema: { type: 'object' },
         automation: item.name,
-        eventOnly: false,
       });
     }
   } catch (error) {

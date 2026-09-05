@@ -12,31 +12,22 @@
  *  3. `capabilities.ts` — one registry and one dispatcher for everything the
  *     model can call, plus the knowledge seam and the memory tool.
  *
- * `backends.ts` holds the two adapters that must not be re-implemented: an
- * connector action always goes through the connectors dispatcher, and an
+ * `backends.ts` holds the adapter that must not be re-implemented: an
  * automation always goes through the automations store.
  */
 
 export {
   createAutomationsBackend,
-  createConnectorBackend,
   type AutomationsBackendOptions,
-  type ConnectorBackendOptions,
 } from './backends';
 export {
   CAPABILITY_KINDS,
   CAPABILITY_METHODS,
   CapabilityRegistry,
-  EVENT_ONLY_NOTE,
-  KNOWLEDGE_UNAVAILABLE_REASON,
-  capabilityDocs,
   createCapabilitySurface,
-  isEventOnlyAutomation,
   isUnstructured,
-  mcpToolsToCapabilities,
   type AutomationInvocation,
   type BackendResult,
-  type BuiltinInvocation,
   type Capability,
   type CapabilityAuditEntry,
   type CapabilityAuditSink,
@@ -46,20 +37,16 @@ export {
   type CapabilitySearchHit,
   type CapabilitySurface,
   type CapabilitySurfaceDeps,
-  type ConnectorInvocation,
   type InvokeCapabilityParams,
   type InvokeResult,
   type KnowledgeBackend,
   type KnowledgePassage,
   type KnowledgeRequest,
   type KnowledgeResult,
-  type McpInvocation,
-  type McpToolDefinition,
   type MemoryRecord,
   type MemorySaveRequest,
   type MemorySearchRequest,
   type MemoryStore,
-  type SkillInvocation,
 } from './capabilities';
 export {
   CONTEXT_BLOCK_ORDER,
