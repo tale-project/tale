@@ -396,9 +396,19 @@ async function main(): Promise<void> {
     const sessions = getSessionRoutes();
     await sessions.adoptExisting();
     const sweepTimer = setInterval(() => {
-      void sessions.sweepExpired().catch((err) => {
-        console.warn('[sandbox.session] periodic sweep failed:', err);
-      });
+      // Re-adopt before reaping so a session missed at boot (a `docker ps` /
+      // apiserver blip) or created by a peer replica becomes routable and
+      // reapable within one interval instead of lingering unregistered. NOT
+      // while draining: a lingering spawner must never adopt (and later
+      // linger-reap) the sessions its replacement is creating.
+      const tick = controlRoutes.isDraining
+        ? Promise.resolve()
+        : sessions.adoptExisting();
+      void tick
+        .then(() => sessions.sweepExpired())
+        .catch((err) => {
+          console.warn('[sandbox.session] periodic sweep failed:', err);
+        });
       // Max-linger self-reap (CLI-independent safety net): if this spawner has
       // been draining longer than the linger TTL, reclaim its session compute
       // ourselves so a deploy that died mid-roll can't pin compute forever.

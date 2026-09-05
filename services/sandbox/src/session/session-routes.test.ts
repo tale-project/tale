@@ -340,7 +340,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     const execReq = new Request('http://x/v1/sessions/sess1/exec', {
       method: 'POST',
     });
-    const execRes = routes.handleExec(
+    const execRes = await routes.handleExec(
       execReq,
       'sess1',
       JSON.stringify({
@@ -376,7 +376,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     await routes.handleCreate(
       JSON.stringify({ sessionId: 'sess_dur', organizationId: 'org_d' }),
     );
-    const execRes = routes.handleExec(
+    const execRes = await routes.handleExec(
       new Request('http://x/v1/sessions/sess_dur/exec', { method: 'POST' }),
       'sess_dur',
       JSON.stringify({ execId: 'e1', command: ['echo', 'hi'] }),
@@ -393,7 +393,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     await routes.handleCreate(
       JSON.stringify({ sessionId: 'sess_fail', organizationId: 'org_f' }),
     );
-    const execRes = routes.handleExec(
+    const execRes = await routes.handleExec(
       new Request('http://x/v1/sessions/sess_fail/exec', { method: 'POST' }),
       'sess_fail',
       JSON.stringify({ execId: 'e1', command: ['echo', '__fail__'] }),
@@ -413,7 +413,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     await routes.handleCreate(
       JSON.stringify({ sessionId: 'sess_to', organizationId: 'org_to' }),
     );
-    const execRes = routes.handleExec(
+    const execRes = await routes.handleExec(
       new Request('http://x/v1/sessions/sess_to/exec', { method: 'POST' }),
       'sess_to',
       JSON.stringify({ execId: 'e1', command: ['echo', '__timeout_clean__'] }),
@@ -432,7 +432,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     await routes.handleCreate(
       JSON.stringify({ sessionId: 'sess_stream', organizationId: 'org_s' }),
     );
-    const execRes = routes.handleExec(
+    const execRes = await routes.handleExec(
       new Request('http://x/v1/sessions/sess_stream/exec', { method: 'POST' }),
       'sess_stream',
       JSON.stringify({
@@ -461,7 +461,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     await routes.handleCreate(
       JSON.stringify({ sessionId: 'sess_oneshot', organizationId: 'org_o' }),
     );
-    const execRes = routes.handleExec(
+    const execRes = await routes.handleExec(
       new Request('http://x/v1/sessions/sess_oneshot/exec', { method: 'POST' }),
       'sess_oneshot',
       JSON.stringify({ execId: 'e_oneshot', command: ['echo', 'hi'] }),
@@ -494,7 +494,7 @@ describe('SessionRoutes (fake runnerd)', () => {
 
   test('exec against unknown session → 404', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
-    const res = routes.handleExec(
+    const res = await routes.handleExec(
       new Request('http://x', { method: 'POST' }),
       'nope',
       JSON.stringify({ execId: 'e1', command: ['echo'] }),
@@ -589,7 +589,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(await contentRes.text()).toBe('file-bytes');
 
     // attach re-stream.
-    const attachRes = routes.handleExecAttach(
+    const attachRes = await routes.handleExecAttach(
       new Request('http://x', { method: 'GET' }),
       's2',
       'e1',
@@ -609,10 +609,12 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect((await routes.handleFilesStage('nope', '{}')).status).toBe(404);
     expect((await routes.handleFilesList('nope', '.')).status).toBe(404);
     expect(
-      routes.handleExecAttach(
-        new Request('http://x', { method: 'GET' }),
-        'nope',
-        'e1',
+      (
+        await routes.handleExecAttach(
+          new Request('http://x', { method: 'GET' }),
+          'nope',
+          'e1',
+        )
       ).status,
     ).toBe(404);
   });
@@ -692,15 +694,21 @@ describe('SessionRoutes (fake runnerd)', () => {
     const restartBackend: SessionBackend = {
       ...fakeBackend,
       async listSessions(): Promise<BackendSession[]> {
+        // Mirrors a real backend: a stopped object is listed as not running,
+        // so a registry-miss re-resolve after the sweep stays a genuine 404.
+        const stateOf = (id: string) =>
+          stopped.has(id) ? ('degraded' as const) : ('ready' as const);
         return [
           {
             ...mkBackendSession('adopt-pinned', 'org_restart'),
             createdAtMs: ancient,
             pinned: true,
+            state: stateOf('adopt-pinned'),
           },
           {
             ...mkBackendSession('adopt-plain', 'org_restart'),
             createdAtMs: ancient,
+            state: stateOf('adopt-plain'),
           },
         ];
       },
@@ -900,7 +908,7 @@ describe('SessionRoutes (fake runnerd)', () => {
         JSON.stringify({ sessionId: 'dead-z4', organizationId: 'org_z' }),
       );
       backendGone.add('dead-z4');
-      const execRes = routes.handleExec(
+      const execRes = await routes.handleExec(
         new Request('http://x', { method: 'POST' }),
         'dead-z4',
         JSON.stringify({ execId: 'e1', command: ['echo', 'hi'] }),
@@ -909,10 +917,12 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(events.some((e) => e.event === 'error')).toBe(true);
       // The drain's re-attach now hits a registry miss — the phantom signal.
       expect(
-        routes.handleExecAttach(
-          new Request('http://x', { method: 'GET' }),
-          'dead-z4',
-          'e1',
+        (
+          await routes.handleExecAttach(
+            new Request('http://x', { method: 'GET' }),
+            'dead-z4',
+            'e1',
+          )
         ).status,
       ).toBe(404);
     });
@@ -1068,8 +1078,9 @@ describe('SessionRoutes (fake runnerd)', () => {
         },
       };
       const routes = new SessionRoutes(cfg, adoptBackend);
-      // Cold registry before adoption.
-      expect((await routes.handleGet('adopt1')).status).toBe(404);
+      // Cold registry before adoption (a GET would re-resolve it — see the
+      // registry-miss tests below — so the cache itself is what's asserted).
+      expect(routes.sessionCount()).toBe(0);
 
       await routes.adoptExisting();
       const got = await routes.handleGet('adopt1');
@@ -1121,6 +1132,144 @@ describe('SessionRoutes (fake runnerd)', () => {
       };
       await new SessionRoutes(cfg, emptyBackend).adoptExisting();
       expect(calls).toBe(0);
+    });
+
+    // REGRESSION (registry-miss re-resolve): the registry is a per-replica
+    // cache. A session created by a peer replica — or missed at boot — exists
+    // backend-side but not here; answering 404 from the cache alone is the
+    // platform's phantom-session signal, which recreates a session that is
+    // alive elsewhere. Every handler must fall back to the backend on a miss.
+    describe('registry miss → backend re-resolve', () => {
+      const peerBackend = (
+        ...listed: BackendSession[]
+      ): SessionBackend & { lists: number } => {
+        const b = {
+          ...fakeBackend,
+          lists: 0,
+          async listSessions(): Promise<BackendSession[]> {
+            b.lists += 1;
+            return listed;
+          },
+        };
+        return b;
+      };
+
+      test('GET / exec / exec-status / env / files on a session the registry never saw succeed', async () => {
+        const backend = peerBackend(mkBackendSession('peer1', 'org_peer'));
+        const routes = new SessionRoutes(cfg, backend);
+
+        // Aliveness probe: 200, not the phantom 404.
+        const got = await routes.handleGet('peer1');
+        expect(got.status).toBe(200);
+        // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+        const info = (await got.json()) as { session: { state: string } };
+        expect(info.session.state).toBe('ready');
+
+        // Exec routes to the adopted endpoint.
+        const execRes = await routes.handleExec(
+          new Request('http://x/v1/sessions/peer1/exec', { method: 'POST' }),
+          'peer1',
+          JSON.stringify({ execId: 'e1', command: ['echo', 'hi'] }),
+        );
+        const { events } = await readSse(execRes);
+        expect(events.find((e) => e.event === 'result')?.data.status).toBe(
+          'completed',
+        );
+        // The watchdog's exec-status probe: 200 running, not 404 'gone'.
+        const status = await routes.handleExecStatus('peer1', 'run1');
+        expect(status.status).toBe(200);
+        expect((await routes.handleEnvPatch('peer1', '{}')).status).toBe(200);
+        expect((await routes.handleFilesList('peer1', '.')).status).toBe(200);
+        // Adopted once; later hits are served from the cache.
+        expect(backend.lists).toBe(1);
+      });
+
+      test('a stopped (non-running) backend object stays a genuine 404 — resumable, not routable', async () => {
+        const routes = new SessionRoutes(
+          cfg,
+          peerBackend({
+            ...mkBackendSession('stopped1', 'org_peer'),
+            state: 'degraded',
+          }),
+        );
+        expect((await routes.handleGet('stopped1')).status).toBe(404);
+        expect((await routes.handleExecStatus('stopped1', 'e1')).status).toBe(
+          404,
+        );
+      });
+
+      test('a failed backend list answers not-found without registering anything', async () => {
+        const failing: SessionBackend = {
+          ...fakeBackend,
+          async listSessions(): Promise<BackendSession[]> {
+            throw new Error('docker ps failed');
+          },
+        };
+        const routes = new SessionRoutes(cfg, failing);
+        expect((await routes.handleGet('nope')).status).toBe(404);
+        expect(routes.sessionCount()).toBe(0);
+      });
+
+      test('an unresolvable endpoint is logged and left for a later retry, not registered', async () => {
+        const routes = new SessionRoutes(
+          cfg,
+          peerBackend(mkBackendSession('unaddressable-peer', 'org_peer')),
+        );
+        expect((await routes.handleGet('unaddressable-peer')).status).toBe(404);
+        expect(routes.sessionCount()).toBe(0);
+      });
+    });
+
+    // REGRESSION (periodic adoption): a session the boot-time list missed used
+    // to stay unregistered — unroutable and never TTL/idle-reaped — for the life
+    // of the process. adoptExisting now runs on every sweep tick and picks up
+    // whatever the backend lists that this replica does not yet know.
+    test('adoptExisting: a session first listed on a later call is adopted then, and is reapable', async () => {
+      const ancient = Date.now() - 2 * cfg.session.maxLifetimeMs;
+      let listed: BackendSession[] = [];
+      const reconciled: string[][] = [];
+      const lateBackend: SessionBackend = {
+        ...fakeBackend,
+        async listSessions(): Promise<BackendSession[]> {
+          return listed;
+        },
+        async reconcileBuildCache(orgIds: readonly string[]) {
+          reconciled.push([...orgIds]);
+        },
+      };
+      const routes = new SessionRoutes(cfg, lateBackend);
+      await routes.adoptExisting(); // boot: the blip listed nothing
+      expect(routes.sessionCount()).toBe(0);
+      expect(reconciled).toEqual([]);
+
+      listed = [
+        { ...mkBackendSession('late1', 'org_late'), createdAtMs: ancient },
+      ];
+      await routes.adoptExisting(); // next sweep tick
+      expect((await routes.handleGet('late1')).status).toBe(200);
+      // The build-cache heal runs for the NEWLY adopted org only, once.
+      expect(reconciled).toEqual([['org_late']]);
+      await routes.adoptExisting();
+      expect(reconciled).toEqual([['org_late']]);
+
+      // Now under the reaper: TTL long past ⇒ stopped (workspace preserved).
+      fakeHealth.liveExecs = 0;
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(stopped.has('late1')).toBe(true);
+      expect(destroyed.has('late1')).toBe(false);
+    });
+
+    test('adoptExisting: never adopts a non-running (stopped/exited) object', async () => {
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async listSessions(): Promise<BackendSession[]> {
+          return [
+            { ...mkBackendSession('exited1', 'org_x'), state: 'degraded' },
+          ];
+        },
+      });
+      await routes.adoptExisting();
+      expect(routes.sessionCount()).toBe(0);
     });
   });
 });

@@ -267,3 +267,30 @@ describe('KubernetesSessionBackend durable pin (Pod annotation)', () => {
     expect(listed.find((s) => s.sessionId === 'k8s-plain')?.pinned).toBe(false);
   });
 });
+
+describe('KubernetesSessionBackend.listSessions', () => {
+  test('THROWS on an API failure instead of reporting "no sessions"', async () => {
+    // An apiserver hiccup laundered into [] would leave every running session
+    // Pod unregistered (unroutable, never reaped) until the next successful
+    // list. 403 is non-retryable so withRetry surfaces it at once.
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const core = {
+      listNamespacedPod: () =>
+        Promise.reject(Object.assign(new Error('forbidden'), { code: 403 })),
+    } as unknown as CoreV1Api;
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const networking = {} as unknown as NetworkingV1Api;
+    const backend = new KubernetesSessionBackend(cfg, {
+      core,
+      networking,
+      namespace: 'tale-sandbox',
+    });
+    let threw: Error | null = null;
+    try {
+      await backend.listSessions();
+    } catch (err) {
+      threw = err instanceof Error ? err : new Error(String(err));
+    }
+    expect(threw?.message).toBe('forbidden');
+  });
+});

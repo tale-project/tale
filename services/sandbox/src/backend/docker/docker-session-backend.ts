@@ -666,7 +666,16 @@ export class DockerSessionBackend implements SessionBackend {
       ],
       { timeoutMs: 10_000 },
     );
-    if (res.exitCode !== 0) return [];
+    // THROW, never `[]`, on a failed list: the callers (boot + periodic
+    // adoption, the route layer's re-resolve) treat an empty list as "no
+    // sessions", and a `docker ps` blip laundered into [] would leave every
+    // running session unregistered — unroutable and never reaped — until the
+    // next successful list. A throw is logged by the caller and retried.
+    if (res.exitCode !== 0) {
+      throw new Error(
+        `docker ps (sessions) failed (exit ${res.exitCode}): ${res.stderr.trim() || res.stdout.trim() || 'no output'}`,
+      );
+    }
     const out: BackendSession[] = [];
     for (const line of res.stdout.split('\n')) {
       const trimmed = line.trim();

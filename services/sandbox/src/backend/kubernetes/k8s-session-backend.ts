@@ -408,19 +408,20 @@ export class KubernetesSessionBackend implements SessionBackend {
   }
 
   async listSessions(organizationId?: string): Promise<BackendSession[]> {
-    let resp;
-    try {
-      resp = await this.client.core.listNamespacedPod(
+    // Retried for transient blips, then THROWN — never `[]`: the callers (boot
+    // + periodic adoption, the route layer's re-resolve) read an empty list as
+    // "no sessions", so an apiserver hiccup laundered into [] would leave every
+    // running session Pod unregistered — unroutable and never reaped — until
+    // the next successful list. The caller logs and retries next tick.
+    const resp = await withRetry('list-session-pods', () =>
+      this.client.core.listNamespacedPod(
         {
           namespace: this.cfg.k8s.namespace,
           labelSelector: SESSION_LABEL_SELECTOR,
         },
         apiTimeout(),
-      );
-    } catch (err) {
-      console.warn('[sandbox.session] listSessions failed:', err);
-      return [];
-    }
+      ),
+    );
     const out: BackendSession[] = [];
     for (const pod of resp.items) {
       const ann = pod.metadata?.annotations ?? {};
