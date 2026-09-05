@@ -279,11 +279,11 @@ export function pgAutomationStore(
     },
     cancelRun: async (runId) => {
       await authorizeActorRun(sql, organizationId, actor, 'developer');
-      const result = await cancelRun(sql, organizationId, runId).catch(
-        () => null,
-      );
-      if (result === null) throw new Error(`no run "${runId}"`);
-      return result;
+      // The store answers `{ cancelled: false }` for a missing or terminal
+      // run and never null; a throw here is a real failure (audit write,
+      // session stop, the database) and must surface as such, not be
+      // laundered into `no run`.
+      return cancelRun(sql, organizationId, runId);
     },
     deleteTrigger: async (name) => {
       await authorizeActorRun(sql, organizationId, actor, 'developer');
