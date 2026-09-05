@@ -908,9 +908,30 @@ export async function startTaskAgentTurnImpl(
             : {}),
         },
       );
-      await ctx.runMutation(internal.tasks.agent_runs.setTaskAgentRunRunning, {
-        runId: args.runId,
-      });
+      const launched = await ctx.runMutation(
+        internal.tasks.agent_runs.setTaskAgentRunRunning,
+        { runId: args.runId, execId: args.execId },
+      );
+      if (launched !== true) {
+        // The flip is exec-fenced. Between the gate above and here (a cold
+        // session create plus input staging legitimately takes minutes) the
+        // queued-run recovery may have rotated the run onto a fresh exec and
+        // re-kicked it, or a cancel landed. Spawning now would double-drive
+        // the run — or leave a live exec the next drive window reaps as an
+        // orphan — so this start stands down exactly like an orphaned drive:
+        // its op row finalizes as cancelled, its minted key is revoked.
+        console.warn(
+          `[task-agent] start for ${args.execId} lost the run before launch (rotated or terminal) — standing down without a spawn`,
+        );
+        await releaseTurnKey(ctx, {
+          organizationId: args.organizationId,
+          sessionId: args.sessionId,
+          execId: args.execId,
+          status: 'cancelled',
+        });
+        await releaseProjectAgentSlotAfterSettle(ctx, args);
+        return null;
+      }
 
       const toolsGuidance = grantedToolsGuidance(
         normalizeToolGrants(args.tools),

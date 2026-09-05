@@ -20,6 +20,7 @@ import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import {
   failAgentRunFromTurn,
   kickAgentRun,
+  launchAgentRun,
   settleAgentRun,
 } from './agent-runs.ts';
 import {
@@ -95,17 +96,11 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'tasks/agent_runs:setTaskAgentRunRunning': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { runId: string };
-      const now = Date.now();
-      await sql`
-        UPDATE app.project_agent_runs SET
-          status = 'running',
-          launched_at_ms = coalesce(launched_at_ms, ${now}),
-          updated_at_ms = ${now}
-        WHERE id = ${args.runId}
-          AND status NOT IN ('settled', 'failed', 'cancelled')
-      `;
-      return null;
+      const args = raw as { runId: string; execId: string };
+      // Exec-fenced: a start whose exec the queued-run recovery rotated away
+      // (or whose run was cancelled) learns it here and stands down instead
+      // of spawning — the host reads the boolean.
+      return launchAgentRun(sql, args);
     },
 
     'tasks/agent_runs:stampTaskAgentRunBrokerToken': async (raw) => {

@@ -21,9 +21,10 @@ import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
  * one run never gets two concurrent starts); `launched_at` distinct from
  * `started_at` (a parked-out run must never pass for one that worked
  * hours); and the kick that turns an agent-owned task's move to
- * `in_progress` into a queued run + a `task.agent_turn` job. The turn
- * host's non-terminal marks (running, broker token, park, rotate) live on
- * its shim (`agent-turn-shim.ts`).
+ * `in_progress` into a queued run + a `task.agent_turn` job; and the
+ * exec-fenced launch (`queued` → `running`). The turn host's other
+ * non-terminal marks (broker token, park, rotate) live on its shim
+ * (`agent-turn-shim.ts`).
  */
 
 export const TASK_AGENT_RUN_DEADLINE_MS = 12 * 60 * 60 * 1000;
@@ -156,6 +157,34 @@ export async function listAgentRunsForTask(
     ORDER BY started_at_ms DESC
     LIMIT ${Math.min(Math.max(limit, 1), 100)}
   `;
+}
+
+/**
+ * The turn host's RUNNING flip — the launch, `launched_at` distinct from kick
+ * time. Exec-FENCED and elected on `queued`: between the start's idempotency
+ * gate and this flip lie the session ensure, the skill and input staging and
+ * the key mint (a cold sandbox create alone may take minutes), and in that
+ * window the queued-run recovery may rotate the run onto a fresh exec and
+ * re-kick it, or a cancel may land. A start whose exec no longer owns the
+ * run must NOT launch — a second spawn double-drives the run, and a spawn
+ * under a superseded exec is reaped as an orphan by the next drive window.
+ * Returns whether THIS exec's start won the launch.
+ */
+export async function launchAgentRun(
+  sql: Sql,
+  args: { runId: string; execId: string },
+): Promise<boolean> {
+  const now = Date.now();
+  const rows = await sql<{ id: string }[]>`
+    UPDATE app.project_agent_runs SET
+      status = 'running',
+      launched_at_ms = coalesce(launched_at_ms, ${now}),
+      updated_at_ms = ${now}
+    WHERE id = ${args.runId} AND exec_id = ${args.execId}
+      AND status = 'queued'
+    RETURNING id
+  `;
+  return rows.length > 0;
 }
 
 /**

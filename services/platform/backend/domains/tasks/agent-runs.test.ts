@@ -5,6 +5,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   cancelAgentRunInTx,
   failAgentRunFromTurn,
+  launchAgentRun,
   settleAgentRun,
 } from './agent-runs.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
@@ -188,5 +189,37 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
     ).resolves.toBe(false);
     expect(recordTaskAgentRunLedgerEntry).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('launchAgentRun — the running flip is exec-fenced', () => {
+  it('flips only a QUEUED run still owned by this exec, and says so', async () => {
+    const { tx, statements } = fakeTx((text) =>
+      text.startsWith('UPDATE app.project_agent_runs') ? [{ id: 'run-1' }] : [],
+    );
+    // A root sql and a tx share the tagged-template shape; the flip takes
+    // the root handle in production.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same one-member stand-in
+    const sql = tx as unknown as Sql;
+    await expect(
+      launchAgentRun(sql, { runId: 'run-1', execId: 'exec-1' }),
+    ).resolves.toBe(true);
+    const update = statements.find((text) =>
+      text.startsWith('UPDATE app.project_agent_runs'),
+    );
+    // The exec predicate is part of the UPDATE itself — a start whose exec
+    // the queued-run recovery rotated away cannot flip (and so cannot spawn).
+    expect(update).toContain('WHERE id = ? AND exec_id = ?');
+    expect(update).toContain("status = 'queued'");
+    expect(update).toContain('RETURNING id');
+  });
+
+  it('a start under a rotated-away exec loses the launch', async () => {
+    const { tx } = fakeTx(() => []);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same one-member stand-in
+    const sql = tx as unknown as Sql;
+    await expect(
+      launchAgentRun(sql, { runId: 'run-1', execId: 'exec-stale' }),
+    ).resolves.toBe(false);
   });
 });

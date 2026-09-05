@@ -30,7 +30,9 @@ import { failAgentRun } from './agent-runs.ts';
  *    a logless skip for hours;
  *  - a run whose op row was never written (a start that died before it) is
  *    claimed by CREATING the row: the run row is the durable proof the turn
- *    exists.
+ *    exists — once that row has been quiet past the staleness window, so a
+ *    restart-steer that just rotated the exec and has not yet written the
+ *    new op row is not mistaken for a dead start.
  */
 
 /** Runs examined per sweep. */
@@ -69,7 +71,12 @@ async function listStalledTurns(
     WHERE r.status = 'running'
       AND r.deadline_at_ms > ${now}
       AND (
-        op.id IS NULL
+        -- No op row: a start that died before writing one — but only once
+        -- the run row itself has been quiet past the window. A restart-steer
+        -- rotates the exec (bumping updated_at_ms) and writes the new exec's
+        -- op row only after re-staging; in that gap the run is alive, not
+        -- abandoned, and claiming it would drive an exec nobody spawned yet.
+        (op.id IS NULL AND r.updated_at_ms < ${staleBeforeMs})
         OR greatest(
              op.started_at_ms,
              coalesce(op.heartbeat_at_ms, 0),
@@ -208,7 +215,8 @@ export async function recoverStuckQueuedTaskAgentRuns(
       continue;
     }
     // Single-winner claim: rotate the exec id so a lost-but-slow original
-    // start orphans itself (its setAgentRunRunning is exec-id fenced).
+    // start orphans itself (both its idempotency gate and its running flip
+    // — `launchAgentRun` — are exec-id fenced, so it cannot spawn).
     const newExecId = randomUUID();
     const claimed = await sql<{ id: string }[]>`
       UPDATE app.project_agent_runs SET

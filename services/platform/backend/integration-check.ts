@@ -13425,7 +13425,13 @@ async function checkTurnReattach(
 
   const mkRun = async (
     suffix: string,
-    opts: { withOp: boolean; heartbeatAgoMs?: number; opStatus?: string },
+    opts: {
+      withOp: boolean;
+      heartbeatAgoMs?: number;
+      opStatus?: string;
+      /** How long ago the RUN row was last touched (default: 10 min). */
+      updatedAgoMs?: number;
+    },
   ): Promise<{ runId: string; sessionId: string; execId: string }> => {
     const sessionId = `reattach-session-${suffix}`;
     const execId = `reattach-exec-${suffix}`;
@@ -13458,20 +13464,27 @@ async function checkTurnReattach(
       ) VALUES (
         ${orgId}, ${taskId}, ${projectId}, ${agentId}, ${sessionId},
         ${execId}, 'claude-code', 'itest-model', 'manual', ${userId},
-        'running', ${now - 600_000}, ${now + 3_600_000}, ${now - 600_000}
+        'running', ${now - 600_000}, ${now + 3_600_000},
+        ${now - (opts.updatedAgoMs ?? 600_000)}
       ) RETURNING id
     `;
     return { runId: rows[0]?.id ?? '', sessionId, execId };
   };
 
-  // Three shapes: an abandoned turn (stale lease), a LIVE one (fresh
-  // heartbeat), and a start that died before writing its op row.
+  // Four shapes: an abandoned turn (stale lease), a LIVE one (fresh
+  // heartbeat), a start that died before writing its op row, and a run a
+  // restart-steer JUST rotated (fresh run row, no op row for the new exec
+  // yet) — alive, not abandoned.
   const abandoned = await mkRun('stale', {
     withOp: true,
     heartbeatAgoMs: 10 * 60_000,
   });
   const live = await mkRun('live', { withOp: true, heartbeatAgoMs: 5_000 });
   const noOp = await mkRun('noop', { withOp: false });
+  const justRotated = await mkRun('rotated', {
+    withOp: false,
+    updatedAgoMs: 5_000,
+  });
 
   const { recoverStalledTaskAgentTurns } =
     await import('./domains/tasks/reattach.ts');
@@ -13512,19 +13525,22 @@ async function checkTurnReattach(
     WHERE session_id = ${abandoned.sessionId} AND exec_id = ${abandoned.execId}
   `;
   record(
-    're-attach: abandoned turns resume, live ones are left alone',
+    're-attach: abandoned turns resume, live and just-rotated ones are left alone',
     unreachable.resumed === 0 &&
       jobsAfterUnreachable[0]?.count === jobsBefore[0]?.count &&
       recovered.resumed === 2 &&
       drivenRunIds.has(abandoned.runId) &&
       drivenRunIds.has(noOp.runId) &&
       !drivenRunIds.has(live.runId) &&
+      // Op-less but the run row was touched seconds ago: a steer's rotation
+      // in flight, not a dead start — no second drive chain.
+      !drivenRunIds.has(justRotated.runId) &&
       // The missing op row was CREATED by the claim (the run row is the
       // durable proof the turn exists).
       createdOp[0]?.resumedBy === 'watchdog' &&
       createdOp[0]?.status === 'running' &&
       bumpedOp[0]?.resumedBy === 'watchdog',
-    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}`,
+    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}`,
   );
 
   // Leave nothing behind: live sessions hold sandbox slots, and settled
@@ -27847,13 +27863,27 @@ async function checkTaskAgentRuns(
   // Launch (the host's running flip) + exactly-once settle through the
   // host's mark; `launchedAt` distinct from kick time. A late failure must
   // not overwrite the settle, and the ledger holds ONE entry for the run.
-  await shimRefs['tasks/agent_runs:setTaskAgentRunRunning']?.({
-    runId,
-    execId,
-  });
+  // The flip is exec-FENCED: a start whose exec the queued-run recovery
+  // rotated away must be refused (it would spawn a second exec), and the
+  // run must still be queued for the real exec's start.
+  const staleLaunch = await shimRefs[
+    'tasks/agent_runs:setTaskAgentRunRunning'
+  ]?.({ runId, execId: 'exec-rotated-away' });
+  const afterStaleLaunch = await agentRuns.getAgentRun(sql, orgId, runId);
+  const ownLaunch = await shimRefs['tasks/agent_runs:setTaskAgentRunRunning']?.(
+    {
+      runId,
+      execId,
+    },
+  );
   const launchedRow = await agentRuns.getAgentRun(sql, orgId, runId);
   const launched =
-    launchedRow?.status === 'running' && launchedRow.launchedAt !== null;
+    staleLaunch === false &&
+    afterStaleLaunch?.status === 'queued' &&
+    afterStaleLaunch.launchedAt === null &&
+    ownLaunch === true &&
+    launchedRow?.status === 'running' &&
+    launchedRow.launchedAt !== null;
   const settled = await agentRuns.settleAgentRun(sql, {
     runId,
     execId,
@@ -27920,7 +27950,7 @@ async function checkTaskAgentRuns(
   };
 
   record(
-    'task-agent run ledger (kick + park/wake + exactly-once settle/fail with provenance)',
+    'task-agent run ledger (kick + park/wake + fenced launch + exactly-once settle/fail with provenance)',
     runsView.success &&
       kicked !== undefined &&
       kicked.status === 'queued' &&
