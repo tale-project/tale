@@ -44,6 +44,8 @@ Quand tu as besoin d’une décision de permission que les rôles et équipes ex
 
 Clique la ligne de l’équipe, puis **Supprimer l'équipe**. La suppression est définitive — l’équipe est partie, tous ses membres en sont retirés, et ils perdent la tranche cadrée équipe de leur accès. Pas d’annulation. Va vers supprimer quand une équipe est vraiment retirée, pas quand elle se réorganise.
 
+Ce que l’équipe cadrait est relogé, pas abandonné : un projet qu’elle possédait passe à la première équipe avec laquelle il était partagé, ou s’ouvre à toute l’organisation s’il n’y en a aucune ; un dossier ou un document garde ses autres équipes ; une conversation dans la file de l’équipe redevient non assignée. Rien ne s’ouvre plus largement que ce que l’équipe supprimée permettait déjà.
+
 ## Où cela s’inscrit
 
 Les équipes sont la couche de cadrage juste sous les rôles — les rôles disent _quoi_, les équipes disent _où_. La lecture suivante naturelle dépend de la ressource que tu cadres : [Bibliothèque de skills](/fr/platform/workspace/skills) pour comment une instruction partagée atteint tout le monde, [Connectors (vue Admin)](/fr/platform/admin/connectors) pour les identifiants qu’appellent les automatisations d’une équipe, et [Projets](/fr/platform/projects/overview) pour l’assignation projet-à-équipe.

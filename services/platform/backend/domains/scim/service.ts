@@ -11,6 +11,11 @@ import {
 import { isUniqueViolation } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveProvisioning } from '../sso/config.ts';
+import {
+  resyncRetiredDocumentScopes,
+  retireTeamScopes,
+  type TeamScopeRetirement,
+} from '../teams/service.ts';
 
 /**
  * SCIM storage — the 0.5 twin of `convex/scim/{data,links,internal_queries,
@@ -945,12 +950,15 @@ export async function deleteGroup(
   organizationId: string,
   teamId: string,
 ): Promise<boolean> {
-  return sql.begin(async (tx) => {
+  const retirement = await sql.begin<TeamScopeRetirement | null>(async (tx) => {
     const team = await findTeamRowById(tx, teamId);
-    if (!team || team.organizationId !== organizationId) return false;
+    if (!team || team.organizationId !== organizationId) return null;
     await tx`DELETE FROM "teamMember" WHERE "teamId" = ${teamId}`;
     await tx`DELETE FROM "team" WHERE "id" = ${teamId}`;
     await deleteLink(tx, organizationId, teamId);
+    // The rows the group scoped follow it out in the same transaction:
+    // a project it owned, a folder tagged with it, a queue on it.
+    const retired = await retireTeamScopes(tx, organizationId, teamId);
     await logScim(
       tx,
       organizationId,
@@ -958,9 +966,22 @@ export async function deleteGroup(
       'team',
       teamId,
       team.name,
+      {
+        next: {
+          projectsUnscoped: retired.projectsUnscoped,
+          projectsUnshared: retired.projectsUnshared,
+          foldersRetagged: retired.foldersRetagged,
+          documentsRetagged: retired.documentsRetagged,
+          conversationsUnassigned: retired.conversationsUnassigned,
+          syncConfigsUnscoped: retired.syncConfigsUnscoped,
+        },
+      },
     );
-    return true;
+    return retired;
   });
+  if (retirement === null) return false;
+  await resyncRetiredDocumentScopes(sql, organizationId, retirement);
+  return true;
 }
 
 // ---------------------------------------------------------------- admin

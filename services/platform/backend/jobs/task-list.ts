@@ -231,6 +231,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/projects/service.ts');
       await repairProjectRollups(deps.sql);
     },
+    'teams.repair_scopes': async () => {
+      const { repairTeamScopes } = await import('../domains/teams/service.ts');
+      await repairTeamScopes(deps.sql);
+    },
     'tasks.enforce_dates': async () => {
       const { enforceTaskDateNotifications } =
         await import('../domains/tasks/date-notifications.ts');
