@@ -403,11 +403,6 @@ export async function cancelPendingRetentionChange(
       404,
     );
   }
-  await writeGovernancePolicyFile(
-    orgSlug,
-    'retention_policy',
-    pending.oldConfig,
-  );
   await sql.begin(async (tx) => {
     await tx`
       DELETE FROM app.retention_policy_pending_changes
@@ -429,6 +424,14 @@ export async function cancelPendingRetentionChange(
       entity: 'governance_policy',
       entityId: 'retention_policy',
     });
+    // The revert LAST, inside the transaction: a failed transaction must
+    // not leave the cancel visible on disk while the pending shortening row
+    // survives to be applied anyway.
+    await writeGovernancePolicyFile(
+      orgSlug,
+      'retention_policy',
+      pending.oldConfig,
+    );
   });
 }
 
@@ -449,11 +452,13 @@ export interface DsarPendingView {
 async function readDsarConfig(
   sql: Sql,
   organizationId: string,
+  options: { fresh?: boolean } = {},
 ): Promise<DsarGovernanceConfig> {
   const raw = await readGovernancePolicyForOrg(
     sql,
     organizationId,
     'dsar_governance',
+    options,
   );
   if (raw === null) return DEFAULT_DSAR_GOVERNANCE;
   const parsed = dsarGovernanceConfigSchema.safeParse(raw);
@@ -631,7 +636,11 @@ export async function proposeDsarPolicy(
       'A pending DSAR policy change is already staged. Cancel it before proposing a new one.',
     );
   }
-  const current = await readDsarConfig(sql, auth.organizationId);
+  // The file as it IS (not the TTL cache), so the audit row names the
+  // config this proposal replaces.
+  const current = await readDsarConfig(sql, auth.organizationId, {
+    fresh: true,
+  });
   const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
   if (orgSlug === null) {
     throw new GovernanceTailError(
@@ -641,8 +650,8 @@ export async function proposeDsarPolicy(
     );
   }
   if (!isLoosening(current, config)) {
-    // Tightening (or no-op): effective immediately.
-    await writeGovernancePolicyFile(orgSlug, 'dsar_governance', config);
+    // Tightening (or no-op): effective immediately — audited first, the
+    // file written last inside the same transaction.
     await sql.begin(async (tx) => {
       await createAuditLog(tx, {
         organizationId: auth.organizationId,
@@ -662,6 +671,7 @@ export async function proposeDsarPolicy(
         entity: 'governance_policy',
         entityId: 'dsar_governance',
       });
+      await writeGovernancePolicyFile(orgSlug, 'dsar_governance', config);
     });
     return { staged: false };
   }

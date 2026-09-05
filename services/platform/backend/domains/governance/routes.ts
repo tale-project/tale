@@ -149,14 +149,16 @@ export function createGovernanceRoutes(deps: {
     const organizationId = c.get('orgId');
     const orgSlug = await resolveOrgSlug(deps.sql, organizationId);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+    // The file as it IS, not the TTL cache's view of it: two admins saving
+    // inside the cache window must each audit the config they replaced.
     const previous = await readGovernancePolicyForOrg(
       deps.sql,
       organizationId,
       policyType,
+      { fresh: true },
     );
     const { writeGovernancePolicyFile } =
       await import('../../lib/governance-policy-write.ts');
-    await writeGovernancePolicyFile(orgSlug, policyType, parsed.data);
     const session = c.get('sessionBundle');
     await transactSerializable(deps.sql, async (tx) => {
       await createAuditLog(tx, {
@@ -180,6 +182,10 @@ export function createGovernanceRoutes(deps: {
         entity: 'governance_policy',
         entityId: policyType,
       });
+      // The file LAST, inside the transaction: a write failure rolls the
+      // audit row back, and a transaction failure never leaves a policy in
+      // force that the tamper-evident chain knows nothing about.
+      await writeGovernancePolicyFile(orgSlug, policyType, parsed.data);
     });
     return c.json({ ok: true });
   });
