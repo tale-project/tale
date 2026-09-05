@@ -9,8 +9,13 @@ import {
   listWebsites,
   searchWebsiteContent,
 } from '../domains/websites/service.ts';
+import { addJobInTx } from '../jobs/enqueue.ts';
 import type { RestEnv } from './shared.ts';
 import { createRestWebsiteRoutes } from './v1-websites.ts';
+
+vi.mock('../jobs/enqueue.ts', () => ({
+  addJobInTx: vi.fn(() => Promise.resolve('job-1')),
+}));
 
 // The corpus reads reach the per-org knowledge pool; here only the bounds
 // the route hands them are under test.
@@ -37,6 +42,7 @@ vi.mock('../domains/websites/service.ts', async (importOriginal) => ({
 interface Captured {
   text: string;
   values: unknown[];
+  via: 'pool' | 'tx';
 }
 
 const website = {
@@ -56,21 +62,36 @@ const website = {
   updatedAt: 1_700_000_000_001,
 };
 
-/** Tagged-template Sql double: the owned website for the loader, nothing
- * else; records every query so a test can prove no write ran. */
-function fakeSql(): { sql: Sql; queries: Captured[] } {
+/** Tagged-template Sql double: the owned website for the loader, an id for
+ * an insert, nothing else; records every query (tagged with the handle it
+ * ran on) so a test can prove no write ran, or that one ran in `begin`. */
+function fakeSql(): { sql: Sql; queries: Captured[]; txs: unknown[] } {
   const queries: Captured[] = [];
-  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('$?').replace(/\s+/g, ' ').trim();
-    queries.push({ text, values });
-    if (text.includes('FROM app.websites WHERE id')) {
-      return Promise.resolve([website]);
-    }
-    return Promise.resolve([]);
-  };
+  const txs: unknown[] = [];
   const unsafe = (text: string) => ({ unsafe: text });
+  const handle = (via: 'pool' | 'tx') => {
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+      queries.push({ text, values, via });
+      if (text.includes('FROM app.websites WHERE id')) {
+        return Promise.resolve([website]);
+      }
+      if (text.startsWith('INSERT INTO app.websites')) {
+        return Promise.resolve([{ id: 'w-new' }]);
+      }
+      return Promise.resolve([]);
+    };
+    return Object.assign(tag, { unsafe });
+  };
+  const pool = Object.assign(handle('pool'), {
+    begin: async (callback: (tx: unknown) => Promise<unknown>) => {
+      const tx = handle('tx');
+      txs.push(tx);
+      return callback(tx);
+    },
+  });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-  return { sql: Object.assign(tag, { unsafe }) as unknown as Sql, queries };
+  return { sql: pool as unknown as Sql, queries, txs };
 }
 
 function mount(sql: Sql) {
@@ -155,6 +176,33 @@ describe('website domain and field validation', () => {
  * error → 500), and pages/search accepted an unbounded limit — any key could
  * walk the organization's whole crawl inventory in one request.
  */
+describe('website create', () => {
+  it('writes the row and enqueues the register job in one transaction', async () => {
+    const { sql, queries, txs } = fakeSql();
+    const res = await send(sql, '/websites', 'POST', {
+      domain: 'new.example',
+      scanInterval: '1d',
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ id: 'w-new' });
+    const insert = queries.find((q) =>
+      q.text.startsWith('INSERT INTO app.websites'),
+    );
+    expect(insert?.via).toBe('tx');
+    expect(txs).toHaveLength(1);
+    // The job rides the SAME transaction as the row: a rollback enqueues
+    // nothing, a commit enqueues exactly once.
+    expect(vi.mocked(addJobInTx)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(addJobInTx).mock.calls[0]?.[0]).toBe(txs[0]);
+    expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('websites.register');
+    expect(vi.mocked(addJobInTx).mock.calls[0]?.[2]).toMatchObject({
+      websiteId: 'w-new',
+      domain: 'new.example',
+      organizationId: 'org-1',
+    });
+  });
+});
+
 describe('website list bounds', () => {
   it('clamps and truncates limit for GET /websites', async () => {
     const { sql } = fakeSql();

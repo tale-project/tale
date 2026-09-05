@@ -120,38 +120,44 @@ export function createWebsiteRoutes(deps: {
 
       // Same-org re-registration of a LIST merges (the corpus upsert adds
       // the new URLs); site mode keeps the duplicate guard (the 0.4 #2056
-      // posture).
-      let websiteId: string;
-      const existing = isList
-        ? await getWebsiteByDomain(deps.sql, c.get('orgId'), domain)
-        : null;
-      if (existing) {
-        await patchWebsite(deps.sql, {
-          websiteId: existing.id,
-          scanInterval: body.data.scanInterval,
-          status: 'scanning',
-        });
-        websiteId = existing.id;
-      } else {
-        websiteId = await createWebsiteRow(deps.sql, {
-          organizationId: c.get('orgId'),
+      // posture). The row write and the register job commit together: a
+      // 'scanning' row whose register job never landed would sit for the
+      // stuck-scan window and then scan a domain the corpus never saw.
+      const websiteId = await deps.sql.begin(async (tx) => {
+        let id: string;
+        const existing = isList
+          ? await getWebsiteByDomain(tx, c.get('orgId'), domain)
+          : null;
+        if (existing) {
+          await patchWebsite(tx, {
+            websiteId: existing.id,
+            scanInterval: body.data.scanInterval,
+            status: 'scanning',
+          });
+          id = existing.id;
+        } else {
+          id = await createWebsiteRow(tx, {
+            organizationId: c.get('orgId'),
+            domain,
+            ...(isList ? { kind: 'list' as const } : {}),
+            ...(body.data.title !== undefined
+              ? { title: body.data.title }
+              : {}),
+            ...(body.data.description !== undefined
+              ? { description: body.data.description }
+              : {}),
+            scanInterval: body.data.scanInterval,
+            status: 'scanning',
+          });
+        }
+        await addJobInTx(tx, 'websites.register', {
+          websiteId: id,
           domain,
-          ...(isList ? { kind: 'list' as const } : {}),
-          ...(body.data.title !== undefined ? { title: body.data.title } : {}),
-          ...(body.data.description !== undefined
-            ? { description: body.data.description }
-            : {}),
           scanInterval: body.data.scanInterval,
-          status: 'scanning',
+          organizationId: c.get('orgId'),
+          ...(listedUrls !== undefined ? { urls: listedUrls } : {}),
         });
-      }
-
-      await addJobInTx(deps.sql, 'websites.register', {
-        websiteId,
-        domain,
-        scanInterval: body.data.scanInterval,
-        organizationId: c.get('orgId'),
-        ...(listedUrls !== undefined ? { urls: listedUrls } : {}),
+        return id;
       });
       return c.json({ id: websiteId }, 201);
     } catch (error) {

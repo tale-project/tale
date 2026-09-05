@@ -117,6 +117,9 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         400,
       );
     }
+    // Bound to a local: the narrowing does not survive into the
+    // transaction closure below.
+    const scanInterval = body.scanInterval;
     const domain = parseWebsiteDomain(body.domain);
     if (domain === null) return restJsonError(c, 'Invalid domain', 400);
     const title = boundedString(body.title, MAX_TITLE);
@@ -157,35 +160,41 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
     try {
       const organizationId = c.get('organizationId');
-      let websiteId: string;
-      const existing = isList
-        ? await getWebsiteByDomain(deps.sql, organizationId, domain)
-        : null;
-      if (existing) {
-        await patchWebsite(deps.sql, {
-          websiteId: existing.id,
-          callerOrgId: organizationId,
-          scanInterval: body.scanInterval,
-          status: 'scanning',
-        });
-        websiteId = existing.id;
-      } else {
-        websiteId = await createWebsiteRow(deps.sql, {
-          organizationId,
+      // Row write + register job in ONE transaction (the app door's shape):
+      // a 'scanning' row without its job strands until the stuck-scan
+      // window, then scans a domain the corpus never registered.
+      const websiteId = await deps.sql.begin(async (tx) => {
+        let id: string;
+        const existing = isList
+          ? await getWebsiteByDomain(tx, organizationId, domain)
+          : null;
+        if (existing) {
+          await patchWebsite(tx, {
+            websiteId: existing.id,
+            callerOrgId: organizationId,
+            scanInterval,
+            status: 'scanning',
+          });
+          id = existing.id;
+        } else {
+          id = await createWebsiteRow(tx, {
+            organizationId,
+            domain,
+            ...(isList ? { kind: 'list' as const } : {}),
+            ...(title !== undefined ? { title } : {}),
+            ...(description !== undefined ? { description } : {}),
+            scanInterval,
+            status: 'scanning',
+          });
+        }
+        await addJobInTx(tx, 'websites.register', {
+          websiteId: id,
           domain,
-          ...(isList ? { kind: 'list' as const } : {}),
-          ...(title !== undefined ? { title } : {}),
-          ...(description !== undefined ? { description } : {}),
-          scanInterval: body.scanInterval,
-          status: 'scanning',
+          scanInterval,
+          organizationId,
+          ...(listedUrls !== undefined ? { urls: listedUrls } : {}),
         });
-      }
-      await addJobInTx(deps.sql, 'websites.register', {
-        websiteId,
-        domain,
-        scanInterval: body.scanInterval,
-        organizationId,
-        ...(listedUrls !== undefined ? { urls: listedUrls } : {}),
+        return id;
       });
       return c.json({ id: websiteId }, 201);
     } catch (error) {
