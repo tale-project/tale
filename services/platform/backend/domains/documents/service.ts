@@ -57,14 +57,16 @@ import { purgeDocument } from '../retention/service.ts';
 
 export class DocumentError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404 | 429;
+  /** 4xx for a refusal the caller can act on; 503 for a dependency (the
+   * object store) that failed to answer — retryable, never the caller's. */
+  readonly status: 400 | 403 | 404 | 429 | 503;
   /** Structured refusal payload (reasonCode, limitBytes…) for the client. */
   readonly data?: Record<string, unknown>;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 429 = 400,
+    status: 400 | 403 | 404 | 429 | 503 = 400,
     data?: Record<string, unknown>,
     /** The refusal this one wraps (a rate limit), for the door to answer. */
     options?: ErrorOptions,
@@ -1778,9 +1780,11 @@ export function assertRecordTrashableJson(
 
 /**
  * Hard-delete a document: visibility + project-edit gates, the controlled-
- * record protection, legal holds, sync stop, then `purgeDocument` (corpus
- * entry, blobs + history, file rows, dependent knowledge-entry chains, the
- * row). Controlled drafts leave an audit trail before they go.
+ * record protection, legal holds, then `purgeDocument` (corpus entry, blobs
+ * + history, file rows, dependent knowledge-entry chains, the row), and only
+ * once that succeeded the sync stop + the audit row. A purge that could not
+ * finish surfaces as `PurgeIncompleteError` with the row intact and no
+ * receipt written.
  */
 export async function deleteDocumentHard(
   sql: Sql,
@@ -1810,6 +1814,18 @@ export async function deleteDocumentHard(
     undefined,
     doc.createdBy ?? undefined,
   );
+  // Purge FIRST, audit after — the folder cascade's order. `purgeDocument`
+  // keeps the row when a corpus or blob release fails (it throws
+  // `PurgeIncompleteError` for the caller to retry), so an audit row
+  // committed ahead of it recorded a successful deletion that had not
+  // happened, and the retry that did delete wrote a second success row.
+  const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
+  await purgeDocument(sql, orgSlug, {
+    id: doc.id,
+    fileRef: doc.fileRef,
+    organizationId: doc.organizationId,
+    historyFiles: doc.historyFiles,
+  });
   await sql.begin(async (tx) => {
     // A directly-selected single-file sync maps 1:1 to this document —
     // deleting it means "stop syncing it".
@@ -1843,13 +1859,6 @@ export async function deleteDocumentHard(
       entity: 'document',
       entityId: documentId,
     });
-  });
-  const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
-  await purgeDocument(sql, orgSlug, {
-    id: doc.id,
-    fileRef: doc.fileRef,
-    organizationId: doc.organizationId,
-    historyFiles: doc.historyFiles,
   });
 }
 

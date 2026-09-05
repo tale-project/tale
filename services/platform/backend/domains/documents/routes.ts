@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { purgeIncompleteResponse } from '../../lib/purge-incomplete-response.ts';
 import {
   rateLimitExceededCause,
   rateLimitedResponse,
@@ -19,6 +20,7 @@ import {
   ProjectError,
   type ProjectAuthContext,
 } from '../projects/service.ts';
+import { PurgeIncompleteError } from '../retention/service.ts';
 import {
   ensureProjectTextDocument,
   readProjectTextValues,
@@ -129,6 +131,9 @@ function handleError<E extends OrgEnv>(
     error instanceof LegalHoldError
   ) {
     return c.json({ error: error.code }, error.status);
+  }
+  if (error instanceof PurgeIncompleteError) {
+    return purgeIncompleteResponse(c, error);
   }
   throw error;
 }
