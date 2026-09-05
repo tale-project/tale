@@ -19,7 +19,13 @@
  * On a fetch failure the last good result keeps serving (with a logged
  * warning): a flaky egress path or an upstream outage must degrade model
  * listings, not blank them. A cold failure (nothing cached yet) surfaces to
- * the caller.
+ * the caller. The failure itself is REMEMBERED for a short back-off and
+ * concurrent fetches of one catalog share a single request, so an outage
+ * degrades content once instead of stalling every listing, Auto pick, and
+ * voice resolution for the full retry ladder — latency degrades with the
+ * content, not instead of it. A forced refresh bypasses the back-off and
+ * surfaces its own failure: an operator pressed the button to learn the
+ * truth, not to be shown the stale count as success.
  *
  * Both live endpoints are public, unauthenticated catalog listings; no
  * credential material is ever attached to these requests.
@@ -48,6 +54,10 @@ const OPENROUTER_EMBEDDINGS_CATALOG_URL =
 
 /** Live catalogs refresh at most daily unless a user forces it. */
 export const CATALOG_TTL_MS = 24 * 60 * 60 * 1000;
+/** After a failed fetch the source is not retried (the stale catalog or the
+ * shipped defaults serve, or the remembered failure is rethrown) until this
+ * back-off lapses; a forced refresh ignores it. */
+export const CATALOG_FAILURE_BACKOFF_MS = 5 * 60 * 1000;
 
 const FETCH_TIMEOUT_MS = 20_000;
 /** The full OpenRouter catalog (hundreds of models with rich metadata) is
@@ -67,6 +77,18 @@ interface CachedCatalog {
  * and a name-only key would hand one org the other's catalog. */
 const liveCatalogCache = new Map<string, CachedCatalog>();
 
+interface RememberedFailure {
+  failedAt: number;
+  error: Error;
+}
+
+/** The last failed fetch per cache key, honoured until the back-off lapses. */
+const liveCatalogFailures = new Map<string, RememberedFailure>();
+
+/** Fetches currently in flight per cache key — a second caller joins the
+ * first's promise instead of starting its own retry ladder. */
+const liveCatalogInFlight = new Map<string, Promise<ModelCatalogEntry[]>>();
+
 function liveCatalogCacheKey(
   providerName: string,
   urls: readonly string[],
@@ -74,9 +96,11 @@ function liveCatalogCacheKey(
   return `${providerName}\n${urls.join('\n')}`;
 }
 
-/** Test seam: drop every cached live catalog. */
+/** Test seam: drop every cached live catalog and remembered failure. */
 export function invalidateCatalogFetchCache(): void {
   liveCatalogCache.clear();
+  liveCatalogFailures.clear();
+  liveCatalogInFlight.clear();
 }
 
 export interface CatalogFetchOptions extends LoadSystemConfigOptions {
@@ -251,32 +275,82 @@ async function cachedLiveCatalog(
     return mergeWithDefaults(cached.entries, defaults);
   }
 
-  try {
-    const entries = await fetchLiveCatalog(
+  // A remembered failure is served as the failure it was — stale catalog,
+  // shipped defaults, or the error — without another retry ladder, until
+  // the back-off lapses. A forced refresh is the operator asking anew.
+  const remembered = liveCatalogFailures.get(cacheKey);
+  if (
+    remembered !== undefined &&
+    !options.forceRefresh &&
+    Date.now() - remembered.failedAt < CATALOG_FAILURE_BACKOFF_MS
+  ) {
+    return serveDegraded(providerName, cached, defaults, remembered.error);
+  }
+
+  let inFlight = liveCatalogInFlight.get(cacheKey);
+  if (inFlight === undefined) {
+    inFlight = fetchLiveCatalog(
       urls,
       providerName,
       options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
       allowedHosts,
-    );
-    liveCatalogCache.set(cacheKey, { fetchedAt: Date.now(), entries });
-    return mergeWithDefaults(entries, defaults);
-  } catch (err) {
-    if (cached !== undefined) {
-      console.warn(
-        `[catalog] ${providerName}: refresh failed, serving the previous catalog (${cached.entries.length} models):`,
-        err,
-      );
-      return mergeWithDefaults(cached.entries, defaults);
-    }
-    if (defaults !== undefined && defaults.length > 0) {
-      console.warn(
-        `[catalog] ${providerName}: fetch failed with nothing cached; serving the shipped defaults (${defaults.length} models):`,
-        err,
-      );
-      return defaults;
-    }
-    throw err;
+    )
+      .then((entries) => {
+        liveCatalogCache.set(cacheKey, { fetchedAt: Date.now(), entries });
+        liveCatalogFailures.delete(cacheKey);
+        return entries;
+      })
+      .catch((err: unknown) => {
+        const error = err instanceof Error ? err : new Error(String(err));
+        liveCatalogFailures.set(cacheKey, { failedAt: Date.now(), error });
+        throw error;
+      })
+      .finally(() => {
+        liveCatalogInFlight.delete(cacheKey);
+      });
+    liveCatalogInFlight.set(cacheKey, inFlight);
   }
+
+  try {
+    return mergeWithDefaults(await inFlight, defaults);
+  } catch (err) {
+    if (options.forceRefresh) {
+      // The operator pressed refresh to learn whether the source answers;
+      // the stale catalog keeps serving every OTHER caller, but this one
+      // gets the truth, not a count that reads as success.
+      console.warn(
+        `[catalog] ${providerName}: forced refresh failed (the previous catalog, if any, keeps serving):`,
+        err,
+      );
+      throw err;
+    }
+    return serveDegraded(providerName, cached, defaults, err);
+  }
+}
+
+/** What a failed fetch serves: the previous catalog, else the shipped
+ * defaults, else the failure itself. */
+function serveDegraded(
+  providerName: string,
+  cached: CachedCatalog | undefined,
+  defaults: readonly ModelCatalogEntry[] | undefined,
+  err: unknown,
+): readonly ModelCatalogEntry[] {
+  if (cached !== undefined) {
+    console.warn(
+      `[catalog] ${providerName}: refresh failed, serving the previous catalog (${cached.entries.length} models):`,
+      err,
+    );
+    return mergeWithDefaults(cached.entries, defaults);
+  }
+  if (defaults !== undefined && defaults.length > 0) {
+    console.warn(
+      `[catalog] ${providerName}: fetch failed with nothing cached; serving the shipped defaults (${defaults.length} models):`,
+      err,
+    );
+    return defaults;
+  }
+  throw err;
 }
 
 /** `<base>/models` with exactly one joining slash whatever the YAML wrote. */
