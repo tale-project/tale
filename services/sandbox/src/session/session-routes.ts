@@ -347,7 +347,6 @@ export class SessionRoutes {
       state: s.state,
       backend: this.backend.kind,
       createdAtMs: s.createdAtMs,
-      lastActivityAtMs: s.createdAtMs,
       expiresAtMs: s.expiresAtMs,
       idleTimeoutMs: s.idleTimeoutMs,
       pinned: s.pinned === true,
