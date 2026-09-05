@@ -32,6 +32,7 @@ import {
   lastScanAttemptAt,
   scanPausedAt,
   type ScanSchedulingSite,
+  WEBSITE_NOT_IN_CORPUS_MESSAGE,
 } from '../../core/websites/scan_scheduling.ts';
 import {
   isValidScanInterval,
@@ -754,8 +755,7 @@ export async function syncSingleWebsite(
         websiteId: args.websiteId,
         status: 'error',
         metadata: {
-          lastSyncError:
-            'Website not found in crawler. Please delete and re-add it.',
+          lastSyncError: WEBSITE_NOT_IN_CORPUS_MESSAGE,
           lastStatusSyncAt: syncTimestamp,
         },
       });

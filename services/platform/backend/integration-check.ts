@@ -23900,6 +23900,42 @@ async function checkWebsitesCrawl(
       `paused=${pausedRow?.status}/${String(pausedMeta.scanPausedAt != null)} failures=${String(pausedMeta.corpusConnectionFailures)}/3 schedPaused=${scheduled?.scanPaused} due=${pausedIsDue}(want false) bell=${bell[0]?.count}/1, resume=${resume.status} cleared=${resumedMeta.scanPausedAt == null && resumedMeta.corpusConnectionFailures == null} status=${resumedRow?.status}/active(post-rescan)`,
     );
 
+    // 3b. A row whose domain has NO corpus registration (the register job
+    //     never landed, or the registration was released): the scan must
+    //     record the failure on the row — attempt clock + `error` status
+    //     with the delete-and-re-add message — instead of logging "already
+    //     running" and letting the scheduler re-pick it every tick forever.
+    const UNREGISTERED_DOMAIN = 'itest-unregistered.example';
+    const unregisteredId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: UNREGISTERED_DOMAIN,
+      scanInterval: '6h',
+      status: 'active',
+    });
+    await websites.runWebsitesScan(sql, {
+      domain: UNREGISTERED_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    const unregisteredRow = await websites.getWebsite(sql, unregisteredId);
+    const unregisteredMeta = unregisteredRow?.metadata ?? {};
+    const unregisteredSite = (
+      await websites.listWebsitesForScanScheduling(sql)
+    ).find((s) => s.domain === UNREGISTERED_DOMAIN);
+    const unregisteredDueNow = unregisteredSite
+      ? scheduling.isDueForScan(unregisteredSite, Date.now())
+      : true;
+    await sql`DELETE FROM app.websites WHERE id = ${unregisteredId}`;
+    record(
+      'websites scan of an unregistered domain records the failure',
+      unregisteredRow?.status === 'error' &&
+        typeof unregisteredMeta.lastScanAttemptAt === 'number' &&
+        unregisteredMeta.lastSyncError ===
+          scheduling.WEBSITE_NOT_IN_CORPUS_MESSAGE &&
+        !unregisteredDueNow,
+      `status=${unregisteredRow?.status}/error attemptStamped=${typeof unregisteredMeta.lastScanAttemptAt === 'number'} error=${String(unregisteredMeta.lastSyncError)} dueAgainNow=${unregisteredDueNow}(want false)`,
+    );
+
     // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list
     //    registration merging on re-post, and delete deregistering the
     //    corpus rows (last member takes the domain with it).
