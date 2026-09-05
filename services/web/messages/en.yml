@@ -2081,8 +2081,8 @@ platformGovernance:
         docsLabel: Audit logs
       - title: Guardrails and policies
         body:
-          Org-level guardrails and the run-code policy set the limits on what agents
-          may attempt — before a card ever appears.
+          Org-level guardrails and policies set the limits on what agents may
+          attempt — before a card ever appears.
         docsLabel: Guardrails
       - title: PII filtered in both directions
         body:

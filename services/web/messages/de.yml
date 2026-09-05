@@ -1569,8 +1569,8 @@ platformGovernance:
         docsLabel: Audit-Logs
       - title: Guardrails und Policies
         body:
-          Org-weite Guardrails und die Run-Code-Policy setzen die Grenzen dessen,
-          was Agents überhaupt versuchen dürfen — bevor eine Karte erscheint.
+          Org-weite Guardrails und Policies setzen die Grenzen dessen, was Agents
+          überhaupt versuchen dürfen — bevor eine Karte erscheint.
         docsLabel: Guardrails
       - title: PII in beide Richtungen gefiltert
         body:

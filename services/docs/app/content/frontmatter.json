@@ -124,7 +124,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bonus — Tale pour les développeurs",
-      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, harnesses, et la politique d'exécution de code qui contient le tout."
+      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, et les harnesses qui travaillent dans des bacs à sable contenus."
     }
   },
   "fr:tutorials/member/chat-effectively": {
@@ -469,7 +469,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Journaux d'audit",
-      "description": "Le journal chronologique de qui-a-fait-quoi dans ton organisation — connexions, changements de rôle, modifications de fournisseur, modifications d'agent, invocations run-code. Les Administrateurs et Propriétaires lisent ceci quand un audit demande qui a touché une ressource et quand."
+      "description": "Le journal chronologique de qui-a-fait-quoi dans ton organisation — connexions, changements de rôle, modifications de fournisseur, modifications d'agent. Les Administrateurs et Propriétaires lisent ceci quand un audit demande qui a touché une ressource et quand."
     }
   },
   "fr:platform/admin/governance/content-models": {
@@ -534,14 +534,6 @@
     "frontmatter": {
       "title": "Analyse des retours",
       "description": "Pouces haut et bas agrégés sur les réponses d'assistant et verdicts d'arène, ventilés par assistant et par modèle. Les Administrateurs et Propriétaires lisent ceci quand une régression d'agent a besoin d'un chiffre derrière."
-    }
-  },
-  "fr:platform/admin/governance/run-code-policy": {
-    "slug": "platform/admin/governance/run-code-policy",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Politique run-code",
-      "description": "La liste d’autorisation et la liste de blocage de paquets qui régissent ce que Run code en sandbox peut installer. Les Administrateurs et Propriétaires lisent ceci quand un agent a besoin d’une nouvelle bibliothèque ou quand un audit demande pourquoi un paquet était bloqué à un moment donné."
     }
   },
   "fr:platform/admin/connectors": {
@@ -1205,7 +1197,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Bonus — Tale for developers",
-      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, harnesses, and the run-code policy that keeps everything contained."
+      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, and harnesses working in contained sandboxes."
     }
   },
   "en:tutorials/member/chat-effectively": {
@@ -1550,7 +1542,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Audit logs",
-      "description": "The chronological log of who-did-what across your organisation — sign-ins, role changes, provider edits, agent edits, run-code invocations. Admins and Owners read this when an audit asks who touched a resource and when."
+      "description": "The chronological log of who-did-what across your organisation — sign-ins, role changes, provider edits, agent edits. Admins and Owners read this when an audit asks who touched a resource and when."
     }
   },
   "en:platform/admin/governance/content-models": {
@@ -1615,14 +1607,6 @@
     "frontmatter": {
       "title": "Feedback analytics",
       "description": "Aggregated thumbs-up and thumbs-down on assistant replies plus arena verdicts, broken down per assistant and per model. Admins and Owners read this when an agent regression needs a number behind it."
-    }
-  },
-  "en:platform/admin/governance/run-code-policy": {
-    "slug": "platform/admin/governance/run-code-policy",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Run-code policy",
-      "description": "The package allowlist and denylist that gate what sandboxed Run code can install. Admins and Owners read this when an agent needs a new library or when an audit asks why a package was blocked at a given time."
     }
   },
   "en:platform/admin/connectors": {
@@ -2286,7 +2270,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Bonus — Tale für Entwickler",
-      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser, Harnesses und die Run-Code-Richtlinie, die alles einhegt."
+      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser und Harnesses, die in eingehegten Sandboxes arbeiten."
     }
   },
   "de:tutorials/member/chat-effectively": {
@@ -2631,7 +2615,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Audit-Logs",
-      "description": "Das chronologische Protokoll von wer-was-getan-hat in deiner Organisation — Anmeldungen, Rollenänderungen, Anbieter-Bearbeitungen, Agent-Bearbeitungen, Run-code-Aufrufe. Admins und Inhaber lesen das, wenn ein Audit fragt, wer eine Ressource wann angefasst hat."
+      "description": "Das chronologische Protokoll von wer-was-getan-hat in deiner Organisation — Anmeldungen, Rollenänderungen, Anbieter-Bearbeitungen, Agent-Bearbeitungen. Admins und Inhaber lesen das, wenn ein Audit fragt, wer eine Ressource wann angefasst hat."
     }
   },
   "de:platform/admin/governance/content-models": {
@@ -2696,14 +2680,6 @@
     "frontmatter": {
       "title": "Feedback-Analyse",
       "description": "Aggregierte Daumen-hoch- und Daumen-runter-Bewertungen auf Assistenten-Antworten plus Arena-Urteile, aufgeschlüsselt pro Assistent und pro Modell. Admins und Inhaber lesen das, wenn eine Agent-Regression eine Zahl dahinter braucht."
-    }
-  },
-  "de:platform/admin/governance/run-code-policy": {
-    "slug": "platform/admin/governance/run-code-policy",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Run-code-Richtlinie",
-      "description": "Die Paket-Zulassungsliste und -Sperrliste, die regeln, was sandgeboxtes Run code installieren darf. Admins und Inhaber lesen das, wenn ein Agent eine neue Bibliothek braucht oder wenn ein Audit fragt, warum ein Paket zu einem bestimmten Zeitpunkt blockiert war."
     }
   },
   "de:platform/admin/connectors": {

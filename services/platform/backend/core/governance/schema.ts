@@ -37,29 +37,11 @@ export const GOVERNANCE_POLICY_TYPES = [
   // and per-admin daily filing rate limit. Defaults live in
   // `governance/dsar_policy.ts`.
   'dsar_governance',
-  // RETIRED — the agent_workforce policy left the config registry (its
-  // knobs became fixed guardrail defaults) and migration 0.2.90/04 deletes
-  // the org files. The literal stays one release because this closed union
-  // validates EXISTING policyAcknowledgements rows at schema push time;
-  // drop it in the next release.
-  'agent_workforce',
-  // Agent-on-demand job guardrails for `spawn_agent`: org concurrency cap,
-  // terminal-row TTL, stuck-run threshold. Missing row → schema defaults.
-  // Config shape: `agentJobsConfigSchema` (lib/shared/schemas/governance.ts).
-  'agent_jobs',
   // Master switch for the task-ops automation pack (agent execution on
   // tasks). Gates BOTH halves: the run-agent action refuses when disabled,
   // and `setTaskAutomationEnabled` flips the pack's trigger rows. Missing
   // row → enabled. Config shape: `taskAutomationConfigSchema`.
   'task_automation',
-  // Org-level package allowlist/denylist for the `run_code` tool (replaces the
-  // former `orgPackagePolicy` DB table). Missing file → all packages allowed.
-  // Config shape: `runCodePolicyConfigSchema`.
-  'run_code',
-  // Per-org opt-out for the weekly provider-config auto-sync cron (replaces the
-  // former `modelSyncSettings` DB table). Missing file → enabled. Config shape:
-  // `modelSyncConfigSchema`.
-  'model_sync',
   // Per-org sandbox concurrency quota: one-shot exec cap + active-session
   // cap. The deployment-wide host caps are spawner env; this is the
   // per-tenant slice. Config shape: `sandboxQuotaConfigSchema`
@@ -85,9 +67,3 @@ export const GOVERNANCE_POLICY_TYPES = [
   // in `tasks/review_mutations.ts::respondToTaskReview`.
   'review_policy',
 ] as const;
-
-// The org-level `run_code` package allowlist moved to the file-based governance
-// policy `run_code` (`<org>/governance/run-code.json`, schema
-// `runCodePolicyConfigSchema`). The legacy `orgPackagePolicy` table was dropped
-// in migration 0.2.87/03; the absence of a file still means "all packages
-// allowed". See `agent_tools/run_code_tool.ts` for the execution-time gate.

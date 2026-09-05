@@ -42,21 +42,9 @@ export const POLICY_TYPES = [
   // per-admin daily filing rate limit. See `dsarGovernanceConfigSchema`
   // for the config shape and defaults.
   'dsar_governance',
-  // Agent-on-demand job guardrails (spawn_agent): org concurrency cap,
-  // terminal-row TTL, stuck-run threshold. Missing row ⇒ schema defaults.
-  // See `agentJobsConfigSchema`.
-  'agent_jobs',
   // Master switch for the task-ops automation pack. Missing row → enabled.
   // See `taskAutomationConfigSchema`.
   'task_automation',
-  // Org-level package allowlist/denylist for the `run_code` tool. Missing file
-  // → denylist + empty lists = every package allowed. See
-  // `runCodePolicyConfigSchema`; the execution gate is in
-  // `agent_tools/run_code_tool.ts`.
-  'run_code',
-  // Per-org opt-out for the weekly in-instance provider-config auto-sync cron.
-  // Missing file → enabled. See `modelSyncConfigSchema`.
-  'model_sync',
   // Per-org sandbox session budgets (user / thread / workflow / render — every
   // sandbox is a session). The deployment-wide host-capacity ceiling is spawner
   // env `SANDBOX_MAX_SESSIONS`; this policy is the per-tenant slice under it an
@@ -89,30 +77,6 @@ export const POLICY_TYPES = [
   'review_policy',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
-
-/**
- * Agent-on-demand job guardrails (the `spawn_agent` tool). Missing row ⇒
- * these schema defaults; every field carries a `.default()` so
- * `agentJobsConfigSchema.parse({})` yields the effective config.
- */
-export const agentJobsConfigSchema = z.object({
-  /** Org-wide cap on concurrently RUNNING spawned jobs. */
-  maxConcurrentJobs: z.number().int().min(1).max(100).default(10),
-  /** Terminal job rows (and their transcript threads) older than this are GC'd. */
-  ttlMs: z
-    .number()
-    .int()
-    .min(60 * 60 * 1000)
-    .default(30 * 24 * 60 * 60 * 1000),
-  /** A `running` job older than this is presumed orphaned (its action died
-   *  before finalize) and is flipped to `timed_out` by the recovery sweep. */
-  jobStuckAfterMs: z
-    .number()
-    .int()
-    .min(60 * 1000)
-    .default(60 * 60 * 1000),
-});
-export type AgentJobsConfig = z.infer<typeof agentJobsConfigSchema>;
 
 /**
  * Master switch for the task-ops automation pack. Gates the run-agent action
@@ -851,33 +815,6 @@ export type DsarGovernanceConfig = z.infer<typeof dsarGovernanceConfigSchema>;
 export const DEFAULT_DSAR_GOVERNANCE: DsarGovernanceConfig =
   dsarGovernanceConfigSchema.parse({});
 
-/**
- * Org-level package allowlist policy for the `run_code` tool. The on-disk
- * `<org>/governance/run-code.json` is the source of truth; a missing file means
- * `denylist` + empty lists = every package allowed (the historical "no DB row"
- * behaviour). Package names carry no version constraint and are matched against
- * a spec's base name, case-insensitively. The execution-time gate lives in
- * `convex/agent_tools/run_code_tool.ts`.
- */
-export const runCodePolicyConfigSchema = z.object({
-  defaultMode: z.enum(['allowlist', 'denylist']).default('denylist'),
-  pythonAllow: z.array(z.string()).default([]),
-  pythonDeny: z.array(z.string()).default([]),
-  nodeAllow: z.array(z.string()).default([]),
-  nodeDeny: z.array(z.string()).default([]),
-});
-export type RunCodePolicyConfig = z.infer<typeof runCodePolicyConfigSchema>;
-
-/**
- * Per-org opt-out for the weekly in-instance provider-config auto-sync cron
- * (the job that 3-way-merges fresh OpenRouter facts into each org's provider
- * JSON). The on-disk `<org>/governance/model-sync.json` is the source of truth;
- * a missing file means enabled (default on).
- */
-export const modelSyncConfigSchema = z.object({
-  autoSyncEnabled: z.boolean().default(true),
-});
-
 // ---------------------------------------------------------------------------
 // Per-policy-type schema registry
 // ---------------------------------------------------------------------------
@@ -1029,10 +966,7 @@ export const POLICY_SCHEMAS = {
   voice_output: voiceOutputConfigSchema,
   data_classification_notice: dataNoticeConfigSchema,
   dsar_governance: dsarGovernanceConfigSchema,
-  agent_jobs: agentJobsConfigSchema,
   task_automation: taskAutomationConfigSchema,
-  run_code: runCodePolicyConfigSchema,
-  model_sync: modelSyncConfigSchema,
   sandbox_quota: sandboxQuotaConfigSchema,
   conversation_access: conversationAccessConfigSchema,
   conversation_routing: conversationRoutingConfigSchema,
