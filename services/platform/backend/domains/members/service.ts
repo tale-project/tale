@@ -311,7 +311,11 @@ export async function removeMember(
   // The membership's per-org footprint goes with it: team memberships (and
   // their SSO-sync provenance) and the preference row — user_memories
   // follows with its domain.
-  await removeMembershipCascade(tx, member.organizationId, member.userId);
+  const { teamIds } = await removeMembershipCascade(
+    tx,
+    member.organizationId,
+    member.userId,
+  );
 
   await logSuccess(tx, {
     auditCtx: {
@@ -335,6 +339,15 @@ export async function removeMember(
     entity: 'member',
     entityId: member.userId,
   });
+  // The cascade shrank these teams: the same hint the teams door emits on a
+  // direct removal, so an open Teams page refreshes its member counts.
+  for (const teamId of teamIds) {
+    await emitHintInTx(tx, {
+      orgId: member.organizationId,
+      entity: 'team',
+      entityId: teamId,
+    });
+  }
 }
 
 /**

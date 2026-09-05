@@ -353,6 +353,8 @@ describe('deprovisionUser — the membership cascade', () => {
     const teams = deleted[teamsAt];
     expect(teams?.text).toContain('WHERE "organizationId" = $?');
     expect(teams?.values).toEqual(['u-1', 'org-1']);
+    // The cascade reports the teams it left, for the callers that emit hints.
+    expect(teams?.text).toContain('RETURNING "teamId"');
     expect(
       deleted.find((q) =>
         q.text.startsWith('DELETE FROM app.sso_synced_team_members'),
@@ -413,6 +415,12 @@ describe('listings page in SQL', () => {
     const listing = queries.find((q) => q.text.startsWith('SELECT u."id"'));
     expect(listing?.text).toContain('ORDER BY u."id" LIMIT $? OFFSET $?');
     expect(listing?.values).toEqual(['org-1', 2, 2]);
+    // The total counts exactly the rows the page walks — same user join.
+    const total = queries.find((q) =>
+      q.text.startsWith('SELECT count(*)::int AS total FROM "member"'),
+    );
+    expect(total?.text).toContain('JOIN "user" u ON u."id" = m."userId"');
+    expect(total?.values).toEqual(['org-1']);
   });
 
   it('listGroupRecords aggregates members in the page query', async () => {

@@ -30122,10 +30122,31 @@ async function checkBrandingAndTeams(
   await post(`/api/app/members/${hintMemberId}/role?orgId=${orgId}`, {
     role: 'developer',
   });
+  // Put the member on the team first: removing the ORG membership cascades
+  // the teamMember row away, and that cascade must land the same 'team' hint
+  // a direct team removal does (an open Teams page refreshes its counts).
+  await post(`/api/app/teams/${teamId}/members?orgId=${orgId}`, {
+    userId: hintUserId,
+  });
+  const teamHintsBeforeCascade = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'team' AND entity_id = ${teamId}
+  `;
   await fetch(`${base}/api/app/members/${hintMemberId}?orgId=${orgId}`, {
     method: 'DELETE',
     headers: { cookie, origin: base },
   });
+  const teamHintsAfterCascade = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'team' AND entity_id = ${teamId}
+  `;
+  const cascadeHint =
+    Number(teamHintsAfterCascade[0]?.count) -
+    Number(teamHintsBeforeCascade[0]?.count);
+  const cascadeLeftTeam = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "teamMember"
+    WHERE "teamId" = ${teamId} AND "userId" = ${hintUserId}
+  `;
   const memberHints = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app_realtime.outbox
     WHERE org_id = ${orgId} AND entity = 'member'
@@ -30178,11 +30199,14 @@ async function checkBrandingAndTeams(
       removed.success &&
       removed.data.removed &&
       mineHit &&
-      hintsAfterAdd[0]?.count === '1' &&
-      hintsAfterRemove[0]?.count === '2' &&
+      // caller add (1) + hint member add (2) + cascade (3) → direct remove (4)
+      hintsAfterAdd[0]?.count === '3' &&
+      hintsAfterRemove[0]?.count === '4' &&
       memberAdded.success &&
-      memberHints[0]?.count === '3',
-    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, mine=${mineHit}, hints=${hintsAfterAdd[0]?.count}→${hintsAfterRemove[0]?.count} (want 1→2), memberHints=${memberHints[0]?.count} (want 3), removed=${removed.success ? removed.data.removed : 'ERR'}`,
+      memberHints[0]?.count === '3' &&
+      cascadeHint === 1 &&
+      cascadeLeftTeam[0]?.count === '0',
+    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, mine=${mineHit}, hints=${hintsAfterAdd[0]?.count}→${hintsAfterRemove[0]?.count} (want 3→4), memberHints=${memberHints[0]?.count} (want 3), cascadeTeamHint=${cascadeHint} (want 1) cascadeLeftTeam=${cascadeLeftTeam[0]?.count} (want 0), removed=${removed.success ? removed.data.removed : 'ERR'}`,
   );
 
   // --- Org/Teams settings tail (inc 87) ------------------------------------

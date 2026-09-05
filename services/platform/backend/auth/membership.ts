@@ -224,18 +224,23 @@ export function evaluateCredentialResetAuthority(args: {
  * team-scoped document, project and task they used to see, with no one
  * re-asserting the membership; in between, SCIM Group reads listed a user
  * GET /Users/:id 404ed, which IdPs flag as drift.
+ *
+ * Answers the ids of the teams the user was removed from, so a caller that
+ * emits realtime hints can invalidate those teams' member lists the way the
+ * teams door does on a direct removal.
  */
 export async function removeMembershipCascade(
   tx: TransactionSql,
   organizationId: string,
   userId: string,
-): Promise<void> {
-  await tx`
+): Promise<{ teamIds: string[] }> {
+  const left = await tx<{ teamId: string }[]>`
     DELETE FROM "teamMember"
     WHERE "userId" = ${userId}
       AND "teamId" IN (
         SELECT "id" FROM "team" WHERE "organizationId" = ${organizationId}
       )
+    RETURNING "teamId"
   `;
   await tx`
     DELETE FROM app.sso_synced_team_members
@@ -245,6 +250,7 @@ export async function removeMembershipCascade(
     DELETE FROM app.user_preferences
     WHERE org_id = ${organizationId} AND user_id = ${userId}
   `;
+  return { teamIds: [...new Set(left.map((row) => row.teamId))] };
 }
 
 /** Team ids the user belongs to (the other half of the RLS prime). */
