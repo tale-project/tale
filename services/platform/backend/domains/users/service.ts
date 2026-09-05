@@ -131,6 +131,61 @@ async function hasCredentialAccount(
   return rows.length > 0;
 }
 
+/**
+ * Write a user's credential password onto their ONE `credential` account
+ * row, creating the row when the user has none (an OAuth-only account being
+ * handed a password).
+ *
+ * Better Auth owns the `account` table and declares no unique key on
+ * (userId, providerId), so `INSERT … ON CONFLICT DO NOTHING` has no conflict
+ * target there — it inserted a second credential row on every admin reset,
+ * and the user's forced first-login change then rotated only one of them.
+ * The decision is made here, inside the caller's SERIALIZABLE transaction
+ * with the rows locked, which is what makes create-or-update race-safe
+ * without a constraint the app is not allowed to add. Rows an earlier
+ * release duplicated are folded into the newest one on the next write, so
+ * every reset converges on a single row.
+ */
+export async function setCredentialPassword(
+  tx: TransactionSql,
+  userId: string,
+  passwordHash: string,
+): Promise<void> {
+  const rows = await tx<{ id: string }[]>`
+    SELECT "id" FROM "account"
+    WHERE "userId" = ${userId} AND "providerId" = 'credential'
+    ORDER BY "updatedAt" DESC, "createdAt" DESC
+    FOR UPDATE
+  `;
+  const keep = rows[0];
+  if (!keep) {
+    await tx`
+      INSERT INTO "account" (
+        "id", "userId", "providerId", "accountId", "password",
+        "createdAt", "updatedAt"
+      ) VALUES (
+        gen_random_uuid(), ${userId}, 'credential', ${userId},
+        ${passwordHash}, ${new Date()}, ${new Date()}
+      )
+    `;
+    return;
+  }
+  if (rows.length > 1) {
+    const duplicates = rows.slice(1).map((row) => row.id);
+    console.warn(
+      `[users] folding ${duplicates.length} duplicate credential account row(s) for user ${userId}`,
+    );
+    await tx`
+      DELETE FROM "account"
+      WHERE "userId" = ${userId} AND "id" = ANY(${duplicates})
+    `;
+  }
+  await tx`
+    UPDATE "account" SET "password" = ${passwordHash}, "updatedAt" = ${new Date()}
+    WHERE "id" = ${keep.id}
+  `;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface PasswordExpiryStatus {
@@ -233,9 +288,10 @@ async function forcedResetCredentialPassword(
   userId: string,
   newPassword: string,
 ): Promise<void> {
-  const rows = await sql<{ id: string; password: string | null }[]>`
-    SELECT "id", "password" FROM "account"
+  const rows = await sql<{ password: string | null }[]>`
+    SELECT "password" FROM "account"
     WHERE "userId" = ${userId} AND "providerId" = 'credential'
+    ORDER BY "updatedAt" DESC
     LIMIT 1
   `;
   const credential = rows[0];
@@ -257,9 +313,11 @@ async function forcedResetCredentialPassword(
     );
   }
   const newHash = await hashPassword(newPassword);
+  // Keyed by (user, provider), not by the one row id read above: a user must
+  // never keep a second credential row carrying the old (admin-set) password.
   await sql`
     UPDATE "account" SET "password" = ${newHash}, "updatedAt" = ${new Date()}
-    WHERE "id" = ${credential.id}
+    WHERE "userId" = ${userId} AND "providerId" = 'credential'
   `;
 }
 
@@ -463,23 +521,12 @@ export async function setMemberPassword(
   }
 
   const passwordHash = await hashPassword(args.newPassword);
-  await sql`
-    INSERT INTO "account" (
-      "id", "userId", "providerId", "accountId", "password",
-      "createdAt", "updatedAt"
-    ) VALUES (
-      gen_random_uuid(), ${member.userId}, 'credential', ${member.userId},
-      ${passwordHash}, ${new Date()}, ${new Date()}
-    )
-    ON CONFLICT DO NOTHING
-  `;
-  await sql`
-    UPDATE "account" SET "password" = ${passwordHash}, "updatedAt" = ${new Date()}
-    WHERE "userId" = ${member.userId} AND "providerId" = 'credential'
-  `;
-  await sql`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
-
+  // Credential write, session sweep, rotation anchor and audit row: one
+  // transaction — a seizure either fully lands (and is on the ledger) or
+  // leaves the member exactly as they were.
   await transactSerializable(sql, async (tx) => {
+    await setCredentialPassword(tx, member.userId, passwordHash);
+    await tx`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
     await recordPasswordChange(tx, member.userId, {
       forceChangeOnNextLogin: true,
     });
