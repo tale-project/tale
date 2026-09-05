@@ -383,7 +383,7 @@ describe('createOutputTransform', () => {
           },
         },
       ],
-      { minFlushChars: 10 },
+      { minFlushChars: 10, holdbackChars: 0 },
     );
 
     expect(await transform.push('short')).toEqual({ text: '' });
@@ -409,7 +409,7 @@ describe('createOutputTransform', () => {
           },
         },
       ],
-      { minFlushChars: 1 },
+      { minFlushChars: 1, holdbackChars: 0 },
     );
 
     const chunk = await transform.push('write to a@b.com');
@@ -430,7 +430,7 @@ describe('createOutputTransform', () => {
           },
         },
       ],
-      { minFlushChars: 1 },
+      { minFlushChars: 1, holdbackChars: 0 },
     );
 
     const refused = await transform.push('anything');
@@ -460,5 +460,51 @@ describe('createOutputTransform', () => {
     });
     expect(await transform.push('tail')).toEqual({ text: '' });
     expect(await transform.flush()).toEqual({ text: 'tail' });
+  });
+
+  it('holds a tail back so a token split across pushes is restored whole', async () => {
+    const seen: string[] = [];
+    const transform = createOutputTransform(
+      [
+        {
+          name: 'pii',
+          run(text) {
+            seen.push(text);
+            return text.includes('[EMAIL_1]')
+              ? {
+                  kind: 'modified',
+                  text: text.replace('[EMAIL_1]', 'anna@example.com'),
+                  categoryIds: [],
+                  matchCount: 0,
+                }
+              : { kind: 'pass' };
+          },
+        },
+      ],
+      { minFlushChars: 10, holdbackChars: 8 },
+    );
+
+    let out = '';
+    out += (await transform.push('please write to [EMA')).text;
+    out += (await transform.push('IL_1] today')).text;
+    out += (await transform.flush()).text;
+
+    expect(out).toBe('please write to anna@example.com today');
+    // The token was never judged in two halves: no segment carries a torn
+    // '[EMA' without its closing bracket.
+    for (const segment of seen) {
+      expect(segment.includes('[EMA') && !segment.includes(']')).toBe(false);
+    }
+  });
+
+  it('cuts a segment on a line break before a sentence end or a space', async () => {
+    const transform = createOutputTransform([recordingFilter('pii', [])], {
+      minFlushChars: 5,
+      holdbackChars: 3,
+    });
+
+    expect((await transform.push('a b\ncd ef gh')).text).toBe('a b\n');
+    expect((await transform.push(' ij. kl mn op')).text).toBe('cd ef gh ij. ');
+    expect((await transform.flush()).text).toBe('kl mn op');
   });
 });
