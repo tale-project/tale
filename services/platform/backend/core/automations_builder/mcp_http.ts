@@ -116,7 +116,8 @@ function toolResult(id: unknown, result: unknown): Response {
 /**
  * The endpoint's logic, after authentication. Exported so the protocol contract
  * is testable directly — authentication and org resolution are the REST
- * wrapper's job and are covered where they live (`lib/rest/helpers`).
+ * door's job (`backend/rest/v1.ts` + `backend/rest/v1-mcp.ts`) and are
+ * covered where they live.
  */
 export async function handleMcpRequest(
   rc: RestContext,
