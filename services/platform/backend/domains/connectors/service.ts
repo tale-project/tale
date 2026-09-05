@@ -44,6 +44,7 @@ import {
   createHubDocument,
   listFolderDocumentsBounded,
 } from '../documents/service.ts';
+import { getOrgBlobBytes } from '../files/service.ts';
 import { findHubFolderByPath } from '../folders/paths.ts';
 import {
   FolderError,
@@ -292,6 +293,10 @@ function assembleConnectorHost(sql: Sql): void {
     tasks: pgTaskStore(sql),
     documents: pgDocumentStore(sql),
     conversations: pgConversationStore(sql),
+    // Outbound mail attachments read from the org's own blob store — the
+    // files domain refuses a ref outside the org before any byte moves.
+    mailAttachments: ({ organizationId, storageRef }) =>
+      getOrgBlobBytes(sql, organizationId, storageRef),
     ...(mailTransportOverride !== undefined
       ? { mailTransport: mailTransportOverride }
       : {}),

@@ -167,15 +167,15 @@ actions:
           description: 'Thread Message-ID chain (root … parent) for the References header.'
         attachments:
           type: array
-          description: 'Files to attach; each streamed from its presigned URL.'
+          description: "Files to attach; each names a blob ref (storageRef) of a file this organization uploaded. A URL or a path is refused."
           items:
             type: object
-            required: [name, url]
+            required: [name, storageRef]
             properties:
               name: { type: string }
               contentType: { type: string }
               size: { type: number }
-              url: { type: string }
+              storageRef: { type: string }
         notificationSender:
           {
             type: boolean,

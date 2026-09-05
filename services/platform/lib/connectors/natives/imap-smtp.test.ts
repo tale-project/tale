@@ -7,9 +7,11 @@ import {
   discoverSentMailbox,
   fetchSummaries,
   imapSmtpNatives,
+  type MailAttachmentResolver,
   mailboxConfigFromCredential,
   mailAttachmentsFromParsed,
   MAX_ATTACHMENT_BYTES,
+  nodeMailTransport,
   resolveImapFlowConstructor,
   resolveNodemailerCreateTransport,
   selectMailbox,
@@ -191,8 +193,37 @@ function stubTransport(options: TransportOptions = {}): MailTransport & {
   };
 }
 
-function natives(transport: MailTransport) {
-  return imapSmtpNatives({ transport, resolveConfig: () => CONFIG });
+/** The org blob store double: bytes by ref, refusing a ref outside `org_1`. */
+const ATTACHMENT_BYTES = new TextEncoder().encode('%PDF-1.4 invoice');
+function resolveAttachment(): MailAttachmentResolver & {
+  calls: Array<{ organizationId: string; storageRef: string }>;
+} {
+  const calls: Array<{ organizationId: string; storageRef: string }> = [];
+  const resolver = ((args: { organizationId: string; storageRef: string }) => {
+    calls.push(args);
+    if (!args.storageRef.startsWith('s3:org_1/')) {
+      return Promise.reject(new Error('Invalid blob reference'));
+    }
+    return Promise.resolve({
+      bytes: ATTACHMENT_BYTES,
+      contentType: 'application/pdf',
+    });
+  }) as MailAttachmentResolver & {
+    calls: Array<{ organizationId: string; storageRef: string }>;
+  };
+  resolver.calls = calls;
+  return resolver;
+}
+
+function natives(
+  transport: MailTransport,
+  resolver: MailAttachmentResolver = resolveAttachment(),
+) {
+  return imapSmtpNatives({
+    transport,
+    resolveConfig: () => CONFIG,
+    resolveAttachment: resolver,
+  });
 }
 
 afterEach(() => {
@@ -516,9 +547,10 @@ describe('send', () => {
     });
   });
 
-  it('carries cc, the References chain, and attachments', async () => {
+  it('carries cc, the References chain, and attachments resolved from the org blob store', async () => {
     const transport = stubTransport();
-    await natives(transport)['imap-smtp.send'](
+    const resolver = resolveAttachment();
+    await natives(transport, resolver)['imap-smtp.send'](
       {
         to: 'person@example.com',
         cc: 'watcher@example.com, boss@example.com',
@@ -531,13 +563,17 @@ describe('send', () => {
             name: 'invoice.pdf',
             contentType: 'application/pdf',
             size: 1024,
-            url: 'https://blob.example.test/invoice.pdf?sig=abc',
+            storageRef: 's3:org_1/blob-invoice',
           },
         ],
       },
       context(),
     );
 
+    // Resolved for the invoking org, never for one the input might name.
+    expect(resolver.calls).toEqual([
+      { organizationId: 'org_1', storageRef: 's3:org_1/blob-invoice' },
+    ]);
     expect(transport.log.sent[0]).toMatchObject({
       cc: 'watcher@example.com, boss@example.com',
       references: ['<root@example.com>', '<parent@example.com>'],
@@ -545,10 +581,59 @@ describe('send', () => {
         {
           filename: 'invoice.pdf',
           contentType: 'application/pdf',
-          url: 'https://blob.example.test/invoice.pdf?sig=abc',
+          content: ATTACHMENT_BYTES,
         },
       ],
     });
+  });
+
+  it.each([
+    ['an https URL', 'https://blob.example.test/invoice.pdf?sig=abc'],
+    ['a filesystem path', '/etc/hostname'],
+    ['a file: URI', 'file:///etc/passwd'],
+    ['a data: URI', 'data:text/plain;base64,aGk='],
+    ['a link-local URL', 'http://169.254.169.254/latest/meta-data/'],
+  ])(
+    'refuses an attachment that names %s instead of a blob ref, before any connection opens',
+    async (_label, url) => {
+      // The mail library reads a `path` and fetches an `href` for a part that
+      // names one: a caller-chosen location was a read of any file or URL the
+      // backend could reach, delivered by mail. Only a blob ref is accepted.
+      const transport = stubTransport();
+      const resolver = resolveAttachment();
+      await expect(
+        natives(transport, resolver)['imap-smtp.send'](
+          {
+            to: 'person@example.com',
+            subject: 'Hello',
+            text: 'Hi.',
+            attachments: [{ name: 'x', url }],
+          },
+          context(),
+        ),
+      ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+      expect(resolver.calls).toEqual([]);
+      expect(transport.log.smtpOpened).toBe(0);
+    },
+  );
+
+  it('refuses a blob ref the organization does not own, before any connection opens', async () => {
+    const transport = stubTransport();
+    const resolver = resolveAttachment();
+    const attempt = natives(transport, resolver)['imap-smtp.send'](
+      {
+        to: 'person@example.com',
+        subject: 'Hello',
+        text: 'Hi.',
+        attachments: [
+          { name: 'secrets.json', storageRef: 's3:other-org/blob-1' },
+        ],
+      },
+      context(),
+    );
+    await expect(attempt).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    await expect(attempt).rejects.toThrow(/this organization owns/);
+    expect(transport.log.smtpOpened).toBe(0);
   });
 
   it('refuses a line break injected through cc before opening a connection', async () => {
@@ -650,6 +735,57 @@ describe('mail library interop', () => {
     expect(() => resolveImapFlowConstructor({ ImapFlow: {} })).toThrow(
       /ImapFlow constructor/,
     );
+  });
+
+  it('hands nodemailer attachment bytes and forbids it from reading a path or URL', async () => {
+    // Belt for the contract above: even if a location ever reached a part,
+    // the library refuses to read it — the transport is never a file or URL
+    // reader for whoever composes the message.
+    const sent: Array<Record<string, unknown>> = [];
+    const createTransport = vi.fn(() => ({
+      sendMail: (mail: Record<string, unknown>) => {
+        sent.push(mail);
+        return Promise.resolve({ messageId: '<real-1@example.com>' });
+      },
+      close: () => {},
+    }));
+    vi.doMock('nodemailer', () => ({ createTransport }));
+    try {
+      const smtp = await nodeMailTransport().openSmtp(CONFIG);
+      const result = await smtp.send({
+        from: 'mailbox@example.com',
+        to: 'person@example.com',
+        subject: 'Hello',
+        text: 'Hi.',
+        attachments: [
+          {
+            filename: 'invoice.pdf',
+            contentType: 'application/pdf',
+            content: ATTACHMENT_BYTES,
+          },
+        ],
+      });
+      await smtp.close();
+      expect(result).toEqual({ messageId: '<real-1@example.com>' });
+      expect(sent[0]).toMatchObject({
+        disableFileAccess: true,
+        disableUrlAccess: true,
+        attachments: [
+          {
+            filename: 'invoice.pdf',
+            contentType: 'application/pdf',
+            content: Buffer.from(ATTACHMENT_BYTES),
+          },
+        ],
+      });
+      const parts = sent[0]?.attachments as
+        | Array<Record<string, unknown>>
+        | undefined;
+      expect(parts?.[0]).not.toHaveProperty('path');
+      expect(parts?.[0]).not.toHaveProperty('href');
+    } finally {
+      vi.doUnmock('nodemailer');
+    }
   });
 
   it('accepts nodemailer createTransport from the CJS named export', () => {

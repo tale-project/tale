@@ -180,16 +180,17 @@ export interface ImapSession {
 }
 
 /**
- * One outbound attachment. Bytes are NOT inlined here: the send lane presigns a
- * short-lived GET against the org's own blob store (the same `getFileUrl` the
- * Gmail/Graph send paths use) and the transport streams from that URL, so a
- * reply carries the files the sender attached without holding them in memory.
+ * One outbound attachment, bytes in hand. The native resolves them itself from
+ * the org-scoped blob ref the caller names (see {@link MailAttachmentResolver})
+ * BEFORE the transport opens; the transport never fetches a URL or reads a
+ * path — a caller-supplied location handed to the mail library was a read of
+ * any file or URL the backend could reach, mailed to a recipient of the
+ * caller's choosing.
  */
 export interface OutboundAttachment {
   readonly filename: string;
   readonly contentType?: string;
-  /** Presigned org-blob GET the transport fetches the bytes from. */
-  readonly url: string;
+  readonly content: Uint8Array;
 }
 
 export interface OutboundMail {
@@ -235,9 +236,21 @@ export type MailboxConfigResolver = (
   ctx: NativeConnectorContext,
 ) => Promise<MailboxConfig> | MailboxConfig;
 
+/**
+ * Where an outbound attachment's bytes come from: the platform's own blob
+ * store, scoped to the organization the invocation runs for. The native never
+ * accepts a URL or a path for an attachment — the resolver is the ONLY door
+ * to bytes, and it is the host's job to refuse a ref outside the org.
+ */
+export type MailAttachmentResolver = (args: {
+  organizationId: string;
+  storageRef: string;
+}) => Promise<{ bytes: Uint8Array; contentType?: string }>;
+
 export interface MailNativeDeps {
   readonly transport: MailTransport;
   readonly resolveConfig?: MailboxConfigResolver;
+  readonly resolveAttachment: MailAttachmentResolver;
 }
 
 // -------------------------------------------------------------------- helpers
@@ -504,12 +517,20 @@ const listInput = z.object({
   mailbox: z.string().optional(),
 });
 
-const sendAttachmentInput = z.object({
-  name: z.string().min(1),
-  contentType: z.string().optional(),
-  size: z.number().optional(),
-  url: z.string().min(1),
-});
+/**
+ * An attachment names an org blob ref — never a URL or a path. `strict` so a
+ * caller that still passes `url` (or any other location) is refused at the
+ * input check rather than silently ignored: the bytes MUST come through the
+ * host's org-scoped resolver.
+ */
+const sendAttachmentInput = z
+  .object({
+    name: z.string().min(1),
+    contentType: z.string().optional(),
+    size: z.number().optional(),
+    storageRef: z.string().min(1),
+  })
+  .strict();
 
 const sendInput = z.object({
   to: z.string().min(1),
@@ -652,11 +673,36 @@ export function imapSmtpNatives(
       parsed.notificationSender === true
         ? notificationSenderFrom(config.from)
         : config.from;
-    const attachments: OutboundAttachment[] = (parsed.attachments ?? []).map(
-      (att) =>
-        att.contentType !== undefined
-          ? { filename: att.name, url: att.url, contentType: att.contentType }
-          : { filename: att.name, url: att.url },
+    // Resolve every attachment through the host's org-scoped store BEFORE the
+    // SMTP session opens: a ref the org does not own is refused here, and the
+    // transport only ever sees bytes.
+    const attachments: OutboundAttachment[] = await Promise.all(
+      (parsed.attachments ?? []).map(async (att) => {
+        let resolved: Awaited<ReturnType<MailAttachmentResolver>>;
+        try {
+          resolved = await deps.resolveAttachment({
+            organizationId: ctx.organizationId,
+            storageRef: att.storageRef,
+          });
+        } catch (cause) {
+          throw new ConnectorError(
+            'INPUT_INVALID',
+            `attachment "${att.name.slice(0, 120)}" does not resolve to a file this organization owns`,
+            {
+              connector: CONNECTOR,
+              action: 'send',
+              hint: 'pass the storageRef of a file uploaded to this organization',
+              cause,
+            },
+          );
+        }
+        const contentType = att.contentType ?? resolved.contentType;
+        const outbound: OutboundAttachment =
+          contentType !== undefined
+            ? { filename: att.name, content: resolved.bytes, contentType }
+            : { filename: att.name, content: resolved.bytes };
+        return outbound;
+      }),
     );
     const message: OutboundMail = {
       from,
@@ -1129,19 +1175,21 @@ export function nodeMailTransport(): MailTransport {
               inReplyTo: message.inReplyTo,
             }),
             ...(references !== undefined && { references }),
-            // Stream each part from its presigned org-blob GET rather than
-            // buffering the bytes here.
+            // The library may read a `path` or fetch an `href` for any part
+            // that names one. Every part here carries bytes, and these two
+            // flags make the library refuse a location outright should one
+            // ever reach it — the transport is never a file or URL reader.
+            disableFileAccess: true,
+            disableUrlAccess: true,
             ...(message.attachments !== undefined &&
               message.attachments.length > 0 && {
-                attachments: message.attachments.map((att) =>
-                  att.contentType !== undefined
-                    ? {
-                        filename: att.filename,
-                        path: att.url,
-                        contentType: att.contentType,
-                      }
-                    : { filename: att.filename, path: att.url },
-                ),
+                attachments: message.attachments.map((att) => ({
+                  filename: att.filename,
+                  content: Buffer.from(att.content),
+                  ...(att.contentType !== undefined && {
+                    contentType: att.contentType,
+                  }),
+                })),
               }),
           });
           // Empty falls through to the action's own Message-ID check.

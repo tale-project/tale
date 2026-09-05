@@ -14,6 +14,7 @@ import {
 import {
   NATIVE_IMPL_IDS,
   registerNativeConnectors,
+  type MailAttachmentResolver,
   type MailTransport,
   type SandboxScriptRunner,
   type WebdavStore,
@@ -252,6 +253,13 @@ const transport: MailTransport = {
     }),
 };
 
+/** The attachment double: bytes by blob ref, no object store. */
+const mailAttachments: MailAttachmentResolver = ({ storageRef }) =>
+  Promise.resolve({
+    bytes: new TextEncoder().encode(`bytes of ${storageRef}`),
+    contentType: 'application/octet-stream',
+  });
+
 /** The script-runner double: the declared shape, no sandbox. Mirrors the
  * connector mock's result keys so the live-vs-mock shape comparison holds. */
 const scriptRunner: SandboxScriptRunner = ({ skill, entry }) =>
@@ -402,6 +410,7 @@ beforeEach(() => {
     tasks: taskStore,
     documents: documentStore,
     conversations: conversationStore,
+    mailAttachments,
     mailTransport: transport,
     mailConfig: () => ({
       imap: {
@@ -446,6 +455,7 @@ describe('registration', () => {
       tasks: taskStore,
       documents: documentStore,
       conversations: conversationStore,
+      mailAttachments,
       mailTransport: transport,
     });
   });
@@ -497,6 +507,7 @@ describe('dispatching the shipped native actions', () => {
       tasks: taskStore,
       documents: documentStore,
       conversations: conversationStore,
+      mailAttachments,
       mailTransport: transport,
     });
   });
@@ -534,6 +545,7 @@ describe('dispatching the shipped native actions', () => {
         sandboxScripts: scriptRunner,
         documents: documentStore,
         conversations: conversationStore,
+        mailAttachments,
         mailTransport: transport,
         tasks: {
           ...taskStore,

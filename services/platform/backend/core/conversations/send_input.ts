@@ -34,6 +34,9 @@ export function buildSendInput(args: {
     name: string;
     contentType: string;
     size: number;
+    /** The org blob ref — what the imap-smtp native resolves bytes from. */
+    storageRef: string;
+    /** A presigned GET — what the API-mail bodies fetch bytes from. */
     url: string;
   }>;
 }): Record<string, unknown> {
@@ -43,8 +46,9 @@ export function buildSendInput(args: {
 
   if (connector === 'imap-smtp') {
     // The imap-smtp native carries the same fidelity as the API-mail send
-    // paths now: cc, the References chain, and attachments (streamed from their
-    // presigned URLs) — a reply must send everything the sender attached/cc'd.
+    // paths now: cc, the References chain, and attachments — a reply must send
+    // everything the sender attached/cc'd. Attachments travel as the org blob
+    // ref, never a URL: the native reads bytes only through the org's store.
     return {
       to: recipients,
       ...(args.cc && args.cc.length > 0 && { cc: joinRecipients(args.cc) }),
@@ -58,7 +62,7 @@ export function buildSendInput(args: {
           name: att.name,
           contentType: att.contentType,
           size: att.size,
-          url: att.url,
+          storageRef: att.storageRef,
         })),
       }),
     };
@@ -79,7 +83,12 @@ export function buildSendInput(args: {
       connector === 'outlook' ? args.references : args.references.join(' ');
   }
   if (args.attachments.length > 0) {
-    base.attachments = args.attachments;
+    base.attachments = args.attachments.map((att) => ({
+      name: att.name,
+      contentType: att.contentType,
+      size: att.size,
+      url: att.url,
+    }));
   }
   return base;
 }

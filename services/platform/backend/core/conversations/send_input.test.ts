@@ -13,6 +13,7 @@ const ATTACHMENT = {
   name: 'invoice.pdf',
   contentType: 'application/pdf',
   size: 2048,
+  storageRef: 's3:acme/blob-invoice',
   url: 'https://blob.example.test/invoice.pdf?sig=abc',
 };
 
@@ -37,8 +38,17 @@ describe('buildSendInput — imap-smtp fidelity', () => {
       html: '<p>On its way.</p>',
       inReplyTo: '<parent@example.com>',
       references: ['<root@example.com>', '<parent@example.com>'],
-      attachments: [ATTACHMENT],
     });
+    // The native resolves bytes from the org blob ref itself; a URL handed to
+    // the mail library would be a read of whatever it points at.
+    expect(input.attachments).toEqual([
+      {
+        name: 'invoice.pdf',
+        contentType: 'application/pdf',
+        size: 2048,
+        storageRef: 's3:acme/blob-invoice',
+      },
+    ]);
   });
 
   it('omits cc/references/attachments when the reply has none', () => {
@@ -71,7 +81,16 @@ describe('buildSendInput — imap-smtp fidelity', () => {
     expect(gmail).toMatchObject({
       cc: 'boss@example.com',
       references: '<root@example.com>',
-      attachments: [ATTACHMENT],
     });
+    // The yaml-js bodies fetch the presigned URL through the mediated
+    // `ctx.http`; the blob ref is the native's contract, not theirs.
+    expect(gmail.attachments).toEqual([
+      {
+        name: 'invoice.pdf',
+        contentType: 'application/pdf',
+        size: 2048,
+        url: 'https://blob.example.test/invoice.pdf?sig=abc',
+      },
+    ]);
   });
 });
