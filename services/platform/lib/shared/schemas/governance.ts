@@ -8,9 +8,10 @@ import {
 } from '../session-idle';
 import { piiConfigSchema } from './pii';
 
-// Single source of truth for policy types. The Convex side
-// `governance/schema.ts::GOVERNANCE_POLICY_TYPES` MUST stay in sync;
-// drift causes silent type holes and `as const` casts at call sites.
+// THE list of policy types. Every other reader derives from it — the app
+// contract (`app/lib/backend/contract/governance.ts`) types `policyType` as
+// `PolicyType`, the file lane keys `POLICY_SCHEMAS` by it — so there is no
+// second copy to keep in sync; `governance.test.ts` pins the schema map.
 export const POLICY_TYPES = [
   'system_prompt',
   'budgets',
