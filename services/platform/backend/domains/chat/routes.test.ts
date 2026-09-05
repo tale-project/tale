@@ -15,12 +15,16 @@ const {
   trashThread,
   listArchivedThreads,
   searchApprovedMemories,
+  saveMemory,
+  deleteMemory,
   cancelDeferredSendsForThread,
   emitHintInTx,
 } = vi.hoisted(() => ({
   trashThread: vi.fn(),
   listArchivedThreads: vi.fn(),
   searchApprovedMemories: vi.fn(),
+  saveMemory: vi.fn(),
+  deleteMemory: vi.fn(),
   cancelDeferredSendsForThread: vi.fn(),
   emitHintInTx: vi.fn(),
 }));
@@ -33,6 +37,8 @@ vi.mock('./threads.ts', async (importOriginal) => ({
 vi.mock('./memories.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./memories.ts')>()),
   searchApprovedMemories,
+  saveMemory,
+  deleteMemory,
 }));
 vi.mock('./deferred-sends.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./deferred-sends.ts')>()),
@@ -64,6 +70,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
 });
 
 import { endAllEventStreams } from '../../realtime/sse.ts';
+import { MemoryError } from './memories.ts';
 import { createChatRoutes } from './routes.ts';
 
 function makeApp(sql: unknown = {}) {
@@ -208,5 +215,41 @@ describe('GET /threads/:threadId/stream — enrolled in the shutdown drain', () 
     ).resolves.toBe('ended');
     // Unregistered on the way out: nothing left to drain.
     expect(endAllEventStreams()).toBe(0);
+  });
+});
+
+describe('the memory doors', () => {
+  it('answers a refused proposal with its code and status, not a 500', async () => {
+    saveMemory.mockRejectedValue(
+      new MemoryError('MEMORIES_DISABLED', 'Memories are turned off.', 403),
+    );
+
+    const res = await makeApp().request('/memories?orgId=o1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: 'Prefers metric units' }),
+    });
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({
+      error: 'MEMORIES_DISABLED',
+      message: 'Memories are turned off.',
+    });
+  });
+
+  it('deletes a memory of the caller through DELETE /memories/:id', async () => {
+    deleteMemory.mockResolvedValue(true);
+
+    const res = await makeApp().request('/memories/mem_1?orgId=o1', {
+      method: 'DELETE',
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true });
+    expect(deleteMemory).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'o1',
+      userId: 'u1',
+      memoryId: 'mem_1',
+    });
   });
 });

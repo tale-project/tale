@@ -40,7 +40,9 @@ import {
 } from './deferred-sends.ts';
 import { getOrgChatHealth } from './health.ts';
 import {
+  deleteMemory,
   listMemories,
+  MemoryError,
   reviewMemory,
   saveMemory,
   searchApprovedMemories,
@@ -856,19 +858,29 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
-    const id = await saveMemory(deps.sql, {
-      organizationId,
-      userId,
-      email: c.get('sessionBundle').user.email,
-      content: body.data.content,
-      ...(body.data.sourceThreadId !== undefined
-        ? { sourceThreadId: body.data.sourceThreadId }
-        : {}),
-      ...(body.data.sourceMessageId !== undefined
-        ? { sourceMessageId: body.data.sourceMessageId }
-        : {}),
-    });
-    return c.json({ id }, 201);
+    try {
+      const id = await saveMemory(deps.sql, {
+        organizationId,
+        userId,
+        email: c.get('sessionBundle').user.email,
+        content: body.data.content,
+        ...(body.data.sourceThreadId !== undefined
+          ? { sourceThreadId: body.data.sourceThreadId }
+          : {}),
+        ...(body.data.sourceMessageId !== undefined
+          ? { sourceMessageId: body.data.sourceMessageId }
+          : {}),
+      });
+      return c.json({ id }, 201);
+    } catch (error) {
+      if (error instanceof MemoryError) {
+        return c.json(
+          { error: error.code, message: error.message },
+          error.status,
+        );
+      }
+      throw error;
+    }
   });
 
   app.post('/memories/:memoryId/review', async (c) => {
@@ -883,6 +895,17 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         userId,
         memoryId: c.req.param('memoryId'),
         decision: body.data.decision,
+      }),
+    });
+  });
+
+  app.delete('/memories/:memoryId', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      ok: await deleteMemory(deps.sql, {
+        organizationId,
+        userId,
+        memoryId: c.req.param('memoryId'),
       }),
     });
   });

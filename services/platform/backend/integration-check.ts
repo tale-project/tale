@@ -29304,6 +29304,15 @@ async function checkChatMemoriesDeferredAuto(
     (await fetch(`${base}${route}`, { headers: { cookie } })).json();
 
   // ---- memories -----------------------------------------------------------
+  // The feature is OFF until the person (or the org policy) turns it on: a
+  // proposal while off is refused, not queued.
+  const refusedWhileOff = await post(`/api/app/chat/memories?orgId=${orgId}`, {
+    content: 'Prefers metric units',
+  });
+  const enabledMemories = await post(
+    `/api/app/user-preferences/memories-enabled?orgId=${orgId}`,
+    { enabled: true },
+  );
   const saved = z.object({ id: z.string() }).safeParse(
     await (
       await post(`/api/app/chat/memories?orgId=${orgId}`, {
@@ -29341,9 +29350,32 @@ async function checkChatMemoriesDeferredAuto(
         )
       ).json(),
     );
+  // Delete takes a saved memory out of what a search can return; then the
+  // switch off hides the rest from retrieval without touching the rows.
+  const deleted = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/chat/memories/${memoryId}?orgId=${orgId}`, {
+        method: 'DELETE',
+        headers: { cookie, origin: base },
+      })
+    ).json(),
+  );
+  const searchAfterDelete = z
+    .object({ memories: z.array(z.unknown()) })
+    .safeParse(
+      await get(`/api/app/chat/memories/search?orgId=${orgId}&q=metric`),
+    );
+  await post(`/api/app/user-preferences/memories-enabled?orgId=${orgId}`, {
+    enabled: false,
+  });
+  const refusedAgain = await post(`/api/app/chat/memories?orgId=${orgId}`, {
+    content: 'Prefers imperial units',
+  });
   record(
-    'memories: pending until approved, retrieval sees approved only',
-    saved.success &&
+    'memories: off until enabled, pending until approved, retrieval sees approved only',
+    refusedWhileOff.status === 403 &&
+      enabledMemories.ok &&
+      saved.success &&
       listedPending.success &&
       listedPending.data.pending.some((row) => row.id === memoryId) &&
       listedPending.data.approved.length === 0 &&
@@ -29352,8 +29384,13 @@ async function checkChatMemoriesDeferredAuto(
       searchApproved.success &&
       searchApproved.data.memories.length === 1 &&
       bogusReview.success &&
-      !bogusReview.data.ok,
-    `pending=${listedPending.success ? listedPending.data.pending.length : 'ERR'}, hiddenWhilePending=${searchWhilePending.success ? searchWhilePending.data.memories.length === 0 : 'ERR'}, approvedHits=${searchApproved.success ? searchApproved.data.memories.length : 'ERR'}, bogus=${bogusReview.success ? bogusReview.data.ok : 'ERR'} (want false)`,
+      !bogusReview.data.ok &&
+      deleted.success &&
+      deleted.data.ok &&
+      searchAfterDelete.success &&
+      searchAfterDelete.data.memories.length === 0 &&
+      refusedAgain.status === 403,
+    `refusedWhileOff=${refusedWhileOff.status} (want 403), pending=${listedPending.success ? listedPending.data.pending.length : 'ERR'}, hiddenWhilePending=${searchWhilePending.success ? searchWhilePending.data.memories.length === 0 : 'ERR'}, approvedHits=${searchApproved.success ? searchApproved.data.memories.length : 'ERR'}, bogus=${bogusReview.success ? bogusReview.data.ok : 'ERR'} (want false), deleted=${deleted.success ? deleted.data.ok : 'ERR'}, afterDelete=${searchAfterDelete.success ? searchAfterDelete.data.memories.length : 'ERR'}, refusedAgain=${refusedAgain.status} (want 403)`,
   );
 
   // ---- a live fake provider (catalog + streaming completions) -------------

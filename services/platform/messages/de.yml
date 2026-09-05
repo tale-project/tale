@@ -4528,14 +4528,23 @@ personalization:
       empty:
         Erinnerungen erscheinen hier, nachdem der Assistent sie vorgeschlagen hat
         und du sie speicherst.
+      delete: Löschen
+      deleteLabel: "Erinnerung löschen: {content}"
     pending:
       title: Ausstehende Vorschläge
       empty: Keine ausstehenden Vorschläge.
+      save: Speichern
+      saveLabel: "Vorschlag speichern: {content}"
+      discard: Verwerfen
+      discardLabel: "Vorschlag verwerfen: {content}"
   errors:
     saveFailed: Speichern fehlgeschlagen. Versuch es nochmal.
     tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.
   toasts:
     preferencesUpdated: Einstellungen aktualisiert.
+    memorySaved: Erinnerung gespeichert.
+    memoryDiscarded: Vorschlag verworfen.
+    memoryDeleted: Erinnerung gelöscht.
 piiConfigPanel:
   modeLabel: Modus
   modeTokenize: Tokenisieren
