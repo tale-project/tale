@@ -15,7 +15,10 @@ import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
-import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
+import {
+  checkOrganizationRateLimit,
+  RateLimitExceededError,
+} from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
@@ -106,6 +109,59 @@ export async function readEffectiveDsarPolicy(
   };
 }
 
+/**
+ * Park a request for the second admin: the approvals-inbox row the
+ * dual-approval policy waits on, plus the security bell. Shared by filing
+ * and by the Retry of a receipt that was blocked AT filing, so both doors
+ * park a request the same way (`confirmAndScheduleErasure` picks it up).
+ */
+async function parkForDualApproval(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    requestId: string;
+    targetUserId: string;
+    requestedBy: string;
+    reason: string;
+    reasonCode: string;
+    threadsTargetedCount: number;
+    now: number;
+  },
+): Promise<void> {
+  await tx`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${args.organizationId}, 'pending', 'erasure', ${args.requestId}, 'high',
+      ${tx.json(
+        toJson({
+          subjectUserId: args.targetUserId,
+          requestedBy: args.requestedBy,
+          reason: args.reason,
+          reasonCode: args.reasonCode,
+          threadsTargetedCount: args.threadsTargetedCount,
+        }),
+      )},
+      ${args.now}
+    )
+  `;
+  await writeNotificationForOrgs(tx, {
+    organizationIds: [args.organizationId],
+    category: 'security',
+    severity: 'warning',
+    titleKey: 'dsarApprovalNeeded',
+    bodyKey: 'dsarApprovalNeededBody',
+    params: {
+      subjectUserId: args.targetUserId,
+      requestedBy: args.requestedBy,
+      requestId: args.requestId,
+    },
+    subjectUserId: args.targetUserId,
+    link: { kind: 'dsar' },
+  });
+}
+
 export async function requestErasure(
   sql: Sql,
   args: {
@@ -164,8 +220,15 @@ export async function requestErasure(
       'governance:dsar_request',
       `${args.organizationId}:${args.actorId}`,
     );
-  } catch {
-    return deny('rate_limited');
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return deny('rate_limited');
+    }
+    // A limiter outage is not a denial: writing 'rate_limited' into the
+    // permanent audit chain would misinform every later reader, so the real
+    // error surfaces instead (the house idiom, `chargeOrgRateLimit`).
+    console.error('[erasure] rate-limit check failed:', error);
+    throw error;
   }
 
   const now = Date.now();
@@ -240,37 +303,15 @@ export async function requestErasure(
         // admin (≠ filer) must approve it in the Approvals inbox; their
         // decision runs `confirmAndScheduleErasure`, which sets
         // `effective_at_ms` and enqueues the cooling-off processor.
-        await tx`
-          INSERT INTO app.approvals (
-            org_id, status, resource_type, resource_id, priority, metadata,
-            created_at_ms
-          ) VALUES (
-            ${args.organizationId}, 'pending', 'erasure', ${id}, 'high',
-            ${tx.json(
-              toJson({
-                subjectUserId: args.targetUserId,
-                requestedBy: args.actorId,
-                reason: args.reason.trim(),
-                reasonCode: args.reasonCode,
-                threadsTargetedCount: threadIds.length,
-              }),
-            )},
-            ${now}
-          )
-        `;
-        await writeNotificationForOrgs(tx, {
-          organizationIds: [args.organizationId],
-          category: 'security',
-          severity: 'warning',
-          titleKey: 'dsarApprovalNeeded',
-          bodyKey: 'dsarApprovalNeededBody',
-          params: {
-            subjectUserId: args.targetUserId,
-            requestedBy: args.actorId,
-            requestId: id,
-          },
-          subjectUserId: args.targetUserId,
-          link: { kind: 'dsar' },
+        await parkForDualApproval(tx, {
+          organizationId: args.organizationId,
+          requestId: id,
+          targetUserId: args.targetUserId,
+          requestedBy: args.actorId,
+          reason: args.reason.trim(),
+          reasonCode: args.reasonCode,
+          threadsTargetedCount: threadIds.length,
+          now,
         });
       } else {
         // Default cooling-off path: the row stays `pending` until
@@ -465,8 +506,20 @@ export async function cancelErasure(
   });
 }
 
-/** Re-arm a blocked/partial/failed request (the operator released the hold
- * or wants a fresh pass). Re-checks the hold gate. */
+/**
+ * Re-arm a blocked/partial/failed request (the operator released the hold
+ * or wants a fresh pass). Re-checks the hold gate.
+ *
+ * A receipt blocked AT FILING (`effective_at_ms` still NULL — the hold gate
+ * answered before the policy branch ever ran) has never passed the
+ * request-time policy, so its Retry is the filing it never got: dual
+ * approval parks it for the second admin, otherwise the cooling-off window
+ * applies and any admin may still cancel. A partial/failed receipt, or one
+ * blocked at execution time, was approved and scheduled once already, so
+ * it re-runs immediately. The re-arm is a compare-and-set on the status:
+ * two Retries racing each other, or a Retry racing a finishing cascade,
+ * must never flip a settled receipt back to pending.
+ */
 export async function retryErasure(
   sql: Sql,
   args: {
@@ -478,8 +531,24 @@ export async function retryErasure(
   },
 ): Promise<void> {
   const holds = await loadActiveHolds(sql, args.organizationId);
-  const rows = await sql<{ targetUserId: string; error: string | null }[]>`
-    SELECT target_user_id AS "targetUserId", error
+  const rows = await sql<
+    {
+      targetUserId: string;
+      error: string | null;
+      status: string;
+      effectiveAt: number | null;
+      requestedBy: string;
+      reason: string;
+      reasonCode: string;
+      threadsTargeted: number;
+    }[]
+  >`
+    SELECT target_user_id AS "targetUserId", error, status,
+           effective_at_ms::float8 AS "effectiveAt",
+           requested_by AS "requestedBy", reason,
+           reason_code AS "reasonCode",
+           coalesce(array_length(threads_targeted, 1), 0)::int
+             AS "threadsTargeted"
     FROM app.gdpr_erasure_requests
     WHERE id = ${args.requestId} AND org_id = ${args.organizationId}
       AND status IN ('blocked', 'partial', 'failed')
@@ -516,16 +585,54 @@ export async function retryErasure(
       },
     );
   }
-  const effectiveAt = Date.now();
+  const blockedAtFiling =
+    target.status === 'blocked' && target.effectiveAt === null;
+  const policy = blockedAtFiling
+    ? await readEffectiveDsarPolicy(sql, args.organizationId)
+    : null;
+  const now = Date.now();
+  const awaitingApproval = policy?.requireDualApproval === true;
+  const effectiveAt = awaitingApproval
+    ? null
+    : policy === null
+      ? now
+      : now + policy.coolingOffHours * HOUR_MS;
   await sql.begin(async (tx) => {
-    await tx`
+    const rearmed = await tx<{ id: string }[]>`
       UPDATE app.gdpr_erasure_requests SET status = 'pending',
         effective_at_ms = ${effectiveAt}
-      WHERE id = ${args.requestId}
+      WHERE id = ${args.requestId} AND org_id = ${args.organizationId}
+        AND status IN ('blocked', 'partial', 'failed')
+      RETURNING id
     `;
-    await addJobInTx(tx, 'governance.process_erasure', {
-      requestId: args.requestId,
-    });
+    if (rearmed.length === 0) {
+      throw new ErasureError(
+        'NOT_RETRIABLE',
+        'The request left the retriable states while retrying.',
+        409,
+      );
+    }
+    if (awaitingApproval) {
+      await parkForDualApproval(tx, {
+        organizationId: args.organizationId,
+        requestId: args.requestId,
+        targetUserId: target.targetUserId,
+        requestedBy: target.requestedBy,
+        reason: target.reason,
+        reasonCode: target.reasonCode,
+        threadsTargetedCount: target.threadsTargeted,
+        now,
+      });
+    } else {
+      await addJobInTx(
+        tx,
+        'governance.process_erasure',
+        { requestId: args.requestId },
+        effectiveAt !== null && effectiveAt > now
+          ? { startAfter: new Date(effectiveAt) }
+          : {},
+      );
+    }
     await createAuditLog(tx, {
       organizationId: args.organizationId,
       actorId: args.actor?.userId ?? 'system',
@@ -542,6 +649,7 @@ export async function retryErasure(
         status: 'pending',
         requestId: args.requestId,
         effectiveAt,
+        ...(awaitingApproval ? { awaitingApproval: true } : {}),
       },
     });
     await emitHintInTx(tx, {
@@ -661,10 +769,40 @@ export async function processErasure(
   // cooling-off window blocks the cascade.
   const holds = await loadActiveHolds(sql, organizationId);
   if (holds.orgHeld || holds.userMembershipIds.has(targetUserId)) {
-    await sql`
-      UPDATE app.gdpr_erasure_requests SET status = 'blocked'
-      WHERE id = ${requestId}
-    `;
+    const userCustodianHeld = holds.userMembershipIds.has(targetUserId);
+    await sql.begin(async (tx) => {
+      // The claim above stamped `started_at_ms`; nothing ran, so the stamp
+      // comes off again — a blocked receipt has no start. The audit row is
+      // the timeline's (and the compliance chain's) record of WHY a
+      // scheduled erasure stopped; the hint refreshes the open drawer.
+      await tx`
+        UPDATE app.gdpr_erasure_requests SET
+          status = 'blocked', started_at_ms = NULL
+        WHERE id = ${requestId}
+      `;
+      await createAuditLog(tx, {
+        organizationId,
+        actorId: 'system',
+        actorType: 'system',
+        action: 'gdpr_erasure_blocked_by_hold',
+        category: 'admin',
+        resourceType: 'user',
+        resourceId: targetUserId,
+        status: 'failure',
+        errorMessage: 'LEGAL_HOLD_BLOCKS_ERASURE',
+        newState: {
+          requestId,
+          orgHeld: holds.orgHeld,
+          userCustodianHeld,
+          atExecution: true,
+        },
+      });
+      await emitHintInTx(tx, {
+        orgId: organizationId,
+        entity: 'gdpr_erasure',
+        entityId: requestId,
+      });
+    });
     return;
   }
 
@@ -944,6 +1082,22 @@ export async function processErasure(
       RETURNING id
     `;
     return removed.length;
+  });
+
+  // Project-agent runs the subject kicked off. `started_by` is the bare user
+  // id — the retention sweep spares a custodian's runs on exactly that
+  // column, so the slice already treats them as the starter's data — and
+  // `feedback` is the subject's own words about the result. Pseudonymised
+  // rather than deleted, like review decisions below: a run is task history
+  // other members rely on, so the row stays and the identity goes.
+  await pass('agentRuns', async () => {
+    const changed = await sql<{ id: string }[]>`
+      UPDATE app.project_agent_runs SET
+        started_by = ${ERASED_SUBJECT}, feedback = NULL
+      WHERE org_id = ${organizationId} AND started_by = ${targetUserId}
+      RETURNING id
+    `;
+    return changed.length;
   });
 
   // Review decisions are pseudonymized rather than deleted: the decision is
@@ -1525,9 +1679,9 @@ export async function confirmAndScheduleErasure(
  * with `effective_at_ms` NULL forever — unschedulable, and the live
  * partial-unique index blocked ever re-filing the subject. A rejection
  * lands the receipt in the terminal `cancelled` state (the existing status
- * vocabulary; the live index covers only pending/running, so the subject
- * becomes re-filable), attributed to the rejecting admin with a distinct
- * `gdpr_erasure_rejected` audit action. An already-scheduled or settled
+ * vocabulary; the live index covers pending/running/blocked/partial, so
+ * the subject becomes re-filable), attributed to the rejecting admin with
+ * a distinct `gdpr_erasure_rejected` audit action. An already-scheduled or settled
  * row is a no-op: the decision FSM refuses a second decide anyway, and a
  * cancel that raced ahead already settled the receipt.
  */
