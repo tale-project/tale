@@ -136,6 +136,7 @@ export async function upsertAgentDocument(
 
     const refresh = async (existing: {
       id: string;
+      fileRef: string | null;
       record: Record<string, unknown> | null;
     }): Promise<{ documentId: string; action: 'updated' }> => {
       // 'agent' documents can be controlled records (records.ts): a re-run
@@ -152,6 +153,13 @@ export async function upsertAgentDocument(
           lifecycle_status = 'active', updated_at_ms = ${now}
         WHERE id = ${existing.id}
       `;
+      if (existing.fileRef !== null && existing.fileRef !== args.fileRef) {
+        await releasePreviousBlob(tx, {
+          organizationId: args.organizationId,
+          documentId: existing.id,
+          previousFileRef: existing.fileRef,
+        });
+      }
       await auditWrite(tx, args, 'updated', existing.id, title);
       return { documentId: existing.id, action: 'updated' as const };
     };
@@ -194,11 +202,19 @@ export async function upsertAgentDocument(
 async function lockAgentDocument(
   tx: TransactionSql,
   args: { organizationId: string; externalItemId: string },
-): Promise<{ id: string; record: Record<string, unknown> | null } | null> {
+): Promise<{
+  id: string;
+  fileRef: string | null;
+  record: Record<string, unknown> | null;
+} | null> {
   const rows = await tx<
-    { id: string; record: Record<string, unknown> | null }[]
+    {
+      id: string;
+      fileRef: string | null;
+      record: Record<string, unknown> | null;
+    }[]
   >`
-    SELECT id, record FROM app.documents
+    SELECT id, file_ref AS "fileRef", record FROM app.documents
     WHERE org_id = ${args.organizationId}
       AND external_item_id = ${args.externalItemId}
     ORDER BY created_at_ms
@@ -206,6 +222,33 @@ async function lockAgentDocument(
     FOR UPDATE
   `;
   return rows[0] ?? null;
+}
+
+/**
+ * Rotate the blob a refresh replaced out of existence: the previous bytes'
+ * file row is unbound and trashed so the liveness predicate reads it dead,
+ * and the durable `knowledge.release_refs` job (enqueued in this
+ * transaction, run after commit) de-indexes and deletes the bytes — the
+ * replacement lane's idiom. Without this every re-run of a report-writing
+ * automation left the previous blob bound, active and counted against the
+ * uploader's quota forever; a purge released only the current ref.
+ */
+export async function releasePreviousBlob(
+  tx: TransactionSql,
+  args: { organizationId: string; documentId: string; previousFileRef: string },
+): Promise<void> {
+  await tx`
+    UPDATE app.file_metadata SET
+      document_id = NULL, lifecycle_status = 'trashed',
+      status_changed_at_ms = ${Date.now()}
+    WHERE org_id = ${args.organizationId}
+      AND document_id = ${args.documentId}
+      AND storage_ref = ${args.previousFileRef}
+  `;
+  await addJobInTx(tx, 'knowledge.release_refs', {
+    organizationId: args.organizationId,
+    refs: [args.previousFileRef],
+  });
 }
 
 /** The governance trail a standing-grant document write leaves. Rides the
