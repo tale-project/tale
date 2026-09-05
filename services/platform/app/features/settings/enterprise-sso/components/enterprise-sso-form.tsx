@@ -525,9 +525,9 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             idpEntityId: values.idpEntityId,
             idpSsoUrl: values.idpSsoUrl,
             idpCertificate: values.idpCertificate,
-            // An emptied certificate removes it (and flips the backend-derived
-            // `hasSpKeypair` off); the private key is a secret the backend
-            // reuses-on-omit, so a blank field keeps the stored one.
+            // An emptied certificate removes it; the private key is a secret
+            // the backend reuses-on-omit, so a blank field keeps the stored
+            // one (`hasSpKeypair` reports exactly that stored key).
             spCertificate: values.spCertificate.trim() || undefined,
             spPrivateKey: values.spPrivateKey.trim() || undefined,
             wantAssertionsSigned: values.wantAssertionsSigned,

@@ -89,7 +89,11 @@ export function createSsoAdminRoutes(deps: {
   });
 
   app.get('/config', async (c) => {
-    return c.json(await getSsoConnectionView(deps.sql, c.get('orgId')));
+    try {
+      return c.json(await getSsoConnectionView(deps.sql, c.get('orgId')));
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.put('/config/oidc', async (c) => {

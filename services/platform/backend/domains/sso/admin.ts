@@ -8,6 +8,7 @@ import {
   persistFiles,
   readExisting,
   removeConnectionFiles,
+  type ExistingSsoFiles,
 } from '../../core/enterprise_sso/config/file_store.ts';
 import { withoutGraphFileScopes } from '../../core/enterprise_sso/entra_id/constants.ts';
 import { getAdapter } from '../../core/enterprise_sso/registry.ts';
@@ -16,7 +17,7 @@ import { getPublicHttpApiUrl } from '../../core/lib/helpers/public_storage_url.t
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { getScimStatus } from '../scim/service.ts';
-import { readSsoConnection } from './config.ts';
+import { readSsoConnection, readSsoSecrets } from './config.ts';
 
 /**
  * The admin config-write surface for the file-backed SSO connection — the
@@ -44,6 +45,35 @@ export interface SsoActor {
   userId: string;
   email?: string;
   role?: string;
+}
+
+/**
+ * The connection files, or a readable refusal. `readExisting` throws on a
+ * corrupt `connection.yml` (a save must not proceed as if no connection
+ * existed and clobber it); through an admin door that throw is a bare 500,
+ * so map it to a 409 that names the file the operator has to repair.
+ */
+async function readFilesReadably<T>(
+  orgSlug: string,
+  read: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    // The cause stays in the log: a JSON.parse message quotes the source
+    // text, which for the secrets sidecar could echo a stored secret.
+    console.error('[sso] connection files unreadable', { orgSlug, error });
+    throw new SsoAdminError(
+      'sso_config_unreadable',
+      `The SSO connection files for ${orgSlug} are unreadable; see the server log.`,
+      409,
+    );
+  }
+}
+
+/** `readExisting` behind the readable refusal — every admin door's read. */
+function readExistingReadably(orgSlug: string): Promise<ExistingSsoFiles> {
+  return readFilesReadably(orgSlug, () => readExisting(orgSlug));
 }
 
 async function requireOrgSlug(
@@ -129,7 +159,7 @@ export async function upsertOidcConnection(
   args: UpsertOidcArgs,
 ): Promise<void> {
   const orgSlug = await requireOrgSlug(sql, organizationId);
-  const existing = await readExisting(orgSlug);
+  const existing = await readExistingReadably(orgSlug);
 
   const clientSecret = args.clientSecret ?? existing.secrets.clientSecret;
   if (!clientSecret) {
@@ -204,7 +234,7 @@ export async function upsertSamlConnection(
   args: UpsertSamlArgs,
 ): Promise<void> {
   const orgSlug = await requireOrgSlug(sql, organizationId);
-  const existing = await readExisting(orgSlug);
+  const existing = await readExistingReadably(orgSlug);
 
   const spPrivateKey = args.spPrivateKey ?? existing.secrets.spPrivateKey;
   // Requiring encrypted assertions without the key that decrypts them would
@@ -261,7 +291,7 @@ export async function setSsoProvisioning(
   args: SsoProvisioningInput,
 ): Promise<void> {
   const orgSlug = await requireOrgSlug(sql, organizationId);
-  const existing = await readExisting(orgSlug);
+  const existing = await readExistingReadably(orgSlug);
   const base: SsoConnectionFile = existing.config ?? {
     enabled: false,
     displayName: 'Enterprise SSO',
@@ -285,7 +315,7 @@ export async function setSsoEnabled(
   enabled: boolean,
 ): Promise<void> {
   const orgSlug = await requireOrgSlug(sql, organizationId);
-  const existing = await readExisting(orgSlug);
+  const existing = await readExistingReadably(orgSlug);
   if (!existing.config) return;
   const config: SsoConnectionFile = { ...existing.config, enabled };
   await persistFiles(orgSlug, config, existing.secrets);
@@ -314,7 +344,7 @@ export async function revealSsoClientId(
   organizationId: string,
 ): Promise<string | null> {
   const orgSlug = await requireOrgSlug(sql, organizationId);
-  const existing = await readExisting(orgSlug);
+  const existing = await readExistingReadably(orgSlug);
   return existing.secrets.clientId ?? null;
 }
 
@@ -342,9 +372,13 @@ export async function testSsoConnection(
 ): Promise<{ valid: boolean; error?: string }> {
   const adapter = getAdapter(args.providerId);
   if (!adapter) return { valid: false, error: 'Unknown provider' };
-  const orgSlug = await requireOrgSlug(sql, organizationId);
-  const existing = await readExisting(orgSlug);
-  const clientSecret = args.clientSecret || existing.secrets.clientSecret;
+  // The files are consulted only for the stored secret, so a typed secret
+  // keeps the probe independent of them (a corrupt file is the save's
+  // problem, reported there).
+  const clientSecret =
+    args.clientSecret ||
+    (await readExistingReadably(await requireOrgSlug(sql, organizationId)))
+      .secrets.clientSecret;
   return adapter.validateConfig({
     ...args,
     ...(clientSecret ? { clientSecret } : {}),
@@ -421,6 +455,17 @@ export async function getSsoConnectionView(
   const scim = await getScimStatus(sql, organizationId);
   const loaded = await readSsoConnection(sql, organizationId);
   const config = loaded?.config ?? null;
+  // The SP private key lives in the secrets sidecar and never rides the
+  // view; the form only needs to know one is stored (blank field = keep it),
+  // which is exactly what `upsertSamlConnection`'s encryption guard checks.
+  const hasSpKeypair =
+    loaded?.config.saml !== undefined
+      ? !!(
+          await readFilesReadably(loaded.orgSlug, () =>
+            readSsoSecrets(sql, organizationId),
+          )
+        ).spPrivateKey
+      : false;
   const shared = {
     scim: {
       enabled: scim.enabled,
@@ -488,9 +533,7 @@ export async function getSsoConnectionView(
           idpCertificate: config.saml.idpCertificate,
           wantAssertionsSigned: config.saml.wantAssertionsSigned,
           wantAssertionsEncrypted: config.saml.wantAssertionsEncrypted,
-          // The SP private key lives in the secrets sidecar; a configured
-          // public SP certificate signals the keypair exists.
-          hasSpKeypair: !!config.saml.spCertificate,
+          hasSpKeypair,
           spCertificate: config.saml.spCertificate,
           attributeMappings: config.saml.attributeMappings,
         }

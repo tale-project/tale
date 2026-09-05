@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SsoProviderAdapter } from '../../core/enterprise_sso/types.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import {
+  getSsoConnectionView,
   SsoAdminError,
   testSsoConnection,
   upsertSamlConnection,
@@ -48,6 +49,18 @@ function slugSql(slug: string): Sql {
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return tag as unknown as Sql;
+}
+
+/** A `connection.yml` no reader can parse — the operator-repair case. */
+async function corruptConnectionFile(
+  configRoot: string,
+  slug: string,
+): Promise<string> {
+  const dir = path.join(configRoot, slug, 'governance', 'sso');
+  await mkdir(dir, { recursive: true });
+  const file = path.join(dir, 'connection.yml');
+  await writeFile(file, 'protocol: [saml\n');
+  return file;
 }
 
 const probe = {
@@ -131,6 +144,32 @@ describe('testSsoConnection — the client secret reaches the adapter', () => {
     );
   });
 
+  it('probes with the typed secret without consulting a corrupt connection file', async () => {
+    await corruptConnectionFile(configRoot, 'acme');
+
+    await testSsoConnection(slugSql('acme'), 'org-1', {
+      ...probe,
+      clientSecret: 'freshly-typed',
+    });
+
+    expect(validateConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ clientSecret: 'freshly-typed' }),
+    );
+  });
+
+  it('refuses readably when the stored secret is needed but the file is corrupt', async () => {
+    await corruptConnectionFile(configRoot, 'acme');
+
+    const attempt = testSsoConnection(slugSql('acme'), 'org-1', probe);
+
+    await expect(attempt).rejects.toBeInstanceOf(SsoAdminError);
+    await expect(attempt).rejects.toMatchObject({
+      code: 'sso_config_unreadable',
+      status: 409,
+    });
+    expect(validateConfig).not.toHaveBeenCalled();
+  });
+
   it('refuses an unknown provider before reading anything', async () => {
     const result = await testSsoConnection(slugSql('acme'), 'org-1', {
       ...probe,
@@ -208,6 +247,22 @@ describe('upsertSamlConnection — encryption needs the key that decrypts', () =
     ).resolves.toBeUndefined();
   });
 
+  it('refuses readably instead of clobbering a corrupt connection file', async () => {
+    const file = await corruptConnectionFile(configRoot, 'acme');
+
+    const attempt = upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
+      ...saml,
+      spPrivateKey: 'typed-key',
+    });
+
+    await expect(attempt).rejects.toBeInstanceOf(SsoAdminError);
+    await expect(attempt).rejects.toMatchObject({
+      code: 'sso_config_unreadable',
+      status: 409,
+    });
+    expect(await readFile(file, 'utf8')).toBe('protocol: [saml\n');
+  });
+
   it('accepts the toggle when the key is already stored (reuse-on-omit)', async () => {
     const dir = path.join(configRoot, 'acme', 'governance', 'sso');
     await mkdir(dir, { recursive: true });
@@ -224,5 +279,104 @@ describe('upsertSamlConnection — encryption needs the key that decrypts', () =
         wantAssertionsEncrypted: true,
       }),
     ).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The view's `hasSpKeypair` is what the form reads to know a blank key field
+ * keeps a stored key — so it must report the STORED KEY (the secrets
+ * sidecar), the same fact the encryption guard checks, not the public
+ * certificate that happens to sit next to it in the config file.
+ */
+describe('getSsoConnectionView — hasSpKeypair reports the stored key', () => {
+  let configRoot: string;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-sso-admin-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+    clearOrgConfigCaches();
+  });
+
+  afterEach(async () => {
+    if (savedConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
+    else process.env.TALE_CONFIG_DIR = savedConfigDir;
+    await rm(configRoot, { recursive: true, force: true });
+    clearOrgConfigCaches();
+  });
+
+  const actor = { userId: 'user-1', email: 'admin@acme.test', role: 'admin' };
+  const saml = {
+    displayName: 'Acme SAML',
+    idpEntityId: 'https://idp.acme.test/entity',
+    idpSsoUrl: 'https://idp.acme.test/sso',
+    idpCertificate:
+      '-----BEGIN CERTIFICATE-----\nIDP\n-----END CERTIFICATE-----',
+    autoProvisionRole: false,
+    defaultRole: 'member' as const,
+    roleMappingRules: [],
+    autoProvisionTeam: false,
+    excludeGroups: [],
+  };
+  const spCertificate =
+    '-----BEGIN CERTIFICATE-----\nSP\n-----END CERTIFICATE-----';
+
+  async function samlView(): Promise<Record<string, unknown> | null> {
+    const view = await getSsoConnectionView(slugSql('acme'), 'org-1');
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view's saml block
+    return view.saml as Record<string, unknown> | null;
+  }
+
+  it('is false with a certificate but no key stored', async () => {
+    await upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
+      ...saml,
+      spCertificate,
+    });
+
+    expect(await samlView()).toMatchObject({
+      hasSpKeypair: false,
+      spCertificate,
+    });
+  });
+
+  it('is true once a key is stored, and stays true when the certificate is cleared', async () => {
+    await upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
+      ...saml,
+      spCertificate,
+      spPrivateKey: 'typed-key',
+    });
+    expect(await samlView()).toMatchObject({ hasSpKeypair: true });
+
+    await upsertSamlConnection(slugSql('acme'), 'org-1', actor, saml);
+    const view = await samlView();
+    expect(view).toMatchObject({ hasSpKeypair: true });
+    expect(view).not.toHaveProperty('spPrivateKey');
+    expect(view?.spCertificate).toBeUndefined();
+  });
+
+  it('refuses readably when the secrets sidecar is corrupt', async () => {
+    await upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
+      ...saml,
+      spCertificate,
+    });
+    await writeFile(
+      path.join(
+        configRoot,
+        'acme',
+        'governance',
+        'sso',
+        'connection.secrets.json',
+      ),
+      '{not json',
+    );
+
+    const attempt = getSsoConnectionView(slugSql('acme'), 'org-1');
+
+    await expect(attempt).rejects.toBeInstanceOf(SsoAdminError);
+    await expect(attempt).rejects.toMatchObject({
+      code: 'sso_config_unreadable',
+      status: 409,
+    });
   });
 });
