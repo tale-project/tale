@@ -16,9 +16,10 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { runConnectorAction, createAuditLog } = vi.hoisted(() => ({
+const { runConnectorAction, createAuditLog, addJobInTx } = vi.hoisted(() => ({
   runConnectorAction: vi.fn(),
   createAuditLog: vi.fn(async () => undefined),
+  addJobInTx: vi.fn(async () => 'job-1'),
 }));
 
 vi.mock('../connectors/service.ts', () => ({ runConnectorAction }));
@@ -27,16 +28,18 @@ vi.mock('../files/service.ts', () => ({ getFileUrl: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({
   emitHintInTx: vi.fn(async () => undefined),
 }));
-vi.mock('../../jobs/enqueue.ts', () => ({
-  addJobInTx: vi.fn(async () => 'job-1'),
+vi.mock('../events/emit.ts', () => ({
+  emitEvent: vi.fn(async () => undefined),
 }));
+vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 
 import {
+  composeEmailConversation,
   resolveSentExternalMessageId,
   runSendMessageJob,
   undoSendMessage,
 } from './send.ts';
-import type { ConversationMessageRow } from './service.ts';
+import type { ConversationMessageRow, ConversationRow } from './service.ts';
 
 const SQL = {} as never;
 
@@ -67,18 +70,24 @@ const JOB_PAYLOAD = {
   contentType: 'HTML',
 };
 
-type Statement = { text: string; values: unknown[] };
+/** A recorded statement and the transaction (index into `begins`) it ran
+ * in — `null` outside any `begin`. */
+type Statement = { text: string; values: unknown[]; begin: number | null };
+type Begin = { status: 'open' | 'committed' | 'rolled_back' };
 
 /**
  * A `sql` double that records statements and answers by statement shape:
  * `answer` maps a text fragment to the rows that statement returns; anything
- * unmatched answers no rows. `begin` runs the callback on the same tag.
+ * unmatched answers no rows. `begin` runs the callback on the same tag and
+ * records whether the transaction committed or rolled back.
  */
 function fakeSql(answer: Record<string, unknown[]>) {
   const statements: Statement[] = [];
+  const begins: Begin[] = [];
+  let current: number | null = null;
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
-    statements.push({ text, values });
+    statements.push({ text, values, begin: current });
     const hit = Object.entries(answer).find(([needle]) =>
       text.includes(needle),
     );
@@ -87,10 +96,23 @@ function fakeSql(answer: Record<string, unknown[]>) {
   const sql = Object.assign(tag, {
     unsafe: (text: string) => text,
     json: (value: unknown) => value,
-    begin: (cb: (tx: unknown) => unknown) => Promise.resolve(cb(sql)),
+    begin: async (cb: (tx: unknown) => unknown) => {
+      const index = begins.push({ status: 'open' }) - 1;
+      current = index;
+      try {
+        const result = await cb(sql);
+        begins[index] = { status: 'committed' };
+        return result;
+      } catch (error) {
+        begins[index] = { status: 'rolled_back' };
+        throw error;
+      } finally {
+        current = null;
+      }
+    },
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
-  return { sql: sql as unknown as Sql, statements };
+  return { sql: sql as unknown as Sql, statements, begins };
 }
 
 const CLAIM = "metadata->>'sendClaimedAt' IS NULL";
@@ -151,6 +173,80 @@ describe('runSendMessageJob — the claim', () => {
       expect.stringContaining('delivered but its row is gone'),
     );
     warn.mockRestore();
+  });
+});
+
+describe('composeEmailConversation — one transaction', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const CONVERSATION: ConversationRow = {
+    id: 'c-new',
+    organizationId: 'o1',
+    contactId: 'ct1',
+    assigneeUserId: 'u1',
+    assigneeTeamId: null,
+    externalMessageId: null,
+    subject: 'Quote 7',
+    status: 'open',
+    priority: null,
+    type: null,
+    channel: 'email',
+    direction: 'outbound',
+    connectorName: 'imap-smtp',
+    lastMessageAt: null,
+    metadata: null,
+    lifecycleStatus: null,
+    statusChangedAt: null,
+    createdAt: 1_000,
+  };
+  const answers = {
+    'email FROM app.contacts': [
+      { organizationId: 'o1', email: 'carla@ext.test' },
+    ],
+    'INSERT INTO app.conversations': [{ id: 'c-new' }],
+    'FROM app.conversations WHERE id = ?': [CONVERSATION],
+    'INSERT INTO app.conversation_messages': [{ id: 'm-new' }],
+  };
+  const compose = (sql: Sql) =>
+    composeEmailConversation(sql, {
+      organizationId: 'o1',
+      contactId: 'ct1',
+      connectorName: 'imap-smtp',
+      subject: 'Quote 7',
+      content: 'Seven units.',
+      actor: { userId: 'u1', role: 'member' },
+    });
+
+  it('creates the conversation and queues its message in the same transaction', async () => {
+    const { sql, statements, begins } = fakeSql(answers);
+    await expect(compose(sql)).resolves.toEqual({
+      conversationId: 'c-new',
+      messageId: 'm-new',
+    });
+    expect(begins).toEqual([{ status: 'committed' }]);
+    const conversationInsert = statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.conversations'),
+    );
+    const messageInsert = statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.conversation_messages'),
+    );
+    expect(conversationInsert?.begin).toBe(0);
+    expect(messageInsert?.begin).toBe(0);
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed enqueue rolls the conversation back too — no empty outbound thread', async () => {
+    addJobInTx.mockRejectedValueOnce(new Error('pg-boss unavailable'));
+    const { sql, statements, begins } = fakeSql(answers);
+    await expect(compose(sql)).rejects.toThrow('pg-boss unavailable');
+    // The conversation insert ran inside the ONE transaction that rolled back;
+    // nothing about it was committed on its own.
+    const conversationInsert = statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.conversations'),
+    );
+    expect(conversationInsert).toBeDefined();
+    expect(conversationInsert?.begin).toBe(0);
+    expect(begins).toEqual([{ status: 'rolled_back' }]);
   });
 });
 

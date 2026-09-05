@@ -197,73 +197,84 @@ export async function sendMessageViaConnector(
   args: SendMessageViaConnectorArgs,
 ): Promise<string> {
   validateConversationAttachmentCaps(args.attachments);
-  return sql.begin(async (tx) => {
-    const conversations = await tx<ConversationRow[]>`
+  return sql.begin((tx) => sendMessageViaConnectorInTx(tx, args));
+}
+
+/**
+ * The transactional core of {@link sendMessageViaConnector}, for a caller
+ * that has other writes to commit WITH the queued message (compose creates
+ * the conversation in the same transaction). Runs no cap check of its own —
+ * the caller validates before its first write, as compose already did.
+ */
+export async function sendMessageViaConnectorInTx(
+  tx: TransactionSql,
+  args: SendMessageViaConnectorArgs,
+): Promise<string> {
+  const conversations = await tx<ConversationRow[]>`
       SELECT ${tx.unsafe(CONVERSATION_COLUMNS)} FROM app.conversations
       WHERE id = ${args.conversationId} LIMIT 1
     `;
-    const conversation = conversations[0];
-    if (!conversation) {
-      throw new ConversationError(
-        'conversation_not_found',
-        'Conversation not found',
-        404,
-      );
-    }
-    if (conversation.organizationId !== args.organizationId) {
-      throw new ConversationError(
-        'conversation_org_mismatch',
-        'Conversation does not belong to organization',
-        403,
-      );
-    }
+  const conversation = conversations[0];
+  if (!conversation) {
+    throw new ConversationError(
+      'conversation_not_found',
+      'Conversation not found',
+      404,
+    );
+  }
+  if (conversation.organizationId !== args.organizationId) {
+    throw new ConversationError(
+      'conversation_org_mismatch',
+      'Conversation does not belong to organization',
+      403,
+    );
+  }
 
-    const latest = args.inReplyTo
-      ? null
-      : (
-          await tx<{ externalMessageId: string | null }[]>`
+  const latest = args.inReplyTo
+    ? null
+    : (
+        await tx<{ externalMessageId: string | null }[]>`
             SELECT external_message_id AS "externalMessageId"
             FROM app.conversation_messages
             WHERE conversation_id = ${args.conversationId}
             ORDER BY delivered_at_ms DESC NULLS LAST, seq DESC
             LIMIT 1
           `
-        )[0];
-    const { inReplyTo, references } = buildThreadingHeaders({
-      ...(args.inReplyTo !== undefined ? { inReplyTo: args.inReplyTo } : {}),
-      ...(args.references !== undefined ? { references: args.references } : {}),
-      latestMessageExternalId: latest?.externalMessageId ?? undefined,
-      conversationExternalMessageId:
-        conversation.externalMessageId ?? undefined,
-    });
+      )[0];
+  const { inReplyTo, references } = buildThreadingHeaders({
+    ...(args.inReplyTo !== undefined ? { inReplyTo: args.inReplyTo } : {}),
+    ...(args.references !== undefined ? { references: args.references } : {}),
+    latestMessageExternalId: latest?.externalMessageId ?? undefined,
+    conversationExternalMessageId: conversation.externalMessageId ?? undefined,
+  });
 
-    const now = Date.now();
-    const attachmentsMeta = args.attachments?.length
-      ? args.attachments.map((att) => ({
-          id: att.storageId,
-          filename: att.fileName,
-          contentType: att.contentType,
-          size: att.size,
-          storageId: att.storageId,
-        }))
-      : undefined;
+  const now = Date.now();
+  const attachmentsMeta = args.attachments?.length
+    ? args.attachments.map((att) => ({
+        id: att.storageId,
+        filename: att.fileName,
+        contentType: att.contentType,
+        size: att.size,
+        storageId: att.storageId,
+      }))
+    : undefined;
 
-    const messageMetadata: Record<string, unknown> = {
-      sender: 'connector',
-      isCustomer: false,
-      to: args.to,
-      subject: args.subject,
-      connectorName: args.connectorName,
-      scheduledSendAt: now + undoSendDelayMs(),
-      sendContentType: args.html ? 'HTML' : 'Text',
-      ...(args.sourceMarkdown ? { sourceMarkdown: args.sourceMarkdown } : {}),
-      ...(args.cc ? { cc: args.cc } : {}),
-      ...(inReplyTo ? { inReplyTo } : {}),
-      ...(references ? { references } : {}),
-      ...(attachmentsMeta ? { attachments: attachmentsMeta } : {}),
-    };
+  const messageMetadata: Record<string, unknown> = {
+    sender: 'connector',
+    isCustomer: false,
+    to: args.to,
+    subject: args.subject,
+    connectorName: args.connectorName,
+    scheduledSendAt: now + undoSendDelayMs(),
+    sendContentType: args.html ? 'HTML' : 'Text',
+    ...(args.sourceMarkdown ? { sourceMarkdown: args.sourceMarkdown } : {}),
+    ...(args.cc ? { cc: args.cc } : {}),
+    ...(inReplyTo ? { inReplyTo } : {}),
+    ...(references ? { references } : {}),
+    ...(attachmentsMeta ? { attachments: attachmentsMeta } : {}),
+  };
 
-    const inserted = await tx<{ id: string }[]>`
+  const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.conversation_messages (
         org_id, conversation_id, connector_name, channel, direction,
         delivery_state, content, sent_at_ms, delivered_at_ms, metadata,
@@ -276,54 +287,52 @@ export async function sendMessageViaConnector(
       )
       RETURNING id
     `;
-    const messageId = inserted[0]?.id;
-    if (!messageId) throw new Error('outbound message insert failed');
+  const messageId = inserted[0]?.id;
+  if (!messageId) throw new Error('outbound message insert failed');
 
-    const replyFrom = inboundRecipientAddress(
-      conversation.metadata ?? undefined,
-    );
-    const scheduledSendId = await addJobInTx(
-      tx,
-      'conversation.send_message',
-      {
-        organizationId: args.organizationId,
-        messageId,
-        connectorName: args.connectorName,
-        to: args.to,
-        ...(args.cc !== undefined ? { cc: args.cc } : {}),
-        subject: args.subject,
-        body: args.html || args.text || args.content,
-        contentType: args.html ? 'HTML' : 'Text',
-        ...(inReplyTo !== undefined ? { inReplyTo } : {}),
-        ...(references !== undefined ? { references } : {}),
-        ...(replyFrom ? { from: replyFrom } : {}),
-        ...(args.attachments?.length
-          ? {
-              attachments: args.attachments.map((att) => ({
-                storageRef: att.storageId,
-                fileName: att.fileName,
-                contentType: att.contentType,
-                size: att.size,
-              })),
-            }
-          : {}),
-      },
-      { startAfter: new Date(now + undoSendDelayMs()) },
-    );
-    if (scheduledSendId !== null) {
-      await tx`
+  const replyFrom = inboundRecipientAddress(conversation.metadata ?? undefined);
+  const scheduledSendId = await addJobInTx(
+    tx,
+    'conversation.send_message',
+    {
+      organizationId: args.organizationId,
+      messageId,
+      connectorName: args.connectorName,
+      to: args.to,
+      ...(args.cc !== undefined ? { cc: args.cc } : {}),
+      subject: args.subject,
+      body: args.html || args.text || args.content,
+      contentType: args.html ? 'HTML' : 'Text',
+      ...(inReplyTo !== undefined ? { inReplyTo } : {}),
+      ...(references !== undefined ? { references } : {}),
+      ...(replyFrom ? { from: replyFrom } : {}),
+      ...(args.attachments?.length
+        ? {
+            attachments: args.attachments.map((att) => ({
+              storageRef: att.storageId,
+              fileName: att.fileName,
+              contentType: att.contentType,
+              size: att.size,
+            })),
+          }
+        : {}),
+    },
+    { startAfter: new Date(now + undoSendDelayMs()) },
+  );
+  if (scheduledSendId !== null) {
+    await tx`
         UPDATE app.conversation_messages SET metadata = ${tx.json(
           toJson({ ...messageMetadata, scheduledSendId }),
         )}
         WHERE id = ${messageId}
       `;
-    }
+  }
 
-    const lastMessageAt = nextConversationLastMessageAt(
-      conversation.lastMessageAt ?? undefined,
-      { _id: messageId, _creationTime: now, sentAt: now, deliveredAt: now },
-    );
-    await tx`
+  const lastMessageAt = nextConversationLastMessageAt(
+    conversation.lastMessageAt ?? undefined,
+    { _id: messageId, _creationTime: now, sentAt: now, deliveredAt: now },
+  );
+  await tx`
       UPDATE app.conversations SET
         last_message_at_ms = ${lastMessageAt},
         metadata = ${tx.json(
@@ -335,18 +344,18 @@ export async function sendMessageViaConnector(
       WHERE id = ${args.conversationId}
     `;
 
-    // A pending approval on the conversation (an agent-drafted reply
-    // awaiting a human) completes when the human sends.
-    const pending = await tx<
-      { id: string; metadata: Record<string, unknown> | null }[]
-    >`
+  // A pending approval on the conversation (an agent-drafted reply
+  // awaiting a human) completes when the human sends.
+  const pending = await tx<
+    { id: string; metadata: Record<string, unknown> | null }[]
+  >`
       SELECT id, metadata FROM app.approvals
       WHERE resource_type = 'conversations'
         AND resource_id = ${args.conversationId} AND status = 'pending'
       ORDER BY seq ASC LIMIT 1
     `;
-    if (pending[0]) {
-      await tx`
+  if (pending[0]) {
+    await tx`
         UPDATE app.approvals SET
           status = 'completed', approved_by = ${args.actor.userId},
           reviewed_at_ms = ${now},
@@ -364,35 +373,32 @@ export async function sendMessageViaConnector(
           )}
         WHERE id = ${pending[0].id}
       `;
-    }
+  }
 
-    await createAuditLog(tx, {
-      organizationId: args.organizationId,
-      actorId: args.actor.userId,
-      ...(args.actor.email !== undefined
-        ? { actorEmail: args.actor.email }
-        : {}),
-      actorType: 'user',
-      action: 'send_message_via_connector',
-      category: 'data',
-      resourceType: 'conversationMessage',
-      resourceId: messageId,
-      resourceName: args.subject,
-      newState: {
-        conversationId: args.conversationId,
-        connectorName: args.connectorName,
-        to: args.to,
-        subject: args.subject,
-      },
-      status: 'success',
-    });
-    await emitHintInTx(tx, {
-      orgId: args.organizationId,
-      entity: 'conversation',
-      entityId: args.conversationId,
-    });
-    return messageId;
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    actorId: args.actor.userId,
+    ...(args.actor.email !== undefined ? { actorEmail: args.actor.email } : {}),
+    actorType: 'user',
+    action: 'send_message_via_connector',
+    category: 'data',
+    resourceType: 'conversationMessage',
+    resourceId: messageId,
+    resourceName: args.subject,
+    newState: {
+      conversationId: args.conversationId,
+      connectorName: args.connectorName,
+      to: args.to,
+      subject: args.subject,
+    },
+    status: 'success',
   });
+  await emitHintInTx(tx, {
+    orgId: args.organizationId,
+    entity: 'conversation',
+    entityId: args.conversationId,
+  });
+  return messageId;
 }
 
 const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
@@ -605,6 +611,7 @@ export async function composeEmailConversation(
       409,
     );
   }
+  const contactEmail = contact.email;
   // Refuse over-cap attachments BEFORE creating the conversation — the 0.4
   // compose is one atomic mutation, so a cap denial must leave nothing.
   validateConversationAttachmentCaps(args.attachments);
@@ -624,8 +631,13 @@ export async function composeEmailConversation(
   );
 
   const chosenFrom = args.from?.trim();
-  const conversationId = await sql.begin((tx) =>
-    createConversation(tx, {
+  const { html, text } = splitHtmlText(args.content);
+  // ONE transaction for the conversation and its first message: a failed
+  // enqueue (pg-boss down) or message insert must roll the conversation back
+  // too, or the composer is left with an outbound thread that has no message,
+  // no failed bubble to retry or discard, and only delete as a way out.
+  return sql.begin(async (tx) => {
+    const conversationId = await createConversation(tx, {
       organizationId: args.organizationId,
       contactId: args.contactId,
       assigneeUserId,
@@ -636,23 +648,22 @@ export async function composeEmailConversation(
       direction: 'outbound',
       connectorName: args.connectorName,
       ...(chosenFrom ? { metadata: { to: [{ address: chosenFrom }] } } : {}),
-    }),
-  );
-  const { html, text } = splitHtmlText(args.content);
-  const messageId = await sendMessageViaConnector(sql, {
-    conversationId,
-    organizationId: args.organizationId,
-    connectorName: args.connectorName,
-    content: args.content,
-    to: [contact.email],
-    subject,
-    html,
-    text,
-    ...(args.sourceMarkdown ? { sourceMarkdown: args.sourceMarkdown } : {}),
-    ...(args.attachments?.length ? { attachments: args.attachments } : {}),
-    actor: args.actor,
+    });
+    const messageId = await sendMessageViaConnectorInTx(tx, {
+      conversationId,
+      organizationId: args.organizationId,
+      connectorName: args.connectorName,
+      content: args.content,
+      to: [contactEmail],
+      subject,
+      html,
+      text,
+      ...(args.sourceMarkdown ? { sourceMarkdown: args.sourceMarkdown } : {}),
+      ...(args.attachments?.length ? { attachments: args.attachments } : {}),
+      actor: args.actor,
+    });
+    return { conversationId, messageId };
   });
-  return { conversationId, messageId };
 }
 
 /** Cancel a still-queued send: delete the row (the email never existed) and
