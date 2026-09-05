@@ -9104,6 +9104,37 @@ async function checkAutomations(
  * it lands on a run. Runs a transform-only automation so nothing external is
  * needed and every settle is deterministic.
  */
+/**
+ * Migration 0083 retired the automation shape nothing ever read or wrote:
+ * `app.automation_upload_intents` (superseded by `app.upload_intents`), the
+ * never-written `automation_runs.lifecycle_status` / `status_changed_at_ms`
+ * and their index. Proves the drop landed on the real schema — and, since
+ * every automation lane above already ran, that the store's explicit
+ * column lists never depended on them.
+ */
+async function checkAutomationsDeadSchemaDropped(sql: Sql): Promise<void> {
+  const table = await sql<{ present: boolean }[]>`
+    SELECT to_regclass('app.automation_upload_intents') IS NOT NULL AS present
+  `;
+  const columns = await sql<{ column: string }[]>`
+    SELECT column_name AS column FROM information_schema.columns
+    WHERE table_schema = 'app' AND table_name = 'automation_runs'
+      AND column_name IN ('lifecycle_status', 'status_changed_at_ms')
+  `;
+  const index = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pg_indexes
+    WHERE schemaname = 'app' AND tablename = 'automation_runs'
+      AND indexname = 'automation_runs_org_lifecycle'
+  `;
+  record(
+    'migration 0083 drops the dead automation upload-intents table, lifecycle columns and index',
+    !(table[0]?.present ?? true) &&
+      columns.length === 0 &&
+      index[0]?.count === '0',
+    `upload_intents table=${table[0]?.present ? 'PRESENT' : 'gone'}, lifecycle columns=${columns.map((row) => row.column).join(',') || 'gone'}, index=${index[0]?.count} (want 0)`,
+  );
+}
+
 async function checkAutomationRunLifecycle(
   sql: Sql,
   base: string,
@@ -40533,6 +40564,10 @@ async function main(): Promise<void> {
       [
         'checkAutomations',
         () => checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkAutomationsDeadSchemaDropped',
+        () => checkAutomationsDeadSchemaDropped(sql),
       ],
       [
         'checkAutomationRunLifecycle',
