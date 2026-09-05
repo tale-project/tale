@@ -14760,6 +14760,67 @@ async function checkRunProvenance(
     `plain=${runsAfterPlain[0]?.count} foreign=${runsAfterForeign[0]?.count} (both want ${runsBefore[0]?.count}), afterMention=${startedRuns.length}, subject=${runInput?.id === ownedTaskId}`,
   );
 
+  // ---- the one-live-run guard under concurrency ------------------------
+  // Two doors starting the same automation for the same task at once (a
+  // board Start beside an @mention, two REST calls) must land ONE run: the
+  // guard takes a per-(org, automation, task) advisory lock around the
+  // live-run lookup and the insert, so the loser sees the winner's row.
+  const { startWorkflowForTask } =
+    await import('./domains/tasks/external-ref.ts');
+  const racedRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      assignee_type, assignee_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Raced start task', 'todo', 'b1',
+      ${userId}, 'user', 'app', ${automationName}, ${Date.now()},
+      ${Date.now()}
+    ) RETURNING id
+  `;
+  const racedTaskId = racedRows[0]?.id ?? '';
+  const { loadTaskOrThrow: loadRacedTask } =
+    await import('./domains/tasks/service.ts');
+  const racedTask = await loadRacedTask(sql, racedTaskId, orgId);
+  const startTwice = () =>
+    startWorkflowForTask(sql, {
+      organizationId: orgId,
+      task: racedTask,
+      workflowSlug: automationName,
+      startedByUserId: userId,
+    });
+  const raced = await Promise.all([startTwice(), startTwice(), startTwice()]);
+  const racedLive = await sql<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = ${automationName}
+      AND input->'task'->>'id' = ${racedTaskId}
+  `;
+  record(
+    'automations: concurrent starts for one task land exactly one run',
+    racedLive.length === 1 &&
+      raced.every((outcome) => outcome?.runId === racedLive[0]?.id) &&
+      raced.filter((outcome) => outcome?.alreadyRunning === false).length === 1,
+    `runs=${racedLive.length} (want 1), outcomes=${JSON.stringify(raced.map((outcome) => outcome?.alreadyRunning ?? 'null'))} (want exactly one false)`,
+  );
+  // The refusal is the caller's answer now, not a laundered "not started"
+  // — and the queue's retry ladder sees a transient failure at all.
+  const phantomStart = await startWorkflowForTask(sql, {
+    organizationId: orgId,
+    task: { ...racedTask, projectId: 'no-such-project' },
+    workflowSlug: automationName,
+    startedByUserId: userId,
+  }).then(
+    (outcome) => `resolved:${JSON.stringify(outcome)}`,
+    (error: unknown) =>
+      error instanceof Error && 'code' in error
+        ? String(error.code)
+        : 'other-error',
+  );
+  record(
+    'automations: a workflow start failure propagates instead of answering null',
+    phantomStart === 'AUTOMATION_PROJECT_UNKNOWN',
+    `phantom project start → ${phantomStart} (want AUTOMATION_PROJECT_UNKNOWN)`,
+  );
+
   // ---- a mention of the RUNNING agent steers the live turn -------------
   const steerRunRows = await sql<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
@@ -15642,6 +15703,47 @@ async function checkTasksCollabIntegrity(
       externalGate.length === 1 &&
       externalGate[0]?.metadata?.requestedFor === userId,
     `status=${externalStatus[0]?.status} (want in_review), gate rows=${externalGate.length} (want 1), reviewer=${String(externalGate[0]?.metadata?.requestedFor)}`,
+  );
+  // An ARCHIVED task is read-only to the intake too: local archival is
+  // authoritative everywhere else in the domain, so the upstream item's
+  // later close neither moves the hidden card nor mints a review gate.
+  const { archiveTask } = await import('./domains/tasks/service.ts');
+  const archivedArgs = { ...externalArgs, externalId: 'GATE-ARCHIVED' };
+  const archivedCreated = await transactSerializable(sql, (tx) =>
+    upsertTaskByExternalRef(tx, archivedArgs),
+  );
+  const archivedTask = archivedCreated.taskId ?? '';
+  await transactSerializable(sql, (tx) =>
+    archiveTask(
+      tx,
+      { organizationId: orgId, userId, role: 'owner', teamIds: [] },
+      archivedTask,
+    ),
+  );
+  const archivedReplay = await transactSerializable(sql, (tx) =>
+    upsertTaskByExternalRef(tx, {
+      ...archivedArgs,
+      title: 'Renamed upstream',
+      externalState: 'closed',
+    }),
+  );
+  const archivedAfter = await sql<
+    { status: string; title: string; archivedAt: number | null }[]
+  >`
+    SELECT status, title, archived_at_ms::float8 AS "archivedAt"
+    FROM app.tasks WHERE id = ${archivedTask}
+  `;
+  const archivedGate = await pendingGate(archivedTask);
+  record(
+    'tasks/collab: an external close leaves an archived task untouched',
+    archivedCreated.created &&
+      !archivedReplay.created &&
+      archivedReplay.taskId === archivedTask &&
+      archivedAfter[0]?.status === 'backlog' &&
+      archivedAfter[0]?.title === 'External item' &&
+      archivedAfter[0]?.archivedAt !== null &&
+      archivedGate.length === 0,
+    `replay=${String(archivedReplay.created)}/${archivedReplay.taskId === archivedTask} (want false/same task), status=${archivedAfter[0]?.status} (want backlog), title=${archivedAfter[0]?.title} (want unchanged), archived=${archivedAfter[0]?.archivedAt !== null}, gate rows=${archivedGate.length} (want 0)`,
   );
 
   // The agent's own `task_update_status` tool parks without a run key: the

@@ -828,12 +828,22 @@ async function maybeTriggerOwningAutomation(
   // ENQUEUED, not started inline: the comment must commit first (the
   // workflow re-reads the timeline including it), and the start needs a
   // pool connection of its own — 0.4 scheduled it for exactly this reason.
-  await addJobInTx(tx, 'task.start_workflow', {
-    organizationId: args.auth.organizationId,
-    taskId: args.task.id,
-    workflowSlug: mentioned.id,
-    startedByUserId: args.auth.userId,
-  });
+  // One queued start per (task, automation): two @mentions landing before
+  // the worker runs collapse into one job; the start itself is guarded
+  // again under a lock, so a job that does run beside a live run reuses it.
+  await addJobInTx(
+    tx,
+    'task.start_workflow',
+    {
+      organizationId: args.auth.organizationId,
+      taskId: args.task.id,
+      workflowSlug: mentioned.id,
+      startedByUserId: args.auth.userId,
+    },
+    {
+      singletonKey: `task.start_workflow:${args.auth.organizationId}:${args.task.id}:${mentioned.id}`,
+    },
+  );
   return true;
 }
 

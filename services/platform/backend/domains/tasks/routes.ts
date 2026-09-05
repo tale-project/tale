@@ -13,7 +13,7 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
-import { cancelRunInTx } from '../automations/store.ts';
+import { AutomationError, cancelRunInTx } from '../automations/store.ts';
 import { MentionDirectoryError } from '../collab/mention-directory.ts';
 import { getOrCreateProjectFolder } from '../folders/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
@@ -146,6 +146,11 @@ function handleError<E extends OrgEnv>(
       },
       error.status,
     );
+  }
+  // The workflow start door surfaces the automation's own refusal (a
+  // project it is not bound to) instead of laundering it into "not started".
+  if (error instanceof AutomationError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
   }
   if (error instanceof RateLimitExceededError) {
     return rateLimitedResponse(c, error);
@@ -471,13 +476,25 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           taskId,
           auth.organizationId,
         );
-        const started = await startWorkflowForTask(deps.sql, {
+        // The task is committed; a start that fails after it answers
+        // `executionId: null` (the caller starts it by hand) rather than an
+        // error that reads as "the task was not created".
+        executionId = await startWorkflowForTask(deps.sql, {
           organizationId: auth.organizationId,
           task,
           workflowSlug: args.runWorkflowSlug,
           startedByUserId: auth.userId,
-        });
-        executionId = started?.runId ?? null;
+        }).then(
+          (started) => started?.runId ?? null,
+          (error: unknown) => {
+            console.error(
+              '[task-workflow] start after create failed',
+              args.runWorkflowSlug,
+              error,
+            );
+            return null;
+          },
+        );
       }
       return c.json({
         taskId,
