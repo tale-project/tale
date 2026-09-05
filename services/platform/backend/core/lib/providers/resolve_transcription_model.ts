@@ -2,10 +2,11 @@
 
 /**
  * Resolve the organization's transcription model against the provider world:
- * the first `transcription`-tagged catalog entry served by an active DIRECT
- * credential (api-key/env) — the same connector set and catalog the
- * composer's `listComposerModels` reads, and the same conditions that derive
- * its `voice.transcriptionAvailable` flag, so the dictation button, the
+ * the first `transcription`-tagged catalog entry the provider's active DIRECT
+ * default credential (api-key/env) may serve — the same connector set and
+ * catalog the composer's `listComposerModels` reads, the credential's model
+ * allowlist applied the same way, and the same conditions that derive its
+ * `voice.transcriptionAvailable` flag, so the dictation button, the
  * file-upload pipeline, and this resolver can never disagree.
  *
  * Only `openai`-format connectors qualify: the transcription wire is the
@@ -14,10 +15,13 @@
  */
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
+import { modelAllowlistPermits } from '../../../../lib/shared/utils/model-ref';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import type { ActionCtx } from '../ctx';
-import { getProviderCatalog } from './catalog_fetch';
+import { internal } from '../handler_names';
+import { directActiveCredential } from './direct_credential';
 import { resolveProvidersForOrgId } from './org_providers';
+import { getServableCatalog } from './servable_catalog';
 
 export interface ResolvedTranscriptionModel {
   readonly modelId: string;
@@ -35,9 +39,19 @@ export async function resolveTranscriptionModel(
   const providers = await resolveProvidersForOrgId(ctx, opts.organizationId);
   for (const provider of providers) {
     if (provider.apiFormat !== 'openai') continue;
+    // The default credential decides what this provider may serve — read
+    // it first so a credential-less provider costs no catalog fetch and an
+    // allowlisted one is narrowed the way the composer's flag is.
+    const direct = directActiveCredential(
+      await ctx.runQuery(
+        internal.provider_credentials.queries.getDefaultCredentialInternal,
+        { organizationId: opts.organizationId, providerSlug: provider.name },
+      ),
+    );
+    if (direct === null) continue;
     let catalog;
     try {
-      catalog = await getProviderCatalog(provider);
+      catalog = await getServableCatalog(provider, direct.modelAllowlist);
     } catch (error) {
       // One unreachable catalog must not blank transcription for the whole org.
       console.warn(
@@ -46,8 +60,10 @@ export async function resolveTranscriptionModel(
       );
       continue;
     }
-    const entry = catalog.find((candidate) =>
-      candidate.tags.includes('transcription'),
+    const entry = catalog.find(
+      (candidate) =>
+        candidate.tags.includes('transcription') &&
+        modelAllowlistPermits(direct.modelAllowlist, candidate.id),
     );
     if (!entry) continue;
 

@@ -1,10 +1,12 @@
 /**
  * The TTS model resolver walks the org's providers for the first
- * text-to-speech entry a DIRECT credential can serve, then picks voice and
- * instructions by locale → base language → default. These tests pin the
- * fallback ladder and the two coded refusals (`UNKNOWN_VOICE`,
- * `NO_PROVIDER`) — the codes fan out to every org member via chunk rows,
- * so they are contract, not detail.
+ * text-to-speech entry the provider's DIRECT default credential can serve —
+ * its model allowlist applied the way the composer's `voice.ttsAvailable`
+ * flag applies it — then picks voice and instructions by locale → base
+ * language → default. These tests pin the fallback ladder, the allowlist
+ * agreement, and the two coded refusals (`UNKNOWN_VOICE`, `NO_PROVIDER`) —
+ * the codes fan out to every org member via chunk rows, so they are
+ * contract, not detail.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,8 +21,8 @@ vi.mock('./org_providers', () => ({
 }));
 
 const catalogMock = vi.fn();
-vi.mock('./catalog_fetch', () => ({
-  getProviderCatalog: (...args: unknown[]) => catalogMock(...(args as [])),
+vi.mock('./servable_catalog', () => ({
+  getServableCatalog: (...args: unknown[]) => catalogMock(...(args as [])),
 }));
 
 const credentialMock = vi.fn();
@@ -31,8 +33,20 @@ vi.mock('../../provider_credentials/resolve_credential', () => ({
 
 import { resolveTtsModel } from './resolve_tts_model';
 
-const ctx = {} as ActionCtx;
 const ORG = 'org_a';
+const ACTIVE_API_KEY_ROW = { authMethod: 'api-key', status: 'active' };
+
+/** The provider's default credential row, keyed by provider slug; a
+ * provider not listed gets an active api-key row without an allowlist. */
+let defaultRows: Record<string, unknown> = {};
+const runQuery = vi.fn(
+  async (_ref: unknown, args: { providerSlug: string }) =>
+    args.providerSlug in defaultRows
+      ? defaultRows[args.providerSlug]
+      : ACTIVE_API_KEY_ROW,
+);
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is exercised by this module
+const ctx = { runQuery } as unknown as ActionCtx;
 
 function provider(name: string, baseUrl = `https://${name}.example/v1`) {
   return { name, baseUrl };
@@ -78,6 +92,8 @@ beforeEach(() => {
   resolveProvidersMock.mockReset();
   catalogMock.mockReset();
   credentialMock.mockReset();
+  runQuery.mockClear();
+  defaultRows = {};
 });
 
 describe('resolveTtsModel', () => {
@@ -151,6 +167,9 @@ describe('resolveTtsModel', () => {
     });
     // Copilot serves TTS but only via a subscription harness — unusable
     // for a plain HTTP synthesis call.
+    defaultRows = {
+      copilot: { authMethod: 'subscription-key', status: 'active' },
+    };
     credentialMock.mockResolvedValue({
       authMethod: 'subscription',
       secret: 'oauth-token',
@@ -161,6 +180,74 @@ describe('resolveTtsModel', () => {
         resolveTtsModel(ctx, { organizationId: ORG, locale: 'en' }),
       ),
     ).toBe('NO_PROVIDER');
+    // The subscription default is out before its catalog is even read.
+    expect(catalogMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'copilot' }),
+      undefined,
+    );
+  });
+
+  it('never fetches a catalog for a provider without an active direct default credential', async () => {
+    resolveProvidersMock.mockResolvedValue([
+      provider('no-credential'),
+      provider('disabled'),
+    ]);
+    defaultRows = {
+      'no-credential': null,
+      disabled: { authMethod: 'api-key', status: 'disabled' },
+    };
+    catalogMock.mockResolvedValue([ttsEntry()]);
+
+    expect(
+      await caughtCode(
+        resolveTtsModel(ctx, { organizationId: ORG, locale: 'en' }),
+      ),
+    ).toBe('NO_PROVIDER');
+    expect(catalogMock).not.toHaveBeenCalled();
+    expect(credentialMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a voice model the allowlist of the default credential excludes, as the composer flag does', async () => {
+    resolveProvidersMock.mockResolvedValue([provider('openai')]);
+    defaultRows = {
+      openai: { ...ACTIVE_API_KEY_ROW, modelAllowlist: ['gpt-4o'] },
+    };
+    catalogMock.mockResolvedValue([
+      { id: 'gpt-4o', tags: ['chat'] },
+      ttsEntry(),
+    ]);
+    credentialMock.mockResolvedValue(apiKeyCredential());
+
+    expect(
+      await caughtCode(
+        resolveTtsModel(ctx, { organizationId: ORG, locale: 'en' }),
+      ),
+    ).toBe('NO_PROVIDER');
+    // The catalog is read through the servable seam WITH the allowlist —
+    // the same read the composer's listing makes.
+    expect(catalogMock).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'openai' }),
+      ['gpt-4o'],
+    );
+    expect(credentialMock).not.toHaveBeenCalled();
+  });
+
+  it('serves the voice model when the allowlist names it', async () => {
+    resolveProvidersMock.mockResolvedValue([provider('openai')]);
+    defaultRows = {
+      openai: { ...ACTIVE_API_KEY_ROW, modelAllowlist: ['gpt-4o-mini-tts'] },
+    };
+    catalogMock.mockResolvedValue([
+      { id: 'gpt-4o', tags: ['chat'] },
+      ttsEntry(),
+    ]);
+    credentialMock.mockResolvedValue(apiKeyCredential());
+
+    const resolved = await resolveTtsModel(ctx, {
+      organizationId: ORG,
+      locale: 'en',
+    });
+    expect(resolved.modelId).toBe('gpt-4o-mini-tts');
   });
 
   it('prefers the requested provider and applies mp3 as the format default', async () => {
