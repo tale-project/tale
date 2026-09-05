@@ -43,10 +43,7 @@ import {
   isImage,
 } from '../../../lib/shared/file-types';
 import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
-import {
-  buildHarnessTable,
-  type CredentialAuth,
-} from '../../../lib/shared/providers/resolve_execution';
+import type { CredentialAuth } from '../../../lib/shared/providers/resolve_execution';
 import type {
   ApiFormat,
   ModelCatalogEntry,
@@ -60,7 +57,6 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { directActiveCredential } from '../lib/providers/direct_credential';
-import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import {
   resolveChatModel,
@@ -73,7 +69,6 @@ import { resolveProviderCredential } from '../provider_credentials/resolve_crede
 import { createChatToolExecutor } from './assistant_tools';
 import { resolveProjectContext } from './project_context';
 import { createStallGuard, type StallGuard } from './stream_stall';
-import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
 
 /** The stored excerpt of an upstream error body. This is the ONLY record of
  * the provider's answer anywhere (nothing logs the full body), so it must fit
@@ -619,13 +614,6 @@ export function createDirectModelCall(
   return async function* directModelCall(
     request,
   ): AsyncGenerator<ModelStreamChunk> {
-    if (request.execution.mode !== 'direct') {
-      throw new AppError({
-        code: 'CHAT_EXECUTION_UNAVAILABLE',
-        message:
-          'Sandbox execution is not available for chat turns yet — only direct model calls run here.',
-      });
-    }
     wire ??= await resolveDirectWire(ctx, organizationId, connector);
     // Provider files may name a private-http endpoint (self-hosted model
     // server, e2e mock gateway) — the schema admits the shape, and THIS is
@@ -763,7 +751,6 @@ export interface ExecuteTurnArgs {
   readonly modelSelection?: 'auto';
   /** The user's reasoning-effort pick; absent samples the default. */
   readonly reasoningEffort?: ReasoningEffort;
-  readonly sandbox: boolean;
   readonly locale: string;
   /** Re-run the thread's trailing user message (a regenerate): `userText` is
    * that message's text and the pipeline must not append it again. */
@@ -776,7 +763,10 @@ export interface ExecuteTurnArgs {
  * connector dispatcher. */
 export interface ExecuteTurnOverrides {
   readonly model?: ModelCall;
-  readonly deps?: Partial<TurnDeps>;
+  /** The host's write ports — the Postgres turn store and usage ledger —
+   * plus any pipeline dep a test wants to swap. Required: this host has no
+   * store of its own. */
+  readonly deps: Partial<TurnDeps> & Pick<TurnDeps, 'store' | 'usage'>;
 }
 
 /** Auto-resolution refusals, verbatim in the user's face — same voice as
@@ -1030,7 +1020,7 @@ export function unwrap<T>(result: PromiseSettledResult<T>): T {
 export async function executeTurn(
   ctx: ActionCtx,
   args: ExecuteTurnArgs,
-  overrides: ExecuteTurnOverrides = {},
+  overrides: ExecuteTurnOverrides,
 ): Promise<TurnOutcome> {
   const refuse = (reason: string): TurnOutcome => ({
     status: 'refused',
@@ -1259,10 +1249,7 @@ export async function executeTurn(
     createDirectModelCall(ctx, args.organizationId, resolved.connector);
 
   const deps: TurnDeps = {
-    harnesses: buildHarnessTable(loadHarnesses()),
     model,
-    store: createConvexTurnStore(ctx),
-    usage: createConvexUsageLedger(ctx, { pricing: resolved.entry.pricing }),
     // The chat assistant's fixed three-tool loadout. A test that wants a
     // tool-free turn overrides `tools` with undefined.
     tools: createChatToolExecutor(ctx, {
@@ -1297,10 +1284,12 @@ export async function executeTurn(
       reserveOutputTokens: sampling.maxTokens,
     },
     ...(omittedCount > 0 ? { historyOmittedCount: omittedCount } : {}),
-    // Direct chat only serves platform-managed credentials; a subscription
-    // credential is refused earlier, before the wire is built.
+    // Chat is the DIRECT lane: it serves platform-managed credentials over
+    // the provider wire, and `resolveDirectWire` refuses a subscription
+    // credential before any model call. The pipeline's sandbox arm belongs
+    // to the task-agent hosts, which bring their own harness table.
     credential: { authMethod: 'api-key' } satisfies CredentialAuth,
-    executionMode: args.sandbox ? 'sandbox' : 'direct',
+    executionMode: 'direct',
     ...(args.resend === true ? { appendUserMessage: false } : {}),
   };
 

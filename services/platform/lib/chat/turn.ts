@@ -83,6 +83,9 @@ export const TURN_STEPS = [
 
 export type TurnStep = (typeof TURN_STEPS)[number];
 
+/** The empty harness table a direct-only host resolves against. */
+const NO_HARNESSES: HarnessTable = new Map();
+
 /**
  * How many rounds of a turn may end in tool calls before the loop stops
  * offering tools and the model must answer. An execution ceiling is a
@@ -386,7 +389,9 @@ export interface TurnRequest {
 }
 
 export interface TurnDeps {
-  readonly harnesses: HarnessTable;
+  /** The harness catalog a SANDBOX host resolves execution against. A
+   * direct-only host (chat) omits it — the direct arm never consults it. */
+  readonly harnesses?: HarnessTable;
   readonly inputFilters?: readonly GuardrailFilter[];
   readonly outputFilters?: readonly GuardrailFilter[];
   readonly guardrailOptions?: GuardrailChainOptions;
@@ -463,7 +468,7 @@ export function resolveAgentAndExecution(
       mode: request.executionMode,
       harness: request.harness,
     },
-    deps.harnesses,
+    deps.harnesses ?? NO_HARNESSES,
   );
   return { agent: request.agent, execution };
 }
