@@ -460,7 +460,6 @@ interface HandlerNames {
     };
     internal_mutations: FunctionRef & {
       clearScanFailures: FunctionRef;
-      deleteWebsite: FunctionRef;
       recordScanFailure: FunctionRef;
     };
     internal_queries: FunctionRef & {

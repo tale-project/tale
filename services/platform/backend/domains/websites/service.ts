@@ -25,7 +25,6 @@ import {
 } from '../../core/knowledge/crawl_action.ts';
 import { getKnowledgePoolForOrg } from '../../core/knowledge/pool.ts';
 import { toWebsiteDomain } from '../../core/websites/create_website.ts';
-import { scanIntervalToSeconds } from '../../core/websites/internal_actions.ts';
 import { matchesWebsiteSearch } from '../../core/websites/match_website_search.ts';
 import {
   CONNECTION_FAILURES_BEFORE_PAUSE,
@@ -37,6 +36,7 @@ import {
 import {
   isValidScanInterval,
   SCAN_INTERVAL_VALUES,
+  scanIntervalToSeconds,
 } from '../../core/websites/types.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
