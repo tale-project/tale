@@ -656,7 +656,7 @@ export async function executeConnectorAction(
       `${nodeType} has a live body, but this deployment's code runner is the data-only in-process one, which cannot reach credentials or the network`,
       {
         ...where,
-        hint: 'live yaml-js execution needs the out-of-process sandbox runner, which is not wired up yet — run the action in mock mode until it lands',
+        hint: 'pass a host-capable runner as ctx.codeRunner: inProcessLiveRunner() for the shipped catalog, or the session-bound sandbox-exec runner (with ctx.portableHost) when the caller owns a sandbox session',
       },
     );
   }

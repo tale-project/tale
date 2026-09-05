@@ -17338,6 +17338,83 @@ async function checkConnectorOauth(
         credentialsAfter[0]?.count === '2',
       `outcome=${refused.kind}/${refused.kind === 'error' ? refused.error : '-'}, credentials=${credentialsAfter[0]?.count} (want 2, unchanged)`,
     );
+
+    // ---- a live yaml-js body runs IN PROCESS for a caller with no session --
+    // Automation runs, chat and the platform's own senders own no sandbox
+    // session; the door hands them the in-process live runner, so the shipped
+    // Slack body reaches its vendor through the mediated host with the stored
+    // bearer applied. Slack's host is fixed, so the vendor is answered by a
+    // global-fetch interception (the safe-fetch layer calls the global).
+    const realFetchForLive = globalThis.fetch;
+    const slackCalls: { url: string; auth: string | null; body: string }[] = [];
+    const liveFetchStub = async (
+      input: Parameters<typeof globalThis.fetch>[0],
+      init?: Parameters<typeof globalThis.fetch>[1],
+    ): Promise<Response> => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      if (!url.startsWith('https://slack.com/api/conversations.list')) {
+        return realFetchForLive(input, init);
+      }
+      const headers = new Headers(init?.headers);
+      slackCalls.push({
+        url,
+        auth: headers.get('authorization'),
+        body: typeof init?.body === 'string' ? init.body : '',
+      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          channels: [{ id: 'C-ITEST', name: 'general', is_private: false }],
+          response_metadata: { next_cursor: 'cursor-2' },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    };
+    globalThis.fetch = Object.assign(liveFetchStub, {
+      preconnect: realFetchForLive.preconnect,
+    });
+    let liveOut: unknown = null;
+    let liveError = '';
+    try {
+      const { runConnectorAction } =
+        await import('./domains/connectors/service.ts');
+      const live = await runConnectorAction(sql, {
+        organizationId: orgId,
+        connector: 'slack',
+        action: 'list_channels',
+        input: { limit: 5 },
+        credentialRef: refreshTargetId,
+        mode: 'live',
+        caller: { kind: 'system', reason: 'itest live yaml-js in process' },
+      });
+      liveOut = live.status === 'ok' ? live.output : live;
+    } catch (err) {
+      liveError = err instanceof Error ? err.message : String(err);
+    } finally {
+      globalThis.fetch = realFetchForLive;
+    }
+    const liveParsed = z
+      .object({
+        channels: z.array(z.object({ id: z.string() })),
+        next_cursor: z.string().nullable(),
+      })
+      .safeParse(liveOut);
+    record(
+      'connector live: a yaml-js body runs in process for a caller without a sandbox session',
+      liveError === '' &&
+        liveParsed.success &&
+        liveParsed.data.channels[0]?.id === 'C-ITEST' &&
+        liveParsed.data.next_cursor === 'cursor-2' &&
+        slackCalls.length === 1 &&
+        slackCalls[0]?.auth === 'Bearer xoxb-itest-access' &&
+        slackCalls[0]?.body === '{"limit":5}',
+      `error=${liveError || '-'} out=${liveParsed.success ? `${liveParsed.data.channels[0]?.id}/${liveParsed.data.next_cursor}` : JSON.stringify(liveOut).slice(0, 200)} vendorCalls=${slackCalls.length} auth=${slackCalls[0]?.auth ?? '-'} body=${slackCalls[0]?.body ?? '-'}`,
+    );
   } finally {
     vendor.close();
     if (savedSiteUrl === undefined) delete process.env.SITE_URL;

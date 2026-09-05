@@ -10,6 +10,7 @@ import {
   type CredentialResolver,
 } from '../../../lib/connectors/dispatcher.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
+import { inProcessLiveRunner } from '../../../lib/connectors/in-process-live.ts';
 import {
   registerNativeConnectors,
   type MailTransport,
@@ -68,13 +69,17 @@ import { pgTaskStore } from './task-store.ts';
  *
  * The sandbox script runner (`sandbox.run_script`) runs in the automation
  * run's own workflow session over the automations ctx shim — the same
- * session the run's agent nodes use. Live yaml-js bodies run on the
- * data-only in-process runner, which refuses host capabilities by design —
- * the out-of-process sandbox runner rides the external-turn bridge
- * increment.
+ * session the run's agent nodes use. A live yaml-js body runs on the
+ * host-capable in-process runner (the shipped catalog is trusted code, and
+ * `ctx.http` is the same policed live host either way) unless the caller
+ * owns a sandbox session, in which case the body runs out of process on the
+ * session-bound runner and phones its host calls home.
  */
 
 let mailTransportOverride: MailTransport | undefined;
+
+/** The one in-process live runner — stateless, so shared by every call. */
+const inProcessLive = inProcessLiveRunner();
 
 /** Integration seam: inject a fake IMAP/SMTP transport. Pass undefined to
  * restore the real clients. */
@@ -371,9 +376,9 @@ export interface RunConnectorArgs {
   idempotencyKey?: string;
   /**
    * A live sandbox session to run a yaml-js body IN, out of process. Only
-   * the external-turn bridge owns one; without it a live yaml-js body
-   * refuses on the data-only in-process runner (which cannot carry host
-   * capabilities). The runner is per-invocation ON PURPOSE — the
+   * the external-turn bridge owns one; every other live caller (automation
+   * runs, chat, the platform's own senders) runs the body on the in-process
+   * live runner. The runner is per-invocation ON PURPOSE — the
    * process-global slot is shared by every concurrent org.
    */
   execSessionId?: string;
@@ -390,8 +395,8 @@ export async function runConnectorAction(
   assembleConnectorHost(sql);
   // Out-of-process live execution: the session-bound sandbox-exec runner
   // plus the one-run capability its in-sandbox façade phones home with. No
-  // HMAC root ⇒ no token ⇒ fall back to the in-process refusal rather than
-  // running a body whose `ctx.http` could not be mediated.
+  // HMAC root ⇒ no token ⇒ the body runs in process instead, where its
+  // `ctx.http` is mediated by the live host directly.
   let portableRunner:
     | { codeRunner: CodeRunner; portableHost: PortableHostCall }
     | undefined;
@@ -406,7 +411,7 @@ export async function runConnectorAction(
     });
     if (token === null) {
       console.warn(
-        '[connectors] no HMAC root configured — live sandbox execution unavailable, falling back to the in-process refusal',
+        '[connectors] no HMAC root configured — live sandbox execution unavailable, running the body in process',
       );
     } else {
       portableRunner = {
@@ -432,7 +437,14 @@ export async function runConnectorAction(
       ...(args.idempotencyKey !== undefined
         ? { idempotencyKey: args.idempotencyKey }
         : {}),
-      ...(portableRunner !== undefined ? portableRunner : {}),
+      // A live yaml-js body needs a host-capable runner: the session-bound
+      // one when the caller owns a session, the in-process one otherwise.
+      // The process-global slot stays the data-only runner for mock bodies.
+      ...(portableRunner !== undefined
+        ? portableRunner
+        : args.mode === 'live'
+          ? { codeRunner: inProcessLive }
+          : {}),
     },
   });
 }
