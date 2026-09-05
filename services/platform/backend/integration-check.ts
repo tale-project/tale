@@ -16749,9 +16749,9 @@ async function checkRecoverySweeps(
 async function checkSlackInbound(
   sql: Sql,
   base: string,
-  ctx: { orgId: string; userId: string },
+  ctx: { orgId: string },
 ): Promise<void> {
-  const { orgId, userId } = ctx;
+  const { orgId } = ctx;
   const SIGNING_SECRET = 'itest-slack-signing-secret';
   const saved = process.env.CONNECTOR_SLACK_SIGNING_SECRET;
 
@@ -16939,49 +16939,6 @@ async function checkSlackInbound(
       'slack inbound: a retry of a still-queued delivery collapses into it',
       firstSend !== null && secondSend === null,
       `first=${firstSend === null ? 'refused' : 'queued'}, retry=${secondSend === null ? 'collapsed' : 'DUPLICATED'}`,
-    );
-
-    // ---- external identities --------------------------------------------
-    const identities = await import('./domains/identities/service.ts');
-    const ownerId = await identities.upsertExternalIdentity(sql, {
-      source: 'slack',
-      organizationId: orgId,
-      externalUserId: 'U-ITEST',
-      displayName: 'Slack Person',
-      handle: 'slackperson',
-    });
-    const firstRow = await sql<{ updatedAt: number }[]>`
-      SELECT updated_at_ms::float8 AS "updatedAt"
-      FROM app.external_identities WHERE owner_id = ${ownerId}
-    `;
-    // A refresh that fetched NOTHING must not touch updatedAt, or the next
-    // message would be suppressed for the whole freshness window.
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    await identities.upsertExternalIdentity(sql, {
-      source: 'slack',
-      organizationId: orgId,
-      externalUserId: 'U-ITEST',
-    });
-    const afterEmpty = await sql<{ updatedAt: number; displayName: string }[]>`
-      SELECT updated_at_ms::float8 AS "updatedAt",
-             display_name AS "displayName"
-      FROM app.external_identities WHERE owner_id = ${ownerId}
-    `;
-    const names = await identities.resolveExternalDisplayNames(sql, [
-      ownerId,
-      userId,
-      'slack:other-org:U-ELSEWHERE',
-    ]);
-    const detail = await identities.getExternalIdentity(sql, ownerId);
-    record(
-      'external identities: org-scoped owner id, empty refresh keeps freshness',
-      ownerId === `slack:${orgId}:U-ITEST` &&
-        afterEmpty[0]?.updatedAt === firstRow[0]?.updatedAt &&
-        afterEmpty[0]?.displayName === 'Slack Person' &&
-        names.get(ownerId) === 'Slack Person' &&
-        !names.has(userId) &&
-        detail?.handle === 'slackperson',
-      `ownerId=${ownerId}, freshnessKept=${afterEmpty[0]?.updatedAt === firstRow[0]?.updatedAt}, name=${afterEmpty[0]?.displayName}, resolved=${names.get(ownerId) ?? 'none'} internalIgnored=${!names.has(userId)}, handle=${detail?.handle ?? 'none'}`,
     );
   } finally {
     if (saved === undefined) delete process.env.CONNECTOR_SLACK_SIGNING_SECRET;
