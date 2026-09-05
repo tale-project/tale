@@ -58,8 +58,7 @@ const DIMENSION: Partial<Record<NotificationType, string>> = {
   // second card next to it.
   agent_escalation: 'question',
   // Deliberately absent — each carries its own content, so each is its own row:
-  // mention, task_commented, conversation_message, automation_failed,
-  // budget_alert, runtime_offline.
+  // mention, task_commented, conversation_message.
 };
 
 /**

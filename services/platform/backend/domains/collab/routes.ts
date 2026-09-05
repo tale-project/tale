@@ -128,7 +128,6 @@ export function createCollabRoutes(deps: {
         taskDeadlines: z.boolean().optional(),
         taskReview: z.boolean().optional(),
         escalation: z.boolean().optional(),
-        automationAlerts: z.boolean().optional(),
         conversationMessages: z.boolean().optional(),
         actionableEmail: z.boolean().optional(),
       })

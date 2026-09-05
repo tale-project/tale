@@ -16,6 +16,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 
 const service = vi.hoisted(() => ({
   listMyNotifications: vi.fn(),
+  setNotificationPreferences: vi.fn(),
 }));
 
 vi.mock('./service.ts', () => ({
@@ -25,7 +26,7 @@ vi.mock('./service.ts', () => ({
   markAllNotificationsRead: vi.fn(),
   markNotificationRead: vi.fn(),
   myUnreadCount: vi.fn(),
-  setNotificationPreferences: vi.fn(),
+  setNotificationPreferences: service.setNotificationPreferences,
   setTaskSubscription: vi.fn(),
   getMyAttentionSummary: vi.fn(),
 }));
@@ -105,6 +106,26 @@ describe('GET /collab/notifications — query validation', () => {
     expect(service.listMyNotifications.mock.calls[0]?.[1]).toEqual({
       organizationId: 'o1',
       userId: 'u1',
+    });
+  });
+});
+
+describe('POST /collab/preferences — the offered toggles only', () => {
+  it('drops the retired automation-alerts key instead of persisting a setting nothing reads', async () => {
+    // The 0.4 `automation_alerts` group has no emitter in 0.5: the toggle
+    // is gone from the settings page and the door no longer takes the key.
+    const res = await createCollabRoutes({
+      sql: {} as never,
+      auth: {} as never,
+    }).request('/preferences', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ escalation: false, automationAlerts: false }),
+    });
+    expect(res.status).toBe(200);
+    expect(service.setNotificationPreferences).toHaveBeenCalledTimes(1);
+    expect(service.setNotificationPreferences.mock.calls[0]?.[3]).toEqual({
+      escalation: false,
     });
   });
 });
