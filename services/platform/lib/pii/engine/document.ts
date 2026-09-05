@@ -11,14 +11,20 @@
  *
  * Windowing: the text is cut into pieces of at most `windowBytes / 4`
  * UTF-16 code units — one code unit encodes to at most four UTF-8 bytes,
- * so every piece is under the clamp before normalization even touches it
- * (`clampMessage`'s own fast path). A cut prefers a paragraph break, then
- * a line break, then a space, searched back over the second half of the
- * window, so a match is only ever split when a single paragraph is longer
- * than the window and has no break to cut at. Should a window still come
- * back `truncated` (normalization cannot grow text past the clamp at this
- * size, but the engine's flag is the authority), it is halved and rescanned
- * — no text is ever indexed from a truncated scan.
+ * so every piece is under the clamp as cut (`clampMessage`'s own fast
+ * path). A cut prefers a paragraph break, then a line break, then a space,
+ * searched back over the second half of the window, so a match is only
+ * ever split when a single paragraph is longer than the window and has no
+ * break to cut at.
+ *
+ * Normalization can still grow a piece past the clamp: the engine runs NFC
+ * before it clamps, and a composition-excluded code point decomposes under
+ * NFC (U+0958 becomes U+0915 U+093C — three UTF-8 bytes become six), so a
+ * window of them is clamped inside `scrub` after all. The engine's
+ * `truncated` flag is therefore the authority, on every verdict kind
+ * including `pass` — a clamped window with no match in its prefix says
+ * nothing about its tail. A window that comes back truncated is halved and
+ * rescanned; no text is ever indexed from a truncated scan.
  *
  * Aggregation follows the strongest verdict: any `blocked` window blocks
  * the document; any `step_error` (a window the engine could not scan)
@@ -106,18 +112,15 @@ function truncatedStepError(): FilterStepErrorOutcome {
 }
 
 /**
- * Scan one piece; a truncated verdict halves the piece and rescans both
- * halves. A single code unit cannot be truncated by the engine, so the
- * recursion ends; the step error below is the unreachable floor, kept so a
- * truncated scan can never be returned as a result.
+ * Scan one piece; a truncated verdict — of any kind, a `pass` included —
+ * halves the piece and rescans both halves. A single code unit cannot be
+ * truncated by the engine, so the recursion ends; the step error below is
+ * the unreachable floor, kept so a truncated scan can never be returned as
+ * a result.
  */
 function scanPiece(scrubber: Scrubber, piece: string): Scanned[] {
   const outcome = scrubber.scrub(piece);
-  const truncated =
-    (outcome.kind === 'modified' ||
-      outcome.kind === 'blocked' ||
-      outcome.kind === 'flagged') &&
-    outcome.truncated === true;
+  const truncated = outcome.kind !== 'step_error' && outcome.truncated === true;
   if (!truncated) return [{ piece, outcome }];
   if (piece.length <= 1) return [{ piece, outcome: truncatedStepError() }];
   const mid = cutPoint(piece, 0, Math.ceil(piece.length / 2), 1);

@@ -114,6 +114,27 @@ describe('applyPiiPolicyForIndexing', () => {
     expect(decision).toEqual({ kind: 'refuse', categoryIds: ['creditCard'] });
   });
 
+  it('refuses an identifier behind a head that doubles under NFC', () => {
+    // U+0958 decomposes under NFC into two code units, so a window cut
+    // under the engine clamp grows past it inside the engine; the clamped
+    // prefix has no match and the identifier sits in the unscanned tail. A
+    // crafted document must not walk past a block policy that way.
+    const text = `${String.fromCharCode(0x0958).repeat(12_000)} ${CARD}`;
+    const decision = applyPiiPolicyForIndexing(
+      text,
+      policy({ mode: 'block', enabledPatterns: ['creditCard'] }),
+    );
+    expect(decision).toEqual({ kind: 'refuse', categoryIds: ['creditCard'] });
+    const masked = applyPiiPolicyForIndexing(
+      text,
+      policy({ enabledPatterns: ['creditCard'] }),
+    );
+    expect(masked.kind).toBe('index');
+    if (masked.kind !== 'index') return;
+    expect(masked.text).toContain('[CREDIT_CARD]');
+    expect(masked.text).not.toContain('4111 1111 1111 1111');
+  });
+
   it('indexes clean text unchanged', () => {
     const clean = 'The handbook covers refunds within 30 days.';
     expect(applyPiiPolicyForIndexing(clean, policy())).toEqual({

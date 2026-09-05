@@ -55,7 +55,9 @@ export function createScrubber(options: ScrubberOptions): Scrubber {
     const { text: clamped, truncated } = clampMessage(normalized, maxBytes);
 
     const matches = detectPii(clamped, patterns, budgetMs);
-    if (matches.length === 0) return pass();
+    // A clamped input with no match in its prefix is not clean, only
+    // unscanned past the clamp — the flag travels on the pass too.
+    if (matches.length === 0) return pass(truncated || undefined);
 
     const categoryIds = [...new Set(matches.map((m) => m.patternName))];
 

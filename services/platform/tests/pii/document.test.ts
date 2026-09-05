@@ -3,8 +3,9 @@
  *
  * The properties: every window stays under the engine clamp, the pieces
  * join back to the input exactly, a match past the clamp is found in every
- * mode, a rewritten document keeps its length, and a truncated window is
- * rescanned in halves rather than returned.
+ * mode, a rewritten document keeps its length, and a truncated window —
+ * whatever verdict it came back with, a `pass` included — is rescanned in
+ * halves rather than returned.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -13,8 +14,10 @@ import {
   MAX_MESSAGE_BYTES,
   PatternRegistry,
   blocked,
+  clampMessage,
   createScrubber,
   modified,
+  normalizeForDetection,
   pass,
   scrubDocument,
   splitIntoWindows,
@@ -27,6 +30,13 @@ const WINDOW_CHARS = Math.floor(MAX_MESSAGE_BYTES / 4);
 const EMAIL = 'write to ada@example.com please';
 const CARD = 'card 4111 1111 1111 1111 on file';
 const FILLER = 'Refunds are honoured within thirty days of purchase.\n';
+/**
+ * A composition-excluded code point: NFC decomposes U+0958 into U+0915
+ * U+093C (one code unit into two, three UTF-8 bytes into six), so a window
+ * of them is cut under the clamp and then doubles past it inside the
+ * engine, which clamps it and sees nothing of the tail.
+ */
+const NFC_GROWING_HEAD = String.fromCharCode(0x0958).repeat(12_000);
 
 function longText(head: string, tail: string): string {
   return [head, FILLER.repeat(2_500), tail].join('\n');
@@ -111,6 +121,25 @@ describe('scrubDocument over the engine', () => {
     );
   });
 
+  it('blocks an identifier behind a head that doubles under NFC', () => {
+    const text = `${NFC_GROWING_HEAD} ${CARD}`;
+    // One window as cut, clamped inside the engine after normalization; a
+    // message-sized scrub sees only the clean head and passes.
+    expect(text.length).toBeLessThanOrEqual(WINDOW_CHARS);
+    expect(clampMessage(normalizeForDetection(text)).truncated).toBe(true);
+    expect(block.scrub(text)).toEqual(pass(true));
+    expect(scrubDocument(block, text)).toEqual(blocked(['creditCard'], 1));
+  });
+
+  it('masks an identifier behind a head that doubles under NFC', () => {
+    const o = scrubDocument(mask, `${NFC_GROWING_HEAD} ${CARD}`);
+    expect(o.kind).toBe('modified');
+    if (o.kind !== 'modified') return;
+    expect(o.text).toContain('[CREDIT_CARD]');
+    expect(o.text).not.toContain('4111 1111 1111 1111');
+    expect(o.truncated).toBeUndefined();
+  });
+
   it('agrees with scrub on a message-sized input', () => {
     const short = `${EMAIL} and ${CARD}`;
     expect(scrubDocument(mask, short)).toEqual(mask.scrub(short));
@@ -137,6 +166,22 @@ describe('scrubDocument aggregation', () => {
       windowBytes: 4 * 20,
     });
     expect(o).toEqual(modified('abcdefgh ijkl#mnop qrstuvwx', ['x'], 1));
+    expect(seen.join('')).toBe('abcdefgh ijkl!mnop qrstuvwx');
+  });
+
+  it('treats a truncated pass as unscanned and rescans it in halves', () => {
+    // The clamped prefix matched nothing; the identifier sits in the tail
+    // the engine never looked at. A bare pass here would index it.
+    const seen: string[] = [];
+    const scrubber = fakeScrubber((text) => {
+      if (text.length >= 8) return pass(true);
+      seen.push(text);
+      return text.includes('!') ? blocked(['x'], 1) : pass();
+    });
+    const o = scrubDocument(scrubber, 'abcdefgh ijkl!mnop qrstuvwx', {
+      windowBytes: 4 * 20,
+    });
+    expect(o).toEqual(blocked(['x'], 1));
     expect(seen.join('')).toBe('abcdefgh ijkl!mnop qrstuvwx');
   });
 
