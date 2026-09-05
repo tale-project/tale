@@ -10,7 +10,8 @@
 // This file is mirrored by `services/sandbox-runtime/daemon/src/protocol.ts`
 // — the daemon is bundled into the runtime image and cannot import across
 // service boundaries (same convention as wire.ts ↔ convex/sandbox/wire.ts).
-// Keep both files in sync; the daemon's unit tests snapshot the JSON shapes.
+// Keep both files in sync: runnerd-protocol.test.ts imports both copies and
+// fails on any constant that differs or exists on one side only.
 //
 // Transport notes:
 //  - POST /execs responds with NDJSON (one JSON object per line, flushed per
@@ -32,6 +33,12 @@ export const RUNNERD_TOKEN_CONTEXT = 'runnerd-v1:';
 // daemon re-enforces so a compromised spawner replica can't wedge a session).
 export const RUNNERD_MAX_LIVE_EXECS = 4;
 export const RUNNERD_RING_BUFFER_BYTES = 256 * 1024;
+/** Per-consumer in-flight write ceiling. A slow/stalled (but still attached)
+ * SSE consumer would otherwise let Node buffer un-drained stdout in the HTTP
+ * response unboundedly. Past this, the daemon stops writing to that ONE
+ * consumer (the others are unaffected); it reconnects via /attach?sinceSeq=
+ * and replays from the bounded ring. Bounds memory, never truncates output. */
+export const RUNNERD_CONSUMER_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
 export const RUNNERD_ENV_MAX_ENTRIES = 128;
 export const RUNNERD_ENV_MAX_VALUE_BYTES = 32 * 1024;
 

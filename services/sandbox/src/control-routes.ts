@@ -50,10 +50,6 @@ export class ControlRoutes {
     return this.draining;
   }
 
-  get drainStartedAt(): number | null {
-    return this.startedAt;
-  }
-
   /**
    * Route entry. Returns `null` for anything that is not a control route so
    * the router falls through; otherwise the (401 or 200) Response.
