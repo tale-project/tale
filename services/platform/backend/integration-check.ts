@@ -25870,9 +25870,10 @@ async function checkSandboxSessions(
 
   // Release edge: hibernating slot 1 opens exactly one slot — the FIFO head
   // (owner-3) may proceed, the later waiter (owner-4) may not.
-  await sessions.markSessionStopped(sql, {
+  await sessions.setSessionStatus(sql, {
     organizationId: orgId,
     sessionId: 'itest-sb-1',
+    status: 'stopped',
   });
   const pollLater = await sessions.pollAdmission(sql, {
     organizationId: orgId,
@@ -27363,6 +27364,73 @@ async function checkTaskAgentRuns(
   const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
+  // The release EDGE itself: a project-agent turn ending frees the agent's
+  // standing slot, and that release wakes the org's oldest parked run at
+  // once — no watchdog tick in between. Counted org-wide (a live worker may
+  // have parked a sibling), so the proof is one fewer parked run and one
+  // more turn job, plus the slot really hibernated.
+  await agentRuns.parkAgentRunForCapacity(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+  });
+  const ledgerSessionId = `pa-${agentId}`;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${ledgerSessionId}, 'active', 'project_agent', ${agentId},
+      'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}
+    )
+  `;
+  const countParked = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.project_agent_runs
+          WHERE org_id = ${orgId} AND status = 'queued'
+            AND waiting_for_capacity_at_ms IS NOT NULL
+        `
+      )[0]?.count ?? '0',
+    );
+  const countTurnJobs = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pgboss.job
+          WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+        `
+      )[0]?.count ?? '0',
+    );
+  const parkedBeforeRelease = await countParked();
+  const turnJobsBeforeRelease = await countTurnJobs();
+  const sessionsApi = await import('./domains/sandbox/sessions.ts');
+  const released = await sessionsApi.releaseProjectAgentSessionSlot(sql, {
+    organizationId: orgId,
+    agentId,
+  });
+  const parkedAfterRelease = await countParked();
+  const turnJobsAfterRelease = await countTurnJobs();
+  const releasedSlot = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
+    ORDER BY created_at_ms DESC LIMIT 1
+  `;
+  const releaseEdgeOk =
+    released &&
+    releasedSlot[0]?.status === 'stopped' &&
+    // ≤/≥, not ==: a live worker's own release edge may wake a sibling in
+    // the same window; the edge under test still accounts for one of them.
+    parkedAfterRelease <= parkedBeforeRelease - 1 &&
+    turnJobsAfterRelease >= turnJobsBeforeRelease + 1;
+  // Un-park OUR run for the launch below if the edge woke a sibling instead.
+  await agentRuns.claimParkedAgentRun(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+  });
+
   // Launch + exactly-once settle; `launchedAt` distinct from kick time.
   const launched = await agentRuns.setAgentRunRunning(sql, {
     organizationId: orgId,
@@ -27412,6 +27480,7 @@ async function checkTaskAgentRuns(
       !secondClaim &&
       woken === 1 &&
       afterWake?.waitingForCapacityAt === null &&
+      releaseEdgeOk &&
       launched &&
       settled &&
       !settledTwice &&
@@ -27423,7 +27492,7 @@ async function checkTaskAgentRuns(
       // the auto-retry arm may already have added attempts by this read.
       secondRuns.data.runs.length >= 2 &&
       !reuseProbe.reused,
-    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want ≥2, fresh=${!reuseProbe.reused})`,
+    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, releaseEdge=${released}/slot=${releasedSlot[0]?.status}/parked ${parkedBeforeRelease}→${parkedAfterRelease}/turnJobs ${turnJobsBeforeRelease}→${turnJobsAfterRelease} (want true/stopped/-1/+1), settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want ≥2, fresh=${!reuseProbe.reused})`,
   );
 }
 

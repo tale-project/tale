@@ -360,21 +360,32 @@ export async function setSessionPinned(
   return rows.length > 0;
 }
 
-/** Hibernate: compute released, workspace preserved; frees the org slot. */
-export async function markSessionStopped(
+/**
+ * Release a project agent's standing-session slot at the end of a turn —
+ * the ONE seam behind the host's settle release, its rollback after a
+ * failed resume-create, and the deadline watchdog's slot free. The session
+ * hibernates (`stopped`: compute released, workspace preserved, slot freed)
+ * unless a sibling turn's op is still running on it or the row is pinned.
+ * A freed slot is a release edge: the org's oldest parked run is woken at
+ * once instead of idling until the 2-minute watchdog tick. Best-effort — a
+ * wake failure must never fail the release.
+ */
+export async function releaseProjectAgentSessionSlot(
   sql: Sql,
-  args: { organizationId: string; sessionId: string },
+  args: { organizationId: string; agentId: string },
 ): Promise<boolean> {
   const rows = await sql<{ id: string }[]>`
-    UPDATE app.sandbox_sessions SET status = 'stopped'
-    WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
-      AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
-      AND status <> 'stopped' AND pinned = false
-    RETURNING id
+    UPDATE app.sandbox_sessions s SET status = 'stopped'
+    WHERE s.owner_type = 'project_agent' AND s.owner_id = ${args.agentId}
+      AND s.org_id = ${args.organizationId}
+      AND s.status IN ('creating', 'active', 'degraded')
+      AND s.pinned = false
+      AND NOT EXISTS (
+        SELECT 1 FROM app.sandbox_session_ops op
+        WHERE op.session_id = s.session_id AND op.status = 'running'
+      )
+    RETURNING s.id
   `;
-  // A freed slot is a release edge — wake the org's oldest parked run
-  // immediately instead of waiting for the watchdog tick. Best-effort: a
-  // wake failure must never fail the release.
   if (rows.length > 0) {
     await wakeParkedAgentRuns(sql, args.organizationId).catch(
       (error: unknown) => {
@@ -504,7 +515,7 @@ export async function markSessionDestroyed(
     })
     .then(async (destroyed) => {
       if (destroyed) {
-        // Release edge (see markSessionStopped) — after the commit.
+        // Release edge (see releaseProjectAgentSessionSlot) — after the commit.
         await wakeParkedAgentRuns(sql, args.organizationId).catch(
           (error: unknown) => {
             console.warn('[sandbox] capacity wake failed:', error);
