@@ -110,14 +110,14 @@ describe('pgTaskStore.comment', () => {
         organizationId: 'org-1',
         taskId: 'task-1',
         body: 'Done.',
-        bodyByLocale: { en: 'Done.', de: 'Erledigt.' },
+        bodyByLocale: { en: 'Done.', de: 'Erledigt.', fr: 'Terminé.' },
       }),
     ).resolves.toEqual({ messageId: 'm-1' });
 
     expect(addTaskComment).toHaveBeenCalledWith(tx, auth, {
       taskId: 'task-1',
       body: 'Done.',
-      bodyByLocale: { en: 'Done.', de: 'Erledigt.' },
+      bodyByLocale: { en: 'Done.', de: 'Erledigt.', fr: 'Terminé.' },
       author: { actorType: 'agent', actorId: 'workflow' },
     });
   });

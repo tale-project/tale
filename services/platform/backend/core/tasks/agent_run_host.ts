@@ -76,6 +76,7 @@ import {
   normalizeToolGrants,
   secretsGuidance,
 } from '../sandbox/tool_names';
+import { TASK_COMMENT_MAX } from './helpers';
 import type { TaskRunFailureCode } from './task_auto_retry';
 import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
@@ -1347,6 +1348,62 @@ async function continueOrSettle(
   });
 }
 
+/** The tail a cut report ends with — the full text stays on the run row. */
+export const SETTLE_REPORT_TRUNCATED_TAIL =
+  '\n\n… (report truncated — the full text is on the run)';
+
+/**
+ * The settle comment's body: the agent's report, then the deliverables and
+ * what the harvest could not bring back. Capped at `TASK_COMMENT_MAX`, the
+ * limit the comment door enforces: a substantial coding-harness report
+ * routinely runs past 10k characters, and the door's refusal used to be
+ * caught and logged while the task still parked at in_review — a review
+ * bell for a card whose discussion had no report, and a next kick whose
+ * brief (built from the discussion) had no memory of what was done. The
+ * lists stay whole (the reviewer must see WHAT was delivered and what is
+ * missing); the report is cut to fit and says so.
+ */
+export function buildSettleCommentBody(args: {
+  resultText: string;
+  fileNames: readonly string[];
+  skippedNotes: readonly string[];
+}): string {
+  const sections = [
+    ...(args.fileNames.length > 0
+      ? [
+          ['Deliverables:', ...args.fileNames.map((name) => `- ${name}`)].join(
+            '\n',
+          ),
+        ]
+      : []),
+    ...(args.skippedNotes.length > 0
+      ? [
+          [
+            'Not delivered (the harvest skipped these outputs):',
+            ...args.skippedNotes.map((note) => `- ${note}`),
+          ].join('\n'),
+        ]
+      : []),
+  ];
+  const compose = (report: string): string =>
+    [report, ...sections].join('\n\n');
+  const full = compose(args.resultText);
+  if (full.length <= TASK_COMMENT_MAX) return full;
+  const reportBudget =
+    TASK_COMMENT_MAX -
+    (full.length - args.resultText.length) -
+    SETTLE_REPORT_TRUNCATED_TAIL.length;
+  if (reportBudget > 0) {
+    return compose(
+      `${args.resultText.slice(0, reportBudget)}${SETTLE_REPORT_TRUNCATED_TAIL}`,
+    );
+  }
+  // The lists alone overflow the cap (thousands of deliverables): cut the
+  // whole body rather than post nothing — the outputs list on the task row
+  // stays complete.
+  return `${full.slice(0, TASK_COMMENT_MAX - SETTLE_REPORT_TRUNCATED_TAIL.length)}${SETTLE_REPORT_TRUNCATED_TAIL}`;
+}
+
 /**
  * Settle exactly once (the session-op finalize claim elects the winner):
  * harvest `/agent/output`, then on success post the agent's report as a task
@@ -1510,20 +1567,7 @@ async function settleTaskAgentTurn(
     result.text.trim() !== ''
       ? result.text.trim()
       : 'The agent finished without a report.';
-  const body = [
-    resultText,
-    ...(fileNames.length > 0
-      ? [['Deliverables:', ...fileNames.map((name) => `- ${name}`)].join('\n')]
-      : []),
-    ...(skippedNotes.length > 0
-      ? [
-          [
-            'Not delivered (the harvest skipped these outputs):',
-            ...skippedNotes.map((note) => `- ${note}`),
-          ].join('\n'),
-        ]
-      : []),
-  ].join('\n\n');
+  const body = buildSettleCommentBody({ resultText, fileNames, skippedNotes });
 
   let resultMessageId: string | undefined;
   try {
