@@ -207,6 +207,16 @@ export async function upsertSamlConnection(
   const existing = await readExisting(orgSlug);
 
   const spPrivateKey = args.spPrivateKey ?? existing.secrets.spPrivateKey;
+  // Requiring encrypted assertions without the key that decrypts them would
+  // persist a connection that refuses every SAML login (node-saml throws on
+  // an encrypted assertion with no decryption key) — refuse the save instead,
+  // under the field the admin has to fill.
+  if (args.wantAssertionsEncrypted === true && !spPrivateKey) {
+    throw new SsoAdminError(
+      'sso_sp_key_required',
+      'An SP private key is required to require encrypted assertions.',
+    );
+  }
 
   const config: SsoConnectionFile = {
     enabled: true,

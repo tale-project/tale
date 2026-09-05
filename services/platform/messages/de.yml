@@ -5357,6 +5357,31 @@ settings:
     idpCertHelp: Das X.509-Zertifikat, mit dem der IdP Assertions signiert.
     spMetadataLabel: SP-Metadaten-URL
     acsUrlLabel: ACS-URL (Antwort)
+    spKeypairHelp:
+      Nur nötig, wenn dein IdP Assertions verschlüsselt oder Attribute anders
+      benennt. Füge ein SP-Zertifikat samt privatem Schlüssel ein, um
+      verschlüsselte Assertions zu empfangen — das Zertifikat landet in den
+      SP-Metadaten, der Schlüssel wird als Secret gespeichert und nie wieder
+      angezeigt.
+    spCertLabel: SP-Zertifikat (PEM)
+    spCertHelp: Das X.509-Zertifikat, für das dein IdP Assertions verschlüsselt.
+    spKeyLabel: Privater SP-Schlüssel (PEM)
+    spKeyHelp: Der private Schlüssel zum SP-Zertifikat.
+    spKeyKeep: Ein Schlüssel ist gespeichert. Leer lassen, um ihn zu behalten.
+    wantSignedLabel: Signierte Assertions verlangen
+    wantSignedDescription:
+      Weist eine Assertion ohne gültige Signatur des IdP-Zertifikats oben ab.
+      Lass das eingeschaltet.
+    wantEncryptedLabel: Verschlüsselte Assertions verlangen
+    wantEncryptedDescription:
+      Weist eine Assertion ab, die im Klartext eintrifft. Braucht den
+      privaten SP-Schlüssel und einen IdP, der verschlüsselt.
+    attributeMappingsHelp:
+      Attributnamen in der Assertion. Leer lassen, um die Standardnamen zu
+      verwenden (email, name, groups und ihre Claim-URIs).
+    attrEmailLabel: E-Mail-Attribut
+    attrNameLabel: Namensattribut
+    attrGroupsLabel: Gruppenattribut
     provisioningSection: Bereitstellung
     defaultRoleLabel: Standardrolle
     role:
@@ -5400,6 +5425,7 @@ settings:
       required: Dieses Feld ist erforderlich.
       url: Gib eine gültige URL ein (inklusive https://).
       clientSecretRequired: Ein Client-Secret ist erforderlich.
+      spKeyRequired: Verschlüsselte Assertions verlangen einen privaten SP-Schlüssel.
     roleMapping:
       help:
         Ordne Gruppen, App-Rollen oder Jobtitel aus dem Identity-Provider einer

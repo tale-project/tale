@@ -109,6 +109,15 @@ interface SsoFormData {
   idpEntityId: string;
   idpSsoUrl: string;
   idpCertificate: string;
+  // SAML advanced: the SP keypair (the key is a secret, reused-on-omit),
+  // the two assertion requirements and the assertion attribute names.
+  spCertificate: string;
+  spPrivateKey: string;
+  wantAssertionsSigned: boolean;
+  wantAssertionsEncrypted: boolean;
+  attrEmail: string;
+  attrName: string;
+  attrGroups: string;
   // Provisioning
   defaultRole: PlatformRole;
   autoRole: boolean;
@@ -155,6 +164,13 @@ const EMPTY_FORM_DATA: SsoFormData = {
   idpEntityId: '',
   idpSsoUrl: '',
   idpCertificate: '',
+  spCertificate: '',
+  spPrivateKey: '',
+  wantAssertionsSigned: true,
+  wantAssertionsEncrypted: false,
+  attrEmail: '',
+  attrName: '',
+  attrGroups: '',
   defaultRole: 'member',
   autoRole: false,
   roleMappingRules: [],
@@ -164,6 +180,23 @@ const EMPTY_FORM_DATA: SsoFormData = {
 
 const isOidcProtocol = (p: UiProtocol): p is Exclude<UiProtocol, 'saml'> =>
   p !== 'saml';
+
+/** The SAML attribute-name overrides the form holds, as the connection
+ * stores them: only the names the admin filled in, `undefined` when none —
+ * so clearing all three removes the mapping instead of storing empties. */
+function attributeMappingsFrom(
+  values: SsoFormData,
+): { email?: string; name?: string; groups?: string } | undefined {
+  const email = values.attrEmail.trim();
+  const name = values.attrName.trim();
+  const groups = values.attrGroups.trim();
+  if (!email && !name && !groups) return undefined;
+  return {
+    ...(email ? { email } : {}),
+    ...(name ? { name } : {}),
+    ...(groups ? { groups } : {}),
+  };
+}
 
 /**
  * Client-side pre-check for an uploaded metadata file. Mirrors the server's
@@ -218,6 +251,9 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   // OIDC connection keeps its stored secret when the field is left blank.
   // -------------------------------------------------------------------------
   const hasStoredOidcSecret = !!config?.oidc;
+  // The SP private key lives in the secrets sidecar and never rides the view;
+  // `hasSpKeypair` says one is stored, so a blank key field means "keep it".
+  const hasStoredSpKey = !!config?.saml?.hasSpKeypair;
   const schema = useMemo(() => {
     const requiredMsg = t('enterpriseSso.validation.required');
     const urlMsg = t('enterpriseSso.validation.url');
@@ -238,6 +274,13 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         idpEntityId: z.string(),
         idpSsoUrl: z.string(),
         idpCertificate: z.string(),
+        spCertificate: z.string(),
+        spPrivateKey: z.string(),
+        wantAssertionsSigned: z.boolean(),
+        wantAssertionsEncrypted: z.boolean(),
+        attrEmail: z.string(),
+        attrName: z.string(),
+        attrGroups: z.string(),
         defaultRole: z.enum([
           'admin',
           'developer',
@@ -310,9 +353,23 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           if (!data.idpSsoUrl.trim()) req('idpSsoUrl');
           else if (!isHttpUrl(data.idpSsoUrl.trim())) url('idpSsoUrl');
           if (!data.idpCertificate.trim()) req('idpCertificate');
+          // Requiring encrypted assertions without the key that decrypts
+          // them would refuse every login — the backend refuses the save
+          // (sso_sp_key_required); say so under the field first.
+          if (
+            data.wantAssertionsEncrypted &&
+            !hasStoredSpKey &&
+            !data.spPrivateKey.trim()
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['spPrivateKey'],
+              message: t('enterpriseSso.validation.spKeyRequired'),
+            });
+          }
         }
       });
-  }, [t, hasStoredOidcSecret]);
+  }, [t, hasStoredOidcSecret, hasStoredSpKey]);
 
   // Per-protocol default connection names (#2652) — a generic "Enterprise SSO"
   // never told users which IdP the button leads to. Only a default: the field
@@ -347,12 +404,25 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     let idpEntityId = '';
     let idpSsoUrl = '';
     let idpCertificate = '';
+    let spCertificate = '';
+    let wantAssertionsSigned = true;
+    let wantAssertionsEncrypted = false;
+    let attrEmail = '';
+    let attrName = '';
+    let attrGroups = '';
 
     if (config.protocol === 'saml' && config.saml) {
       protocol = 'saml';
       idpEntityId = config.saml.idpEntityId;
       idpSsoUrl = config.saml.idpSsoUrl;
       idpCertificate = config.saml.idpCertificate;
+      spCertificate = config.saml.spCertificate ?? '';
+      // The ACS and the SP metadata both default to requiring signatures.
+      wantAssertionsSigned = config.saml.wantAssertionsSigned ?? true;
+      wantAssertionsEncrypted = config.saml.wantAssertionsEncrypted ?? false;
+      attrEmail = config.saml.attributeMappings?.email ?? '';
+      attrName = config.saml.attributeMappings?.name ?? '';
+      attrGroups = config.saml.attributeMappings?.groups ?? '';
       scopes = '';
     } else if (config.oidc) {
       const pid = config.oidc.providerId;
@@ -387,6 +457,14 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       idpEntityId,
       idpSsoUrl,
       idpCertificate,
+      spCertificate,
+      // A secret: never in the view, so the field starts blank (= keep).
+      spPrivateKey: '',
+      wantAssertionsSigned,
+      wantAssertionsEncrypted,
+      attrEmail,
+      attrName,
+      attrGroups,
       defaultRole: config.provisioning.defaultRole,
       autoRole: config.provisioning.autoProvisionRole,
       roleMappingRules: config.provisioning.roleMappingRules,
@@ -447,23 +525,23 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             idpEntityId: values.idpEntityId,
             idpSsoUrl: values.idpSsoUrl,
             idpCertificate: values.idpCertificate,
-            // The SP keypair + assertion/attribute options have no form inputs
-            // yet, so preserve whatever is stored rather than clearing it on
-            // every re-save. (Dropping spCertificate here would also flip the
-            // backend-derived `hasSpKeypair` off.) The SP private key is a
-            // secret and is reused-on-omit by the backend.
-            spCertificate: config?.saml?.spCertificate,
-            wantAssertionsSigned: config?.saml?.wantAssertionsSigned,
-            wantAssertionsEncrypted: config?.saml?.wantAssertionsEncrypted,
-            attributeMappings: config?.saml?.attributeMappings,
+            // An emptied certificate removes it (and flips the backend-derived
+            // `hasSpKeypair` off); the private key is a secret the backend
+            // reuses-on-omit, so a blank field keeps the stored one.
+            spCertificate: values.spCertificate.trim() || undefined,
+            spPrivateKey: values.spPrivateKey.trim() || undefined,
+            wantAssertionsSigned: values.wantAssertionsSigned,
+            wantAssertionsEncrypted: values.wantAssertionsEncrypted,
+            attributeMappings: attributeMappingsFrom(values),
             ...provisioning,
           });
         }
       } catch (error) {
-        // A missing client secret belongs under its own input — rethrow it
-        // untouched so `mapServerError` can pin it there. Everything else
-        // becomes the translated line the cluster shows in one toast.
-        if (backendErrorCode(error) === 'sso_client_secret_required')
+        // A missing secret belongs under its own input — rethrow it untouched
+        // so `mapServerError` can pin it there. Everything else becomes the
+        // translated line the cluster shows in one toast.
+        const code = backendErrorCode(error);
+        if (code === 'sso_client_secret_required' || code === 'sso_sp_key_required')
           throw error;
         console.error('[sso] save failed', error);
         throw new Error(
@@ -472,7 +550,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         );
       }
     },
-    [config, organizationId, t, upsertOidc, upsertSaml],
+    [organizationId, t, upsertOidc, upsertSaml],
   );
 
   const mapServerError = useCallback(
@@ -482,6 +560,14 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           {
             path: 'clientSecret',
             message: t('enterpriseSso.validation.clientSecretRequired'),
+          },
+        ];
+      }
+      if (backendErrorCode(error) === 'sso_sp_key_required') {
+        return [
+          {
+            path: 'spPrivateKey',
+            message: t('enterpriseSso.validation.spKeyRequired'),
           },
         ];
       }
@@ -1048,6 +1134,107 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                     value={config?.samlAcsUrl ?? ''}
                   />
                 </SettingsFieldList>
+                {/* The SP keypair, the assertion requirements and the attribute
+                    names are for IdPs that encrypt or name things differently;
+                    most connections never touch them, so they live under
+                    Advanced like PKCE does. */}
+                <CollapsibleDetails summary={t('enterpriseSso.advanced')}>
+                  <Stack gap={4} className="pt-3 pl-5">
+                    <Text variant="muted" className="text-sm">
+                      {t('enterpriseSso.spKeypairHelp')}
+                    </Text>
+                    <SettingsFieldList>
+                      <SettingsFieldRow
+                        label={t('enterpriseSso.spCertLabel')}
+                        description={t('enterpriseSso.spCertHelp')}
+                      >
+                        <Textarea
+                          id="saml-sp-cert"
+                          aria-label={t('enterpriseSso.spCertLabel')}
+                          rows={4}
+                          errorMessage={errors.spCertificate?.message}
+                          {...register('spCertificate')}
+                          wrapperClassName="w-full"
+                        />
+                      </SettingsFieldRow>
+                      <SettingsFieldRow
+                        label={t('enterpriseSso.spKeyLabel')}
+                        description={
+                          hasStoredSpKey
+                            ? t('enterpriseSso.spKeyKeep')
+                            : t('enterpriseSso.spKeyHelp')
+                        }
+                      >
+                        <Textarea
+                          id="saml-sp-key"
+                          aria-label={t('enterpriseSso.spKeyLabel')}
+                          rows={4}
+                          placeholder={hasStoredSpKey ? '••••••••' : undefined}
+                          errorMessage={errors.spPrivateKey?.message}
+                          {...register('spPrivateKey')}
+                          wrapperClassName="w-full"
+                        />
+                      </SettingsFieldRow>
+                      <Controller
+                        control={control}
+                        name="wantAssertionsSigned"
+                        render={({ field }) => (
+                          <SettingsToggleRow
+                            className="py-5"
+                            label={t('enterpriseSso.wantSignedLabel')}
+                            description={t('enterpriseSso.wantSignedDescription')}
+                            checked={field.value ?? false}
+                            onCheckedChange={field.onChange}
+                          />
+                        )}
+                      />
+                      <Controller
+                        control={control}
+                        name="wantAssertionsEncrypted"
+                        render={({ field }) => (
+                          <SettingsToggleRow
+                            className="py-5"
+                            label={t('enterpriseSso.wantEncryptedLabel')}
+                            description={t(
+                              'enterpriseSso.wantEncryptedDescription',
+                            )}
+                            checked={field.value ?? false}
+                            onCheckedChange={field.onChange}
+                          />
+                        )}
+                      />
+                      <SettingsFieldRow
+                        label={t('enterpriseSso.attrEmailLabel')}
+                        description={t('enterpriseSso.attributeMappingsHelp')}
+                      >
+                        <Input
+                          id="saml-attr-email"
+                          aria-label={t('enterpriseSso.attrEmailLabel')}
+                          {...register('attrEmail')}
+                          wrapperClassName="w-full"
+                        />
+                      </SettingsFieldRow>
+                      <SettingsFieldRow label={t('enterpriseSso.attrNameLabel')}>
+                        <Input
+                          id="saml-attr-name"
+                          aria-label={t('enterpriseSso.attrNameLabel')}
+                          {...register('attrName')}
+                          wrapperClassName="w-full"
+                        />
+                      </SettingsFieldRow>
+                      <SettingsFieldRow
+                        label={t('enterpriseSso.attrGroupsLabel')}
+                      >
+                        <Input
+                          id="saml-attr-groups"
+                          aria-label={t('enterpriseSso.attrGroupsLabel')}
+                          {...register('attrGroups')}
+                          wrapperClassName="w-full"
+                        />
+                      </SettingsFieldRow>
+                    </SettingsFieldList>
+                  </Stack>
+                </CollapsibleDetails>
               </>
             )}
 
