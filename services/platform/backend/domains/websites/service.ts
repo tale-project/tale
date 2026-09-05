@@ -434,58 +434,80 @@ export async function clearScanFailures(
   });
 }
 
-/** The scheduler's projection of every row (the 0.4 take(500) bound). */
+/** One keyset page of the scheduler's projection. */
+const SCHEDULING_PAGE_SIZE = 500;
+
+interface SchedulingRow {
+  id: string;
+  domain: string;
+  organizationId: string;
+  scanInterval: string;
+  lastScannedAt: number | null;
+  status: string | null;
+  createdAt: number;
+  metadata: Record<string, unknown> | null;
+}
+
+/**
+ * The scheduler's projection of EVERY row, walked in keyset pages over
+ * (created_at_ms, id) until exhausted. The 0.4 `take(500)` was a per-query
+ * Convex cap; ported as a hard ceiling it meant every site past the 500th
+ * (oldest-first) got its register-kicked scan and then never a periodic one.
+ * The throttle is `MAX_SCANS_PER_TICK` on the due set, not this listing.
+ */
 export async function listWebsitesForScanScheduling(
   sql: Sql,
 ): Promise<
   (ScanSchedulingSite & { domain: string; organizationId: string })[]
 > {
-  const rows = await sql<
-    {
-      domain: string;
-      organizationId: string;
-      scanInterval: string;
-      lastScannedAt: number | null;
-      status: string | null;
-      createdAt: number;
-      metadata: Record<string, unknown> | null;
-    }[]
-  >`
-    SELECT domain, org_id AS "organizationId",
-           scan_interval AS "scanInterval",
-           last_scanned_at_ms::float8 AS "lastScannedAt", status,
-           created_at_ms::float8 AS "createdAt", metadata
-    FROM app.websites
-    ORDER BY created_at_ms ASC
-    LIMIT 500
-  `;
   const sites: (ScanSchedulingSite & {
     domain: string;
     organizationId: string;
   })[] = [];
-  for (const row of rows) {
-    const metadata = row.metadata ?? undefined;
-    const attempt = lastScanAttemptAt(metadata);
-    const site: ScanSchedulingSite & {
-      domain: string;
-      organizationId: string;
-      lastScannedAt?: number;
-      lastAttemptAt?: number;
-      status?: string;
-    } = {
-      domain: row.domain,
-      organizationId: row.organizationId,
-      scanIntervalSeconds: scanIntervalToSeconds(row.scanInterval),
-      createdAt: row.createdAt,
-      connectionFailures: connectionFailureCount(metadata),
-      scanPaused: scanPausedAt(metadata) !== null,
-    };
-    if (row.lastScannedAt !== null) site.lastScannedAt = row.lastScannedAt;
-    if (attempt !== null) site.lastAttemptAt = attempt;
-    if (row.status !== null) site.status = row.status;
-    sites.push(site);
+  let after: { createdAt: number; id: string } | null = null;
+  for (;;) {
+    const rows: SchedulingRow[] = await sql<SchedulingRow[]>`
+      SELECT id, domain, org_id AS "organizationId",
+             scan_interval AS "scanInterval",
+             last_scanned_at_ms::float8 AS "lastScannedAt", status,
+             created_at_ms::float8 AS "createdAt", metadata
+      FROM app.websites
+      WHERE (${after === null}
+             OR (created_at_ms, id) > (${after?.createdAt ?? 0}, ${after?.id ?? ''}))
+      ORDER BY created_at_ms ASC, id ASC
+      LIMIT ${SCHEDULING_PAGE_SIZE}
+    `;
+    for (const row of rows) sites.push(toSchedulingSite(row));
+    const last = rows[rows.length - 1];
+    if (!last || rows.length < SCHEDULING_PAGE_SIZE) break;
+    after = { createdAt: last.createdAt, id: last.id };
   }
   return sites;
+}
+
+function toSchedulingSite(
+  row: SchedulingRow,
+): ScanSchedulingSite & { domain: string; organizationId: string } {
+  const metadata = row.metadata ?? undefined;
+  const attempt = lastScanAttemptAt(metadata);
+  const site: ScanSchedulingSite & {
+    domain: string;
+    organizationId: string;
+    lastScannedAt?: number;
+    lastAttemptAt?: number;
+    status?: string;
+  } = {
+    domain: row.domain,
+    organizationId: row.organizationId,
+    scanIntervalSeconds: scanIntervalToSeconds(row.scanInterval),
+    createdAt: row.createdAt,
+    connectionFailures: connectionFailureCount(metadata),
+    scanPaused: scanPausedAt(metadata) !== null,
+  };
+  if (row.lastScannedAt !== null) site.lastScannedAt = row.lastScannedAt;
+  if (attempt !== null) site.lastAttemptAt = attempt;
+  if (row.status !== null) site.status = row.status;
+  return site;
 }
 
 // ------------------------------------------------------------ crawl host
