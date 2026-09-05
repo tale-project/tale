@@ -25,6 +25,53 @@ import {
 } from './store.ts';
 
 /**
+ * ONE projection for every ask read the agent host consumes through
+ * `readAskRow` — which discards any row missing `_id`, `runId`, `nodeId`,
+ * `execId`, `question`, `expiresAt` or `status`. The pending read once carried
+ * a narrower column list (no runId/execId/status), so the host read every
+ * pending ask as malformed: a turn that asked and ended cleanly settled as a
+ * completed node instead of parking, the answer route found nothing to
+ * resume, and the 7-day expiry never ran. Both reads share this list so the
+ * two cannot drift apart again.
+ */
+interface AskRowRecord {
+  _id: string;
+  runId: string;
+  nodeId: string;
+  execId: string;
+  question: string;
+  expiresAt: number;
+  status: string;
+  agentSessionId: string | null;
+  answer: string | null;
+  taskId: string | null;
+}
+
+const ASK_ROW_COLUMNS = `
+  id AS "_id", run_id AS "runId", node_id AS "nodeId", exec_id AS "execId",
+  question, expires_at_ms::float8 AS "expiresAt", status,
+  agent_session_id AS "agentSessionId", answer, task_id AS "taskId"
+`;
+
+/** The host's `AskRow` shape: optional fields are omitted, never null. */
+function askRowOf(row: AskRowRecord): Record<string, unknown> {
+  return {
+    _id: row._id,
+    runId: row.runId,
+    nodeId: row.nodeId,
+    execId: row.execId,
+    question: row.question,
+    expiresAt: row.expiresAt,
+    status: row.status,
+    ...(row.agentSessionId !== null
+      ? { agentSessionId: row.agentSessionId }
+      : {}),
+    ...(row.answer !== null ? { answer: row.answer } : {}),
+    ...(row.taskId !== null ? { taskId: row.taskId } : {}),
+  };
+}
+
+/**
  * Handler map for the REUSED automation stepper
  * (`convex/automations/stepper.ts` — claim/heartbeat/progress/suspend/
  * continue/finish + the two loads), running the whole run contract over the
@@ -499,31 +546,15 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     'automations/human_asks:getPendingAskForExec': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { sessionId: string; execId: string };
-      const rows = await sql<
-        {
-          _id: string;
-          nodeId: string;
-          question: string;
-          expiresAt: number;
-          taskId: string | null;
-        }[]
-      >`
-        SELECT id AS "_id", node_id AS "nodeId", question,
-               expires_at_ms::float8 AS "expiresAt", task_id AS "taskId"
+      const rows = await sql<AskRowRecord[]>`
+        SELECT ${sql.unsafe(ASK_ROW_COLUMNS)}
         FROM app.automation_human_asks
         WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
           AND status = 'pending'
         LIMIT 1
       `;
       const row = rows[0];
-      if (!row) return null;
-      return {
-        _id: row._id,
-        nodeId: row.nodeId,
-        question: row.question,
-        expiresAt: row.expiresAt,
-        ...(row.taskId !== null ? { taskId: row.taskId } : {}),
-      };
+      return row ? askRowOf(row) : null;
     },
 
     'automations/human_asks:closeAsk': async (raw) => {
@@ -567,42 +598,14 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     'automations/human_asks:getAskForResume': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { askId: string; organizationId: string };
-      const rows = await sql<
-        {
-          _id: string;
-          runId: string;
-          nodeId: string;
-          execId: string;
-          question: string;
-          expiresAt: number;
-          status: string;
-          agentSessionId: string | null;
-          answer: string | null;
-        }[]
-      >`
-        SELECT id AS "_id", run_id AS "runId", node_id AS "nodeId",
-               exec_id AS "execId", question,
-               expires_at_ms::float8 AS "expiresAt", status,
-               agent_session_id AS "agentSessionId", answer
+      const rows = await sql<AskRowRecord[]>`
+        SELECT ${sql.unsafe(ASK_ROW_COLUMNS)}
         FROM app.automation_human_asks
         WHERE id = ${args.askId} AND org_id = ${args.organizationId}
         LIMIT 1
       `;
       const row = rows[0];
-      if (!row) return null;
-      return {
-        _id: row._id,
-        runId: row.runId,
-        nodeId: row.nodeId,
-        execId: row.execId,
-        question: row.question,
-        expiresAt: row.expiresAt,
-        status: row.status,
-        ...(row.agentSessionId !== null
-          ? { agentSessionId: row.agentSessionId }
-          : {}),
-        ...(row.answer !== null ? { answer: row.answer } : {}),
-      };
+      return row ? askRowOf(row) : null;
     },
 
     'automations/human_asks:retargetAgentCursor': async (raw) => {
