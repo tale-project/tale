@@ -278,11 +278,6 @@ interface HandlerNames {
       listEntriesForAgent: FunctionRef;
     };
   };
-  legacy: FunctionRef & {
-    knowledge_delete: FunctionRef & {
-      deleteDocument: FunctionRef;
-    };
-  };
   lib: FunctionRef & {
     config_store: FunctionRef & {
       actions: FunctionRef & {
