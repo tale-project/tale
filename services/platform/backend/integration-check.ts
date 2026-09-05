@@ -32212,11 +32212,32 @@ async function checkErasure(
     SELECT status FROM app.gdpr_erasure_requests
     WHERE id = ${filedThree.success ? filedThree.data.requestId : ''}
   `;
+  // A blocked receipt is LIVE (the live index covers blocked and partial,
+  // matching the Retry door): a second filing for the same subject must
+  // answer ALREADY_PENDING naming the blocked receipt, not mint a twin that
+  // could run the cascade a second time once the hold lifts.
+  const dupOnBlockedRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectThree,
+    reason: 'Second filing against a blocked receipt',
+    reasonCode: 'objection',
+  });
+  const dupOnBlocked = z
+    .object({ error: z.string(), requestId: z.string(), status: z.string() })
+    .loose()
+    .safeParse(await dupOnBlockedRes.json());
   await sql`
     UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
     WHERE org_id = ${orgId} AND target_id = ${subjectThree}
   `;
-  await post(
+  // A receipt blocked AT FILING never passed the request-time policy, so
+  // its Retry honours it (cooling-off / dual approval) instead of running at
+  // once; the window is zeroed here so the re-armed cascade finishes now.
+  await writeFile(
+    path.join(governanceDir, 'dsar-governance.yml'),
+    'coolingOffHours: 0\n',
+  );
+  orgConfig.clearOrgConfigCaches();
+  const retryThreeRes = await post(
     `/api/app/erasure/${filedThree.success ? filedThree.data.requestId : ''}/retry?orgId=${orgId}`,
   );
   let threeStatus = '';
@@ -32247,8 +32268,15 @@ async function checkErasure(
       filedThree.data.error === 'LEGAL_HOLD_BLOCKS_ERASURE' &&
       filedThree.data.userCustodianHeld &&
       blockedReceipt[0]?.status === 'blocked' &&
+      dupOnBlockedRes.status === 409 &&
+      dupOnBlocked.success &&
+      dupOnBlocked.data.error === 'ALREADY_PENDING' &&
+      dupOnBlocked.data.status === 'blocked' &&
+      dupOnBlocked.data.requestId ===
+        (filedThree.success ? filedThree.data.requestId : '') &&
+      retryThreeRes.status === 200 &&
       threeStatus === 'done',
-    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, reviewDeidentified=${reviewErased[0]?.count} (want 1), scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), retried=${threeStatus}`,
+    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, reviewDeidentified=${reviewErased[0]?.count} (want 1), scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), dupOnBlocked=${dupOnBlockedRes.status}/${dupOnBlocked.success ? `${dupOnBlocked.data.error}:${dupOnBlocked.data.status}` : 'ERR'} (want 409/ALREADY_PENDING:blocked, same requestId), retry=${retryThreeRes.status}/${threeStatus} (want 200/done)`,
   );
 
   // ---- the documented 'child' reason code files -------------------------
@@ -32428,7 +32456,7 @@ async function checkErasure(
     `afterFail=${fiveAfterFail[0]?.status}/${fiveAfterFail[0]?.error ?? ''} (want partial/failed passes: uploads), row=${fiveRowSurvives[0]?.count} (want 1), blob=${fiveBlobSurvives === null ? '404' : 'present'} (want present), retry=${fiveStatus} (want done), rowAfter=${fiveRowAfterRetry[0]?.count} (want 0), blobAfter=${fiveBlobAfterRetry === null ? '404' : 'present'} (want 404)`,
   );
 
-  // This section spent 4 of the admin's 5/day DSAR filings; the limiter is
+  // This section spent all 5 of the admin's 5/day DSAR filings; the limiter is
   // per (key, subject), so clearing its rows hands downstream sections the
   // full budget their probes assume.
   await sql`

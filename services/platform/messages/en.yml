@@ -3853,7 +3853,7 @@ governance:
       forbidden: You don't have permission to do this.
       validation: Check the form fields.
       notFound: Not found.
-      alreadyPending: An erasure request for this subject is already pending or running.
+      alreadyPending: An erasure request for this subject is already open — pending, running, blocked by a hold, or partially done. Retry or cancel it instead of filing again.
       legalHoldBlocked: An active legal hold is preserving this subject's data.
       notRetriable: This request is not in a state that can be retried.
       notExtendable: This request is in a terminal state and cannot be extended.
