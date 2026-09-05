@@ -27194,16 +27194,23 @@ async function checkTaskAgentRuns(
   // The mechanics run on a HAND-INSERTED row (no turn job): the kick +
   // full drive are proven end to end by the turn-drive check, and letting
   // the live worker race these park/claim assertions would make them
-  // meaningless.
+  // meaningless. Every wake below enqueues the run's REAL `task.agent_turn`
+  // job, and the notify-driven worker fetches it within milliseconds — no
+  // retire-after-the-fact can win that race — so the row's agent is a
+  // PHANTOM id with no `project_agents` row: the job handler's agent-gone
+  // guard skips such a job before it touches the run (the sweep that fails
+  // agent-less runs is the watchdog's, which this lane never runs).
   const agentRuns = await import('./domains/tasks/agent-runs.ts');
+  const ledgerAgentId = `itest-ledger-agent-${randomUUID()}`;
+  const ledgerSessionId = `pa-${ledgerAgentId}`;
   const inserted = await sql<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
       harness, model, started_by, started_at_ms, deadline_at_ms,
       updated_at_ms
     ) VALUES (
-      ${orgId}, ${projectId}, ${taskId}, ${agentId}, 'exec-ledger-1',
-      ${`pa-${agentId}`}, 'queued', 'claude-code', 'itest-model',
+      ${orgId}, ${projectId}, ${taskId}, ${ledgerAgentId}, 'exec-ledger-1',
+      ${ledgerSessionId}, 'queued', 'claude-code', 'itest-model',
       'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}, ${Date.now()}
     ) RETURNING id
   `;
@@ -27247,18 +27254,7 @@ async function checkTaskAgentRuns(
     runId,
     execId,
   });
-  // A wake enqueues the run's REAL turn job; the live worker must never get
-  // to run it (it would fail the hand-inserted run on its fake model before
-  // the settle assertions below), so each wake's job is retired as soon as
-  // its count is taken.
-  const retireTurnJobs = async (): Promise<void> => {
-    await sql`
-      DELETE FROM pgboss.job
-      WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
-    `;
-  };
   const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
-  await retireTurnJobs();
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // The release EDGE itself: a project-agent turn ending frees the agent's
@@ -27271,13 +27267,12 @@ async function checkTaskAgentRuns(
     runId,
     execId,
   });
-  const ledgerSessionId = `pa-${agentId}`;
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms
     ) VALUES (
-      ${orgId}, ${ledgerSessionId}, 'active', 'project_agent', ${agentId},
+      ${orgId}, ${ledgerSessionId}, 'active', 'project_agent', ${ledgerAgentId},
       'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}
     )
   `;
@@ -27305,11 +27300,10 @@ async function checkTaskAgentRuns(
   const sessionsApi = await import('./domains/sandbox/sessions.ts');
   const released = await sessionsApi.releaseProjectAgentSessionSlot(sql, {
     organizationId: orgId,
-    agentId,
+    agentId: ledgerAgentId,
   });
   const parkedAfterRelease = await countParked();
   const turnJobsAfterRelease = await countTurnJobs();
-  await retireTurnJobs();
   const releasedSlot = await sql<{ status: string }[]>`
     SELECT status FROM app.sandbox_sessions
     WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
@@ -27349,13 +27343,14 @@ async function checkTaskAgentRuns(
   });
   const finalRun = await agentRuns.getAgentRun(sql, orgId, runId);
 
-  // A live run makes a concurrent kick REUSE it; a terminal one mints anew.
+  // A live run makes a concurrent kick REUSE it; a terminal one mints anew
+  // (under the phantom agent too, so its turn job is skipped, not driven).
   const reuseProbe = await sql.begin((tx) =>
     agentRuns.kickAgentRun(tx, {
       organizationId: orgId,
       projectId,
       taskId,
-      agentId,
+      agentId: ledgerAgentId,
       harness: 'claude-code',
       model: 'itest-model',
       startedBy: 'itest:ledger',
@@ -27386,11 +27381,9 @@ async function checkTaskAgentRuns(
       finalRun.resultText === 'Delivered the work.' &&
       finalRun.launchedAt !== null &&
       secondRuns.success &&
-      // ≥2, not ==2: the rekicked run's start fails on the fake model and
-      // the auto-retry arm may already have added attempts by this read.
-      secondRuns.data.runs.length >= 2 &&
+      secondRuns.data.runs.length === 2 &&
       !reuseProbe.reused,
-    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, releaseEdge=${released}/slot=${releasedSlot[0]?.status}/parked ${parkedBeforeRelease}→${parkedAfterRelease}/turnJobs ${turnJobsBeforeRelease}→${turnJobsAfterRelease} (want true/stopped/-1/+1), settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want ≥2, fresh=${!reuseProbe.reused})`,
+    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, releaseEdge=${released}/slot=${releasedSlot[0]?.status}/parked ${parkedBeforeRelease}→${parkedAfterRelease}/turnJobs ${turnJobsBeforeRelease}→${turnJobsAfterRelease} (want true/stopped/-1/+1), settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want 2, fresh=${!reuseProbe.reused})`,
   );
 }
 
