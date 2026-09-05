@@ -7,6 +7,16 @@ import { describe, expect, it } from 'vitest';
 
 import { buildDocsCompileParams, buildDocsSeo, docsSiteUrl } from './build';
 
+describe('docsSiteUrl', () => {
+  // Regression: this origin is stamped into every canonical, hreflang and
+  // sitemap <loc> the docs build emits. While it was `https://tale.dev/docs`,
+  // all 432 of those URLs 308-redirected to the docs subdomain.
+  it('is the docs subdomain, with no trailing slash', () => {
+    expect(docsSiteUrl()).toBe('https://docs.tale.dev');
+    expect(docsSiteUrl()).not.toMatch(/\/$/);
+  });
+});
+
 describe('docs SEO build', () => {
   it('excludes noindex routes from sitemap sections', async () => {
     const { sections, noindexPaths } = await buildDocsSeo(docsSiteUrl());
