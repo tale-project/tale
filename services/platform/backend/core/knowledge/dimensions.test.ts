@@ -165,6 +165,68 @@ describe('pinning a fresh corpus', () => {
 });
 
 describe('a width that disagrees is refused', () => {
+  it('refuses a corpus already declared at another width, and never re-types it', async () => {
+    // Pinned by another organization on the shared database before this
+    // process started: the memo is empty, so the column itself is the
+    // contract. Re-typing it locked every tenant's chunks table and, on an
+    // empty table, silently re-pinned the whole corpus.
+    const db = fakeDb({ columnType: 'vector(1536)' });
+    const attempt = pinDimensions({
+      sql: db.sql,
+      dbUrl: 'postgresql://restarted',
+      schema: SCHEMA,
+      dimensions: 768,
+      context: 'organization "globex"',
+    });
+    await expect(attempt).rejects.toBeInstanceOf(EmbeddingDimensionMismatch);
+    await expect(attempt).rejects.toMatchObject({
+      expected: 1536,
+      received: 768,
+    });
+    expect(db.statements.join('\n')).not.toContain('ALTER');
+    expect(db.statements.join('\n')).not.toContain('TRUNCATE');
+    expect(db.statements.join('\n')).not.toContain('create_chunks_hnsw_index');
+    expect(pinnedDimensions('postgresql://restarted')).toBe(1536);
+
+    // The persisted width is now the memo: the next mismatch is refused
+    // without touching the database, and the matching width proceeds.
+    const before = db.statements.length;
+    await expect(
+      pinDimensions({
+        sql: db.sql,
+        dbUrl: 'postgresql://restarted',
+        schema: SCHEMA,
+        dimensions: 768,
+        context: 'organization "globex"',
+      }),
+    ).rejects.toBeInstanceOf(EmbeddingDimensionMismatch);
+    expect(db.statements.length).toBe(before);
+    await pinDimensions({
+      sql: db.sql,
+      dbUrl: 'postgresql://restarted',
+      schema: SCHEMA,
+      dimensions: 1536,
+      context: 'organization "acme"',
+    });
+    expect(db.statements.join('\n')).not.toContain('ALTER COLUMN');
+    expect(db.statements.join('\n')).toContain('create_chunks_hnsw_index');
+  });
+
+  it('refuses a column of a type it cannot read as a width', async () => {
+    const db = fakeDb({ columnType: 'halfvec(1536)' });
+    await expect(
+      pinDimensions({
+        sql: db.sql,
+        dbUrl: 'postgresql://odd',
+        schema: SCHEMA,
+        dimensions: 1536,
+        context: 'organization "acme"',
+      }),
+    ).rejects.toThrow(/halfvec\(1536\)/);
+    expect(db.statements.join('\n')).not.toContain('ALTER');
+    expect(pinnedDimensions('postgresql://odd')).toBeUndefined();
+  });
+
   it('refuses a second organization asking for a different width', async () => {
     const db = fakeDb();
     await pinDimensions({

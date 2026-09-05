@@ -112,8 +112,8 @@ export async function pinDimensions(args: {
   }
 
   const run = applyPin(args.sql, args.schema, args.dimensions)
-    .then((applied) => {
-      if (!applied) {
+    .then((outcome) => {
+      if (outcome.kind === 'missing') {
         // Nothing was pinned: the corpus table is not there yet (a knowledge
         // database that migrates after the platform boots). Recording the
         // pin anyway would make every later write skip the ALTER and the
@@ -121,6 +121,19 @@ export async function pinDimensions(args: {
         // untyped `vector`, accepting any width, once the table appeared.
         // Leave nothing recorded so the next write tries again.
         return;
+      }
+      if (outcome.kind === 'pinned_elsewhere') {
+        // The database already holds vectors of another width — pinned by
+        // another organization on the shared database, before this process
+        // started. That width IS the contract: record it so every later
+        // caller is answered from memory, and refuse this one the same way
+        // a second organization is refused within one process.
+        pinned.set(args.dbUrl, outcome.width);
+        throw new EmbeddingDimensionMismatch(
+          outcome.width,
+          args.dimensions,
+          args.context,
+        );
       }
       pinned.set(args.dbUrl, args.dimensions);
       const schemas = appliedSchemas.get(args.dbUrl) ?? new Set<string>();
@@ -172,16 +185,32 @@ export function pinnedDimensions(dbUrl: string): number | undefined {
   return pinned.get(dbUrl);
 }
 
+type PinOutcome =
+  /** The width now holds on `${schema}.chunks`. */
+  | { readonly kind: 'applied' }
+  /** That table does not exist yet — the caller must not record a pin
+   * that never took effect. */
+  | { readonly kind: 'missing' }
+  /** The column is already declared at ANOTHER width — refused, never
+   * re-typed; the caller records that width as the database's pin. */
+  | { readonly kind: 'pinned_elsewhere'; readonly width: number };
+
 /**
- * Narrow the vector columns and build the index. Resolves `true` when the
- * width now holds on `${schema}.chunks`, `false` when that table does not
- * exist yet — the caller must not record a pin that never took effect.
+ * Narrow the vector columns and build the index.
+ *
+ * Only an untyped `vector` column is ever ALTERed. A column already declared
+ * at a different width holds vectors another model produced: re-typing it
+ * takes an ACCESS EXCLUSIVE lock on the shared chunks table and begins a
+ * rewrite that pgvector then rejects (every tenant's search and indexing
+ * blocked meanwhile, and the caller handed a raw database error instead of
+ * the refusal) — or, on an EMPTY table, succeeds and silently re-pins the
+ * whole shared corpus, so every other tenant's next write fails.
  */
 async function applyPin(
   sql: Sql,
   schema: string,
   dimensions: number,
-): Promise<boolean> {
+): Promise<PinOutcome> {
   const expected = `vector(${dimensions})`;
   let current: string | null;
   try {
@@ -197,20 +226,23 @@ async function applyPin(
       logger.warn(
         `${schema}.chunks does not exist yet, so there is nothing to pin`,
       );
-      return false;
+      return { kind: 'missing' };
     }
     throw err;
   }
 
   if (current !== expected) {
     if (current !== null && current !== 'vector') {
-      // The column already holds vectors of a DIFFERENT declared width, so the
-      // rows in it were embedded by another model. Widening or narrowing the
-      // column would keep those rows while making them incomparable to
-      // everything written afterwards.
+      const width = declaredVectorWidth(current);
+      if (width === null) {
+        throw new Error(
+          `${schema}.chunks.embedding is declared as ${current}, which is not a vector width this deployment can pin; the configured model produces ${expected}`,
+        );
+      }
       logger.warn(
-        `${schema}.chunks.embedding is ${current} but the configured model produces ${expected}; existing vectors must be regenerated`,
+        `${schema}.chunks.embedding is ${current} but the configured model produces ${expected}; refusing rather than re-typing a corpus another model embedded`,
       );
+      return { kind: 'pinned_elsewhere', width };
     }
     await sql.unsafe(
       `ALTER TABLE ${schema}.chunks ALTER COLUMN embedding TYPE ${expected}`,
@@ -252,5 +284,12 @@ async function applyPin(
       );
     }
   }
-  return true;
+  return { kind: 'applied' };
+}
+
+/** The width a `vector(N)` declaration carries, or null for anything else. */
+function declaredVectorWidth(formatType: string): number | null {
+  const match = /^vector\((\d+)\)$/.exec(formatType);
+  const width = match?.[1] !== undefined ? Number(match[1]) : Number.NaN;
+  return Number.isInteger(width) && width > 0 ? width : null;
 }
