@@ -307,8 +307,19 @@ export async function ingestVideoLinkImpl(
           internal.browser_sessions.sessions.reportBrowserSessionResult,
           { sessionId, outcome },
         );
-      } catch {
-        // Health reporting is best-effort; a miss self-heals via the sweep.
+      } catch (err) {
+        // Best-effort (the sweep self-heals a missed report), but never
+        // silent: a lost 'blocked' report keeps a burned cookie jar in
+        // rotation for the next job.
+        console.warn(
+          JSON.stringify({
+            event: 'video_link.session_report_failed',
+            jobId: args.jobId,
+            sessionId,
+            outcome,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
       }
     };
 
