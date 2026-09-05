@@ -37,7 +37,10 @@
  * - `tokenize` — treated as `mask`. Tokenizing keeps a per-message restore map
  *   so a reply can be detokenized back to real details; an indexed chunk
  *   outlives any such map, so restoring is meaningless here and keeping the
- *   indexed copy masked is the safe reading.
+ *   indexed copy masked is the safe reading. The token indices (`[EMAIL_1]`)
+ *   are numbered per scanned window, not per document — one address can be
+ *   `[EMAIL_1]` in one window and `[EMAIL_2]` in the next — so they are
+ *   placeholders, never a document-wide identity.
  */
 
 import {
@@ -85,8 +88,19 @@ export function parsePiiConfig(raw: unknown): PiiConfig | null {
  */
 const scrubberCache = new Map<string, Scrubber | null>();
 const SCRUBBER_CACHE_LIMIT = 32;
-/** Policies whose construction failure was already reported this process. */
+/**
+ * Policies whose construction failure was already reported this process —
+ * bounded like the cache, so a stream of distinct failing policies cannot
+ * grow it without limit; an evicted policy simply reports once more.
+ */
 const reportedFailures = new Set<string>();
+
+/** Drop the oldest entry once `entries` has reached the cache limit. */
+function evictToLimit(entries: Map<string, unknown> | Set<string>): void {
+  if (entries.size < SCRUBBER_CACHE_LIMIT) return;
+  const oldest = entries.keys().next().value;
+  if (oldest !== undefined) entries.delete(oldest);
+}
 
 function policyKey(config: PiiConfig): string {
   return JSON.stringify([
@@ -120,6 +134,7 @@ export function scrubberForPolicy(config: PiiConfig): Scrubber | null {
     // an organization's whole corpus offline over a governance typo, so it
     // degrades to today's behaviour and says so — once.
     if (!reportedFailures.has(key)) {
+      evictToLimit(reportedFailures);
       reportedFailures.add(key);
       console.error(
         `[pii-gate] scrubber construction failed, indexing unscrubbed until it succeeds: ${
@@ -131,10 +146,7 @@ export function scrubberForPolicy(config: PiiConfig): Scrubber | null {
   }
   reportedFailures.delete(key);
 
-  if (scrubberCache.size >= SCRUBBER_CACHE_LIMIT) {
-    const oldest = scrubberCache.keys().next().value;
-    if (oldest !== undefined) scrubberCache.delete(oldest);
-  }
+  evictToLimit(scrubberCache);
   scrubberCache.set(key, scrubber);
   return scrubber;
 }

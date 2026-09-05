@@ -170,6 +170,16 @@ describe('applyPiiPolicyForIndexing', () => {
     });
     expect(error).toHaveBeenCalledTimes(1);
     expect(error.mock.calls[0]?.[0]).toContain('/app/system/pii');
+
+    // The ledger of reported policies is bounded: after 32 further distinct
+    // failing policies the first one has been evicted and reports once more
+    // — the price of a bound, not a leak.
+    for (let i = 0; i < 32; i += 1) {
+      withBrokenScrubber(WITH_PII, policy({ enabledPatterns: [`p${i}`] }));
+    }
+    expect(error).toHaveBeenCalledTimes(33);
+    withBrokenScrubber(WITH_PII, policy());
+    expect(error).toHaveBeenCalledTimes(34);
     error.mockRestore();
     vi.doUnmock('../../../lib/pii');
     vi.resetModules();
