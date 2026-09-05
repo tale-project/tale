@@ -1,8 +1,8 @@
 /**
- * Pure send-lane helpers shared by the outbound send action
- * (`internal_actions.sendMessageViaConnectorAction`) and the 0.5 backend's
- * send job: shape the connector `send`/`send_message` input per provider and
- * read the provider's Message-ID back out of the send output.
+ * Pure send-lane helpers for the 0.5 backend's send job
+ * (`domains/conversations/send.ts`): shape the connector `send`/`send_message`
+ * input per provider and read the provider's Message-ID back out of the send
+ * output.
  */
 
 import { isRecord } from '../../../lib/utils/type-utils';
