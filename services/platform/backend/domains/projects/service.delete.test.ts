@@ -21,7 +21,11 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 vi.mock('../events/emit.ts', () => ({ emitEvent: vi.fn() }));
 // The documents domain imports this one back; a factory without
-// `importOriginal` keeps the cycle out of the test.
+// `importOriginal` keeps the cycle out of the test. The predicate below is a
+// LOCAL re-implementation, so this file proves the cascade's wiring (pre-walk
+// before any write, the refusal codes, the detach exemption) — NOT the real
+// `recordTrashRefusalFromJson`; that one is pinned by its own unit tests and
+// exercised end-to-end by the integration check's approved-record probe.
 vi.mock('../documents/service.ts', () => ({
   recordTrashRefusalFromJson: (record: Record<string, unknown> | null) => {
     if (record === null) return null;
