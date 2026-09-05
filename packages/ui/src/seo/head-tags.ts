@@ -59,6 +59,15 @@ export type HeadTag =
   | { tag: 'script'; jsonLd: string };
 
 /**
+ * The rendered `<title>`: a page title already naming the site stands on
+ * its own, otherwise the site name is appended. Exported so length budgets
+ * can be asserted against the string a crawler actually sees.
+ */
+export function resolveFullTitle(title: string, siteName = 'Tale'): string {
+  return title.includes(siteName) ? title : `${title} | ${siteName}`;
+}
+
+/**
  * Resolve a page's declared meta into the ordered tag list. Pure — no DOM,
  * no React — so it runs identically on the server and the client.
  */
@@ -82,7 +91,7 @@ export function resolveDocumentHead(meta: DocumentHeadInput): HeadTag[] {
     jsonLd,
   } = meta;
 
-  const fullTitle = title.includes(siteName) ? title : `${title} | ${siteName}`;
+  const fullTitle = resolveFullTitle(title, siteName);
   const resolvedOgImage = ogImage ?? defaultOgImage;
   const tags: HeadTag[] = [];
 
