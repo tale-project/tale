@@ -288,13 +288,15 @@ export function dockerRmSucceeded(result: RunDockerResult): boolean {
  */
 export async function ensureImage(
   image: string,
-  opts: { attempts?: number } = {},
+  opts: { attempts?: number; run?: typeof runDocker } = {},
 ): Promise<boolean> {
-  const inspect = await runDocker(['image', 'inspect', image]);
+  // `run` is a test seam: the budget each call carries is part of the contract.
+  const run = opts.run ?? runDocker;
+  const inspect = await run(['image', 'inspect', image]);
   if (inspect.exitCode === 0) return true;
   const attempts = opts.attempts ?? 3;
   for (let i = 0; i < attempts; i++) {
-    const result = await runDocker(['pull', image], {
+    const result = await run(['pull', image], {
       timeoutMs: IMAGE_PULL_TIMEOUT_MS,
     });
     if (result.exitCode === 0) return true;

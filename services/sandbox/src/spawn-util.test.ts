@@ -6,9 +6,6 @@
 // ReadableStream API drift along with the cap semantics.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import * as fs from 'node:fs/promises';
-import * as os from 'node:os';
-import * as path from 'node:path';
 
 import {
   IMAGE_PULL_TIMEOUT_MS,
@@ -141,31 +138,26 @@ describe('runDocker — default timeout', () => {
     );
   });
 
-  test('ensureImage: an inspect miss pulls exactly once and reports success', async () => {
-    // A fake docker that fails `image inspect` and records every call. This
-    // pins the boot path that carries IMAGE_PULL_TIMEOUT_MS (the budget itself
-    // is pinned above; runDocker's kill timer is exercised by the race test).
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'spawn-util-'));
-    const log = path.join(dir, 'calls.log');
-    const fake = path.join(dir, 'docker');
-    await fs.writeFile(
-      fake,
-      `#!/bin/bash\necho "$*" >> "${log}"\nif [ "$1" = "image" ]; then exit 1; fi\nexit 0\n`,
-      { mode: 0o755 },
-    );
-    const prev = process.env.DOCKER_BIN;
-    process.env.DOCKER_BIN = fake;
-    try {
-      expect(await ensureImage('tale/runtime:test')).toBe(true);
-      expect((await fs.readFile(log, 'utf8')).trim().split('\n')).toEqual([
-        'image inspect tale/runtime:test',
-        'pull tale/runtime:test',
-      ]);
-    } finally {
-      process.env.DOCKER_BIN = prev;
-      await fs.rm(dir, { recursive: true, force: true }).catch((err) => {
-        console.warn('[spawn-util.test] tmp cleanup failed:', err);
-      });
-    }
+  test('ensureImage: an inspect miss pulls exactly once, under the pull budget', async () => {
+    // A recording runner in place of runDocker: pins BOTH the boot path's
+    // argv sequence and that the pull actually carries IMAGE_PULL_TIMEOUT_MS
+    // while `image inspect` keeps the default (runDocker's kill timer itself
+    // is exercised by the race test above).
+    const calls: Array<{ args: string[]; timeoutMs: number | undefined }> = [];
+    const run: typeof runDocker = async (args, opts) => {
+      calls.push({ args, timeoutMs: opts?.timeoutMs });
+      return {
+        exitCode: args[0] === 'image' ? 1 : 0,
+        stdout: '',
+        stderr: '',
+        stdoutTruncated: false,
+        stderrTruncated: false,
+      };
+    };
+    expect(await ensureImage('tale/runtime:test', { run })).toBe(true);
+    expect(calls).toEqual([
+      { args: ['image', 'inspect', 'tale/runtime:test'], timeoutMs: undefined },
+      { args: ['pull', 'tale/runtime:test'], timeoutMs: IMAGE_PULL_TIMEOUT_MS },
+    ]);
   });
 });
