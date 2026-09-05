@@ -33636,6 +33636,36 @@ async function checkDataResidency(
       ).json(),
     );
 
+  // A blob stored BEFORE the switch must stay readable the moment the
+  // connection exists — served from the default store until the move
+  // (`locateOrgObjectStore`), then from the BYO bucket with the type it had.
+  const preFile = (
+    await sql<{ id: string; storageRef: string }[]>`
+      SELECT id, storage_ref AS "storageRef" FROM app.file_metadata
+      WHERE org_id = ${orgId} AND uploaded_by = ${ctx.userId}
+      ORDER BY created_at_ms ASC
+      LIMIT 1
+    `
+  )[0];
+  /** GET /files/:id/url → follow the presigned URL → [ok, content-type]. */
+  const serveBlob = async (): Promise<{
+    ok: boolean;
+    contentType: string | null;
+  }> => {
+    if (preFile === undefined) return { ok: false, contentType: null };
+    const url = z
+      .object({ url: z.string() })
+      .safeParse(
+        await (
+          await get(`/api/app/files/${preFile.id}/url?orgId=${orgId}`)
+        ).json(),
+      );
+    if (!url.success) return { ok: false, contentType: null };
+    const res = await fetch(url.data.url);
+    return { ok: res.ok, contentType: res.headers.get('content-type') };
+  };
+  const servedBeforeMove = await serveBlob();
+
   const dryStart = z.object({ runId: z.string() }).safeParse(
     await (
       await post(`/api/app/object-storage/backfill?orgId=${orgId}`, {
@@ -33725,21 +33755,30 @@ async function checkDataResidency(
     }
     await sleep(250);
   }
-  // A migrated object is REALLY in the BYO bucket now.
+  // A migrated object is REALLY in the BYO bucket now — and no longer in
+  // the default store (the move retires the source once the copy verified).
   let landed = false;
+  let sourceRetired = false;
   if (realStatus !== null && realStatus.sample.length > 0) {
     const { parseBlobRef } = await import('./core/lib/storage/blob_ref.ts');
-    const { s3HeadObject } = await import('./core/lib/storage/object_store.ts');
+    const { resolveOrgObjectStore, s3HeadObject } =
+      await import('./core/lib/storage/object_store.ts');
     const sampleRef = realStatus.sample[0]?.ref ?? '';
     try {
       const parsed = parseBlobRef(sampleRef);
       if (parsed.backend === 's3') {
         landed = (await s3HeadObject(byoStore, parsed.key)) !== null;
+        const defaultStore = await resolveOrgObjectStore('default');
+        sourceRetired = (await s3HeadObject(defaultStore, parsed.key)) === null;
       }
     } catch (error) {
       console.warn('[itest] byo sample head failed:', error);
     }
   }
+  const servedAfterMove = await serveBlob();
+  const typeKept =
+    servedBeforeMove.contentType !== null &&
+    servedBeforeMove.contentType === servedAfterMove.contentType;
   record(
     'data residency: object storage connection + blob backfill to BYO',
     bucketReady &&
@@ -33763,8 +33802,12 @@ async function checkDataResidency(
       realStatus.status === 'completed' &&
       realStatus.migrated > 0 &&
       realStatus.bytesMigrated > 0 &&
-      landed,
-    `bucket=${bucketReady}, fresh=${osFresh.success ? osFresh.data.configured : 'ERR'}, noCreds=${osNoCreds.status} (want 400), saved=${osSaved.success}, view=${osView.success ? `${osView.data.bucket}/${osView.data.hasCredentials}` : 'ERR'}, probe=${osProbe.success ? osProbe.data.ok : 'ERR'}, dry=${dryStatus?.status ?? 'timeout'}/${dryStatus?.candidates ?? '?'}c/${dryStatus?.migrated ?? '?'}m, real=${realStatus?.status ?? 'timeout'}/${realStatus?.migrated ?? '?'}m/${realStatus?.bytesMigrated ?? '?'}B, landed=${landed}`,
+      landed &&
+      sourceRetired &&
+      servedBeforeMove.ok &&
+      servedAfterMove.ok &&
+      typeKept,
+    `bucket=${bucketReady}, fresh=${osFresh.success ? osFresh.data.configured : 'ERR'}, noCreds=${osNoCreds.status} (want 400), saved=${osSaved.success}, view=${osView.success ? `${osView.data.bucket}/${osView.data.hasCredentials}` : 'ERR'}, probe=${osProbe.success ? osProbe.data.ok : 'ERR'}, dry=${dryStatus?.status ?? 'timeout'}/${dryStatus?.candidates ?? '?'}c/${dryStatus?.migrated ?? '?'}m, real=${realStatus?.status ?? 'timeout'}/${realStatus?.migrated ?? '?'}m/${realStatus?.bytesMigrated ?? '?'}B, landed=${landed}, sourceRetired=${sourceRetired}, servedBeforeMove=${servedBeforeMove.ok}, servedAfterMove=${servedAfterMove.ok}, type=${servedBeforeMove.contentType ?? 'none'}→${servedAfterMove.contentType ?? 'none'} (want kept)`,
   );
 
   // --- Knowledge: connection + embedding admin files --------------------
