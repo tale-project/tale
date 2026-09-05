@@ -249,7 +249,7 @@ export async function probeConnection(args: {
 // ---------------------------------------------------------------- backfill
 
 /** The walk order — every org-owned table that holds `s3:` blob refs of
- * its own (the CHECK in migrations 0053 + 0077 mirrors this list). */
+ * its own (the CHECK in migrations 0053 + 0078 mirrors this list). */
 export type BackfillPhase =
   | 'documents'
   | 'fileMetadata'
