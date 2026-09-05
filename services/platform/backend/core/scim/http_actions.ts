@@ -4,15 +4,6 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { getPublicHttpApiUrl } from '../lib/helpers/public_storage_url';
 import { extractPathParts, parseIntParam } from '../lib/rest/helpers';
-/** The records the internal queries return — shaped by what the SCIM mappers
- *  read, so the two cannot drift apart. */
-type ScimUserRecord = Parameters<typeof toScimUser>[0];
-type ScimGroupRecord = Parameters<typeof toScimGroup>[0];
-/** One SQL-paged listing: the page's records plus the collection total. */
-interface ScimListPage<T> {
-  records: T[];
-  total: number;
-}
 import {
   parseEqFilter,
   parseGroupPatch,
@@ -29,6 +20,18 @@ import {
   scimListResponse,
   scimNoContent,
 } from './responses';
+
+/** The records the internal queries return — shaped by what the SCIM mappers
+ *  read, so the two cannot drift apart. */
+type ScimUserRecord = Parameters<typeof toScimUser>[0];
+type ScimGroupRecord = Parameters<typeof toScimGroup>[0];
+/** One SQL-paged listing: the page's records plus the collection total — the
+ *  structural twin of `domains/scim/service.ts`' `ScimListPage` (core does not
+ *  import domains); both shapes are pinned by tests. */
+interface ScimListPage<T> {
+  records: T[];
+  total: number;
+}
 
 const USERS_PREFIX = '/scim/v2/Users/';
 const GROUPS_PREFIX = '/scim/v2/Groups/';
