@@ -40,7 +40,11 @@
  *   indexed copy masked is the safe reading.
  */
 
-import { createScrubberFromConfig, scrubDocument } from '../../../lib/pii';
+import {
+  createScrubberFromConfig,
+  scrubDocument,
+  type Scrubber,
+} from '../../../lib/pii';
 import {
   piiConfigSchema,
   type PiiConfig,
@@ -70,6 +74,72 @@ export function parsePiiConfig(raw: unknown): PiiConfig | null {
 }
 
 /**
+ * One scrubber per distinct policy per process. Building one loads and
+ * vets the data tree and compiles every enabled pattern — work the engine's
+ * own contract says to pay once per config, not once per document as the
+ * indexing worker otherwise would on every sync backlog. The key is the
+ * policy's content, so an admin saving a change gets a fresh scrubber on
+ * the next document; the data tree itself is baked into the image, so a
+ * process never needs to notice it changing. Bounded so a stream of
+ * distinct policies cannot grow it without limit.
+ */
+const scrubberCache = new Map<string, Scrubber | null>();
+const SCRUBBER_CACHE_LIMIT = 32;
+/** Policies whose construction failure was already reported this process. */
+const reportedFailures = new Set<string>();
+
+function policyKey(config: PiiConfig): string {
+  return JSON.stringify([
+    config.enabled,
+    config.mode,
+    config.enabledPatterns,
+    config.locales ?? null,
+    config.customPatterns ?? null,
+  ]);
+}
+
+/**
+ * The scrubber for a policy — cached per distinct policy — or null when the
+ * policy is disabled or its scrubber cannot be built. A failure is not
+ * cached: it is reported once per policy at error level (a missing data
+ * tree is a packaging defect, not a per-document event) and construction is
+ * retried on the next document, so a repaired tree heals without a restart.
+ */
+export function scrubberForPolicy(config: PiiConfig): Scrubber | null {
+  const key = policyKey(config);
+  const cached = scrubberCache.get(key);
+  if (cached !== undefined) return cached;
+
+  let scrubber: Scrubber | null;
+  try {
+    scrubber = createScrubberFromConfig(config);
+  } catch (error) {
+    // `createScrubber` throws only on a programmer error or a missing data
+    // tree, and the governance resolver filters the usual trigger (an
+    // unknown locale code) before it gets here. Failing the index would take
+    // an organization's whole corpus offline over a governance typo, so it
+    // degrades to today's behaviour and says so — once.
+    if (!reportedFailures.has(key)) {
+      reportedFailures.add(key);
+      console.error(
+        `[pii-gate] scrubber construction failed, indexing unscrubbed until it succeeds: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    return null;
+  }
+  reportedFailures.delete(key);
+
+  if (scrubberCache.size >= SCRUBBER_CACHE_LIMIT) {
+    const oldest = scrubberCache.keys().next().value;
+    if (oldest !== undefined) scrubberCache.delete(oldest);
+  }
+  scrubberCache.set(key, scrubber);
+  return scrubber;
+}
+
+/**
  * Apply a policy to text bound for the index.
  *
  * Returns the text to index, masked where the policy says so, or a refusal
@@ -82,22 +152,7 @@ export function applyPiiPolicyForIndexing(
 ): PiiIngestDecision {
   if (config === null) return { kind: 'index', text };
 
-  let scrubber;
-  try {
-    scrubber = createScrubberFromConfig(config);
-  } catch (error) {
-    // `createScrubber` throws only on a programmer error, and the governance
-    // resolver filters the usual trigger (an unknown locale code) before it
-    // gets here — so this is defence, not an expected path. Failing the index
-    // would take an organization's whole corpus offline over a governance
-    // typo, so it degrades to today's behaviour and says so.
-    console.warn(
-      `[pii-gate] scrubber construction failed, indexing unscrubbed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-    return { kind: 'index', text };
-  }
+  const scrubber = scrubberForPolicy(config);
   if (scrubber === null) return { kind: 'index', text };
 
   // The scrubber is built WITH the policy's mode, so it answers `blocked` under

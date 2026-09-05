@@ -6,7 +6,11 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { applyPiiPolicyForIndexing, parsePiiConfig } from './pii_gate';
+import {
+  applyPiiPolicyForIndexing,
+  parsePiiConfig,
+  scrubberForPolicy,
+} from './pii_gate';
 
 /** A policy with one obvious detector on, so a match is easy to arrange. */
 function policy(overrides: Record<string, unknown> = {}) {
@@ -118,28 +122,54 @@ describe('applyPiiPolicyForIndexing', () => {
     });
   });
 
-  it('indexes unscrubbed when the scrubber cannot be built', async () => {
-    // Construction throws only on a programmer error, and the governance
-    // resolver filters the usual trigger (an unknown locale) upstream — so the
-    // failure is forced here. What matters is the guarantee: failing the index
-    // would take an organization's corpus offline over a governance typo.
+  it('indexes unscrubbed when the scrubber cannot be built, reporting once', async () => {
+    // Construction throws only on a programmer error or a missing data tree,
+    // and the governance resolver filters the usual trigger (an unknown
+    // locale) upstream — so the failure is forced here. What matters is the
+    // guarantee: failing the index would take an organization's corpus
+    // offline over a governance typo — and the report is one error per
+    // policy per process, not one per document.
     vi.resetModules();
-    vi.doMock('../../../lib/pii', () => ({
+    vi.doMock('../../../lib/pii', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('../../../lib/pii')>()),
       createScrubberFromConfig: () => {
-        throw new Error('unknown locale code');
+        throw new Error('no data tree at /app/system/pii');
       },
     }));
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { applyPiiPolicyForIndexing: withBrokenScrubber } =
       await import('./pii_gate');
     expect(withBrokenScrubber(WITH_PII, policy())).toEqual({
       kind: 'index',
       text: WITH_PII,
     });
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+    expect(withBrokenScrubber(WITH_PII, policy())).toEqual({
+      kind: 'index',
+      text: WITH_PII,
+    });
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error.mock.calls[0]?.[0]).toContain('/app/system/pii');
+    error.mockRestore();
     vi.doUnmock('../../../lib/pii');
     vi.resetModules();
+  });
+});
+
+describe('scrubberForPolicy', () => {
+  it('reuses one scrubber for equal policies and builds anew for a changed one', () => {
+    // The engine's contract: build once per config, reuse per message. Two
+    // documents under the same policy must not pay for two constructions.
+    const first = scrubberForPolicy(policy({ mode: 'mask' }));
+    const second = scrubberForPolicy(policy({ mode: 'mask' }));
+    expect(first).not.toBeNull();
+    expect(second).toBe(first);
+    const changed = scrubberForPolicy(policy({ mode: 'block' }));
+    expect(changed).not.toBe(first);
+  });
+
+  it('caches the disabled verdict too', () => {
+    expect(scrubberForPolicy(policy({ enabled: false }))).toBeNull();
+    expect(scrubberForPolicy(policy({ enabled: false }))).toBeNull();
   });
 });
 
