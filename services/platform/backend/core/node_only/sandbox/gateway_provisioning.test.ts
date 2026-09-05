@@ -123,7 +123,6 @@ describe('buildProviderProvision', () => {
       name: 'Claude sub',
       token: 'tok',
       targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
-      poolSize: 2,
     });
     await expect(
       buildProviderProvision(fakeCtx(), {

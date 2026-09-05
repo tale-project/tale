@@ -1,6 +1,6 @@
 ---
 title: Documents
-description: The Documents tab is where Editors upload files into the knowledge base, watch them index, and manage their lifecycle — upload sources, RAG status, team scoping, folders, and reindexing.
+description: The Documents tab is where Editors upload files into the knowledge base, watch them index, and manage their lifecycle.
 ---
 
 The Documents tab is the knowledge base's file surface. Editors upload files, Tale runs each one through the indexing pipeline — extract the text, chunk it, embed the chunks, store them — and agents whose knowledge scope covers the document retrieve relevant passages at reply time and cite them. This page covers the operator side: uploading, the status column, team scoping, folders, and the document lifecycle.

@@ -1,6 +1,6 @@
 ---
 title: Changelog
-description: Der In-Produkt-Release-Viewer, der zeigt, was sich in der Tale-Plattform selbst geändert hat. Admins lesen das nach einem Upgrade, um zu sehen, was gelandet ist, und um die Highlights mit der Org zu teilen.
+description: Der In-Produkt-Release-Viewer, der zeigt, was sich in der Tale-Plattform selbst geändert hat.
 ---
 
 Der Changelog ist der In-Produkt-Viewer, der Release Notes für die Tale-Plattform selbst anzeigt — nicht für Inhalte, die deine Mitglieder produzieren. Nach einem selbst gehosteten Upgrade oder einem Managed-Cloud-Rollout listet der Viewer auf, was sich zwischen der vorherigen Version und der jetzt laufenden geändert hat. Admins lesen ihn nach einem Upgrade, um das Team einzuweisen und alles zu markieren, was die Arbeit der Mitglieder berührt.

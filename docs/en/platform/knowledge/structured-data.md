@@ -1,6 +1,6 @@
 ---
 title: Structured data
-description: Tale's knowledge base ships three built-in structured entities — Contacts, Products, Websites — alongside Documents. This page hands you the mental model for when to pick a typed record over a document.
+description: Tale's knowledge base ships three built-in structured entities — Contacts, Products, Websites — alongside Documents.
 ---
 
 Tale's knowledge base ships two shapes side by side. Documents are text the agent retrieves chunks from; structured records are typed rows the agent reads fields from. The shape you pick is the most important decision in how an agent will use your knowledge — get it wrong and the agent either dilutes a clear answer or guesses at a value you have on file.

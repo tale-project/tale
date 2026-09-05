@@ -62,14 +62,15 @@ import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { addJobInTx, PRIORITY_INTERACTIVE } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
 import { purgeIncompleteResponse } from '../lib/purge-incomplete-response.ts';
-import { checkOrganizationRateLimit } from '../lib/rate-limit.ts';
+import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
   domainErrorResponse,
   formatKeysetCursor,
   pageLimit,
   parseKeysetCursor,
-  restProjectAuth,
+  readJsonBody,
   type RestEnv,
+  restProjectAuth,
 } from './shared.ts';
 
 /**
@@ -133,7 +134,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/contacts', async (c) => {
-    const body = contactInput.safeParse(await c.req.json());
+    const body = contactInput.safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -159,7 +160,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .object({
         contacts: z.array(contactInput.extend({ email: z.string() })).max(500),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'Missing or invalid "contacts" array' }, 400);
     }
@@ -186,7 +187,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.patch('/contacts/:id', async (c) => {
-    const body = contactInput.partial().safeParse(await c.req.json());
+    const body = contactInput.partial().safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -268,7 +269,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.post('/products', async (c) => {
-    const body = productInput.safeParse(await c.req.json());
+    const body = productInput.safeParse(await readJsonBody(c));
     if (!body.success || body.data.name === undefined) {
       return c.json({ error: 'invalid body ("name" is required)' }, 400);
     }
@@ -297,7 +298,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.patch('/products/:id', async (c) => {
-    const body = productInput.safeParse(await c.req.json());
+    const body = productInput.safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -348,7 +349,6 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.get('/documents', async (c) => {
-    const limitRaw = Number(c.req.query('limit') ?? '25');
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const result = await listHubDocumentsPage(deps.sql, auth, {
@@ -359,7 +359,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           ? { folderId: c.req.query('folderId') ?? '' }
           : {}),
         cursor: c.req.query('cursor') ?? null,
-        limit: Number.isFinite(limitRaw) ? limitRaw : 25,
+        limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 100 }),
       });
       return c.json({
         page: result.page.map((doc) => hubDocumentPayload(doc, null)),
@@ -384,7 +384,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         teamId: z.string().max(128).optional(),
         folderId: z.string().max(64).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("title" is required)' }, 400);
     }
@@ -435,7 +435,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         teamId: z.string().max(128).nullable().optional(),
         folderId: z.string().max(64).nullable().optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -549,7 +549,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         limit: z.number().int().min(1).max(50).optional(),
         minSimilarity: z.number().min(0).max(1).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("query" is required)' }, 400);
     }
@@ -606,11 +606,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (status !== 'active' && status !== 'superseded') {
       return c.json({ error: '"status" must be active or superseded' }, 400);
     }
-    const limitRaw = Number(c.req.query('limit') ?? '25');
-    const limit = Math.min(
-      Math.max(Number.isFinite(limitRaw) ? limitRaw : 25, 1),
-      100,
-    );
+    const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
     const cursorParam = c.req.query('cursor');
     // Number('') is 0 — only a present, non-empty cursor filters the page.
     const cursor =
@@ -642,6 +638,18 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     content: z.string().min(1).max(100_000),
   });
 
+  /** The per-org `knowledge:mutate` budget the in-app entry writes share —
+   * answered as the standard 429 (`RATE_LIMITED` + `Retry-After`): the
+   * limiter's error carries no wire code, so left inside the domain-error
+   * mapping it read as a 500 outage and landed in error reporting. */
+  const chargeKnowledgeMutate = (c: Context<RestEnv>) =>
+    chargeOrgRateLimit(
+      deps.sql,
+      c,
+      'knowledge:mutate',
+      c.get('organizationId'),
+    );
+
   const loadEntry = async (
     c: Context<RestEnv>,
     entryId: string,
@@ -658,19 +666,16 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
 
   app.post('/knowledge-entries', async (c) => {
-    const body = entryBody.safeParse(await c.req.json());
+    const body = entryBody.safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json(
         { error: 'invalid body ("topic" and "content" are required)' },
         400,
       );
     }
+    const limited = await chargeKnowledgeMutate(c);
+    if (limited) return limited;
     try {
-      await checkOrganizationRateLimit(
-        deps.sql,
-        'knowledge:mutate',
-        c.get('organizationId'),
-      );
       const id = await createKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         userId: c.get('userId'),
@@ -696,19 +701,16 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   /** Replace an entry's topic/content. Answers with the NEW row's id — an
    * update INSERTS the next active version and supersedes this one. */
   app.patch('/knowledge-entries/:id', async (c) => {
-    const body = entryBody.safeParse(await c.req.json());
+    const body = entryBody.safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json(
         { error: 'invalid body ("topic" and "content" are required)' },
         400,
       );
     }
+    const limited = await chargeKnowledgeMutate(c);
+    if (limited) return limited;
     try {
-      await checkOrganizationRateLimit(
-        deps.sql,
-        'knowledge:mutate',
-        c.get('organizationId'),
-      );
       const id = await updateKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         userId: c.get('userId'),
@@ -724,12 +726,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.delete('/knowledge-entries/:id', async (c) => {
+    const limited = await chargeKnowledgeMutate(c);
+    if (limited) return limited;
     try {
-      await checkOrganizationRateLimit(
-        deps.sql,
-        'knowledge:mutate',
-        c.get('organizationId'),
-      );
       await deleteKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         entryId: c.req.param('id'),
@@ -778,7 +777,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         instructions: z.string().optional(),
         visibility: z.enum(['private', 'org']).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -850,7 +849,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         icon: z.string().max(200).optional(),
         labels: z.array(z.string().max(100)).max(50).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }

@@ -1,5 +1,5 @@
 ---
-title: Piper les transcriptions de réunions dans la Base de connaissances
+title: Acheminer les transcriptions de réunions
 description: Câble Meetily (ou un outil local de transcription de réunions similaire) dans la Base de connaissances d'un projet Tale pour que les transcriptions atterrissent toutes seules comme documents, sans que personne ne charge un fichier.
 ---
 

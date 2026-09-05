@@ -1,6 +1,6 @@
 ---
 title: Inhalte und Modelle
-description: Modell-Ebenen-Kontrollen — welche Modelle pro Rolle oder Team erlaubt sind und das Default-Modell, auf dem jede Benutzergruppe landet. Admins und Inhaber lesen das, wenn eine Compliance-Regel eine Last an ein freigegebenes Modell bindet oder wenn ein Team einen günstigeren Default braucht.
+description: Modell-Ebenen-Kontrollen — welche Modelle pro Rolle oder Team erlaubt sind und das Default-Modell, auf dem jede Benutzergruppe landet.
 ---
 
 Inhalte und Modelle ist die Oberfläche, auf der du entscheidest, welche LLMs die Personen in deiner Organisation erreichen können und auf welchem jede Gruppe per Default landet. Sie verbindet eine Zulassungs- oder Sperrliste pro Bereich (Organisation, Team, Rolle) mit einer Default-Modell-Regel, die der Resolver anwendet, wenn keine explizite Wahl sie überschrieben hat. Admins und Inhaber lesen diese Seite, wenn eine Compliance-Regel eine Last an ein freigegebenes Modell bindet, wenn ein Team auf einem günstigeren Modell als der Rest der Organisation landen soll, oder wenn ein neues Modell eines bestehenden Anbieters erreichbar gemacht werden muss.

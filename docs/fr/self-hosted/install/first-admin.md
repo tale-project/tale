@@ -1,6 +1,6 @@
 ---
 title: Créer le premier admin
-description: Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique — le premier compte devient Owner sans clé et les nouveaux arrivent par invitation.
+description: Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique.
 ---
 
 Une instance Tale toute neuve n'a pas encore d'utilisateurs. La première personne qui l'ouvre déroule un assistant de configuration unique qui crée son compte, la connecte, en fait l'**Owner** et nomme la première organisation — aucune clé de bootstrap, aucune promotion manuelle. Ce parcours couvre ce premier lancement et comment les coéquipiers arrivent ensuite.

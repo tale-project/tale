@@ -1,6 +1,6 @@
 ---
 title: Cryptographie
-description: Les algorithmes que Tale utilise pour les données au repos, les données en transit, le hachage des mots de passe et l'intégrité du journal d'audit — et leur correspondance avec BSI TR-02102-1.
+description: Les algorithmes que Tale utilise pour les données au repos, les données en transit, le hachage des mots de passe et l'intégrité du journal d'audit.
 ---
 
 Cette page est l'inventaire de chaque primitive cryptographique sur laquelle Tale s'appuie : ce qui protège les secrets sur le disque, ce qui protège le trafic sur le réseau, comment les mots de passe sont hachés, et comment le journal d'audit prouve qu'il n'a pas été altéré. Elle est écrite pour les opérateurs et les auditeurs de conformité qui doivent répondre à « quels algorithmes, quelles longueurs de clé, où sont les clés » face à une norme comme BSI TR-02102-1 — Tale utilise déjà des primitives conformes, et cette page est l'endroit où elles sont consignées.

@@ -1,6 +1,6 @@
 ---
 title: Member
-description: Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox. The pages here are what someone with the Member role does day to day.
+description: Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox.
 ---
 
 Member is the default role most people in most orgs carry. It is the end-user surface of Tale — chat with the assistant, browse the knowledge base, reply to contact email in an installed automation's Inbox, and leave feedback on replies. Members do not build agents, do not configure providers, do not install automations. They use the product the Editors and Developers built for them.

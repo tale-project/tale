@@ -22,11 +22,11 @@ import {
 } from '@/app/features/contacts/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
 import {
   mailboxSideAddress,
   resolveReplyFrom,
-} from '@/backend/core/conversations/reply_from';
-import { useT } from '@/lib/i18n/client';
+} from '@/lib/shared/conversations/reply-from';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {

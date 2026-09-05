@@ -1,6 +1,6 @@
 ---
 title: Guardrails
-description: The three filter layers — content safety, PII detection, and a moderation provider — that screen chat inputs and outputs before and after the model. Admins and Owners read this when a regulator names a content rule or when a leak warrants a tighter policy.
+description: The three filter layers — content safety, PII detection, and a moderation provider — that screen chat inputs and outputs before and after the model.
 ---
 
 Guardrails is the surface where you configure the three filter layers Tale runs on every chat message in your organisation. Each message passes through content safety (word lists and admin regex), then PII detection (built-in patterns plus custom), then an optional external moderation provider — in that fixed order, on the way in and on the way out. Admins and Owners read this page when a regulator names a content rule, when a leak warrants a tighter policy, or when an agent's replies need to be sanitised before they leave the model.

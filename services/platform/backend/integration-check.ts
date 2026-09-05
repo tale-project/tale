@@ -5925,6 +5925,20 @@ async function checkSkills(
   );
 }
 
+/** A schema-valid subscription-broker document — the save boundary parses
+ * the configuration against `brokerCredentialDataSchema`, so the probe must
+ * post what the form would. */
+function brokerItestDocument(endpoint: string): Record<string, unknown> {
+  return {
+    endpoint,
+    httpMethod: 'GET',
+    auth: { method: 'none' },
+    responseMapping: { tokensPath: '$.tokens', tokenField: 'access_token' },
+    targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+    selection: 'first',
+  };
+}
+
 /**
  * Provider credentials: encrypted round-trip through the REUSED 0.4
  * resolver over PG rows (api-key decrypt + env gate + default swap), with
@@ -6162,7 +6176,7 @@ async function checkProviderCredentials(
         providerSlug: 'anthropic',
         authMethod: 'subscription-broker',
         name: 'Broker pool',
-        secret: JSON.stringify({ endpoint: 'https://broker.itest/v1' }),
+        secret: JSON.stringify(brokerItestDocument('https://broker.itest/v1')),
       })
     ).json(),
   );
@@ -6170,7 +6184,7 @@ async function checkProviderCredentials(
   const brokerReplaced = await send(
     'POST',
     `/api/app/provider-credentials/${brokerId}?orgId=${orgId}`,
-    { secret: JSON.stringify({ endpoint: 'https://broker.itest/v2' }) },
+    { secret: JSON.stringify(brokerItestDocument('https://broker.itest/v2')) },
   );
   const edited = await listCredentials();
   const rowsById = new Map(
@@ -11807,23 +11821,6 @@ async function checkSsoLogin(
     );
     void configRoot;
 
-    // --- discover ----------------------------------------------------------
-    const discovered = z
-      .object({
-        ssoEnabled: z.boolean(),
-        organizationId: z.string().optional(),
-        protocol: z.string().optional(),
-      })
-      .safeParse(
-        await (
-          await fetch(`${base}/api/sso/discover`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email: 'sso.user@door.test' }),
-          })
-        ).json(),
-      );
-
     // --- one full login round, reusable ------------------------------------
     const loginRound = async (): Promise<{
       authorizeStatus: number;
@@ -11845,12 +11842,17 @@ async function checkSsoLogin(
         state = idpUrl.searchParams.get('state') ?? '';
         seenChallenge = idpUrl.searchParams.get('code_challenge') ?? '';
       }
+      // The authorize door binds the flow to this browser with a cookie the
+      // callback demands back — carry it, as a browser would.
       const callbackRes = await fetch(
         `${base}/api/sso/callback?code=itest-code&state=${encodeURIComponent(state)}`,
-        { redirect: 'manual' },
+        {
+          redirect: 'manual',
+          headers: { cookie: cookieHeaderFrom(authorizeRes) },
+        },
       );
-      const setCookie = callbackRes.headers.get('set-cookie') ?? '';
-      const cookiePair = setCookie.split(';')[0] ?? '';
+      // The callback also spends the flow cookie; only the session survives.
+      const cookiePair = mergeCookieHeader('', callbackRes);
       return {
         authorizeStatus: authorizeRes.status,
         idpHost,
@@ -12019,10 +12021,7 @@ async function checkSsoLogin(
 
     record(
       'enterprise SSO login (OIDC + PKCE + provisioning over PG)',
-      discovered.success &&
-        discovered.data.ssoEnabled &&
-        discovered.data.protocol === 'oidc' &&
-        first.authorizeStatus === 302 &&
+      first.authorizeStatus === 302 &&
         first.idpHost &&
         seenChallenge !== '' &&
         first.callbackStatus === 302 &&
@@ -12039,7 +12038,41 @@ async function checkSsoLogin(
         rows2[0]?.teams === 'Board,Everyone,Finance,Scim Managed' &&
         opsTeamGone.length === 0 &&
         aliasRes.status === 302,
-      `discover=${discovered.success ? `${discovered.data.ssoEnabled}/${discovered.data.protocol ?? ''}` : 'ERR'}, authorize=${first.authorizeStatus} idp=${first.idpHost} pkce=${firstPkce}, callback=${first.callbackStatus}→${first.location.includes('/dashboard') ? 'dashboard' : first.location}, session=${sessionBody.success ? (sessionBody.data.user?.email ?? 'none') : 'ERR'}, first role/teams=${rows1[0]?.role}/${rows1[0]?.teams} (want developer/Ops), second role/teams=${rows2[0]?.role}/${rows2[0]?.teams} (want member/Board,Everyone,Finance,Scim Managed), opsReaped=${opsTeamGone.length === 0}, alias=${aliasRes.status}`,
+      `authorize=${first.authorizeStatus} idp=${first.idpHost} pkce=${firstPkce}, callback=${first.callbackStatus}→${first.location.includes('/dashboard') ? 'dashboard' : first.location}, session=${sessionBody.success ? (sessionBody.data.user?.email ?? 'none') : 'ERR'}, first role/teams=${rows1[0]?.role}/${rows1[0]?.teams} (want developer/Ops), second role/teams=${rows2[0]?.role}/${rows2[0]?.teams} (want member/Board,Everyone,Finance,Scim Managed), opsReaped=${opsTeamGone.length === 0}, alias=${aliasRes.status}`,
+    );
+
+    // --- the completion must arrive in the browser that started it ---------
+    // A valid, unexpired state is exactly what a login-CSRF attacker holds for
+    // their OWN flow: without the authorize door's flow cookie the callback
+    // refuses with a readable key, mints no session, and audits the attempt.
+    const unboundAuthorize = await fetch(
+      `${base}/api/sso/authorize?organizationId=${orgId}`,
+      { redirect: 'manual' },
+    );
+    const unboundState =
+      new URL(
+        unboundAuthorize.headers.get('location') ?? 'http://unset.invalid/',
+      ).searchParams.get('state') ?? '';
+    const unbound = await fetch(
+      `${base}/api/sso/callback?code=itest-code&state=${encodeURIComponent(unboundState)}`,
+      { redirect: 'manual' },
+    );
+    const unboundLocation = unbound.headers.get('location') ?? '';
+    const unboundAudit = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+        AND metadata ->> 'errorKey' = 'sso.errors.flowMismatch'
+    `;
+    record(
+      'an SSO callback outside the browser that started the flow is refused',
+      unboundAuthorize.status === 302 &&
+        cookieHeaderFrom(unboundAuthorize).includes('sso_flow=') &&
+        unbound.status === 302 &&
+        unboundLocation.includes('/log-in') &&
+        unboundLocation.includes('error=sso.errors.flowMismatch') &&
+        !cookieHeaderFrom(unbound).includes('better-auth.session_token=') &&
+        (unboundAudit[0]?.count ?? 0) === 1,
+      `authorize=${unboundAuthorize.status} flowCookie=${cookieHeaderFrom(unboundAuthorize).includes('sso_flow=')}, callback=${unbound.status}→${unboundLocation.includes('/log-in') ? 'log-in' : unboundLocation} key=${unboundLocation.includes('error=sso.errors.flowMismatch')} session=${cookieHeaderFrom(unbound).includes('better-auth.session_token=') ? 'MINTED' : 'none'}, audited=${unboundAudit[0]?.count} (want 1)`,
     );
 
     // --- fourth round: org 2FA enforcement anchors on the SSO door ---------
@@ -12187,11 +12220,19 @@ async function checkSamlLogin(
       )?.[1] ?? '';
 
     // ---- SP-initiated: 302 to the IdP carrying the org as RelayState ----
+    // RelayState is `<org>.<sha256(flow nonce)>`: the org resolves the
+    // connection on the way back, the hash binds the response to the browser
+    // holding the flow cookie this redirect set.
     const loginRes = await fetch(`${base}/api/sso/saml/login?org=${orgId}`, {
       redirect: 'manual',
     });
     const loginLocation = loginRes.headers.get('location') ?? '';
     const loginUrl = loginLocation === '' ? null : new URL(loginLocation);
+    const loginRelay = loginUrl?.searchParams.get('RelayState') ?? '';
+    const loginFlowCookie = cookieHeaderFrom(loginRes);
+    const boundRelay = (relay: string): boolean =>
+      relay.startsWith(`${orgId}.`) &&
+      /^[A-Za-z0-9_-]{43}$/.test(relay.slice(orgId.length + 1));
 
     // The AuthnRequest ID inside the redirect (deflate+base64, Redirect
     // binding) — building it must have stored the ID in the shared
@@ -12219,8 +12260,9 @@ async function checkSamlLogin(
         loginRes.status === 302 &&
         loginUrl?.origin === 'https://idp.saml.itest' &&
         (loginUrl?.searchParams.get('SAMLRequest') ?? '') !== '' &&
-        loginUrl?.searchParams.get('RelayState') === orgId,
-      `metadata=${metadataRes.status} entityId=${spEntityId} acs=${acsUrl}, login=${loginRes.status}→${loginUrl?.origin ?? loginLocation} relay=${loginUrl?.searchParams.get('RelayState') === orgId} request=${(loginUrl?.searchParams.get('SAMLRequest') ?? '') !== ''}`,
+        boundRelay(loginRelay) &&
+        loginFlowCookie.includes('sso_flow='),
+      `metadata=${metadataRes.status} entityId=${spEntityId} acs=${acsUrl}, login=${loginRes.status}→${loginUrl?.origin ?? loginLocation} relay=${boundRelay(loginRelay)} flowCookie=${loginFlowCookie.includes('sso_flow=')} request=${(loginUrl?.searchParams.get('SAMLRequest') ?? '') !== ''}`,
     );
 
     // ---- the fixture IdP: a canonical, signed assertion -------------------
@@ -12299,14 +12341,22 @@ async function checkSamlLogin(
       ).toString('base64');
     };
 
-    const postAssertion = (samlResponse: string): Promise<Response> =>
+    // IdP-initiated shape by default (a bare org RelayState, no flow cookie);
+    // an SP-initiated post passes the login redirect's RelayState and cookie.
+    const postAssertion = (
+      samlResponse: string,
+      browser: { relayState?: string; cookie?: string } = {},
+    ): Promise<Response> =>
       fetch(`${base}/api/sso/saml/acs`, {
         method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          ...(browser.cookie === undefined ? {} : { cookie: browser.cookie }),
+        },
         redirect: 'manual',
         body: new URLSearchParams({
           SAMLResponse: samlResponse,
-          RelayState: orgId,
+          RelayState: browser.relayState ?? orgId,
         }).toString(),
       });
 
@@ -12430,13 +12480,13 @@ async function checkSamlLogin(
       notOnOrAfterMs: Date.now() + 300_000,
       inResponseTo: authnRequestId,
     });
-    const spFirst = await postAssertion(spResponse);
-    const spFirstCookie =
-      (spFirst.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const spBrowser = { relayState: loginRelay, cookie: loginFlowCookie };
+    const spFirst = await postAssertion(spResponse, spBrowser);
+    const spFirstCookie = mergeCookieHeader('', spFirst);
     const consumedRow = await sql<{ id: string }[]>`
       SELECT id FROM app.saml_request_ids WHERE id = ${authnRequestId}
     `;
-    const spReplay = await postAssertion(spResponse);
+    const spReplay = await postAssertion(spResponse, spBrowser);
     const forged = await postAssertion(
       buildResponse({
         id: '_itestsaml5',
@@ -12456,11 +12506,63 @@ async function checkSamlLogin(
         consumedRow.length === 0 &&
         spReplay.status === 302 &&
         (spReplay.headers.get('location') ?? '').includes('/log-in') &&
-        (spReplay.headers.get('set-cookie') ?? '') === '' &&
+        !mergeCookieHeader('', spReplay).includes(
+          'better-auth.session_token=',
+        ) &&
         forged.status === 302 &&
         (forged.headers.get('location') ?? '').includes('/log-in') &&
         (forged.headers.get('set-cookie') ?? '') === '',
-      `issued=${authnRequestId !== ''}/row=${issuedRow.length} (want 1), first=${spFirst.status}→${(spFirst.headers.get('location') ?? '').includes('/dashboard') ? 'dashboard' : spFirst.headers.get('location')} cookie=${spFirstCookie !== ''}, consumed=${consumedRow.length === 0}, replay=${spReplay.status}→${(spReplay.headers.get('location') ?? '').includes('/log-in') ? 'log-in' : 'ERR'} noCookie=${(spReplay.headers.get('set-cookie') ?? '') === ''}, forged=${forged.status} noCookie=${(forged.headers.get('set-cookie') ?? '') === ''}`,
+      `issued=${authnRequestId !== ''}/row=${issuedRow.length} (want 1), first=${spFirst.status}→${(spFirst.headers.get('location') ?? '').includes('/dashboard') ? 'dashboard' : spFirst.headers.get('location')} cookie=${spFirstCookie !== ''}, consumed=${consumedRow.length === 0}, replay=${spReplay.status}→${(spReplay.headers.get('location') ?? '').includes('/log-in') ? 'log-in' : 'ERR'} noSession=${!mergeCookieHeader('', spReplay).includes('better-auth.session_token=')}, forged=${forged.status} noCookie=${(forged.headers.get('set-cookie') ?? '') === ''}`,
+    );
+
+    // ---- browser binding of an SP-initiated response -------------------
+    // The response answers an AuthnRequest this deployment issued, but it is
+    // posted from a browser WITHOUT the flow cookie the login redirect set —
+    // the insider's captured response auto-submitted from a victim's browser.
+    // Refused readably, audited, no session; a fresh AuthnRequest, since the
+    // first one above is spent.
+    const secondLogin = await fetch(`${base}/api/sso/saml/login?org=${orgId}`, {
+      redirect: 'manual',
+    });
+    const secondLoginUrl = new URL(
+      secondLogin.headers.get('location') ?? 'http://unset.invalid/',
+    );
+    const secondRequestParam =
+      secondLoginUrl.searchParams.get('SAMLRequest') ?? '';
+    const secondRequestId =
+      secondRequestParam === ''
+        ? ''
+        : (/ID="([^"]+)"/.exec(
+            inflateRawSync(Buffer.from(secondRequestParam, 'base64')).toString(
+              'utf8',
+            ),
+          )?.[1] ?? '');
+    const unboundSaml = await postAssertion(
+      buildResponse({
+        id: '_itestsaml8',
+        email: 'saml.user@door.test',
+        groups: ['SamlOps'],
+        notOnOrAfterMs: Date.now() + 300_000,
+        inResponseTo: secondRequestId,
+      }),
+      { relayState: secondLoginUrl.searchParams.get('RelayState') ?? '' },
+    );
+    const unboundSamlLocation = unboundSaml.headers.get('location') ?? '';
+    const unboundSamlAudit = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+        AND metadata ->> 'providerId' = 'saml'
+        AND metadata ->> 'errorKey' = 'sso.errors.flowMismatch'
+    `;
+    record(
+      'SAML: an SP-initiated response outside the browser that started it is refused',
+      secondRequestId !== '' &&
+        unboundSaml.status === 302 &&
+        unboundSamlLocation.includes('/log-in') &&
+        unboundSamlLocation.includes('error=sso.errors.flowMismatch') &&
+        (unboundSaml.headers.get('set-cookie') ?? '') === '' &&
+        (unboundSamlAudit[0]?.count ?? 0) === 1,
+      `issued=${secondRequestId !== ''}, acs=${unboundSaml.status}→${unboundSamlLocation.includes('/log-in') ? 'log-in' : unboundSamlLocation} key=${unboundSamlLocation.includes('error=sso.errors.flowMismatch')} noCookie=${(unboundSaml.headers.get('set-cookie') ?? '') === ''}, audited=${unboundSamlAudit[0]?.count} (want 1)`,
     );
 
     // ---- org binding ----------------------------------------------------
@@ -12725,10 +12827,12 @@ async function checkEntraLogin(
     const state = authorizeUrl?.searchParams.get('state') ?? '';
     const callbackRes = await fetch(
       `${base}/api/sso/callback?code=itest-entra-code&state=${encodeURIComponent(state)}`,
-      { redirect: 'manual' },
+      {
+        redirect: 'manual',
+        headers: { cookie: cookieHeaderFrom(authorizeRes) },
+      },
     );
-    const cookie =
-      (callbackRes.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const cookie = mergeCookieHeader('', callbackRes);
     const session = z
       .looseObject({
         user: z.looseObject({ email: z.string() }).nullable().optional(),
@@ -18004,6 +18108,29 @@ async function checkConversations(
     patched.metadata?.unread_count === 3 &&
     patched.metadata?.routing === 'desk' &&
     patched.metadata?.priority_note === 'VIP';
+  // A contact this org does not own is refused at the write door (the same
+  // opaque 404 compose answers) and the row keeps its contact — the list and
+  // reply reads downstream would otherwise render another tenant's contact.
+  const patchForeignContact = await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { contactId: 'ct-not-in-this-org' },
+  });
+  const patchForeignBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await patchForeignContact.json());
+  const contactAfterForeign = await sql<{ contactId: string | null }[]>`
+    SELECT contact_id AS "contactId" FROM app.conversations
+    WHERE id = ${conversationId}
+  `;
+  record(
+    'conversations: PATCH refuses a contact the org does not own',
+    patchForeignContact.status === 404 &&
+      patchForeignBody.success &&
+      patchForeignBody.data.error === 'contact_not_found' &&
+      contactAfterForeign[0]?.contactId === contactId,
+    `status=${patchForeignContact.status} (want 404) error=${patchForeignBody.success ? patchForeignBody.data.error : 'ERR'} contactKept=${contactAfterForeign[0]?.contactId === contactId}`,
+  );
   // Junk in one row's unread_count must not 500 the org's count tiles.
   await sql`
     UPDATE app.conversations
@@ -18126,7 +18253,6 @@ async function checkConversations(
         asGate(`/messages/${gateMessageId}/undo`, { body: {} }),
         asGate(`/messages/${gateMessageId}/retry`, { body: {} }),
         asGate(`/messages/${gateMessageId}/discard`, { body: {} }),
-        asGate(`/messages/${gateMessageId}/attachments`, { body: {} }),
         asGate(`/${gated}`, { method: 'DELETE' }),
       ])
     ).map((res) => res.status);
@@ -18170,7 +18296,6 @@ async function checkConversations(
       asGate(`/messages/${gateMessageId}/undo`, { body: {} }),
       asGate(`/messages/${gateMessageId}/retry`, { body: {} }),
       asGate(`/messages/${gateMessageId}/discard`, { body: {} }),
-      asGate(`/messages/${gateMessageId}/attachments`, { body: {} }),
     ])
   ).map((res) => res.status);
   const editorDelete = await asGate(`/${gated}`, { method: 'DELETE' });
@@ -18179,7 +18304,7 @@ async function checkConversations(
   await sql`DELETE FROM "member" WHERE "id" = ${gateMemberId}`;
   record(
     'conversations: writes need editor-or-above, reads do not',
-    memberDoors.length === 12 &&
+    memberDoors.length === 11 &&
       memberDoors.every((status) => status === 403) &&
       afterMember[0]?.status === 'open' &&
       afterMember[0]?.msgs === '1' &&
@@ -18192,7 +18317,7 @@ async function checkConversations(
       afterEditor[0]?.msgs === '2' &&
       editorPastGate.every((status) => status !== 403) &&
       editorDelete.status === 204,
-    `member=${memberDoors.join(',')} (want 12x403) untouched=${afterMember[0]?.status}/${afterMember[0]?.msgs}msg read=${memberRead.status} (want 200), editor note=${editorNote.status} patch=${editorPatch.status} read=${editorRead.status} bulk=${editorBulk.status} → ${afterEditor[0]?.status}/${afterEditor[0]?.msgs}msg, pastGate=${editorPastGate.join(',')} (want none 403), del=${editorDelete.status}`,
+    `member=${memberDoors.join(',')} (want 11x403) untouched=${afterMember[0]?.status}/${afterMember[0]?.msgs}msg read=${memberRead.status} (want 200), editor note=${editorNote.status} patch=${editorPatch.status} read=${editorRead.status} bulk=${editorBulk.status} → ${afterEditor[0]?.status}/${afterEditor[0]?.msgs}msg, pastGate=${editorPastGate.join(',')} (want none 403), del=${editorDelete.status}`,
   );
 }
 
@@ -18207,11 +18332,13 @@ async function checkConversations(
  */
 async function checkMailboxSyncLane(
   sql: Sql,
-  ctx: { orgId: string },
+  ctx: { orgId: string; userId: string },
 ): Promise<void> {
-  const { orgId } = ctx;
+  const { orgId, userId } = ctx;
   const { runConnectorAction } =
     await import('./domains/connectors/service.ts');
+  const { knowledgeShimHandlers } =
+    await import('./domains/knowledge/service.ts');
   await drainNotificationEmails(sql);
 
   // --- the fake transport (phased inbox) -----------------------------------
@@ -18227,7 +18354,19 @@ async function checkMailboxSyncLane(
     date: string;
     text: string;
     headers: Record<string, string>;
+    attachments?: {
+      id: string;
+      filename: string;
+      contentType: string;
+      size: number;
+      contentBase64: string;
+    }[];
   }
+  // Bob's mail carries a real attachment: the bytes are materialized into
+  // the org's blob store BEFORE the conversation exists (registered
+  // `skip_rag_indexing`), and the bind after ingest is what un-skips, queues
+  // and dispatches it — scoped to the conversation it arrived on.
+  const bobBrief = 'Bob attached this brief about the verdigris shipment.';
   const bodies: Record<string, FakeBody> = {
     '101': {
       uid: '101',
@@ -18250,6 +18389,15 @@ async function checkMailboxSyncLane(
       date: new Date(Date.now() - 3_000_000).toISOString(),
       text: 'Question from Bob.',
       headers: { 'message-id': '<m102@ext.test>' },
+      attachments: [
+        {
+          id: '2',
+          filename: 'bob-brief.txt',
+          contentType: 'text/plain',
+          size: bobBrief.length,
+          contentBase64: Buffer.from(bobBrief).toString('base64'),
+        },
+      ],
     },
     '103': {
       uid: '103',
@@ -18369,6 +18517,81 @@ async function checkMailboxSyncLane(
       SELECT count(*)::text AS count FROM app.conversations
       WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
     `;
+
+    // The emailed attachment after three polls (two of them re-fetching
+    // Bob's mail): ONE row — `reuseStoredAttachments` hands the re-poll its
+    // stored pointer and the bind sees it already queued — bound to Bob's
+    // conversation, un-skipped, marked queued and carrying exactly one
+    // `rag.index_file` job. Before the bind lane queued, `skip_rag_indexing`
+    // was write-once true and every knowledge enqueue gate refused the row.
+    const attachmentRows = await sql<
+      {
+        id: string;
+        storageRef: string;
+        conversationId: string | null;
+        skip: boolean | null;
+        ragStatus: string | null;
+        mailReceivedAt: number | null;
+        contactEmail: string | null;
+      }[]
+    >`
+      SELECT fm.id, fm.storage_ref AS "storageRef",
+             fm.conversation_id AS "conversationId",
+             fm.skip_rag_indexing AS skip, fm.rag_status AS "ragStatus",
+             fm.mail_received_at_ms::float8 AS "mailReceivedAt",
+             ct.email AS "contactEmail"
+      FROM app.file_metadata fm
+      LEFT JOIN app.conversations c ON c.id = fm.conversation_id
+      LEFT JOIN app.contacts ct ON ct.id = c.contact_id
+      WHERE fm.org_id = ${orgId} AND fm.file_name = 'bob-brief.txt'
+    `;
+    const attachment = attachmentRows[0];
+    const indexJobs = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'rag.index_file'
+        AND data ->> 'fileId' = ${attachment?.id ?? ''}
+    `;
+    // The #3220 decision on the row the bind produced: retrievable inside
+    // the scope of the conversation it arrived on — the admin reaches Bob's
+    // unassigned thread, the plain inbox member does not.
+    const filterRetrievable =
+      knowledgeShimHandlers(sql)[
+        'documents/internal_queries:filterRetrievableRagFileIds'
+      ];
+    if (!filterRetrievable) throw new Error('knowledge shim handler missing');
+    const memberRows = await sql<{ id: string }[]>`
+      SELECT "id" FROM "user" WHERE "email" = 'inbox.member@door.test' LIMIT 1
+    `;
+    const retrievableFor = async (caller: {
+      userId: string;
+      isAdmin: boolean;
+    }) =>
+      z.array(z.string()).parse(
+        await filterRetrievable({
+          organizationId: orgId,
+          fileIds: [attachment?.storageRef ?? ''],
+          access: { teamIds: [] },
+          caller,
+        }),
+      );
+    const adminSees = await retrievableFor({ userId, isAdmin: true });
+    const memberSees = await retrievableFor({
+      userId: memberRows[0]?.id ?? 'no-such-user',
+      isAdmin: false,
+    });
+    record(
+      'emailed attachment: the bind un-skips, queues and dispatches indexing inside the conversation scope',
+      attachmentRows.length === 1 &&
+        attachment?.contactEmail === 'bob@ext.test' &&
+        attachment.skip === false &&
+        attachment.ragStatus !== null &&
+        attachment.mailReceivedAt !== null &&
+        indexJobs[0]?.count === '1' &&
+        adminSees.length === 1 &&
+        adminSees[0] === attachment.storageRef &&
+        memberSees.length === 0,
+      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0)`,
+    );
 
     // Outbound send through the same door (system caller: runs + audited).
     const sent = await runConnectorAction(sql, {
@@ -18583,6 +18806,135 @@ async function checkUndatedMailIngest(
 }
 
 /**
+ * Ingest idempotency is the DATABASE's rule now, not the lookup's. Two passes
+ * of one mailbox can overlap (the schedule claims the occurrence, not the run)
+ * and both miss `checkMessageExists`; migration 0077's partial unique index
+ * refuses the second insert and the shim lands the loser on the winner's row.
+ * Contacts have no unique key (the CRUD door allows two rows per email), so
+ * the shim's find-or-create serializes per (org, email) with an advisory lock
+ * instead. Real index, real shim, real concurrency.
+ */
+async function checkIngestDedupeRace(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { conversationShimHandlers } =
+    await import('./domains/conversations/shim.ts');
+  const handlers = conversationShimHandlers(sql, () => {
+    throw new Error('the dedupe check dispatches no connector calls');
+  });
+  const create =
+    handlers['conversations/internal_mutations:createConversationWithMessage'];
+  const append =
+    handlers['conversations/internal_mutations:addMessageToConversation'];
+  const findOrCreateContact =
+    handlers['contacts/internal_mutations:findOrCreateContact'];
+  if (!create || !append || !findOrCreateContact) {
+    throw new Error('shim handler missing');
+  }
+  const landed = z.object({
+    conversationId: z.string(),
+    messageId: z.string(),
+  });
+  const messageId = `<dedupe-${Date.now()}@ext.test>`;
+  const normalized = messageId.slice(1, -1);
+  const rootArgs = {
+    organizationId: orgId,
+    direction: 'inbound',
+    channel: 'email',
+    subject: 'Landed twice',
+    externalMessageId: normalized,
+    initialMessage: {
+      sender: 'twice@ext.test',
+      content: 'the same mail, twice',
+      isCustomer: true,
+      externalMessageId: normalized,
+    },
+  };
+  // Two overlapping passes, both past the lookup: the same root twice.
+  const [first, second] = await Promise.all([
+    create(rootArgs).then((out) => landed.parse(out)),
+    create(rootArgs).then((out) => landed.parse(out)),
+  ]);
+  // A third pass threading the same Message-ID onto the conversation.
+  const appended = z.string().parse(
+    await append({
+      organizationId: orgId,
+      conversationId: first.conversationId,
+      sender: 'twice@ext.test',
+      content: 'the same mail, a third time',
+      isCustomer: true,
+      status: 'delivered',
+      externalMessageId: normalized,
+    }),
+  );
+  const rows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.conversation_messages
+    WHERE org_id = ${orgId} AND external_message_id = ${normalized}
+  `;
+  const conversations = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.conversations
+    WHERE org_id = ${orgId} AND external_message_id = ${normalized}
+  `;
+  // The raw write door is refused too — the rule is the schema's.
+  let rawRefused = false;
+  try {
+    await sql`
+      INSERT INTO app.conversation_messages (
+        org_id, conversation_id, channel, direction, external_message_id,
+        delivery_state, content, created_at_ms
+      ) VALUES (
+        ${orgId}, ${first.conversationId}, 'email', 'inbound', ${normalized},
+        'delivered', 'raw duplicate', ${Date.now()}
+      )
+    `;
+  } catch (error) {
+    rawRefused =
+      error !== null &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === '23505';
+  }
+  record(
+    'mail ingest: the same Message-ID landed by two overlapping passes is one message',
+    first.conversationId === second.conversationId &&
+      first.messageId === second.messageId &&
+      appended === first.conversationId &&
+      rows[0]?.count === '1' &&
+      conversations[0]?.count === '1' &&
+      rawRefused,
+    `sameConversation=${first.conversationId === second.conversationId} sameMessage=${first.messageId === second.messageId} appendJoined=${appended === first.conversationId} messages=${rows[0]?.count} (want 1) conversations=${conversations[0]?.count} (want 1) rawRefused=${rawRefused}`,
+  );
+
+  const email = `race-${Date.now()}@ext.test`;
+  const contactOut = z.object({ contactId: z.string(), created: z.boolean() });
+  const outcomes = await Promise.all(
+    Array.from({ length: 4 }, () =>
+      findOrCreateContact({
+        organizationId: orgId,
+        email: email.toUpperCase(),
+        name: 'Raced Contact',
+        source: 'email',
+      }).then((out) => contactOut.parse(out)),
+    ),
+  );
+  const contactRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.contacts
+    WHERE org_id = ${orgId} AND email = ${email}
+  `;
+  const ids = new Set(outcomes.map((o) => o.contactId));
+  const createdCount = outcomes.filter((o) => o.created).length;
+  record(
+    'mail ingest: four concurrent find-or-creates of one contact email make one contact',
+    contactRows[0]?.count === '1' && ids.size === 1 && createdCount === 1,
+    `rows=${contactRows[0]?.count} (want 1) distinctIds=${ids.size} (want 1) created=${createdCount} (want 1)`,
+  );
+  await sql`DELETE FROM app.conversations WHERE id = ${first.conversationId}`;
+  await sql`DELETE FROM app.contacts WHERE org_id = ${orgId} AND email = ${email}`;
+}
+
+/**
  * A heal that says it healed must have written. An IMAP credential whose
  * public `config.fromAddress` mirror is missing (a pre-mirror row, or a config
  * edit that dropped the hidden field) is healed by the mailbox sync from the
@@ -18702,10 +19054,14 @@ async function checkOutboundSendLane(
       20_000,
     );
 
-  // --- the fake SMTP (deliver or fail on demand) ---------------------------
+  // --- the fake SMTP (deliver, fail, or hold on demand) --------------------
   let failMode = false;
+  // While set, a send waits on it before delivering — the window in which
+  // the job has claimed the row and the connector call is in flight.
+  let holdSend: Promise<void> | null = null;
   const smtpSends: Array<{
     to: string;
+    from: string;
     subject: string;
     html?: string;
     text?: string;
@@ -18718,14 +19074,17 @@ async function checkOutboundSendLane(
     openSmtp: async () => ({
       send: async (message: {
         to: string;
+        from: string;
         subject: string;
         html?: string;
         text?: string;
         inReplyTo?: string;
       }) => {
         if (failMode) throw new Error('SMTP 451 mailbox busy (itest)');
+        if (holdSend !== null) await holdSend;
         smtpSends.push({
           to: message.to,
+          from: message.from,
           subject: message.subject,
           ...(message.html !== undefined ? { html: message.html } : {}),
           ...(message.text !== undefined ? { text: message.text } : {}),
@@ -18895,6 +19254,49 @@ async function checkOutboundSendLane(
     const undoneRow = await messageRow(undoId);
     const undoRepeat = await api(`/messages/${undoId}/undo`, { body: {} });
 
+    // 3b. Undo AFTER the job claimed the row. The SMTP send is held open, so
+    // the connector call is in flight when the undo arrives: it must be
+    // refused (the mail is leaving), and once released exactly one mail goes
+    // out and the row settles `sent`. Before the claim existed the undo
+    // deleted the row here and the settle updated nothing.
+    let releaseHold: () => void = () => {};
+    holdSend = new Promise<void>((resolve) => {
+      releaseHold = resolve;
+    });
+    const claimTarget = await api(`/${conversationId}/reply`, {
+      body: { content: 'Too late to recall.' },
+    });
+    const claimTargetBody = z
+      .object({ messageId: z.string() })
+      .safeParse(await claimTarget.json());
+    const claimId = claimTargetBody.success
+      ? claimTargetBody.data.messageId
+      : '';
+    const claimedOk = await waitFor(
+      async () =>
+        typeof (await messageRow(claimId))?.metadata?.sendClaimedAt ===
+        'number',
+      20_000,
+    );
+    const lateUndo = await api(`/messages/${claimId}/undo`, { body: {} });
+    const lateUndoBody = z
+      .object({ error: z.string() })
+      .loose()
+      .safeParse(await lateUndo.json());
+    const rowStillQueued = (await messageRow(claimId))?.deliveryState;
+    const sendsBeforeRelease = smtpSends.length;
+    releaseHold();
+    holdSend = null;
+    const lateSentOk = await waitForState(claimId, 'sent');
+    const lateUndoRefused =
+      claimedOk &&
+      lateUndo.status === 409 &&
+      lateUndoBody.success &&
+      lateUndoBody.data.error === 'undo_window_closed' &&
+      rowStillQueued === 'queued' &&
+      lateSentOk &&
+      smtpSends.length === sendsBeforeRelease + 1;
+
     // 4. Discard a failed bubble: the row is gone.
     failMode = true;
     const discardTarget = await api(`/${conversationId}/reply`, {
@@ -18913,13 +19315,16 @@ async function checkOutboundSendLane(
     });
     const discardedRow = await messageRow(discardId);
 
-    // 5. Compose opens a NEW outbound conversation and delivers.
+    // 5. Compose opens a NEW outbound conversation and delivers — sent AS
+    // the alias the composer chose (a same-domain alias of the mailbox login
+    // `inbox@door.test`), the lane the imap-smtp native now honours.
     const composeRes = await api('/compose', {
       body: {
         contactId,
         connectorName: 'imap-smtp',
         subject: 'Quote 7',
         content: 'Seven units, forty crowns.',
+        from: 'billing@door.test',
       },
     });
     const composeBody = z
@@ -18984,6 +19389,17 @@ async function checkOutboundSendLane(
     }, 20_000);
     const finalSendCount = smtpSends.length;
 
+    // The From lane end to end: the reply into a thread with no recorded
+    // inbound recipient leaves as the mailbox's configured From; the compose
+    // leaves as the chosen same-domain alias — what the Inbox header shows.
+    const composeSend = smtpSends.find((send) => send.subject === 'Quote 7');
+    record(
+      'outbound send lane: a chosen same-domain alias is the From the mail leaves with',
+      firstSend?.from === 'inbox@door.test' &&
+        composeSend?.from === 'billing@door.test',
+      `replyFrom=${firstSend?.from ?? 'none'} (want inbox@door.test) composeFrom=${composeSend?.from ?? 'none'} (want billing@door.test)`,
+    );
+
     record(
       'outbound send lane (reply/compose/undo/retry/discard + undo-window job)',
       replyRes.status === 201 &&
@@ -19011,6 +19427,7 @@ async function checkOutboundSendLane(
         undoBody.data.sourceMarkdown === 'Recall me.' &&
         undoneRow === null &&
         undoRepeat.status === 404 &&
+        lateUndoRefused &&
         discardRes.status === 200 &&
         discardedRow === null &&
         composeRes.status === 201 &&
@@ -19022,8 +19439,8 @@ async function checkOutboundSendLane(
         bulkBody.data.successCount === 1 &&
         bulkBody.data.failedCount === 1 &&
         drained &&
-        finalSendCount === 4,
-      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 403s: the write gate) editorDoors=${editorRetry.status}/${editorDiscard.status}/${editorUndo.status} (want 404s: hidden conversation), rows kept=${memberRetryDiscardRefused && memberUndoRefused}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
+        finalSendCount === 5,
+      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 403s: the write gate) editorDoors=${editorRetry.status}/${editorDiscard.status}/${editorUndo.status} (want 404s: hidden conversation), rows kept=${memberRetryDiscardRefused && memberUndoRefused}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, lateUndo=${lateUndo.status}/${lateUndoBody.success ? lateUndoBody.data.error : 'ERR'} claimed=${claimedOk} stillQueued=${rowStillQueued} sentAfterRelease=${lateSentOk} (want 409/undo_window_closed, one mail), discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 5)`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
@@ -39946,6 +40363,7 @@ async function main(): Promise<void> {
       ['checkConversations', () => checkConversations(sql, baseUrl, authCtx)],
       ['checkMailboxSyncLane', () => checkMailboxSyncLane(sql, authCtx)],
       ['checkUndatedMailIngest', () => checkUndatedMailIngest(sql, authCtx)],
+      ['checkIngestDedupeRace', () => checkIngestDedupeRace(sql, authCtx)],
       [
         'checkImapFromAddressHeal',
         () => checkImapFromAddressHeal(sql, authCtx),

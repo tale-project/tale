@@ -1,6 +1,6 @@
 ---
 title: Changelog
-description: Le visualiseur de releases in-produit qui montre ce qui a changé dans la plateforme Tale elle-même. Les Administrateurs lisent ceci après une mise à jour pour voir ce qui a atterri et partager les points saillants avec l'org.
+description: Le visualiseur de releases in-produit qui montre ce qui a changé dans la plateforme Tale elle-même.
 ---
 
 Le changelog est le visualiseur in-produit qui montre les notes de version pour la plateforme Tale elle-même — pas pour le contenu que tes membres produisent. Après une mise à jour auto-hébergée ou un déploiement en cloud géré, le visualiseur liste ce qui a changé entre la version précédente et celle qui tourne maintenant. Les Administrateurs le lisent après une mise à jour pour briefer l'équipe et signaler tout ce qui affecte le travail des membres.

@@ -1,7 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import {
   classifyDeprovision,
@@ -9,6 +8,7 @@ import {
   composeDesiredMembers,
   planActivation,
 } from '../../core/scim/internal_mutations.ts';
+import { isUniqueViolation } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveProvisioning } from '../sso/config.ts';
 
@@ -236,11 +236,6 @@ async function findMemberRow(
     LIMIT 1
   `;
   return rows[0] ?? null;
-}
-
-/** Postgres unique-index violation (SQLSTATE 23505). */
-function isUniqueViolation(error: unknown): boolean {
-  return isRecord(error) && error.code === '23505';
 }
 
 /**

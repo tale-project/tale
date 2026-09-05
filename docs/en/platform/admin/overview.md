@@ -1,6 +1,6 @@
 ---
 title: Admin
-description: Admin is the configuration plane — members, teams, providers, API keys, connectors, branding, governance. The pages here are what an Admin or Owner clicks through to set up an org and keep it running.
+description: Admin is the configuration plane — members, teams, providers, API keys, connectors, branding, governance.
 ---
 
 Admin is the configuration plane of Tale. It covers the people who can sign in, the teams that group them, the AI providers behind every reply, the API keys that let external code talk to the org, the third-party connectors agents reach through, and the branding the rest of the org sees. Only Admins and Owners see the full Admin menu; Developers see a subset, and other roles do not see it at all.

@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting
-description: Symptomorientierter Index für die Probleme, die Operator auf Tale-Instanzen tatsächlich getroffen haben — was der Benutzer meldet, was kaputt ist und was zu tun ist.
+description: Symptomorientierter Index für die Probleme, die Operator auf Tale-Instanzen tatsächlich getroffen haben.
 ---
 
 Diese Seite ist das symptomorientierte Nachschlagen, wenn jetzt gerade etwas falsch ist. Jeder Abschnitt fängt mit dem an, was der Benutzer tatsächlich meldet — was der Browser zeigt, woran der Agent scheitert, was der Upload-Bildschirm sagt — und geht zurück zur Ursache und zum Fix. Alles, was hier nicht gelistet ist, ist ein Kandidat für einen neuen Abschnitt, sobald es zweimal aufgetaucht ist.

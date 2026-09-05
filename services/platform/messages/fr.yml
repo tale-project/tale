@@ -479,6 +479,9 @@ auth:
       notOrgMember: Ton compte n’est pas membre de cette organisation. Demande à
         l’administration de cette organisation de t’inviter, puis
         reconnecte-toi.
+      flowMismatch:
+        Cette connexion ne s’est pas terminée dans le navigateur où elle a
+        commencé. Relance-la depuis cette page.
       assertionNotEncrypted:
         Cette organisation exige des assertions SAML chiffrées, mais le
         fournisseur d’identité en a envoyé une en clair. Demande à ton
@@ -5472,6 +5475,30 @@ settings:
     idpCertHelp: Le certificat X.509 avec lequel l'IdP signe les assertions.
     spMetadataLabel: URL des métadonnées SP
     acsUrlLabel: URL ACS (réponse)
+    spKeypairHelp:
+      Utile seulement si ton IdP chiffre les assertions ou nomme les attributs
+      autrement. Colle un certificat SP et sa clé privée pour recevoir des
+      assertions chiffrées — le certificat est publié dans les métadonnées SP,
+      la clé est stockée comme secret et ne s'affiche plus jamais.
+    spCertLabel: Certificat SP (PEM)
+    spCertHelp: Le certificat X.509 vers lequel ton IdP chiffre les assertions.
+    spKeyLabel: Clé privée SP (PEM)
+    spKeyHelp: La clé privée qui correspond au certificat SP.
+    spKeyKeep: Une clé est stockée. Laisser vide pour la conserver.
+    wantSignedLabel: Exiger des assertions signées
+    wantSignedDescription:
+      Refuse une assertion sans signature valide du certificat IdP ci-dessus.
+      Laisse ce réglage activé.
+    wantEncryptedLabel: Exiger des assertions chiffrées
+    wantEncryptedDescription:
+      Refuse une assertion qui arrive en clair. Nécessite la clé privée SP et
+      un IdP configuré pour chiffrer.
+    attributeMappingsHelp:
+      Noms des attributs dans l'assertion. Laisser vide pour utiliser les noms
+      standard (email, name, groups et leurs URI de claim).
+    attrEmailLabel: Attribut e-mail
+    attrNameLabel: Attribut nom
+    attrGroupsLabel: Attribut groupes
     provisioningSection: Provisionnement
     defaultRoleLabel: Rôle par défaut
     role:
@@ -5517,6 +5544,7 @@ settings:
       required: Ce champ est requis.
       url: Saisissez une URL valide (avec https://).
       clientSecretRequired: Un secret client est requis.
+      spKeyRequired: Exiger des assertions chiffrées demande une clé privée SP.
     roleMapping:
       help: Associez les groupes, rôles d'application ou intitulés de poste du
         fournisseur d'identité à un rôle de la plateforme. Les utilisateurs

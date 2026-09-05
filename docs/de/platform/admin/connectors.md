@@ -1,6 +1,6 @@
 ---
 title: Zugangsdaten für Connectors
-description: Unter Einstellungen > Connectors legt eine Organisation die Zugangsdaten an, mit denen sich jeder mitgelieferte Connector anmeldet — benennen, zum Standard machen, deaktivieren, neu verbinden.
+description: Unter Einstellungen > Connectors legt eine Organisation die Zugangsdaten an, mit denen sich jeder mitgelieferte Connector anmeldet.
 ---
 
 Jeder Connector wird mit der Plattform ausgeliefert, deshalb besteht die Arbeit eines Admins nie aus Installation, sondern aus einer Entscheidung: als welche Konten Tale handeln darf, und wie diese Zugangsdaten gesund bleiben. Ein Connector hält so viele Einträge, wie du brauchst — einen pro Workspace, Shop, Postfach oder Bot — und einer davon antwortet für jeden Aufrufer, der keinen benennt. Diese Seite ist die Betriebsseite davon: was die Seite zeigt, wie jede Authentifizierungsmethode ausgefüllt wird und was beim Hochstufen, Deaktivieren, Löschen oder Neuverbinden einer Zeile geschieht.

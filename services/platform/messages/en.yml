@@ -454,6 +454,9 @@ auth:
       notOrgMember:
         Your account is not a member of this organization. Ask an admin of
         this organization to invite you, then sign in again.
+      flowMismatch:
+        This sign-in did not finish in the browser it started in. Start the
+        sign-in again from this page.
       assertionNotEncrypted:
         This organization requires encrypted SAML assertions, but the identity
         provider sent one in plain text. Ask your administrator to turn on
@@ -5492,6 +5495,30 @@ settings:
     idpCertHelp: The X.509 certificate the IdP signs assertions with.
     spMetadataLabel: SP metadata URL
     acsUrlLabel: ACS (reply) URL
+    spKeypairHelp:
+      Only needed when your IdP encrypts assertions or names attributes
+      differently. Paste an SP certificate and its private key to receive
+      encrypted assertions — the certificate is published in the SP metadata,
+      the key is stored as a secret and never shown again.
+    spCertLabel: SP certificate (PEM)
+    spCertHelp: The X.509 certificate your IdP encrypts assertions to.
+    spKeyLabel: SP private key (PEM)
+    spKeyHelp: The private key matching the SP certificate.
+    spKeyKeep: A key is stored. Leave blank to keep it.
+    wantSignedLabel: Require signed assertions
+    wantSignedDescription:
+      Refuses an assertion without a valid signature from the IdP certificate
+      above. Keep this on.
+    wantEncryptedLabel: Require encrypted assertions
+    wantEncryptedDescription:
+      Refuses an assertion that arrives in plain text. Needs the SP private
+      key, and the IdP set to encrypt.
+    attributeMappingsHelp:
+      Attribute names in the assertion. Leave blank to use the standard names
+      (email, name, groups and their claim URIs).
+    attrEmailLabel: Email attribute
+    attrNameLabel: Name attribute
+    attrGroupsLabel: Groups attribute
     provisioningSection: Provisioning
     defaultRoleLabel: Default role
     role:
@@ -5531,6 +5558,7 @@ settings:
       required: This field is required.
       url: Enter a valid URL (including https://).
       clientSecretRequired: A client secret is required.
+      spKeyRequired: An SP private key is required to require encrypted assertions.
     roleMapping:
       help:
         Map identity-provider groups, app roles, or job titles to a platform role.

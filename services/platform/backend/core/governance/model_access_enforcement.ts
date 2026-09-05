@@ -1,7 +1,5 @@
 import type { ModelAccessConfig } from '../../../lib/shared/schemas/governance';
 import { stripModelRefQualifier } from '../../../lib/shared/utils/model-ref';
-import type { QueryCtx } from '../lib/ctx';
-import { readPolicyConfig } from './helpers';
 
 export interface ModelAccessCheckResult {
   allowed: boolean;
@@ -113,36 +111,9 @@ function isModelPermitted(
 }
 
 /**
- * Check whether a specific model is accessible for the given user.
- *
- * Returns `{ allowed: true }` when:
- * - No model_access policy exists
- * - The policy is disabled
- * - The policy has no rules
- * - No rule matches the user's scope
- * - The model passes the matching rule's allow/block check
- */
-export async function checkModelAccess(
-  ctx: QueryCtx,
-  organizationId: string,
-  userId: string,
-  teamIds: string[],
-  userRole: string | undefined,
-  modelId: string,
-): Promise<ModelAccessCheckResult> {
-  const config = await readPolicyConfig<ModelAccessConfig>(
-    ctx,
-    organizationId,
-    'model_access',
-  );
-  return evaluateModelAccess(config, { userId, teamIds, userRole }, modelId);
-}
-
-/**
- * The PURE half of {@link checkModelAccess} — the rule resolution and the
- * allow/block verdict over an already-loaded policy. Exported so a host
- * with its own policy source (the 0.5 backend reads policy FILES) applies
- * exactly the same semantics.
+ * The rule resolution and the allow/block verdict over an already-loaded
+ * policy — the 0.5 backend reads the policy FILE and hands it in here, so
+ * every host applies exactly the same semantics.
  */
 export function evaluateModelAccess(
   config: ModelAccessConfig | null,
@@ -181,37 +152,7 @@ export function evaluateModelAccess(
   return { allowed: true };
 }
 
-/**
- * Filter a list of candidate model IDs to only those the user can access.
- *
- * When no policy exists or it is disabled, returns the full candidate list unchanged.
- */
-export async function getAccessibleModels(
-  ctx: QueryCtx,
-  organizationId: string,
-  userId: string,
-  teamIds: string[],
-  userRole: string | undefined,
-  allModelIds: string[],
-): Promise<string[]> {
-  const config = await readPolicyConfig<ModelAccessConfig>(
-    ctx,
-    organizationId,
-    'model_access',
-  );
-
-  if (!config || !config.enabled || config.rules.length === 0) {
-    return allModelIds;
-  }
-
-  return filterAccessibleModels(
-    config,
-    { userId, teamIds, userRole },
-    allModelIds,
-  );
-}
-
-/** The pure accessible-models filter behind `getAccessibleModels` — the 0.5
+/** The accessible-models filter over an already-loaded policy — the 0.5
  * backend calls it directly over its file-read config. */
 export function filterAccessibleModels(
   config: ModelAccessConfig | null,

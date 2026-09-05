@@ -2,7 +2,7 @@ import {
   buildBreadcrumbListJsonLd,
   buildItemListJsonLd,
 } from '@tale/ui/seo/builders/json-ld';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ReleaseBody } from '@/app/components/blocks/changelog/release-body';
 import { useActiveRelease } from '@/app/components/blocks/changelog/use-active-release';
@@ -33,6 +33,15 @@ import { absoluteLocalizedUrl } from '@/lib/seo/absolute-url';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 const DISPLAY_LIMIT = 40;
+
+/**
+ * How many release bodies the prerendered HTML carries. Rendering all 40
+ * put ~250 KB of GitHub release notes into `dist/changelog/index.html`,
+ * and it grew with every release; Ahrefs flags the page as slow. The rest
+ * mount on hydration from `RELEASES`, which the JS bundle already ships,
+ * so a visitor sees the same page.
+ */
+const PRERENDERED_BODY_COUNT = 12;
 
 /** True when the GitHub release name is more than a version restatement. */
 function distinctiveReleaseName(release: Release): string | null {
@@ -72,6 +81,13 @@ export function ChangelogPage() {
     () => feed.releases.slice(0, DISPLAY_LIMIT) as Release[],
     [feed.releases],
   );
+
+  // False for the prerendered HTML and for the first client render (so
+  // hydration matches), then true for every render after mount.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const tags = useMemo(() => releases.map((r) => r.tag), [releases]);
   const activeTag = useActiveRelease(tags);
@@ -166,9 +182,11 @@ export function ChangelogPage() {
               </h2>
             )}
             {release.body ? (
-              <div className="mt-5">
-                <ReleaseBody markdown={release.body} />
-              </div>
+              hydrated || index < PRERENDERED_BODY_COUNT ? (
+                <div className="mt-5">
+                  <ReleaseBody markdown={release.body} />
+                </div>
+              ) : null
             ) : (
               <p className="text-fg-muted mt-4 text-sm">{t('emptyBody')}</p>
             )}

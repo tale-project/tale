@@ -8,8 +8,9 @@
  * Sources, in order:
  *
  *  1. **Pinned** — the org's `default_models` governance rule for this user
- *     (team > role > default), already access-checked by
- *     `resolveDefaultModel`. An admin naming a model is the escape hatch
+ *     (team > role > default), already access-checked by the governance
+ *     seam (`resolveModelGovernanceForUser`). An admin naming a model is the
+ *     escape hatch
  *     from auto-selection entirely; it still has to be servable and — when
  *     the message carries images — able to see them, else it falls through
  *     with a warning rather than breaking the turn.

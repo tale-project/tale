@@ -40,5 +40,5 @@ directory under version control. Two things are machine-managed and
 gitignored — \`*.secrets.json\` (encrypted credentials) and \`.history/\`
 directories (edit history); don't edit or commit them.
 
-Learn more: https://tale.dev/docs
+Learn more: https://docs.tale.dev
 `;

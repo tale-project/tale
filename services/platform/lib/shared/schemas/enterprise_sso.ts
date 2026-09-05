@@ -94,10 +94,8 @@ export const ssoTokensSchema = z.object({
 export type SsoTokens = z.infer<typeof ssoTokensSchema>;
 
 export const ssoProviderCapabilitiesSchema = z.object({
-  supportsGroupSync: z.boolean(),
-  supportsRoleMapping: z.boolean(),
-  supportsOneDriveAccess: z.boolean(),
-  supportsGoogleDriveAccess: z.boolean(),
+  /** The authorize handler sends a PKCE challenge only when the adapter
+   *  supports it (Entra stays off until verified against tenant policies). */
   supportsPkce: z.boolean(),
 });
 export type SsoProviderCapabilities = z.infer<
@@ -150,7 +148,8 @@ const samlConfigViewSchema = z.object({
   idpCertificate: z.string(),
   wantAssertionsSigned: z.boolean().optional(),
   wantAssertionsEncrypted: z.boolean().optional(),
-  /** Whether an SP keypair has been configured (private key is never returned). */
+  /** Whether an SP private key is stored (it is never returned) — a blank
+   * key field on save keeps it. */
   hasSpKeypair: z.boolean(),
   spCertificate: z.string().optional(),
   attributeMappings: attributeMappingSchema.optional(),

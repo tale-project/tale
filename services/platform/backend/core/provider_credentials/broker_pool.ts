@@ -119,8 +119,8 @@ export interface TokenMappingDiagnostics {
  * Run `mapping` over a broker's JSON response and classify every item: read
  * the array at `tokensPath`, take `tokenField` off each item, drop items not
  * matching `activeValue` or expiring within `skewMs` of `nowMs` — counting
- * each drop reason. The single source of truth for the mapping walk;
- * {@link mapTokens} is its runtime projection.
+ * each drop reason. The single source of truth for the mapping walk — the
+ * resolver reads `usableTokens` off the result.
  */
 export function diagnoseTokenMapping(
   json: unknown,
@@ -182,19 +182,6 @@ export function diagnoseTokenMapping(
     expiredCount,
     ...(nextExpiryMs !== undefined && { nextExpiryMs }),
   };
-}
-
-/**
- * Extract the usable token list from a broker's JSON response per `mapping`.
- * Returns de-duplicated token strings.
- */
-export function mapTokens(
-  json: unknown,
-  mapping: BrokerResponseMapping,
-  nowMs: number,
-  skewMs: number,
-): string[] {
-  return diagnoseTokenMapping(json, mapping, nowMs, skewMs).usableTokens;
 }
 
 /**

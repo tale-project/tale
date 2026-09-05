@@ -41,7 +41,7 @@ COPY tsconfig.base.json ./
 COPY packages/ui ./packages/ui
 COPY services/web ./services/web
 
-ARG WEB_DOCS_URL=https://tale.dev/docs
+ARG WEB_DOCS_URL=https://docs.tale.dev
 ENV NODE_ENV=production \
     WEB_DOCS_URL=${WEB_DOCS_URL} \
     VITE_DOCS_URL=${WEB_DOCS_URL}
