@@ -40,13 +40,14 @@ Den Pool zu füllen ist ein fortgeschrittener, händischer Schritt, und er läuf
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/browser-sessions/import" \
   -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d "$(jq -n --arg domain youtube.com --rawfile cookiesJar cookies.txt \
         '{ domain: $domain, cookiesJar: $cookiesJar, label: "warmed 2026-09-05" }')"
 # → 201 { "sessionId": "..." }
 ```
 
-Der Import ist der heikelste Schreibzugriff der Bereitstellung und deshalb doppelt abgesichert: Der Schlüssel muss einem Administrator der Organisation gehören, und dessen E-Mail-Adresse muss auf der Allowlist `TALE_DEPLOYMENT_CONFIG_ADMINS` stehen — derselben Liste, die die [Datenresidenz](/de/self-hosted/configuration/data-residency) schützt. Alle anderen bekommen **403** mit einem `code`, der die verweigernde Hürde nennt. `GET /api/v1/browser-sessions` listet den Pool mit Status, Ablauf und Fehlschlagzähler jeder Session — nie die Cookies selbst. Eine Session lebt 14 Tage, sofern `ttlMs` nichts anderes sagt, und nur das Einlesen von Videolinks schöpft aus dem Pool.
+Der Import ist der heikelste Schreibzugriff der Bereitstellung und deshalb doppelt abgesichert: Der Schlüssel muss einem Administrator der Organisation gehören, und dessen E-Mail-Adresse muss auf der Allowlist `TALE_DEPLOYMENT_CONFIG_ADMINS` stehen — derselben Liste, die die [Datenresidenz](/de/self-hosted/configuration/data-residency) schützt. Alle anderen bekommen **403** mit einem `code`, der die verweigernde Hürde nennt. Gehört der Nutzer des Schlüssels mehreren Organisationen an, musst du mit `X-Organization-Slug` sagen, in welche importiert wird — ohne den Header antwortet der Schreibzugriff mit **400**; bei nur einer Mitgliedschaft kannst du den Header weglassen. `GET /api/v1/browser-sessions` listet den Pool mit Status, Ablauf und Fehlschlagzähler jeder Session — nie die Cookies selbst. Eine Session lebt 14 Tage, sofern `ttlMs` nichts anderes sagt, und nur das Einlesen von Videolinks schöpft aus dem Pool.
 
 <Warning>
 

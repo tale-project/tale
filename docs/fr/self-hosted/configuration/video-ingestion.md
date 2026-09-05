@@ -40,13 +40,14 @@ Remplir le pool est une étape avancée et manuelle, et elle passe par l’[API 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/browser-sessions/import" \
   -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d "$(jq -n --arg domain youtube.com --rawfile cookiesJar cookies.txt \
         '{ domain: $domain, cookiesJar: $cookiesJar, label: "warmed 2026-09-05" }')"
 # → 201 { "sessionId": "..." }
 ```
 
-L’import est l’écriture la plus sensible du déploiement, donc il est verrouillé deux fois : la clé doit appartenir à un administrateur de l’organisation, et l’e-mail de cet administrateur doit figurer dans l’allowlist `TALE_DEPLOYMENT_CONFIG_ADMINS` — la même qui protège la [résidence des données](/fr/self-hosted/configuration/data-residency). Tous les autres reçoivent **403** avec un `code` qui nomme la barrière qui a refusé. `GET /api/v1/browser-sessions` liste le pool avec le statut, l’expiration et le compteur d’échecs de chaque session — jamais les cookies eux-mêmes. Une session vit 14 jours sauf si `ttlMs` en décide autrement, et seule l’ingestion de liens vidéo puise dans le pool.
+L’import est l’écriture la plus sensible du déploiement, donc il est verrouillé deux fois : la clé doit appartenir à un administrateur de l’organisation, et l’e-mail de cet administrateur doit figurer dans l’allowlist `TALE_DEPLOYMENT_CONFIG_ADMINS` — la même qui protège la [résidence des données](/fr/self-hosted/configuration/data-residency). Tous les autres reçoivent **403** avec un `code` qui nomme la barrière qui a refusé. Si l’utilisateur de la clé appartient à plusieurs organisations, indique avec `X-Organization-Slug` celle où importer — sans cet en-tête, l’écriture répond **400** ; avec une seule appartenance, tu peux l’omettre. `GET /api/v1/browser-sessions` liste le pool avec le statut, l’expiration et le compteur d’échecs de chaque session — jamais les cookies eux-mêmes. Une session vit 14 jours sauf si `ttlMs` en décide autrement, et seule l’ingestion de liens vidéo puise dans le pool.
 
 <Warning>
 

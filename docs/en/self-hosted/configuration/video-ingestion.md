@@ -40,13 +40,14 @@ Populating the pool is an advanced, hands-on step, and it happens over the [REST
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/browser-sessions/import" \
   -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d "$(jq -n --arg domain youtube.com --rawfile cookiesJar cookies.txt \
         '{ domain: $domain, cookiesJar: $cookiesJar, label: "warmed 2026-09-05" }')"
 # → 201 { "sessionId": "..." }
 ```
 
-The import is the deployment's most sensitive write, so it is gated twice: the key must belong to an organization administrator, and that administrator's e-mail must be on the `TALE_DEPLOYMENT_CONFIG_ADMINS` allowlist — the same list that guards [data residency](/self-hosted/configuration/data-residency). Anyone else gets **403** with a `code` naming the gate that refused. `GET /api/v1/browser-sessions` lists the pool with each session's status, expiry, and strike count — never the cookies themselves. A session lives 14 days unless `ttlMs` says otherwise, and only the video-link ingest draws from the pool.
+The import is the deployment's most sensitive write, so it is gated twice: the key must belong to an organization administrator, and that administrator's e-mail must be on the `TALE_DEPLOYMENT_CONFIG_ADMINS` allowlist — the same list that guards [data residency](/self-hosted/configuration/data-residency). Anyone else gets **403** with a `code` naming the gate that refused. A key whose user belongs to several organizations must name the one to import into with `X-Organization-Slug` — a write without it answers **400**; a key with a single membership can drop the header. `GET /api/v1/browser-sessions` lists the pool with each session's status, expiry, and strike count — never the cookies themselves. A session lives 14 days unless `ttlMs` says otherwise, and only the video-link ingest draws from the pool.
 
 <Warning>
 
