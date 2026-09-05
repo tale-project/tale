@@ -2,8 +2,6 @@ import type {
   FeatureFlagsConfig,
   FeatureFlagRule,
 } from '../../../lib/shared/schemas/governance';
-import type { QueryCtx } from '../lib/ctx';
-import { readPolicyConfig } from './helpers';
 
 /**
  * What the `feature_flags` policy actually controls: the context-window cap
@@ -50,30 +48,10 @@ function findApplicableRule(
 }
 
 /**
- * Resolve the feature-flag policy for a user.
- *
- * When no policy exists, the policy is disabled, or no rule matches, no cap
- * applies.
- */
-export async function resolveFeatureFlags(
-  ctx: QueryCtx,
-  organizationId: string,
-  userId: string,
-  teamIds: string[],
-  role?: string,
-): Promise<ResolvedFeatureFlags> {
-  const config = await readPolicyConfig<FeatureFlagsConfig>(
-    ctx,
-    organizationId,
-    'feature_flags',
-  );
-  return evaluateFeatureFlags(config, { userId, teamIds, role });
-}
-
-/**
- * The PURE half of {@link resolveFeatureFlags} — rule selection over an
- * already-loaded policy. Exported so a host with its own policy source (the
- * 0.5 backend reads policy FILES) applies exactly the same semantics.
+ * Rule selection over an already-loaded policy — the 0.5 backend reads the
+ * policy FILE and hands it in here, so every host applies exactly the same
+ * semantics. When no policy exists, the policy is disabled, or no rule
+ * matches, no cap applies.
  */
 export function evaluateFeatureFlags(
   config: FeatureFlagsConfig | null,

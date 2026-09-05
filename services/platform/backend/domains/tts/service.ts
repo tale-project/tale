@@ -264,7 +264,7 @@ async function periodUsage(
 }
 
 /**
- * The 0.4 `checkBudget` twin over the policy FILE + `app.usage_ledger`,
+ * The 0.4 budget check over the policy FILE + `app.usage_ledger`,
  * with the pure rule collectors/evaluators REUSED. The api-key bucket is
  * omitted: the TTS lane never carries one (the REST lane's budget wiring
  * rides its own increment).
