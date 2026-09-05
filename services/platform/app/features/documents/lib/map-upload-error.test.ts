@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
-import { formatBytes } from '@/lib/utils/format-bytes';
+import { formatBytes } from '@/lib/utils/format/number';
 
 import { isUploadErrorRetryable, mapUploadError } from './map-upload-error';
 
