@@ -7,6 +7,7 @@ import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
 import { ADMIN_ROLES } from '../../auth/membership.ts';
 import { resolveTeams } from '../../core/betterAuth/trusted_headers/resolve_team_names.ts';
+import { readCookie } from '../../core/enterprise_sso/login/cookies.ts';
 import {
   buildSessionCookie,
   sessionCookieName,
@@ -264,20 +265,6 @@ function headerName(envVar: string, fallback: string): string {
   return process.env[envVar] || fallback;
 }
 
-function extractCookieValue(
-  cookieHeader: string | undefined,
-  name: string,
-): string | undefined {
-  if (!cookieHeader) return undefined;
-  for (const part of cookieHeader.split(';')) {
-    const trimmed = part.trim();
-    if (trimmed.startsWith(`${name}=`)) {
-      return decodeURIComponent(trimmed.slice(name.length + 1));
-    }
-  }
-  return undefined;
-}
-
 function escapeHtmlAttr(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -376,10 +363,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
     // column never hit: the reuse and account-switch branches were dead, and
     // every request fell through to adopting an arbitrary row of the user.)
     // A cookie that fails verification is treated as no cookie at all.
-    const presentedCookie = extractCookieValue(
-      c.req.header('cookie'),
-      cookieName,
-    );
+    const presentedCookie = readCookie(c.req.header('cookie'), cookieName);
     const existingSessionToken =
       presentedCookie !== undefined
         ? ((await verifySignedValue(presentedCookie, secret)) ?? undefined)

@@ -124,8 +124,14 @@ export async function ssoCallbackHandler(
                   }
                 }
               }
-            } catch {
-              // State parsing failed, fall through to generic error
+            } catch (e) {
+              // A signature-verified state that still fails to parse (or a
+              // throwing error mapping) falls through to the generic error;
+              // the operator keeps a trace of why.
+              console.warn(
+                '[SSO] Could not parse state on IdP error redirect:',
+                e,
+              );
             }
           }
         }

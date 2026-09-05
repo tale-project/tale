@@ -307,6 +307,25 @@ describe('GET /api/trusted-headers/authenticate — the proxy hand-off door', ()
     );
   });
 
+  it('answers the login page, not a 500, when the session cookie is malformed', async () => {
+    // A stray `%E0` in the cookie value throws URIError out of
+    // decodeURIComponent; that used to escape the route's own error-page
+    // contract as Hono's bare 500. Now it reads as "no cookie": fresh session.
+    const { app, queries } = makeApp(happyScript());
+
+    const res = await request(app, {
+      ...identityHeaders,
+      'Remote-Internal-Secret': 'door-secret',
+      cookie: 'better-auth.session_token=%E0%A4%A',
+    });
+
+    expect(res.status).toBe(200);
+    expect(queries.some((q) => /WHERE "token"/.test(q.text))).toBe(false);
+    expect(res.headers.get('set-cookie')).toContain(
+      'better-auth.session_token=',
+    );
+  });
+
   it('treats a cookie that fails verification as no cookie at all', async () => {
     const { app, queries } = makeApp(happyScript());
 
