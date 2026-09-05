@@ -190,7 +190,10 @@ function createQueueRunner(
   const { runner, attempts } = createRunner(failures);
   const reservations: ReturnType<typeof createReserved>[] = [];
   const queued: SerializableTransactionRunner = {
-    begin: runner.begin,
+    begin: <T>(
+      isolation: string,
+      callback: (tx: TransactionSql) => Promise<T>,
+    ): Promise<T> => runner.begin(isolation, callback),
     reserve: () => {
       const reservation = createReserved(options.commitAnswer);
       reservations.push(reservation);
