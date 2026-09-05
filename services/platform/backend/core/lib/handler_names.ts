@@ -148,9 +148,6 @@ interface HandlerNames {
     };
   };
   conversations: FunctionRef & {
-    internal_actions: FunctionRef & {
-      sendMessageViaConnectorAction: FunctionRef;
-    };
     internal_mutations: FunctionRef & {
       addMessageToConversation: FunctionRef;
       createConversationWithMessage: FunctionRef;

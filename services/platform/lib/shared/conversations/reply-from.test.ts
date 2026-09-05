@@ -5,10 +5,9 @@ import {
   inboundRecipientAddress,
   isPublicEmailDomain,
   mailboxSideAddress,
-  notificationFromAddress,
   resolveReplyFrom,
   sameMailboxAliasDomain,
-} from './reply_from';
+} from './reply-from';
 
 describe('emailDomain', () => {
   it('returns the lowercased domain part', () => {
@@ -166,20 +165,5 @@ describe('resolveReplyFrom', () => {
     expect(resolveReplyFrom('Desk@Gmail.com', 'desk@gmail.com')).toBe(
       'Desk@Gmail.com',
     );
-  });
-});
-
-describe('notificationFromAddress', () => {
-  it('uses notification@ on the base send domain', () => {
-    expect(notificationFromAddress('hello@support.example.com')).toBe(
-      'notification@support.example.com',
-    );
-    expect(notificationFromAddress('Support@Example.COM')).toBe(
-      'notification@example.com',
-    );
-  });
-
-  it('falls back when the base address has no domain', () => {
-    expect(notificationFromAddress('resend')).toBe('resend');
   });
 });

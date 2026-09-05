@@ -153,16 +153,9 @@ export function createConversationRoutes(deps: {
       cursor: c.req.query('cursor') ?? null,
       limit: Number.isFinite(limitRaw) ? limitRaw : 25,
     });
-    // The Inbox reads a row one level deep, so every page row carries the
-    // projected item too — the same projection the detail door applies.
-    return c.json({
-      ...result,
-      items: await Promise.all(
-        result.page.map((row) =>
-          projectConversationForView(deps.sql, row, { withMessages: false }),
-        ),
-      ),
-    });
+    // `items` is the page in the shape the Inbox reads, projected from the
+    // page's own batched reads (no per-row re-projection).
+    return c.json(result);
   });
 
   app.get('/counts', async (c) => {
@@ -193,13 +186,15 @@ export function createConversationRoutes(deps: {
         conversation.id,
       );
       // Both shapes: the raw pair the machine door reads, and the projected
-      // Inbox item the app renders (one level deep, messages included).
+      // Inbox item the app renders — built from the SAME read of the thread.
       return c.json({
         conversation,
         messages,
-        item: await projectConversationForView(deps.sql, conversation, {
-          withMessages: true,
-        }),
+        item: await projectConversationForView(
+          deps.sql,
+          conversation,
+          messages,
+        ),
       });
     } catch (error) {
       return handleError(c, error);
@@ -466,7 +461,7 @@ export function createConversationRoutes(deps: {
   });
 
   /**
-   * The message-level doors (undo / retry / discard / attachments) all check
+   * The message-level doors (undo / retry / discard) all check
    * `viewerCanWrite` and then pass `loadMessageForViewer`: the role decides
    * whether the caller may act on mail at all, and the load decides which
    * mail they can reach — a member acts on a message only inside a
@@ -486,34 +481,6 @@ export function createConversationRoutes(deps: {
         actor: actor(c),
       });
       return c.json(result);
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  /**
-   * On-demand provider attachment fetch. Attachments whose bytes were captured
-   * at sync (IMAP) are served straight from their `storageId` — the detail
-   * projection presigns a download URL, so those chips never reach here. This
-   * door exists only for the providers whose bytes are NOT captured at sync
-   * (Gmail/Outlook, whose connector `ctx.files` sink is unwired), and it answers
-   * HONESTLY that there is nothing to fetch rather than the fake `{ok:true}` the
-   * previous version returned — which left the client polling for a URL forever.
-   * Wiring the Gmail/Outlook fetch (a `get_attachments` connector action into
-   * the org blob store) is the tracked follow-up that lights this up.
-   */
-  app.post('/messages/:messageId/attachments', async (c) => {
-    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
-    try {
-      await loadMessageForViewer(deps.sql, viewer(c), c.req.param('messageId'));
-      return c.json(
-        {
-          error: 'attachment_bytes_unavailable',
-          message:
-            'These attachment bytes were not captured at sync, and on-demand provider download is not yet wired for this mailbox. Downloadable attachments carry their own link.',
-        },
-        501,
-      );
     } catch (error) {
       return handleError(c, error);
     }

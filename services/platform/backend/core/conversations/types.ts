@@ -4,24 +4,23 @@
  */
 
 import type { ApprovalItem } from '../approvals/types';
-import type { Id } from '../lib/rows';
 
 export type ConversationStatus = 'open' | 'closed' | 'spam' | 'archived';
 
 export type ConversationPriority = 'low' | 'medium' | 'high' | 'urgent';
 
-export type MessageStatus = 'queued' | 'sent' | 'delivered' | 'failed';
+type MessageStatus = 'queued' | 'sent' | 'delivered' | 'failed';
 
 export type MessageDirection = 'inbound' | 'outbound';
 
-export interface AttachmentInfo {
+interface AttachmentInfo {
   url: string;
   filename: string;
   contentType?: string;
   size?: number;
 }
 
-export interface EmailAttachmentMeta {
+interface EmailAttachmentMeta {
   id: string;
   filename: string;
   contentType: string;
@@ -54,12 +53,6 @@ export interface ContactInfo {
   locale?: string;
   source?: string;
   created_at: string;
-}
-
-export interface BulkOperationResult {
-  successCount: number;
-  failedCount: number;
-  errors: string[];
 }
 
 export interface ConversationItem {
@@ -106,74 +99,4 @@ export interface ConversationItem {
   contact: ContactInfo;
   messages: MessageInfo[];
   pendingApproval?: ApprovalItem | null;
-}
-
-export interface ConversationListResponse {
-  conversations: ConversationItem[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-export type ConversationWithMessages = ConversationItem;
-
-// =============================================================================
-// MANUAL TYPES
-// =============================================================================
-
-export interface CreateConversationArgs {
-  organizationId: string;
-  contactId?: Id<'contacts'>;
-  /** Internal member owner (Better Auth userId). Absent ⇒ unassigned. */
-  assigneeUserId?: string;
-  externalMessageId?: string;
-  subject?: string;
-  status?: ConversationStatus;
-  priority?: ConversationPriority;
-  type?: string;
-  channel?: string;
-  direction?: 'inbound' | 'outbound';
-  connectorName?: string;
-
-  metadata?: unknown;
-}
-
-/** Partial updates for conversation fields */
-export interface ConversationUpdates {
-  contactId?: Id<'contacts'>;
-  subject?: string;
-  status?: ConversationStatus;
-  priority?: ConversationPriority;
-  type?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface UpdateConversationsArgs {
-  conversationId?: Id<'conversations'>;
-  organizationId?: string;
-  status?: ConversationStatus;
-  priority?: ConversationPriority;
-
-  updates: ConversationUpdates;
-}
-
-export interface UpdateConversationsResult {
-  success: boolean;
-  updatedCount: number;
-  updatedIds: Id<'conversations'>[];
-}
-
-export interface QueryConversationsArgs {
-  organizationId: string;
-  status?: ConversationStatus;
-  priority?: ConversationPriority;
-  channel?: string;
-  direction?: 'inbound' | 'outbound';
-  contactId?: Id<'contacts'>;
-
-  paginationOpts: {
-    numItems: number;
-    cursor: string | null;
-  };
 }
