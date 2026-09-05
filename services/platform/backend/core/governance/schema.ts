@@ -82,7 +82,7 @@ export const GOVERNANCE_POLICY_TYPES = [
   // differ from the run's driver and/or hold named competences. Missing row
   // ⇒ no extra requirement (today's behaviour). Config shape:
   // `reviewPolicyConfigSchema` (lib/shared/schemas/governance.ts); enforced
-  // in `tasks/review_mutations.ts::respondToTaskReview`.
+  // in `domains/tasks/reviews.ts::closePendingTaskReviewOnStatusLeave`.
   'review_policy',
 ] as const;
 

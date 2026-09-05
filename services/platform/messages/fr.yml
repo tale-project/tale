@@ -6585,10 +6585,6 @@ inbox:
     commentaire.'
   taskReviewRequestedBodyHuman: « {taskTitle} » attend ta revue — passe la
     tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.
-  taskReviewApproved: Revue approuvée
-  taskReviewApprovedBody: « {taskTitle} » a été approuvée et terminée.
-  taskReviewChangesRequested: Modifications demandées
-  taskReviewChangesRequestedBody: Des modifications ont été demandées sur « {taskTitle} ».
   taskReviewerAssigned: Tu es relecteur
   taskReviewerAssignedBody: Tu es maintenant relecteur de « {taskTitle} ».
   taskReviewerAssignedByBody: "{actor} t'a désigné relecteur de « {taskTitle} »."

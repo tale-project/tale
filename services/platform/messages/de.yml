@@ -6464,10 +6464,6 @@ inbox:
   taskReviewRequestedBodyHuman:
     '"{taskTitle}" wartet auf dein Review — stelle die Aufgabe zum Freigeben
     auf "Erledigt" oder schicke sie mit einem Kommentar zurück.'
-  taskReviewApproved: Review freigegeben
-  taskReviewApprovedBody: '"{taskTitle}" wurde freigegeben und abgeschlossen.'
-  taskReviewChangesRequested: Änderungen angefordert
-  taskReviewChangesRequestedBody: Für "{taskTitle}" wurden Änderungen angefordert.
   taskReviewerAssigned: Du bist Reviewer
   taskReviewerAssignedBody: Du bist jetzt Reviewer für "{taskTitle}".
   taskReviewerAssignedByBody: '{actor} hat dich als Reviewer für "{taskTitle}"

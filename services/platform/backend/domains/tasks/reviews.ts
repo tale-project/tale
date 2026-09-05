@@ -12,26 +12,9 @@ import {
   autoSubscribe,
   dismissReviewRequestNotifications,
   notifyTaskReviewRequested,
-  notifyTaskReviewResolved,
-  taskSubscriberUserIds,
 } from '../collab/service.ts';
 import { holdsAllCompetences } from '../governance/competence.ts';
-import {
-  loadProjectOrThrow,
-  type ProjectAuthContext,
-} from '../projects/service.ts';
-import { kickAgentRun } from './agent-runs.ts';
-import { addTaskComment } from './comments.ts';
-import {
-  assertTaskWritable,
-  computeEndRank,
-  hasOpenChildren,
-  loadTaskOrThrow,
-  recordActivity,
-  settleTaskStatusChange,
-  TaskError,
-  type TaskRow,
-} from './service.ts';
+import type { TaskRow } from './service.ts';
 
 /**
  * The task review gate over PG — the 0.4 Driver/Reviewer arc
@@ -39,11 +22,11 @@ import {
  * an agent settle's park to `in_review` mints one workflow-free review row in
  * the SAME transaction as the status flip (find-or-insert by runId, so the
  * settle's burned-claim replay never double-mints); every leave from
- * `in_review` closes the gate (a human's leave to done IS the approve, any
- * other leave withdraws); a reviewer's respond completes the row and either
- * finishes the task AS THE RESPONDER or hands the feedback back to the
- * driver as a comment + re-kick. The org's `review_policy` governance file
- * tightens who may respond, shared by every door.
+ * `in_review` closes the gate — the board's status doors ARE the decision:
+ * a person's move to done IS the approve (policy-checked, recorded,
+ * audited), a move back to In progress or an `@`-mention of the agent with
+ * feedback requests changes, and any other leave withdraws. The org's
+ * `review_policy` governance file tightens who may approve.
  *
  * Deliberately deferred with their own domains: the reviewer BELL fan-out
  * (0.4 `userNotifications` — the collab notifications port) and competence
@@ -481,225 +464,6 @@ export async function getPendingReviewForTask(
     runId: typeof metadata.runId === 'string' ? metadata.runId : null,
     createdAt: row.createdAt,
   };
-}
-
-/**
- * A reviewer decides. Approve completes the task AS THE RESPONDING USER
- * (the reviewer's gesture is the human "done" — agents can never reach it);
- * request-changes records the feedback as a task comment, re-engages an
- * agent driver with it verbatim, and hands the card back to `in_progress`
- * when no kick moved it.
- */
-export async function respondToTaskReview(
-  sql: Sql,
-  args: {
-    auth: ProjectAuthContext;
-    approvalId: string;
-    decision: 'approve' | 'request_changes';
-    feedback?: string;
-  },
-): Promise<{
-  taskCompleted: boolean;
-  agentKicked: boolean;
-  taskReopened: boolean;
-}> {
-  const feedback = args.feedback?.trim() || undefined;
-  if (args.decision === 'request_changes' && feedback === undefined) {
-    throw new TaskReviewError(
-      'REVIEW_FEEDBACK_REQUIRED',
-      'Requesting changes requires feedback',
-    );
-  }
-  return sql.begin(async (tx) => {
-    const approvals = await tx<ApprovalRow[]>`
-      SELECT ${tx.unsafe(APPROVAL_COLUMNS)} FROM app.approvals
-      WHERE id = ${args.approvalId} AND resource_type = 'task_review'
-        AND org_id = ${args.auth.organizationId}
-      FOR UPDATE
-    `;
-    const approval = approvals[0];
-    if (!approval) {
-      throw new TaskReviewError('REVIEW_NOT_FOUND', 'Review not found', 404);
-    }
-    if (approval.status !== 'pending') {
-      throw new TaskReviewError(
-        'REVIEW_ALREADY_RESOLVED',
-        'This review was already decided',
-        409,
-      );
-    }
-    const taskId =
-      typeof approval.metadata?.taskId === 'string'
-        ? approval.metadata.taskId
-        : '';
-    const task = await loadTaskOrThrow(tx, taskId, args.auth.organizationId);
-    // Deciding a review IS deciding the task (approve completes it,
-    // request-changes kicks the agent and moves the card): the responder
-    // needs the same project WRITE access as any other task mutation —
-    // the review_policy checks below only narrow WHO among the writers.
-    const project = await loadProjectOrThrow(tx, task.projectId);
-    assertTaskWritable(project, args.auth);
-
-    const policyOutcome = await checkReviewPolicyForResponder(tx, {
-      approval,
-      task,
-      responderUserId: args.auth.userId,
-    });
-    const now = Date.now();
-    const response = {
-      decision: args.decision,
-      respondedBy: args.auth.userId,
-      timestamp: now,
-      ...(feedback !== undefined ? { feedback } : {}),
-      ...policyOutcome,
-    };
-    await tx`
-      UPDATE app.approvals SET
-        status = 'completed', approved_by = ${args.auth.userId},
-        reviewed_at_ms = ${now},
-        metadata = coalesce(metadata, '{}'::jsonb)
-          || ${tx.json(toJson({ response }))}
-      WHERE id = ${approval.id}
-    `;
-    await dismissReviewRequestNotifications(tx, {
-      organizationId: approval.organizationId,
-      approvalId: approval.id,
-    });
-    await notifyTaskReviewResolved(tx, {
-      organizationId: approval.organizationId,
-      task: { id: task.id, projectId: task.projectId, title: task.title },
-      decision: args.decision,
-      decidedByUserId: args.auth.userId,
-      recipientUserIds: await taskSubscriberUserIds(tx, task.id),
-    });
-    await recordActivity(tx, {
-      task,
-      actorType: 'user',
-      actorId: args.auth.userId,
-      action:
-        args.decision === 'approve'
-          ? 'review.passed'
-          : 'review.changes_requested',
-      ...(feedback !== undefined ? { toValue: feedback } : {}),
-    });
-    const runKey = approvalRunId(approval);
-    await createAuditLog(tx, {
-      organizationId: approval.organizationId,
-      actorId: args.auth.userId,
-      ...(args.auth.email !== undefined ? { actorEmail: args.auth.email } : {}),
-      actorType: 'user',
-      action: 'task.review_responded',
-      category: 'data',
-      resourceType: 'task',
-      resourceId: task.id,
-      resourceName: task.title,
-      newState: { decision: args.decision },
-      ...(runKey !== undefined || Object.keys(policyOutcome).length > 0
-        ? {
-            metadata: {
-              ...(runKey !== undefined ? { runId: runKey } : {}),
-              ...policyOutcome,
-            },
-          }
-        : {}),
-      status: 'success',
-    });
-
-    let taskCompleted = false;
-    let agentKicked = false;
-    let taskReopened = false;
-    if (args.decision === 'approve') {
-      if (task.status === 'in_review') {
-        if (await hasOpenChildren(tx, task.id)) {
-          throw new TaskError('TASK_HAS_OPEN_SUBTASKS', 'Open subtasks remain');
-        }
-        const rank = await computeEndRank(tx, task.projectId, 'done');
-        await tx`
-          UPDATE app.tasks SET
-            status = 'done', rank = ${rank},
-            completed_at_ms = ${task.completedAt ?? now},
-            updated_at_ms = ${now}, status_changed_at_ms = ${now}
-          WHERE id = ${task.id}
-        `;
-        // The resolved bell above already told every subscriber what the
-        // responder decided; the seam adds the rollup, activity, audit and
-        // the platform event, not a second bell.
-        await settleTaskStatusChange(tx, {
-          task,
-          toStatus: 'done',
-          actorType: 'user',
-          actorId: args.auth.userId,
-          audit: args.auth,
-          bell: false,
-        });
-        taskCompleted = true;
-      }
-    } else if (feedback !== undefined) {
-      // The feedback is the visible record — a task comment — and re-engages
-      // an agent driver with it verbatim (mirroring the comment-@mention
-      // gesture). A kick refusal leaves the comment as the record.
-      await addTaskComment(tx, args.auth, { taskId: task.id, body: feedback });
-      if (task.assigneeType === 'agent' && task.assigneeId !== null) {
-        const agents = await tx<
-          {
-            id: string;
-            harness: string;
-            model: string;
-            modelProvider: string | null;
-          }[]
-        >`
-          SELECT id, harness, model, model_provider AS "modelProvider"
-          FROM app.project_agents
-          WHERE id = ${task.assigneeId}
-            AND org_id = ${args.auth.organizationId}
-          LIMIT 1
-        `;
-        const agent = agents[0];
-        if (agent && task.archivedAt === null) {
-          const kicked = await kickAgentRun(tx, {
-            organizationId: args.auth.organizationId,
-            projectId: task.projectId,
-            taskId: task.id,
-            agentId: agent.id,
-            harness: agent.harness,
-            model: agent.model,
-            ...(agent.modelProvider !== null
-              ? { modelProvider: agent.modelProvider }
-              : {}),
-            startedBy: args.auth.userId,
-            trigger: 'mention',
-            feedback,
-          });
-          agentKicked = !kicked.reused;
-        }
-      }
-      // Changes requested hands the work back to the assignee — the card
-      // leaves In review even when no agent kick moved it.
-      const fresh = await loadTaskOrThrow(tx, task.id, task.organizationId);
-      if (fresh.status === 'in_review') {
-        const rank = await computeEndRank(tx, fresh.projectId, 'in_progress');
-        await tx`
-          UPDATE app.tasks SET
-            status = 'in_progress', rank = ${rank},
-            status_changed_at_ms = ${now}, updated_at_ms = ${now}
-          WHERE id = ${fresh.id}
-        `;
-        // Same seam as the approve leg: the reopen now fires the org's
-        // `task.status_changed` triggers too; the changes-requested bell
-        // already carried the news to the subscribers.
-        await settleTaskStatusChange(tx, {
-          task: fresh,
-          toStatus: 'in_progress',
-          actorType: 'user',
-          actorId: args.auth.userId,
-          audit: args.auth,
-          bell: false,
-        });
-        taskReopened = true;
-      }
-    }
-    return { taskCompleted, agentKicked, taskReopened };
-  });
 }
 
 /** Bounded scan cap — mirrors the 0.4 board indicator cap. */

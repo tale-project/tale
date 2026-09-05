@@ -213,7 +213,7 @@ export async function decideApproval(
     if (approval.resourceType === 'task_review') {
       throw new ApprovalError(
         'APPROVAL_REQUIRES_DEDICATED_RESPOND',
-        'Task reviews are answered via POST /api/app/tasks/reviews/:approvalId/respond.',
+        'Task reviews are decided on the task: moving the card from In review to Done approves, moving it back to In progress requests changes.',
         409,
       );
     }

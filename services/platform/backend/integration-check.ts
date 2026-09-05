@@ -2262,8 +2262,9 @@ async function checkTasksOrgIsolation(
     WHERE org_id = ${orgId} AND name = 'itest-iso-run'
   `;
 
-  // Deciding a review is deciding the task: a read-only member's respond
-  // refuses on the project write gate and the gate stays pending.
+  // Deciding a review is deciding the task: a read-only member's move to
+  // Done (the approve gesture) refuses on the project write gate and the
+  // gate stays pending.
   const approvalRows = await sql<{ id: string }[]>`
     INSERT INTO app.approvals (
       org_id, status, resource_type, resource_id, priority, metadata,
@@ -2274,17 +2275,15 @@ async function checkTasksOrgIsolation(
     ) RETURNING id
   `;
   const approvalId = approvalRows[0]?.id ?? '';
-  const { respondToTaskReview } = await import('./domains/tasks/reviews.ts');
-  const respondOutcome = await respondToTaskReview(sql, {
-    auth: {
-      organizationId: orgId,
-      userId: viewerId,
-      role: 'member',
-      teamIds: [],
-    },
-    approvalId,
-    decision: 'approve',
-  }).then(
+  const { updateTaskStatus } = await import('./domains/tasks/service.ts');
+  const respondOutcome = await transactSerializable(sql, (tx) =>
+    updateTaskStatus(
+      tx,
+      { organizationId: orgId, userId: viewerId, role: 'member', teamIds: [] },
+      taskId,
+      'done',
+    ),
+  ).then(
     () => 'approved',
     (error: unknown) =>
       error instanceof Error && 'code' in error
@@ -2295,10 +2294,10 @@ async function checkTasksOrgIsolation(
     SELECT status FROM app.approvals WHERE id = ${approvalId}
   `;
   record(
-    'tasks: responding to a review requires task-edit access',
+    'tasks: approving a review (the Done move) requires task-edit access',
     respondOutcome === 'RBAC_FORBIDDEN' &&
       approvalAfter[0]?.status === 'pending',
-    `respond → ${respondOutcome} (want RBAC_FORBIDDEN), approval=${approvalAfter[0]?.status} (want pending)`,
+    `done move → ${respondOutcome} (want RBAC_FORBIDDEN), approval=${approvalAfter[0]?.status} (want pending)`,
   );
 
   // The external-ref intake under concurrency: two simultaneous intakes of
@@ -15233,22 +15232,19 @@ async function checkCompetences(
     `;
     return rows[0]?.id ?? '';
   };
-  const respond = (approvalId: string): Promise<Response> =>
-    fetch(
-      `${base}/api/app/tasks/reviews/${approvalId}/respond?orgId=${orgId}`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
-        body: JSON.stringify({ decision: 'approve' }),
-      },
-    );
+  // Approving IS the In review → Done move; the leave closes the gate.
+  const approve = (): Promise<Response> =>
+    fetch(`${base}/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ status: 'done' }),
+    });
 
   const holderApproval = await mintReview();
-  const holderRes = await respond(holderApproval);
-  const holderBody = z
-    .object({ taskCompleted: z.boolean() })
-    .loose()
-    .safeParse(await holderRes.json());
+  const holderRes = await approve();
+  const holderTask = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${taskId}
+  `;
   // The grants that justified the decision are stamped on the trail, so a
   // later auditor can see WHICH record admitted this reviewer.
   const stamped = await sql<{ metadata: Record<string, unknown> | null }[]>`
@@ -15266,13 +15262,12 @@ async function checkCompetences(
   record(
     'competences: a holder passes the review door and the grant is stamped',
     holderRes.status === 200 &&
-      holderBody.success &&
-      holderBody.data.taskCompleted &&
+      holderTask[0]?.status === 'done' &&
       Array.isArray(response.competenceRecordIds) &&
       response.competenceRecordIds.includes(recordId) &&
       Array.isArray(auditIds) &&
       auditIds.includes(recordId),
-    `status=${holderRes.status}, completed=${holderBody.success ? holderBody.data.taskCompleted : 'ERR'}, stamped=${JSON.stringify(response.competenceRecordIds)}, audit=${JSON.stringify(auditIds)}, want ${recordId}`,
+    `status=${holderRes.status}, task=${holderTask[0]?.status} (want done), stamped=${JSON.stringify(response.competenceRecordIds)}, audit=${JSON.stringify(auditIds)}, want ${recordId}`,
   );
 
   // ---- revocation retains the row and closes the door ------------------
@@ -15286,7 +15281,8 @@ async function checkCompetences(
   await sql`
     UPDATE app.tasks SET status = 'in_review' WHERE id = ${taskId}
   `;
-  const refusedRes = await respond(await mintReview());
+  await mintReview();
+  const refusedRes = await approve();
   const refusedBody = z
     .object({ error: z.string(), message: z.string() })
     .loose()
@@ -37354,11 +37350,11 @@ async function checkAutoRetryAndKickPlan(
 /**
  * The Driver/Reviewer arc: the settle's park to `in_review` mints ONE
  * review row (find-or-insert by runId — the replay never double-mints);
- * request-changes records the feedback as a comment, re-kicks the agent
- * driver, and hands the card back to In progress; a second round mints
- * with a bumped round; approve completes the task AS THE RESPONDER; a
- * non-human leave withdraws; the `review_policy` file blocks the run's own
- * starter when independence is required.
+ * the board's status doors decide it: the move back to In progress
+ * withdraws the gate and re-kicks the agent driver, a second round mints
+ * with a bumped round, the move to Done approves and completes the task AS
+ * THE RESPONDER; a non-human leave withdraws; the `review_policy` file
+ * blocks the run's own starter when independence is required.
  */
 async function checkReviewArc(
   sql: Sql,
@@ -37473,42 +37469,36 @@ async function checkReviewArc(
     `rows=${minted.length} (want 1) run=${minted[0]?.metadata?.runId === runA} reviewer=${minted[0]?.metadata?.requestedFor === userId} view=${pendingView.success ? pendingView.data.review?.approvalId === minted[0]?.id : 'ERR'}`,
   );
 
-  const changes = z
-    .object({
-      taskCompleted: z.boolean(),
-      agentKicked: z.boolean(),
-      taskReopened: z.boolean(),
-    })
-    .safeParse(
-      await (
-        await post(
-          `/api/app/tasks/reviews/${minted[0]?.id ?? ''}/respond?orgId=${orgId}`,
-          { decision: 'request_changes', feedback: 'Tighten the summary.' },
-        )
-      ).json(),
-    );
-  const afterChanges = await sql<{ status: string; commentCount: number }[]>`
-    SELECT status, comment_count AS "commentCount" FROM app.tasks
-    WHERE id = ${taskId}
+  // Request changes is the person's move back to In progress (the board's
+  // gesture): the pending gate is withdrawn and the agent is re-kicked.
+  const changes = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  const afterChanges = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${taskId}
   `;
-  const kickedRun = await sql<{ trigger: string; feedback: string | null }[]>`
-    SELECT trigger, feedback FROM app.project_agent_runs
-    WHERE task_id = ${taskId} AND trigger = 'mention'
+  const withdrawnGate = await sql<
+    { status: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.approvals
+    WHERE id = ${minted[0]?.id ?? ''}
+  `;
+  const kickedRun = await sql<{ trigger: string; status: string }[]>`
+    SELECT trigger, status FROM app.project_agent_runs
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
     ORDER BY seq DESC LIMIT 1
   `;
   record(
-    'request-changes: comment + mention re-kick with feedback + card back',
-    changes.success &&
-      !changes.data.taskCompleted &&
-      changes.data.agentKicked &&
-      changes.data.taskReopened &&
+    'request-changes: the move back to In progress withdraws the gate and re-kicks',
+    changes.ok &&
       afterChanges[0]?.status === 'in_progress' &&
-      afterChanges[0].commentCount === 1 &&
-      kickedRun[0]?.feedback === 'Tighten the summary.',
-    `resp=${changes.success ? JSON.stringify(changes.data) : 'ERR'} task=${afterChanges[0]?.status}/${afterChanges[0]?.commentCount} kick=${kickedRun[0]?.trigger}/${kickedRun[0]?.feedback}`,
+      withdrawnGate[0]?.status === 'rejected' &&
+      withdrawnGate[0].metadata?.withdrawn === true &&
+      kickedRun[0]?.trigger === 'manual',
+    `move=${changes.status} task=${afterChanges[0]?.status} gate=${withdrawnGate[0]?.status}/${JSON.stringify(withdrawnGate[0]?.metadata?.withdrawn)} kick=${kickedRun[0]?.trigger ?? 'none'}/${kickedRun[0]?.status ?? '-'}`,
   );
 
-  // Round 2: cancel the mention run's retry noise, park again, approve.
+  // Round 2: cancel the re-kicked run's retry noise, park again, approve.
   await sql`
     UPDATE app.project_agent_runs SET
       status = 'cancelled', settled_at_ms = ${Date.now()}
@@ -37532,32 +37522,35 @@ async function checkReviewArc(
     WHERE resource_type = 'task_review' AND resource_id = ${taskId}
       AND status = 'pending'
   `;
-  const approve = z
-    .object({ taskCompleted: z.boolean() })
-    .loose()
-    .safeParse(
-      await (
-        await post(
-          `/api/app/tasks/reviews/${roundTwo[0]?.id ?? ''}/respond?orgId=${orgId}`,
-          { decision: 'approve' },
-        )
-      ).json(),
-    );
+  const approve = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+    status: 'done',
+  });
   const afterApprove = await sql<
     { status: string; completedAt: number | null }[]
   >`
     SELECT status, completed_at_ms::float8 AS "completedAt" FROM app.tasks
     WHERE id = ${taskId}
   `;
+  const approvedGate = await sql<
+    { status: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.approvals
+    WHERE id = ${roundTwo[0]?.id ?? ''}
+  `;
+  const approvedDecision = objectAt(
+    approvedGate[0]?.metadata ?? null,
+    'response',
+  )?.decision;
   record(
-    'round-2 mint + approve completes the task as the responder',
+    'round-2 mint + the Done move approves and completes the task as the responder',
     roundTwo.length === 1 &&
       roundTwo[0]?.metadata?.round === 1 &&
-      approve.success &&
-      approve.data.taskCompleted &&
+      approve.ok &&
+      approvedGate[0]?.status === 'completed' &&
+      approvedDecision === 'approve' &&
       afterApprove[0]?.status === 'done' &&
       afterApprove[0].completedAt !== null,
-    `round=${JSON.stringify(roundTwo[0]?.metadata?.round)} (want 1), approve=${approve.success ? approve.data.taskCompleted : 'ERR'}, task=${afterApprove[0]?.status}`,
+    `round=${JSON.stringify(roundTwo[0]?.metadata?.round)} (want 1), move=${approve.status}, gate=${approvedGate[0]?.status}/${String(approvedDecision)}, task=${afterApprove[0]?.status}`,
   );
 
   // Withdraw lane: park round 3, then the agent leaves in_review itself.
@@ -37619,8 +37612,8 @@ async function checkReviewArc(
       AND metadata ->> 'runId' = ${runD}
   `;
   const refusedRes = await post(
-    `/api/app/tasks/reviews/${gated[0]?.id ?? ''}/respond?orgId=${orgId}`,
-    { decision: 'approve' },
+    `/api/app/tasks/${taskId}/status?orgId=${orgId}`,
+    { status: 'done' },
   );
   const refusedBody = z
     .object({ error: z.string() })

@@ -44,11 +44,7 @@ import {
   startWorkflowForTask,
   upsertTaskByExternalRef,
 } from './external-ref.ts';
-import {
-  getPendingReviewForTask,
-  respondToTaskReview,
-  TaskReviewError,
-} from './reviews.ts';
+import { getPendingReviewForTask, TaskReviewError } from './reviews.ts';
 import {
   addTaskDependency,
   archiveTask,
@@ -1059,35 +1055,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           c.req.param('taskId'),
         ),
       });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  // A reviewer decides: approve completes the task as the responder;
-  // request-changes records the feedback and hands the work back.
-  app.post('/reviews/:approvalId/respond', async (c) => {
-    const body = z
-      .object({
-        decision: z.enum(['approve', 'request_changes']),
-        feedback: z.string().max(20_000).optional(),
-      })
-      .safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      return c.json(
-        await respondToTaskReview(deps.sql, {
-          auth,
-          approvalId: c.req.param('approvalId'),
-          decision: body.data.decision,
-          ...(body.data.feedback !== undefined
-            ? { feedback: body.data.feedback }
-            : {}),
-        }),
-      );
     } catch (error) {
       return handleError(c, error);
     }
