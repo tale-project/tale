@@ -509,6 +509,12 @@ export async function deleteOrganization(
       DELETE FROM ${tx(`app.${table}`)} WHERE org_id = ${organizationId}
     `;
   }
+  // The realtime hint outbox lives in its own schema, so the catalog walk
+  // above never lists it; a dead organization's hints go with the rows they
+  // pointed at instead of waiting out the retention sweep.
+  await tx`
+    DELETE FROM app_realtime.outbox WHERE org_id = ${organizationId}
+  `;
   // Pointers at the dead org go too, so no session or API-key resolution
   // follows a dangling id.
   await tx`

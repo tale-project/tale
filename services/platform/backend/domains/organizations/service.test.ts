@@ -373,7 +373,8 @@ describe('deleteOrganization', () => {
     // Every org-keyed app table the catalog lists, child before parent
     // (tasks and bindings reference projects) and alphabetical otherwise;
     // the governance ledger and the tombstone table are the deliberate
-    // survivors — never a hand-kept list that a new table would miss.
+    // survivors — never a hand-kept list that a new table would miss. The
+    // realtime outbox sits in its own schema, outside the catalog walk.
     const deletes = writes.filter((t) => t.startsWith('DELETE FROM'));
     expect(deletes.map((t) => /^DELETE FROM ([\w."]+)/.exec(t)?.[1])).toEqual([
       'app.automation_project_bindings',
@@ -383,6 +384,7 @@ describe('deleteOrganization', () => {
       'app.tasks',
       'app.user_preferences',
       'app.projects',
+      'app_realtime.outbox',
       '"teamMember"',
       '"team"',
       '"invitation"',

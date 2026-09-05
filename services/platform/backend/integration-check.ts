@@ -39455,6 +39455,12 @@ async function checkOrganizationLifecycle(
     `);
     if (left > 0) survivorsA.push(`${tableName}=${left}`);
   }
+  // The realtime hint outbox is org-keyed too, in its own schema.
+  const outboxLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgA}
+  `);
+  if (outboxLeft > 0) survivorsA.push(`app_realtime.outbox=${outboxLeft}`);
   const projectRowsB = await count(sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.projects WHERE org_id = ${orgB}
   `);
