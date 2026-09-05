@@ -96,6 +96,18 @@ describe('buildBrokerDocument', () => {
     expect(result.message).toMatch(/endpoint/);
   });
 
+  it('refuses a tokensPath without the $ root before the round-trip, naming the field', () => {
+    // The server refuses the same document (`brokerCredentialDataSchema`
+    // requires the `$` root); the client runs that schema on submit so the
+    // refusal surfaces inline instead of as a 400.
+    const result = buildBrokerDocument(completeDraft({ tokensPath: 'tokens' }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toMatch(/tokensPath/);
+    expect(result.message).toMatch(/\$/);
+  });
+
   it('refuses an out-of-range timeout via the shared schema bounds', () => {
     const result = buildBrokerDocument(completeDraft({ timeoutMs: '1' }));
 
