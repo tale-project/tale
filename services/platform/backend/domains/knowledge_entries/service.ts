@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { authorizeRls } from '../../auth/access.ts';
+import { KNOWLEDGE_SOURCE_PROVIDER } from '../../core/knowledge_entries/constants.ts';
 import { validateTopicAndContent } from '../../core/knowledge_entries/helpers.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -269,7 +270,7 @@ async function attachEntryDocument(
       team_tags, created_by, metadata, created_at_ms, updated_at_ms
     ) VALUES (
       ${args.organizationId}, ${fileName}, ${storageRef}, 'text/markdown',
-      'md', 'knowledge', ${[]}::text[], ${args.createdBy},
+      'md', ${KNOWLEDGE_SOURCE_PROVIDER}, ${[]}::text[], ${args.createdBy},
       ${tx.json(toJson({ contentHash }))}, ${now}, ${now}
     ) RETURNING id
   `;
