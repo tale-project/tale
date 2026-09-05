@@ -1,5 +1,6 @@
 import type { TransactionSql } from 'postgres';
 
+import type { EventType } from '../../../lib/shared/event-types.ts';
 import { dispatchAutomationEvent } from '../automations/triggers.ts';
 
 /**
@@ -10,35 +11,9 @@ import { dispatchAutomationEvent } from '../automations/triggers.ts';
  * emitting stays non-fatal — a dispatch fault is logged, never allowed to
  * fail the producing write.
  *
- * The event-type union is part of the platform contract (subscription rows
- * and automation packs reference these exact strings) — extend deliberately,
- * never rename.
+ * The event-type union lives in `lib/shared/event-types.ts`, shared with the
+ * trigger editors in the web app.
  */
-export const EVENT_TYPES = [
-  'contact.created',
-  'contact.updated',
-  'contact.deleted',
-  'conversation.created',
-  'conversation.message_received',
-  'conversation.closed',
-  'workflow.completed',
-  'project.created',
-  'task.created',
-  'task.status_changed',
-  'task.assigned',
-  'task.mentioned',
-  'task.deleted',
-  'comment.created',
-  'comment.mentioned',
-  'task.external_run_failed',
-  'agent.budget_exceeded',
-  'agent.slot_freed',
-] as const;
-export type EventType = (typeof EVENT_TYPES)[number];
-
-export function isValidEventType(type: string): type is EventType {
-  return (EVENT_TYPES as readonly string[]).includes(type);
-}
 
 export interface EmitEventArgs {
   organizationId: string;

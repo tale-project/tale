@@ -17,8 +17,8 @@ import {
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { EVENT_TYPES } from '@/backend/core/events/emit';
 import { useT } from '@/lib/i18n/client';
+import { EVENT_TYPES } from '@/lib/shared/event-types';
 
 import {
   useDeleteAutomationTrigger,
