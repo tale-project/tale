@@ -16408,6 +16408,51 @@ async function checkPolicySweeps(
     SELECT count(*)::text AS count FROM app.messages
     WHERE org_id = ${orgId} AND text LIKE '[automated]%'
   `;
+  // Rescheduling re-arms the ladder (updateTask clears the stamps it owns):
+  // the overdue task pushed out to later today is "due soon" again on the
+  // next sweep, and a started task whose start moves is announced again.
+  // And the level-2 nudge speaks every locale the app ships.
+  const { updateTask } = await import('./domains/tasks/service.ts');
+  const sweepAuth = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    teamIds: [] as string[],
+  };
+  await transactSerializable(sql, (tx) =>
+    updateTask(tx, sweepAuth, { taskId: overdueId, dueDate: now + 3_600_000 }),
+  );
+  await transactSerializable(sql, (tx) =>
+    updateTask(tx, sweepAuth, { taskId: startedId, startDate: now - 30_000 }),
+  );
+  const third = await enforceTaskDatesForOrg(sql, orgId);
+  const rescheduled = await sql<
+    { id: string; startNotified: number | null; slaLevel: number | null }[]
+  >`
+    SELECT id, start_notified_at_ms::float8 AS "startNotified",
+           sla_level AS "slaLevel"
+    FROM app.tasks WHERE id IN (${startedId}, ${overdueId})
+  `;
+  const rescheduledById = new Map(rescheduled.map((row) => [row.id, row]));
+  const nudgeMeta = await sql<{ bodyByLocale: unknown }[]>`
+    SELECT meta.body_by_locale AS "bodyByLocale"
+    FROM app.task_discussion_message_meta meta
+    WHERE meta.task_id = ${overdueId}
+    ORDER BY meta.created_at_ms LIMIT 1
+  `;
+  const nudgeLocales = objectAt(nudgeMeta[0]?.bodyByLocale, '');
+  record(
+    'sweeps: a reschedule re-arms the date ladder, and the nudge speaks every locale',
+    third.dueSoon === 1 &&
+      third.start === 1 &&
+      rescheduledById.get(overdueId)?.slaLevel === 1 &&
+      rescheduledById.get(startedId)?.startNotified !== null &&
+      typeof nudgeLocales?.en === 'string' &&
+      typeof nudgeLocales?.de === 'string' &&
+      typeof nudgeLocales?.fr === 'string',
+    `third=${JSON.stringify(third)} (want dueSoon 1, start 1), overdue→slaLevel=${rescheduledById.get(overdueId)?.slaLevel} (want 1), started re-stamped=${rescheduledById.get(startedId)?.startNotified !== null}, nudge locales=${nudgeLocales ? Object.keys(nudgeLocales).sort().join(',') : 'none'} (want de,en,fr)`,
+  );
+
   record(
     'sweeps: the task date ladder fires each rung once and skips future work',
     first.start === 1 &&

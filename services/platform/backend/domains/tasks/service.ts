@@ -1139,11 +1139,24 @@ export async function updateTask(
   if (Object.keys(newState).length === 0) {
     return;
   }
+  // A rescheduled task re-enters the date ladder: a changed due date clears
+  // the SLA rung (so "due soon", the nudge and the escalations fire again
+  // for the new date) and a changed start date clears the one-shot start
+  // stamp. Without this the ladder stayed off for good once it had fired —
+  // the common "overdue → pushed out" flow silenced every later alert.
+  const dueChanged = args.dueDate !== undefined && dueDate !== task.dueDate;
+  const startChanged =
+    args.startDate !== undefined && startDate !== task.startDate;
   await tx`
     UPDATE app.tasks SET
       title = ${title}, description = ${description},
       priority = ${priority}, label_ids = ${labelIds},
       start_date_ms = ${startDate}, due_date_ms = ${dueDate},
+      sla_level = CASE WHEN ${dueChanged}::boolean THEN NULL ELSE sla_level END,
+      sla_level_at_ms = CASE WHEN ${dueChanged}::boolean THEN NULL
+                             ELSE sla_level_at_ms END,
+      start_notified_at_ms = CASE WHEN ${startChanged}::boolean THEN NULL
+                                  ELSE start_notified_at_ms END,
       reviewer_user_id = ${reviewerUserId}, updated_at_ms = ${Date.now()}
     WHERE id = ${args.taskId}
   `;

@@ -92,11 +92,19 @@ async function ensureTaskDiscussionThread(
   return rows[0]?.discussionThreadId ?? threadId;
 }
 
-/** Append one comment (message + lockstep meta + count + activity + audit). */
+/** Append one comment (message + lockstep meta + count + activity + audit).
+ * `bodyByLocale` is the same text written natively per language (the
+ * workflow `task.comment` native and the automated date nudge carry it); the
+ * reader picks their locale and falls back to `body`. */
 export async function addTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
-  args: { taskId: string; body: string; author?: CommentAuthor },
+  args: {
+    taskId: string;
+    body: string;
+    bodyByLocale?: Record<string, string>;
+    author?: CommentAuthor;
+  },
 ): Promise<{
   messageId: string;
   threadId: string;
@@ -136,11 +144,13 @@ export async function addTaskComment(
   await tx`
     INSERT INTO app.task_discussion_message_meta (
       message_id, org_id, thread_id, task_id, author_type, author_id,
-      mentions, created_at_ms
+      mentions, body_by_locale, created_at_ms
     ) VALUES (
       ${messageId}, ${auth.organizationId}, ${threadId}, ${args.taskId},
       ${author.actorType}, ${author.actorId},
-      ${mentions.length > 0 ? tx.json(toJson(mentions)) : null}, ${Date.now()}
+      ${mentions.length > 0 ? tx.json(toJson(mentions)) : null},
+      ${args.bodyByLocale !== undefined ? tx.json(args.bodyByLocale) : null},
+      ${Date.now()}
     )
   `;
   await tx`
