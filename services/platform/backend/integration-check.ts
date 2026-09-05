@@ -25036,6 +25036,59 @@ exit 1
       DELETE FROM app.video_link_jobs
       WHERE id = ANY(${seededIds.slice(1)})
     `;
+
+    // The cap is decided INSIDE the insert transaction under a per-org
+    // advisory lock: with two rows in flight, two SIMULTANEOUS pastes must
+    // land exactly one job — the pre-fix pool-side count let both through.
+    const raceSeed = await sql<{ id: string }[]>`
+      INSERT INTO app.video_link_jobs (
+        org_id, uploaded_by, source_url, source_url_hash, source_platform,
+        pasted_token, status, status_changed_at_ms, attempts,
+        lifecycle_status, created_at_ms
+      )
+      SELECT ${orgId}, ${userId}, 'https://www.youtube.com/watch?v=race' || n,
+             'racehash' || n, 'youtube', 'race', 'fetching_metadata',
+             ${Date.now()}, 0, 'active', ${Date.now()}
+      FROM generate_series(1, 2) AS n
+      RETURNING id
+    `;
+    const raceResults = await Promise.allSettled(
+      ['raceA1', 'raceB2'].map((token) =>
+        video.ingestVideoUrl(sql, {
+          organizationId: orgId,
+          userId,
+          url: `https://www.youtube.com/watch?v=${token}`,
+          pastedToken: token,
+        }),
+      ),
+    );
+    const raceLanded = raceResults.filter((r) => r.status === 'fulfilled');
+    const raceCapped = raceResults.filter(
+      (r) =>
+        r.status === 'rejected' &&
+        r.reason instanceof video.VideoLinkError &&
+        r.reason.code === 'inFlightCap',
+    );
+    for (const landed of raceLanded) {
+      if (landed.status !== 'fulfilled') continue;
+      // Park it before its ingest job runs (the orchestrator bails on a
+      // non-queued row), then drop it with the seed rows.
+      await video.cancelVideoLink(sql, {
+        organizationId: orgId,
+        userId,
+        jobId: landed.value,
+      });
+      await sql`DELETE FROM app.video_link_jobs WHERE id = ${landed.value}`;
+    }
+    await sql`
+      DELETE FROM app.video_link_jobs
+      WHERE id = ANY(${raceSeed.map((row) => row.id)})
+    `;
+    record(
+      'video links: concurrent pastes cannot exceed the in-flight cap',
+      raceLanded.length === 1 && raceCapped.length === 1,
+      `landed=${raceLanded.length}/1 capped=${raceCapped.length}/1 (2 seeded in flight + 2 simultaneous ingests)`,
+    );
     record(
       'video links: whisper path + failure/retry/cancel + cap + watchdog',
       // The job row itself must land terminal when the transcription lane
