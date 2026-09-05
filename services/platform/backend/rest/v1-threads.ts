@@ -136,6 +136,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .object({
         title: z.string().min(1).max(MAX_TITLE).optional(),
         projectId: z.string().max(100).optional(),
+        agentSlug: z.string().min(1).max(MAX_SLUG).optional(),
       })
       .safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) {
@@ -149,6 +150,12 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ...(body.data.title !== undefined ? { title: body.data.title } : {}),
         ...(body.data.projectId !== undefined
           ? { projectId: body.data.projectId }
+          : {}),
+        // The documented agent pin, forwarded exactly as the session door
+        // does — dropped, every turn would run as the default assistant
+        // behind a 201 that looks like success.
+        ...(body.data.agentSlug !== undefined
+          ? { agentSlug: body.data.agentSlug }
           : {}),
       });
       return c.json({ id: threadId }, 201);

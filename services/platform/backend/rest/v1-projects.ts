@@ -484,10 +484,13 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
     let presigned: string;
     try {
+      // Object keys are nameless (`<org>/<uuid>`); the document's title is
+      // the filename the documented Content-Disposition carries.
       presigned = await getFileUrl(
         deps.sql,
         { organizationId: c.get('organizationId') },
         doc.fileRef,
+        doc.title !== null ? { filename: doc.title } : {},
       );
     } catch (error) {
       console.warn(

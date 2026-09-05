@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import {
   beginRun,
-  bindingProjectIds,
+  bindProject,
   cancelRun,
   deleteTrigger,
   deployedVersion,
@@ -13,7 +13,6 @@ import {
   listRuns,
   listTriggers,
   listVersions,
-  setAutomationProjects,
   setTrigger,
   versionRow,
 } from '../domains/automations/store.ts';
@@ -152,21 +151,16 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (project.organizationId !== c.get('organizationId')) {
         return c.json({ error: 'Project not found' }, 404);
       }
-      const bound = await bindingProjectIds(
-        deps.sql,
-        c.get('organizationId'),
-        name,
-      );
-      if (bound.includes(project.id)) {
-        return c.json({ name, added: false });
-      }
-      await setAutomationProjects(deps.sql, {
+      // ONE atomic add (`INSERT … ON CONFLICT DO NOTHING`), never a rewrite
+      // of the whole set from a read: two workers binding different
+      // projects at once must both keep their row.
+      const { bound } = await bindProject(deps.sql, {
         organizationId: c.get('organizationId'),
         name,
-        projectIds: [...bound, project.id],
+        projectId: project.id,
         actor: c.get('userId'),
       });
-      return c.json({ name, added: true }, 201);
+      return c.json({ name, added: bound }, bound ? 201 : 200);
     } catch (error) {
       return domainErrorResponse(c, error);
     }

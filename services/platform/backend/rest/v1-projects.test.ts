@@ -9,7 +9,7 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDocumentFromUpload } from '../domains/documents/service.ts';
-import { registerUpload } from '../domains/files/service.ts';
+import { getFileUrl, registerUpload } from '../domains/files/service.ts';
 import { clearOrgConfigCaches } from '../lib/org-config.ts';
 import type { RestEnv } from './shared.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
@@ -22,6 +22,7 @@ import { createProjectRestRoutes } from './v1-projects.ts';
 vi.mock('../domains/files/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/files/service.ts')>()),
   registerUpload: vi.fn(() => Promise.resolve({ fileId: 'f-1', size: 1234 })),
+  getFileUrl: vi.fn(() => Promise.resolve('https://blobs.example.com/signed')),
 }));
 vi.mock('../domains/documents/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/documents/service.ts')>()),
@@ -55,6 +56,33 @@ const project = {
   archivedAt: null,
 };
 
+const document = {
+  id: 'd-1',
+  organizationId: 'org-1',
+  title: 'ledger-2026-q1.pdf',
+  fileRef: 'acme/blob-1',
+  mimeType: 'application/pdf',
+  extension: 'pdf',
+  sourceProvider: null,
+  externalItemId: null,
+  contentHash: null,
+  historyFiles: [],
+  teamId: null,
+  teamTags: [],
+  projectId: 'p-1',
+  createdBy: 'user-1',
+  folderId: 'fold-1',
+  metadata: null,
+  lifecycleStatus: 'active',
+  record: null,
+  scannedPagesDetected: null,
+  ocrApplied: null,
+  sourceCreatedAt: null,
+  sourceModifiedAt: null,
+  createdAt: 1_700_000_000_000,
+  updatedAt: 1_700_000_000_000,
+};
+
 /** Tagged-template Sql double for the bind lane: the visible project, a
  * consumable intent, the org slug for the config tree, the rate limiter's
  * UPSERT (spent or not), and the policy's volume read. `begin` runs the
@@ -70,6 +98,9 @@ function fakeSql(opts: { spent?: boolean } = {}): {
     if (text.includes('FROM "teamMember"')) return Promise.resolve([]);
     if (text.includes('FROM app.projects WHERE id')) {
       return Promise.resolve([project]);
+    }
+    if (text.includes('FROM app.documents WHERE id')) {
+      return Promise.resolve([document]);
     }
     if (text.startsWith('UPDATE app.rest_upload_intents')) {
       return Promise.resolve([{ id: 'u-1' }]);
@@ -209,5 +240,32 @@ describe('POST /projects/{id}/files upload policy', () => {
     expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
     expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
     expect(vi.mocked(createDocumentFromUpload)).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * GET …/files/{documentId}/content presigns WITH the document's title. The
+ * regression under test: the route called `getFileUrl` without a filename,
+ * and object keys are nameless (`<org>/<uuid>`), so the presigned GET set a
+ * bare `attachment` disposition — a `curl -OJ` landed as a UUID while the
+ * API reference promised "Content-Disposition carries the filename".
+ */
+describe('GET /projects/{id}/files/{documentId}/content', () => {
+  it('presigns with the document title as the download filename', async () => {
+    vi.mocked(getFileUrl).mockClear();
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/projects/p-1/files/d-1/content',
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(
+      'https://blobs.example.com/signed',
+    );
+    expect(vi.mocked(getFileUrl)).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'org-1' },
+      'acme/blob-1',
+      { filename: 'ledger-2026-q1.pdf' },
+    );
   });
 });

@@ -89,3 +89,52 @@ describe('GET /threads/{id}/messages limit', () => {
     },
   );
 });
+
+/**
+ * POST /threads forwards the documented `agentSlug`. The regression under
+ * test: the create schema declared only title and projectId, and zod strips
+ * unknown keys — a consumer pinning an agent got a 201 and a thread whose
+ * `agent_slug` was NULL, so every turn ran as the default assistant with no
+ * signal that the pin was dropped.
+ */
+describe('POST /threads agentSlug', () => {
+  it('writes the agent pin into the thread metadata', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request('http://localhost/threads', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Refunds', agentSlug: 'triage-bot' }),
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ id: 't-new' });
+    const metadata = queries.find((q) =>
+      q.text.startsWith('INSERT INTO app.thread_metadata'),
+    );
+    expect(metadata?.values).toContain('triage-bot');
+  });
+
+  it('leaves the pin NULL when the consumer sends none', async () => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request('http://localhost/threads', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(201);
+    const metadata = queries.find((q) =>
+      q.text.startsWith('INSERT INTO app.thread_metadata'),
+    );
+    // (…, project_id, agent_slug, harness, …) — the slug slot is null.
+    expect(metadata?.values[6]).toBeNull();
+  });
+
+  it('refuses an empty agentSlug', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request('http://localhost/threads', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ agentSlug: '' }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
