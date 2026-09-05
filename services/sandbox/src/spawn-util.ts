@@ -118,6 +118,24 @@ async function drainAndCap(
   };
 }
 
+/** Bound applied when a caller passes no `timeoutMs`. Every docker CLI call
+ * talks to a daemon that can wedge (stuck mounts, a hung containerd); the
+ * health probe, the periodic sweeps and the cache-volume setup used to run
+ * with NO bound, so under the exact failure the healthcheck exists to detect
+ * the spawner piled up one hung `docker` child per probe and per sweep tick,
+ * and session create blocked forever in ensureCacheVolume. Callers with a
+ * tighter or looser budget still pass their own; `Infinity` opts out. */
+export const RUN_DOCKER_DEFAULT_TIMEOUT_MS = 60_000;
+
+/** The kill-timer budget for one docker CLI invocation: the caller's value,
+ * else the default; `null` when the caller opted out with a non-finite value. */
+export function resolveDockerTimeoutMs(
+  timeoutMs: number | undefined,
+): number | null {
+  const budget = timeoutMs ?? RUN_DOCKER_DEFAULT_TIMEOUT_MS;
+  return Number.isFinite(budget) ? budget : null;
+}
+
 export async function runDocker(
   args: string[],
   opts: RunDockerOptions = {},
@@ -156,7 +174,8 @@ export async function runDocker(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stdoutResult = { bytes: new ArrayBuffer(0), truncated: false };
   let stderrResult = { bytes: new ArrayBuffer(0), truncated: false };
-  if (opts.timeoutMs !== undefined && Number.isFinite(opts.timeoutMs)) {
+  const budgetMs = resolveDockerTimeoutMs(opts.timeoutMs);
+  if (budgetMs !== null) {
     const timeoutPromise = new Promise<'timeout'>((resolve) => {
       timer = setTimeout(() => {
         timedOut = true;
@@ -179,7 +198,7 @@ export async function runDocker(
           });
         }
         resolve('timeout');
-      }, opts.timeoutMs);
+      }, budgetMs);
     });
     const winner = await Promise.race([
       collectIO.then((v) => ['io', v] as const),

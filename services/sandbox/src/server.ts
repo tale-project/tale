@@ -13,14 +13,11 @@
 // Every sandbox run is a session; the per-org session budgets live platform-side
 // (governance `sandbox_quota`), bounded by the host cap `SANDBOX_MAX_SESSIONS`.
 
-import {
-  createBackend,
-  createSessionBackend,
-  type HealthResult,
-} from './backend/index.ts';
+import { createBackend, createSessionBackend } from './backend/index.ts';
 import { installSignalHandlers, startPeriodicSweep } from './cleanup.ts';
 import { loadConfig } from './config.ts';
 import { ControlRoutes } from './control-routes.ts';
+import { makeHealthProbe } from './health-probe.ts';
 import { jsonResponse } from './http-util.ts';
 import { createRequestAuth } from './request-auth.ts';
 import {
@@ -67,24 +64,14 @@ process.on('unhandledRejection', (reason) => {
 // Cache the backend liveness probe so the compose healthcheck (every 10s)
 // doesn't fork a subprocess on every hit. 60s is well under the watchdog
 // cutoff and short enough that a daemon recycle surfaces within one
-// healthcheck cycle of the user noticing.
+// healthcheck cycle of the user noticing. Concurrent probes share ONE
+// backend call (health-probe.ts) — a slow probe against a wedged daemon
+// used to spawn a new `docker version` child per overlapping healthcheck.
 const HEALTH_PROBE_TTL_MS = 60_000;
-let healthProbeCache:
-  | { ok: true; detail: string; expiresAt: number }
-  | { ok: false; error: string; expiresAt: number }
-  | null = null;
-
-async function probeHealth(): Promise<HealthResult> {
-  const now = Date.now();
-  if (healthProbeCache !== null && healthProbeCache.expiresAt > now) {
-    return healthProbeCache.ok
-      ? { ok: true, detail: healthProbeCache.detail }
-      : { ok: false, error: healthProbeCache.error };
-  }
-  const result = await backend.health();
-  healthProbeCache = { ...result, expiresAt: now + HEALTH_PROBE_TTL_MS };
-  return result;
-}
+const probeHealth = makeHealthProbe(
+  () => backend.health(),
+  HEALTH_PROBE_TTL_MS,
+);
 
 async function handleHealth(): Promise<Response> {
   const health = await probeHealth();

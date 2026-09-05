@@ -7,7 +7,11 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 
-import { runDocker } from './spawn-util.ts';
+import {
+  RUN_DOCKER_DEFAULT_TIMEOUT_MS,
+  resolveDockerTimeoutMs,
+  runDocker,
+} from './spawn-util.ts';
 
 // Override the docker binary for the duration of these tests. spawn-util
 // reads DOCKER_BIN lazily on each invocation so this override works after
@@ -98,5 +102,23 @@ describe('runDocker — timeout race', () => {
     const elapsed = Date.now() - start;
     expect(result.exitCode).toBe(124);
     expect(elapsed).toBeLessThan(3_000);
+  });
+});
+
+// REGRESSION: the kill timer used to arm only when a caller passed timeoutMs,
+// so the health probe, the sweeps and the cache-volume setup ran unbounded
+// against a wedged daemon. Every call now carries a budget unless it opts out.
+describe('runDocker — default timeout', () => {
+  test('no timeoutMs ⇒ the default budget; an explicit one wins; Infinity opts out', () => {
+    expect(resolveDockerTimeoutMs(undefined)).toBe(
+      RUN_DOCKER_DEFAULT_TIMEOUT_MS,
+    );
+    expect(resolveDockerTimeoutMs(5_000)).toBe(5_000);
+    expect(resolveDockerTimeoutMs(Infinity)).toBeNull();
+  });
+
+  test('the default is a real bound, not a formality', () => {
+    expect(RUN_DOCKER_DEFAULT_TIMEOUT_MS).toBeGreaterThan(0);
+    expect(Number.isFinite(RUN_DOCKER_DEFAULT_TIMEOUT_MS)).toBe(true);
   });
 });
