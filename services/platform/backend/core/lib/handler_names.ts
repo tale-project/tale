@@ -300,9 +300,6 @@ interface HandlerNames {
     dispatch_notification: FunctionRef & {
       dispatchNotificationAction: FunctionRef;
     };
-    email_notification: FunctionRef & {
-      deliverActionableEmailAction: FunctionRef;
-    };
   };
   openai: FunctionRef & {
     com: FunctionRef;
