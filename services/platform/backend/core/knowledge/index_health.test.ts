@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   allowCorpusWrites,
   assertCorpusWritable,
-  corpusWriteRefusal,
   setCorpusWritesResumedHook,
   DEFAULT_INLINE_REPAIR_MAX_BYTES,
   forgetCorpusWriteRefusals,
@@ -461,7 +460,9 @@ describe('the write guard', () => {
     ).resolves.toBeUndefined();
 
     expect(db.verifyCalls).toEqual(['private_knowledge.idx_pk_chunks_bm25']);
-    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
     expect(db.ended).toBe(true);
   });
 
@@ -482,7 +483,9 @@ describe('the write guard', () => {
     ).resolves.toBeUndefined();
 
     expect(resumed).toEqual([{ url: URL, schema: PK.schema }]);
-    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
     setCorpusWritesResumedHook(null);
   });
 
@@ -498,9 +501,6 @@ describe('the write guard', () => {
       }),
     ).rejects.toBeInstanceOf(KnowledgeIndexUnavailable);
     expect(db.opened).toBe(1);
-    expect(corpusWriteRefusal(URL, PK.schema)?.recheckAt).toBe(
-      now + WRITE_GUARD_RECHECK_MS,
-    );
 
     // Inside the window: refused outright, no second verification.
     await expect(
@@ -510,12 +510,23 @@ describe('the write guard', () => {
       }),
     ).rejects.toBeInstanceOf(KnowledgeIndexUnavailable);
     expect(db.opened).toBe(1);
+
+    // At the window's edge the next write verifies again.
+    await expect(
+      assertCorpusWritable(URL, PK.schema, {
+        openSession: db.openSession,
+        now: () => now + WRITE_GUARD_RECHECK_MS,
+      }),
+    ).rejects.toBeInstanceOf(KnowledgeIndexUnavailable);
+    expect(db.opened).toBe(2);
   });
 
   it('allowing writes clears the refusal', async () => {
     refuseCorpusWrites(URL, PK.schema, { state: 'rebuilding', index: PK });
     allowCorpusWrites(URL, PK.schema);
-    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
     await expect(assertCorpusWritable(URL, PK.schema)).resolves.toBeUndefined();
   });
 });

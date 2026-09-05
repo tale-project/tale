@@ -167,8 +167,7 @@ export function assertVectorWidth(
   }
 }
 
-/** Forget what a database was pinned to — for tests, and after a corpus is
- * dropped and rebuilt. */
+/** Forget what a database was pinned to — tests only. */
 export function forgetPinnedDimensions(dbUrl?: string): void {
   if (dbUrl === undefined) {
     pinned.clear();
@@ -177,12 +176,6 @@ export function forgetPinnedDimensions(dbUrl?: string): void {
     pinned.delete(dbUrl);
     appliedSchemas.delete(dbUrl);
   }
-}
-
-/** What a database is currently pinned to, or `undefined` if it has not been
- * touched this process. */
-export function pinnedDimensions(dbUrl: string): number | undefined {
-  return pinned.get(dbUrl);
 }
 
 type PinOutcome =

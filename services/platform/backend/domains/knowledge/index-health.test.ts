@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertCorpusWritable,
-  corpusWriteRefusal,
   forgetCorpusWriteRefusals,
   refuseCorpusWrites,
   setCorpusWritesResumedHook,
@@ -127,9 +126,13 @@ describe('acting on a verification report', () => {
       reason: 'assertion failed',
     });
     expect(effects.announce.mock.calls[0]?.[3]).toBe(1_700_000_000_000);
-    expect(corpusWriteRefusal(URL, PK.schema)?.state).toBe('rebuilding');
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).rejects.toMatchObject({ state: 'rebuilding' });
     // The healthy corpus of the same database stays open.
-    expect(corpusWriteRefusal(URL, PW.schema)).toBeNull();
+    await expect(
+      assertCorpusWritable(URL, PW.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
   });
 
   it('announces an inline repair and leaves writes open', async () => {
@@ -163,7 +166,9 @@ describe('acting on a verification report', () => {
       path: 'inline',
       reindexMs: 812,
     });
-    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
   });
 
   it('a failed repair refuses writes and announces the failure', async () => {
@@ -186,7 +191,9 @@ describe('acting on a verification report', () => {
       effects,
     );
 
-    expect(corpusWriteRefusal(URL, PK.schema)?.state).toBe('repair_failed');
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).rejects.toMatchObject({ state: 'repair_failed' });
     expect(effects.announce.mock.calls[0]?.[2]).toMatchObject({
       kind: 'repair_failed',
       error: 'still failing after REINDEX',
@@ -208,7 +215,9 @@ describe('acting on a verification report', () => {
       effects,
     );
 
-    expect(corpusWriteRefusal(URL, PK.schema)?.state).toBe('repair_failed');
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).rejects.toMatchObject({ state: 'repair_failed' });
     expect(effects.scheduleRebuild).not.toHaveBeenCalled();
     expect(effects.announce.mock.calls[0]?.[2]).toMatchObject({
       kind: 'repair_failed',
@@ -244,8 +253,12 @@ describe('acting on a verification report', () => {
 
     expect(effects.scheduleRebuild).not.toHaveBeenCalled();
     expect(effects.announce).not.toHaveBeenCalled();
-    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
-    expect(corpusWriteRefusal(URL, PW.schema)).toBeNull();
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
+    await expect(
+      assertCorpusWritable(URL, PW.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
   });
 });
 
@@ -264,7 +277,9 @@ describe('the background rebuild job', () => {
       URL,
       effects,
     );
-    expect(corpusWriteRefusal(URL, PK.schema)?.state).toBe('rebuilding');
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).rejects.toMatchObject({ state: 'rebuilding' });
     effects.announce.mockClear();
 
     await runReindexBm25Job(sql, payload, effects, () =>
@@ -281,7 +296,9 @@ describe('the background rebuild job', () => {
       }),
     );
 
-    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
     expect(effects.announce).toHaveBeenCalledTimes(1);
     expect(effects.announce.mock.calls[0]?.[2]).toMatchObject({
       kind: 'repaired',
@@ -310,7 +327,9 @@ describe('the background rebuild job', () => {
       }),
     );
 
-    expect(corpusWriteRefusal(URL, PK.schema)?.state).toBe('repair_failed');
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).rejects.toMatchObject({ state: 'repair_failed' });
     expect(effects.announce.mock.calls[0]?.[2]).toMatchObject({
       kind: 'repair_failed',
       error: 'REINDEX failed: could not read block 357',
@@ -338,7 +357,9 @@ describe('the background rebuild job', () => {
 
     // Used to lift the refusal and return: writes flowed again while every
     // parked row kept its "resumes automatically" note, forever.
-    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
     expect(effects.requeueRefused).toHaveBeenCalledWith(
       { kind: 'default' },
       URL,
@@ -360,7 +381,9 @@ describe('the background rebuild job', () => {
 
     // Nothing rebuilds an invalid index on its own — the job used to return
     // with the "rebuilding" refusal in place and no follow-up scheduled.
-    expect(corpusWriteRefusal(URL, PK.schema)?.state).toBe('repair_failed');
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).rejects.toMatchObject({ state: 'repair_failed' });
     expect(effects.announce.mock.calls[0]?.[2]).toMatchObject({
       kind: 'repair_failed',
       error: expect.stringContaining('DROP INDEX CONCURRENTLY'),
@@ -383,7 +406,9 @@ describe('the background rebuild job', () => {
 
     // Unknown is not healthy: the refusal stays, and the rebuild is queued
     // again with a delay instead of dropped with the files still parked.
-    expect(corpusWriteRefusal(URL, PK.schema)?.state).toBe('rebuilding');
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).rejects.toMatchObject({ state: 'rebuilding' });
     expect(effects.scheduleRebuild).toHaveBeenCalledWith(
       { kind: 'default' },
       PK,
@@ -416,7 +441,9 @@ describe('the background rebuild job', () => {
       }),
     );
 
-    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
     expect(effects.announce).not.toHaveBeenCalled();
     expect(effects.requeueRefused).toHaveBeenCalledTimes(1);
   });
@@ -454,7 +481,9 @@ describe('the write guard lifting a refusal itself', () => {
       now: () => WRITE_GUARD_RECHECK_MS + 1,
     });
 
-    expect(corpusWriteRefusal(URL, PK.schema)).toBeNull();
+    await expect(
+      assertCorpusWritable(URL, PK.schema, { now: () => 0 }),
+    ).resolves.toBeUndefined();
     expect(effects.resumeRefused).toHaveBeenCalledWith(URL);
   });
 });

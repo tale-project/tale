@@ -666,14 +666,6 @@ export function allowCorpusWrites(url: string, schema: string): void {
   if (bySchema.size === 0) refusals.delete(url);
 }
 
-/** Why writes into a corpus are refused right now, or `null`. */
-export function corpusWriteRefusal(
-  url: string,
-  schema: string,
-): CorpusWriteRefusal | null {
-  return refusals.get(url)?.get(schema) ?? null;
-}
-
 /** Forget every refusal — tests only. */
 export function forgetCorpusWriteRefusals(): void {
   refusals.clear();
