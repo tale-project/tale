@@ -223,10 +223,13 @@ describe('generateThreadTitleImpl — the deadline race', () => {
     expect(observedSignal).toBeDefined();
     expect(observedSignal?.aborted).toBe(true);
     expect(runMutation).toHaveBeenCalledTimes(1);
-    expect(runMutation.mock.calls[0]?.[1]).toMatchObject({
-      threadId: THREAD,
-      title: deriveFallbackTitle(FIRST_MESSAGE),
-    });
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        threadId: THREAD,
+        title: deriveFallbackTitle(FIRST_MESSAGE),
+      }),
+    );
     // Nothing was spent: the call never produced usage.
     expect(recordUsage).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(
@@ -273,8 +276,9 @@ describe('generateThreadTitleImpl — the deadline race', () => {
         totalTokens: 46,
       }),
     );
-    expect(runMutation.mock.calls[0]?.[1]).toMatchObject({
-      title: 'Damaged Order Return',
-    });
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ title: 'Damaged Order Return' }),
+    );
   });
 });
