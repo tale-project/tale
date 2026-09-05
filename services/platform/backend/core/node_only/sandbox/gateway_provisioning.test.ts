@@ -19,7 +19,7 @@ vi.mock('./llm_gateway_admin', async (importOriginal) => {
   const original = await importOriginal<typeof import('./llm_gateway_admin')>();
   return {
     ...original,
-    provisionProviders: vi.fn(async () => {}),
+    provisionProviders: vi.fn(async () => []),
     applyGatewayConfig: vi.fn(async () => {}),
     mintVirtualKey: vi.fn(async () => ({ key: 'sk-bf-t', keyId: 'vk-9' })),
   };
@@ -174,10 +174,11 @@ describe('provisionSessionGatewayKey', () => {
     expect(result.keyHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('provisions a custom provider under its per-model record so the mint can bind', async () => {
-    // deepseek is NOT a standard gateway provider, so it routes per model
-    // (`deepseek__deepseek-v4-flash`). The provision record must carry that
-    // exact name, or the mint's key lookup 404s and fails closed.
+  it("provisions a custom provider under the org's per-model record so the mint can bind", async () => {
+    // deepseek is NOT a standard gateway provider, so it routes per (org,
+    // model) (`org_1__deepseek__deepseek-v4-flash`). The provision record
+    // must carry that exact name, or the mint's key lookup 404s and fails
+    // closed.
     mockedResolve.mockResolvedValue(apiKeyResolution('sk-ds'));
     // Only `id` is read by buildProviderProvision; the rest of the catalog
     // shape is irrelevant here.
@@ -198,10 +199,43 @@ describe('provisionSessionGatewayKey', () => {
     expect(mockedResolve).toHaveBeenCalledTimes(1);
     expect(provisionProviders).toHaveBeenCalledWith('org_1', [
       expect.objectContaining({
-        name: 'deepseek__deepseek-v4-flash',
+        name: 'org_1__deepseek__deepseek-v4-flash',
         models: ['deepseek-v4-flash'],
         apiKey: 'sk-ds',
       }),
+    ]);
+  });
+
+  it('keeps two orgs sharing a custom connector name on separate gateway records', async () => {
+    // A custom connector is an org-defined file; two orgs may both ship an
+    // `internal.yml`-style connector under one name (here the shipped
+    // `deepseek` stands in) with different endpoints or wire formats. One
+    // shared record let the last org to provision rewrite base_url for
+    // both — org A's inference, carrying A's key, went to B's endpoint.
+    mockedResolve.mockResolvedValue(apiKeyResolution('sk-shared-name'));
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    mockedCatalog.mockResolvedValue([
+      { id: 'deepseek-v4-flash' },
+    ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
+    const models = [{ providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' }];
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_a',
+      sessionId: 'sess-a',
+      allowedModels: models,
+      budgetCents: 100,
+    });
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_b',
+      sessionId: 'sess-b',
+      allowedModels: models,
+      budgetCents: 100,
+    });
+    const names = vi
+      .mocked(provisionProviders)
+      .mock.calls.map(([org, provisions]) => [org, provisions[0]?.name]);
+    expect(names).toEqual([
+      ['org_a', 'org_a__deepseek__deepseek-v4-flash'],
+      ['org_b', 'org_b__deepseek__deepseek-v4-flash'],
     ]);
   });
 
@@ -277,6 +311,60 @@ describe('provisionSessionGatewayKey', () => {
     expect(mockedResolve).not.toHaveBeenCalled();
     expect(provisionProviders).not.toHaveBeenCalled();
     expect(applyGatewayConfig).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
+  });
+
+  it("refuses to mint when a needed provider's gateway push failed (no stale-key mint)", async () => {
+    // provisionProviders never throws — it returns what did not land. The
+    // gateway still holds the org's key from the last successful push under
+    // the same stable name, so a mint here would bind the session to that
+    // pre-rotation secret: opaque upstream 401s after a key rotation, or
+    // spend on a credential the admin revoked.
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    vi.mocked(provisionProviders).mockResolvedValueOnce([
+      {
+        name: 'openrouter',
+        error: new Error(
+          'llm-gateway update key for openrouter/org org_1 failed (503): upstream unavailable',
+        ),
+      },
+    ]);
+    await expect(
+      provisionSessionGatewayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-2c',
+        allowedModels: MODELS,
+        budgetCents: 100,
+      }),
+    ).rejects.toThrow(
+      'Provider "openrouter" cannot serve this session: its credential could not be pushed to the sandbox LLM gateway (llm-gateway update key for openrouter/org org_1 failed (503): upstream unavailable)',
+    );
+    expect(applyGatewayConfig).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
+  });
+
+  it("names the CONNECTOR, not the per-model record, when a custom provider's push failed", async () => {
+    mockedResolve.mockResolvedValue(apiKeyResolution('sk-ds'));
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    mockedCatalog.mockResolvedValue([
+      { id: 'deepseek-v4-flash' },
+    ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
+    vi.mocked(provisionProviders).mockResolvedValueOnce([
+      {
+        name: 'org_1__deepseek__deepseek-v4-flash',
+        error: new Error('llm-gateway create key failed (500)'),
+      },
+    ]);
+    await expect(
+      provisionSessionGatewayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-2d',
+        allowedModels: [
+          { providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' },
+        ],
+        budgetCents: 100,
+      }),
+    ).rejects.toThrow(/^Provider "deepseek" cannot serve this session/);
     expect(mintVirtualKey).not.toHaveBeenCalled();
   });
 

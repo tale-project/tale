@@ -19,7 +19,9 @@
 // gateway; do not "simplify" them away without re-verifying):
 //   - upstream KEYS are a provider SUB-RESOURCE (`/api/providers/:p/keys`,
 //     CRUD), NOT embedded in the provider PUT (a keys[] there is ignored).
-//     Per-org keys coexist under one shared provider record.
+//     Per-org keys coexist under one shared STANDARD provider record; a
+//     custom connector gets one record per (org, model) — see
+//     customGatewayProviderName.
 //   - VK create takes `provider_configs[]` where each config carries
 //     `key_ids: [<id>]` (the WRITE field — sending `keys:[id]` is silently
 //     ignored, leaving an empty binding that denies everything) +
@@ -153,15 +155,26 @@ export function isStandardGatewayProvider(name: string): boolean {
   return LLM_GATEWAY_STANDARD_PROVIDERS.has(name);
 }
 
-/** Gateway provider name for a CUSTOM connector's per-model upstream. The
- * model's effective (baseUrl, apiFormat, key) lives on its own provider
+/** Gateway provider name for a CUSTOM connector's per-(org, model) upstream.
+ * The model's effective (baseUrl, apiFormat, key) lives on its own provider
  * record so model-level routing actually works — one gateway record holds
- * exactly one base_url + base_provider_type. `/` is sanitized out of the
- * NAME segment because the gateway routes on the FIRST `/`; the model id
- * keeps its own form (matched against the key catalog after the prefix is
- * stripped). */
-function customGatewayProviderName(slug: string, modelId: string): string {
-  return `${slug}__${modelId}`.replace(/\//g, '_');
+ * exactly one base_url + base_provider_type. The record is ORG-SCOPED: a
+ * custom connector is an org-defined file (`<orgSlug>/providers/*.yml`) and
+ * two orgs may define the same connector name with different endpoints or
+ * wire formats. A shared `<slug>__<model>` record let the last org to
+ * provision rewrite `base_url` for every org sharing the name — org A's
+ * key then went to org B's endpoint — and an apiFormat flip recreated the
+ * record and deleted the other orgs' keys. Only the gateway's STANDARD
+ * providers (whose URL + format the gateway owns) keep one shared record.
+ * `/` is sanitized out of the NAME segment because the gateway routes on the
+ * FIRST `/`; the model id keeps its own form (matched against the key
+ * catalog after the prefix is stripped). */
+function customGatewayProviderName(
+  organizationId: string,
+  slug: string,
+  modelId: string,
+): string {
+  return `${organizationId}__${slug}__${modelId}`.replace(/\//g, '_');
 }
 
 export interface GatewayRouting {
@@ -173,14 +186,15 @@ export interface GatewayRouting {
 }
 
 /**
- * Map a (connector, catalog model id) pair onto gateway routing. A standard
- * connector name routes to the shared native provider record
- * (`<name>/<modelId>`); any other connector routes to the model's own
- * per-model upstream record (`<name>__<modelId>/<modelId>`). Single source
- * of truth shared by the harness glue (model env), the mint (VK binding),
- * and the provisioner (record names) so they can never drift.
+ * Map an (org, connector, catalog model id) triple onto gateway routing. A
+ * standard connector name routes to the shared native provider record
+ * (`<name>/<modelId>`); any other connector routes to the org's own
+ * per-model upstream record (`<orgId>__<name>__<modelId>/<modelId>`). Single
+ * source of truth shared by the harness glue (model env), the mint (VK
+ * binding), and the provisioner (record names) so they can never drift.
  */
 export function resolveGatewayRouting(
+  organizationId: string,
   providerSlug: string,
   modelId: string,
 ): GatewayRouting {
@@ -190,7 +204,7 @@ export function resolveGatewayRouting(
       gatewayModel: `${providerSlug}/${modelId}`,
     };
   }
-  const name = customGatewayProviderName(providerSlug, modelId);
+  const name = customGatewayProviderName(organizationId, providerSlug, modelId);
   return { gatewayProvider: name, gatewayModel: `${name}/${modelId}` };
 }
 
@@ -232,12 +246,13 @@ export async function mintVirtualKey(
   args: MintVirtualKeyArgs,
 ): Promise<MintedVirtualKey> {
   // Group the allowed models by the GATEWAY provider record they route to
-  // (the shared record for standard connectors; per-model records for custom
-  // ones). Allow both the bare model id and the full gateway ref so the
+  // (the shared record for standard connectors; this org's per-model records
+  // for custom ones). Allow both the bare model id and the full gateway ref so the
   // allowlist matches however the requesting client spells the model.
   const byProvider = new Map<string, string[]>();
   for (const ref of args.allowedModels) {
     const { gatewayProvider, gatewayModel } = resolveGatewayRouting(
+      args.organizationId,
       ref.providerSlug,
       ref.modelId,
     );
@@ -670,42 +685,40 @@ async function provisionOne(
   pushedProviderFingerprints.set(memoKey, providerFingerprint(p));
 }
 
-/**
- * Push one provider's current key + model list into the gateway for an org.
- * The credential-save actions call this so a key rotation reaches the
- * gateway immediately instead of at the next session create. Throws on
- * failure — callers own the degrade posture; the memo stays unset, so the
- * next session-create provision retries.
- */
-export async function reprovisionProvider(
-  organizationId: string,
-  p: ProviderProvision,
-): Promise<void> {
-  if (skipUnprovisionable(p)) return;
-  await provisionOne(organizationId, p);
+/** One provider the reconcile could not push: the gateway record name and
+ * the error the write failed with. */
+export interface ProviderProvisionFailure {
+  name: string;
+  error: unknown;
 }
 
 /**
  * Reconcile the org's providers into the gateway: ensure each provider's
- * record config + this org's upstream key. Called once per session create so
- * a fresh gateway (or a rotated key) is in place before the first mint; the
- * credential-save actions also push eagerly via reprovisionProvider, making
- * this the self-heal catch-up for pushes that failed (gateway down) or
- * happened in another process.
+ * record config + this org's upstream key. Called once per session create —
+ * this is the ONLY push (no credential-save action pushes eagerly), so a
+ * fresh gateway, a rotated key, or a push that failed in an earlier process
+ * (gateway down) all land here, before the first mint.
  *
- * Per-org keys coexist under one shared provider record, so multiple orgs
- * holding distinct keys for the same provider never clobber each other, and
- * each session VK binds to its own org's key (see mintVirtualKey).
+ * Per-org keys coexist under one shared STANDARD provider record, so
+ * multiple orgs holding distinct keys for the same provider never clobber
+ * each other, and each session VK binds to its own org's key (see
+ * mintVirtualKey). A CUSTOM connector's record is already org-scoped by name
+ * (resolveGatewayRouting), so its base_url / wire format are this org's own.
  *
  * Per-provider resilient: a single provider's failure is logged and skipped
  * rather than aborting the whole reconcile — one misconfigured upstream must
- * not starve the others; a genuinely broken one surfaces via mintVirtualKey's
- * fail-closed error, not a silent gap here.
+ * not starve the others. Never throws; the failures are RETURNED so the
+ * caller decides. The session mint must treat any failure for a provider it
+ * needs as fatal: the gateway still holds that org's key from the last
+ * successful push, and `mintVirtualKey` resolves it by stable name — so a
+ * mint after a swallowed failure would bind a fresh virtual key to the
+ * pre-rotation secret and keep serving a credential the admin replaced.
  */
 export async function provisionProviders(
   organizationId: string,
   providers: ProviderProvision[],
-): Promise<void> {
+): Promise<ProviderProvisionFailure[]> {
+  const failures: ProviderProvisionFailure[] = [];
   for (const p of providers) {
     if (skipUnprovisionable(p)) continue;
     try {
@@ -715,8 +728,10 @@ export async function provisionProviders(
         `[llm-gateway] provisioning provider '${p.name}' for org '${organizationId}' failed (continuing):`,
         err,
       );
+      failures.push({ name: p.name, error: err });
     }
   }
+  return failures;
 }
 
 /**

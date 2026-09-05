@@ -31361,6 +31361,24 @@ async function checkRetention(
        'rt-a2', 'success', ${now - 400 * 24 * 3_600_000 + 1}, 'fake-a2',
        'fake-a1')
   `;
+  // The sandbox provenance ledgers ride the same audit window: one aged and
+  // one fresh row per table, the aged pair must go and the fresh pair stay.
+  await sql`
+    INSERT INTO app.sandbox_tool_calls (
+      org_id, session_id, tool, user_id, outcome, created_at_ms
+    ) VALUES
+      (${orgId}, 'rt-sess', 'rag_search', ${userId}, 'ok',
+       ${now - 400 * 24 * 3_600_000}),
+      (${orgId}, 'rt-sess', 'rag_search', ${userId}, 'ok', ${now})
+  `;
+  await sql`
+    INSERT INTO app.sandbox_credential_access (
+      org_id, session_id, slug, kind, fetched_at_ms
+    ) VALUES
+      (${orgId}, 'rt-sess', 'rt-cred', 'bootstrap',
+       ${now - 400 * 24 * 3_600_000}),
+      (${orgId}, 'rt-sess', 'rt-cred', 'bootstrap', ${now})
+  `;
   const staleTemp = await sql<{ id: string }[]>`
     INSERT INTO app.file_metadata (
       org_id, storage_ref, file_name, content_type, size, source,
@@ -31500,20 +31518,35 @@ async function checkRetention(
     SELECT count(*)::text AS count FROM app.file_metadata
     WHERE id = ${staleTemp[0]?.id ?? ''}
   `;
+  const toolCallsLeft = await sql<{ createdAtMs: number }[]>`
+    SELECT created_at_ms::float8 AS "createdAtMs" FROM app.sandbox_tool_calls
+    WHERE org_id = ${orgId} AND session_id = 'rt-sess'
+  `;
+  const credentialAccessLeft = await sql<{ fetchedAtMs: number }[]>`
+    SELECT fetched_at_ms::float8 AS "fetchedAtMs"
+    FROM app.sandbox_credential_access
+    WHERE org_id = ${orgId} AND session_id = 'rt-sess'
+  `;
   record(
-    'retention phase-2: documents, chat lineage, runs, audit prefix, temp',
+    'retention phase-2: documents, chat lineage, runs, audit prefix, temp, sandbox ledgers',
     docGone[0]?.count === '0' &&
       threadGone[0]?.count === '0' &&
       msgGone[0]?.count === '0' &&
       runGone[0]?.count === '0' &&
       auditGone[0]?.count === '0' &&
       tempGone[0]?.count === '0' &&
+      // The aged tool-call and credential-access rows go with the audit
+      // window; the fresh ones (this run's own provenance) stay.
+      toolCallsLeft.length === 1 &&
+      toolCallsLeft[0]?.createdAtMs === now &&
+      credentialAccessLeft.length === 1 &&
+      credentialAccessLeft[0]?.fetchedAtMs === now &&
       // The workflow-log window takes the aged TERMINAL run and nothing
       // else: a `waiting` run is parked on a person and a `running` one is
       // mid-flight, so age alone must never make either a candidate.
       automationRunsLeft.map((row) => row.name).join(',') ===
         'rt-wf-running,rt-wf-waiting',
-    `doc=${docGone[0]?.count} thread=${threadGone[0]?.count} msgs=${msgGone[0]?.count} run=${runGone[0]?.count} audit=${auditGone[0]?.count} temp=${tempGone[0]?.count} (all want 0), automationRuns=${automationRunsLeft.map((row) => row.name).join(',')} (want rt-wf-running,rt-wf-waiting)`,
+    `doc=${docGone[0]?.count} thread=${threadGone[0]?.count} msgs=${msgGone[0]?.count} run=${runGone[0]?.count} audit=${auditGone[0]?.count} temp=${tempGone[0]?.count} (all want 0), toolCalls=${toolCallsLeft.length} credentialAccess=${credentialAccessLeft.length} (both want 1 fresh), automationRuns=${automationRunsLeft.map((row) => row.name).join(',')} (want rt-wf-running,rt-wf-waiting)`,
   );
 
   const convLeft = await sql<{ subject: string }[]>`

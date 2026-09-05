@@ -38,6 +38,7 @@ import {
   isRecord,
   readCursor,
   readLimit,
+  readOffsetCursor,
   type BridgeBlocker,
   type ToolResult,
 } from './workspace_tool_shared';
@@ -116,7 +117,9 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     "returned nextOffset as offset until it's absent.",
   document_find:
     'List/browse documents in the organization Documents hub this user can ' +
-    'access. Args: {fileName?: string, extension?: string, limit?: number}.',
+    'access. Args: {fileName?: string, extension?: string, limit?: number, ' +
+    "cursor?: number}. Pass the previous result's cursor as cursor for the " +
+    'next page (hasMore tells you whether there is one).',
   knowledge_entry_find:
     "List the organization's curated knowledge entries (small per-topic " +
     'facts). Args: {topic?: string, limit?: number, cursor?: string} — topic ' +
@@ -390,7 +393,11 @@ async function runWorkspaceTool(
   if (args.tool === 'document_find') {
     // The Documents hub is scope-shaped (teams + project + hub), so the two
     // authority sources list through two doors onto ONE helper:
-    // binding → `listDocumentsForScope`, user → `listForAgent`.
+    // binding → `listDocumentsForScope`, user → `listForAgent`. Both page by
+    // offset and hand back `cursor: <nextOffset>`; the continuation the
+    // agent sends back must reach the helper, or a hub past the first ≤50
+    // documents is invisible and the agent concludes a file does not exist.
+    const cursor = readOffsetCursor(callArgs.cursor);
     const bound = await resolveKnowledgeAccess(
       ctx,
       { organizationId: args.organizationId, sessionId: args.sessionId },
@@ -414,6 +421,7 @@ async function runWorkspaceTool(
             ? { extension: callArgs.extension }
             : {}),
           limit: readLimit(callArgs.limit, 50),
+          ...(cursor !== undefined ? { cursor } : {}),
         },
       );
       return { status: 'ok', output: page };
@@ -450,6 +458,7 @@ async function runWorkspaceTool(
           ? { extension: callArgs.extension }
           : {}),
         limit: readLimit(callArgs.limit, 50),
+        ...(cursor !== undefined ? { cursor } : {}),
       },
     );
     return { status: 'ok', output: page };
