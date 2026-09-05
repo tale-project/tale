@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { ARENA_VERDICTS } from '../../../lib/shared/arena.ts';
 import { loadOwnedThread, loadProjectSharedThread } from '../chat/threads.ts';
 
 /**
@@ -149,7 +150,6 @@ export async function listMyThreadFeedback(
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_SCAN_ALL_TIME = 5000;
 const COMMENT_PROJECTION_MAX = 500;
-const ARENA_VERDICTS = ['a_better', 'b_better', 'tie', 'both_bad'] as const;
 
 interface FeedbackFoldRow {
   id: string;
