@@ -547,6 +547,56 @@ async function checkAuthAndSse(
     `live=${liveOk}, resume-replay=${replayOk}, no-duplicate-on-resume=${noDuplicate}`,
   );
 
+  // 5f. An open stream re-proves its reader: a member soft-removed and a
+  // session revoked mid-stream are each told `forbidden` and ended on the
+  // next re-check tick, instead of tailing the org's hints until the tab
+  // reconnects. Two throwaway members, both streams opened before either is
+  // revoked, so the (coarse, 15s) cadence is paid once for both cases.
+  const kicked = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'sse-kicked',
+    'member',
+  );
+  const revoked = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'sse-revoked',
+    'member',
+  );
+  const kickedStream = connectSse(url, { cookie: kicked.cookie });
+  const revokedStream = connectSse(url, { cookie: revoked.cookie });
+  await sleep(500); // both connect-time checks pass on live rows
+  await sql`
+    UPDATE "member" SET "role" = 'disabled' WHERE "id" = ${kicked.memberId}
+  `;
+  await sql`DELETE FROM "session" WHERE "userId" = ${revoked.userId}`;
+  const endedWithForbidden = (
+    stream: ReturnType<typeof connectSse>,
+  ): Promise<boolean> =>
+    Promise.race([
+      stream.done.then(() =>
+        stream.events.some((e) => e.event === 'forbidden'),
+      ),
+      sleep(25_000).then(() => false),
+    ]);
+  const [kickedEnded, revokedEnded] = await Promise.all([
+    endedWithForbidden(kickedStream),
+    endedWithForbidden(revokedStream),
+  ]);
+  kickedStream.abort();
+  revokedStream.abort();
+  await sql`
+    DELETE FROM "member" WHERE "id" IN (${kicked.memberId}, ${revoked.memberId})
+  `;
+  record(
+    'events ends a stream whose reader lost the org or the session',
+    kickedEnded && revokedEnded,
+    `disabled member: ended-with-forbidden=${kickedEnded}; revoked session: ended-with-forbidden=${revokedEnded} (want both true within one re-check interval)`,
+  );
+
   return { cookie, orgId, userId };
 }
 

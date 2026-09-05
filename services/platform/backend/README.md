@@ -38,9 +38,10 @@ review + (eventually) lint guards:
    hints are kept for an hour (`OUTBOX_RETENTION_MS`) and reclaimed lazily by
    the tailing API pods — a bounded, strict-id-prefix sweep ticked from the
    `/events` poll loop, no cron — and a client resuming from a cursor older
-   than that gets a `resync` event and refetches its org scope. Tier-1 hot
-   streams (chat tokens, execution logs) will get dedicated SSE lanes, not the
-   hint bus.
+   than that gets a `resync` event and refetches its org scope. An open
+   stream re-proves membership and the session every 15s and ends with a
+   terminal `forbidden` event once either is gone. Tier-1 hot streams (chat
+   tokens, execution logs) will get dedicated SSE lanes, not the hint bus.
 
 ## Process roles
 
