@@ -788,8 +788,9 @@ export async function syncRagDocumentScope(
   }
 }
 
-/** Documents compared per org per reconcile run. */
-const SCOPE_RECONCILE_LIMIT = 1000;
+/** Documents compared per corpus statement — one document read, one folder
+ * tree read and one corpus UPDATE per page. */
+const SCOPE_RECONCILE_PAGE = 1000;
 
 /**
  * Correct corpus scope stamps that drifted away from the documents they
@@ -809,6 +810,12 @@ const SCOPE_RECONCILE_LIMIT = 1000;
  * away afterwards — the pre-filter stops pre-filtering, and nothing reports
  * that it has.
  *
+ * Walks the WHOLE live corpus, a keyset page (`id > last`) at a time, so a
+ * corpus larger than one page is reconciled past it: a fixed `LIMIT` with no
+ * cursor re-checked the same first page every run and never visited the
+ * rest. Document ids are uuids, so that page was an arbitrary but stable
+ * subset — the drift it missed stayed missed forever.
+ *
  * One statement per page: the guard is `IS DISTINCT FROM` on all four stamped
  * columns, so the row count IS the drift count and an in-sync corpus writes
  * nothing.
@@ -817,8 +824,46 @@ export async function reconcileDocumentScopeStamps(
   sql: Sql,
   args: { organizationId: string; orgSlug: string; limit?: number },
 ): Promise<{ scanned: number; corrected: number }> {
+  const pageSize = args.limit ?? SCOPE_RECONCILE_PAGE;
+  let scanned = 0;
+  let corrected = 0;
+  let afterId: string | null = null;
+  for (;;) {
+    const page: ScopeReconcilePage = await reconcileScopeStampPage(sql, {
+      organizationId: args.organizationId,
+      orgSlug: args.orgSlug,
+      afterId,
+      pageSize,
+    });
+    scanned += page.scanned;
+    corrected += page.corrected;
+    if (page.lastId === null || page.scanned < pageSize) break;
+    afterId = page.lastId;
+  }
+  return { scanned, corrected };
+}
+
+interface ScopeReconcilePage {
+  scanned: number;
+  corrected: number;
+  /** The keyset cursor for the next page; null when this page was empty. */
+  lastId: string | null;
+}
+
+/** One page of {@link reconcileDocumentScopeStamps}: the documents after
+ * `afterId` in id order, compared and corrected in one corpus statement. */
+async function reconcileScopeStampPage(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    orgSlug: string;
+    afterId: string | null;
+    pageSize: number;
+  },
+): Promise<ScopeReconcilePage> {
   const docs = await sql<
     {
+      id: string;
       fileRef: string;
       teamId: string | null;
       teamTags: string[];
@@ -827,17 +872,18 @@ export async function reconcileDocumentScopeStamps(
       folderPath: string | null;
     }[]
   >`
-    SELECT file_ref AS "fileRef", team_id AS "teamId",
+    SELECT id, file_ref AS "fileRef", team_id AS "teamId",
            team_tags AS "teamTags", project_id AS "projectId",
            folder_id AS "folderId", folder_path AS "folderPath"
     FROM app.documents
     WHERE org_id = ${args.organizationId}
       AND file_ref IS NOT NULL
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+      AND (${args.afterId}::text IS NULL OR id > ${args.afterId})
     ORDER BY id
-    LIMIT ${args.limit ?? SCOPE_RECONCILE_LIMIT}
+    LIMIT ${args.pageSize}
   `;
-  if (docs.length === 0) return { scanned: 0, corrected: 0 };
+  if (docs.length === 0) return { scanned: 0, corrected: 0, lastId: null };
 
   const treePaths = await folderTreePaths(
     sql,
@@ -878,7 +924,11 @@ export async function reconcileDocumentScopeStamps(
           OR d.folder_path IS DISTINCT FROM v.folder_path)`,
     [args.orgSlug, pool.json(intended)],
   );
-  return { scanned: docs.length, corrected: result.count ?? 0 };
+  return {
+    scanned: docs.length,
+    corrected: result.count ?? 0,
+    lastId: docs.at(-1)?.id ?? null,
+  };
 }
 
 /**
