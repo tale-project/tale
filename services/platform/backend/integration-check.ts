@@ -5272,11 +5272,11 @@ async function checkSmallDomains(
     ).json(),
   );
   const contactId = contact.success ? contact.data.contactId : '';
-  // The same email again (any case, any padding) is the 409 the REST
-  // reference has always promised — the door never checked before.
+  // The same email again (in any case — padding is the schema's 400) is the
+  // 409 the REST reference has always promised; the door never checked.
   const dupContact = await send('POST', `/api/app/contacts?orgId=${orgId}`, {
     name: 'Ada Twin',
-    email: '  ADA@example.com ',
+    email: 'ADA@Example.com',
     source: 'manual_import',
   });
   const dupBody = z
