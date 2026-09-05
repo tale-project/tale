@@ -13169,8 +13169,38 @@ async function checkScim(
   );
 
   // ---- hard DELETE (RFC 7644 §3.6) ---------------------------------------
+  // The user sits in an admin-built team (with SSO-sync provenance, as a
+  // group claim would leave it): DELETE must take the membership's whole
+  // per-org footprint with it, or the IdP's next POST — which re-attaches
+  // the existing user — puts them straight back into the team.
+  const cascadeTeamId = randomUUID();
+  await sql`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (${cascadeTeamId}, 'Cascade Crew', ${orgId}, now(), now())
+  `;
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (${randomUUID()}, ${cascadeTeamId}, ${scimUserId || '-'}, now())
+  `;
+  await sql`
+    INSERT INTO app.sso_synced_team_members (
+      org_id, team_id, user_id, created_at_ms
+    ) VALUES (${orgId}, ${cascadeTeamId}, ${scimUserId || '-'}, ${Date.now()})
+    ON CONFLICT DO NOTHING
+  `;
   const userDeleted = await scim(`/Users/${scimUserId}`, { method: 'DELETE' });
   const userGone = await scim(`/Users/${scimUserId}`);
+  const strandedTeamRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count
+    FROM "teamMember" tm JOIN "team" t ON t."id" = tm."teamId"
+    WHERE t."organizationId" = ${orgId} AND tm."userId" = ${scimUserId || '-'}
+  `;
+  const strandedProvenance = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.sso_synced_team_members
+    WHERE org_id = ${orgId} AND user_id = ${scimUserId || '-'}
+  `;
+  await sql`DELETE FROM "team" WHERE "id" = ${cascadeTeamId}`;
   const scimAudits = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.audit_logs
     WHERE org_id = ${orgId} AND actor_id = 'scim'
@@ -13208,8 +13238,10 @@ async function checkScim(
       teamGone.length === 0 &&
       userDeleted.status === 204 &&
       userGone.status === 404 &&
+      strandedTeamRows[0]?.count === '0' &&
+      strandedProvenance[0]?.count === '0' &&
       Number(scimAudits[0]?.count ?? '0') >= 7,
-    `admin=${before.success ? before.data.enabled : 'ERR'}→${after.success ? `${after.data.enabled}/${after.data.tokenPrefix}` : 'ERR'}, discovery=${discovery.status} bad=${badToken.status} alias=${alias.status} (want 200/401/200), user=${created.success}/${filtered.success ? filtered.data.totalResults : 'ERR'} role=${roleAfterCreate[0]?.role}→${roleDisabled[0]?.role}→${roleRestored[0]?.role} (want member→disabled→member), group=${group.success} patched=${patchedGroup.success ? `${patchedGroup.data.displayName}/${patchedGroup.data.members.length}` : 'ERR'} del=${groupDeleted.status} gone=${teamGone.length === 0}, userDel=${userDeleted.status}→${userGone.status} (want 204→404), audits=${scimAudits[0]?.count} (want ≥7)`,
+    `admin=${before.success ? before.data.enabled : 'ERR'}→${after.success ? `${after.data.enabled}/${after.data.tokenPrefix}` : 'ERR'}, discovery=${discovery.status} bad=${badToken.status} alias=${alias.status} (want 200/401/200), user=${created.success}/${filtered.success ? filtered.data.totalResults : 'ERR'} role=${roleAfterCreate[0]?.role}→${roleDisabled[0]?.role}→${roleRestored[0]?.role} (want member→disabled→member), group=${group.success} patched=${patchedGroup.success ? `${patchedGroup.data.displayName}/${patchedGroup.data.members.length}` : 'ERR'} del=${groupDeleted.status} gone=${teamGone.length === 0}, userDel=${userDeleted.status}→${userGone.status} (want 204→404) stranded teams/provenance=${strandedTeamRows[0]?.count}/${strandedProvenance[0]?.count} (want 0/0), audits=${scimAudits[0]?.count} (want ≥7)`,
   );
 }
 

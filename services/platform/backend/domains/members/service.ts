@@ -1,6 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
+import {
+  findOrganizationMember,
+  isAdminRole,
+  removeMembershipCascade,
+} from '../../auth/membership.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { logSuccess } from '../audit_logs/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
@@ -304,12 +308,10 @@ export async function removeMember(
 
   const targetEmail = await userEmail(tx, member.userId);
   await tx`DELETE FROM "member" WHERE "id" = ${memberId}`;
-  // Personalization cascade (ported half): the member's per-org preference
-  // row dies with the membership; user_memories follows with its domain.
-  await tx`
-    DELETE FROM app.user_preferences
-    WHERE org_id = ${member.organizationId} AND user_id = ${member.userId}
-  `;
+  // The membership's per-org footprint goes with it: team memberships (and
+  // their SSO-sync provenance) and the preference row — user_memories
+  // follows with its domain.
+  await removeMembershipCascade(tx, member.organizationId, member.userId);
 
   await logSuccess(tx, {
     auditCtx: {

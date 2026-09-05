@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { removeMembershipCascade } from '../../auth/membership.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import {
   classifyDeprovision,
@@ -611,8 +612,9 @@ export async function patchUser(
   });
 }
 
-/** SCIM DELETE: hard de-provision (membership + link gone; the global user
- * row is preserved). The sole owner is protected. */
+/** SCIM DELETE: hard de-provision (membership, its team memberships and
+ * per-org state, and the link gone; the global user row is preserved). The
+ * sole owner is protected. */
 export async function deprovisionUser(
   sql: Sql,
   organizationId: string,
@@ -627,6 +629,9 @@ export async function deprovisionUser(
     if (!member) return 'not-found';
     const user = await findUserRowById(tx, userId);
     await tx`DELETE FROM "member" WHERE "id" = ${member.id}`;
+    // A later POST re-attaches the existing user row, so stranded team
+    // memberships would silently come back into force with it.
+    await removeMembershipCascade(tx, organizationId, userId);
     await deleteLink(tx, organizationId, userId);
     await logScim(
       tx,

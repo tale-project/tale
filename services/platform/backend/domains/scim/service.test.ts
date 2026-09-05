@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
+  deprovisionUser,
   patchGroup,
   patchUser,
   provisionGroup,
@@ -320,5 +321,59 @@ describe('group writes — every member must belong to the org', () => {
       q.text.startsWith('INSERT INTO "teamMember"'),
     );
     expect(added?.values).toEqual(expect.arrayContaining(['t-1', 'u-in']));
+  });
+});
+
+/**
+ * SCIM DELETE removes the whole per-org footprint, not just the member row:
+ * Better Auth's own deleteMember drops the user's teamMember rows when
+ * teams are enabled, and a later POST re-attaches the existing user, so a
+ * stranded team membership would come straight back into force.
+ */
+describe('deprovisionUser — the membership cascade', () => {
+  it('removes team memberships, sync provenance and preferences with the member row', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(MEMBER)) return [{ id: 'm-1', role: 'member' }];
+      if (text.startsWith(USER_BY_ID)) return [userRow('u-1', 'u1@x.test')];
+      return [];
+    });
+
+    const verdict = await deprovisionUser(sql, 'org-1', 'u-1');
+
+    expect(verdict).toBe('deprovisioned');
+    const deleted = writes(queries).filter((q) => q.text.startsWith('DELETE'));
+    const memberAt = deleted.findIndex((q) =>
+      q.text.startsWith('DELETE FROM "member"'),
+    );
+    const teamsAt = deleted.findIndex((q) =>
+      q.text.startsWith('DELETE FROM "teamMember"'),
+    );
+    const teams = deleted[teamsAt];
+    expect(teams?.text).toContain('WHERE "organizationId" = $?');
+    expect(teams?.values).toEqual(['u-1', 'org-1']);
+    expect(
+      deleted.find((q) =>
+        q.text.startsWith('DELETE FROM app.sso_synced_team_members'),
+      )?.values,
+    ).toEqual(['org-1', 'u-1']);
+    expect(
+      deleted.find((q) => q.text.startsWith('DELETE FROM app.user_preferences'))
+        ?.values,
+    ).toEqual(['org-1', 'u-1']);
+    // The cascade rides the same transaction, after the member row.
+    expect(memberAt).toBeGreaterThanOrEqual(0);
+    expect(teamsAt).toBeGreaterThan(memberAt);
+  });
+
+  it('cascades nothing for a member it refuses to remove', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(MEMBER)) return [{ id: 'm-owner', role: 'owner' }];
+      return [];
+    });
+
+    const verdict = await deprovisionUser(sql, 'org-1', 'u-owner');
+
+    expect(verdict).toBe('owner-protected');
+    expect(writes(queries)).toEqual([]);
   });
 });
