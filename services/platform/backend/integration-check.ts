@@ -30820,8 +30820,11 @@ async function checkKnowledgeEntries(
   // transaction — otherwise the entry stays listed and served for the whole
   // grace window while the retrievability filter keeps its corpus rows dark,
   // and an update onto it answers 404 for a row the list still shows. The
-  // policy is 100 years and the document is aged past it, so no other
-  // document of the org can be a candidate of this sweep.
+  // policy is ~55 years and the document is aged just past it, so no other
+  // document of the org can be a candidate of this sweep — while both the
+  // cutoff and the aged stamp stay positive epochs (the sweep floors a
+  // document's age at `coalesce(status_changed_at_ms, 0)`, so a negative
+  // stamp would never age out).
   const expiring = z.object({ id: z.string() }).safeParse(
     await (
       await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
@@ -30836,7 +30839,7 @@ async function checkKnowledgeEntries(
     WHERE id = ${expiringId}
   `;
   const expiringDocId = expiringBacking[0]?.documentId ?? '';
-  const retentionDays = 36_500;
+  const retentionDays = 20_000;
   await sql`
     UPDATE app.documents
     SET created_at_ms = ${Date.now() - (retentionDays + 1) * 86_400_000}
@@ -30885,7 +30888,7 @@ async function checkKnowledgeEntries(
       listAfterExpiry.success &&
       !listAfterExpiry.data.rows.some((row) => row.id === expiringId) &&
       updateAfterExpiry.status === 404,
-    `swept=${expiringStats.documents} (want ≥1), doc=${expiredDoc[0]?.lifecycleStatus ?? 'missing'} (want expired), chain=${chainAfterExpiry.map((row) => row.deleted).join(',')} (want true), listed=${listAfterExpiry.success ? listAfterExpiry.data.rows.some((row) => row.id === expiringId) : 'ERR'} (want false), update=${updateAfterExpiry.status} (want 404)`,
+    `swept=${expiringStats.documents} (want ≥1), doc=${expiredDoc.length === 0 ? 'missing' : String(expiredDoc[0]?.lifecycleStatus)} (want expired), chain=${chainAfterExpiry.map((row) => row.deleted).join(',')} (want true), listed=${listAfterExpiry.success ? listAfterExpiry.data.rows.some((row) => row.id === expiringId) : 'ERR'} (want false), update=${updateAfterExpiry.status} (want 404)`,
   );
 }
 
