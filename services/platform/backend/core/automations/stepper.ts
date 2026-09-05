@@ -38,6 +38,7 @@ import {
   mergeBurnedHashes,
   nextAttempt,
 } from './agent_retry';
+import { boundNodeTrace } from './bound_run_payload';
 import type {
   AgentCursor,
   NodeCheckpoint,
@@ -1366,7 +1367,14 @@ async function stepClaimedRun(
 
     // The trace reads in execution order: what ran, then the failing node, then
     // everything the failure kept from running.
-    const failedTrace = result.kind === 'failed' ? result.trace : undefined;
+    // The failing node never passed through a checkpoint commit (a hard
+    // failure is not a checkpoint), so its entry is bounded here — the one
+    // place it first enters storage; the checkpoint traces were bounded by
+    // `recordProgress` and are NOT re-bounded (the bound is not idempotent).
+    const failedTrace =
+      result.kind === 'failed' && result.trace
+        ? boundNodeTrace(result.trace)
+        : undefined;
     const trace: NodeTrace[] = traceFrom(checkpoints, order);
     if (failedTrace) trace.push(failedTrace);
     for (const id of order) {

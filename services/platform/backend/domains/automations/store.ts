@@ -1,5 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  boundCheckpointTrace,
+  truncateRunDetail,
+} from '../../core/automations/bound_run_payload.ts';
+import type { NodeCheckpoint } from '../../core/automations/checkpoints.ts';
 import { parseCron, wallClockIn } from '../../core/automations/cron.ts';
 import {
   LIVENESS_SWEEP_LIMIT,
@@ -1062,6 +1067,29 @@ function readCheckpoints(raw: unknown): CheckpointsShape {
   return { nodes: {}, executions: 0 };
 }
 
+/**
+ * Bound a checkpoint's descriptive trace as it FIRST enters the row — never
+ * the already-stored `nodes` it is merged into (the bound is not idempotent:
+ * a second pass re-cuts its own marker and under-reports the loss). The
+ * checkpoint's `output` and `effects` pass through whole: one is the
+ * executor's scope for every later node, the other the side-effect audit
+ * trail. Anything not shaped like a checkpoint is stored as it came.
+ */
+function boundIncomingCheckpoint(checkpoint: unknown): unknown {
+  if (
+    checkpoint === null ||
+    typeof checkpoint !== 'object' ||
+    Array.isArray(checkpoint) ||
+    !('trace' in checkpoint) ||
+    checkpoint.trace === null ||
+    typeof checkpoint.trace !== 'object'
+  ) {
+    return checkpoint;
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper owns this JSON shape; narrowed above
+  return boundCheckpointTrace(checkpoint as NodeCheckpoint);
+}
+
 export async function recordProgress(
   sql: Sql,
   args: {
@@ -1089,7 +1117,7 @@ export async function recordProgress(
     const nodes =
       args.nodeId !== undefined && args.checkpoint !== undefined
         ? Object.assign({}, checkpoints.nodes, {
-            [args.nodeId]: args.checkpoint,
+            [args.nodeId]: boundIncomingCheckpoint(args.checkpoint),
           })
         : checkpoints.nodes;
     await tx`
@@ -1138,7 +1166,7 @@ export async function suspendRun(
     const seq = row.chainSeq + 1;
     await tx`
       UPDATE app.automation_runs SET
-        status = 'waiting', detail = ${args.detail.slice(0, 2000)},
+        status = 'waiting', detail = ${truncateRunDetail(args.detail)},
         checkpoints = ${tx.json(
           toJson({
             nodes: checkpoints.nodes,
@@ -1248,6 +1276,9 @@ export async function finishRun(
     epoch: number;
     status: 'success' | 'failed';
     output?: unknown;
+    /** Stored as given: the stepper assembles it from checkpoint traces
+     * `recordProgress` already bounded plus the failing node's entry, which
+     * it bounds itself — re-bounding here would re-cut the stored markers. */
     trace: unknown;
     effects: unknown;
     detail?: string;
@@ -1273,7 +1304,7 @@ export async function finishRun(
         output = coalesce(${args.output === undefined ? null : tx.json(toJson(JSON.stringify(args.output)))}, output),
         trace = ${tx.json(toJson(args.trace ?? []))},
         effects = ${tx.json(toJson(args.effects ?? []))},
-        detail = ${args.detail !== undefined ? args.detail.slice(0, 2000) : null},
+        detail = ${truncateRunDetail(args.detail) ?? null},
         checkpoints = ${tx.json(
           toJson({ nodes: checkpoints.nodes, executions: args.executions }),
         )},
