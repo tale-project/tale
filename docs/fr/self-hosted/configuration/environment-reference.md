@@ -181,6 +181,14 @@ Le re-ranking est livré désactivé parce qu'il ajoute de la latence par requê
 
 Laisse-le non défini pour conserver la durée de session par défaut. Si défini, une session inactive expire côté serveur une fois la fenêtre écoulée, tandis qu'une session active continue de glisser à chaque requête. Les Administrateurs d'organisation peuvent raccourcir la fenêtre effective par organisation — jamais l'allonger au-delà de ce plafond — via la [politique de gouvernance du délai d'inactivité de session](/fr/platform/admin/governance/policies-and-limits) ; les sessions inactives sous cette politique sont révoquées par une passe qui tourne environ toutes les cinq minutes.
 
+## Tours d'agent en sandbox
+
+| Nom                              | Défaut               | Description                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 min)   | **Optionnel.** Combien de temps un tour d’agent de code en sandbox (Claude Code, OpenCode, Codex) peut rester sans que personne ne lise sa sortie avant que le daemon de la sandbox ne le récupère. Une fenêtre glissante, relancée chaque fois que la plateforme se rattache à la sortie — pas un plafond absolu sur le tour. En millisecondes. |
+
+Augmente-le quand de longs tours d’agent sur un hôte lent reviennent comme des orphelins récupérés ; la plateforme se rattache d’elle-même, la fenêtre ne termine donc qu’un tour dont la chaîne de lecture est morte. Lu par le backend au démarrage — redémarre `backend-api backend-worker` après l’avoir changé.
+
 ## Ingestion de liens vidéo (yt-dlp)
 
 Quand Tale ingère un lien vidéo, il récupère sa transcription pour l'agent. YouTube bloque l'accès automatisé depuis les IP de centres de données/serveurs, ce qui peut échouer sur un déploiement cloud. Le déploiement embarque par défaut un fournisseur de PO tokens câblé d'origine (voir [Ingestion vidéo](/fr/self-hosted/configuration/video-ingestion) pour le tableau complet) ; les options ci-dessous sont des surcharges et des escalades facultatives. Aucune ne garantit un contournement — une IP de sortie propre est le levier le plus important. Lues par le backend worker et réévaluées à chaque ingestion, donc une modification prend effet sans redémarrage.
