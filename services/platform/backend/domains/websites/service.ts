@@ -521,7 +521,7 @@ function scanIntervalToSeconds(interval: string): number {
 
 /** The refs the reused engine SCHEDULES rather than dispatches — mapped
  * onto pg-boss jobs by `crawlScheduler`, so the reachability gate counts
- * them as answered. */
+ * them as answered. Exported for tests only (`shim.test.ts`). */
 export const SCHEDULED_CRAWL_REFS = {
   scanWebsite: 'knowledge/crawl_action:scanWebsite',
   syncWebsiteRow: 'websites/internal_actions:syncWebsiteRowForDomain',
@@ -529,9 +529,10 @@ export const SCHEDULED_CRAWL_REFS = {
 
 /** The ctx shim the REUSED crawl engine runs on: knowledge handlers (org
  * lookups + embedder legs), the sandbox session verbs behind the render
- * lane, and this service's websites handlers. Exported for the
- * reachability gate (`shim.test.ts`), which requires a handler for every
- * `internal.*` ref the engine can reach. */
+ * lane, and this service's websites handlers. Exported for tests only —
+ * the reachability gate (`shim.test.ts`), which requires a handler for
+ * every `internal.*` ref the engine can reach; production reaches it
+ * through `crawlCtx` below. */
 export function crawlHandlers(sql: Sql): ShimHandlers {
   return {
     ...knowledgeShimHandlers(sql),
