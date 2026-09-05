@@ -10,7 +10,9 @@ import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { getServableCatalog } from '../lib/providers/servable_catalog';
 
 /** The whole naming attempt shares one wall-clock budget; past it the
- * fallback title wins and the reply, if it ever arrives, is discarded. */
+ * fallback title wins and the model call is ABORTED — a reply that can no
+ * longer be used must not keep the provider working (and billing) for the
+ * client's full request timeout. */
 const TITLE_TIMEOUT_MS = 10_000;
 /** A title is a handful of words; anything longer is the model rambling. */
 const TITLE_MAX_OUTPUT_TOKENS = 48;
@@ -143,6 +145,7 @@ async function generateWithModel(
   organizationId: string,
   userId: string,
   firstMessage: string,
+  signal: AbortSignal,
 ): Promise<TitleAttempt> {
   try {
     const preferredModelId: string | null = await ctx.runQuery(
@@ -155,6 +158,7 @@ async function generateWithModel(
       organizationId,
       target,
       maxTokens: TITLE_MAX_OUTPUT_TOKENS,
+      signal,
     });
     const reply = await model({
       messages: [
@@ -184,6 +188,14 @@ async function generateWithModel(
         : {}),
     };
   } catch (error) {
+    if (signal.aborted) {
+      // The race was lost and the call torn down on purpose — the fallback
+      // title is already on its way; this is the expected shape, not a fault.
+      console.warn(
+        `[generateThreadTitle] model call aborted after ${TITLE_TIMEOUT_MS}ms; fallback title used`,
+      );
+      return { title: null };
+    }
     console.warn('[generateThreadTitle] model generation failed:', error);
     return { title: null };
   }
@@ -220,6 +232,9 @@ export async function generateThreadTitleImpl(
     // Cleared once the race settles — a won race must not leave a
     // ten-second timer holding the action's environment open.
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    // Losing the race aborts the model call: its reply could no longer be
+    // used, so letting it run on would be unbilled, unusable provider work.
+    const deadline = new AbortController();
     try {
       const attempt = await Promise.race([
         generateWithModel(
@@ -227,12 +242,13 @@ export async function generateThreadTitleImpl(
           args.organizationId,
           args.userId,
           args.firstMessage,
+          deadline.signal,
         ),
         new Promise<TitleAttempt>((resolve) => {
-          timeout = setTimeout(
-            () => resolve({ title: null }),
-            TITLE_TIMEOUT_MS,
-          );
+          timeout = setTimeout(() => {
+            deadline.abort();
+            resolve({ title: null });
+          }, TITLE_TIMEOUT_MS);
         }),
       ]);
       // Book the spend BEFORE the title write: naming a thread is a model
