@@ -886,8 +886,8 @@ export function buildSpec(): Json {
         'to the landed bytes (authoritative size): a size cap, MIME or ' +
         'extension allowlist, or per-user volume refusal answers 400 with ' +
         'code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / ' +
-        '`UNSUPPORTED_FILE_TYPE`, and the per-organization `file:upload` ' +
-        'budget the in-app upload shares answers 429. A refusal rolls the ' +
+        '`UNSUPPORTED_FILE_TYPE`, and the organization’s `file:upload` ' +
+        'budget answers 429. A refusal rolls the ' +
         'intent consume back, so the handshake survives a corrected retry. ' +
         'Uses the upload lane bucket (240/min, keyed on the key holder).',
       operationId: 'bindProjectFile',
