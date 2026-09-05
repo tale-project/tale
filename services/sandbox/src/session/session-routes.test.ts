@@ -1362,7 +1362,7 @@ describe('SessionRoutes (fake runnerd)', () => {
         expect(backend.lists).toBe(1);
       });
 
-      test('concurrent misses share one backend list', async () => {
+      test('concurrent misses share one list, later arrivals one follow-up', async () => {
         let release = () => {};
         const gate = new Promise<void>((resolve) => {
           release = resolve;
@@ -1381,7 +1381,9 @@ describe('SessionRoutes (fake runnerd)', () => {
           },
         };
         const routes = new SessionRoutes(cfg, backend);
-        // Two ids, three probes, one list in flight.
+        // Two ids, three probes: the first starts a list, the two that arrive
+        // while it is in flight share ONE follow-up (a snapshot taken after
+        // their misses) — two lists, not three, and not one stale one.
         const pending = Promise.all([
           routes.handleGet('shared1'),
           routes.handleExecStatus('shared1', 'e1'),
@@ -1392,10 +1394,48 @@ describe('SessionRoutes (fake runnerd)', () => {
         const [a, b, c] = await pending;
         expect([a.status, b.status, c.status]).toEqual([200, 200, 200]);
         expect(routes.sessionCount()).toBe(2);
-        expect(backend.lists).toBe(1);
+        expect(backend.lists).toBe(2);
         // The shared list is not a cache: a later miss lists again.
         expect((await routes.handleGet('shared3')).status).toBe(404);
+        expect(backend.lists).toBe(3);
+      });
+
+      // REGRESSION (multi-replica): replica B is listing for an unrelated miss
+      // when a peer creates S and the platform's next exec-status for S lands
+      // on B. Joining the list ALREADY IN FLIGHT hands B a snapshot taken
+      // before S existed → 404 → the platform maps it to 'gone' and finalizes
+      // the turn as a phantom, although S is alive. Only a list started after
+      // the caller's miss may answer it.
+      test('a miss during an in-flight list sees a session created after that list began', async () => {
+        let release = () => {};
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const listed: BackendSession[] = [mkBackendSession('old1', 'org_peer')];
+        const backend = {
+          ...fakeBackend,
+          lists: 0,
+          async listSessions(): Promise<BackendSession[]> {
+            backend.lists += 1;
+            // `docker ps` / pod list semantics: the snapshot is taken when the
+            // list STARTS, not when it returns.
+            const snapshot = [...listed];
+            await gate;
+            return snapshot;
+          },
+        };
+        const routes = new SessionRoutes(cfg, backend);
+        const unrelated = routes.handleGet('nope');
+        expect(backend.lists).toBe(1);
+        // The peer's create completes while that list is in flight …
+        listed.push(mkBackendSession('fresh1', 'org_peer'));
+        // … and the platform's very next probe for it lands here.
+        const fresh = routes.handleGet('fresh1');
+        release();
+        expect((await unrelated).status).toBe(404);
+        expect((await fresh).status).toBe(200);
         expect(backend.lists).toBe(2);
+        expect(routes.sessionIds()).toEqual(['fresh1']);
       });
     });
 

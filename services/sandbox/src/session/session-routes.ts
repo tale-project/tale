@@ -50,10 +50,14 @@ export class SessionRoutes {
   // oversubscribe the host by the number of creates in flight.
   private readonly creating = new Map<string, string>();
 
-  // One backend list shared by every concurrent registry miss (the platform
-  // probes sessionIsAlive + exec-status per turn, so a stopped session would
-  // otherwise cost one `docker ps` / pod list PER probe). `null` when idle.
+  // Backend lists behind ensureRegistered (the platform probes sessionIsAlive
+  // + exec-status per turn, so a stopped session would otherwise cost one
+  // `docker ps` / pod list PER probe). `resolving` is the list in flight;
+  // `resolvingNext` the ONE follow-up every miss that arrives during it waits
+  // for — a caller must only be answered by a snapshot taken after its miss.
+  // Both `null` when idle; at most two lists are ever in flight.
   private resolving: Promise<BackendSession[]> | null = null;
+  private resolvingNext: Promise<BackendSession[]> | null = null;
 
   /**
    * @param isDraining Read on every registry miss: a lingering (draining)
@@ -268,15 +272,43 @@ export class SessionRoutes {
     return this.adoptSession(s);
   }
 
-  /** The backend list behind ensureRegistered: concurrent misses share the
-   * one in flight instead of each spawning their own (health-probe.ts shape,
-   * without the TTL — a resolve must see the current backend state). */
+  /**
+   * The backend list behind ensureRegistered. Concurrent misses share lists
+   * instead of each spawning their own (health-probe.ts shape, without the
+   * TTL — a resolve must see the current backend state), but a miss is only
+   * answered by a list STARTED AFTER it: `docker ps` / a pod list is a
+   * snapshot taken when it starts, so joining the one already in flight would
+   * hand a probe for a session a peer replica created a moment ago a snapshot
+   * from before it existed — a false 404 the platform reads as "gone" and
+   * finalizes the turn on. So a miss with no list in flight starts one; every
+   * miss that arrives while one is in flight is coalesced into ONE follow-up
+   * list that starts once the current one settles (success or failure).
+   */
   private listForResolve(): Promise<BackendSession[]> {
-    if (this.resolving !== null) return this.resolving;
-    this.resolving = this.backend.listSessions().finally(() => {
-      this.resolving = null;
+    if (this.resolving === null) return this.startResolve();
+    if (this.resolvingNext === null) {
+      // The in-flight list's outcome is its own callers' business — the
+      // follow-up starts either way (a failed list must not strand joiners).
+      this.resolvingNext = this.resolving
+        .then(
+          () => undefined,
+          () => undefined,
+        )
+        .then(() => {
+          this.resolvingNext = null;
+          return this.startResolve();
+        });
+    }
+    return this.resolvingNext;
+  }
+
+  private startResolve(): Promise<BackendSession[]> {
+    const list = this.backend.listSessions().finally(() => {
+      // Only clear our own slot: a follow-up may already occupy it.
+      if (this.resolving === list) this.resolving = null;
     });
-    return this.resolving;
+    this.resolving = list;
+    return list;
   }
 
   /**
