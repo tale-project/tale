@@ -32250,6 +32250,13 @@ async function checkErasure(
     if (threeStatus === 'done') break;
     await sleep(300);
   }
+  // Back to the real window the governance-tail lanes assume (a cancel
+  // inside the window; the policy read answering 1).
+  await writeFile(
+    path.join(governanceDir, 'dsar-governance.yml'),
+    'coolingOffHours: 1\n',
+  );
+  orgConfig.clearOrgConfigCaches();
   record(
     'erasure: cascade + audit scrub, cancel window, hold-blocked receipt',
     selfRefused.status === 403 &&
