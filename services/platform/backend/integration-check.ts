@@ -6827,6 +6827,78 @@ async function checkKnowledge(
         !connectionWritten,
       `probe(verify-ca)=${probeVerifyCa.status}/200 ok=${probeBody.success ? probeBody.data.ok : 'ERR'}/false error=${JSON.stringify(probeBody.success ? (probeBody.data.error ?? '').slice(0, 60) : 'ERR')}, save(blocked host)=${saveBlocked.status}/400 code=${saveBody.success ? saveBody.data.error : 'ERR'}/BLOCKED_HOST written=${connectionWritten}(want false)`,
     );
+
+    // ---- the organization's PII policy at the indexing gate -------------
+    // A `pii_config` policy is applied to every document before it is
+    // chunked or embedded. Driven end to end here — policy file → upload →
+    // rag.index_file on the live worker → `applyPiiPolicyForIndexing` →
+    // rag_status — because no unit test sees the worker read the policy.
+    // The identifier straddles the engine's window cut on purpose: the head
+    // is one word as long as a window (a single-line export), so the only
+    // separators in the cut's range are the card number's own spaces. Pre-
+    // fix neither window saw it — a block policy passed and a mask policy
+    // indexed the raw number.
+    const orgConfig = await import('./lib/org-config.ts');
+    const governanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(governanceDir, { recursive: true });
+    const piiPolicyPath = path.join(governanceDir, 'pii-config.yml');
+    const straddling = `${'a'.repeat(12_490)} 4111 1111 1111 1111 rest of the export line`;
+    const writePiiPolicy = async (mode: 'block' | 'mask'): Promise<void> => {
+      await writeFile(
+        piiPolicyPath,
+        [
+          'enabled: true',
+          `mode: ${mode}`,
+          'enabledPatterns:',
+          '  - creditCard',
+        ].join('\n'),
+      );
+      orgConfig.clearOrgConfigCaches();
+    };
+    try {
+      await writePiiPolicy('block');
+      const refused = await uploadTextDocument('cards-block.txt', straddling);
+      const refusedFailed = await waitFor(
+        async () => (await ragRow(refused.fileId)).status === 'failed',
+        20_000,
+      );
+      const refusedRow = await ragRow(refused.fileId);
+      record(
+        'knowledge: a block pii_config refuses a document whose identifier straddles the window cut',
+        refusedFailed &&
+          (refusedRow.error ?? '').includes('PII policy') &&
+          (refusedRow.error ?? '').includes('creditCard'),
+        `status=${refusedRow.status}/failed error=${JSON.stringify((refusedRow.error ?? '').slice(0, 90))}`,
+      );
+
+      await writePiiPolicy('mask');
+      const masked = await uploadTextDocument('cards-mask.txt', straddling);
+      const maskedIndexed = await waitFor(
+        async () => (await ragRow(masked.fileId)).status === 'completed',
+        20_000,
+      );
+      const maskedRow = await ragRow(masked.fileId);
+      const chunkRows = await sql<{ content: string }[]>`
+        SELECT c.chunk_content AS content
+        FROM private_knowledge.chunks c
+        JOIN private_knowledge.documents d ON d.id = c.document_id
+        WHERE d.org_slug = ${orgSlug} AND d.file_id = ${masked.storageRef}
+      `;
+      const indexedText = chunkRows.map((row) => row.content).join('\n');
+      record(
+        'knowledge: a mask pii_config indexes the masked text, never the raw identifier',
+        maskedIndexed &&
+          chunkRows.length > 0 &&
+          !indexedText.includes('4111') &&
+          !indexedText.includes('1111 1111') &&
+          indexedText.includes('[CREDIT_CARD]'),
+        `status=${maskedRow.status}/completed chunks=${chunkRows.length} raw=${indexedText.includes('4111')}(want false) token=${indexedText.includes('[CREDIT_CARD]')}(want true)`,
+      );
+    } finally {
+      // Later lanes index under no policy, as before.
+      await rm(piiPolicyPath, { force: true });
+      orgConfig.clearOrgConfigCaches();
+    }
   } finally {
     await new Promise<void>((resolve) => {
       embedServer.close(() => resolve());
