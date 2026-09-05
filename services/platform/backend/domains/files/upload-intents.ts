@@ -74,7 +74,9 @@ export interface UploadIntentKey {
  * Record that `storageRef` was minted for `userId` and `purpose`. Called by
  * the mint lanes right after the key is minted (and, for the byte lane,
  * after the bytes landed). Sweeps the org's dead handshakes and abandoned
- * uploads lazily.
+ * uploads lazily — the sweep is bookkeeping, so its failure is logged and
+ * never fails the mint: the intent row is already the record that the blob
+ * exists, and the next mint sweeps again.
  */
 export async function recordUploadIntent(
   sql: Sql | TransactionSql,
@@ -89,7 +91,14 @@ export async function recordUploadIntent(
       ${args.storageRef}, ${now + UPLOAD_INTENT_TTL_MS}, ${now}
     )
   `;
-  await sweepUploadIntents(sql, { organizationId: args.organizationId });
+  try {
+    await sweepUploadIntents(sql, { organizationId: args.organizationId });
+  } catch (error) {
+    console.warn(
+      '[files] upload-intent sweep failed; the intent is recorded, the sweep retries on the next mint:',
+      error instanceof Error ? error.message : error,
+    );
+  }
 }
 
 /**
