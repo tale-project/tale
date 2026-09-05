@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { WORKFLOW_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -215,7 +216,7 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         FROM app.sandbox_session_ops
         WHERE org_id = ${args.organizationId}
           AND session_id = ${sessionIdForWorkflowExecution(args.runId)}
-          AND kind = 'workflow-agent' AND status = 'running'
+          AND kind = ${WORKFLOW_AGENT_OP_KIND} AND status = 'running'
         ORDER BY started_at_ms DESC, id DESC
         LIMIT 1
       `;

@@ -12,6 +12,7 @@ import {
   SANDBOX_MAX_SESSIONS_PER_OWNER,
   SANDBOX_SESSION_LIVE_STATUSES,
   SANDBOX_SESSION_MAX_LIFETIME_MS,
+  WORKFLOW_AGENT_OP_KIND,
 } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
 import { toJson } from '../../db/sql.ts';
@@ -669,7 +670,7 @@ export async function getAgentNodeSandboxOp(
            last_event_at_ms::float8 AS "lastEventAt"
     FROM app.sandbox_session_ops
     WHERE session_id = ${sessionId} AND org_id = ${args.organizationId}
-      AND kind = 'workflow-agent'
+      AND kind = ${WORKFLOW_AGENT_OP_KIND}
     ORDER BY started_at_ms DESC, id DESC
     LIMIT 1
   `;

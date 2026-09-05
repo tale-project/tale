@@ -11,6 +11,11 @@ export const SANDBOX_AGENT_OP_KINDS = ['task-agent', 'workflow-agent'] as const;
 
 export type SandboxAgentOpKind = (typeof SANDBOX_AGENT_OP_KINDS)[number];
 
+/** The kind the task-agent host files its turn ops under. */
+export const TASK_AGENT_OP_KIND: SandboxAgentOpKind = 'task-agent';
+/** The kind the automation agent host files its turn ops under. */
+export const WORKFLOW_AGENT_OP_KIND: SandboxAgentOpKind = 'workflow-agent';
+
 /** Per-owner concurrent-session cap (org cap lives spawner-side too). */
 export const SANDBOX_MAX_SESSIONS_PER_OWNER = 1;
 export const SANDBOX_SESSION_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;

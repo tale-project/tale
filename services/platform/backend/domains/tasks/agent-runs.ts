@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
+import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { AUTO_RETRY_MAX_ATTEMPTS } from '../../core/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
@@ -539,7 +540,7 @@ export async function getAgentRunSandboxOp(
            last_event_at_ms::float8 AS "lastEventAt"
     FROM app.sandbox_session_ops
     WHERE org_id = ${organizationId} AND session_id = ${run.sessionId}
-      AND kind = 'task-agent'
+      AND kind = ${TASK_AGENT_OP_KIND}
       AND (exec_id = ${run.execId} OR exec_id LIKE ${`${run.execId}-%`})
     ORDER BY started_at_ms DESC
     LIMIT 1
