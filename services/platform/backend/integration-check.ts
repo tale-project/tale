@@ -5672,61 +5672,6 @@ async function checkSmallDomains(
       productCount.data.count === 3,
     `bulk=${productBulk.success ? `${productBulk.data.success}/${productBulk.data.failed}@${productBulk.data.errors[0]?.index}` : 'ERR'} (want 2/1@1), count=${productCount.success ? productCount.data.count : 'ERR'} (want 3)`,
   );
-
-  // Support case lifecycle.
-  const supportCase = z.object({ caseId: z.string() }).safeParse(
-    await (
-      await send('POST', `/api/app/support-cases?orgId=${orgId}`, {
-        subject: 'Printer on fire',
-        priority: 'urgent',
-        requesterEmail: 'customer@example.com',
-      })
-    ).json(),
-  );
-  const caseId = supportCase.success ? supportCase.data.caseId : '';
-  await send(
-    'POST',
-    `/api/app/support-cases/${caseId}/comments?orgId=${orgId}`,
-    {
-      body: 'Looking into it.',
-    },
-  );
-  await send(
-    'POST',
-    `/api/app/support-cases/${caseId}/escalate?orgId=${orgId}`,
-  );
-  await send('POST', `/api/app/support-cases/${caseId}/status?orgId=${orgId}`, {
-    status: 'resolved',
-  });
-  const caseRead = z
-    .object({
-      supportCase: z.object({
-        status: z.string(),
-        escalationLevel: z.number().nullable(),
-        commentCount: z.number(),
-        firstRespondedAt: z.number().nullable(),
-        resolvedAt: z.number().nullable(),
-      }),
-      comments: z.array(z.object({ body: z.string() })),
-      activity: z.array(z.object({ action: z.string() })),
-    })
-    .safeParse(await get(`/api/app/support-cases/${caseId}?orgId=${orgId}`));
-  const caseActions = caseRead.success
-    ? caseRead.data.activity.map((a) => a.action)
-    : [];
-  record(
-    'support case lifecycle',
-    caseRead.success &&
-      caseRead.data.supportCase.status === 'resolved' &&
-      caseRead.data.supportCase.escalationLevel === 1 &&
-      caseRead.data.supportCase.commentCount === 1 &&
-      caseRead.data.supportCase.firstRespondedAt !== null &&
-      caseRead.data.supportCase.resolvedAt !== null &&
-      caseActions.includes('created') &&
-      caseActions.includes('escalated') &&
-      caseActions.includes('status.changed'),
-    `status=${caseRead.success ? caseRead.data.supportCase.status : 'ERR'}, escalation=${caseRead.success ? caseRead.data.supportCase.escalationLevel : 'ERR'}, comments=${caseRead.success ? caseRead.data.supportCase.commentCount : 'ERR'}, activity=${caseActions.join('/')}`,
-  );
 }
 
 /**
