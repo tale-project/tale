@@ -235,7 +235,19 @@ export async function applyCorpusSchema(sql: Sql): Promise<void> {
           logger.info(
             `applying knowledge corpus migration ${schema}/${migration.name}`,
           );
-          await session.unsafe(migration.sql);
+          try {
+            await session.unsafe(migration.sql);
+          } catch (error) {
+            // A file carries its own BEGIN … COMMIT; a statement failing
+            // midway leaves the reserved session in an aborted transaction,
+            // where the `pg_advisory_unlock` below would itself fail and the
+            // session-level lock would go back to the pool still held —
+            // every later bootstrap on this database then waits forever.
+            // Roll back first, so the unlock runs and the failure is the
+            // migration's own error.
+            await session.unsafe('ROLLBACK');
+            throw error;
+          }
           await session.unsafe(
             `INSERT INTO ${schema}.schema_migrations (version) VALUES ($1)
              ON CONFLICT (version) DO NOTHING`,

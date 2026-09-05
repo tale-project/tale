@@ -236,7 +236,14 @@ describe('applyCorpusSchema — version-aware application', () => {
    * serializes `pg_advisory_lock` holders the way the server does: a second
    * taker waits until the first unlocks.
    */
-  function fakeSql(recorded: Record<string, string[]>) {
+  function fakeSql(
+    recorded: Record<string, string[]>,
+    options: {
+      /** Make the statement matching this fail — a migration file dying
+       * midway in its own transaction. */
+      failOn?: (statement: string) => boolean;
+    } = {},
+  ) {
     const executed: { statement: string; params?: unknown[] }[] = [];
     let lockHeld = false;
     const waiters: (() => void)[] = [];
@@ -244,6 +251,9 @@ describe('applyCorpusSchema — version-aware application', () => {
     let released = 0;
     const unsafe = async (statement: string, params?: unknown[]) => {
       executed.push({ statement, params });
+      if (options.failOn?.(statement)) {
+        throw new Error(`relation "chunks" already exists`);
+      }
       if (statement.includes('pg_advisory_lock(')) {
         if (lockHeld) {
           await new Promise<void>((resolve) => waiters.push(resolve));
@@ -369,6 +379,41 @@ describe('applyCorpusSchema — version-aware application', () => {
     expect(lockAt).toBeGreaterThanOrEqual(0);
     expect(lockAt).toBeLessThan(firstRead);
     expect(unlockAt).toBe(order.length - 1);
+    expect(sessions()).toEqual({ reserved: 1, released: 1 });
+  });
+
+  it('rolls back a migration file that fails midway before releasing the lock and the connection', async () => {
+    // A baseline file carries its own BEGIN … COMMIT. A statement failing
+    // inside it leaves the reserved session in an aborted transaction, where
+    // `pg_advisory_unlock` would fail too and the session-level lock would
+    // return to the pool still held — every later bootstrap on that database
+    // then waits forever. The ROLLBACK must come first, and the failure that
+    // surfaces must be the migration's own.
+    const { privateVersions } = versionsBySchema();
+    const { sql, executed, sessions } = fakeSql(
+      { private_knowledge: privateVersions, public_web: [] },
+      {
+        failOn: (statement) =>
+          statement.includes('CREATE TABLE IF NOT EXISTS public_web.chunks'),
+      },
+    );
+
+    await expect(applyCorpusSchema(sql)).rejects.toThrow(
+      'relation "chunks" already exists',
+    );
+
+    const order = executed.map(({ statement }) => statement);
+    const failedAt = order.findIndex((s) =>
+      s.includes('CREATE TABLE IF NOT EXISTS public_web.chunks'),
+    );
+    const rollbackAt = order.indexOf('ROLLBACK');
+    const unlockAt = order.findIndex((s) => s.includes('pg_advisory_unlock('));
+    expect(failedAt).toBeGreaterThanOrEqual(0);
+    expect(rollbackAt).toBe(failedAt + 1);
+    expect(unlockAt).toBe(rollbackAt + 1);
+    expect(unlockAt).toBe(order.length - 1);
+    // The failed file is not recorded as applied.
+    expect(insertedVersions(executed)).toEqual([]);
     expect(sessions()).toEqual({ reserved: 1, released: 1 });
   });
 
