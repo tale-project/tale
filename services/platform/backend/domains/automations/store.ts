@@ -2,6 +2,10 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { parseCron, wallClockIn } from '../../core/automations/cron.ts';
 import {
+  LIVENESS_SWEEP_LIMIT,
+  RUN_CLAIM_PROMISE_MS,
+} from '../../core/automations/liveness.ts';
+import {
   hashWebhookToken,
   mintWebhookToken,
 } from '../../core/automations/webhook_token.ts';
@@ -23,8 +27,6 @@ import { dismissAgentQuestionNotifications } from '../collab/service.ts';
  * transactional-enqueue rule) so a scheduled resume can never outrun or
  * miss its row.
  */
-
-export const RUN_CLAIM_PROMISE_MS = 3 * 60_000;
 
 export class AutomationError extends Error {
   readonly code: string;
@@ -1310,7 +1312,10 @@ export async function finishRun(
 // ---------------------------------------------------------------- liveness
 
 /** The sweep: overdue non-terminal runs get a fresh stepper poke. */
-export async function sweepOverdueRuns(sql: Sql, limit = 50): Promise<number> {
+export async function sweepOverdueRuns(
+  sql: Sql,
+  limit = LIVENESS_SWEEP_LIMIT,
+): Promise<number> {
   const rows = await sql<{ id: string; orgId: string }[]>`
     SELECT id, org_id AS "orgId" FROM app.automation_runs
     WHERE status IN ('queued', 'running', 'waiting')
