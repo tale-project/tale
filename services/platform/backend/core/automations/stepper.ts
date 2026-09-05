@@ -58,9 +58,9 @@ import { automationLlmCall, type AutomationLlmCall } from './llm_call';
 
 /**
  * How long one invocation works before handing the run back to the scheduler.
- * Convex bounds an action well above this; stepping out early means a long node
- * started near the end of a turn still has room to finish inside the platform's
- * ceiling instead of being killed mid-effect.
+ * The `automation.step` job's expiry (jobs/tasks.ts) sits hours above this;
+ * stepping out early means a long node started near the end of a turn still
+ * has room to finish inside that ceiling instead of being killed mid-effect.
  *
  * Read per turn, and overridable with `TALE_AUTOMATION_STEP_BUDGET_MS`, so a
  * deployment with a tighter action ceiling can shorten it — and so the
