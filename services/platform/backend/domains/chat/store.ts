@@ -143,6 +143,68 @@ export async function appendMessageRow(
   return { id: row.id, sequence: row.order };
 }
 
+/**
+ * The failure-shaped finalize: no `text` means "keep whatever the throttled
+ * streaming writes persisted" (the pipeline's contract) — but in Postgres the
+ * streamed text and reasoning live on the GENERATION row, which the same
+ * turn's `endGeneration` deletes a moment later. Copy the streamed tail onto
+ * the message first, in one transaction with the failure stamp: the text
+ * column, the reasoning column (the pipeline passes none on failure), and a
+ * trailing text part, because the client renders parts. A tool-round
+ * boundary resets the generation text BEFORE the round's text lands on the
+ * parts, so a non-empty generation text is always an unsettled tail — never
+ * a duplicate of a part already stored.
+ */
+async function finalizeWithStreamedTail(
+  sql: Sql,
+  message: Parameters<TurnStore['finalizeAssistantMessage']>[0],
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    const generation = await tx<{ text: string; reasoning: string | null }[]>`
+      SELECT text, reasoning FROM app.generations
+      WHERE thread_id = ${message.threadId} AND org_id = ${message.organizationId}
+      LIMIT 1
+    `;
+    const streamedText = generation[0]?.text ?? '';
+    const streamedReasoning = generation[0]?.reasoning ?? '';
+    let parts: unknown[] | null = null;
+    if (streamedText.length > 0) {
+      const stored = await tx<{ parts: unknown }[]>`
+        SELECT parts FROM app.messages
+        WHERE id = ${message.messageId} AND org_id = ${message.organizationId}
+        LIMIT 1
+      `;
+      const existing = Array.isArray(stored[0]?.parts) ? stored[0].parts : [];
+      const last: unknown = existing.at(-1);
+      const alreadyStored =
+        typeof last === 'object' &&
+        last !== null &&
+        'type' in last &&
+        last.type === 'text' &&
+        'text' in last &&
+        last.text === streamedText;
+      parts = alreadyStored
+        ? null
+        : [...existing, { type: 'text', text: streamedText }];
+    }
+    await tx`
+      UPDATE app.messages SET
+        text = coalesce(nullif(${streamedText}, ''), text),
+        reasoning = coalesce(
+          ${message.reasoning ?? null}, nullif(${streamedReasoning}, ''), reasoning
+        ),
+        parts = coalesce(${parts === null ? null : tx.json(toJson(parts))}, parts),
+        model = coalesce(${message.model ?? null}, model),
+        provider_slug = coalesce(${message.providerSlug ?? null}, provider_slug),
+        usage = coalesce(${message.usage === undefined ? null : tx.json(toJson(message.usage))}, usage),
+        blocked_reason = ${message.blockedReason ?? null},
+        error = ${message.error ?? null},
+        status = ${message.error !== undefined ? 'failed' : 'complete'}
+      WHERE id = ${message.messageId} AND org_id = ${message.organizationId}
+    `;
+  });
+}
+
 /** A turn store over app.messages + app.generations. */
 export function createPgTurnStore(sql: Sql): TurnStore {
   let lastStreamWriteAt = 0;
@@ -198,9 +260,13 @@ export function createPgTurnStore(sql: Sql): TurnStore {
     },
 
     async finalizeAssistantMessage(message) {
+      if (message.text === undefined) {
+        await finalizeWithStreamedTail(sql, message);
+        return;
+      }
       await sql`
         UPDATE app.messages SET
-          text = coalesce(${message.text ?? null}, text),
+          text = coalesce(${message.text}, text),
           reasoning = ${message.reasoning ?? null},
           parts = coalesce(${message.parts === undefined ? null : sql.json(toJson([...message.parts]))}, parts),
           model = coalesce(${message.model ?? null}, model),
