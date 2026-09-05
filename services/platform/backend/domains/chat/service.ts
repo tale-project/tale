@@ -21,7 +21,8 @@ import { createPgTurnStore, createPgUsageLedger } from './store.ts';
  *
  * Same execution contract as the 0.4 action host: the caller awaits the
  * turn (at-most-once, no retry — an LLM spend must not replay), streaming
- * progress lands on `app.generations` (NOTIFY-nudged, see `store.ts`), and
+ * progress lands on `app.generations` (polled by the stream lane, see
+ * `store.ts`), and
  * cancel is a flag on that row the throttled progress writes read back.
  */
 

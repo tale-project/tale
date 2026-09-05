@@ -22,18 +22,14 @@ import { MESSAGE_SLOT_ATTEMPTS } from '../threads/store.ts';
  * text, so skipped intervals never lose the tail), cancel piggybacked on the
  * progress write, and a generations row whose ABSENCE means idle.
  *
- * Realtime: every progress/finalize/end write NOTIFYs `chat_stream` with the
- * thread id; API pods LISTEN once per process and re-read the row for their
- * subscribed SSE clients (payload-cap-safe, reconnect-safe).
+ * Realtime rides the rows themselves: the per-thread progress lane
+ * (`routes.ts` `/threads/:id/stream`) polls the generation row at this
+ * store's write throttle, so no LISTEN/NOTIFY hub exists — a push could not
+ * beat the throttle, and a listener would add a connection without adding
+ * freshness.
  */
 
 const STREAM_WRITE_INTERVAL_MS = 250;
-
-export const CHAT_STREAM_CHANNEL = 'chat_stream';
-
-async function notifyThread(sql: Sql, threadId: string): Promise<void> {
-  await sql.notify(CHAT_STREAM_CHANNEL, threadId);
-}
 
 export async function appendMessageRow(
   sql: Sql,
@@ -181,7 +177,6 @@ export function createPgTurnStore(sql: Sql): TurnStore {
         RETURNING cancel_requested AS "cancelRequested"
       `;
       lastCancelRequested = rows[0]?.cancelRequested ?? false;
-      await notifyThread(sql, update.threadId);
       return { cancelRequested: lastCancelRequested };
     },
 
@@ -200,7 +195,6 @@ export function createPgTurnStore(sql: Sql): TurnStore {
         WHERE thread_id = ${update.threadId}
           AND org_id = ${update.organizationId}
       `;
-      await notifyThread(sql, update.threadId);
     },
 
     async finalizeAssistantMessage(message) {
@@ -217,7 +211,6 @@ export function createPgTurnStore(sql: Sql): TurnStore {
           status = ${message.error !== undefined ? 'failed' : 'complete'}
         WHERE id = ${message.messageId} AND org_id = ${message.organizationId}
       `;
-      await notifyThread(sql, message.threadId);
     },
 
     async beginTurn(setup) {
@@ -279,7 +272,6 @@ export function createPgTurnStore(sql: Sql): TurnStore {
           assistantMessage,
         };
       });
-      await notifyThread(sql, setup.threadId);
       return opened;
     },
 
@@ -310,7 +302,6 @@ export function createPgTurnStore(sql: Sql): TurnStore {
             AND status = 'pending'
         `;
       });
-      await notifyThread(sql, generation.threadId);
     },
   };
 }

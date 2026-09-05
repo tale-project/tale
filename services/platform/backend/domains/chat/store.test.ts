@@ -132,12 +132,10 @@ function fakeChatSql(options: { threadHeld?: boolean } = {}): {
   pool: Statement[];
   tx: Statement[];
   transactions: Array<'commit' | 'rollback'>;
-  notified: string[];
 } {
   const pool: Statement[] = [];
   const tx: Statement[] = [];
   const transactions: Array<'commit' | 'rollback'> = [];
-  const notified: string[] = [];
   let messageRows = 0;
   const answer = (text: string): unknown[] => {
     if (text.includes('INSERT INTO app.messages')) {
@@ -162,10 +160,6 @@ function fakeChatSql(options: { threadHeld?: boolean } = {}): {
     return tag;
   };
   const pooled = Object.assign(makeTag(pool), {
-    notify(channel: string, payload: string) {
-      notified.push(`${channel}:${payload}`);
-      return Promise.resolve();
-    },
     async begin(fn: (tx: unknown) => Promise<unknown>) {
       try {
         const result = await fn(makeTag(tx));
@@ -177,8 +171,8 @@ function fakeChatSql(options: { threadHeld?: boolean } = {}): {
       }
     },
   });
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the turn store exercises exactly the tag, json, notify, and begin surfaces faked here
-  return { sql: pooled as unknown as Sql, pool, tx, transactions, notified };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the turn store exercises exactly the tag, json, and begin surfaces faked here
+  return { sql: pooled as unknown as Sql, pool, tx, transactions };
 }
 
 const OPEN = {
@@ -188,7 +182,7 @@ const OPEN = {
 };
 
 describe('createPgTurnStore.beginTurn', () => {
-  it('opens the turn inside ONE transaction and notifies only once it committed', async () => {
+  it('opens the turn inside ONE transaction', async () => {
     const f = fakeChatSql();
     const opened = await createPgTurnStore(f.sql).beginTurn(OPEN);
 
@@ -208,7 +202,6 @@ describe('createPgTurnStore.beginTurn', () => {
     expect(
       texts.some((t) => t.includes("generation_status = 'generating'")),
     ).toBe(true);
-    expect(f.notified).toEqual(['chat_stream:thread_1']);
   });
 
   it('claims the thread with DO NOTHING and rolls the whole open back when another turn holds it', async () => {
@@ -224,9 +217,7 @@ describe('createPgTurnStore.beginTurn', () => {
     );
     expect(claim?.text).toContain('ON CONFLICT (thread_id) DO NOTHING');
     expect(claim?.text).not.toContain('DO UPDATE');
-    // The loser announces nothing — no NOTIFY for a turn that never opened,
-    // and no sidecar write claiming the thread is generating.
-    expect(f.notified).toEqual([]);
+    // The loser leaves no sidecar write claiming the thread is generating.
     expect(
       f.tx.some((s) => s.text.includes("generation_status = 'generating'")),
     ).toBe(false);
@@ -256,6 +247,5 @@ describe('createPgTurnStore.endGeneration', () => {
           t.includes("status = 'failed'") && t.includes("status = 'pending'"),
       ),
     ).toBe(true);
-    expect(f.notified).toEqual(['chat_stream:thread_1']);
   });
 });

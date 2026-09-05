@@ -1371,9 +1371,9 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   // The per-thread progress lane. Emits `progress` while a generation row
   // exists (whenever its updated_at_ms moves) and `settled` with the final
   // message when it disappears; stays open for the thread's next turn.
-  // Polling AT the store's 250ms write throttle: pushing (the NOTIFY the
-  // store already sends) cannot beat the throttle, so a listener hub would
-  // add a connection without adding freshness.
+  // Polling AT the store's 250ms write throttle: a push (LISTEN/NOTIFY)
+  // could not beat the throttle, so a listener hub would add a connection
+  // without adding freshness.
   app.get('/threads/:threadId/stream', async (c) => {
     const { organizationId, userId } = caller(c);
     const thread = await ownedThread(
