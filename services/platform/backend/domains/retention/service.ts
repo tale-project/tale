@@ -20,6 +20,7 @@ import {
 } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
+import { markEntryChainDeletedForDocument } from '../knowledge_entries/service.ts';
 import { loadActiveHolds, type ActiveHolds } from '../legal_holds/service.ts';
 import { cascadeDeleteThreadTtsChunks } from '../tts/service.ts';
 
@@ -454,10 +455,7 @@ export async function purgeDocument(
     }
   }
   await sql.begin(async (tx) => {
-    await tx`
-      UPDATE app.knowledge_entries SET deleted_at_ms = ${Date.now()}
-      WHERE document_id = ${doc.id} AND deleted_at_ms IS NULL
-    `;
+    await markEntryChainDeletedForDocument(tx, doc.organizationId, doc.id);
     await tx`
       DELETE FROM app.file_metadata WHERE document_id = ${doc.id}
     `;

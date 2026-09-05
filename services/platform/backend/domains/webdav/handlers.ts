@@ -31,6 +31,7 @@ import {
   syncRagDocumentScope,
   syncRagFolderSubtree,
 } from '../knowledge/service.ts';
+import { markEntryChainDeletedForDocument } from '../knowledge_entries/service.ts';
 import {
   assertNotHeld,
   LegalHoldError,
@@ -360,6 +361,10 @@ async function softDeleteDocumentInner(
       updated_at_ms = ${Date.now()}
     WHERE id = ${documentId}
   `;
+  // A knowledge entry's backing document is an ordinary hub row here; the
+  // entry must not outlive it (listed, counted, served, while its corpus
+  // rows are dark).
+  await markEntryChainDeletedForDocument(tx, organizationId, documentId);
 }
 
 async function assertFolderTreeNotHeld(
@@ -449,6 +454,7 @@ async function cascadeDeleteFolderRecursive(
           updated_at_ms = ${Date.now()}
         WHERE id = ${d.id}
       `;
+      await markEntryChainDeletedForDocument(tx, organizationId, d.id);
     }
   }
   await tx`DELETE FROM app.folders WHERE id = ${folderId}`;

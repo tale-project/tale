@@ -34,7 +34,12 @@ import { markRagQueued } from '../knowledge/service.ts';
  * soft-deletes the chain and trashes the backing document — the
  * retrievability filter excludes trashed documents, so the corpus rows go
  * dark immediately, and the retention purge releases them physically (lazy
- * cleanup posture).
+ * cleanup posture). The reverse holds too: a backing document removed
+ * through ANY other door (the Documents tab's purge, a WebDAV DELETE, the
+ * retention sweep) soft-deletes its entry chain via
+ * `markEntryChainDeletedForDocument`, so a trashed document never leaves an
+ * entry listed, counted and served to the agent leg while its corpus rows
+ * are dark — the 0.4 `deleteDocument → markEntryChainDeleted` contract.
  *
  * Mutations are role-gated at this seam (`authorizeRls(role, 'knowledge',
  * 'write')`): entries materialize `app.documents` rows and feed the org's
@@ -364,13 +369,20 @@ export async function updateKnowledgeEntry(
   const { topic, topicKey, content } = validate(args.topic, args.content);
   const blob = await storeEntryBlob(sql, args.organizationId, content);
   return sql.begin(async (tx) => {
+    // The backing document must still be ACTIVE: a version written onto a
+    // trashed document would rotate its blob and index content nobody can
+    // retrieve (the filter excludes trashed documents). Such an entry is
+    // gone from the caller's point of view, so it answers as not found.
     const currents = await tx<
       { id: string; topicKey: string; documentId: string | null }[]
     >`
-      SELECT id, topic_key AS "topicKey", document_id AS "documentId"
-      FROM app.knowledge_entries
-      WHERE id = ${args.entryId} AND org_id = ${args.organizationId}
-        AND status = 'active' AND deleted_at_ms IS NULL
+      SELECT ke.id, ke.topic_key AS "topicKey", ke.document_id AS "documentId"
+      FROM app.knowledge_entries ke
+      LEFT JOIN app.documents d ON d.id = ke.document_id
+      WHERE ke.id = ${args.entryId} AND ke.org_id = ${args.organizationId}
+        AND ke.status = 'active' AND ke.deleted_at_ms IS NULL
+        AND (d.id IS NULL OR d.lifecycle_status IS NULL
+             OR d.lifecycle_status = 'active')
       LIMIT 1
     `;
     const current = currents[0];
@@ -424,6 +436,30 @@ export async function updateKnowledgeEntry(
     });
     return entryId;
   });
+}
+
+/**
+ * Soft-delete every version of the entry chain a document backs — the hook
+ * every path that trashes or purges a document calls, so a knowledge entry
+ * can never outlive its backing document. Org-scoped; the chain is every row
+ * sharing the topic key, which is also every row sharing the document (a
+ * version re-materializes onto the same document). Returns how many rows
+ * were marked; zero when the document backs no entry.
+ */
+export async function markEntryChainDeletedForDocument(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  documentId: string,
+): Promise<number> {
+  const result = await tx`
+    UPDATE app.knowledge_entries SET deleted_at_ms = ${Date.now()}
+    WHERE org_id = ${organizationId} AND deleted_at_ms IS NULL
+      AND topic_key IN (
+        SELECT topic_key FROM app.knowledge_entries
+        WHERE org_id = ${organizationId} AND document_id = ${documentId}
+      )
+  `;
+  return result.count;
 }
 
 /** Soft-delete the whole topic chain and trash the backing document — the

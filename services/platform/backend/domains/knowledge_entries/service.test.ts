@@ -48,8 +48,12 @@ vi.mock('../../lib/object-store.ts', async (importOriginal) => ({
   ...store,
 }));
 
-const { createKnowledgeEntry, updateKnowledgeEntry, KnowledgeEntryError } =
-  await import('./service.ts');
+const {
+  createKnowledgeEntry,
+  updateKnowledgeEntry,
+  markEntryChainDeletedForDocument,
+  KnowledgeEntryError,
+} = await import('./service.ts');
 
 interface Statement {
   text: string;
@@ -96,8 +100,11 @@ function fakeSql(script: Script): { sql: Sql; statements: Statement[] } {
           : [],
       );
     }
-    if (text.includes('topic_key AS "topicKey", document_id')) {
+    if (text.includes('LEFT JOIN app.documents')) {
       return Promise.resolve(script.current ? [script.current] : []);
+    }
+    if (text.includes('UPDATE app.knowledge_entries SET deleted_at_ms')) {
+      return Promise.resolve(Object.assign([], { count: 3 }));
     }
     // `findActiveByTopicKey`: no clash.
     return Promise.resolve([]);
@@ -254,5 +261,46 @@ describe('storing the entry blob', () => {
         content: 'Open 9-5',
       }),
     ).rejects.toThrow('fetch failed');
+  });
+});
+
+describe('an entry whose backing document is gone', () => {
+  it('refuses a new version as not found once the document is not active', async () => {
+    // The read joins the document's lifecycle; a trashed document yields no
+    // row. Without the gate the edit rotated the blob and enqueued indexing
+    // onto a document nobody can retrieve.
+    const { sql, statements } = fakeSql({});
+
+    await expect(
+      updateKnowledgeEntry(sql, {
+        ...WRITER,
+        entryId: 'entry-old',
+        topic: 'Store hours',
+        content: 'Open 9-6',
+      }),
+    ).rejects.toMatchObject({ code: 'KNOWLEDGE_ENTRY_NOT_FOUND', status: 404 });
+    const read = statements.find((s) =>
+      s.text.includes('LEFT JOIN app.documents'),
+    );
+    expect(read?.text).toContain("lifecycle_status = 'active'");
+    expect(statements.some((s) => s.text.includes('INSERT'))).toBe(false);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('soft-deletes the whole chain the document backs, inside the organization', async () => {
+    const { sql, statements } = fakeSql({});
+
+    const marked = await markEntryChainDeletedForDocument(sql, ORG, 'doc-1');
+
+    expect(marked).toBe(3);
+    const [update] = statements;
+    expect(update?.text).toContain(
+      'UPDATE app.knowledge_entries SET deleted_at_ms',
+    );
+    // Every version of the topic chain, not only the row pointing at the
+    // document — and never a row of another organization.
+    expect(update?.text).toContain('topic_key IN');
+    expect(update?.text).toContain('deleted_at_ms IS NULL');
+    expect(update?.values).toEqual([expect.any(Number), ORG, ORG, 'doc-1']);
   });
 });
