@@ -912,22 +912,60 @@ export interface ResolveCredentialOptions {
   readonly fetchImpl?: FetchLike;
 }
 
-/** Persist that the grant is dead: only a new consent brings the row back,
- * and every listing stops offering it meanwhile. */
+/**
+ * Persist that the grant is dead: only a new consent brings the row back,
+ * and every listing stops offering it meanwhile. Guarded by the same
+ * compare-and-swap on `updated_at_ms` as the refresh write: the verdict is
+ * about the envelope that was READ, so a row an operator re-issued (Reconnect
+ * stores a fresh grant) or a concurrent refresh renewed in the meantime is
+ * not flipped on the strength of a stale token. Answers whether this call
+ * wrote the row — false means someone else wrote first and the caller must
+ * re-read.
+ */
 async function markNeedsReauth(
   sql: Sql,
   row: CredentialRow,
   statusDetail: string,
-): Promise<void> {
-  await sql`
+): Promise<boolean> {
+  const flipped = await sql<{ id: string }[]>`
     UPDATE app.connector_credentials
     SET status = 'needs-reauth', status_detail = ${statusDetail},
         updated_at_ms = ${Date.now()}
     WHERE id = ${row.id} AND org_id = ${row.organizationId}
+      AND updated_at_ms = ${row.updatedAt}
+    RETURNING id
   `;
+  if (flipped.length === 0) {
+    console.warn(
+      `[connector-credentials] "${row.connectorSlug}" credential "${row.name}" changed under the refresh for organization ${row.organizationId}; not marking needs-reauth (${statusDetail})`,
+    );
+    return false;
+  }
   console.warn(
     `[connector-credentials] "${row.connectorSlug}" credential "${row.name}" needs re-authorization for organization ${row.organizationId}: ${statusDetail}`,
   );
+  return true;
+}
+
+/**
+ * After a lost compare-and-swap: a concurrent invocation (or an operator
+ * edit) wrote the row first, so its envelope is the truth now — read it
+ * back and use that, refreshing again only if it too is expired, and hand
+ * the re-read row out as it stands once the retry budget is spent.
+ */
+async function resolveAfterLostCas(
+  sql: Sql,
+  row: CredentialRow,
+  options: ResolveCredentialOptions,
+  attempt: number,
+): Promise<{ row: CredentialRow; payload: ConnectorSecretPayload }> {
+  const current = await requireOwnRow(sql, row.organizationId, row.id);
+  assertRowUsable(current);
+  const currentPayload = openRowEnvelope(current);
+  if (attempt >= OAUTH2_REFRESH_MAX_ATTEMPTS) {
+    return { row: current, payload: currentPayload };
+  }
+  return freshenOauth2Row(sql, current, currentPayload, options, attempt + 1);
 }
 
 /**
@@ -943,9 +981,10 @@ async function markNeedsReauth(
  * consent withdrawn) has ended the grant, so the row is marked `needs-reauth`
  * with the vendor's code and refused — the settings page shows Reconnect. A
  * grant that carries no refresh token cannot be renewed at all and is marked
- * the same way. A vendor that could not be reached says nothing about the
- * grant: the row keeps its status and the invocation is refused with a
- * distinct, retryable code.
+ * the same way — both marks are under the same CAS, so a row re-issued or
+ * renewed meanwhile is re-read instead of flipped. A vendor that could not
+ * be reached says nothing about the grant: the row keeps its status and the
+ * invocation is refused with a distinct, retryable code.
  */
 async function freshenOauth2Row(
   sql: Sql,
@@ -965,7 +1004,9 @@ async function freshenOauth2Row(
   if (payload.refreshToken === undefined) {
     const statusDetail =
       'the access token expired and the grant carries no refresh token';
-    await markNeedsReauth(sql, row, statusDetail);
+    if (!(await markNeedsReauth(sql, row, statusDetail))) {
+      return resolveAfterLostCas(sql, row, options, attempt);
+    }
     throw needsReauthError(row.name, row.connectorSlug, statusDetail);
   }
 
@@ -1005,7 +1046,9 @@ async function freshenOauth2Row(
       const statusDetail = refreshed.code
         ? `the vendor rejected the token refresh: ${refreshed.code}`
         : 'the vendor rejected the token refresh';
-      await markNeedsReauth(sql, row, statusDetail);
+      if (!(await markNeedsReauth(sql, row, statusDetail))) {
+        return resolveAfterLostCas(sql, row, options, attempt);
+      }
       throw needsReauthError(row.name, row.connectorSlug, statusDetail);
     }
     console.warn(
@@ -1047,16 +1090,7 @@ async function freshenOauth2Row(
     return { row: stored, payload: next };
   }
 
-  // Lost the CAS: a concurrent invocation (or an operator edit) wrote the
-  // row first. Its envelope is the truth now — read it back and use that,
-  // refreshing again only if it too is expired.
-  const current = await requireOwnRow(sql, row.organizationId, row.id);
-  assertRowUsable(current);
-  const currentPayload = openRowEnvelope(current);
-  if (attempt >= OAUTH2_REFRESH_MAX_ATTEMPTS) {
-    return { row: current, payload: currentPayload };
-  }
-  return freshenOauth2Row(sql, current, currentPayload, options, attempt + 1);
+  return resolveAfterLostCas(sql, row, options, attempt);
 }
 
 /**

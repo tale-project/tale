@@ -83,10 +83,10 @@ interface Store {
 
 /**
  * A `sql` double over one credential row that behaves like the table: the
- * listing and the by-id re-read answer the stored row, the needs-reauth
- * UPDATE flips it, and the CAS UPDATE … RETURNING either stores the sealed
- * envelope or — when a concurrent write got there first — changes nothing
- * and returns no row. Every UPDATE is also captured for inspection.
+ * listing and the by-id re-read answer the stored row, and both CAS UPDATEs
+ * (the needs-reauth flip and the re-sealed envelope) either write the row
+ * or — when a concurrent write got there first — change nothing and return
+ * no row. Every UPDATE is also captured for inspection.
  */
 function fakeSql(store: Store): Sql & { updates: Update[] } {
   const updates: Update[] = [];
@@ -95,12 +95,18 @@ function fakeSql(store: Store): Sql & { updates: Update[] } {
     if (text.includes('UPDATE app.connector_credentials')) {
       updates.push({ text, values });
       if (text.includes("status = 'needs-reauth'")) {
+        if (store.casLostTo !== undefined) {
+          store.row = store.casLostTo;
+          store.casLostTo = undefined;
+          return Promise.resolve([]);
+        }
         store.row = {
           ...store.row,
           status: 'needs-reauth',
           statusDetail: values[0],
+          updatedAt: values[1] as number,
         };
-        return Promise.resolve([]);
+        return Promise.resolve([{ id: store.row.id }]);
       }
       if (text.includes('RETURNING')) {
         if (store.casLostTo !== undefined) {
@@ -292,6 +298,64 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     });
     // The dead token is not re-sealed as if it were live.
     expect(envelopeOf(store).accessToken).toBe('dead-token');
+  });
+
+  it('does not flip a grant an operator re-issued between the read and the vendor rejection', async () => {
+    // Reconnect stored a fresh envelope after this invocation read the row
+    // and before the vendor rejected the old refresh token: the verdict is
+    // about a stale envelope, so the needs-reauth write must lose its CAS
+    // and the fresh grant is what gets handed out.
+    const store: Store = {
+      row: row({ ...EXPIRED, refreshToken: 'revoked' }),
+      casLostTo: row(
+        {
+          accessToken: 'reconnected-token',
+          refreshToken: 'refresh-9',
+          expiresAt: Date.now() + HOUR,
+        },
+        { updatedAt: 2000 },
+      ),
+    };
+    const sql = fakeSql(store);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ error: 'invalid_grant' }, 400));
+    const resolved = await resolveConnectorCredential(sql, ARGS, {
+      fetchImpl,
+    });
+    expect(resolved.authHeader).toBe('Bearer reconnected-token');
+    expect(store.row.status).toBe('active');
+    expect(envelopeOf(store).accessToken).toBe('reconnected-token');
+    // One attempted write, guarded by the updated_at_ms that was read.
+    expect(sql.updates).toHaveLength(1);
+    const [update] = sql.updates;
+    expect(update.text).toContain("status = 'needs-reauth'");
+    expect(update.text).toContain('AND updated_at_ms = ?');
+    expect(update.values).toContain(1000);
+  });
+
+  it("refuses with the winner's verdict when a concurrent refresh already marked the row", async () => {
+    const store: Store = {
+      row: row({ ...EXPIRED, refreshToken: 'revoked' }),
+      casLostTo: row(
+        { ...EXPIRED, refreshToken: 'revoked' },
+        {
+          status: 'needs-reauth',
+          statusDetail: 'the vendor rejected the token refresh: invalid_grant',
+          updatedAt: 2000,
+        },
+      ),
+    };
+    const sql = fakeSql(store);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ error: 'invalid_grant' }, 400));
+    const attempt = resolveConnectorCredential(sql, ARGS, { fetchImpl });
+    await expect(attempt).rejects.toMatchObject({
+      code: 'CREDENTIAL_NEEDS_REAUTH',
+    });
+    await expect(attempt).rejects.toThrow(/invalid_grant/);
+    expect(sql.updates).toHaveLength(1);
   });
 
   it('refuses with a retryable code when the vendor is unreachable, leaving the row active', async () => {
