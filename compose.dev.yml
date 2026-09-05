@@ -64,6 +64,10 @@ x-dev-secrets: &dev-secrets
   # Stable dev key so the audit hash-chain verifies; absent → "integrity check
   # failed" alert on an otherwise-clean stack. Rotate for production.
   TALE_AUDIT_SIGNING_KEY: ${TALE_AUDIT_SIGNING_KEY:-4f8c2a9e7b1d6035e4a8c2f9d7b3061a5e8c4f2a9d7b30615e4c8a2f9d7b30614}
+  # Stable dev pepper so failed sign-ins reach the audit log as hashes, the
+  # way a `tale init` deployment writes them; absent → plaintext email + IP
+  # and a [SECURITY] warning at the first write. Rotate for production.
+  TALE_AUDIT_PEPPER: ${TALE_AUDIT_PEPPER:-9c1e5b7d3a2f8064e1c7a9d5b3f2e8c604a7d1b9e5c3f8a2d6b0e4c7a1f9d3b5}
   # The sandbox control plane fails closed without these two: the spawner
   # refuses to boot without SANDBOX_TOKEN (it holds the docker socket and sits
   # on the network every session container shares), and the backend refuses
