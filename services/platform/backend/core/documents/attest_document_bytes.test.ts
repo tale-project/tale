@@ -160,6 +160,25 @@ describe('replacement byte-derived MIME attestation', () => {
       new Uint8Array([0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77]),
       'application/octet-stream',
     ],
+    // The proprietary container may carry a generic signature (a ZIP or
+    // gzip block, a Compound File without an Office stream) — none of them
+    // is a document type another allowed extension claims, so the ledger
+    // stays replaceable.
+    [
+      'zipped-ledger.ac2',
+      encoder.encode('PK\u0003\u0004not an Office package'),
+      'application/octet-stream',
+    ],
+    [
+      'gzipped-ledger.ac2',
+      new Uint8Array([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00]),
+      'application/octet-stream',
+    ],
+    [
+      'compound-ledger.ac2',
+      legacyOfficeBytes('LedgerData'),
+      'application/octet-stream',
+    ],
     ['legacy.doc', legacyOfficeBytes('WordDocument'), 'application/msword'],
     ['legacy.xls', legacyOfficeBytes('Workbook'), 'application/vnd.ms-excel'],
     [
@@ -232,6 +251,7 @@ describe('replacement byte-derived MIME attestation', () => {
     ['spoofed.md', new Uint8Array([0, 1, 2, 3, 4])],
     ['spoofed.json', new Uint8Array([0xff, 0xd8, 0xff, 0xdb])],
     ['spoofed.ac2', new Uint8Array([0xff, 0xd8, 0xff, 0xdb])],
+    ['spoofed-office.ac2', legacyOfficeBytes('WordDocument')],
     ['wrong-extension.pdf', new Uint8Array([0xff, 0xd8, 0xff, 0xdb])],
   ])('rejects spoofed bytes for %s', async (fileName, bytes) => {
     await expect(attestDocumentContentType(bytes, fileName)).rejects.toThrow(

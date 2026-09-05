@@ -49,9 +49,36 @@ const UTF8_TEXT_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
 /**
  * Opaque vendor containers the upload lane admits as blobs: no signature to
  * check, no parser, no preview — the bytes are attested only as "not a
- * document of another format" and stored as an octet stream.
+ * document of another format" and stored as an octet stream. The format is
+ * proprietary (Banana's `.ac2`: "compacted and stored as a single block", no
+ * published magic number), so the container may well carry a generic
+ * signature (ZIP, gzip, CFB) — those pass; only a signature ANOTHER allowed
+ * document type claims is refused, or a real ledger could never be replaced.
  */
 const OPAQUE_CONTAINER_EXTENSIONS: ReadonlySet<string> = new Set(['ac2']);
+
+const CLAIMED_DETECTED_MIMES: ReadonlySet<string> = new Set(
+  Object.values(DETECTED_DOCUMENT_MIME_BY_EXTENSION),
+);
+
+/**
+ * Whether detected bytes are a document of a type some OTHER allowed
+ * extension owns — a signature-detected type in the map, or a legacy Office
+ * Compound File carrying one of the format-specific directory streams.
+ */
+function isClaimedByDocumentType(
+  detected: { mime: string } | undefined,
+  bytes: Uint8Array,
+): boolean {
+  if (detected === undefined) return false;
+  if (CLAIMED_DETECTED_MIMES.has(detected.mime)) return true;
+  if (detected.mime !== 'application/x-cfb') return false;
+  const streams = cfbDirectoryStreamNames(bytes);
+  if (streams === null) return false;
+  return Object.values(LEGACY_OFFICE_STREAM_BY_EXTENSION).some((names) =>
+    names.some((stream) => streams.has(stream)),
+  );
+}
 
 function invalidType() {
   return new AppError({
@@ -188,7 +215,7 @@ function isUtf8Text(bytes: Uint8Array): boolean {
  * (`UTF8_TEXT_MIME_BY_EXTENSION`), legacy Compound File Binary Office
  * documents must contain their format-specific directory stream name before
  * the corresponding MIME is accepted, and an opaque vendor container is
- * admitted only when no known signature claims the bytes.
+ * admitted unless the bytes are a document some other allowed type claims.
  */
 export async function attestDocumentContentType(
   bytes: Uint8Array,
@@ -232,7 +259,10 @@ export async function attestDocumentContentType(
     return textMime;
   }
 
-  if (OPAQUE_CONTAINER_EXTENSIONS.has(extension) && detected === undefined) {
+  if (
+    OPAQUE_CONTAINER_EXTENSIONS.has(extension) &&
+    !isClaimedByDocumentType(detected, bytes)
+  ) {
     return 'application/octet-stream';
   }
 
