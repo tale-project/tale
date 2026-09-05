@@ -142,6 +142,69 @@ async function checkSerializableRetry(sql: Sql): Promise<void> {
   );
 }
 
+/**
+ * The audit chain-head storm (compliance-x1): every audited write of an org
+ * bumps one head row, so serializable appenders that overlap all lose at the
+ * head lock except the first, and a plain retry loses again whenever another
+ * appender commits first. With the retry queue (`markRetryQueueKey` +
+ * `pg_advisory_xact_lock` in `lockChainHead`) every appender commits, the
+ * chain stays linear and the head names the last row.
+ */
+async function checkAuditChainConcurrentAppenders(sql: Sql): Promise<void> {
+  const { createAuditLog } = await import('./domains/audit_logs/service.ts');
+  const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
+  const orgId = `itest-chain-${randomUUID().slice(0, 8)}`;
+  const appenders = 8;
+  let attempts = 0;
+  const outcomes = await Promise.allSettled(
+    Array.from({ length: appenders }, (_, index) =>
+      transactSerializable(sql, async (tx) => {
+        attempts += 1;
+        // Fix the snapshot first, then let every appender overlap: each
+        // one's head read is now stale for all but the first committer.
+        await tx`SELECT 1`;
+        await sleep(50);
+        return createAuditLog(tx, {
+          organizationId: orgId,
+          actorId: 'itest',
+          actorType: 'system',
+          action: 'itest.chain_burst',
+          category: 'admin',
+          resourceType: 'itest',
+          resourceId: String(index),
+          status: 'success',
+        });
+      }),
+    ),
+  );
+  const failures = outcomes.filter((o) => o.status === 'rejected');
+  const rows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs WHERE org_id = ${orgId}
+  `;
+  const committed = Number(rows[0]?.count ?? '0');
+  const verified = await verifyAuditChain(sql, orgId);
+  const heads = await sql<{ lastHash: string }[]>`
+    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
+    WHERE org_id = ${orgId}
+  `;
+  const latest = await sql<{ integrityHash: string }[]>`
+    SELECT integrity_hash AS "integrityHash" FROM app.audit_logs
+    WHERE org_id = ${orgId} ORDER BY ts DESC LIMIT 1
+  `;
+  const headNamesLatest =
+    heads[0]?.lastHash !== undefined &&
+    heads[0].lastHash === latest[0]?.integrityHash;
+  record(
+    'audit chain: a burst of serializable appenders for one org all commit',
+    failures.length === 0 &&
+      committed === appenders &&
+      verified.valid &&
+      headNamesLatest &&
+      attempts > appenders,
+    `committed=${committed}/${appenders} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} chainValid=${verified.valid} headNamesLatest=${headNamesLatest} attempts=${attempts} (>${appenders} proves the head lock was lost at least once and the retry landed)`,
+  );
+}
+
 async function checkTransactionalEnqueue(sql: Sql): Promise<void> {
   const before = await countNoopJobs(sql);
 
@@ -40128,6 +40191,7 @@ async function main(): Promise<void> {
   let lanes: LaneSummary | null = null;
   try {
     await checkSerializableRetry(sql);
+    await checkAuditChainConcurrentAppenders(sql);
     await checkTransactionalEnqueue(sql);
     await checkPickupLatency(sql, boss);
 
