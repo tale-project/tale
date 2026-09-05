@@ -216,11 +216,18 @@ export function createSsoAdminRoutes(deps: {
         tokenEndpoint: z.string().max(2000).optional(),
         userinfoEndpoint: z.string().max(2000).optional(),
         clientId: z.string().min(1).max(500),
+        clientSecret: z.string().max(5000).optional(),
         scopes: z.array(z.string().max(200)).max(50),
       })
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    return c.json(await testSsoConnection(body.data));
+    try {
+      return c.json(
+        await testSsoConnection(deps.sql, c.get('orgId'), body.data),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.post('/config/parse-idp-metadata', async (c) => {

@@ -597,6 +597,8 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         userinfoEndpoint:
           protocol === 'oauth2' ? values.userinfoEndpoint : undefined,
         clientId: values.clientId,
+        // Typed → probed; blank → the backend probes with the stored secret.
+        clientSecret: values.clientSecret || undefined,
         scopes: values.scopes.split(/\s+/).filter(Boolean),
       });
       toast({

@@ -308,19 +308,37 @@ export async function revealSsoClientId(
   return existing.secrets.clientId ?? null;
 }
 
-/** Validate an OIDC/OAuth2 config via the provider adapter (discovery). */
-export async function testSsoConnection(args: {
-  providerId: 'entra-id' | 'generic-oidc' | 'oauth2';
-  issuer: string;
-  authorizationEndpoint?: string;
-  tokenEndpoint?: string;
-  userinfoEndpoint?: string;
-  clientId: string;
-  scopes: string[];
-}): Promise<{ valid: boolean; error?: string }> {
+/**
+ * Validate an OIDC/OAuth2 config via the provider adapter: discovery, plus
+ * the credential probe where the adapter has one (Entra's client-credentials
+ * grant maps a wrong or expired secret to a readable reason). The secret is
+ * the one the admin just typed, or — reuse-on-omit, the save's own posture —
+ * the stored one, so "Test connection" on an existing connection checks the
+ * credentials that will actually sign users in.
+ */
+export async function testSsoConnection(
+  sql: Sql,
+  organizationId: string,
+  args: {
+    providerId: 'entra-id' | 'generic-oidc' | 'oauth2';
+    issuer: string;
+    authorizationEndpoint?: string;
+    tokenEndpoint?: string;
+    userinfoEndpoint?: string;
+    clientId: string;
+    clientSecret?: string;
+    scopes: string[];
+  },
+): Promise<{ valid: boolean; error?: string }> {
   const adapter = getAdapter(args.providerId);
   if (!adapter) return { valid: false, error: 'Unknown provider' };
-  return adapter.validateConfig(args);
+  const orgSlug = await requireOrgSlug(sql, organizationId);
+  const existing = await readExisting(orgSlug);
+  const clientSecret = args.clientSecret || existing.secrets.clientSecret;
+  return adapter.validateConfig({
+    ...args,
+    ...(clientSecret ? { clientSecret } : {}),
+  });
 }
 
 /** Parse IdP federation metadata (exactly one of url / xml). */
