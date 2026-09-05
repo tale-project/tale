@@ -49,21 +49,6 @@ export interface AgentDocumentView extends AgentSummaryView {
 }
 
 /**
- * An agent as one turn sees it: localized words plus what it may reach for.
- * Deliberately carries no model, no ceiling and no harness — those belong to
- * wherever the turn runs.
- */
-export interface ResolvedAgentView {
-  slug: string;
-  displayName: string;
-  description?: string;
-  instructions?: string;
-  tools?: string[];
-  skills?: string[];
-  knowledge: AgentKnowledgeScope;
-}
-
-/**
  * An agent file that failed to load. `path` is relative to the org's config
  * tree so an operator can find the file without the server's absolute layout
  * being handed to a browser.

@@ -28,7 +28,7 @@ Die Regeln, die die API durchsetzt, sollte ein Admin kennen:
 - **Wer sieht was.** Eine `org`-Persona sieht jedes Mitglied. Eine `private`-Persona sieht nur ihr Besitzer — ein Inhaber oder Admin kann sie nicht lesen, und eine Anfrage danach antwortet, als gäbe es sie nicht.
 - **Wer ändert was.** Der Besitzer immer. Inhaber und Admins — wer die Einstellungen der Organisation schreiben darf — bearbeiten und löschen jede `org`-Persona, damit ein Mitglied, das geht, keine geteilte Konfiguration verwaist zurücklässt.
 - **Besitz durch Übernahme.** Eine neue Persona gehört, wer sie angelegt hat, und startet `private`; stellst du eine geteilte Persona ohne hinterlegten Besitzer zurück auf `private`, wirst du ihr Besitzer — eine private Persona ohne Besitzer wäre für niemanden erreichbar.
-- **Verlauf.** Jedes Speichern behält die abgelöste Datei in einer Verlaufsspur, und das Wiederherstellen eines früheren Eintrags sichert zuerst den aktuellen — eine Wiederherstellung ist additiv, nie destruktiv. Eine Persona, die sich nicht parsen lässt, wird mit ihrem Pfad gemeldet, statt still aus der Liste zu fallen.
+- **Verlauf.** Jedes Speichern behält die abgelöste Datei in einer Verlaufsspur im Konfigurationsbaum der Organisation, sodass eine frühere Version nie verloren geht — du erreichst sie direkt auf der Platte; eine Wiederherstellung über die API gibt es nicht. Eine Persona, die sich nicht parsen lässt, wird mit ihrem Pfad gemeldet, statt still aus der Liste zu fallen.
 
 Wer selbst hostet, erreicht die Dateien direkt — die Projektstruktur steht auf [AI-gestützte Entwicklung](/de/develop/ai-assisted-development), die CLI unter [Die tale-CLI installieren](/de/self-hosted/install/cli-install).
 

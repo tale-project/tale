@@ -5731,8 +5731,8 @@ async function checkSmallDomains(
 
 /**
  * Agents: the REUSED 0.4 file layer (org config tree yaml + history trail)
- * behind the 0.5 routes — save (verify-before-write), list, read, resolve
- * for a turn, history + additive restore, delete, and the slug gate.
+ * behind the 0.5 routes — save (verify-before-write), list, read, delete,
+ * and the slug gate.
  */
 async function checkAgents(
   base: string,
@@ -5740,7 +5740,7 @@ async function checkAgents(
 ): Promise<void> {
   const { cookie, orgId } = ctx;
   const call = (
-    method: 'GET' | 'PUT' | 'POST' | 'DELETE',
+    method: 'GET' | 'PUT' | 'DELETE',
     route: string,
     body?: unknown,
   ): Promise<Response> =>
@@ -5783,39 +5783,15 @@ async function checkAgents(
     { displayName: 'Nope' },
   );
 
-  // Second save supersedes v1 into the history trail.
-  await call('PUT', `/api/app/agents/helper?orgId=${orgId}`, {
-    displayName: 'Helper',
-    instructions: 'Be helpful, v2.',
-  });
-  const history = z
-    .object({
-      entries: z.array(z.object({ entry: z.string(), savedAt: z.number() })),
-    })
-    .safeParse(
-      await (
-        await call('GET', `/api/app/agents/helper/history?orgId=${orgId}`)
-      ).json(),
-    );
-  const firstEntry = history.success ? history.data.entries[0]?.entry : '';
-  const restored = agentDoc.safeParse(
+  // A second save edits in place and keeps every field the edit omits.
+  const edited = agentDoc.safeParse(
     await (
-      await call('POST', `/api/app/agents/helper/restore?orgId=${orgId}`, {
-        entry: firstEntry,
+      await call('PUT', `/api/app/agents/helper?orgId=${orgId}`, {
+        displayName: 'Helper',
+        instructions: 'Be helpful, v2.',
       })
     ).json(),
   );
-  const resolved = z
-    .object({ agent: z.looseObject({ instructions: z.string().optional() }) })
-    .loose()
-    .safeParse(
-      await (
-        await call(
-          'GET',
-          `/api/app/agents/helper/resolved?locale=en&orgId=${orgId}`,
-        )
-      ).json(),
-    );
   const deleted = z
     .object({ deleted: z.boolean() })
     .safeParse(
@@ -5826,22 +5802,20 @@ async function checkAgents(
   const readAfter = await call('GET', `/api/app/agents/helper?orgId=${orgId}`);
 
   record(
-    'agents file layer (save/list/history/restore/resolve/delete)',
+    'agents file layer (save/list/edit/delete)',
     created.success &&
       created.data.agent.canEdit &&
       created.data.agent.visibility === 'org' &&
       listed.success &&
       listed.data.agents.some((agent) => agent.slug === 'helper') &&
       badSlug.status === 400 &&
-      history.success &&
-      history.data.entries.length >= 1 &&
-      restored.success &&
-      restored.data.agent.instructions === 'Be helpful, v1.' &&
-      resolved.success &&
+      edited.success &&
+      edited.data.agent.instructions === 'Be helpful, v2.' &&
+      edited.data.agent.visibility === 'org' &&
       deleted.success &&
       deleted.data.deleted &&
       readAfter.status === 404,
-    `created=${created.success}, listed=${listed.success ? listed.data.agents.length : 'ERR'}, badSlug → ${badSlug.status} (want 400), history=${history.success ? history.data.entries.length : 'ERR'}, restoredV1=${restored.success && restored.data.agent.instructions === 'Be helpful, v1.'}, delete=${deleted.success && deleted.data.deleted}, readAfter → ${readAfter.status} (want 404)`,
+    `created=${created.success}, listed=${listed.success ? listed.data.agents.length : 'ERR'}, badSlug → ${badSlug.status} (want 400), editedV2=${edited.success && edited.data.agent.instructions === 'Be helpful, v2.' && edited.data.agent.visibility === 'org'}, delete=${deleted.success && deleted.data.deleted}, readAfter → ${readAfter.status} (want 404)`,
   );
 }
 
