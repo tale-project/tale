@@ -117,7 +117,11 @@ export async function kickAgentRun(
   // doors kick SERIALIZABLE but the auto-retry job and the steer-miss
   // fallback kick READ COMMITTED, so the probe above can miss a run another
   // transaction is minting. The insert defers to the index — a loser answers
-  // with the winner's run, exactly as if the probe had seen it.
+  // with the winner's run, exactly as if the probe had seen it. The re-read
+  // only serves READ COMMITTED callers: under a serializable door a
+  // conflicting row invisible to the snapshot makes the ON CONFLICT raise
+  // 40001 instead, which `transactSerializable` retries — that throw path is
+  // by design, not a gap.
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,

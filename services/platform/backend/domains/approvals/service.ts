@@ -213,7 +213,7 @@ export async function decideApproval(
     if (approval.resourceType === 'task_review') {
       throw new ApprovalError(
         'APPROVAL_REQUIRES_DEDICATED_RESPOND',
-        'Task reviews are decided on the task: moving the card from In review to Done approves, moving it back to In progress requests changes.',
+        'Task reviews are decided on the task: moving the card from In review to Done approves, moving it back to In progress sends the work back (the review gate is withdrawn).',
         409,
       );
     }

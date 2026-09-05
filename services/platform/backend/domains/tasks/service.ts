@@ -656,8 +656,8 @@ export interface AssigneeRef {
 
 /**
  * Whether writing `assignee` onto `task` changes who holds it — the ONE rule
- * behind the picker's (`assignTask`) live-run transfer gate. A same-assignee re-select and clearing an already-unassigned
- * task are not transfers.
+ * behind the picker's (`assignTask`) live-run transfer gate. A same-assignee
+ * re-select and clearing an already-unassigned task are not transfers.
  */
 export function assigneeChanges(
   task: Pick<TaskRow, 'assigneeType' | 'assigneeId'>,
@@ -1308,7 +1308,7 @@ export async function updateTask(
       start_notified_at_ms = CASE WHEN ${startChanged}::boolean THEN NULL
                                   ELSE start_notified_at_ms END,
       attachments = CASE WHEN ${nextAttachments !== undefined}::boolean
-                         THEN ${nextAttachments !== undefined ? tx.json(toJson(nextAttachments)) : null}::jsonb
+                         THEN ${nextAttachments !== undefined && nextAttachments.length > 0 ? tx.json(toJson(nextAttachments)) : null}::jsonb
                          ELSE attachments END,
       reviewer_user_id = ${reviewerUserId}, updated_at_ms = ${Date.now()}
     WHERE id = ${args.taskId}

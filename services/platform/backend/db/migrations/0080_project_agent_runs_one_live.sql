@@ -19,12 +19,15 @@
 -- twins are closed as `cancelled` with the reason on the row — never deleted,
 -- the ledger keeps every run it minted. A cancelled twin's exec, if one is
 -- still alive, is reaped by its own next drive window (the orphan check).
+-- This one-off backfill writes no `agent.run_settled` audit entry for the
+-- twins it closes (the live cancel door does): the reason lives on the row.
 --
 -- Rolling-deploy safe: the previous image's kick only ever races itself for
 -- one task; where it used to mint a twin it now fails that one kick with a
--- unique violation, which its serializable door surfaces as a retry and its
--- read-committed job logs and drops (the next tick re-derives). Nothing it
--- reads changes shape.
+-- unique violation (23505 — not a serialization failure, so the serializable
+-- human door does not retry it and answers that rare roll-window race as an
+-- error), and its read-committed job logs and drops it (the next tick
+-- re-derives). Nothing it reads changes shape.
 
 WITH ranked AS (
   SELECT id,

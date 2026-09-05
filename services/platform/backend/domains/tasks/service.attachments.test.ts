@@ -311,7 +311,7 @@ describe('updateTask — attachments are a full replace', () => {
     ).toBe(false);
   });
 
-  it('removing the last file leaves an empty list and releases the ref', async () => {
+  it("removing the last file stores NULL (createTask's empty spelling) and releases the ref", async () => {
     const { tx, statements } = fakeTx(
       taskRow({ attachments: [brief] }),
       (text) =>
@@ -323,7 +323,8 @@ describe('updateTask — attachments are a full replace', () => {
     const update = statements.find((statement) =>
       statement.text.startsWith('UPDATE app.tasks SET title'),
     );
-    expect(update?.values).toContainEqual({ json: [] });
+    expect(update?.values).not.toContainEqual({ json: [] });
+    expect(update?.values).toContain(null);
     expect(addJobInTx).toHaveBeenCalledTimes(1);
   });
 });
