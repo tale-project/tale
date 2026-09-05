@@ -34,7 +34,7 @@ Every request carries a service-level deadline — by default, 30 days from fili
 
 ## Legal hold interaction
 
-A subject's data is _not_ erased while it is on legal hold. Rows under hold show as **Skipped by hold** in the receipt's per-category counters; releasing the hold and retrying the request finishes the erasure. The Blocked status fires when a hold covers every category from the start — the cascade does not run, and the receipt reflects the block. Retrying a request that was blocked at filing runs through the same policy as a fresh filing — the cooling-off window, or the second Admin's approval under dual approval. While a subject has an open receipt (pending, running, blocked, or partial), a second request for them is refused: retry or cancel the open one instead.
+A subject's data is _not_ erased while it is on legal hold. Rows under hold show as **Skipped by hold** in the receipt's per-category counters; releasing the hold and retrying the request finishes the erasure. The Blocked status fires when a hold covers every category from the start — the cascade does not run, and the receipt reflects the block. Retrying a request that was blocked at filing runs through the same policy as a fresh filing — the cooling-off window, or the second Admin's approval under dual approval. While a subject has an open receipt (pending, running, blocked, or partial), a second request for them is refused: retry the open one (or cancel it while it is still pending) instead.
 
 ## The cascade categories
 

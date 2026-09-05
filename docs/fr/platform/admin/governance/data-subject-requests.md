@@ -34,7 +34,7 @@ Chaque demande porte une échéance niveau de service — par défaut, 30 jours 
 
 ## Interaction avec la conservation légale
 
-Les données d’une personne ne sont _pas_ effacées tant qu’elles sont sous conservation légale. Les lignes sous hold apparaissent comme **Ignorées par hold** dans les compteurs par catégorie du reçu ; lever le hold et relancer la demande termine l’effacement. Le statut Bloquée se déclenche quand un hold couvre toutes les catégories dès le départ — la cascade ne s’exécute pas, et le reçu reflète le blocage. Relancer une demande bloquée dès le dépôt suit la même politique qu’un nouveau dépôt — la fenêtre d’attente, ou l’approbation d’un second Administrateur en double contrôle. Tant qu’une personne a un reçu ouvert (en attente, en cours, bloqué ou partiel), une seconde demande pour elle est refusée : relance ou annule plutôt celle qui est ouverte.
+Les données d’une personne ne sont _pas_ effacées tant qu’elles sont sous conservation légale. Les lignes sous hold apparaissent comme **Ignorées par hold** dans les compteurs par catégorie du reçu ; lever le hold et relancer la demande termine l’effacement. Le statut Bloquée se déclenche quand un hold couvre toutes les catégories dès le départ — la cascade ne s’exécute pas, et le reçu reflète le blocage. Relancer une demande bloquée dès le dépôt suit la même politique qu’un nouveau dépôt — la fenêtre d’attente, ou l’approbation d’un second Administrateur en double contrôle. Tant qu’une personne a un reçu ouvert (en attente, en cours, bloqué ou partiel), une seconde demande pour elle est refusée : relance plutôt celle qui est ouverte (ou annule-la tant qu’elle est encore en attente).
 
 ## Les catégories de cascade
 

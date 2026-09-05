@@ -4076,7 +4076,7 @@ governance:
       forbidden: Tu n'as pas la permission.
       validation: Vérifie les champs du formulaire.
       notFound: Introuvable.
-      alreadyPending: Une demande d'effacement est déjà ouverte pour cette personne — en attente, en cours, bloquée par une rétention légale ou partiellement exécutée. Relance-la ou annule-la au lieu d'en déposer une nouvelle.
+      alreadyPending: Une demande d'effacement est déjà ouverte pour cette personne — en attente, en cours, bloquée par une rétention légale ou partiellement exécutée. Relance-la (ou annule-la tant qu'elle est encore en attente) au lieu d'en déposer une nouvelle.
       legalHoldBlocked: Une rétention légale active préserve les données de cette personne.
       notRetriable: Cette demande n'est pas dans un état qui permet une nouvelle tentative.
       notExtendable: Cette demande est dans un état terminal et ne peut pas être prolongée.
