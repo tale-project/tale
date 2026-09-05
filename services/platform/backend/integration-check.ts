@@ -26576,10 +26576,23 @@ async function checkCorpusScopeReconcile(
   const { PRIVATE_KNOWLEDGE_SCHEMA } =
     await import('../lib/knowledge/types.ts');
 
+  const pool = await getKnowledgePoolForOrg(ctx.orgSlug);
+  // A live file-backed document that HAS a corpus row: only an indexed
+  // document carries a stamp to drift, and which live row comes first is
+  // heap order, not a contract — an unindexed pick reads as "no drift".
+  const corpusRefs = z.array(z.object({ fileId: z.string() })).safeParse(
+    await pool.unsafe(
+      `SELECT file_id AS "fileId" FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+          WHERE org_slug = $1`,
+      [ctx.orgSlug],
+    ),
+  );
   const docs = await sql<{ fileRef: string }[]>`
     SELECT file_ref AS "fileRef" FROM app.documents
     WHERE org_id = ${ctx.orgId} AND file_ref IS NOT NULL
+      AND file_ref = ANY(${corpusRefs.success ? corpusRefs.data.map((row) => row.fileId) : []})
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+    ORDER BY created_at_ms, id
     LIMIT 1
   `;
   const fileRef = docs[0]?.fileRef;
@@ -26587,12 +26600,11 @@ async function checkCorpusScopeReconcile(
     record(
       'knowledge: corpus scope drift is corrected and reported',
       false,
-      'no live file-backed document to drift — the knowledge lane must run first',
+      'no live indexed document to drift — the knowledge lane must run first',
     );
     return;
   }
 
-  const pool = await getKnowledgePoolForOrg(ctx.orgSlug);
   const stampOf = async (): Promise<{
     teamIds: string[] | null;
     projectId: string | null;
