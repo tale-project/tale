@@ -127,7 +127,6 @@ export default {
         'lib/shared/platform/**',
         'lib/shared/providers/attribution.ts',
         'lib/shared/schemas/agents.ts',
-        'lib/shared/schemas/approvals.ts',
         'lib/shared/schemas/enterprise_sso.ts',
         'lib/shared/schemas/governance.ts',
         'lib/shared/schemas/connectors.ts',
