@@ -254,6 +254,27 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     // A container that may still be running keeps its bind-mounted data.
     expect(await exists(join(workspace, 'keep.txt'))).toBe(true);
   });
+
+  test('destroySession THROWS when the workspace cannot be deleted (never a laundered destroyed:true)', async () => {
+    // The container half is already gone (idempotent); the data half fails —
+    // EACCES on a read-only parent. Before the fix this was warn + resolve,
+    // so the route answered destroyed:true while the user's data lived on.
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    const workspace = join(hostSessionRoot, 'ses-destroy-eacces');
+    await mkdir(join(workspace, 'sub'), { recursive: true });
+    await writeFile(join(workspace, 'sub', 'keep.txt'), 'user data');
+    await chmod(join(workspace, 'sub'), 0o555);
+    try {
+      const backend = new DockerSessionBackend(backendConfig());
+      const err = await rejection(backend.destroySession('destroy-eacces'));
+      expect(err?.message).toMatch(
+        /destroy destroy-eacces: container removed but workspace .* could not be deleted/,
+      );
+      expect(await exists(join(workspace, 'sub', 'keep.txt'))).toBe(true);
+    } finally {
+      await chmod(join(workspace, 'sub'), 0o755);
+    }
+  });
 });
 
 describe('DockerSessionBackend.listSessions', () => {

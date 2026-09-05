@@ -41,6 +41,15 @@ const SESSION_LABEL_SELECTOR = 'tale.sandbox-session=1';
 /** Pod annotation carrying the durable "always-on" pin (see setPinned). */
 const PINNED_ANNOTATION = 'tale.dev/pinned';
 
+/** A create that lost the deterministic-name race. The route answers 502 and
+ * the platform retries; by then adoption has made the live session routable. */
+function conflictError(sessionId: string, cause: unknown): Error {
+  return new Error(
+    `session ${sessionId} already exists (concurrent create or unadopted live Pod)`,
+    { cause },
+  );
+}
+
 export class KubernetesSessionBackend implements SessionBackend {
   readonly kind = 'kubernetes' as const;
   private readonly client: K8sClient;
@@ -96,6 +105,15 @@ export class KubernetesSessionBackend implements SessionBackend {
         ),
       );
     } catch (err) {
+      // A 409 means the deterministic Secret name is TAKEN — a peer replica's
+      // concurrent create (the route's `creating` set is per replica) or a
+      // live Pod this replica has not adopted yet. That object is NOT ours to
+      // tear down: the failed-create cleanup below would delete the RUNNING
+      // peer Pod + Secret (and on the fresh path the PVC a concurrent ensure
+      // may own). Surface the conflict without any cleanup — parity with the
+      // Docker backend's name-conflict rule; adoptExisting / the route's
+      // registry-miss re-resolve pick the live session up on a later turn.
+      if (httpStatusCode(err) === 409) throw conflictError(spec.sessionId, err);
       // Same cleanup envelope as the Pod/readiness failures below: the PVC was
       // already created above, so a Secret failure must not leak it (a fresh
       // create has no ownerReference for K8s GC to cascade from). Resume keeps
@@ -119,6 +137,14 @@ export class KubernetesSessionBackend implements SessionBackend {
         ),
       );
     } catch (err) {
+      if (httpStatusCode(err) === 409) {
+        // The Pod name is taken (a peer's Pod, or one still Terminating from a
+        // stop/destroy in flight). Leave the Pod and the PVC alone — only the
+        // Secret THIS call created is ours, and leaving it behind would 409
+        // every future create of this session forever.
+        await this.deleteOwnSecret(spec.sessionId);
+        throw conflictError(spec.sessionId, err);
+      }
       await this.cleanupFailedCreate(spec.sessionId, preexisting);
       throw err;
     }
@@ -142,8 +168,32 @@ export class KubernetesSessionBackend implements SessionBackend {
     return { resumed: preexisting };
   }
 
+  /** Remove ONLY the per-session Secret this create made (a Pod-name 409
+   * means the Pod belongs to someone else). 404 = already gone = fine; any
+   * other failure is logged, not thrown — the conflict is the error the
+   * caller must see. */
+  private async deleteOwnSecret(sessionId: string): Promise<void> {
+    try {
+      await this.client.core.deleteNamespacedSecret(
+        {
+          name: sessionSecretNameFor(sessionId),
+          namespace: this.cfg.k8s.namespace,
+        },
+        apiTimeout(),
+      );
+    } catch (err) {
+      if (httpStatusCode(err) !== 404) {
+        console.warn(
+          `[sandbox.session] delete own secret for ${sessionId} after pod conflict failed:`,
+          err,
+        );
+      }
+    }
+  }
+
   /** On a failed create: stop (keep PVC) when resuming a session whose PVC
-   * pre-existed, else destroy (delete the half-made PVC). */
+   * pre-existed, else destroy (delete the half-made PVC). Never reached for a
+   * 409 (see createSession) — the conflicting object is not ours. */
   private async cleanupFailedCreate(
     sessionId: string,
     preexisting: boolean,
@@ -389,21 +439,28 @@ export class KubernetesSessionBackend implements SessionBackend {
     }
   }
 
-  /** Delete the session's workspace PVC (data deletion — destroy path only). */
+  /** Delete the session's workspace PVC (data deletion — destroy path only).
+   * THROWS on any failure other than 404 (retried first for transient blips):
+   * destroySession is the one data-deleting verb, and a swallowed PVC failure
+   * would let the route answer destroyed:true while the user's data — and its
+   * storage — survive with nothing left to reclaim it. A throw makes the route
+   * answer 502 destroyed:false so the platform retries. */
   private async deleteWorkspacePvc(sessionId: string): Promise<void> {
     const name = sessionWorkspacePvcNameFor(sessionId);
     try {
-      await this.client.core.deleteNamespacedPersistentVolumeClaim(
-        { name, namespace: this.cfg.k8s.namespace },
-        apiTimeout(),
+      await withRetry('delete-session-workspace-pvc', () =>
+        this.client.core.deleteNamespacedPersistentVolumeClaim(
+          { name, namespace: this.cfg.k8s.namespace },
+          apiTimeout(),
+        ),
       );
     } catch (err) {
-      if (httpStatusCode(err) !== 404) {
-        console.warn(
-          `[sandbox.session] delete workspace PVC for ${sessionId} failed:`,
-          err,
-        );
-      }
+      if (httpStatusCode(err) === 404) return; // already gone = success
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `k8s session: failed to delete workspace PVC ${name} for ${sessionId}: ${msg}`,
+        { cause: err },
+      );
     }
   }
 
