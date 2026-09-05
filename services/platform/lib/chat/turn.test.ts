@@ -18,6 +18,7 @@ import {
   runTurn,
   ThreadBusyError,
   TOOL_BUDGET_SPENT_NOTICE,
+  TOOL_CALL_STOPPED_OUTPUT,
   TURN_STEPS,
   type ModelCall,
   type ModelCallRequest,
@@ -1351,6 +1352,51 @@ describe('runTurn — the tool loop', () => {
     expect(parts.filter((part) => part.type === 'text')).toEqual([
       { type: 'text', text: intro },
     ]);
+    // ...and the call the model made is still ANSWERED on the record — an
+    // unanswered call would fail every later turn on the thread at the
+    // provider.
+    expect(parts.filter((part) => part.type !== 'text')).toEqual([
+      {
+        type: 'tool-call',
+        callId: 'call_1',
+        capabilityId: 'rag_search',
+        input: { query: 'returns' },
+      },
+      {
+        type: 'tool-result',
+        callId: 'call_1',
+        capabilityId: 'rag_search',
+        output: TOOL_CALL_STOPPED_OUTPUT,
+        structured: true,
+      },
+    ]);
+  });
+
+  it('never settles a round of tool calls for a Stop the final flush already reported', async () => {
+    // The cancel lands on the round's last progress write — after the
+    // model's text but before the tool calls settle. The round must report
+    // it, so the loop ends without running the tools.
+    const { store, calls } = fakeStore({ cancelAfterStreamWrites: 1 });
+    const executed: ToolCallRequest[] = [];
+    const executor = searchExecutor();
+    const d = deps({
+      model: introducingModel('Looking. '),
+      tools: {
+        ...executor,
+        execute: (call) => {
+          executed.push(call);
+          return Promise.resolve({ status: 'ok' });
+        },
+      },
+      store,
+    });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome.status).toBe('completed');
+    expect(executed).toEqual([]);
+    const parts = calls.finalized[0]?.parts as MessagePart[];
+    expect(parts.some((part) => part.type === 'tool-call')).toBe(false);
   });
 
   it('settles pre-tool text once when Stop lands while the tools run', async () => {

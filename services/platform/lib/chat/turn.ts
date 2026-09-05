@@ -800,18 +800,33 @@ export async function streamWithOutputGuardrails(
   }
   // Flush may have just cleared a short tail that never hit minFlushChars.
   // Persist the accumulated text so the UI sees it before finalize, and
-  // so a throw after this point still has streamText for rescue.
+  // so a throw after this point still has streamText for rescue. The write
+  // is also a cancel read: a Stop it reports ends the round here, so the
+  // tool loop never settles calls for a turn the user already stopped.
   await persistProgress({ flush: true });
   return {
     text: cleared,
     ...(reasoning.length > 0 ? { reasoning } : {}),
     ...(toolCalls !== undefined && toolCalls.length > 0 ? { toolCalls } : {}),
+    ...(cancelled ? { cancelled: true } : {}),
     reportedUsage,
     firstChunkAtMs,
     firstReasoningAtMs,
     roundStartedAtMs,
   };
 }
+
+/**
+ * The result a tool call gets when the user stopped the reply before it
+ * ran. Every call the model made MUST be answered on the record: both wire
+ * dialects reject a transcript whose tool call has no result, so one
+ * unanswered call would fail every later send and regenerate on the
+ * thread with a provider 400 the user cannot repair.
+ */
+export const TOOL_CALL_STOPPED_OUTPUT = {
+  status: 'cancelled',
+  message: 'The user stopped the reply before this tool ran.',
+} as const;
 
 /** Cost of a turn in cents from the model's catalog pricing — fractional
  * cents, so a sub-cent turn keeps its precision. Absent pricing yields zero
@@ -1172,8 +1187,20 @@ export async function runTurn(
       });
       await persistSettledParts();
       // The boundary flush is also a cancel read: a Stop that landed while
-      // the round streamed its tool calls must not start the tools.
+      // the round streamed its tool calls must not start the tools — but
+      // the calls are already on the record, so each gets its stopped
+      // result before the turn settles (see TOOL_CALL_STOPPED_OUTPUT).
       if (boundary?.cancelRequested === true) {
+        for (const call of calls) {
+          settledParts.push({
+            type: 'tool-result',
+            callId: call.id,
+            capabilityId: call.name,
+            output: TOOL_CALL_STOPPED_OUTPUT,
+            structured: true,
+          });
+        }
+        await persistSettledParts();
         streamed = { ...streamed, cancelled: true };
         break;
       }
