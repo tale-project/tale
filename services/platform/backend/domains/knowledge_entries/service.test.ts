@@ -52,6 +52,7 @@ const {
   createKnowledgeEntry,
   updateKnowledgeEntry,
   markEntryChainDeletedForDocument,
+  markEntryChainsDeletedForDocuments,
   KnowledgeEntryError,
 } = await import('./service.ts');
 
@@ -299,6 +300,27 @@ describe('an entry whose backing document is gone', () => {
     // the old document retire the live chain that reused the key. Every
     // version of a chain shares its document, so the document is the chain.
     expect(statements).toHaveLength(1);
-    expect(statements[0]?.values).toEqual([expect.any(Number), ORG, 'doc-1']);
+    expect(statements[0]?.values).toEqual([expect.any(Number), ORG, ['doc-1']]);
+  });
+
+  it('retires the chains of a whole batch of documents in one statement, and none for an empty batch', async () => {
+    const { sql, statements } = fakeSql({});
+
+    const none = await markEntryChainsDeletedForDocuments(sql, ORG, []);
+    expect(none).toBe(0);
+    expect(statements).toHaveLength(0);
+
+    const marked = await markEntryChainsDeletedForDocuments(sql, ORG, [
+      'doc-1',
+      'doc-2',
+    ]);
+
+    expect(marked).toBe(3);
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.values).toEqual([
+      expect.any(Number),
+      ORG,
+      ['doc-1', 'doc-2'],
+    ]);
   });
 });

@@ -20,7 +20,10 @@ import {
 } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
-import { markEntryChainDeletedForDocument } from '../knowledge_entries/service.ts';
+import {
+  markEntryChainDeletedForDocument,
+  markEntryChainsDeletedForDocuments,
+} from '../knowledge_entries/service.ts';
 import { loadActiveHolds, type ActiveHolds } from '../legal_holds/service.ts';
 import { cascadeDeleteThreadTtsChunks } from '../tts/service.ts';
 
@@ -492,22 +495,33 @@ async function sweepDocuments(
   // document's age is its creation — or its last lifecycle change, when a
   // restore from the Trash stamped one: a restore restarts the retention
   // clock, or the very next sweep re-expires the row the admin just brought
-  // back (and, with no grace, hard-deletes it outright).
+  // back (and, with no grace, hard-deletes it outright). The flip is a door
+  // that hides a document, so it retires the knowledge-entry chain the
+  // document backs in the same transaction — an expired document's corpus
+  // rows go dark at once, and an entry must never stay listed, counted and
+  // served to the agent leg for the whole grace window while they are.
   if (graceDays > 0) {
-    const flipped = await sql<{ id: string }[]>`
-      UPDATE app.documents SET
-        lifecycle_status = 'expired', status_changed_at_ms = ${Date.now()}
-      WHERE id IN (
-        SELECT id FROM app.documents
-        WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
-          AND GREATEST(created_at_ms, coalesce(status_changed_at_ms, 0))
-              < ${cutoff}
-          AND ${custodianFree}
-        LIMIT ${BATCH_LIMIT}
-      )
-      RETURNING id
-    `;
-    processed += flipped.length;
+    processed += await sql.begin(async (tx) => {
+      const flipped = await tx<{ id: string }[]>`
+        UPDATE app.documents SET
+          lifecycle_status = 'expired', status_changed_at_ms = ${Date.now()}
+        WHERE id IN (
+          SELECT id FROM app.documents
+          WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
+            AND GREATEST(created_at_ms, coalesce(status_changed_at_ms, 0))
+                < ${cutoff}
+            AND ${custodianFree}
+          LIMIT ${BATCH_LIMIT}
+        )
+        RETURNING id
+      `;
+      await markEntryChainsDeletedForDocuments(
+        tx,
+        org.organizationId,
+        flipped.map((row) => row.id),
+      );
+      return flipped.length;
+    });
   }
 
   // Pass B: hard-delete rows whose grace elapsed (or, no grace, active

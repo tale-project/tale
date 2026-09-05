@@ -30813,6 +30813,80 @@ async function checkKnowledgeEntries(
       updateReused.status === 200,
     `delete=${deleteReused.status} (want 200), recreate=${reusedV2.success} newDoc≠old=${newBackingId !== oldBackingId}, purgeOld=${purgeOld.status} (want 200), newLive=${newStillLive} (want true), oldDeleted=${oldStillDeleted} (want true), listed=${listAfterOldPurge.success ? listAfterOldPurge.data.rows.some((row) => row.id === reusedV2Id) : 'ERR'} (want true), update=${updateReused.status} (want 200)`,
   );
+
+  // The retention sweep's expiry flip (grace > 0) has no source filter: an
+  // entry's backing document ages out like any other and lands in the admin
+  // Trash as 'expired'. That flip must retire the chain in the same
+  // transaction — otherwise the entry stays listed and served for the whole
+  // grace window while the retrievability filter keeps its corpus rows dark,
+  // and an update onto it answers 404 for a row the list still shows. The
+  // policy is 100 years and the document is aged past it, so no other
+  // document of the org can be a candidate of this sweep.
+  const expiring = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Expense cap',
+        content: 'Single expenses above 500 EUR need approval.',
+      })
+    ).json(),
+  );
+  const expiringId = expiring.success ? expiring.data.id : '';
+  const expiringBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${expiringId}
+  `;
+  const expiringDocId = expiringBacking[0]?.documentId ?? '';
+  const retentionDays = 36_500;
+  await sql`
+    UPDATE app.documents
+    SET created_at_ms = ${Date.now() - (retentionDays + 1) * 86_400_000}
+    WHERE id = ${expiringDocId} AND org_id = ${orgId}
+  `;
+  const { sweepOrgPhase2: sweepExpiring } =
+    await import('./domains/retention/service.ts');
+  const { loadActiveHolds: holdsForExpiring } =
+    await import('./domains/legal_holds/service.ts');
+  const expiringStats = await sweepExpiring(
+    sql,
+    {
+      organizationId: orgId,
+      config: {
+        documentsEnabled: true,
+        documentsRetentionDays: retentionDays,
+        deletionGraceDays: 7,
+      },
+    },
+    await holdsForExpiring(sql, orgId),
+  );
+  const expiredDoc = await sql<{ lifecycleStatus: string | null }[]>`
+    SELECT lifecycle_status AS "lifecycleStatus" FROM app.documents
+    WHERE id = ${expiringDocId}
+  `;
+  const chainAfterExpiry = await sql<{ deleted: boolean }[]>`
+    SELECT deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'expense cap'
+  `;
+  const listAfterExpiry = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateAfterExpiry = await post(
+    `/api/app/knowledge-entries/${expiringId}?orgId=${orgId}`,
+    { topic: 'Expense cap', content: 'A version onto an expired document.' },
+  );
+  record(
+    "knowledge entries: the retention sweep's expiry flip retires the chain with the document",
+    expiring.success &&
+      expiringDocId !== '' &&
+      expiringStats.documents >= 1 &&
+      expiredDoc[0]?.lifecycleStatus === 'expired' &&
+      chainAfterExpiry.length === 1 &&
+      chainAfterExpiry.every((row) => row.deleted) &&
+      listAfterExpiry.success &&
+      !listAfterExpiry.data.rows.some((row) => row.id === expiringId) &&
+      updateAfterExpiry.status === 404,
+    `swept=${expiringStats.documents} (want ≥1), doc=${expiredDoc[0]?.lifecycleStatus ?? 'missing'} (want expired), chain=${chainAfterExpiry.map((row) => row.deleted).join(',')} (want true), listed=${listAfterExpiry.success ? listAfterExpiry.data.rows.some((row) => row.id === expiringId) : 'ERR'} (want false), update=${updateAfterExpiry.status} (want 404)`,
+  );
 }
 
 /**

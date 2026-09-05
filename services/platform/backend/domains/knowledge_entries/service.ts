@@ -35,12 +35,14 @@ import { markRagQueued } from '../knowledge/service.ts';
  * soft-deletes the chain and trashes the backing document — the
  * retrievability filter excludes trashed documents, so the corpus rows go
  * dark immediately, and the retention purge releases them physically (lazy
- * cleanup posture). The reverse holds too: a backing document removed
- * through ANY other door (the Documents tab's purge, a WebDAV DELETE, the
- * retention sweep) soft-deletes its entry chain via
- * `markEntryChainDeletedForDocument`, so a trashed document never leaves an
- * entry listed, counted and served to the agent leg while its corpus rows
- * are dark — the 0.4 `deleteDocument → markEntryChainDeleted` contract.
+ * cleanup posture). The reverse holds too: a backing document hidden or
+ * removed through ANY other door — the Documents tab's purge, a WebDAV
+ * DELETE, the retention sweep's expiry flip into the Trash and its later
+ * purge — soft-deletes its entry chain via
+ * `markEntryChainDeletedForDocument` / `markEntryChainsDeletedForDocuments`,
+ * so a trashed or expired document never leaves an entry listed, counted
+ * and served to the agent leg while its corpus rows are dark — the 0.4
+ * `deleteDocument → markEntryChainDeleted` contract.
  *
  * Mutations are role-gated at this seam (`authorizeRls(role, 'knowledge',
  * 'write')`): entries materialize `app.documents` rows and feed the org's
@@ -456,9 +458,24 @@ export async function markEntryChainDeletedForDocument(
   organizationId: string,
   documentId: string,
 ): Promise<number> {
+  return markEntryChainsDeletedForDocuments(tx, organizationId, [documentId]);
+}
+
+/**
+ * The batch form of {@link markEntryChainDeletedForDocument} for a door that
+ * hides many documents at once (the retention sweep's expiry flip): one
+ * statement for the whole batch, the same predicate. Zero documents is a
+ * no-op.
+ */
+export async function markEntryChainsDeletedForDocuments(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  documentIds: readonly string[],
+): Promise<number> {
+  if (documentIds.length === 0) return 0;
   const result = await tx`
     UPDATE app.knowledge_entries SET deleted_at_ms = ${Date.now()}
-    WHERE org_id = ${organizationId} AND document_id = ${documentId}
+    WHERE org_id = ${organizationId} AND document_id = ANY(${[...documentIds]})
       AND deleted_at_ms IS NULL
   `;
   return result.count;
