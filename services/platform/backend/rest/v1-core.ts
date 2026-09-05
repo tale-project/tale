@@ -56,10 +56,12 @@ import {
   updateProduct,
   type ProductScope,
 } from '../domains/products/service.ts';
+import { PurgeIncompleteError } from '../domains/retention/service.ts';
 import { skillErrorResponse } from '../domains/skills/errors.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { addJobInTx, PRIORITY_INTERACTIVE } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
+import { purgeIncompleteResponse } from '../lib/purge-incomplete-response.ts';
 import { checkOrganizationRateLimit } from '../lib/rate-limit.ts';
 import {
   domainErrorResponse,
@@ -479,6 +481,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           { error: 'DOCUMENT_RECORD_PROTECTED', message: error.message },
           409,
         );
+      }
+      // The purge could not remove every dead surface: the row was kept for
+      // a retry — the same 503 the session and folder doors answer, not the
+      // bare 500 an unmapped error becomes.
+      if (error instanceof PurgeIncompleteError) {
+        return purgeIncompleteResponse(c, error);
       }
       return domainErrorResponse(c, error);
     }
