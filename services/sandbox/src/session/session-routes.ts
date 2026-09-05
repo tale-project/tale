@@ -50,6 +50,11 @@ export class SessionRoutes {
   // oversubscribe the host by the number of creates in flight.
   private readonly creating = new Map<string, string>();
 
+  // One backend list shared by every concurrent registry miss (the platform
+  // probes sessionIsAlive + exec-status per turn, so a stopped session would
+  // otherwise cost one `docker ps` / pod list PER probe). `null` when idle.
+  private resolving: Promise<BackendSession[]> | null = null;
+
   /**
    * @param isDraining Read on every registry miss: a lingering (draining)
    * spawner must never adopt — the miss is a session its replacement created
@@ -250,7 +255,7 @@ export class SessionRoutes {
     if (this.isDraining()) return undefined;
     let sessions: BackendSession[];
     try {
-      sessions = await this.backend.listSessions();
+      sessions = await this.listForResolve();
     } catch (err) {
       console.warn(
         `[sandbox.session] backend re-resolve for ${sessionId} failed (answering not-found):`,
@@ -261,6 +266,17 @@ export class SessionRoutes {
     const s = sessions.find((x) => x.sessionId === sessionId);
     if (s === undefined || s.state !== 'ready') return undefined;
     return this.adoptSession(s);
+  }
+
+  /** The backend list behind ensureRegistered: concurrent misses share the
+   * one in flight instead of each spawning their own (health-probe.ts shape,
+   * without the TTL — a resolve must see the current backend state). */
+  private listForResolve(): Promise<BackendSession[]> {
+    if (this.resolving !== null) return this.resolving;
+    this.resolving = this.backend.listSessions().finally(() => {
+      this.resolving = null;
+    });
+    return this.resolving;
   }
 
   /**
@@ -425,6 +441,17 @@ export class SessionRoutes {
         409,
       );
     }
+    // A retry of an id still being created is a duplicate (409), judged BEFORE
+    // the quotas so a full host does not turn it into a misleading 429.
+    if (this.creating.has(req.sessionId)) {
+      return jsonResponse(
+        {
+          error: 'duplicate',
+          message: `session ${req.sessionId} is being created`,
+        },
+        409,
+      );
+    }
     // Quotas count live sessions PLUS creates in flight (see `creating`).
     if (
       this.registry.size() + this.creating.size >=
@@ -448,21 +475,12 @@ export class SessionRoutes {
       );
     }
 
-    // Reserve the id synchronously. The registry isn't populated until AFTER
-    // backend.createSession resolves below, so without this a concurrent create
+    // Reserve the id synchronously (below). The registry isn't populated until
+    // AFTER backend.createSession resolves, so without this a concurrent create
     // of the SAME id would slip past the registry.has() check above and race
     // into the backend — where the loser's name-conflict cleanup could
     // `docker rm` the winner's healthy container (the backend also guards
     // against rm-on-conflict as defense-in-depth).
-    if (this.creating.has(req.sessionId)) {
-      return jsonResponse(
-        {
-          error: 'duplicate',
-          message: `session ${req.sessionId} is being created`,
-        },
-        409,
-      );
-    }
     this.creating.set(req.sessionId, req.organizationId);
     try {
       const createdAtMs = Date.now();

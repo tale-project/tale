@@ -564,6 +564,26 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect((await pending).status).toBe(201);
     });
 
+    test('a retry of an id still being created is 409, not 429, at the host cap', async () => {
+      const backend = blockingBackend('retry-a');
+      const routes = new SessionRoutes(
+        { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+        backend,
+      );
+      const pending = routes.handleCreate(
+        JSON.stringify({ sessionId: 'retry-a', organizationId: 'org_r' }),
+      );
+      // The host is full (by this very create); the duplicate is still judged
+      // as a duplicate first.
+      const retry = await routes.handleCreate(
+        JSON.stringify({ sessionId: 'retry-a', organizationId: 'org_r' }),
+      );
+      expect(retry.status).toBe(409);
+      expect(await retry.json()).toMatchObject({ error: 'duplicate' });
+      backend.release();
+      expect((await pending).status).toBe(201);
+    });
+
     test('a failed in-flight create releases its quota share', async () => {
       const failing: SessionBackend = {
         ...fakeBackend,
@@ -1340,6 +1360,42 @@ describe('SessionRoutes (fake runnerd)', () => {
         expect((await routes.handleGet('repl1')).status).toBe(200);
         expect(routes.sessionCount()).toBe(1);
         expect(backend.lists).toBe(1);
+      });
+
+      test('concurrent misses share one backend list', async () => {
+        let release = () => {};
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const listed = [
+          mkBackendSession('shared1', 'org_peer'),
+          mkBackendSession('shared2', 'org_peer'),
+        ];
+        const backend = {
+          ...fakeBackend,
+          lists: 0,
+          async listSessions(): Promise<BackendSession[]> {
+            backend.lists += 1;
+            await gate;
+            return listed;
+          },
+        };
+        const routes = new SessionRoutes(cfg, backend);
+        // Two ids, three probes, one list in flight.
+        const pending = Promise.all([
+          routes.handleGet('shared1'),
+          routes.handleExecStatus('shared1', 'e1'),
+          routes.handleGet('shared2'),
+        ]);
+        expect(backend.lists).toBe(1);
+        release();
+        const [a, b, c] = await pending;
+        expect([a.status, b.status, c.status]).toEqual([200, 200, 200]);
+        expect(routes.sessionCount()).toBe(2);
+        expect(backend.lists).toBe(1);
+        // The shared list is not a cache: a later miss lists again.
+        expect((await routes.handleGet('shared3')).status).toBe(404);
+        expect(backend.lists).toBe(2);
       });
     });
 
