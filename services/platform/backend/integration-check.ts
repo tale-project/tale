@@ -18873,6 +18873,60 @@ async function checkIngestDedupeRace(
 }
 
 /**
+ * The TTS reserve's first-attempt race, on real Postgres. `FOR UPDATE` over
+ * zero rows locks nothing, so two concurrent first reserves of one
+ * `(message, index)` both used to reach the INSERT — the loser surfaced the
+ * unique violation as a raw 500 to the player instead of `in-flight`. The
+ * reserve now serializes on a per-chunk advisory lock; exactly one racer
+ * reserves, the other reads the winner's pending row.
+ */
+async function checkTtsReserveRace(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const { reserveChunk } = await import('./domains/tts/service.ts');
+  const messageId = `itest-tts-race-${Date.now()}`;
+  const args = {
+    organizationId: orgId,
+    userId,
+    messageId,
+    threadId: `itest-tts-race-thread-${Date.now()}`,
+    index: 0,
+    text: 'Two tabs press play at once.',
+    locale: 'en',
+    agentSlug: null,
+    prospectiveCostCentsPerMChars: undefined,
+  };
+  const outcomes = await Promise.all([
+    reserveChunk(sql, args).then(
+      (out) => out.kind,
+      (error: unknown) =>
+        `threw:${error instanceof Error ? error.message : String(error)}`,
+    ),
+    reserveChunk(sql, args).then(
+      (out) => out.kind,
+      (error: unknown) =>
+        `threw:${error instanceof Error ? error.message : String(error)}`,
+    ),
+  ]);
+  const rows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.tts_audio_chunks
+    WHERE message_id = ${messageId}
+  `;
+  const sorted = [...outcomes].sort();
+  record(
+    'tts: two concurrent first reserves of one chunk → one reserved, one in-flight',
+    sorted[0] === 'pending-in-flight' &&
+      sorted[1] === 'reserved' &&
+      rows[0]?.count === '1',
+    `outcomes=${outcomes.join(',')} (want pending-in-flight + reserved) rows=${rows[0]?.count} (want 1)`,
+  );
+  // The watchdog job the winner scheduled finds no row and no-ops.
+  await sql`DELETE FROM app.tts_audio_chunks WHERE message_id = ${messageId}`;
+}
+
+/**
  * A heal that says it healed must have written. An IMAP credential whose
  * public `config.fromAddress` mirror is missing (a pre-mirror row, or a config
  * edit that dropped the hidden field) is healed by the mailbox sync from the
@@ -40278,6 +40332,7 @@ async function main(): Promise<void> {
       ['checkMailboxSyncLane', () => checkMailboxSyncLane(sql, authCtx)],
       ['checkUndatedMailIngest', () => checkUndatedMailIngest(sql, authCtx)],
       ['checkIngestDedupeRace', () => checkIngestDedupeRace(sql, authCtx)],
+      ['checkTtsReserveRace', () => checkTtsReserveRace(sql, authCtx)],
       [
         'checkImapFromAddressHeal',
         () => checkImapFromAddressHeal(sql, authCtx),
