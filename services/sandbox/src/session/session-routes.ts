@@ -41,10 +41,14 @@ function b64decode(b64: string): Uint8Array {
 
 export class SessionRoutes {
   private readonly registry = new SessionRegistry();
-  // Session ids with a createSession in flight. The registry is only populated
-  // AFTER the backend create resolves, so this Set closes the synchronous gap a
-  // concurrent create of the same id would otherwise slip through.
-  private readonly creating = new Set<string>();
+  // Session ids with a createSession in flight → their organization. The
+  // registry is only populated AFTER the backend create resolves (up to
+  // createHealthTimeoutMs later, through an image pull), so this map closes
+  // the gap a concurrent create would otherwise slip through: the same id
+  // (a duplicate) AND the host/org quotas, which count in-flight creates as
+  // occupied capacity — a burst of distinct ids during a slow pull must not
+  // oversubscribe the host by the number of creates in flight.
+  private readonly creating = new Map<string, string>();
 
   constructor(
     private readonly cfg: SpawnerConfig,
@@ -54,6 +58,15 @@ export class SessionRoutes {
   /** Number of live sessions this spawner currently manages (drain readiness). */
   sessionCount(): number {
     return this.registry.size();
+  }
+
+  /** Creates in flight for one org (the per-org quota's in-flight share). */
+  private creatingCountForOrg(organizationId: string): number {
+    let n = 0;
+    for (const org of this.creating.values()) {
+      if (org === organizationId) n += 1;
+    }
+    return n;
   }
 
   /** Live session ids — the deploy reads these from `/v1/drain-status` to decide
@@ -398,7 +411,11 @@ export class SessionRoutes {
         409,
       );
     }
-    if (this.registry.size() >= this.cfg.session.maxSessions) {
+    // Quotas count live sessions PLUS creates in flight (see `creating`).
+    if (
+      this.registry.size() + this.creating.size >=
+      this.cfg.session.maxSessions
+    ) {
       return jsonResponse(
         { error: 'session_quota', message: 'spawner session cap reached' },
         429,
@@ -406,7 +423,8 @@ export class SessionRoutes {
       );
     }
     if (
-      this.registry.countForOrg(req.organizationId) >=
+      this.registry.countForOrg(req.organizationId) +
+        this.creatingCountForOrg(req.organizationId) >=
       this.cfg.session.maxSessionsPerOrg
     ) {
       return jsonResponse(
@@ -431,7 +449,7 @@ export class SessionRoutes {
         409,
       );
     }
-    this.creating.add(req.sessionId);
+    this.creating.set(req.sessionId, req.organizationId);
     try {
       const createdAtMs = Date.now();
       let created: CreateSessionResult;

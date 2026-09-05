@@ -492,6 +492,113 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(await third.json()).toMatchObject({ error: 'session_quota' });
   });
 
+  // REGRESSION (quota vs creates in flight): the registry is populated only
+  // AFTER backend.createSession resolves (up to createHealthTimeoutMs later
+  // through a slow image pull), and the caps used to read the registry alone —
+  // so a burst of distinct ids during one slow create all passed the host/org
+  // caps and oversubscribed the host by the number of creates in flight.
+  describe('quotas count creates in flight', () => {
+    /** A backend whose createSession of `blockedId` blocks until the test
+     * releases it (every other id creates at once). */
+    const blockingBackend = (
+      blockedId: string,
+    ): SessionBackend & { release: () => void } => {
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return {
+        ...fakeBackend,
+        release: () => release(),
+        async createSession(spec: SessionSpec) {
+          if (spec.sessionId === blockedId) await gate;
+          return fakeBackend.createSession(spec);
+        },
+      };
+    };
+
+    test('per-org cap: a second org create 429s while the first is still creating', async () => {
+      const backend = blockingBackend('inflight-b');
+      const routes = new SessionRoutes(cfg, backend);
+      // Occupy one real slot, then one in-flight slot (maxSessionsPerOrg = 2).
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'inflight-a', organizationId: 'org_if' }),
+      );
+      const pending = routes.handleCreate(
+        JSON.stringify({ sessionId: 'inflight-b', organizationId: 'org_if' }),
+      );
+      expect(routes.sessionCount()).toBe(1); // b is NOT registered yet
+      const third = await routes.handleCreate(
+        JSON.stringify({ sessionId: 'inflight-c', organizationId: 'org_if' }),
+      );
+      expect(third.status).toBe(429);
+      expect(await third.json()).toMatchObject({
+        error: 'session_quota',
+        message: 'org session cap reached',
+      });
+      // Another org is unaffected by org_if's in-flight create.
+      expect(
+        (
+          await routes.handleCreate(
+            JSON.stringify({ sessionId: 'other-org', organizationId: 'org_x' }),
+          )
+        ).status,
+      ).toBe(201);
+      backend.release();
+      expect((await pending).status).toBe(201);
+      expect(routes.sessionCount()).toBe(3);
+    });
+
+    test('host cap: creates in flight occupy spawner capacity', async () => {
+      const backend = blockingBackend('host-a');
+      const routes = new SessionRoutes(
+        { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+        backend,
+      );
+      const pending = routes.handleCreate(
+        JSON.stringify({ sessionId: 'host-a', organizationId: 'org_h1' }),
+      );
+      const second = await routes.handleCreate(
+        JSON.stringify({ sessionId: 'host-b', organizationId: 'org_h2' }),
+      );
+      expect(second.status).toBe(429);
+      expect(await second.json()).toMatchObject({
+        message: 'spawner session cap reached',
+      });
+      backend.release();
+      expect((await pending).status).toBe(201);
+    });
+
+    test('a failed in-flight create releases its quota share', async () => {
+      const failing: SessionBackend = {
+        ...fakeBackend,
+        async createSession() {
+          throw new Error('pull failed');
+        },
+      };
+      const routes = new SessionRoutes(
+        { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+        failing,
+      );
+      expect(
+        (
+          await routes.handleCreate(
+            JSON.stringify({ sessionId: 'fail-a', organizationId: 'org_f' }),
+          )
+        ).status,
+      ).toBe(502);
+      // The slot is free again: the next create is judged on merit, not 429.
+      const next = await new SessionRoutes(
+        { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+        fakeBackend,
+      ).handleCreate(
+        JSON.stringify({ sessionId: 'fail-b', organizationId: 'org_f' }),
+      );
+      expect(next.status).toBe(201);
+      expect(routes.sessionCount()).toBe(0);
+    });
+  });
+
   test('exec against unknown session → 404', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     const res = await routes.handleExec(
