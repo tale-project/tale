@@ -18442,6 +18442,135 @@ async function checkUndatedMailIngest(
 }
 
 /**
+ * Ingest idempotency is the DATABASE's rule now, not the lookup's. Two passes
+ * of one mailbox can overlap (the schedule claims the occurrence, not the run)
+ * and both miss `checkMessageExists`; migration 0077's partial unique index
+ * refuses the second insert and the shim lands the loser on the winner's row.
+ * Contacts have no unique key (the CRUD door allows two rows per email), so
+ * the shim's find-or-create serializes per (org, email) with an advisory lock
+ * instead. Real index, real shim, real concurrency.
+ */
+async function checkIngestDedupeRace(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { conversationShimHandlers } =
+    await import('./domains/conversations/shim.ts');
+  const handlers = conversationShimHandlers(sql, () => {
+    throw new Error('the dedupe check dispatches no connector calls');
+  });
+  const create =
+    handlers['conversations/internal_mutations:createConversationWithMessage'];
+  const append =
+    handlers['conversations/internal_mutations:addMessageToConversation'];
+  const findOrCreateContact =
+    handlers['contacts/internal_mutations:findOrCreateContact'];
+  if (!create || !append || !findOrCreateContact) {
+    throw new Error('shim handler missing');
+  }
+  const landed = z.object({
+    conversationId: z.string(),
+    messageId: z.string(),
+  });
+  const messageId = `<dedupe-${Date.now()}@ext.test>`;
+  const normalized = messageId.slice(1, -1);
+  const rootArgs = {
+    organizationId: orgId,
+    direction: 'inbound',
+    channel: 'email',
+    subject: 'Landed twice',
+    externalMessageId: normalized,
+    initialMessage: {
+      sender: 'twice@ext.test',
+      content: 'the same mail, twice',
+      isCustomer: true,
+      externalMessageId: normalized,
+    },
+  };
+  // Two overlapping passes, both past the lookup: the same root twice.
+  const [first, second] = await Promise.all([
+    create(rootArgs).then((out) => landed.parse(out)),
+    create(rootArgs).then((out) => landed.parse(out)),
+  ]);
+  // A third pass threading the same Message-ID onto the conversation.
+  const appended = z.string().parse(
+    await append({
+      organizationId: orgId,
+      conversationId: first.conversationId,
+      sender: 'twice@ext.test',
+      content: 'the same mail, a third time',
+      isCustomer: true,
+      status: 'delivered',
+      externalMessageId: normalized,
+    }),
+  );
+  const rows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.conversation_messages
+    WHERE org_id = ${orgId} AND external_message_id = ${normalized}
+  `;
+  const conversations = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.conversations
+    WHERE org_id = ${orgId} AND external_message_id = ${normalized}
+  `;
+  // The raw write door is refused too — the rule is the schema's.
+  let rawRefused = false;
+  try {
+    await sql`
+      INSERT INTO app.conversation_messages (
+        org_id, conversation_id, channel, direction, external_message_id,
+        delivery_state, content, created_at_ms
+      ) VALUES (
+        ${orgId}, ${first.conversationId}, 'email', 'inbound', ${normalized},
+        'delivered', 'raw duplicate', ${Date.now()}
+      )
+    `;
+  } catch (error) {
+    rawRefused =
+      error !== null &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === '23505';
+  }
+  record(
+    'mail ingest: the same Message-ID landed by two overlapping passes is one message',
+    first.conversationId === second.conversationId &&
+      first.messageId === second.messageId &&
+      appended === first.conversationId &&
+      rows[0]?.count === '1' &&
+      conversations[0]?.count === '1' &&
+      rawRefused,
+    `sameConversation=${first.conversationId === second.conversationId} sameMessage=${first.messageId === second.messageId} appendJoined=${appended === first.conversationId} messages=${rows[0]?.count} (want 1) conversations=${conversations[0]?.count} (want 1) rawRefused=${rawRefused}`,
+  );
+
+  const email = `race-${Date.now()}@ext.test`;
+  const contactOut = z.object({ contactId: z.string(), created: z.boolean() });
+  const outcomes = await Promise.all(
+    Array.from({ length: 4 }, () =>
+      findOrCreateContact({
+        organizationId: orgId,
+        email: email.toUpperCase(),
+        name: 'Raced Contact',
+        source: 'email',
+      }).then((out) => contactOut.parse(out)),
+    ),
+  );
+  const contactRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.contacts
+    WHERE org_id = ${orgId} AND email = ${email}
+  `;
+  const ids = new Set(outcomes.map((o) => o.contactId));
+  const createdCount = outcomes.filter((o) => o.created).length;
+  record(
+    'mail ingest: four concurrent find-or-creates of one contact email make one contact',
+    contactRows[0]?.count === '1' && ids.size === 1 && createdCount === 1,
+    `rows=${contactRows[0]?.count} (want 1) distinctIds=${ids.size} (want 1) created=${createdCount} (want 1)`,
+  );
+  await sql`DELETE FROM app.conversations WHERE id = ${first.conversationId}`;
+  await sql`DELETE FROM app.contacts WHERE org_id = ${orgId} AND email = ${email}`;
+}
+
+/**
  * A heal that says it healed must have written. An IMAP credential whose
  * public `config.fromAddress` mirror is missing (a pre-mirror row, or a config
  * edit that dropped the hidden field) is healed by the mailbox sync from the
@@ -39841,6 +39970,7 @@ async function main(): Promise<void> {
       ['checkConversations', () => checkConversations(sql, baseUrl, authCtx)],
       ['checkMailboxSyncLane', () => checkMailboxSyncLane(sql, authCtx)],
       ['checkUndatedMailIngest', () => checkUndatedMailIngest(sql, authCtx)],
+      ['checkIngestDedupeRace', () => checkIngestDedupeRace(sql, authCtx)],
       [
         'checkImapFromAddressHeal',
         () => checkImapFromAddressHeal(sql, authCtx),

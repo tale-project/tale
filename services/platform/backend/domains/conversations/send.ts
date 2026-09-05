@@ -18,7 +18,7 @@ import {
   buildSendInput,
   externalIdFromSendOutput,
 } from '../../core/conversations/send_input.ts';
-import { toJson } from '../../db/sql.ts';
+import { isUniqueViolation, toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { TaskPayloads } from '../../jobs/tasks.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -985,6 +985,46 @@ export async function resolveSentExternalMessageId(
 }
 
 /**
+ * Settle a delivered row `sent`, stamping the RFC Message-ID the connector
+ * returned. The id is UNIQUE per org (migration 0077), and the Sent-folder
+ * sync can land the same mail first — the connector returned, the sync
+ * polled the folder, and this settle came last. That mail LEFT, so the row
+ * settles `sent` without the id rather than failing on the collision; the
+ * synced row is the one the id threads on, and the settle says so.
+ */
+async function settleSent(
+  sql: Sql,
+  messageId: string,
+  externalMessageId: string | undefined,
+): Promise<{ id: string }[]> {
+  const now = Date.now();
+  try {
+    return await sql<{ id: string }[]>`
+      UPDATE app.conversation_messages SET
+        delivery_state = 'sent', sent_at_ms = ${now},
+        status_changed_at_ms = ${now},
+        external_message_id = ${externalMessageId ?? sql.unsafe('external_message_id')}
+      WHERE id = ${messageId}
+      RETURNING id
+    `;
+  } catch (error) {
+    if (externalMessageId === undefined || !isUniqueViolation(error)) {
+      throw error;
+    }
+    console.warn(
+      `[conversation-send] ${messageId} delivered as ${externalMessageId}, but the Sent-folder sync landed that Message-ID first — settling without it`,
+    );
+    return sql<{ id: string }[]>`
+      UPDATE app.conversation_messages SET
+        delivery_state = 'sent', sent_at_ms = ${now},
+        status_changed_at_ms = ${now}
+      WHERE id = ${messageId}
+      RETURNING id
+    `;
+  }
+}
+
+/**
  * The scheduled delivery — the 0.4 `sendMessageViaConnectorAction` twin:
  * CLAIMS the still-queued row (an undo deleted it; a claimed row is refused
  * to undo), runs the send through the connector door as the audited system
@@ -1070,15 +1110,7 @@ export async function runSendMessageJob(
       connectorName: payload.connectorName,
       output: result.output,
     });
-    const now = Date.now();
-    const settled = await sql<{ id: string }[]>`
-      UPDATE app.conversation_messages SET
-        delivery_state = 'sent', sent_at_ms = ${now},
-        status_changed_at_ms = ${now},
-        external_message_id = ${externalMessageId ?? sql.unsafe('external_message_id')}
-      WHERE id = ${payload.messageId}
-      RETURNING id
-    `;
+    const settled = await settleSent(sql, payload.messageId, externalMessageId);
     if (settled.length === 0) {
       // The mail left; the row did not survive to record it (the conversation
       // was deleted under the send). Loud, because the Sent-folder sync will

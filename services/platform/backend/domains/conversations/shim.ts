@@ -1,7 +1,7 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { toJson } from '../../db/sql.ts';
+import { isUniqueViolation, toJson } from '../../db/sql.ts';
 import {
   listActiveCredentials,
   patchCredentialConfigInternal,
@@ -59,6 +59,39 @@ function wireConversation(row: ConversationRow): Record<string, unknown> {
 function wireMessage(row: ConversationMessageRow): Record<string, unknown> {
   const { id, createdAt, ...rest } = row;
   return dropNulls({ ...rest, _id: id, _creationTime: createdAt });
+}
+
+/**
+ * The row an org's Message-ID already landed on — where the LOSER of an
+ * ingest race lands. Two passes of one mailbox can overlap (the schedule
+ * claims the occurrence, not the run; a manual run can join a scheduled one),
+ * both miss `checkMessageExists`, and both insert. The partial unique index
+ * `conversation_messages_org_external_unique` (migration 0077) refuses the
+ * second insert; the writer then answers the winner's row, so the ingest
+ * treats the message as already landed instead of failing the pass or
+ * writing the mail twice. Null when the error is anything else.
+ */
+async function landOnExistingMessage(
+  sql: Sql,
+  error: unknown,
+  args: { organizationId: string; externalMessageId: string | undefined },
+): Promise<{ conversationId: string; messageId: string } | null> {
+  if (args.externalMessageId === undefined || !isUniqueViolation(error)) {
+    return null;
+  }
+  const rows = await sql<{ id: string; conversationId: string }[]>`
+    SELECT id, conversation_id AS "conversationId"
+    FROM app.conversation_messages
+    WHERE org_id = ${args.organizationId}
+      AND external_message_id = ${args.externalMessageId}
+    LIMIT 1
+  `;
+  const existing = rows[0];
+  if (!existing) return null;
+  console.info(
+    `[conversations-shim] Message-ID ${args.externalMessageId} landed twice; the second write joins message ${existing.id}`,
+  );
+  return { conversationId: existing.conversationId, messageId: existing.id };
 }
 
 const CONVERSATION_WIRE_COLUMNS = `
@@ -186,58 +219,68 @@ export function conversationShimHandlers(
             .loose(),
         })
         .parse(raw);
-      return sql.begin(async (tx) => {
-        const { initialMessage, ...conversationArgs } = args;
-        const conversationId = await createConversation(tx, conversationArgs);
-        const { messageId } = await addMessageToConversation(tx, {
-          conversationId,
-          organizationId: args.organizationId,
-          sender: initialMessage.sender,
-          content: initialMessage.content,
-          isCustomer: initialMessage.isCustomer,
-          ...(initialMessage.status !== undefined
-            ? { status: initialMessage.status }
-            : {}),
-          ...(Array.isArray(initialMessage.attachments)
-            ? { attachments: initialMessage.attachments }
-            : {}),
-          ...(initialMessage.externalMessageId !== undefined
-            ? { externalMessageId: initialMessage.externalMessageId }
-            : {}),
-          ...(initialMessage.metadata !== undefined
-            ? { metadata: initialMessage.metadata }
-            : {}),
-          ...(initialMessage.sentAt !== undefined
-            ? { sentAt: initialMessage.sentAt }
-            : {}),
-          ...(initialMessage.deliveredAt !== undefined
-            ? { deliveredAt: initialMessage.deliveredAt }
-            : {}),
-          ...(initialMessage.connectorName !== undefined ||
-          args.connectorName !== undefined
-            ? {
-                connectorName:
-                  initialMessage.connectorName ?? args.connectorName,
-              }
-            : {}),
-        });
-        // Address routing (governance feature): auto-assign a NEW inbound
-        // conversation to the team/person mapped to the address it was sent
-        // to, BEFORE downstream notifications observe the row (the 0.4
-        // ingest-inline hook).
-        if (args.direction === 'inbound') {
-          await applyAddressRouting(tx, {
-            id: conversationId,
+      const { initialMessage, ...conversationArgs } = args;
+      try {
+        return await sql.begin(async (tx) => {
+          const conversationId = await createConversation(tx, conversationArgs);
+          const { messageId } = await addMessageToConversation(tx, {
+            conversationId,
             organizationId: args.organizationId,
-            subject: args.subject ?? null,
-            status: args.status ?? 'open',
-            assigneeUserId: args.assigneeUserId ?? null,
-            assigneeTeamId: args.assigneeTeamId ?? null,
-            metadata: args.metadata ?? null,
+            sender: initialMessage.sender,
+            content: initialMessage.content,
+            isCustomer: initialMessage.isCustomer,
+            ...(initialMessage.status !== undefined
+              ? { status: initialMessage.status }
+              : {}),
+            ...(Array.isArray(initialMessage.attachments)
+              ? { attachments: initialMessage.attachments }
+              : {}),
+            ...(initialMessage.externalMessageId !== undefined
+              ? { externalMessageId: initialMessage.externalMessageId }
+              : {}),
+            ...(initialMessage.metadata !== undefined
+              ? { metadata: initialMessage.metadata }
+              : {}),
+            ...(initialMessage.sentAt !== undefined
+              ? { sentAt: initialMessage.sentAt }
+              : {}),
+            ...(initialMessage.deliveredAt !== undefined
+              ? { deliveredAt: initialMessage.deliveredAt }
+              : {}),
+            ...(initialMessage.connectorName !== undefined ||
+            args.connectorName !== undefined
+              ? {
+                  connectorName:
+                    initialMessage.connectorName ?? args.connectorName,
+                }
+              : {}),
           });
-        }
-        return { conversationId, messageId };
-      });
+          // Address routing (governance feature): auto-assign a NEW inbound
+          // conversation to the team/person mapped to the address it was sent
+          // to, BEFORE downstream notifications observe the row (the 0.4
+          // ingest-inline hook).
+          if (args.direction === 'inbound') {
+            await applyAddressRouting(tx, {
+              id: conversationId,
+              organizationId: args.organizationId,
+              subject: args.subject ?? null,
+              status: args.status ?? 'open',
+              assigneeUserId: args.assigneeUserId ?? null,
+              assigneeTeamId: args.assigneeTeamId ?? null,
+              metadata: args.metadata ?? null,
+            });
+          }
+          return { conversationId, messageId };
+        });
+      } catch (error) {
+        const landed = await landOnExistingMessage(sql, error, {
+          organizationId: args.organizationId,
+          externalMessageId:
+            initialMessage.externalMessageId ?? args.externalMessageId,
+        });
+        if (!landed) throw error;
+        return landed;
+      }
     },
     'conversations/internal_mutations:addMessageToConversation': async (
       raw: unknown,
@@ -258,31 +301,40 @@ export function conversationShimHandlers(
           connectorName: z.string().optional(),
         })
         .parse(raw);
-      const result = await sql.begin((tx) =>
-        addMessageToConversation(tx, {
-          conversationId: args.conversationId,
+      try {
+        const result = await sql.begin((tx) =>
+          addMessageToConversation(tx, {
+            conversationId: args.conversationId,
+            organizationId: args.organizationId,
+            sender: args.sender,
+            content: args.content,
+            isCustomer: args.isCustomer,
+            ...(args.status !== undefined ? { status: args.status } : {}),
+            ...(Array.isArray(args.attachments)
+              ? { attachments: args.attachments }
+              : {}),
+            ...(args.externalMessageId !== undefined
+              ? { externalMessageId: args.externalMessageId }
+              : {}),
+            ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
+            ...(args.sentAt !== undefined ? { sentAt: args.sentAt } : {}),
+            ...(args.deliveredAt !== undefined
+              ? { deliveredAt: args.deliveredAt }
+              : {}),
+            ...(args.connectorName !== undefined
+              ? { connectorName: args.connectorName }
+              : {}),
+          }),
+        );
+        return result.conversationId;
+      } catch (error) {
+        const landed = await landOnExistingMessage(sql, error, {
           organizationId: args.organizationId,
-          sender: args.sender,
-          content: args.content,
-          isCustomer: args.isCustomer,
-          ...(args.status !== undefined ? { status: args.status } : {}),
-          ...(Array.isArray(args.attachments)
-            ? { attachments: args.attachments }
-            : {}),
-          ...(args.externalMessageId !== undefined
-            ? { externalMessageId: args.externalMessageId }
-            : {}),
-          ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
-          ...(args.sentAt !== undefined ? { sentAt: args.sentAt } : {}),
-          ...(args.deliveredAt !== undefined
-            ? { deliveredAt: args.deliveredAt }
-            : {}),
-          ...(args.connectorName !== undefined
-            ? { connectorName: args.connectorName }
-            : {}),
-        }),
-      );
-      return result.conversationId;
+          externalMessageId: args.externalMessageId,
+        });
+        if (!landed) throw error;
+        return landed.conversationId;
+      }
     },
     'conversations/internal_mutations:updateConversationMessage': async (
       raw: unknown,
@@ -335,6 +387,15 @@ export function conversationShimHandlers(
         .parse(raw);
       const email = args.email.toLowerCase().trim();
       return sql.begin(async (tx) => {
+        // `contacts_org_email` is a plain index, so two overlapping sync
+        // passes that both miss the lookup would both insert. Serialize the
+        // find-or-create per (org, email): the second transaction waits on
+        // the first's commit and its SELECT then sees the row.
+        await tx`
+          SELECT pg_advisory_xact_lock(
+            hashtextextended('contact:' || ${args.organizationId} || ':' || ${email}, 0)
+          )
+        `;
         const existing = await tx<{ id: string }[]>`
           SELECT id FROM app.contacts
           WHERE org_id = ${args.organizationId} AND email = ${email}

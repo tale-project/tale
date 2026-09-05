@@ -17,10 +17,16 @@ const {
   patchMailSyncWatermarks,
   patchCredentialConfigInternal,
   resolveCredentialRowForShim,
+  createConversation,
+  addMessageToConversation,
 } = vi.hoisted(() => ({
   patchMailSyncWatermarks: vi.fn(async () => undefined),
   patchCredentialConfigInternal: vi.fn(async () => undefined),
   resolveCredentialRowForShim: vi.fn(async () => null),
+  createConversation: vi.fn<() => Promise<string>>(async () => 'c-new'),
+  addMessageToConversation: vi.fn<
+    () => Promise<{ messageId: string; conversationId: string }>
+  >(async () => ({ messageId: 'm-new', conversationId: 'c-new' })),
 }));
 
 vi.mock('../connector_credentials/service.ts', () => ({
@@ -32,6 +38,13 @@ vi.mock('../connector_credentials/service.ts', () => ({
 vi.mock('../files/service.ts', () => ({
   putOrgBlobBytes: vi.fn(),
   registerUploadedBytes: vi.fn(),
+}));
+vi.mock('./service.ts', () => ({
+  createConversation,
+  addMessageToConversation,
+}));
+vi.mock('./routing.ts', () => ({
+  applyAddressRouting: vi.fn(async () => undefined),
 }));
 
 import { conversationShimHandlers } from './shim.ts';
@@ -86,11 +99,12 @@ describe('conversationShimHandlers', () => {
 });
 /**
  * A `sql` stand-in that records every statement it is handed. Each call
- * answers an empty row set, and the promise carries the statement's text and
- * parameters, so a nested fragment (`sql\`…\`` used as a parameter) stays
- * inspectable from the outer statement's values.
+ * answers the rows `answer` returns for its text (an empty row set by
+ * default), and the promise carries the statement's text and parameters, so
+ * a nested fragment (`sql\`…\`` used as a parameter) stays inspectable from
+ * the outer statement's values. `begin` runs the callback on the same tag.
  */
-function recordingSql() {
+function recordingSql(answer: (text: string) => unknown[] = () => []) {
   const statements: { text: string; values: unknown[] }[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const statement = {
@@ -98,15 +112,129 @@ function recordingSql() {
       values,
     };
     statements.push(statement);
-    return Object.assign(Promise.resolve([] as unknown[]), statement);
+    return Object.assign(Promise.resolve(answer(statement.text)), statement);
   };
   const sql = Object.assign(tag, {
     unsafe: (text: string) => text,
     json: (value: unknown) => value,
+    begin: (cb: (tx: unknown) => unknown) => Promise.resolve(cb(sql)),
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
   return { sql: sql as unknown as import('postgres').Sql, statements };
 }
+
+const NO_CONNECTOR = () => {
+  throw new Error('no connector calls in this test');
+};
+const UNIQUE_VIOLATION = () =>
+  Object.assign(new Error('duplicate key value violates unique constraint'), {
+    code: '23505',
+  });
+const LANDED = { id: 'm-first', conversationId: 'c-first' };
+const INITIAL_MESSAGE = {
+  sender: 'carla@ext.test',
+  content: 'hello',
+  isCustomer: true,
+  externalMessageId: 'mid-1@ext.test',
+};
+
+/**
+ * Two passes of one mailbox can overlap and both insert the same Message-ID;
+ * the partial unique index (0077) refuses the second write. The shim lands
+ * the loser on the winner's row so the ingest treats the mail as already
+ * landed — never a failed pass, never the mail twice.
+ */
+describe('ingest writers — the loser of a Message-ID race', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('createConversationWithMessage answers the row the Message-ID already landed on', async () => {
+    createConversation.mockRejectedValueOnce(UNIQUE_VIOLATION());
+    const { sql, statements } = recordingSql((text) =>
+      text.includes('FROM app.conversation_messages') ? [LANDED] : [],
+    );
+    const handler = conversationShimHandlers(sql, NO_CONNECTOR)[
+      'conversations/internal_mutations:createConversationWithMessage'
+    ];
+    if (!handler) throw new Error('handler missing');
+    await expect(
+      handler({
+        organizationId: 'o1',
+        externalMessageId: 'mid-1@ext.test',
+        initialMessage: INITIAL_MESSAGE,
+      }),
+    ).resolves.toEqual({ conversationId: 'c-first', messageId: 'm-first' });
+    const lookup = statements.find((s) =>
+      s.text.includes('FROM app.conversation_messages'),
+    );
+    expect(lookup?.text).toContain('org_id = ?');
+    expect(lookup?.values).toEqual(['o1', 'mid-1@ext.test']);
+  });
+
+  it('addMessageToConversation answers the conversation the Message-ID already landed on', async () => {
+    addMessageToConversation.mockRejectedValueOnce(UNIQUE_VIOLATION());
+    const { sql } = recordingSql((text) =>
+      text.includes('FROM app.conversation_messages') ? [LANDED] : [],
+    );
+    const handler = conversationShimHandlers(sql, NO_CONNECTOR)[
+      'conversations/internal_mutations:addMessageToConversation'
+    ];
+    if (!handler) throw new Error('handler missing');
+    await expect(
+      handler({
+        organizationId: 'o1',
+        conversationId: 'c-target',
+        ...INITIAL_MESSAGE,
+      }),
+    ).resolves.toBe('c-first');
+  });
+
+  it('rethrows every other error, and a violation whose winner is not found', async () => {
+    createConversation.mockRejectedValueOnce(new Error('connection reset'));
+    const { sql } = recordingSql();
+    const handler = conversationShimHandlers(sql, NO_CONNECTOR)[
+      'conversations/internal_mutations:createConversationWithMessage'
+    ];
+    if (!handler) throw new Error('handler missing');
+    const args = {
+      organizationId: 'o1',
+      externalMessageId: 'mid-1@ext.test',
+      initialMessage: INITIAL_MESSAGE,
+    };
+    await expect(handler(args)).rejects.toThrow('connection reset');
+    createConversation.mockRejectedValueOnce(UNIQUE_VIOLATION());
+    await expect(handler(args)).rejects.toThrow('duplicate key');
+  });
+});
+
+describe('findOrCreateContact shim', () => {
+  it('serializes the find-or-create per (org, email) before it looks', async () => {
+    const { sql, statements } = recordingSql((text) =>
+      text.includes('INSERT INTO app.contacts') ? [{ id: 'ct-1' }] : [],
+    );
+    const handler = conversationShimHandlers(sql, NO_CONNECTOR)[
+      'contacts/internal_mutations:findOrCreateContact'
+    ];
+    if (!handler) throw new Error('handler missing');
+    await expect(
+      handler({
+        organizationId: 'o1',
+        email: ' Carla@Ext.Test ',
+        source: 'email',
+      }),
+    ).resolves.toEqual({ contactId: 'ct-1', created: true });
+    // `contacts_org_email` is a plain index: without the lock two overlapping
+    // passes both miss the SELECT and both insert.
+    const lockIndex = statements.findIndex((s) =>
+      s.text.includes('pg_advisory_xact_lock'),
+    );
+    const selectIndex = statements.findIndex((s) =>
+      s.text.includes('SELECT id FROM app.contacts'),
+    );
+    expect(lockIndex).toBeGreaterThanOrEqual(0);
+    expect(selectIndex).toBeGreaterThan(lockIndex);
+    expect(statements[lockIndex]?.values).toEqual(['o1', 'carla@ext.test']);
+  });
+});
 
 describe('updateConversationMessage shim', () => {
   it('merges the re-synced envelope onto the stored metadata instead of replacing it', async () => {

@@ -77,11 +77,12 @@ type Begin = { status: 'open' | 'committed' | 'rolled_back' };
 
 /**
  * A `sql` double that records statements and answers by statement shape:
- * `answer` maps a text fragment to the rows that statement returns; anything
+ * `answer` maps a text fragment to the rows that statement returns (or the
+ * error it rejects with); the first matching fragment wins, and anything
  * unmatched answers no rows. `begin` runs the callback on the same tag and
  * records whether the transaction committed or rolled back.
  */
-function fakeSql(answer: Record<string, unknown[]>) {
+function fakeSql(answer: Record<string, unknown[] | Error>) {
   const statements: Statement[] = [];
   const begins: Begin[] = [];
   let current: number | null = null;
@@ -91,6 +92,7 @@ function fakeSql(answer: Record<string, unknown[]>) {
     const hit = Object.entries(answer).find(([needle]) =>
       text.includes(needle),
     );
+    if (hit?.[1] instanceof Error) return Promise.reject(hit[1]);
     return Promise.resolve(hit ? hit[1] : []);
   };
   const sql = Object.assign(tag, {
@@ -159,6 +161,34 @@ describe('runSendMessageJob — the claim', () => {
     expect(claimIndex).toBeGreaterThanOrEqual(0);
     expect(settleIndex).toBeGreaterThan(claimIndex);
     expect(statements[settleIndex]?.text).toContain('RETURNING id');
+  });
+
+  it('settles a delivered row sent without the Message-ID the Sent-folder sync landed first', async () => {
+    runConnectorAction.mockResolvedValue({
+      status: 'ok',
+      output: { messageId: '<smtp-1@door.test>' },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    // The id is unique per org (0077): the settle that stamps it collides when
+    // the sync already ingested the sent mail. The first (stamping) UPDATE is
+    // refused; the settle must still record the send, not fail it.
+    const { sql, statements } = fakeSql({
+      [CLAIM]: [QUEUED_ROW],
+      'external_message_id = ?': Object.assign(new Error('duplicate key'), {
+        code: '23505',
+      }),
+      [SETTLE]: [{ id: 'm1' }],
+    });
+    await runSendMessageJob(sql, JOB_PAYLOAD);
+    const settles = statements.filter((s) => s.text.includes(SETTLE));
+    expect(settles).toHaveLength(2);
+    expect(settles[0]?.text).toContain('external_message_id = ?');
+    expect(settles[1]?.text).not.toContain('external_message_id');
+    expect(statements.some((s) => s.text.includes("'failed'"))).toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('landed that Message-ID first'),
+    );
+    warn.mockRestore();
   });
 
   it('warns instead of failing when the delivered row is gone at settle time', async () => {
