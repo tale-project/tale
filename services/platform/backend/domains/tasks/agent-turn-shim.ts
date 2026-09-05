@@ -4,7 +4,6 @@ import type { Sql } from 'postgres';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { isFilePolicyType } from '../../../lib/shared/schemas/governance';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
-import { isAutoRetryableFailure } from '../../core/tasks/task_auto_retry.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
@@ -18,7 +17,11 @@ import {
   WaitFifoError,
 } from '../sandbox/sessions.ts';
 import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
-import { kickAgentRun } from './agent-runs.ts';
+import {
+  failAgentRunFromTurn,
+  kickAgentRun,
+  settleAgentRun,
+} from './agent-runs.ts';
 import {
   agentRecordTaskOutputsTrusted,
   handTaskToInProgressForKick,
@@ -124,73 +127,17 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'tasks/agent_runs:markTaskAgentRunSettled': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as {
-        runId: string;
-        resultText: string;
-        resultMessageId?: string;
-        execId?: string;
-        agentSessionId?: string;
-        sessionCreatedAt?: number;
-      };
-      const now = Date.now();
-      await sql`
-        UPDATE app.project_agent_runs SET
-          status = 'settled', result_text = ${args.resultText},
-          result_message_id = ${args.resultMessageId ?? null},
-          agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
-          session_created_at_ms = coalesce(${args.sessionCreatedAt ?? null}::bigint, session_created_at_ms),
-          settled_at_ms = ${now}, updated_at_ms = ${now}
-        WHERE id = ${args.runId}
-          AND status NOT IN ('settled', 'failed', 'cancelled')
-          AND (${args.execId ?? null}::text IS NULL
-               OR exec_id = ${args.execId ?? null})
-      `;
+      const args = raw as Parameters<typeof settleAgentRun>[1];
+      // The ledgered election lives with the run ledger: one copy of the
+      // terminal flip, the provenance entry in its transaction.
+      await settleAgentRun(sql, args);
       return null;
     },
 
     'tasks/agent_runs:markTaskAgentRunFailed': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as {
-        runId: string;
-        error: string;
-        execId?: string;
-        agentSessionId?: string;
-        sessionCreatedAt?: number;
-        failureCode?: string;
-        apiErrorStatus?: number;
-      };
-      const now = Date.now();
-      await sql.begin(async (tx) => {
-        const flipped = await tx<
-          { organizationId: string; taskId: string; agentId: string }[]
-        >`
-          UPDATE app.project_agent_runs SET
-            status = 'failed', error = ${args.error.slice(0, 2000)},
-            api_error_status = ${args.apiErrorStatus ?? null},
-            agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
-            session_created_at_ms = coalesce(${args.sessionCreatedAt ?? null}::bigint, session_created_at_ms),
-            settled_at_ms = ${now}, updated_at_ms = ${now}
-          WHERE id = ${args.runId}
-            AND status NOT IN ('settled', 'failed', 'cancelled')
-            AND (${args.execId ?? null}::text IS NULL
-                 OR exec_id = ${args.execId ?? null})
-          RETURNING org_id AS "organizationId", task_id AS "taskId",
-                    agent_id AS "agentId"
-        `;
-        const run = flipped[0];
-        // Auto-retry hangs off the SAME once-only claim: only the winning
-        // terminal flip reaches here, so at most one retry arm per failed
-        // run — and it rides the flip's transaction. The kick job re-derives
-        // the budget and every guard; this is just the arm.
-        if (run !== undefined && isAutoRetryableFailure(args.failureCode)) {
-          await addJobInTx(tx, 'task.agent_retry', {
-            organizationId: run.organizationId,
-            taskId: run.taskId,
-            agentId: run.agentId,
-            expectedRunId: args.runId,
-          });
-        }
-      });
+      const args = raw as Parameters<typeof failAgentRunFromTurn>[1];
+      await failAgentRunFromTurn(sql, args);
       return null;
     },
 

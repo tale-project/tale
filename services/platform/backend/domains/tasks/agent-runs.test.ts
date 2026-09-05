@@ -1,7 +1,12 @@
-import type { TransactionSql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { cancelAgentRunInTx } from './agent-runs.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
+import {
+  cancelAgentRunInTx,
+  failAgentRunFromTurn,
+  settleAgentRun,
+} from './agent-runs.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
 vi.mock('./run-ledger.ts', () => ({ recordTaskAgentRunLedgerEntry: vi.fn() }));
@@ -67,5 +72,121 @@ describe('cancelAgentRunInTx — the run must belong to the authorized task', ()
         finalStatus: 'cancelled',
       }),
     );
+  });
+});
+
+/** A root `sql` stand-in whose `begin` hands the callback the same tagged
+ * template — the terminal marks open their own transaction. */
+function fakeSql(answer: (text: string) => Row[]): {
+  sql: Sql;
+  statements: string[];
+} {
+  const { tx, statements } = fakeTx(answer);
+  const sql = Object.assign(tx, {
+    begin: (callback: (tx: TransactionSql) => unknown): unknown => callback(tx),
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js root instance
+  return { sql: sql as unknown as Sql, statements };
+}
+
+describe('the turn host’s terminal marks write the provenance entry', () => {
+  beforeEach(() => {
+    vi.mocked(recordTaskAgentRunLedgerEntry).mockReset();
+    vi.mocked(addJobInTx).mockReset();
+  });
+
+  it('settleAgentRun: the winning flip records `settled` in the same transaction', async () => {
+    const { sql, statements } = fakeSql((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [{ organizationId: 'org-1' }]
+        : [],
+    );
+    await expect(
+      settleAgentRun(sql, {
+        runId: 'run-1',
+        execId: 'exec-1',
+        resultText: 'ok',
+      }),
+    ).resolves.toBe(true);
+    const update = statements.find((text) =>
+      text.startsWith('UPDATE app.project_agent_runs'),
+    );
+    // Exec-guarded and elected on the live statuses.
+    expect(update).toContain(
+      "status NOT IN ('settled', 'failed', 'cancelled')",
+    );
+    expect(update).toContain('OR exec_id = ?');
+    expect(recordTaskAgentRunLedgerEntry).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(recordTaskAgentRunLedgerEntry).mock.calls[0]?.[1]).toEqual(
+      {
+        runId: 'run-1',
+        organizationId: 'org-1',
+        finalStatus: 'settled',
+        settledAt: expect.any(Number),
+      },
+    );
+  });
+
+  it('settleAgentRun: a lost election (already terminal / rotated exec) writes nothing', async () => {
+    const { sql } = fakeSql(() => []);
+    await expect(
+      settleAgentRun(sql, {
+        runId: 'run-1',
+        execId: 'stale',
+        resultText: 'ok',
+      }),
+    ).resolves.toBe(false);
+    expect(recordTaskAgentRunLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  it('failAgentRunFromTurn: records `failed` with the reason and arms the retry once', async () => {
+    const { sql } = fakeSql((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [{ organizationId: 'org-1', taskId: 'task-1', agentId: 'agent-1' }]
+        : [],
+    );
+    await expect(
+      failAgentRunFromTurn(sql, {
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: 'the harness crashed',
+        failureCode: 'harness_error',
+      }),
+    ).resolves.toBe(true);
+    expect(vi.mocked(recordTaskAgentRunLedgerEntry).mock.calls[0]?.[1]).toEqual(
+      {
+        runId: 'run-1',
+        organizationId: 'org-1',
+        finalStatus: 'failed',
+        settledAt: expect.any(Number),
+        error: 'the harness crashed',
+      },
+    );
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('task.agent_retry');
+  });
+
+  it('failAgentRunFromTurn: a non-retryable failure records the entry but arms nothing', async () => {
+    const { sql } = fakeSql((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [{ organizationId: 'org-1', taskId: 'task-1', agentId: 'agent-1' }]
+        : [],
+    );
+    await failAgentRunFromTurn(sql, {
+      runId: 'run-1',
+      error: 'past the deadline',
+      failureCode: 'deadline',
+    });
+    expect(recordTaskAgentRunLedgerEntry).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('failAgentRunFromTurn: a lost election writes no entry and arms no retry', async () => {
+    const { sql } = fakeSql(() => []);
+    await expect(
+      failAgentRunFromTurn(sql, { runId: 'run-1', error: 'late' }),
+    ).resolves.toBe(false);
+    expect(recordTaskAgentRunLedgerEntry).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
   });
 });

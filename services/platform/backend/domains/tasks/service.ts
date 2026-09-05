@@ -1549,6 +1549,17 @@ export async function handTaskToInProgressForKick(
   return true;
 }
 
+/** One deliverable in the task's Output zone. `runId` names the run that
+ * produced it — the provenance ledger binds a run's entry to exactly the
+ * outputs stamped with its id. */
+export interface TaskOutputEntry {
+  fileId: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  runId?: string;
+}
+
 /**
  * TRUSTED deliverables merge into the task's Output zone (same fileName ⇒
  * replace) — the settle's attach step.
@@ -1558,6 +1569,8 @@ export async function agentRecordTaskOutputsTrusted(
   args: {
     organizationId: string;
     taskId: string;
+    /** The producing run — stamped on every merged entry. */
+    runId?: string;
     files: Array<{
       fileId: string;
       fileName: string;
@@ -1568,24 +1581,18 @@ export async function agentRecordTaskOutputsTrusted(
 ): Promise<void> {
   if (args.files.length === 0) return;
   const task = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
-  const next: Array<{
-    fileId: string;
-    fileName: string;
-    fileType: string;
-    fileSize: number;
-  }> = Array.isArray(task.outputs)
+  const next: TaskOutputEntry[] = Array.isArray(task.outputs)
     ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the outputs column is written only by this shape
-      ([...task.outputs] as Array<{
-        fileId: string;
-        fileName: string;
-        fileType: string;
-        fileSize: number;
-      }>)
+      ([...task.outputs] as TaskOutputEntry[])
     : [];
   for (const file of args.files) {
     const fileName = file.fileName.slice(0, 255);
     if (fileName === '') continue;
-    const entry = { ...file, fileName };
+    const entry: TaskOutputEntry = {
+      ...file,
+      fileName,
+      ...(args.runId !== undefined ? { runId: args.runId } : {}),
+    };
     const at = next.findIndex((output) => output.fileName === fileName);
     if (at === -1) next.push(entry);
     else next[at] = entry;

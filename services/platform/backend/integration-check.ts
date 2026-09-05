@@ -14336,10 +14336,11 @@ async function checkRunProvenance(
     ) RETURNING id
   `;
   const runId = runRows[0]?.id ?? '';
-  // A deliverable this run produced, plus one from another run.
+  // A deliverable from another run sits on the task already; THIS run's
+  // deliverable lands through the settle's attach step, which stamps the
+  // producing run on the entry — the binding the ledger filters on.
   await sql`
     UPDATE app.tasks SET outputs = ${sql.json([
-      { runId, fileName: 'report.md', fileSize: 1234, fileId: 's3:out-1' },
       {
         runId: 'other-run',
         fileName: 'stale.md',
@@ -14349,6 +14350,23 @@ async function checkRunProvenance(
     ])}
     WHERE id = ${taskId}
   `;
+  const { agentRecordTaskOutputsTrusted } =
+    await import('./domains/tasks/service.ts');
+  await sql.begin((tx) =>
+    agentRecordTaskOutputsTrusted(tx, {
+      organizationId: orgId,
+      taskId,
+      runId,
+      files: [
+        {
+          fileId: 's3:out-1',
+          fileName: 'report.md',
+          fileType: 'text/markdown',
+          fileSize: 1234,
+        },
+      ],
+    }),
+  );
   await sql`
     INSERT INTO app.approvals (
       org_id, status, resource_type, resource_id, priority, metadata,
@@ -14359,21 +14377,22 @@ async function checkRunProvenance(
     )
   `;
 
-  const { settleAgentRun } = await import('./domains/tasks/agent-runs.ts');
-  const settled = await settleAgentRun(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-    resultText: 'done',
-  });
+  // Through the HOST's own mark (the shim ref the drive chain calls), not a
+  // sibling helper: the entry must ride the path production takes.
+  const { agentTurnShimHandlers: ledgerShim } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const markSettled =
+    ledgerShim(sql)['tasks/agent_runs:markTaskAgentRunSettled'];
+  await markSettled?.({ runId, execId, resultText: 'done' });
   // The settle election admits exactly one terminal transition, so a second
-  // call must write no second ledger entry.
-  const settledTwice = await settleAgentRun(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-    resultText: 'done again',
-  });
+  // call must write no second ledger entry and leave the first result.
+  await markSettled?.({ runId, execId, resultText: 'done again' });
+  const settledRow = await sql<{ status: string; resultText: string | null }[]>`
+    SELECT status, result_text AS "resultText" FROM app.project_agent_runs
+    WHERE id = ${runId}
+  `;
+  const settled = settledRow[0]?.status === 'settled';
+  const settledTwice = settledRow[0]?.resultText !== 'done';
 
   const entries = await sql<
     { metadata: unknown; resourceName: string | null; status: string }[]
@@ -27812,38 +27831,30 @@ async function checkTaskAgentRuns(
     ? runsView.data.runs.find((run) => run.id === runId)
     : undefined;
 
-  // Park → single-winner claim (a second claim must lose) → re-park → wake.
-  await agentRuns.parkAgentRunForCapacity(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-  });
-  const firstClaim = await agentRuns.claimParkedAgentRun(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-  });
-  const secondClaim = await agentRuns.claimParkedAgentRun(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-  });
-  await agentRuns.parkAgentRunForCapacity(sql, {
-    organizationId: orgId,
+  // Park (the host's shim ref) → the wake CLAIMS it (clearing the stamp is
+  // the single-winner election: a second wake finds nothing).
+  const { agentTurnShimHandlers: runShim } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const shimRefs = runShim(sql);
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
     runId,
     execId,
   });
   const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  const wokenAgain = await agentRuns.wakeParkedAgentRuns(sql, orgId);
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
-  // Launch + exactly-once settle; `launchedAt` distinct from kick time.
-  const launched = await agentRuns.setAgentRunRunning(sql, {
-    organizationId: orgId,
+  // Launch (the host's running flip) + exactly-once settle through the
+  // host's mark; `launchedAt` distinct from kick time. A late failure must
+  // not overwrite the settle, and the ledger holds ONE entry for the run.
+  await shimRefs['tasks/agent_runs:setTaskAgentRunRunning']?.({
     runId,
     execId,
   });
+  const launchedRow = await agentRuns.getAgentRun(sql, orgId, runId);
+  const launched =
+    launchedRow?.status === 'running' && launchedRow.launchedAt !== null;
   const settled = await agentRuns.settleAgentRun(sql, {
-    organizationId: orgId,
     runId,
     execId,
     resultText: 'Delivered the work.',
@@ -27854,6 +27865,39 @@ async function checkTaskAgentRuns(
     execId,
     error: 'late failure must not overwrite a settle',
   });
+  const ledgerRows = async (id: string): Promise<{ status: string }[]> =>
+    sql<{ status: string }[]>`
+      SELECT status FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'agent.run_settled'
+        AND resource_id = ${id}
+    `;
+  const settledLedger = await ledgerRows(runId);
+  // The drive chain's FAILED mark writes the entry too (a failure is a
+  // settled run in the provenance sense), once, as a failure row.
+  const failedInsert = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${taskId}, ${agentId}, 'exec-ledger-2',
+      ${`pa-${agentId}`}, 'running', 'claude-code', 'itest-model',
+      'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const failedRunId = failedInsert[0]?.id ?? '';
+  const failedOnce = await agentRuns.failAgentRunFromTurn(sql, {
+    runId: failedRunId,
+    execId: 'exec-ledger-2',
+    error: 'the harness crashed',
+    failureCode: 'deadline',
+  });
+  const failedTwice = await agentRuns.failAgentRunFromTurn(sql, {
+    runId: failedRunId,
+    execId: 'exec-ledger-2',
+    error: 'a second chain must not re-stamp',
+  });
+  const failedLedger = await ledgerRows(failedRunId);
   const finalRun = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // A live run makes a concurrent kick REUSE it; a terminal one mints anew.
@@ -27876,14 +27920,13 @@ async function checkTaskAgentRuns(
   };
 
   record(
-    'task-agent run ledger (kick + park/claim/wake + exactly-once settle)',
+    'task-agent run ledger (kick + park/wake + exactly-once settle/fail with provenance)',
     runsView.success &&
       kicked !== undefined &&
       kicked.status === 'queued' &&
       kicked.launchedAt === null &&
-      firstClaim &&
-      !secondClaim &&
       woken === 1 &&
+      wokenAgain === 0 &&
       afterWake?.waitingForCapacityAt === null &&
       launched &&
       settled &&
@@ -27891,12 +27934,18 @@ async function checkTaskAgentRuns(
       finalRun?.status === 'settled' &&
       finalRun.resultText === 'Delivered the work.' &&
       finalRun.launchedAt !== null &&
+      settledLedger.length === 1 &&
+      settledLedger[0]?.status === 'success' &&
+      failedOnce &&
+      !failedTwice &&
+      failedLedger.length === 1 &&
+      failedLedger[0]?.status === 'failure' &&
       secondRuns.success &&
-      // ≥2, not ==2: the rekicked run's start fails on the fake model and
+      // ≥3, not ==3: the rekicked run's start fails on the fake model and
       // the auto-retry arm may already have added attempts by this read.
-      secondRuns.data.runs.length >= 2 &&
+      secondRuns.data.runs.length >= 3 &&
       !reuseProbe.reused,
-    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want ≥2, fresh=${!reuseProbe.reused})`,
+    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), wake=${woken}/${wokenAgain} (want 1/0), launched=${launched}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status}, ledger settled=${settledLedger.length}/${settledLedger[0]?.status ?? '-'} (want 1/success) failed=${failedOnce}/${failedTwice} → ${failedLedger.length}/${failedLedger[0]?.status ?? '-'} (want 1/failure), rekick runs=${secondRuns.data.runs.length} (want ≥3, fresh=${!reuseProbe.reused})`,
   );
 }
 
