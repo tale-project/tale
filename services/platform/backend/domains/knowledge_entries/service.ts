@@ -442,10 +442,14 @@ export async function updateKnowledgeEntry(
 /**
  * Soft-delete every version of the entry chain a document backs — the hook
  * every path that trashes or purges a document calls, so a knowledge entry
- * can never outlive its backing document. Org-scoped; the chain is every row
- * sharing the topic key, which is also every row sharing the document (a
- * version re-materializes onto the same document). Returns how many rows
- * were marked; zero when the document backs no entry.
+ * can never outlive its backing document. Org-scoped and keyed by the
+ * DOCUMENT alone: every version of a chain re-materializes onto the same
+ * document (`attachEntryDocument` rotates the existing one), so the document
+ * IS the chain. Never hop through the topic key — a deleted chain's key is
+ * free for a new entry (`findActiveByTopicKey` ignores deleted rows), and a
+ * late purge of the OLD document must not retire the NEW chain that reused
+ * it. Returns how many rows were marked; zero when the document backs no
+ * entry.
  */
 export async function markEntryChainDeletedForDocument(
   tx: TransactionSql | Sql,
@@ -454,11 +458,8 @@ export async function markEntryChainDeletedForDocument(
 ): Promise<number> {
   const result = await tx`
     UPDATE app.knowledge_entries SET deleted_at_ms = ${Date.now()}
-    WHERE org_id = ${organizationId} AND deleted_at_ms IS NULL
-      AND topic_key IN (
-        SELECT topic_key FROM app.knowledge_entries
-        WHERE org_id = ${organizationId} AND document_id = ${documentId}
-      )
+    WHERE org_id = ${organizationId} AND document_id = ${documentId}
+      AND deleted_at_ms IS NULL
   `;
   return result.count;
 }

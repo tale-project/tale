@@ -287,20 +287,18 @@ describe('an entry whose backing document is gone', () => {
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('soft-deletes the whole chain the document backs, inside the organization', async () => {
+  it('soft-deletes the chain the document backs, keyed by document inside the organization', async () => {
     const { sql, statements } = fakeSql({});
 
     const marked = await markEntryChainDeletedForDocument(sql, ORG, 'doc-1');
 
     expect(marked).toBe(3);
-    const [update] = statements;
-    expect(update?.text).toContain(
-      'UPDATE app.knowledge_entries SET deleted_at_ms',
-    );
-    // Every version of the topic chain, not only the row pointing at the
-    // document — and never a row of another organization.
-    expect(update?.text).toContain('topic_key IN');
-    expect(update?.text).toContain('deleted_at_ms IS NULL');
-    expect(update?.values).toEqual([expect.any(Number), ORG, ORG, 'doc-1']);
+    // One statement, addressed by (org, document) and nothing else: a
+    // deleted chain's topic key is free for a NEW entry backed by a NEW
+    // document, so a hop through the topic key would let a late purge of
+    // the old document retire the live chain that reused the key. Every
+    // version of a chain shares its document, so the document is the chain.
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.values).toEqual([expect.any(Number), ORG, 'doc-1']);
   });
 });

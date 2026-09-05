@@ -30740,6 +30740,79 @@ async function checkKnowledgeEntries(
       updateAfterPurgeBody.data.error === 'KNOWLEDGE_ENTRY_NOT_FOUND',
     `purge=${purge.status} (want 200), chain=${chainAfterPurge.map((row) => row.deleted).join(',')} (want 2× true), listed=${listAfterPurge.success ? listAfterPurge.data.rows.some((row) => row.id === purgedV2Id) : 'ERR'} (want false), update=${updateAfterPurge.status} ${updateAfterPurgeBody.success ? updateAfterPurgeBody.data.error : 'ERR'} (want 404 KNOWLEDGE_ENTRY_NOT_FOUND)`,
   );
+
+  // A deleted chain frees its topic key: deleting the entry trashes doc A
+  // and a re-created entry with the same topic gets a NEW doc B. The purge
+  // of the still-trashed doc A (Documents-tab Trash, or the retention
+  // sweep days later) must retire only doc A's chain — never the live chain
+  // that reused the key. The hook is keyed by document, not topic key.
+  const reusedV1 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Vacation carryover',
+        content: 'Up to five days carry over.',
+      })
+    ).json(),
+  );
+  const reusedV1Id = reusedV1.success ? reusedV1.data.id : '';
+  const oldBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${reusedV1Id}
+  `;
+  const oldBackingId = oldBacking[0]?.documentId ?? '';
+  const deleteReused = await fetch(
+    `${base}/api/app/knowledge-entries/${reusedV1Id}?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  const reusedV2 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Vacation carryover',
+        content: 'Up to ten days carry over.',
+      })
+    ).json(),
+  );
+  const reusedV2Id = reusedV2.success ? reusedV2.data.id : '';
+  const newBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${reusedV2Id}
+  `;
+  const newBackingId = newBacking[0]?.documentId ?? '';
+  const purgeOld = await post(
+    `/api/app/documents/${oldBackingId}/delete?orgId=${orgId}`,
+  );
+  const chainsAfterOldPurge = await sql<{ id: string; deleted: boolean }[]>`
+    SELECT id, deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'vacation carryover'
+  `;
+  const newStillLive =
+    chainsAfterOldPurge.find((row) => row.id === reusedV2Id)?.deleted === false;
+  const oldStillDeleted =
+    chainsAfterOldPurge.find((row) => row.id === reusedV1Id)?.deleted === true;
+  const listAfterOldPurge = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateReused = await post(
+    `/api/app/knowledge-entries/${reusedV2Id}?orgId=${orgId}`,
+    { topic: 'Vacation carryover', content: 'Up to ten days, use by March.' },
+  );
+  record(
+    "knowledge entries: purging a deleted chain's old document spares the chain that reused its topic",
+    reusedV1.success &&
+      oldBackingId !== '' &&
+      deleteReused.status === 200 &&
+      reusedV2.success &&
+      newBackingId !== '' &&
+      newBackingId !== oldBackingId &&
+      purgeOld.status === 200 &&
+      newStillLive &&
+      oldStillDeleted &&
+      listAfterOldPurge.success &&
+      listAfterOldPurge.data.rows.some((row) => row.id === reusedV2Id) &&
+      updateReused.status === 200,
+    `delete=${deleteReused.status} (want 200), recreate=${reusedV2.success} newDoc≠old=${newBackingId !== oldBackingId}, purgeOld=${purgeOld.status} (want 200), newLive=${newStillLive} (want true), oldDeleted=${oldStillDeleted} (want true), listed=${listAfterOldPurge.success ? listAfterOldPurge.data.rows.some((row) => row.id === reusedV2Id) : 'ERR'} (want true), update=${updateReused.status} (want 200)`,
+  );
 }
 
 /**
