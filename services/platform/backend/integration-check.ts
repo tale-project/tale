@@ -27247,7 +27247,18 @@ async function checkTaskAgentRuns(
     runId,
     execId,
   });
+  // A wake enqueues the run's REAL turn job; the live worker must never get
+  // to run it (it would fail the hand-inserted run on its fake model before
+  // the settle assertions below), so each wake's job is retired as soon as
+  // its count is taken.
+  const retireTurnJobs = async (): Promise<void> => {
+    await sql`
+      DELETE FROM pgboss.job
+      WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
+    `;
+  };
   const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  await retireTurnJobs();
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // The release EDGE itself: a project-agent turn ending frees the agent's
@@ -27298,6 +27309,7 @@ async function checkTaskAgentRuns(
   });
   const parkedAfterRelease = await countParked();
   const turnJobsAfterRelease = await countTurnJobs();
+  await retireTurnJobs();
   const releasedSlot = await sql<{ status: string }[]>`
     SELECT status FROM app.sandbox_sessions
     WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
