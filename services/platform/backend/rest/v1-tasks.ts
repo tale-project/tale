@@ -302,6 +302,10 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const auth = await restProjectAuth(deps.sql, c);
     const task = await loadVisibleTask(c, auth, c.req.param('id'));
     if (task === null) return c.json({ error: 'Task not found' }, 404);
+    // The same per-user budget the in-app comment passes (the key acts as
+    // its user), on top of the general lane — as the spec promises.
+    const limited = await chargeLane(deps.sql, c, 'task:comment');
+    if (limited) return limited;
     try {
       const result = await deps.sql.begin((tx) =>
         addTaskComment(tx, auth, { taskId: task.id, body: body.data.body }),

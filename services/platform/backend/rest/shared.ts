@@ -12,6 +12,7 @@ import {
 import {
   RateLimitExceededError,
   checkUserRateLimit,
+  type RateLimitName,
 } from '../lib/rate-limit.ts';
 
 /**
@@ -158,15 +159,16 @@ export async function assertExplicitOrg(
 }
 
 /**
- * Top-up charge on a second rate lane (`rest:execute`, `rest:upload`) so a
- * route's effective budget is the tighter of its lanes. Keyed like the
+ * Top-up charge on a second rate lane (`rest:execute`, `rest:upload`) — or
+ * on the per-user budget a write's in-app twin passes (`task:comment`) —
+ * so a route's effective budget is the tighter of its lanes. Keyed like the
  * door's `rest:api` charge — on the key holder (the key acts as its user),
  * so the budget is attributable and no header can mint a fresh one.
  */
 export async function chargeLane(
   sql: Sql,
   c: Context<RestEnv>,
-  rule: 'rest:api' | 'rest:execute' | 'rest:upload',
+  rule: RateLimitName,
 ): Promise<Response | null> {
   try {
     await checkUserRateLimit(sql, rule, c.get('userId'));

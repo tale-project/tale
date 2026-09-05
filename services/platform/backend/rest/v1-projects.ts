@@ -16,6 +16,7 @@ import {
   registerUpload,
 } from '../domains/files/service.ts';
 import { sweepUploadIntents } from '../domains/files/upload-intents.ts';
+import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
   getOrCreateProjectFolder,
   listFolders,
@@ -221,6 +222,15 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
       if (project instanceof Response) return project;
+      // The per-org budget the in-app folder actions share, on top of the
+      // general lane — the spec and the rate-limits page promise it.
+      const limited = await chargeOrgRateLimit(
+        deps.sql,
+        c,
+        'folder:mutate',
+        c.get('organizationId'),
+      );
+      if (limited) return limited;
       const result = await deps.sql.begin((tx) =>
         getOrCreateProjectFolder(tx, auth, {
           projectId: project.id,

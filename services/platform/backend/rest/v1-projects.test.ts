@@ -269,3 +269,28 @@ describe('GET /projects/{id}/files/{documentId}/content', () => {
     );
   });
 });
+
+/**
+ * POST …/folders passes the per-organization `folder:mutate` budget its
+ * in-app twin passes — the spec and the rate-limits page promised it while
+ * the route charged only the general lane.
+ */
+describe('POST /projects/{id}/folders folder:mutate budget', () => {
+  it('answers the standard 429 with Retry-After when the org budget is spent', async () => {
+    const { sql, queries } = fakeSql({ spent: true });
+    const res = await mount(sql).request('http://localhost/projects/p-1/folders', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Invoices' }),
+    });
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+    expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
+    const charge = queries.find((q) =>
+      q.text.includes('INSERT INTO app.rate_limits'),
+    );
+    expect(charge?.values).toContain('folder:mutate');
+    expect(charge?.values).toContain('org:org-1');
+    expect(queries.some((q) => q.text.includes('app.folders'))).toBe(false);
+  });
+});
