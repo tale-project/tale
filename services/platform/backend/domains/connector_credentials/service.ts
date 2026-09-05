@@ -15,6 +15,11 @@ import {
 import { withImapFromAddress } from '../../core/connector_credentials/imap_from_address.ts';
 import { maskPayload } from '../../core/connector_credentials/masking.ts';
 import { normalizeEndpointOrigin } from '../../core/connector_credentials/mutations.ts';
+import { oauthAppEnvPrefix } from '../../core/http_connectors/deployment_config.ts';
+import {
+  refreshAccessToken,
+  type FetchLike,
+} from '../../core/http_connectors/token_exchange.ts';
 import {
   decryptSecret,
   encryptSecret,
@@ -22,6 +27,10 @@ import {
   type EncryptedSecret,
 } from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
+import {
+  applyMicrosoftTenant,
+  resolveConnectorOauthApp,
+} from '../connectors/oauth-apps.ts';
 
 /**
  * Connector credentials — the 0.5 twin of `convex/connector_credentials/*`:
@@ -762,6 +771,14 @@ export async function findCredentialForRef(
  * the 0.4 wire shape where nullable columns are ABSENT fields, never nulls.
  * Null on a miss. Internal-only by contract: it carries sealed secret
  * material and must never reach a client, an agent, or a log.
+ *
+ * An active oauth2 row passes through the same refresh seam as
+ * {@link resolveConnectorCredential} first, so the envelope handed out is the
+ * renewed one and a dead grant is already marked `needs-reauth` for the
+ * reused resolver to refuse. Best-effort by design: this answer also serves
+ * readers that only want the row's config, so a refresh the vendor could not
+ * be reached for hands the row back as stored (warned, not thrown) and the
+ * invocation fails at the vendor the way it would have anyway.
  */
 export async function resolveCredentialRowForShim(
   sql: Sql,
@@ -771,8 +788,23 @@ export async function resolveCredentialRowForShim(
     credentialRef?: string;
   },
 ): Promise<Record<string, unknown> | null> {
-  const row = await findCredentialForRef(sql, args);
+  let row = await findCredentialForRef(sql, args);
   if (row === null) return null;
+  if (row.status === 'active' && row.authMethod === 'oauth2') {
+    try {
+      row = (await freshenOauth2Row(sql, row, openRowEnvelope(row), {})).row;
+    } catch (error) {
+      if (!(error instanceof ConnectorCredentialError)) throw error;
+      if (error.code === 'CREDENTIAL_NEEDS_REAUTH') {
+        // The flip is persisted: the re-read row says so on `status`.
+        row = await requireOwnRow(sql, row.organizationId, row.id);
+      } else {
+        console.warn(
+          `[connector-credentials] "${row.connectorSlug}" credential "${row.name}" could not be refreshed (${error.code}); handing it back as stored`,
+        );
+      }
+    }
+  }
   return {
     _id: row.id,
     organizationId: row.organizationId,
@@ -812,20 +844,9 @@ async function loadRowForResolve(
   );
 }
 
-/**
- * Resolve one (org, connector[, credential]) selection to the material an
- * invocation runs with — the ONE decrypt seam. Internal-only by contract:
- * callers keep the result out of logs and client responses.
- */
-export async function resolveConnectorCredential(
-  sql: Sql,
-  args: {
-    organizationId: string;
-    connectorSlug: string;
-    credentialRef?: string;
-  },
-): Promise<ResolvedConnectorCredential> {
-  const row = await loadRowForResolve(sql, args);
+/** Refuse a row the operator or the system took out of service, saying which
+ * of the two it was and what fixes it. */
+function assertRowUsable(row: CredentialRow): void {
   if (row.status === 'disabled') {
     throw new ConnectorCredentialError(
       'CREDENTIAL_DISABLED',
@@ -833,13 +854,25 @@ export async function resolveConnectorCredential(
     );
   }
   if (row.status === 'needs-reauth') {
-    const detail = row.statusDetail ? ` (${row.statusDetail})` : '';
-    throw new ConnectorCredentialError(
-      'CREDENTIAL_NEEDS_REAUTH',
-      `Credential "${row.name}" lost its authorization${detail} — reconnect "${row.connectorSlug}" in Settings → Connectors to restore access.`,
-    );
+    throw needsReauthError(row.name, row.connectorSlug, row.statusDetail);
   }
+}
 
+function needsReauthError(
+  name: string,
+  connectorSlug: string,
+  statusDetail: string | null,
+): ConnectorCredentialError {
+  const detail = statusDetail ? ` (${statusDetail})` : '';
+  return new ConnectorCredentialError(
+    'CREDENTIAL_NEEDS_REAUTH',
+    `Credential "${name}" lost its authorization${detail} — reconnect "${connectorSlug}" in Settings → Connectors to restore access.`,
+  );
+}
+
+/** Decrypt and validate the row's envelope, mapping both failure modes onto
+ * actionable refusals instead of a bare crypto or schema error. */
+function openRowEnvelope(row: CredentialRow): ConnectorSecretPayload {
   let plaintext: string;
   try {
     plaintext = decryptSecret(row.encryptedData);
@@ -852,9 +885,8 @@ export async function resolveConnectorCredential(
     }
     throw err;
   }
-  let payload: ConnectorSecretPayload;
   try {
-    payload = parseSecretPayload(row.authMethod, JSON.parse(plaintext));
+    return parseSecretPayload(row.authMethod, JSON.parse(plaintext));
   } catch (err) {
     if (err instanceof SecretPayloadError || err instanceof SyntaxError) {
       throw new ConnectorCredentialError(
@@ -864,6 +896,193 @@ export async function resolveConnectorCredential(
     }
     throw err;
   }
+}
+
+/** How long before its declared expiry an access token counts as expired —
+ * a token handed out with less than this left would die mid-invocation. */
+const OAUTH2_REFRESH_SKEW_MS = 60_000;
+
+/** A refresh the CAS lost is retried against the re-read row this many
+ * times before the re-read row is handed out as it stands. */
+const OAUTH2_REFRESH_MAX_ATTEMPTS = 2;
+
+/** The seams `resolveConnectorCredential` lets a test (or an integration
+ * probe) inject — only the vendor call, never the store. */
+export interface ResolveCredentialOptions {
+  readonly fetchImpl?: FetchLike;
+}
+
+/** Persist that the grant is dead: only a new consent brings the row back,
+ * and every listing stops offering it meanwhile. */
+async function markNeedsReauth(
+  sql: Sql,
+  row: CredentialRow,
+  statusDetail: string,
+): Promise<void> {
+  await sql`
+    UPDATE app.connector_credentials
+    SET status = 'needs-reauth', status_detail = ${statusDetail},
+        updated_at_ms = ${Date.now()}
+    WHERE id = ${row.id} AND org_id = ${row.organizationId}
+  `;
+  console.warn(
+    `[connector-credentials] "${row.connectorSlug}" credential "${row.name}" needs re-authorization for organization ${row.organizationId}: ${statusDetail}`,
+  );
+}
+
+/**
+ * The oauth2 refresh seam. A grant whose access token is expired (or about to
+ * be) is renewed from its refresh token BEFORE the material is handed out,
+ * and the renewed envelope replaces the stored one under a compare-and-swap
+ * on `updated_at_ms` — two invocations refreshing at once cannot both write,
+ * and the loser reads what the winner stored instead of overwriting it with a
+ * second token. Anything other than an active oauth2 grant with a declared
+ * expiry passes through untouched.
+ *
+ * A vendor that REJECTS the refresh (`invalid_grant`: revoked, expired,
+ * consent withdrawn) has ended the grant, so the row is marked `needs-reauth`
+ * with the vendor's code and refused — the settings page shows Reconnect. A
+ * grant that carries no refresh token cannot be renewed at all and is marked
+ * the same way. A vendor that could not be reached says nothing about the
+ * grant: the row keeps its status and the invocation is refused with a
+ * distinct, retryable code.
+ */
+async function freshenOauth2Row(
+  sql: Sql,
+  row: CredentialRow,
+  payload: ConnectorSecretPayload,
+  options: ResolveCredentialOptions,
+  attempt = 1,
+): Promise<{ row: CredentialRow; payload: ConnectorSecretPayload }> {
+  if (
+    payload.authMethod !== 'oauth2' ||
+    payload.expiresAt === undefined ||
+    payload.expiresAt - OAUTH2_REFRESH_SKEW_MS > Date.now()
+  ) {
+    return { row, payload };
+  }
+
+  if (payload.refreshToken === undefined) {
+    const statusDetail =
+      'the access token expired and the grant carries no refresh token';
+    await markNeedsReauth(sql, row, statusDetail);
+    throw needsReauthError(row.name, row.connectorSlug, statusDetail);
+  }
+
+  const oauth2 = loadConnectorDefinitions()
+    .find((entry) => entry.name === row.connectorSlug)
+    ?.auth.find((entry) => entry.method === 'oauth2');
+  if (oauth2 === undefined) {
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_REFRESH_FAILED',
+      `Credential "${row.name}" holds an expired access token and "${row.connectorSlug}" declares no OAuth token endpoint to renew it from.`,
+    );
+  }
+  const app = await resolveConnectorOauthApp(
+    sql,
+    row.organizationId,
+    row.connectorSlug,
+  );
+  if (app === null) {
+    const prefix = oauthAppEnvPrefix(row.connectorSlug);
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_REFRESH_FAILED',
+      `Credential "${row.name}" holds an expired access token and no OAuth app is configured for "${row.connectorSlug}" to renew it — configure one under Settings → Connectors, or set ${prefix}CLIENT_ID and ${prefix}CLIENT_SECRET on the deployment.`,
+    );
+  }
+
+  const refreshed = await refreshAccessToken(
+    {
+      tokenUrl: applyMicrosoftTenant(oauth2.tokenUrl, app.tenantId),
+      refreshToken: payload.refreshToken,
+      clientId: app.clientId,
+      clientSecret: app.clientSecret,
+    },
+    options.fetchImpl,
+  );
+  if (!refreshed.ok) {
+    if (refreshed.reason === 'vendor_rejected') {
+      const statusDetail = refreshed.code
+        ? `the vendor rejected the token refresh: ${refreshed.code}`
+        : 'the vendor rejected the token refresh';
+      await markNeedsReauth(sql, row, statusDetail);
+      throw needsReauthError(row.name, row.connectorSlug, statusDetail);
+    }
+    console.warn(
+      `[connector-credentials] "${row.connectorSlug}" credential "${row.name}" refresh did not complete for organization ${row.organizationId}: ${refreshed.reason}`,
+    );
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_REFRESH_FAILED',
+      `Credential "${row.name}" holds an expired access token and the "${row.connectorSlug}" token endpoint ${
+        refreshed.reason === 'vendor_unreachable'
+          ? 'could not be reached'
+          : 'answered without a usable token'
+      } — try again shortly.`,
+    );
+  }
+
+  // The vendor may omit the refresh token (Google keeps the old one valid) or
+  // rotate it (Microsoft); keep whichever is current. Scopes are the grant's,
+  // not the refresh answer's, unless the vendor restates them.
+  const { tokens } = refreshed;
+  const scopes = tokens.scopes.length > 0 ? tokens.scopes : payload.scopes;
+  const next = parseSecretPayload('oauth2', {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken ?? payload.refreshToken,
+    ...(tokens.expiresAt !== undefined && { expiresAt: tokens.expiresAt }),
+    ...(scopes !== undefined && { scopes }),
+  });
+  const sealed = sealPayload(next);
+  const written = await sql<CredentialRow[]>`
+    UPDATE app.connector_credentials
+    SET encrypted_data = ${sql.json(toJson(sealed.encryptedData))},
+        masked_preview = ${sealed.maskedPreview ?? null},
+        updated_at_ms = ${Date.now()}
+    WHERE id = ${row.id} AND org_id = ${row.organizationId}
+      AND updated_at_ms = ${row.updatedAt}
+    RETURNING ${sql.unsafe(CREDENTIAL_COLUMNS)}
+  `;
+  const stored = written[0];
+  if (stored !== undefined) {
+    return { row: stored, payload: next };
+  }
+
+  // Lost the CAS: a concurrent invocation (or an operator edit) wrote the
+  // row first. Its envelope is the truth now — read it back and use that,
+  // refreshing again only if it too is expired.
+  const current = await requireOwnRow(sql, row.organizationId, row.id);
+  assertRowUsable(current);
+  const currentPayload = openRowEnvelope(current);
+  if (attempt >= OAUTH2_REFRESH_MAX_ATTEMPTS) {
+    return { row: current, payload: currentPayload };
+  }
+  return freshenOauth2Row(sql, current, currentPayload, options, attempt + 1);
+}
+
+/**
+ * Resolve one (org, connector[, credential]) selection to the material an
+ * invocation runs with — the ONE decrypt seam. An expired oauth2 grant is
+ * renewed on the way through ({@link freshenOauth2Row}), so what comes back
+ * is always a live token or a coded refusal. Internal-only by contract:
+ * callers keep the result out of logs and client responses.
+ */
+export async function resolveConnectorCredential(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    credentialRef?: string;
+  },
+  options: ResolveCredentialOptions = {},
+): Promise<ResolvedConnectorCredential> {
+  const loaded = await loadRowForResolve(sql, args);
+  assertRowUsable(loaded);
+  const { row, payload } = await freshenOauth2Row(
+    sql,
+    loaded,
+    openRowEnvelope(loaded),
+    options,
+  );
 
   const connector = loadConnectorDefinitions().find(
     (entry) => entry.name === row.connectorSlug,

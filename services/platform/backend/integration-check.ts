@@ -17207,8 +17207,137 @@ async function checkConnectorOauth(
       `outcome=${raced.kind}/${raced.kind === 'error' ? raced.error : '-'} (want workspace_claimed), queuedBehindHolder=${queuedBehindHolder}, loserCredentials=${raceCredentials[0]?.count} (want 0) default=${raceCredentials[0]?.isDefault}, routeOwner=${raceRoute[0]?.orgId}`,
     );
 
-    // ---- a rejected exchange writes nothing -----------------------------
+    // ---- an expired grant is refreshed on resolve --------------------------
+    // The happy-path credential's token is made stale in place (the same
+    // update door Reconnect uses), then resolved: the resolve seam must renew
+    // it from the refresh token through the vendor, store the renewed
+    // envelope, and hand out the fresh bearer — a second resolve is served
+    // from the store without another vendor call.
+    const { resolveConnectorCredential: resolveForRefresh, updateCredential } =
+      await import('./domains/connector_credentials/service.ts');
+    const refreshTargetId = credentialRows[0]?.id ?? '';
+    await updateCredential(sql, {
+      organizationId: orgId,
+      credentialId: refreshTargetId,
+      secret: {
+        accessToken: 'xoxb-itest-stale',
+        refreshToken: 'xoxe-itest-refresh',
+        expiresAt: Date.now() - 1_000,
+      },
+    });
+    const vendorCallsBeforeRefresh = seen.length;
+    let refreshedHeader = '';
+    let refreshError = '';
+    try {
+      refreshedHeader =
+        (
+          await resolveForRefresh(
+            sql,
+            {
+              organizationId: orgId,
+              connectorSlug: 'slack',
+              credentialRef: refreshTargetId,
+            },
+            { fetchImpl: vendorFetch },
+          )
+        ).authHeader ?? '';
+    } catch (error) {
+      refreshError = error instanceof Error ? error.message : String(error);
+    }
+    const refreshGrantSent =
+      seen.length === vendorCallsBeforeRefresh + 1 &&
+      (seen[seen.length - 1]?.body ?? '').includes(
+        'grant_type=refresh_token',
+      ) &&
+      (seen[seen.length - 1]?.body ?? '').includes(
+        'refresh_token=xoxe-itest-refresh',
+      );
+    const againHeader =
+      (
+        await resolveForRefresh(
+          sql,
+          {
+            organizationId: orgId,
+            connectorSlug: 'slack',
+            credentialRef: refreshTargetId,
+          },
+          { fetchImpl: vendorFetch },
+        )
+      ).authHeader ?? '';
+    const afterRefresh = await sql<
+      { status: string; statusDetail: string | null }[]
+    >`
+      SELECT status, status_detail AS "statusDetail"
+      FROM app.connector_credentials WHERE id = ${refreshTargetId}
+    `;
+    record(
+      'connector oauth: an expired grant is refreshed on resolve and stored once',
+      refreshedHeader === 'Bearer xoxb-itest-access' &&
+        refreshGrantSent &&
+        againHeader === 'Bearer xoxb-itest-access' &&
+        seen.length === vendorCallsBeforeRefresh + 1 &&
+        afterRefresh[0]?.status === 'active',
+      `header=${refreshedHeader || refreshError || '-'} (want Bearer xoxb-itest-access), refreshGrantSent=${refreshGrantSent}, again=${againHeader}, vendorCalls=${seen.length - vendorCallsBeforeRefresh} (want 1), status=${afterRefresh[0]?.status}`,
+    );
+
+    // ---- a refresh the vendor rejects marks the row needs-reauth ---------
     denyExchange = true;
+    await updateCredential(sql, {
+      organizationId: orgId,
+      credentialId: refreshTargetId,
+      secret: {
+        accessToken: 'xoxb-itest-stale-2',
+        refreshToken: 'xoxe-itest-revoked',
+        expiresAt: Date.now() - 1_000,
+      },
+    });
+    let rejectedCode = '';
+    try {
+      await resolveForRefresh(
+        sql,
+        {
+          organizationId: orgId,
+          connectorSlug: 'slack',
+          credentialRef: refreshTargetId,
+        },
+        { fetchImpl: vendorFetch },
+      );
+    } catch (error) {
+      rejectedCode =
+        error instanceof Error && 'code' in error
+          ? String(Reflect.get(error, 'code'))
+          : '';
+    }
+    const afterRejected = await sql<
+      { status: string; statusDetail: string | null }[]
+    >`
+      SELECT status, status_detail AS "statusDetail"
+      FROM app.connector_credentials WHERE id = ${refreshTargetId}
+    `;
+    const { listConnectedConnectorSlugs } =
+      await import('./domains/connector_credentials/service.ts');
+    const offeredAfterRejected = await listConnectedConnectorSlugs(sql, orgId);
+    record(
+      'connector oauth: a vendor-rejected refresh marks the row needs-reauth',
+      rejectedCode === 'CREDENTIAL_NEEDS_REAUTH' &&
+        afterRejected[0]?.status === 'needs-reauth' &&
+        (afterRejected[0]?.statusDetail ?? '').includes('invalid_grant'),
+      `code=${rejectedCode} (want CREDENTIAL_NEEDS_REAUTH), status=${afterRejected[0]?.status}, detail=${afterRejected[0]?.statusDetail}, stillOffered=${offeredAfterRejected.includes('slack') ? 'yes (a second slack row is active)' : 'no'}`,
+    );
+    // Restore the row so later sweeps see the happy-path grant active.
+    await updateCredential(sql, {
+      organizationId: orgId,
+      credentialId: refreshTargetId,
+      secret: {
+        accessToken: 'xoxb-itest-access',
+        refreshToken: 'xoxe-itest-refresh',
+        expiresAt: Date.now() + 3_600_000,
+      },
+      status: 'active',
+      statusDetail: null,
+    });
+
+    // ---- a rejected exchange writes nothing -----------------------------
     const denyState = 'itest-oauth-state-denied';
     await oauth.createPendingAuthorization(sql, {
       stateHash: await hashStateToken(denyState),
