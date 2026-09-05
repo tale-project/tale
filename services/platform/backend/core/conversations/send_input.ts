@@ -98,13 +98,3 @@ export function externalIdFromSendOutput(
   }
   return undefined;
 }
-
-export function internetMessageIdFromSendOutput(
-  output: unknown,
-): string | undefined {
-  if (!isRecord(output)) return undefined;
-  if (typeof output.messageId === 'string' && output.messageId.includes('@')) {
-    return output.messageId;
-  }
-  return undefined;
-}

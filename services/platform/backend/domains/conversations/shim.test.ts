@@ -8,6 +8,11 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  reachableHandlerNames,
+  unansweredHandlerNames,
+} from '../../lib/ctx-shim-reachability.ts';
+
 const {
   patchMailSyncWatermarks,
   patchCredentialConfigInternal,
@@ -32,6 +37,53 @@ vi.mock('../files/service.ts', () => ({
 import { conversationShimHandlers } from './shim.ts';
 
 const SQL = {} as never;
+
+/**
+ * The EXHAUSTIVENESS gate for the mailbox sync lane's ctx dispatch — the twin
+ * of `domains/chat/shim.test.ts` and `domains/sandbox/shim.test.ts`, on the
+ * same shared walk. `pgConversationStore` (connectors/service.ts) hands the
+ * reused 0.4 `syncMailbox` + `ingest/*` a ctx shim built from
+ * `conversationShimHandlers` alone, and the shim fails LOUD on a name it has
+ * no handler for — at the operator's next mail sync. Before this gate the
+ * map carried three handlers nothing named and 0.4 code named one handler
+ * the map never had.
+ */
+const SYNC_DISPATCH = {
+  entryPoints: ['core/conversations/sync_mailbox.ts'],
+};
+
+describe('conversationShimHandlers', () => {
+  // The factory only closes over `sql` and the connector callback; no handler
+  // runs until it is called, so stand-ins are enough to enumerate the map.
+  const handlers = conversationShimHandlers(SQL, () => {
+    throw new Error('no connector calls in this test');
+  });
+
+  it('answers every internal function a mailbox sync can reach', () => {
+    expect(unansweredHandlerNames(handlers, SYNC_DISPATCH)).toEqual([]);
+  });
+
+  it('carries no handler the sync lane never names', () => {
+    // The inverse: an orphan handler is dead code that reads as coverage.
+    const reachable = new Set(reachableHandlerNames(SYNC_DISPATCH).keys());
+    expect(
+      Object.keys(handlers).filter((name) => !reachable.has(name)),
+    ).toEqual([]);
+  });
+
+  it('reaches the ingest tree, not just the orchestrator', () => {
+    // A guard on the guard: if the walk stopped following the ingest imports,
+    // both assertions above would pass vacuously.
+    expect([...reachableHandlerNames(SYNC_DISPATCH).keys()]).toEqual(
+      expect.arrayContaining([
+        'conversations/internal_mutations:createConversationWithMessage',
+        'contacts/internal_mutations:findOrCreateContact',
+        'file_metadata/internal_mutations:bindFileToConversation',
+        'connectors/execute_action:runConnectorAction',
+      ]),
+    );
+  });
+});
 const patch = () => {
   const handler = conversationShimHandlers(SQL, () => {
     throw new Error('no connector calls in this test');

@@ -125,41 +125,6 @@ export function conversationShimHandlers(
       `;
       return rows[0] ? wireMessage(rows[0]) : null;
     },
-    'conversations/internal_queries:queryConversationMessages': async (
-      raw: unknown,
-    ) => {
-      const args = org
-        .extend({
-          conversationId: z.string().optional(),
-          channel: z.string().optional(),
-          direction: z.enum(['inbound', 'outbound']).optional(),
-          paginationOpts: z.object({
-            numItems: z.number(),
-            cursor: z.string().nullable(),
-          }),
-        })
-        .parse(raw);
-      const limit = Math.min(Math.max(args.paginationOpts.numItems, 1), 200);
-      const rows = await sql<ConversationMessageRow[]>`
-        SELECT ${sql.unsafe(MESSAGE_WIRE_COLUMNS)}
-        FROM app.conversation_messages
-        WHERE org_id = ${args.organizationId}
-          AND (${args.conversationId ?? null}::text IS NULL
-            OR conversation_id = ${args.conversationId ?? null})
-          AND (${args.channel ?? null}::text IS NULL
-            OR channel = ${args.channel ?? null})
-          AND (${args.direction ?? null}::text IS NULL
-            OR direction = ${args.direction ?? null})
-        ORDER BY coalesce(sent_at_ms, delivered_at_ms, created_at_ms) DESC,
-                 seq DESC
-        LIMIT ${limit}
-      `;
-      return {
-        page: rows.map(wireMessage),
-        isDone: true,
-        continueCursor: '',
-      };
-    },
     'conversations/internal_queries:queryLatestMessageByDeliveryState': async (
       raw: unknown,
     ) => {
@@ -187,29 +152,6 @@ export function conversationShimHandlers(
     },
 
     // ---------------------------------------------------------- mutations
-    'conversations/internal_mutations:createConversation': async (
-      raw: unknown,
-    ) => {
-      const args = org
-        .extend({
-          contactId: z.string().optional(),
-          assigneeUserId: z.string().optional(),
-          externalMessageId: z.string().optional(),
-          subject: z.string().optional(),
-          status: z.enum(['open', 'closed', 'spam', 'archived']).optional(),
-          priority: z.string().optional(),
-          type: z.string().optional(),
-          channel: z.string().optional(),
-          direction: z.enum(['inbound', 'outbound']).optional(),
-          connectorName: z.string().optional(),
-          metadata: z.record(z.string(), z.unknown()).optional(),
-        })
-        .parse(raw);
-      const conversationId = await sql.begin((tx) =>
-        createConversation(tx, args),
-      );
-      return { conversationId, created: true };
-    },
     'conversations/internal_mutations:createConversationWithMessage': async (
       raw: unknown,
     ) => {
@@ -369,54 +311,6 @@ export function conversationShimHandlers(
         WHERE id = ${args.messageId}
       `;
       return null;
-    },
-    'conversations/internal_mutations:updateConversations': async (
-      raw: unknown,
-    ) => {
-      const args = z
-        .object({
-          conversationId: z.string().optional(),
-          organizationId: z.string().optional(),
-          status: z.string().optional(),
-          priority: z.string().optional(),
-          updates: z
-            .object({
-              contactId: z.string().optional(),
-              subject: z.string().optional(),
-              status: z.enum(['open', 'closed', 'spam', 'archived']).optional(),
-              priority: z.string().optional(),
-              type: z.string().optional(),
-              metadata: z.record(z.string(), z.unknown()).optional(),
-            })
-            .loose(),
-        })
-        .parse(raw);
-      const updated = await sql<{ id: string }[]>`
-        UPDATE app.conversations SET
-          contact_id = ${args.updates.contactId ?? sql.unsafe('contact_id')},
-          subject = ${args.updates.subject ?? sql.unsafe('subject')},
-          status = ${args.updates.status ?? sql.unsafe('status')},
-          status_changed_at_ms = ${args.updates.status !== undefined ? Date.now() : sql.unsafe('status_changed_at_ms')},
-          priority = ${args.updates.priority ?? sql.unsafe('priority')},
-          type = ${args.updates.type ?? sql.unsafe('type')},
-          metadata = ${args.updates.metadata !== undefined ? sql.json(toJson(args.updates.metadata)) : sql.unsafe('metadata')}
-        WHERE (${args.conversationId ?? null}::text IS NULL
-            OR id = ${args.conversationId ?? null})
-          AND (${args.organizationId ?? null}::text IS NULL
-            OR org_id = ${args.organizationId ?? null})
-          AND (${args.status ?? null}::text IS NULL
-            OR status = ${args.status ?? null})
-          AND (${args.priority ?? null}::text IS NULL
-            OR priority = ${args.priority ?? null})
-          AND (${args.conversationId ?? null}::text IS NOT NULL
-            OR ${args.organizationId ?? null}::text IS NOT NULL)
-        RETURNING id
-      `;
-      return {
-        success: true,
-        updatedCount: updated.length,
-        updatedIds: updated.map((row) => row.id),
-      };
     },
 
     // ------------------------------------------------------------ contacts
