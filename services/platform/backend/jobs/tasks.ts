@@ -13,7 +13,8 @@ export interface TaskPayloads {
   noop: { seq?: number; sentAtMs?: number };
   /** Seed a new org's on-disk config tree from the builtin catalog. */
   'org.scaffold': { orgSlug: string; cleanFirst?: boolean };
-  /** Remove a deleted org's on-disk config subtree. */
+  /** Tear down a deleted org's slug-keyed remains — corpus rows, blobs,
+   *  config subtree — then clear its slug tombstone. */
   'org.cleanup_files': { orgSlug: string };
   /** One verified, org-resolved Slack event (see domains/connectors). */
   'connector.slack_event': {

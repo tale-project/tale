@@ -10,16 +10,18 @@ import {
   deleteOrganization,
   describeOrganizationHoldBlock,
   listUserOrganizations,
+  orderChildrenFirst,
   OrganizationError,
 } from './service.ts';
 
 /**
  * The deletion door's contract, proven against a recording transaction:
  * every guard runs before the first write (a refusal writes NOTHING and
- * enqueues nothing), the teardown order is audit → cascade → Better Auth
- * rows → org row → cleanup job, every write is keyed by the organization
- * id, and the `"user"` table is never deleted from (a shared user keeps
- * their account). The real-Postgres commit/rollback proof lives in
+ * enqueues nothing), the teardown order is audit → cascade over every
+ * org-keyed app table the catalog lists (child before parent) → Better
+ * Auth rows → org row → slug tombstone → cleanup job, every write is keyed
+ * by the organization id, and the `"user"` table is never deleted from (a
+ * shared user keeps their account). The real-Postgres commit/rollback proof lives in
  * `backend/integration-check.ts` (`checkOrganizationLifecycle`).
  */
 
@@ -37,7 +39,36 @@ interface Scenario {
   holds: { targetType: string; targetId: string }[];
   /** Rows the final `DELETE FROM "organization" … RETURNING` answers. */
   orgDeleteReturns?: { id: string }[];
+  /** What `information_schema.columns` lists as org_id-bearing app tables. */
+  orgTables?: string[];
+  /** The app schema's foreign keys among them (child → parent). */
+  fkEdges?: { child: string; parent: string }[];
 }
+
+/** A catalog slice with a two-level reference chain (tasks and bindings
+ * reference projects), the ledger tables and the tombstone table — the
+ * survivors — and the four tables the 0.5 deletion used to list by hand. */
+const DEFAULT_ORG_TABLES = [
+  'audit_logs',
+  'automation_project_bindings',
+  'memories',
+  'organization_tombstones',
+  'projects',
+  'sso_synced_team_members',
+  'sso_synced_teams',
+  'tasks',
+  'user_preferences',
+];
+const DEFAULT_FK_EDGES = [
+  { child: 'tasks', parent: 'projects' },
+  { child: 'automation_project_bindings', parent: 'projects' },
+];
+
+interface Identifier {
+  identifier: string;
+}
+const isIdentifier = (value: unknown): value is Identifier =>
+  typeof value === 'object' && value !== null && 'identifier' in value;
 
 function createRecordingTx(scenario: Scenario): {
   tx: TransactionSql;
@@ -76,6 +107,17 @@ function createRecordingTx(scenario: Scenario): {
     if (text.startsWith('INSERT INTO app.audit_logs')) {
       return [{ id: 'audit-1' }];
     }
+    if (text.includes('FROM information_schema.columns')) {
+      return (scenario.orgTables ?? DEFAULT_ORG_TABLES).map((tableName) => ({
+        tableName,
+      }));
+    }
+    if (text.includes('FROM pg_constraint')) {
+      return scenario.fkEdges ?? DEFAULT_FK_EDGES;
+    }
+    if (text.startsWith('INSERT INTO app.organization_tombstones')) {
+      return [];
+    }
     if (text.startsWith('DELETE FROM "organization"')) {
       return scenario.orgDeleteReturns ?? [{ id: ORG_ID }];
     }
@@ -84,9 +126,26 @@ function createRecordingTx(scenario: Scenario): {
     }
     throw new Error(`unexpected SQL in recording tx: ${text}`);
   };
-  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.raw.join('$').replace(/\s+/g, ' ').trim();
-    statements.push({ text, values });
+  const tag = (
+    strings: TemplateStringsArray | string,
+    ...values: unknown[]
+  ) => {
+    if (typeof strings === 'string') {
+      // `tx('app.table')` — postgres.js's identifier helper; spliced into
+      // the statement text below so the pin reads the table name.
+      const identifier: Identifier = { identifier: strings };
+      return identifier;
+    }
+    const text = strings.raw
+      .map((part, index) => {
+        const value = values[index];
+        if (index === values.length) return part;
+        return `${part}${isIdentifier(value) ? value.identifier : '$'}`;
+      })
+      .join('')
+      .replace(/\s+/g, ' ')
+      .trim();
+    statements.push({ text, values: values.filter((v) => !isIdentifier(v)) });
     return Promise.resolve(answer(text));
   };
   // The audit writer serializes JSON columns through `tx.json`; the value
@@ -278,7 +337,7 @@ describe('deleteOrganization', () => {
     expect(sends).toEqual([]);
   });
 
-  it('tears down in order — guards, audit, cascade, Better Auth rows, org row, cleanup job', async () => {
+  it('tears down in order — guards, audit, cascade, Better Auth rows, org row, tombstone, cleanup job', async () => {
     const sends = installFakeBoss();
     const { tx, statements } = createRecordingTx({
       memberRole: 'owner',
@@ -311,12 +370,19 @@ describe('deleteOrganization', () => {
     expect(auditInsert).toBeGreaterThanOrEqual(0);
     expect(auditInsert).toBeLessThan(firstDelete);
 
+    // Every org-keyed app table the catalog lists, child before parent
+    // (tasks and bindings reference projects) and alphabetical otherwise;
+    // the governance ledger and the tombstone table are the deliberate
+    // survivors — never a hand-kept list that a new table would miss.
     const deletes = writes.filter((t) => t.startsWith('DELETE FROM'));
     expect(deletes.map((t) => /^DELETE FROM ([\w."]+)/.exec(t)?.[1])).toEqual([
-      'app.user_preferences',
+      'app.automation_project_bindings',
       'app.memories',
       'app.sso_synced_team_members',
       'app.sso_synced_teams',
+      'app.tasks',
+      'app.user_preferences',
+      'app.projects',
       '"teamMember"',
       '"team"',
       '"invitation"',
@@ -344,8 +410,11 @@ describe('deleteOrganization', () => {
       data: { orgSlug: 'acme' },
       options: { singletonKey: 'org-cleanup:acme' },
     });
-    // …and only after the org row is gone.
-    expect(writes.at(-1)).toMatch(/^DELETE FROM "organization"/);
+    // …and only after the org row is gone. The slug tombstone is the last
+    // write: the slug is reserved exactly when the row is, and stays so
+    // until the job has removed what the slug keys outside this database.
+    expect(writes.at(-2)).toMatch(/^DELETE FROM "organization"/);
+    expect(writes.at(-1)).toMatch(/^INSERT INTO app.organization_tombstones/);
   });
 
   it('fails (so the transaction rolls back) when a concurrent deletion won', async () => {
@@ -372,5 +441,44 @@ describe('deleteOrganization', () => {
         ORG_ID,
       ),
     ).rejects.toBeInstanceOf(OrganizationError);
+  });
+});
+
+describe('orderChildrenFirst', () => {
+  it('puts every referencing table before the table it references', () => {
+    expect(
+      orderChildrenFirst(
+        ['projects', 'tasks', 'task_comments'],
+        [
+          { child: 'tasks', parent: 'projects' },
+          { child: 'task_comments', parent: 'tasks' },
+        ],
+      ),
+    ).toEqual(['task_comments', 'tasks', 'projects']);
+  });
+
+  it('is alphabetical among unreferenced tables and ignores edges outside the set and self-references', () => {
+    expect(
+      orderChildrenFirst(
+        ['b', 'a', 'c'],
+        [
+          { child: 'a', parent: 'not-in-the-set' },
+          { child: 'c', parent: 'c' },
+        ],
+      ),
+    ).toEqual(['a', 'b', 'c']);
+  });
+
+  it('appends a reference cycle deterministically instead of looping', () => {
+    expect(
+      orderChildrenFirst(
+        ['y', 'x', 'leaf'],
+        [
+          { child: 'x', parent: 'y' },
+          { child: 'y', parent: 'x' },
+          { child: 'leaf', parent: 'x' },
+        ],
+      ),
+    ).toEqual(['leaf', 'x', 'y']);
   });
 });

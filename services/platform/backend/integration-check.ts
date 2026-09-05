@@ -39068,6 +39068,105 @@ async function checkOrganizationLifecycle(
     UPDATE "user" SET "lastActiveOrganizationId" = ${orgA}
     WHERE "id" = ${owner.userId}
   `;
+  // What the deletion used to leave behind: rows in org-keyed app tables
+  // joined by a foreign key WITHOUT a cascade (a binding references its
+  // project), the slug-keyed corpus — a private document, a website only A
+  // holds and one A shares with B — and, when blob storage is available, one
+  // object under A's key prefix.
+  const lifeProjectId = randomUUID();
+  await sql`
+    INSERT INTO app.projects (
+      id, org_id, name, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${lifeProjectId}, ${orgA}, 'Life project', ${owner.userId},
+      ${Date.now()}, ${Date.now()}
+    )
+  `;
+  await sql`
+    INSERT INTO app.automation_project_bindings (
+      org_id, automation_name, project_id, bound_at_ms, bound_by
+    ) VALUES (
+      ${orgA}, 'life-automation', ${lifeProjectId}, ${Date.now()},
+      ${owner.userId}
+    )
+  `;
+  const corpusPool = await import('./core/knowledge/pool.ts');
+  const knowledge = await corpusPool.getKnowledgePoolForOrg(slugA);
+  await knowledge.unsafe(
+    `INSERT INTO private_knowledge.documents (file_id, org_slug, status)
+     VALUES ($1, $2, 'completed')`,
+    [`life-file-${orgSuffix}`, slugA],
+  );
+  const soleDomain = `life-sole-${orgSuffix}.example`;
+  const sharedDomain = `life-shared-${orgSuffix}.example`;
+  for (const [domain, slugs] of [
+    [soleDomain, [slugA]],
+    [sharedDomain, [slugA, slugB]],
+  ] as const) {
+    await knowledge.unsafe(
+      `INSERT INTO public_web.websites (domain) VALUES ($1)
+       ON CONFLICT (domain) DO NOTHING`,
+      [domain],
+    );
+    for (const slug of slugs) {
+      await knowledge.unsafe(
+        `INSERT INTO public_web.website_org_memberships (domain, org_slug)
+         VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [domain, slug],
+      );
+    }
+  }
+  const storage = await import('./core/lib/storage/object_store.ts');
+  const lifeStore = process.env.ITEST_S3_ENDPOINT
+    ? await storage.resolveOrgObjectStore(slugA)
+    : null;
+  if (lifeStore) {
+    await storage.s3PutObject(
+      lifeStore,
+      storage.buildObjectKey(lifeStore, slugA),
+      new TextEncoder().encode('life'),
+      'text/plain',
+    );
+  }
+  const corpusCount = async (
+    query: string,
+    params: string[],
+  ): Promise<number> => {
+    const rows = await knowledge.unsafe<{ count: string }[]>(query, params);
+    return Number(rows[0]?.count ?? '0');
+  };
+  const corpusRowsFor = async (
+    slug: string,
+  ): Promise<{ documents: number; memberships: number }> => ({
+    documents: await corpusCount(
+      `SELECT count(*)::text AS count FROM private_knowledge.documents
+        WHERE org_slug = $1`,
+      [slug],
+    ),
+    memberships: await corpusCount(
+      `SELECT count(*)::text AS count FROM public_web.website_org_memberships
+        WHERE org_slug = $1`,
+      [slug],
+    ),
+  });
+  const blobsUnder = async (slug: string): Promise<number> =>
+    lifeStore
+      ? (
+          await storage.s3ListObjectKeys(
+            lifeStore,
+            storage.orgObjectPrefix(lifeStore, slug),
+          )
+        ).length
+      : 0;
+  const seededCorpus = await corpusRowsFor(slugA);
+  const seededBlobs = await blobsUnder(slugA);
+  record(
+    'org lifecycle slug-keyed fixture in place (corpus rows + blob)',
+    seededCorpus.documents === 1 &&
+      seededCorpus.memberships === 2 &&
+      (lifeStore === null || seededBlobs === 1),
+    `documents=${seededCorpus.documents} memberships=${seededCorpus.memberships} blobs=${lifeStore ? seededBlobs : 'n/a (no ITEST_S3_ENDPOINT)'}`,
+  );
 
   interface LifecycleSnapshot {
     org: number;
@@ -39326,6 +39425,130 @@ async function checkOrganizationLifecycle(
       sessionsPointing === 0 &&
       treeGone,
     `status=${deleted.status} ${describe(afterDelete)} teamMembers=${teamMembersLeft} sessions=${sessionsPointing} actorRole=${auditRows[0]?.actorRole ?? ''} treeGone=${treeGone}`,
+  );
+
+  // Nothing keyed by the deleted organization's id survives in the app
+  // schema except the governance ledger (and the tombstone the deletion
+  // itself wrote) — checked against the catalog, so a table added later is
+  // covered by this probe the day its migration lands.
+  const orgKeyedTables = await sql<{ tableName: string }[]>`
+    SELECT c.table_name AS "tableName"
+    FROM information_schema.columns c
+    JOIN information_schema.tables t
+      ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+    WHERE c.table_schema = 'app' AND c.column_name = 'org_id'
+      AND t.table_type = 'BASE TABLE'
+    ORDER BY c.table_name
+  `;
+  const ledger = new Set([
+    'audit_logs',
+    'audit_chain_heads',
+    'audit_integrity_progress',
+    'organization_tombstones',
+  ]);
+  const survivorsA: string[] = [];
+  for (const { tableName } of orgKeyedTables) {
+    if (ledger.has(tableName)) continue;
+    const left = await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM ${sql(`app.${tableName}`)}
+      WHERE org_id = ${orgA}
+    `);
+    if (left > 0) survivorsA.push(`${tableName}=${left}`);
+  }
+  const projectRowsB = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.projects WHERE org_id = ${orgB}
+  `);
+  record(
+    'org delete cascades over every org-keyed app table and keeps only the governance ledger',
+    orgKeyedTables.length > 50 &&
+      survivorsA.length === 0 &&
+      afterDelete.audit === 1 &&
+      projectRowsB === 0,
+    `tables=${orgKeyedTables.length} survivors=${survivorsA.join(',') || 'none'} audit=${afterDelete.audit}`,
+  );
+
+  // The slug stays reserved (tombstone) until the job has removed what the
+  // slug keys outside the app database: the corpus rows, the blobs under the
+  // org's key prefix, the config tree. A website another organization still
+  // holds keeps its row; the one only A held goes.
+  const tombstoneCleared = await waitFor(async () => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.organization_tombstones
+      WHERE slug = ${slugA}
+    `;
+    return rows[0]?.count === '0';
+  }, 20_000);
+  const corpusAfter = await corpusRowsFor(slugA);
+  const corpusB = await corpusRowsFor(slugB);
+  const soleDomainLeft = await corpusCount(
+    `SELECT count(*)::text AS count FROM public_web.websites WHERE domain = $1`,
+    [soleDomain],
+  );
+  const sharedDomainLeft = await corpusCount(
+    `SELECT count(*)::text AS count FROM public_web.websites WHERE domain = $1`,
+    [sharedDomain],
+  );
+  const blobsAfter = await blobsUnder(slugA);
+  record(
+    'the teardown job removes the slug-keyed corpus, blobs and tree, then clears the tombstone',
+    tombstoneCleared &&
+      corpusAfter.documents === 0 &&
+      corpusAfter.memberships === 0 &&
+      soleDomainLeft === 0 &&
+      sharedDomainLeft === 1 &&
+      corpusB.memberships === 1 &&
+      blobsAfter === 0 &&
+      !(await exists(dirA)),
+    `tombstoneCleared=${tombstoneCleared} documents=${corpusAfter.documents} memberships=${corpusAfter.memberships} soleDomain=${soleDomainLeft} sharedDomain=${sharedDomainLeft} membershipsB=${corpusB.memberships} blobs=${lifeStore ? blobsAfter : 'n/a'} dirA=${await exists(dirA)}`,
+  );
+
+  // The freed slug is reusable exactly now — and the new tenant starts with
+  // an empty corpus rather than the old tenant's documents.
+  const reborn = await createOrg(owner.cookie, 'Life A reborn', slugA);
+  const rebornCorpus = await corpusRowsFor(slugA);
+  record(
+    'a freed slug can be taken again and the new organization starts with an empty corpus',
+    reborn !== '' &&
+      reborn !== orgA &&
+      rebornCorpus.documents === 0 &&
+      rebornCorpus.memberships === 0,
+    `reborn=${reborn || 'REFUSED'} documents=${rebornCorpus.documents} memberships=${rebornCorpus.memberships}`,
+  );
+
+  // While a tombstone stands the slug is refused — and the refusal
+  // re-enqueues the teardown, so a tombstone that outlived its job (this one
+  // never had one) heals itself instead of blocking the slug forever.
+  const slugC = `itest-life-c-${orgSuffix}`;
+  await sql`
+    INSERT INTO app.organization_tombstones (
+      slug, org_id, deleted_by, deleted_at_ms
+    ) VALUES (${slugC}, 'org-long-gone', ${owner.userId}, ${Date.now()})
+  `;
+  const refusedRetiring = await fetch(`${base}/api/auth/organization/create`, {
+    method: 'POST',
+    headers: { ...jsonHeaders, cookie: owner.cookie },
+    body: JSON.stringify({ name: 'Life C', slug: slugC }),
+  });
+  const refusedRetiringBody = await readError(refusedRetiring);
+  const orgCNotCreated = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "organization" WHERE "slug" = ${slugC}
+  `);
+  const healed = await waitFor(async () => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.organization_tombstones
+      WHERE slug = ${slugC}
+    `;
+    return rows[0]?.count === '0';
+  }, 20_000);
+  const orgC = healed ? await createOrg(owner.cookie, 'Life C', slugC) : '';
+  record(
+    'a retiring slug is refused until its teardown has run, then reusable',
+    refusedRetiring.status === 400 &&
+      /still being removed/.test(refusedRetiringBody.message ?? '') &&
+      orgCNotCreated === 0 &&
+      healed &&
+      orgC !== '',
+    `status=${refusedRetiring.status} message=${refusedRetiringBody.message ?? ''} created=${orgCNotCreated} healed=${healed} orgC=${orgC || 'REFUSED'}`,
   );
 
   // Tenant isolation + shared users: B and both accounts are untouched.
