@@ -334,8 +334,11 @@ export function automationAgentHost(
       // authenticates directly and knows nothing of gateway refs).
       const execModel =
         serving.lane === 'gateway'
-          ? resolveGatewayRouting(serving.providerSlug, serving.modelId)
-              .gatewayModel
+          ? resolveGatewayRouting(
+              organizationId,
+              serving.providerSlug,
+              serving.modelId,
+            ).gatewayModel
           : serving.modelId;
       // A text-only serving model still meets image inputs (scanned PDFs,
       // screenshots) — arm the harness vision polyfill with the org's vision
@@ -1078,8 +1081,11 @@ export async function startWorkflowAgentTurnImpl(
       // reading after the fact.
       const visionModelRef =
         visionRef !== null
-          ? resolveGatewayRouting(visionRef.providerSlug, visionRef.modelId)
-              .gatewayModel
+          ? resolveGatewayRouting(
+              args.organizationId,
+              visionRef.providerSlug,
+              visionRef.modelId,
+            ).gatewayModel
           : undefined;
       const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
@@ -1437,8 +1443,11 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       });
       const execModel =
         serving.lane === 'gateway'
-          ? resolveGatewayRouting(serving.providerSlug, serving.modelId)
-              .gatewayModel
+          ? resolveGatewayRouting(
+              args.organizationId,
+              serving.providerSlug,
+              serving.modelId,
+            ).gatewayModel
           : serving.modelId;
       keys.providerSlug = serving.providerSlug;
       keys.gatewayModel = execModel;
@@ -1455,8 +1464,11 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       // model read this turn's images.
       const visionModelRef =
         vision !== null
-          ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
-              .gatewayModel
+          ? resolveGatewayRouting(
+              args.organizationId,
+              vision.providerSlug,
+              vision.modelId,
+            ).gatewayModel
           : undefined;
       const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,

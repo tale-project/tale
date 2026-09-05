@@ -559,7 +559,7 @@ describe('mintVirtualKey', () => {
     );
   });
 
-  it('binds a CUSTOM provider model to its per-model gateway record', async () => {
+  it("binds a CUSTOM provider model to THIS org's per-model gateway record", async () => {
     const calls: RecordedCall[] = [];
     vi.stubGlobal(
       'fetch',
@@ -583,7 +583,7 @@ describe('mintVirtualKey', () => {
                 keys: [
                   {
                     id: 'kid-C',
-                    name: 'tale-org_1-my-vllm__llama-3',
+                    name: 'tale-org_1-org_1__my-vllm__llama-3',
                     models: [],
                   },
                 ],
@@ -607,13 +607,18 @@ describe('mintVirtualKey', () => {
       organizationId: ORG,
       sessionId: 'sess-2',
     });
+    // The key lookup and the VK binding both name the ORG-scoped record —
+    // never a `my-vllm__llama-3` record another org could have rewritten.
+    expect(calls[0]?.url).toContain(
+      '/api/providers/org_1__my-vllm__llama-3/keys',
+    );
     const mint = calls.find((c) => c.url.includes('/governance/virtual-keys'));
     expect(mint?.body?.provider_configs).toEqual([
       {
-        provider: 'my-vllm__llama-3',
+        provider: 'org_1__my-vllm__llama-3',
         key_ids: ['kid-C'],
         allow_all_keys: false,
-        allowed_models: ['llama-3', 'my-vllm__llama-3/llama-3'],
+        allowed_models: ['llama-3', 'org_1__my-vllm__llama-3/llama-3'],
       },
     ]);
   });
@@ -754,22 +759,40 @@ describe('applyGatewayConfig', () => {
 });
 
 describe('resolveGatewayRouting', () => {
-  it('routes a standard connector to the shared native record', async () => {
+  it('routes a standard connector to the shared native record, whatever the org', async () => {
     const mod = await loadModule();
-    expect(mod.resolveGatewayRouting('anthropic', 'claude-fable-5')).toEqual({
+    expect(
+      mod.resolveGatewayRouting(ORG, 'anthropic', 'claude-fable-5'),
+    ).toEqual({
       gatewayProvider: 'anthropic',
       gatewayModel: 'anthropic/claude-fable-5',
     });
+    expect(
+      mod.resolveGatewayRouting('org_2', 'anthropic', 'claude-fable-5'),
+    ).toEqual(mod.resolveGatewayRouting(ORG, 'anthropic', 'claude-fable-5'));
   });
 
-  it('routes a custom connector to a per-model record with slashes sanitized out of the record name', async () => {
+  it("routes a custom connector to the org's own per-model record with slashes sanitized out of the record name", async () => {
     const mod = await loadModule();
     expect(
-      mod.resolveGatewayRouting('vercel-ai-gateway', 'alibaba/qwen-3-14b'),
+      mod.resolveGatewayRouting(ORG, 'vercel-ai-gateway', 'alibaba/qwen-3-14b'),
     ).toEqual({
-      gatewayProvider: 'vercel-ai-gateway__alibaba_qwen-3-14b',
-      gatewayModel: 'vercel-ai-gateway__alibaba_qwen-3-14b/alibaba/qwen-3-14b',
+      gatewayProvider: 'org_1__vercel-ai-gateway__alibaba_qwen-3-14b',
+      gatewayModel:
+        'org_1__vercel-ai-gateway__alibaba_qwen-3-14b/alibaba/qwen-3-14b',
     });
+  });
+
+  it('gives two orgs sharing a custom connector name two distinct records', async () => {
+    // Custom connectors are org-defined files: two orgs may name one
+    // `internal` with different base URLs or wire formats. A shared record
+    // let the last provision rewrite base_url for both orgs, so org A's key
+    // was sent to org B's endpoint.
+    const mod = await loadModule();
+    const a = mod.resolveGatewayRouting(ORG, 'internal', 'llama-4');
+    const b = mod.resolveGatewayRouting('org_2', 'internal', 'llama-4');
+    expect(a.gatewayProvider).not.toBe(b.gatewayProvider);
+    expect(a.gatewayModel).not.toBe(b.gatewayModel);
   });
 });
 

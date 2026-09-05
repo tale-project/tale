@@ -175,10 +175,11 @@ describe('provisionSessionGatewayKey', () => {
     expect(result.keyHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('provisions a custom provider under its per-model record so the mint can bind', async () => {
-    // deepseek is NOT a standard gateway provider, so it routes per model
-    // (`deepseek__deepseek-v4-flash`). The provision record must carry that
-    // exact name, or the mint's key lookup 404s and fails closed.
+  it("provisions a custom provider under the org's per-model record so the mint can bind", async () => {
+    // deepseek is NOT a standard gateway provider, so it routes per (org,
+    // model) (`org_1__deepseek__deepseek-v4-flash`). The provision record
+    // must carry that exact name, or the mint's key lookup 404s and fails
+    // closed.
     mockedResolve.mockResolvedValue(apiKeyResolution('sk-ds'));
     // Only `id` is read by buildProviderProvision; the rest of the catalog
     // shape is irrelevant here.
@@ -199,10 +200,43 @@ describe('provisionSessionGatewayKey', () => {
     expect(mockedResolve).toHaveBeenCalledTimes(1);
     expect(provisionProviders).toHaveBeenCalledWith('org_1', [
       expect.objectContaining({
-        name: 'deepseek__deepseek-v4-flash',
+        name: 'org_1__deepseek__deepseek-v4-flash',
         models: ['deepseek-v4-flash'],
         apiKey: 'sk-ds',
       }),
+    ]);
+  });
+
+  it('keeps two orgs sharing a custom connector name on separate gateway records', async () => {
+    // A custom connector is an org-defined file; two orgs may both ship an
+    // `internal.yml`-style connector under one name (here the shipped
+    // `deepseek` stands in) with different endpoints or wire formats. One
+    // shared record let the last org to provision rewrite base_url for
+    // both — org A's inference, carrying A's key, went to B's endpoint.
+    mockedResolve.mockResolvedValue(apiKeyResolution('sk-shared-name'));
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    mockedCatalog.mockResolvedValue([
+      { id: 'deepseek-v4-flash' },
+    ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
+    const models = [{ providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' }];
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_a',
+      sessionId: 'sess-a',
+      allowedModels: models,
+      budgetCents: 100,
+    });
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_b',
+      sessionId: 'sess-b',
+      allowedModels: models,
+      budgetCents: 100,
+    });
+    const names = vi
+      .mocked(provisionProviders)
+      .mock.calls.map(([org, provisions]) => [org, provisions[0]?.name]);
+    expect(names).toEqual([
+      ['org_a', 'org_a__deepseek__deepseek-v4-flash'],
+      ['org_b', 'org_b__deepseek__deepseek-v4-flash'],
     ]);
   });
 

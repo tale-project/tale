@@ -185,11 +185,11 @@ export async function provisionSessionGatewayKey(
   // then expand into the EXACT gateway records the mint will bind to. A
   // standard gateway provider routes to one shared record (`<slug>/<model>`),
   // so its raw-slug provision matches as-is. A CUSTOM connector routes per
-  // model (`<slug>__<model>/<model>`, resolveGatewayRouting), so each of its
-  // models needs its own record carrying that name and just that model —
-  // otherwise the record the key lands under (`deepseek`) and the one the
-  // mint looks up (`deepseek__deepseek-v4-flash`) disagree and the mint fails
-  // closed.
+  // (org, model) (`<orgId>__<slug>__<model>/<model>`, resolveGatewayRouting),
+  // so each of its models needs its own record carrying that name and just
+  // that model — otherwise the record the key lands under (`deepseek`) and
+  // the one the mint looks up (`org_1__deepseek__deepseek-v4-flash`) disagree
+  // and the mint fails closed.
   const baseBySlug = new Map<string, ProviderProvision>();
   for (const providerSlug of new Set(
     args.allowedModels.map((ref) => ref.providerSlug),
@@ -224,8 +224,11 @@ export async function provisionSessionGatewayKey(
       ? base
       : {
           ...base,
-          name: resolveGatewayRouting(ref.providerSlug, ref.modelId)
-            .gatewayProvider,
+          name: resolveGatewayRouting(
+            args.organizationId,
+            ref.providerSlug,
+            ref.modelId,
+          ).gatewayProvider,
           models: [ref.modelId],
         };
     if (provisionedNames.has(provision.name)) continue;
