@@ -22259,9 +22259,11 @@ async function checkCloudImport(
  * grows, corpus purge attempted) and prunes the departed file (empty
  * subfolder reaped, sync root kept) → a legal hold parks the prune until
  * release → a single-file 404 removes the mirror and deactivates → trash
- * stops a directly-selected sync → token order (grant revoked → login
- * account, expiry → refresh writeback) → scan enqueue + the cancel door
- * (which an in-flight run's final stamp must never resurrect).
+ * stops a directly-selected sync → the token lane (grant-only: a revoked
+ * grant is refused with the connect message and no Graph call; an expired
+ * grant refreshes, and a 503 from the token endpoint is NOT sticky) → scan
+ * enqueue + the cancel door (which an in-flight run's final stamp must
+ * never resurrect).
  */
 async function checkOneDriveSync(
   sql: Sql,
@@ -22348,6 +22350,8 @@ async function checkOneDriveSync(
 
   const graphAuth: string[] = [];
   let refreshCalls = 0;
+  // What the fake token endpoint answers a grant refresh with.
+  let refreshAnswer: 'ok' | 'outage' = 'ok';
   const jsonResponse = (body: unknown, status = 200): Response =>
     new Response(JSON.stringify(body), {
       status,
@@ -22456,6 +22460,9 @@ async function checkOneDriveSync(
     if (url.hostname === 'graph.microsoft.com') return graphHandler(url, init);
     if (url.hostname === 'login.microsoftonline.com') {
       refreshCalls++;
+      if (refreshAnswer === 'outage') {
+        return jsonResponse({ error: 'temporarily_unavailable' }, 503);
+      }
       return jsonResponse({
         access_token: 'graph-refreshed-token',
         expires_in: 3600,
@@ -22913,47 +22920,92 @@ async function checkOneDriveSync(
       `import=${memoResult.success ? memoResult.data.successCount : 'ERR'}/1 delete=${trash.status} rows=${memoDocRows.length}/0 config=${memoConfigAfterTrash?.status} (want inactive)`,
     );
 
-    // 7. Token order: grant revoked → the Better Auth login account serves;
-    //    an expired login token refreshes (fake vendor) and writes back.
+    // 7. The token lane is grant-only: a revoked grant is refused with the
+    //    connect message and makes NO Graph call (the retired login-account
+    //    fallback could only hand Graph a file-scope-less SSO token → 403);
+    //    an expired grant refreshes; a 503 from the token endpoint is not
+    //    sticky — the grant stays active and the next attempt succeeds.
     await cloud.revokeCloudAuthorization(sql, {
       organizationId: orgId,
       userId,
       provider: 'onedrive',
     });
-    await sql`
-      INSERT INTO "account" (
-        "id", "userId", "providerId", "accountId", "accessToken",
-        "refreshToken", "accessTokenExpiresAt", "createdAt", "updatedAt"
-      ) VALUES (
-        gen_random_uuid(), ${userId}, 'microsoft', 'ms-ext-1',
-        'graph-login-token', 'rt-1', ${new Date(Date.now() + 3_600_000)},
-        ${new Date()}, ${new Date()}
-      )
+    const graphCallsBeforeRevoked = graphAuth.length;
+    const revokedList = z
+      .object({ success: z.boolean(), error: z.string().optional() })
+      .safeParse(
+        await (
+          await post('/list-files', { folderId: 'folder-reports' })
+        ).json(),
+      );
+    await runConfig(folderConfig.id);
+    const revokedConfig = await sql<
+      { status: string; errorMessage: string | null }[]
+    >`
+      SELECT status, error_message AS "errorMessage"
+      FROM app.onedrive_sync_configs WHERE id = ${folderConfig.id}
     `;
-    await post('/list-files', { folderId: 'folder-reports' });
-    const loginAuthUsed = graphAuth.at(-1) === 'Bearer graph-login-token';
-    await sql`
-      UPDATE "account" SET "accessTokenExpiresAt" = ${new Date(Date.now() - 1000)}
-      WHERE "userId" = ${userId} AND "providerId" = 'microsoft'
-    `;
-    await post('/list-files', { folderId: 'folder-reports' });
+    const graphCallsAfterRevoked = graphAuth.length;
+    const grantStatus = async (): Promise<string | undefined> =>
+      (
+        await sql<{ status: string }[]>`
+          SELECT status FROM app.user_cloud_authorizations
+          WHERE org_id = ${orgId} AND user_id = ${userId}
+            AND provider = 'onedrive'
+        `
+      )[0]?.status;
+    // An expired grant with a refresh token, against a token endpoint that
+    // is down for the first attempt.
+    await cloud.storeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'onedrive',
+      accessToken: 'graph-stale-token',
+      refreshToken: 'grant-refresh',
+      expiresAt: Date.now() - 1000,
+      scopes: ['Files.Read'],
+    });
+    refreshAnswer = 'outage';
+    const outageList = z
+      .object({ success: z.boolean(), error: z.string().optional() })
+      .safeParse(
+        await (
+          await post('/list-files', { folderId: 'folder-reports' })
+        ).json(),
+      );
+    const statusAfterOutage = await grantStatus();
+    const refreshCallsAfterOutage = refreshCalls;
+    refreshAnswer = 'ok';
+    const recoveredList = z
+      .object({ success: z.boolean() })
+      .safeParse(
+        await (
+          await post('/list-files', { folderId: 'folder-reports' })
+        ).json(),
+      );
     const refreshedAuthUsed =
       graphAuth.at(-1) === 'Bearer graph-refreshed-token';
-    const accountAfterRefresh = await sql<
-      { accessToken: string | null; refreshToken: string | null }[]
-    >`
-      SELECT "accessToken", "refreshToken" FROM "account"
-      WHERE "userId" = ${userId} AND "providerId" = 'microsoft'
-      LIMIT 1
-    `;
     record(
-      'onedrive token order: grant first, login fallback, refresh writeback',
-      loginAuthUsed &&
-        refreshCalls === 1 &&
+      'onedrive token lane: grant-only refusal, transient refresh failure not sticky',
+      revokedList.success &&
+        !revokedList.data.success &&
+        (revokedList.data.error ?? '').includes('Connect Microsoft 365') &&
+        graphCallsAfterRevoked === graphCallsBeforeRevoked &&
+        revokedConfig[0]?.status === 'error' &&
+        (revokedConfig[0].errorMessage ?? '').includes(
+          'Connect Microsoft 365',
+        ) &&
+        outageList.success &&
+        !outageList.data.success &&
+        (outageList.data.error ?? '').includes('HTTP 503') &&
+        statusAfterOutage === 'active' &&
+        refreshCallsAfterOutage === 1 &&
+        recoveredList.success &&
+        recoveredList.data.success &&
         refreshedAuthUsed &&
-        accountAfterRefresh[0]?.accessToken === 'graph-refreshed-token' &&
-        accountAfterRefresh[0].refreshToken === 'rt-2',
-      `loginAuth=${loginAuthUsed}, refreshCalls=${refreshCalls}/1 refreshedAuth=${refreshedAuthUsed}, writeback=${accountAfterRefresh[0]?.accessToken}/${accountAfterRefresh[0]?.refreshToken} (want graph-refreshed-token/rt-2)`,
+        refreshCalls === 2 &&
+        (await grantStatus()) === 'active',
+      `revoked: list=${revokedList.success ? `${revokedList.data.success}/${revokedList.data.error}` : 'ERR'} graphCalls=${graphCallsAfterRevoked - graphCallsBeforeRevoked} (want 0) config=${revokedConfig[0]?.status}/${revokedConfig[0]?.errorMessage}; outage: list=${outageList.success ? `${outageList.data.success}/${outageList.data.error}` : 'ERR'} grant=${statusAfterOutage} (want active) refreshCalls=${refreshCallsAfterOutage}/1; recovered: list=${recoveredList.success ? recoveredList.data.success : 'ERR'} refreshedAuth=${refreshedAuthUsed} refreshCalls=${refreshCalls}/2 grant=${await grantStatus()}`,
     );
 
     // 8. The scan enqueues one job per syncable config; cancel wins over an
@@ -23143,14 +23195,9 @@ async function checkOneDriveSync(
     } else {
       process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET = savedEnv.secret;
     }
-    // The shared ctx serves later checks — remove this check's seeded
-    // Microsoft login account (the accounts probe asserts its absence) and
-    // the released hold row.
+    // The shared ctx serves later checks — remove this check's released
+    // hold row.
     try {
-      await sql`
-        DELETE FROM "account"
-        WHERE "userId" = ${userId} AND "providerId" = 'microsoft'
-      `;
       await sql`
         DELETE FROM app.legal_holds
         WHERE org_id = ${orgId} AND reason = 'onedrive prune guard'

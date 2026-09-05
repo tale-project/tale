@@ -5,12 +5,7 @@ import {
   resolveFileType,
 } from '../../../lib/shared/file-types.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
-import {
-  pickMicrosoftAccount,
-  type MicrosoftAccountCandidate,
-} from '../../core/accounts/microsoft_account.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
-import { extractTenantId } from '../../core/enterprise_sso/entra_id/constants.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
@@ -21,14 +16,10 @@ import {
   selectDocumentsToPrune,
   type SyncedDocumentRef,
 } from '../../core/onedrive/reconcile_folder_sync.ts';
-import { refreshToken as refreshMicrosoftLoginToken } from '../../core/onedrive/refresh_token.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
-import {
-  isCloudImportProvider,
-  resolveCloudAccessToken,
-} from '../cloud_import/service.ts';
+import { resolveCloudAccessToken } from '../cloud_import/service.ts';
 import { MAX_UPLOAD_BYTES, readBodyBounded } from '../files/bounded-body.ts';
 import { putOrgBlobBytes } from '../files/service.ts';
 import {
@@ -40,7 +31,6 @@ import {
 import { markRagQueued, syncRagDocumentScope } from '../knowledge/service.ts';
 import { assertNotHeld, LegalHoldError } from '../legal_holds/service.ts';
 import { purgeDocument } from '../retention/service.ts';
-import { readSsoSecrets, resolveSignInConfig } from '../sso/config.ts';
 
 /**
  * OneDrive Knowledge sync — the 0.5 twin of `convex/onedrive`: the
@@ -50,9 +40,11 @@ import { readSsoSecrets, resolveSignInConfig } from '../sso/config.ts';
  * one `onedrive.sync_config` job per active config) — the 0.4 automation
  * pack that used to drive it was retired with the automation rebuild.
  *
- * Tokens resolve cloud-import grant FIRST (the explicit Documents grant from
- * inc 64), then the Better Auth Microsoft login account (legacy / SSO
- * shortcut) — the 0.4 `withMicrosoftToken` order. Agents never reach these.
+ * Tokens are GRANT-ONLY: the explicit per-user Documents grant (inc 64).
+ * The 0.4 fallback to the Better Auth Microsoft login account is gone — SSO
+ * sign-in deliberately never carries Graph file scopes, so that lane could
+ * only ever hand the engine a token Graph answers with 403. Agents never
+ * reach these.
  *
  * Like the 0.4 tree (google_drive imports onedrive's prune/reconcile
  * helpers), this module is also the home of the PROVIDER-GENERIC engine:
@@ -195,18 +187,6 @@ export async function getSyncConfigRow(
     WHERE id = ${configId} LIMIT 1
   `;
   return rows[0] ?? null;
-}
-
-export async function listActiveSyncConfigRows(
-  db: Sql | TransactionSql,
-  table: string,
-  organizationId: string,
-): Promise<SyncConfigRow[]> {
-  return db<SyncConfigRow[]>`
-    SELECT ${db.unsafe(CONFIG_COLUMNS)} FROM ${db.unsafe(table)}
-    WHERE org_id = ${organizationId} AND status = 'active'
-    ORDER BY created_at_ms ASC
-  `;
 }
 
 /**
@@ -384,163 +364,23 @@ export type GraphTokenResult =
   | { success: true; token: string }
   | { success: false; error: string };
 
-const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
-
-interface LoginAccountRow extends MicrosoftAccountCandidate {
-  id: string;
-  providerId: string;
-  accessToken: string | null;
-  refreshToken: string | null;
-  accessTokenExpiresAtDate: Date | null;
-  refreshTokenExpiresAtDate: Date | null;
-  updatedAt: number;
-}
-
 /**
- * Client credentials for refreshing a login-account Graph token (the 0.4
- * `resolveMicrosoftRefreshCredentials`): an `entra-id` row was issued by the
- * org's own SSO app registration — use that connection's client id/secret
- * and issuer tenant; the deployment env app is the fallback either way.
- */
-async function resolveRefreshCredentials(
-  sql: Sql,
-  providerId: string,
-): Promise<{
-  tenantId: string;
-  clientId: string;
-  clientSecret: string;
-} | null> {
-  if (providerId === 'entra-id') {
-    try {
-      const config = await resolveSignInConfig(sql, undefined);
-      if (
-        config !== null &&
-        config !== 'ambiguous' &&
-        config.providerId === 'entra-id' &&
-        typeof config.issuer === 'string' &&
-        typeof config.organizationId === 'string'
-      ) {
-        const tenantId = extractTenantId(config.issuer);
-        const secrets = await readSsoSecrets(sql, config.organizationId);
-        if (secrets.clientId && secrets.clientSecret) {
-          return {
-            tenantId,
-            clientId: secrets.clientId,
-            clientSecret: secrets.clientSecret,
-          };
-        }
-      }
-    } catch (error) {
-      console.warn(
-        '[onedrive] SSO connection credentials unavailable, falling back to env:',
-        error instanceof Error ? error.message : error,
-      );
-    }
-  }
-  const tenantId = process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID;
-  const clientId = process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
-  const clientSecret = process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET;
-  if (!tenantId || !clientId || !clientSecret) return null;
-  return { tenantId, clientId, clientSecret };
-}
-
-/** The Better Auth Microsoft login-account lane (legacy / SSO shortcut). */
-async function resolveLoginAccountToken(
-  sql: Sql,
-  userId: string,
-): Promise<string | null> {
-  const rows = await sql<
-    {
-      id: string;
-      providerId: string;
-      accessToken: string | null;
-      refreshToken: string | null;
-      accessTokenExpiresAt: Date | null;
-      refreshTokenExpiresAt: Date | null;
-      updatedAt: Date | null;
-    }[]
-  >`
-    SELECT "id", "providerId" AS "providerId", "accessToken",
-           "refreshToken", "accessTokenExpiresAt", "refreshTokenExpiresAt",
-           "updatedAt"
-    FROM "account"
-    WHERE "userId" = ${userId}
-  `;
-  const candidates: LoginAccountRow[] = rows.map((row) => ({
-    id: row.id,
-    providerId: row.providerId,
-    accessToken: row.accessToken,
-    refreshToken: row.refreshToken,
-    accessTokenExpiresAtDate: row.accessTokenExpiresAt,
-    refreshTokenExpiresAtDate: row.refreshTokenExpiresAt,
-    updatedAt: row.updatedAt?.getTime() ?? 0,
-  }));
-  const account = pickMicrosoftAccount(candidates);
-  if (!account) return null;
-
-  const now = Date.now();
-  const accessExpiresAt = account.accessTokenExpiresAtDate?.getTime();
-  const accessLive =
-    typeof account.accessToken === 'string' &&
-    account.accessToken !== '' &&
-    (accessExpiresAt === undefined ||
-      accessExpiresAt > now + TOKEN_EXPIRY_BUFFER_MS);
-  if (accessLive) return account.accessToken;
-
-  const refreshUsable =
-    typeof account.refreshToken === 'string' &&
-    account.refreshToken !== '' &&
-    (account.refreshTokenExpiresAtDate === null ||
-      account.refreshTokenExpiresAtDate.getTime() > now);
-  if (!refreshUsable || account.refreshToken === null) return null;
-
-  const credentials = await resolveRefreshCredentials(sql, account.providerId);
-  if (!credentials) {
-    console.warn('[onedrive] no OAuth credentials to refresh a login token');
-    return null;
-  }
-  const refreshed = await refreshMicrosoftLoginToken({
-    refreshToken: account.refreshToken,
-    ...credentials,
-  });
-  if (!refreshed.success || !refreshed.accessToken || !refreshed.expiresAt) {
-    return null;
-  }
-  await sql`
-    UPDATE "account" SET
-      "accessToken" = ${refreshed.accessToken},
-      "accessTokenExpiresAt" = ${new Date(refreshed.expiresAt)},
-      "refreshToken" = ${refreshed.newRefreshToken ?? account.refreshToken},
-      "refreshTokenExpiresAt" = ${
-        refreshed.refreshTokenExpiresAt !== undefined
-          ? new Date(refreshed.refreshTokenExpiresAt)
-          : account.refreshTokenExpiresAtDate
-      },
-      "updatedAt" = ${new Date()}
-    WHERE "id" = ${account.id}
-  `;
-  return refreshed.accessToken;
-}
-
-/**
- * Resolve a Microsoft Graph token for Knowledge OneDrive/SharePoint:
- * per-user cloud-import grant first, login account second (the 0.4
- * `withMicrosoftToken` order). Agents must not call this.
+ * Resolve a Microsoft Graph token for Knowledge OneDrive/SharePoint from the
+ * user's cloud-import grant. Only a missing/dead grant is fixed by
+ * reconnecting; a vendor outage or a deployment misconfiguration is named
+ * as itself so the sync error reads true. Agents must not call this.
  */
 export async function resolveGraphTokenForUser(
   sql: Sql,
   args: { organizationId: string; userId: string },
 ): Promise<GraphTokenResult> {
-  if (isCloudImportProvider('onedrive')) {
-    const cloud = await resolveCloudAccessToken(sql, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-      provider: 'onedrive',
-    });
-    if (cloud.success) return { success: true, token: cloud.accessToken };
-  }
-  const loginToken = await resolveLoginAccountToken(sql, args.userId);
-  if (loginToken !== null) return { success: true, token: loginToken };
+  const cloud = await resolveCloudAccessToken(sql, {
+    organizationId: args.organizationId,
+    userId: args.userId,
+    provider: 'onedrive',
+  });
+  if (cloud.success) return { success: true, token: cloud.accessToken };
+  if (cloud.needsReauth !== true) return { success: false, error: cloud.error };
   return {
     success: false,
     error:
