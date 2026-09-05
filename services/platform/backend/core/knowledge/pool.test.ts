@@ -54,7 +54,15 @@ function stubPool(url: string): Sql {
   };
   sql.url = url;
   sql.end = () => Promise.resolve();
-  sql.unsafe = () => Promise.resolve([]) as never;
+  const unsafe = () => Promise.resolve([]) as never;
+  sql.unsafe = unsafe;
+  // The bootstrap holds its advisory lock on one reserved connection; the
+  // double answers it with the same recording surface.
+  sql.reserve = (() =>
+    Promise.resolve({
+      unsafe,
+      release: () => undefined,
+    })) as unknown as Sql['reserve'];
   return sql;
 }
 
