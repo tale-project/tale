@@ -5,6 +5,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   cancelAgentRunInTx,
   failAgentRunFromTurn,
+  kickAgentRun,
   launchAgentRun,
   settleAgentRun,
 } from './agent-runs.ts';
@@ -221,5 +222,62 @@ describe('launchAgentRun — the running flip is exec-fenced', () => {
     await expect(
       launchAgentRun(sql, { runId: 'run-1', execId: 'exec-stale' }),
     ).resolves.toBe(false);
+  });
+});
+
+describe('kickAgentRun — one live run per task is the schema’s rule', () => {
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+  });
+
+  const kick = {
+    organizationId: 'org-1',
+    projectId: 'p-1',
+    taskId: 'task-1',
+    agentId: 'agent-1',
+    harness: 'claude-code',
+    model: 'm',
+    startedBy: 'u-1',
+  };
+
+  it('inserts under the live-run unique index and enqueues the turn on a win', async () => {
+    const { tx, statements } = fakeTx((text) =>
+      text.startsWith('INSERT INTO app.project_agent_runs')
+        ? [{ id: 'run-new' }]
+        : [],
+    );
+    const result = await kickAgentRun(tx, kick);
+    expect(result.reused).toBe(false);
+    expect(result.runId).toBe('run-new');
+    const insert = statements.find((text) =>
+      text.startsWith('INSERT INTO app.project_agent_runs'),
+    );
+    // The partial unique index's predicate, so a concurrent mint the probe
+    // could not see (READ COMMITTED) is a no-op instead of a second live run.
+    expect(insert).toContain(
+      "ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING",
+    );
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('task.agent_turn');
+  });
+
+  it('a lost insert answers with the concurrent winner’s run and enqueues nothing', async () => {
+    let probes = 0;
+    const { tx } = fakeTx((text) => {
+      if (text.startsWith('SELECT id, exec_id AS "execId"')) {
+        probes += 1;
+        // The first probe misses (the winner is not yet visible); the
+        // re-read after the refused insert finds it.
+        return probes === 1 ? [] : [{ id: 'run-winner', execId: 'exec-w' }];
+      }
+      return [];
+    });
+    const result = await kickAgentRun(tx, kick);
+    expect(result).toEqual({
+      runId: 'run-winner',
+      execId: 'exec-w',
+      reused: true,
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
   });
 });

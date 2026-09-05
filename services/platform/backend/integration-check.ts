@@ -33,7 +33,7 @@ import path from 'node:path';
 import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { PgBoss } from 'pg-boss';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
@@ -13557,6 +13557,127 @@ async function checkTurnReattach(
     UPDATE app.sandbox_sessions SET status = 'destroyed',
                                     destroyed_at_ms = ${Date.now()}
     WHERE org_id = ${orgId} AND session_id LIKE 'reattach-session-%'
+  `;
+}
+
+/**
+ * "At most one live run per task" is the schema's rule (migration 0077): a
+ * READ COMMITTED kick whose live-run probe cannot see a run another
+ * transaction is still minting must NOT insert a second one. The race is
+ * staged deterministically — transaction A inserts a live run and holds it
+ * uncommitted; the kick in transaction B misses it on the probe, blocks on
+ * the unique index at its insert, and once A commits answers with A's run as
+ * `reused`. A raw second live insert is refused outright.
+ */
+async function checkOneLiveRunPerTask(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'One live run project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'One live run task', 'in_progress', 'a0',
+      ${userId}, 'user', ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  const agentRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agents (
+      org_id, project_id, name, harness, model, created_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'One live run agent', 'claude-code',
+      'itest-model', ${userId}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const agentId = agentRows[0]?.id ?? '';
+  const insertLive = (tx: Sql | TransactionSql, exec: string) => tx<
+    { id: string }[]
+  >`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${taskId}, ${agentId}, ${exec},
+      ${`pa-${agentId}`}, 'queued', 'claude-code', 'itest-model',
+      ${userId}, ${Date.now()}, ${Date.now() + 3_600_000}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const { kickAgentRun } = await import('./domains/tasks/agent-runs.ts');
+  const kickArgs = {
+    organizationId: orgId,
+    projectId,
+    taskId,
+    agentId,
+    harness: 'claude-code',
+    model: 'itest-model',
+    startedBy: userId,
+  };
+
+  // A: mint a live run and HOLD the transaction open.
+  let releaseA: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    releaseA = resolve;
+  });
+  let heldRunId = '';
+  const held = sql.begin(async (tx) => {
+    heldRunId = (await insertLive(tx, 'exec-one-live-a'))[0]?.id ?? '';
+    await gate;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  // B: the kick under READ COMMITTED — its probe cannot see A's row; its
+  // insert blocks on the index until A commits.
+  const kicked = sql.begin((tx) => kickAgentRun(tx, kickArgs));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  releaseA();
+  await held;
+  const outcome = await kicked;
+
+  // A raw second live insert is refused by the index itself.
+  let rawRefused = '';
+  try {
+    await insertLive(sql, 'exec-one-live-raw');
+  } catch (error) {
+    rawRefused =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String(error.code)
+        : 'thrown';
+  }
+  const liveRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+  `;
+  const turnJobs = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${heldRunId}
+  `;
+  record(
+    'one live run per task: a read-committed kick racing a held mint reuses the winner',
+    outcome.reused &&
+      outcome.runId === heldRunId &&
+      liveRows.length === 1 &&
+      liveRows[0]?.id === heldRunId &&
+      turnJobs[0]?.count === '0' &&
+      rawRefused === '23505',
+    `kick reused=${outcome.reused} (want true, winner=${outcome.runId === heldRunId}), live rows=${liveRows.length} (want 1), turn jobs for winner=${turnJobs[0]?.count} (want 0), raw twin=${rawRefused || 'accepted'} (want 23505)`,
+  );
+
+  // Leave nothing the live worker could act on.
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled'
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
   `;
 }
 
@@ -40321,6 +40442,7 @@ async function main(): Promise<void> {
       ],
       ['checkTurnReattach', () => checkTurnReattach(sql, authCtx)],
       ['checkQueuedRunRecovery', () => checkQueuedRunRecovery(sql, authCtx)],
+      ['checkOneLiveRunPerTask', () => checkOneLiveRunPerTask(sql, authCtx)],
       [
         'checkSteerFallbackRecovery',
         () => checkSteerFallbackRecovery(sql, authCtx),

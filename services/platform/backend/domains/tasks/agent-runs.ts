@@ -96,16 +96,28 @@ export async function kickAgentRun(
   tx: TransactionSql,
   args: KickAgentRunArgs,
 ): Promise<{ runId: string; execId: string; reused: boolean }> {
-  const live = await tx<{ id: string; execId: string }[]>`
-    SELECT id, exec_id AS "execId" FROM app.project_agent_runs
-    WHERE task_id = ${args.taskId} AND status IN ('queued', 'running')
-    LIMIT 1
-  `;
-  if (live[0]) {
-    return { runId: live[0].id, execId: live[0].execId, reused: true };
+  const liveRun = async (): Promise<
+    { id: string; execId: string } | undefined
+  > => {
+    const live = await tx<{ id: string; execId: string }[]>`
+      SELECT id, exec_id AS "execId" FROM app.project_agent_runs
+      WHERE task_id = ${args.taskId} AND status IN ('queued', 'running')
+      LIMIT 1
+    `;
+    return live[0];
+  };
+  const standing = await liveRun();
+  if (standing) {
+    return { runId: standing.id, execId: standing.execId, reused: true };
   }
   const now = Date.now();
   const execId = randomUUID();
+  // "At most one live run per task" is the schema's rule (migration 0077's
+  // partial unique index over the live statuses), not this read's: the human
+  // doors kick SERIALIZABLE but the auto-retry job and the steer-miss
+  // fallback kick READ COMMITTED, so the probe above can miss a run another
+  // transaction is minting. The insert defers to the index — a loser answers
+  // with the winner's run, exactly as if the probe had seen it.
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
@@ -120,10 +132,15 @@ export async function kickAgentRun(
       ${args.startedBy}, ${now},
       ${now + TASK_AGENT_RUN_DEADLINE_MS}, ${now}
     )
+    ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING
     RETURNING id
   `;
   const runId = rows[0]?.id;
-  if (!runId) throw new Error('agent run insert failed');
+  if (!runId) {
+    const winner = await liveRun();
+    if (!winner) throw new Error('agent run insert failed');
+    return { runId: winner.id, execId: winner.execId, reused: true };
+  }
   await addJobInTx(tx, 'task.agent_turn', {
     organizationId: args.organizationId,
     runId,
