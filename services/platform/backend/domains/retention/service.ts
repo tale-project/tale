@@ -396,6 +396,7 @@ interface Phase2Stats {
   automationRuns: number;
   auditLogs: number;
   tempFiles: number;
+  sandboxLedgers: number;
 }
 
 /** A purge that could not remove every dead surface (corpus rows, bytes).
@@ -992,6 +993,55 @@ async function sweepAuditLogs(
   return removed.length;
 }
 
+/**
+ * The sandbox provenance ledgers — `app.sandbox_tool_calls` (every tool and
+ * connector call a container made, with the acting user) and
+ * `app.sandbox_credential_access` (every brokered credential grant). Both
+ * are written as audit trails, and the run ledger copies what a settle
+ * needs into `app.audit_logs` (itself under this window), so the raw rows
+ * ride the audit-log window rather than inventing a category; before this
+ * sweep they grew without bound, user id attached. The window's floor (a
+ * year) sits far above any live turn's settle read, so age alone is safe.
+ *
+ * Plain bounded row deletes — the hash chain lives on the audit log, not
+ * here. A held actor's tool calls are skipped in SQL like the usage
+ * ledger's (a user-less row stays a candidate); the credential table has
+ * no user column, so the org-wide hold (the caller's guard) is its whole
+ * custodian story.
+ */
+async function sweepSandboxLedgers(
+  sql: Sql,
+  org: OrgPolicy,
+  holds: ActiveHolds,
+): Promise<number> {
+  const cutoff = auditLogCutoffFor(org.config);
+  if (cutoff === null) return 0;
+  const protectedIds = [...holds.userMembershipIds];
+  const toolCalls = await sql<{ id: string }[]>`
+    DELETE FROM app.sandbox_tool_calls
+    WHERE id IN (
+      SELECT id FROM app.sandbox_tool_calls
+      WHERE org_id = ${org.organizationId}
+        AND created_at_ms < ${cutoff}
+        AND (${protectedIds.length === 0}
+             OR user_id IS NULL OR user_id <> ALL(${protectedIds}))
+      LIMIT ${BATCH_LIMIT}
+    )
+    RETURNING id
+  `;
+  const credentialAccess = await sql<{ id: string }[]>`
+    DELETE FROM app.sandbox_credential_access
+    WHERE id IN (
+      SELECT id FROM app.sandbox_credential_access
+      WHERE org_id = ${org.organizationId}
+        AND fetched_at_ms < ${cutoff}
+      LIMIT ${BATCH_LIMIT}
+    )
+    RETURNING id
+  `;
+  return toolCalls.length + credentialAccess.length;
+}
+
 async function sweepTempFiles(
   sql: Sql,
   org: OrgPolicy,
@@ -1066,6 +1116,7 @@ export async function sweepOrgPhase2(
     automationRuns: 0,
     auditLogs: 0,
     tempFiles: 0,
+    sandboxLedgers: 0,
   };
   if (holds.orgHeld) return stats;
   stats.documents = await sweepDocuments(sql, org, holds);
@@ -1082,5 +1133,6 @@ export async function sweepOrgPhase2(
   stats.tempFiles =
     (await sweepTempFiles(sql, org, 'user', holds)) +
     (await sweepTempFiles(sql, org, 'agent', holds));
+  stats.sandboxLedgers = await sweepSandboxLedgers(sql, org, holds);
   return stats;
 }
