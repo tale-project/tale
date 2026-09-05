@@ -930,7 +930,23 @@ export async function startTaskAgentTurnImpl(
           execId: args.execId,
           status: 'cancelled',
         });
-        await releaseProjectAgentSlotAfterSettle(ctx, args);
+        // The session slot belongs to whoever holds the run NOW. A rotated
+        // run has a successor start on this very session, possibly past
+        // its ensure but before its own op row — stopping the session under
+        // it would run that turn on a slot no budget counts, and its later
+        // release would be a no-op. Only a run nobody drives any more (a
+        // cancel landed) leaves this start as the one to free the slot.
+        const after = await ctx.runQuery(
+          internal.tasks.agent_runs.getTaskAgentRunForDrive,
+          { runId: args.runId },
+        );
+        const liveUnderSuccessor =
+          after !== null &&
+          (after.status === 'queued' || after.status === 'running') &&
+          after.execId !== args.execId;
+        if (!liveUnderSuccessor) {
+          await releaseProjectAgentSlotAfterSettle(ctx, args);
+        }
         return null;
       }
 

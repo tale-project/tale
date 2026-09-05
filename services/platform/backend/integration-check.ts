@@ -25817,6 +25817,13 @@ async function checkTaskAgentTurnDrive(
   // the bare-EOS shape a weak model emits mid-work (set by the reportless
   // scenario below; every other session plays the normal settling turn).
   let reportlessSessionId = '';
+  // Every exec the spawner was asked to start, per session — the stand-down
+  // probe's "nothing was spawned" is an absence, so it must be observed.
+  const execsSeen = new Map<string, string[]>();
+  // The stand-down probe's race window: runs ONCE, while the cold session
+  // is being created (after the start's idempotency gate, before its
+  // running flip), and hands the run over before the spawner answers.
+  let onSessionCreate: (() => Promise<void>) | undefined;
   // --- fake spawner: sessions + exec SSE + files ---------------------------
   const spawner = createServer((req, res) => {
     let body = '';
@@ -25856,15 +25863,36 @@ async function checkTaskAgentTurnDrive(
           .object({ sessionId: z.string() })
           .loose()
           .safeParse(JSON.parse(body || '{}'));
-        res.end(
-          JSON.stringify(
-            sessionInfo(parsed.success ? parsed.data.sessionId : ''),
-          ),
-        );
+        const respond = (): void => {
+          res.end(
+            JSON.stringify(
+              sessionInfo(parsed.success ? parsed.data.sessionId : ''),
+            ),
+          );
+        };
+        const hook = onSessionCreate;
+        onSessionCreate = undefined;
+        if (hook === undefined) {
+          respond();
+          return;
+        }
+        hook().then(respond, (err: unknown) => {
+          console.error('[itest] session-create hook failed:', err);
+          respond();
+        });
         return;
       }
       const exec = /^\/v1\/sessions\/([^/]+)\/exec$/.exec(url.pathname);
       if (method === 'POST' && exec) {
+        const execSession = exec[1] ?? '';
+        const execBody = z
+          .object({ execId: z.string() })
+          .loose()
+          .safeParse(JSON.parse(body || '{}'));
+        execsSeen.set(execSession, [
+          ...(execsSeen.get(execSession) ?? []),
+          execBody.success ? execBody.data.execId : '?',
+        ]);
         // The canned claude-code stream-json turn, then the exec result. The
         // reportless session's turn ends SUCCESSFULLY with an empty result —
         // the parser then sets no finalText, which is the no-report signal.
@@ -26332,6 +26360,244 @@ async function checkTaskAgentTurnDrive(
       `;
       return pending[0]?.count === '0';
     }, 30_000);
+
+    // --- a start whose run changed hands before its flip stands down -------
+    // tasks-a-4 (host side): a cold session ensure plus input staging
+    // legitimately takes minutes, and in that window the queued-run
+    // recovery may rotate the run onto a fresh exec, or a cancel may land.
+    // The running flip is exec-fenced; the start that loses it must spawn
+    // NOTHING, finalize its own op row as cancelled and revoke the key it
+    // minted. The slot follows the run: a rotated run's successor keeps the
+    // session (it starts on it right after), a cancelled run's start frees
+    // it. Driven on the host directly (a hand-inserted row, no turn job) so
+    // the live worker cannot race the hand-over.
+    const { startTaskAgentTurnImpl } =
+      await import('./core/tasks/agent_run_host.ts');
+    const { agentTurnShimHandlers, taskAgentShimScheduler } =
+      await import('./domains/tasks/agent-turn-shim.ts');
+    const { createCtxShim } = await import('./lib/ctx-shim.ts');
+    const readOp = async (
+      sessionId: string,
+      execId: string,
+    ): Promise<{ status: string; finalizedAt: number | null } | undefined> =>
+      (
+        await sql<{ status: string; finalizedAt: number | null }[]>`
+          SELECT status, finalized_at_ms::float8 AS "finalizedAt"
+          FROM app.sandbox_session_ops
+          WHERE session_id = ${sessionId} AND exec_id = ${execId}
+        `
+      )[0];
+    const readStandDownRun = async (
+      runId: string,
+    ): Promise<
+      { status: string; execId: string; launchedAt: number | null } | undefined
+    > =>
+      (
+        await sql<
+          { status: string; execId: string; launchedAt: number | null }[]
+        >`
+          SELECT status, exec_id AS "execId",
+                 launched_at_ms::float8 AS "launchedAt"
+          FROM app.project_agent_runs WHERE id = ${runId}
+        `
+      )[0];
+    const readSession = async (sessionId: string): Promise<string> =>
+      (
+        await sql<{ status: string }[]>`
+          SELECT status FROM app.sandbox_sessions
+          WHERE session_id = ${sessionId} AND owner_type = 'project_agent'
+        `
+      )[0]?.status ?? 'missing';
+    const standDownStart = async (
+      name: string,
+      execId: string,
+      handOver: (runId: string) => Promise<void>,
+    ): Promise<{
+      runId: string;
+      sessionId: string;
+      threw: string;
+      start: (id: string) => Promise<string>;
+      minted: number;
+      revoked: number;
+    }> => {
+      const agentN = z.object({ agentId: z.string() }).safeParse(
+        await (
+          await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+            name,
+            harness: 'claude-code',
+            model: 'itest-agent-model',
+            skills: [],
+            connectors: [],
+          })
+        ).json(),
+      );
+      const agentNId = agentN.success ? agentN.data.agentId : '';
+      const sessionId = `pa-${agentNId}`;
+      const taskN = z.object({ taskId: z.string() }).safeParse(
+        await (
+          await post(`/api/app/tasks?orgId=${orgId}`, {
+            projectId,
+            title: `${name} hand-over`,
+          })
+        ).json(),
+      );
+      const taskNId = taskN.success ? taskN.data.taskId : '';
+      await post(`/api/app/tasks/${taskNId}/assign?orgId=${orgId}`, {
+        assigneeType: 'agent',
+        assigneeId: agentNId,
+      });
+      // In progress WITHOUT the status door's kick: the run below is the
+      // one live run, and nothing but this probe drives it.
+      await sql`
+        UPDATE app.tasks SET status = 'in_progress', updated_at_ms = ${Date.now()}
+        WHERE id = ${taskNId}
+      `;
+      const runId =
+        (
+          await sql<{ id: string }[]>`
+            INSERT INTO app.project_agent_runs (
+              org_id, project_id, task_id, agent_id, exec_id, session_id,
+              status, harness, model, started_by, started_at_ms,
+              deadline_at_ms, updated_at_ms
+            ) VALUES (
+              ${orgId}, ${projectId}, ${taskNId}, ${agentNId}, ${execId},
+              ${sessionId}, 'queued', 'claude-code', 'itest-agent-model',
+              'itest:stand-down', ${Date.now()}, ${Date.now() + 3_600_000},
+              ${Date.now()}
+            ) RETURNING id
+          `
+        )[0]?.id ?? '';
+      const shim = createCtxShim(agentTurnShimHandlers(sql), {
+        scheduler: taskAgentShimScheduler(sql),
+      });
+      const start = async (id: string): Promise<string> => {
+        try {
+          await startTaskAgentTurnImpl(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- reused host over the shim, as task-list.ts wires it; tsc requires the widening while tsgolint false-positives it as unnecessary
+            shim as unknown as Parameters<typeof startTaskAgentTurnImpl>[0],
+            {
+              organizationId: orgId,
+              runId,
+              taskId: taskNId,
+              agentId: agentNId,
+              execId: id,
+              sessionId,
+              harness: 'claude-code',
+              deadlineAt: Date.now() + 3_600_000,
+              model: 'itest-agent-model',
+              skills: [],
+              connectors: [],
+              tools: [],
+              secrets: [],
+            },
+          );
+          return '';
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      };
+      const minted = gatewayCalls.minted;
+      const revoked = gatewayCalls.revoked;
+      onSessionCreate = () => handOver(runId);
+      const threw = await start(execId);
+      return {
+        runId,
+        sessionId,
+        threw,
+        start,
+        minted: gatewayCalls.minted - minted,
+        revoked: gatewayCalls.revoked - revoked,
+      };
+    };
+
+    // Rotated: the recovery's claim shape (exec swapped under `queued`).
+    const rotated = await standDownStart(
+      'Rotated Bot',
+      'exec-standdown-rotated',
+      async (runId) => {
+        await sql`
+          UPDATE app.project_agent_runs SET
+            exec_id = 'exec-standdown-rotated-2', updated_at_ms = ${Date.now()}
+          WHERE id = ${runId} AND status = 'queued'
+            AND exec_id = 'exec-standdown-rotated'
+        `;
+      },
+    );
+    const rotatedOp = await readOp(rotated.sessionId, 'exec-standdown-rotated');
+    const rotatedRun = await readStandDownRun(rotated.runId);
+    const rotatedSession = await readSession(rotated.sessionId);
+    const rotatedSpawned = [...(execsSeen.get(rotated.sessionId) ?? [])];
+    record(
+      'task-agent start: a run rotated away before the flip stands down (no spawn, op cancelled, key revoked, slot kept for the successor)',
+      rotated.threw === '' &&
+        rotatedSpawned.length === 0 &&
+        rotatedOp?.status === 'cancelled' &&
+        rotatedOp.finalizedAt !== null &&
+        rotatedRun?.status === 'queued' &&
+        rotatedRun.execId === 'exec-standdown-rotated-2' &&
+        rotatedRun.launchedAt === null &&
+        rotatedSession === 'active' &&
+        rotated.minted === 1 &&
+        rotated.revoked === 1,
+      `threw="${rotated.threw}" spawned=${JSON.stringify(rotatedSpawned)} (want none), op=${rotatedOp?.status}/finalized=${rotatedOp?.finalizedAt !== null} (want cancelled), run=${rotatedRun?.status}/${rotatedRun?.execId}/launched=${rotatedRun?.launchedAt} (want queued/exec-standdown-rotated-2/null), session=${rotatedSession} (want active), vk mint/revoke=${rotated.minted}/${rotated.revoked} (want 1/1)`,
+    );
+
+    // …and the successor's start launches normally on the kept session.
+    const successorThrew = await rotated.start('exec-standdown-rotated-2');
+    const successorRun = await readStandDownRun(rotated.runId);
+    const successorOp = await readOp(
+      rotated.sessionId,
+      'exec-standdown-rotated-2',
+    );
+    const successorSession = await readSession(rotated.sessionId);
+    const successorSpawned = [...(execsSeen.get(rotated.sessionId) ?? [])];
+    record(
+      "task-agent start: the rotated run's successor exec launches and settles",
+      successorThrew === '' &&
+        successorSpawned.length === 1 &&
+        successorSpawned[0] === 'exec-standdown-rotated-2' &&
+        successorRun?.status === 'settled' &&
+        successorRun.execId === 'exec-standdown-rotated-2' &&
+        successorRun.launchedAt !== null &&
+        successorOp?.status === 'completed' &&
+        successorSession === 'stopped',
+      `threw="${successorThrew}" spawned=${JSON.stringify(successorSpawned)} (want the successor only), run=${successorRun?.status}/${successorRun?.execId}/launched=${successorRun?.launchedAt !== null}, op=${successorOp?.status} (want completed), session=${successorSession} (want stopped)`,
+    );
+
+    // Cancelled: nobody drives the run any more — this start frees the slot.
+    const cancelled = await standDownStart(
+      'Cancelled Bot',
+      'exec-standdown-cancelled',
+      async (runId) => {
+        await sql`
+          UPDATE app.project_agent_runs SET
+            status = 'cancelled', settled_at_ms = ${Date.now()},
+            updated_at_ms = ${Date.now()}
+          WHERE id = ${runId} AND status = 'queued'
+        `;
+      },
+    );
+    const cancelledOp = await readOp(
+      cancelled.sessionId,
+      'exec-standdown-cancelled',
+    );
+    const cancelledRun = await readStandDownRun(cancelled.runId);
+    const cancelledSession = await readSession(cancelled.sessionId);
+    const cancelledSpawned = [...(execsSeen.get(cancelled.sessionId) ?? [])];
+    record(
+      'task-agent start: a run cancelled before the flip stands down (no spawn, op cancelled, key revoked, slot released)',
+      cancelled.threw === '' &&
+        cancelledSpawned.length === 0 &&
+        cancelledOp?.status === 'cancelled' &&
+        cancelledOp.finalizedAt !== null &&
+        cancelledRun?.status === 'cancelled' &&
+        cancelledRun.execId === 'exec-standdown-cancelled' &&
+        cancelledRun.launchedAt === null &&
+        cancelledSession === 'stopped' &&
+        cancelled.minted === 1 &&
+        cancelled.revoked === 1,
+      `threw="${cancelled.threw}" spawned=${JSON.stringify(cancelledSpawned)} (want none), op=${cancelledOp?.status}/finalized=${cancelledOp?.finalizedAt !== null} (want cancelled), run=${cancelledRun?.status}/${cancelledRun?.execId} (want cancelled, exec kept), session=${cancelledSession} (want stopped), vk mint/revoke=${cancelled.minted}/${cancelled.revoked} (want 1/1)`,
+    );
   } finally {
     delete process.env.SANDBOX_URL;
     delete process.env.SANDBOX_TOKEN;
