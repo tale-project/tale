@@ -13,6 +13,7 @@ import {
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { wordStartPatterns } from '../../lib/word-match.ts';
+import { markRagQueued } from '../knowledge/service.ts';
 
 /**
  * User-contributed knowledge entries — the 0.5 twin of
@@ -193,15 +194,22 @@ async function attachEntryDocument(
         updated_at_ms = ${now}
       WHERE id = ${args.existingDocumentId}
     `;
+    // The rotated blob is new content: whatever the previous version's
+    // indexing left behind (a failure and its code) no longer describes it.
     const files = await tx<{ id: string }[]>`
       UPDATE app.file_metadata SET
         storage_ref = ${storageRef}, file_name = ${fileName},
-        size = ${size}, rag_status = NULL
+        size = ${size}, rag_error = NULL, rag_error_code = NULL
       WHERE document_id = ${args.existingDocumentId}
       RETURNING id
     `;
     const fileId = files[0]?.id;
     if (fileId !== undefined) {
+      // The producer idiom: `queued` from the enqueue on, not NULL until the
+      // worker's first write. NULL read as "Not indexed" in the UI, and a job
+      // lost after its retries left the row there forever — the indexing
+      // watchdog only reconciles `queued`/`running` rows.
+      await markRagQueued(tx, fileId);
       await addJobInTx(tx, 'rag.index_file', { fileId });
     }
     if (previousRef !== null && previousRef !== storageRef) {
@@ -249,6 +257,7 @@ async function attachEntryDocument(
     UPDATE app.knowledge_entries SET document_id = ${documentId}
     WHERE id = ${args.entryId}
   `;
+  await markRagQueued(tx, fileId);
   await addJobInTx(tx, 'rag.index_file', { fileId });
   return documentId;
 }
