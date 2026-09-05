@@ -98,12 +98,17 @@ program.addCommand(createConfigCommand().helpGroup(MAINTAIN));
 program.addCommand(createAuthCommand().helpGroup(ADVANCED));
 program.addCommand(createDaemonCommand().helpGroup(ADVANCED));
 
-// Docs link honors TALE_DOCS_URL (mirrors @tale/ui/seo/globals) so a
-// self-hosted or staging deployment can point users at its own docs; the
-// default is the public docs site at https://tale.dev/docs.
+// Docs link honors TALE_DOCS_URL (mirrors `docsOriginForSite` in
+// @tale/ui/seo/urls — the CLI deliberately does not depend on the UI
+// package, so the derivation is duplicated rather than imported) so a
+// self-hosted or staging deployment can point users at its own docs. The
+// default is the public docs site at https://docs.tale.dev.
 const DOCS_URL =
   process.env.TALE_DOCS_URL ??
-  `${process.env.TALE_SITE_URL ?? 'https://tale.dev'}/docs`;
+  `https://docs.${(process.env.TALE_SITE_URL ?? 'https://tale.dev')
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/.*$/, '')}`;
 
 // Branded wordmark above the help, and a few real examples below it.
 program.addHelpText('beforeAll', () => `\n${logger.bannerText(pkg.version)}\n`);
