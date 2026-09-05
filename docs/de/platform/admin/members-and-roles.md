@@ -1,6 +1,6 @@
 ---
 title: Mitglieder und Rollen
-description: Die sechs Rollen, die Tale mitbringt, und die Berechtigungs-Matrix auf Ressourcen-Ebene, die sagt, wer was darf. Admins und Inhaber lesen das beim Aufsetzen eines Teams oder wenn ein Audit fragt, wer welchen Zugriff hat.
+description: Die sechs Rollen, die Tale mitbringt, und die Berechtigungs-Matrix auf Ressourcen-Ebene, die sagt, wer was darf.
 ---
 
 Mitglieder sind die Personen in deiner Organisation, die sich bei Tale anmelden können. Rollen kontrollieren, was jedes Mitglied tun darf — lesen, schreiben, konfigurieren, regeln. Diese Seite ist die kanonische Referenz für die sechs Rollen und die Berechtigungen pro Ressource, die jede Rolle trägt.

@@ -1,6 +1,6 @@
 ---
 title: Content and models
-description: Model-level controls — which models are allowed per role or team, and the default model each user group lands on. Admins and Owners read this when a compliance rule pins a workload to an approved model or when a team needs a cheaper default.
+description: Model-level controls — which models are allowed per role or team, and the default model each user group lands on.
 ---
 
 Content and models is the surface where you decide which LLMs the people in your organisation can reach and which one each group lands on by default. It pairs an allowlist or blocklist per scope (org, team, role) with a default-model rule the resolver applies when no explicit choice has overridden it. Admins and Owners read this page when a compliance rule pins a workload to an approved model, when a team should default to a cheaper model than the rest of the org, or when a new model from an existing provider needs to be made reachable.

@@ -1,6 +1,6 @@
 ---
 title: Feedback-Analyse
-description: Aggregierte Daumen-hoch- und Daumen-runter-Bewertungen auf Assistenten-Antworten plus Arena-Urteile, aufgeschlüsselt pro Assistent und pro Modell. Admins und Inhaber lesen das, wenn eine Agent-Regression eine Zahl dahinter braucht.
+description: Aggregierte Daumen-hoch- und Daumen-runter-Bewertungen auf Assistenten-Antworten plus Arena-Urteile, aufgeschlüsselt pro Assistent und pro Modell.
 ---
 
 Feedback-Analyse ist das Dashboard, das die Per-Nachricht-Daumen und die Arena-Urteile in Trendlinien verwandelt. Mitglieder hinterlassen das Feedback inline im Chat; diese Seite aggregiert es pro Assistent, pro Modell und über die Zeit, sodass die Regression aus der Stimmänderung letzter Woche als Zahl sichtbar ist und nicht als Bauchgefühl. Admins und Inhaber lesen diese Seite, wenn ein Modellwechsel wie eine Verschlechterung aussieht, wenn ein Assistent schlechter abschneidet als die anderen, oder wenn die Führung die grobe Qualitätshaltung jedes Assistenten in der Organisation will.

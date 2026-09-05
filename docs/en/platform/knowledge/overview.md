@@ -1,6 +1,6 @@
 ---
 title: Knowledge
-description: Knowledge is the org's shared library — documents, small facts, crawled websites, and typed records — that agents ground their replies in. This overview names the tabs and points at the per-area pages.
+description: Knowledge is the org's shared library — documents, small facts, crawled websites, and typed records — that agents ground their replies in.
 ---
 
 Knowledge is the area where the org's data lives so agents can read and cite it. Editors curate it once; agents retrieve over it at reply time, which is why an agent in Tale can answer with your reality instead of the model's training data. The area opens on five tabs: **Documents**, **Knowledge entries**, **Websites**, **Products**, and **Contacts**.

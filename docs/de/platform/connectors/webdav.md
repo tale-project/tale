@@ -1,6 +1,6 @@
 ---
 title: WebDAV
-description: Hänge die Dokumente deiner Organisation als Netzlaufwerk im Finder, im Datei-Explorer oder in jedem WebDAV-Client ein — erzeuge ein App-Passwort unter Einstellungen > API > WebDAV und verbinde dich von deinem Gerät.
+description: Hänge die Dokumente deiner Organisation als Netzlaufwerk im Finder, im Datei-Explorer oder in jedem WebDAV-Client ein.
 ---
 
 WebDAV verwandelt Tales Dokumentenspeicher in einen entfernten Ordner, den du wie jedes geteilte Netzlaufwerk einhängst. Der dahinterliegende Speicher ist derselbe, den der Dokumenten-Hub zeigt — was du in den eingehängten Ordner legst, erscheint in der UI, und umgekehrt. Alles Nötige liegt auf einem Panel: **Einstellungen > API > WebDAV** trägt die Verbindungsdaten und den App-Passwort-Generator.

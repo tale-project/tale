@@ -1,6 +1,6 @@
 ---
 title: Editor
-description: Editor is the build surface — creating agents, projects, automations, and the knowledge they reach into. The pages here are what someone with the Editor role does day to day.
+description: Editor is the build surface — creating agents, projects, automations, and the knowledge they reach into.
 ---
 
 Editor is the build surface of Tale. Where Member is the role that runs the product and Admin is the role that governs it, Editor is the role that creates the things everyone else uses — agents, projects, automations, the documents and structured data the knowledge base holds, the prompts saved for the team. People with the Editor role see the full set of build tabs without the admin governance surface and without the developer-only levers.

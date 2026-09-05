@@ -1,6 +1,6 @@
 ---
 title: Dokumente
-description: Auf dem Dokumente-Tab laden Redakteure Dateien in die Wissensdatenbank, sehen ihnen beim Indexieren zu und verwalten ihren Lebenszyklus — Upload-Quellen, RAG-Status, Team-Bindung, Ordner und Neuindexierung.
+description: Auf dem Dokumente-Tab laden Redakteure Dateien in die Wissensdatenbank, sehen ihnen beim Indexieren zu und verwalten ihren Lebenszyklus.
 ---
 
 Der Dokumente-Tab ist die Dateifläche der Wissensdatenbank. Redakteure laden Dateien hoch, Tale schickt jede durch die Indexierungs-Pipeline — Text extrahieren, chunken, die Chunks einbetten, speichern —, und Agenten, deren Wissens-Umfang das Dokument abdeckt, rufen zur Antwortzeit relevante Passagen ab und zitieren sie. Diese Seite behandelt die Operator-Seite: Hochladen, die Status-Spalte, Team-Bindung, Ordner und den Lebenszyklus eines Dokuments.

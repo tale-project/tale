@@ -1,6 +1,6 @@
 ---
 title: Projekt-Konzepte
-description: Ein Projekt bündelt Chats, Dateien, Anweisungen und Aufgaben in einem geteilten Arbeitsbereich. Diese Seite gibt dir das mentale Modell dafür, wann ein Projekt einen Einzel-Chat schlägt.
+description: Ein Projekt bündelt Chats, Dateien, Anweisungen und Aufgaben in einem geteilten Arbeitsbereich.
 ---
 
 Ein Projekt ist die Einheit, zu der Tale greift, wenn ein Arbeitsvorhaben dieselben Dateien, dieselben Anweisungen und dieselben Arbeitsflächen über viele Chats und viele Personen hinweg braucht. Diese Seite gibt dir das mentale Modell — lies sie, bevor du dein erstes Projekt erstellst, und komm zurück, wenn du entscheidest, ob ein wachsender Chat in eines befördert werden soll.

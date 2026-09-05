@@ -1,6 +1,6 @@
 ---
 title: Tutoriels vidéo
-description: Des visites guidées courtes et produites de la plateforme — ce que fait Tale, où l'IA aide, et où ton jugement reste nécessaire. Chaque épisode existe en français, en anglais et en allemand.
+description: Des visites guidées courtes et produites de la plateforme — ce que fait Tale, où l'IA aide, et où ton jugement reste nécessaire.
 ---
 
 La série vidéo te montre la plateforme comme un collègue le ferait : à l'écran, zone par zone, avec les limites honnêtes dites à voix haute. Les épisodes sont courts — trois à quatre minutes — et chacun aborde au passage un morceau de culture IA : ce que veut dire l'ancrage, pourquoi les hallucinations arrivent, où l'humain garde sa place dans la boucle.

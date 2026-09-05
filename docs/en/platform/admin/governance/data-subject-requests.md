@@ -1,6 +1,6 @@
 ---
 title: Data subject requests
-description: The GDPR Article 17 workflow for erasing a person's data across chats, documents, uploads, and preferences. Admins and Owners read this when a user files a request or when an SLA deadline is closing in.
+description: The GDPR Article 17 workflow for erasing a person's data across chats, documents, uploads, and preferences.
 ---
 
 Data subject requests is the workflow Tale ships for honouring GDPR Article 17 (right to erasure) and the equivalent CCPA right under California law. Each request becomes a receipt: it names the subject, the reason code, the SLA deadline, and the cascade of rows the system erased across threads, documents, uploads, and the other rows that identify the subject. Admins and Owners read this page when a subject files a request, when a deadline is closing in, or when an audit asks for the receipt of a past erasure.

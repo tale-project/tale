@@ -1,6 +1,6 @@
 ---
 title: Projekt-Backlog
-description: Backlog ist der Eingangsstatus des Boards für Arbeit, zu der sich noch niemand verpflichtet hat — wie eine Aufgabe dort landet und wie du sie mit denselben Steuerelementen wie in jeder anderen Spalte weiterbewegst.
+description: Backlog ist der Eingangsstatus des Boards für Arbeit, zu der sich noch niemand verpflichtet hat.
 ---
 
 Eine Aufgabe im Status **Backlog** ist vorgeschlagene Arbeit, zu der sich noch niemand verpflichtet hat. Sie liegt in der linken Spalte des Boards und im obersten Abschnitt der Liste, mit derselben Karte, demselben Detail-Sheet, demselben Status-Picker und demselben Zuweisungs-Picker wie jeder andere Status — Backlog-eigene Steuerelemente gibt es nicht. Nichts Mitgeliefertes füllt die Spalte in dieser Version von selbst: [GitHub-Issues sichten](/de/platform/automations/builtin) bewertet Issues und liefert einen Bericht, und keine Automatisierung synchronisiert Issues in Aufgaben. Das Backlog füllt sich, wenn ein Mensch oder ein Agent einen Vorschlag ablegt.

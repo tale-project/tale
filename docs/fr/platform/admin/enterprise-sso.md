@@ -1,6 +1,6 @@
 ---
 title: SSO d’entreprise et provisionnement
-description: Configurer l’authentification unique (OIDC, OAuth2, SAML 2.0) et le provisionnement SCIM des utilisateurs et des groupes pour ton organisation. Configuration pas à pas pour Microsoft Entra ID, Google, OIDC générique et SAML, ainsi que le mappage des rôles, la synchronisation groupe-vers-équipe et la désactivation. À lire pour câbler l’identité d’entreprise de l’organisation.
+description: Configurer l’authentification unique (OIDC, OAuth2, SAML 2.0) et le provisionnement SCIM des utilisateurs et des groupes pour ton organisation.
 ---
 
 Le SSO d’entreprise permet à tes membres de se connecter via ton fournisseur d’identité (IdP) plutôt qu’avec un mot de passe Tale, et SCIM laisse l’IdP créer, mettre à jour et désactiver automatiquement les membres et les groupes — sans invitation manuelle. Une connexion par organisation porte ensemble le protocole de connexion, la politique de provisionnement et le jeton SCIM. Tout se trouve sur une seule page : **Paramètres > SSO d'entreprise** (administrateurs uniquement).

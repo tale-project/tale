@@ -1,6 +1,6 @@
 ---
 title: Mitglied
-description: Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut.
+description: Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten.
 ---
 
 Mitglied ist die Standardrolle, die die meisten Personen in den meisten Organisationen tragen. Es ist die Endbenutzer-Oberfläche von Tale — mit dem Assistenten chatten, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung auf Kontakt-E-Mails antworten und Feedback zu Antworten hinterlassen. Mitglieder bauen keine Agents, konfigurieren keine Anbieter, installieren keine Automatisierungen. Sie nutzen das Produkt, das die Redakteure und Entwickler für sie gebaut haben.

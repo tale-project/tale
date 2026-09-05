@@ -1,6 +1,6 @@
 ---
 title: Audit logs
-description: The chronological log of who-did-what across your organisation — sign-ins, role changes, provider edits, agent edits, run-code invocations. Admins and Owners read this when an audit asks who touched a resource and when.
+description: The chronological log of who-did-what across your organisation — sign-ins, role changes, provider edits, agent edits, run-code invocations.
 ---
 
 The audit log is the immutable record of every consequential action inside your organisation. Every sign-in, role change, provider edit, agent save, workflow run, and sandbox invocation lands here with the actor, the resource, the before/after state, and the timestamp. Admins and Owners read this when an audit asks who touched a resource and when, when a compliance officer needs an export, or when something goes sideways and the question is _who changed what at 03:14_.
