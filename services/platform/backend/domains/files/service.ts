@@ -23,8 +23,8 @@ import { consumeUploadIntent, type UploadPurpose } from './upload-intents.ts';
  * transcription pipelines land with knowledge/tts (ledger); their columns
  * already exist on the table.
  *
- * Upload is a two-step handshake: `createUploadHandoff` presigns a PUT to a
- * server-minted key (the client never names keys), the client uploads, then
+ * Upload is a two-step handshake: `createRestUploadHandoff` presigns a PUT to
+ * a server-minted key (the client never names keys), the client uploads, then
  * `registerUpload` verifies the blob really landed (HEAD: exists + size) and
  * writes the metadata row — an unverified key can never become a row, and
  * (`upload-intents.ts`) a key the caller did not mint can never become THEIR
@@ -107,28 +107,11 @@ async function requireOrgStoreForRef(
   }
 }
 
-export async function createUploadHandoff(
-  sql: Sql,
-  scope: { organizationId: string },
-  args: { contentType: string; size: number },
-): Promise<UploadHandoff> {
-  if (args.size <= 0 || args.size > MAX_UPLOAD_BYTES) {
-    throw new FileError('FILE_SIZE_INVALID', 'Invalid file size');
-  }
-  const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
-  const key = buildObjectKey(store, orgSlug);
-  // The browser performs this PUT, so it is signed against the origin the
-  // browser can reach — see `browserFacing`.
-  const uploadUrl = await s3PresignPutUrl(browserFacing(store), key, {
-    contentType: args.contentType,
-  });
-  return { storageRef: encodeS3Ref(key), uploadUrl };
-}
-
 /**
- * REST-door presign: the caller declares no size (unlike the session lane) —
- * the bind step HEADs the landed object, so the ceiling is enforced at
- * registration instead. A DECLARED content type is signed into the PUT (the
+ * Presign for the session `/blob-upload` lane and the REST door alike: the
+ * caller declares no size — the bind step HEADs the landed object, so the
+ * ceiling is enforced at registration. A DECLARED content type is signed
+ * into the PUT (the
  * client's PUT must then carry the identical `Content-Type` header — see the
  * API reference); an omitted one leaves the URL header-agnostic so bare
  * `curl -T` clients keep working, with the attachment-forced GET lane as the
@@ -224,8 +207,7 @@ export async function registerUpload(
   if (!head) {
     throw new FileError('BLOB_NOT_FOUND', 'Blob was not uploaded', 404);
   }
-  // The REST presign lane carries no size, so the ceiling is enforced on the
-  // landed object; the session lane gates at presign too (double is fine).
+  // Presign carries no size, so the ceiling is enforced on the landed object.
   if (head.size > MAX_UPLOAD_BYTES) {
     throw new FileError('FILE_SIZE_INVALID', 'Uploaded object is too large');
   }

@@ -2446,21 +2446,18 @@ async function checkFiles(
     });
 
   const payload = `itest file body ${Date.now()}`;
-  const handoff = z
-    .object({ storageRef: z.string(), uploadUrl: z.string().url() })
-    .safeParse(
-      await (
-        await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
-          contentType: 'text/plain',
-          size: payload.length,
-        })
-      ).json(),
-    );
+  const handoff = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+        contentType: 'text/plain',
+      })
+    ).json(),
+  );
   if (!handoff.success) {
     record('files upload/serve/delete', false, 'handoff failed');
     return;
   }
-  const put = await fetch(handoff.data.uploadUrl, {
+  const put = await fetch(handoff.data.url, {
     method: 'PUT',
     headers: { 'content-type': 'text/plain' },
     body: payload,
@@ -2470,7 +2467,7 @@ async function checkFiles(
     .safeParse(
       await (
         await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-          storageRef: handoff.data.storageRef,
+          storageRef: handoff.data.s3Ref,
           fileName: 'itest.txt',
           contentType: 'text/plain',
         })
@@ -2498,7 +2495,7 @@ async function checkFiles(
       await (
         await fetch(
           `${base}/api/app/files/${encodeURIComponent(
-            registered.success ? handoff.data.storageRef : '',
+            registered.success ? handoff.data.s3Ref : '',
           )}/url?orgId=${orgId}`,
           { headers: { cookie } },
         )
@@ -3055,21 +3052,18 @@ async function checkDocuments(
     });
 
   // Upload + register a blob to bind.
-  const handoff = z
-    .object({ storageRef: z.string(), uploadUrl: z.string().url() })
-    .safeParse(
-      await (
-        await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
-          contentType: 'text/plain',
-          size: 11,
-        })
-      ).json(),
-    );
+  const handoff = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+        contentType: 'text/plain',
+      })
+    ).json(),
+  );
   if (!handoff.success) {
     record('documents + folders', false, 'upload handoff failed');
     return;
   }
-  await fetch(handoff.data.uploadUrl, {
+  await fetch(handoff.data.url, {
     method: 'PUT',
     headers: { 'content-type': 'text/plain' },
     body: 'hello docs!',
@@ -3077,7 +3071,7 @@ async function checkDocuments(
   const registered = z.object({ fileId: z.string() }).safeParse(
     await (
       await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-        storageRef: handoff.data.storageRef,
+        storageRef: handoff.data.s3Ref,
         fileName: 'notes.txt',
         contentType: 'text/plain',
       })
@@ -3528,7 +3522,7 @@ async function checkDocuments(
   const rejectBound = z.object({ deleted: z.boolean() }).safeParse(
     await (
       await send('POST', `/api/app/files/reject-blob?orgId=${orgId}`, {
-        storageRef: handoff.data.storageRef,
+        storageRef: handoff.data.s3Ref,
       })
     ).json(),
   );
@@ -4367,19 +4361,19 @@ async function checkDocumentWriteGuards(
   // controllable source this section can mint over HTTP.
   const uploadDoc = async (fileName: string): Promise<string> => {
     const handoff = z
-      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .object({ s3Ref: z.string(), url: z.string() })
       .safeParse(
         await (
           await sendAs(
             cookie,
             'POST',
-            `/api/app/files/upload-handoff?orgId=${orgId}`,
-            { contentType: 'text/plain', size: 10 },
+            `/api/app/files/blob-upload?orgId=${orgId}`,
+            { contentType: 'text/plain' },
           )
         ).json(),
       );
     if (!handoff.success) return '';
-    await fetch(handoff.data.uploadUrl, {
+    await fetch(handoff.data.url, {
       method: 'PUT',
       headers: { 'content-type': 'text/plain' },
       body: 'guard body',
@@ -4387,7 +4381,7 @@ async function checkDocumentWriteGuards(
     const registered = z.object({ fileId: z.string() }).safeParse(
       await (
         await sendAs(cookie, 'POST', `/api/app/files/register?orgId=${orgId}`, {
-          storageRef: handoff.data.storageRef,
+          storageRef: handoff.data.s3Ref,
           fileName,
           contentType: 'text/plain',
         })
@@ -6150,18 +6144,17 @@ async function checkKnowledge(
       extra: { folderId?: string } = {},
     ): Promise<{ fileId: string; storageRef: string; documentId: string }> => {
       const handoff = z
-        .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+        .object({ s3Ref: z.string(), url: z.string() })
         .safeParse(
           await (
-            await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+            await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
               contentType: 'text/plain',
-              size: text.length,
             })
           ).json(),
         );
       if (!handoff.success)
         throw new Error(`upload handoff failed: ${fileName}`);
-      await fetch(handoff.data.uploadUrl, {
+      await fetch(handoff.data.url, {
         method: 'PUT',
         headers: { 'content-type': 'text/plain' },
         body: text,
@@ -6169,7 +6162,7 @@ async function checkKnowledge(
       const registered = z.object({ fileId: z.string() }).safeParse(
         await (
           await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-            storageRef: handoff.data.storageRef,
+            storageRef: handoff.data.s3Ref,
             fileName,
             contentType: 'text/plain',
           })
@@ -6188,7 +6181,7 @@ async function checkKnowledge(
       if (!bound.success) throw new Error(`document bind failed: ${fileName}`);
       return {
         fileId: registered.data.fileId,
-        storageRef: handoff.data.storageRef,
+        storageRef: handoff.data.s3Ref,
         documentId: bound.data.documentId,
       };
     };
@@ -6251,21 +6244,18 @@ async function checkKnowledge(
 
     const payload =
       'The Heidelberg quarterly review covers verdigris pigments and the zeppelin ledger.';
-    const handoff = z
-      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
-      .safeParse(
-        await (
-          await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
-            contentType: 'text/plain',
-            size: payload.length,
-          })
-        ).json(),
-      );
+    const handoff = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+          contentType: 'text/plain',
+        })
+      ).json(),
+    );
     if (!handoff.success) {
       record('knowledge RAG loop', false, 'upload handoff failed');
       return;
     }
-    await fetch(handoff.data.uploadUrl, {
+    await fetch(handoff.data.url, {
       method: 'PUT',
       headers: { 'content-type': 'text/plain' },
       body: payload,
@@ -6273,7 +6263,7 @@ async function checkKnowledge(
     const registered = z.object({ fileId: z.string() }).safeParse(
       await (
         await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-          storageRef: handoff.data.storageRef,
+          storageRef: handoff.data.s3Ref,
           fileName: 'quarterly.txt',
           contentType: 'text/plain',
         })
@@ -6320,7 +6310,7 @@ async function checkKnowledge(
     const searchRaw = JSON.stringify(searchBody);
     const fetchRes = await (
       await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
-        fileId: handoff.data.storageRef,
+        fileId: handoff.data.s3Ref,
       })
     ).json();
     const fetchRaw = JSON.stringify(fetchRes);
@@ -6345,12 +6335,11 @@ async function checkKnowledge(
       'base64',
     );
     const imageHandoff = z
-      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .object({ s3Ref: z.string(), url: z.string() })
       .safeParse(
         await (
-          await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+          await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
             contentType: 'image/png',
-            size: PNG_1X1.byteLength,
           })
         ).json(),
       );
@@ -6358,7 +6347,7 @@ async function checkKnowledge(
       | { status: string | null; error: string | null }
       | undefined;
     if (imageHandoff.success) {
-      await fetch(imageHandoff.data.uploadUrl, {
+      await fetch(imageHandoff.data.url, {
         method: 'PUT',
         headers: { 'content-type': 'image/png' },
         body: PNG_1X1,
@@ -6366,7 +6355,7 @@ async function checkKnowledge(
       const imageRegistered = z.object({ fileId: z.string() }).safeParse(
         await (
           await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-            storageRef: imageHandoff.data.storageRef,
+            storageRef: imageHandoff.data.s3Ref,
             fileName: 'diagram.png',
             contentType: 'image/png',
           })
@@ -6418,12 +6407,11 @@ async function checkKnowledge(
         `## Ledger section ${i}\n\n${`Entry ${i}: ${filler}`.repeat(8)}\n`,
     ).join('\n');
     const bigHandoff = z
-      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .object({ s3Ref: z.string(), url: z.string() })
       .safeParse(
         await (
-          await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+          await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
             contentType: 'text/plain',
-            size: ledger.length,
           })
         ).json(),
       );
@@ -6431,7 +6419,7 @@ async function checkKnowledge(
       record('knowledge indexing drains every slice', false, 'handoff failed');
       return;
     }
-    await fetch(bigHandoff.data.uploadUrl, {
+    await fetch(bigHandoff.data.url, {
       method: 'PUT',
       headers: { 'content-type': 'text/plain' },
       body: ledger,
@@ -6439,7 +6427,7 @@ async function checkKnowledge(
     const bigRegistered = z.object({ fileId: z.string() }).safeParse(
       await (
         await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-          storageRef: bigHandoff.data.storageRef,
+          storageRef: bigHandoff.data.s3Ref,
           fileName: 'ledger.txt',
           contentType: 'text/plain',
         })
@@ -6466,7 +6454,7 @@ async function checkKnowledge(
               WHERE c.document_id = d.id) AS stored
       FROM private_knowledge.documents d
       WHERE d.org_slug = ${orgSlug}
-        AND d.file_id = ${bigHandoff.data.storageRef}
+        AND d.file_id = ${bigHandoff.data.s3Ref}
     `;
     const corpusDoc = corpusRows[0];
     record(
@@ -6570,8 +6558,8 @@ async function checkKnowledge(
         inReports.includes(filed.storageRef) &&
         inReportsSlashed.includes(filed.storageRef) &&
         !inInvoices.includes(filed.storageRef) &&
-        !rootUnderReports.includes(handoff.data.storageRef),
-      `indexed=${filedIndexed} stamp=${stampAtIngest ?? 'NULL'}/Reports, Reports=${inReports.includes(filed.storageRef)} '/Reports/'=${inReportsSlashed.includes(filed.storageRef)} Invoices=${inInvoices.includes(filed.storageRef)}(want false) rootDocUnderReports=${rootUnderReports.includes(handoff.data.storageRef)}(want false)`,
+        !rootUnderReports.includes(handoff.data.s3Ref),
+      `indexed=${filedIndexed} stamp=${stampAtIngest ?? 'NULL'}/Reports, Reports=${inReports.includes(filed.storageRef)} '/Reports/'=${inReportsSlashed.includes(filed.storageRef)} Invoices=${inInvoices.includes(filed.storageRef)}(want false) rootDocUnderReports=${rootUnderReports.includes(handoff.data.s3Ref)}(want false)`,
     );
 
     // The stamp follows the document: a move re-files it, a folder rename
@@ -6632,7 +6620,7 @@ async function checkKnowledge(
     const pageOne = pageShape.safeParse(
       await (
         await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
-          fileId: bigHandoff.data.storageRef,
+          fileId: bigHandoff.data.s3Ref,
           page: 1,
         })
       ).json(),
@@ -6640,7 +6628,7 @@ async function checkKnowledge(
     const pageTwo = pageShape.safeParse(
       await (
         await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
-          fileId: bigHandoff.data.storageRef,
+          fileId: bigHandoff.data.s3Ref,
           page: 2,
         })
       ).json(),
@@ -6648,7 +6636,7 @@ async function checkKnowledge(
     const whole = pageShape.safeParse(
       await (
         await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
-          fileId: bigHandoff.data.storageRef,
+          fileId: bigHandoff.data.s3Ref,
         })
       ).json(),
     );
@@ -6832,17 +6820,16 @@ async function checkCorpusPurgeConsistency(
       projectId?: string,
     ): Promise<{ documentId: string; ref: string; fileId: string } | null> => {
       const handoff = z
-        .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+        .object({ s3Ref: z.string(), url: z.string() })
         .safeParse(
           await (
-            await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+            await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
               contentType: 'text/plain',
-              size: content.length,
             })
           ).json(),
         );
       if (!handoff.success) return null;
-      await fetch(handoff.data.uploadUrl, {
+      await fetch(handoff.data.url, {
         method: 'PUT',
         headers: { 'content-type': 'text/plain' },
         body: content,
@@ -6850,7 +6837,7 @@ async function checkCorpusPurgeConsistency(
       const registered = z.object({ fileId: z.string() }).safeParse(
         await (
           await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-            storageRef: handoff.data.storageRef,
+            storageRef: handoff.data.s3Ref,
             fileName,
             contentType: 'text/plain',
           })
@@ -6877,7 +6864,7 @@ async function checkCorpusPurgeConsistency(
       if (!indexed) return null;
       return {
         documentId: bound.data.documentId,
-        ref: handoff.data.storageRef,
+        ref: handoff.data.s3Ref,
         fileId: registered.data.fileId,
       };
     };
@@ -23622,17 +23609,16 @@ async function checkTranscription(
 
     const uploadAudio = async (bytes: Buffer = wav): Promise<string> => {
       const handoff = z
-        .object({ storageRef: z.string(), uploadUrl: z.string() })
+        .object({ s3Ref: z.string(), url: z.string() })
         .safeParse(
           await (
-            await send(`/api/app/files/upload-handoff?orgId=${orgId}`, {
+            await send(`/api/app/files/blob-upload?orgId=${orgId}`, {
               contentType: 'audio/wav',
-              size: bytes.length,
             })
           ).json(),
         );
       if (!handoff.success) throw new Error('upload handoff failed');
-      const put = await fetch(handoff.data.uploadUrl, {
+      const put = await fetch(handoff.data.url, {
         method: 'PUT',
         headers: { 'content-type': 'audio/wav' },
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Buffer is a valid BodyInit at runtime
@@ -23640,14 +23626,14 @@ async function checkTranscription(
       });
       if (!put.ok) throw new Error(`audio PUT failed: ${put.status}`);
       const registered = await send(`/api/app/files/register?orgId=${orgId}`, {
-        storageRef: handoff.data.storageRef,
+        storageRef: handoff.data.s3Ref,
         fileName: 'meeting.wav',
         contentType: 'audio/wav',
       });
       if (registered.status !== 200) {
         throw new Error(`register failed: ${registered.status}`);
       }
-      return handoff.data.storageRef;
+      return handoff.data.s3Ref;
     };
     const rowFor = async (
       ref: string,
