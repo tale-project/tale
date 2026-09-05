@@ -7585,6 +7585,7 @@ projects:
     PROJECT_HAS_BOUND_AUTOMATIONS: Retire d’abord ce projet des automatisations
       qui y sont liées, puis supprime-le.
     PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Retire d’abord ce projet de ces automatisations, puis supprime-le : {automations}.'
+    PROJECT_HAS_PROTECTED_RECORDS: Résous ou déplace d'abord les documents contrôlés de ce projet, puis supprime-le. Ils sont en relecture, approuvés ou conservent une version approuvée.
   sharing:
     effectiveAudience: Audience effective
     noTeamsHint: Aucune équipe pour l'instant.

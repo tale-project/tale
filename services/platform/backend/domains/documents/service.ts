@@ -1746,8 +1746,10 @@ export async function createDocumentFromBlobUpload(
 // Hard delete (the 0.4 `deleteDocument` contract)
 // ---------------------------------------------------------------------------
 
-/** The 0.4 `recordTrashRefusal` on the jsonb record projection. */
-function recordTrashRefusalFromJson(
+/** The 0.4 `recordTrashRefusal` on the jsonb record projection — the ONE
+ * predicate every destructive walk (trash, hard delete, folder cascade, the
+ * project cascade) asks before it removes a document. */
+export function recordTrashRefusalFromJson(
   record: Record<string, unknown> | null,
 ): 'in_review' | 'approved' | 'retained_history' | null {
   if (record === null) return null;

@@ -5066,6 +5066,7 @@ projects:
     PROJECT_HAS_BOUND_AUTOMATIONS: Remove this project from the automations bound to it first, then delete it.
     PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Remove this project from these
       automations first, then delete it: {automations}.'
+    PROJECT_HAS_PROTECTED_RECORDS: Resolve or move the controlled records in this project first, then delete it. They are in review, approved, or retain an approved version.
   sharing:
     effectiveAudience: Effective audience
     noTeamsHint: No teams yet.

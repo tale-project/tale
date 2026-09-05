@@ -1163,6 +1163,7 @@ async function checkIdentityDomains(
  * gates + audit writes + rate charges included).
  */
 async function checkProjects(
+  sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
@@ -1386,6 +1387,59 @@ async function checkProjects(
       taskPreviewRes.ok &&
       previewReasonReal(taskPreview),
     `workflow → ${workflowPreviewRes.status} ${workflowPreview.success ? JSON.stringify(workflowPreview.data).slice(0, 120) : 'BAD SHAPE'}; task → ${taskPreviewRes.status} ${taskPreview.success ? JSON.stringify(taskPreview.data).slice(0, 120) : 'BAD SHAPE'}`,
+  );
+
+  // A cascade would destroy every document in the project, so a protected
+  // controlled record (approved here) refuses the WHOLE cascade before any
+  // write — the guard every other delete door applies — and names it.
+  const protectedDoc = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (
+      org_id, title, file_ref, extension, project_id, source_provider,
+      record, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, 'SOP-7.pdf', 's3:itest/sop-7', 'pdf', ${projectId}, 'upload',
+      ${sql.json({
+        state: 'approved',
+        version: 1,
+        approvedVersions: [{ version: 1, fileId: 's3:itest/sop-7' }],
+      })},
+      ${ctx.userId}, ${Date.now()}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const protectedDocId = protectedDoc[0]?.id ?? '';
+  const cascadeRefused = await send('DELETE', `/${projectId}?orgId=${orgId}`, {
+    mode: 'cascade',
+    confirmPhrase: 'Integration Project',
+  });
+  const cascadeRefusal = z
+    .object({
+      error: z.string(),
+      data: z.object({ documents: z.array(z.string()) }).optional(),
+    })
+    .safeParse(await cascadeRefused.json());
+  const protectedAfter = await sql<
+    { projectId: string | null; lifecycleStatus: string | null }[]
+  >`
+    SELECT project_id AS "projectId", lifecycle_status AS "lifecycleStatus"
+    FROM app.documents WHERE id = ${protectedDocId}
+  `;
+  const projectAfterRefusal = await fetch(
+    `${api}/${projectId}?orgId=${orgId}`,
+    {
+      headers: { cookie },
+    },
+  );
+  await sql`DELETE FROM app.documents WHERE id = ${protectedDocId}`;
+  record(
+    'project cascade delete refuses a protected controlled record untouched',
+    cascadeRefused.status === 400 &&
+      cascadeRefusal.success &&
+      cascadeRefusal.data.error === 'PROJECT_HAS_PROTECTED_RECORDS' &&
+      cascadeRefusal.data.data?.documents.join(',') === 'SOP-7.pdf' &&
+      protectedAfter[0]?.projectId === projectId &&
+      protectedAfter[0]?.lifecycleStatus === null &&
+      projectAfterRefusal.status === 200,
+    `cascade → ${cascadeRefused.status} ${cascadeRefusal.success ? cascadeRefusal.data.error : 'BAD SHAPE'} (want 400 PROJECT_HAS_PROTECTED_RECORDS naming SOP-7.pdf), record projectId=${String(protectedAfter[0]?.projectId)} lifecycle=${String(protectedAfter[0]?.lifecycleStatus)} (want kept/null), project read → ${projectAfterRefusal.status} (want 200)`,
   );
 
   const badDelete = await send('DELETE', `/${projectId}?orgId=${orgId}`, {
@@ -39592,7 +39646,7 @@ async function main(): Promise<void> {
             `itest-${orgSuffix}@example.com`,
           ),
       ],
-      ['checkProjects', () => checkProjects(baseUrl, authCtx)],
+      ['checkProjects', () => checkProjects(sql, baseUrl, authCtx)],
       ['checkTasks', () => checkTasks(baseUrl, authCtx)],
       [
         'checkTasksOrgIsolation',
