@@ -74,6 +74,42 @@ describe('applyPiiPolicyForIndexing', () => {
     expect(decision.text).not.toContain('ada@example.com');
   });
 
+  // Documents past the engine's chat-sized clamp: PII near the top and at
+  // the very end of a ~120 KB text, both far enough apart that a message-
+  // sized scan would see only the first.
+  const CARD = 'card 4111 1111 1111 1111 on file';
+  const FILLER =
+    'The handbook covers refunds within thirty days of purchase.\n';
+  const LONG = [WITH_PII, FILLER.repeat(2_000), CARD, FILLER.repeat(10)].join(
+    '\n',
+  );
+  const LONG_TAIL_ONLY = [FILLER.repeat(2_000), CARD].join('\n');
+
+  it('masks a document longer than the engine clamp end to end', () => {
+    expect(LONG.length).toBeGreaterThan(100_000);
+    const decision = applyPiiPolicyForIndexing(
+      LONG,
+      policy({ enabledPatterns: ['email', 'creditCard'] }),
+    );
+    expect(decision.kind).toBe('index');
+    if (decision.kind !== 'index') return;
+    expect(decision.text).not.toContain('ada@example.com');
+    expect(decision.text).not.toContain('4111 1111 1111 1111');
+    expect(decision.text).toContain('[CREDIT_CARD]');
+    // The tail survives: nothing past the clamp was dropped.
+    expect(decision.text.endsWith(FILLER.repeat(10))).toBe(true);
+    expect(decision.text.length).toBeGreaterThan(LONG.length - 100);
+  });
+
+  it('refuses a document whose only identifier sits past the engine clamp', () => {
+    expect(LONG_TAIL_ONLY.length).toBeGreaterThan(100_000);
+    const decision = applyPiiPolicyForIndexing(
+      LONG_TAIL_ONLY,
+      policy({ mode: 'block', enabledPatterns: ['creditCard'] }),
+    );
+    expect(decision).toEqual({ kind: 'refuse', categoryIds: ['creditCard'] });
+  });
+
   it('indexes clean text unchanged', () => {
     const clean = 'The handbook covers refunds within 30 days.';
     expect(applyPiiPolicyForIndexing(clean, policy())).toEqual({

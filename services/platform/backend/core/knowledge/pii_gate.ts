@@ -40,7 +40,7 @@
  *   indexed copy masked is the safe reading.
  */
 
-import { createScrubberFromConfig } from '../../../lib/pii';
+import { createScrubberFromConfig, scrubDocument } from '../../../lib/pii';
 import {
   piiConfigSchema,
   type PiiConfig,
@@ -103,7 +103,13 @@ export function applyPiiPolicyForIndexing(
   // The scrubber is built WITH the policy's mode, so it answers `blocked` under
   // `block` and `modified` under `mask`/`tokenize`. Re-reading `config.mode`
   // here would be a second opinion about a decision the engine already made.
-  const outcome = scrubber.scrub(text);
+  //
+  // Scanned as a document, not a message: `scrub` alone clamps its input to
+  // the chat-sized byte cap, and an extracted document routinely runs past
+  // it — indexing that output would drop the tail of the file and never look
+  // at an identifier past the cap. `scrubDocument` windows the text under the
+  // same clamp and joins the verdicts, so what is indexed is the whole text.
+  const outcome = scrubDocument(scrubber, text);
   switch (outcome.kind) {
     case 'pass':
       return { kind: 'index', text };
@@ -117,7 +123,11 @@ export function applyPiiPolicyForIndexing(
       return { kind: 'refuse', categoryIds: outcome.categoryIds };
     default:
       // A step error. The scan is fail-open by design, so this indexes as it
-      // would have before the policy existed.
+      // would have before the policy existed — and says so, because a
+      // document indexed unscanned is a governance fact, not a quiet default.
+      console.warn(
+        `[pii-gate] scan failed (${outcome.reason}); indexing unscrubbed`,
+      );
       return { kind: 'index', text };
   }
 }
