@@ -20,7 +20,7 @@ import {
   loadProjectOrThrow,
   type ProjectAuthContext,
 } from '../projects/service.ts';
-import { releasePreviousBlob } from './agent-write.ts';
+import { releasePreviousBlob } from './blob-rotation.ts';
 import { DocumentError } from './service.ts';
 
 /**
