@@ -10,6 +10,15 @@ import {
 } from '../../core/provider_credentials/resolve_credential.ts';
 import { toJson } from '../../db/sql.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
+import { AppError } from '../../../lib/shared/errors/app-error.ts';
+import { formatZodError } from '../../../lib/shared/schemas/format-error.ts';
+import {
+  brokerCredentialDataSchema,
+  providerBaseUrlSchema,
+  providerKeyEnvNameSchema,
+  type BrokerCredentialData,
+} from '../../../lib/shared/schemas/providers.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 
 /**
@@ -291,7 +300,91 @@ export async function listCredentials(
   `;
 }
 
-const ENV_NAME_REGEX = /^TALE_PROVIDER_KEY_[A-Z0-9_]{1,64}$/;
+/**
+ * The deployment's outbound-host policy over an admin-supplied URL, at SAVE
+ * time: every consumer applies it at request time (`checkProviderHostPolicy`
+ * before each turn, synthesis, or broker fetch), so a URL it refuses would
+ * otherwise be accepted with a 200 and an audit row and fail every use.
+ * Refusing here puts the reason in front of the admin who can fix it.
+ */
+function assertHostPolicyAdmits(url: string, code: string): void {
+  try {
+    checkProviderHostPolicy(url);
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw new CredentialAdminError(code, error.message);
+    }
+    throw error;
+  }
+}
+
+/**
+ * A per-credential endpoint (Azure-style providers) is held to the same
+ * rule as a provider `baseUrl` — `providerBaseUrlSchema`: a well-formed
+ * https URL, or plain http only toward a private/loopback host — plus the
+ * deployment's host policy, so what is saved is what every turn can use.
+ */
+export function assertCredentialEndpointUrl(endpointUrl: string): void {
+  const parsed = providerBaseUrlSchema.safeParse(endpointUrl);
+  if (!parsed.success) {
+    throw new CredentialAdminError(
+      'CREDENTIAL_ENDPOINT_INVALID',
+      `Endpoint URL is invalid — ${formatZodError(parsed.error)}`,
+    );
+  }
+  assertHostPolicyAdmits(endpointUrl, 'CREDENTIAL_ENDPOINT_INVALID');
+}
+
+/**
+ * Validate a subscription-broker configuration document at the boundary,
+ * with the exact schema the resolver parses it against and the host policy
+ * the broker fetch applies. Without this the row was accepted verbatim and
+ * every turn on it answered "shape invalid — delete and recreate", for a
+ * typo the admin could have fixed in the form.
+ */
+export function parseBrokerConfigDocument(
+  secret: string,
+): BrokerCredentialData {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(secret);
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new CredentialAdminError(
+        'CREDENTIAL_BROKER_CONFIG_INVALID',
+        'The broker configuration is not valid JSON',
+      );
+    }
+    throw error;
+  }
+  const parsed = brokerCredentialDataSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new CredentialAdminError(
+      'CREDENTIAL_BROKER_CONFIG_INVALID',
+      `Broker configuration is invalid — ${formatZodError(parsed.error)}`,
+    );
+  }
+  assertHostPolicyAdmits(
+    parsed.data.endpoint,
+    'CREDENTIAL_BROKER_CONFIG_INVALID',
+  );
+  return parsed.data;
+}
+
+/** The one env-name rule (`providerKeyEnvNameSchema`: the reserved
+ * `TALE_PROVIDER_KEY_` prefix, the documented length cap) — the same
+ * definition the resolver's read-time gate derives from, never a restated
+ * regex. */
+function assertProviderKeyEnvName(envName: string | undefined): string {
+  const parsed = providerKeyEnvNameSchema.safeParse(envName);
+  if (!parsed.success) {
+    throw new CredentialAdminError(
+      'CREDENTIAL_ENV_NAME_INVALID',
+      `Env credentials must reference a TALE_PROVIDER_KEY_* variable — ${formatZodError(parsed.error)}`,
+    );
+  }
+  return parsed.data;
+}
 
 export interface CreateCredentialArgs {
   providerSlug: string;
@@ -318,13 +411,7 @@ export async function createCredential(
   let maskedPreview: string | undefined;
   let envName: string | undefined;
   if (args.authMethod === 'env') {
-    if (!args.envName || !ENV_NAME_REGEX.test(args.envName)) {
-      throw new CredentialAdminError(
-        'CREDENTIAL_ENV_NAME_INVALID',
-        'Env credentials must reference a TALE_PROVIDER_KEY_* variable',
-      );
-    }
-    envName = args.envName;
+    envName = assertProviderKeyEnvName(args.envName);
   } else {
     if (!args.secret || args.secret.trim().length === 0) {
       throw new CredentialAdminError(
@@ -332,20 +419,17 @@ export async function createCredential(
         'A secret is required for this auth method',
       );
     }
+    if (args.authMethod === 'subscription-broker') {
+      parseBrokerConfigDocument(args.secret);
+    }
     encryptedData = encryptSecret(args.secret);
     maskedPreview =
       args.authMethod === 'subscription-broker'
         ? undefined
         : maskSecret(args.secret);
   }
-  if (
-    args.endpointUrl !== undefined &&
-    !args.endpointUrl.startsWith('https://')
-  ) {
-    throw new CredentialAdminError(
-      'CREDENTIAL_ENDPOINT_INVALID',
-      'Endpoint URLs must be https',
-    );
+  if (args.endpointUrl !== undefined) {
+    assertCredentialEndpointUrl(args.endpointUrl);
   }
 
   const siblings = await tx<{ id: string; name: string }[]>`
@@ -467,12 +551,17 @@ export async function updateCredential(
         'Only an environment-variable credential carries an env name',
       );
     }
-    if (!ENV_NAME_REGEX.test(patch.envName)) {
-      throw new CredentialAdminError(
-        'CREDENTIAL_ENV_NAME_INVALID',
-        'Env credentials must reference a TALE_PROVIDER_KEY_* variable',
-      );
-    }
+    assertProviderKeyEnvName(patch.envName);
+  }
+  // The symmetric guard: an env credential stores no secret — the resolver
+  // reads only its env name — so a rotated secret on such a row would be
+  // ciphertext nothing reads, acknowledged with an audit row that records
+  // a change in behaviour that never happened.
+  if (patch.secret !== undefined && row.authMethod === 'env') {
+    throw new CredentialAdminError(
+      'CREDENTIAL_SECRET_INVALID',
+      'An environment-variable credential has no stored secret — edit its env name instead',
+    );
   }
   if (patch.isDefault === true) {
     await tx`
@@ -506,22 +595,17 @@ export async function updateCredential(
         'Secret must not be empty',
       );
     }
-    rotated = encryptSecret(patch.secret);
-    // A broker configuration is JSON, not a key — same rule as creation:
-    // it gets no masked preview.
-    if (row.authMethod !== 'subscription-broker') {
+    // A broker configuration is JSON, not a key — same rules as creation:
+    // validated against the resolver's schema, and no masked preview.
+    if (row.authMethod === 'subscription-broker') {
+      parseBrokerConfigDocument(patch.secret);
+    } else {
       rotatedPreview = maskSecret(patch.secret);
     }
+    rotated = encryptSecret(patch.secret);
   }
-  if (
-    patch.endpointUrl !== undefined &&
-    patch.endpointUrl !== null &&
-    !patch.endpointUrl.startsWith('https://')
-  ) {
-    throw new CredentialAdminError(
-      'CREDENTIAL_ENDPOINT_INVALID',
-      'Endpoint URLs must be https',
-    );
+  if (patch.endpointUrl !== undefined && patch.endpointUrl !== null) {
+    assertCredentialEndpointUrl(patch.endpointUrl);
   }
   try {
     await tx`
