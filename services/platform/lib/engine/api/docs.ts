@@ -137,14 +137,14 @@ Authoring methods:
 - get_catalog          params {}                      → the registered capability list (compact)
 - search_catalog       params {query}                 → find capabilities by keywords
 - validate_automation  params {automation}            → static analysis only
-- run_automation       params {automation, input}     → validate + execute with a test input; returns output, per-node trace, effects
+- run_automation       params {automation, input}     → validate + execute against the deterministic mocks with a test input; returns output, per-node trace, effects
 - test_automation      params {automation}            → run the automation's own tests: block
 - save_automation      params {automation, message?}  → save as a new immutable version
 - get_automation       params {name, version?}        → fetch a saved version
 - list_automations     params {}                      → saved automations with their latest versions
 - deploy_automation    params {name, version}         → mark the version triggers run
 - set_trigger          params {name, trigger}         → host-managed trigger binding
-- run_deployed         params {name, input}           → execute the deployed version and WAIT for the full result
+- run_deployed         params {name, input}           → run the deployed version (live on a deployment) and WAIT for the finished result; a run that outlives the wait answers with its runId to poll
 (run_automation validates automatically — you rarely need validate_automation.)
 
 Management methods — they read and steer what the host has persisted:

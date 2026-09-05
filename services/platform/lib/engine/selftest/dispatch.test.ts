@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { dispatch, METHODS, type DispatchStore } from '../api/dispatch';
 import { DOC_EXAMPLE } from '../api/docs';
@@ -171,6 +171,119 @@ describe('dispatch — the shared method table', () => {
     )) as RunResult & { version: number };
     expect(run.version).toBe(1);
     expect(run.status).toBe('success');
+  });
+
+  it('run_deployed with live enabled and no connector host hands the run to the durable runner, never to the mocks', async () => {
+    // The platform hosts enable live but execute connectors only through the
+    // durable stepper: a one-piece run must go there — authorized, executed
+    // live, recorded by the host — instead of running the deterministic mocks
+    // and recording the outcome as a live success.
+    const base = dispatchStore();
+    const startRun = vi.fn(
+      (...args: Parameters<NonNullable<DispatchStore['startRun']>>) =>
+        base.startRun!(...args),
+    );
+    const recordRun = vi.fn(
+      (...args: Parameters<NonNullable<DispatchStore['recordRun']>>) =>
+        base.recordRun!(...args),
+    );
+    const store: DispatchStore = { ...base, startRun, recordRun };
+    await deployedExample(store);
+
+    const run = (await dispatch(
+      'run_deployed',
+      { name: 'order-report', input: DOC_EXAMPLE.input },
+      { store, allowLive: true },
+    )) as RunResult & { runId?: string; version: number; mode?: string };
+    expect(startRun).toHaveBeenCalledWith(
+      'order-report',
+      DOC_EXAMPLE.input,
+      'live',
+      1,
+    );
+    expect(recordRun).not.toHaveBeenCalled();
+    expect(run).toMatchObject({ version: 1, mode: 'live', status: 'success' });
+    expect(run.runId).toBeDefined();
+    expect(run.output).toBeDefined();
+    expect(Array.isArray(run.trace)).toBe(true);
+    const viewed = (await dispatch(
+      'get_run',
+      { runId: run.runId },
+      { store, allowLive: true },
+    )) as { run: { mode: string; status: string } };
+    expect(viewed.run).toMatchObject({ mode: 'live', status: 'success' });
+  });
+
+  it('run_deployed answers with the run handle when the durable run outlives the wait', async () => {
+    const base = dispatchStore();
+    await deployedExample(base);
+    const store: DispatchStore = {
+      ...base,
+      startRun: async () => ({ runId: 'run_slow', version: 1 }),
+      getRun: async (runId) => ({
+        runId,
+        name: 'order-report',
+        version: 1,
+        status: 'running',
+        mode: 'live',
+        startedBy: 'host',
+        startedAt: Date.now(),
+      }),
+    };
+    const run = (await dispatch(
+      'run_deployed',
+      { name: 'order-report', input: DOC_EXAMPLE.input },
+      { store, allowLive: true, liveRunWait: { timeoutMs: 30, pollMs: 5 } },
+    )) as { runId?: string; status?: string; note?: string; output?: unknown };
+    expect(run).toMatchObject({ runId: 'run_slow', status: 'running' });
+    expect(run.note).toContain('poll get_run');
+    expect(run.output).toBeUndefined();
+  });
+
+  it("run_deployed relays the durable runner's refusal as data", async () => {
+    const base = dispatchStore();
+    await deployedExample(base);
+    const store: DispatchStore = {
+      ...base,
+      startRun: async () => {
+        throw new Error(
+          'Role "member" lacks the developer-settings capability',
+        );
+      },
+    };
+    const run = (await dispatch(
+      'run_deployed',
+      { name: 'order-report', input: DOC_EXAMPLE.input },
+      { store, allowLive: true },
+    )) as { error?: string };
+    expect(run.error).toContain('developer-settings');
+  });
+
+  it('run_deployed live on a store without a durable runner says so instead of running mocks', async () => {
+    const store = bareStore();
+    await deployedExample(store);
+    const run = (await dispatch(
+      'run_deployed',
+      { name: 'order-report', input: DOC_EXAMPLE.input },
+      { store, allowLive: true },
+    )) as { error?: string; status?: string };
+    expect(run.status).toBeUndefined();
+    expect(run.error).toContain('live execution is not available');
+  });
+
+  it('run_automation refuses live mode on a host without a connector host', async () => {
+    const result = (await dispatch(
+      'run_automation',
+      {
+        automation: DOC_EXAMPLE.automation,
+        input: DOC_EXAMPLE.input,
+        mode: 'live',
+      },
+      { store: dispatchStore(), allowLive: true },
+    )) as { error?: string; hint?: string; status?: string };
+    expect(result.status).toBeUndefined();
+    expect(result.error).toContain('unsaved document');
+    expect(result.hint).toContain('run_deployed');
   });
 
   it('the deploy gate refuses a version whose tests fail', async () => {

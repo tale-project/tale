@@ -51,7 +51,8 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   get_catalog: 'Every node type this deployment can execute.',
   search_catalog: 'Search the node-type catalog by keyword.',
   validate_automation: 'Validate an automation document without saving it.',
-  run_automation: 'Run an automation document directly (mock or live mode).',
+  run_automation:
+    'Run an automation document directly against the deterministic mocks.',
   test_automation: "Run an automation's own acceptance tests.",
   save_automation: 'Save an automation document as a new immutable version.',
   get_automation: 'Read one saved version (the latest when unversioned).',
@@ -60,7 +61,7 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   deploy_automation: 'Promote one saved version to be the live version.',
   set_trigger: 'Bind what starts the automation (schedule/webhook/event).',
   run_deployed:
-    'Run the deployed version and WAIT for the finished result — output, trace and effects in one answer.',
+    'Run the deployed version live and WAIT for the finished result — output, trace and effects in one answer; a run that outlives the wait answers with its runId to poll via get_run.',
   start_run:
     'Start the deployed version in the background and return a run handle immediately; poll get_run for the result.',
   list_runs:

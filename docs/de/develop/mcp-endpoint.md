@@ -46,7 +46,7 @@ Zweiundzwanzig Tools, in drei Gruppen. Die Autoring-Tools nehmen ganze Automatis
 | `get_catalog`         | Jeder Knotentyp, den dieses Deployment ausführen kann.                   |
 | `search_catalog`      | Den Knotentyp-Katalog per Stichwort durchsuchen.                         |
 | `validate_automation` | Ein Automatisierungsdokument validieren, ohne es zu speichern.           |
-| `run_automation`      | Ein Automatisierungsdokument direkt ausführen (Mock oder Live).          |
+| `run_automation`      | Ein Automatisierungsdokument direkt gegen die deterministischen Mocks ausführen. |
 | `test_automation`     | Die eigenen Abnahmetests einer Automatisierung ausführen.                |
 | `save_automation`     | Ein Automatisierungsdokument als neue unveränderliche Version speichern. |
 | `get_automation`      | Eine gespeicherte Version lesen (ohne Angabe die neueste).               |
@@ -57,7 +57,7 @@ Zweiundzwanzig Tools, in drei Gruppen. Die Autoring-Tools nehmen ganze Automatis
 
 | Tool             | Was es tut                                                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `run_deployed`   | Die deployte Version ausführen und auf das fertige Ergebnis WARTEN — Output, Trace und Effekte in einer Antwort.        |
+| `run_deployed`   | Die deployte Version live ausführen und auf das fertige Ergebnis WARTEN — Output, Trace und Effekte in einer Antwort; ein Lauf, der länger braucht, antwortet mit seiner `runId` zum Pollen. |
 | `start_run`      | Die deployte Version im Hintergrund starten und sofort einen Lauf-Handle zurückgeben; das Ergebnis über get_run pollen. |
 | `list_runs`      | Die letzten Läufe, neueste zuerst — einer Automatisierung oder der ganzen Organisation.                                 |
 | `get_run`        | Ein Lauf in voller Tiefe: Status, Output, Trace und Effekte.                                                            |
@@ -67,7 +67,7 @@ Zweiundzwanzig Tools, in drei Gruppen. Die Autoring-Tools nehmen ganze Automatis
 | `delete_trigger` | Den Trigger einer Automatisierung lösen; Versionen und Laufhistorie bleiben.                                            |
 | `set_trigger`    | Binden, was die Automatisierung startet (Zeitplan/Webhook/Event).                                                       |
 
-Nimm `run_deployed`, wenn die Automatisierung schnell ist und du einen Aufruf mit der Antwort darin willst. Nimm `start_run`, wenn der Lauf Minuten dauern darf — er gibt sofort eine `runId` zurück, und `get_run` pollt sie. Beide laufen live.
+Nimm `run_deployed`, wenn die Automatisierung schnell ist und du einen Aufruf mit der Antwort darin willst — es wartet bis zu 30 Sekunden auf den Lauf und gibt dir danach die `runId` statt eines halbfertigen Ergebnisses. Nimm `start_run`, wenn der Lauf Minuten dauern darf — er gibt sofort eine `runId` zurück, und `get_run` pollt sie. Beide laufen live auf demselben dauerhaften Runner, autorisieren, führen aus und protokollieren den Lauf also identisch. `run_automation` ist das Tool der Authoring-Schleife: Es führt ein ungespeichertes Dokument gegen die deterministischen Mocks aus, und `mode: "live"` antwortet mit einer Ablehnung, die auf `run_deployed` zeigt — ein ungespeichertes Dokument hat keinen Live-Pfad.
 
 `start_run` nimmt außerdem eine optionale `projectId` — das Projekt, in dem der Lauf arbeitet, sodass seine Aufgaben- und Dokument-Tools dort wirken. Lass sie weg für einen organisationsweiten Lauf oder, wenn die Automatisierung an ein einzelnes Projekt gebunden ist, für dieses. Eine gebundene Automatisierung akzeptiert nur ein Projekt, an das sie gebunden ist.
 
@@ -85,8 +85,8 @@ In dieser Version hält die Registry die deployten Automatisierungen der Organis
 
 Der Schlüssel beweist, wer anruft; die Rolle seines Besitzers entscheidet, was der Aufruf darf — genau wie im Produkt:
 
-- **Jeder Mitglieds-Schlüssel** — jedes Lese-Tool, `run_automation` im Mock-Modus, `search_capabilities`, `get_knowledge`.
-- **Entwickler-Fähigkeit nötig** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run` und Live-Ausführung (`run_deployed`, `start_run`, `run_automation` im Live-Modus).
+- **Jeder Mitglieds-Schlüssel** — jedes Lese-Tool, `run_automation` (immer gegen die Mocks), `search_capabilities`, `get_knowledge`.
+- **Entwickler-Fähigkeit nötig** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run` und Live-Ausführung (`run_deployed`, `start_run`).
 
 Ein abgelehnter Aufruf ist kein Protokollfehler: das Tool antwortet mit einer lesbaren Ablehnung — `{"error": "...", "hint": "..."}` — damit das aufrufende Modell sich anpassen kann, statt abzustürzen. Diese Konvention gilt überall: Validierungsprobleme, fehlende Deployments und Rollenablehnungen kommen als Daten zurück; `isError` ist für Aufrufe reserviert, die wirklich geworfen haben.
 

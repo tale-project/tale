@@ -7,7 +7,15 @@
  *
  * Live execution is host-gated: `run_automation {mode: "live"}` and
  * `run_deployed` require the host to pass `allowLive: true`; a builder loop
- * cannot reach real backends from a test session.
+ * cannot reach real backends from a test session. Enabling live is not the
+ * same as being able to execute live IN-PROCESS: the executor only reaches a
+ * connector's live body through a `connectorHost`, and a host that has none
+ * (every platform host today) must not run the deterministic mocks and call
+ * the outcome a live run. So without a connector host `run_deployed` hands the
+ * run to the store's durable runner (`startRun`, the same lane `start_run`
+ * uses, where the host executes connectors live and records the run) and
+ * waits a bounded time for it, and `run_automation {mode: "live"}` — an
+ * unsaved document, which no durable runner can take — is refused as data.
  *
  * The store is injected (not a module singleton), because the host owns
  * persistence — the selftest passes an in-memory store, the automations host
@@ -24,7 +32,7 @@
  * deployment.
  */
 
-import { execute } from '../core/execute';
+import { execute, type ExecuteOptions } from '../core/execute';
 import type { StoreAdapter } from '../core/slots';
 import { nodeTypes } from '../core/slots';
 import type { Automation, RunResult } from '../core/types';
@@ -160,6 +168,85 @@ export interface DispatchContext {
   /** Enable live connector calls — deployments/hosts only, never a builder
    * test loop. */
   allowLive?: boolean;
+  /**
+   * The mediated capabilities a live connector call reaches when the host
+   * executes IN-PROCESS (`ExecuteOptions.connectorHost`). Absent, a live
+   * one-piece run is never executed here: `run_deployed` goes through the
+   * store's durable runner and `run_automation {mode: "live"}` is refused.
+   */
+  connectorHost?: ExecuteOptions['connectorHost'];
+  /** How long `run_deployed` waits for a durable live run before answering
+   * with the run handle instead of the result. Hosts keep the defaults;
+   * tests shorten them. */
+  liveRunWait?: { timeoutMs?: number; pollMs?: number };
+}
+
+/** The default patience of a one-piece live run: long enough for the quick
+ * automations `run_deployed` is meant for, short enough that a tool call
+ * answers before an MCP client gives up on it. */
+const LIVE_RUN_WAIT_TIMEOUT_MS = 30_000;
+const LIVE_RUN_WAIT_POLL_MS = 500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * `run_deployed` on a host without an in-process connector host: start the
+ * deployed version on the durable runner (which authorizes the actor and
+ * executes connectors live) and wait a bounded time for it to finish. A run
+ * that finishes in time answers like a synchronous run — status, output,
+ * trace, effects — plus its `runId`; one that outlives the wait answers with
+ * the handle to poll, never with an unfinished result dressed as one.
+ */
+async function runDeployedDurably(
+  ctx: DispatchContext,
+  name: string,
+  version: number,
+  input: unknown,
+): Promise<unknown> {
+  const { store } = ctx;
+  if (!store.startRun || !store.getRun) {
+    return {
+      error: 'live execution is not available in this environment',
+      hint: 'this host has neither an in-process connector host nor a durable runner; test against mocks instead',
+    };
+  }
+  let started: { runId: string; version: number } | null;
+  try {
+    started = await store.startRun(name, input, 'live', version);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+  if (!started)
+    return { error: `deployed version ${name}@${version} is missing` };
+  const timeoutMs = ctx.liveRunWait?.timeoutMs ?? LIVE_RUN_WAIT_TIMEOUT_MS;
+  const pollMs = ctx.liveRunWait?.pollMs ?? LIVE_RUN_WAIT_POLL_MS;
+  const deadline = Date.now() + timeoutMs;
+  let run = await store.getRun(started.runId);
+  while (run?.finishedAt === undefined && Date.now() < deadline) {
+    await sleep(pollMs);
+    run = await store.getRun(started.runId);
+  }
+  if (run?.finishedAt === undefined) {
+    return {
+      runId: started.runId,
+      version: started.version,
+      mode: 'live',
+      status: run?.status ?? 'queued',
+      note: `the run is still going after ${Math.round(timeoutMs / 1000)}s — poll get_run {runId} for its status, output, trace and effects`,
+    };
+  }
+  return {
+    runId: run.runId,
+    version: run.version,
+    mode: 'live',
+    status: run.status,
+    ...(run.output !== undefined && { output: run.output }),
+    ...(run.detail !== undefined && { error: { message: run.detail } }),
+    trace: run.trace ?? [],
+    effects: run.effects ?? [],
+  };
 }
 
 /** Coerce an unknown param to a string without an object ever stringifying
@@ -258,6 +345,15 @@ export async function dispatch(
           hint: 'test against mocks; live execution is enabled on deployment (host sets allowLive)',
         };
       }
+      if (mode === 'live' && !ctx.connectorHost) {
+        // An unsaved document has no durable-runner lane, and running the
+        // deterministic mocks under the name "live" would be a lie.
+        return {
+          error:
+            'live mode is not available for an unsaved document in this environment',
+          hint: 'run it in mock mode, or save_automation + deploy_automation and run it live with run_deployed or start_run',
+        };
+      }
       const { errors, warnings } = await validate(p.automation);
       if (errors.length > 0) {
         return {
@@ -271,6 +367,9 @@ export async function dispatch(
       const result = await execute(p.automation as Automation, {
         input: p.input ?? {},
         mode,
+        ...(ctx.connectorHost !== undefined && {
+          connectorHost: ctx.connectorHost,
+        }),
       });
       if (warnings.length > 0) result.validation = { errors: [], warnings };
       return result;
@@ -388,10 +487,16 @@ export async function dispatch(
       if (!found)
         return { error: `deployed version ${name}@${version} is missing` };
       const mode = ctx.allowLive ? 'live' : 'mock';
+      if (mode === 'live' && !ctx.connectorHost) {
+        return await runDeployedDurably(ctx, name, version, p.input ?? {});
+      }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
       const result = await execute(found.automation as Automation, {
         input: p.input ?? {},
         mode,
+        ...(ctx.connectorHost !== undefined && {
+          connectorHost: ctx.connectorHost,
+        }),
       });
       if (store.recordRun) await store.recordRun(name, version, result, mode);
       return { version, ...result };

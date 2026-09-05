@@ -9887,6 +9887,47 @@ async function checkMcp(
   const runShape = z
     .object({ run: z.object({ status: z.literal('success') }) })
     .safeParse(runView.value);
+  // run_deployed on this host: no in-process connector host, so the one-piece
+  // run goes through the SAME durable runner (started live, awaited, answered
+  // with the finished result + its runId) — never the mocks recorded as live.
+  const oneShot = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 13,
+        method: 'tools/call',
+        params: {
+          name: 'run_deployed',
+          arguments: {
+            name: 'mcp-example',
+            input: { min_total: 5, orders: [] },
+          },
+        },
+      })
+    ).body,
+  );
+  const oneShotShape = z
+    .object({
+      runId: z.string(),
+      version: z.number(),
+      mode: z.literal('live'),
+      status: z.literal('success'),
+      trace: z.array(z.unknown()),
+      effects: z.array(z.unknown()),
+    })
+    .safeParse(oneShot.value);
+  const oneShotRows = oneShotShape.success
+    ? await sql<{ status: string; mode: string; startedBy: string }[]>`
+        SELECT status, mode, started_by AS "startedBy"
+        FROM app.automation_runs WHERE id = ${oneShotShape.data.runId}
+      `
+    : [];
+  const oneShotRow = oneShotRows[0];
+  const oneShotRecorded =
+    oneShotRow !== undefined &&
+    oneShotRow.status === 'success' &&
+    oneShotRow.mode === 'live' &&
+    oneShotRow.startedBy.startsWith('api-key:');
 
   // The developer gate: a member-role key gets the refusal as DATA on the
   // persisting tools while every read tool keeps answering.
@@ -9915,6 +9956,42 @@ async function checkMcp(
     ).body,
   );
   const refusalShape = z.object({ error: z.string() }).safeParse(refusal.value);
+  // Live execution is developer work: the durable runner refuses the member
+  // key BEFORE anything runs, and the refusal is data (no run row is born).
+  const memberLive = toolValue(
+    (
+      await rpc(
+        {
+          jsonrpc: '2.0',
+          id: 14,
+          method: 'tools/call',
+          params: {
+            name: 'run_deployed',
+            arguments: {
+              name: 'mcp-example',
+              input: { min_total: 5, orders: [] },
+            },
+          },
+        },
+        memberKey,
+      )
+    ).body,
+  );
+  const memberLiveShape = z
+    .object({ error: z.string() })
+    .safeParse(memberLive.value);
+  const memberLiveRefused =
+    !memberLive.isError &&
+    memberLiveShape.success &&
+    memberLiveShape.data.error.includes('developer-settings');
+  const developerActor = oneShotRow?.startedBy ?? '';
+  const strangerRuns = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = 'mcp-example'
+      AND started_by <> ${developerActor}
+  `;
+  const memberLeftNoRun =
+    developerActor !== '' && (strangerRuns[0]?.n ?? 1) === 0;
   const memberList = toolValue(
     (
       await rpc(
@@ -9993,14 +10070,19 @@ async function checkMcp(
       startedShape.success &&
       settled &&
       runShape.success &&
+      !oneShot.isError &&
+      oneShotShape.success &&
+      oneShotRecorded &&
       !refusal.isError &&
       refusalShape.success &&
       refusalShape.data.error.includes('refused for this key') &&
+      memberLiveRefused &&
+      memberLeftNoRun &&
       memberListShape.success &&
       capHit &&
       !knowledge.isError &&
       knowledgeShape.success,
-    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchCode.success ? batchCode.data.error.code : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
+    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchCode.success ? batchCode.data.error.code : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
   );
   // This check spent ~16 requests of the shared `rest:api` token bucket the
   // three REST checks right after it live off — hand the bucket back (an

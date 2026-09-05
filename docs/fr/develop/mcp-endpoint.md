@@ -46,7 +46,7 @@ Vingt-deux outils, en trois groupes. Les outils d'écriture prennent des documen
 | `get_catalog`         | Chaque type de nœud que ce déploiement sait exécuter.                |
 | `search_catalog`      | Chercher dans le catalogue de types de nœuds par mot-clé.            |
 | `validate_automation` | Valider un document d'automatisation sans l'enregistrer.             |
-| `run_automation`      | Exécuter un document d'automatisation directement (mock ou live).    |
+| `run_automation`      | Exécuter un document d'automatisation directement contre les mocks déterministes. |
 | `test_automation`     | Lancer les tests d'acceptation propres à une automatisation.         |
 | `save_automation`     | Enregistrer un document comme nouvelle version immuable.             |
 | `get_automation`      | Lire une version enregistrée (la dernière sans précision).           |
@@ -57,7 +57,7 @@ Vingt-deux outils, en trois groupes. Les outils d'écriture prennent des documen
 
 | Outil            | Ce qu'il fait                                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
-| `run_deployed`   | Exécuter la version déployée et ATTENDRE le résultat fini — sortie, trace et effets en une réponse.            |
+| `run_deployed`   | Exécuter la version déployée en live et ATTENDRE le résultat fini — sortie, trace et effets en une réponse ; une exécution qui dure plus longtemps répond avec son `runId` à suivre. |
 | `start_run`      | Démarrer la version déployée en arrière-plan et rendre aussitôt une poignée d'exécution ; suivre avec get_run. |
 | `list_runs`      | Les exécutions récentes, la plus récente d'abord — d'une automatisation ou de toute l'organisation.            |
 | `get_run`        | Une exécution en entier : statut, sortie, trace et effets.                                                     |
@@ -67,7 +67,7 @@ Vingt-deux outils, en trois groupes. Les outils d'écriture prennent des documen
 | `delete_trigger` | Délier le déclencheur d'une automatisation ; ses versions et son historique restent.                           |
 | `set_trigger`    | Lier ce qui démarre l'automatisation (planning/webhook/événement).                                             |
 
-Prends `run_deployed` quand l'automatisation est rapide et que tu veux un seul appel avec la réponse dedans. Prends `start_run` quand l'exécution peut durer des minutes — elle rend un `runId` aussitôt, et `get_run` le suit. Les deux tournent en live.
+Prends `run_deployed` quand l'automatisation est rapide et que tu veux un seul appel avec la réponse dedans — il attend l'exécution jusqu'à 30 secondes, puis te rend la `runId` plutôt qu'un résultat à moitié fini. Prends `start_run` quand l'exécution peut durer des minutes — elle rend un `runId` aussitôt, et `get_run` le suit. Les deux tournent en live sur le même runner durable : ils autorisent, exécutent et enregistrent l'exécution de la même façon. `run_automation` est l'outil de la boucle de rédaction : il exécute un document non enregistré contre les mocks déterministes, et `mode: "live"` répond un refus qui te renvoie vers `run_deployed` — un document non enregistré n'a pas de voie live.
 
 `start_run` prend aussi un `projectId` optionnel — le projet dans lequel l’exécution opère, pour que ses outils de tâches et de documents y agissent. Omets-le pour une exécution à l’échelle de l’organisation ou, quand l’automatisation est liée à un seul projet, pour celui-là. Une automatisation liée n’accepte qu’un projet auquel elle est liée.
 
@@ -85,8 +85,8 @@ Dans cette version, le registre tient les automatisations déployées de l’org
 
 La clé prouve qui appelle ; le rôle de son détenteur décide ce que l'appel peut faire — exactement comme dans le produit :
 
-- **Toute clé de membre** — chaque outil de lecture, `run_automation` en mode mock, `search_capabilities`, `get_knowledge`.
-- **Capacité développeur requise** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run`, et l'exécution live (`run_deployed`, `start_run`, `run_automation` en mode live).
+- **Toute clé de membre** — chaque outil de lecture, `run_automation` (toujours contre les mocks), `search_capabilities`, `get_knowledge`.
+- **Capacité développeur requise** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run`, et l'exécution live (`run_deployed`, `start_run`).
 
 Un appel refusé n'est pas une erreur de protocole : l'outil répond un refus lisible — `{"error": "...", "hint": "..."}` — pour que le modèle appelant s'ajuste au lieu de planter. Cette convention vaut partout : problèmes de validation, déploiements manquants et refus de rôle reviennent comme des données ; `isError` est réservé à un appel qui a réellement levé.
 
