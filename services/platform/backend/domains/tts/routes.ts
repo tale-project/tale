@@ -5,7 +5,11 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { resolveObjectStore, s3PresignGetUrl } from '../../lib/object-store.ts';
+import {
+  fetchPresignedObject,
+  resolveObjectStore,
+  s3PresignGetUrl,
+} from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
   rateLimitExceededCause,
@@ -214,7 +218,9 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         ? chunk.storageRef.slice(3)
         : chunk.storageRef;
       const url = await s3PresignGetUrl(store, key);
-      const upstream = await fetch(url);
+      const upstream = await fetchPresignedObject(url, {
+        signal: c.req.raw.signal,
+      });
       if (!upstream.ok || upstream.body === null) {
         return c.json({ error: 'audio unavailable' }, 502);
       }

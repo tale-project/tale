@@ -7,7 +7,11 @@ import {
   s3KeyBelongsToOrg,
 } from '../../core/lib/storage/blob_ref.ts';
 import { verifyStageToken } from '../../core/lib/storage/sandbox_stage_token.ts';
-import { resolveObjectStore, s3PresignGetUrl } from '../../lib/object-store.ts';
+import {
+  fetchPresignedObject,
+  resolveObjectStore,
+  s3PresignGetUrl,
+} from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 
 /**
@@ -86,7 +90,9 @@ export function createSandboxBlobRoutes(deps: { sql: Sql }): Hono {
 
     let upstream: Response;
     try {
-      upstream = await fetch(presigned);
+      upstream = await fetchPresignedObject(presigned, {
+        signal: c.req.raw.signal,
+      });
     } catch (error) {
       console.warn(
         `[sandbox-blob] upstream fetch failed for org ${org}:`,

@@ -40,6 +40,55 @@ export async function resolveObjectStore(
   return resolveOrgObjectStore(orgSlug);
 }
 
+/**
+ * How long a backend-side GET of a presigned object URL may wait for the
+ * store's response HEADERS. Sized for a cold BYO endpoint on a slow link;
+ * the body that follows is streamed under the client's own signal.
+ */
+export const PRESIGNED_FETCH_HEADER_TIMEOUT_MS = 30_000;
+
+/**
+ * GET a presigned object URL on the client's behalf, bounded. The audio
+ * serve and the sandbox-blob stage both proxy bucket bytes so a presigned
+ * URL never reaches an untrusted party — and both used to `fetch(url)` with
+ * no signal, so a store that accepts the connection and hangs pinned the
+ * request and its socket for ever (a per-chunk audio player accumulates
+ * those with no recovery path). Two bounds, one helper:
+ *
+ *  - the header wait is capped (`TimeoutError`, which the callers' existing
+ *    catch turns into the 502 they already answer for an unreachable store);
+ *    the timer is cleared once headers arrive, so a legitimately large body
+ *    is never cut mid-stream by a total-time cap;
+ *  - the caller's request signal is forwarded, before AND after headers, so
+ *    a client that goes away tears the upstream stream down with it.
+ */
+export async function fetchPresignedObject(
+  url: string,
+  opts: { signal?: AbortSignal; headerTimeoutMs?: number } = {},
+): Promise<Response> {
+  const timeoutMs = opts.headerTimeoutMs ?? PRESIGNED_FETCH_HEADER_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort(
+      new DOMException(
+        `presigned fetch: no response headers within ${timeoutMs}ms`,
+        'TimeoutError',
+      ),
+    );
+  }, timeoutMs);
+  const forwardAbort = () => controller.abort(opts.signal?.reason);
+  if (opts.signal?.aborted) {
+    forwardAbort();
+  } else {
+    opts.signal?.addEventListener('abort', forwardAbort, { once: true });
+  }
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export {
   buildObjectKey,
   s3DeleteObject,
