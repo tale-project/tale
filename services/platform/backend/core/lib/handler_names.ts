@@ -260,14 +260,6 @@ interface HandlerNames {
     crawl_action: FunctionRef & {
       scanWebsite: FunctionRef;
     };
-    crawl_ops: FunctionRef & {
-      deregisterDomainOp: FunctionRef;
-      homepageMetadataOp: FunctionRef;
-      registerDomainOp: FunctionRef;
-      registerUrlListOp: FunctionRef;
-      setScanIntervalOp: FunctionRef;
-      websiteInfoOp: FunctionRef;
-    };
   };
   knowledge_entries: FunctionRef & {
     internal_queries: FunctionRef & {
@@ -460,7 +452,6 @@ interface HandlerNames {
     };
     internal_mutations: FunctionRef & {
       clearScanFailures: FunctionRef;
-      deleteWebsite: FunctionRef;
       recordScanFailure: FunctionRef;
     };
     internal_queries: FunctionRef & {
