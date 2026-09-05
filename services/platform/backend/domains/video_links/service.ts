@@ -1617,18 +1617,46 @@ export async function bindCompletedJobsToMessage(
 }
 
 /**
+ * Drop the message bind from jobs no SENT message carries — the shared
+ * predicate of every unbind: a job whose transcript rides a user row of its
+ * thread (the row carries the attachment part) stays bound, because
+ * unbinding it would hand the transcript to the unbound-GC a week later and
+ * strand the sent message's attachment. Everything else in `jobIds` goes
+ * back to unbound: visible in the composer again, and reapable once
+ * terminal. `userId` narrows to the uploader's own rows (the composer
+ * door); the deferred-send lane, whose rows were claimed under the row's
+ * stored identity, passes none.
+ */
+export async function unbindJobsWithoutMessage(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; jobIds: readonly string[]; userId?: string },
+): Promise<void> {
+  const jobIds = [...new Set(args.jobIds)];
+  if (jobIds.length === 0) return;
+  await sql`
+    UPDATE app.video_link_jobs j SET message_bound_at_ms = NULL
+    WHERE j.id = ANY(${jobIds}) AND j.org_id = ${args.organizationId}
+      AND (${args.userId ?? null}::text IS NULL
+           OR j.uploaded_by = ${args.userId ?? null})
+      AND j.message_bound_at_ms IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM app.messages m
+        WHERE m.thread_id = j.thread_id AND m.role = 'user'
+          AND m.parts @> jsonb_build_array(jsonb_build_object(
+            'type', 'attachment', 'fileId', j.storage_ref
+          ))
+      )
+  `;
+}
+
+/**
  * Reverse a bind after a failed send (the 0.4 twin) — idempotent for the
  * caller's OWN rows in THIS organization. Every supplied id must resolve to
  * such a row or the whole batch is refused before anything changes: a job
  * the caller holds in another organization is not theirs here (the org is
  * the scope, like every other video-links verb), and an id the composer
- * never held is a probe, not a chip.
- *
- * A job whose transcript already rides a SENT message in its thread stays
- * bound. The server can tell — the user row carries the attachment part —
- * and unbinding it would hand the transcript to the unbound-GC a week later
- * and strand the sent message's attachment; the legitimate caller (a send
- * that failed) never has such a message.
+ * never held is a probe, not a chip. The sent-message guard is
+ * {@link unbindJobsWithoutMessage}'s.
  */
 export async function unbindJobsFromMessage(
   sql: Sql,
@@ -1646,19 +1674,11 @@ export async function unbindJobsFromMessage(
     if (owned.length !== jobIds.length) {
       throw new VideoLinkError('notFound', 'Video link not found', 404);
     }
-    await tx`
-      UPDATE app.video_link_jobs j SET message_bound_at_ms = NULL
-      WHERE j.id = ANY(${jobIds}) AND j.org_id = ${args.organizationId}
-        AND j.uploaded_by = ${args.userId}
-        AND j.message_bound_at_ms IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM app.messages m
-          WHERE m.thread_id = j.thread_id AND m.role = 'user'
-            AND m.parts @> jsonb_build_array(jsonb_build_object(
-              'type', 'attachment', 'fileId', j.storage_ref
-            ))
-        )
-    `;
+    await unbindJobsWithoutMessage(tx, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      jobIds,
+    });
   });
 }
 

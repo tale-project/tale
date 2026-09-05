@@ -30,6 +30,7 @@ import {
 } from './composer.ts';
 import {
   cancelDeferredSend,
+  cancelDeferredSendsForThread,
   enqueueDeferredSend,
   listDeferredSends,
 } from './deferred-sends.ts';
@@ -750,7 +751,17 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         },
         c.req.param('threadId'),
       );
-      if (ok) await hintThread(c, c.req.param('threadId'));
+      if (ok) {
+        // A trashed conversation takes its parked sends with it — otherwise
+        // they fire into the trash (the poll re-gates too; this cancels the
+        // media the sends were still waiting on).
+        await cancelDeferredSendsForThread(deps.sql, {
+          organizationId,
+          userId,
+          threadId: c.req.param('threadId'),
+        });
+        await hintThread(c, c.req.param('threadId'));
+      }
       return c.json({ ok });
     } catch (error) {
       return handleThreadError(c, error);

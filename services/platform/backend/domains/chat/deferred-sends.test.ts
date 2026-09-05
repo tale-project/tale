@@ -19,15 +19,25 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { addJobInTx, loadOwnedThread, runChatTurn, isBackendDraining } =
-  vi.hoisted(() => ({
-    addJobInTx: vi.fn(),
-    loadOwnedThread: vi.fn(),
-    runChatTurn: vi.fn(),
-    isBackendDraining: vi.fn(),
-  }));
+const {
+  addJobInTx,
+  loadOwnedThread,
+  runChatTurn,
+  isBackendDraining,
+  cancelDeferredJobs,
+} = vi.hoisted(() => ({
+  addJobInTx: vi.fn(),
+  loadOwnedThread: vi.fn(),
+  runChatTurn: vi.fn(),
+  isBackendDraining: vi.fn(),
+  cancelDeferredJobs: vi.fn(),
+}));
 
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
+vi.mock('../video_links/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../video_links/service.ts')>()),
+  cancelDeferredJobs,
+}));
 vi.mock('./threads.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./threads.ts')>()),
   loadOwnedThread,
@@ -35,7 +45,11 @@ vi.mock('./threads.ts', async (importOriginal) => ({
 vi.mock('./service.ts', () => ({ runChatTurn }));
 vi.mock('../control/service.ts', () => ({ isBackendDraining }));
 
-import { enqueueDeferredSend, pollDeferredSend } from './deferred-sends.ts';
+import {
+  cancelDeferredSendsForThread,
+  enqueueDeferredSend,
+  pollDeferredSend,
+} from './deferred-sends.ts';
 
 interface Statement {
   text: string;
@@ -90,10 +104,44 @@ const PARK = {
   modelId: 'z-ai/glm-5.1',
 };
 
+/** A parked row the poll finds ready: no attachments, no videos unless
+ * overridden, its thread idle. */
+function readyRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'ds_1',
+    organizationId: 'org_1',
+    userId: 'user_1',
+    threadId: 'thread_1',
+    userText: 'Summarize this',
+    attachments: null,
+    modelId: 'z-ai/glm-5.1',
+    modelSelection: null,
+    providerSlug: null,
+    reasoningEffort: null,
+    locale: 'en',
+    status: 'waiting',
+    createdAt: 1,
+    waitingSince: Date.now(),
+    videoJobIds: null,
+    ...overrides,
+  };
+}
+
+type Timeline = ReturnType<typeof fakeSql>['timeline'];
+const messageInserts = (timeline: Timeline) =>
+  timeline.filter((entry) => entry.text.includes('INSERT INTO app.messages'));
+const settleIndex = (timeline: Timeline) =>
+  timeline.findIndex((entry) =>
+    entry.text.includes('DELETE FROM app.deferred_sends'),
+  );
+const releaseStatement = (timeline: Timeline) =>
+  timeline.find((entry) => entry.text.includes('message_bound_at_ms = NULL'));
+
 beforeEach(() => {
   vi.clearAllMocks();
   loadOwnedThread.mockResolvedValue({ id: 'thread_1' });
   isBackendDraining.mockResolvedValue(false);
+  cancelDeferredJobs.mockResolvedValue(undefined);
 });
 
 describe('enqueueDeferredSend', () => {
@@ -207,28 +255,10 @@ describe('pollDeferredSend', () => {
 });
 
 describe('pollDeferredSend — settle at user append, trace on failure', () => {
-  const READY_ROW = {
-    id: 'ds_1',
-    organizationId: 'org_1',
-    userId: 'user_1',
-    threadId: 'thread_1',
-    userText: 'Summarize this',
-    attachments: null,
-    modelId: 'z-ai/glm-5.1',
-    modelSelection: null,
-    providerSlug: null,
-    reasoningEffort: null,
-    locale: 'en',
-    status: 'waiting',
-    createdAt: 1,
-    waitingSince: Date.now(),
-    videoJobIds: null,
-  };
-
   function readySql() {
     let order = 0;
     return fakeSql(({ text }) => {
-      if (text.includes('FROM app.deferred_sends')) return [READY_ROW];
+      if (text.includes('FROM app.deferred_sends')) return [readyRow()];
       if (text.includes('UPDATE app.deferred_sends')) return [{ id: 'ds_1' }];
       if (text.includes('INSERT INTO app.messages')) {
         order += 1;
@@ -237,13 +267,6 @@ describe('pollDeferredSend — settle at user append, trace on failure', () => {
       return [];
     });
   }
-
-  const messageInserts = (timeline: ReturnType<typeof fakeSql>['timeline']) =>
-    timeline.filter((entry) => entry.text.includes('INSERT INTO app.messages'));
-  const settleIndex = (timeline: ReturnType<typeof fakeSql>['timeline']) =>
-    timeline.findIndex((entry) =>
-      entry.text.includes('DELETE FROM app.deferred_sends'),
-    );
 
   it('settles the tray row the moment the user message is durable, before the turn settles', async () => {
     const f = readySql();
@@ -342,5 +365,130 @@ describe('pollDeferredSend — settle at user append, trace on failure', () => {
       'stream died',
     );
     expect(messageInserts(f.timeline)).toHaveLength(0);
+  });
+});
+
+describe('pollDeferredSend — the thread and the claimed videos at fire time', () => {
+  it("drops a parked send whose thread is no longer the owner's active thread and releases its videos", async () => {
+    loadOwnedThread.mockResolvedValue(null);
+    const f = fakeSql(({ text }) =>
+      text.includes('FROM app.deferred_sends')
+        ? [readyRow({ videoJobIds: ['job_1'] })]
+        : [],
+    );
+
+    await expect(pollDeferredSend(f.sql, 'ds_1')).resolves.toBe('gone');
+    expect(runChatTurn).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(settleIndex(f.timeline)).not.toBe(-1);
+    // The claim is undone for the jobs no message carries — the predicate
+    // rides the statement; here it is the set that matters.
+    expect(releaseStatement(f.timeline)?.values[0]).toEqual(['job_1']);
+  });
+
+  it('sends the transcripts that are ready and releases the claimed videos the send did not carry', async () => {
+    runChatTurn.mockResolvedValue({
+      status: 'completed',
+      steps: ['done'],
+      text: 'ok',
+    });
+    const f = fakeSql(({ text, values }) => {
+      if (text.includes('FROM app.deferred_sends')) {
+        return [readyRow({ videoJobIds: ['job_ready', 'job_late'] })];
+      }
+      if (text.includes('UPDATE app.deferred_sends')) return [{ id: 'ds_1' }];
+      if (text.includes('j.storage_ref')) {
+        // buildBoundJobAttachments: one transcript landed, one did not.
+        return values.includes('job_ready')
+          ? [
+              {
+                storageRef: 'blob_ready',
+                videoTitle: 'Clip',
+                status: 'completed',
+                transcriptionStatus: null,
+                size: 10,
+              },
+            ]
+          : [
+              {
+                storageRef: 'blob_late',
+                videoTitle: 'Late clip',
+                status: 'transcribing_handoff',
+                transcriptionStatus: 'failed',
+                size: 5,
+              },
+            ];
+      }
+      if (text.includes('FROM app.video_link_jobs j')) {
+        // readiness: terminal either way (failed proceeds degraded)
+        return values.includes('job_ready')
+          ? [{ status: 'completed', transcriptionStatus: null }]
+          : [{ status: 'transcribing_handoff', transcriptionStatus: 'failed' }];
+      }
+      return [];
+    });
+
+    await expect(pollDeferredSend(f.sql, 'ds_1')).resolves.toBe('ran');
+    expect(runChatTurn).toHaveBeenCalledWith(
+      f.sql,
+      expect.objectContaining({
+        attachments: [
+          {
+            fileId: 'blob_ready',
+            fileName: 'Clip',
+            fileType: 'video/mp4',
+            fileSize: 10,
+          },
+        ],
+      }),
+    );
+    // Both claimed ids go through the release; the SQL predicate keeps the
+    // one the user row now carries and frees the other.
+    const release = releaseStatement(f.timeline);
+    expect(release?.values[0]).toEqual(['job_ready', 'job_late']);
+    expect(f.timeline.indexOf(release!)).toBeGreaterThan(
+      settleIndex(f.timeline),
+    );
+  });
+});
+
+describe('cancelDeferredSendsForThread', () => {
+  it("deletes the thread's waiting rows and cancels their claimed media", async () => {
+    const f = fakeSql(({ text }) =>
+      text.includes('DELETE FROM app.deferred_sends')
+        ? [
+            { id: 'ds_1', videoJobIds: ['job_1'] },
+            { id: 'ds_2', videoJobIds: null },
+          ]
+        : [],
+    );
+
+    await expect(
+      cancelDeferredSendsForThread(f.sql, {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'thread_1',
+      }),
+    ).resolves.toBe(2);
+    const deletion = f.timeline.find((entry) =>
+      entry.text.includes('DELETE FROM app.deferred_sends'),
+    );
+    // Waiting rows only — a claimed one is running and settles itself.
+    expect(deletion?.text).toContain("status = 'waiting'");
+    expect(deletion?.values).toEqual(['thread_1', 'org_1', 'user_1']);
+    expect(cancelDeferredJobs).toHaveBeenNthCalledWith(
+      1,
+      f.sql,
+      'org_1',
+      ['job_1'],
+      'user_1',
+    );
+    expect(cancelDeferredJobs).toHaveBeenNthCalledWith(
+      2,
+      f.sql,
+      'org_1',
+      [],
+      'user_1',
+    );
   });
 });

@@ -17,6 +17,7 @@ import {
   bindJobsForDeferredSend,
   buildBoundJobAttachments,
   cancelDeferredJobs,
+  unbindJobsWithoutMessage,
 } from '../video_links/service.ts';
 import { runChatTurn } from './service.ts';
 import { appendAssistantErrorMessage, appendMessageRow } from './store.ts';
@@ -259,6 +260,31 @@ export async function cancelDeferredSend(
   return true;
 }
 
+/** Trashing a conversation abandons every send still parked on it — the
+ * same cascade as cancelling each by hand (a `claimed` row is already
+ * running and settles itself). Called by the trash door after the thread
+ * flipped; a poll that fires in between is re-gated at fire time. */
+export async function cancelDeferredSendsForThread(
+  sql: Sql,
+  args: { organizationId: string; userId: string; threadId: string },
+): Promise<number> {
+  const rows = await sql<{ id: string; videoJobIds: unknown }[]>`
+    DELETE FROM app.deferred_sends
+    WHERE thread_id = ${args.threadId} AND org_id = ${args.organizationId}
+      AND user_id = ${args.userId} AND status = 'waiting'
+    RETURNING id, video_job_ids AS "videoJobIds"
+  `;
+  for (const row of rows) {
+    await cancelDeferredJobs(
+      sql,
+      args.organizationId,
+      readVideoJobIds(row.videoJobIds),
+      args.userId,
+    );
+  }
+  return rows.length;
+}
+
 /** The thread's parked sends, oldest first — the tray above the composer. */
 export async function listDeferredSends(
   sql: Sql,
@@ -420,6 +446,24 @@ export async function pollDeferredSend(
   const row = await loadRow(sql, deferredSendId);
   if (!row || row.status !== 'waiting') return 'gone';
 
+  // Re-gated against the thread's lifecycle at FIRE time, not only at park:
+  // a conversation trashed (or lost) while the send waited must not receive
+  // a reply — LLM spend into a thread the user cannot see, racing the
+  // retention purge. The row is dropped and its claimed videos go back to
+  // the composer.
+  if (
+    (await loadOwnedThread(
+      sql,
+      row.organizationId,
+      row.userId,
+      row.threadId,
+    )) === null
+  ) {
+    await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+    await releaseUnsentVideos(sql, row.organizationId, row.videoJobIds);
+    return 'gone';
+  }
+
   const reschedule = async (delayMs: number): Promise<void> => {
     await addJobInTx(
       sql,
@@ -559,12 +603,35 @@ export async function pollDeferredSend(
   } finally {
     // The terminal mop-up: the row settles whether the turn completed,
     // refused, or threw — the thread shows the bubble (or the trace), and
-    // the tray row would only double-display or wedge.
+    // the tray row would only double-display or wedge. The claimed videos
+    // the send did NOT carry (no transcript in time, or no message at all)
+    // are released, or they would stay hidden and unreapable forever.
     if (!parkedAgain) {
       await settle();
+      await releaseUnsentVideos(sql, row.organizationId, row.videoJobIds);
     }
   }
   return 'ran';
+}
+
+/** The bind is what a deferred send holds on its videos; once the send is
+ * over, only a job a SENT message carries keeps it (the predicate lives in
+ * the video-links domain). Best-effort: the row is already settled, and a
+ * failed release is the unbound-GC's loss, not the user's. */
+async function releaseUnsentVideos(
+  sql: Sql,
+  organizationId: string,
+  jobIds: readonly string[],
+): Promise<void> {
+  if (jobIds.length === 0) return;
+  try {
+    await unbindJobsWithoutMessage(sql, { organizationId, jobIds });
+  } catch (error) {
+    console.warn(
+      `[deferred-send] could not release ${jobIds.length} claimed video(s):`,
+      error,
+    );
+  }
 }
 
 /** A waiting row is re-polled once it is older than this — a floor to skip a
@@ -586,8 +653,8 @@ const CLAIMED_STALE_MS = 15 * 60 * 1000;
  *    chain is revived, so this never doubles the healthy fast-poll cadence.
  *  - a CLAIMED row wedged by a crash between the claim and the finally-DELETE
  *    is uncancellable (cancel needs 'waiting') and a permanent tray chip.
- *    Clear it. The chat-generation watchdog owns the thread's composer; this
- *    only removes the tray row. At-most-once LLM spend: the turn is never
+ *    Clear it and release its unsent videos. The chat-generation watchdog
+ *    owns the thread's composer; this only removes the tray row. At-most-once LLM spend: the turn is never
  *    re-run (a crash surfaces through the generation watchdog, not a rerun).
  *
  * `waiting_since_ms` is stamped at both park and claim, so it dates the
@@ -616,11 +683,22 @@ export async function recoverStuckDeferredSends(
     );
     repolled += 1;
   }
-  const cleared = await sql<{ id: string }[]>`
+  const cleared = await sql<
+    { id: string; organizationId: string; videoJobIds: unknown }[]
+  >`
     DELETE FROM app.deferred_sends
     WHERE status = 'claimed' AND waiting_since_ms < ${claimedCutoff}
-    RETURNING id
+    RETURNING id, org_id AS "organizationId", video_job_ids AS "videoJobIds"
   `;
+  // A wedged row's videos: the ones its (crashed) turn never sent go back
+  // to the composer; a job a persisted user row carries stays bound.
+  for (const row of cleared) {
+    await releaseUnsentVideos(
+      sql,
+      row.organizationId,
+      readVideoJobIds(row.videoJobIds),
+    );
+  }
   if (repolled > 0 || cleared.length > 0) {
     console.warn(
       `[deferred-send-watchdog] re-polled ${repolled} waiting, cleared ${cleared.length} wedged claimed`,
