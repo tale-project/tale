@@ -17,6 +17,14 @@ import { readCookie } from './cookies';
  * the browser; the hash is public and useless without it.
  */
 
+/**
+ * One fixed name: two flows started in the same browser within the
+ * Max-Age (a second tab, a retried click) overwrite each other's nonce, and
+ * the older completion is refused as a mismatch. Keying the name by the
+ * hash would need the hash at every clear site too — the completing doors
+ * clear the cookie even when the state fails to parse and carries none —
+ * so a login is simply restarted; the seamless lane has no caller today.
+ */
 const FLOW_COOKIE = 'sso_flow';
 /** The login-page key a completion not started in this browser bounces with. */
 export const SSO_FLOW_MISMATCH_KEY = 'sso.errors.flowMismatch';
@@ -68,7 +76,11 @@ export interface FlowCookieOptions {
  * the navigation (Firefox counts redirect hops too). So the cookie is
  * `SameSite=None`, which browsers accept only with `Secure`, i.e. over
  * HTTPS; over plain HTTP (dev) the attribute is left off and the browser's
- * own default applies. `None` costs no binding strength: the check is the
+ * own default applies — a browser that defaults to `Lax` (Chrome, past its
+ * two-minute Lax+POST grace) withholds it on the cross-site SAML ACS POST,
+ * so a dev http:// SAML login bouncing with `sso.errors.flowMismatch` is
+ * this, not a broken IdP; HTTPS deployments are unaffected. `None` costs no
+ * binding strength: the check is the
  * secret nonce, which only a response of ours ever hands a browser
  * (`__Host-` keeps a sibling subdomain from planting one).
  */
