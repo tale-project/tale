@@ -33585,6 +33585,40 @@ async function checkDataResidency(
   );
   const bucketReady = mkBucket.ok || mkBucket.status === 409;
 
+  // A blob the org stores BEFORE it connects its own bucket: minted through
+  // the app's own door (blob-upload → PUT → register) while the org still
+  // resolves to the deployment default store, with a content type the move
+  // must carry over.
+  const preHandoff = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+    await (
+      await post(`/api/app/files/blob-upload?orgId=${orgId}`, {
+        contentType: 'text/markdown',
+      })
+    ).json(),
+  );
+  let preUpload: { fileId: string; s3Ref: string } | null = null;
+  if (preHandoff.success) {
+    const put = await fetch(preHandoff.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/markdown' },
+      body: `# pre-switch blob ${Date.now()}\n`,
+    });
+    const registered = z.object({ fileId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/files/register?orgId=${orgId}`, {
+          storageRef: preHandoff.data.s3Ref,
+          fileName: 'pre-switch.md',
+          contentType: 'text/markdown',
+        })
+      ).json(),
+    );
+    if (put.ok && registered.success) {
+      preUpload = {
+        fileId: registered.data.fileId,
+        s3Ref: preHandoff.data.s3Ref,
+      };
+    }
+  }
   const osFresh = z
     .object({ configured: z.boolean() })
     .loose()
@@ -33639,25 +33673,20 @@ async function checkDataResidency(
   // A blob stored BEFORE the switch must stay readable the moment the
   // connection exists — served from the default store until the move
   // (`locateOrgObjectStore`), then from the BYO bucket with the type it had.
-  const preFile = (
-    await sql<{ id: string; storageRef: string }[]>`
-      SELECT id, storage_ref AS "storageRef" FROM app.file_metadata
-      WHERE org_id = ${orgId} AND uploaded_by = ${ctx.userId}
-      ORDER BY created_at_ms ASC
-      LIMIT 1
-    `
-  )[0];
+  // `preUpload` was minted above, while the org still resolved to the default
+  // store; earlier lanes seed rows whose refs never had a blob, so a row pick
+  // would probe a ghost.
   /** GET /files/:id/url → follow the presigned URL → [ok, content-type]. */
   const serveBlob = async (): Promise<{
     ok: boolean;
     contentType: string | null;
   }> => {
-    if (preFile === undefined) return { ok: false, contentType: null };
+    if (preUpload === null) return { ok: false, contentType: null };
     const url = z
       .object({ url: z.string() })
       .safeParse(
         await (
-          await get(`/api/app/files/${preFile.id}/url?orgId=${orgId}`)
+          await get(`/api/app/files/${preUpload.fileId}/url?orgId=${orgId}`)
         ).json(),
       );
     if (!url.success) return { ok: false, contentType: null };
@@ -33759,6 +33788,7 @@ async function checkDataResidency(
   // the default store (the move retires the source once the copy verified).
   let landed = false;
   let sourceRetired = false;
+  let preMoved = false;
   if (realStatus !== null && realStatus.sample.length > 0) {
     const { parseBlobRef } = await import('./core/lib/storage/blob_ref.ts');
     const { resolveOrgObjectStore, s3HeadObject } =
@@ -33766,10 +33796,19 @@ async function checkDataResidency(
     const sampleRef = realStatus.sample[0]?.ref ?? '';
     try {
       const parsed = parseBlobRef(sampleRef);
+      const defaultStore = await resolveOrgObjectStore('default');
       if (parsed.backend === 's3') {
         landed = (await s3HeadObject(byoStore, parsed.key)) !== null;
-        const defaultStore = await resolveOrgObjectStore('default');
         sourceRetired = (await s3HeadObject(defaultStore, parsed.key)) === null;
+      }
+      // The blob minted before the switch, specifically: in the BYO bucket
+      // now, gone from the default store.
+      if (preUpload !== null) {
+        const pre = parseBlobRef(preUpload.s3Ref);
+        preMoved =
+          pre.backend === 's3' &&
+          (await s3HeadObject(byoStore, pre.key)) !== null &&
+          (await s3HeadObject(defaultStore, pre.key)) === null;
       }
     } catch (error) {
       console.warn('[itest] byo sample head failed:', error);
@@ -33804,10 +33843,11 @@ async function checkDataResidency(
       realStatus.bytesMigrated > 0 &&
       landed &&
       sourceRetired &&
+      preMoved &&
       servedBeforeMove.ok &&
       servedAfterMove.ok &&
       typeKept,
-    `bucket=${bucketReady}, fresh=${osFresh.success ? osFresh.data.configured : 'ERR'}, noCreds=${osNoCreds.status} (want 400), saved=${osSaved.success}, view=${osView.success ? `${osView.data.bucket}/${osView.data.hasCredentials}` : 'ERR'}, probe=${osProbe.success ? osProbe.data.ok : 'ERR'}, dry=${dryStatus?.status ?? 'timeout'}/${dryStatus?.candidates ?? '?'}c/${dryStatus?.migrated ?? '?'}m, real=${realStatus?.status ?? 'timeout'}/${realStatus?.migrated ?? '?'}m/${realStatus?.bytesMigrated ?? '?'}B, landed=${landed}, sourceRetired=${sourceRetired}, servedBeforeMove=${servedBeforeMove.ok}, servedAfterMove=${servedAfterMove.ok}, type=${servedBeforeMove.contentType ?? 'none'}→${servedAfterMove.contentType ?? 'none'} (want kept)`,
+    `bucket=${bucketReady}, fresh=${osFresh.success ? osFresh.data.configured : 'ERR'}, noCreds=${osNoCreds.status} (want 400), saved=${osSaved.success}, view=${osView.success ? `${osView.data.bucket}/${osView.data.hasCredentials}` : 'ERR'}, probe=${osProbe.success ? osProbe.data.ok : 'ERR'}, dry=${dryStatus?.status ?? 'timeout'}/${dryStatus?.candidates ?? '?'}c/${dryStatus?.migrated ?? '?'}m, real=${realStatus?.status ?? 'timeout'}/${realStatus?.migrated ?? '?'}m/${realStatus?.bytesMigrated ?? '?'}B, landed=${landed}, sourceRetired=${sourceRetired}, preMoved=${preMoved}, servedBeforeMove=${servedBeforeMove.ok}, servedAfterMove=${servedAfterMove.ok}, type=${servedBeforeMove.contentType ?? 'none'}→${servedAfterMove.contentType ?? 'none'} (want kept)`,
   );
 
   // --- Knowledge: connection + embedding admin files --------------------
