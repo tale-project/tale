@@ -628,130 +628,16 @@ export async function updateDocument(
   return { teamScopeChanged, folderChanged, fileRef: doc.fileRef };
 }
 
-/** Soft trash / restore. Hard delete + blob erasure land with governance. */
-export async function setDocumentTrashed(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  documentId: string,
-  trashed: boolean,
-): Promise<void> {
-  const doc = await requireDocumentWriteAccess(tx, auth, documentId);
-  if (trashed) {
-    // Controlled-record protection: reviewed/approved records never trash.
-    assertRecordTrashableJson(doc.record);
-    // Preservation gate: an org hold (or the author's custodian hold)
-    // freezes destructive paths.
-    await assertNotHeld(
-      tx,
-      auth.organizationId,
-      'document',
-      documentId,
-      undefined,
-      doc.createdBy ?? undefined,
-    );
-  }
-  await tx`
-    UPDATE app.documents SET
-      lifecycle_status = ${trashed ? 'trashed' : null},
-      status_changed_at_ms = ${Date.now()}, updated_at_ms = ${Date.now()}
-    WHERE id = ${documentId}
-  `;
-  if (trashed) {
-    // A directly-selected single-file OneDrive sync maps 1:1 to this
-    // document — trashing it means "stop syncing it", or the next scheduled
-    // run refreshes the mirror the user just removed. No-op otherwise.
-    await stopSyncForTrashedDocument(tx, {
-      organizationId: doc.organizationId,
-      metadata: doc.metadata,
-    });
-  }
-  await createAuditLog(tx, {
-    organizationId: auth.organizationId,
-    actorId: auth.userId,
-    ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-    actorType: 'user',
-    action: trashed ? 'document.trashed' : 'document.restored',
-    category: 'data',
-    resourceType: 'document',
-    resourceId: documentId,
-    ...(doc.title !== null ? { resourceName: doc.title } : {}),
-    status: 'success',
-  });
-  await emitHintInTx(tx, {
-    orgId: auth.organizationId,
-    entity: 'document',
-    entityId: documentId,
-  });
-}
-
 // ---------------------------------------------------------------------------
-// Project attach/detach (the projects-domain gap, closed here)
+// Project detach (the projects-domain gap, closed here)
 // ---------------------------------------------------------------------------
 
 /**
- * Attach a hub document to a project (requires teamless doc + edit access).
- * Answers the blob ref so the caller can re-stamp the corpus scope AFTER the
- * transaction commits (`syncRagDocumentScope` talks to the knowledge pool):
- * a project file is retrievable only inside its project, so a hub document's
- * org-wide corpus rows must follow it in — the same re-stamp a team change
- * gets.
- */
-export async function attachDocumentToProject(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  args: { documentId: string; projectId: string },
-): Promise<{ fileRef: string | null }> {
-  assertDocumentsWriteRole(auth);
-  const doc = await loadDocumentOrThrow(tx, args.documentId);
-  await assertDocumentVisible(tx, auth, doc);
-  if (doc.projectId) {
-    throw new DocumentError(
-      'DOCUMENT_ALREADY_IN_PROJECT',
-      'Document already belongs to a project',
-    );
-  }
-  if (doc.teamId || doc.teamTags.length > 0) {
-    throw new DocumentError(
-      'DOCUMENT_SCOPE_CONFLICT',
-      'A team document cannot be attached to a project',
-    );
-  }
-  const project = await loadProjectOrThrow(tx, args.projectId);
-  const access = checkProjectAccess(
-    { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-    auth.teamIds,
-    auth.role,
-  );
-  if (!access.canRead || !access.canEdit) {
-    throw new DocumentError('RBAC_FORBIDDEN', 'Editor role required', 403);
-  }
-  await tx`
-    UPDATE app.documents SET
-      project_id = ${args.projectId}, folder_id = NULL,
-      updated_at_ms = ${Date.now()}
-    WHERE id = ${args.documentId}
-  `;
-  await createAuditLog(tx, {
-    organizationId: auth.organizationId,
-    actorId: auth.userId,
-    ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-    actorType: 'user',
-    action: 'project.file.attached',
-    category: 'data',
-    resourceType: 'project',
-    resourceId: args.projectId,
-    resourceName: project.name,
-    metadata: { documentId: args.documentId },
-    status: 'success',
-  });
-  return { fileRef: doc.fileRef };
-}
-
-/**
- * Detach back to the org-wide library (explicit destination, audited). Like
- * attach, answers the blob ref for the post-commit corpus re-stamp: the
- * detached document is org-wide again, so its corpus rows must stop carrying
- * the old project's scope or it silently vanishes from hub retrieval.
+ * Detach back to the org-wide library (explicit destination, audited).
+ * Answers the blob ref for the post-commit corpus re-stamp (`syncRagDocumentScope`
+ * talks to the knowledge pool): the detached document is org-wide again, so
+ * its corpus rows must stop carrying the old project's scope or it silently
+ * vanishes from hub retrieval.
  */
 export async function detachDocumentFromProject(
   tx: TransactionSql,
@@ -916,31 +802,6 @@ export async function getDocumentById(
   const doc = await loadDocumentOrThrow(sql, documentId);
   await assertDocumentVisible(sql, auth, doc);
   return doc;
-}
-
-/** Bounded hub title search for the `@` mention picker. */
-export async function searchDocumentsForMention(
-  sql: Sql,
-  auth: ProjectAuthContext,
-  query: string,
-  limit = 20,
-): Promise<DocumentRow[]> {
-  const term = `%${query.trim()}%`;
-  if (query.trim().length === 0) {
-    return [];
-  }
-  const rows = await sql<DocumentRow[]>`
-    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
-    WHERE org_id = ${auth.organizationId}
-      AND project_id IS NULL
-      AND lifecycle_status IS DISTINCT FROM 'trashed'
-      AND title ILIKE ${term}
-    ORDER BY updated_at_ms DESC
-    LIMIT ${Math.min(limit, 50) * 3}
-  `;
-  return rows
-    .filter((doc) => hasKnowledgeHubDocumentAccess(doc, auth.teamIds))
-    .slice(0, Math.min(limit, 50));
 }
 
 // ---------------------------------------------------------------------------

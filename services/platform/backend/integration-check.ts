@@ -3128,20 +3128,12 @@ async function checkDocuments(
     headers: { 'content-type': 'text/plain' },
     body: 'hello docs!',
   });
-  const registered = z.object({ fileId: z.string() }).safeParse(
+  const created = z.object({ documentId: z.string() }).safeParse(
     await (
-      await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+      await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
         storageRef: handoff.data.storageRef,
         fileName: 'notes.txt',
         contentType: 'text/plain',
-      })
-    ).json(),
-  );
-  const created = z.object({ documentId: z.string() }).safeParse(
-    await (
-      await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
-        fileId: registered.success ? registered.data.fileId : '',
-        fileName: 'notes.txt',
       })
     ).json(),
   );
@@ -3156,7 +3148,9 @@ async function checkDocuments(
   const docUrl = z
     .object({ url: z.string().url() })
     .safeParse(
-      await get(`/api/app/documents/${documentId}/url?orgId=${orgId}`),
+      await get(
+        `/api/app/files/${encodeURIComponent(handoff.data.storageRef)}/url?orgId=${orgId}`,
+      ),
     );
   const body = docUrl.success
     ? await (await fetch(docUrl.data.url)).text()
@@ -3223,8 +3217,8 @@ async function checkDocuments(
   );
 
   // --- Agent listing (the chat + sandbox document tool doors) --------------
-  // Runs HERE, while notes.txt still sits in Contracts/2026 (the attach leg
-  // below clears folder_id by design). Both doors share one Postgres-side
+  // Runs HERE, while notes.txt sits in Contracts/2026. Both doors share one
+  // Postgres-side
   // breadcrumb derivation; the doc must list with that folderPath — the
   // regression lock for the phantom `f.path` column the 0.5 port shipped
   // with (every listing errored, so the chat document tool and
@@ -3293,56 +3287,8 @@ async function checkDocuments(
     `user=${userList.success ? userList.data.documents.length : 'ERR'}, path=${notesPathIn(userList) ?? 'MISS'}, fileName=${userNamed.success ? userNamed.data.documents.length : 'ERR'} (want 1), pdf=${userNoPdf.success ? userNoPdf.data.documents.length : 'ERR'} (want 0), bindingPath=${notesPathIn(boundList) ?? 'MISS'}, read=${readRow.success ? (readRow.data?.title ?? 'null') : 'ERR'}`,
   );
 
-  // Project attach flips the doc out of the hub; detach restores it.
-  const proj = z.object({ projectId: z.string() }).safeParse(
-    await (
-      await send('POST', `/api/app/projects?orgId=${orgId}`, {
-        name: 'Docs Project',
-      })
-    ).json(),
-  );
-  const projectId = proj.success ? proj.data.projectId : '';
-  const attach = await send(
-    'POST',
-    `/api/app/documents/${documentId}/attach-to-project?orgId=${orgId}`,
-    { projectId },
-  );
-  const hubAfterAttach = z
-    .object({ documents: z.array(z.object({ id: z.string() })) })
-    .safeParse(await get(`/api/app/documents?orgId=${orgId}`));
-  const projDocs = z
-    .object({ documents: z.array(z.object({ id: z.string() })) })
-    .safeParse(
-      await get(`/api/app/documents/by-project/${projectId}?orgId=${orgId}`),
-    );
-  const detach = await send(
-    'POST',
-    `/api/app/documents/${documentId}/detach-from-project?orgId=${orgId}`,
-  );
-  const trash = await send(
-    'POST',
-    `/api/app/documents/${documentId}/trash?orgId=${orgId}`,
-  );
-  const hubAfterTrash = z
-    .object({ documents: z.array(z.object({ id: z.string() })) })
-    .safeParse(await get(`/api/app/documents?orgId=${orgId}`));
-  record(
-    'document project attach/detach + trash',
-    attach.ok &&
-      hubAfterAttach.success &&
-      !hubAfterAttach.data.documents.some((d) => d.id === documentId) &&
-      projDocs.success &&
-      projDocs.data.documents.some((d) => d.id === documentId) &&
-      detach.ok &&
-      trash.ok &&
-      hubAfterTrash.success &&
-      !hubAfterTrash.data.documents.some((d) => d.id === documentId),
-    `attach → ${attach.status}, hubHidden=${hubAfterAttach.success ? !hubAfterAttach.data.documents.some((d) => d.id === documentId) : 'ERR'}, inProject=${projDocs.success ? projDocs.data.documents.some((d) => d.id === documentId) : 'ERR'}, trashHidden=${hubAfterTrash.success ? !hubAfterTrash.data.documents.some((d) => d.id === documentId) : 'ERR'}`,
-  );
-
   // --- Hub wire views + session upload lane (inc 84) -----------------------
 
-  await send('POST', `/api/app/documents/${documentId}/restore?orgId=${orgId}`);
   const itemShape = z
     .object({
       document: z.object({
@@ -3369,7 +3315,10 @@ async function checkDocuments(
   );
 
   // Session upload lane: size-free presign → PUT → policy-validated bind.
-  const uploadDoc = async (fileName: string): Promise<string> => {
+  const uploadDoc = async (
+    fileName: string,
+    projectId?: string,
+  ): Promise<string> => {
     const presign = z
       .object({
         url: z.string().url(),
@@ -3400,6 +3349,7 @@ async function checkDocuments(
               storageRef: presign.data.s3Ref,
               fileName,
               contentType: 'text/plain',
+              ...(projectId !== undefined ? { projectId } : {}),
             },
           )
         ).json(),
@@ -3413,6 +3363,44 @@ async function checkDocuments(
     'blob-upload lane (presign → PUT → bind)',
     blobA !== '' && blobB !== '' && blobC !== '',
     `a=${blobA || 'ERR'}, b=${blobB || 'ERR'}, c=${blobC || 'ERR'}`,
+  );
+
+  // A project file never lists in the hub; detaching it releases it there.
+  const proj = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/projects?orgId=${orgId}`, {
+        name: 'Docs Project',
+      })
+    ).json(),
+  );
+  const projectId = proj.success ? proj.data.projectId : '';
+  const projectDocId = await uploadDoc('project-file.txt', projectId);
+  const hubBeforeDetach = z
+    .object({ documents: z.array(z.object({ id: z.string() })) })
+    .safeParse(await get(`/api/app/documents?orgId=${orgId}`));
+  const projDocs = z
+    .object({ documents: z.array(z.object({ id: z.string() })) })
+    .safeParse(
+      await get(`/api/app/documents/by-project/${projectId}?orgId=${orgId}`),
+    );
+  const detach = await send(
+    'POST',
+    `/api/app/documents/${projectDocId}/detach-from-project?orgId=${orgId}`,
+  );
+  const hubAfterDetach = z
+    .object({ documents: z.array(z.object({ id: z.string() })) })
+    .safeParse(await get(`/api/app/documents?orgId=${orgId}`));
+  record(
+    'document project scope + detach releases to the hub',
+    projectDocId !== '' &&
+      hubBeforeDetach.success &&
+      !hubBeforeDetach.data.documents.some((d) => d.id === projectDocId) &&
+      projDocs.success &&
+      projDocs.data.documents.some((d) => d.id === projectDocId) &&
+      detach.ok &&
+      hubAfterDetach.success &&
+      hubAfterDetach.data.documents.some((d) => d.id === projectDocId),
+    `bind → ${projectDocId || 'ERR'}, hubHidden=${hubBeforeDetach.success ? !hubBeforeDetach.data.documents.some((d) => d.id === projectDocId) : 'ERR'}, inProject=${projDocs.success ? projDocs.data.documents.some((d) => d.id === projectDocId) : 'ERR'}, detach → ${detach.status}, hubListed=${hubAfterDetach.success ? hubAfterDetach.data.documents.some((d) => d.id === projectDocId) : 'ERR'}`,
   );
 
   // Keyset page walk: disjoint pages, all four docs, terminal isDone.
@@ -3710,7 +3698,8 @@ async function checkDocuments(
     );
   const trashWhileInReview = await send(
     'POST',
-    `/api/app/documents/${recordDocId}/trash?orgId=${orgId}`,
+    `/api/app/documents/${recordDocId}/delete?orgId=${orgId}`,
+    {},
   );
   const respondRoute = `/api/app/documents/records/reviews/${submit.success ? submit.data.approvalId : ''}/respond?orgId=${orgId}`;
   const noFeedback = await sendAs(reviewerCookie, 'POST', respondRoute, {
@@ -3766,7 +3755,7 @@ async function checkDocuments(
       lastReview.data.review?.decision === 'request_changes' &&
       lastReview.data.review.feedback === 'Tighten section 2.' &&
       lastReview.data.review.respondedBy === reviewerUserId,
-    `submit=${submit.success ? 'ok' : 'ERR'}, pendingMatch=${pendingReview.success ? pendingReview.data.review?.approvalId === (submit.success ? submit.data.approvalId : '') : 'ERR'}, trash → ${trashWhileInReview.status} (want 400), noFeedback → ${noFeedback.status} (want 400), submitterResponds → ${submitterResponds.status}/${submitterCode} (want 403/REVIEW_NOT_ASSIGNED), changes=${changes.success ? changes.data.state : 'ERR'}, last=${lastReview.success ? `${lastReview.data.review?.decision ?? 'null'} by ${lastReview.data.review?.respondedBy === reviewerUserId ? 'reviewer' : 'OTHER'}` : 'ERR'}`,
+    `submit=${submit.success ? 'ok' : 'ERR'}, pendingMatch=${pendingReview.success ? pendingReview.data.review?.approvalId === (submit.success ? submit.data.approvalId : '') : 'ERR'}, delete → ${trashWhileInReview.status} (want 400), noFeedback → ${noFeedback.status} (want 400), submitterResponds → ${submitterResponds.status}/${submitterCode} (want 403/REVIEW_NOT_ASSIGNED), changes=${changes.success ? changes.data.state : 'ERR'}, last=${lastReview.success ? `${lastReview.data.review?.decision ?? 'null'} by ${lastReview.data.review?.respondedBy === reviewerUserId ? 'reviewer' : 'OTHER'}` : 'ERR'}`,
   );
 
   const resubmit = z
@@ -4442,24 +4431,16 @@ async function checkDocumentWriteGuards(
       headers: { 'content-type': 'text/plain' },
       body: 'guard body',
     });
-    const registered = z.object({ fileId: z.string() }).safeParse(
-      await (
-        await sendAs(cookie, 'POST', `/api/app/files/register?orgId=${orgId}`, {
-          storageRef: handoff.data.storageRef,
-          fileName,
-          contentType: 'text/plain',
-        })
-      ).json(),
-    );
     const created = z.object({ documentId: z.string() }).safeParse(
       await (
         await sendAs(
           cookie,
           'POST',
-          `/api/app/documents/from-upload?orgId=${orgId}`,
+          `/api/app/documents/from-blob-upload?orgId=${orgId}`,
           {
-            fileId: registered.success ? registered.data.fileId : '',
+            storageRef: handoff.data.storageRef,
             fileName,
+            contentType: 'text/plain',
           },
         )
       ).json(),
@@ -4547,11 +4528,6 @@ async function checkDocumentWriteGuards(
       title: 'member-renamed',
     },
   );
-  const trash = await sendAs(
-    memberCookie,
-    'POST',
-    `${appDoc}/trash?orgId=${orgId}`,
-  );
   const hardDelete = await sendAs(
     memberCookie,
     'POST',
@@ -4598,7 +4574,6 @@ async function checkDocumentWriteGuards(
     );
   const appRefused = [
     renameDoc,
-    trash,
     hardDelete,
     blobBind,
     markByMember,
@@ -4613,7 +4588,7 @@ async function checkDocumentWriteGuards(
       renameCode === 'RBAC_FORBIDDEN' &&
       memberList.success &&
       memberList.data.documents.some((doc) => doc.id === docA),
-    `rename/trash/delete/blob-bind/mark/replace-begin/retry/cascade → ${appRefused.map((r) => r.status).join('/')} (want all 403), code=${renameCode}, memberRead=${memberList.success ? memberList.data.documents.length : 'ERR'} doc(s)`,
+    `rename/delete/blob-bind/mark/replace-begin/retry/cascade → ${appRefused.map((r) => r.status).join('/')} (want all 403), code=${renameCode}, memberRead=${memberList.success ? memberList.data.documents.length : 'ERR'} doc(s)`,
   );
 
   // ---- (1) org-role write matrix — the REST v1 door refuses a member ------
@@ -6202,6 +6177,16 @@ async function checkKnowledge(
       });
     /** Upload a text file, register it, bind a document (optionally into a
      * folder) — the three-call journey the later lanes repeat. */
+    // The blob-upload bind registers the file row itself; the harness reads
+    // that row back by its blob ref.
+    const fileIdOfRef = async (storageRef: string): Promise<string> => {
+      const rows = await sql<{ id: string }[]>`
+        SELECT id FROM app.file_metadata
+        WHERE org_id = ${orgId} AND storage_ref = ${storageRef}
+        LIMIT 1
+      `;
+      return rows[0]?.id ?? '';
+    };
     const uploadTextDocument = async (
       fileName: string,
       text: string,
@@ -6224,28 +6209,25 @@ async function checkKnowledge(
         headers: { 'content-type': 'text/plain' },
         body: text,
       });
-      const registered = z.object({ fileId: z.string() }).safeParse(
-        await (
-          await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-            storageRef: handoff.data.storageRef,
-            fileName,
-            contentType: 'text/plain',
-          })
-        ).json(),
-      );
-      if (!registered.success) throw new Error(`register failed: ${fileName}`);
       const bound = z.object({ documentId: z.string() }).safeParse(
         await (
-          await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
-            fileId: registered.data.fileId,
-            fileName,
-            ...extra,
-          })
+          await send(
+            'POST',
+            `/api/app/documents/from-blob-upload?orgId=${orgId}`,
+            {
+              storageRef: handoff.data.storageRef,
+              fileName,
+              contentType: 'text/plain',
+              ...extra,
+            },
+          )
         ).json(),
       );
       if (!bound.success) throw new Error(`document bind failed: ${fileName}`);
+      const fileId = await fileIdOfRef(handoff.data.storageRef);
+      if (fileId === '') throw new Error(`file row missing: ${fileName}`);
       return {
-        fileId: registered.data.fileId,
+        fileId,
         storageRef: handoff.data.storageRef,
         documentId: bound.data.documentId,
       };
@@ -6328,25 +6310,18 @@ async function checkKnowledge(
       headers: { 'content-type': 'text/plain' },
       body: payload,
     });
-    const registered = z.object({ fileId: z.string() }).safeParse(
-      await (
-        await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-          storageRef: handoff.data.storageRef,
-          fileName: 'quarterly.txt',
-          contentType: 'text/plain',
-        })
-      ).json(),
-    );
-    await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
-      fileId: registered.success ? registered.data.fileId : '',
+    await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
+      storageRef: handoff.data.storageRef,
       fileName: 'quarterly.txt',
+      contentType: 'text/plain',
     });
+    const quarterlyFileId = await fileIdOfRef(handoff.data.storageRef);
 
     // The rag.index_file job runs on the live worker; wait for completion.
     const indexed = await waitFor(async () => {
       const rows = await sql<{ status: string | null }[]>`
         SELECT rag_status AS status FROM app.file_metadata
-        WHERE id = ${registered.success ? registered.data.fileId : ''}
+        WHERE id = ${quarterlyFileId}
       `;
       return rows[0]?.status === 'completed';
     }, 20_000);
@@ -6354,7 +6329,7 @@ async function checkKnowledge(
       { status: string | null; error: string | null }[]
     >`
       SELECT rag_status AS status, rag_error AS error FROM app.file_metadata
-      WHERE id = ${registered.success ? registered.data.fileId : ''}
+      WHERE id = ${quarterlyFileId}
     `;
     // Indexing state lives on the FILE row; the document LIST renders it. A
     // browser only refetches when a hint names the entity it holds, so a
@@ -6421,22 +6396,12 @@ async function checkKnowledge(
         headers: { 'content-type': 'image/png' },
         body: PNG_1X1,
       });
-      const imageRegistered = z.object({ fileId: z.string() }).safeParse(
-        await (
-          await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-            storageRef: imageHandoff.data.storageRef,
-            fileName: 'diagram.png',
-            contentType: 'image/png',
-          })
-        ).json(),
-      );
-      const imageFileId = imageRegistered.success
-        ? imageRegistered.data.fileId
-        : '';
-      await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
-        fileId: imageFileId,
+      await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
+        storageRef: imageHandoff.data.storageRef,
         fileName: 'diagram.png',
+        contentType: 'image/png',
       });
+      const imageFileId = await fileIdOfRef(imageHandoff.data.storageRef);
       await waitFor(async () => {
         const rows = await sql<{ status: string | null }[]>`
           SELECT rag_status AS status FROM app.file_metadata
@@ -6494,23 +6459,16 @@ async function checkKnowledge(
       headers: { 'content-type': 'text/plain' },
       body: ledger,
     });
-    const bigRegistered = z.object({ fileId: z.string() }).safeParse(
-      await (
-        await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-          storageRef: bigHandoff.data.storageRef,
-          fileName: 'ledger.txt',
-          contentType: 'text/plain',
-        })
-      ).json(),
-    );
-    await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
-      fileId: bigRegistered.success ? bigRegistered.data.fileId : '',
+    await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
+      storageRef: bigHandoff.data.storageRef,
       fileName: 'ledger.txt',
+      contentType: 'text/plain',
     });
+    const ledgerFileId = await fileIdOfRef(bigHandoff.data.storageRef);
     const bigIndexed = await waitFor(async () => {
       const rows = await sql<{ status: string | null }[]>`
         SELECT rag_status AS status FROM app.file_metadata
-        WHERE id = ${bigRegistered.success ? bigRegistered.data.fileId : ''}
+        WHERE id = ${ledgerFileId}
       `;
       return rows[0]?.status === 'completed';
     }, 60_000);
@@ -6905,30 +6863,31 @@ async function checkCorpusPurgeConsistency(
         headers: { 'content-type': 'text/plain' },
         body: content,
       });
-      const registered = z.object({ fileId: z.string() }).safeParse(
-        await (
-          await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-            storageRef: handoff.data.storageRef,
-            fileName,
-            contentType: 'text/plain',
-          })
-        ).json(),
-      );
-      if (!registered.success) return null;
       const bound = z.object({ documentId: z.string() }).safeParse(
         await (
-          await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
-            fileId: registered.data.fileId,
-            fileName,
-            ...(projectId !== undefined ? { projectId } : {}),
-          })
+          await send(
+            'POST',
+            `/api/app/documents/from-blob-upload?orgId=${orgId}`,
+            {
+              storageRef: handoff.data.storageRef,
+              fileName,
+              contentType: 'text/plain',
+              ...(projectId !== undefined ? { projectId } : {}),
+            },
+          )
         ).json(),
       );
       if (!bound.success) return null;
+      const fileRows = await sql<{ id: string }[]>`
+        SELECT id FROM app.file_metadata
+        WHERE org_id = ${orgId} AND storage_ref = ${handoff.data.storageRef}
+        LIMIT 1
+      `;
+      const fileId = fileRows[0]?.id ?? '';
       const indexed = await waitFor(async () => {
         const rows = await sql<{ status: string | null }[]>`
           SELECT rag_status AS status FROM app.file_metadata
-          WHERE id = ${registered.data.fileId}
+          WHERE id = ${fileId}
         `;
         return rows[0]?.status === 'completed';
       }, 30_000);
@@ -6936,7 +6895,7 @@ async function checkCorpusPurgeConsistency(
       return {
         documentId: bound.data.documentId,
         ref: handoff.data.storageRef,
-        fileId: registered.data.fileId,
+        fileId,
       };
     };
 
@@ -7018,15 +6977,10 @@ async function checkCorpusPurgeConsistency(
       `finalize → ${finalize.status}, oldCorpusGone=${oldDeindexed}, newIndexed=${newIndexed}, oldFetchDark=${oldFetchDark}, snapshotBytesKept=${oldBlobRetained}`,
     );
 
-    // --- 1b. Project attach/detach re-stamps the corpus scope --------------
-    // A hub document's corpus rows carry no project; attaching it to a
-    // project must stamp that project (or the file keeps answering org-wide
-    // retrieval from inside a restricted project), and detaching must clear
-    // it (or the file silently vanishes from hub retrieval).
-    const scoped = await uploadIndexedDoc(
-      'purge-scope.txt',
-      'purge check gamma peridot scope body',
-    );
+    // --- 1b. Project detach re-stamps the corpus scope ---------------------
+    // A project file's corpus rows carry its project (the file answers
+    // retrieval only inside it); detaching it to the hub must clear that
+    // stamp, or the file silently vanishes from hub retrieval.
     const scopeProject = z.object({ projectId: z.string() }).safeParse(
       await (
         await send('POST', `/api/app/projects?orgId=${orgId}`, {
@@ -7037,6 +6991,11 @@ async function checkCorpusPurgeConsistency(
     const scopeProjectId = scopeProject.success
       ? scopeProject.data.projectId
       : '';
+    const scoped = await uploadIndexedDoc(
+      'purge-scope.txt',
+      'purge check gamma peridot scope body',
+      scopeProjectId,
+    );
     const corpusProjectOf = async (
       ref: string,
     ): Promise<string | null | undefined> => {
@@ -7049,16 +7008,6 @@ async function checkCorpusPurgeConsistency(
     };
     const scopeBefore =
       scoped === null ? undefined : await corpusProjectOf(scoped.ref);
-    const attachScoped =
-      scoped === null
-        ? null
-        : await send(
-            'POST',
-            `/api/app/documents/${scoped.documentId}/attach-to-project?orgId=${orgId}`,
-            { projectId: scopeProjectId },
-          );
-    const scopeAttached =
-      scoped === null ? undefined : await corpusProjectOf(scoped.ref);
     const detachScoped =
       scoped === null
         ? null
@@ -7069,15 +7018,13 @@ async function checkCorpusPurgeConsistency(
     const scopeDetached =
       scoped === null ? undefined : await corpusProjectOf(scoped.ref);
     record(
-      'corpus scope: project attach/detach re-stamps retrieval scope',
+      'corpus scope: project detach re-stamps retrieval scope',
       scoped !== null &&
         scopeProjectId !== '' &&
-        scopeBefore === null &&
-        attachScoped?.ok === true &&
-        scopeAttached === scopeProjectId &&
+        scopeBefore === scopeProjectId &&
         detachScoped?.ok === true &&
         scopeDetached === null,
-      `seed=${scoped !== null}, before=${String(scopeBefore)} (want null), attach → ${attachScoped?.status ?? 'skipped'}, stamped=${scopeAttached === scopeProjectId ? 'project' : String(scopeAttached)} (want project), detach → ${detachScoped?.status ?? 'skipped'}, cleared=${String(scopeDetached)} (want null)`,
+      `seed=${scoped !== null}, stamped=${scopeBefore === scopeProjectId ? 'project' : String(scopeBefore)} (want project), detach → ${detachScoped?.status ?? 'skipped'}, cleared=${String(scopeDetached)} (want null)`,
     );
 
     // --- 1c. The REST door's team change re-stamps too ----------------------
@@ -22452,7 +22399,7 @@ async function checkOneDriveSync(
       ? (memoResult.data.results[0]?.documentId ?? '')
       : '';
     const trash = await fetch(
-      `${base}/api/app/documents/${memoDocId}/trash?orgId=${orgId}`,
+      `${base}/api/app/documents/${memoDocId}/delete?orgId=${orgId}`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', cookie, origin: base },
@@ -22462,13 +22409,13 @@ async function checkOneDriveSync(
     const memoConfigAfterTrash = await configByItem('f-memo');
     const memoDocRows = await docsByExternalId('f-memo');
     record(
-      'onedrive trash stops a directly-selected single-file sync',
+      'onedrive delete stops a directly-selected single-file sync',
       memoResult.success &&
         memoResult.data.successCount === 1 &&
         trash.status === 200 &&
-        memoDocRows[0]?.lifecycleStatus === 'trashed' &&
+        memoDocRows.length === 0 &&
         memoConfigAfterTrash?.status === 'inactive',
-      `import=${memoResult.success ? memoResult.data.successCount : 'ERR'}/1 trash=${trash.status} doc=${memoDocRows[0]?.lifecycleStatus} config=${memoConfigAfterTrash?.status} (want inactive)`,
+      `import=${memoResult.success ? memoResult.data.successCount : 'ERR'}/1 delete=${trash.status} rows=${memoDocRows.length}/0 config=${memoConfigAfterTrash?.status} (want inactive)`,
     );
 
     // 7. Token order: grant revoked → the Better Auth login account serves;
@@ -23077,7 +23024,7 @@ async function checkGoogleDriveSync(
       ? (noteResult.data.results[0]?.documentId ?? '')
       : '';
     const trash = await fetch(
-      `${base}/api/app/documents/${noteDocId}/trash?orgId=${orgId}`,
+      `${base}/api/app/documents/${noteDocId}/delete?orgId=${orgId}`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', cookie, origin: base },
@@ -23098,7 +23045,7 @@ async function checkGoogleDriveSync(
     const cancel = await post(`/sync-configs/${folderConfig.id}/cancel`, {});
     const cancelMissing = await post('/sync-configs/nope/cancel', {});
     record(
-      'google-drive 404/trash deactivation + second job pair + cancel door',
+      'google-drive 404/delete deactivation + second job pair + cancel door',
       memoGone &&
         memoConfigAfter?.status === 'inactive' &&
         memoConfigAfter.lastSyncStatus === 'source-deleted' &&
@@ -30777,8 +30724,8 @@ async function checkLegalHolds(
   `;
   const heldDocId = docRows[0]?.id ?? '';
   const docTrashRefused = await post(
-    `/api/app/documents/${heldDocId}/trash?orgId=${orgId}`,
-    { trashed: true },
+    `/api/app/documents/${heldDocId}/delete?orgId=${orgId}`,
+    {},
   );
 
   const requested = z
