@@ -13,7 +13,8 @@
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ingestVideoUrl, retryVideoLink, VideoLinkError } from './service.ts';
+import { deleteOrgBlobRefs } from '../files/service.ts';
+import { ingestVideoUrl, retryVideoLink } from './service.ts';
 
 vi.mock('../files/service.ts', () => ({
   deleteOrgBlobRefs: vi.fn(() => Promise.resolve()),
@@ -76,13 +77,16 @@ function jobRow(overrides: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
- * Scripted `sql`: the in-flight count answers `inFlight`, a job read pops
- * `jobs`, an insert answers one id, every other statement answers empty
- * (no dedup hit, no donor, no budget rows). Statements record the handle
- * they ran on so the test can prove the count ran INSIDE `begin`.
+ * Scripted `sql`: the in-flight count answers `inFlight` (`inFlightTx` on
+ * the transaction handle when given, so a pool pre-check and the locked
+ * count can disagree), a job read pops `jobs`, an insert answers one id,
+ * every other statement answers empty (no dedup hit, no donor, no budget
+ * rows). Statements record the handle they ran on so the test can prove
+ * the count ran INSIDE `begin`.
  */
 function fakeSql(script: {
   inFlight: number;
+  inFlightTx?: number;
   jobs?: Record<string, unknown>[];
 }): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
@@ -109,7 +113,15 @@ function fakeSql(script: {
           'SELECT count(*)::text AS count FROM app.video_link_jobs',
         )
       ) {
-        rows = [{ count: String(script.inFlight) }];
+        rows = [
+          {
+            count: String(
+              via === 'tx'
+                ? (script.inFlightTx ?? script.inFlight)
+                : script.inFlight,
+            ),
+          },
+        ];
       } else if (text.startsWith('INSERT INTO app.video_link_jobs')) {
         rows = [{ id: 'job-new' }];
       } else if (text.startsWith('SELECT id, org_id AS "organizationId"')) {
@@ -230,8 +242,11 @@ describe('retryVideoLink in-flight cap', () => {
     expect(order[order.length - 1]).toBe('COMMIT');
   });
 
-  it('refuses at the cap without re-queueing', async () => {
-    const fake = fakeSql({ inFlight: 3, jobs: [jobRow({})] });
+  it('fast-fails on the pool before the cleanup touches the failed job', async () => {
+    const fake = fakeSql({
+      inFlight: 3,
+      jobs: [jobRow({ storageRef: 'blob-1', fileMetadataId: 'meta-1' })],
+    });
 
     await expect(
       retryVideoLink(fake.sql, {
@@ -239,9 +254,38 @@ describe('retryVideoLink in-flight cap', () => {
         userId: 'user-1',
         jobId: 'job-1',
       }),
-    ).rejects.toBeInstanceOf(VideoLinkError);
+    ).rejects.toMatchObject({
+      name: 'VideoLinkError',
+      code: 'inFlightCap',
+      status: 429,
+    });
+    // The refusal came from the pool-side pre-check: nothing was undone.
+    expect(
+      fake.statements.some(
+        (s) => s.via === 'pool' && s.text.startsWith('SELECT count(*)'),
+      ),
+    ).toBe(true);
+    expect(deleteOrgBlobRefs).not.toHaveBeenCalled();
+    expect(
+      fake.statements.some((s) =>
+        s.text.startsWith('DELETE FROM app.file_metadata'),
+      ),
+    ).toBe(false);
+    expect(kinds(fake.statements)).toEqual([]);
+  });
+
+  it('lets the locked count inside the transaction decide, not the pre-check', async () => {
+    const fake = fakeSql({ inFlight: 2, inFlightTx: 3, jobs: [jobRow({})] });
+
+    await expect(
+      retryVideoLink(fake.sql, {
+        organizationId: 'org-1',
+        userId: 'user-1',
+        jobId: 'job-1',
+      }),
+    ).rejects.toMatchObject({ code: 'inFlightCap', status: 429 });
     const order = kinds(fake.statements);
+    expect(order).toEqual(['BEGIN', 'LOCK', 'COUNT', 'ROLLBACK']);
     expect(order).not.toContain('UPDATE');
-    expect(order[order.length - 1]).toBe('ROLLBACK');
   });
 });

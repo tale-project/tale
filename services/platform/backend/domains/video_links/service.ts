@@ -882,6 +882,29 @@ export async function runVideoCloneJob(
 }
 
 /**
+ * The per-org in-flight count against the cap. On a pool handle this is a
+ * NON-authoritative pre-check (a fast 429 before a door does work it would
+ * otherwise have to undo); only `assertInFlightCapInTx` decides.
+ */
+async function assertInFlightCap(
+  db: Sql | TransactionSql,
+  organizationId: string,
+): Promise<void> {
+  const rows = await db<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.video_link_jobs
+    WHERE org_id = ${organizationId}
+      AND status = ANY(${[...NON_TERMINAL_STATUSES]})
+  `;
+  if (Number(rows[0]?.count ?? '0') >= MAX_IN_FLIGHT_PER_ORG) {
+    throw new VideoLinkError(
+      'inFlightCap',
+      `At most ${MAX_IN_FLIGHT_PER_ORG} video links can process at once. Wait for one to finish.`,
+      429,
+    );
+  }
+}
+
+/**
  * The per-org in-flight cap, decided INSIDE the transaction that inserts
  * (or re-queues) the job, serialized per org by an advisory lock: a plain
  * count on the pool before a separate insert let N simultaneous pastes all
@@ -895,18 +918,7 @@ async function assertInFlightCapInTx(
   await tx`
     SELECT pg_advisory_xact_lock(hashtextextended('video_links:' || ${organizationId}, 0))
   `;
-  const rows = await tx<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.video_link_jobs
-    WHERE org_id = ${organizationId}
-      AND status = ANY(${[...NON_TERMINAL_STATUSES]})
-  `;
-  if (Number(rows[0]?.count ?? '0') >= MAX_IN_FLIGHT_PER_ORG) {
-    throw new VideoLinkError(
-      'inFlightCap',
-      `At most ${MAX_IN_FLIGHT_PER_ORG} video links can process at once. Wait for one to finish.`,
-      429,
-    );
-  }
+  await assertInFlightCap(tx, organizationId);
 }
 
 const PROSPECTIVE_VIDEO_LINK_COST_CENTS = Math.ceil(
@@ -1367,6 +1379,10 @@ export async function retryVideoLink(
     );
   }
   await assertVideoBudget(sql, args.organizationId, args.userId);
+  // Fast-fail on the pool BEFORE the cleanup below deletes the failed job's
+  // blob and file row: a retry the cap refuses should leave them in place.
+  // The locked count inside the transaction is the decision.
+  await assertInFlightCap(sql, args.organizationId);
 
   await cleanupCancelledVideoLink(sql, args.jobId);
   await sql.begin(async (tx) => {
