@@ -28015,12 +28015,43 @@ async function checkLoginThrottleAndAuditChain(
   email: string,
 ): Promise<void> {
   const { cookie, orgId } = ctx;
-  const signIn = (password: string): Promise<Response> =>
+  const signIn = (password: string, asEmail = email): Promise<Response> =>
     fetch(`${base}/api/auth/sign-in/email`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: base },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: asEmail, password }),
     });
+
+  // A whitespace-padded address is refused by Better Auth's email check
+  // BEFORE any password check (400). That is not a failed attempt: it must
+  // neither open a counter for the real account nor — past the threshold —
+  // raise a lockout audit row and admin bell for a lock that does not exist.
+  const securityAudits = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.audit_logs
+          WHERE org_id = ${orgId}
+            AND action IN ('login_attempt', 'login_lockout')
+        `
+      )[0]?.count ?? '0',
+    );
+  const auditsBeforePadded = await securityAudits();
+  const padded: number[] = [];
+  for (let i = 0; i < 6; i += 1) {
+    padded.push((await signIn('wrong-password-1', `  ${email}  `)).status);
+  }
+  const counterAfterPadded = await sql<{ failures: number }[]>`
+    SELECT consecutive_failures AS failures FROM app.login_attempts
+    WHERE email = ${email.toLowerCase()}
+  `;
+  record(
+    'padded sign-in email is refused without failure accounting',
+    padded.every((s) => s === 400) &&
+      counterAfterPadded.length === 0 &&
+      (await securityAudits()) === auditsBeforePadded,
+    `padded attempts → ${padded.join(',')} (want 400s), counter rows=${counterAfterPadded.length} (want 0), audit delta=${(await securityAudits()) - auditsBeforePadded} (want 0)`,
+  );
 
   // Default policy: 5 failures lock the account (first backoff 1s).
   const statuses: number[] = [];
