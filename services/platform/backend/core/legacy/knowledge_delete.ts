@@ -20,6 +20,9 @@
  * The SQL ports the retired `RagService.deleteDocument` verbatim, including
  * its idempotent-on-missing semantics: a ref with no rows is a no-op success,
  * so retention re-runs and cascade purges stay safe to repeat.
+ *
+ * `'use node'` is the core/ marker for a module that does Node-side I/O —
+ * here the postgres pool — as opposed to the pure modules that leave it out.
  */
 
 import {
