@@ -101,8 +101,9 @@ actions:
   - name: get_message
     description: >-
       Fetch one message by IMAP UID with plain/HTML body, file attachments
-      (metadata plus base64 content when under 5 MiB), and threading headers
-      (Message-ID, In-Reply-To, References). Omit mailbox for INBOX.
+      (metadata plus base64 content when under 100 MiB; a larger part is
+      listed with `truncated: true`), and threading headers (Message-ID,
+      In-Reply-To, References). Omit mailbox for INBOX.
     effects: read
     input:
       type: object
@@ -115,7 +116,7 @@ actions:
             description: 'IMAP folder to read. Omit for INBOX; pass `sent` for the Sent folder.',
           }
     output: >-
-      { uid: string, email: { uid: number, messageId: string, from: Array<{ name?: string, address: string }>, to: Array<{ name?: string, address: string }>, cc: Array<{ name?: string, address: string }>, subject: string, date: string, text?: string, html?: string, flags: string[], headers: Record<string, string>, attachments?: Array<{ id: string, filename: string, contentType: string, size: number, contentId?: string, contentBase64?: string }> } }
+      { uid: string, email: { uid: number, messageId: string, from: Array<{ name?: string, address: string }>, to: Array<{ name?: string, address: string }>, cc: Array<{ name?: string, address: string }>, subject: string, date: string, text?: string, html?: string, flags: string[], headers: Record<string, string>, attachments?: Array<{ id: string, filename: string, contentType: string, size: number, contentId?: string, contentBase64?: string, truncated?: boolean }> } }
     mock: |
       return {
         uid: String(input.uid),

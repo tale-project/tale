@@ -28,6 +28,7 @@
 
 import { z } from 'zod/v4';
 
+import { CHAT_MAX_FILE_SIZE } from '../../shared/file-types';
 import type {
   NativeConnectorContext,
   NativeConnectorImpl,
@@ -125,18 +126,22 @@ export interface MailAttachment {
   readonly contentId?: string;
   /** Present when the part's body fit under {@link MAX_ATTACHMENT_BYTES}. */
   readonly contentBase64?: string;
+  /** True when the part's bytes were fetched but exceeded
+   * {@link MAX_ATTACHMENT_BYTES}, so only its metadata is listed — the caller
+   * can tell "too large to carry" from "the part had no body". */
+  readonly truncated?: boolean;
 }
 
 /**
- * Cap for attachment bytes returned inline from `get_message`. Deliberately
- * well under Convex's function-payload ceiling: base64 inflates by ~4/3, and
- * this string crosses the connector-action boundary before sync writes it to
- * blob storage. 5 MiB raw (≈6.7 MiB encoded) matches the repo's other
- * cross-a-Convex-boundary blob cap and covers ordinary mail attachments —
- * providers cap a whole message near 25 MB. A bigger part is listed as
- * metadata only rather than risking the pass.
+ * Cap for attachment bytes returned inline from `get_message`: the platform's
+ * own per-file ceiling, so a part that would be refused as an upload is not
+ * carried either. The native returns in process to the dispatcher (no
+ * function-payload boundary), and the whole message source is already in
+ * memory to be parsed, so the base64 copy is the only extra cost. Mail
+ * providers cap a whole message near 25 MB, so every real attachment fits; a
+ * bigger part is listed as metadata with `truncated: true`.
  */
-export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = CHAT_MAX_FILE_SIZE;
 
 /**
  * One message body plus the fields conversation ingest needs — Message-ID
@@ -907,8 +912,9 @@ type SimpleParser = (source: Buffer | string) => Promise<{
 
 /**
  * Map mailparser attachment parts into the connector's attachment shape.
- * Oversized parts keep metadata only — sync still lists the file, but bytes
- * must be fetched another way (not yet wired for IMAP).
+ * A part above {@link MAX_ATTACHMENT_BYTES} keeps metadata only and says so
+ * (`truncated`) — sync still lists the file, and the chip can tell the reader
+ * the bytes were too large to carry rather than merely absent.
  */
 export function mailAttachmentsFromParsed(
   attachments: readonly ParsedMailAttachment[] | undefined,
@@ -952,13 +958,15 @@ export function mailAttachmentsFromParsed(
       size,
       ...(contentId !== undefined && contentId !== '' && { contentId }),
     };
-    if (bytes !== null && bytes.byteLength <= MAX_ATTACHMENT_BYTES) {
+    if (bytes === null) {
+      out.push(mapped);
+    } else if (bytes.byteLength <= MAX_ATTACHMENT_BYTES) {
       out.push({
         ...mapped,
         contentBase64: Buffer.from(bytes).toString('base64'),
       });
     } else {
-      out.push(mapped);
+      out.push({ ...mapped, truncated: true });
     }
   }
   return out;

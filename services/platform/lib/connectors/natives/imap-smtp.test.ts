@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { CHAT_MAX_FILE_SIZE } from '../../shared/file-types';
 import type { NativeConnectorContext } from '../dispatcher';
 import {
   discoverSentMailbox,
@@ -438,7 +439,24 @@ describe('mailAttachmentsFromParsed', () => {
     expect(MAX_ATTACHMENT_BYTES).toBe(Number(advertised?.[1]) * 1024 * 1024);
   });
 
-  it('encodes small parts as base64 and keeps oversized metadata-only', () => {
+  it('is the platform per-file cap, so a part that would upload is carried', () => {
+    // The old 5 MiB cap was a Convex payload ceiling; in 0.5 the native returns
+    // in process, so a part just above it must now carry its bytes.
+    expect(MAX_ATTACHMENT_BYTES).toBe(CHAT_MAX_FILE_SIZE);
+    const overOldCap = Buffer.alloc(5 * 1024 * 1024 + 1, 7);
+    const [out] = mailAttachmentsFromParsed([
+      {
+        filename: 'deck.pdf',
+        contentType: 'application/pdf',
+        size: overOldCap.byteLength,
+        content: overOldCap,
+      },
+    ]);
+    expect(out?.contentBase64).toBe(overOldCap.toString('base64'));
+    expect(out?.truncated).toBeUndefined();
+  });
+
+  it('encodes small parts as base64 and flags an oversized part as truncated', () => {
     const small = Buffer.from('hello');
     const large = Buffer.alloc(MAX_ATTACHMENT_BYTES + 1, 1);
     const out = mailAttachmentsFromParsed([
@@ -475,6 +493,7 @@ describe('mailAttachmentsFromParsed', () => {
         filename: 'huge.bin',
         contentType: 'application/octet-stream',
         size: large.byteLength,
+        truncated: true,
       },
       {
         id: 'cid@x',

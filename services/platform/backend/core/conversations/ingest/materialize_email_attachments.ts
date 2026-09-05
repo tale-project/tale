@@ -32,6 +32,8 @@ type WireAttachment = {
   storageId?: string;
   url?: string;
   contentBase64?: string;
+  /** The connector fetched the part but it was over its inline cap. */
+  truncated?: boolean;
 };
 
 function asWireAttachment(value: unknown): WireAttachment | null {
@@ -53,6 +55,7 @@ function asWireAttachment(value: unknown): WireAttachment | null {
     ...(typeof value.contentBase64 === 'string' && {
       contentBase64: value.contentBase64,
     }),
+    ...(value.truncated === true && { truncated: true }),
   };
 }
 
@@ -132,8 +135,9 @@ async function storeAttachment(
 
 /**
  * Walk fetched email objects and materialize any `contentBase64` attachments.
- * Emails without wire bytes pass through unchanged (metadata-only attachments
- * stay as chips the user can see but not open until a download path lands).
+ * Emails without wire bytes pass through unchanged (a metadata-only
+ * attachment stays a chip the user can see but not open; one the connector
+ * marked `truncated` keeps that flag so the reason is on record).
  */
 export async function materializeEmailAttachments(
   ctx: ActionCtx,
