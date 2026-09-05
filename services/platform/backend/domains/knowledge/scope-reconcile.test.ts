@@ -41,12 +41,19 @@ function fakeSql(rows: DocRow[]) {
   return (() => Promise.resolve(rows)) as never;
 }
 
+/** What postgres.js's `sql.json()` hands back: a typed parameter. */
+interface JsonParameter {
+  type: 3802;
+  value: unknown;
+}
+
 /** The corpus pool: records the payload, answers with a row count. */
 function fakePool(count: number) {
   const sent: unknown[][] = [];
   return {
     sent,
     pool: {
+      json: (value: unknown): JsonParameter => ({ type: 3802, value }),
       unsafe: (_sql: string, params: unknown[]) => {
         sent.push(params);
         return Promise.resolve({ count });
@@ -55,9 +62,10 @@ function fakePool(count: number) {
   };
 }
 
-/** The single JSON payload the reconcile builds. */
+/** The single jsonb payload the reconcile builds. */
 function payloadOf(sent: unknown[][]) {
-  return JSON.parse(String(sent[0]?.[1])) as Array<Record<string, unknown>>;
+  const param = sent[0]?.[1] as JsonParameter;
+  return param.value as Array<Record<string, unknown>>;
 }
 
 const doc = (over: Partial<DocRow> = {}): DocRow => ({
@@ -106,6 +114,25 @@ describe('reconcileDocumentScopeStamps', () => {
     // Three compared, two actually differed — the guard is what makes the
     // count meaningful, so the reconcile must not report `scanned` as drift.
     expect(out).toEqual({ scanned: 3, corrected: 2 });
+  });
+
+  it('sends the rows as one jsonb parameter, never as a pre-serialized string', async () => {
+    const { pool, sent } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    await reconcileDocumentScopeStamps(fakeSql([doc()]), {
+      organizationId: 'org-1',
+      orgSlug: 'acme',
+    });
+
+    // postgres.js JSON-encodes a jsonb-typed parameter itself; a string here
+    // would arrive double-encoded and `jsonb_to_recordset` would refuse it
+    // ("cannot call jsonb_to_recordset on a non-array") — the defect that
+    // truncated the integration proof at the reconcile lane.
+    const param = sent[0]?.[1] as JsonParameter;
+    expect(typeof param).toBe('object');
+    expect(param.type).toBe(3802);
+    expect(Array.isArray(param.value)).toBe(true);
   });
 
   it('stamps a hub document with NULL rather than an empty array', async () => {
