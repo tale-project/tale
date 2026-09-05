@@ -433,6 +433,14 @@ export type TurnOutcome =
       readonly step: TurnStep;
       readonly reason: string;
       readonly refusal?: GuardrailRefusal;
+      /**
+       * Whether the transcript recorded the exchange — the user's message
+       * and a blocked (or failed) assistant row. Every refusal the pipeline
+       * itself makes is on the record; a host that refuses BEFORE the
+       * pipeline (model resolution, access policy) writes nothing, and its
+       * caller still holds the only copy of the text.
+       */
+      readonly persisted: boolean;
     };
 
 // -------------------------------------------------------------------- steps
@@ -942,7 +950,7 @@ export async function runTurn(
       parts: [],
       blockedReason: reason,
     });
-    return { status: 'refused', steps, step, reason, refusal };
+    return { status: 'refused', steps, step, reason, refusal, persisted: true };
   };
 
   steps.push('input-guardrails');
@@ -1352,6 +1360,7 @@ export async function runTurn(
         step: 'output-guardrails',
         reason,
         refusal: streamed.refusal,
+        persisted: true,
       };
     }
 
@@ -1411,7 +1420,13 @@ export async function runTurn(
         raw: reason,
       }),
     });
-    return { status: 'refused', steps, step: 'stream', reason };
+    return {
+      status: 'refused',
+      steps,
+      step: 'stream',
+      reason,
+      persisted: true,
+    };
   } finally {
     await deps.store.endGeneration({
       organizationId: request.organizationId,

@@ -8403,6 +8403,7 @@ async function checkChat(
     const turnOutcome = z.object({
       status: z.string(),
       reason: z.string().optional(),
+      persisted: z.boolean().optional(),
     });
     const bodiesBefore = aiBodies.length;
     const blockedTurn = turnOutcome.safeParse(
@@ -8506,14 +8507,18 @@ async function checkChat(
       credStatus === 200 &&
         credOutcome.success &&
         credOutcome.data.status === 'refused' &&
+        credOutcome.data.persisted === false &&
         (credOutcome.data.reason ?? '').includes('No default credential') &&
         credRows[0]?.count === '0',
-      `http=${credStatus}, outcome=${credOutcome.success ? `${credOutcome.data.status} (${credOutcome.data.reason ?? ''})` : 'ERR'} (want refused: a disabled default serves nothing — the none-configured sentence), rows=${credRows[0]?.count} (want 0)`,
+      `http=${credStatus}, outcome=${credOutcome.success ? `${credOutcome.data.status} persisted=${String(credOutcome.data.persisted)} (${credOutcome.data.reason ?? ''})` : 'ERR'} (want refused, persisted=false: a disabled default serves nothing — the none-configured sentence), rows=${credRows[0]?.count} (want 0)`,
     );
     record(
       'chat guardrails: chat_filter refuses before the model, pii masks the wire, mandatory instructions lead the prompt, events land',
       blockedTurn.success &&
         blockedTurn.data.status === 'refused' &&
+        // The refusal is on the record — the composer must not hand the
+        // text back — and the response says so.
+        blockedTurn.data.persisted === true &&
         (blockedTurn.data.reason ?? '').includes('chat_filter') &&
         blockedRows.length === 2 &&
         blockedRows[0]?.role === 'user' &&
@@ -8542,7 +8547,7 @@ async function checkChat(
             event.kind === 'detected' &&
             event.categoryIds[0] === 'email',
         ),
-      `blocked=${blockedTurn.success ? `${blockedTurn.data.status} (${blockedTurn.data.reason ?? ''})` : 'ERR'} rows=${blockedRows.map((row) => `${row.role}${row.blockedReason ? '!' : ''}`).join(',')} (want user,assistant!), masked=${maskedTurn.success ? maskedTurn.data.status : 'ERR'} wireBodies=${wireBodies.length} noRawEmail=${wireBodies.every((body) => !body.includes('anna@example.com'))} masked=${wireBodies.every((body) => body.includes('[EMAIL]'))} mandatory=${wireBodies.every((body) => body.includes(MANDATORY_MARKER))} userRow="${maskedUserRow?.text ?? 'MISSING'}", events=${guardEvents.map((event) => `${event.filterName}/${event.kind}`).join(',')}`,
+      `blocked=${blockedTurn.success ? `${blockedTurn.data.status} persisted=${String(blockedTurn.data.persisted)} (${blockedTurn.data.reason ?? ''})` : 'ERR'} (want refused persisted=true) rows=${blockedRows.map((row) => `${row.role}${row.blockedReason ? '!' : ''}`).join(',')} (want user,assistant!), masked=${maskedTurn.success ? maskedTurn.data.status : 'ERR'} wireBodies=${wireBodies.length} noRawEmail=${wireBodies.every((body) => !body.includes('anna@example.com'))} masked=${wireBodies.every((body) => body.includes('[EMAIL]'))} mandatory=${wireBodies.every((body) => body.includes(MANDATORY_MARKER))} userRow="${maskedUserRow?.text ?? 'MISSING'}", events=${guardEvents.map((event) => `${event.filterName}/${event.kind}`).join(',')}`,
     );
   } finally {
     await new Promise<void>((resolve) => {

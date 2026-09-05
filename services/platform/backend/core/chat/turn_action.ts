@@ -1027,11 +1027,14 @@ export async function executeTurn(
   args: ExecuteTurnArgs,
   overrides: ExecuteTurnOverrides,
 ): Promise<TurnOutcome> {
+  // Nothing has been written yet at any of these refusals — the caller
+  // still holds the only copy of the message.
   const refuse = (reason: string): TurnOutcome => ({
     status: 'refused',
     steps: [],
     step: 'input-guardrails',
     reason,
+    persisted: false,
   });
 
   // Auto resolves FIRST, into a concrete (provider, model) pair — so every
@@ -1228,6 +1231,7 @@ export async function executeTurn(
       step: 'input-guardrails',
       reason:
         'Nothing to regenerate — the conversation does not end with your message.',
+      persisted: false,
     };
   }
   // A resend rebuilds the trailing message from its parts: the TYPED text

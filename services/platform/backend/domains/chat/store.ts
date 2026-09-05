@@ -153,12 +153,17 @@ export function createPgTurnStore(sql: Sql): TurnStore {
   let lastCancelRequested = false;
   return {
     async appendMessage(message) {
-      return appendMessageRow(sql, {
+      const appended = await appendMessageRow(sql, {
         ...message,
         text: message.parts
           .map((part) => (part.type === 'text' ? part.text : ''))
           .join(''),
       });
+      // A pre-model refusal lands its two rows through this write alone (no
+      // generation row ever opens), so this is the only signal the thread's
+      // other viewers get that the transcript moved.
+      await notifyThread(sql, message.threadId);
+      return appended;
     },
 
     async streamProgress(update) {
