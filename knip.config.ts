@@ -112,7 +112,6 @@ export default {
         // them would read those files as platform project files.
         'tests/e2e/fixtures/config/**',
         'lib/chat/**',
-        'lib/knowledge/**',
         'lib/pii/**',
         'lib/connectors/natives/**',
         // Shared contract layer: types declared for the parked consumers

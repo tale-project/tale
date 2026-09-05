@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { isMessageRef } from '../../../lib/knowledge/message-ref.ts';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
 import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
 import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
@@ -251,7 +252,7 @@ async function filterRetrievableRagFileIds(
   const retrievable: string[] = [];
   for (const ref of args.fileIds) {
     // Conversation/email-message refs (`msg:`) deny until that domain lands.
-    if (ref.startsWith('msg:')) {
+    if (isMessageRef(ref)) {
       continue;
     }
     if (
