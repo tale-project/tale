@@ -17964,7 +17964,6 @@ async function checkConversations(
         asGate(`/messages/${gateMessageId}/undo`, { body: {} }),
         asGate(`/messages/${gateMessageId}/retry`, { body: {} }),
         asGate(`/messages/${gateMessageId}/discard`, { body: {} }),
-        asGate(`/messages/${gateMessageId}/attachments`, { body: {} }),
         asGate(`/${gated}`, { method: 'DELETE' }),
       ])
     ).map((res) => res.status);
@@ -18008,7 +18007,6 @@ async function checkConversations(
       asGate(`/messages/${gateMessageId}/undo`, { body: {} }),
       asGate(`/messages/${gateMessageId}/retry`, { body: {} }),
       asGate(`/messages/${gateMessageId}/discard`, { body: {} }),
-      asGate(`/messages/${gateMessageId}/attachments`, { body: {} }),
     ])
   ).map((res) => res.status);
   const editorDelete = await asGate(`/${gated}`, { method: 'DELETE' });
@@ -18017,7 +18015,7 @@ async function checkConversations(
   await sql`DELETE FROM "member" WHERE "id" = ${gateMemberId}`;
   record(
     'conversations: writes need editor-or-above, reads do not',
-    memberDoors.length === 12 &&
+    memberDoors.length === 11 &&
       memberDoors.every((status) => status === 403) &&
       afterMember[0]?.status === 'open' &&
       afterMember[0]?.msgs === '1' &&
@@ -18030,7 +18028,7 @@ async function checkConversations(
       afterEditor[0]?.msgs === '2' &&
       editorPastGate.every((status) => status !== 403) &&
       editorDelete.status === 204,
-    `member=${memberDoors.join(',')} (want 12x403) untouched=${afterMember[0]?.status}/${afterMember[0]?.msgs}msg read=${memberRead.status} (want 200), editor note=${editorNote.status} patch=${editorPatch.status} read=${editorRead.status} bulk=${editorBulk.status} → ${afterEditor[0]?.status}/${afterEditor[0]?.msgs}msg, pastGate=${editorPastGate.join(',')} (want none 403), del=${editorDelete.status}`,
+    `member=${memberDoors.join(',')} (want 11x403) untouched=${afterMember[0]?.status}/${afterMember[0]?.msgs}msg read=${memberRead.status} (want 200), editor note=${editorNote.status} patch=${editorPatch.status} read=${editorRead.status} bulk=${editorBulk.status} → ${afterEditor[0]?.status}/${afterEditor[0]?.msgs}msg, pastGate=${editorPastGate.join(',')} (want none 403), del=${editorDelete.status}`,
   );
 }
 

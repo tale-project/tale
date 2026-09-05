@@ -251,14 +251,6 @@ export const conversationWriteAdapters: Record<string, WriteAdapter> = {
       }),
     invalidate: invalidateConversations,
   },
-  'conversations/mutations:downloadAttachments': {
-    run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>(
-        `/conversations/messages/${encodeURIComponent(stringArg(args, 'messageId'))}/attachments`,
-        { orgId: requireOrg(args, ctx), body: {} },
-      ).then(() => null),
-    invalidate: invalidateConversations,
-  },
   'conversations/mutations:undoSendMessage': {
     run: (args, ctx) =>
       backendFetch<unknown>(

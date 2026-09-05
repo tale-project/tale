@@ -62,10 +62,6 @@ export function useDeleteConversation() {
   return useBackendMutation('conversations/mutations:deleteConversation');
 }
 
-export function useDownloadAttachments() {
-  return useBackendMutation('conversations/mutations:downloadAttachments');
-}
-
 export function useUndoSendMessage() {
   return useBackendMutation('conversations/mutations:undoSendMessage');
 }

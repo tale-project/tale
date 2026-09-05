@@ -257,7 +257,7 @@ describe('conversations route — every write door checks the role', () => {
 
   // A pattern that stops matching would make the gate assertion vacuous.
   it('finds the write doors', () => {
-    expect(writeRoutes.length).toBe(14);
+    expect(writeRoutes.length).toBe(13);
   });
 
   it('gates all of them but the admin-only assignment pair', () => {
@@ -320,7 +320,6 @@ describe('conversations route — the write gate decides by role', () => {
     ['POST', '/messages/m1/undo', {}],
     ['POST', '/messages/m1/retry', {}],
     ['POST', '/messages/m1/discard', {}],
-    ['POST', '/messages/m1/attachments', {}],
     ['DELETE', '/c1', undefined],
   ] as const;
 
@@ -352,7 +351,7 @@ describe('conversations route — the write gate decides by role', () => {
   });
 
   it('covers every gated door', () => {
-    expect(doors.length).toBe(12);
+    expect(doors.length).toBe(11);
   });
 
   for (const [method, path, body] of doors) {
@@ -417,13 +416,6 @@ describe('conversations route — the write gate decides by role', () => {
       expect(res.status, door).toBe(200);
     }
     expect(loadMessageForViewer).toHaveBeenCalledTimes(3);
-
-    // The attachment door reaches its own honest answer, not the gate's.
-    const attachments = await call('POST', '/messages/m1/attachments', {});
-    expect(attachments.status).toBe(501);
-    expect(await attachments.json()).toMatchObject({
-      error: 'attachment_bytes_unavailable',
-    });
   });
 });
 
