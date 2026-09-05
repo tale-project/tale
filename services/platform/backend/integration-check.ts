@@ -31418,7 +31418,8 @@ async function checkBoardMoveEffects(
   const dragBell = await bellTo();
 
   // 2. The picker, for parity — back to To do (a re-post of the same status
-  // is a no-op: no event, no bell, no trail).
+  // is a no-op: no event, no bell, no trail). The mate's unread status bell
+  // is ONE row rewritten in place, so it now names the latest destination.
   const picked = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
     status: 'todo',
   });
@@ -31453,11 +31454,11 @@ async function checkBoardMoveEffects(
       JSON.stringify(dragBell) === '["in_progress"]' &&
       picked.ok &&
       pickerFired &&
-      JSON.stringify(pickerBell) === '["in_progress","todo"]' &&
+      JSON.stringify(pickerBell) === '["todo"]' &&
       activity[0]?.count === '2' &&
       audits[0]?.count === '2' &&
       disarmed.ok,
-    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)} (want ["in_progress","todo"]), activity=${activity[0]?.count} audit=${audits[0]?.count} (want 2/2), disarm=${disarmed.status}`,
+    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)} (want ["todo"] — the unread bell is rewritten in place), activity=${activity[0]?.count} audit=${audits[0]?.count} (want 2/2), disarm=${disarmed.status}`,
   );
 }
 
@@ -37926,21 +37927,31 @@ async function checkReviewArc(
   await sql`
     UPDATE app.tasks SET status = 'in_progress' WHERE id = ${taskId}
   `;
+  // The run is LIVE when its settle parks the card — the host parks first
+  // and marks the run settled after (the park refuses a run that is not
+  // live any more) — so each round seeds a running run and settles it once
+  // the park has landed.
   const seedRun = async (exec: string): Promise<string> => {
     const rows = await sql<{ id: string }[]>`
       INSERT INTO app.project_agent_runs (
         org_id, project_id, task_id, agent_id, exec_id, session_id, status,
         harness, model, started_by, started_at_ms, launched_at_ms,
-        settled_at_ms, deadline_at_ms, updated_at_ms
+        deadline_at_ms, updated_at_ms
       ) VALUES (
         ${orgId}, ${projectId}, ${taskId}, ${agentId}, ${exec},
-        ${`pa-${agentId}`}, 'settled', 'claude-code', 'itest-model',
-        ${userId}, ${Date.now()}, ${Date.now()}, ${Date.now()},
-        ${Date.now() + 3_600_000}, ${Date.now()}
+        ${`pa-${agentId}`}, 'running', 'claude-code', 'itest-model',
+        ${userId}, ${Date.now()}, ${Date.now()}, ${Date.now() + 3_600_000},
+        ${Date.now()}
       ) RETURNING id
     `;
     return rows[0]?.id ?? '';
   };
+  const settleRun = (runId: string): Promise<unknown> => sql`
+    UPDATE app.project_agent_runs SET
+      status = 'settled', settled_at_ms = ${Date.now()},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${runId}
+  `;
   const runA = await seedRun('exec-review-a');
   const { agentTurnShimHandlers } =
     await import('./domains/tasks/agent-turn-shim.ts');
@@ -37960,6 +37971,7 @@ async function checkReviewArc(
     status: 'in_review',
     review: { runId: runA },
   });
+  await settleRun(runA);
   const minted = await sql<
     { id: string; status: string; metadata: Record<string, unknown> | null }[]
   >`
@@ -38032,6 +38044,7 @@ async function checkReviewArc(
     status: 'in_review',
     review: { runId: runB },
   });
+  await settleRun(runB);
   const roundTwo = await sql<
     { id: string; metadata: Record<string, unknown> | null }[]
   >`
@@ -38082,6 +38095,7 @@ async function checkReviewArc(
     status: 'in_review',
     review: { runId: runC },
   });
+  await settleRun(runC);
   await statusDoor?.({
     organizationId: orgId,
     actorId: agentId,
@@ -38123,6 +38137,7 @@ async function checkReviewArc(
     status: 'in_review',
     review: { runId: runD },
   });
+  await settleRun(runD);
   const gated = await sql<{ id: string }[]>`
     SELECT id FROM app.approvals
     WHERE resource_type = 'task_review' AND resource_id = ${taskId}
