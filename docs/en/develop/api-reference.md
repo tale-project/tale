@@ -39,6 +39,7 @@ Pass the key as a bearer token: `Authorization: Bearer <key>`. The organization 
 | Knowledge search  | `POST /api/v1/knowledge/search`         | Semantic retrieval over the organization's indexed knowledge.                                                |
 | Documents         | `/api/v1/documents/...`                 | Knowledge-base documents: CRUD plus `POST .../retry-indexing`. Hub only — project files live under Projects. |
 | Websites          | `/api/v1/websites/...`                  | Crawled sources: CRUD plus `.../pages`, `.../sync`, `.../search`.                                            |
+| Browser sessions  | `/api/v1/browser-sessions/...`          | The warmed cookie pool behind [video ingestion](/self-hosted/configuration/video-ingestion): masked list, `POST .../import` for allowlisted operators. |
 | Products          | `/api/v1/products/...`                  | Product catalog entries: CRUD.                                                                               |
 | Contacts          | `/api/v1/contacts/...`                  | Contact records: CRUD plus `POST /api/v1/contacts/bulk`.                                                     |
 | Projects          | `/api/v1/projects/...`                  | The machine door for external workers: look up by external id, create, prepare folders, upload files.        |

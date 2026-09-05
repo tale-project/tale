@@ -17,6 +17,7 @@ import {
 } from '../lib/rate-limit.ts';
 import type { RestEnv } from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';
+import { createRestBrowserSessionRoutes } from './v1-browser-sessions.ts';
 import { createCoreRoutes } from './v1-core.ts';
 import { createRestMcpRoutes } from './v1-mcp.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
@@ -51,9 +52,11 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * this door: v1-core (contacts, products, documents, knowledge, agents,
  * skills), v1-automations (+ runs), v1-projects (folders, uploads, files),
  * v1-tasks (external-ref intake, comments, start), v1-threads (chat).
- * `/websites` rides the crawler family (v1-websites) and `/api/v1/mcp`
- * rides automations_builder (v1-mcp); the automation webhook trigger
- * lives at `/api/automations/webhook/:token` (app.ts).
+ * `/websites` rides the crawler family (v1-websites), `/browser-sessions`
+ * is the operator door to the video-ingest cookie pool
+ * (v1-browser-sessions), and `/api/v1/mcp` rides automations_builder
+ * (v1-mcp); the automation webhook trigger lives at
+ * `/api/automations/webhook/:token` (app.ts).
  */
 
 /** The 429 every lane answers: the flat envelope plus `Retry-After`. */
@@ -188,6 +191,7 @@ export function createRestV1Routes(deps: {
   app.route('/', createThreadRestRoutes({ sql: deps.sql }));
   app.route('/', createAutomationRestRoutes({ sql: deps.sql }));
   app.route('/', createRestWebsiteRoutes({ sql: deps.sql }));
+  app.route('/', createRestBrowserSessionRoutes({ sql: deps.sql }));
   app.route('/', createRestMcpRoutes({ sql: deps.sql }));
 
   return app;

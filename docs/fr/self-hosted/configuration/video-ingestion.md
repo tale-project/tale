@@ -35,7 +35,18 @@ La mesure la plus forte consiste à présenter des cookies issus d’une **vraie
 
 Les sessions sont stockées chiffrées au repos (le fichier de cookies est scellé avec l’`ENCRYPTION_SECRET_HEX` du déploiement) et ne sont jamais exposées au code exécuté par l’agent — elles ne vivent que dans la couche de récupération côté serveur. Une session qui commence à se faire bloquer est refroidie puis mise hors service automatiquement, et les sessions expirées sont balayées selon un calendrier.
 
-Remplir le pool est une étape avancée et manuelle : capture un fichier de cookies Netscape depuis un navigateur qui a résolu le défi pour la plateforme cible, puis importe-le via l’action interne `importBrowserSession`. Le même pool alimente aussi l’outil de récupération web et le crawler de l’agent, si bien qu’une session préchauffée pour un domaine profite à chaque accès côté serveur vers celui-ci.
+Remplir le pool est une étape avancée et manuelle, et elle passe par l’[API REST](/fr/develop/api-reference) — le produit n’a pas de formulaire pour ça. Capture un fichier de cookies Netscape depuis un navigateur qui a résolu le défi pour la plateforme cible, puis importe-le pour le domaine de cette plateforme :
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/v1/browser-sessions/import" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "$(jq -n --arg domain youtube.com --rawfile cookiesJar cookies.txt \
+        '{ domain: $domain, cookiesJar: $cookiesJar, label: "warmed 2026-09-05" }')"
+# → 201 { "sessionId": "..." }
+```
+
+L’import est l’écriture la plus sensible du déploiement, donc il est verrouillé deux fois : la clé doit appartenir à un administrateur de l’organisation, et l’e-mail de cet administrateur doit figurer dans l’allowlist `TALE_DEPLOYMENT_CONFIG_ADMINS` — la même qui protège la [résidence des données](/fr/self-hosted/configuration/data-residency). Tous les autres reçoivent **403** avec un `code` qui nomme la barrière qui a refusé. `GET /api/v1/browser-sessions` liste le pool avec le statut, l’expiration et le compteur d’échecs de chaque session — jamais les cookies eux-mêmes. Une session vit 14 jours sauf si `ttlMs` en décide autrement, et seule l’ingestion de liens vidéo puise dans le pool.
 
 <Warning>
 

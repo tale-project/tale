@@ -35,7 +35,18 @@ The strongest measure is to present cookies from a **real browser session that h
 
 Sessions are stored encrypted at rest (the cookie jar is sealed with the deployment's `ENCRYPTION_SECRET_HEX`) and are never exposed to agent-executed code — they live only in the server-side fetch layer. A session that starts getting blocked is cooled and then retired automatically, and expired sessions are swept on a schedule.
 
-Populating the pool is an advanced, hands-on step: capture a Netscape cookie jar from a browser that has solved the challenge for the target platform, then import it through the `importBrowserSession` internal action. The same pool also backs the agent's web-fetch tool and crawler, so a session warmed for a domain benefits every server-side reach-out to it.
+Populating the pool is an advanced, hands-on step, and it happens over the [REST API](/develop/api-reference) — the product has no form for it. Capture a Netscape cookie jar from a browser that has solved the challenge for the target platform, then import it for that platform's domain:
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/v1/browser-sessions/import" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "$(jq -n --arg domain youtube.com --rawfile cookiesJar cookies.txt \
+        '{ domain: $domain, cookiesJar: $cookiesJar, label: "warmed 2026-09-05" }')"
+# → 201 { "sessionId": "..." }
+```
+
+The import is the deployment's most sensitive write, so it is gated twice: the key must belong to an organization administrator, and that administrator's e-mail must be on the `TALE_DEPLOYMENT_CONFIG_ADMINS` allowlist — the same list that guards [data residency](/self-hosted/configuration/data-residency). Anyone else gets **403** with a `code` naming the gate that refused. `GET /api/v1/browser-sessions` lists the pool with each session's status, expiry, and strike count — never the cookies themselves. A session lives 14 days unless `ttlMs` says otherwise, and only the video-link ingest draws from the pool.
 
 <Warning>
 

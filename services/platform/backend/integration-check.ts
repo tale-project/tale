@@ -24539,9 +24539,11 @@ exit 1
 
 /**
  * Browser-session pool — the warmed-cookie-jar substrate behind the
- * video-link ingest's bot-wall mitigation: the editor-allowlist import
- * gate (the reused `decideInstanceAdmin`), the masked listing, LRU claim
- * rotation with an at-rest-encrypted jar that decrypts back, the
+ * video-link ingest's bot-wall mitigation, seeded through its only door,
+ * the REST machine door (`/api/v1/browser-sessions`, an API key acting as
+ * its user): the editor-allowlist import gate (the reused
+ * `decideInstanceAdmin`, refusing with a stable code), the masked listing,
+ * LRU claim rotation with an at-rest-encrypted jar that decrypts back, the
  * blocked→cooling→expired strike ladder, and the sweep's cooled-recovery.
  */
 async function checkBrowserSessions(
@@ -24560,10 +24562,23 @@ async function checkBrowserSessions(
   const DOMAIN = 'itest-pool.example';
 
   try {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie, origin: base },
+          body: JSON.stringify({ name: 'itest-browser-pool' }),
+        })
+      ).json(),
+    );
+    const apiKey = minted.success ? minted.data.key : '';
     const send = (route: string, body?: unknown): Promise<Response> =>
-      fetch(`${base}/api/app/browser-sessions${route}?orgId=${orgId}`, {
+      fetch(`${base}/api/v1/browser-sessions${route}`, {
         method: body === undefined ? 'GET' : 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
 
@@ -24572,6 +24587,10 @@ async function checkBrowserSessions(
       domain: DOMAIN,
       cookiesJar: '# Netscape HTTP Cookie File\nitest\tjar-A',
     });
+    const refusedCode = z
+      .object({ code: z.string() })
+      .loose()
+      .safeParse(await refused.json());
     process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = email;
     const importedA = z.object({ sessionId: z.string() }).safeParse(
       await (
@@ -24658,8 +24677,11 @@ async function checkBrowserSessions(
       domain: DOMAIN,
     });
     record(
-      'browser sessions: import gate, masked list, LRU claim, strikes, sweep',
-      refused.status === 403 &&
+      'browser sessions: REST import gate, masked list, LRU claim, strikes, sweep',
+      minted.success &&
+        refused.status === 403 &&
+        refusedCode.success &&
+        refusedCode.data.code === 'FORBIDDEN_DEPLOYMENT_EDITOR' &&
         importedA.success &&
         importedB.success &&
         listed.success &&
@@ -24670,7 +24692,7 @@ async function checkBrowserSessions(
         statusB === 'expired' &&
         claimEmpty === null &&
         recovered?.sessionId === idA,
-      `gate=${refused.status}/403 imports=${importedA.success}/${importedB.success} list=${listed.success ? listed.data.sessions.length : 'ERR'}/2 masked=${masked}, lru=${rotation} jarRoundtrip=${jar1.includes('jar-A')}, strikes A=${statusA}/cooling B=${statusB}/expired empty=${claimEmpty === null}, sweepRecovers=${recovered?.sessionId === idA}`,
+      `key=${minted.success} gate=${refused.status}/403 code=${refusedCode.success ? refusedCode.data.code : 'ERR'}/FORBIDDEN_DEPLOYMENT_EDITOR imports=${importedA.success}/${importedB.success} list=${listed.success ? listed.data.sessions.length : 'ERR'}/2 masked=${masked}, lru=${rotation} jarRoundtrip=${jar1.includes('jar-A')}, strikes A=${statusA}/cooling B=${statusB}/expired empty=${claimEmpty === null}, sweepRecovers=${recovered?.sessionId === idA}`,
     );
   } finally {
     if (savedAdmins === undefined) {

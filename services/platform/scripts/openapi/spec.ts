@@ -427,6 +427,57 @@ export function buildSpec(): Json {
     },
   };
 
+  // ── Browser sessions ──────────────────────────────────────────────────────
+
+  paths['/api/v1/browser-sessions'] = {
+    get: {
+      tags: ['Browser sessions'],
+      summary: 'List browser sessions',
+      description:
+        'The organization’s warmed browser-session pool — the cookie jars ' +
+        'the video-link ingest presents to get past a platform’s bot wall, ' +
+        'with each session’s status, expiry and strike count. Masked: the ' +
+        'jar itself is never returned.',
+      operationId: 'listBrowserSessions',
+      security: sec,
+      responses: {
+        '200': jsonResponse(
+          'The pool',
+          listOf('sessions', ref('BrowserSession')),
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/browser-sessions/import'] = {
+    post: {
+      tags: ['Browser sessions'],
+      summary: 'Import a browser session',
+      description:
+        'Adds a warmed cookie jar to the pool for one domain; the jar is ' +
+        'encrypted before it is stored. Restricted to organization ' +
+        'administrators whose e-mail is on the deployment editor allowlist ' +
+        '(`TALE_DEPLOYMENT_CONFIG_ADMINS`) — anyone else answers 403 with a ' +
+        '`code` naming the gate that refused.',
+      operationId: 'importBrowserSession',
+      security: sec,
+      requestBody: jsonBody(ref('BrowserSessionImport')),
+      responses: {
+        '201': jsonResponse('Imported — the session’s id', {
+          type: 'object',
+          required: ['sessionId'],
+          properties: { sessionId: str },
+        }),
+        '403': errorResponse(
+          'The key holder may not seed the pool (FORBIDDEN_INSTANCE_ADMIN ' +
+            'or FORBIDDEN_DEPLOYMENT_EDITOR)',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
   // ── Products ──────────────────────────────────────────────────────────────
 
   paths['/api/v1/products'] = {
@@ -2113,6 +2164,11 @@ curl -H "Authorization: Bearer tale_..." \\
     tags: [
       { name: 'Documents', description: 'Documents in the knowledge base.' },
       { name: 'Websites', description: 'Crawled website sources.' },
+      {
+        name: 'Browser sessions',
+        description:
+          'The warmed browser-session pool behind video-link ingestion.',
+      },
       { name: 'Products', description: 'Product catalog entries.' },
       { name: 'Contacts', description: 'Contact records.' },
       {
@@ -2298,6 +2354,60 @@ curl -H "Authorization: Bearer tale_..." \\
           },
         },
 
+        // ── Browser sessions ──
+        BrowserSession: {
+          type: 'object',
+          required: [
+            'id',
+            'domain',
+            'label',
+            'status',
+            'expiresAt',
+            'lastUsedAt',
+            'failureCount',
+          ],
+          properties: {
+            id: str,
+            domain: str,
+            label: nullable(str),
+            status: {
+              type: 'string',
+              enum: ['healthy', 'cooling', 'expired'],
+              description:
+                'healthy = claimable; cooling = blocked once, recovers after ' +
+                'a quiet period; expired = three strikes or past its TTL',
+            },
+            expiresAt: { ...num, description: 'Epoch ms' },
+            lastUsedAt: nullable({
+              ...num,
+              description: 'Epoch ms of the last claim',
+            }),
+            failureCount: int,
+          },
+        },
+        BrowserSessionImport: {
+          type: 'object',
+          required: ['domain', 'cookiesJar'],
+          properties: {
+            domain: {
+              ...str,
+              description:
+                'The hostname the jar was warmed for (lower-cased on import)',
+            },
+            cookiesJar: {
+              ...str,
+              description: 'A Netscape-format cookie jar, at most 1 MB',
+            },
+            userAgent: str,
+            visitorData: str,
+            poToken: str,
+            label: str,
+            ttlMs: {
+              ...int,
+              description: 'Lifetime in milliseconds (default 14 days)',
+            },
+          },
+        },
         // ── Products ──
         Product: {
           type: 'object',
