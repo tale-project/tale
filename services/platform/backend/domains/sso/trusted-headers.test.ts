@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import type { Sql } from 'postgres';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildSessionCookie } from '../../core/enterprise_sso/login/finish_login.ts';
 import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
@@ -678,6 +678,67 @@ describe('trustedHeadersAuthenticate — the teams header becomes team membershi
     expect(
       queries.some((q) => /"team"|teamMember|sso_synced/.test(q.text)),
     ).toBe(false);
+  });
+
+  it('warns when a present teams header carries no id:name entry, then treats it as empty', async () => {
+    process.env.TRUSTED_HEADERS_ENABLED = 'true';
+    process.env.BETTER_AUTH_SECRET = 'session-signing-secret';
+    delete process.env.TRUSTED_SECRET_HEADER;
+    delete process.env.SITE_URL;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { sql, queries } = fakeSql([
+        ...happyScript(),
+        {
+          match: /FROM app\.sso_synced_team_members p/,
+          rows: [
+            { teamId: 'team-old', teamName: 'Old', membershipId: 'tm-old' },
+          ],
+        },
+      ]);
+      const app = createTrustedHeadersRoutes({ sql });
+
+      // Bare names — what a proxy sends when it was never told the format.
+      const res = await app.request('http://backend-api:3005/authenticate', {
+        headers: {
+          'Remote-Email': 'proxy.user@door.test',
+          'Remote-Name': 'Proxy User',
+          'Remote-Role': 'member',
+          'Remote-Teams': 'finance, sales',
+          'Remote-Internal-Secret': 'right-secret',
+        },
+      });
+
+      expect(res.headers.get('set-cookie')).toContain('=');
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]?.[0]).toContain('Remote-Teams');
+      // The misconfigured header still counts as an empty assertion: what an
+      // earlier sync granted is revoked, nothing is granted.
+      const revoked = queries.find((q) =>
+        q.text.startsWith('DELETE FROM "teamMember"'),
+      );
+      expect(revoked?.values).toEqual(['tm-old']);
+      expect(
+        queries.some((q) => q.text.startsWith('INSERT INTO "teamMember"')),
+      ).toBe(false);
+
+      // A well-formed header is silent.
+      warn.mockClear();
+      const fine = fakeSql([...happyScript(), ...teamSync]);
+      await createTrustedHeadersRoutes({ sql: fine.sql }).request(
+        'http://backend-api:3005/authenticate',
+        {
+          headers: {
+            'Remote-Email': 'proxy.user@door.test',
+            'Remote-Teams': 't-fin:Finance',
+            'Remote-Internal-Secret': 'right-secret',
+          },
+        },
+      );
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('reconciles (revokes what earlier syncs granted) on an empty assertion', async () => {

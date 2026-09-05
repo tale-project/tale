@@ -373,8 +373,16 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
     );
     // Absent header: the proxy makes no claim about teams. Present but
     // empty: the proxy asserts NO teams, which revokes what it granted.
-    const teams =
-      teamsRaw !== undefined ? (parseTeamsHeader(teamsRaw) ?? []) : null;
+    // A present header that parses to nothing (bare names, no `id:name`)
+    // revokes too — say so, or a misconfigured proxy strips teams silently.
+    const parsedTeams =
+      teamsRaw !== undefined ? parseTeamsHeader(teamsRaw) : undefined;
+    if (teamsRaw !== undefined && teamsRaw.trim() !== '' && !parsedTeams) {
+      console.warn(
+        `[Trusted Headers] ${headerName('TRUSTED_TEAMS_HEADER', 'Remote-Teams')} carries no "id:name" entry; treating it as an empty team assertion`,
+      );
+    }
+    const teams = teamsRaw !== undefined ? (parsedTeams ?? []) : null;
 
     const secret = process.env.BETTER_AUTH_SECRET;
     if (!secret) {
