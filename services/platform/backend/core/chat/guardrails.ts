@@ -278,7 +278,9 @@ export function buildTurnGuardrails(
           ...(args.agentSlug !== undefined
             ? { agentSlug: args.agentSlug }
             : {}),
-          actorType: 'user',
+          // Whose text was judged: the person's on input, the model's on
+          // output — the Security page groups events by it.
+          actorType: event.direction === 'output' ? 'assistant' : 'user',
           ...row,
         } satisfies ChatFilterEventInput & { organizationId: string },
       );

@@ -233,6 +233,20 @@ describe('buildTurnGuardrails', () => {
     ]);
   });
 
+  it("stamps an output detection as the assistant's — the model's text was judged", async () => {
+    const fake = fakeCtx({ pii_config: PII_MASK });
+    const result = await chain(fake, 'output', 'reach anna@example.com');
+    expect(result.text).toBe('reach [EMAIL]');
+    expect(fake.events).toEqual([
+      expect.objectContaining({
+        direction: 'output',
+        actorType: 'assistant',
+        filterName: 'pii',
+        kind: 'detected',
+      }),
+    ]);
+  });
+
   it('tokenizes on input, restores on output, and logs only the detection', async () => {
     const fake = fakeCtx({ pii_config: PII_TOKENIZE });
     const policies = await readTurnPolicies(fake.ctx, ORG);
