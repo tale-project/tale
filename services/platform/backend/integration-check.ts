@@ -14063,7 +14063,7 @@ async function checkWorkflowTurnReattach(
              'nodes', '{}'::jsonb, 'executions', 1,
              'cursor', jsonb_build_object('node', 'approve', 'index', 0)
            ),
-           0, ${now - 60_000} + g
+           0, ${now - 60_000}::bigint + g
     FROM generate_series(1, 120) AS g
   `;
 
