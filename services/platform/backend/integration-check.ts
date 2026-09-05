@@ -1660,6 +1660,12 @@ async function checkTasks(
   const foreignBody = z
     .object({ error: z.string() })
     .safeParse(await foreignCreate.json());
+  // The brief's card is this project's only extra open task; hard-delete it
+  // so the rollup probe below still counts the parent and the child alone.
+  const briefDeleted = await send(
+    'DELETE',
+    `/api/app/tasks/${withFilesId}?orgId=${orgId}`,
+  );
   record(
     'task attachments: created and read back, removed and released, foreign ref refused',
     withFiles.success &&
@@ -1673,8 +1679,9 @@ async function checkTasks(
       releasedOwn &&
       foreignCreate.status === 403 &&
       foreignBody.success &&
-      foreignBody.data.error === 'TASK_ATTACHMENT_NOT_OWNED',
-    `create=${withFiles.success}, afterCreate=${JSON.stringify(afterCreate.success ? afterCreate.data.task.attachments : afterCreate.error.issues)} (want [brief]), remove=${removeResponse.status} (want 200), afterRemove=${afterRemove.success ? String(afterRemove.data.task.attachments?.length ?? 0) : 'unparsed'} (want 0), fileRow=${String(ownRow[0]?.lifecycleStatus)} (want trashed), releaseJob=${releasedOwn}, foreign=${foreignCreate.status}/${foreignBody.success ? foreignBody.data.error : 'unparsed'} (want 403/TASK_ATTACHMENT_NOT_OWNED)`,
+      foreignBody.data.error === 'TASK_ATTACHMENT_NOT_OWNED' &&
+      briefDeleted.status === 200,
+    `create=${withFiles.success}, afterCreate=${JSON.stringify(afterCreate.success ? afterCreate.data.task.attachments : afterCreate.error.issues)} (want [brief]), remove=${removeResponse.status} (want 200), afterRemove=${afterRemove.success ? String(afterRemove.data.task.attachments?.length ?? 0) : 'unparsed'} (want 0), fileRow=${String(ownRow[0]?.lifecycleStatus)} (want trashed), releaseJob=${releasedOwn}, foreign=${foreignCreate.status}/${foreignBody.success ? foreignBody.data.error : 'unparsed'} (want 403/TASK_ATTACHMENT_NOT_OWNED), delete=${briefDeleted.status} (want 200)`,
   );
 
   // Board filters + flags: only `todo` rows, truncated false, canEdit true;
@@ -13493,16 +13500,6 @@ async function checkTurnReattach(
     RETURNING id
   `;
   const projectId = projectRows[0]?.id ?? '';
-  const taskRows = await sql<{ id: string }[]>`
-    INSERT INTO app.tasks (
-      org_id, project_id, title, status, rank, created_by, created_by_type,
-      created_at_ms, updated_at_ms
-    ) VALUES (
-      ${orgId}, ${projectId}, 'Reattach task', 'in_progress', 'a0',
-      ${userId}, 'user', ${now}, ${now}
-    ) RETURNING id
-  `;
-  const taskId = taskRows[0]?.id ?? '';
   const agentRows = await sql<{ id: string }[]>`
     INSERT INTO app.project_agents (
       org_id, project_id, name, harness, model, created_by, created_at_ms,
@@ -13514,6 +13511,8 @@ async function checkTurnReattach(
   `;
   const agentId = agentRows[0]?.id ?? '';
 
+  // One task per run: a task holds at most one live run (migration 0080),
+  // so each shape gets its own card.
   const mkRun = async (
     suffix: string,
     opts: {
@@ -13526,6 +13525,16 @@ async function checkTurnReattach(
   ): Promise<{ runId: string; sessionId: string; execId: string }> => {
     const sessionId = `reattach-session-${suffix}`;
     const execId = `reattach-exec-${suffix}`;
+    const taskRows = await sql<{ id: string }[]>`
+      INSERT INTO app.tasks (
+        org_id, project_id, title, status, rank, created_by, created_by_type,
+        created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${`Reattach task ${suffix}`}, 'in_progress',
+        'a0', ${userId}, 'user', ${now}, ${now}
+      ) RETURNING id
+    `;
+    const taskId = taskRows[0]?.id ?? '';
     await sql`
       INSERT INTO app.sandbox_sessions (
         org_id, session_id, status, owner_type, owner_id, created_by,
@@ -13638,7 +13647,7 @@ async function checkTurnReattach(
   // `agent-run` ops are counted by the external-turn metrics fold.
   await sql`
     UPDATE app.project_agent_runs SET status = 'cancelled'
-    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+    WHERE project_id = ${projectId} AND status IN ('queued', 'running')
   `;
   await sql`
     DELETE FROM app.sandbox_session_ops
@@ -13845,16 +13854,6 @@ async function checkQueuedRunRecovery(
     RETURNING id
   `;
   const projectId = projectRows[0]?.id ?? '';
-  const taskRows = await sql<{ id: string }[]>`
-    INSERT INTO app.tasks (
-      org_id, project_id, title, status, rank, created_by, created_by_type,
-      created_at_ms, updated_at_ms
-    ) VALUES (
-      ${orgId}, ${projectId}, 'Queued recovery task', 'in_progress', 'a0',
-      ${userId}, 'user', ${now}, ${now}
-    ) RETURNING id
-  `;
-  const taskId = taskRows[0]?.id ?? '';
   const agentRows = await sql<{ id: string }[]>`
     INSERT INTO app.project_agents (
       org_id, project_id, name, harness, model, created_by, created_at_ms,
@@ -13866,10 +13865,22 @@ async function checkQueuedRunRecovery(
   `;
   const agentId = agentRows[0]?.id ?? '';
 
+  // One task per run: a task holds at most one live run (migration 0080),
+  // so each shape gets its own card.
   const mkQueuedRun = async (
     execId: string,
     opts: { agentId: string; updatedAt: number; parked?: boolean },
   ): Promise<string> => {
+    const taskRows = await sql<{ id: string }[]>`
+      INSERT INTO app.tasks (
+        org_id, project_id, title, status, rank, created_by, created_by_type,
+        created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${`Queued recovery task ${execId}`},
+        'in_progress', 'a0', ${userId}, 'user', ${now}, ${now}
+      ) RETURNING id
+    `;
+    const taskId = taskRows[0]?.id ?? '';
     const rows = await sql<{ id: string }[]>`
       INSERT INTO app.project_agent_runs (
         org_id, task_id, project_id, agent_id, session_id, exec_id, harness,
@@ -13945,7 +13956,7 @@ async function checkQueuedRunRecovery(
   // Leave nothing the live worker could act on.
   await sql`
     UPDATE app.project_agent_runs SET status = 'cancelled'
-    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+    WHERE project_id = ${projectId} AND status IN ('queued', 'running')
   `;
 }
 
@@ -14893,10 +14904,23 @@ async function checkRunProvenance(
     `runs=${racedLive.length} (want 1), outcomes=${JSON.stringify(raced.map((outcome) => outcome?.alreadyRunning ?? 'null'))} (want exactly one false)`,
   );
   // The refusal is the caller's answer now, not a laundered "not started"
-  // — and the queue's retry ladder sees a transient failure at all.
+  // — and the queue's retry ladder sees a transient failure at all. On a
+  // task with NO live run: the guard answers an existing run before the
+  // start is attempted, so the refusal has to come from the start itself.
+  const phantomRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      assignee_type, assignee_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Phantom start task', 'todo', 'b2',
+      ${userId}, 'user', 'app', ${automationName}, ${Date.now()},
+      ${Date.now()}
+    ) RETURNING id
+  `;
+  const phantomTask = await loadRacedTask(sql, phantomRows[0]?.id ?? '', orgId);
   const phantomStart = await startWorkflowForTask(sql, {
     organizationId: orgId,
-    task: { ...racedTask, projectId: 'no-such-project' },
+    task: { ...phantomTask, projectId: 'no-such-project' },
     workflowSlug: automationName,
     startedByUserId: userId,
   }).then(
@@ -31393,9 +31417,10 @@ async function checkBoardMoveEffects(
   );
   const dragBell = await bellTo();
 
-  // 2. The picker, for parity.
+  // 2. The picker, for parity — back to To do (a re-post of the same status
+  // is a no-op: no event, no bell, no trail).
   const picked = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
-    status: 'in_progress',
+    status: 'todo',
   });
   const pickerFired = await waitFor(
     async () => (await runsOf()) >= runsBefore + 2,
@@ -31428,11 +31453,11 @@ async function checkBoardMoveEffects(
       JSON.stringify(dragBell) === '["in_progress"]' &&
       picked.ok &&
       pickerFired &&
-      JSON.stringify(pickerBell) === '["in_progress"]' &&
+      JSON.stringify(pickerBell) === '["in_progress","todo"]' &&
       activity[0]?.count === '2' &&
       audits[0]?.count === '2' &&
       disarmed.ok,
-    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)}, activity=${activity[0]?.count} audit=${audits[0]?.count} (want 2/2), disarm=${disarmed.status}`,
+    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)} (want ["in_progress","todo"]), activity=${activity[0]?.count} audit=${audits[0]?.count} (want 2/2), disarm=${disarmed.status}`,
   );
 }
 
@@ -39157,14 +39182,24 @@ async function checkWatchdogs(
       'itest:wd', ${now - 13 * 3_600_000}, ${now + 24 * 3_600_000}
     )
   `;
-  // Lane 2: an overdue PARKED run (never launched — no op, no slot).
+  // Lane 2: an overdue PARKED run (never launched — no op, no slot) on its
+  // own card — a task holds at most one live run (migration 0080).
+  const parkedTask = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Watchdog quarry (parked)',
+      })
+    ).json(),
+  );
+  const parkedTaskId = parkedTask.success ? parkedTask.data.taskId : '';
   const parked = await sql<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
       harness, model, started_by, started_at_ms, waiting_for_capacity_at_ms,
       deadline_at_ms, updated_at_ms
     ) VALUES (
-      ${orgId}, ${projectId}, ${taskId}, 'wd-agent-2', 'exec-wd-2',
+      ${orgId}, ${projectId}, ${parkedTaskId}, 'wd-agent-2', 'exec-wd-2',
       'pa-wd-agent-2', 'queued', 'claude-code', 'itest-model', 'itest:wd',
       ${now - 13 * 3_600_000}, ${now - 13 * 3_600_000}, ${now - 3_600_000},
       ${now}
