@@ -15,6 +15,7 @@ import {
   TASK_RESOURCE_TYPE,
 } from '../../core/tasks/audit_actions.ts';
 import {
+  TASK_ATTACHMENTS_MAX,
   TASK_DESCRIPTION_MAX,
   TASK_LABEL_CHARS_MAX,
   TASK_LABELS_MAX,
@@ -34,6 +35,7 @@ import {
   notifyTaskStatusChanged,
 } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
+import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
   listProjects,
   loadProjectOrThrow,
@@ -895,10 +897,118 @@ export async function settleTaskAssigneeChange(
 // Task CRUD
 // ---------------------------------------------------------------------------
 
+/**
+ * One file a person hung on a task: the client-named blob ref plus the
+ * display trio the dialog shows. The `attachments` column holds a list of
+ * these; the agent's brief mirrors them into its sandbox as inputs.
+ */
+export interface TaskAttachmentEntry {
+  fileId: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+}
+
+/** The stored `attachments` column read back as entries; malformed elements
+ * are skipped (the column is written only by this shape). */
+export function parseTaskAttachments(column: unknown): TaskAttachmentEntry[] {
+  if (!Array.isArray(column)) return [];
+  const entries: TaskAttachmentEntry[] = [];
+  for (const element of column) {
+    if (
+      element === null ||
+      typeof element !== 'object' ||
+      !('fileId' in element) ||
+      typeof element.fileId !== 'string' ||
+      element.fileId === ''
+    ) {
+      continue;
+    }
+    entries.push({
+      fileId: element.fileId,
+      fileName:
+        'fileName' in element && typeof element.fileName === 'string'
+          ? element.fileName
+          : '',
+      fileType:
+        'fileType' in element && typeof element.fileType === 'string'
+          ? element.fileType
+          : '',
+      fileSize:
+        'fileSize' in element && typeof element.fileSize === 'number'
+          ? element.fileSize
+          : 0,
+    });
+  }
+  return entries;
+}
+
+/** A submitted attachment list, bounded and de-duplicated by ref (first
+ * wins), display names trimmed to the column's 255. */
+function normalizeAttachments(
+  list: readonly TaskAttachmentEntry[],
+): TaskAttachmentEntry[] {
+  if (list.length > TASK_ATTACHMENTS_MAX) {
+    throw new TaskError(
+      'TASK_ATTACHMENTS_INVALID',
+      `A task carries at most ${TASK_ATTACHMENTS_MAX} attachments`,
+    );
+  }
+  const seen = new Set<string>();
+  const entries: TaskAttachmentEntry[] = [];
+  for (const entry of list) {
+    const fileName = entry.fileName.trim().slice(0, 255);
+    if (entry.fileId === '' || fileName === '') {
+      throw new TaskError(
+        'TASK_ATTACHMENTS_INVALID',
+        'Every attachment needs a file ref and a name',
+      );
+    }
+    if (seen.has(entry.fileId)) continue;
+    seen.add(entry.fileId);
+    entries.push({
+      fileId: entry.fileId,
+      fileName,
+      fileType: entry.fileType.slice(0, 255),
+      fileSize: entry.fileSize,
+    });
+  }
+  return entries;
+}
+
+/**
+ * Attachments are client-named blob refs. Each ref NEW to the task must be
+ * the caller's own upload (their upload intent inside its TTL, or the file
+ * row they registered) — a document's ref, which every reader of that
+ * document holds, is not theirs to hang on a task, and a guessed ref must
+ * not let the agent's brief stage another user's bytes. Refs already on the
+ * task stay whoever attached them: removing one file re-sends the rest.
+ */
+async function assertOwnedTaskAttachments(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  fileIds: readonly string[],
+): Promise<void> {
+  if (fileIds.length === 0) return;
+  const foreign = await firstForeignUpload(
+    tx,
+    { organizationId: auth.organizationId, userId: auth.userId },
+    fileIds,
+  );
+  if (foreign !== null) {
+    throw new TaskError(
+      'TASK_ATTACHMENT_NOT_OWNED',
+      'An attachment is not one of your uploads. Remove it and attach the file again.',
+      403,
+    );
+  }
+}
+
 export interface CreateTaskArgs {
   projectId: string;
   title: string;
   description?: string;
+  attachments?: TaskAttachmentEntry[];
   status?: TaskStatus;
   priority?: TaskPriority;
   labels?: string[];
@@ -929,6 +1039,15 @@ export async function createTask(
   const status = args.status ?? 'backlog';
   const assignee = normalizeAssignee(args);
   await assertAssigneeValid(tx, { project, auth, assignee });
+  const attachments =
+    args.attachments !== undefined
+      ? normalizeAttachments(args.attachments)
+      : [];
+  await assertOwnedTaskAttachments(
+    tx,
+    auth,
+    attachments.map((entry) => entry.fileId),
+  );
 
   if (args.parentTaskId) {
     const parent = await loadTaskOrThrow(
@@ -950,13 +1069,15 @@ export async function createTask(
 
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.tasks (
-      org_id, project_id, title, description, status, priority, label_ids,
-      assignee_type, assignee_id, parent_task_id, start_date_ms, due_date_ms,
-      rank, number, created_by, created_by_type, created_at_ms,
+      org_id, project_id, title, description, attachments, status, priority,
+      label_ids, assignee_type, assignee_id, parent_task_id, start_date_ms,
+      due_date_ms, rank, number, created_by, created_by_type, created_at_ms,
       updated_at_ms, status_changed_at_ms
     ) VALUES (
       ${auth.organizationId}, ${args.projectId}, ${title},
-      ${description ?? null}, ${status}, ${args.priority ?? null},
+      ${description ?? null},
+      ${attachments.length > 0 ? tx.json(toJson(attachments)) : null},
+      ${status}, ${args.priority ?? null},
       ${labelIds ?? []}, ${assignee?.assigneeType ?? null},
       ${assignee?.assigneeId ?? null}, ${args.parentTaskId ?? null},
       ${args.startDate ?? null}, ${args.dueDate ?? null}, ${rank}, ${number},
@@ -1041,6 +1162,9 @@ export interface UpdateTaskArgs {
   taskId: string;
   title?: string;
   description?: string | null;
+  /** Full replace, like labels: the dialog sends the whole list on every
+   * add and remove. */
+  attachments?: TaskAttachmentEntry[];
   priority?: TaskPriority | null;
   labels?: string[];
   startDate?: number | null;
@@ -1081,6 +1205,32 @@ export async function updateTask(
     priority = args.priority;
     previousState.priority = task.priority;
     newState.priority = priority;
+  }
+  // Attachments: the NEW refs must be the caller's own uploads; the refs
+  // the list drops go to the blob release seam once the row no longer
+  // names them (the same seam a hard delete uses).
+  let nextAttachments: TaskAttachmentEntry[] | undefined;
+  let droppedRefs: string[] = [];
+  if (args.attachments !== undefined) {
+    const current = parseTaskAttachments(task.attachments);
+    const next = normalizeAttachments(args.attachments);
+    const currentRefs = new Set(current.map((entry) => entry.fileId));
+    const nextRefs = new Set(next.map((entry) => entry.fileId));
+    await assertOwnedTaskAttachments(
+      tx,
+      auth,
+      next
+        .filter((entry) => !currentRefs.has(entry.fileId))
+        .map((entry) => entry.fileId),
+    );
+    if (JSON.stringify(next) !== JSON.stringify(current)) {
+      nextAttachments = next;
+      droppedRefs = current
+        .filter((entry) => !nextRefs.has(entry.fileId))
+        .map((entry) => entry.fileId);
+      previousState.attachments = current.map((entry) => entry.fileName);
+      newState.attachments = next.map((entry) => entry.fileName);
+    }
   }
   let labelIds = task.labelIds;
   if (args.labels !== undefined) {
@@ -1157,9 +1307,15 @@ export async function updateTask(
                              ELSE sla_level_at_ms END,
       start_notified_at_ms = CASE WHEN ${startChanged}::boolean THEN NULL
                                   ELSE start_notified_at_ms END,
+      attachments = CASE WHEN ${nextAttachments !== undefined}::boolean
+                         THEN ${nextAttachments !== undefined ? tx.json(toJson(nextAttachments)) : null}::jsonb
+                         ELSE attachments END,
       reviewer_user_id = ${reviewerUserId}, updated_at_ms = ${Date.now()}
     WHERE id = ${args.taskId}
   `;
+  if (droppedRefs.length > 0) {
+    await releaseUnlistedTaskBlobRefs(tx, auth.organizationId, droppedRefs);
+  }
   await recordActivity(tx, {
     task,
     actorType: 'user',
@@ -1965,6 +2121,52 @@ export function collectTaskBlobRefs(
 }
 
 /**
+ * The blob release seam for refs no task row names any more — a hard delete's
+ * whole subtree, or the files an edit dropped from a task's attachments.
+ * Call it AFTER the row change: a ref some task still lists stays (the same
+ * deliverable can sit on two cards); for the rest, the tasks' own unbound
+ * file rows are trashed so the release sees them dead, and the durable job
+ * deletes the bytes after commit — network I/O never runs inside this
+ * transaction, and the release re-checks liveness itself (a document or a
+ * chat thread holding the same ref keeps its bytes). Answers the refs it
+ * released.
+ */
+async function releaseUnlistedTaskBlobRefs(
+  tx: TransactionSql,
+  organizationId: string,
+  refs: readonly string[],
+): Promise<string[]> {
+  if (refs.length === 0) return [];
+  const orphaned = await tx<{ ref: string }[]>`
+    SELECT r.ref FROM unnest(${[...refs]}::text[]) AS r(ref)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM app.tasks t
+      WHERE t.org_id = ${organizationId}
+        AND (t.outputs @> jsonb_build_array(jsonb_build_object('fileId', r.ref))
+             OR t.attachments
+                @> jsonb_build_array(jsonb_build_object('fileId', r.ref)))
+    )
+  `;
+  const releasedRefs = orphaned.map((row) => row.ref);
+  if (releasedRefs.length > 0) {
+    await tx`
+      UPDATE app.file_metadata SET
+        lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
+      WHERE org_id = ${organizationId}
+        AND storage_ref = ANY(${releasedRefs})
+        AND document_id IS NULL AND thread_id IS NULL
+        AND conversation_id IS NULL
+        AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+    `;
+    await addJobInTx(tx, 'knowledge.release_refs', {
+      organizationId,
+      refs: releasedRefs,
+    });
+  }
+  return releasedRefs;
+}
+
+/**
  * Hard delete — admin-only (0.4 contract). Deletes the WHOLE SUBTREE
  * (subtasks recursively) with each task's discussion thread; returns how
  * many children went with it (the confirm dialog names the count).
@@ -2081,43 +2283,14 @@ export async function deleteTask(
   `;
   await tx`DELETE FROM app.tasks WHERE id = ANY(${ids})`;
 
-  // Blob reclaim through the shared release seam. A ref some SURVIVING task
-  // still lists stays (the same deliverable can sit on two cards); for the
-  // rest, the tasks' own unbound file rows are trashed so the release sees
-  // them dead, and the durable job deletes the bytes after commit — network
-  // I/O never runs inside this transaction, and the release re-checks
-  // liveness itself (a document or a chat thread holding the same ref keeps
-  // its bytes). Before this, every deleted task leaked its files for good.
-  const refs = collectTaskBlobRefs(tree);
-  let releasedRefs: string[] = [];
-  if (refs.length > 0) {
-    const orphaned = await tx<{ ref: string }[]>`
-      SELECT r.ref FROM unnest(${refs}::text[]) AS r(ref)
-      WHERE NOT EXISTS (
-        SELECT 1 FROM app.tasks t
-        WHERE t.org_id = ${auth.organizationId}
-          AND (t.outputs @> jsonb_build_array(jsonb_build_object('fileId', r.ref))
-               OR t.attachments
-                  @> jsonb_build_array(jsonb_build_object('fileId', r.ref)))
-      )
-    `;
-    releasedRefs = orphaned.map((row) => row.ref);
-    if (releasedRefs.length > 0) {
-      await tx`
-        UPDATE app.file_metadata SET
-          lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
-        WHERE org_id = ${auth.organizationId}
-          AND storage_ref = ANY(${releasedRefs})
-          AND document_id IS NULL AND thread_id IS NULL
-          AND conversation_id IS NULL
-          AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
-      `;
-      await addJobInTx(tx, 'knowledge.release_refs', {
-        organizationId: auth.organizationId,
-        refs: releasedRefs,
-      });
-    }
-  }
+  // Blob reclaim through the shared release seam (the row is gone, so the
+  // liveness check below sees only the survivors). Before this, every
+  // deleted task leaked its files for good.
+  const releasedRefs = await releaseUnlistedTaskBlobRefs(
+    tx,
+    auth.organizationId,
+    collectTaskBlobRefs(tree),
+  );
 
   await createAuditLog(
     tx,

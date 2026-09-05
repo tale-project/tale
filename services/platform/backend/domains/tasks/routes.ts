@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { TASK_ATTACHMENTS_MAX } from '../../core/tasks/helpers.ts';
 import { resolveTaskServing } from '../../core/tasks/task_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
@@ -91,10 +92,24 @@ const statusSchema = z.enum([
 const prioritySchema = z.enum(['p0', 'p1', 'p2', 'p3']);
 const assigneeTypeSchema = z.enum(['user', 'agent', 'app']);
 
+/** One attachment as the dialog sends it (`stripPreviews`): the blob ref
+ * and the display trio. Ownership of the ref is the service's check. */
+const taskAttachmentSchema = z.object({
+  fileId: z.string().min(1).max(1024),
+  fileName: z.string().min(1).max(255),
+  fileType: z.string().max(255),
+  fileSize: z.number().int().min(0),
+});
+const attachmentsSchema = z
+  .array(taskAttachmentSchema)
+  .max(TASK_ATTACHMENTS_MAX)
+  .optional();
+
 const createTaskSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().min(1).max(500),
   description: z.string().max(50_000).optional(),
+  attachments: attachmentsSchema,
   status: statusSchema.optional(),
   priority: prioritySchema.optional(),
   labels: z.array(z.string()).max(100).optional(),
@@ -108,6 +123,7 @@ const createTaskSchema = z.object({
 const updateTaskSchema = z.object({
   title: z.string().max(500).optional(),
   description: z.string().max(50_000).nullable().optional(),
+  attachments: attachmentsSchema,
   priority: prioritySchema.nullable().optional(),
   labels: z.array(z.string()).max(100).optional(),
   startDate: z.number().int().positive().nullable().optional(),

@@ -1507,10 +1507,11 @@ async function checkProjects(
  * → dependency cycle rejection → activity trail → archive.
  */
 async function checkTasks(
+  sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const get = async (path2: string): Promise<unknown> =>
     (await fetch(`${base}${path2}`, { headers: { cookie } })).json();
   const send = (
@@ -1584,6 +1585,96 @@ async function checkTasks(
       taskRead.data.canEdit &&
       taskRead.data.canComment,
     `parent #${taskRead.success ? taskRead.data.task.number : 'ERR'}, labels=${taskRead.success ? taskRead.data.task.labels.map((l) => l.name).join(',') : 'ERR'}, flags=${taskRead.success ? `${taskRead.data.canEdit}/${taskRead.data.canClaim}/${taskRead.data.canComment}` : 'ERR'}`,
+  );
+
+  // ---- attachments: the dialog's files are stored, owned, and released ---
+  // The create and edit dialogs send `attachments`; the routes used to strip
+  // the key, so an upload "succeeded" and was gone on the next read. Each
+  // NEW ref must be the caller's own upload; a dropped ref is released.
+  const ownRef = 's3:itest-task-attachment-own';
+  const foreignRef = 's3:itest-task-attachment-foreign';
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      created_at_ms
+    ) VALUES
+      (${orgId}, 'brief.pdf', 'application/pdf', 12, ${ownRef}, ${userId},
+       ${Date.now()}),
+      (${orgId}, 'theirs.pdf', 'application/pdf', 12, ${foreignRef},
+       'someone-else', ${Date.now()})
+  `;
+  const briefAttachment = {
+    fileId: ownRef,
+    fileName: 'brief.pdf',
+    fileType: 'application/pdf',
+    fileSize: 12,
+  };
+  const attachmentsRead = z
+    .object({
+      task: z
+        .object({
+          attachments: z
+            .array(z.object({ fileId: z.string(), fileName: z.string() }))
+            .optional(),
+        })
+        .loose(),
+    })
+    .loose();
+  const withFiles = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Task with a brief',
+        attachments: [briefAttachment],
+      })
+    ).json(),
+  );
+  const withFilesId = withFiles.success ? withFiles.data.taskId : '';
+  const afterCreate = attachmentsRead.safeParse(
+    await get(`/api/app/tasks/${withFilesId}?orgId=${orgId}`),
+  );
+  const removeResponse = await send(
+    'POST',
+    `/api/app/tasks/${withFilesId}?orgId=${orgId}`,
+    { attachments: [] },
+  );
+  const afterRemove = attachmentsRead.safeParse(
+    await get(`/api/app/tasks/${withFilesId}?orgId=${orgId}`),
+  );
+  const ownRow = await sql<{ lifecycleStatus: string | null }[]>`
+    SELECT lifecycle_status AS "lifecycleStatus" FROM app.file_metadata
+    WHERE org_id = ${orgId} AND storage_ref = ${ownRef}
+  `;
+  const releaseJobs = await sql<{ data: unknown }[]>`
+    SELECT data FROM pgboss.job WHERE name = 'knowledge.release_refs'
+  `;
+  const releasedOwn = releaseJobs.some((job) => {
+    const refs = objectAt(job.data, '')?.refs;
+    return Array.isArray(refs) && refs.includes(ownRef);
+  });
+  const foreignCreate = await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+    projectId,
+    title: 'Task with a stolen ref',
+    attachments: [{ ...briefAttachment, fileId: foreignRef }],
+  });
+  const foreignBody = z
+    .object({ error: z.string() })
+    .safeParse(await foreignCreate.json());
+  record(
+    'task attachments: created and read back, removed and released, foreign ref refused',
+    withFiles.success &&
+      afterCreate.success &&
+      afterCreate.data.task.attachments?.length === 1 &&
+      afterCreate.data.task.attachments[0]?.fileId === ownRef &&
+      removeResponse.status === 200 &&
+      afterRemove.success &&
+      (afterRemove.data.task.attachments?.length ?? 0) === 0 &&
+      ownRow[0]?.lifecycleStatus === 'trashed' &&
+      releasedOwn &&
+      foreignCreate.status === 403 &&
+      foreignBody.success &&
+      foreignBody.data.error === 'TASK_ATTACHMENT_NOT_OWNED',
+    `create=${withFiles.success}, afterCreate=${JSON.stringify(afterCreate.success ? afterCreate.data.task.attachments : afterCreate.error.issues)} (want [brief]), remove=${removeResponse.status} (want 200), afterRemove=${afterRemove.success ? String(afterRemove.data.task.attachments?.length ?? 0) : 'unparsed'} (want 0), fileRow=${String(ownRow[0]?.lifecycleStatus)} (want trashed), releaseJob=${releasedOwn}, foreign=${foreignCreate.status}/${foreignBody.success ? foreignBody.data.error : 'unparsed'} (want 403/TASK_ATTACHMENT_NOT_OWNED)`,
   );
 
   // Board filters + flags: only `todo` rows, truncated false, canEdit true;
@@ -40396,7 +40487,7 @@ async function main(): Promise<void> {
           ),
       ],
       ['checkProjects', () => checkProjects(sql, baseUrl, authCtx)],
-      ['checkTasks', () => checkTasks(baseUrl, authCtx)],
+      ['checkTasks', () => checkTasks(sql, baseUrl, authCtx)],
       [
         'checkTasksOrgIsolation',
         () => checkTasksOrgIsolation(sql, baseUrl, authCtx),

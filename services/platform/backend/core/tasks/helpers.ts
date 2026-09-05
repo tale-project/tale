@@ -13,6 +13,8 @@ export const TASK_DESCRIPTION_MAX = 20_000;
 export const TASK_COMMENT_MAX = 10_000;
 export const TASK_LABELS_MAX = 50;
 export const TASK_LABEL_CHARS_MAX = 50;
+/** Files a person can hang on one task (the dialog's attachments list). */
+export const TASK_ATTACHMENTS_MAX = 50;
 
 /**
  * Coerce an externally-sourced task title (e.g. a GitHub issue title) to fit
