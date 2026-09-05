@@ -39068,6 +39068,14 @@ async function checkOrganizationLifecycle(
     UPDATE "user" SET "lastActiveOrganizationId" = ${orgA}
     WHERE "id" = ${owner.userId}
   `;
+  // One realtime hint per org: the outbox lives outside the `app` schema,
+  // so the catalog-driven cascade never lists it — A's must still go, B's
+  // must stay.
+  await sql`
+    INSERT INTO app_realtime.outbox (org_id, entity, entity_id)
+    VALUES (${orgA}, 'projects', 'life-hint-a'),
+           (${orgB}, 'projects', 'life-hint-b')
+  `;
   // What the deletion used to leave behind: rows in org-keyed app tables
   // joined by a foreign key WITHOUT a cascade (a binding references its
   // project), the slug-keyed corpus — a private document, a website only A
@@ -39461,6 +39469,10 @@ async function checkOrganizationLifecycle(
     WHERE org_id = ${orgA}
   `);
   if (outboxLeft > 0) survivorsA.push(`app_realtime.outbox=${outboxLeft}`);
+  const outboxB = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgB}
+  `);
   const projectRowsB = await count(sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.projects WHERE org_id = ${orgB}
   `);
@@ -39469,8 +39481,9 @@ async function checkOrganizationLifecycle(
     orgKeyedTables.length > 50 &&
       survivorsA.length === 0 &&
       afterDelete.audit === 1 &&
+      outboxB === 1 &&
       projectRowsB === 0,
-    `tables=${orgKeyedTables.length} survivors=${survivorsA.join(',') || 'none'} audit=${afterDelete.audit}`,
+    `tables=${orgKeyedTables.length} survivors=${survivorsA.join(',') || 'none'} audit=${afterDelete.audit} outboxB=${outboxB}`,
   );
 
   // The slug stays reserved (tombstone) until the job has removed what the
