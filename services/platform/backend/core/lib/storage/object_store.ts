@@ -58,6 +58,23 @@ export class ObjectStoreUnconfiguredError extends Error {
 /** The config tree whose connection serves every org without its own. */
 const DEFAULT_TREE_SLUG = 'default';
 
+/**
+ * Network bounds for every S3 verb. Without them a store that accepts the
+ * connection and then stalls holds the caller — upload finalize, a document
+ * replacement, the admin test-connection click — until undici's 300 s
+ * per-attempt bound, and aws4fetch's DEFAULT of 10 retries turns a
+ * 503-flapping store into eleven attempts per verb (whole PUT bodies
+ * re-sent each time). Three attempts is enough to ride out one blip; a
+ * store that is down stays down. The timeout is the TOTAL wall clock across
+ * retries, per call: metadata verbs (HEAD/DELETE) carry no body and must
+ * answer fast; body verbs (PUT/GET) get room for a large object on a slow
+ * link. Every verb takes `opts.timeoutMs` for a caller with a tighter or
+ * looser budget.
+ */
+const S3_RETRIES = 2;
+const S3_METADATA_TIMEOUT_MS = 30_000;
+const S3_BODY_TIMEOUT_MS = 120_000;
+
 // Short-TTL resolution cache, mirroring `knowledge_db.ts` ORG_URL_TTL_MS: a
 // config change (admin edits the org's bucket) takes effect within the TTL
 // without a restart, and the hot path avoids a disk read + SOPS decrypt per blob.
@@ -122,6 +139,7 @@ export function buildS3ObjectStore(
       secretAccessKey: secrets.secretAccessKey,
       region: connection.region,
       service: 's3',
+      retries: S3_RETRIES,
     }),
     config: connection,
   };
@@ -210,26 +228,66 @@ export function buildObjectKey(store: S3ObjectStore, orgSlug: string): string {
   return parts.join('/');
 }
 
+/** Per-call override of the verb's default network bound (see `S3_RETRIES`). */
+interface S3TimeoutOpts {
+  timeoutMs?: number;
+}
+
+/**
+ * The ONE door every S3 verb goes through: the signed request with a total
+ * timeout covering aws4fetch's retry loop. An abort surfaces as a legible
+ * `S3 <verb> <key> timed out after N ms` instead of a bare `TimeoutError`
+ * from deep inside undici.
+ */
+async function s3Fetch(
+  store: S3ObjectStore,
+  key: string,
+  verb: 'PUT' | 'GET' | 'HEAD' | 'DELETE',
+  init: Omit<RequestInit, 'method' | 'signal'>,
+  timeoutMs: number,
+): Promise<Response> {
+  const signal = AbortSignal.timeout(timeoutMs);
+  try {
+    return await store.client.fetch(objectUrl(store, key), {
+      ...init,
+      method: verb,
+      signal,
+    });
+  } catch (error) {
+    if (signal.aborted) {
+      throw new Error(`S3 ${verb} ${key} timed out after ${timeoutMs} ms`, {
+        cause: error,
+      });
+    }
+    throw error;
+  }
+}
+
 /** PUT bytes to the org's bucket. Throws on a non-2xx response. */
 export async function s3PutObject(
   store: S3ObjectStore,
   key: string,
   body: Uint8Array,
   contentType: string,
-  opts: { createOnly?: boolean } = {},
+  opts: { createOnly?: boolean } & S3TimeoutOpts = {},
 ): Promise<'created' | 'exists'> {
-  const res = await store.client.fetch(objectUrl(store, key), {
-    method: 'PUT',
-    // aws4fetch hashes the Uint8Array body for SigV4 (it checks `byteLength`);
-    // the cast is only to bridge TS 5.7's `Uint8Array<ArrayBufferLike>` vs the
-    // DOM `BufferSource` shape — it is a valid `BodyInit` at runtime.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- valid BodyInit at runtime (see above)
-    body: body as BodyInit,
-    headers: {
-      'content-type': contentType,
-      ...(opts.createOnly ? { 'if-none-match': '*' } : {}),
+  const res = await s3Fetch(
+    store,
+    key,
+    'PUT',
+    {
+      // aws4fetch hashes the Uint8Array body for SigV4 (it checks `byteLength`);
+      // the cast is only to bridge TS 5.7's `Uint8Array<ArrayBufferLike>` vs the
+      // DOM `BufferSource` shape — it is a valid `BodyInit` at runtime.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- valid BodyInit at runtime (see above)
+      body: body as BodyInit,
+      headers: {
+        'content-type': contentType,
+        ...(opts.createOnly ? { 'if-none-match': '*' } : {}),
+      },
     },
-  });
+    opts.timeoutMs ?? S3_BODY_TIMEOUT_MS,
+  );
   if (opts.createOnly && res.status === 412) return 'exists';
   if (!res.ok) {
     throw new Error(
@@ -243,8 +301,9 @@ export async function s3PutObject(
 export async function s3GetObjectBytes(
   store: S3ObjectStore,
   key: string,
+  opts: S3TimeoutOpts = {},
 ): Promise<Uint8Array> {
-  const bytes = await s3GetObjectBytesIfExists(store, key);
+  const bytes = await s3GetObjectBytesIfExists(store, key, opts);
   if (bytes === null) {
     throw new Error(`S3 GET ${key} failed: 404 the object does not exist`);
   }
@@ -261,10 +320,15 @@ export async function s3GetObjectBytes(
 export async function s3GetObjectBytesIfExists(
   store: S3ObjectStore,
   key: string,
+  opts: S3TimeoutOpts = {},
 ): Promise<Uint8Array | null> {
-  const res = await store.client.fetch(objectUrl(store, key), {
-    method: 'GET',
-  });
+  const res = await s3Fetch(
+    store,
+    key,
+    'GET',
+    {},
+    opts.timeoutMs ?? S3_BODY_TIMEOUT_MS,
+  );
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(
@@ -283,10 +347,15 @@ export async function s3GetObjectBytesIfExists(
 export async function s3HeadObject(
   store: S3ObjectStore,
   key: string,
+  opts: S3TimeoutOpts = {},
 ): Promise<{ size: number } | null> {
-  const res = await store.client.fetch(objectUrl(store, key), {
-    method: 'HEAD',
-  });
+  const res = await s3Fetch(
+    store,
+    key,
+    'HEAD',
+    {},
+    opts.timeoutMs ?? S3_METADATA_TIMEOUT_MS,
+  );
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(`S3 HEAD ${key} failed: ${res.status}`);
@@ -303,10 +372,15 @@ export async function s3HeadObject(
 export async function s3DeleteObject(
   store: S3ObjectStore,
   key: string,
+  opts: S3TimeoutOpts = {},
 ): Promise<void> {
-  const res = await store.client.fetch(objectUrl(store, key), {
-    method: 'DELETE',
-  });
+  const res = await s3Fetch(
+    store,
+    key,
+    'DELETE',
+    {},
+    opts.timeoutMs ?? S3_METADATA_TIMEOUT_MS,
+  );
   // 204 (deleted) and 404 (already gone) are both success for our purposes.
   if (!res.ok && res.status !== 404) {
     throw new Error(

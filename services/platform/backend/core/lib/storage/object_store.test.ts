@@ -2,13 +2,15 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildS3ObjectStore,
   clearOrgObjectStoreCache,
   ObjectStoreUnconfiguredError,
   resolveOrgObjectStore,
+  s3DeleteObject,
+  s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
 } from './object_store';
@@ -206,5 +208,50 @@ describe('resolveOrgObjectStore — fail-closed resolution', () => {
     expect((await resolveOrgObjectStore('acme')).config.bucket).toBe(
       'acme-own-bucket',
     );
+  });
+});
+
+describe('S3 verbs — bounded against a wedged or flapping store', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // Regression: the client inherited aws4fetch's default of 10 retries on
+  // 5xx/429, so a 503-flapping store cost eleven attempts per verb (PUT
+  // bodies re-sent every time) before the caller heard anything.
+  it('gives up on a 503-flapping store after three attempts', async () => {
+    const fetchStub = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          '<Error><Code>SlowDown</Code><Message>slow down</Message></Error>',
+          { status: 503 },
+        ),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchStub);
+    await expect(s3HeadObject(testStore(), 'org/blob-1')).rejects.toThrow(
+      /S3 HEAD org\/blob-1 failed: 503/,
+    );
+    expect(fetchStub).toHaveBeenCalledTimes(3);
+  });
+
+  // Regression: no verb carried a signal, so a store that accepted the
+  // connection and never answered held upload finalize / the admin probe
+  // until undici's 300 s per-attempt bound.
+  it('rejects within the timeout when the store never answers', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (request: Request) =>
+          new Promise<Response>((_resolve, reject) => {
+            request.signal.addEventListener('abort', () =>
+              reject(request.signal.reason),
+            );
+          }),
+      ),
+    );
+    await expect(
+      s3DeleteObject(testStore(), 'org/blob-1', { timeoutMs: 20 }),
+    ).rejects.toThrow(/S3 DELETE org\/blob-1 timed out after 20 ms/);
   });
 });
