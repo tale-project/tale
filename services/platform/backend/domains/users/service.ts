@@ -283,7 +283,13 @@ function isInvalidPasswordError(error: unknown): boolean {
   return /invalid password/i.test(message);
 }
 
-async function forcedResetCredentialPassword(
+/**
+ * The forced (expired / admin-set) rotation of the caller's own password.
+ * Keyed by (user, provider) on the write, never by the one row id read for
+ * the reuse check: a user must never keep a second credential row carrying
+ * the old (admin-set) password.
+ */
+export async function forcedResetCredentialPassword(
   sql: Sql,
   userId: string,
   newPassword: string,
@@ -313,8 +319,6 @@ async function forcedResetCredentialPassword(
     );
   }
   const newHash = await hashPassword(newPassword);
-  // Keyed by (user, provider), not by the one row id read above: a user must
-  // never keep a second credential row carrying the old (admin-set) password.
   await sql`
     UPDATE "account" SET "password" = ${newHash}, "updatedAt" = ${new Date()}
     WHERE "userId" = ${userId} AND "providerId" = 'credential'

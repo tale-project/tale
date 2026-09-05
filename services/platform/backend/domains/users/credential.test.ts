@@ -1,7 +1,20 @@
-import type { TransactionSql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import type { Sql, TransactionSql } from 'postgres';
+import { describe, expect, it, vi } from 'vitest';
 
-import { setCredentialPassword } from './service.ts';
+import {
+  forcedResetCredentialPassword,
+  setCredentialPassword,
+} from './service.ts';
+
+vi.mock('better-auth/crypto', () => ({
+  hashPassword: vi.fn((password: string) =>
+    Promise.resolve(`hashed:${password}`),
+  ),
+  verifyPassword: vi.fn(
+    ({ hash, password }: { hash: string; password: string }) =>
+      Promise.resolve(hash === `hashed:${password}`),
+  ),
+}));
 
 /**
  * A user has at most ONE credential (`providerId = 'credential'`) account
@@ -87,5 +100,63 @@ describe('setCredentialPassword', () => {
     ]);
     expect(upd?.values).toEqual(expect.arrayContaining([HASH, 'acct-newest']));
     expect(statements.some((s) => s.text.startsWith('INSERT'))).toBe(false);
+  });
+});
+
+describe('forcedResetCredentialPassword', () => {
+  function createRecordingSql(credentials: { password: string | null }[]): {
+    sql: Sql;
+    statements: Statement[];
+  } {
+    const statements: Statement[] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.raw.join('$').replace(/\s+/g, ' ').trim();
+      statements.push({ text, values });
+      if (text.startsWith('SELECT "password" FROM "account"')) {
+        return Promise.resolve(credentials);
+      }
+      if (text.startsWith('UPDATE "account"')) {
+        return Promise.resolve([]);
+      }
+      throw new Error(`unexpected SQL in recording sql: ${text}`);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- recording stub for an unconstructable third-party branded type
+    return { sql: tag as unknown as Sql, statements };
+  }
+
+  it('rotates EVERY credential row of the user — keyed by (user, provider), never by one row id', async () => {
+    const { sql, statements } = createRecordingSql([
+      { password: 'hashed:temp-pass' },
+    ]);
+
+    await forcedResetCredentialPassword(sql, USER_ID, 'new-pass');
+
+    const updates = writes(statements);
+    expect(updates).toHaveLength(1);
+    expect(updates[0]?.text).toBe(
+      'UPDATE "account" SET "password" = $, "updatedAt" = $ WHERE "userId" = $ AND "providerId" = \'credential\'',
+    );
+    expect(updates[0]?.values).toContain(USER_ID);
+    expect(updates[0]?.values).toContain('hashed:new-pass');
+  });
+
+  it('refuses the password the credential already carries, before any write', async () => {
+    const { sql, statements } = createRecordingSql([
+      { password: 'hashed:same-pass' },
+    ]);
+
+    await expect(
+      forcedResetCredentialPassword(sql, USER_ID, 'same-pass'),
+    ).rejects.toMatchObject({ code: 'password_reused', status: 400 });
+    expect(writes(statements)).toHaveLength(0);
+  });
+
+  it('answers 404 for a user without a credential row instead of inventing one', async () => {
+    const { sql, statements } = createRecordingSql([]);
+
+    await expect(
+      forcedResetCredentialPassword(sql, USER_ID, 'new-pass'),
+    ).rejects.toMatchObject({ code: 'credential_account_not_found' });
+    expect(writes(statements)).toHaveLength(0);
   });
 });
