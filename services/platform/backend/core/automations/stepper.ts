@@ -119,6 +119,9 @@ export interface AutomationApprovalGate {
     runId: string;
     nodeId: string;
     nodeType: string;
+    /** Whether the caller can park on a card. False inside a subautomation:
+     * the gate then answers from the policy alone and mints nothing. */
+    canPark: boolean;
   }): Promise<
     { status: 'allowed' } | { status: 'required'; approvalId?: string }
   >;
@@ -240,11 +243,17 @@ function automationApprovalGate(
           nodeId: request.nodeId,
           nodeType: request.nodeType,
           automation: request.automation,
+          policyOnly: !request.canPark,
         },
       );
       if (decision.decision === 'allow') return { status: 'allowed' };
       if (decision.decision === 'needs-approval') {
-        return { status: 'required', approvalId: decision.approvalId };
+        return {
+          status: 'required',
+          ...(decision.approvalId !== undefined && {
+            approvalId: decision.approvalId,
+          }),
+        };
       }
       throw new Error(
         `approval for "${request.nodeType}" was rejected — the run cannot perform it`,
@@ -279,6 +288,10 @@ interface RunSink {
   shouldHandOff(): boolean;
   /** Hand the run to the scheduler. */
   handOff(): Promise<void>;
+  /** Whether `wait` can actually park the run. False for the inline sink: a
+   * step that would have to park (an agent turn, an approval) refuses BEFORE
+   * it spends anything, instead of discovering `continue` after the kick. */
+  canPark: boolean;
 }
 
 const inlineSink: RunSink = {
@@ -288,6 +301,7 @@ const inlineSink: RunSink = {
   async wait() {
     return 'continue';
   },
+  canPark: false,
   shouldHandOff() {
     return false;
   },
@@ -739,8 +753,16 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         runId: run.runId,
         nodeId: node.id,
         nodeType: node.type,
+        canPark: sink.canPark,
       });
       if (decision.status === 'required') {
+        if (!sink.canPark) {
+          // No card was minted (policy-only answer): the honest failure,
+          // before the write, instead of "subautomation suspended".
+          throw new Error(
+            `a subautomation cannot wait for approval — "${node.id}" (${node.type}) needs a person to release it; hoist the node into the calling automation or allow ${node.type} without approval in the approval policy`,
+          );
+        }
         const waited = await sink.wait({
           detail: `approval:${decision.approvalId ?? node.id}`,
           ...(checkpoints.cursor !== undefined && {
@@ -938,6 +960,15 @@ interface AgentStepArgs {
 async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
   const { run, node, checkpoints, sink, outputs, trace, effects, record } =
     args;
+  // An agent turn spans suspensions, so a sink that cannot park cannot host
+  // one. Refused HERE, before the op row, the scheduled start and the real
+  // sandbox turn a kick spends — the inline sink's `continue` used to reveal
+  // it only after all of that.
+  if (!sink.canPark) {
+    throw new Error(
+      'an agent node cannot run inside a subautomation — hoist it to the top level of the calling automation',
+    );
+  }
   if (
     typeof node.forEach === 'string' ||
     typeof node.repeatUntil === 'string'
@@ -1453,6 +1484,7 @@ function durableSink(
     shouldHandOff() {
       return Date.now() >= deadline;
     },
+    canPark: true,
     async handOff() {
       await ctx.runMutation(internal.automations.mutations.continueRun, {
         organizationId,

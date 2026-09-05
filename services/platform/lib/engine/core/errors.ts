@@ -44,6 +44,10 @@ export const CODES = {
   SUBAUTOMATION_REF_INVALID:
     'subautomation references are "name" or "name@version"',
   SUBAUTOMATION_NOT_FOUND: 'subautomation references must resolve in the store',
+  SUBAUTOMATION_HAS_AGENT_NODE:
+    'a live agent turn spans suspensions, which a subautomation cannot park on',
+  SUBAUTOMATION_HAS_WRITE:
+    'a subautomation cannot wait for approval, so a gated write inside one fails the run',
 
   // References & templates.
   EXPR_SYNTAX: 'template expressions must be valid JavaScript expressions',
