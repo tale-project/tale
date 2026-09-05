@@ -1374,7 +1374,7 @@ export async function syncOneConfigWith(
   });
   if (!token.success) {
     throw new Error(
-      `No valid ${adapter.displayName} token for the config owner`,
+      `No valid ${adapter.displayName} token for the config owner: ${token.error}`,
     );
   }
 
