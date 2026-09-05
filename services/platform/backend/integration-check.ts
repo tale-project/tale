@@ -8471,6 +8471,10 @@ async function checkChat(
     // still resolves from the catalog, so the credential fault used to
     // surface inside the stream — a persisted user row and a generic failed
     // bubble. It is a pre-turn refusal the composer shows, with no rows.
+    // Serving reads the ACTIVE default only (the documented contract in
+    // domains/provider_credentials), so the fault is CREDENTIAL_NONE_CONFIGURED
+    // — the send body carries no credential id, so the DISABLED code has no
+    // composer path to reach.
     const credThread = z.object({ id: z.string() }).safeParse(
       await (
         await send(`/api/app/chat/threads?orgId=${orgId}`, {
@@ -8502,9 +8506,9 @@ async function checkChat(
       credStatus === 200 &&
         credOutcome.success &&
         credOutcome.data.status === 'refused' &&
-        (credOutcome.data.reason ?? '').includes('disabled') &&
+        (credOutcome.data.reason ?? '').includes('No default credential') &&
         credRows[0]?.count === '0',
-      `http=${credStatus}, outcome=${credOutcome.success ? `${credOutcome.data.status} (${credOutcome.data.reason ?? ''})` : 'ERR'} (want refused, naming the disabled credential), rows=${credRows[0]?.count} (want 0)`,
+      `http=${credStatus}, outcome=${credOutcome.success ? `${credOutcome.data.status} (${credOutcome.data.reason ?? ''})` : 'ERR'} (want refused: a disabled default serves nothing — the none-configured sentence), rows=${credRows[0]?.count} (want 0)`,
     );
     record(
       'chat guardrails: chat_filter refuses before the model, pii masks the wire, mandatory instructions lead the prompt, events land',
@@ -32655,7 +32659,10 @@ async function checkGovernanceSettingsTail(
   const saved = z.object({ ok: z.boolean() }).safeParse(
     await (
       await post(`/api/app/governance/moderation/secret?orgId=${orgId}`, {
-        authHeader: 'Bearer itest-moderation-secret-value',
+        // The stored value is the provider key; the endpoint's header
+        // template (`Bearer {{secret}}`, as the presets ship it) adds the
+        // scheme.
+        authHeader: 'itest-moderation-secret-value',
       })
     ).json(),
   );
@@ -32773,8 +32780,9 @@ async function checkGovernanceSettingsTail(
       saved.success &&
       saved.data.ok &&
       statusMasked.success &&
-      statusMasked.data.masked.startsWith('Bearer') &&
+      statusMasked.data.masked.startsWith('itest-') &&
       statusMasked.data.masked.includes('••') &&
+      !statusMasked.data.masked.includes('secret-value') &&
       testUnconfigured.success &&
       !testUnconfigured.data.ok &&
       testUnconfigured.data.kind === 'not_configured' &&
@@ -32823,7 +32831,11 @@ async function checkGovernanceSettingsTail(
       ).json(),
     );
   const blockedOnly = z
-    .object({ events: z.array(z.object({ kind: z.string() }).loose()) })
+    .object({
+      events: z.array(
+        z.object({ kind: z.string(), sanitizationRunId: z.string() }).loose(),
+      ),
+    })
     .safeParse(
       await (
         await get(
@@ -32833,7 +32845,11 @@ async function checkGovernanceSettingsTail(
     );
   const piiOnly = z
     .object({
-      events: z.array(z.object({ filterName: z.string() }).loose()),
+      events: z.array(
+        z
+          .object({ filterName: z.string(), sanitizationRunId: z.string() })
+          .loose(),
+      ),
     })
     .safeParse(
       await (
@@ -32842,19 +32858,41 @@ async function checkGovernanceSettingsTail(
         )
       ).json(),
     );
+  // The guardrail lane earlier in this run recorded real events for the same
+  // org (a chat_filter block, a pii detection), so each listing is judged on
+  // the rows seeded here — newest first, and each filter keeping only its
+  // own kind or filter across the whole org.
+  const seededRuns = new Set(['run-1', 'run-2']);
+  const seededAll = allEvents.success
+    ? allEvents.data.events.filter((event) =>
+        seededRuns.has(event.sanitizationRunId),
+      )
+    : [];
+  const seededBlocked = blockedOnly.success
+    ? blockedOnly.data.events.filter((event) =>
+        seededRuns.has(event.sanitizationRunId),
+      )
+    : [];
+  const seededPii = piiOnly.success
+    ? piiOnly.data.events.filter((event) =>
+        seededRuns.has(event.sanitizationRunId),
+      )
+    : [];
   record(
     'governance tail: chat-filter events listing + filters',
     allEvents.success &&
-      allEvents.data.events.length === 2 &&
+      seededAll.length === 2 &&
       allEvents.data.events[0]?.sanitizationRunId === 'run-2' &&
-      allEvents.data.events[1]?.categoryIds[0] === 'iban' &&
+      seededAll[1]?.categoryIds[0] === 'iban' &&
       blockedOnly.success &&
-      blockedOnly.data.events.length === 1 &&
-      blockedOnly.data.events[0]?.kind === 'blocked' &&
+      blockedOnly.data.events.every((event) => event.kind === 'blocked') &&
+      seededBlocked.length === 1 &&
+      seededBlocked[0]?.sanitizationRunId === 'run-2' &&
       piiOnly.success &&
-      piiOnly.data.events.length === 1 &&
-      piiOnly.data.events[0]?.filterName === 'pii',
-    `all=${allEvents.success ? allEvents.data.events.length : 'ERR'}, newestFirst=${allEvents.success ? allEvents.data.events[0]?.sanitizationRunId : '?'}, blocked=${blockedOnly.success ? blockedOnly.data.events.length : 'ERR'}, pii=${piiOnly.success ? piiOnly.data.events.length : 'ERR'}`,
+      piiOnly.data.events.every((event) => event.filterName === 'pii') &&
+      seededPii.length === 1 &&
+      seededPii[0]?.sanitizationRunId === 'run-1',
+    `all=${allEvents.success ? `${allEvents.data.events.length} (seeded ${seededAll.length}, want 2)` : 'ERR'}, newestFirst=${allEvents.success ? allEvents.data.events[0]?.sanitizationRunId : '?'} (want run-2), blocked=${blockedOnly.success ? `${blockedOnly.data.events.length} (seeded ${seededBlocked.length}, want 1)` : 'ERR'}, pii=${piiOnly.success ? `${piiOnly.data.events.length} (seeded ${seededPii.length}, want 1)` : 'ERR'}`,
   );
 
   // --- F. Retention: catalog, shortening cooldown, bounds proposal OCC ----
