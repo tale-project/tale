@@ -15,17 +15,6 @@ export interface TaskPayloads {
   'org.scaffold': { orgSlug: string; cleanFirst?: boolean };
   /** Remove a deleted org's on-disk config subtree. */
   'org.cleanup_files': { orgSlug: string };
-  /** One verified, org-resolved Slack event (see domains/connectors). */
-  'connector.slack_event': {
-    organizationId: string;
-    credentialId: string;
-    teamId: string;
-    /** Slack's per-delivery id — the dedup key for its at-least-once retries. */
-    eventId?: string;
-    eventType?: string;
-    /** The verified `event` object, exactly as Slack sent it. */
-    event: Record<string, unknown>;
-  };
   /** Fail transcriptions whose runner died; cascade to their video jobs. */
   'watchdog.transcriptions': Record<string, never>;
   /** Reconcile stalled RAG rows against the knowledge corpus. */
@@ -323,19 +312,6 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'org.cleanup_files': {
     retryLimit: 10,
     retryDelay: 1,
-    retryBackoff: true,
-    expireInSeconds: 300,
-  },
-  'connector.slack_event': {
-    // Slack retries a delivery it thinks went unacknowledged; `short` +
-    // the per-delivery singleton key collapses that retry into the job
-    // already queued instead of replaying the conversation.
-    policy: 'short',
-    // The endpoint has already acknowledged Slack, so a failed handoff is
-    // ours to retry — but an event that cannot be handled after a few tries
-    // is stale conversation, not something to keep replaying for hours.
-    retryLimit: 3,
-    retryDelay: 5,
     retryBackoff: true,
     expireInSeconds: 300,
   },

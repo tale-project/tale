@@ -16583,7 +16583,10 @@ async function checkSlackInbound(
       event: { type: 'message', text: 'hi' },
     });
 
-    // A verified delivery for a CONNECTED workspace enqueues exactly one job.
+    // A verified delivery for a CONNECTED workspace routes to that org and
+    // is acknowledged. Nothing consumes inbound events yet, so NO job may be
+    // queued for it — a queue with no consumer was the dead end this lane
+    // used to assert into.
     const oauth = await import('./domains/connectors/oauth.ts');
     const credential = await sql<{ id: string }[]>`
       SELECT id FROM app.connector_credentials
@@ -16597,7 +16600,7 @@ async function checkSlackInbound(
     });
     const jobsBefore = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pgboss.job
-      WHERE name = 'connector.slack_event'
+      WHERE name LIKE 'connector.%'
     `;
     const delivered = await post({
       type: 'event_callback',
@@ -16605,74 +16608,36 @@ async function checkSlackInbound(
       event_id: 'Ev-ITEST-1',
       event: { type: 'app_mention', text: 'hello there', user: 'U-ITEST' },
     });
-    // Slack retries an unacknowledged delivery; the same event id must
-    // collapse to ONE job rather than replaying the conversation.
+    // Slack retries an unacknowledged delivery; every retry is acknowledged
+    // too (Slack disables an endpoint that does not answer).
     const redelivered = await post({
       type: 'event_callback',
       team_id: 'T-INBOUND-1',
       event_id: 'Ev-ITEST-1',
       event: { type: 'app_mention', text: 'hello there', user: 'U-ITEST' },
     });
-    const jobRows = await sql<{ data: unknown; singletonKey: string | null }[]>`
-      SELECT data, singleton_key AS "singletonKey" FROM pgboss.job
-      WHERE name = 'connector.slack_event'
+    const jobsAfter = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name LIKE 'connector.%'
     `;
-    const enqueued = jobRows.length - Number(jobsBefore[0]?.count ?? '0');
-    // Both deliveries are acknowledged (Slack disables an endpoint that does
-    // not answer) and both carry the SAME per-delivery key.
-    const queued =
-      enqueued >= 1 &&
-      jobRows.every((row) => row.singletonKey === 'slack:Ev-ITEST-1');
-    const payload = jobRows[0]?.data;
+    const enqueued =
+      Number(jobsAfter[0]?.count ?? '0') - Number(jobsBefore[0]?.count ?? '0');
+    const routed = await oauth.resolveTeamRoute(sql, 'T-INBOUND-1');
     const routedToOrg =
-      payload !== null &&
-      typeof payload === 'object' &&
-      'organizationId' in payload &&
-      payload.organizationId === orgId;
+      routed !== null &&
+      routed.organizationId === orgId &&
+      routed.credentialId === credentialId;
     record(
-      'slack inbound: handshake echoes, unmapped refuses, a verified event routes once',
+      'slack inbound: handshake echoes, unmapped refuses, a verified event is routed and acknowledged without a queue',
       handshake.status === 200 &&
         handshakeBody.success &&
         handshakeBody.data.challenge === 'itest-challenge-value' &&
         unmapped.status === 404 &&
         delivered.status === 200 &&
         redelivered.status === 200 &&
-        queued &&
+        enqueued === 0 &&
         routedToOrg,
-      `handshake=${handshake.status}/${handshakeBody.success ? handshakeBody.data.challenge : 'ERR'}, unmapped=${unmapped.status} (want 404), delivered=${delivered.status}/${redelivered.status}, enqueued=${enqueued} keyed=${jobRows.every((row) => row.singletonKey === 'slack:Ev-ITEST-1')}, routedToOrg=${routedToOrg}`,
-    );
-
-    // The dedup itself, deterministically: pg-boss's `short` policy allows at
-    // most ONE QUEUED job per key, so a retry that arrives while the original
-    // is still waiting collapses into it. (Over HTTP the worker often drains
-    // the first before the retry lands, which frees the key again — that is
-    // the intended behaviour, not a missed dedup, so the invariant is
-    // asserted at the enqueue seam where "still queued" is guaranteed.)
-
-    const retryPayload = {
-      organizationId: orgId,
-      credentialId,
-      teamId: 'T-INBOUND-1',
-      eventId: 'Ev-ITEST-RETRY',
-      eventType: 'app_mention',
-      event: { type: 'app_mention', text: 'retry me' },
-    };
-    // Both sends ride ONE transaction, so the first is still `created` when
-    // the second lands — the exact race Slack's retry creates, made
-    // deterministic (over HTTP a fast worker may drain the first, which frees
-    // the key again by design).
-    const [firstSend, secondSend] = await sql.begin(async (tx) => [
-      await addJobInTx(tx, 'connector.slack_event', retryPayload, {
-        singletonKey: 'slack:Ev-ITEST-RETRY',
-      }),
-      await addJobInTx(tx, 'connector.slack_event', retryPayload, {
-        singletonKey: 'slack:Ev-ITEST-RETRY',
-      }),
-    ]);
-    record(
-      'slack inbound: a retry of a still-queued delivery collapses into it',
-      firstSend !== null && secondSend === null,
-      `first=${firstSend === null ? 'refused' : 'queued'}, retry=${secondSend === null ? 'collapsed' : 'DUPLICATED'}`,
+      `handshake=${handshake.status}/${handshakeBody.success ? handshakeBody.data.challenge : 'ERR'}, unmapped=${unmapped.status} (want 404), delivered=${delivered.status}/${redelivered.status}, enqueued=${enqueued} (want 0), routedToOrg=${routedToOrg}`,
     );
 
     // ---- external identities --------------------------------------------
