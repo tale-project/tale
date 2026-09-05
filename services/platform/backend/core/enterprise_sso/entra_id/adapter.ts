@@ -10,12 +10,18 @@ import type {
   SsoProviderCapabilities,
   SsoAuthContext,
 } from '../types';
+import { OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';
 import {
   MICROSOFT_LOGIN_BASE,
   MICROSOFT_GRAPH_BASE,
   EntraIssuerError,
   extractTenantId,
 } from './constants';
+
+// Every call to Microsoft fails fast on a stalled socket, like the generic
+// OIDC/OAuth2 adapters: the callback's 10-minute state window must never be
+// eaten by a hung token exchange or a Graph page.
+const fetchTimeout = (): AbortSignal => AbortSignal.timeout(OIDC_FETCH_TIMEOUT_MS);
 
 const capabilities: SsoProviderCapabilities = {
   // PKCE stays off for Entra until verified against confidential-client
@@ -91,6 +97,7 @@ async function exchangeCodeForTokens(
       redirect_uri: params.redirectUri,
       grant_type: 'authorization_code',
     }),
+    signal: fetchTimeout(),
   });
 
   if (!response.ok) {
@@ -151,6 +158,7 @@ async function getUserInfo(
 
   const response = await fetch(userInfoUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: fetchTimeout(),
   });
 
   if (!response.ok) {
@@ -201,6 +209,7 @@ async function fetchAllGraphPages(
     }
     const response: Response = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: fetchTimeout(),
     });
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.status}`);
@@ -291,7 +300,9 @@ async function validateConfig(
     : `${config.issuer}/.well-known/openid-configuration`;
 
   try {
-    const discoveryResponse = await fetch(discoveryUrl);
+    const discoveryResponse = await fetch(discoveryUrl, {
+      signal: fetchTimeout(),
+    });
     if (!discoveryResponse.ok) {
       return {
         valid: false,
@@ -314,6 +325,7 @@ async function validateConfig(
           client_secret: config.clientSecret,
           scope: 'https://graph.microsoft.com/.default',
         }),
+        signal: fetchTimeout(),
       });
 
       if (!tokenResponse.ok) {

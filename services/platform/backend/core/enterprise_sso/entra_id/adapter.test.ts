@@ -236,3 +236,82 @@ describe('entraIdAdapter.getAppRoles — Graph pagination', () => {
     expect(roles).toEqual([]);
   });
 });
+
+/**
+ * Every call the adapter makes to Microsoft carries an abort signal (the
+ * generic OIDC/OAuth2 adapters' fail-fast posture): a stalled token exchange
+ * or Graph page must not pin the callback until undici's own timeout, long
+ * after the state's 10-minute window has passed.
+ */
+describe('entraIdAdapter — network calls time out', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubJson(body: Record<string, unknown>): ReturnType<typeof vi.fn> {
+    const fetchMock = vi.fn(
+      async () => ({ ok: true, json: async () => body }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  function signalsOf(fetchMock: ReturnType<typeof vi.fn>): unknown[] {
+    return fetchMock.mock.calls.map((call) => {
+      const init: unknown = call[1];
+      return init !== null && typeof init === 'object' && 'signal' in init
+        ? init.signal
+        : undefined;
+    });
+  }
+
+  const config = {
+    providerId: 'entra-id',
+    issuer: 'https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/v2.0',
+    clientId: 'client',
+    clientSecret: 'secret',
+    scopes: [],
+  } as unknown as SsoProviderConfig;
+
+  it('passes an AbortSignal to the token exchange, /me and every Graph page', async () => {
+    const fetchMock = stubJson({
+      access_token: 'at',
+      id: 'user-1',
+      mail: 'user@example.com',
+      value: [],
+    });
+
+    await entraIdAdapter.exchangeCodeForTokens(config, {
+      code: 'code',
+      redirectUri: 'https://app.example.com/callback',
+    });
+    await entraIdAdapter.getUserInfo(config, 'token');
+    await getGroups(config, 'token');
+    await getAppRoles(config, 'token');
+
+    const signals = signalsOf(fetchMock);
+    expect(signals).toHaveLength(4);
+    for (const signal of signals) {
+      expect(signal).toBeInstanceOf(AbortSignal);
+    }
+  });
+
+  it('passes an AbortSignal to both validateConfig probes', async () => {
+    const fetchMock = stubJson({
+      token_endpoint: 'https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/oauth2/v2.0/token',
+      authorization_endpoint:
+        'https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/oauth2/v2.0/authorize',
+      access_token: 'probe',
+    });
+
+    const result = await entraIdAdapter.validateConfig(config);
+
+    expect(result.valid).toBe(true);
+    const signals = signalsOf(fetchMock);
+    // Discovery, then the client-credentials probe.
+    expect(signals).toHaveLength(2);
+    for (const signal of signals) {
+      expect(signal).toBeInstanceOf(AbortSignal);
+    }
+  });
+});
