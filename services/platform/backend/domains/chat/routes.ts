@@ -15,6 +15,10 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import {
+  registerLiveStream,
+  unregisterLiveStream,
+} from '../../realtime/sse.ts';
 import { isBackendDraining } from '../control/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
@@ -1386,7 +1390,9 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   // message when it disappears; stays open for the thread's next turn.
   // Polling AT the store's 250ms write throttle: a push (LISTEN/NOTIFY)
   // could not beat the throttle, so a listener hub would add a connection
-  // without adding freshness.
+  // without adding freshness. Enrolled in the shutdown drain like `/events`:
+  // the loop never ends on its own, and an open chat tab used to hold
+  // `server.close()` for the whole force deadline on every deploy.
   app.get('/threads/:threadId/stream', async (c) => {
     const { organizationId, userId } = caller(c);
     const thread = await ownedThread(
@@ -1399,6 +1405,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       return c.json({ error: 'thread not found' }, 404);
     }
     return streamSSE(c, async (stream) => {
+      registerLiveStream(stream);
       let lastSeenUpdate = 0;
       let lastSentParts: string | null = null;
       let lastMessageId: string | null = null;
@@ -1421,80 +1428,85 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       } catch (error) {
         console.warn('[chat] stream initial probe failed:', error);
       }
-      while (!stream.aborted) {
-        try {
-          const generation = await readGeneration(
-            deps.sql,
-            organizationId,
-            thread.id,
-          );
-          if (generation !== null) {
-            generating = true;
-            lastMessageId = generation.messageId ?? lastMessageId;
-            if (generation.updatedAt > lastSeenUpdate) {
-              lastSeenUpdate = generation.updatedAt;
-              // Parts ride along only when they CHANGED. Text ticks at the
-              // store's throttle while a tool result can be large (a RAG
-              // page), so resending an unchanged array four times a second
-              // would pay for the trace over and over. The client keeps the
-              // last one it saw.
-              let parts: unknown[] | null = null;
-              if (generation.messageId != null) {
-                const live = await readLiveParts(
-                  deps.sql,
-                  organizationId,
-                  generation.messageId,
-                );
-                const serialized = live === null ? null : JSON.stringify(live);
-                if (serialized !== null && serialized !== lastSentParts) {
-                  lastSentParts = serialized;
-                  parts = live;
-                }
-              }
-              await stream.writeSSE({
-                event: 'progress',
-                data: JSON.stringify({
-                  messageId: generation.messageId,
-                  text: generation.text,
-                  reasoning: generation.reasoning,
-                  cancelRequested: generation.cancelRequested,
-                  ...(parts !== null ? { parts } : {}),
-                  serverNow: Date.now(),
-                }),
-              });
-              lastBeatAt = Date.now();
-            }
-          } else if (generating) {
-            // The row's absence is the settle signal — ship the final row.
-            generating = false;
-            lastSeenUpdate = 0;
-            lastSentParts = null;
-            const messages = await listMessageViews(
+      try {
+        while (!stream.aborted) {
+          try {
+            const generation = await readGeneration(
               deps.sql,
               organizationId,
               thread.id,
             );
-            const settled =
-              lastMessageId !== null
-                ? (messages.find((row) => row.id === lastMessageId) ??
-                  messages.at(-1))
-                : messages.at(-1);
-            await stream.writeSSE({
-              event: 'settled',
-              data: JSON.stringify({ message: settled ?? null }),
-            });
-            lastBeatAt = Date.now();
-          } else if (Date.now() - lastBeatAt >= STREAM_HEARTBEAT_MS) {
-            await stream.writeSSE({ event: 'heartbeat', data: '' });
-            lastBeatAt = Date.now();
+            if (generation !== null) {
+              generating = true;
+              lastMessageId = generation.messageId ?? lastMessageId;
+              if (generation.updatedAt > lastSeenUpdate) {
+                lastSeenUpdate = generation.updatedAt;
+                // Parts ride along only when they CHANGED. Text ticks at the
+                // store's throttle while a tool result can be large (a RAG
+                // page), so resending an unchanged array four times a second
+                // would pay for the trace over and over. The client keeps the
+                // last one it saw.
+                let parts: unknown[] | null = null;
+                if (generation.messageId != null) {
+                  const live = await readLiveParts(
+                    deps.sql,
+                    organizationId,
+                    generation.messageId,
+                  );
+                  const serialized =
+                    live === null ? null : JSON.stringify(live);
+                  if (serialized !== null && serialized !== lastSentParts) {
+                    lastSentParts = serialized;
+                    parts = live;
+                  }
+                }
+                await stream.writeSSE({
+                  event: 'progress',
+                  data: JSON.stringify({
+                    messageId: generation.messageId,
+                    text: generation.text,
+                    reasoning: generation.reasoning,
+                    cancelRequested: generation.cancelRequested,
+                    ...(parts !== null ? { parts } : {}),
+                    serverNow: Date.now(),
+                  }),
+                });
+                lastBeatAt = Date.now();
+              }
+            } else if (generating) {
+              // The row's absence is the settle signal — ship the final row.
+              generating = false;
+              lastSeenUpdate = 0;
+              lastSentParts = null;
+              const messages = await listMessageViews(
+                deps.sql,
+                organizationId,
+                thread.id,
+              );
+              const settled =
+                lastMessageId !== null
+                  ? (messages.find((row) => row.id === lastMessageId) ??
+                    messages.at(-1))
+                  : messages.at(-1);
+              await stream.writeSSE({
+                event: 'settled',
+                data: JSON.stringify({ message: settled ?? null }),
+              });
+              lastBeatAt = Date.now();
+            } else if (Date.now() - lastBeatAt >= STREAM_HEARTBEAT_MS) {
+              await stream.writeSSE({ event: 'heartbeat', data: '' });
+              lastBeatAt = Date.now();
+            }
+          } catch (error) {
+            if (stream.aborted) break;
+            console.error('[chat] stream poll failed, backing off:', error);
+            await stream.sleep(1000);
+            continue;
           }
-        } catch (error) {
-          if (stream.aborted) break;
-          console.error('[chat] stream poll failed, backing off:', error);
-          await stream.sleep(1000);
-          continue;
+          await stream.sleep(STREAM_POLL_MS);
         }
-        await stream.sleep(STREAM_POLL_MS);
+      } finally {
+        unregisterLiveStream(stream);
       }
     });
   });

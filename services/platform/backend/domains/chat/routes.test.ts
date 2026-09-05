@@ -63,10 +63,15 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
   };
 });
 
+import { endAllEventStreams } from '../../realtime/sse.ts';
 import { createChatRoutes } from './routes.ts';
 
-function makeApp() {
-  return createChatRoutes({ sql: {} as never, auth: {} as never });
+function makeApp(sql: unknown = {}) {
+  return createChatRoutes({ sql: sql as never, auth: {} as never });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 beforeEach(() => {
@@ -166,5 +171,42 @@ describe('GET /memories/search — the limit is a boundary', () => {
 
     expect(res.status).toBe(400);
     expect(searchApprovedMemories).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /threads/:threadId/stream — enrolled in the shutdown drain', () => {
+  it('ends with every other SSE stream when the process drains', async () => {
+    // A tagged-template `sql` stub: the owned-thread read answers a thread,
+    // the generation read answers idle, everything else is empty.
+    const sql = (strings: TemplateStringsArray): Promise<unknown[]> => {
+      const text = strings.join('?');
+      if (text.includes('FROM app.threads t')) {
+        return Promise.resolve([{ id: 't1', title: null }]);
+      }
+      return Promise.resolve([]);
+    };
+
+    const res = await makeApp(sql).request('/threads/t1/stream?orgId=o1');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/event-stream');
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error('no body');
+    const first = await reader.read();
+    expect(new TextDecoder().decode(first.value)).toContain('event: idle');
+
+    // The chat lane is in the same registry as `/events`: draining ends it,
+    // and its loop — which otherwise runs until the client leaves — exits.
+    expect(endAllEventStreams()).toBe(1);
+    await expect(
+      Promise.race([
+        reader
+          .read()
+          .then((chunk) => (chunk.done ? 'ended' : 'data'))
+          .catch(() => 'ended'),
+        sleep(2_000).then(() => 'timeout'),
+      ]),
+    ).resolves.toBe('ended');
+    // Unregistered on the way out: nothing left to drain.
+    expect(endAllEventStreams()).toBe(0);
   });
 });

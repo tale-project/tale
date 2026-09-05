@@ -150,7 +150,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     console.log(`[backend] ${signal} received — shutting down`);
     if (server) {
-      // Ends the never-ending /events SSE streams first and force-closes
+      // Ends the never-ending SSE streams first and force-closes
       // stragglers on a deadline — a bare server.close() waits for every
       // open connection, so one connected browser used to park shutdown
       // here until the orchestrator's SIGKILL, never reaching the graceful
