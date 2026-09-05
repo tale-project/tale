@@ -5,7 +5,6 @@ import {
   executeTurn,
   type ExecuteTurnArgs,
 } from '../../core/chat/turn_action.ts';
-import { settleDeferredSendOnUserAppend } from '../../core/chat/turn_store.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { chatShimHandlers } from './shim.ts';
 import { createPgTurnStore, createPgUsageLedger } from './store.ts';
@@ -75,20 +74,18 @@ export async function runChatTurn(
     locale: request.locale ?? 'en',
     ...(request.resend === true ? { resend: true } : {}),
   };
-  const store = createPgTurnStore(sql);
   return executeTurn(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by chatShimHandlers
     shim as unknown as Parameters<typeof executeTurn>[0],
     args,
     {
       deps: {
-        store:
+        store: createPgTurnStore(
+          sql,
           request.onUserMessageAppended !== undefined
-            ? settleDeferredSendOnUserAppend(
-                store,
-                request.onUserMessageAppended,
-              )
-            : store,
+            ? { onUserMessageAppended: request.onUserMessageAppended }
+            : {},
+        ),
         usage: createPgUsageLedger(sql),
       },
     },

@@ -7,6 +7,7 @@ import {
   type UsageLedger,
   type UsageLedgerEntry,
 } from '../../../lib/chat/turn.ts';
+import { settleDeferredSendOnUserAppend } from '../../core/chat/turn_store.ts';
 import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
 import { toJson } from '../../db/sql.ts';
@@ -205,8 +206,21 @@ async function finalizeWithStreamedTail(
   });
 }
 
-/** A turn store over app.messages + app.generations. */
-export function createPgTurnStore(sql: Sql): TurnStore {
+/** A turn store over app.messages + app.generations. With
+ * `onUserMessageAppended` the store is decorated to run it the moment
+ * `beginTurn` persisted the user row — the deferred-send lane settles its
+ * tray row there (the 0.4 `settleDeferredSendOnUserAppend` wiring). */
+export function createPgTurnStore(
+  sql: Sql,
+  options: { onUserMessageAppended?: () => Promise<void> } = {},
+): TurnStore {
+  const store = pgTurnStore(sql);
+  return options.onUserMessageAppended !== undefined
+    ? settleDeferredSendOnUserAppend(store, options.onUserMessageAppended)
+    : store;
+}
+
+function pgTurnStore(sql: Sql): TurnStore {
   let lastStreamWriteAt = 0;
   let lastCancelRequested = false;
   return {
