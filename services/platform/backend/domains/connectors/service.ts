@@ -1,9 +1,8 @@
 import type { Sql } from 'postgres';
 
-import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
 import {
   executeConnectorAction,
-  installConnectorCatalog,
+  loadConnectorCatalog,
   type ApprovalGate,
   type ConnectorAuditSink,
   type ConnectorCaller,
@@ -20,7 +19,6 @@ import {
   type WorkflowFolderFile,
 } from '../../../lib/connectors/natives/index.ts';
 import type { PortableHostCall } from '../../../lib/connectors/portable-live.ts';
-import { registerConnector } from '../../../lib/connectors/registry.ts';
 import {
   hasCodeRunner,
   setCodeRunner,
@@ -345,9 +343,7 @@ function auditSink(sql: Sql): ConnectorAuditSink {
  * catalog read is stat-memoized). */
 function assembleConnectorHost(sql: Sql): void {
   if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
-  const connectors = loadConnectorDefinitions();
-  installConnectorCatalog(connectors);
-  for (const connector of connectors) registerConnector(connector);
+  loadConnectorCatalog();
   registerNativeConnectors({
     webdav: pgWebdavStore(sql),
     sandboxScripts: workflowScripts(sql),

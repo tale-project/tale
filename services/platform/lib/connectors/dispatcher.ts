@@ -45,11 +45,7 @@ import type {
   ConnectorEffect,
 } from '../shared/schemas/connectors';
 import { ConnectorError } from './errors';
-import {
-  createLiveHost,
-  type ConnectorBlobSink,
-  type LiveHostOptions,
-} from './live-host';
+import { createLiveHost, type ConnectorBlobSink } from './live-host';
 import {
   buildPortableLiveCode,
   type PortableHostCall,
@@ -83,12 +79,14 @@ export function installConnectorCatalog(
 }
 
 /**
- * Load every shipped connector under `<systemRoot>/connectors/`, register
- * its actions as engine node types, and install the result as the dispatch
- * catalog — one read of the catalog serving both the engine and the
- * dispatcher, so the two can never disagree about which actions exist.
+ * Load every shipped connector under `<systemRoot>/connectors/` (the
+ * deployment's system tree when no root is given), register its actions as
+ * engine node types, and install the result as the dispatch catalog — one
+ * read of the catalog serving both the engine and the dispatcher, so the two
+ * can never disagree about which actions exist. Hosts call it at assembly
+ * time; the read is memoized per root, so calling it per invocation is cheap.
  */
-export function loadConnectorCatalog(systemRoot: string): Connector[] {
+export function loadConnectorCatalog(systemRoot?: string): Connector[] {
   const { connectors } = loadConnectors(systemRoot);
   installConnectorCatalog(connectors);
   return connectors;
@@ -222,13 +220,6 @@ export interface ConnectorAuditSink {
   record(entry: ConnectorInvocationRecord): Promise<void>;
 }
 
-/** How the mediated capabilities are built. Injectable so a host can supply a
- * different transport (a sandbox-side proxy, a test double) without the
- * dispatcher learning about it. */
-export type ConnectorHostFactory = (
-  options: LiveHostOptions,
-) => ReturnType<typeof createLiveHost>;
-
 // ------------------------------------------------------------------- callers
 
 /**
@@ -320,7 +311,6 @@ export interface ConnectorDispatchContext {
   idempotencyKey?: string;
   /** Ceiling for one live body, including the vendor calls it chains. */
   timeoutMs?: number;
-  hostFactory?: ConnectorHostFactory;
   /**
    * Per-invocation CodeRunner override for the LIVE yaml-js path. A caller
    * with a sandbox session hands in the session-bound out-of-process runner
@@ -430,7 +420,7 @@ function resolveConnector(slug: string): Connector {
       'no connector catalog is installed',
       {
         connector: slug,
-        hint: 'call loadConnectorCatalog(dir) (or installConnectorCatalog) during host assembly',
+        hint: 'call loadConnectorCatalog() (or installConnectorCatalog) during host assembly',
       },
     );
   }
@@ -774,8 +764,6 @@ export async function executeConnectorAction(
     }
   }
 
-  const buildHost = ctx.hostFactory ?? createLiveHost;
-
   let output: unknown;
   try {
     if (runsPortable && backend.kind === 'yaml-js') {
@@ -805,7 +793,7 @@ export async function executeConnectorAction(
       // host-capable in-process runner). Building the host is itself
       // policed — a credential pointing outside the connector's allowlist is
       // refused here — so it shares the block whose failures are recorded.
-      const host = buildHost({
+      const host = createLiveHost({
         connector,
         action: action.name,
         ...(credential.endpoint !== undefined && {
