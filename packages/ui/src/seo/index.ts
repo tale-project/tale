@@ -128,7 +128,7 @@ export { etagOf } from './runtime/etag';
 export * from './globals';
 // Pure URL / hreflang helpers — safe for Node artifact builds. React
 // document-meta hooks stay on `@tale/ui/seo/tale-document-meta`.
-export { absoluteSitePath } from './urls';
+export { absoluteSitePath, docsOriginForSite } from './urls';
 export {
   buildLocaleAlternateUrls,
   resolveHreflangFromAlternates,

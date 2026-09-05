@@ -1,6 +1,6 @@
 ---
 title: Strukturierte Daten
-description: Tales Wissensdatenbank bringt drei eingebaute strukturierte Entitäten mit — Kontakte, Produkte, Websites — neben den Dokumenten. Diese Seite gibt dir das mentale Modell dafür, wann ein typisierter Datensatz ein Dokument schlägt.
+description: Tales Wissensdatenbank bringt drei eingebaute strukturierte Entitäten mit — Kontakte, Produkte, Websites — neben den Dokumenten.
 ---
 
 Tales Wissensdatenbank führt zwei Formen nebeneinander. Dokumente sind Text, aus dem der Agent Chunks abruft; strukturierte Datensätze sind typisierte Zeilen, aus denen der Agent Felder liest. Die Form, die du wählst, ist die wichtigste Entscheidung dafür, wie ein Agent dein Wissen nutzt — liegst du falsch, verwässert der Agent entweder eine klare Antwort oder rät bei einem Wert, den du längst vorliegen hast.

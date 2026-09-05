@@ -1,6 +1,6 @@
 ---
 title: Analyse d'utilisation
-description: Le dashboard des tokens, du coût et du volume de requêtes par utilisateur, équipe, modèle et agent — avec tendances et un classement des top agents. Les Administrateurs et Propriétaires lisent ceci quand une facture est inattendue ou quand la direction veut la forme approximative des dépenses AI.
+description: Le dashboard des tokens, du coût et du volume de requêtes par utilisateur, équipe, modèle et agent — avec tendances et un classement des top agents.
 ---
 
 Analyse d'utilisation est le dashboard qui agrège chaque appel AI facturable dans une vue unique de tokens, coût et volume de requêtes. Il découpe par utilisateur, équipe, rôle, modèle, agent et temps, pour que la ligne inattendue sur la facture soit traçable jusqu'à la charge qui l'a portée. Les Administrateurs et Propriétaires lisent cette page quand une facture est inattendue, quand la direction veut la forme approximative des dépenses AI, ou quand une alerte de budget se déclenche et la question suivante est _qui et quoi_.

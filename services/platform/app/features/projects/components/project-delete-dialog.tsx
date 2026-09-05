@@ -113,6 +113,25 @@ export function ProjectDeleteDialog({
           });
           return;
         }
+        if (code === 'PROJECT_HAS_PROTECTED_RECORDS') {
+          // The backend names the protected records in error.data.documents
+          // so the operator knows which reviews to resolve or which retained
+          // records to move out of the project first.
+          const rawDocuments: unknown = error.data?.documents;
+          const documents = Array.isArray(rawDocuments)
+            ? rawDocuments.filter(
+                (document): document is string => typeof document === 'string',
+              )
+            : [];
+          toast({
+            title: t('errors.PROJECT_HAS_PROTECTED_RECORDS'),
+            ...(documents.length > 0
+              ? { description: documents.join(', ') }
+              : {}),
+            variant: 'destructive',
+          });
+          return;
+        }
         if (code === 'PROJECT_LEGAL_HOLD') {
           toast({
             title: t('errors.PROJECT_LEGAL_HOLD'),

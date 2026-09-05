@@ -1,6 +1,6 @@
 ---
 title: Chatter efficacement
-description: Cinq habitudes qui font passer un chat de « merci pour le pavé » à « exactement ce qu’il me fallait » — demander au lieu de passer commande, choisir le modèle, nourrir la base de connaissances, lire le déroulé et vérifier les sources.
+description: Cinq habitudes qui font passer un chat de « merci pour le pavé » à « exactement ce qu’il me fallait ».
 ---
 
 Chatter efficacement dans Tale ne tient pas à des prompts astucieux ; il s’agit de donner à l’assistant de quoi lire ton intention du premier coup — et de savoir quel travail n’a pas sa place dans un chat. Cinq petites habitudes — demander au lieu de passer commande, choisir le bon modèle, nourrir la base de connaissances au lieu de coller, lire le déroulé de réflexion, vérifier les sources — font passer la réponse moyenne de « merci pour le pavé » à « exactement ce qu’il me fallait ». Cette page déroule les habitudes dans l’ordre sur un chat neuf.

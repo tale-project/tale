@@ -322,6 +322,13 @@ export interface ItemListEntry {
 /**
  * `ItemList` block for visible ordered collections (changelog releases,
  * compare hubs, etc.). Emit only for items rendered on the page.
+ *
+ * Each entry nests its subject under `ListItem.item` rather than putting
+ * `name` / `url` / `datePublished` on the `ListItem` itself. `ListItem` is
+ * an `Intangible`, so it has no `datePublished` — that property is defined
+ * on `CreativeWork`, and emitting it directly on the `ListItem` is a
+ * schema.org validation error. The nested form is also one of the two
+ * shapes Google documents for `ItemList`.
  */
 export function buildItemListJsonLd(
   items: readonly ItemListEntry[],
@@ -332,12 +339,15 @@ export function buildItemListJsonLd(
     '@type': 'ItemList',
     ...(opts?.name ? { name: opts.name } : {}),
     numberOfItems: items.length,
-    itemListElement: items.map((item, i) => ({
+    itemListElement: items.map((entry, i) => ({
       '@type': 'ListItem',
       position: i + 1,
-      name: item.name,
-      url: item.url,
-      ...(item.datePublished ? { datePublished: item.datePublished } : {}),
+      item: {
+        '@type': 'CreativeWork',
+        name: entry.name,
+        url: entry.url,
+        ...(entry.datePublished ? { datePublished: entry.datePublished } : {}),
+      },
     })),
   });
 }

@@ -37,10 +37,17 @@
  * - `tokenize` — treated as `mask`. Tokenizing keeps a per-message restore map
  *   so a reply can be detokenized back to real details; an indexed chunk
  *   outlives any such map, so restoring is meaningless here and keeping the
- *   indexed copy masked is the safe reading.
+ *   indexed copy masked is the safe reading. The token indices (`[EMAIL_1]`)
+ *   are numbered per scanned window, not per document — one address can be
+ *   `[EMAIL_1]` in one window and `[EMAIL_2]` in the next — so they are
+ *   placeholders, never a document-wide identity.
  */
 
-import { createScrubberFromConfig } from '../../../lib/pii';
+import {
+  createScrubberFromConfig,
+  scrubDocument,
+  type Scrubber,
+} from '../../../lib/pii';
 import {
   piiConfigSchema,
   type PiiConfig,
@@ -70,6 +77,81 @@ export function parsePiiConfig(raw: unknown): PiiConfig | null {
 }
 
 /**
+ * One scrubber per distinct policy per process. Building one loads and
+ * vets the data tree and compiles every enabled pattern — work the engine's
+ * own contract says to pay once per config, not once per document as the
+ * indexing worker otherwise would on every sync backlog. The key is the
+ * policy's content, so an admin saving a change gets a fresh scrubber on
+ * the next document; the data tree itself is baked into the image, so a
+ * process never needs to notice it changing. Bounded so a stream of
+ * distinct policies cannot grow it without limit.
+ */
+const scrubberCache = new Map<string, Scrubber | null>();
+const SCRUBBER_CACHE_LIMIT = 32;
+/**
+ * Policies whose construction failure was already reported this process —
+ * bounded like the cache, so a stream of distinct failing policies cannot
+ * grow it without limit; an evicted policy simply reports once more.
+ */
+const reportedFailures = new Set<string>();
+
+/** Drop the oldest entry once `entries` has reached the cache limit. */
+function evictToLimit(entries: Map<string, unknown> | Set<string>): void {
+  if (entries.size < SCRUBBER_CACHE_LIMIT) return;
+  const oldest = entries.keys().next().value;
+  if (oldest !== undefined) entries.delete(oldest);
+}
+
+function policyKey(config: PiiConfig): string {
+  return JSON.stringify([
+    config.enabled,
+    config.mode,
+    config.enabledPatterns,
+    config.locales ?? null,
+    config.customPatterns ?? null,
+  ]);
+}
+
+/**
+ * The scrubber for a policy — cached per distinct policy — or null when the
+ * policy is disabled or its scrubber cannot be built. A failure is not
+ * cached: it is reported once per policy at error level (a missing data
+ * tree is a packaging defect, not a per-document event) and construction is
+ * retried on the next document, so a repaired tree heals without a restart.
+ */
+export function scrubberForPolicy(config: PiiConfig): Scrubber | null {
+  const key = policyKey(config);
+  const cached = scrubberCache.get(key);
+  if (cached !== undefined) return cached;
+
+  let scrubber: Scrubber | null;
+  try {
+    scrubber = createScrubberFromConfig(config);
+  } catch (error) {
+    // `createScrubber` throws only on a programmer error or a missing data
+    // tree, and the governance resolver filters the usual trigger (an
+    // unknown locale code) before it gets here. Failing the index would take
+    // an organization's whole corpus offline over a governance typo, so it
+    // degrades to today's behaviour and says so — once.
+    if (!reportedFailures.has(key)) {
+      evictToLimit(reportedFailures);
+      reportedFailures.add(key);
+      console.error(
+        `[pii-gate] scrubber construction failed, indexing unscrubbed until it succeeds: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    return null;
+  }
+  reportedFailures.delete(key);
+
+  evictToLimit(scrubberCache);
+  scrubberCache.set(key, scrubber);
+  return scrubber;
+}
+
+/**
  * Apply a policy to text bound for the index.
  *
  * Returns the text to index, masked where the policy says so, or a refusal
@@ -82,28 +164,19 @@ export function applyPiiPolicyForIndexing(
 ): PiiIngestDecision {
   if (config === null) return { kind: 'index', text };
 
-  let scrubber;
-  try {
-    scrubber = createScrubberFromConfig(config);
-  } catch (error) {
-    // `createScrubber` throws only on a programmer error, and the governance
-    // resolver filters the usual trigger (an unknown locale code) before it
-    // gets here — so this is defence, not an expected path. Failing the index
-    // would take an organization's whole corpus offline over a governance
-    // typo, so it degrades to today's behaviour and says so.
-    console.warn(
-      `[pii-gate] scrubber construction failed, indexing unscrubbed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-    return { kind: 'index', text };
-  }
+  const scrubber = scrubberForPolicy(config);
   if (scrubber === null) return { kind: 'index', text };
 
   // The scrubber is built WITH the policy's mode, so it answers `blocked` under
   // `block` and `modified` under `mask`/`tokenize`. Re-reading `config.mode`
   // here would be a second opinion about a decision the engine already made.
-  const outcome = scrubber.scrub(text);
+  //
+  // Scanned as a document, not a message: `scrub` alone clamps its input to
+  // the chat-sized byte cap, and an extracted document routinely runs past
+  // it — indexing that output would drop the tail of the file and never look
+  // at an identifier past the cap. `scrubDocument` windows the text under the
+  // same clamp and joins the verdicts, so what is indexed is the whole text.
+  const outcome = scrubDocument(scrubber, text);
   switch (outcome.kind) {
     case 'pass':
       return { kind: 'index', text };
@@ -117,7 +190,11 @@ export function applyPiiPolicyForIndexing(
       return { kind: 'refuse', categoryIds: outcome.categoryIds };
     default:
       // A step error. The scan is fail-open by design, so this indexes as it
-      // would have before the policy existed.
+      // would have before the policy existed — and says so, because a
+      // document indexed unscanned is a governance fact, not a quiet default.
+      console.warn(
+        `[pii-gate] scan failed (${outcome.reason}); indexing unscrubbed`,
+      );
       return { kind: 'index', text };
   }
 }

@@ -189,13 +189,16 @@ describe('provisionProviders', () => {
     expect(w[1]?.body).toMatchObject({ value: 'key-B' });
   });
 
-  it('a failed write warns + leaves no memo (no throw), so the next provision retries', async () => {
+  it('a failed write warns, RETURNS the failure and leaves no memo (no throw), so the next provision retries', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     stubGateway({ keyExists: false, writeStatus: 500 });
     const mod = await loadModule();
-    await expect(
-      mod.provisionProviders(ORG, [PROVIDER]),
-    ).resolves.toBeUndefined();
+    const failures = await mod.provisionProviders(ORG, [PROVIDER]);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.name).toBe('openrouter');
+    expect(String(failures[0]?.error)).toContain(
+      'llm-gateway provider config openrouter failed (500)',
+    );
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining("provisioning provider 'openrouter'"),
       expect.anything(),
@@ -448,27 +451,12 @@ describe('provisionProviders', () => {
   });
 });
 
-describe('reprovisionProvider', () => {
-  it('creates the org key on a fresh process', async () => {
-    const calls = stubGateway({ keyExists: false });
-    const mod = await loadModule();
-    await mod.reprovisionProvider(ORG, PROVIDER);
-    expect(writes(calls)).toHaveLength(2);
-  });
-
-  it('throws on a failed write (eager push owns the degrade posture)', async () => {
-    stubGateway({ keyExists: false, writeStatus: 500 });
-    const mod = await loadModule();
-    await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(
-      'llm-gateway provider config openrouter failed (500)',
-    );
-  });
-
+describe('provisionProviders — management-plane auth', () => {
   it('sends Basic auth from SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD on EVERY management call', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-1');
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    await mod.reprovisionProvider(ORG, PROVIDER);
+    await expect(mod.provisionProviders(ORG, [PROVIDER])).resolves.toEqual([]);
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) {
       expect(call.headers.authorization).toBe(basicFor('pw-1'));
@@ -480,29 +468,34 @@ describe('reprovisionProvider', () => {
     vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', 'pw-old');
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    await mod.reprovisionProvider(ORG, PROVIDER);
+    await mod.provisionProviders(ORG, [PROVIDER]);
     expect(calls[0]?.headers.authorization).toBe(basicFor('pw-old'));
   });
 
   it('fails closed — no management call at all — when no admin password is configured', async () => {
     // The gateway shares one port on the sandbox network for inference and
     // /api/*; an anonymous management plane would let sandboxed code mint its
-    // own keys. Unset (both names) must refuse BEFORE touching the gateway.
+    // own keys. Unset (both names) must refuse BEFORE touching the gateway;
+    // the refusal comes back as the provider's failure.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
     vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', undefined);
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(
+    const failures = await mod.provisionProviders(ORG, [PROVIDER]);
+    expect(String(failures[0]?.error)).toContain(
       'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set',
     );
     expect(calls).toHaveLength(0);
   });
 
   it('treats a blank password as unset (fails closed)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', '   ');
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
-    await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(
+    const failures = await mod.provisionProviders(ORG, [PROVIDER]);
+    expect(String(failures[0]?.error)).toContain(
       'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set',
     );
     expect(calls).toHaveLength(0);
@@ -559,7 +552,7 @@ describe('mintVirtualKey', () => {
     );
   });
 
-  it('binds a CUSTOM provider model to its per-model gateway record', async () => {
+  it("binds a CUSTOM provider model to THIS org's per-model gateway record", async () => {
     const calls: RecordedCall[] = [];
     vi.stubGlobal(
       'fetch',
@@ -583,7 +576,7 @@ describe('mintVirtualKey', () => {
                 keys: [
                   {
                     id: 'kid-C',
-                    name: 'tale-org_1-my-vllm__llama-3',
+                    name: 'tale-org_1-org_1__my-vllm__llama-3',
                     models: [],
                   },
                 ],
@@ -607,13 +600,18 @@ describe('mintVirtualKey', () => {
       organizationId: ORG,
       sessionId: 'sess-2',
     });
+    // The key lookup and the VK binding both name the ORG-scoped record —
+    // never a `my-vllm__llama-3` record another org could have rewritten.
+    expect(calls[0]?.url).toContain(
+      '/api/providers/org_1__my-vllm__llama-3/keys',
+    );
     const mint = calls.find((c) => c.url.includes('/governance/virtual-keys'));
     expect(mint?.body?.provider_configs).toEqual([
       {
-        provider: 'my-vllm__llama-3',
+        provider: 'org_1__my-vllm__llama-3',
         key_ids: ['kid-C'],
         allow_all_keys: false,
-        allowed_models: ['llama-3', 'my-vllm__llama-3/llama-3'],
+        allowed_models: ['llama-3', 'org_1__my-vllm__llama-3/llama-3'],
       },
     ]);
   });
@@ -754,22 +752,40 @@ describe('applyGatewayConfig', () => {
 });
 
 describe('resolveGatewayRouting', () => {
-  it('routes a standard connector to the shared native record', async () => {
+  it('routes a standard connector to the shared native record, whatever the org', async () => {
     const mod = await loadModule();
-    expect(mod.resolveGatewayRouting('anthropic', 'claude-fable-5')).toEqual({
+    expect(
+      mod.resolveGatewayRouting(ORG, 'anthropic', 'claude-fable-5'),
+    ).toEqual({
       gatewayProvider: 'anthropic',
       gatewayModel: 'anthropic/claude-fable-5',
     });
+    expect(
+      mod.resolveGatewayRouting('org_2', 'anthropic', 'claude-fable-5'),
+    ).toEqual(mod.resolveGatewayRouting(ORG, 'anthropic', 'claude-fable-5'));
   });
 
-  it('routes a custom connector to a per-model record with slashes sanitized out of the record name', async () => {
+  it("routes a custom connector to the org's own per-model record with slashes sanitized out of the record name", async () => {
     const mod = await loadModule();
     expect(
-      mod.resolveGatewayRouting('vercel-ai-gateway', 'alibaba/qwen-3-14b'),
+      mod.resolveGatewayRouting(ORG, 'vercel-ai-gateway', 'alibaba/qwen-3-14b'),
     ).toEqual({
-      gatewayProvider: 'vercel-ai-gateway__alibaba_qwen-3-14b',
-      gatewayModel: 'vercel-ai-gateway__alibaba_qwen-3-14b/alibaba/qwen-3-14b',
+      gatewayProvider: 'org_1__vercel-ai-gateway__alibaba_qwen-3-14b',
+      gatewayModel:
+        'org_1__vercel-ai-gateway__alibaba_qwen-3-14b/alibaba/qwen-3-14b',
     });
+  });
+
+  it('gives two orgs sharing a custom connector name two distinct records', async () => {
+    // Custom connectors are org-defined files: two orgs may name one
+    // `internal` with different base URLs or wire formats. A shared record
+    // let the last provision rewrite base_url for both orgs, so org A's key
+    // was sent to org B's endpoint.
+    const mod = await loadModule();
+    const a = mod.resolveGatewayRouting(ORG, 'internal', 'llama-4');
+    const b = mod.resolveGatewayRouting('org_2', 'internal', 'llama-4');
+    expect(a.gatewayProvider).not.toBe(b.gatewayProvider);
+    expect(a.gatewayModel).not.toBe(b.gatewayModel);
   });
 });
 

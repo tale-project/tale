@@ -12,7 +12,7 @@
  * pipeline.
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   PatternRegistry,
@@ -95,6 +95,39 @@ describe('config → scrubber', () => {
     });
     expect(resolveScrubberOptions(config, REGISTRY)).toBeNull();
     expect(createScrubberFromConfig(config, REGISTRY)).toBeNull();
+  });
+
+  describe('default registry', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('is never loaded for a disabled policy', () => {
+      // The disabled verdict must not depend on the data tree: a missing
+      // tree is a packaging defect worth one report per enabled policy, not
+      // one for an organization that switched the filter off.
+      const fromDefaults = vi.spyOn(PatternRegistry, 'fromDefaults');
+      const config = piiConfigSchema.parse({
+        enabled: false,
+        mode: 'mask',
+        enabledPatterns: ['email'],
+      });
+      expect(createScrubberFromConfig(config)).toBeNull();
+      expect(fromDefaults).not.toHaveBeenCalled();
+    });
+
+    it('is loaded once an enabled policy needs it', () => {
+      const fromDefaults = vi.spyOn(PatternRegistry, 'fromDefaults');
+      const config = piiConfigSchema.parse({
+        enabled: true,
+        mode: 'mask',
+        enabledPatterns: ['email'],
+      });
+      expect(must(createScrubberFromConfig(config)).scrub(SAMPLE).kind).toBe(
+        'modified',
+      );
+      expect(fromDefaults).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

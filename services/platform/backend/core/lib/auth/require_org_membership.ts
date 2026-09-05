@@ -75,8 +75,7 @@ export async function requireOrgMembershipById(
   // instead of a clean miss. `ORG_ID_REQUIRED`, not `ORG_NOT_FOUND`: an empty
   // id is a caller-side gap (a component racing its data), not evidence the
   // caller's persisted org is gone — the client's dead-org recovery keys on
-  // `ORG_NOT_FOUND` and must not fire for it (see
-  // `lib/rls/organization/get_organization_member.ts`, same rule).
+  // `ORG_NOT_FOUND` and must not fire for it.
   if (!organizationId) {
     throw new AppError({
       code: 'ORG_ID_REQUIRED',

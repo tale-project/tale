@@ -8,8 +8,8 @@
  * to the request origin only when SITE_URL is unset (dev, tests).
  *
  * The OIDC authorize/callback handlers always did this inline; this is the
- * shared home so the SAML ACS, `/set-session` and trusted-headers doors
- * derive it identically. SITE_URL is parsed to its origin (it carries no
+ * shared home so the SAML ACS and trusted-headers doors derive it
+ * identically. SITE_URL is parsed to its origin (it carries no
  * subpath by contract — the proxy entrypoint substitutes it verbatim), which
  * also normalises a trailing slash away.
  */

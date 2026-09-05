@@ -1,6 +1,6 @@
 ---
 title: Documents
-description: L’onglet Documents est l’endroit où les éditeurs téléversent des fichiers dans la base de connaissances, suivent leur indexation et gèrent leur cycle de vie — sources de téléversement, statut RAG, portée par équipe, dossiers et réindexation.
+description: L’onglet Documents est l’endroit où les éditeurs téléversent des fichiers dans la base de connaissances, suivent leur indexation et gèrent leur cycle de vie.
 ---
 
 L’onglet Documents est la surface fichiers de la base de connaissances. Les éditeurs téléversent des fichiers, Tale fait passer chacun par le pipeline d’indexation — extraire le texte, le découper, calculer les embeddings, les stocker — et les agents dont le périmètre de connaissances couvre le document récupèrent les passages pertinents au moment de répondre et les citent. Cette page couvre le côté opérateur : le téléversement, la colonne de statut, la portée par équipe, les dossiers et le cycle de vie d’un document.
@@ -43,7 +43,7 @@ Ouvre le menu de la ligne d’un brouillon ou d’un document approuvé et cliqu
 
 <Step title="Vérifier et soumettre la révision">
 
-Ouvre l’aperçu du document et vérifie qu’il affiche le fichier de remplacement. Ouvre ensuite le menu de la ligne et clique sur **Soumettre à la relecture**. Le sélecteur ne propose que les membres qui peuvent réellement ouvrir le document — un fichier de projet exige l’accès en édition au projet — et jamais toi. Seul le relecteur que tu désignes peut approuver ou demander des modifications, chaque relecture est donc un second regard. Tale fige le brouillon pendant que le relecteur statue sur ce fichier exact ; le relecteur est prévenu par la cloche et par e-mail, et la décision te revient par le même chemin — une demande de modifications porte le retour du relecteur, que la boîte de dialogue de soumission affiche aussi avant ta prochaine tentative.
+Ouvre l’aperçu du document et vérifie qu’il affiche le fichier de remplacement. Ouvre ensuite le menu de la ligne et clique sur **Soumettre à la relecture**. Le sélecteur ne propose que les membres qui peuvent réellement ouvrir le document — un fichier de projet exige l’accès en édition au projet — et jamais toi. Seul le relecteur que tu désignes peut approuver ou demander des modifications, chaque relecture est donc un second regard. Tale fige le brouillon pendant que le relecteur statue sur ce fichier exact ; le relecteur est prévenu par la cloche et par e-mail, et la décision te revient par le même chemin — une demande de modifications porte le retour du relecteur, que la boîte de dialogue de soumission affiche aussi avant ta prochaine tentative. Si le relecteur ne peut plus statuer — il a quitté l’organisation, a été désactivé ou a perdu l’accès au document —, ouvre le menu de la ligne et clique sur **Changer de relecteur** : la demande en attente passe au membre que tu désignes, et l’enregistrement reste figé sur le même fichier.
 
 </Step>
 

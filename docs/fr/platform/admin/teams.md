@@ -1,6 +1,6 @@
 ---
 title: Équipes
-description: Les équipes sont des groupes nommés de membres qui partagent l’accès aux documents, projets, skills et conversations. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle.
+description: Les équipes sont des groupes nommés de membres qui partagent l’accès aux documents, projets, skills et conversations.
 ---
 
 Une équipe est un groupe nommé de membres qui partage l’accès aux documents, projets, skills et conversations. Là où les rôles définissent ce qu’une personne _peut_ faire, les équipes définissent dans quelle tranche des données de l’org cette personne travaille. La plupart des orgs finissent avec une poignée d’équipes — support, ventes, opérations — et la plupart des décisions quotidiennes de permission atterrissent sur la frontière équipe, pas sur la frontière rôle. Les Administrateurs gèrent les équipes sous **Paramètres > Équipes**.

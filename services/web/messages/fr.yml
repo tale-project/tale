@@ -11,33 +11,33 @@ seo:
       'Tale Enterprise : CHF 12 (EUR 14) par utilisateur/mois, deux mois
       offerts en annuel. Community est gratuite en auto-hébergement sous MIT.'
   contact:
-    title: Contacter l’équipe Tale
+    title: Contacter l’équipe Tale — ventes, support, démos
     description:
       Parle à l’équipe Tale de l’IA auto-hébergée pour ton organisation —
       plateforme, tarifs, matériel ou une démo guidée. Réponse sous un jour
       ouvrable.
   about:
     title: Qui est derrière Tale ? — À propos de Ruler GmbH
-    description: Tale est construit par Ruler GmbH, une entreprise suisse de
-      Spiez fondée en 2020 — neutre vis-à-vis des fournisseurs, certifiée ISO
-      27001 & SOC 2 Type II et entièrement open source sous MIT.
+    description: Tale est construit par Ruler GmbH, entreprise suisse de Spiez —
+      neutre vis-à-vis des fournisseurs, certifiée ISO 27001 & SOC 2 Type II,
+      open source sous MIT.
   requestDemo:
-    title: Demander une démo
-    description: 'Réserve une démo guidée de Tale : agents IA auto-hébergés,
-      automatisations et gouvernance en action. Pour les organisations sensibles
-      aux données, en Suisse et dans l’UE.'
+    title: Demander une démo Tale — visite guidée
+    description:
+      'Réserve une démo guidée de Tale : agents IA auto-hébergés,
+      automatisations et gouvernance en action, pour les équipes sensibles aux
+      données.'
   hardwarePricing:
     title: Combien coûte le hardware AI Tale ?
     description:
-      Hardware d’inférence silencieux, du nœud unique au rack — location,
-      leasing ou achat. Déployé sur site avec maintenance à distance, ou hébergé
-      en centres de données sécurisés.
+      'Hardware d’inférence silencieux, du nœud unique au rack : location,
+      leasing ou achat. Sur site avec maintenance à distance, ou en centres de
+      données sécurisés.'
   platform:
     title: Comment fonctionne la plateforme Tale ?
-    description:
-      Tale connecte les agents, regroupe les connaissances, exécute les
-      automations et gouverne chaque action — auto-hébergé pour les équipes
-      sensibles aux données en Suisse et dans l’UE.
+    description: Tale connecte les agents, regroupe les connaissances, exécute
+      les automations et gouverne chaque action — auto-hébergé, en Suisse et
+      dans l’UE.
   platformAgents:
     title: Que sont les agents dans Tale ?
     description:
@@ -45,15 +45,15 @@ seo:
       modèle. Connecte Claude Code, Codex, Hermes et OpenClaw sous un
       orchestrateur que tu héberges.
   platformChat:
-    title: Chats dans Tale
+    title: Qu’est-ce que Chat dans Tale ? — citations et outils
     description: 'Tale Chat, l’entrée du quotidien : choisis un agent, envoie un
       message, lis la réponse — citations, appels d’outils, Arena et
       approbations dans le fil.'
   platformAutomations:
     title: Que sont les Automations dans Tale ?
-    description: Les Automations Tale regroupent connectors, agents et étapes de
-      workflow typées — déclencheurs, conditions, actions et approbations
-      humaines sur ton infrastructure.
+    description:
+      'Les Automations Tale regroupent connectors, agents et étapes de workflow
+      typées : déclencheurs, conditions, actions et approbations humaines.'
   platformKnowledge:
     title: Qu’est-ce que Knowledge dans Tale ?
     description: Tale Knowledge indexe documents, sites et enregistrements typés
@@ -62,18 +62,18 @@ seo:
   platformGovernance:
     title: Qu’est-ce que la gouvernance dans Tale ?
     description: Tale Governance retient les actions des agents sur des cartes
-      d’approbation, écrit chaque décision au journal d’audit et filtre PII et
-      contenus à risque dans les deux sens.
+      d’approbation, journalise chaque décision et filtre PII et contenus à
+      risque.
   platformProjects:
     title: Que sont les Projets dans Tale ?
     description: Les Projets Tale réunissent chats, fichiers, instructions et
-      tableau de tâches dans un espace de travail partagé — assigne une tâche à
-      un agent et relis le résultat avant qu’il parte.
+      tableau de tâches — assigne une tâche à un agent et relis le résultat
+      avant qu’il parte.
   changelog:
     title: Quoi de neuf dans Tale ? — Changelog
-    description:
-      Les notes de version de Tale, de la plus récente à la plus ancienne
-      — publiées depuis GitHub Releases.
+    description: Les notes de version de Tale, de la plus récente à la plus
+      ancienne — fonctionnalités, correctifs et changements de rupture, publiés
+      depuis GitHub Releases.
 notFound:
   title: Cette page n’existe pas
   body:

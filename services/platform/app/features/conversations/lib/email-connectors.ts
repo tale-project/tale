@@ -13,7 +13,7 @@
  * would refuse.
  */
 
-import { isPublicEmailDomain } from '@/backend/core/conversations/reply_from';
+import { isPublicEmailDomain } from '@/lib/shared/conversations/reply-from';
 
 /** A connected, email-capable inbox the compose dialog can send through. */
 export interface EmailConnectorOption {

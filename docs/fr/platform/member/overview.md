@@ -1,6 +1,6 @@
 ---
 title: Membre
-description: Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée. Les pages ici sont ce que fait au quotidien une personne de rôle Membre.
+description: Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée.
 ---
 
 Membre est le rôle par défaut que portent la plupart des personnes dans la plupart des orgs. C’est la surface utilisateur final de Tale — chatter avec l’assistant, parcourir la base de connaissances, répondre au courriel client dans la Boîte de réception d’une automatisation installée, et laisser des retours sur les réponses. Les Membres ne construisent pas d’agents, ne configurent pas de fournisseurs, n’installent pas d’automatisations. Ils utilisent le produit que les Éditeurs et Développeurs ont bâti pour eux.

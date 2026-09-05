@@ -1,6 +1,6 @@
 ---
 title: Analyse des retours
-description: Pouces haut et bas agrégés sur les réponses d'assistant et verdicts d'arène, ventilés par assistant et par modèle. Les Administrateurs et Propriétaires lisent ceci quand une régression d'agent a besoin d'un chiffre derrière.
+description: Pouces haut et bas agrégés sur les réponses d'assistant et verdicts d'arène, ventilés par assistant et par modèle.
 ---
 
 Analyse des retours est le dashboard qui transforme les pouces par message et les verdicts d'arène en courbes de tendance. Les membres laissent le retour inline dans le chat ; cette page l'agrège par assistant, par modèle et dans le temps, pour que la régression du changement de voix de la semaine dernière soit visible comme un chiffre, pas comme un pressentiment. Les Administrateurs et Propriétaires lisent cette page quand un changement de modèle ressemble à une dégradation, quand un assistant performe moins que les autres, ou quand la direction veut la posture qualité approximative de chaque assistant dans l'organisation.

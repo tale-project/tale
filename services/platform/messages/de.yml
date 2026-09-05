@@ -478,6 +478,9 @@ auth:
       notOrgMember: Dein Konto ist kein Mitglied dieser Organisation. Bitte die
         Administration dieser Organisation, dich einzuladen, und melde dich
         danach erneut an.
+      flowMismatch:
+        Diese Anmeldung ist nicht in dem Browser gelandet, in dem sie begonnen
+        hat. Starte sie von dieser Seite aus neu.
       assertionNotEncrypted:
         Diese Organisation verlangt verschlüsselte SAML-Assertions, der
         Identitätsanbieter hat aber eine unverschlüsselte geschickt. Bitte
@@ -2028,6 +2031,7 @@ documents:
       replaceFile: Datei ersetzen
       submitForReview: Zum Review einreichen
       review: Review öffnen
+      changeReviewer: Reviewer wechseln
       newRevision: Neue Revision
     replace:
       title: Datei ersetzen
@@ -2091,6 +2095,13 @@ documents:
       lastFeedback: 'Änderungen zu v{version} angefordert von {name}:'
       lastFeedbackNoName: 'Änderungen zu v{version} angefordert:'
       confirm: Einreichen
+    reassign:
+      title: Reviewer wechseln
+      hint: 'Tale zieht die offene Anfrage an {name} zurück — der neue Reviewer
+        entscheidet über diese Version.'
+      hintNoName: Tale zieht die offene Anfrage zurück — der neue Reviewer
+        entscheidet über diese Version.
+      confirm: Reviewer wechseln
     review:
       title: 'Review (v{version})'
       frozenHint: Die Freigabe schreibt diese Version unveränderlich fest;
@@ -2107,6 +2118,9 @@ documents:
       controlledFailed: Das Dokument konnte nicht als gelenktes Dokument geführt werden
       submitted: Zum Review eingereicht — das Dokument ist eingefroren
       submitFailed: Einreichen zum Review fehlgeschlagen
+      reviewerChanged: Reviewer gewechselt — die Anfrage liegt jetzt beim neuen
+        Reviewer
+      reviewerChangeFailed: Reviewer konnte nicht gewechselt werden
       approved: 'Version {version} freigegeben'
       changesRequested: Änderungen angefordert — das Dokument ist wieder ein Entwurf
       respondFailed: Die Entscheidung konnte nicht gespeichert werden
@@ -2472,6 +2486,7 @@ documents:
     clearSelection: Auswahl löschen
     dropOrClick: Datei hier ablegen oder klicken zum Hochladen
     selectDocument: Dokument auswählen
+    listTruncated: Hier stehen nur die neuesten Dokumente. Lade die Datei hoch, um ein älteres zu vergleichen.
   history:
     dialogTitle: Versionsverlauf — {name}
     dialogDescription: Wähle zwei Versionen zum Vergleich. Die aktuelle Datei steht zuerst.
@@ -5292,6 +5307,31 @@ settings:
     idpCertHelp: Das X.509-Zertifikat, mit dem der IdP Assertions signiert.
     spMetadataLabel: SP-Metadaten-URL
     acsUrlLabel: ACS-URL (Antwort)
+    spKeypairHelp:
+      Nur nötig, wenn dein IdP Assertions verschlüsselt oder Attribute anders
+      benennt. Füge ein SP-Zertifikat samt privatem Schlüssel ein, um
+      verschlüsselte Assertions zu empfangen — das Zertifikat landet in den
+      SP-Metadaten, der Schlüssel wird als Secret gespeichert und nie wieder
+      angezeigt.
+    spCertLabel: SP-Zertifikat (PEM)
+    spCertHelp: Das X.509-Zertifikat, für das dein IdP Assertions verschlüsselt.
+    spKeyLabel: Privater SP-Schlüssel (PEM)
+    spKeyHelp: Der private Schlüssel zum SP-Zertifikat.
+    spKeyKeep: Ein Schlüssel ist gespeichert. Leer lassen, um ihn zu behalten.
+    wantSignedLabel: Signierte Assertions verlangen
+    wantSignedDescription:
+      Weist eine Assertion ohne gültige Signatur des IdP-Zertifikats oben ab.
+      Lass das eingeschaltet.
+    wantEncryptedLabel: Verschlüsselte Assertions verlangen
+    wantEncryptedDescription:
+      Weist eine Assertion ab, die im Klartext eintrifft. Braucht den
+      privaten SP-Schlüssel und einen IdP, der verschlüsselt.
+    attributeMappingsHelp:
+      Attributnamen in der Assertion. Leer lassen, um die Standardnamen zu
+      verwenden (email, name, groups und ihre Claim-URIs).
+    attrEmailLabel: E-Mail-Attribut
+    attrNameLabel: Namensattribut
+    attrGroupsLabel: Gruppenattribut
     provisioningSection: Bereitstellung
     defaultRoleLabel: Standardrolle
     role:
@@ -5335,6 +5375,7 @@ settings:
       required: Dieses Feld ist erforderlich.
       url: Gib eine gültige URL ein (inklusive https://).
       clientSecretRequired: Ein Client-Secret ist erforderlich.
+      spKeyRequired: Verschlüsselte Assertions verlangen einen privaten SP-Schlüssel.
     roleMapping:
       help:
         Ordne Gruppen, App-Rollen oder Jobtitel aus dem Identity-Provider einer
@@ -7410,6 +7451,7 @@ projects:
       gebunden ist, dann lösche es.
     PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Entferne dieses Projekt zuerst aus
       diesen Automatisierungen, dann lösche es: {automations}.'
+    PROJECT_HAS_PROTECTED_RECORDS: Kläre zuerst die kontrollierten Dokumente in diesem Projekt oder verschiebe sie, dann lösche es — sie sind in Prüfung, freigegeben oder bewahren eine freigegebene Version auf.
   sharing:
     effectiveAudience: Tatsächliche Reichweite
     noTeamsHint: Noch keine Teams.

@@ -481,7 +481,6 @@ export async function transcribeDictation(
     model: modelData,
     blob: audioBlob,
     fileName: `dictation.${ext}`,
-    format: ext,
     timeoutMs: DICTATION_TIMEOUT_MS,
   });
 

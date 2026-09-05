@@ -483,6 +483,52 @@ describe('send', () => {
     });
   });
 
+  it('sends as a same-domain alias the caller names', async () => {
+    const transport = stubTransport();
+    await natives(transport)['imap-smtp.send'](
+      {
+        to: 'person@example.com',
+        from: 'billing@example.com',
+        subject: 'Hello',
+        text: 'Hi.',
+      },
+      context(),
+    );
+
+    expect(transport.log.sent[0]?.from).toBe('billing@example.com');
+  });
+
+  it('falls back to the configured From for an address off the mailbox domain', async () => {
+    const transport = stubTransport();
+    await natives(transport)['imap-smtp.send'](
+      {
+        to: 'person@example.com',
+        from: 'ceo@elsewhere.example',
+        subject: 'Hello',
+        text: 'Hi.',
+      },
+      context(),
+    );
+
+    expect(transport.log.sent[0]?.from).toBe('mailbox@example.com');
+  });
+
+  it('refuses a line break injected through from before opening a connection', async () => {
+    const transport = stubTransport();
+    await expect(
+      natives(transport)['imap-smtp.send'](
+        {
+          to: 'person@example.com',
+          from: 'billing@example.com\r\nBcc: spy@example.com',
+          subject: 'Hello',
+          text: 'Hi.',
+        },
+        context(),
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(transport.log.smtpOpened).toBe(0);
+  });
+
   it('rewrites From to notification@ when notificationSender is set', async () => {
     const transport = stubTransport();
     await natives(transport)['imap-smtp.send'](

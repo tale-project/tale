@@ -1,4 +1,6 @@
 import { getString, isRecord } from '../../../../lib/utils/type-utils';
+import { requireEmailClaim } from '../claims';
+import { OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';
 import type {
   SsoProviderAdapter,
   SsoProviderConfig,
@@ -8,8 +10,6 @@ import type {
   SsoUserInfo,
   SsoGroup,
   SsoProviderCapabilities,
-  PlatformRole,
-  RoleMappingRule,
   SsoAuthContext,
 } from '../types';
 import {
@@ -18,14 +18,14 @@ import {
   EntraIssuerError,
   extractTenantId,
 } from './constants';
-import { mapEntraRoleToPlatformRole } from './role_mapping';
+
+// Every call to Microsoft fails fast on a stalled socket, like the generic
+// OIDC/OAuth2 adapters: the callback's 10-minute state window must never be
+// eaten by a hung token exchange or a Graph page.
+const fetchTimeout = (): AbortSignal =>
+  AbortSignal.timeout(OIDC_FETCH_TIMEOUT_MS);
 
 const capabilities: SsoProviderCapabilities = {
-  supportsGroupSync: true,
-  supportsRoleMapping: true,
-  // File import is Knowledge cloud-import OAuth, not SSO.
-  supportsOneDriveAccess: false,
-  supportsGoogleDriveAccess: false,
   // PKCE stays off for Entra until verified against confidential-client
   // tenant policies; the generic OIDC adapter carries it (#1506).
   supportsPkce: false,
@@ -99,6 +99,7 @@ async function exchangeCodeForTokens(
       redirect_uri: params.redirectUri,
       grant_type: 'authorization_code',
     }),
+    signal: fetchTimeout(),
   });
 
   if (!response.ok) {
@@ -159,6 +160,7 @@ async function getUserInfo(
 
   const response = await fetch(userInfoUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: fetchTimeout(),
   });
 
   if (!response.ok) {
@@ -169,7 +171,12 @@ async function getUserInfo(
 
   return {
     externalId: data.id,
-    email: data.mail || data.userPrincipalName,
+    // A guest or unlicensed account can come back with neither `mail` nor a
+    // UPN; refuse readably here rather than as a TypeError downstream.
+    email: requireEmailClaim(
+      data.mail || data.userPrincipalName,
+      'Microsoft Graph /me',
+    ),
     name: data.displayName || data.givenName || '',
     // Graph returns every `$select`ed field even when empty, so a user with no
     // job title comes back as `jobTitle: null` (not an omitted key). Our
@@ -209,6 +216,7 @@ async function fetchAllGraphPages(
     }
     const response: Response = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: fetchTimeout(),
     });
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.status}`);
@@ -299,7 +307,9 @@ async function validateConfig(
     : `${config.issuer}/.well-known/openid-configuration`;
 
   try {
-    const discoveryResponse = await fetch(discoveryUrl);
+    const discoveryResponse = await fetch(discoveryUrl, {
+      signal: fetchTimeout(),
+    });
     if (!discoveryResponse.ok) {
       return {
         valid: false,
@@ -322,6 +332,7 @@ async function validateConfig(
           client_secret: config.clientSecret,
           scope: 'https://graph.microsoft.com/.default',
         }),
+        signal: fetchTimeout(),
       });
 
       if (!tokenResponse.ok) {
@@ -369,14 +380,6 @@ async function validateConfig(
   }
 }
 
-function mapToRole(
-  rules: RoleMappingRule[],
-  defaultRole: PlatformRole,
-  userInfo: SsoUserInfo,
-): PlatformRole {
-  return mapEntraRoleToPlatformRole(rules, defaultRole, userInfo);
-}
-
 export const entraIdAdapter: SsoProviderAdapter = {
   providerId: 'entra-id',
   displayName: 'Microsoft Entra ID',
@@ -387,7 +390,6 @@ export const entraIdAdapter: SsoProviderAdapter = {
   getGroups,
   getAppRoles,
   validateConfig,
-  mapToRole,
 };
 
 export { parseIdTokenAuthContext };

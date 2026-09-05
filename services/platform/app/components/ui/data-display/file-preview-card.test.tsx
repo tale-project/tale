@@ -14,7 +14,7 @@ describe('FilePreviewCard', () => {
 
     it('renders formatted file size when provided', () => {
       render(<FilePreviewCard fileName="document.pdf" fileSize={2048} />);
-      expect(screen.getByText('2.0 KB')).toBeInTheDocument();
+      expect(screen.getByText('2 KB')).toBeInTheDocument();
     });
 
     it('does not render file size when omitted', () => {
@@ -66,14 +66,14 @@ describe('FilePreviewCard', () => {
 
     it('renders KB for files under 1MB', () => {
       render(<FilePreviewCard fileName="small.txt" fileSize={1024} />);
-      expect(screen.getByText('1.0 KB')).toBeInTheDocument();
+      expect(screen.getByText('1 KB')).toBeInTheDocument();
     });
 
     it('renders MB for larger files', () => {
       render(
         <FilePreviewCard fileName="large.pdf" fileSize={1024 * 1024 * 3} />,
       );
-      expect(screen.getByText('3.0 MB')).toBeInTheDocument();
+      expect(screen.getByText('3 MB')).toBeInTheDocument();
     });
   });
 

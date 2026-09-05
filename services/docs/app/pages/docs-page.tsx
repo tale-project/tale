@@ -8,6 +8,7 @@ import {
   buildWebSiteJsonLd,
 } from '@tale/ui/seo/builders/json-ld';
 import { pageAsMarkdown } from '@tale/ui/seo/builders/page-as-markdown';
+import { resolveFullTitle } from '@tale/ui/seo/document-meta';
 import { useMemo } from 'react';
 
 import { DocsBreadcrumbs } from '@/app/components/docs/docs-breadcrumbs';
@@ -69,6 +70,46 @@ function buildBreadcrumbs(
   });
 }
 
+/**
+ * The `<title>` a crawler sees, before `resolveFullTitle` appends `| Tale`.
+ *
+ * A bare page name is often both too short and not unique: "Chat", "Admin",
+ * "Teams" and "Overview" each name several pages in different sections, so
+ * they render identical titles. Trailing the top-level section disambiguates
+ * them and lifts the shortest ones out of the range Ahrefs reports as
+ * "Title too short".
+ *
+ * The section is dropped when the page name already contains it, so
+ * `self-hosted/install/quickstart` stays "Self-hosted quickstart" instead of
+ * repeating itself. A section landing page has no section to add, so it takes
+ * the localized site title.
+ */
+/** Longest rendered `<title>` a search result will show in full. */
+const TITLE_MAX = 60;
+
+export function buildMetaTitle(
+  breadcrumbs: readonly { label: string }[],
+  siteTitle: string,
+): string {
+  if (breadcrumbs.length === 0) return siteTitle;
+  const page = breadcrumbs[breadcrumbs.length - 1].label;
+  const section = breadcrumbs.length > 1 ? breadcrumbs[0].label : null;
+  // Adding context is only worth it while the result still fits. A page name
+  // long enough to overflow already describes itself.
+  const withinBudget = (candidate: string) =>
+    resolveFullTitle(candidate).length <= TITLE_MAX ? candidate : page;
+  // A section landing page ("Cloud", "Platform") has no section above it, or
+  // repeats its own name as one. Neither has anything to disambiguate with,
+  // so those take the site title instead.
+  if (section === null || section.toLowerCase() === page.toLowerCase()) {
+    return withinBudget(`${page} | ${siteTitle}`);
+  }
+  // The page name already carries the section ("Self-hosted quickstart");
+  // appending it again would only repeat.
+  if (page.toLowerCase().includes(section.toLowerCase())) return page;
+  return withinBudget(`${page} | ${section}`);
+}
+
 function findPrevNext(slug: string): {
   prev: string | null;
   next: string | null;
@@ -94,6 +135,7 @@ function buildAlternates(
 
 export function DocsPage({ locale, slug }: DocsPageProps) {
   const { t } = useT('docs');
+  const { t: tSeo } = useT('seo');
   const doc = getDocPage(locale, slug);
   const breadcrumbs = useMemo(
     () => buildBreadcrumbs(locale, slug),
@@ -168,7 +210,7 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
   }, [doc, url, breadcrumbs, locale, slug]);
 
   useDocumentMeta({
-    title: doc?.frontmatter.title ?? 'Tale documentation',
+    title: buildMetaTitle(breadcrumbs, tSeo('siteTitle')),
     description: doc?.frontmatter.description ?? '',
     canonicalPath: path,
     locale,

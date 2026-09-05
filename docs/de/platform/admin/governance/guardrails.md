@@ -1,6 +1,6 @@
 ---
 title: Guardrails
-description: Die drei Filterebenen — Inhaltssicherheit, PII-Erkennung und ein Moderationsanbieter — die Chat-Eingaben und -Ausgaben vor und nach dem Modell prüfen. Admins und Inhaber lesen das, wenn ein Regulierer eine Inhaltsregel benennt oder wenn ein Leck eine strengere Richtlinie rechtfertigt.
+description: Die drei Filterebenen — Inhaltssicherheit, PII-Erkennung und ein Moderationsanbieter — die Chat-Eingaben und -Ausgaben vor und nach dem Modell prüfen.
 ---
 
 Guardrails ist die Oberfläche, auf der du die drei Filterebenen konfigurierst, die Tale auf jede Chat-Nachricht in deiner Organisation anwendet. Jede Nachricht durchläuft Inhaltssicherheit (Wortlisten und Admin-Regex), dann PII-Erkennung (eingebaute Muster plus eigene), dann einen optionalen externen Moderationsanbieter — in dieser festen Reihenfolge, auf dem Weg hinein und auf dem Weg hinaus. Admins und Inhaber lesen diese Seite, wenn ein Regulierer eine Inhaltsregel benennt, wenn ein Leck eine strengere Richtlinie rechtfertigt, oder wenn die Antworten eines Agents bereinigt werden müssen, bevor sie das Modell verlassen.

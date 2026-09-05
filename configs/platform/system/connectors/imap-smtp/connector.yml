@@ -153,6 +153,11 @@ actions:
             type: string,
             description: 'Carbon-copy recipients as one address-list line (a@x, b@y).',
           }
+        from:
+          {
+            type: string,
+            description: 'Address to send as. Honoured only when it is the mailbox address or a same-domain alias on a verified (non-public) domain; otherwise the configured From applies.',
+          }
         subject: { type: string, description: 'Message subject.' }
         text: { type: string, description: 'Plain-text body.' }
         html: { type: string, description: 'HTML body (optional).' }

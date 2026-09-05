@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden. Fünf Minuten auf einer bereiten Instanz, fünfzehn, wenn du selbst eine aufstellst.
+description: Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden.
 ---
 
 Das ist der kürzeste Weg zu einem funktionierenden Chat mit einem Agent: Instanz besorgen, anmelden, Nachricht senden, der Antwort beim Streamen zusehen. Auf einer bereiten Instanz dauert das rund fünf Minuten, auf deiner eigenen Maschine fünfzehn — und es endet mit dem Bildschirm unten, einer echten Antwort eines Agents über deinen Arbeitsbereich.

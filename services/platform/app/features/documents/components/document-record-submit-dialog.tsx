@@ -26,6 +26,10 @@ interface DocumentRecordSubmitDialogProps {
   documentId: string;
   documentName?: string | null;
   organizationId: string;
+  /** Present while the record is already in review: the dialog re-designates
+   *  the reviewer instead of freezing a draft — the standing designee is not
+   *  offered again, and the copy says the pending request moves. */
+  standingReviewer?: { userId?: string; name?: string };
 }
 
 function DocumentRecordSubmitDialogContent({
@@ -34,6 +38,7 @@ function DocumentRecordSubmitDialogContent({
   documentId,
   documentName,
   organizationId,
+  standingReviewer,
 }: DocumentRecordSubmitDialogProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -52,7 +57,10 @@ function DocumentRecordSubmitDialogContent({
     const eligible = new Set(eligibleIds);
     return (members ?? [])
       .filter(
-        (member) => member.role !== 'disabled' && eligible.has(member.userId),
+        (member) =>
+          member.role !== 'disabled' &&
+          eligible.has(member.userId) &&
+          member.userId !== standingReviewer?.userId,
       )
       .map((member) => {
         const option: SearchableSelectOption = {
@@ -62,7 +70,9 @@ function DocumentRecordSubmitDialogContent({
         if (member.email !== undefined) option.description = member.email;
         return option;
       });
-  }, [members, eligibleIds]);
+  }, [members, eligibleIds, standingReviewer?.userId]);
+
+  const isReassign = standingReviewer !== undefined;
 
   const changesRequested =
     lastReview?.decision === 'request_changes' &&
@@ -78,7 +88,11 @@ function DocumentRecordSubmitDialogContent({
         reviewerUserId,
       });
       toast({
-        title: tDocuments('record.toast.submitted'),
+        title: tDocuments(
+          isReassign
+            ? 'record.toast.reviewerChanged'
+            : 'record.toast.submitted',
+        ),
         variant: 'success',
       });
       setReviewerUserId(null);
@@ -86,7 +100,11 @@ function DocumentRecordSubmitDialogContent({
     } catch (error) {
       console.error('[documents] submit record for review failed', error);
       toast({
-        title: tDocuments('record.toast.submitFailed'),
+        title: tDocuments(
+          isReassign
+            ? 'record.toast.reviewerChangeFailed'
+            : 'record.toast.submitFailed',
+        ),
         variant: 'destructive',
       });
     }
@@ -96,7 +114,9 @@ function DocumentRecordSubmitDialogContent({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={tDocuments('record.submit.title')}
+      title={tDocuments(
+        isReassign ? 'record.reassign.title' : 'record.submit.title',
+      )}
       description={
         documentName ? (
           <span className="break-all">{documentName}</span>
@@ -118,7 +138,9 @@ function DocumentRecordSubmitDialogContent({
             onClick={() => void handleSubmit()}
             disabled={submit.isPending || reviewerUserId === null}
           >
-            {tDocuments('record.submit.confirm')}
+            {tDocuments(
+              isReassign ? 'record.reassign.confirm' : 'record.submit.confirm',
+            )}
           </Button>
         </>
       }
@@ -150,7 +172,15 @@ function DocumentRecordSubmitDialogContent({
             placeholder={tDocuments('record.submit.reviewerPlaceholder')}
             searchPlaceholder={tDocuments('record.submit.reviewerSearch')}
             emptyText={tCommon('search.noResults')}
-            description={tDocuments('record.submit.freezeHint')}
+            description={
+              isReassign
+                ? standingReviewer.name
+                  ? tDocuments('record.reassign.hint', {
+                      name: standingReviewer.name,
+                    })
+                  : tDocuments('record.reassign.hintNoName')
+                : tDocuments('record.submit.freezeHint')
+            }
             required
           />
         </div>
@@ -161,7 +191,10 @@ function DocumentRecordSubmitDialogContent({
 
 /**
  * "Submit for review" step of the controlled-record lifecycle: pick the
- * named human reviewer, then freeze the draft (draft → in_review). A plain
+ * named human reviewer, then freeze the draft (draft → in_review). With
+ * `standingReviewer` it is the in_review "Change reviewer" door instead: the
+ * same submit call re-designates, and the server supersedes the standing
+ * request. A plain
  * org-member select — the tasks ReviewerPicker is project/task-coupled
  * (actor directory + editor-role filter), so it is not reused here.
  *

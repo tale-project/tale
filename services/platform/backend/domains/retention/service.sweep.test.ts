@@ -173,3 +173,63 @@ describe('sweepOrgPhase2 — custodian holds', () => {
     expect(purge?.values).toEqual(['doc-unheld']);
   });
 });
+
+describe('sweepOrgPhase2 — sandbox provenance ledgers', () => {
+  // Both tables are append-only per agent turn (tool calls carry the acting
+  // user) and had no sweep at all; they ride the audit-log window because
+  // that is what the writers call them and where the settle copies their
+  // substance.
+  const auditOrg = {
+    organizationId: 'org_1',
+    config: {
+      auditLogEnabled: true,
+      auditLogRetentionDays: 365,
+      deletionGraceDays: 7,
+    },
+  };
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  it('deletes aged rows of both ledgers under the audit window, skipping held actors in SQL', async () => {
+    const fake = fakeSweep({ documentsPassB: [] });
+    const before = Date.now();
+
+    await sweepOrgPhase2(fake.sql, auditOrg, {
+      orgHeld: false,
+      userMembershipIds: new Set(['held-user']),
+    });
+
+    const toolCalls = fake.statements.find((s) =>
+      s.text.startsWith('DELETE FROM app.sandbox_tool_calls'),
+    );
+    expect(toolCalls?.text).toContain('WHERE org_id = ? AND created_at_ms < ?');
+    expect(toolCalls?.text).toContain('user_id IS NULL OR user_id <> ALL(?)');
+    expect(toolCalls?.values).toContainEqual(['held-user']);
+    // The audit window carries no deletion grace: exactly days × DAY_MS.
+    const cutoff = toolCalls?.values[1];
+    expect(typeof cutoff).toBe('number');
+    expect(cutoff as number).toBeGreaterThanOrEqual(before - 365 * DAY_MS);
+    expect(cutoff as number).toBeLessThanOrEqual(Date.now() - 365 * DAY_MS);
+
+    const credentials = fake.statements.find((s) =>
+      s.text.startsWith('DELETE FROM app.sandbox_credential_access'),
+    );
+    expect(credentials?.text).toContain(
+      'WHERE org_id = ? AND fetched_at_ms < ?',
+    );
+    expect(credentials?.values.slice(0, 2)).toEqual(['org_1', cutoff]);
+  });
+
+  it('leaves both ledgers alone when the audit-log category is off', async () => {
+    const fake = fakeSweep({ documentsPassB: [] });
+
+    await sweepOrgPhase2(
+      fake.sql,
+      { organizationId: 'org_1', config: { auditLogEnabled: false } },
+      { orgHeld: false, userMembershipIds: new Set() },
+    );
+
+    expect(fake.statements.some((s) => s.text.includes('app.sandbox_'))).toBe(
+      false,
+    );
+  });
+});

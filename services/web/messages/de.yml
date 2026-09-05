@@ -11,22 +11,23 @@ seo:
       gratis bei Jahresabrechnung. Community ist unter MIT kostenlos selbst
       gehostet.'
   contact:
-    title: Kontakt zum Tale-Team
-    description: Sprich mit dem Tale-Team über selbst gehostete KI für deine
-      Organisation — Plattform, Preise, Hardware oder eine geführte Demo.
-      Antwort innerhalb eines Werktags.
+    title: Kontakt zum Tale-Team — Vertrieb, Support, Demos
+    description: Sprich mit dem Tale-Team über selbst gehostete KI — Plattform,
+      Preise, Hardware oder eine geführte Demo. Antwort innerhalb eines
+      Werktags.
   about:
     title: Wer steht hinter Tale? — Über die Ruler GmbH
     description: Hinter Tale steht die Ruler GmbH, ein Schweizer Unternehmen aus
-      Spiez, gegründet 2020 — herstellerneutral, ISO 27001 & SOC 2 Type II
-      zertifiziert und vollständig Open Source unter MIT.
+      Spiez — herstellerneutral, ISO 27001 & SOC 2 Type II zertifiziert und Open
+      Source unter MIT.
   requestDemo:
-    title: Demo anfragen
-    description: 'Buch eine geführte Tale-Demo: selbst gehostete KI-Agents,
-      Automatisierungen und Governance in Aktion. Für datensensible
-      Organisationen in der Schweiz und der EU.'
+    title: Tale-Demo anfragen — geführter Rundgang
+    description:
+      'Buch eine geführte Tale-Demo: selbst gehostete KI-Agents,
+      Automatisierungen und Governance in Aktion — für datensensible Teams in
+      der Schweiz und der EU.'
   hardwarePricing:
-    title: Was kostet Tale-AI-Hardware?
+    title: Was kostet Tale-AI-Hardware? — mieten, leasen, kaufen
     description: Geräuscharme Inference-Hardware von einzelnen Nodes bis Racks —
       mieten, leasen oder kaufen. Vor Ort mit Remote-Wartung oder in sicheren
       Rechenzentren.
@@ -37,41 +38,43 @@ seo:
       steuert jede Aktion — selbst gehostet für datensensible Teams in der
       Schweiz und der EU.
   platformAgents:
-    title: Was sind Agents in Tale?
+    title: Was sind Agents in Tale? — Anweisungen, Tools, Modell
     description:
       Tale-Agents kombinieren Anweisungen, Wissen, Tools und ein Modell.
       Verbinde Claude Code, Codex, Hermes und OpenClaw unter einem Orchestrator,
       den du hostest.
   platformChat:
-    title: Chats in Tale
+    title: Was ist Chat in Tale? — Zitate, Tool-Aufrufe, Freigaben
     description:
       'Tale Chat ist der Alltagseinstieg: Agent wählen, Nachricht senden,
       gestreamte Antwort lesen — mit Zitaten, Tool-Aufrufen, Arena-Modus und
       Freigaben im Chat.'
   platformAutomations:
-    title: Was sind Automations in Tale?
-    description: Tale Automations bündeln Connectors, Agents und typisierte
-      Workflow-Schritte — Trigger, Bedingungen, Aktionen und menschliche
-      Freigaben auf deiner Infrastruktur.
+    title: Was sind Automations in Tale? — vom Trigger zur Freigabe
+    description:
+      'Tale Automations bündeln Connectors, Agents und typisierte
+      Workflow-Schritte: Trigger, Bedingungen, Aktionen und menschliche
+      Freigaben auf deiner Infrastruktur.'
   platformKnowledge:
-    title: Was ist Knowledge in Tale?
+    title: Was ist Knowledge in Tale? — indexiert und zitiert
     description: Tale Knowledge indexiert Dokumente, Websites und typisierte
       Datensätze, damit Agents deine Realität abrufen und zitieren — nicht nur
       Trainingsdaten.
   platformGovernance:
-    title: Was ist Governance in Tale?
+    title: Was ist Governance in Tale? — Freigaben und Audit-Log
     description: Tale Governance hält Agent-Aktionen hinter Freigabe-Karten,
       schreibt jeden Entscheid ins Audit-Log und filtert PII und unsichere
       Inhalte in beide Richtungen.
   platformProjects:
-    title: Was sind Projekte in Tale?
+    title: Was sind Projekte in Tale? — geteilte Arbeitsbereiche
     description: Tale-Projekte bündeln Chats, Dateien, Anweisungen und ein
-      Task-Board in einem geteilten Arbeitsbereich — weise eine Aufgabe einem
-      Agent zu und prüfe das Ergebnis, bevor es rausgeht.
+      Task-Board — weise eine Aufgabe einem Agent zu und prüfe das Ergebnis,
+      bevor es rausgeht.
   changelog:
     title: Was ist neu in Tale? — Changelog
-    description: Release Notes zu jeder Tale-Version, neueste zuerst —
-      veröffentlicht aus GitHub Releases.
+    description: Release Notes zu jeder Tale-Version, neueste zuerst — Features,
+      Fixes und Breaking Changes jeder Version, veröffentlicht aus GitHub
+      Releases.
 notFound:
   title: Diese Seite gibt es nicht
   body: Die Adresse ist vielleicht vertippt, oder die Seite ist umgezogen. Am

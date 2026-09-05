@@ -1,6 +1,6 @@
 ---
 title: Membres et rôles
-description: Les six rôles que Tale ship et la matrice de permissions au niveau ressource qui dit qui peut faire quoi. Les Administrateurs et Propriétaires lisent ceci quand ils montent une équipe ou quand un audit demande qui a quel accès.
+description: Les six rôles que Tale ship et la matrice de permissions au niveau ressource qui dit qui peut faire quoi.
 ---
 
 Les membres sont les personnes de ton organisation qui peuvent se connecter à Tale. Les rôles contrôlent ce que chaque membre peut faire — lire, écrire, configurer, gouverner. Cette page est la référence canonique pour les six rôles et les permissions par ressource que chaque rôle porte.

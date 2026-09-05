@@ -1,7 +1,13 @@
+import { formatBytes } from './number';
+
+/**
+ * A file's size in the app's default locale — the byte formatter for the
+ * attachment surfaces that render outside a locale-aware context. Same
+ * units and rounding as `formatBytes`, so a size never reads differently
+ * in a chat attachment than in the documents list.
+ */
 export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return formatBytes(bytes);
 }
 
 export function middleEllipsis(name: string, maxLength: number): string {

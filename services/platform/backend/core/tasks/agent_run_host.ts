@@ -567,7 +567,11 @@ async function mintTurnServing(
       providerSlug: resolved.providerSlug,
       modelId: resolved.modelId,
     };
-    const routing = resolveGatewayRouting(target.providerSlug, target.modelId);
+    const routing = resolveGatewayRouting(
+      args.organizationId,
+      target.providerSlug,
+      target.modelId,
+    );
     // A text-only serving model still meets image inputs (task attachments,
     // scanned PDFs) — arm the vision polyfill so those route through the
     // gateway instead of 404ing the turn. Resolved once: the harness needs
@@ -580,8 +584,11 @@ async function mintTurnServing(
     );
     const visionModelRef =
       vision !== null
-        ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
-            .gatewayModel
+        ? resolveGatewayRouting(
+            args.organizationId,
+            vision.providerSlug,
+            vision.modelId,
+          ).gatewayModel
         : undefined;
     const budgetCents = workflowAgentBudgetCents();
     const key = await provisionSessionGatewayKey(ctx, {

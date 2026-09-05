@@ -14,10 +14,11 @@
  * fails to parse or validate throws with its path — a broken shipped connector
  * is a packaging defect, never something to skip silently.
  *
- * Root resolution: an explicit `root` (the `system/` directory) wins;
- * otherwise walk up from the working directory to the checkout's
- * `configs/platform/system`, which covers vitest, scripts, and the convex dev
- * process. Parsed connectors are memoized per root and invalidated when any
+ * Root resolution is the shared system-catalog resolver
+ * (`lib/shared/config/system-root.ts`): an explicit `root` (the `system/`
+ * directory) wins; then `$TALE_CONFIG_SYSTEM_DIR`; otherwise the walk-up from
+ * the working directory to the checkout's `configs/platform/system`, which
+ * covers vitest, scripts, and the dev process. Parsed connectors are memoized per root and invalidated when any
  * `connector.yml`'s (mtime, size) changes, so editing a connector in dev takes
  * effect on the next call without re-reading the catalog on every lookup.
  *
@@ -28,12 +29,13 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
+import {
+  resolveSystemConfigRoot,
+  SYSTEM_CONFIG_ROOT_REMEDY,
+} from '../shared/config/system-root';
 import { parseYamlOrThrow } from '../shared/config/yaml';
 import { connectorSchema, type Connector } from '../shared/schemas/connectors';
 import { zodErrorMessage } from '../shared/schemas/format-error';
-
-/** Repo-relative location of the shipped system config tree. */
-const REPO_SYSTEM_ROOT = ['configs', 'platform', 'system'] as const;
 
 /** One connector file may not exceed this — a connector is configuration. */
 const MAX_CONNECTOR_BYTES = 1024 * 1024;
@@ -51,40 +53,18 @@ function isDirectory(candidate: string): boolean {
   try {
     return statSync(candidate).isDirectory();
   } catch {
-    // A missing path is the ordinary walk-up miss, not an error.
+    // A missing entry is an ordinary listing miss, not an error.
     return false;
   }
-}
-
-function findRepoSystemRoot(startDir: string): string | null {
-  let dir = path.resolve(startDir);
-  for (;;) {
-    const candidate = path.join(dir, ...REPO_SYSTEM_ROOT);
-    if (isDirectory(candidate)) return candidate;
-    const parent = path.dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-}
-
-/** `$TALE_CONFIG_SYSTEM_DIR` when set to an absolute path — the deployment
- * contract for shipped containers, which bake the tree in and have no repo
- * checkout to walk up to. A set-but-relative value resolves to nothing rather
- * than being guessed against the cwd. */
-function envSystemRoot(): string | undefined {
-  const fromEnv = process.env.TALE_CONFIG_SYSTEM_DIR;
-  if (fromEnv && path.isAbsolute(fromEnv)) return fromEnv;
-  return undefined;
 }
 
 export function resolveConnectorsDir(
   options: LoadConnectorCatalogOptions = {},
 ): string {
-  const root =
-    options.root ?? envSystemRoot() ?? findRepoSystemRoot(process.cwd());
-  if (!root) {
+  const root = resolveSystemConfigRoot({ root: options.root });
+  if (root === null) {
     throw new Error(
-      '[connectors] no system config tree found: set TALE_CONFIG_SYSTEM_DIR (absolute), pass an explicit root, or run inside a checkout with configs/platform/system',
+      `[connectors] no system config tree found: ${SYSTEM_CONFIG_ROOT_REMEDY}`,
     );
   }
   return path.join(root, 'connectors');

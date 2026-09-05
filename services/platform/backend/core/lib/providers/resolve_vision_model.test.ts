@@ -209,6 +209,27 @@ describe('resolveOrgVisionModel', () => {
     });
   });
 
+  it('admits an allowlisted model across provider id dialects, as every other lane does', async () => {
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'cheap-vl', inputPrice: 1 }),
+      entry({ id: 'allowed-vl', inputPrice: 100 }),
+    ]);
+    // The allowlist names the qualified id; the catalog lists the bare one.
+    const ctx = fakeCtx({
+      alpha: {
+        authMethod: 'api-key',
+        status: 'active',
+        modelAllowlist: ['alpha/allowed-vl'],
+      },
+    });
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'allowed-vl',
+      source: 'cheapest',
+    });
+  });
+
   it('prefers a curated vision model over a cheaper unknown one', async () => {
     // The price sort reads a live catalog, so "cheapest" tracks whatever a
     // provider listed most recently — it says nothing about transcription

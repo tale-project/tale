@@ -199,6 +199,7 @@ describe('generic OIDC adapter (#1506)', () => {
       if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
       return jsonResponse({
         sub: 'user-1',
+        email: 'user@example.com',
         realm_access: { roles: ['platform-admins'] },
       });
     });
@@ -328,5 +329,35 @@ describe('generic OIDC adapter (#1506)', () => {
       urlOf(call[0]).includes('.well-known'),
     ).length;
     expect(wellKnownCalls).toBe(1);
+  });
+});
+
+describe('generic OIDC adapter — userinfo without an email', () => {
+  it('refuses readably instead of passing undefined downstream', async () => {
+    // A scope set without `email`, or a userinfo endpoint emitting only
+    // `sub`: the old code let `undefined` through and the first
+    // `.toLowerCase()` painted a raw TypeError on the login page.
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({ sub: 'user-1', name: 'No Mail' });
+    });
+
+    await expect(genericOidcAdapter.getUserInfo(config, 'at')).rejects.toThrow(
+      /OIDC userinfo response carries no email/,
+    );
+  });
+
+  it('treats a mistyped email claim mapping the same way', async () => {
+    mockFetch((url) => {
+      if (url.includes('.well-known')) return jsonResponse(DISCOVERY);
+      return jsonResponse({ sub: 'user-1', mail: 'user@example.com' });
+    });
+
+    await expect(
+      genericOidcAdapter.getUserInfo(
+        { ...config, claimMappings: { email: 'contact.mail' } },
+        'at',
+      ),
+    ).rejects.toThrow(/carries no email/);
   });
 });

@@ -15,7 +15,9 @@
  *
  * `categoryIds` carries opaque pattern names only — safe to log, never
  * matched text. `truncated` marks that the input was clamped before
- * scanning, i.e. results past the clamp point may be incomplete.
+ * scanning, i.e. results past the clamp point may be incomplete — on a
+ * `pass` as much as on any other kind: a clean clamped prefix says nothing
+ * about the tail that was never scanned.
  */
 
 export type FilterName = 'pii' | 'chat_filter' | 'moderation_provider';
@@ -24,6 +26,7 @@ export type GuardrailsDirection = 'input' | 'output';
 
 export interface FilterPassOutcome {
   kind: 'pass';
+  truncated?: boolean;
 }
 
 export interface FilterModifiedOutcome {
@@ -65,8 +68,8 @@ export type FilterOutcome =
   | FilterBlockedOutcome
   | FilterStepErrorOutcome;
 
-export function pass(): FilterPassOutcome {
-  return { kind: 'pass' };
+export function pass(truncated?: boolean): FilterPassOutcome {
+  return { kind: 'pass', truncated };
 }
 
 export function modified(

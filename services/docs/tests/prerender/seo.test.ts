@@ -24,6 +24,58 @@ describe('docs prerender SEO suite', () => {
     expect(existsSync(DIST)).toBe(true);
   });
 
+  // Regression: the `<title>` was the bare frontmatter title, which also
+  // labels the sidebar, breadcrumb and H1 and is therefore short on purpose.
+  // Pages rendered as little as 11 characters ("Chat | Tale"), which Ahrefs
+  // reports as "Title too short". Titles now trail their top-level section.
+  describe('title lengths', () => {
+    // Rendered bounds. The floor sits below the docs root title
+    // ("Tale documentation", 18) and well above the 11-character titles
+    // that regressed; the ceiling is what a search result shows in full.
+    const MIN = 15;
+    const MAX = 60;
+
+    function indexablePages(): { path: string; title: string }[] {
+      const out: { path: string; title: string }[] = [];
+      const walk = (dir: string) => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          const full = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            walk(full);
+            continue;
+          }
+          if (entry.name !== 'index.html') continue;
+          const html = readFileSync(full, 'utf8');
+          // Redirect stubs and /404 are noindex; they are not results.
+          if (/name="robots"[^>]*content="[^"]*noindex/i.test(html)) continue;
+          const match = /<title>([\s\S]*?)<\/title>/.exec(html);
+          if (!match) continue;
+          out.push({
+            path: full.slice(DIST.length),
+            title: match[1]
+              .replaceAll('&amp;', '&')
+              .replaceAll('&lt;', '<')
+              .replaceAll('&gt;', '>')
+              .replaceAll('&#39;', "'")
+              .replaceAll('&quot;', '"'),
+          });
+        }
+      };
+      walk(DIST);
+      return out;
+    }
+
+    it('renders every indexable title within the bounds', () => {
+      if (!existsSync(DIST)) return;
+      const pages = indexablePages();
+      expect(pages.length).toBeGreaterThan(100);
+      const offenders = pages
+        .filter((p) => p.title.length < MIN || p.title.length > MAX)
+        .map((p) => `${p.path} (${p.title.length}): ${p.title}`);
+      expect(offenders).toEqual([]);
+    });
+  });
+
   it('prerenders /404 with noindex', () => {
     const html = readHtml('/404');
     expect(html).not.toBeNull();
