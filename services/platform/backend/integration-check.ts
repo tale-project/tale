@@ -36219,7 +36219,9 @@ async function checkAccountAuthzHardening(
   ctx: { cookie: string },
   suffix: string,
 ): Promise<void> {
-  const signUp = (label: string): Promise<{ cookie: string; userId: string }> =>
+  const signUp = (
+    label: string,
+  ): Promise<{ cookie: string; userId: string; email: string }> =>
     signUpUser(base, `authz-${label}-${suffix}`);
   const createOrg = async (cookie: string, slug: string): Promise<string> => {
     const res = await fetch(`${base}/api/auth/organization/create`, {
@@ -36297,6 +36299,114 @@ async function checkAccountAuthzHardening(
       adminResetsShared.status === 403 &&
       ownerResetsLow.status === 200,
     `admin→owner=${adminResetsOwner.status} (want 403), admin→cross-org=${adminResetsShared.status} (want 403), owner→member=${ownerResetsLow.status} (want 200)`,
+  );
+
+  // --- One credential row per user (org-core-2) ---------------------------
+  // The low member signed up with a password, so the reset above was the
+  // second write onto their credential; a further reset is the third. Better
+  // Auth declares no unique key on account(userId, providerId), so the old
+  // blind INSERT left one extra row per reset — and only the newest password
+  // may sign in afterwards.
+  const ownerResetsLowAgain = await setMemberPw(orgCOwner.cookie, lowMemberC);
+  const credentialRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "account"
+    WHERE "userId" = ${lowN.userId} AND "providerId" = 'credential'
+  `;
+  const signIn = (password: string): Promise<Response> =>
+    fetch(`${base}/api/auth/sign-in/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ email: lowN.email, password }),
+    });
+  const newPasswordSignsIn = (await signIn('Itest-Passw0rd!2')).ok;
+  const oldPasswordRefused = (await signIn('itest-password-1')).status === 401;
+  record(
+    'credential reset: repeated resets keep ONE credential row and only the newest password signs in',
+    ownerResetsLowAgain.status === 200 &&
+      credentialRows[0]?.count === '1' &&
+      newPasswordSignsIn &&
+      oldPasswordRefused,
+    `second=${ownerResetsLowAgain.status} rows=${credentialRows[0]?.count ?? '?'} newSignsIn=${newPasswordSignsIn} oldRefused=${oldPasswordRefused}`,
+  );
+
+  // --- The settings-UI member door carries audit + hint (org-core-4) ------
+  const createMemberVia = (
+    cookie: string,
+    body: Record<string, unknown>,
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/users/members`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ organizationId: orgC, ...body }),
+    });
+  const createdRes = await createMemberVia(orgCOwner.cookie, {
+    email: `itest-authz-created-${suffix}@example.com`,
+    password: 'Itest-Passw0rd!3',
+    displayName: 'Created Via Users Door',
+    role: 'editor',
+  });
+  const created = z
+    .object({
+      userId: z.string(),
+      memberId: z.string(),
+      isExistingUser: z.boolean(),
+    })
+    .safeParse(await createdRes.json().catch(() => ({})));
+  const existingRes = await createMemberVia(orgCOwner.cookie, {
+    email: orgDOwner.email,
+    role: 'member',
+  });
+  const existing = z
+    .object({
+      userId: z.string(),
+      memberId: z.string(),
+      isExistingUser: z.boolean(),
+    })
+    .safeParse(await existingRes.json().catch(() => ({})));
+  const duplicateRes = await createMemberVia(orgCOwner.cookie, {
+    email: orgDOwner.email,
+  });
+  const duplicate = z
+    .object({ error: z.string() })
+    .safeParse(await duplicateRes.json().catch(() => ({})));
+  const memberIds = [
+    created.success ? created.data.memberId : '',
+    existing.success ? existing.data.memberId : '',
+  ];
+  const addMemberAudits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgC} AND action = 'add_member'
+      AND resource_id IN ${sql(memberIds)}
+  `;
+  const memberHints = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgC} AND entity = 'member'
+      AND entity_id IN ${sql([
+        created.success ? created.data.userId : '',
+        existing.success ? existing.data.userId : '',
+      ])}
+  `;
+  const createdRole = created.success
+    ? await sql<{ role: string }[]>`
+        SELECT "role" FROM "member" WHERE "id" = ${created.data.memberId}
+      `
+    : [];
+  record(
+    'users/members (the settings door) adds new and existing users with an add_member audit row and a member hint',
+    createdRes.status === 200 &&
+      created.success &&
+      !created.data.isExistingUser &&
+      createdRole[0]?.role === 'editor' &&
+      existingRes.status === 200 &&
+      existing.success &&
+      existing.data.isExistingUser &&
+      existing.data.userId === orgDOwner.userId &&
+      duplicateRes.status === 400 &&
+      duplicate.success &&
+      duplicate.data.error === 'DUPLICATE_MEMBER' &&
+      addMemberAudits[0]?.count === '2' &&
+      memberHints[0]?.count === '2',
+    `created=${createdRes.status}/${created.success ? (createdRole[0]?.role ?? 'no-role') : 'unparsed'} existing=${existingRes.status}/${existing.success ? String(existing.data.isExistingUser) : 'unparsed'} duplicate=${duplicateRes.status}/${duplicate.success ? duplicate.data.error : '?'} audits=${addMemberAudits[0]?.count ?? '?'} hints=${memberHints[0]?.count ?? '?'}`,
   );
 
   // --- API-key rate-limit window unit (finding 5) -------------------------
