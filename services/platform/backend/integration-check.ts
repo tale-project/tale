@@ -5272,6 +5272,39 @@ async function checkSmallDomains(
     ).json(),
   );
   const contactId = contact.success ? contact.data.contactId : '';
+  // The same email again (any case, any padding) is the 409 the REST
+  // reference has always promised — the door never checked before.
+  const dupContact = await send('POST', `/api/app/contacts?orgId=${orgId}`, {
+    name: 'Ada Twin',
+    email: '  ADA@example.com ',
+    source: 'manual_import',
+  });
+  const dupBody = z
+    .object({ error: z.string() })
+    .safeParse(await dupContact.json());
+  // Two members submit one new email at once: exactly one row lands, the
+  // other answers 409 — the per-(org, email) lock, not luck.
+  const twinEmail = `twins-${Date.now()}@example.com`;
+  const twinStatuses = (
+    await Promise.all([
+      send('POST', `/api/app/contacts?orgId=${orgId}`, {
+        name: 'Twin A',
+        email: twinEmail,
+        source: 'manual_import',
+      }),
+      send('POST', `/api/app/contacts?orgId=${orgId}`, {
+        name: 'Twin B',
+        email: twinEmail,
+        source: 'manual_import',
+      }),
+    ])
+  )
+    .map((r) => r.status)
+    .sort((a, b) => a - b);
+  const twinRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.contacts
+    WHERE org_id = ${orgId} AND email = ${twinEmail}
+  `;
   const found = z
     .object({
       items: z.array(
@@ -5293,16 +5326,41 @@ async function checkSmallDomains(
   const afterTrash = z
     .object({ items: z.array(z.object({ id: z.string() })) })
     .safeParse(await get(`/api/app/contacts?orgId=${orgId}`));
+  // A trashed contact is out of the directory: its email is free again.
+  const recreated = z.object({ contactId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/contacts?orgId=${orgId}`, {
+        name: 'Ada Lovelace',
+        email: 'ada@example.com',
+        source: 'manual_import',
+      })
+    ).json(),
+  );
+  const recreatedFresh =
+    recreated.success && recreated.data.contactId !== contactId;
+  if (recreated.success) {
+    // Keep the later count/list probes on their pre-existing footing.
+    await send(
+      'DELETE',
+      `/api/app/contacts/${recreated.data.contactId}?orgId=${orgId}`,
+    );
+  }
   record(
     'contacts CRUD + normalization + trash',
     contact.success &&
+      dupContact.status === 409 &&
+      dupBody.success &&
+      dupBody.data.error === 'CONTACT_DUPLICATE_EMAIL' &&
+      twinStatuses.join(',') === '200,409' &&
+      twinRows[0]?.count === '1' &&
       found.success &&
       found.data.items[0]?.email === 'ada@example.com' &&
       updated.ok &&
       trashed.ok &&
       afterTrash.success &&
-      !afterTrash.data.items.some((i) => i.id === contactId),
-    `email=${found.success ? found.data.items[0]?.email : 'ERR'} (want normalized), trashHidden=${afterTrash.success ? !afterTrash.data.items.some((i) => i.id === contactId) : 'ERR'}`,
+      !afterTrash.data.items.some((i) => i.id === contactId) &&
+      recreatedFresh,
+    `email=${found.success ? found.data.items[0]?.email : 'ERR'} (want normalized), dup → ${dupContact.status} ${dupBody.success ? dupBody.data.error : 'ERR'} (want 409 CONTACT_DUPLICATE_EMAIL), concurrent twins → ${twinStatuses.join(',')} rows=${twinRows[0]?.count} (want 200,409 / 1), trashHidden=${afterTrash.success ? !afterTrash.data.items.some((i) => i.id === contactId) : 'ERR'}, recreatedAfterTrash=${recreatedFresh}`,
   );
 
   // The table header's count, the palette's search, and the CSV import —
@@ -18853,7 +18911,7 @@ async function checkIngestDedupeRace(
         organizationId: orgId,
         email: email.toUpperCase(),
         name: 'Raced Contact',
-        source: 'email',
+        source: 'conversation',
       }).then((out) => contactOut.parse(out)),
     ),
   );
@@ -18863,10 +18921,37 @@ async function checkIngestDedupeRace(
   `;
   const ids = new Set(outcomes.map((o) => o.contactId));
   const createdCount = outcomes.filter((o) => o.created).length;
+  const [racedId] = ids;
+  // The ingest goes through the contacts domain's own create: the minted row
+  // carries the audit row a member-created contact does, as the system's.
+  const audited = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'contact.created'
+      AND resource_id = ${racedId ?? ''} AND actor_type = 'system'
+  `;
+  // A trashed contact is out of the directory: a later mail from the same
+  // address mints a fresh live contact instead of re-attaching to the trash.
+  await sql`
+    UPDATE app.contacts SET lifecycle_status = 'trashed'
+    WHERE org_id = ${orgId} AND email = ${email}
+  `;
+  const afterTrash = contactOut.parse(
+    await findOrCreateContact({
+      organizationId: orgId,
+      email,
+      name: 'Raced Contact',
+      source: 'conversation',
+    }),
+  );
   record(
     'mail ingest: four concurrent find-or-creates of one contact email make one contact',
-    contactRows[0]?.count === '1' && ids.size === 1 && createdCount === 1,
-    `rows=${contactRows[0]?.count} (want 1) distinctIds=${ids.size} (want 1) created=${createdCount} (want 1)`,
+    contactRows[0]?.count === '1' &&
+      ids.size === 1 &&
+      createdCount === 1 &&
+      audited[0]?.count === '1' &&
+      afterTrash.created &&
+      afterTrash.contactId !== racedId,
+    `rows=${contactRows[0]?.count} (want 1) distinctIds=${ids.size} (want 1) created=${createdCount} (want 1) audited=${audited[0]?.count} (want 1) afterTrash=${afterTrash.created ? 'fresh' : 'reattached'}/${afterTrash.contactId !== racedId} (want fresh/true)`,
   );
   await sql`DELETE FROM app.conversations WHERE id = ${first.conversationId}`;
   await sql`DELETE FROM app.contacts WHERE org_id = ${orgId} AND email = ${email}`;

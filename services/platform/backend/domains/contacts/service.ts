@@ -45,9 +45,13 @@ export type ContactSource = (typeof CONTACT_SOURCES)[number];
 
 export class ContactError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404;
+  readonly status: 400 | 403 | 404 | 409;
 
-  constructor(code: string, message: string, status: 400 | 403 | 404 = 400) {
+  constructor(
+    code: string,
+    message: string,
+    status: 400 | 403 | 404 | 409 = 400,
+  ) {
     super(message);
     this.name = 'ContactError';
     this.code = code;
@@ -109,26 +113,110 @@ export interface ContactInput {
   notes?: string;
 }
 
-export async function createContact(
+/**
+ * The per-(org, email) writer mutex every contact create holds. The
+ * directory's email uniqueness is an application rule — `contacts_org_email`
+ * is a plain index, and live deployments may already carry twins from the
+ * time no door checked — so the three write paths (single create, bulk
+ * import, the mail-ingest find-or-create) all serialize here before they
+ * look. Two overlapping writers of one email thus see each other's commit:
+ * the second finds the row and refuses (or, for find-or-create, adopts it).
+ * The lock lives for the caller's transaction, across every api replica.
+ */
+async function lockContactEmail(
   tx: TransactionSql,
-  scope: ContactScope,
-  input: ContactInput,
+  organizationId: string,
+  email: string,
+): Promise<void> {
+  await tx`
+    SELECT pg_advisory_xact_lock(
+      hashtextextended('contact:' || ${organizationId} || ':' || ${email}, 0)
+    )
+  `;
+}
+
+/** The (org, external id) twin of `lockContactEmail` for the import lane's
+ * second duplicate key. Always taken AFTER the email lock, so two importers
+ * never hold the pair in opposite order. */
+async function lockContactExternalId(
+  tx: TransactionSql,
+  organizationId: string,
+  externalId: string,
+): Promise<void> {
+  await tx`
+    SELECT pg_advisory_xact_lock(
+      hashtextextended('contact-ext:' || ${organizationId} || ':' || ${externalId}, 0)
+    )
+  `;
+}
+
+/**
+ * The LIVE row an email resolves to — a trashed contact is out of the
+ * directory (listing, count and palette all hide it), so it neither blocks
+ * a re-create nor gets a new conversation attached to it. Oldest wins, so
+ * pre-lock twins answer the same id on every lookup.
+ */
+async function findLiveContactIdByEmail(
+  tx: TransactionSql,
+  organizationId: string,
+  email: string,
+): Promise<string | null> {
+  const rows = await tx<{ id: string }[]>`
+    SELECT id FROM app.contacts
+    WHERE org_id = ${organizationId} AND email = ${email}
+      AND lifecycle_status IS DISTINCT FROM 'trashed'
+    ORDER BY created_at_ms ASC, id ASC
+    LIMIT 1
+  `;
+  return rows[0]?.id ?? null;
+}
+
+async function findLiveContactIdByExternalId(
+  tx: TransactionSql,
+  organizationId: string,
+  externalId: string,
+): Promise<string | null> {
+  const rows = await tx<{ id: string }[]>`
+    SELECT id FROM app.contacts
+    WHERE org_id = ${organizationId} AND external_id = ${externalId}
+      AND lifecycle_status IS DISTINCT FROM 'trashed'
+    ORDER BY created_at_ms ASC, id ASC
+    LIMIT 1
+  `;
+  return rows[0]?.id ?? null;
+}
+
+interface ContactInsertRow {
+  organizationId: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  externalId: string | null;
+  source: ContactSource;
+  locale: string | null;
+  address: Record<string, unknown> | null;
+  tags: string[];
+  metadata: Record<string, unknown> | null;
+  notes: string | null;
+}
+
+/** THE contact insert — every create door lands its row through here. */
+async function insertContactRow(
+  tx: TransactionSql,
+  row: ContactInsertRow,
 ): Promise<string> {
-  assertContactAccess(scope, 'write');
-  const email = input.email?.trim().toLowerCase();
   const now = Date.now();
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.contacts (
       org_id, name, email, phone, external_id, source, locale, address,
       tags, metadata, notes, created_at_ms, updated_at_ms
     ) VALUES (
-      ${scope.organizationId}, ${input.name?.trim() ?? null}, ${email ?? null},
-      ${input.phone ?? null}, ${input.externalId ?? null}, ${input.source},
-      ${input.locale ?? null},
-      ${input.address === undefined ? null : tx.json(toJson(input.address))},
-      ${input.tags ?? []},
-      ${input.metadata === undefined ? null : tx.json(toJson(input.metadata))},
-      ${input.notes ?? null}, ${now}, ${now}
+      ${row.organizationId}, ${row.name}, ${row.email}, ${row.phone},
+      ${row.externalId}, ${row.source}, ${row.locale},
+      ${row.address === null ? null : tx.json(toJson(row.address))},
+      ${row.tags},
+      ${row.metadata === null ? null : tx.json(toJson(row.metadata))},
+      ${row.notes}, ${now}, ${now}
     )
     RETURNING id
   `;
@@ -136,51 +224,152 @@ export async function createContact(
   if (!id) {
     throw new ContactError('CONTACT_CREATE_FAILED', 'Insert failed');
   }
+  return id;
+}
+
+/** The audit row, the automation event and the realtime hint one created
+ * contact owes — the same three whether a member typed it or the mail
+ * ingest minted it. */
+async function recordContactCreated(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    contactId: string;
+    name?: string | undefined;
+    actor:
+      | { type: 'user'; id: string; email?: string | undefined }
+      | { type: 'system' };
+  },
+): Promise<void> {
   await createAuditLog(tx, {
-    organizationId: scope.organizationId,
-    actorId: scope.userId,
-    ...(scope.email !== undefined ? { actorEmail: scope.email } : {}),
-    actorType: 'user',
+    organizationId: args.organizationId,
+    actorId: args.actor.type === 'user' ? args.actor.id : 'system',
+    ...(args.actor.type === 'user' && args.actor.email !== undefined
+      ? { actorEmail: args.actor.email }
+      : {}),
+    actorType: args.actor.type,
     action: 'contact.created',
     category: 'data',
     resourceType: 'contact',
-    resourceId: id,
-    ...(input.name !== undefined ? { resourceName: input.name } : {}),
+    resourceId: args.contactId,
+    ...(args.name !== undefined ? { resourceName: args.name } : {}),
     status: 'success',
   });
   await emitEvent(tx, {
-    organizationId: scope.organizationId,
+    organizationId: args.organizationId,
     eventType: 'contact.created',
-    eventData: { contactId: id },
+    eventData: { contactId: args.contactId },
   });
   await emitHintInTx(tx, {
-    orgId: scope.organizationId,
+    orgId: args.organizationId,
     entity: 'contact',
-    entityId: id,
+    entityId: args.contactId,
+  });
+}
+
+function normalizeContactEmail(email: string | undefined): string | undefined {
+  const normalized = email?.trim().toLowerCase();
+  return normalized === undefined || normalized === '' ? undefined : normalized;
+}
+
+/**
+ * Member create. An email that already names a LIVE contact of the org is
+ * refused with 409 `CONTACT_DUPLICATE_EMAIL` — the code the create dialog
+ * maps and the status the REST reference has promised for a duplicate email
+ * since the door opened; the door itself never checked.
+ */
+export async function createContact(
+  tx: TransactionSql,
+  scope: ContactScope,
+  input: ContactInput,
+): Promise<string> {
+  assertContactAccess(scope, 'write');
+  const email = normalizeContactEmail(input.email);
+  if (email !== undefined) {
+    await lockContactEmail(tx, scope.organizationId, email);
+    if (
+      (await findLiveContactIdByEmail(tx, scope.organizationId, email)) !== null
+    ) {
+      throw new ContactError(
+        'CONTACT_DUPLICATE_EMAIL',
+        `Contact with email ${email} already exists`,
+        409,
+      );
+    }
+  }
+  const id = await insertContactRow(tx, {
+    organizationId: scope.organizationId,
+    name: input.name?.trim() ?? null,
+    email: email ?? null,
+    phone: input.phone ?? null,
+    externalId: input.externalId ?? null,
+    source: input.source,
+    locale: input.locale ?? null,
+    address: input.address ?? null,
+    tags: input.tags ?? [],
+    metadata: input.metadata ?? null,
+    notes: input.notes ?? null,
+  });
+  await recordContactCreated(tx, {
+    organizationId: scope.organizationId,
+    contactId: id,
+    name: input.name,
+    actor: { type: 'user', id: scope.userId, email: scope.email },
   });
   return id;
 }
 
-/** Find by normalized email or create with `source` (conversations lane). */
+/**
+ * Find by normalized email or create — the mail-ingest lane (a conversation's
+ * correspondent), which has no member behind it: the audit row is the
+ * system's. Serialized per (org, email) like every other create, and blind
+ * to trashed rows like the directory itself: a mail from a contact the org
+ * trashed mints a fresh live contact rather than re-attaching to the trash.
+ */
 export async function findOrCreateContactByEmail(
   tx: TransactionSql,
-  scope: ContactScope,
-  args: { email: string; name?: string; source: ContactSource },
+  args: {
+    organizationId: string;
+    email: string;
+    name?: string | undefined;
+    source: ContactSource;
+    metadata?: Record<string, unknown> | undefined;
+  },
 ): Promise<{ contactId: string; created: boolean }> {
-  const email = args.email.trim().toLowerCase();
-  const existing = await tx<{ id: string }[]>`
-    SELECT id FROM app.contacts
-    WHERE org_id = ${scope.organizationId} AND email = ${email}
-      AND lifecycle_status IS DISTINCT FROM 'trashed'
-    LIMIT 1
-  `;
-  if (existing[0]) {
-    return { contactId: existing[0].id, created: false };
+  const email = normalizeContactEmail(args.email);
+  if (email === undefined) {
+    throw new ContactError(
+      'CONTACT_EMAIL_REQUIRED',
+      'find-or-create needs an email',
+    );
   }
-  const contactId = await createContact(tx, scope, {
+  await lockContactEmail(tx, args.organizationId, email);
+  const existing = await findLiveContactIdByEmail(
+    tx,
+    args.organizationId,
     email,
-    ...(args.name !== undefined ? { name: args.name } : {}),
+  );
+  if (existing !== null) {
+    return { contactId: existing, created: false };
+  }
+  const contactId = await insertContactRow(tx, {
+    organizationId: args.organizationId,
+    name: args.name?.trim() ?? null,
+    email,
+    phone: null,
+    externalId: null,
     source: args.source,
+    locale: null,
+    address: null,
+    tags: [],
+    metadata: args.metadata ?? null,
+    notes: null,
+  });
+  await recordContactCreated(tx, {
+    organizationId: args.organizationId,
+    contactId,
+    name: args.name,
+    actor: { type: 'system' },
   });
   return { contactId, created: true };
 }
@@ -306,7 +495,6 @@ export async function listContacts(
     search?: string;
     source?: ContactSource;
     tag?: string;
-    includeTrashed?: boolean;
     cursor?: { updatedAt: number; id: string } | null;
     limit?: number;
   } = {},
@@ -321,8 +509,7 @@ export async function listContacts(
   const rows = await sql<ContactRow[]>`
     SELECT ${sql.unsafe(CONTACT_COLUMNS)} FROM app.contacts
     WHERE org_id = ${scope.organizationId}
-      AND (${options.includeTrashed ?? false}
-        OR lifecycle_status IS DISTINCT FROM 'trashed')
+      AND lifecycle_status IS DISTINCT FROM 'trashed'
       AND (${search}::text IS NULL OR name ILIKE ${search}
         OR email ILIKE ${search} OR phone ILIKE ${search})
       AND (${options.source ?? null}::text IS NULL OR source = ${options.source ?? null})
@@ -370,9 +557,12 @@ export interface BulkCreateResult {
 /**
  * Bulk import — per-item duplicate checks (email, externalId) with
  * continue-on-error accounting, the 0.4 `bulkCreateContacts` semantics:
- * items run sequentially OUTSIDE one transaction so a refused item never
- * aborts the rest, and (0.4 parity) rows land without per-contact audit
- * rows — the importing call is the audited act, not each row.
+ * items run sequentially, EACH IN ITS OWN transaction, so a refused item
+ * never aborts the rest, and (0.4 parity) rows land without per-contact
+ * audit rows — the importing call is the audited act, not each row. The
+ * per-item transaction is what lets the check hold the (org, email) lock
+ * until the row lands: two overlapping imports of one email used to both
+ * pass the SELECT and both insert.
  */
 export async function bulkCreateContacts(
   sql: Sql,
@@ -383,53 +573,56 @@ export async function bulkCreateContacts(
   const result: BulkCreateResult = { success: 0, failed: 0, errors: [] };
   for (const [index, contact] of contacts.entries()) {
     try {
-      const email = contact.email?.toLowerCase().trim() || undefined;
-      if (email !== undefined) {
-        const existing = await sql<{ id: string }[]>`
-          SELECT id FROM app.contacts
-          WHERE org_id = ${scope.organizationId} AND email = ${email} LIMIT 1
-        `;
-        if (existing.length > 0) {
-          throw new ContactError(
-            'duplicate_email',
-            `Contact with email ${email} already exists`,
-          );
-        }
-      }
+      const email = normalizeContactEmail(contact.email);
       const externalId =
         contact.externalId === undefined || contact.externalId === ''
           ? undefined
           : String(contact.externalId);
-      if (externalId !== undefined) {
-        const existing = await sql<{ id: string }[]>`
-          SELECT id FROM app.contacts
-          WHERE org_id = ${scope.organizationId}
-            AND external_id = ${externalId}
-          LIMIT 1
-        `;
-        if (existing.length > 0) {
-          throw new ContactError(
-            'duplicate_external_id',
-            `Contact with external ID ${externalId} already exists`,
-          );
+      await sql.begin(async (tx) => {
+        if (email !== undefined) {
+          await lockContactEmail(tx, scope.organizationId, email);
+          if (
+            (await findLiveContactIdByEmail(
+              tx,
+              scope.organizationId,
+              email,
+            )) !== null
+          ) {
+            throw new ContactError(
+              'duplicate_email',
+              `Contact with email ${email} already exists`,
+            );
+          }
         }
-      }
-      const now = Date.now();
-      await sql`
-        INSERT INTO app.contacts (
-          org_id, name, email, phone, external_id, source, locale, address,
-          tags, metadata, notes, created_at_ms, updated_at_ms
-        ) VALUES (
-          ${scope.organizationId}, ${contact.name?.trim() ?? null},
-          ${email ?? null}, ${contact.phone ?? null},
-          ${externalId ?? null}, ${contact.source ?? 'api_import'},
-          ${contact.locale ?? null},
-          ${contact.address === undefined ? null : sql.json(toJson(contact.address))},
-          ${contact.tags ?? []},
-          ${contact.metadata === undefined ? null : sql.json(toJson(contact.metadata))},
-          ${contact.notes ?? null}, ${now}, ${now}
-        )
-      `;
+        if (externalId !== undefined) {
+          await lockContactExternalId(tx, scope.organizationId, externalId);
+          if (
+            (await findLiveContactIdByExternalId(
+              tx,
+              scope.organizationId,
+              externalId,
+            )) !== null
+          ) {
+            throw new ContactError(
+              'duplicate_external_id',
+              `Contact with external ID ${externalId} already exists`,
+            );
+          }
+        }
+        await insertContactRow(tx, {
+          organizationId: scope.organizationId,
+          name: contact.name?.trim() ?? null,
+          email: email ?? null,
+          phone: contact.phone ?? null,
+          externalId: externalId ?? null,
+          source: contact.source ?? 'api_import',
+          locale: contact.locale ?? null,
+          address: contact.address ?? null,
+          tags: contact.tags ?? [],
+          metadata: contact.metadata ?? null,
+          notes: contact.notes ?? null,
+        });
+      });
       result.success += 1;
     } catch (error) {
       result.failed += 1;

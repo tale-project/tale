@@ -9,6 +9,10 @@ import {
   patchMailSyncWatermarks,
   resolveCredentialRowForShim,
 } from '../connector_credentials/service.ts';
+import {
+  CONTACT_SOURCES,
+  findOrCreateContactByEmail,
+} from '../contacts/service.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
 import { applyAddressRouting } from './routing.ts';
@@ -383,46 +387,15 @@ export function conversationShimHandlers(
         .extend({
           email: z.string(),
           name: z.string().optional(),
-          source: z.string(),
+          source: z.enum(CONTACT_SOURCES),
           metadata: z.record(z.string(), z.unknown()).optional(),
         })
         .parse(raw);
-      const email = args.email.toLowerCase().trim();
-      return sql.begin(async (tx) => {
-        // `contacts_org_email` is a plain index, so two overlapping sync
-        // passes that both miss the lookup would both insert. Serialize the
-        // find-or-create per (org, email): the second transaction waits on
-        // the first's commit and its SELECT then sees the row.
-        await tx`
-          SELECT pg_advisory_xact_lock(
-            hashtextextended('contact:' || ${args.organizationId} || ':' || ${email}, 0)
-          )
-        `;
-        const existing = await tx<{ id: string }[]>`
-          SELECT id FROM app.contacts
-          WHERE org_id = ${args.organizationId} AND email = ${email}
-          LIMIT 1
-        `;
-        if (existing[0]) {
-          return { contactId: existing[0].id, created: false };
-        }
-        const now = Date.now();
-        const inserted = await tx<{ id: string }[]>`
-          INSERT INTO app.contacts (
-            org_id, name, email, source, metadata, created_at_ms,
-            updated_at_ms
-          ) VALUES (
-            ${args.organizationId}, ${args.name || email}, ${email},
-            ${args.source},
-            ${args.metadata === undefined ? null : tx.json(toJson(args.metadata))},
-            ${now}, ${now}
-          )
-          RETURNING id
-        `;
-        const contactId = inserted[0]?.id;
-        if (!contactId) throw new Error('contact insert failed');
-        return { contactId, created: true };
-      });
+      // The contacts domain owns find-or-create: the same per-(org, email)
+      // lock, live-row lookup, insert and audit/event/hint every other create
+      // door goes through — this shim used to carry an inline copy that saw
+      // trashed rows and wrote no audit row.
+      return sql.begin((tx) => findOrCreateContactByEmail(tx, args));
     },
 
     // ------------------------------------------------------- attachments
