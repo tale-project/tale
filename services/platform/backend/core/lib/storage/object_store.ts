@@ -287,9 +287,28 @@ export async function s3GetObjectBytes(
   store: S3ObjectStore,
   key: string,
 ): Promise<Uint8Array> {
+  const bytes = await s3GetObjectBytesIfExists(store, key);
+  if (bytes === null) {
+    throw new Error(`S3 GET ${key} failed: 404 the object does not exist`);
+  }
+  return bytes;
+}
+
+/**
+ * GET an object, distinguishing ABSENCE from failure: `null` when the store
+ * answers 404, the bytes when it has them, a thrown error for everything
+ * else (unreachable store, 5xx, a denied key). For a reader whose contract
+ * treats a missing file as a legitimate state — a settings file nobody has
+ * saved yet — and must not treat an outage the same way.
+ */
+export async function s3GetObjectBytesIfExists(
+  store: S3ObjectStore,
+  key: string,
+): Promise<Uint8Array | null> {
   const res = await store.client.fetch(objectUrl(store, key), {
     method: 'GET',
   });
+  if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(
       `S3 GET ${key} failed: ${res.status} ${await safeErrorBody(res)}`,

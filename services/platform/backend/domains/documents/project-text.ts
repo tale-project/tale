@@ -3,7 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { parseYamlMap } from '../../core/documents/parse_yaml_map.ts';
 import { serializeYamlMap } from '../../core/documents/serialize_yaml_map.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
-import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import { s3GetObjectBytesIfExists } from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
@@ -244,11 +244,14 @@ async function lockProjectTextDocument(
  * Read the folder's flat-YAML file back into `{key: value}`. Absence in any
  * of its forms — no folder, no file, no blob — is an EMPTY MAP, never an
  * error: a form that cannot find its file falls back to its declared
- * defaults, which is exactly what a first-run panel must do. Access is not
- * absence: the caller needs READ access to the project (the write half runs
- * the project's edit gate through `getOrCreateProjectFolder`), or any org
- * member could read another team's settings by guessing the well-known
- * folder and file names.
+ * defaults, which is exactly what a first-run panel must do. FAILURE is not
+ * absence: an unreachable store or a 5xx answers a coded refusal
+ * (`PROJECT_TEXT_READ_FAILED`, 503) so the panel shows its load-failed state
+ * instead of pre-filling defaults that the operator's next Save would write
+ * over the real file. Access is not absence either: the caller needs READ
+ * access to the project (the write half runs the project's edit gate), or
+ * any org member could read another team's settings by guessing the
+ * well-known folder and file names.
  */
 export async function readProjectTextValues(
   sql: Sql,
@@ -273,19 +276,26 @@ export async function readProjectTextValues(
   `;
   const fileRef = rows[0]?.fileRef;
   if (fileRef === null || fileRef === undefined || fileRef === '') return {};
+  const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
+  if (orgSlug === null) return {};
+  const parsed = parseBlobRef(fileRef);
+  if (parsed.backend !== 's3') return {};
+  let bytes: Uint8Array | null;
   try {
-    const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
-    if (orgSlug === null) return {};
-    const parsed = parseBlobRef(fileRef);
-    if (parsed.backend !== 's3') return {};
     const store = await resolveObjectStore(orgSlug);
-    const bytes = await s3GetObjectBytes(store, parsed.key);
-    return parseYamlMap(new TextDecoder().decode(bytes));
+    bytes = await s3GetObjectBytesIfExists(store, parsed.key);
   } catch (error) {
     console.warn(
       `[documents] project text read failed for ${fileName}:`,
       error,
     );
-    return {};
+    throw new DocumentError(
+      'PROJECT_TEXT_READ_FAILED',
+      'The settings file could not be read right now. Try again in a moment.',
+      503,
+    );
   }
+  // The row points at bytes the store no longer has: absence, not failure.
+  if (bytes === null) return {};
+  return parseYamlMap(new TextDecoder().decode(bytes));
 }
