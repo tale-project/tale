@@ -28,8 +28,42 @@ import type { RestEnv } from './shared.ts';
  * fire-and-forget), POST :id/search. Cross-org rows answer 404 like 0.4.
  */
 
+const MAX_TITLE = 200;
+const MAX_DESCRIPTION = 2000;
+
 function isRecordObj(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+/** An optional string field bounded to `max` characters — absent when the
+ * body does not carry a string; `null` when it carries one over the cap. */
+function boundedString(value: unknown, max: number): string | null | undefined {
+  if (typeof value !== 'string') return undefined;
+  return value.length > max ? null : value;
+}
+
+/**
+ * The hostname a `domain` field names, or null when it names none: the
+ * same `https://` default the domain applies (`toWebsiteDomain`), but a
+ * value `new URL()` refuses (`https://`, `a b`, `::`) is a client mistake
+ * for the 400 envelope, not a TypeError for the 500 handler.
+ */
+function parseWebsiteDomain(raw: string): string | null {
+  if (raw.length > 253) return null;
+  try {
+    const { hostname } = new URL(
+      raw.startsWith('http://') || raw.startsWith('https://')
+        ? raw
+        : `https://${raw}`,
+    );
+    return hostname === '' ? null : hostname;
+  } catch (error) {
+    console.warn(
+      '[websites-rest] unparseable domain:',
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
+  }
 }
 
 function restJsonError(
@@ -82,9 +116,17 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         400,
       );
     }
-    const domain = new URL(
-      body.domain.startsWith('http') ? body.domain : `https://${body.domain}`,
-    ).hostname;
+    const domain = parseWebsiteDomain(body.domain);
+    if (domain === null) return restJsonError(c, 'Invalid domain', 400);
+    const title = boundedString(body.title, MAX_TITLE);
+    const description = boundedString(body.description, MAX_DESCRIPTION);
+    if (title === null || description === null) {
+      return restJsonError(
+        c,
+        `title (≤${MAX_TITLE}) or description (≤${MAX_DESCRIPTION}) is too long`,
+        400,
+      );
+    }
 
     const rawUrls: unknown = body.urls;
     const listEntries = Array.isArray(rawUrls) ? rawUrls : [];
@@ -131,10 +173,8 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           organizationId,
           domain,
           ...(isList ? { kind: 'list' as const } : {}),
-          ...(typeof body.title === 'string' ? { title: body.title } : {}),
-          ...(typeof body.description === 'string'
-            ? { description: body.description }
-            : {}),
+          ...(title !== undefined ? { title } : {}),
+          ...(description !== undefined ? { description } : {}),
           scanInterval: body.scanInterval,
           status: 'scanning',
         });
@@ -187,15 +227,27 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         400,
       );
     }
+    // The domain re-parses `domain` itself; refusing the unparseable here
+    // keeps its TypeError out of the 500 handler.
+    if (typeof body.domain === 'string' && parseWebsiteDomain(body.domain) === null) {
+      return restJsonError(c, 'Invalid domain', 400);
+    }
+    const title = boundedString(body.title, MAX_TITLE);
+    const description = boundedString(body.description, MAX_DESCRIPTION);
+    if (title === null || description === null) {
+      return restJsonError(
+        c,
+        `title (≤${MAX_TITLE}) or description (≤${MAX_DESCRIPTION}) is too long`,
+        400,
+      );
+    }
     try {
       await patchWebsite(deps.sql, {
         websiteId: website.id,
         callerOrgId: c.get('organizationId'),
         ...(typeof body.domain === 'string' ? { domain: body.domain } : {}),
-        ...(typeof body.title === 'string' ? { title: body.title } : {}),
-        ...(typeof body.description === 'string'
-          ? { description: body.description }
-          : {}),
+        ...(title !== undefined ? { title } : {}),
+        ...(description !== undefined ? { description } : {}),
         ...(typeof body.scanInterval === 'string'
           ? { scanInterval: body.scanInterval }
           : {}),

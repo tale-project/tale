@@ -25,9 +25,10 @@ import {
   chargeLane,
   domainErrorResponse,
   pageLimit,
+  readJsonBody,
   requireDeveloper,
-  restProjectAuth,
   type RestEnv,
+  restProjectAuth,
 } from './shared.ts';
 
 /**
@@ -85,7 +86,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         enabled: z.boolean().optional(),
         rotateToken: z.boolean().optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json(
         { error: '"kind" must be one of: schedule, webhook, event' },
@@ -125,7 +126,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.post('/automations/:name{.+?}/projects', async (c) => {
     const body = z
       .object({ projectId: z.string().min(1).max(64) })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("projectId" is required)' }, 400);
     }

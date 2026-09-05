@@ -28,8 +28,9 @@ import {
   assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
-  restProjectAuth,
+  readJsonBody,
   type RestEnv,
+  restProjectAuth,
 } from './shared.ts';
 
 /**
@@ -134,7 +135,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         runWorkflowSlug: z.string().max(200).optional(),
         automationSlug: z.string().max(200).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json(
         {
@@ -294,7 +295,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.post('/tasks/:id/comments', async (c) => {
     const body = z
       .object({ body: z.string().min(1).max(TASK_COMMENT_MAX) })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("body" is required)' }, 400);
     }
@@ -325,7 +326,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (limited) return limited;
     const body = z
       .object({ workflowSlug: z.string().min(1).max(200) })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json(
         { error: 'invalid body ("workflowSlug" is required)' },

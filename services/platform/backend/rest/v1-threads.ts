@@ -10,6 +10,7 @@ import {
   formatKeysetCursor,
   pageLimit,
   parseKeysetCursor,
+  readJsonBody,
   type RestEnv,
 } from './shared.ts';
 
@@ -259,7 +260,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         model: z.string().min(1).max(MAX_SLUG),
         locale: z.string().max(20).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json(
         { error: 'invalid body ("content" and "model" are required)' },

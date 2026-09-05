@@ -34,10 +34,11 @@ import {
   formatKeysetCursor,
   pageLimit,
   parseKeysetCursor,
+  readJsonBody,
   requireEditor,
+  type RestEnv,
   restProjectAuth,
   RestRefusal,
-  type RestEnv,
 } from './shared.ts';
 
 /**
@@ -158,7 +159,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         description: z.string().max(500).optional(),
         externalItemId: z.string().max(256).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("name" is required)' }, 400);
     }
@@ -211,7 +212,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         name: z.string().min(1).max(255),
         parentId: z.string().max(64).optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("name" is required)' }, 400);
     }
@@ -308,7 +309,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         contentType: z.string().max(255).optional(),
         skipRagIndexing: z.boolean().optional(),
       })
-      .safeParse(await c.req.json());
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }

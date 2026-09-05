@@ -27,19 +27,32 @@ interface Captured {
   values: unknown[];
 }
 
-/** Tagged-template Sql double answering the list query with `rows`. */
-function fakeSql(rows: object[]): { sql: Sql; queries: Captured[] } {
+/** Tagged-template Sql double answering the list query with `rows`; an
+ * optional `respond` answers a query by its text first (the rate limiter's
+ * UPSERT/SELECT pair, say), falling back to `rows`. */
+function fakeSql(
+  rows: object[],
+  respond?: (text: string) => object[] | undefined,
+): { sql: Sql; queries: Captured[] } {
   const queries: Captured[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    queries.push({
-      text: strings.join('$?').replace(/\s+/g, ' ').trim(),
-      values,
-    });
-    return Promise.resolve(rows);
+    const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+    queries.push({ text, values });
+    return Promise.resolve(respond?.(text) ?? rows);
   };
   const unsafe = (text: string) => ({ unsafe: text });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return { sql: Object.assign(tag, { unsafe }) as unknown as Sql, queries };
+}
+
+/** The limiter's state for a spent bucket: the charging UPSERT returns no
+ * row and the read-back finds an empty bucket. */
+function spentBucket(text: string): object[] | undefined {
+  if (text.includes('INSERT INTO app.rate_limits')) return [];
+  if (text.includes('FROM app.rate_limits')) {
+    return [{ value: '0', ts: String(Date.now()) }];
+  }
+  return undefined;
 }
 
 function contactRow(n: number) {
@@ -276,5 +289,77 @@ describe('agents error mapping', () => {
     expect((await request('/agents/helper', { method: 'DELETE' })).status).toBe(
       404,
     );
+  });
+});
+
+/**
+ * A body that is not JSON is a client mistake in the documented 400 envelope.
+ * The regression under test: every write route handed `c.req.json()` — a
+ * bare `JSON.parse` — straight to zod, so a truncated or empty `curl -d`
+ * body threw a SyntaxError through Hono into the app-level handler: a
+ * text/plain 500 outside the envelope, reported as a backend defect.
+ */
+describe('malformed JSON bodies', () => {
+  const send = (route: string, method: string, body: string) =>
+    mount(fakeSql([]).sql).request(`http://localhost${route}`, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body,
+    });
+
+  it.each([
+    ['POST', '/contacts', '{'],
+    ['POST', '/contacts', ''],
+    ['POST', '/contacts/bulk', '{"contacts": ['],
+    ['POST', '/products', 'not json'],
+    ['PATCH', '/products/p-1', ''],
+    ['POST', '/documents', '{'],
+    ['PATCH', '/documents/d-1', '{'],
+    ['POST', '/knowledge/search', ''],
+    ['POST', '/knowledge-entries', '{'],
+    ['PATCH', '/knowledge-entries/k-1', ''],
+    ['PUT', '/agents/helper', '{'],
+    ['PUT', '/skills/helper', ''],
+  ])('%s %s with body %j answers 400 in the JSON envelope', async (method, route, body) => {
+    const res = await send(route, method, body);
+    expect(res.status).toBe(400);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toMatchObject({ error: expect.any(String) });
+  });
+});
+
+/**
+ * The knowledge-entry writes share the per-org `knowledge:mutate` budget
+ * with their in-app twins. The regression under test: the charge ran inside
+ * the try whose only catch maps CODED domain errors, and the limiter's
+ * error carries no code — so a REST bulk import past the bucket got opaque
+ * text/plain 500s (each captured as a backend defect) instead of the 429 +
+ * `Retry-After` the spec promises on every route.
+ */
+describe('knowledge-entry writes over the knowledge:mutate budget', () => {
+  const entry = { topic: 'Refunds', content: 'Refunds settle in 14 days.' };
+
+  it.each([
+    ['POST', '/knowledge-entries'],
+    ['PATCH', '/knowledge-entries/k-1'],
+    ['DELETE', '/knowledge-entries/k-1'],
+  ])('%s %s answers 429 with Retry-After, and touches nothing else', async (method, route) => {
+    const { sql, queries } = fakeSql([], spentBucket);
+    const res = await mount(sql).request(`http://localhost${route}`, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      ...(method === 'DELETE' ? {} : { body: JSON.stringify(entry) }),
+    });
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+    expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
+    const charge = queries.find((q) =>
+      q.text.includes('INSERT INTO app.rate_limits'),
+    );
+    expect(charge?.values).toContain('knowledge:mutate');
+    expect(charge?.values).toContain('org:org-1');
+    expect(
+      queries.some((q) => q.text.includes('app.knowledge_entries')),
+    ).toBe(false);
   });
 });
