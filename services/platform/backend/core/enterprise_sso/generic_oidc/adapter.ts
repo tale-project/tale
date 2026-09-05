@@ -1,5 +1,9 @@
 import { isRecord } from '../../../../lib/utils/type-utils';
-import { claimValueToStrings, resolveClaimPath } from '../claims';
+import {
+  claimValueToStrings,
+  requireEmailClaim,
+  resolveClaimPath,
+} from '../claims';
 import { discoverOidc, OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';
 import type {
   AuthorizeUrlParams,
@@ -140,7 +144,10 @@ async function getUserInfo(
   const mappedEmail = mappings?.email
     ? mappedClaimString(data, mappings.email)
     : undefined;
-  const email = mappedEmail ?? data.email ?? data.preferred_username;
+  const email = requireEmailClaim(
+    mappedEmail ?? data.email ?? data.preferred_username,
+    'OIDC userinfo',
+  );
 
   const groups = mappings?.groups
     ? claimValueToStrings(resolveClaimPath(data, mappings.groups))

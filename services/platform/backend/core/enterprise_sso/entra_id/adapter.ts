@@ -1,4 +1,5 @@
 import { getString, isRecord } from '../../../../lib/utils/type-utils';
+import { requireEmailClaim } from '../claims';
 import type {
   SsoProviderAdapter,
   SsoProviderConfig,
@@ -169,7 +170,12 @@ async function getUserInfo(
 
   return {
     externalId: data.id,
-    email: data.mail || data.userPrincipalName,
+    // A guest or unlicensed account can come back with neither `mail` nor a
+    // UPN; refuse readably here rather than as a TypeError downstream.
+    email: requireEmailClaim(
+      data.mail || data.userPrincipalName,
+      'Microsoft Graph /me',
+    ),
     name: data.displayName || data.givenName || '',
     // Graph returns every `$select`ed field even when empty, so a user with no
     // job title comes back as `jobTitle: null` (not an omitted key). Our

@@ -315,3 +315,30 @@ describe('entraIdAdapter — network calls time out', () => {
     }
   });
 });
+
+describe('entraIdAdapter.getUserInfo — email boundary', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to the UPN when `mail` is null', async () => {
+    stubGraphMe({
+      id: 'user-4',
+      mail: null,
+      userPrincipalName: 'upn@example.com',
+      displayName: 'U',
+    });
+
+    const info = await entraIdAdapter.getUserInfo(fakeConfig, 'access-token');
+
+    expect(info.email).toBe('upn@example.com');
+  });
+
+  it('refuses readably when Graph returns neither mail nor a UPN', async () => {
+    stubGraphMe({ id: 'user-5', mail: null, displayName: 'Ghost' });
+
+    await expect(
+      entraIdAdapter.getUserInfo(fakeConfig, 'access-token'),
+    ).rejects.toThrow(/Microsoft Graph \/me response carries no email/);
+  });
+});

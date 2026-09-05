@@ -6,7 +6,11 @@
  */
 
 import { isRecord } from '../../../../lib/utils/type-utils';
-import { claimValueToStrings, resolveClaimPath } from '../claims';
+import {
+  claimValueToStrings,
+  requireEmailClaim,
+  resolveClaimPath,
+} from '../claims';
 import { OIDC_FETCH_TIMEOUT_MS } from '../oidc_discovery';
 import type {
   AuthorizeUrlParams,
@@ -120,10 +124,12 @@ async function getUserInfo(
     (mappings?.name ? mappedClaimString(data, mappings.name) : undefined) ??
     (typeof data.name === 'string' ? data.name : '') ??
     '';
-  const email =
+  const email = requireEmailClaim(
     (mappings?.email ? mappedClaimString(data, mappings.email) : undefined) ??
-    data.email ??
-    data.preferred_username;
+      data.email ??
+      data.preferred_username,
+    'OAuth2 userinfo',
+  );
   const groups = mappings?.groups
     ? claimValueToStrings(resolveClaimPath(data, mappings.groups))
     : toStringArray(data.groups);
