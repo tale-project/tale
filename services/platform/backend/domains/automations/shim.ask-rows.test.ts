@@ -122,6 +122,30 @@ describe('the ask reads the agent host consumes', () => {
     expect(resumed).not.toHaveProperty('taskId');
   });
 
+  it('recordAskParked keys the park on the ask id the host holds', async () => {
+    // The host passes `{ askId, agentSessionId? }` (agent_host.ts, the
+    // clean-end-with-a-question branch). The handler used to read
+    // `sessionId`/`execId` — both undefined — and postgres.js refuses an
+    // undefined parameter, so the first real park threw.
+    const withHandle = fakeSql(null);
+    await automationShimHandlers(withHandle.sql)[
+      'automations/human_asks:recordAskParked'
+    ]?.({ askId: 'ask_1', agentSessionId: 'agent-sess' });
+    const parked = withHandle.statements[0];
+    expect(parked?.text).toMatch(/WHERE id = \?/);
+    expect(parked?.text).toContain("status = 'pending'");
+    expect(parked?.values).toEqual(['agent-sess', 'ask_1']);
+
+    // Without a handle the row keeps whatever it had (coalesce), and no
+    // parameter is ever `undefined`.
+    const noHandle = fakeSql(null);
+    await automationShimHandlers(noHandle.sql)[
+      'automations/human_asks:recordAskParked'
+    ]?.({ askId: 'ask_1' });
+    expect(noHandle.statements[0]?.values).toEqual([null, 'ask_1']);
+    expect(noHandle.statements[0]?.text).toContain('coalesce(');
+  });
+
   it('answers null for no pending ask', async () => {
     const fake = fakeSql(null);
     await expect(

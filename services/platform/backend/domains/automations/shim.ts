@@ -680,18 +680,18 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       });
     },
 
+    // The host holds the ask's id (it just read the pending row for this
+    // exec) and the harness's conversation handle — it keys the park on the
+    // id, not on the (session, exec) pair. The handler used to read
+    // `sessionId`/`execId` here, so the park's first production use threw
+    // UNDEFINED_VALUE and the run recorded a failed node instead of waiting.
     'automations/human_asks:recordAskParked': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as {
-        sessionId: string;
-        execId: string;
-        agentSessionId?: string;
-      };
+      const args = raw as { askId: string; agentSessionId?: string };
       await sql`
         UPDATE app.automation_human_asks SET
           agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id)
-        WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
-          AND status = 'pending'
+        WHERE id = ${args.askId} AND status = 'pending'
       `;
       return null;
     },
