@@ -28799,6 +28799,36 @@ async function checkAskAnswer(
     `returned=${taskAsk.success ? taskAsk.data.taskId === askTaskId : 'ERR'}, row=${taskAskRow[0]?.taskId === askTaskId}, bell=${taskBell[0]?.resourceType}/${taskBell[0]?.resourceId === askTaskId}, params=${JSON.stringify(taskBell[0]?.params?.title)}/${taskBell[0]?.params?.projectId === askProjectId}`,
   );
 
+  // Cancelling a run parked on a question CLOSES the question: the ask flips
+  // to `cancelled` (no longer answerable, no resume for a dead run) and every
+  // recipient's bell is read — the same terminal contract the answer has.
+  const taskAskId = taskAsk.success ? taskAsk.data.askId : '';
+  const cancelRes = await fetch(
+    `${base}/api/app/automations/runs/${boundRun[0]?.id ?? ''}/cancel?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+    },
+  );
+  const cancelledAsk = await sql<{ status: string }[]>`
+    SELECT status FROM app.automation_human_asks WHERE id = ${taskAskId}
+  `;
+  const cancelledBells = await sql<{ read: boolean }[]>`
+    SELECT read FROM app.user_notifications
+    WHERE org_id = ${orgId} AND type = 'agent_escalation'
+      AND params ->> 'askId' = ${taskAskId}
+  `;
+  const cancelledAnswer = await answerRoute(taskAskId, 'too late, cancelled');
+  record(
+    'cancelling an ask-parked run closes the ask and reads its bells',
+    cancelRes.status === 200 &&
+      cancelledAsk[0]?.status === 'cancelled' &&
+      cancelledBells.length >= 1 &&
+      cancelledBells.every((row) => row.read) &&
+      cancelledAnswer.status === 409,
+    `cancel=${cancelRes.status}, ask=${cancelledAsk[0]?.status} (want cancelled), bells=${cancelledBells.length}/${cancelledBells.every((row) => row.read)} (want >=1/true), answer=${cancelledAnswer.status} (want 409)`,
+  );
+
   // The bell sessions must not linger — later capacity scenarios count the
   // org's live workflow sessions.
   await sql`

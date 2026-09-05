@@ -818,6 +818,37 @@ async function stopRunSandboxSessions(
   `;
 }
 
+/**
+ * A run that ends ANY way — cancel, finish, fail — leaves no question
+ * soliciting an answer: its pending asks close as `cancelled` and every
+ * recipient's unread `agent_escalation` bell is marked read (the same
+ * dismissal the answer and the host's `closeAsk` perform). Without this a
+ * cancel during an ask park left the ask `pending` forever — still
+ * answerable, enqueueing a resume for a dead run — with its bells unread:
+ * an ask park ends its exec on purpose, so no drive window re-enters to
+ * reach `closeAsk`, the poll chain exits on the terminal status, and no
+ * sweep exists. Called on every terminal door, like the session stop.
+ */
+async function closePendingAsksForRun(
+  tx: TransactionSql,
+  organizationId: string,
+  runId: string,
+): Promise<number> {
+  const closed = await tx<{ id: string }[]>`
+    UPDATE app.automation_human_asks SET status = 'cancelled'
+    WHERE run_id = ${runId} AND org_id = ${organizationId}
+      AND status = 'pending'
+    RETURNING id
+  `;
+  for (const ask of closed) {
+    await dismissAgentQuestionNotifications(tx, {
+      organizationId,
+      askId: ask.id,
+    });
+  }
+  return closed.length;
+}
+
 export async function getRun(
   sql: Sql,
   organizationId: string,
@@ -1001,6 +1032,7 @@ export async function cancelRunInTx(
       });
     }
     await stopRunSandboxSessions(tx, organizationId, runId);
+    await closePendingAsksForRun(tx, organizationId, runId);
     await emitRunHint(tx, organizationId, runId);
     return { cancelled: true };
   }
@@ -1331,9 +1363,11 @@ export async function finishRun(
         },
       });
     }
-    // The run's sandbox sessions are per-execution — free their slots now
-    // (the terminal contract, shared with cancelRun).
+    // The run's sandbox sessions are per-execution — free their slots now,
+    // and close any question nobody can answer any more (the terminal
+    // contract, shared with cancelRun).
     await stopRunSandboxSessions(tx, args.organizationId, args.runId);
+    await closePendingAsksForRun(tx, args.organizationId, args.runId);
     await emitRunHint(tx, args.organizationId, args.runId);
     return { status: args.status };
   });
