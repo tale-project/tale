@@ -24,9 +24,8 @@ The MCP segment (1:00–1:31) was recorded on the earlier version's **MCP server
 | 0:46 | The payoff: deep research exists because Tavily is bound             |
 | 1:00 | MCP: your own tools, served to agents like native ones               |
 | 1:15 | Per-tool approval flags — native-looking is not native-trusted       |
-| 1:31 | The last door: sandboxed code, default-deny egress, fail-closed      |
 | 1:51 | The pattern at every door                                            |
 
 ## Where to go next
 
-The [connectors overview](/platform/connectors/overview) covers connecting and sharing connectors; [MCP servers](/platform/connectors/mcp-servers) what stands in for the MCP door in this version. For the network boundary, read the [run-code policy](/platform/admin/governance/run-code-policy) — and for what a bound connector unlocks, see [automation concepts](/platform/automations/concepts).
+The [connectors overview](/platform/connectors/overview) covers connecting and sharing connectors; [MCP servers](/platform/connectors/mcp-servers) what stands in for the MCP door in this version. For the network boundary, read [Hardening](/self-hosted/operate/security/hardening) — and for what a bound connector unlocks, see [automation concepts](/platform/automations/concepts).

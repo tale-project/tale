@@ -7,10 +7,9 @@
  *
  * Lives in `lib/shared/` because both server (`buildMessageWithAttachments`
  * in start_agent_chat.ts) and client (optimistic-render formatter in
- * `video-link-markdown.ts`) need byte-identical output. Re-exported from
- * `convex/lib/untrusted_content` for back-compat with existing convex
- * imports — that module remains the home for `wrapUntrusted` /
- * `UNTRUSTED_CONTENT_SYSTEM_PROMPT` / `containsSuspiciousInjection`.
+ * `video-link-markdown.ts`) need byte-identical output. The wrapping side
+ * (`wrapUntrusted` / `UNTRUSTED_CONTENT_SYSTEM_PROMPT`) lives in
+ * `lib/chat/untrusted-content.ts`.
  */
 export function sanitizeUntrustedField(value: string, maxLen = 200): string {
   // eslint-disable-next-line no-control-regex

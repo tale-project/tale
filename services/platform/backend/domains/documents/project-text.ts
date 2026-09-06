@@ -4,7 +4,7 @@ import { parseYamlMap } from '../../core/documents/parse_yaml_map.ts';
 import { serializeYamlMap } from '../../core/documents/serialize_yaml_map.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { s3GetObjectBytesIfExists } from '../../core/lib/storage/object_store.ts';
-import { resolveObjectStore } from '../../lib/object-store.ts';
+import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
   deleteOrgBlobRefs,
@@ -332,7 +332,7 @@ export async function readProjectTextValues(
   if (parsed.backend !== 's3') return {};
   let bytes: Uint8Array | null;
   try {
-    const store = await resolveObjectStore(orgSlug);
+    const store = await locateOrgObjectStore(orgSlug, parsed.key);
     bytes = await s3GetObjectBytesIfExists(store, parsed.key);
   } catch (error) {
     console.warn(

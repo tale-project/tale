@@ -9,7 +9,7 @@ import {
   truncateImportedTitle,
 } from '../../core/tasks/helpers.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { beginRun } from '../automations/store.ts';
+import { beginRunInTx } from '../automations/store.ts';
 import { emitEvent } from '../events/emit.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
@@ -191,8 +191,14 @@ export async function upsertTaskByExternalRef(
       dedupeScope: args.dedupeScope ?? 'org',
     });
 
-  /** The update lane: reconcile an existing task from the external item. */
+  /** The update lane: reconcile an existing task from the external item.
+   * An ARCHIVED task is read-only here as it is at every other door: local
+   * archival is authoritative, so the upstream item's later close (or
+   * reopen) neither moves the hidden card nor mints a review gate a
+   * reviewer would be belled for on no board. The ref still resolves, so
+   * the intake does not create a duplicate. */
   const reconcileExisting = async (existing: TaskRow): Promise<void> => {
+    if (existing.archivedAt !== null) return;
     const preserveDescription =
       args.descriptionMode === 'preserve' &&
       existing.description !== null &&
@@ -459,12 +465,34 @@ export async function upsertTaskByExternalRef(
   return { taskId, created: true };
 }
 
+/** The per-(org, automation, task) start mutex — see {@link startWorkflowForTask}. */
+export function taskWorkflowStartLockKey(
+  organizationId: string,
+  workflowSlug: string,
+  taskId: string,
+): string {
+  return `task-workflow-start:${organizationId}:${workflowSlug}:${taskId}`;
+}
+
 /**
  * Start a DEPLOYED automation with the task as its subject input. One live
  * run per (automation, task); the run is attributed to the task's project —
  * org-level automations included — which is what the task modal's live-run
- * lookup and the project run log key on. Not-deployed (and any start
- * failure) degrades to "not started" (`null`), which callers handle.
+ * lookup and the project run log key on.
+ *
+ * The guard is atomic: the live-run lookup and the insert share one
+ * transaction that first takes a pg advisory xact lock on the (org,
+ * automation, task) key, so two doors racing for one task (a board Start
+ * beside an @mention, two mention jobs, two REST calls) serialize — the
+ * second sees the first's committed run and answers it as `alreadyRunning`
+ * — where the plain SELECT-then-INSERT let both through to two metered
+ * runs. Every api replica shares the database, which is what makes the lock
+ * hold across replicas.
+ *
+ * Not-deployed answers `null` (the callers' "not started"); every OTHER
+ * failure propagates — a caught-all `null` used to make the queue's
+ * `retryLimit` for `task.start_workflow` dead and laundered a refusal (a
+ * project the automation is not bound to) into "nothing happened".
  */
 export async function startWorkflowForTask(
   sql: Sql,
@@ -485,8 +513,16 @@ export async function startWorkflowForTask(
     startedVia?: 'user' | 'api-key';
   },
 ): Promise<{ runId: string; alreadyRunning: boolean } | null> {
-  try {
-    const live = await sql<{ id: string }[]>`
+  // Assigned inside the callback: postgres.js types `begin`'s result through
+  // an array-unwrapping conditional the union return type does not survive.
+  let outcome: { runId: string; alreadyRunning: boolean } | null = null;
+  await sql.begin(async (tx) => {
+    await tx`
+      SELECT pg_advisory_xact_lock(
+        hashtext(${taskWorkflowStartLockKey(args.organizationId, args.workflowSlug, args.task.id)})
+      )
+    `;
+    const live = await tx<{ id: string }[]>`
       SELECT id FROM app.automation_runs
       WHERE org_id = ${args.organizationId} AND name = ${args.workflowSlug}
         AND status IN ('queued', 'running', 'waiting')
@@ -494,7 +530,8 @@ export async function startWorkflowForTask(
       ORDER BY started_at_ms DESC LIMIT 1
     `;
     if (live[0] !== undefined) {
-      return { runId: live[0].id, alreadyRunning: true };
+      outcome = { runId: live[0].id, alreadyRunning: true };
+      return;
     }
     const input = taskWorkflowSubjectInput({
       _id: args.task.id,
@@ -511,7 +548,7 @@ export async function startWorkflowForTask(
         ? { externalUrl: args.task.externalUrl }
         : {}),
     });
-    const started = await beginRun(sql, {
+    const started = await beginRunInTx(tx, {
       organizationId: args.organizationId,
       name: args.workflowSlug,
       input,
@@ -524,17 +561,11 @@ export async function startWorkflowForTask(
         '[task-workflow] start skipped — no deployed automation named',
         args.workflowSlug,
       );
-      return null;
+      return;
     }
-    return { runId: started.runId, alreadyRunning: false };
-  } catch (error) {
-    console.error(
-      '[task-workflow] workflow start failed',
-      args.workflowSlug,
-      error,
-    );
-    return null;
-  }
+    outcome = { runId: started.runId, alreadyRunning: false };
+  });
+  return outcome;
 }
 
 /** The 0.4 live-run wire for the task modal's inline automation banner. */

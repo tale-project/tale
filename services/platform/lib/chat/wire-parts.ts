@@ -90,6 +90,12 @@ type Group =
   | { kind: 'assistant'; content: string; calls: WireToolCall[] }
   | { kind: 'results'; results: WireToolResult[] };
 
+/** The answer a replayed tool call gets when its result never landed. */
+const INTERRUPTED_TOOL_OUTPUT = {
+  status: 'cancelled',
+  message: 'This tool call was interrupted before it produced a result.',
+} as const;
+
 /** Explode ONE assistant message's parts into alternating wire turns. */
 function explodeAssistantMessage(message: ChatMessage): ChatWireMessage[] {
   const groups: Group[] = [];
@@ -141,6 +147,18 @@ function explodeAssistantMessage(message: ChatMessage): ChatWireMessage[] {
     }
   }
 
+  // Every call must be answered before the next assistant or user turn —
+  // both dialects reject an unanswered tool call. A stored row can carry
+  // one (a reply the watchdog failed mid-round, a row from before the
+  // pipeline answered stopped calls), and a transcript that replays it
+  // would fail every later turn on the thread; the repair answers the
+  // orphan with the same interrupted result the pipeline records.
+  const answered = new Set<string>();
+  for (const group of groups) {
+    if (group.kind === 'results') {
+      for (const result of group.results) answered.add(result.callId);
+    }
+  }
   const wire: ChatWireMessage[] = [];
   for (const group of groups) {
     if (group.kind === 'assistant') {
@@ -150,6 +168,17 @@ function explodeAssistantMessage(message: ChatMessage): ChatWireMessage[] {
         content: group.content,
         ...(group.calls.length > 0 ? { toolCalls: group.calls } : {}),
       });
+      const orphans = group.calls.filter((call) => !answered.has(call.id));
+      if (orphans.length > 0) {
+        wire.push({
+          role: 'tool',
+          content: '',
+          toolResults: orphans.map((call) => ({
+            callId: call.id,
+            content: toolResultContent(INTERRUPTED_TOOL_OUTPUT),
+          })),
+        });
+      }
       continue;
     }
     wire.push({ role: 'tool', content: '', toolResults: group.results });

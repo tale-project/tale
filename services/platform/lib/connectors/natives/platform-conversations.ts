@@ -41,7 +41,9 @@ const emailSchema = z
 
 const ingestInput = z
   .object({
-    emails: z.union([z.array(emailSchema), z.unknown()]),
+    /** One email or an array of them — the catalog's declared shape; the
+     * ingest normaliser accepts both, so anything else is refused here. */
+    emails: z.union([z.array(emailSchema), emailSchema]),
     connectorSlug: z.string().min(1),
     accountEmail: z.string().optional(),
     status: z.enum(['open', 'closed', 'archived', 'spam']).optional(),

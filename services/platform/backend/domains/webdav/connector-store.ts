@@ -6,7 +6,7 @@ import {
 } from '../../../lib/connectors/natives/index.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
-import { resolveObjectStore } from '../../lib/object-store.ts';
+import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { putOrgBlobBytes } from '../files/service.ts';
 import { webdavHandlers } from './handlers.ts';
@@ -144,10 +144,10 @@ export function pgWebdavStore(sql: Sql): WebdavStore {
       if (!orgSlug) {
         throw new WebdavStoreError('not-found', 'organization not found');
       }
-      const store = await resolveObjectStore(orgSlug);
       const key = doc.fileId.startsWith('s3:')
         ? doc.fileId.slice(3)
         : doc.fileId;
+      const store = await locateOrgObjectStore(orgSlug, key);
       const bytes = await s3GetObjectBytes(store, key);
       if (bytes === null) {
         throw new WebdavStoreError('not-found', 'the blob is gone');

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * Which model names a thread: the owner's sticky chat pick when a direct
  * credential's allowlist admits it, else the first allowlist-permitted
@@ -5,9 +7,13 @@
  * `modelAllowlistPermits` — an allowlist written in one provider id dialect
  * admits the catalog's spelling of the same model, exactly as the picker
  * that offered the model to the owner applied it.
+ *
+ * And the race: past the wall-clock budget the fallback title wins AND the
+ * model call is torn down — a reply nobody can use must not keep the
+ * provider working for the client's full request timeout.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../lib/ctx';
 
@@ -28,11 +34,13 @@ vi.mock('../automations_builder/model_call', () => ({
     createBuilderModelMock(...(args as [])),
 }));
 
-import { generateThreadTitleImpl } from './generate_title';
+import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
+import { generateThreadTitleImpl, TITLE_AGENT_SLUG } from './generate_title';
 
 const ORG = 'org_a';
 const THREAD = 'thread_1';
 const USER = 'user_1';
+const FIRST_MESSAGE = 'How do I return a damaged order from last week?';
 
 function provider(name: string) {
   return { name, baseUrl: `https://${name}.example/v1` };
@@ -64,6 +72,15 @@ function fakeCtx(args: {
   return { ctx, runMutation };
 }
 
+/** An org with one active, direct-capable openai credential serving
+ * gpt-4o-mini — the shape every race test starts from. */
+function servingCtx() {
+  return fakeCtx({
+    preferredModelId: 'gpt-4o-mini',
+    rows: { openai: { authMethod: 'api-key', status: 'active' } },
+  });
+}
+
 beforeEach(() => {
   resolveProvidersMock.mockReset();
   catalogMock.mockReset();
@@ -74,6 +91,11 @@ beforeEach(() => {
     content: 'Weekend Plans',
     usage: { prompt: 12, completion: 3 },
   }));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('generateThreadTitleImpl — model choice', () => {
@@ -159,6 +181,104 @@ describe('generateThreadTitleImpl — model choice', () => {
         threadId: THREAD,
         title: expect.stringContaining('weekend'),
       }),
+    );
+  });
+});
+
+describe('generateThreadTitleImpl — the deadline race', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  it('aborts the model call when the race is lost and writes the fallback title', async () => {
+    let observedSignal: AbortSignal | undefined;
+    createBuilderModelMock.mockImplementation(
+      (_ctx: unknown, args: { signal?: AbortSignal }) => {
+        observedSignal = args.signal;
+        return () =>
+          new Promise((_resolve, reject) => {
+            args.signal?.addEventListener('abort', () =>
+              reject(new Error('openai was unreachable (aborted)')),
+            );
+          });
+      },
+    );
+    const { ctx, runMutation } = servingCtx();
+    const recordUsage = vi.fn().mockResolvedValue(undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const done = generateThreadTitleImpl(
+      ctx,
+      {
+        organizationId: ORG,
+        threadId: THREAD,
+        userId: USER,
+        firstMessage: FIRST_MESSAGE,
+      },
+      recordUsage,
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    await done;
+
+    expect(observedSignal).toBeDefined();
+    expect(observedSignal?.aborted).toBe(true);
+    expect(runMutation).toHaveBeenCalledTimes(1);
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        threadId: THREAD,
+        title: deriveFallbackTitle(FIRST_MESSAGE),
+      }),
+    );
+    // Nothing was spent: the call never produced usage.
+    expect(recordUsage).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('aborted after 10000ms'),
+    );
+  });
+
+  it('books the spend and keeps the signal armed-but-unfired when the model answers in time', async () => {
+    let observedSignal: AbortSignal | undefined;
+    createBuilderModelMock.mockImplementation(
+      (_ctx: unknown, args: { signal?: AbortSignal }) => {
+        observedSignal = args.signal;
+        return () =>
+          Promise.resolve({
+            content: 'Damaged Order Return',
+            usage: { prompt: 40, completion: 6 },
+          });
+      },
+    );
+    const { ctx, runMutation } = servingCtx();
+    const recordUsage = vi.fn().mockResolvedValue(undefined);
+
+    const done = generateThreadTitleImpl(
+      ctx,
+      {
+        organizationId: ORG,
+        threadId: THREAD,
+        userId: USER,
+        firstMessage: FIRST_MESSAGE,
+      },
+      recordUsage,
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    await done;
+
+    expect(observedSignal?.aborted).toBe(false);
+    expect(recordUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentSlug: TITLE_AGENT_SLUG,
+        model: 'gpt-4o-mini',
+        provider: 'openai',
+        inputTokens: 40,
+        outputTokens: 6,
+        totalTokens: 46,
+      }),
+    );
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ title: 'Damaged Order Return' }),
     );
   });
 });

@@ -245,15 +245,10 @@ echo "   HOST=${HOST}"
 echo "   SITE_URL=${SITE_URL}"
 echo "   PORT=${PORT}"
 
-# Auth / encryption / rag env the server itself reads.
+# Auth / encryption env the server itself reads.
 export BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET}"
 export BETTER_AUTH_URL="${BETTER_AUTH_URL}"
 export ENCRYPTION_SECRET_HEX="${ENCRYPTION_SECRET_HEX}"
-
-# Default RAG DB URL constructed by env_normalize_common.
-if [ -z "${RAG_DATABASE_URL:-}" ] && [ -n "${POSTGRES_URL:-}" ]; then
-  export RAG_DATABASE_URL="${POSTGRES_URL}/tale_knowledge"
-fi
 
 # WebDAV app-password HMAC key. The backend hashes app passwords with it and
 # the protocol door verifies against the same value, so it is derived

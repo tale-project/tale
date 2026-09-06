@@ -24,6 +24,13 @@ import { clearOrgConfigCaches } from './org-config.ts';
  * atomic yaml write; the legacy json twin is removed so a later read can't
  * resurrect stale content. pg readers go straight to the files, so the only
  * cache to bust is org-config's own short-lived one.
+ *
+ * Every writer calls this INSIDE its audit transaction, after the audit row
+ * (and any pending-change row) — so a file failure rolls the audit back and
+ * a transaction failure never leaves a policy in force with no audit row.
+ * A serializable transaction may re-run its callback, so the write is
+ * idempotent: content already on disk is neither snapshotted into history
+ * again nor rewritten.
  */
 export async function writeGovernancePolicyFile(
   orgSlug: string,
@@ -32,7 +39,13 @@ export async function writeGovernancePolicyFile(
 ): Promise<void> {
   const yamlPath = resolvePolicyYamlFilePath(orgSlug, policyType);
   const jsonPath = resolvePolicyFilePath(orgSlug, policyType);
+  const next = serializePolicyYaml(policyType, config);
   const currentYaml = await readFileSafe(yamlPath);
+  if (currentYaml === next) {
+    await removeFileSafe(jsonPath);
+    clearOrgConfigCaches();
+    return;
+  }
   const currentContent = currentYaml ?? (await readFileSafe(jsonPath));
   if (currentContent !== null) {
     const historyDir = resolveHistoryDir(orgSlug, policyType);
@@ -46,7 +59,7 @@ export async function writeGovernancePolicyFile(
     );
     await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
   }
-  await atomicWrite(yamlPath, serializePolicyYaml(policyType, config));
+  await atomicWrite(yamlPath, next);
   await removeFileSafe(jsonPath);
   // Coarse but correct: the TTL cache is small and per-process (15s).
   clearOrgConfigCaches();

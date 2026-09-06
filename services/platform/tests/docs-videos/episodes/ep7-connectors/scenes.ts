@@ -4,7 +4,7 @@
  * (the panel's own live API check is the story), verified under the
  * Connected tab, the seeded MCP server's panel read honestly (no tools
  * until a connection test), the add-server dialog filled and deliberately
- * CANCELLED, and the run-code package policy read.
+ * CANCELLED.
  *
  * Mutation contract: the ONE persistent change is the GitHub connection —
  * the cleanup registry has no connector type, so the coordinator sweeps
@@ -69,7 +69,6 @@ export async function warmup(
   const routes = [
     `/dashboard/${ctx.orgId}/settings/connectors`,
     `/dashboard/${ctx.orgId}/settings/api/mcp`,
-    `/dashboard/${ctx.orgId}/settings/governance/run-code-policy`,
   ];
   for (const route of routes) {
     await page.goto(route, { waitUntil: 'load' });
@@ -432,39 +431,6 @@ export const SCENES: readonly SceneChoreography[] = [
         sheet.getByRole('button', { name: rt.t('mcpServers.form.cancel') }),
       );
       await sheet.waitFor({ state: 'hidden', timeout: 10_000 });
-    },
-  },
-  {
-    // The closing boundary (cut): the run-code package policy, two modes.
-    id: 'runcode',
-    run: async (rt) => {
-      const { page, cursor, cue, ctx } = rt;
-      await spaNavigate(
-        page,
-        `/dashboard/${ctx.orgId}/settings/governance/run-code-policy`,
-      );
-      const title = page
-        .getByText(rt.t('governance.runCodePolicy.title'))
-        .first();
-      await title.waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(3.0);
-      await cursor.hover(title);
-      await cue(9.8);
-      await cursor.hover(
-        page
-          .getByText(rt.t('governance.runCodePolicy.modeDenylistLabel'), {
-            exact: true,
-          })
-          .first(),
-      );
-      await cue(13.6);
-      await cursor.hover(
-        page
-          .getByText(rt.t('governance.runCodePolicy.modeAllowlistLabel'), {
-            exact: true,
-          })
-          .first(),
-      );
     },
   },
   {

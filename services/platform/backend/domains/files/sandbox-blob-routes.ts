@@ -9,7 +9,7 @@ import {
 import { verifyStageToken } from '../../core/lib/storage/sandbox_stage_token.ts';
 import {
   fetchPresignedObject,
-  resolveObjectStore,
+  locateOrgObjectStore,
   s3PresignGetUrl,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
@@ -77,7 +77,8 @@ export function createSandboxBlobRoutes(deps: { sql: Sql }): Hono {
     }
     let presigned: string;
     try {
-      const store = await resolveObjectStore(orgSlug);
+      // The blob may predate the org's own bucket (see `locateOrgObjectStore`).
+      const store = await locateOrgObjectStore(orgSlug, parsed.key);
       presigned = await s3PresignGetUrl(store, parsed.key);
     } catch (error) {
       console.warn(

@@ -7,7 +7,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
   fetchPresignedObject,
-  resolveObjectStore,
+  locateOrgObjectStore,
   s3PresignGetUrl,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
@@ -213,10 +213,12 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const orgSlug = await resolveOrgSlug(deps.sql, c.get('orgId'));
     if (!orgSlug) return c.json({ error: 'not found' }, 404);
     try {
-      const store = await resolveObjectStore(orgSlug);
       const key = chunk.storageRef.startsWith('s3:')
         ? chunk.storageRef.slice(3)
         : chunk.storageRef;
+      // A chunk synthesized before the org connected its own bucket still
+      // lives in the deployment default store until the backfill moves it.
+      const store = await locateOrgObjectStore(orgSlug, key);
       const url = await s3PresignGetUrl(store, key);
       const upstream = await fetchPresignedObject(url, {
         signal: c.req.raw.signal,

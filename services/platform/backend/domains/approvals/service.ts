@@ -118,7 +118,7 @@ const DEDICATED_RESPOND_DOORS: Readonly<Record<string, string>> = {
   document_record_review:
     'Controlled-record reviews are answered via the document records respond door.',
   task_review:
-    'Task reviews are answered via POST /api/app/tasks/reviews/:approvalId/respond.',
+    'Task reviews are decided on the task: moving the card from In review to Done approves, moving it back to In progress sends the work back (the review gate is withdrawn).',
   human_input_request:
     'Chat questions are answered in their thread (domains/chat/questions.ts), never through the generic decide door.',
 };

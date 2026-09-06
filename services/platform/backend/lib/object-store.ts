@@ -1,9 +1,14 @@
 import {
   buildObjectKey,
   clearOrgObjectStoreCache,
+  deleteOrgObject,
+  locateOrgObject,
+  locateOrgObjectStore,
   ObjectStoreUnconfiguredError,
   resolveOrgObjectStore,
+  resolveOrgObjectStoresForRead,
   s3DeleteObject,
+  s3GetObjectBytes,
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
@@ -25,6 +30,13 @@ import {
  * lane (`core/lib/storage/blob_access.ts`): `resolveObjectStore` IS
  * `resolveOrgObjectStore`, so a broken default tree fails identically at
  * every door and a config write invalidates every cached resolution at once.
+ *
+ * `resolveObjectStore` is the MINT lane's resolver (a new key lands in the
+ * org's current store). A lane that reads, serves or deletes an EXISTING ref
+ * goes through `locateOrgObjectStore` / `deleteOrgObject`: an org that
+ * connected its own bucket still has every earlier blob in the deployment
+ * default store until the blob backfill moves it, and the ref cannot say
+ * which of the two holds it.
  */
 
 export { ObjectStoreUnconfiguredError };
@@ -100,7 +112,12 @@ export async function fetchPresignedObject(
 
 export {
   buildObjectKey,
+  deleteOrgObject,
+  locateOrgObject,
+  locateOrgObjectStore,
+  resolveOrgObjectStoresForRead,
   s3DeleteObject,
+  s3GetObjectBytes,
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,

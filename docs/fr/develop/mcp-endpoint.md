@@ -79,7 +79,7 @@ Prends `run_deployed` quand l'automatisation est rapide et que tu veux un seul a
 | `invoke_capability`   | Invoquer une capacité par id. Une action que l'organisation soumet à validation répond un résultat d'approbation en attente au lieu de s'exécuter. |
 | `get_knowledge`       | Récupérer des passages des connaissances de l'organisation — ses documents et ses pages web crawlées.                                              |
 
-Dans cette version, le registre tient les automatisations déployées de l’organisation — `invoke_capability` sur l’une d’elles est le même acte que `run_deployed`. Les outils builtin, les skills et les serveurs MCP externes n’y sont pas enregistrés ; un appel qui mène à l’un d’eux répond un refus lisible, pas une erreur. Une capacité que l'organisation place derrière une approbation ne s'exécute pas en silence — `invoke_capability` répond un résultat d'approbation en attente que le modèle peut relayer.
+Dans cette version, le registre tient les automatisations déployées de l’organisation — `invoke_capability` sur l’une d’elles est le même acte que `run_deployed`. Les outils builtin, les actions de connector, les skills et les serveurs MCP externes ne font pas partie de ce registre ; un id qui n’est pas une automatisation déployée reçoit un refus lisible, pas une erreur. Une capacité que l'organisation place derrière une approbation ne s'exécute pas en silence — `invoke_capability` répond un résultat d'approbation en attente que le modèle peut relayer.
 
 ## Ce que la clé peut faire
 
