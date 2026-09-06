@@ -156,7 +156,6 @@ export default {
         '@types/seedrandom',
         '@types/turndown',
         'bcryptjs',
-        'chokidar',
         'cron-parser',
         'diff',
         'hast-util-to-html',

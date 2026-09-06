@@ -155,7 +155,7 @@ Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jede
 | `TRUSTED_HEADERS_ENABLED`         | `false`                  | Aktiviert den Trusted-Headers-Auth-Modus (Identität vom Reverse-Proxy geliefert).                                                                                                   |
 | `TRUSTED_HEADERS_INTERNAL_SECRET` | nicht gesetzt            | Shared Secret, das der authentifizierende Proxy mit jeder Trusted-Headers-Anfrage schicken muss. Pflicht, sobald der Modus an ist — ohne Secret verweigert der Endpunkt den Dienst. |
 | `TRUSTED_SECRET_HEADER`           | `Remote-Internal-Secret` | Name des Request-Headers, der das interne Secret trägt.                                                                                                                             |
-| `FILE_EVENTS_ENABLED`             | `false`                  | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Connector.                                                                                                                    |
+| `TALE_FILE_EVENTS`                | `false`                  | Streamt Änderungen an Config-Dateien unter `TALE_CONFIG_DIR` an offene Browser-Tabs (`/events/file`): Eine auf der Platte bearbeitete Agent-, Skill- oder Branding-Datei erscheint ohne Reload. Im Dev-Compose an, in Produktion aus. |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS`   | unset                    | Kommagetrennte E-Mail-Allowlist der Operatoren, die die Datenresidenz bearbeiten dürfen. Leer/nicht gesetzt = nur lesend für alle Admins.                                           |
 
 ## RAG-Retrieval-Tuning

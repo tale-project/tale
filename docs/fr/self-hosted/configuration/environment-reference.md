@@ -155,7 +155,7 @@ Bascules optionnelles pour des fonctionnalités non activées par défaut. Chaqu
 | `TRUSTED_HEADERS_ENABLED`         | `false`                  | Active le mode auth par trusted headers (identité fournie par le reverse proxy).                                                                                                     |
 | `TRUSTED_HEADERS_INTERNAL_SECRET` | non défini               | Secret partagé que le proxy authentifiant doit envoyer avec chaque requête trusted headers. Obligatoire dès que le mode est actif — sans lui, l'endpoint refuse de fonctionner.      |
 | `TRUSTED_SECRET_HEADER`           | `Remote-Internal-Secret` | Nom de l'en-tête de requête qui porte le secret interne.                                                                                                                             |
-| `FILE_EVENTS_ENABLED`             | `false`                  | Active les événements de surveillance de fichiers pour le connector OneDrive-sync.                                                                                                   |
+| `TALE_FILE_EVENTS`                | `false`                  | Diffuse les changements des fichiers de config sous `TALE_CONFIG_DIR` aux onglets ouverts (`/events/file`) : un fichier d’agent, de skill ou de branding modifié sur le disque apparaît sans recharger. Actif dans le compose de dev, désactivé en production. |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS`   | non défini               | Allowlist de courriels (séparés par des virgules) des opérateurs autorisés à modifier la résidence des données du déploiement. Vide/non défini = lecture seule pour tous les admins. |
 
 ## Réglage du retrieval RAG
