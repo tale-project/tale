@@ -2,7 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { resolveDateNotifyAudience } from '../../core/tasks/date_notification_recipients.ts';
 import { notifyUser } from '../collab/service.ts';
-import { addTaskComment } from './comments.ts';
+import { addTaskComment, lockTaskCommentQueue } from './comments.ts';
 
 /**
  * Task date enforcement — the 0.5 twin of 0.4's
@@ -330,7 +330,13 @@ export async function enforceTaskDatesForOrg(
     const announced = await claimAndAnnounce(
       sql,
       id,
-      (tx) => tx<(SweepRow & { newLevel: number })[]>`
+      async (tx) => {
+        // Level 2 comments on the task, and every commenter takes the
+        // task's comment key BEFORE it writes the task row — take it first
+        // here too, or this claim holds the row while a commenter holds the
+        // key and the two deadlock.
+        await lockTaskCommentQueue(tx, id);
+        return tx<(SweepRow & { newLevel: number })[]>`
         UPDATE app.tasks SET
           sla_level = ${targetLevel}, sla_level_at_ms = ${now}
         FROM app.projects p
@@ -341,7 +347,8 @@ export async function enforceTaskDatesForOrg(
           AND ${notTerminal}
         RETURNING ${tx.unsafe(SWEEP_COLUMNS.replaceAll('t.', 'app.tasks.'))},
                   app.tasks.sla_level AS "newLevel"
-      `,
+      `;
+      },
       async (tx, row) => {
         if (row.newLevel <= 2) {
           await postOverdueNudge(tx, organizationId, row.taskId);

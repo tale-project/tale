@@ -2,14 +2,17 @@ import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { notifyUser } from '../collab/service.ts';
-import { addTaskComment } from './comments.ts';
+import { addTaskComment, lockTaskCommentQueue } from './comments.ts';
 import {
   enforceTaskDatesForOrg,
   OVERDUE_NUDGE_BODY,
 } from './date-notifications.ts';
 
 vi.mock('../collab/service.ts', () => ({ notifyUser: vi.fn() }));
-vi.mock('./comments.ts', () => ({ addTaskComment: vi.fn() }));
+vi.mock('./comments.ts', () => ({
+  addTaskComment: vi.fn(),
+  lockTaskCommentQueue: vi.fn(),
+}));
 
 /**
  * The date ladder's delivery contract: each rung claims and announces a row
@@ -124,6 +127,7 @@ describe('enforceTaskDatesForOrg — each row is claimed and announced in its ow
 
   it('the overdue nudge is posted on the row’s transaction, in every locale', async () => {
     let claimTx: unknown;
+    const order: string[] = [];
     const { sql } = fakeSql((text, values) => {
       if (
         text.startsWith('SELECT t2.id FROM app.tasks t2') &&
@@ -136,10 +140,15 @@ describe('enforceTaskDatesForOrg — each row is claimed and announced in its ow
       if (
         text.startsWith('UPDATE app.tasks SET sla_level = ?, sla_level_at_ms')
       ) {
+        order.push('claim');
         const id = values.find((value) => value === 't-late');
         return id === undefined ? [] : [sweepRow('t-late', { newLevel: 2 })];
       }
       return [];
+    });
+    vi.mocked(lockTaskCommentQueue).mockImplementation((_tx, taskId) => {
+      order.push(`lock ${taskId}`);
+      return Promise.resolve();
     });
     vi.mocked(addTaskComment).mockImplementation((tx) => {
       claimTx = tx;
@@ -163,6 +172,9 @@ describe('enforceTaskDatesForOrg — each row is claimed and announced in its ow
     });
     // On the transaction that stamped the level, not a sibling one.
     expect(claimTx).toBe(sql);
+    // The task's comment key comes BEFORE the row is written — the order
+    // every commenter uses, so the claim never deadlocks with a comment.
+    expect(order).toEqual(['lock t-late', 'claim']);
     expect(Object.keys(OVERDUE_NUDGE_BODY).sort()).toEqual(['de', 'en', 'fr']);
   });
 
