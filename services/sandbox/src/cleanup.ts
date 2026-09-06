@@ -219,7 +219,9 @@ async function sweepRm(containerName: string, label: string): Promise<boolean> {
 async function listLabeledContainers(...labels: string[]): Promise<string[]> {
   // Each `-f label=…` is AND-ed by docker.
   const filters = labels.flatMap((l) => ['-f', `label=${l}`]);
-  const result = await runDocker(['ps', '-aq', ...filters]);
+  const result = await runDocker(['ps', '-aq', ...filters], {
+    timeoutMs: 15_000,
+  });
   if (result.exitCode !== 0) return [];
   return result.stdout
     .split('\n')
@@ -391,14 +393,17 @@ export async function dockerSweepOrphans(
   // is unreachable.
   let containerProbeOk = false;
   try {
-    const result = await runDocker([
-      'ps',
-      '-a',
-      '--filter',
-      'label=tale.sandbox=1',
-      '--format',
-      '{{.Names}}\t{{.Labels}}',
-    ]);
+    const result = await runDocker(
+      [
+        'ps',
+        '-a',
+        '--filter',
+        'label=tale.sandbox=1',
+        '--format',
+        '{{.Names}}\t{{.Labels}}',
+      ],
+      { timeoutMs: 15_000 },
+    );
     if (result.exitCode === 0) {
       containerProbeOk = true;
       for (const line of result.stdout.split('\n')) {
@@ -448,13 +453,10 @@ export async function dockerSweepOrphans(
 async function sweepOrphanDindVolumes(): Promise<number> {
   let removed = 0;
   try {
-    const ls = await runDocker([
-      'volume',
-      'ls',
-      '-q',
-      '--filter',
-      'label=tale.sandbox-dind=1',
-    ]);
+    const ls = await runDocker(
+      ['volume', 'ls', '-q', '--filter', 'label=tale.sandbox-dind=1'],
+      { timeoutMs: 15_000 },
+    );
     if (ls.exitCode !== 0) return 0;
     for (const name of ls.stdout.split('\n')) {
       const vol = name.trim();
@@ -485,20 +487,48 @@ export function startPeriodicSweep(
   backend: ExecutionBackend,
   cfg: SpawnerConfig,
 ): () => void {
+  const tick = makeSweepTick(backend, cfg);
   const interval = setInterval(() => {
-    void backend
-      .sweepOrphans({
+    void tick();
+  }, PERIODIC_INTERVAL_MS);
+  return () => clearInterval(interval);
+}
+
+/**
+ * One sweep tick with an overlap guard: a tick that finds the previous one
+ * still running (a wedged daemon making every docker call wait out its
+ * timeout) skips with a warning instead of stacking a second sweep on top —
+ * the interval keeps firing, so without the guard a slow sweep accumulated
+ * concurrent sweeps (and their docker children) for as long as it stayed
+ * slow. Exported for the unit test; startPeriodicSweep is the only caller.
+ */
+export function makeSweepTick(
+  backend: Pick<ExecutionBackend, 'sweepOrphans'>,
+  cfg: Pick<SpawnerConfig, 'maxTimeoutMs'>,
+): () => Promise<void> {
+  let inFlight = false;
+  return async () => {
+    if (inFlight) {
+      console.warn(
+        '[sandbox.periodic] previous sweep still running; skipping this tick',
+      );
+      return;
+    }
+    inFlight = true;
+    try {
+      await backend.sweepOrphans({
         staleBeforeMs: Date.now() - 2 * cfg.maxTimeoutMs,
         // No one-shot execs remain — every run is a session, swept by the
         // session TTL/idle reaper via its own label. This only reaps stray
         // legacy `tale.sandbox=1` one-shot containers, none of which are live.
         isLive: () => false,
-      })
-      .catch((err) => {
-        console.warn(`[sandbox.periodic] sweep error:`, err);
       });
-  }, PERIODIC_INTERVAL_MS);
-  return () => clearInterval(interval);
+    } catch (err) {
+      console.warn(`[sandbox.periodic] sweep error:`, err);
+    } finally {
+      inFlight = false;
+    }
+  };
 }
 
 /**

@@ -13,14 +13,11 @@
 // Every sandbox run is a session; the per-org session budgets live platform-side
 // (governance `sandbox_quota`), bounded by the host cap `SANDBOX_MAX_SESSIONS`.
 
-import {
-  createBackend,
-  createSessionBackend,
-  type HealthResult,
-} from './backend/index.ts';
+import { createBackend, createSessionBackend } from './backend/index.ts';
 import { installSignalHandlers, startPeriodicSweep } from './cleanup.ts';
 import { loadConfig } from './config.ts';
 import { ControlRoutes } from './control-routes.ts';
+import { makeHealthProbe } from './health-probe.ts';
 import { jsonResponse } from './http-util.ts';
 import { createRequestAuth } from './request-auth.ts';
 import {
@@ -40,7 +37,14 @@ const backend = createBackend(cfg);
 let sessionRoutes: SessionRoutes | null = null;
 function getSessionRoutes(): SessionRoutes {
   if (sessionRoutes === null) {
-    sessionRoutes = new SessionRoutes(cfg, createSessionBackend(cfg));
+    // controlRoutes is module-scope below; this closure only runs from main()
+    // (after module init), and a draining spawner must never adopt a session
+    // its replacement created — the same rule as the sweep tick.
+    sessionRoutes = new SessionRoutes(
+      cfg,
+      createSessionBackend(cfg),
+      () => controlRoutes.isDraining,
+    );
   }
   return sessionRoutes;
 }
@@ -67,24 +71,14 @@ process.on('unhandledRejection', (reason) => {
 // Cache the backend liveness probe so the compose healthcheck (every 10s)
 // doesn't fork a subprocess on every hit. 60s is well under the watchdog
 // cutoff and short enough that a daemon recycle surfaces within one
-// healthcheck cycle of the user noticing.
+// healthcheck cycle of the user noticing. Concurrent probes share ONE
+// backend call (health-probe.ts) — a slow probe against a wedged daemon
+// used to spawn a new `docker version` child per overlapping healthcheck.
 const HEALTH_PROBE_TTL_MS = 60_000;
-let healthProbeCache:
-  | { ok: true; detail: string; expiresAt: number }
-  | { ok: false; error: string; expiresAt: number }
-  | null = null;
-
-async function probeHealth(): Promise<HealthResult> {
-  const now = Date.now();
-  if (healthProbeCache !== null && healthProbeCache.expiresAt > now) {
-    return healthProbeCache.ok
-      ? { ok: true, detail: healthProbeCache.detail }
-      : { ok: false, error: healthProbeCache.error };
-  }
-  const result = await backend.health();
-  healthProbeCache = { ...result, expiresAt: now + HEALTH_PROBE_TTL_MS };
-  return result;
-}
+const probeHealth = makeHealthProbe(
+  () => backend.health(),
+  HEALTH_PROBE_TTL_MS,
+);
 
 async function handleHealth(): Promise<Response> {
   const health = await probeHealth();
@@ -396,9 +390,19 @@ async function main(): Promise<void> {
     const sessions = getSessionRoutes();
     await sessions.adoptExisting();
     const sweepTimer = setInterval(() => {
-      void sessions.sweepExpired().catch((err) => {
-        console.warn('[sandbox.session] periodic sweep failed:', err);
-      });
+      // Re-adopt before reaping so a session missed at boot (a `docker ps` /
+      // apiserver blip) or created by a peer replica becomes routable and
+      // reapable within one interval instead of lingering unregistered. NOT
+      // while draining: a lingering spawner must never adopt (and later
+      // linger-reap) the sessions its replacement is creating.
+      const tick = controlRoutes.isDraining
+        ? Promise.resolve()
+        : sessions.adoptExisting();
+      void tick
+        .then(() => sessions.sweepExpired())
+        .catch((err) => {
+          console.warn('[sandbox.session] periodic sweep failed:', err);
+        });
       // Max-linger self-reap (CLI-independent safety net): if this spawner has
       // been draining longer than the linger TTL, reclaim its session compute
       // ourselves so a deploy that died mid-roll can't pin compute forever.

@@ -1,52 +1,45 @@
 # Sandbox on Kubernetes (`SANDBOX_BACKEND=kubernetes`)
 
 The sandbox spawner runs on both Docker Compose (default) and Kubernetes. This
-document is the **contract the in-repo `KubernetesBackend` requires** — the RBAC
-verbs it calls, the env it reads, and the NetworkPolicy it assumes. The Helm
+document is the **contract the in-repo Kubernetes backends require** — the RBAC
+verbs they call, the env they read, and the NetworkPolicy they assume. The Helm
 chart (authored separately) must satisfy it. The Compose path is unaffected.
 
-## Execution model — exec-free, Pod-per-exec
+## Execution model — exec-free, one Pod per session
 
-Each `/v1/execute` runs as **one Pod** with a shared `/agent` `emptyDir` and
-**three containers**. Every spawner↔Pod interaction is plain HTTP
-(`createNamespacedPod`, `readNamespacedPodLog`, `deleteNamespacedPod`) plus
-presigned-URL I/O performed **inside** the Pod — there is **no exec websocket**
-(it proved unreliable under Bun).
+Every sandbox run is a **session** (see [sessions.md](sessions.md)): one
+long-lived Pod per session running `runnerd`, a per-session Secret carrying the
+runnerd token + seed env (`envFrom`), and a per-session workspace PVC that
+outlives the Pod across stop → resume. Every spawner↔Pod interaction is plain
+HTTP — the Kubernetes API for the object lifecycle (`create`/`read`/`delete`
+Pod, Secret, PVC) and runnerd on the Pod IP (`:8200`) for exec, files, env and
+the browser view. There is **no exec websocket** and **no `pods/exec`** (the
+exec transport proved unreliable under Bun, and keeping the verb out lets a
+stray exec call fail closed).
 
-| Container               | Image                                  | Role                                                                                                                                                                                                                                                                                                                                                       |
-| ----------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stage` (initContainer) | spawner image (`k8s-stage.ts`)         | Downloads inputs from presigned URLs into `/agent`; writes the multi-step wrapper + prior-stage attestation. Completes before the runner — no sentinel handshake. A required-input failure exits non-zero → Pod fails → spawner returns `SPAWNER_UNAVAILABLE` with the stage container's log tail in the message (`PRE_STAGE_FAILED` is action-side only). |
-| `runner`                | runtime image (`tale-sandbox-runtime`) | Runs user code via the image's real `/entrypoint.sh` (command override; child of `sh -c`, not `exec`, so the exit code is captured to a file; stderr → a file). **No credentials, no callbacks.**                                                                                                                                                          |
-| `harvest`               | spawner image (`k8s-harvest.ts`)       | Holds the token + upload slots; enforces the user timeout; uploads `/agent/output` via presigned slots + EP1/EP2; prints one `__TALE_RESULT__` line the spawner reads back from its logs.                                                                                                                                                                  |
+Two backends share the client:
 
-**Security boundary:** the per-exec **Secret** (presigned URLs, `SANDBOX_TOKEN`,
-byte caps) is mounted **only** into `stage`/`harvest`, **never** the `runner`.
-The runner has no token and no URLs (regression-tested in
-`k8s-pod-spec.test.ts`).
+- `KubernetesSessionBackend` — the session lifecycle above. Pod/Secret/PVC
+  names are deterministic (`tale-sbx-ses-<hash>`, `-spec`, `-ws`), so any
+  spawner replica can address, adopt, or destroy any session statelessly.
+- `KubernetesBackend` — the host lifecycle only: API/RBAC connectivity and the
+  NetworkPolicy at boot (`init`), the `/health` probe (a namespaced Pod list),
+  and the periodic sweep that reaps leaked legacy one-shot objects
+  (`tale.sandbox=1` Pods/Secrets, of which none are created anymore).
 
-**Horizontal scale:** the result rides the `harvest` container's logs, read by
-the **owning** spawner replica — no callback to a Service VIP, no cross-replica
-affinity. The spawner Deployment is HPA-able; total throughput =
+**Horizontal scale:** the spawner Deployment is HPA-able. The in-memory session
+registry is a per-replica cache: a request for a session another replica
+created re-resolves it from the backend by deterministic name and adopts it,
+and every sweep tick re-adopts whatever the backend lists. Total throughput =
 replicas × `SANDBOX_MAX_SESSIONS`, bounded by cluster capacity.
 
-**Cancel:** when the cancel request lands on the owning replica it is
-abort-only — `execute()` finishes its final log reads and then deletes the Pod,
-so the response is `cancelled` with the captured stdout. When it lands on any
-**other** replica, the backend deletes the Pod + Secret by deterministic name;
-the run stops promptly, but the owning replica then sees its Pod vanish and
-resolves the run as `failed`/`HARVEST_READ_FAILED` rather than `cancelled` (it
-never learns the cancel intent — a known, accepted limitation).
-
-**Resource-limit parity with docker:** the runner Pod enforces cpu/memory
-limits and a `sizeLimit` on the `/agent` emptyDir (`SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`,
-default `4Gi` — exceeding it evicts the Pod). `RUNNER_WRAPPER` also injects
-`ulimit -u 128 -f 204800 -t 600 -c 0` before launching the entrypoint, which
-sets the same per-process limits as the Docker backend's `--pids-limit=128`,
-`--ulimit fsize=104857600`, `--ulimit cpu=600`, and `--ulimit core=0:0`. The
-busybox sh built-in lowers limits without requiring elevated capabilities, and
-all descendant processes (python/node) inherit them. gVisor (`SANDBOX_RUNTIME=runsc`)
-adds further isolation benefits (syscall filtering, separate kernel) but is no
-longer required solely to obtain these resource bounds.
+**Resource bounds:** the runner container enforces the profile's cpu/memory
+limits; the workspace PVC is sized by `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`
+(default `4Gi`), which under DinD also bounds the inner-docker `emptyDir`.
+`SANDBOX_RUNTIME` selects the RuntimeClass per tier (gVisor / sysbox / kata;
+runc omits the field). DinD and the live browser view are agent-profile
+capabilities: a `default`-profile Pod (run_code, crawler renders) stays fully
+hardened whatever the deployment flags say.
 
 ## RBAC (namespaced Role — no cluster scope, no `pods/exec`)
 
@@ -63,22 +56,27 @@ rules:
     resources: ['pods']
     # `patch` records a session's "always-on" pin as a Pod annotation
     # (`tale.dev/pinned`) so a spawner restart re-adopts it instead of
-    # TTL/idle-reaping the pinned session on its first sweep.
+    # TTL/idle-reaping the pinned session on its first sweep. `list` backs
+    # boot + periodic adoption, the registry-miss re-resolve, /health, and
+    # the legacy-orphan sweep.
     verbs: ['create', 'get', 'list', 'delete', 'patch']
   - apiGroups: ['']
-    resources: ['pods/log']
-    verbs: ['get']
-  - apiGroups: ['']
     resources: ['secrets']
-    # per-exec ExecSpec Secret; `list` powers the orphan sweep (a crash
-    # between Secret-create and Pod-create would otherwise leak a token-bearer
-    # forever — the sweep lists by the tale.sandbox=1 label and reaps podless
-    # Secrets past the worst-case execution lifetime).
-    verbs: ['create', 'update', 'delete', 'list']
-  # Only when SANDBOX_CACHE=pvc (per-org dependency caches):
+    # The per-session Secret (`<pod>-spec`: runnerd token + seed env) is
+    # created with the Pod and deleted on stop/destroy; `list` powers the
+    # legacy-orphan sweep (podless `tale.sandbox=1` Secrets).
+    verbs: ['create', 'delete', 'list']
   - apiGroups: ['']
     resources: ['persistentvolumeclaims']
-    verbs: ['get', 'create']
+    # The per-session workspace PVC (`<pod>-ws`): read-before-create on every
+    # create/resume, deleted ONLY by an explicit destroy. Without `delete`
+    # every destroy leaks a PVC (the failure is surfaced as 502 and retried).
+    verbs: ['get', 'create', 'delete']
+  - apiGroups: ['networking.k8s.io']
+    resources: ['networkpolicies']
+    # The session egress fence, applied at boot (create, or update an
+    # existing one so a policy change lands on redeploy).
+    verbs: ['create', 'update']
 ```
 
 There is **no `pods/exec`** rule — the exec-free transport never opens an exec
@@ -89,14 +87,13 @@ stream. Keep it out so a stray exec call fails closed.
 | Env                                                               | Required   | Notes                                                                                                                                                                                       |
 | ----------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SANDBOX_BACKEND=kubernetes`                                      | yes        | Selects this backend.                                                                                                                                                                       |
-| `SANDBOX_SPAWNER_IMAGE`                                           | yes        | The spawner's **own** image ref, used for the `stage`/`harvest` containers. Must match the deployed spawner version.                                                                        |
-| `SANDBOX_RUNTIME_IMAGE`                                           | yes        | The `runner` image (`tale-sandbox-runtime:<tag>`).                                                                                                                                          |
-| `SANDBOX_K8S_NAMESPACE`                                           | yes        | Namespace the per-exec Pods/Secrets are created in (default `tale-sandbox`).                                                                                                                |
+| `SANDBOX_RUNTIME_IMAGE`                                           | yes        | The `runner` image (`tale-sandbox-runtime:<tag>`), also used for the transparent-egress sidecar.                                                                                            |
+| `SANDBOX_K8S_NAMESPACE`                                           | yes        | Namespace the session Pods/Secrets/PVCs are created in (default `tale-sandbox`).                                                                                                            |
 | `NODE_EXTRA_CA_CERTS`                                             | in-cluster | Point at the SA `ca.crt` (`/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`). **This is the only working CA-trust mechanism under Bun** — see [Bun TLS note](#bun-tls-contract) below. |
-| `SANDBOX_RUNTIME=runsc`                                           | optional   | Sets the Pod `runtimeClassName` (gVisor) via `SANDBOX_RUNTIME_CLASS` (default `gvisor`).                                                                                                    |
-| `SANDBOX_CACHE=pvc`                                               | optional   | Mounts per-org RWX cache PVCs on the runner; needs the PVC RBAC above + an RWX StorageClass. Default `none` (installs fresh each run via the egress proxy).                                 |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | `sizeLimit` on the per-exec `/agent` emptyDir (default `4Gi`). Bounds deps + temp + outputs; exceeding it evicts the Pod.                                                                   |
-| `SANDBOX_EGRESS_PROXY`                                            | optional   | The runner's `HTTPS_PROXY`/`HTTP_PROXY` for `pip`/`npm` (default `http://sandbox-egress:3128`).                                                                                             |
+| `SANDBOX_RUNTIME`                                                 | optional   | Runtime tier (`runc` default, `gvisor`/`runsc`, `sysbox`, `kata`); sets the Pod `runtimeClassName`, overridable via `SANDBOX_RUNTIME_CLASS` for a non-runc tier.                            |
+| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | Size of the per-session `/agent` workspace PVC (default `4Gi`) and, under DinD, the `sizeLimit` of the inner-docker `emptyDir`. Bounds deps + temp + outputs.                                |
+| `SANDBOX_K8S_CACHE_STORAGECLASS`                                  | optional   | StorageClass for the workspace PVCs (`ReadWriteOnce`). Unset ⇒ the cluster default. On a multi-node cluster use a class whose volumes can re-bind where a resume Pod schedules.               |
+| `SANDBOX_EGRESS_PROXY`                                            | optional   | The runner's `HTTPS_PROXY`/`HTTP_PROXY` (default `http://sandbox-egress:3128`); also what the transparent-egress sidecar tunnels to.                                                         |
 | `SANDBOX_K8S_SERVER` / `SANDBOX_K8S_TOKEN` / `SANDBOX_K8S_CAFILE` | dev only   | Explicit bearer-token kubeconfig for local Bun dev (kind's client-cert kubeconfig auths as `system:anonymous` under Bun). In-cluster uses the projected SA token automatically.             |
 
 The Pod sets `automountServiceAccountToken: false` — the runtime never gets an
@@ -159,9 +156,10 @@ layer. The proxy itself is open at the hostname layer by default
 
 ## Verification status
 
-Unit-tested (no cluster): the Pod shape + the security invariant (Secret never
-on the runner), the ExecSpec Secret payload + round-trip, and the
-`__TALE_RESULT__` result-line protocol. The on-cluster reliability bar (50+
-consecutive real executions ~100% pass, 2-replica scale, cancel-across-replicas)
-is **pending a healthy cluster** and must be run before enabling this backend in
-production.
+Unit-tested (no cluster): the session Pod shape and its per-profile hardening
+(DinD / browser view are agent-only), the Secret-via-`envFrom` invariant, the
+create-conflict and failed-create cleanup rules, the workspace-PVC lifecycle,
+and the NetworkPolicy shape. The on-cluster reliability bar (create → exec →
+kill-container-restart → idle-stop → resume → destroy, cross-replica exec /
+destroy, 2-replica scale) is **pending a healthy cluster** and must be run
+before enabling this backend in production.
