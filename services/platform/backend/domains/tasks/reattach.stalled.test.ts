@@ -67,7 +67,6 @@ describe('recoverStalledTaskAgentTurns — the op-less arm ages on the run row',
  * `integration-check.ts`.
  */
 
-
 interface Statement {
   text: string;
   values: unknown[];
