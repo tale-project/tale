@@ -109,8 +109,12 @@ describe('sync-config deactivation settles a running marker', () => {
       targetBucket: 'documents',
     });
     const upsert = normalize(statements[0]?.text ?? '');
+    // The existing row is read through its alias: an unqualified `status`
+    // inside DO UPDATE is ambiguous against EXCLUDED and Postgres refuses
+    // the whole statement (every "Sync import" 500ed).
+    expect(upsert).toContain('INSERT INTO app.onedrive_sync_configs AS cfg (');
     expect(upsert).toContain(
-      "last_sync_status = CASE WHEN status = 'inactive' THEN NULL ELSE last_sync_status END",
+      "last_sync_status = CASE WHEN cfg.status = 'inactive' THEN NULL ELSE cfg.last_sync_status END",
     );
   });
 });

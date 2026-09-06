@@ -220,8 +220,10 @@ export async function upsertSyncConfigRow(
   },
 ): Promise<string | null> {
   const now = Date.now();
+  // `cfg` names the EXISTING row inside DO UPDATE — an unqualified column
+  // there is ambiguous against EXCLUDED (Postgres refuses the statement).
   const rows = await db<{ id: string }[]>`
-    INSERT INTO ${db.unsafe(table)} (
+    INSERT INTO ${db.unsafe(table)} AS cfg (
       org_id, user_id, item_type, item_id, item_name, item_path,
       target_bucket, storage_prefix, team_id, status, created_at_ms,
       updated_at_ms
@@ -241,7 +243,7 @@ export async function upsertSyncConfigRow(
       status = 'active',
       error_message = NULL,
       last_sync_status = CASE
-        WHEN status = 'inactive' THEN NULL ELSE last_sync_status END,
+        WHEN cfg.status = 'inactive' THEN NULL ELSE cfg.last_sync_status END,
       updated_at_ms = ${now}
     RETURNING id
   `;
