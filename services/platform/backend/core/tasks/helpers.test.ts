@@ -1,38 +1,65 @@
 import { describe, expect, it } from 'vitest';
 
-import { isScheduleOrderValid, normalizeLabelNames } from './helpers';
+import {
+  TASK_TITLE_MAX,
+  taskWorkflowSubjectInput,
+  truncateImportedTitle,
+} from './helpers';
 
-describe('isScheduleOrderValid', () => {
-  it('allows either bound to be unset', () => {
-    expect(isScheduleOrderValid(undefined, undefined)).toBe(true);
-    expect(isScheduleOrderValid(1_000, undefined)).toBe(true);
-    expect(isScheduleOrderValid(undefined, 1_000)).toBe(true);
+describe('truncateImportedTitle', () => {
+  it('keeps a title within the limit verbatim (trimmed)', () => {
+    expect(truncateImportedTitle('  Fix the build  ')).toBe('Fix the build');
   });
 
-  it('allows start on or before due', () => {
-    expect(isScheduleOrderValid(1_000, 1_000)).toBe(true);
-    expect(isScheduleOrderValid(1_000, 2_000)).toBe(true);
+  it('truncates an over-long title to the limit with an ellipsis', () => {
+    const long = 'x'.repeat(TASK_TITLE_MAX + 40);
+    const truncated = truncateImportedTitle(long);
+    expect(truncated).toHaveLength(TASK_TITLE_MAX);
+    expect(truncated.endsWith('…')).toBe(true);
   });
 
-  it('rejects start after due', () => {
-    expect(isScheduleOrderValid(2_000, 1_000)).toBe(false);
+  it('answers an empty string for a blank title', () => {
+    expect(truncateImportedTitle('   ')).toBe('');
   });
 });
 
-describe('normalizeLabelNames', () => {
-  it('trims, lowercases, and dedupes', () => {
-    expect(normalizeLabelNames([' Bug ', 'bug', 'Feature'])).toEqual([
-      'bug',
-      'feature',
-    ]);
+describe('taskWorkflowSubjectInput', () => {
+  it('derives the issue number and repo from an issue external id', () => {
+    expect(
+      taskWorkflowSubjectInput({
+        _id: 't-1',
+        title: 'Bug',
+        status: 'todo',
+        projectId: 'p-1',
+        externalSystem: 'github',
+        externalId: 'acme/widgets#42',
+        externalUrl: 'https://github.com/acme/widgets/issues/42',
+      }),
+    ).toEqual({
+      task: {
+        id: 't-1',
+        title: 'Bug',
+        status: 'todo',
+        projectId: 'p-1',
+        externalSystem: 'github',
+        externalId: 'acme/widgets#42',
+        externalUrl: 'https://github.com/acme/widgets/issues/42',
+        issueNumber: 42,
+        repo: 'acme/widgets',
+      },
+    });
   });
 
-  it('returns undefined for empty input', () => {
-    expect(normalizeLabelNames(undefined)).toBeUndefined();
-    expect(normalizeLabelNames([])).toBeUndefined();
-  });
-
-  it('rejects blank names', () => {
-    expect(() => normalizeLabelNames(['  '])).toThrow();
+  it('elides the external trio and derived fields for a plain task', () => {
+    expect(
+      taskWorkflowSubjectInput({
+        _id: 't-2',
+        title: 'Plain',
+        status: 'backlog',
+        projectId: 'p-1',
+      }),
+    ).toEqual({
+      task: { id: 't-2', title: 'Plain', status: 'backlog', projectId: 'p-1' },
+    });
   });
 });

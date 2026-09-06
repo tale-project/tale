@@ -1,7 +1,8 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { resolveDateNotifyAudience } from '../../core/tasks/date_notification_recipients.ts';
 import { notifyUser } from '../collab/service.ts';
+import { addTaskComment } from './comments.ts';
 
 /**
  * Task date enforcement — the 0.5 twin of 0.4's
@@ -15,13 +16,25 @@ import { notifyUser } from '../collab/service.ts';
  *  3. OVERDUE ladder → `sla_level` 2 (nudge), 3 (creator), 4 (admins),
  *     climbing only after the escalation delays.
  *
- * The stamp is written in the SAME statement that selects the row
- * (`UPDATE … RETURNING`), so two workers sweeping concurrently cannot both
- * claim it — the 0.4 "atomic mark-and-return" property, kept.
+ * Each rung lists its candidates once, then claims and announces EVERY ROW
+ * IN ITS OWN TRANSACTION: the stamp is written by an `UPDATE … RETURNING`
+ * that re-checks the rung's predicate (two workers cannot both take a row —
+ * the 0.4 "atomic mark-and-return" property, kept), and the bell or nudge
+ * rides the same transaction, so a fan-out that throws rolls that row's
+ * stamp back and the next tick claims it again. Before, the batch was
+ * stamped first on the root handle and announced after: a throw on row k
+ * left rows k..n stamped and never announced — "exactly once" was really
+ * at-most-once with a silent, permanent miss. Row-scoped rather than
+ * batch-scoped on purpose: one task whose bell keeps failing must not hold
+ * the whole rung of its org hostage.
  *
  * Pushing a due date out resets the ladder: the task's own update path
- * clears `sla_level`, so the rungs fire again for the new date.
+ * (`updateTask`) clears `sla_level` when the due date changes and
+ * `start_notified_at_ms` when the start date changes, so the rungs fire
+ * again for the new dates.
  */
+
+type Db = Sql | TransactionSql;
 
 const DUE_SOON_WINDOW_HOURS = 24;
 const MANAGER_ESCALATION_HOURS = 24;
@@ -56,7 +69,7 @@ const SWEEP_COLUMNS = `
  * noise (the REUSED 0.4 resolver decides this).
  */
 async function notifyDateAlert(
-  sql: Sql,
+  sql: Db,
   args: {
     organizationId: string;
     row: SweepRow;
@@ -103,7 +116,7 @@ async function notifyDateAlert(
 
 /** Org admins — the last rung's audience (the 0.4 `org_admins` fan-out). */
 async function orgAdminUserIds(
-  sql: Sql,
+  sql: Db,
   organizationId: string,
 ): Promise<string[]> {
   const rows = await sql<{ userId: string }[]>`
@@ -115,41 +128,67 @@ async function orgAdminUserIds(
 }
 
 /**
- * The level-2 nudge: an automated comment in the task's own discussion. It
- * is written in the reader's locale by the same by-locale body 0.4 shipped,
- * so a German team does not get an English nag.
+ * The level-2 nudge body — one narrator per language, picked by the reader's
+ * locale from the comment's `bodyByLocale` (the same by-locale lane the
+ * workflow `task.comment` native writes); `en` doubles as the stored `body`.
  */
-const OVERDUE_NUDGE_BODY =
-  '[automated] This task is past its due date. Update the due date, reprioritize, or close it.';
+export const OVERDUE_NUDGE_BODY = {
+  en: '[automated] This task is past its due date. Update the due date, reprioritize, or close it.',
+  de: '[automatisch] Diese Aufgabe hat ihr Fälligkeitsdatum überschritten. Verschiebe das Fälligkeitsdatum, priorisiere neu oder schließe sie.',
+  fr: '[automatique] Cette tâche a dépassé sa date d’échéance. Décale la date d’échéance, change la priorité ou ferme-la.',
+} as const;
 
+/**
+ * The level-2 nudge: an automated comment in the task's own discussion,
+ * posted INSIDE the row's claim transaction — a refused nudge rolls the
+ * level-2 stamp back, so the next tick nudges again instead of silently
+ * skipping to the 24h escalation.
+ */
 async function postOverdueNudge(
-  sql: Sql,
+  tx: TransactionSql,
   organizationId: string,
   taskId: string,
 ): Promise<void> {
-  const { addTaskComment } = await import('./comments.ts');
+  await addTaskComment(
+    tx,
+    // The sweep acts as the workflow actor with owner reach: the task was
+    // selected by the org-scoped query above, so this only satisfies the
+    // comment path's readability check.
+    { organizationId, userId: 'workflow', role: 'owner', teamIds: [] },
+    {
+      taskId,
+      body: OVERDUE_NUDGE_BODY.en,
+      bodyByLocale: OVERDUE_NUDGE_BODY,
+      author: { actorType: 'agent', actorId: 'workflow' },
+    },
+  );
+}
+
+/**
+ * Claim one candidate row and announce it in ONE transaction. The claim is
+ * the rung's own `UPDATE … RETURNING` with its predicate re-checked, so a
+ * row another worker took (or that moved out of the rung since the listing)
+ * answers no row and is skipped; a throw in the announce rolls the stamp
+ * back — logged, never silent — and the next tick re-claims the row.
+ */
+async function claimAndAnnounce<Row>(
+  sql: Sql,
+  taskId: string,
+  claim: (tx: TransactionSql) => Promise<Row[]>,
+  announce: (tx: TransactionSql, row: Row) => Promise<boolean>,
+): Promise<boolean> {
   try {
-    await sql.begin((tx) =>
-      addTaskComment(
-        tx,
-        // The sweep acts as the workflow actor with owner reach: the task
-        // was selected by the org-scoped query above, so this only satisfies
-        // the comment path's readability check.
-        { organizationId, userId: 'workflow', role: 'owner', teamIds: [] },
-        {
-          taskId,
-          body: OVERDUE_NUDGE_BODY,
-          author: { actorType: 'agent', actorId: 'workflow' },
-        },
-      ),
-    );
+    return await sql.begin(async (tx) => {
+      const row = (await claim(tx))[0];
+      if (row === undefined) return false;
+      return announce(tx, row);
+    });
   } catch (error) {
-    // A task whose discussion refuses the nudge is still escalated by the
-    // ladder next tick; never let one comment abort the sweep.
     console.warn(
-      `[tasks] overdue nudge failed for ${taskId}:`,
+      `[tasks] date rung for task ${taskId} rolled back (claimed again next tick):`,
       error instanceof Error ? error.message : String(error),
     );
+    return false;
   }
 }
 
@@ -168,70 +207,88 @@ export async function enforceTaskDatesForOrg(
 ): Promise<{ start: number; dueSoon: number; overdue: number }> {
   const now = Date.now();
 
+  const notTerminal = sql`
+    app.tasks.archived_at_ms IS NULL
+    AND app.tasks.status <> ALL(${TERMINAL_STATUSES})
+  `;
+
   // Rung 1 — START reached, never announced.
-  const starting = await sql<SweepRow[]>`
-    UPDATE app.tasks SET start_notified_at_ms = ${now}
-    FROM app.projects p
-    WHERE app.tasks.project_id = p.id
-      AND app.tasks.id IN (
-        SELECT t2.id FROM app.tasks t2
-        WHERE t2.org_id = ${organizationId}
-          AND t2.start_date_ms IS NOT NULL
-          AND t2.start_date_ms <= ${now}
-          AND t2.start_notified_at_ms IS NULL
-          AND t2.archived_at_ms IS NULL
-          AND t2.status <> ALL(${TERMINAL_STATUSES})
-        ORDER BY t2.start_date_ms
-        LIMIT ${SWEEP_LIMIT}
-      )
-    RETURNING ${sql.unsafe(SWEEP_COLUMNS.replaceAll('t.', 'app.tasks.'))}
+  const starting = await sql<{ id: string }[]>`
+    SELECT t2.id FROM app.tasks t2
+    WHERE t2.org_id = ${organizationId}
+      AND t2.start_date_ms IS NOT NULL
+      AND t2.start_date_ms <= ${now}
+      AND t2.start_notified_at_ms IS NULL
+      AND t2.archived_at_ms IS NULL
+      AND t2.status <> ALL(${TERMINAL_STATUSES})
+    ORDER BY t2.start_date_ms
+    LIMIT ${SWEEP_LIMIT}
   `;
   let start = 0;
-  for (const row of starting) {
-    if (
-      await notifyDateAlert(sql, {
-        organizationId,
-        row,
-        titleKey: 'taskStartReached',
-        bodyKey: 'taskStartReachedBody',
-      })
-    ) {
-      start += 1;
-    }
+  for (const { id } of starting) {
+    const announced = await claimAndAnnounce(
+      sql,
+      id,
+      (tx) => tx<SweepRow[]>`
+        UPDATE app.tasks SET start_notified_at_ms = ${now}
+        FROM app.projects p
+        WHERE app.tasks.id = ${id} AND app.tasks.project_id = p.id
+          AND app.tasks.start_date_ms IS NOT NULL
+          AND app.tasks.start_date_ms <= ${now}
+          AND app.tasks.start_notified_at_ms IS NULL
+          AND ${notTerminal}
+        RETURNING ${tx.unsafe(SWEEP_COLUMNS.replaceAll('t.', 'app.tasks.'))}
+      `,
+      (tx, row) =>
+        notifyDateAlert(tx, {
+          organizationId,
+          row,
+          titleKey: 'taskStartReached',
+          bodyKey: 'taskStartReachedBody',
+        }),
+    );
+    if (announced) start += 1;
   }
 
   // Rung 2 — DUE SOON, never warned (sla_level is the ladder position).
   const dueSoonBefore = now + DUE_SOON_WINDOW_HOURS * 3_600_000;
-  const dueSoon = await sql<SweepRow[]>`
-    UPDATE app.tasks SET sla_level = 1, sla_level_at_ms = ${now}
-    FROM app.projects p
-    WHERE app.tasks.project_id = p.id
-      AND app.tasks.id IN (
-        SELECT t2.id FROM app.tasks t2
-        WHERE t2.org_id = ${organizationId}
-          AND t2.due_date_ms IS NOT NULL
-          AND t2.due_date_ms > ${now}
-          AND t2.due_date_ms <= ${dueSoonBefore}
-          AND coalesce(t2.sla_level, 0) < 1
-          AND t2.archived_at_ms IS NULL
-          AND t2.status <> ALL(${TERMINAL_STATUSES})
-        ORDER BY t2.due_date_ms
-        LIMIT ${SWEEP_LIMIT}
-      )
-    RETURNING ${sql.unsafe(SWEEP_COLUMNS.replaceAll('t.', 'app.tasks.'))}
+  const dueSoon = await sql<{ id: string }[]>`
+    SELECT t2.id FROM app.tasks t2
+    WHERE t2.org_id = ${organizationId}
+      AND t2.due_date_ms IS NOT NULL
+      AND t2.due_date_ms > ${now}
+      AND t2.due_date_ms <= ${dueSoonBefore}
+      AND coalesce(t2.sla_level, 0) < 1
+      AND t2.archived_at_ms IS NULL
+      AND t2.status <> ALL(${TERMINAL_STATUSES})
+    ORDER BY t2.due_date_ms
+    LIMIT ${SWEEP_LIMIT}
   `;
   let dueSoonCount = 0;
-  for (const row of dueSoon) {
-    if (
-      await notifyDateAlert(sql, {
-        organizationId,
-        row,
-        titleKey: 'taskDueSoon',
-        bodyKey: 'taskDueSoonBody',
-      })
-    ) {
-      dueSoonCount += 1;
-    }
+  for (const { id } of dueSoon) {
+    const announced = await claimAndAnnounce(
+      sql,
+      id,
+      (tx) => tx<SweepRow[]>`
+        UPDATE app.tasks SET sla_level = 1, sla_level_at_ms = ${now}
+        FROM app.projects p
+        WHERE app.tasks.id = ${id} AND app.tasks.project_id = p.id
+          AND app.tasks.due_date_ms IS NOT NULL
+          AND app.tasks.due_date_ms > ${now}
+          AND app.tasks.due_date_ms <= ${dueSoonBefore}
+          AND coalesce(app.tasks.sla_level, 0) < 1
+          AND ${notTerminal}
+        RETURNING ${tx.unsafe(SWEEP_COLUMNS.replaceAll('t.', 'app.tasks.'))}
+      `,
+      (tx, row) =>
+        notifyDateAlert(tx, {
+          organizationId,
+          row,
+          titleKey: 'taskDueSoon',
+          bodyKey: 'taskDueSoonBody',
+        }),
+    );
+    if (announced) dueSoonCount += 1;
   }
 
   // Rung 3 — the OVERDUE ladder. The level is a function of HOW overdue the
@@ -246,64 +303,77 @@ export async function enforceTaskDatesForOrg(
   // creator, plus every org admin.
   const managerMs = MANAGER_ESCALATION_HOURS * 3_600_000;
   const adminMs = ADMIN_ESCALATION_HOURS * 3_600_000;
-  const overdueRows = await sql<(SweepRow & { newLevel: number })[]>`
-    UPDATE app.tasks SET
-      sla_level = CASE
-        WHEN app.tasks.due_date_ms <= ${now - adminMs} THEN 4
-        WHEN app.tasks.due_date_ms <= ${now - managerMs} THEN 3
-        ELSE 2
-      END,
-      sla_level_at_ms = ${now}
-    FROM app.projects p
-    WHERE app.tasks.project_id = p.id
-      AND app.tasks.id IN (
-        SELECT t2.id FROM app.tasks t2
-        WHERE t2.org_id = ${organizationId}
-          AND t2.due_date_ms IS NOT NULL
-          AND t2.due_date_ms <= ${now}
-          AND t2.archived_at_ms IS NULL
-          AND t2.status <> ALL(${TERMINAL_STATUSES})
-          AND (CASE
-                 WHEN t2.due_date_ms <= ${now - adminMs} THEN 4
-                 WHEN t2.due_date_ms <= ${now - managerMs} THEN 3
-                 ELSE 2
-               END) > coalesce(t2.sla_level, 0)
-        ORDER BY t2.due_date_ms
-        LIMIT ${SWEEP_LIMIT}
-      )
-    RETURNING ${sql.unsafe(SWEEP_COLUMNS.replaceAll('t.', 'app.tasks.'))},
-              app.tasks.sla_level AS "newLevel"
+  const targetLevel = sql`
+    CASE
+      WHEN app.tasks.due_date_ms <= ${now - adminMs} THEN 4
+      WHEN app.tasks.due_date_ms <= ${now - managerMs} THEN 3
+      ELSE 2
+    END
+  `;
+  const overdueRows = await sql<{ id: string }[]>`
+    SELECT t2.id FROM app.tasks t2
+    WHERE t2.org_id = ${organizationId}
+      AND t2.due_date_ms IS NOT NULL
+      AND t2.due_date_ms <= ${now}
+      AND t2.archived_at_ms IS NULL
+      AND t2.status <> ALL(${TERMINAL_STATUSES})
+      AND (CASE
+             WHEN t2.due_date_ms <= ${now - adminMs} THEN 4
+             WHEN t2.due_date_ms <= ${now - managerMs} THEN 3
+             ELSE 2
+           END) > coalesce(t2.sla_level, 0)
+    ORDER BY t2.due_date_ms
+    LIMIT ${SWEEP_LIMIT}
   `;
   let overdue = 0;
-  for (const row of overdueRows) {
-    if (row.newLevel <= 2) {
-      await postOverdueNudge(sql, organizationId, row.taskId);
-      overdue += 1;
-      continue;
-    }
-    const escalationTargets = new Set<string>();
-    if (row.taskCreatorId !== null) escalationTargets.add(row.taskCreatorId);
-    else if (row.projectCreatorId !== null) {
-      escalationTargets.add(row.projectCreatorId);
-    }
-    for (const adminId of await orgAdminUserIds(sql, organizationId)) {
-      escalationTargets.add(adminId);
-    }
-    for (const userId of escalationTargets) {
-      await notifyUser(sql, {
-        userId,
-        organizationId,
-        type: 'task_deadline',
-        titleKey: 'taskSlaEscalated',
-        bodyKey: 'taskSlaEscalatedBody',
-        params: { title: row.title },
-        resourceType: 'task',
-        resourceId: row.taskId,
-        taskId: row.taskId,
-        actorType: 'system',
-      });
-    }
-    overdue += 1;
+  for (const { id } of overdueRows) {
+    const announced = await claimAndAnnounce(
+      sql,
+      id,
+      (tx) => tx<(SweepRow & { newLevel: number })[]>`
+        UPDATE app.tasks SET
+          sla_level = ${targetLevel}, sla_level_at_ms = ${now}
+        FROM app.projects p
+        WHERE app.tasks.id = ${id} AND app.tasks.project_id = p.id
+          AND app.tasks.due_date_ms IS NOT NULL
+          AND app.tasks.due_date_ms <= ${now}
+          AND (${targetLevel}) > coalesce(app.tasks.sla_level, 0)
+          AND ${notTerminal}
+        RETURNING ${tx.unsafe(SWEEP_COLUMNS.replaceAll('t.', 'app.tasks.'))},
+                  app.tasks.sla_level AS "newLevel"
+      `,
+      async (tx, row) => {
+        if (row.newLevel <= 2) {
+          await postOverdueNudge(tx, organizationId, row.taskId);
+          return true;
+        }
+        const escalationTargets = new Set<string>();
+        if (row.taskCreatorId !== null) {
+          escalationTargets.add(row.taskCreatorId);
+        } else if (row.projectCreatorId !== null) {
+          escalationTargets.add(row.projectCreatorId);
+        }
+        for (const adminId of await orgAdminUserIds(tx, organizationId)) {
+          escalationTargets.add(adminId);
+        }
+        for (const userId of escalationTargets) {
+          await notifyUser(tx, {
+            userId,
+            organizationId,
+            type: 'task_deadline',
+            titleKey: 'taskSlaEscalated',
+            bodyKey: 'taskSlaEscalatedBody',
+            params: { title: row.title },
+            resourceType: 'task',
+            resourceId: row.taskId,
+            taskId: row.taskId,
+            actorType: 'system',
+          });
+        }
+        return true;
+      },
+    );
+    if (announced) overdue += 1;
   }
 
   return { start, dueSoon: dueSoonCount, overdue };

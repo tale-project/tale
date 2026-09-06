@@ -253,12 +253,24 @@ export async function chunkCompressedAudio(
         await cleanupTmp(allPaths);
         await fs
           .rm(outputDir, { force: true, recursive: true })
-          .catch(() => {});
+          .catch((err: unknown) => {
+            console.warn(
+              `[audio_preprocess] chunk dir cleanup failed for ${outputDir}:`,
+              err,
+            );
+          });
       },
     };
   } catch (err) {
     await cleanupTmp([inputPath]);
-    await fs.rm(outputDir, { force: true, recursive: true }).catch(() => {});
+    await fs
+      .rm(outputDir, { force: true, recursive: true })
+      .catch((rmErr: unknown) => {
+        console.warn(
+          `[audio_preprocess] chunk dir cleanup failed for ${outputDir}:`,
+          rmErr,
+        );
+      });
     throw err;
   }
 }

@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import type { GOVERNANCE_POLICY_TYPES } from '@/backend/core/governance/schema';
 import type { SoftDeleteResourceType } from '@/backend/core/governance/soft_delete';
 import {
   CHAT_MAX_FILE_SIZE,
@@ -14,12 +13,11 @@ import {
   DEFAULT_PASSWORD_POLICY,
   type PasswordPolicyConfig,
   passwordPolicyConfigSchema,
+  type PolicyType,
   uploadPolicyConfigSchema,
   type UploadPolicyConfig,
 } from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-utils';
-
-type PolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
 
 interface UploadPolicyLimits {
   maxFileSize: number;

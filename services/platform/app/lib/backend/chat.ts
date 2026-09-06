@@ -162,8 +162,6 @@ export interface CreateChatThreadArgs {
   kind?: string;
   title?: string;
   agentSlug?: string;
-  harness?: string;
-  capabilities?: unknown;
   projectId?: string;
   reasoningEffort?: string;
 }
@@ -404,6 +402,10 @@ export function videoJobsForThreadQuery(
 export interface ChatTurnOutcome {
   status: 'completed' | 'refused';
   reason?: string;
+  /** A refusal that is already on the thread's record — the user row and a
+   * blocked reply landed — so the composer must not hand the text back.
+   * Absent or false: nothing was written; the client holds the only copy. */
+  persisted?: boolean;
 }
 
 /**
@@ -444,12 +446,17 @@ export async function sendChatTurn(
   );
   const payload: unknown = await response.json().catch(() => null);
   if (payload !== null && typeof payload === 'object' && 'status' in payload) {
-    const record = payload as { status: unknown; reason?: unknown };
+    const record = payload as {
+      status: unknown;
+      reason?: unknown;
+      persisted?: unknown;
+    };
     if (record.status === 'completed') return { status: 'completed' };
     if (record.status === 'refused') {
       return {
         status: 'refused',
         ...(typeof record.reason === 'string' ? { reason: record.reason } : {}),
+        persisted: record.persisted === true,
       };
     }
   }

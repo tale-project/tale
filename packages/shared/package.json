@@ -4,19 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./config/base": "./src/config/base.ts",
-    "./config/org-slug": "./src/config/org-slug.ts",
     "./db/retry": "./src/db/retry.ts",
     "./db/serializable": "./src/db/serializable.ts",
     "./logging/logger": "./src/logging/logger.ts",
-    "./logging/setup": "./src/logging/setup.ts",
     "./terminal": "./src/terminal/index.ts",
     "./terminal/live": "./src/terminal/live.ts",
     "./classify": "./src/classify/index.ts",
     "./tux": "./src/tux/index.ts",
-    "./reporter": "./src/reporter/index.ts",
     "./process": "./src/process/index.ts",
-    "./errors": "./src/errors.ts",
     "./utils/hashing": "./src/utils/hashing.ts",
     "./utils/model-list": "./src/utils/model-list.ts"
   },
@@ -28,8 +23,7 @@
     "test:watch": "bunx vitest"
   },
   "dependencies": {
-    "postgres": "3.4.7",
-    "zod": "4.3.6"
+    "postgres": "3.4.7"
   },
   "devDependencies": {
     "@types/bun": "1.3.11"

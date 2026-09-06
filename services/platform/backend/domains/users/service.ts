@@ -17,6 +17,7 @@ import {
 } from '../../auth/membership.ts';
 import { getStrictestPasswordPolicyForUser } from '../../lib/governance-policies.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { addMember } from '../members/service.ts';
 
 /**
  * Users domain — account metadata, password lifecycle, changelog
@@ -130,6 +131,61 @@ async function hasCredentialAccount(
   return rows.length > 0;
 }
 
+/**
+ * Write a user's credential password onto their ONE `credential` account
+ * row, creating the row when the user has none (an OAuth-only account being
+ * handed a password).
+ *
+ * Better Auth owns the `account` table and declares no unique key on
+ * (userId, providerId), so `INSERT … ON CONFLICT DO NOTHING` has no conflict
+ * target there — it inserted a second credential row on every admin reset,
+ * and the user's forced first-login change then rotated only one of them.
+ * The decision is made here, inside the caller's SERIALIZABLE transaction
+ * with the rows locked, which is what makes create-or-update race-safe
+ * without a constraint the app is not allowed to add. Rows an earlier
+ * release duplicated are folded into the newest one on the next write, so
+ * every reset converges on a single row.
+ */
+export async function setCredentialPassword(
+  tx: TransactionSql,
+  userId: string,
+  passwordHash: string,
+): Promise<void> {
+  const rows = await tx<{ id: string }[]>`
+    SELECT "id" FROM "account"
+    WHERE "userId" = ${userId} AND "providerId" = 'credential'
+    ORDER BY "updatedAt" DESC, "createdAt" DESC
+    FOR UPDATE
+  `;
+  const keep = rows[0];
+  if (!keep) {
+    await tx`
+      INSERT INTO "account" (
+        "id", "userId", "providerId", "accountId", "password",
+        "createdAt", "updatedAt"
+      ) VALUES (
+        gen_random_uuid(), ${userId}, 'credential', ${userId},
+        ${passwordHash}, ${new Date()}, ${new Date()}
+      )
+    `;
+    return;
+  }
+  if (rows.length > 1) {
+    const duplicates = rows.slice(1).map((row) => row.id);
+    console.warn(
+      `[users] folding ${duplicates.length} duplicate credential account row(s) for user ${userId}`,
+    );
+    await tx`
+      DELETE FROM "account"
+      WHERE "userId" = ${userId} AND "id" = ANY(${duplicates})
+    `;
+  }
+  await tx`
+    UPDATE "account" SET "password" = ${passwordHash}, "updatedAt" = ${new Date()}
+    WHERE "id" = ${keep.id}
+  `;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface PasswordExpiryStatus {
@@ -227,14 +283,21 @@ function isInvalidPasswordError(error: unknown): boolean {
   return /invalid password/i.test(message);
 }
 
-async function forcedResetCredentialPassword(
+/**
+ * The forced (expired / admin-set) rotation of the caller's own password.
+ * Keyed by (user, provider) on the write, never by the one row id read for
+ * the reuse check: a user must never keep a second credential row carrying
+ * the old (admin-set) password.
+ */
+export async function forcedResetCredentialPassword(
   sql: Sql,
   userId: string,
   newPassword: string,
 ): Promise<void> {
-  const rows = await sql<{ id: string; password: string | null }[]>`
-    SELECT "id", "password" FROM "account"
+  const rows = await sql<{ password: string | null }[]>`
+    SELECT "password" FROM "account"
     WHERE "userId" = ${userId} AND "providerId" = 'credential'
+    ORDER BY "updatedAt" DESC
     LIMIT 1
   `;
   const credential = rows[0];
@@ -258,7 +321,7 @@ async function forcedResetCredentialPassword(
   const newHash = await hashPassword(newPassword);
   await sql`
     UPDATE "account" SET "password" = ${newHash}, "updatedAt" = ${new Date()}
-    WHERE "id" = ${credential.id}
+    WHERE "userId" = ${userId} AND "providerId" = 'credential'
   `;
 }
 
@@ -462,23 +525,12 @@ export async function setMemberPassword(
   }
 
   const passwordHash = await hashPassword(args.newPassword);
-  await sql`
-    INSERT INTO "account" (
-      "id", "userId", "providerId", "accountId", "password",
-      "createdAt", "updatedAt"
-    ) VALUES (
-      gen_random_uuid(), ${member.userId}, 'credential', ${member.userId},
-      ${passwordHash}, ${new Date()}, ${new Date()}
-    )
-    ON CONFLICT DO NOTHING
-  `;
-  await sql`
-    UPDATE "account" SET "password" = ${passwordHash}, "updatedAt" = ${new Date()}
-    WHERE "userId" = ${member.userId} AND "providerId" = 'credential'
-  `;
-  await sql`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
-
+  // Credential write, session sweep, rotation anchor and audit row: one
+  // transaction — a seizure either fully lands (and is on the ledger) or
+  // leaves the member exactly as they were.
   await transactSerializable(sql, async (tx) => {
+    await setCredentialPassword(tx, member.userId, passwordHash);
+    await tx`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
     await recordPasswordChange(tx, member.userId, {
       forceChangeOnNextLogin: true,
     });
@@ -517,12 +569,15 @@ export interface CreateMemberResult {
 
 /**
  * Create a user (or reuse an existing one by email) and add them to an org.
- * Unlike client sign-up this never touches the admin's session. Member rows
- * are added through the org plugin's server API so its hooks stay in force.
+ * Unlike client sign-up this never touches the admin's session. The member
+ * row is written by the members domain's `addMember` — the ONE add-member
+ * concept — so the door the settings UI uses carries the same `add_member`
+ * audit row and `member` realtime hint as `POST /api/app/members`, in one
+ * transaction with the new user's rotation anchor.
  */
 export async function createMember(
   deps: { sql: Sql; auth: Auth },
-  actor: { userId: string },
+  actor: { userId: string; email?: string },
   args: CreateMemberArgs,
 ): Promise<CreateMemberResult> {
   const { sql, auth } = deps;
@@ -555,32 +610,16 @@ export async function createMember(
   const existingUserId = existingRows[0]?.id;
 
   if (existingUserId) {
-    const existingMember = await findOrganizationMember(
-      sql,
-      args.organizationId,
-      existingUserId,
-    );
-    if (existingMember) {
-      throw new UserServiceError(
-        'DUPLICATE_MEMBER',
-        'User is already a member of this organization',
-        400,
-      );
-    }
-    const added = await auth.api.addMember({
-      body: {
-        userId: existingUserId,
+    // `addMember` refuses a duplicate membership (DUPLICATE_MEMBER) inside
+    // the same transaction that would insert it — no read-then-write gap.
+    const memberId = await transactSerializable(sql, (tx) =>
+      addMember(tx, actor, {
         organizationId: args.organizationId,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- role names are validated against the org roles at the route boundary
-        role: role as 'member',
-      },
-    });
-    const memberId = added && isRecord(added) ? getString(added, 'id') : null;
-    return {
-      userId: existingUserId,
-      memberId: memberId ?? '',
-      isExistingUser: true,
-    };
+        userId: existingUserId,
+        role,
+      }),
+    );
+    return { userId: existingUserId, memberId, isExistingUser: true };
   }
 
   if (!args.password) {
@@ -607,25 +646,17 @@ export async function createMember(
     );
   }
 
-  const added = await auth.api.addMember({
-    body: {
-      userId: newUserId,
+  const memberId = await transactSerializable(sql, async (tx) => {
+    const id = await addMember(tx, actor, {
       organizationId: args.organizationId,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- role names are validated against the org roles at the route boundary
-      role: role as 'member',
-    },
+      userId: newUserId,
+      role,
+    });
+    await recordPasswordChange(tx, newUserId, { forceChangeOnNextLogin: true });
+    return id;
   });
-  const memberId = added && isRecord(added) ? getString(added, 'id') : null;
 
-  await transactSerializable(sql, (tx) =>
-    recordPasswordChange(tx, newUserId, { forceChangeOnNextLogin: true }),
-  );
-
-  return {
-    userId: newUserId,
-    memberId: memberId ?? '',
-    isExistingUser: false,
-  };
+  return { userId: newUserId, memberId, isExistingUser: false };
 }
 
 // ---------------------------------------------------------------------------

@@ -5,8 +5,8 @@ import {
 import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 import type { RouterContext } from '@/app/router';
-import type { GOVERNANCE_POLICY_TYPES } from '@/backend/core/governance/schema';
 import { AppError } from '@/lib/shared/errors/app-error';
+import type { PolicyType } from '@/lib/shared/schemas/governance';
 
 type QueryArgs<Name extends QueryName> =
   Record<string, never> extends ArgsOf<Name>
@@ -45,8 +45,6 @@ export function ensureConvexQuery<Name extends QueryName>(
   throw new MissingBackendRowError(name);
 }
 
-type GovernancePolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
-
 /**
  * A render-gating read can reject during the brief pre-auth window (the Convex
  * client has not attached the auth token yet), which surfaces as an
@@ -78,7 +76,7 @@ function isPreAuthError(error: unknown): boolean {
 export function ensureGovernancePolicies(
   context: RouterContext,
   organizationId: string,
-  policyTypes: readonly GovernancePolicyType[],
+  policyTypes: readonly PolicyType[],
 ) {
   return Promise.all(
     policyTypes.map((policyType) =>

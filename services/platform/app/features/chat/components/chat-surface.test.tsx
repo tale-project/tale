@@ -581,6 +581,71 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     expect(defer).not.toHaveBeenCalled();
   });
 
+  // A refusal answers on the turn's outcome promise; whether the composer
+  // gets its text back depends on whether the exchange is already on the
+  // thread's record.
+  async function sendAndRefuse(outcome: {
+    status: 'refused';
+    reason: string;
+    persisted?: boolean;
+  }) {
+    const unbindVideoJobs = vi.fn(() => Promise.resolve());
+    const directStart = vi.fn(() =>
+      Promise.resolve({
+        threadId: 't-new',
+        boundVideoJobIds: ['job-1'],
+        outcome: Promise.resolve(outcome),
+      }),
+    );
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: directStart,
+      defer: vi.fn(() => Promise.resolve({ threadId: 't-new' })),
+      unbindVideoJobs,
+      stop: vi.fn(() => Promise.resolve()),
+    });
+    videoLinksState.unmarkJobsSent.mockClear();
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    await user.type(input, 'this word is verboten here');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+    // The outcome handler is queued before the navigation that follows the
+    // started turn, so once the navigation happened the refusal was handled.
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(1));
+    return { input, unbindVideoJobs };
+  }
+
+  it('restores the composer after a refusal that wrote nothing', async () => {
+    const { input, unbindVideoJobs } = await sendAndRefuse({
+      status: 'refused',
+      reason: 'Model "x" is not available for your account.',
+      persisted: false,
+    });
+
+    await waitFor(() =>
+      expect(input).toHaveValue('this word is verboten here'),
+    );
+    expect(unbindVideoJobs).toHaveBeenCalledWith(['job-1']);
+    // No chip is staged in this harness, so the unmark carries no ids — what
+    // matters is that the rollback ran at all.
+    expect(videoLinksState.unmarkJobsSent).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the composer clear when the refusal is already on the record', async () => {
+    // The guardrail block appended the user row and a blocked reply: the
+    // thread shows the exchange, so handing the text back would duplicate
+    // the message on the next Send, and the video jobs stay bound to it.
+    const { input, unbindVideoJobs } = await sendAndRefuse({
+      status: 'refused',
+      reason: 'The chat_filter guardrail refused this message.',
+      persisted: true,
+    });
+
+    expect(input).toHaveValue('');
+    expect(unbindVideoJobs).not.toHaveBeenCalled();
+    expect(videoLinksState.unmarkJobsSent).not.toHaveBeenCalled();
+  });
+
   it('blocks send only for a FAILED video chip — the user must retry or remove', async () => {
     videoLinksState.hasFailedJobs = true;
     const { user } = render(<ChatSurface organizationId="org-1" />);

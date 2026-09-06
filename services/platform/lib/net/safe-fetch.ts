@@ -34,7 +34,8 @@ export type SafeFetchErrorKind =
   | 'response_too_large'
   | 'response_too_small'
   | 'network_error'
-  | 'timeout';
+  | 'timeout'
+  | 'aborted';
 
 export class SafeFetchError extends Error {
   readonly kind: SafeFetchErrorKind;
@@ -59,6 +60,10 @@ export interface SafeFetchOptions {
   maxResponseBytes?: number;
   maxRedirects?: number;
   allowedHosts?: string[];
+  /** A caller's own deadline. When it fires the request is torn down at once
+   * (kind `aborted`) instead of running on to `timeoutMs` — a caller that has
+   * already given up on the reply must not keep the provider working. */
+  signal?: AbortSignal;
 }
 
 export interface SafeFetchResponse {
@@ -316,6 +321,7 @@ export async function safeFetch(
     maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
     maxRedirects = DEFAULT_MAX_REDIRECTS,
     allowedHosts: callerAllowedHosts,
+    signal,
   } = options;
 
   // When the caller doesn't supply an allowlist, auto-derive it from the
@@ -344,8 +350,16 @@ export async function safeFetch(
 
   validateUrl(rawUrl, allowedHosts, callerAllowedHosts);
 
+  if (signal?.aborted) {
+    throw new SafeFetchError(
+      'aborted',
+      'Request aborted by the caller before it started',
+    );
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const onCallerAbort = (): void => controller.abort();
+  signal?.addEventListener('abort', onCallerAbort, { once: true });
 
   try {
     let currentUrl = rawUrl;
@@ -368,6 +382,12 @@ export async function safeFetch(
           error instanceof Error &&
           (error.name === 'AbortError' || error.name === 'TimeoutError')
         ) {
+          if (signal?.aborted) {
+            throw new SafeFetchError(
+              'aborted',
+              'Request aborted by the caller before it completed',
+            );
+          }
           throw new SafeFetchError(
             'timeout',
             `Request timed out after ${timeoutMs}ms`,
@@ -424,6 +444,7 @@ export async function safeFetch(
     };
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener('abort', onCallerAbort);
   }
 }
 
@@ -452,6 +473,7 @@ export async function safeFetchBinary(
     maxRedirects = DEFAULT_MAX_REDIRECTS,
     allowedHosts: callerAllowedHosts,
     defaultContentType,
+    signal,
   } = options;
 
   let allowedHosts = callerAllowedHosts;
@@ -473,8 +495,16 @@ export async function safeFetchBinary(
 
   validateUrl(rawUrl, allowedHosts, callerAllowedHosts);
 
+  if (signal?.aborted) {
+    throw new SafeFetchError(
+      'aborted',
+      'Request aborted by the caller before it started',
+    );
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const onCallerAbort = (): void => controller.abort();
+  signal?.addEventListener('abort', onCallerAbort, { once: true });
 
   try {
     let currentUrl = rawUrl;
@@ -497,6 +527,12 @@ export async function safeFetchBinary(
           error instanceof Error &&
           (error.name === 'AbortError' || error.name === 'TimeoutError')
         ) {
+          if (signal?.aborted) {
+            throw new SafeFetchError(
+              'aborted',
+              'Request aborted by the caller before it completed',
+            );
+          }
           throw new SafeFetchError(
             'timeout',
             `Request timed out after ${timeoutMs}ms`,
@@ -558,5 +594,6 @@ export async function safeFetchBinary(
     };
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener('abort', onCallerAbort);
   }
 }

@@ -34,6 +34,8 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
 const setCustomInstructionsEnabled = vi.fn().mockResolvedValue(undefined);
 const setMemoriesEnabled = vi.fn().mockResolvedValue(undefined);
 const upsert = vi.fn().mockResolvedValue(undefined);
+const reviewMemory = vi.fn().mockResolvedValue(true);
+const deleteMemory = vi.fn().mockResolvedValue(true);
 
 vi.mock('../hooks/mutations', () => ({
   useSetCustomInstructionsEnabled: () => ({
@@ -45,6 +47,18 @@ vi.mock('../hooks/mutations', () => ({
     isPending: false,
   }),
   useUpsertMyPreferences: () => ({ mutateAsync: upsert, isPending: false }),
+  useReviewMemory: () => ({ mutateAsync: reviewMemory, isPending: false }),
+  useDeleteMemory: () => ({ mutateAsync: deleteMemory, isPending: false }),
+}));
+
+// The memories read: a proposal waiting and a memory already saved.
+let memories: {
+  pending: { id: string; content: string }[];
+  approved: { id: string; content: string }[];
+} = { pending: [], approved: [] };
+
+vi.mock('@/app/features/chat/data/chat-backend', () => ({
+  useChatMemories: () => ({ status: 'ready', data: memories }),
 }));
 
 import { PreferencesSettings } from './preferences-settings';
@@ -56,6 +70,7 @@ function renderPage() {
 beforeEach(() => {
   preferences = null;
   policyEnabled = false;
+  memories = { pending: [], approved: [] };
   vi.clearAllMocks();
 });
 
@@ -175,8 +190,60 @@ describe('PreferencesSettings', () => {
     expect(screen.getAllByText('Saved memories').length).toBeGreaterThan(0);
   });
 
+  it('saves or discards a pending suggestion — the person decides', async () => {
+    preferences = { memoriesEnabled: true };
+    memories = {
+      pending: [{ id: 'mem_1', content: 'Prefers metric units' }],
+      approved: [],
+    };
+    const { user } = renderPage();
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Save suggestion: Prefers metric units',
+      }),
+    );
+    expect(reviewMemory).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      memoryId: 'mem_1',
+      decision: 'approved',
+    });
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Discard suggestion: Prefers metric units',
+      }),
+    );
+    expect(reviewMemory).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      memoryId: 'mem_1',
+      decision: 'rejected',
+    });
+  });
+
+  it('deletes a saved memory from its row', async () => {
+    preferences = { memoriesEnabled: true };
+    memories = {
+      pending: [],
+      approved: [{ id: 'mem_2', content: 'Works in Berlin' }],
+    };
+    const { user } = renderPage();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Delete memory: Works in Berlin' }),
+    );
+    expect(deleteMemory).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      memoryId: 'mem_2',
+    });
+  });
+
   it('passes an axe audit', async () => {
     preferences = { customInstructionsEnabled: true, memoriesEnabled: true };
+    memories = {
+      pending: [{ id: 'mem_1', content: 'Prefers metric units' }],
+      approved: [{ id: 'mem_2', content: 'Works in Berlin' }],
+    };
     const { container } = renderPage();
     await waitFor(() => checkAccessibility(container));
   });

@@ -121,6 +121,20 @@ export interface ChatContract {
       approved: Array<{ id: string; content: string }>;
     };
   };
+  'chat/memories:reviewMemory': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      memoryId: string;
+      decision: 'approved' | 'rejected';
+    };
+    returns: boolean;
+  };
+  'chat/memories:deleteMemory': {
+    kind: 'mutation';
+    args: { organizationId: string; memoryId: string };
+    returns: boolean;
+  };
   'chat/messages:getOrgChatHealth': {
     kind: 'query';
     args: { organizationId: string; periodDays: 1 | 7 | 30 };
