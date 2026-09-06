@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
 import { logs } from '../lib/actions/logs';
-import { ALL_SERVICES } from '../lib/compose/types';
+import { ALL_SERVICES, SIDECAR_SERVICES } from '../lib/compose/types';
 import { requireProject } from '../lib/project/find-project';
 import { resolveProjectContext } from '../lib/project/project-context';
 import { usageError } from '../utils/fail';
@@ -11,7 +11,10 @@ import { action } from '../utils/run-command';
 export function createLogsCommand(): Command {
   return new Command('logs')
     .description('View logs from a service')
-    .argument('<service>', `Service name (${ALL_SERVICES.join(', ')})`)
+    .argument(
+      '<service>',
+      `Service name (${[...ALL_SERVICES, ...SIDECAR_SERVICES].join(', ')})`,
+    )
     .option('-c, --color <color>', 'Deployment color (blue or green)')
     .option('-f, --follow', 'Follow log output', false)
     .option('--since <duration>', 'Show logs since duration (e.g., 1h, 30m)')

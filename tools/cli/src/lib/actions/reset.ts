@@ -5,7 +5,11 @@ import * as logger from '../../utils/logger';
 import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
 import type { DeploymentColor } from '../compose/types';
-import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from '../compose/types';
+import {
+  ROTATABLE_SERVICES,
+  SIDECAR_SERVICES,
+  STATEFUL_SERVICES,
+} from '../compose/types';
 import { docker } from '../docker/docker';
 import { removeContainer } from '../docker/remove-container';
 import { getPreviousVersionFilePath } from '../state/get-previous-version-file-path';
@@ -60,7 +64,9 @@ export async function reset(options: ResetOptions): Promise<void> {
     // Optionally remove stateful containers
     if (includeStateful) {
       logger.step(`${prefix}Removing stateful containers...`);
-      for (const service of STATEFUL_SERVICES) {
+      // The sidecars restart unless stopped: left behind, they keep running
+      // after the CLI is gone and pin the project network against the prune.
+      for (const service of [...STATEFUL_SERVICES, ...SIDECAR_SERVICES]) {
         const containerName = `${getProjectId()}-${service}`;
         if (dryRun) {
           logger.info(`${prefix}Would remove: ${containerName}`);
@@ -95,13 +101,18 @@ export async function reset(options: ResetOptions): Promise<void> {
     // Prune unused networks for this project only
     logger.step(`${prefix}Pruning unused Docker networks...`);
     if (!dryRun) {
-      await docker(
+      const pruned = await docker(
         'network',
         'prune',
         '-f',
         '--filter',
         `label=project=${getProjectId()}`,
       );
+      if (!pruned.success) {
+        logger.warn(
+          `Failed to prune project networks: ${pruned.stderr.trim() || 'no stderr captured'}`,
+        );
+      }
     } else {
       logger.info(
         `${prefix}Would prune unused Docker networks for project ${getProjectId()}`,

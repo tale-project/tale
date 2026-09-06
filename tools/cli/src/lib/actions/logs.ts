@@ -15,7 +15,9 @@ import * as logger from '../../utils/logger';
 import type { DeploymentColor } from '../compose/types';
 import {
   ALL_SERVICES,
+  SIDECAR_SERVICES,
   isRotatableService,
+  isSidecarService,
   isValidService,
 } from '../compose/types';
 import { containerExists } from '../docker/container-exists';
@@ -40,9 +42,11 @@ export async function logs(options: LogsOptions): Promise<void> {
   const { service, color, follow, since, tail, raw, deployDir } = options;
 
   // Validate service name
-  if (!isValidService(service)) {
+  if (!isValidService(service) && !isSidecarService(service)) {
     logger.error(`Invalid service: ${service}`);
-    logger.info(`Available services: ${ALL_SERVICES.join(', ')}`);
+    logger.info(
+      `Available services: ${[...ALL_SERVICES, ...SIDECAR_SERVICES].join(', ')}`,
+    );
     throw new Error('Invalid service name');
   }
 
