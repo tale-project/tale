@@ -64,6 +64,14 @@ export interface AuthConfig {
   secret: string;
   /** Public origin auth cookies/callbacks bind to, e.g. https://localhost. */
   baseUrl: string;
+  /**
+   * The other public origins this deployment is served from
+   * (`ADDITIONAL_SITE_URLS`, already normalized). Better Auth's origin check
+   * rejects a cookie-bearing POST whose `Origin` is not trusted — so every
+   * domain a browser can sign in on must be listed here, or sign-in on it
+   * answers 403 INVALID_ORIGIN.
+   */
+  additionalOrigins?: readonly string[];
   /** App query lane for hooks (throttle state, audit chain, jobs). */
   sql: Sql;
 }
@@ -208,6 +216,15 @@ export function createAuth(config: AuthConfig) {
     }
   }
   const isHttps = siteUrl.startsWith('https://');
+  // Every origin a browser may sign in from: the canonical one first, then
+  // the additional domains — Better Auth's origin check and the passkey
+  // ceremony both consult this list.
+  const siteOrigins = [
+    new URL(siteUrl).origin,
+    ...(config.additionalOrigins ?? []).filter(
+      (origin) => origin !== new URL(siteUrl).origin,
+    ),
+  ];
   const sql = config.sql;
 
   /** The organization slug hooks' view of `assertOrgSlugNotRetiring`: the
@@ -331,7 +348,7 @@ export function createAuth(config: AuthConfig) {
     secret: config.secret,
     baseURL: siteUrl,
     basePath: '/api/auth',
-    trustedOrigins: [new URL(siteUrl).origin],
+    trustedOrigins: siteOrigins,
     // Pinned off regardless of upstream default changes.
     telemetry: { enabled: false },
     emailAndPassword: {
@@ -798,11 +815,16 @@ export function createAuth(config: AuthConfig) {
         backupCodeOptions: { amount: 10, length: 10 },
         skipVerificationOnEnable: false,
       }),
-      // WebAuthn / passkeys as a phishing-resistant second factor.
+      // WebAuthn / passkeys as a phishing-resistant second factor. The
+      // Relying Party ID is ONE host by WebAuthn design — the canonical
+      // SITE_URL's — so a passkey is bound to that domain; the origin list
+      // still names every configured domain so a ceremony started on one
+      // whose registrable suffix matches (or the same host on another port)
+      // passes the origin check.
       passkey({
         rpID: new URL(siteUrl).hostname,
         rpName: 'Tale',
-        origin: new URL(siteUrl).origin,
+        origin: siteOrigins,
       }),
     ],
   });
