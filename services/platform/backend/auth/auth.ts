@@ -25,11 +25,11 @@ import {
   recordBlocked,
   recordFailure,
 } from '../domains/login_attempts/service.ts';
-import { retireDeletedTeamScopes } from '../domains/teams/service.ts';
 import {
   assertOrgSlugNotRetiring,
   OrganizationError,
 } from '../domains/organizations/service.ts';
+import { retireDeletedTeamScopes } from '../domains/teams/service.ts';
 import {
   anchorTwoFactorGraceOnSignIn,
   getTwoFactorLockState,
