@@ -2,10 +2,8 @@
  * Map a thrown error from a per-org data-residency action (knowledge DB,
  * embedding model, object storage, blob backfill) into an admin-facing
  * message. Duck-types `AppError.data` because Vite chunk splitting can
- * produce multiple `AppError` class copies that break `instanceof` — same
- * rationale as `deployment-errors.ts`, which this sits beside (the code set
- * differs: these actions gate on org membership and validate a single
- * connection, not the deployment file).
+ * produce multiple `AppError` class copies that break `instanceof`. These
+ * actions gate on org membership and validate a single connection.
  */
 
 import {

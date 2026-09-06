@@ -9,8 +9,6 @@ import {
   requireInstanceAdmin,
   readDeploymentConfigView,
   saveDeploymentConfig,
-  saveDeploymentSecret,
-  testDeploymentConnection,
 } from './service.ts';
 
 /**
@@ -69,50 +67,6 @@ export function createDeploymentRoutes(deps: {
           config: body.data.config,
           ...(body.data.expectedHash !== undefined
             ? { expectedHash: body.data.expectedHash }
-            : {}),
-        }),
-      );
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/secrets', async (c) => {
-    const body = z
-      .object({
-        secrets: z.record(z.string().max(200), z.string().max(10_000)),
-        force: z.boolean().optional(),
-      })
-      .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    try {
-      const auth = await requireInstanceAdmin(deps.sql, caller(c), {
-        write: true,
-      });
-      await saveDeploymentSecret(deps.sql, auth, body.data);
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/test', async (c) => {
-    const body = z
-      .object({
-        target: z.enum(['knowledgePostgres', 'appPostgres', 'convexStorage']),
-        config: z.unknown(),
-        password: z.string().max(2_000).optional(),
-      })
-      .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    try {
-      await requireInstanceAdmin(deps.sql, caller(c), { write: true });
-      return c.json(
-        await testDeploymentConnection({
-          target: body.data.target,
-          config: body.data.config,
-          ...(body.data.password !== undefined
-            ? { password: body.data.password }
             : {}),
         }),
       );

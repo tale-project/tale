@@ -5,39 +5,11 @@ import { useBackendAction } from '@/app/hooks/use-backend-action';
 /**
  * Write hooks for the unified data-residency page.
  *
- * The deployment-level mutations persist the single deployment config file (one
- * atomic save, guarded by an optimistic hash) and its SOPS-encrypted secrets;
- * the org-level mutations save / test / remove THIS organization's
- * object-storage connection. Each save/delete invalidates its matching read so
- * the form re-baselines from disk truth.
+ * Every mutation is org-level: save / test / remove THIS organization's
+ * knowledge connection, embedding model, and object-storage connection. Each
+ * save/delete invalidates its matching read so the form re-baselines from disk
+ * truth.
  */
-
-function useInvalidateDeployment() {
-  const queryClient = useQueryClient();
-  return () =>
-    queryClient.invalidateQueries({ queryKey: ['config', 'deployment'] });
-}
-
-/** Persist the deployment config (validated + optimistic-hash on the server). */
-export function useSaveDeploymentConfig() {
-  const invalidate = useInvalidateDeployment();
-  return useBackendAction('deployment/file_actions:saveDeploymentConfig', {
-    onSuccess: () => invalidate(),
-  });
-}
-
-/** Merge/persist deployment secrets (SOPS-encrypted server-side). */
-export function useSaveDeploymentSecret() {
-  const invalidate = useInvalidateDeployment();
-  return useBackendAction('deployment/file_actions:saveDeploymentSecret', {
-    onSuccess: () => invalidate(),
-  });
-}
-
-/** Probe a candidate data-store connection before saving. */
-export function useTestDeploymentConnection() {
-  return useBackendAction('deployment/file_actions:testDeploymentConnection');
-}
 
 function useInvalidateOrgObjectStorage(organizationId: string) {
   const queryClient = useQueryClient();
