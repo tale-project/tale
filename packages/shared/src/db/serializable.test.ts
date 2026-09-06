@@ -6,6 +6,7 @@ import {
   markRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
   retryQueueKeyOf,
+  retryQueueKeysOf,
   transactSerializable,
   type SerializableTransactionRunner,
 } from './serializable.ts';
@@ -381,5 +382,70 @@ describe('transactSerializable — retry queues', () => {
       'COMMIT',
       'SELECT pg_advisory_unlock(?, hashtext(?))',
     ]);
+  });
+});
+
+describe('markRetryQueueKey — nested keys', () => {
+  it('prepends an outer mark so the list reads outermost first', () => {
+    const error = markRetryQueueKey(
+      markRetryQueueKey(sqlstateError('40001'), 'audit-chain:org_1'),
+      'task-comment:t_1',
+    );
+    expect(retryQueueKeysOf(error)).toEqual([
+      'task-comment:t_1',
+      'audit-chain:org_1',
+    ]);
+    expect(retryQueueKeyOf(error)).toBe('task-comment:t_1');
+  });
+
+  it('never adds a key twice', () => {
+    const error = markRetryQueueKey(
+      markRetryQueueKey(sqlstateError('40001'), 'k'),
+      'k',
+    );
+    expect(retryQueueKeysOf(error)).toEqual(['k']);
+    expect(retryQueueKeysOf(sqlstateError('40001'))).toEqual([]);
+    expect(retryQueueKeysOf(undefined)).toEqual([]);
+  });
+});
+
+describe('transactSerializable — nested retry queues', () => {
+  it('locks every key in order before BEGIN and unlocks in reverse', async () => {
+    const { runner, beginAttempts, reservations } = createQueueRunner([
+      markRetryQueueKey(
+        markRetryQueueKey(sqlstateError('40001'), 'audit-chain:org_1'),
+        'task-comment:t_1',
+      ),
+    ]);
+    const result = await transactSerializable(
+      runner,
+      async (tx) => {
+        await tx`SELECT 1`;
+        return 'ok';
+      },
+      { sleep: noSleep },
+    );
+    expect(result).toBe('ok');
+    expect(beginAttempts()).toBe(1);
+    const statements = reservations[0]?.statements ?? [];
+    expect(texts(statements)).toEqual([
+      'SELECT pg_advisory_lock(?, hashtext(?))',
+      'SELECT pg_advisory_lock(?, hashtext(?))',
+      'BEGIN ISOLATION LEVEL SERIALIZABLE',
+      'SELECT 1',
+      'COMMIT',
+      'SELECT pg_advisory_unlock(?, hashtext(?))',
+      'SELECT pg_advisory_unlock(?, hashtext(?))',
+    ]);
+    expect(statements.map((s) => s.values[1])).toEqual([
+      'task-comment:t_1',
+      'audit-chain:org_1',
+      undefined,
+      undefined,
+      undefined,
+      'audit-chain:org_1',
+      'task-comment:t_1',
+    ]);
+    expect(reservations[0]?.released()).toBe(1);
   });
 });
