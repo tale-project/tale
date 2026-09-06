@@ -41,6 +41,7 @@ import { createApp } from './server';
 // emitted (Observatory only scans HTTPS origins).
 const baseEnv = {
   SITE_URL: 'https://tale.example.com',
+  SITE_ORIGINS: ['https://tale.example.com'] as readonly string[],
   BASE_PATH: '',
   TRUSTED_HEADERS_ENABLED: false,
   FILE_EVENTS_ENABLED: true,

@@ -2,6 +2,10 @@ import { existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  requestSiteOrigin,
+  resolveSiteOrigins,
+} from '@tale/shared/utils/site-urls';
 import { createPrecompiledServer, type ArtifactsServer } from '@tale/ui/seo';
 import { Hono } from 'hono';
 import { NONCE, secureHeaders } from 'hono/secure-headers';
@@ -191,7 +195,16 @@ function escapeHtmlAttr(value: string) {
 }
 
 interface EnvConfig {
+  /**
+   * The canonical public origin. Per REQUEST this is replaced by the origin
+   * the browser is actually on when that is one of the configured site
+   * origins, so the SPA builds its absolute URLs (SSO doors, OAuth starts,
+   * TTS audio, the postMessage origin check) against its own domain — see
+   * `renderIndexHtml`.
+   */
   SITE_URL: string | undefined;
+  /** Every origin this deployment answers on, canonical first. */
+  SITE_ORIGINS: readonly string[];
   BASE_PATH: string;
   TRUSTED_HEADERS_ENABLED: boolean;
   FILE_EVENTS_ENABLED: boolean;
@@ -254,6 +267,27 @@ function platformArtifactsServer(): Promise<ArtifactsServer> {
 function getBasePath(): string {
   const basePath = process.env.BASE_PATH ?? '';
   return basePath.replace(/\/$/, '');
+}
+
+/**
+ * Every configured site origin, canonical first. A malformed
+ * `ADDITIONAL_SITE_URLS` is logged and ignored rather than thrown: the
+ * backend already refuses to boot on it, and the web tier serving only the
+ * canonical domain beats serving nothing.
+ */
+function safeSiteOrigins(): readonly string[] {
+  try {
+    return resolveSiteOrigins({
+      SITE_URL: process.env.SITE_URL,
+      ADDITIONAL_SITE_URLS: process.env.ADDITIONAL_SITE_URLS,
+    });
+  } catch (err) {
+    console.warn(
+      'Invalid ADDITIONAL_SITE_URLS, serving the canonical SITE_URL only:',
+      err,
+    );
+    return resolveSiteOrigins({ SITE_URL: process.env.SITE_URL });
+  }
 }
 
 let indexHtmlTemplate: string | null = null;
@@ -331,6 +365,10 @@ const DEV_RELOAD_SCRIPT = `<script>
 function getEnvConfig(): EnvConfig {
   return {
     SITE_URL: process.env.SITE_URL,
+    // A malformed ADDITIONAL_SITE_URLS entry must not take the web tier
+    // down — the backend validates it at boot and fails loudly there; here
+    // a bad list degrades to the canonical origin alone.
+    SITE_ORIGINS: safeSiteOrigins(),
     BASE_PATH: getBasePath(),
     TRUSTED_HEADERS_ENABLED: process.env.TRUSTED_HEADERS_ENABLED === 'true',
     FILE_EVENTS_ENABLED: fileEventsEnabled,
@@ -440,13 +478,19 @@ function buildContentSecurityPolicy(
   const sentryOrigin = sentryOriginFromDsn(env.SENTRY_DSN);
   const sentry = sentryOrigin ? [sentryOrigin] : [];
   const figmaMcp = isLoopbackSite(env) ? ['https://mcp.figma.com'] : [];
-  // The platform's own canonical origin, so branding assets served as
-  // absolute `<SITE_URL>/branding/...` URLs load even when the document is
-  // reached from a different host than SITE_URL. Omitted (empty) when
-  // SITE_URL is unset/relative — then assets are same-origin and `'self'`
-  // already covers them.
+  // The platform's OWN origins, so branding assets served as absolute
+  // `<SITE_URL>/branding/...` URLs load even when the document is reached
+  // from a different host than the one the URL was built on — which is the
+  // normal case on a multi-domain deployment. Omitted (empty) when SITE_URL
+  // is unset/relative: then assets are same-origin and `'self'` covers them.
+  // Union, not either/or: the canonical origin is always allowed even if a
+  // caller hands us a SITE_URL outside the configured list, and every
+  // additional origin is allowed on top.
   const siteOrigin = siteOriginFromUrl(env.SITE_URL);
-  const branding = siteOrigin ? [siteOrigin] : [];
+  const branding = [
+    ...(siteOrigin ? [siteOrigin] : []),
+    ...env.SITE_ORIGINS.filter((origin) => origin !== siteOrigin),
+  ];
   return {
     defaultSrc: ["'self'"],
     scriptSrc: [
@@ -851,10 +895,29 @@ export function createApp(
     // __ENV__ injection and any other inline scripts in index.html.
     const nonce = c.get('secureHeadersNonce');
 
+    // The SPA builds absolute URLs (the SSO doors, the OAuth starts, the TTS
+    // audio src, the silent-SSO postMessage origin check) from SITE_URL, and
+    // those must stay on the domain this document was served from — a
+    // cross-domain jump would leave the session cookie behind. So the value
+    // handed to THIS page is the browser's own origin whenever it is one of
+    // the configured site origins; otherwise the canonical one, unchanged.
+    const requestOrigin = requestSiteOrigin(
+      {
+        url: c.req.url,
+        host: c.req.header('host'),
+        forwardedProto: c.req.header('x-forwarded-proto'),
+      },
+      env.SITE_ORIGINS,
+    );
+    const pageEnv =
+      requestOrigin === null || requestOrigin === env.SITE_URL
+        ? env
+        : { ...env, SITE_URL: requestOrigin };
+
     let html = template
       .replace(
         /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
-        `window.__ENV__ = ${JSON.stringify(env)};`,
+        `window.__ENV__ = ${JSON.stringify(pageEnv)};`,
       )
       .replace(
         /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,

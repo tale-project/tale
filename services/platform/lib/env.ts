@@ -1,7 +1,15 @@
 declare global {
   interface Window {
     __ENV__?: {
+      /**
+       * The origin THIS page was served from when the deployment answers on
+       * several domains (`server.ts` swaps it per request), else the
+       * canonical `SITE_URL`. Absolute URLs built from it therefore stay on
+       * the domain the browser is already on — where its session cookie is.
+       */
       SITE_URL?: string;
+      /** Every origin the deployment answers on, canonical first. */
+      SITE_ORIGINS?: string[];
       BASE_PATH?: string;
       TRUSTED_HEADERS_ENABLED?: boolean;
       FILE_EVENTS_ENABLED?: boolean;

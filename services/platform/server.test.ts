@@ -15,6 +15,7 @@ import {
 
 const baseEnv = {
   SITE_URL: 'https://tale.example.com',
+  SITE_ORIGINS: ['https://tale.example.com'] as readonly string[],
   BASE_PATH: '',
   TRUSTED_HEADERS_ENABLED: false,
   FILE_EVENTS_ENABLED: true,
@@ -205,6 +206,33 @@ describe('security headers', () => {
     expect(directive('font-src')).toContain('https://brand.example.com');
     // Strictness is preserved: the origin is added without widening to a
     // wildcard or `unsafe-inline`.
+    expect(directive('font-src')).not.toContain('*');
+  });
+
+  // Multi-domain deployments serve the SAME app on several origins, and
+  // branding assets are absolute URLs on whichever origin built them — so
+  // every configured origin has to be allow-listed, not just the canonical
+  // one, or the extra domains lose their favicon and fonts.
+  test('CSP allows branding assets from every configured site origin', async () => {
+    const app = createApp({
+      ...baseEnv,
+      SITE_URL: 'https://tale.example.com',
+      SITE_ORIGINS: [
+        'https://tale.example.com',
+        'https://tale.partner.example',
+      ],
+    });
+    const res = await app.fetch(new Request('http://localhost/api/health'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    const directive = (name: string) =>
+      csp
+        .split(';')
+        .map((d) => d.trim())
+        .find((d) => d.startsWith(`${name} `)) ?? '';
+    for (const name of ['img-src', 'font-src']) {
+      expect(directive(name)).toContain('https://tale.example.com');
+      expect(directive(name)).toContain('https://tale.partner.example');
+    }
     expect(directive('font-src')).not.toContain('*');
   });
 
