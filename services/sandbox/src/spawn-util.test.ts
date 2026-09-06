@@ -7,7 +7,13 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 
-import { runDocker } from './spawn-util.ts';
+import {
+  IMAGE_PULL_TIMEOUT_MS,
+  RUN_DOCKER_DEFAULT_TIMEOUT_MS,
+  ensureImage,
+  resolveDockerTimeoutMs,
+  runDocker,
+} from './spawn-util.ts';
 
 // Override the docker binary for the duration of these tests. spawn-util
 // reads DOCKER_BIN lazily on each invocation so this override works after
@@ -98,5 +104,60 @@ describe('runDocker — timeout race', () => {
     const elapsed = Date.now() - start;
     expect(result.exitCode).toBe(124);
     expect(elapsed).toBeLessThan(3_000);
+  });
+});
+
+// REGRESSION: the kill timer used to arm only when a caller passed timeoutMs,
+// so the health probe, the sweeps and the cache-volume setup ran unbounded
+// against a wedged daemon. Every call now carries a budget unless it opts out.
+describe('runDocker — default timeout', () => {
+  test('no timeoutMs ⇒ the default budget; an explicit one wins; Infinity opts out', () => {
+    expect(resolveDockerTimeoutMs(undefined)).toBe(
+      RUN_DOCKER_DEFAULT_TIMEOUT_MS,
+    );
+    expect(resolveDockerTimeoutMs(5_000)).toBe(5_000);
+    expect(resolveDockerTimeoutMs(Infinity)).toBeNull();
+  });
+
+  test('the default is a real bound, not a formality', () => {
+    expect(RUN_DOCKER_DEFAULT_TIMEOUT_MS).toBeGreaterThan(0);
+    expect(Number.isFinite(RUN_DOCKER_DEFAULT_TIMEOUT_MS)).toBe(true);
+  });
+
+  // REGRESSION: the default once bounded the boot-time pull of the multi-GB
+  // runtime image too, so on any host without a pre-pull the CLI was killed at
+  // 60 s on all three attempts and no session could ever start. The pull has
+  // its own budget — minutes, not seconds — and it is still a real bound.
+  test('the image pull outlives the default by minutes and stays bounded', () => {
+    expect(IMAGE_PULL_TIMEOUT_MS).toBeGreaterThanOrEqual(
+      10 * RUN_DOCKER_DEFAULT_TIMEOUT_MS,
+    );
+    expect(Number.isFinite(IMAGE_PULL_TIMEOUT_MS)).toBe(true);
+    expect(resolveDockerTimeoutMs(IMAGE_PULL_TIMEOUT_MS)).toBe(
+      IMAGE_PULL_TIMEOUT_MS,
+    );
+  });
+
+  test('ensureImage: an inspect miss pulls exactly once, under the pull budget', async () => {
+    // A recording runner in place of runDocker: pins BOTH the boot path's
+    // argv sequence and that the pull actually carries IMAGE_PULL_TIMEOUT_MS
+    // while `image inspect` keeps the default (runDocker's kill timer itself
+    // is exercised by the race test above).
+    const calls: Array<{ args: string[]; timeoutMs: number | undefined }> = [];
+    const run: typeof runDocker = async (args, opts) => {
+      calls.push({ args, timeoutMs: opts?.timeoutMs });
+      return {
+        exitCode: args[0] === 'image' ? 1 : 0,
+        stdout: '',
+        stderr: '',
+        stdoutTruncated: false,
+        stderrTruncated: false,
+      };
+    };
+    expect(await ensureImage('tale/runtime:test', { run })).toBe(true);
+    expect(calls).toEqual([
+      { args: ['image', 'inspect', 'tale/runtime:test'], timeoutMs: undefined },
+      { args: ['pull', 'tale/runtime:test'], timeoutMs: IMAGE_PULL_TIMEOUT_MS },
+    ]);
   });
 });

@@ -204,7 +204,7 @@ export function isPlaceholder(value: string | null | undefined): boolean {
 }
 
 /** Shannon entropy in bits per character — how random a literal looks. */
-export function entropyPerChar(value: string): number {
+function entropyPerChar(value: string): number {
   if (value.length === 0) return 0;
   const counts = new Map<string, number>();
   for (const character of value) {

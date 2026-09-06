@@ -222,22 +222,10 @@ interface HandlerNames {
     crawl_action: FunctionRef & {
       scanWebsite: FunctionRef;
     };
-    crawl_ops: FunctionRef & {
-      deregisterDomainOp: FunctionRef;
-      registerDomainOp: FunctionRef;
-      registerUrlListOp: FunctionRef;
-      setScanIntervalOp: FunctionRef;
-      websiteInfoOp: FunctionRef;
-    };
   };
   knowledge_entries: FunctionRef & {
     internal_queries: FunctionRef & {
       listEntriesForAgent: FunctionRef;
-    };
-  };
-  login_attempts: FunctionRef & {
-    internal_queries: FunctionRef & {
-      getTrustedProxies: FunctionRef;
     };
   };
   members: FunctionRef & {
@@ -385,7 +373,6 @@ interface HandlerNames {
     };
     internal_mutations: FunctionRef & {
       clearScanFailures: FunctionRef;
-      deleteWebsite: FunctionRef;
       recordScanFailure: FunctionRef;
     };
     internal_queries: FunctionRef & {
