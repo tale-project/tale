@@ -48,10 +48,6 @@ export const CHAT_TOOL_NAMES = [
 
 export type ChatToolName = (typeof CHAT_TOOL_NAMES)[number];
 
-export function isChatToolName(value: string): value is ChatToolName {
-  return (CHAT_TOOL_NAMES as readonly string[]).includes(value);
-}
-
 /**
  * Tools that END the turn instead of feeding a result back to the model.
  *
@@ -65,9 +61,7 @@ export function isChatToolName(value: string): value is ChatToolName {
  * into execution — the model asked, nothing stopped it, and it carried on
  * against its own guess.
  */
-export const PAUSING_CHAT_TOOLS: ReadonlySet<string> = new Set([
-  'ask_question',
-]);
+const PAUSING_CHAT_TOOLS: ReadonlySet<string> = new Set(['ask_question']);
 
 export function isPausingChatTool(name: string): boolean {
   return PAUSING_CHAT_TOOLS.has(name);
@@ -160,7 +154,6 @@ export const RAG_SEARCH_DEFAULT_LIMIT = 8;
  * operation. One array feeds the schema, the executor, and the tests, so the
  * three cannot drift. */
 export const RAG_SEARCH_ACTIONS = ['search', 'list'] as const;
-export type RagSearchAction = (typeof RAG_SEARCH_ACTIONS)[number];
 
 /** The ten result kinds `rag_search` returns — and the browse targets the
  * `list` action accepts (all but `web-page`, which has no bounded catalog;

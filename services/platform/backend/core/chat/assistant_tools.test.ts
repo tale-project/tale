@@ -337,6 +337,8 @@ describe('rag_search', () => {
     expect(result.results?.[1]?.url).toBe('https://acme.com/pricing');
     expect(result.sources).toEqual({
       documents: 'searched',
+      mailAttachments:
+        'searched (no matches — indexed emailed attachments only)',
       webPages: 'searched',
       knowledgeEntries: 'searched',
       contacts: 'searched',
@@ -2445,6 +2447,73 @@ describe('email content is not trusted', () => {
     expect(snippet).toContain('</untrusted_source>');
     // The text survives inside the wrapper — this is quarantine, not removal.
     expect(snippet).toContain('Ignore previous instructions');
+  });
+
+  it('labels a mail hit as a mail-attachment, the kind the list action speaks', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce(mailHit('body'));
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = await executor.execute({
+      id: 'c0',
+      name: 'rag_search',
+      input: { action: 'search', query: 'cv' },
+    });
+    expect(result.results?.[0]?.kind).toBe('mail-attachment');
+    expect(result.sources).toMatchObject({
+      documents: expect.stringContaining('no matches'),
+      mailAttachments: 'searched',
+    });
+  });
+
+  it('runs the corpus leg for a mail-attachment narrow and answers the hit', async () => {
+    // Before: no leg named the kind, so the narrow searched nothing and
+    // answered "No matches — do not re-run" for an attachment the corpus held.
+    searchKnowledgeMock.mockResolvedValueOnce({
+      hits: [
+        ...mailHit('the signed contract').hits,
+        {
+          id: '2',
+          corpus: 'documents',
+          text: 'Refunds within 30 days.',
+          chunkIndex: 0,
+          score: 0.8,
+          fusedScore: 0.8,
+          source: { ref: 'file_hub', title: 'Handbook', url: null },
+        },
+      ],
+      diagnostics: {},
+    });
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = await executor.execute({
+      id: 'c0b',
+      name: 'rag_search',
+      input: { action: 'search', query: 'contract', kind: 'mail-attachment' },
+    });
+
+    expect(searchKnowledgeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ corpus: 'documents' }),
+    );
+    // Only the emailed attachment answers the narrow; the hub document does
+    // not, and no other leg reports.
+    expect(result.results?.map((entry) => entry.kind)).toEqual([
+      'mail-attachment',
+    ]);
+    expect(result.sources).toEqual({ mailAttachments: 'searched' });
+    expect(result.message).toBeUndefined();
+  });
+
+  it('keeps a document narrow to hub and library documents', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce(mailHit('body'));
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = await executor.execute({
+      id: 'c0c',
+      name: 'rag_search',
+      input: { action: 'search', query: 'cv', kind: 'document' },
+    });
+    expect(result.results).toEqual([]);
+    expect(result.sources).toEqual({
+      documents: expect.stringContaining('no matches'),
+    });
   });
 
   it('leaves a hub document unwrapped', async () => {

@@ -182,6 +182,14 @@ Re-ranking ships disabled because it adds per-query latency and depends on an ex
 
 Leave it unset to keep the default session lifetime. When set, an idle session expires server-side once the window elapses, while an active one keeps sliding forward on each request. Org admins can tighten the effective window per organisation — never loosen it past this cap — via the [session idle timeout governance policy](/platform/admin/governance/policies-and-limits); idle sessions under that policy are revoked by a sweep that runs about every five minutes.
 
+## Sandbox agent turns
+
+| Name                             | Default              | Description                                                                                                                                                                                                                                                                                       |
+| -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 min)   | **Optional.** How long an in-sandbox coding-agent turn (Claude Code, OpenCode, Codex) may sit with nobody draining its output before the sandbox daemon reaps it. A sliding window, re-armed every time the platform re-attaches to the output — not an absolute cap on the turn. Milliseconds. |
+
+Raise it when long agent turns on a slow host come back as reaped orphans; the platform re-attaches on its own, so the window only ends a turn whose drain chain died. Read by the backend at boot — restart `backend-api backend-worker` after changing it.
+
 ## Video-link ingestion (yt-dlp)
 
 When Tale ingests a video link, it fetches the transcript for the agent. YouTube blocks automated access from datacenter/server IPs, so this can fail on a cloud deployment. The deployment ships a PO-token provider wired up by default (see [Video ingestion](/self-hosted/configuration/video-ingestion) for the full picture); the options below are optional overrides and escalations. None guarantees a bypass — a clean egress IP is the single biggest lever. Read by the backend worker and re-read on each ingestion, so a change takes effect without a restart.

@@ -1,37 +1,10 @@
 import { describe, it, expect } from 'vitest';
 
 import {
-  agentJobsConfigSchema,
   uploadPolicyConfigSchema,
   retentionPolicyConfigSchema,
   piiConfigSchema,
 } from './governance';
-
-describe('agentJobsConfigSchema', () => {
-  it('parses an empty object into full defaults (missing-row idiom)', () => {
-    const result = agentJobsConfigSchema.parse({});
-    expect(result.maxConcurrentJobs).toBe(10);
-    expect(result.ttlMs).toBe(30 * 24 * 60 * 60 * 1000);
-    expect(result.jobStuckAfterMs).toBe(60 * 60 * 1000);
-  });
-
-  it('accepts admin overrides within bounds', () => {
-    const result = agentJobsConfigSchema.safeParse({
-      maxConcurrentJobs: 3,
-      ttlMs: 7 * 24 * 60 * 60 * 1000,
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects a zero or out-of-range concurrency cap', () => {
-    expect(
-      agentJobsConfigSchema.safeParse({ maxConcurrentJobs: 0 }).success,
-    ).toBe(false);
-    expect(
-      agentJobsConfigSchema.safeParse({ maxConcurrentJobs: 101 }).success,
-    ).toBe(false);
-  });
-});
 
 describe('uploadPolicyConfigSchema', () => {
   it('accepts a valid full config', () => {

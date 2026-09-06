@@ -64,7 +64,6 @@ export async function runChatTurn(
     ...(request.reasoningEffort !== undefined
       ? { reasoningEffort: request.reasoningEffort }
       : {}),
-    sandbox: false,
     locale: request.locale ?? 'en',
     ...(request.resend === true ? { resend: true } : {}),
   };
