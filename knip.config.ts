@@ -118,7 +118,6 @@ export default {
         // above (schemas, provider catalog shapes). Same debt, same exit.
         'lib/shared/constants/agents.ts',
         'lib/shared/schemas/skills.ts',
-        'lib/shared/config/registry.ts',
         'lib/shared/file-types.ts',
         'lib/shared/providers/attribution.ts',
         'lib/shared/schemas/agents.ts',
