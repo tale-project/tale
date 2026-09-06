@@ -1,4 +1,5 @@
 import * as logger from '../../utils/logger';
+import { exitedWithin } from './exited-within';
 
 export interface ExecResult {
   success: boolean;
@@ -47,22 +48,10 @@ export async function exec(
     await sink.end();
   }
 
-  const exitPromise = timeout
-    ? Promise.race([
-        proc.exited,
-        new Promise<number>((_, reject) =>
-          setTimeout(() => {
-            proc.kill();
-            reject(new Error(`Command timed out after ${timeout}s`));
-          }, timeout * 1000),
-        ),
-      ])
-    : proc.exited;
-
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
-    exitPromise,
+    timeout ? exitedWithin(proc, timeout) : proc.exited,
   ]);
 
   return {
