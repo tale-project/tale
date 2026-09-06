@@ -19,7 +19,7 @@ vi.mock('../../core/lib/providers/catalog_fetch.ts', () => ({
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
-import { MESSAGE_SLOT_ATTEMPTS } from '../threads/store.ts';
+import { MESSAGE_SLOT_CLAIM_DEADLINE_MS } from '../threads/store.ts';
 import { appendMessageRow } from './store.ts';
 
 /** A `sql` whose INSERTs answer from `outcomes` in order (an empty array is a
@@ -78,12 +78,61 @@ describe('appendMessageRow — claiming a unique slot', () => {
     expect(insertsOf(statements)).toBe(3);
   });
 
-  it('fails loudly, and writes nothing else, once the attempts are spent', async () => {
+  it('keeps re-claiming through a burst larger than any fixed count', async () => {
+    const lostRaces = Array.from({ length: 40 }, () => []);
+    const { sql, statements } = fakeSql([
+      ...lostRaces,
+      [{ id: 'm-41', order: 40 }],
+    ]);
+    const pauses: number[] = [];
+    await expect(
+      appendMessageRow(sql, MESSAGE, {
+        sleep: (ms) => {
+          pauses.push(ms);
+          return Promise.resolve();
+        },
+      }),
+    ).resolves.toEqual({ id: 'm-41', sequence: 40 });
+    expect(insertsOf(statements)).toBe(41);
+    // One jittered pause per lost race, never longer than the cap.
+    expect(pauses).toHaveLength(40);
+    expect(Math.max(...pauses)).toBeLessThanOrEqual(30);
+  });
+
+  it('lets an error from the claim through unchanged, after one insert', async () => {
+    // Under SERIALIZABLE the lost race surfaces as a 40001 and the enclosing
+    // transactSerializable reruns the transaction; the claim must not retry
+    // or swallow it.
+    const boom = Object.assign(new Error('could not serialize access'), {
+      code: '40001',
+    });
+    const statements: string[] = [];
+    const tag = (strings: TemplateStringsArray): Promise<unknown[]> => {
+      statements.push(strings.join('?'));
+      return Promise.reject(boom);
+    };
+    Object.assign(tag, { json: (value: unknown) => value });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and `json` are exercised
+    const sql = tag as unknown as Sql;
+    await expect(
+      appendMessageRow(sql, MESSAGE, { sleep: () => Promise.resolve() }),
+    ).rejects.toBe(boom);
+    expect(insertsOf(statements)).toBe(1);
+  });
+
+  it('fails loudly, and writes nothing else, once the deadline is spent', async () => {
     const { sql, statements } = fakeSql([]);
-    await expect(appendMessageRow(sql, MESSAGE)).rejects.toThrow(
-      /no free slot/,
+    // Each clock read advances 4 s: the 10 s budget is gone at the third claim.
+    let clock = 0;
+    await expect(
+      appendMessageRow(sql, MESSAGE, {
+        now: () => (clock += 4_000),
+        sleep: () => Promise.resolve(),
+      }),
+    ).rejects.toThrow(
+      `no free slot within ${MESSAGE_SLOT_CLAIM_DEADLINE_MS} ms (3 attempts)`,
     );
-    expect(insertsOf(statements)).toBe(MESSAGE_SLOT_ATTEMPTS);
+    expect(insertsOf(statements)).toBe(3);
     expect(statements.some((text) => text.includes('UPDATE'))).toBe(false);
   });
 });

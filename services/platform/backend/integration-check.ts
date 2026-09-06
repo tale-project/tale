@@ -5234,7 +5234,9 @@ async function checkMessageSlots(
       thread_id, org_id, user_id, chat_type, status, created_at_ms
     ) VALUES (${threadId}, ${orgId}, ${userId}, 'assistant', 'active', ${now})
   `;
-  const APPENDS = 12;
+  // Larger than the retry count the loop once carried (8): every round has
+  // one winner, so a burst needs as many rounds as appenders.
+  const APPENDS = 32;
   const outcomes = await Promise.allSettled(
     Array.from({ length: APPENDS }, (_, i) =>
       appendMessageRow(sql, {
