@@ -171,7 +171,9 @@ export async function loadVisibleConversation(
       isAdmin: viewerIsAdmin(viewer.role),
       userId: viewer.userId,
       hasTeam: async (teamId) =>
-        (await getUserTeamIds(sql, viewer.userId)).includes(teamId),
+        (
+          await getUserTeamIds(sql, viewer.organizationId, viewer.userId)
+        ).includes(teamId),
     },
   );
   if (!allowed) {
@@ -553,7 +555,7 @@ export async function listConversationsPage(
   const isAdmin = viewerIsAdmin(viewer.role);
   const teamIds = isAdmin
     ? new Set<string>()
-    : new Set(await getUserTeamIds(sql, viewer.userId));
+    : new Set(await getUserTeamIds(sql, viewer.organizationId, viewer.userId));
   const visible: ConversationRow[] = [];
   for (const row of raw) {
     const allowed = await conversationAssignmentAllows(

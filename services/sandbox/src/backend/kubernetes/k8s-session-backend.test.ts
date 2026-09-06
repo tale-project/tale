@@ -31,11 +31,8 @@ const cfg: SpawnerConfig = {
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: null,
-    spawnerImage: 'tale-sandbox:test',
-    cacheMode: 'none',
     workspaceSizeLimit: '4Gi',
   },
-  defaultTimeoutMs: 30_000,
   maxTimeoutMs: 300_000,
   hostSessionRoot: '/var/lib/tale-sandbox/sessions',
   cacheVolumePrefix: { pip: 'pip', npm: 'npm', bun: 'bun' },
@@ -43,8 +40,6 @@ const cfg: SpawnerConfig = {
   egressProxy: 'http://sandbox-egress:3128',
   stdoutMaxBytes: 5_242_880,
   stderrMaxBytes: 5_242_880,
-  outputFileMaxBytes: 52_428_800,
-  outputTotalMaxBytes: 104_857_600,
   maxRequestBodyBytes: 262_144,
   session: TEST_SESSION_CONFIG,
 };
@@ -65,19 +60,34 @@ function notFound(): Promise<never> {
 function conflict(): Promise<never> {
   return Promise.reject(Object.assign(new Error('conflict'), { code: 409 }));
 }
+/** A definitive non-409 failure (400 is non-retryable, so withRetry rethrows
+ * at once — no backoff noise in the test). */
+function badRequest(): Promise<never> {
+  return Promise.reject(Object.assign(new Error('bad request'), { code: 400 }));
+}
 
 interface Calls {
   pvcCreated: boolean;
   pvcDeleted: boolean;
+  podDeleted: boolean;
+  secretDeleted: number;
 }
 
 /** Stub CoreV1Api for a FRESH create (no pre-existing PVC): the PVC reads 404,
- * its create succeeds, and the Secret create is supplied by the test. */
-function stub(createSecret: () => Promise<unknown>): {
+ * its create succeeds, and the Secret/Pod creates are supplied by the test. */
+function stub(
+  createSecret: () => Promise<unknown>,
+  createPod: () => Promise<unknown> = () => Promise.resolve({}),
+): {
   client: K8sClient;
   calls: Calls;
 } {
-  const calls: Calls = { pvcCreated: false, pvcDeleted: false };
+  const calls: Calls = {
+    pvcCreated: false,
+    pvcDeleted: false,
+    podDeleted: false,
+    secretDeleted: 0,
+  };
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
   const core = {
     readNamespacedPersistentVolumeClaim: () => notFound(),
@@ -90,10 +100,16 @@ function stub(createSecret: () => Promise<unknown>): {
       return Promise.resolve({});
     },
     createNamespacedSecret: createSecret,
-    createNamespacedPod: () => Promise.resolve({}),
+    createNamespacedPod: createPod,
     readNamespacedPod: () => notFound(),
-    deleteNamespacedPod: () => Promise.resolve({}),
-    deleteNamespacedSecret: () => Promise.resolve({}),
+    deleteNamespacedPod: () => {
+      calls.podDeleted = true;
+      return Promise.resolve({});
+    },
+    deleteNamespacedSecret: () => {
+      calls.secretDeleted += 1;
+      return Promise.resolve({});
+    },
   } as unknown as CoreV1Api;
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
   const networking = {} as unknown as NetworkingV1Api;
@@ -189,23 +205,106 @@ describe('KubernetesSessionBackend.createSession — reap a terminal Pod on resu
   });
 });
 
+/** The rejection of a promise, or null when it resolved. */
+async function rejection(promise: Promise<unknown>): Promise<Error | null> {
+  try {
+    await promise;
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err : new Error(String(err));
+  }
+}
+
 describe('KubernetesSessionBackend.createSession — PVC cleanup on Secret failure (C4)', () => {
   test('a fresh-create Secret failure deletes the just-created workspace PVC', async () => {
-    const { client, calls } = stub(conflict);
+    // A definitive non-conflict failure: the objects are ours to clean up.
+    const { client, calls } = stub(badRequest);
     const backend = new KubernetesSessionBackend(cfg, client);
 
-    let threw = false;
-    try {
-      await backend.createSession(spec);
-    } catch {
-      threw = true;
-    }
-    expect(threw).toBe(true);
+    expect(await rejection(backend.createSession(spec))).not.toBeNull();
 
     // The PVC was created, then the Secret failed AFTER it — the cleanup
     // envelope must destroy the orphan (fresh create ⇒ destroy, not stop).
     expect(calls.pvcCreated).toBe(true);
     expect(calls.pvcDeleted).toBe(true);
+  });
+});
+
+// REGRESSION: a 409 on the deterministic Secret/Pod name means a PEER owns the
+// session (a concurrent create on another replica, or a live Pod this replica
+// has not adopted). The failed-create cleanup used to run anyway and delete
+// the running peer Pod + Secret — and, on the fresh path, the PVC too. A lost
+// name race must never destroy the winner (Docker-backend parity).
+describe('KubernetesSessionBackend.createSession — a 409 name conflict is not ours to tear down', () => {
+  test('Secret 409: rejects with the conflict and deletes NOTHING (no Pod, Secret, or PVC delete)', async () => {
+    const { client, calls } = stub(conflict);
+    const backend = new KubernetesSessionBackend(cfg, client);
+    const err = await rejection(backend.createSession(spec));
+    expect(err?.message).toMatch(/session sess_c4 already exists/);
+    expect(calls.podDeleted).toBe(false);
+    expect(calls.secretDeleted).toBe(0);
+    expect(calls.pvcDeleted).toBe(false);
+  });
+
+  test('Pod 409: rejects with the conflict, removes only the Secret this call created', async () => {
+    const { client, calls } = stub(() => Promise.resolve({}), conflict);
+    const backend = new KubernetesSessionBackend(cfg, client);
+    const err = await rejection(backend.createSession(spec));
+    expect(err?.message).toMatch(/session sess_c4 already exists/);
+    // The Pod (a peer's, or one still Terminating) and the PVC are untouched;
+    // our own Secret is removed so it cannot 409 every future create.
+    expect(calls.podDeleted).toBe(false);
+    expect(calls.pvcDeleted).toBe(false);
+    expect(calls.secretDeleted).toBe(1);
+  });
+});
+
+// REGRESSION: destroySession swallowed a failed PVC delete, so the route
+// answered destroyed:true while the user's data (and its storage) survived
+// with no retry and no sweeper.
+describe('KubernetesSessionBackend.destroySession — the workspace PVC delete is not laundered', () => {
+  test('rejects when the PVC delete fails (after retrying a transient 500); Pod + Secret already gone', async () => {
+    let pvcDeletes = 0;
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const core = {
+      deleteNamespacedPod: () => Promise.resolve({}),
+      deleteNamespacedSecret: () => Promise.resolve({}),
+      deleteNamespacedPersistentVolumeClaim: () => {
+        pvcDeletes += 1;
+        return Promise.reject(
+          Object.assign(new Error('etcd leader changed'), { code: 500 }),
+        );
+      },
+    } as unknown as CoreV1Api;
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const networking = {} as unknown as NetworkingV1Api;
+    const backend = new KubernetesSessionBackend(cfg, {
+      core,
+      networking,
+      namespace: 'tale-sandbox',
+    });
+    const err = await rejection(backend.destroySession('sess_pvc'));
+    expect(err?.message).toMatch(
+      /failed to delete workspace PVC .* for sess_pvc/,
+    );
+    expect(pvcDeletes).toBe(3); // withRetry's attempts, then surfaced
+  });
+
+  test('an already-gone PVC (404) is success', async () => {
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const core = {
+      deleteNamespacedPod: () => Promise.resolve({}),
+      deleteNamespacedSecret: () => Promise.resolve({}),
+      deleteNamespacedPersistentVolumeClaim: () => notFound(),
+    } as unknown as CoreV1Api;
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const networking = {} as unknown as NetworkingV1Api;
+    const backend = new KubernetesSessionBackend(cfg, {
+      core,
+      networking,
+      namespace: 'tale-sandbox',
+    });
+    expect(await backend.destroySession('sess_pvc_gone')).toBe(true);
   });
 });
 
@@ -265,5 +364,32 @@ describe('KubernetesSessionBackend durable pin (Pod annotation)', () => {
     const listed = await backend.listSessions();
     expect(listed.find((s) => s.sessionId === 'k8s-pinned')?.pinned).toBe(true);
     expect(listed.find((s) => s.sessionId === 'k8s-plain')?.pinned).toBe(false);
+  });
+});
+
+describe('KubernetesSessionBackend.listSessions', () => {
+  test('THROWS on an API failure instead of reporting "no sessions"', async () => {
+    // An apiserver hiccup laundered into [] would leave every running session
+    // Pod unregistered (unroutable, never reaped) until the next successful
+    // list. 403 is non-retryable so withRetry surfaces it at once.
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const core = {
+      listNamespacedPod: () =>
+        Promise.reject(Object.assign(new Error('forbidden'), { code: 403 })),
+    } as unknown as CoreV1Api;
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const networking = {} as unknown as NetworkingV1Api;
+    const backend = new KubernetesSessionBackend(cfg, {
+      core,
+      networking,
+      namespace: 'tale-sandbox',
+    });
+    let threw: Error | null = null;
+    try {
+      await backend.listSessions();
+    } catch (err) {
+      threw = err instanceof Error ? err : new Error(String(err));
+    }
+    expect(threw?.message).toBe('forbidden');
   });
 });

@@ -251,33 +251,6 @@ export async function updateProduct(
   });
 }
 
-/** Upsert one language's translation entry on the translations array. */
-export async function upsertProductTranslation(
-  tx: TransactionSql,
-  scope: ProductScope,
-  productId: string,
-  translation: Omit<ProductTranslation, 'lastUpdated'>,
-): Promise<void> {
-  assertProductAccess(scope, 'write');
-  validateProductFields(translation);
-  const product = await loadProductOrThrow(tx, scope.organizationId, productId);
-  const translations = (product.translations ?? []).filter(
-    (entry) => entry.language !== translation.language,
-  );
-  translations.push({ ...translation, lastUpdated: Date.now() });
-  await tx`
-    UPDATE app.products SET
-      translations = ${tx.json(toJson(translations))},
-      updated_at_ms = ${Date.now()}
-    WHERE id = ${productId}
-  `;
-  await emitHintInTx(tx, {
-    orgId: scope.organizationId,
-    entity: 'product',
-    entityId: productId,
-  });
-}
-
 export async function deleteProduct(
   tx: TransactionSql,
   scope: ProductScope,

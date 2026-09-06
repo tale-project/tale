@@ -51,6 +51,13 @@ export const CONNECTION_FAILURES_BEFORE_PAUSE = 3;
  * scan; the corpus-side claim takeover makes the retry safe. */
 export const STUCK_SCANNING_RETRY_MS = 2 * 60 * 60 * 1000;
 
+/** The row's error when its domain has no corpus registration — written by
+ * the status sync AND by a scan that finds nothing to claim, so the failure
+ * ledger (attempt clock, `error` status) fires for that class too instead
+ * of the scheduler re-picking the domain every tick in silence. */
+export const WEBSITE_NOT_IN_CORPUS_MESSAGE =
+  'Website not found in crawler. Please delete and re-add it.';
+
 /** The scheduler's view of one `websites` row, as
  * `listWebsitesForScanScheduling` projects it. */
 export interface ScanSchedulingSite {

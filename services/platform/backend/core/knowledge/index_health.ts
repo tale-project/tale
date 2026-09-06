@@ -666,17 +666,31 @@ export function allowCorpusWrites(url: string, schema: string): void {
   if (bySchema.size === 0) refusals.delete(url);
 }
 
-/** Why writes into a corpus are refused right now, or `null`. */
-export function corpusWriteRefusal(
-  url: string,
-  schema: string,
-): CorpusWriteRefusal | null {
-  return refusals.get(url)?.get(schema) ?? null;
-}
-
 /** Forget every refusal — tests only. */
 export function forgetCorpusWriteRefusals(): void {
   refusals.clear();
+}
+
+/**
+ * What the app does when the write guard lifts a refusal ITSELF — a write
+ * re-verified the index healthy (rebuilt in another process, or repaired
+ * by an operator's REINDEX) outside any rebuild job. The job's outcomes
+ * re-queue the files they parked; without this seam the self-lift resumed
+ * writes and left those files parked with a note that said they would
+ * resume on their own.
+ */
+export type CorpusWritesResumedHook = (args: {
+  url: string;
+  schema: string;
+}) => Promise<void>;
+
+let corpusWritesResumedHook: CorpusWritesResumedHook | null = null;
+
+/** Install (or clear, with `null`) the app-side reaction to a self-lift. */
+export function setCorpusWritesResumedHook(
+  hook: CorpusWritesResumedHook | null,
+): void {
+  corpusWritesResumedHook = hook;
 }
 
 /** Raised by {@link assertCorpusWritable}: the corpus's BM25 index is being
@@ -708,7 +722,7 @@ export function indexUnavailableMessage(
 ): string {
   return state === 'rebuilding'
     ? `The knowledge search index ${index} was found corrupted and is being rebuilt. Indexing is paused until the rebuild completes and resumes automatically — no action is needed.`
-    : `The knowledge search index ${index} is corrupted and its automatic rebuild did not succeed. Indexing is paused until an operator repairs the index (REINDEX INDEX ${index}) or restores the knowledge database; retry indexing afterwards.`;
+    : `The knowledge search index ${index} is corrupted and its automatic rebuild did not succeed. Indexing is paused until an operator repairs the index (REINDEX INDEX ${index}) or restores the knowledge database; it resumes on its own once the index verifies healthy again — at the next indexing attempt or service start.`;
 }
 
 /**
@@ -743,6 +757,17 @@ export async function assertCorpusWritable(
         `BM25 index ${name} verifies healthy again — writes to ${schema} resume`,
         { index: name, checks: verify.checks },
       );
+      // The files parked behind the refusal resume with the writes. Never
+      // fails the write that found the index healthy.
+      if (corpusWritesResumedHook !== null) {
+        try {
+          await corpusWritesResumedHook({ url, schema });
+        } catch (error) {
+          logger.warn(
+            `could not re-queue the files parked behind ${name}: ${describe(error)}`,
+          );
+        }
+      }
       return;
     }
     logger.warn(

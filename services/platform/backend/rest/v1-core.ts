@@ -817,7 +817,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     viewer: {
       kind: 'user' as const,
       userId: c.get('userId'),
-      teamIds: await getUserTeamIds(deps.sql, c.get('userId')),
+      teamIds: await getUserTeamIds(
+        deps.sql,
+        c.get('organizationId'),
+        c.get('userId'),
+      ),
       isOrgAdmin: defineAbilityFor(c.get('role')).can('write', 'orgSettings'),
     },
   });

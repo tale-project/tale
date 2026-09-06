@@ -163,12 +163,6 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
           organizationId,
           policyType: 'login_policy',
           config: {
-            // Spread the saved config first (#2670) — `perIpLimit` has no
-            // form field, so without this the batched save silently wiped it
-            // every time, while the `enabled` toggle path (above) already
-            // preserved it via the same spread. Explicit fields below still
-            // win for what the form actually edits.
-            ...savedConfig,
             enabled,
             maxAttemptsBeforeLockout: values.maxAttempts,
             backoffSchedule: schedule,
@@ -180,7 +174,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
         throw new Error(t('loginPolicy.saveFailed'), { cause: err });
       }
     },
-    [enabled, organizationId, savedConfig, t, upsertMutation],
+    [enabled, organizationId, t, upsertMutation],
   );
 
   const editor = useFormEditor<LoginPolicyForm>({

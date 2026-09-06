@@ -33,6 +33,7 @@ import {
   stageFiles,
   type StageItem,
 } from './file-ops.ts';
+import { readJsonBody } from './http-body.ts';
 import {
   RUNNERD_CONSUMER_BUFFER_MAX_BYTES,
   RUNNERD_MAX_LIVE_EXECS,
@@ -147,25 +148,12 @@ function tokenOk(req: IncomingMessage): boolean {
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
+  // A 413 needs no `Connection: close`: `readJsonBody` drains the refused
+  // body before the route answers, so the keep-alive connection is clean
+  // for the next request (closing it under a half-sent upload hangs Bun
+  // 1.3.12's fetch — the spawner — on its next call).
   res.writeHead(status, { 'content-type': 'application/json' });
   res.end(payload);
-}
-
-async function readBody(
-  req: IncomingMessage,
-  maxBytes = 4 * 1024 * 1024,
-): Promise<string> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of req) {
-    // req yields Buffer chunks; the stream iterator types them as `any`, so
-    // Buffer.from accepts it without an assertion.
-    const buf = Buffer.from(chunk);
-    total += buf.byteLength;
-    if (total > maxBytes) throw new Error('payload_too_large');
-    chunks.push(buf);
-  }
-  return Buffer.concat(chunks).toString('utf8');
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -206,16 +194,15 @@ async function handleExec(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  let parsed: RunnerdExecRequest;
-  try {
-    // Shape is re-validated field-by-field inside execManager.run (execId,
-    // command/shell, cwd); this is trust-then-validate at the boundary.
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    parsed = JSON.parse(await readBody(req)) as RunnerdExecRequest;
-  } catch {
-    sendJson(res, 400, { error: 'bad_request' });
+  // Shape is re-validated field-by-field inside execManager.run (execId,
+  // command/shell, cwd); this is trust-then-validate at the boundary.
+  const body = await readJsonBody(req);
+  if (!body.ok) {
+    sendJson(res, body.status, { error: body.error });
     return;
   }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = body.value as RunnerdExecRequest;
   if (execManager.liveCount() >= RUNNERD_MAX_LIVE_EXECS) {
     // Report through the NDJSON channel so the spawner's parser handles it
     // uniformly with pre-spawn failures.
@@ -407,15 +394,14 @@ async function router(
   }
   const stdinMatch = path.match(EXEC_STDIN_RE);
   if (req.method === 'POST' && stdinMatch) {
-    let body: RunnerdStdinWriteRequest;
-    try {
-      // writeStdin validates the payload (single NDJSON line, size cap).
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      body = JSON.parse(await readBody(req)) as RunnerdStdinWriteRequest;
-    } catch {
-      sendJson(res, 400, { error: 'bad_request' });
+    const stdinBody = await readJsonBody(req);
+    if (!stdinBody.ok) {
+      sendJson(res, stdinBody.status, { error: stdinBody.error });
       return;
     }
+    // writeStdin validates the payload (single NDJSON line, size cap).
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const body = stdinBody.value as RunnerdStdinWriteRequest;
     // 200 with a structured body in every reachable case (mirrors /cancel's
     // killed:false) — the caller branches on `reason`, not the status code.
     sendJson(res, 200, execManager.writeStdin(stdinMatch[1] ?? '', body));
@@ -441,14 +427,12 @@ async function router(
     return;
   }
   if (req.method === 'POST' && path === '/env') {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(await readBody(req));
-    } catch {
-      sendJson(res, 400, { error: 'bad_request' });
+    const envBody = await readJsonBody(req);
+    if (!envBody.ok) {
+      sendJson(res, envBody.status, { error: envBody.error });
       return;
     }
-    const patch = parseEnvPatch(parsed);
+    const patch = parseEnvPatch(envBody.value);
     if (patch === null) {
       sendJson(res, 400, { error: 'bad_request' });
       return;
@@ -459,26 +443,26 @@ async function router(
     return;
   }
   if (req.method === 'POST' && path === '/files/stage') {
-    let body: { files?: StageItem[] };
-    try {
-      body = JSON.parse(await readBody(req));
-    } catch {
-      sendJson(res, 400, { error: 'bad_request' });
+    const stageBody = await readJsonBody(req);
+    if (!stageBody.ok) {
+      sendJson(res, stageBody.status, { error: stageBody.error });
       return;
     }
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const body = stageBody.value as { files?: StageItem[] };
     touch();
     const result = await stageFiles(body.files ?? []);
     sendJson(res, 200, result);
     return;
   }
   if (req.method === 'POST' && path === '/files/delete') {
-    let body: { paths?: string[] };
-    try {
-      body = JSON.parse(await readBody(req));
-    } catch {
-      sendJson(res, 400, { error: 'bad_request' });
+    const deleteBody = await readJsonBody(req);
+    if (!deleteBody.ok) {
+      sendJson(res, deleteBody.status, { error: deleteBody.error });
       return;
     }
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const body = deleteBody.value as { paths?: string[] };
     touch();
     const result = await deletePaths(body.paths ?? []);
     sendJson(res, 200, result);

@@ -4,7 +4,8 @@
  * The sharing rules a conversation's lifecycle must honour: a share link
  * serves nothing for a thread in the trash, revoking the link works there
  * too, and refiling a project-shared thread never carries its audience into
- * the new project. The real-Postgres probes ride `integration-check.ts`;
+ * the new project, and every refiling leaves an audit row on the project the
+ * chat lands in. The real-Postgres probes ride `integration-check.ts`;
  * these lock the statements the rules live in.
  */
 
@@ -180,7 +181,7 @@ describe('unshareThread', () => {
 describe('moveThreadToProject', () => {
   const auth = { organizationId: 'org_1', userId: 'user_1', email: 'o@x.io' };
   const answering =
-    (row: typeof OWNED_ROW) =>
+    (row: Omit<typeof OWNED_ROW, 'projectId'> & { projectId: string | null }) =>
     (statement: Statement): unknown[] | undefined => {
       if (statement.text.includes('FROM app.threads t')) return [row];
       if (statement.text.includes('FROM app.projects WHERE id')) {
@@ -191,7 +192,7 @@ describe('moveThreadToProject', () => {
       return [];
     };
 
-  it('ends the project share when the thread changes project, and audits the old project', async () => {
+  it('ends the project share when the thread changes project: audits the unshare on the old project and the move on the new one', async () => {
     const { sql, statements } = fakeSql(answering(OWNED_ROW));
     await expect(
       moveThreadToProject(sql, auth, 'thread_1', 'project_b'),
@@ -202,7 +203,7 @@ describe('moveThreadToProject', () => {
     );
     expect(update?.text).toContain('shared_with_project = ?');
     expect(update?.values).toEqual(['project_b', false, 'thread_1']);
-    expect(createAuditLog).toHaveBeenCalledTimes(1);
+    expect(createAuditLog).toHaveBeenCalledTimes(2);
     expect(createAuditLog.mock.calls[0]?.[1]).toMatchObject({
       action: 'project.thread.unshared',
       resourceType: 'project',
@@ -217,9 +218,17 @@ describe('moveThreadToProject', () => {
         movedToProjectId: 'project_b',
       },
     });
+    expect(createAuditLog.mock.calls[1]?.[1]).toMatchObject({
+      action: 'project.thread.moved',
+      resourceType: 'project',
+      resourceId: 'project_b',
+      actorId: 'user_1',
+      previousState: { threadId: 'thread_1', projectId: 'project_a' },
+      newState: { threadId: 'thread_1', projectId: 'project_b' },
+    });
   });
 
-  it('ends the share when the thread is taken out of its project', async () => {
+  it('ends the share when the thread is taken out of its project, anchoring the move on the project it leaves', async () => {
     const { sql, statements } = fakeSql(answering(OWNED_ROW));
     await moveThreadToProject(sql, auth, 'thread_1', null);
 
@@ -227,7 +236,17 @@ describe('moveThreadToProject', () => {
       s.text.includes('UPDATE app.thread_metadata'),
     );
     expect(update?.values).toEqual([null, false, 'thread_1']);
-    expect(createAuditLog).toHaveBeenCalledTimes(1);
+    expect(createAuditLog).toHaveBeenCalledTimes(2);
+    expect(createAuditLog.mock.calls[0]?.[1]).toMatchObject({
+      action: 'project.thread.unshared',
+      resourceId: 'project_a',
+    });
+    expect(createAuditLog.mock.calls[1]?.[1]).toMatchObject({
+      action: 'project.thread.moved',
+      resourceId: 'project_a',
+      previousState: { threadId: 'thread_1', projectId: 'project_a' },
+      newState: { threadId: 'thread_1', projectId: null },
+    });
   });
 
   it('keeps the share when the project does not change, and audits nothing', async () => {
@@ -241,11 +260,31 @@ describe('moveThreadToProject', () => {
     expect(createAuditLog).not.toHaveBeenCalled();
   });
 
-  it('audits nothing for a thread that was never shared', async () => {
+  it('audits a plain move of a thread that was never shared — no unshare row', async () => {
     const { sql } = fakeSql(
       answering({ ...OWNED_ROW, sharedWithProject: false }),
     );
     await moveThreadToProject(sql, auth, 'thread_1', 'project_b');
-    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+    expect(createAuditLog.mock.calls[0]?.[1]).toMatchObject({
+      action: 'project.thread.moved',
+      resourceId: 'project_b',
+      previousState: { threadId: 'thread_1', projectId: 'project_a' },
+      newState: { threadId: 'thread_1', projectId: 'project_b' },
+    });
+  });
+
+  it('audits filing an unfiled thread into a project, on that project', async () => {
+    const { sql } = fakeSql(
+      answering({ ...OWNED_ROW, projectId: null, sharedWithProject: false }),
+    );
+    await moveThreadToProject(sql, auth, 'thread_1', 'project_b');
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+    expect(createAuditLog.mock.calls[0]?.[1]).toMatchObject({
+      action: 'project.thread.moved',
+      resourceId: 'project_b',
+      previousState: { threadId: 'thread_1', projectId: null },
+      newState: { threadId: 'thread_1', projectId: 'project_b' },
+    });
   });
 });

@@ -56,6 +56,12 @@ const saveSchema = z.object({
   taskContract: z.unknown().optional(),
   settings: z.unknown().optional(),
   presentation: z.unknown().optional(),
+  // The wizard's create-only save: a colliding slug is refused (409) rather
+  // than appended to.
+  create: z.boolean().optional(),
+  // Install target for a NEW automation (capped like every project-id door;
+  // the store validates it exists in the org and binds only version 1).
+  projectId: z.string().min(1).max(128).optional(),
 });
 
 const deploySchema = z.object({ version: z.number().int().min(1) });
@@ -324,12 +330,13 @@ export function createAutomationRoutes(deps: {
   // Any member may answer (the 0.4 gate) — the agent asked a PERSON, not a
   // role. The answer records and the resume job rides its transaction.
   app.post('/asks/:askId/answer', async (c) => {
-    const body = answerSchema.parse(await c.req.json());
+    const body = answerSchema.safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await answerAsk(deps.sql, {
         organizationId: c.get('orgId'),
         askId: c.req.param('askId'),
-        answer: body.answer,
+        answer: body.data.answer,
         answeredBy: c.get('sessionBundle').user.id,
       });
     } catch (error) {
@@ -469,6 +476,12 @@ export function createAutomationRoutes(deps: {
             : {}),
           ...(body.data.presentation !== undefined
             ? { presentation: body.data.presentation }
+            : {}),
+          ...(body.data.create !== undefined
+            ? { create: body.data.create }
+            : {}),
+          ...(body.data.projectId !== undefined
+            ? { projectId: body.data.projectId }
             : {}),
         }),
         201,
@@ -653,9 +666,13 @@ export function createAutomationRoutes(deps: {
     if (!row) {
       return c.json({ error: 'automation not found' }, 404);
     }
+    // `deployedVersion` answers undefined (never null) for an undeployed
+    // automation; `versionRow` reads an omitted version as "the latest", so
+    // the guard must be on undefined or the draft's agents would be reported
+    // as the deployed version's warning.
     const deployed = await deployedVersion(deps.sql, orgId, name);
     const deployedRow =
-      deployed === null
+      deployed === undefined
         ? null
         : deployed === row.version
           ? row
@@ -674,7 +691,7 @@ export function createAutomationRoutes(deps: {
       ...(row.settings !== null && row.settings !== undefined
         ? { settings: row.settings }
         : {}),
-      ...(deployed !== null ? { deployedVersion: deployed } : {}),
+      ...(deployed !== undefined ? { deployedVersion: deployed } : {}),
       ...(unpinned.length > 0 ? { deployedUnpinnedAgentNodes: unpinned } : {}),
       createdBy: row.createdBy,
       createdAt: row.createdAt,

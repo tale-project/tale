@@ -1,7 +1,6 @@
 import type { Sql } from 'postgres';
 
 import { sessionExecStatus } from '../../core/node_only/sandbox/helpers/session_client.ts';
-import { sessionOpLastSignOfLifeMs } from '../../core/sandbox/agent_deadline.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { claimRecoveryResume, RECOVERY_STALE_MS } from '../sandbox/recovery.ts';
 
@@ -32,10 +31,6 @@ import { claimRecoveryResume, RECOVERY_STALE_MS } from '../sandbox/recovery.ts';
  * settle a question mid-wait, so the listing spares it.
  */
 
-/** Waiting runs examined per sweep (the parked fleet is small — a run only
- * waits while one agent turn is in flight). */
-const SCAN_LIMIT = 100;
-
 /** Turns re-attached per sweep. */
 const SWEEP_LIMIT = 25;
 
@@ -64,51 +59,67 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * turn's identity. Deadline-overdue turns are NOT filtered out: re-attaching
  * one only hands it to the drive window's own deadline cut, which settles it
  * with the real reason.
+ *
+ * Every predicate lives in SQL and the walk is OLDEST first, like the task
+ * lane's twin: `waiting` is not "one agent turn in flight" — it also holds
+ * every approval park (indefinite), every ask park (up to 7 days) and every
+ * healthy in-flight turn, deployment-wide. A newest-first page of the whole
+ * waiting fleet filtered afterwards in JS re-selected the same newest rows
+ * on every sweep, so a stalled turn behind enough newer parks was never
+ * re-attached and failed at its deadline with the misleading "ran past its
+ * time limit" — the very outcome this module exists to prevent. Liveness is
+ * the same rule `sessionOpLastSignOfLifeMs` states — the greatest of the
+ * op's start/heartbeat/finalized/finished stamps — spelled in SQL so the
+ * bound applies to the CANDIDATES, not to a page of unrelated rows.
  */
 async function listStalledWorkflowAgentTurns(
   sql: Sql,
   staleBeforeMs: number,
 ): Promise<StalledWorkflowTurn[]> {
   const rows = await sql<
-    {
-      runId: string;
-      organizationId: string;
-      cursor: unknown;
-      hasOp: boolean;
-      opStatus: string | null;
-      agentResultStatus: string | null;
-      opStartedAt: number | null;
-      opHeartbeatAt: number | null;
-      opFinalizedAt: number | null;
-      opFinishedAt: number | null;
-    }[]
+    { runId: string; organizationId: string; cursor: unknown }[]
   >`
     SELECT r.id AS "runId", r.org_id AS "organizationId",
-           r.checkpoints -> 'cursor' AS cursor,
-           (op.id IS NOT NULL) AS "hasOp",
-           op.status AS "opStatus",
-           op.agent_result_status AS "agentResultStatus",
-           op.started_at_ms::float8 AS "opStartedAt",
-           op.heartbeat_at_ms::float8 AS "opHeartbeatAt",
-           op.finalized_at_ms::float8 AS "opFinalizedAt",
-           op.finished_at_ms::float8 AS "opFinishedAt"
+           r.checkpoints -> 'cursor' AS cursor
     FROM app.automation_runs r
     LEFT JOIN app.sandbox_session_ops op
       ON op.session_id = r.checkpoints -> 'cursor' -> 'agent' ->> 'sessionId'
      AND op.exec_id = r.checkpoints -> 'cursor' -> 'agent' ->> 'execId'
     WHERE r.status = 'waiting'
-    ORDER BY r.started_at_ms DESC
-    LIMIT ${SCAN_LIMIT}
+      -- An unsettled agent turn: a settled one is the stepper's to consume.
+      AND r.checkpoints -> 'cursor' -> 'agent' IS NOT NULL
+      AND r.checkpoints -> 'cursor' -> 'agent' -> 'result' IS NULL
+      -- The ask-park exemption: an awaiting_human op is terminal with no
+      -- result for up to 7 days by design; re-attaching it would settle a
+      -- question mid-wait.
+      AND (
+        op.id IS NULL
+        OR op.status = 'running'
+        OR op.agent_result_status IS DISTINCT FROM 'awaiting_human'
+      )
+      -- ONE liveness rule for every phase: no op row at all, or a lease
+      -- silent past the staleness window.
+      AND (
+        op.id IS NULL
+        OR greatest(
+             coalesce(op.started_at_ms, 0),
+             coalesce(op.heartbeat_at_ms, 0),
+             coalesce(op.finalized_at_ms, 0),
+             coalesce(op.finished_at_ms, 0)
+           ) < ${staleBeforeMs}
+      )
+    ORDER BY r.started_at_ms ASC
+    LIMIT ${SWEEP_LIMIT}
   `;
   const out: StalledWorkflowTurn[] = [];
   for (const row of rows) {
-    if (out.length >= SWEEP_LIMIT) break;
+    // The shape guards stay: a cursor the SQL matched but the drive window
+    // could not consume is left alone, not re-attached blind.
     const cursor = row.cursor;
     if (!isRecord(cursor)) continue;
     const nodeId = cursor.node;
     const agent = cursor.agent;
     if (!isRecord(agent) || typeof nodeId !== 'string') continue;
-    // A settled turn is the stepper's to consume, not the watchdog's.
     if (agent.result !== undefined) continue;
     const { execId, sessionId, harness, gatewayModel, deadlineAt } = agent;
     if (
@@ -119,29 +130,6 @@ async function listStalledWorkflowAgentTurns(
       typeof deadlineAt !== 'number'
     ) {
       continue;
-    }
-    if (row.hasOp) {
-      // ONE liveness rule for every phase: the op's lease must be silent
-      // past the staleness window — EXCEPT the ask-park: an awaiting_human
-      // op is terminal with no result for up to 7 days by design, and
-      // re-attaching it would settle a question mid-wait.
-      if (
-        row.opStatus !== 'running' &&
-        row.agentResultStatus === 'awaiting_human'
-      ) {
-        continue;
-      }
-      const lastSignOfLife = sessionOpLastSignOfLifeMs({
-        startedAt: row.opStartedAt ?? 0,
-        ...(row.opHeartbeatAt !== null
-          ? { heartbeatAt: row.opHeartbeatAt }
-          : {}),
-        ...(row.opFinalizedAt !== null
-          ? { finalizedAt: row.opFinalizedAt }
-          : {}),
-        ...(row.opFinishedAt !== null ? { finishedAt: row.opFinishedAt } : {}),
-      });
-      if (lastSignOfLife >= staleBeforeMs) continue;
     }
     out.push({
       organizationId: row.organizationId,

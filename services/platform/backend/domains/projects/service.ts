@@ -7,6 +7,12 @@ import {
   normalizeProjectKey,
   PROJECT_KEY_MAX,
 } from '../../../lib/shared/project_key.ts';
+import {
+  PROJECT_DESCRIPTION_MAX,
+  PROJECT_INSTRUCTIONS_MAX_CHARS,
+  PROJECT_NAME_MAX,
+  PROJECT_SHARED_TEAMS_MAX,
+} from '../../../lib/shared/schemas/projects.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import {
   ADMIN_ROLES,
@@ -29,6 +35,7 @@ import {
   LegalHoldError,
   loadActiveHolds,
 } from '../legal_holds/service.ts';
+import { retireTasksInTx } from '../tasks/retire.ts';
 
 /**
  * Projects domain — ported from `convex/projects/*` with the pure access
@@ -46,11 +53,9 @@ import {
  * land with the machine door.
  */
 
-const PROJECT_NAME_MAX = 80;
-const PROJECT_DESCRIPTION_MAX = 500;
+// Name/description/instructions/sharing caps come from the shared schema
+// file — the editor counts against the same constants.
 const PROJECT_EXTERNAL_ITEM_ID_MAX = 256;
-const PROJECT_INSTRUCTIONS_MAX_CHARS = 6000;
-const PROJECT_SHARED_TEAMS_MAX = 20;
 
 const MAX_PROJECT_AGENT_SKILLS = 25;
 const MAX_PROJECT_AGENT_CONNECTORS = 25;
@@ -95,7 +100,11 @@ export async function getProjectAuthContext(
   member: { organizationId: string; userId: string; role: string },
   email?: string,
 ): Promise<ProjectAuthContext> {
-  const teamIds = await getUserTeamIds(sql, member.userId);
+  const teamIds = await getUserTeamIds(
+    sql,
+    member.organizationId,
+    member.userId,
+  );
   return {
     organizationId: member.organizationId,
     userId: member.userId,
@@ -353,6 +362,36 @@ function validateSharing(
   }
 }
 
+/**
+ * Every team a project is scoped to must be a team OF THIS ORGANIZATION.
+ * The route schemas only shape the ids; a typo'd, deleted or foreign id
+ * would otherwise persist a scope no member can satisfy (and the Sharing
+ * select cannot render) — or, for another tenant's team, one its members
+ * in this org could satisfy through a membership this org never granted.
+ */
+async function assertTeamsInOrg(
+  tx: TransactionSql,
+  organizationId: string,
+  teamIds: readonly string[],
+): Promise<void> {
+  const wanted = [...new Set(teamIds)];
+  if (wanted.length === 0) return;
+  const rows = await tx<{ id: string }[]>`
+    SELECT "id" FROM "team"
+    WHERE "organizationId" = ${organizationId} AND "id" = ANY(${wanted})
+  `;
+  if (rows.length !== wanted.length) {
+    const known = new Set(rows.map((row) => row.id));
+    const unknown = wanted.filter((id) => !known.has(id));
+    throw new ProjectError(
+      'PROJECT_SHARING_INVALID',
+      'Unknown team in project sharing',
+      400,
+      { unknownTeamIds: unknown },
+    );
+  }
+}
+
 function validateRecommendedSubsetOfAllowed(
   mode: 'all' | 'recommended' | 'restricted',
   recommended: string[] | undefined,
@@ -556,6 +595,10 @@ export async function createProject(
       : await resolveProjectKey(tx, auth.organizationId, args.key, name);
   const sharedWithTeamIds = args.sharedWithTeamIds ?? [];
   validateSharing(args.teamId, args.sharedWithTeamIds);
+  await assertTeamsInOrg(tx, auth.organizationId, [
+    ...(args.teamId ? [args.teamId] : []),
+    ...sharedWithTeamIds,
+  ]);
 
   const now = Date.now();
   const inserted = await tx<{ id: string }[]>`
@@ -805,6 +848,10 @@ export async function updateProjectSharing(
   const nextShared = args.sharedWithTeamIds ?? project.sharedWithTeamIds;
   validateSharing(nextTeamId, nextShared);
   const normalized = normalizeSharing(nextTeamId, nextShared);
+  await assertTeamsInOrg(tx, auth.organizationId, [
+    ...(normalized.teamId ? [normalized.teamId] : []),
+    ...normalized.sharedWithTeamIds,
+  ]);
 
   const previousState = {
     teamId: project.teamId,
@@ -1060,12 +1107,15 @@ export interface DeleteProjectResult {
 
 /**
  * Delete a project ('detach' releases children, 'cascade' destroys them —
- * requires the confirm phrase). Project agents, folders, and tasks die with
- * the row (FK cascade — tasks cannot exist without a project); documents
- * detach (or expire into the retention pipeline on cascade) and threads
- * detach (cascade trashes only the CALLER's own threads), exactly the 0.4
- * walk. A cascade is a delete of every document in the project, so it asks
- * the documents domain's own pre-walk first: one protected controlled record
+ * requires the confirm phrase). Project agents and folders die with the row
+ * (FK cascade); tasks cannot exist without a project either, but they go
+ * through the tasks domain's retirement walk (`retireTasksInTx`) in BOTH
+ * modes so their live runs, discussion threads, pending reviews and blobs
+ * are settled rather than dropped by the FK; documents detach (or expire
+ * into the retention pipeline on cascade) and threads detach (cascade
+ * trashes only the CALLER's own threads), exactly the 0.4 walk. A cascade is
+ * a delete of every document in the project, so it asks the documents
+ * domain's own pre-walk first: one protected controlled record
  * (in review, approved, or carrying an approved version) or one held
  * document refuses the WHOLE cascade before anything is written — the same
  * all-or-nothing the folder cascade applies. Without it the cascade was the
@@ -1165,12 +1215,35 @@ export async function deleteProject(
   `;
   counts.detachedThreadCount = detachedThreads.length;
 
+  // Tasks cannot outlive their project, so BOTH modes retire every task the
+  // way the task door does — live runs cancelled through their ledgered
+  // doors, discussion threads deleted, pending reviews closed for the
+  // reviewers' inboxes, blob refs released. Letting the FK cascade take the
+  // rows skipped all of that: phantom pending reviews, sandbox turns still
+  // executing against a vanished run row, leaked files.
+  const taskRows = await tx<{ id: string }[]>`
+    SELECT id FROM app.tasks
+    WHERE org_id = ${auth.organizationId} AND project_id = ${args.projectId}
+  `;
+  const retired = await retireTasksInTx(tx, {
+    organizationId: auth.organizationId,
+    projectId: args.projectId,
+    taskIds: taskRows.map((row) => row.id),
+    closedReason: 'project_deleted',
+  });
+
   await tx`DELETE FROM app.projects WHERE id = ${args.projectId}`;
 
   await createAuditLog(
     tx,
     projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.deleted, {
-      metadata: { mode: args.mode, ...counts },
+      metadata: {
+        mode: args.mode,
+        ...counts,
+        deletedTaskCount: taskRows.length,
+        cancelledRunCount: retired.cancelledRunCount,
+        releasedBlobRefCount: retired.releasedRefs.length,
+      },
     }),
   );
   await hintProject(tx, auth.organizationId, args.projectId);

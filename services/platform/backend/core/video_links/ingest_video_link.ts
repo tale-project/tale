@@ -307,14 +307,31 @@ export async function ingestVideoLinkImpl(
           internal.browser_sessions.sessions.reportBrowserSessionResult,
           { sessionId, outcome },
         );
-      } catch {
-        // Health reporting is best-effort; a miss self-heals via the sweep.
+      } catch (err) {
+        // Best-effort (the sweep self-heals a missed report), but never
+        // silent: a lost 'blocked' report keeps a burned cookie jar in
+        // rotation for the next job.
+        console.warn(
+          JSON.stringify({
+            event: 'video_link.session_report_failed',
+            jobId: args.jobId,
+            sessionId,
+            outcome,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
       }
     };
 
+    /** Terminal failure, written as a CAS on the phase this instance owns
+     * (`expectedStatus`). A cancel (`skipped`) or watchdog flip (`failed`)
+     * that landed while yt-dlp was running must not come back as a fresh
+     * `failed` with a Retry button: a lost CAS is logged and nothing else
+     * is written. */
     const fail = async (
       reasonCode: VideoLinkErrorReason,
       message: string,
+      expectedStatus: string,
     ): Promise<void> => {
       console.error(
         JSON.stringify({
@@ -328,13 +345,20 @@ export async function ingestVideoLinkImpl(
           message,
         }),
       );
-      await ctx.runMutation(internal.video_links.internal_mutations.updateJob, {
-        jobId: args.jobId,
-        status: 'failed',
-        errorReasonCode: reasonCode,
-        errorMessage: message.slice(0, 500),
-        progress: undefined,
-      });
+      const outcome = await ctx.runMutation(
+        internal.video_links.internal_mutations.updateJob,
+        {
+          jobId: args.jobId,
+          status: 'failed',
+          expectedStatus,
+          errorReasonCode: reasonCode,
+          errorMessage: message.slice(0, 500),
+          progress: undefined,
+        },
+      );
+      if (outcome !== 'ok') {
+        logStateLost(args.jobId, expectedStatus, 'failed', outcome);
+      }
     };
 
     try {
@@ -345,7 +369,7 @@ export async function ingestVideoLinkImpl(
         await assertSafeUrl(job.sourceUrl);
       } catch (err) {
         if (err instanceof UrlSafetyError) {
-          await fail(err.kind, err.message);
+          await fail(err.kind, err.message, 'queued');
           return;
         }
         throw err;
@@ -367,17 +391,32 @@ export async function ingestVideoLinkImpl(
         metadata = await ytdlpJson(job.sourceUrl, jobDir, undefined, session);
       } catch (err) {
         if (isBotWallError(err)) await reportSession('blocked');
-        await handleYtDlpError(ctx, args.jobId, job, err, fail);
+        await handleYtDlpError(
+          ctx,
+          args.jobId,
+          job,
+          err,
+          fail,
+          'fetching_metadata',
+        );
         return;
       }
 
       // Reject live / upcoming / oversized BEFORE any download.
       if (metadata.is_live || metadata.live_status === 'is_live') {
-        await fail('liveStream', 'Live streams are not supported');
+        await fail(
+          'liveStream',
+          'Live streams are not supported',
+          'fetching_metadata',
+        );
         return;
       }
       if (metadata.live_status === 'is_upcoming') {
-        await fail('premiere', 'Premiere/upcoming video not yet available');
+        await fail(
+          'premiere',
+          'Premiere/upcoming video not yet available',
+          'fetching_metadata',
+        );
         return;
       }
       if (
@@ -387,6 +426,7 @@ export async function ingestVideoLinkImpl(
         await fail(
           'videoTooLong',
           `Video duration ${Math.round(metadata.duration)}s exceeds ${CHAT_AUDIO_MAX_DURATION_SEC}s limit`,
+          'fetching_metadata',
         );
         return;
       }
@@ -460,7 +500,7 @@ export async function ingestVideoLinkImpl(
           await assertSafeUrl(job.sourceUrl);
         } catch (err) {
           if (err instanceof UrlSafetyError) {
-            await fail(err.kind, err.message);
+            await fail(err.kind, err.message, 'fetching_captions');
             return;
           }
           throw err;
@@ -650,7 +690,7 @@ export async function ingestVideoLinkImpl(
         await assertSafeUrl(job.sourceUrl);
       } catch (err) {
         if (err instanceof UrlSafetyError) {
-          await fail(err.kind, err.message);
+          await fail(err.kind, err.message, 'extracting_audio');
           return;
         }
         throw err;
@@ -666,7 +706,14 @@ export async function ingestVideoLinkImpl(
         );
       } catch (err) {
         if (isBotWallError(err)) await reportSession('blocked');
-        await handleYtDlpError(ctx, args.jobId, job, err, fail);
+        await handleYtDlpError(
+          ctx,
+          args.jobId,
+          job,
+          err,
+          fail,
+          'extracting_audio',
+        );
         return;
       }
 
@@ -779,17 +826,53 @@ function isBotWallError(err: unknown): boolean {
   );
 }
 
+/** The row left the phase this instance owned — a cancel (`skipped`) or a
+ *  watchdog flip (`failed`) landed during a yt-dlp call, or the row is gone.
+ *  The other writer's state stands; this instance writes and schedules
+ *  nothing further. */
+function logStateLost(
+  jobId: Id<'videoLinkJobs'>,
+  expectedStatus: string,
+  intended: string,
+  outcome: unknown,
+): void {
+  console.warn(
+    JSON.stringify({
+      event: 'video_link.state_lost',
+      jobId,
+      expectedStatus,
+      intended,
+      outcome,
+    }),
+  );
+}
+
+/**
+ * yt-dlp failed in the phase `expectedStatus` (the status this instance's
+ * last CAS write landed): retry or fail — both as a CAS on that phase, so a
+ * cancel or watchdog flip that landed while yt-dlp ran is never overwritten
+ * and never resurrected as a `queued` retry.
+ */
 async function handleYtDlpError(
   ctx: ActionCtx,
   jobId: Id<'videoLinkJobs'>,
   job: { attempts?: number },
   err: unknown,
-  fail: (reasonCode: VideoLinkErrorReason, message: string) => Promise<void>,
+  fail: (
+    reasonCode: VideoLinkErrorReason,
+    message: string,
+    expectedStatus: string,
+  ) => Promise<void>,
+  expectedStatus: string,
 ): Promise<void> {
   if (err instanceof YtDlpError) {
     const attempts = (job.attempts ?? 0) + 1;
     if (NEVER_RETRY.has(err.reason) || attempts >= MAX_ATTEMPTS) {
-      await fail(err.reason, err.sanitizedStderr || err.message);
+      await fail(
+        err.reason,
+        err.sanitizedStderr || err.message,
+        expectedStatus,
+      );
       return;
     }
     // Schedule retry with backoff. PERSIST `attempts` — without writing
@@ -800,6 +883,25 @@ async function handleYtDlpError(
       INGEST_RETRY_DELAYS_MS[
         Math.min(attempts - 1, INGEST_RETRY_DELAYS_MS.length - 1)
       ];
+    // The re-queue is a CAS on the phase this instance owns: it decides
+    // FIRST, and only a landed write schedules the cleanup + the retry —
+    // a cancelled (`skipped`) or watchdog-failed row stays as the other
+    // writer left it instead of coming back as a 'retrying' chip.
+    const requeued = await ctx.runMutation(
+      internal.video_links.internal_mutations.updateJob,
+      {
+        jobId,
+        status: 'queued',
+        expectedStatus,
+        attempts,
+        errorReasonCode: err.reason,
+        errorMessage: err.sanitizedStderr.slice(0, 500),
+      },
+    );
+    if (requeued !== 'ok') {
+      logStateLost(jobId, expectedStatus, 'queued', requeued);
+      return;
+    }
     // Clear any storageId/fileMetadataId from the prior attempt before
     // re-running the orchestrator. Without this, a retry that previously
     // patched `storageId` (Phase C, Whisper path) would carry the stale
@@ -812,13 +914,6 @@ async function handleYtDlpError(
       internal.video_links.internal_mutations.cleanupCancelledVideoLink,
       { jobId },
     );
-    await ctx.runMutation(internal.video_links.internal_mutations.updateJob, {
-      jobId,
-      status: 'queued',
-      attempts,
-      errorReasonCode: err.reason,
-      errorMessage: err.sanitizedStderr.slice(0, 500),
-    });
     await ctx.scheduler.runAfter(
       delayMs,
       internal.video_links.ingest_video_link.ingestVideoLink,
@@ -843,5 +938,5 @@ async function handleYtDlpError(
     return;
   }
   const message = err instanceof Error ? err.message : String(err);
-  await fail('transient', message);
+  await fail('transient', message, expectedStatus);
 }

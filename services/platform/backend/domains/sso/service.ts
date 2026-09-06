@@ -8,6 +8,7 @@ import type {
   SsoUserInfo,
 } from '../../core/enterprise_sso/types.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
+import { retireDeletedTeamScopes } from '../teams/service.ts';
 import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
 import { resolveProvisioning } from './config.ts';
 
@@ -416,6 +417,9 @@ async function reapEmptySyncedTeam(
     DELETE FROM app.sso_synced_teams
     WHERE org_id = ${organizationId} AND team_id = ${teamId}
   `;
+  // Whatever an admin scoped to the synced team meanwhile (a project, a
+  // folder) must not stay pointed at the ghost.
+  await retireDeletedTeamScopes(sql, organizationId, teamId);
   return true;
 }
 

@@ -17,6 +17,7 @@ import { DEFAULT_TRUSTED_PROXIES } from '../../lib/shared/schemas/governance.ts'
 import { organizationNameSchema } from '../../lib/shared/schemas/organizations.ts';
 import { sessionIdleWindowSeconds } from '../../lib/shared/session-idle.ts';
 import { getString, isRecord } from '../../lib/utils/type-utils.ts';
+import { normalizeAuthEmail } from '../core/lib/auth/normalize_auth_email.ts';
 import { getClientIp } from '../core/lib/utils/client_ip.ts';
 import { logJoinedOrganization } from '../domains/audit_logs/service.ts';
 import {
@@ -29,6 +30,7 @@ import {
   assertOrgSlugNotRetiring,
   OrganizationError,
 } from '../domains/organizations/service.ts';
+import { retireDeletedTeamScopes } from '../domains/teams/service.ts';
 import {
   anchorTwoFactorGraceOnSignIn,
   getTwoFactorLockState,
@@ -98,12 +100,43 @@ function sessionPayloadUser(
 // between "wrong password" (bcrypt, ~100ms) and "locked" (a single read).
 const LOCKOUT_JITTER_MAX_MS = 200;
 
+/**
+ * The sign-in body's email in its CANONICAL form — the key every lockout
+ * read and write uses. `normalizeAuthEmail` (lowercase + trim) is also how
+ * the user row is matched, so a padded address can never open a second
+ * counter beside the real account's.
+ */
 function bodyEmail(body: unknown): string | null {
   if (!isRecord(body)) {
     return null;
   }
   const email = getString(body, 'email');
-  return email ? email.toLowerCase() : null;
+  const normalized = email ? normalizeAuthEmail(email) : '';
+  return normalized || null;
+}
+
+export type SignInOutcome = 'success' | 'failure' | 'not-attempted';
+
+/**
+ * Classify a sign-in endpoint result for the lockout counter. Only a
+ * refusal that actually CHECKED the password is a failure: Better Auth
+ * answers UNAUTHORIZED for a wrong password or unknown user (behind a
+ * constant-time hash), while a 400 (malformed email, method disabled) never
+ * reached the check and a 403 (unverified email) already passed it. Better
+ * Auth runs after-hooks for endpoint APIErrors too, so without this split a
+ * whitespace-padded address — refused by `z.email()` before any lookup —
+ * bumped the real account's counter and, past the threshold, raised a false
+ * 'account locked' audit row and admin bell for a lock that did not exist.
+ * A before-hook 429 never reaches an after-hook at all.
+ */
+export function classifySignInOutcome(
+  returned: unknown,
+  newSession: unknown,
+): SignInOutcome {
+  if (returned instanceof APIError) {
+    return returned.statusCode === 401 ? 'failure' : 'not-attempted';
+  }
+  return newSession ? 'success' : 'failure';
 }
 
 async function jitterDelay(): Promise<void> {
@@ -317,14 +350,6 @@ export function createAuth(config: AuthConfig) {
     rateLimit: { enabled: false },
     user: {
       additionalFields: {
-        // Per-user idempotent grace-period anchor for org `enforceTwoFactor`
-        // (set once on first affected sign-in; admin reset clears it).
-        // Enforcement logic lands with the two_factor domain.
-        twoFactorGraceUntil: {
-          type: 'number',
-          required: false,
-          input: false,
-        } as const,
         // Last org the user signed in to — persists across logout/login,
         // unlike session.activeOrganizationId. Written by recordOrgSwitch.
         lastActiveOrganizationId: {
@@ -341,10 +366,6 @@ export function createAuth(config: AuthConfig) {
       ...sessionIdleWindowSeconds(),
       additionalFields: {
         trustedRole: {
-          type: 'string' as const,
-          required: false,
-        },
-        trustedTeams: {
           type: 'string' as const,
           required: false,
         },
@@ -427,14 +448,13 @@ export function createAuth(config: AuthConfig) {
 
         if (mw.path === SIGN_IN_EMAIL_PATH) {
           const email = bodyEmail(mw.body);
-          if (email) {
-            const returned = mw.context.returned;
-            // Anything reaching here made it to the password check — a
-            // before-hook 429 never runs after-hooks.
-            const failed =
-              returned instanceof APIError || !mw.context.newSession;
+          const outcome = classifySignInOutcome(
+            mw.context.returned,
+            mw.context.newSession,
+          );
+          if (email && outcome !== 'not-attempted') {
             await transactSerializable(sql, (tx) =>
-              failed
+              outcome === 'failure'
                 ? recordFailure(tx, {
                     email,
                     ...(ip !== undefined ? { ip } : {}),
@@ -720,6 +740,26 @@ export function createAuth(config: AuthConfig) {
             } catch (error) {
               console.error(
                 '[afterCreateOrganization] failed to write joined_organization audit',
+                error instanceof Error ? error.message : error,
+              );
+            }
+          },
+          // The plugin deletes the team row and its memberships alone; the
+          // rows the team SCOPED (projects, folders, documents, conversation
+          // queues, sync configs) have no FK to it and would stay pointed at
+          // a ghost nobody can satisfy. Runs after the plugin's own commit,
+          // so a failure here logs and the daily `teams.repair_scopes`
+          // sweep finishes the job — the team is already gone either way.
+          afterDeleteTeam: async (data) => {
+            try {
+              await retireDeletedTeamScopes(
+                sql,
+                data.organization.id,
+                data.team.id,
+              );
+            } catch (error) {
+              console.error(
+                '[afterDeleteTeam] failed to retire the team scopes',
                 error instanceof Error ? error.message : error,
               );
             }

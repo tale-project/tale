@@ -332,6 +332,10 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
             ...(typeof args.projectId === 'string'
               ? { projectId: args.projectId }
               : {}),
+            // Create-only rides to the store — dropping it here is how a
+            // colliding slug once silently appended a version to a live
+            // automation instead of being refused.
+            ...(args.create === true ? { create: true } : {}),
           },
         },
       );

@@ -20,22 +20,10 @@
 
 const MESSAGE_REF_PREFIX = 'msg:';
 
-/** Encode a `conversationMessages` id as a corpus ref. */
-export function encodeMessageRef(messageId: string): string {
-  return `${MESSAGE_REF_PREFIX}${messageId}`;
-}
-
-/** True when a corpus ref names a message rather than a blob. */
+/** True when a corpus ref names a message rather than a blob — the one
+ * question the retrievable filter and the ref release ask of a ref today;
+ * nothing writes such a ref yet, so there is no encoder or parser until
+ * something does. */
 export function isMessageRef(ref: string): boolean {
   return ref.startsWith(MESSAGE_REF_PREFIX);
-}
-
-/**
- * The message id inside a corpus ref, or null when the ref names something
- * else. An empty id reads as null, so `msg:` alone is not a valid ref.
- */
-export function parseMessageRef(ref: string): string | null {
-  if (!isMessageRef(ref)) return null;
-  const id = ref.slice(MESSAGE_REF_PREFIX.length);
-  return id.length > 0 ? id : null;
 }

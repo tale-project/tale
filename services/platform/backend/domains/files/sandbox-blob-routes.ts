@@ -8,6 +8,7 @@ import {
 } from '../../core/lib/storage/blob_ref.ts';
 import { verifyStageToken } from '../../core/lib/storage/sandbox_stage_token.ts';
 import {
+  fetchPresignedObject,
   locateOrgObjectStore,
   s3PresignGetUrl,
 } from '../../lib/object-store.ts';
@@ -90,7 +91,9 @@ export function createSandboxBlobRoutes(deps: { sql: Sql }): Hono {
 
     let upstream: Response;
     try {
-      upstream = await fetch(presigned);
+      upstream = await fetchPresignedObject(presigned, {
+        signal: c.req.raw.signal,
+      });
     } catch (error) {
       console.warn(
         `[sandbox-blob] upstream fetch failed for org ${org}:`,

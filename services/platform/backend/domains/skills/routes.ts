@@ -57,7 +57,7 @@ export function createSkillRoutes(deps: {
       viewer: {
         kind: 'user' as const,
         userId,
-        teamIds: await getUserTeamIds(deps.sql, userId),
+        teamIds: await getUserTeamIds(deps.sql, c.get('orgId'), userId),
         isOrgAdmin: defineAbilityFor(c.get('orgMember').role).can(
           'write',
           'orgSettings',

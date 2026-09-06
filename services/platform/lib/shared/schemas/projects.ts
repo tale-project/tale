@@ -1,12 +1,14 @@
 import { z } from 'zod/v4';
 
 import { isValidModelRef } from '../utils/model-ref';
+import { AGENT_SLUG_REGEX, MAX_AGENT_SLUG_LENGTH } from './agents';
 
 /**
  * Allowlist for project icons (lucide-react icon names).
  *
- * Server-enforced via Zod; the UI also constrains the picker to this set.
- * Keep in sync with `project-color-icon-picker.tsx` icon catalog.
+ * Server-enforced via Zod at the project routes (`backend/domains/projects/
+ * routes.ts` parses every project body with the schemas below); the avatar
+ * (`project-avatar.tsx`) falls back to the default for anything else.
  */
 export const PROJECT_ICONS = [
   'FolderKanban',
@@ -85,8 +87,11 @@ export const projectKnowledgeModeSchema = z.enum([
 ]);
 
 /**
- * Hard caps mirrored on the Convex mutation boundary. Truncation to the
- * token budget happens at chat-time in `buildProjectInstructions`.
+ * Hard caps — the ONE copy. The backend routes parse with the schemas below
+ * and the projects service validates with these constants, so the editor's
+ * counter and the server's refusal can never disagree again (they did: the
+ * service once carried a private 6000-char instructions cap while the editor
+ * counted to 20 000). Truncation to the token budget happens at chat time.
  */
 export const PROJECT_NAME_MAX = 80;
 export const PROJECT_DESCRIPTION_MAX = 500;
@@ -113,8 +118,8 @@ const sharedWithTeamIdsSchema = z
 const agentSlugSchema = z
   .string()
   .min(1)
-  .max(120)
-  .regex(/^[a-z0-9][a-z0-9_-]*$/);
+  .max(MAX_AGENT_SLUG_LENGTH)
+  .regex(AGENT_SLUG_REGEX);
 
 const modelRefSchema = z.string().min(1).refine(isValidModelRef, {
   message: 'Invalid model ref (expected "[provider:]model-id")',
@@ -130,10 +135,11 @@ export const createProjectInputSchema = z.object({
   sharedWithTeamIds: sharedWithTeamIdsSchema.optional(),
 });
 
+/** `null` clears description/icon/color; an absent field leaves it alone. */
 export const updateProjectIdentitySchema = z
   .object({
     name: projectNameSchema,
-    description: projectDescriptionSchema,
+    description: projectDescriptionSchema.nullable(),
     icon: projectIconSchema.nullable(),
     color: projectColorSchema.nullable(),
   })
@@ -175,7 +181,9 @@ export const updateProjectModelSettingsSchema = z.object({
 export const deleteProjectInputSchema = z
   .object({
     mode: z.enum(['detach', 'cascade']),
-    confirmPhrase: z.string().optional(),
+    // The phrase must equal the project NAME to pass, so anything past the
+    // name cap can never match — bound it before the compare.
+    confirmPhrase: z.string().trim().max(PROJECT_NAME_MAX).optional(),
   })
   .refine(
     (value) => value.mode !== 'cascade' || !!value.confirmPhrase?.length,
