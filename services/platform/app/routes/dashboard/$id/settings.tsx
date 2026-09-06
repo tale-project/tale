@@ -112,7 +112,8 @@ function HeaderActionButton({ action }: { action: SettingsHeaderAction }) {
 /**
  * Renders the unified Save/Discard cluster (from `useActiveEditor`) plus any
  * page-specific buttons registered via `useRegisterSettingsSecondaryAction`.
- * Data residency uses the latter exclusively: [Save] [Apply & restart].
+ * Branding registers its leading [Reset] and Providers its [Refresh catalogs]
+ * this way.
  * Desktop only — mobile uses `SettingsMobileActionBar` (single mount).
  */
 function SettingsEditorActionsSlot() {

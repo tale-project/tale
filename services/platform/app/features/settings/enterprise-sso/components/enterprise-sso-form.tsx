@@ -1359,7 +1359,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           {/* SCIM stays inline (its own generate/regenerate/disable lifecycle,
               independent of the SSO config Save). Status sits on the title row
               so it scans with the feature name — the far-right `action` slot
-              is for a control cluster (see deployment stores), not a lone pill
+              is for a control cluster, not a lone pill
               while the enable action lives below. */}
           <SettingsSection
             title={
