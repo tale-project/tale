@@ -34,8 +34,10 @@ import { logger } from '../../../lib/knowledge/logger';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types';
 import { isProgramLimitExceeded, isUndefinedTable } from './pool';
 
-/** pgvector cannot build an HNSW index above this width. */
-const HNSW_DIMENSION_LIMIT = 2000;
+/** pgvector cannot build an HNSW index above this width. Exported so the
+ * shipped-catalog gate can refuse a curated embedding width that would leave
+ * a corpus scanning sequentially. */
+export const HNSW_DIMENSION_LIMIT = 2000;
 
 /** What one database has been pinned to, keyed by connection string. The
  * width is a per-DATABASE policy — every schema in it stores the same

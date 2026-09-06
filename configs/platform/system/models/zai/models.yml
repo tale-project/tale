@@ -5,7 +5,8 @@
 # refreshed and glm-5.3 / glm-4.6v added from the 2026-08-26 listing.
 # glm-5.3-flash added from the vendor docs + listing on 2026-08-28;
 # prices are the vendor's list rates, not the launch promo running
-# until 2026-09-09.
+# until 2026-09-09. embedding-3 added from the vendor's API reference on
+# 2026-09-06 (see its entry for the facts that shaped it).
 - id: glm-5.3
   provider: zai
   tags:
@@ -100,3 +101,27 @@
   pricing:
     inputCentsPerMillion: 30
     outputCentsPerMillion: 90
+# Embedding model — the vendor's current one (embedding-2 is a fixed-1024
+# legacy tag). Facts from the vendor's API reference, 2026-09-06: `dimensions`
+# accepts 256, 512, 1024 or 2048 (default 2048); one input holds at most 3072
+# tokens; one request carries at most 64 inputs (error 1214 — the embedder's
+# batch cap). 1024 is curated because the 2048 default sits above pgvector's
+# 2000-dim HNSW ceiling (a corpus that could only scan sequentially) and 1536
+# — the width the other curated picks share — is not an accepted value, so an
+# organization sharing the bundled knowledge database with a 1536-pinned
+# corpus needs its own database for this pick. Embeddings bill the API
+# balance, NOT the GLM Coding Plan quota: a plan key without balance gets 429
+# "Insufficient balance or no resource package" (code 1113) on the coding
+# base and the general base alike (verified 2026-09-06). No price: the
+# international pricing page publishes none for embeddings, so usage books at
+# 0 rather than at a rate converted from the CN list.
+- id: embedding-3
+  provider: zai
+  tags:
+    - embedding
+  supportsTools: false
+  supportsVision: false
+  contextWindow: 3072
+  embedding:
+    dimensions: 1024
+    recommended: true

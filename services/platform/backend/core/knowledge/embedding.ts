@@ -34,9 +34,11 @@ import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { assertVectorWidth } from './dimensions';
 
-/** Texts per request. Providers cap batch size, and a smaller batch also caps
- * how much work one failure throws away. */
-export const MAX_BATCH = 128;
+/** Texts per request. Providers cap batch size — Z.ai's embedding-3 refuses
+ * more than 64 inputs outright (error 1214, raised before anything is
+ * billed), the tightest cap among the shipped catalogs — and a smaller batch
+ * also caps how much work one failure throws away. */
+export const MAX_BATCH = 64;
 
 /** Concurrent requests in flight. Enough to keep indexing moving, low enough
  * not to trip a provider's rate limit on the first large document. */

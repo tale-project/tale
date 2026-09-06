@@ -7,6 +7,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildHarnessTable } from '../../../../lib/shared/providers/resolve_execution';
+import { HNSW_DIMENSION_LIMIT } from '../../knowledge/dimensions';
 import {
   loadHarnesses,
   loadProviderDefinitions,
@@ -140,6 +141,48 @@ describe('shipped static model catalogs', () => {
       expect(model.supportsVision).toBe(true);
       expect(model.reasoning).toEqual({ knob: 'effort' });
     }
+  });
+
+  it('zai curates embedding-3 as its knowledge-embedding pick', () => {
+    const zai = loadStaticCatalogs().get('zai');
+    const embedding = zai?.find((m) => m.id === 'embedding-3');
+    expect(embedding?.tags).toEqual(['embedding']);
+    expect(embedding?.supportsTools).toBe(false);
+    expect(embedding?.supportsVision).toBe(false);
+    // The vendor accepts 256/512/1024/2048 only; its 2048 default is above
+    // pgvector's HNSW ceiling, so 1024 is the widest indexable width.
+    expect(embedding?.embedding).toEqual({
+      dimensions: 1024,
+      recommended: true,
+    });
+    // The GLM chat lineup stays chat-only and the embedding tag never leaks
+    // into a chat picker: each entry is one or the other.
+    for (const model of zai ?? []) {
+      expect(model.tags.includes('chat')).toBe(
+        !model.tags.includes('embedding'),
+      );
+    }
+  });
+
+  it('every curated embedding pick is embedding-tagged and HNSW-indexable', () => {
+    const curated: string[] = [];
+    for (const [provider, entries] of loadStaticCatalogs()) {
+      for (const entry of entries) {
+        if (entry.embedding === undefined) continue;
+        curated.push(`${provider}/${entry.id}`);
+        expect(entry.tags).toContain('embedding');
+        // A recommended width above the limit would hand the one-click setup
+        // a corpus that can only scan sequentially.
+        expect(entry.embedding.dimensions).toBeLessThanOrEqual(
+          HNSW_DIMENSION_LIMIT,
+        );
+      }
+    }
+    expect(curated).toEqual([
+      'openai/text-embedding-3-small',
+      'openrouter/qwen/qwen3-embedding-8b',
+      'zai/embedding-3',
+    ]);
   });
 });
 

@@ -12,7 +12,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { constructed, create } = vi.hoisted(() => ({
   constructed: [] as Record<string, unknown>[],
-  create: vi.fn(),
+  create:
+    vi.fn<
+      (args: {
+        input: string[];
+      }) => Promise<{ data: { embedding: number[] }[] }>
+    >(),
 }));
 
 vi.mock('openai', async (importOriginal) => {
@@ -29,7 +34,8 @@ vi.mock('openai', async (importOriginal) => {
 });
 
 const OpenAI = (await import('openai')).default;
-const { Embedder, EMBED_REQUEST_TIMEOUT_MS } = await import('./embedding.ts');
+const { Embedder, EMBED_REQUEST_TIMEOUT_MS, MAX_BATCH } =
+  await import('./embedding.ts');
 
 const MODEL = {
   providerSlug: 'openai',
@@ -96,5 +102,29 @@ describe('the one retry policy', () => {
 
     await expect(embedder.embed('hello')).rejects.toThrow('bad request');
     expect(create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('batching', () => {
+  it('never sends more texts per request than the tightest shipped cap', async () => {
+    // Z.ai's embedding-3 refuses more than 64 inputs (error 1214) before it
+    // bills anything; a document with more chunks than that must still index.
+    expect(MAX_BATCH).toBeLessThanOrEqual(64);
+    create.mockImplementation((args) =>
+      Promise.resolve({
+        data: args.input.map(() => ({ embedding: [1, 2, 3] })),
+      }),
+    );
+    const embedder = new Embedder(MODEL, 'sk-test');
+
+    const vectors = await embedder.embedAll(
+      Array.from({ length: MAX_BATCH + 1 }, (_, i) => `text ${i}`),
+    );
+
+    expect(vectors).toHaveLength(MAX_BATCH + 1);
+    expect(create.mock.calls.map(([args]) => args.input.length)).toEqual([
+      MAX_BATCH,
+      1,
+    ]);
   });
 });
