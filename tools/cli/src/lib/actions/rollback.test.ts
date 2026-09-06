@@ -111,6 +111,14 @@ function expectRunbookPrinted(): void {
   expect(infoLines.some((line) => line.includes('tale deploy --stop'))).toBe(
     true,
   );
+  expect(
+    infoLines.some((line) =>
+      line.includes('tale restore <snapshot-id> --stop'),
+    ),
+  ).toBe(true);
+  // `tale migrate down` retired with the Convex runtime; the runbook must
+  // name only commands that exist.
+  expect(infoLines.some((line) => line.includes('migrate down'))).toBe(false);
 }
 
 afterEach(() => {
