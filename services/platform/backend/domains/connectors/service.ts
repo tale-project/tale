@@ -1,9 +1,8 @@
 import type { Sql } from 'postgres';
 
-import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
 import {
   executeConnectorAction,
-  installConnectorCatalog,
+  loadConnectorCatalog,
   type ApprovalGate,
   type ConnectorAuditSink,
   type ConnectorCaller,
@@ -11,15 +10,16 @@ import {
   type CredentialResolver,
 } from '../../../lib/connectors/dispatcher.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
+import { inProcessLiveRunner } from '../../../lib/connectors/in-process-live.ts';
 import {
   registerNativeConnectors,
   type MailTransport,
   type SandboxScriptRunner,
   type WorkflowConversationStore,
   type WorkflowDocumentStore,
+  type WorkflowFolderFile,
 } from '../../../lib/connectors/natives/index.ts';
 import type { PortableHostCall } from '../../../lib/connectors/portable-live.ts';
-import { registerConnector } from '../../../lib/connectors/registry.ts';
 import {
   hasCodeRunner,
   setCodeRunner,
@@ -44,6 +44,7 @@ import {
   createHubDocument,
   listFolderDocumentsBounded,
 } from '../documents/service.ts';
+import { getOrgBlobBytes } from '../files/service.ts';
 import { findHubFolderByPath } from '../folders/paths.ts';
 import {
   FolderError,
@@ -53,6 +54,7 @@ import {
 } from '../folders/service.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
 import { pgWebdavStore } from '../webdav/connector-store.ts';
+import { connectorBlobSink } from './blob-sink.ts';
 import { collectWorkflowFolderFiles } from './document-listing.ts';
 import { pgTaskStore } from './task-store.ts';
 
@@ -61,18 +63,24 @@ import { pgTaskStore } from './task-store.ts';
  * `convex/connectors/execute_action.ts`: assembles the REUSED engine seams
  * (catalog + registry, the node-vm code runner, the native backends) and
  * supplies the PG credential resolver, the approvals gate, and the audit
- * sink, so the mailbox sync, automation connector nodes, and (later) chat
- * tools all invoke connectors the same way.
+ * sink, so the mailbox sync, automation connector nodes, and chat tools all
+ * invoke connectors the same way.
  *
  * INTERNAL by contract — callers do their own authorization first.
  *
- * Deliberately fail-loud until its domain lands: the sandbox script runner
- * (it says what is missing instead of silently degrading). Live yaml-js bodies run on the data-only in-process
- * runner, which refuses host capabilities by design — the out-of-process
- * sandbox runner rides the external-turn bridge increment.
+ * The sandbox script runner (`sandbox.run_script`) runs in the automation
+ * run's own workflow session over the automations ctx shim — the same
+ * session the run's agent nodes use. A live yaml-js body runs on the
+ * host-capable in-process runner (the shipped catalog is trusted code, and
+ * `ctx.http` is the same policed live host either way) unless the caller
+ * owns a sandbox session, in which case the body runs out of process on the
+ * session-bound runner and phones its host calls home.
  */
 
 let mailTransportOverride: MailTransport | undefined;
+
+/** The one in-process live runner — stateless, so shared by every call. */
+const inProcessLive = inProcessLiveRunner();
 
 /** Integration seam: inject a fake IMAP/SMTP transport. Pass undefined to
  * restore the real clients. */
@@ -82,89 +90,150 @@ export function setMailTransportForTesting(
   mailTransportOverride = transport;
 }
 
-const failLoudScriptRunner: SandboxScriptRunner = async () => {
-  throw new ConnectorError(
-    'NATIVE_IMPL_UNAVAILABLE',
-    'sandbox.run_script is not available yet on this deployment',
-  );
-};
+/**
+ * The `sandbox.run_script` runner over the automations ctx shim — the run's
+ * workflow session, skill staging and output harvest are the agent host's
+ * seams, answered by the same handler map the stepper runs on. The shim
+ * module is loaded lazily: it imports this door for the stepper's connector
+ * nodes, and a static import back would close a cycle.
+ */
+function workflowScripts(sql: Sql): SandboxScriptRunner {
+  return async (run) => {
+    const [
+      { automationShimHandlers, automationShimScheduler },
+      { workflowScriptRunner },
+    ] = await Promise.all([
+      import('../automations/shim.ts'),
+      import('../../core/automations/script_host.ts'),
+    ]);
+    const ctx = createCtxShim(automationShimHandlers(sql), {
+      scheduler: automationShimScheduler(sql),
+    });
+    return workflowScriptRunner(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by automationShimHandlers
+      ctx as unknown as Parameters<typeof workflowScriptRunner>[0],
+    )(run);
+  };
+}
 
 /** The most files one `document.list` answers; past it the listing says
  * `truncated` so the agent narrows the folder instead of trusting a cut. */
 const WORKFLOW_FOLDER_LIST_CAP = 200;
 
+const systemAuthFor = async (sql: Sql, organizationId: string) =>
+  getProjectAuthContext(sql, {
+    organizationId,
+    userId: 'system',
+    role: 'owner',
+  });
+
+/**
+ * The bounded hub-folder walk behind the workflow `document.list` native —
+ * "which files does this folder hold for a run", text-only documents
+ * included (they carry their document id as the handle). The folder is
+ * named by id or by human path ("Clients/Acme" — the same walk the sync
+ * engines resolve with); null = it does not exist in this org's hub tree.
+ * The agent/script hosts' `files` mounts are a different contract (blob
+ * refs only, path-prefixed names) and list through
+ * `documents/agent-list.ts:listFilesByFolder`.
+ */
+async function listWorkflowFolderFiles(
+  sql: Sql,
+  {
+    organizationId,
+    folderId,
+    folderPath,
+    recursive,
+  }: {
+    organizationId: string;
+    folderId?: string;
+    folderPath?: string;
+    recursive?: boolean;
+  },
+): Promise<{
+  files: Array<WorkflowFolderFile & { blobRef: string | null }>;
+  truncated: boolean;
+} | null> {
+  let rootFolderId: string;
+  if (folderId !== undefined) {
+    const folder = await loadFolderOrThrow(sql, folderId).catch(
+      (error: unknown) => {
+        if (error instanceof FolderError) return null;
+        throw error;
+      },
+    );
+    if (
+      folder === null ||
+      folder.organizationId !== organizationId ||
+      folder.projectId !== null
+    ) {
+      return null;
+    }
+    rootFolderId = folder.id;
+  } else if (folderPath !== undefined) {
+    const resolved = await findHubFolderByPath(
+      sql,
+      organizationId,
+      folderPath.split('/'),
+    );
+    if (resolved === null) return null;
+    rootFolderId = resolved;
+  } else {
+    return null;
+  }
+  const auth = await systemAuthFor(sql, organizationId);
+  const walked = await collectWorkflowFolderFiles(
+    {
+      filesIn: async (id, limit) => {
+        const page = await listFolderDocumentsBounded(sql, auth, {
+          folderId: id,
+          limit,
+        });
+        return {
+          files: page.documents.map((doc) => ({
+            name: doc.title ?? doc.id,
+            storageId: doc.fileRef ?? doc.id,
+            blobRef: doc.fileRef ?? null,
+          })),
+          truncated: page.truncated,
+        };
+      },
+      subfoldersOf: async (id) =>
+        (await listFolders(sql, auth, { parentId: id })).map((folder) => ({
+          id: folder.id,
+          name: folder.name,
+        })),
+    },
+    {
+      rootFolderId,
+      recursive: recursive ?? false,
+      cap: WORKFLOW_FOLDER_LIST_CAP,
+      maxDepth: MAX_FOLDER_DEPTH,
+    },
+  );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walk preserves the file shape it was fed, blobRef included
+  return walked as {
+    files: Array<WorkflowFolderFile & { blobRef: string | null }>;
+    truncated: boolean;
+  };
+}
+
 /** The document natives over the 0.5 documents domain. */
 function pgDocumentStore(sql: Sql): WorkflowDocumentStore {
-  const systemAuth = async (organizationId: string) =>
-    getProjectAuthContext(sql, {
-      organizationId,
-      userId: 'system',
-      role: 'owner',
-    });
   return {
-    async listFolder({ organizationId, folderId, folderPath, recursive }) {
-      // The folder, by id or by human path ("Clients/Acme" — the same walk
-      // the sync engines resolve with); null = it does not exist in this
-      // org's hub tree, which the native turns into a coded refusal.
-      let rootFolderId: string;
-      if (folderId !== undefined) {
-        const folder = await loadFolderOrThrow(sql, folderId).catch(
-          (error: unknown) => {
-            if (error instanceof FolderError) return null;
-            throw error;
-          },
-        );
-        if (
-          folder === null ||
-          folder.organizationId !== organizationId ||
-          folder.projectId !== null
-        ) {
-          return null;
-        }
-        rootFolderId = folder.id;
-      } else if (folderPath !== undefined) {
-        const resolved = await findHubFolderByPath(
-          sql,
-          organizationId,
-          folderPath.split('/'),
-        );
-        if (resolved === null) return null;
-        rootFolderId = resolved;
-      } else {
-        return null;
-      }
-      const auth = await systemAuth(organizationId);
-      return collectWorkflowFolderFiles(
-        {
-          filesIn: async (id, limit) => {
-            const page = await listFolderDocumentsBounded(sql, auth, {
-              folderId: id,
-              limit,
-            });
-            return {
-              files: page.documents.map((doc) => ({
-                name: doc.title ?? doc.id,
-                storageId: doc.fileRef ?? doc.id,
-              })),
-              truncated: page.truncated,
-            };
-          },
-          subfoldersOf: async (id) =>
-            (await listFolders(sql, auth, { parentId: id })).map((folder) => ({
-              id: folder.id,
-              name: folder.name,
-            })),
-        },
-        {
-          rootFolderId,
-          recursive: recursive ?? false,
-          cap: WORKFLOW_FOLDER_LIST_CAP,
-          maxDepth: MAX_FOLDER_DEPTH,
-        },
-      );
+    async listFolder(args) {
+      const listing = await listWorkflowFolderFiles(sql, args);
+      if (listing === null) return null;
+      return {
+        files: listing.files.map(({ name, storageId }) => ({
+          name,
+          storageId,
+        })),
+        truncated: listing.truncated,
+      };
     },
     async create({ organizationId, folderId, name, content, contentType }) {
-      const auth = await systemAuth(organizationId);
+      const auth = await systemAuthFor(sql, organizationId);
       const documentId = await sql.begin((tx) =>
         createHubDocument(tx, auth, {
           title: name,
@@ -236,7 +305,7 @@ function approvalGate(sql: Sql): ApprovalGate {
         return { status: 'required', approvalId: decision.approvalId };
       }
       throw new ConnectorError(
-        'APPROVAL_GATE_MISSING',
+        'APPROVAL_REJECTED',
         'This operation was rejected and will not run. Ask again with a new request if it should proceed.',
       );
     },
@@ -283,15 +352,17 @@ function auditSink(sql: Sql): ConnectorAuditSink {
  * catalog read is stat-memoized). */
 function assembleConnectorHost(sql: Sql): void {
   if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
-  const connectors = loadConnectorDefinitions();
-  installConnectorCatalog(connectors);
-  for (const connector of connectors) registerConnector(connector);
+  loadConnectorCatalog();
   registerNativeConnectors({
     webdav: pgWebdavStore(sql),
-    sandboxScripts: failLoudScriptRunner,
+    sandboxScripts: workflowScripts(sql),
     tasks: pgTaskStore(sql),
     documents: pgDocumentStore(sql),
     conversations: pgConversationStore(sql),
+    // Outbound mail attachments read from the org's own blob store — the
+    // files domain refuses a ref outside the org before any byte moves.
+    mailAttachments: ({ organizationId, storageRef }) =>
+      getOrgBlobBytes(sql, organizationId, storageRef),
     ...(mailTransportOverride !== undefined
       ? { mailTransport: mailTransportOverride }
       : {}),
@@ -309,9 +380,9 @@ export interface RunConnectorArgs {
   idempotencyKey?: string;
   /**
    * A live sandbox session to run a yaml-js body IN, out of process. Only
-   * the external-turn bridge owns one; without it a live yaml-js body
-   * refuses on the data-only in-process runner (which cannot carry host
-   * capabilities). The runner is per-invocation ON PURPOSE — the
+   * the external-turn bridge owns one; every other live caller (automation
+   * runs, chat, the platform's own senders) runs the body on the in-process
+   * live runner. The runner is per-invocation ON PURPOSE — the
    * process-global slot is shared by every concurrent org.
    */
   execSessionId?: string;
@@ -328,8 +399,8 @@ export async function runConnectorAction(
   assembleConnectorHost(sql);
   // Out-of-process live execution: the session-bound sandbox-exec runner
   // plus the one-run capability its in-sandbox façade phones home with. No
-  // HMAC root ⇒ no token ⇒ fall back to the in-process refusal rather than
-  // running a body whose `ctx.http` could not be mediated.
+  // HMAC root ⇒ no token ⇒ the body runs in process instead, where its
+  // `ctx.http` is mediated by the live host directly.
   let portableRunner:
     | { codeRunner: CodeRunner; portableHost: PortableHostCall }
     | undefined;
@@ -344,7 +415,7 @@ export async function runConnectorAction(
     });
     if (token === null) {
       console.warn(
-        '[connectors] no HMAC root configured — live sandbox execution unavailable, falling back to the in-process refusal',
+        '[connectors] no HMAC root configured — live sandbox execution unavailable, running the body in process',
       );
     } else {
       portableRunner = {
@@ -367,10 +438,23 @@ export async function runConnectorAction(
       credentials: credentialResolver(sql),
       approvals: approvalGate(sql),
       audit: auditSink(sql),
+      // `ctx.files` for an in-process live body: the org's own blob store.
+      blobs: connectorBlobSink(sql, {
+        organizationId: args.organizationId,
+        connector: args.connector,
+        caller: args.caller,
+      }),
       ...(args.idempotencyKey !== undefined
         ? { idempotencyKey: args.idempotencyKey }
         : {}),
-      ...(portableRunner !== undefined ? portableRunner : {}),
+      // A live yaml-js body needs a host-capable runner: the session-bound
+      // one when the caller owns a session, the in-process one otherwise.
+      // The process-global slot stays the data-only runner for mock bodies.
+      ...(portableRunner !== undefined
+        ? portableRunner
+        : args.mode === 'live'
+          ? { codeRunner: inProcessLive }
+          : {}),
     },
   });
 }

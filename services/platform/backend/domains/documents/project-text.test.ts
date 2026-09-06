@@ -41,7 +41,7 @@ vi.mock('../../core/lib/storage/object_store.ts', () => ({
   s3GetObjectBytesIfExists: vi.fn(),
 }));
 vi.mock('../../lib/object-store.ts', () => ({
-  resolveObjectStore: vi.fn(() => Promise.resolve({ bucket: 'tale' })),
+  locateOrgObjectStore: vi.fn(() => Promise.resolve({ bucket: 'tale' })),
 }));
 vi.mock('../../lib/org-config.ts', () => ({
   resolveOrgSlug: vi.fn(() => Promise.resolve('acme')),

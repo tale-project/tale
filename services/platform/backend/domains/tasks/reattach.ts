@@ -122,7 +122,7 @@ export async function recoverStalledTaskAgentTurns(
       staleBeforeMs,
       createMissing: {
         organizationId: turn.organizationId,
-        kind: 'agent-run',
+        kind: 'task-agent',
         deadlineMs: turn.deadlineAt,
       },
     });

@@ -1092,9 +1092,10 @@ export async function runSendMessageJob(
   if (!message) return;
   try {
     const { connector, action } = sendConnectorAction(payload.connectorName);
-    // Presign a GET per attachment at send time — for EVERY mail connector,
-    // imap-smtp included: its native now streams each part from the URL, so a
-    // reply carries the files the sender attached instead of dropping them.
+    // Each attachment travels with both handles and `buildSendInput` picks
+    // per connector: the API-mail bodies fetch a GET presigned at send time
+    // through the mediated `ctx.http`; the imap-smtp native takes the org
+    // blob ref and reads the bytes through the files domain itself.
     const attachmentPayloads = !payload.attachments?.length
       ? []
       : await Promise.all(
@@ -1102,6 +1103,7 @@ export async function runSendMessageJob(
             name: att.fileName,
             contentType: att.contentType,
             size: att.size,
+            storageRef: att.storageRef,
             url: await getFileUrl(
               sql,
               { organizationId: payload.organizationId },

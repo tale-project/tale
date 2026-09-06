@@ -1148,6 +1148,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           status: 'refused',
           reason:
             'The backend is restarting for an upgrade — send again in a moment.',
+          persisted: false,
         },
         503,
       );
@@ -1175,7 +1176,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       threadId: string;
       modelId: string;
       providerSlug?: string;
-    }): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
+    }): Promise<{
+      status: 'completed' | 'refused';
+      reason?: string;
+      persisted?: boolean;
+    }> => {
       try {
         const outcome = await runChatTurn(deps.sql, {
           ...shared,
@@ -1189,16 +1194,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           ? { status: 'completed' }
           : {
               status: 'refused',
-              ...(outcome.reason !== undefined
-                ? { reason: outcome.reason }
-                : {}),
+              reason: outcome.reason,
+              persisted: outcome.persisted,
             };
       } catch (err) {
         // Lost the column's claim to a send that slipped past the busy read
         // above: the open rolled back and the other turn owns the thread —
         // an error row now would land in ITS transcript.
         if (err instanceof ThreadBusyError) {
-          return { status: 'refused', reason: err.message };
+          return { status: 'refused', reason: err.message, persisted: false };
         }
         // A pre-pipeline throw (model resolution, credential) left nothing
         // in the transcript — write the error row here so the column
@@ -1220,7 +1224,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         } catch (writeErr) {
           console.error('[arena] could not record side failure', writeErr);
         }
-        return { status: 'refused', reason };
+        return { status: 'refused', reason, persisted: true };
       }
     };
     const [a, b] = await Promise.all([
@@ -1265,6 +1269,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           status: 'refused',
           reason:
             'The backend is restarting for an upgrade — send again in a moment.',
+          persisted: false,
         },
         503,
       );
@@ -1276,8 +1281,17 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     // run and delete each other's row.
     const live = await readGeneration(deps.sql, organizationId, thread.id);
     if (live !== null) {
-      return c.json({ status: 'refused', reason: THREAD_BUSY_REASON }, 409);
+      return c.json(
+        { status: 'refused', reason: THREAD_BUSY_REASON, persisted: false },
+        409,
+      );
     }
+    // Every refusal below says whether the exchange is on the record
+    // (`persisted`): the pipeline's own refusals — a guardrail block, an
+    // output block, a failed stream — append the user row and a blocked
+    // reply, so the composer must NOT hand the text back; a refusal made
+    // before the pipeline wrote anything leaves the caller holding the only
+    // copy, and the client restores it.
     let outcome;
     try {
       outcome = await runChatTurn(deps.sql, {
@@ -1307,7 +1321,10 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       // The claim loser of two racing sends: nothing was appended, the
       // other turn streams on — the same refusal the fast path gives.
       if (error instanceof ThreadBusyError) {
-        return c.json({ status: 'refused', reason: error.message }, 409);
+        return c.json(
+          { status: 'refused', reason: error.message, persisted: false },
+          409,
+        );
       }
       // A turn that could not START because the picked model is not
       // servable — its provider's default credential was disabled or
@@ -1315,11 +1332,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       // dropped — is a refusal the composer can show, not an internal error.
       const reason = servingRefusalReason(error);
       if (reason === null) throw error;
-      return c.json({ status: 'refused', reason });
+      return c.json({ status: 'refused', reason, persisted: false });
     }
     return outcome.status === 'completed'
       ? c.json({ status: 'completed' })
-      : c.json({ status: 'refused', reason: outcome.reason });
+      : c.json({
+          status: 'refused',
+          reason: outcome.reason,
+          persisted: outcome.persisted,
+        });
   });
 
   // First-token UX metric: stamp the perceived wait ON the message's usage

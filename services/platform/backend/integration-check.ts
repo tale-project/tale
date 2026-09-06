@@ -955,14 +955,14 @@ async function checkIdentityDomains(
     `/api/app/governance/policies/retention_policy?orgId=${orgId}`,
     { config: { enabled: false } },
   );
-  // The flags wire carries only what is enforced: the context cap and the
-  // composer's guardrail gate. The retired webSearch / codeExecution /
-  // fileUpload toggles must never reappear here — strict, not loose.
+  // The flags wire carries only what is enforced: the context cap. The
+  // retired webSearch / codeExecution / fileUpload toggles (and the
+  // never-read inputGuardrailsActive) must never reappear here — strict,
+  // not loose.
   const myFlags = z
     .object({
       flags: z
         .object({
-          inputGuardrailsActive: z.boolean(),
           maxContextTokens: z.number().optional(),
         })
         .strict(),
@@ -1083,7 +1083,7 @@ async function checkIdentityDomains(
       budget.success &&
       models.success &&
       models.data.models.length === 2,
-    `save → ${savePolicy.status}, read=${readPolicy.success ? JSON.stringify(readPolicy.data.policy?.config.idleTimeoutMinutes) : 'ERR'}, unknown → ${unknownPolicy.status} (want 400), special → ${specialPolicy.status} (want 400), flags=${myFlags.success ? myFlags.data.flags.inputGuardrailsActive : 'ERR'}, budget=${budget.success ? 'ok' : 'ERR'}, models=${models.success ? models.data.models.length : 'ERR'}`,
+    `save → ${savePolicy.status}, read=${readPolicy.success ? JSON.stringify(readPolicy.data.policy?.config.idleTimeoutMinutes) : 'ERR'}, unknown → ${unknownPolicy.status} (want 400), special → ${specialPolicy.status} (want 400), flags=${myFlags.success ? JSON.stringify(myFlags.data.flags) : 'ERR'}, budget=${budget.success ? 'ok' : 'ERR'}, models=${models.success ? models.data.models.length : 'ERR'}`,
   );
 
   // Trash: a trashed contact appears in the admin listing and restores live.
@@ -2589,21 +2589,18 @@ async function checkFiles(
     });
 
   const payload = `itest file body ${Date.now()}`;
-  const handoff = z
-    .object({ storageRef: z.string(), uploadUrl: z.string().url() })
-    .safeParse(
-      await (
-        await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
-          contentType: 'text/plain',
-          size: payload.length,
-        })
-      ).json(),
-    );
+  const handoff = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+        contentType: 'text/plain',
+      })
+    ).json(),
+  );
   if (!handoff.success) {
     record('files upload/serve/delete', false, 'handoff failed');
     return;
   }
-  const put = await fetch(handoff.data.uploadUrl, {
+  const put = await fetch(handoff.data.url, {
     method: 'PUT',
     headers: { 'content-type': 'text/plain' },
     body: payload,
@@ -2613,7 +2610,7 @@ async function checkFiles(
     .safeParse(
       await (
         await send('POST', `/api/app/files/register?orgId=${orgId}`, {
-          storageRef: handoff.data.storageRef,
+          storageRef: handoff.data.s3Ref,
           fileName: 'itest.txt',
           contentType: 'text/plain',
         })
@@ -2641,7 +2638,7 @@ async function checkFiles(
       await (
         await fetch(
           `${base}/api/app/files/${encodeURIComponent(
-            registered.success ? handoff.data.storageRef : '',
+            registered.success ? handoff.data.s3Ref : '',
           )}/url?orgId=${orgId}`,
           { headers: { cookie } },
         )
@@ -3198,21 +3195,18 @@ async function checkDocuments(
     });
 
   // Upload + register a blob to bind.
-  const handoff = z
-    .object({ storageRef: z.string(), uploadUrl: z.string().url() })
-    .safeParse(
-      await (
-        await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
-          contentType: 'text/plain',
-          size: 11,
-        })
-      ).json(),
-    );
+  const handoff = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+        contentType: 'text/plain',
+      })
+    ).json(),
+  );
   if (!handoff.success) {
     record('documents + folders', false, 'upload handoff failed');
     return;
   }
-  await fetch(handoff.data.uploadUrl, {
+  await fetch(handoff.data.url, {
     method: 'PUT',
     headers: { 'content-type': 'text/plain' },
     body: 'hello docs!',
@@ -3220,7 +3214,7 @@ async function checkDocuments(
   const created = z.object({ documentId: z.string() }).safeParse(
     await (
       await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
-        storageRef: handoff.data.storageRef,
+        storageRef: handoff.data.s3Ref,
         fileName: 'notes.txt',
         contentType: 'text/plain',
       })
@@ -3238,7 +3232,7 @@ async function checkDocuments(
     .object({ url: z.string().url() })
     .safeParse(
       await get(
-        `/api/app/files/${encodeURIComponent(handoff.data.storageRef)}/url?orgId=${orgId}`,
+        `/api/app/files/${encodeURIComponent(handoff.data.s3Ref)}/url?orgId=${orgId}`,
       ),
     );
   const body = docUrl.success
@@ -3663,7 +3657,7 @@ async function checkDocuments(
   const rejectBound = z.object({ deleted: z.boolean() }).safeParse(
     await (
       await send('POST', `/api/app/files/reject-blob?orgId=${orgId}`, {
-        storageRef: handoff.data.storageRef,
+        storageRef: handoff.data.s3Ref,
       })
     ).json(),
   );
@@ -4581,19 +4575,19 @@ async function checkDocumentWriteGuards(
   // controllable source this section can mint over HTTP.
   const uploadDoc = async (fileName: string): Promise<string> => {
     const handoff = z
-      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .object({ s3Ref: z.string(), url: z.string() })
       .safeParse(
         await (
           await sendAs(
             cookie,
             'POST',
-            `/api/app/files/upload-handoff?orgId=${orgId}`,
-            { contentType: 'text/plain', size: 10 },
+            `/api/app/files/blob-upload?orgId=${orgId}`,
+            { contentType: 'text/plain' },
           )
         ).json(),
       );
     if (!handoff.success) return '';
-    await fetch(handoff.data.uploadUrl, {
+    await fetch(handoff.data.url, {
       method: 'PUT',
       headers: { 'content-type': 'text/plain' },
       body: 'guard body',
@@ -4605,7 +4599,7 @@ async function checkDocumentWriteGuards(
           'POST',
           `/api/app/documents/from-blob-upload?orgId=${orgId}`,
           {
-            storageRef: handoff.data.storageRef,
+            storageRef: handoff.data.s3Ref,
             fileName,
             contentType: 'text/plain',
           },
@@ -6374,18 +6368,17 @@ async function checkKnowledge(
       extra: { folderId?: string } = {},
     ): Promise<{ fileId: string; storageRef: string; documentId: string }> => {
       const handoff = z
-        .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+        .object({ s3Ref: z.string(), url: z.string() })
         .safeParse(
           await (
-            await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+            await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
               contentType: 'text/plain',
-              size: text.length,
             })
           ).json(),
         );
       if (!handoff.success)
         throw new Error(`upload handoff failed: ${fileName}`);
-      await fetch(handoff.data.uploadUrl, {
+      await fetch(handoff.data.url, {
         method: 'PUT',
         headers: { 'content-type': 'text/plain' },
         body: text,
@@ -6396,7 +6389,7 @@ async function checkKnowledge(
             'POST',
             `/api/app/documents/from-blob-upload?orgId=${orgId}`,
             {
-              storageRef: handoff.data.storageRef,
+              storageRef: handoff.data.s3Ref,
               fileName,
               contentType: 'text/plain',
               ...extra,
@@ -6405,11 +6398,11 @@ async function checkKnowledge(
         ).json(),
       );
       if (!bound.success) throw new Error(`document bind failed: ${fileName}`);
-      const fileId = await fileIdOfRef(handoff.data.storageRef);
+      const fileId = await fileIdOfRef(handoff.data.s3Ref);
       if (fileId === '') throw new Error(`file row missing: ${fileName}`);
       return {
         fileId,
-        storageRef: handoff.data.storageRef,
+        storageRef: handoff.data.s3Ref,
         documentId: bound.data.documentId,
       };
     };
@@ -6472,31 +6465,28 @@ async function checkKnowledge(
 
     const payload =
       'The Heidelberg quarterly review covers verdigris pigments and the zeppelin ledger.';
-    const handoff = z
-      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
-      .safeParse(
-        await (
-          await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
-            contentType: 'text/plain',
-            size: payload.length,
-          })
-        ).json(),
-      );
+    const handoff = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+          contentType: 'text/plain',
+        })
+      ).json(),
+    );
     if (!handoff.success) {
       record('knowledge RAG loop', false, 'upload handoff failed');
       return;
     }
-    await fetch(handoff.data.uploadUrl, {
+    await fetch(handoff.data.url, {
       method: 'PUT',
       headers: { 'content-type': 'text/plain' },
       body: payload,
     });
     await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
-      storageRef: handoff.data.storageRef,
+      storageRef: handoff.data.s3Ref,
       fileName: 'quarterly.txt',
       contentType: 'text/plain',
     });
-    const quarterlyFileId = await fileIdOfRef(handoff.data.storageRef);
+    const quarterlyFileId = await fileIdOfRef(handoff.data.s3Ref);
 
     // The rag.index_file job runs on the live worker; wait for completion.
     const indexed = await waitFor(async () => {
@@ -6534,7 +6524,7 @@ async function checkKnowledge(
     const searchRaw = JSON.stringify(searchBody);
     const fetchRes = await (
       await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
-        fileId: handoff.data.storageRef,
+        fileId: handoff.data.s3Ref,
       })
     ).json();
     const fetchRaw = JSON.stringify(fetchRes);
@@ -6559,12 +6549,11 @@ async function checkKnowledge(
       'base64',
     );
     const imageHandoff = z
-      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .object({ s3Ref: z.string(), url: z.string() })
       .safeParse(
         await (
-          await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+          await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
             contentType: 'image/png',
-            size: PNG_1X1.byteLength,
           })
         ).json(),
       );
@@ -6572,17 +6561,17 @@ async function checkKnowledge(
       | { status: string | null; error: string | null }
       | undefined;
     if (imageHandoff.success) {
-      await fetch(imageHandoff.data.uploadUrl, {
+      await fetch(imageHandoff.data.url, {
         method: 'PUT',
         headers: { 'content-type': 'image/png' },
         body: PNG_1X1,
       });
       await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
-        storageRef: imageHandoff.data.storageRef,
+        storageRef: imageHandoff.data.s3Ref,
         fileName: 'diagram.png',
         contentType: 'image/png',
       });
-      const imageFileId = await fileIdOfRef(imageHandoff.data.storageRef);
+      const imageFileId = await fileIdOfRef(imageHandoff.data.s3Ref);
       await waitFor(async () => {
         const rows = await sql<{ status: string | null }[]>`
           SELECT rag_status AS status FROM app.file_metadata
@@ -6622,12 +6611,11 @@ async function checkKnowledge(
         `## Ledger section ${i}\n\n${`Entry ${i}: ${filler}`.repeat(8)}\n`,
     ).join('\n');
     const bigHandoff = z
-      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .object({ s3Ref: z.string(), url: z.string() })
       .safeParse(
         await (
-          await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+          await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
             contentType: 'text/plain',
-            size: ledger.length,
           })
         ).json(),
       );
@@ -6635,17 +6623,17 @@ async function checkKnowledge(
       record('knowledge indexing drains every slice', false, 'handoff failed');
       return;
     }
-    await fetch(bigHandoff.data.uploadUrl, {
+    await fetch(bigHandoff.data.url, {
       method: 'PUT',
       headers: { 'content-type': 'text/plain' },
       body: ledger,
     });
     await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
-      storageRef: bigHandoff.data.storageRef,
+      storageRef: bigHandoff.data.s3Ref,
       fileName: 'ledger.txt',
       contentType: 'text/plain',
     });
-    const ledgerFileId = await fileIdOfRef(bigHandoff.data.storageRef);
+    const ledgerFileId = await fileIdOfRef(bigHandoff.data.s3Ref);
     const bigIndexed = await waitFor(async () => {
       const rows = await sql<{ status: string | null }[]>`
         SELECT rag_status AS status FROM app.file_metadata
@@ -6663,7 +6651,7 @@ async function checkKnowledge(
               WHERE c.document_id = d.id) AS stored
       FROM private_knowledge.documents d
       WHERE d.org_slug = ${orgSlug}
-        AND d.file_id = ${bigHandoff.data.storageRef}
+        AND d.file_id = ${bigHandoff.data.s3Ref}
     `;
     const corpusDoc = corpusRows[0];
     record(
@@ -6767,8 +6755,8 @@ async function checkKnowledge(
         inReports.includes(filed.storageRef) &&
         inReportsSlashed.includes(filed.storageRef) &&
         !inInvoices.includes(filed.storageRef) &&
-        !rootUnderReports.includes(handoff.data.storageRef),
-      `indexed=${filedIndexed} stamp=${stampAtIngest ?? 'NULL'}/Reports, Reports=${inReports.includes(filed.storageRef)} '/Reports/'=${inReportsSlashed.includes(filed.storageRef)} Invoices=${inInvoices.includes(filed.storageRef)}(want false) rootDocUnderReports=${rootUnderReports.includes(handoff.data.storageRef)}(want false)`,
+        !rootUnderReports.includes(handoff.data.s3Ref),
+      `indexed=${filedIndexed} stamp=${stampAtIngest ?? 'NULL'}/Reports, Reports=${inReports.includes(filed.storageRef)} '/Reports/'=${inReportsSlashed.includes(filed.storageRef)} Invoices=${inInvoices.includes(filed.storageRef)}(want false) rootDocUnderReports=${rootUnderReports.includes(handoff.data.s3Ref)}(want false)`,
     );
 
     // The stamp follows the document: a move re-files it, a folder rename
@@ -6829,7 +6817,7 @@ async function checkKnowledge(
     const pageOne = pageShape.safeParse(
       await (
         await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
-          fileId: bigHandoff.data.storageRef,
+          fileId: bigHandoff.data.s3Ref,
           page: 1,
         })
       ).json(),
@@ -6837,7 +6825,7 @@ async function checkKnowledge(
     const pageTwo = pageShape.safeParse(
       await (
         await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
-          fileId: bigHandoff.data.storageRef,
+          fileId: bigHandoff.data.s3Ref,
           page: 2,
         })
       ).json(),
@@ -6845,7 +6833,7 @@ async function checkKnowledge(
     const whole = pageShape.safeParse(
       await (
         await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
-          fileId: bigHandoff.data.storageRef,
+          fileId: bigHandoff.data.s3Ref,
         })
       ).json(),
     );
@@ -7029,17 +7017,16 @@ async function checkCorpusPurgeConsistency(
       projectId?: string,
     ): Promise<{ documentId: string; ref: string; fileId: string } | null> => {
       const handoff = z
-        .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+        .object({ s3Ref: z.string(), url: z.string() })
         .safeParse(
           await (
-            await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+            await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
               contentType: 'text/plain',
-              size: content.length,
             })
           ).json(),
         );
       if (!handoff.success) return null;
-      await fetch(handoff.data.uploadUrl, {
+      await fetch(handoff.data.url, {
         method: 'PUT',
         headers: { 'content-type': 'text/plain' },
         body: content,
@@ -7050,7 +7037,7 @@ async function checkCorpusPurgeConsistency(
             'POST',
             `/api/app/documents/from-blob-upload?orgId=${orgId}`,
             {
-              storageRef: handoff.data.storageRef,
+              storageRef: handoff.data.s3Ref,
               fileName,
               contentType: 'text/plain',
               ...(projectId !== undefined ? { projectId } : {}),
@@ -7061,7 +7048,7 @@ async function checkCorpusPurgeConsistency(
       if (!bound.success) return null;
       const fileRows = await sql<{ id: string }[]>`
         SELECT id FROM app.file_metadata
-        WHERE org_id = ${orgId} AND storage_ref = ${handoff.data.storageRef}
+        WHERE org_id = ${orgId} AND storage_ref = ${handoff.data.s3Ref}
         LIMIT 1
       `;
       const fileId = fileRows[0]?.id ?? '';
@@ -7075,7 +7062,7 @@ async function checkCorpusPurgeConsistency(
       if (!indexed) return null;
       return {
         documentId: bound.data.documentId,
-        ref: handoff.data.storageRef,
+        ref: handoff.data.s3Ref,
         fileId,
       };
     };
@@ -7346,6 +7333,12 @@ async function checkCorpusPurgeConsistency(
       return;
     }
     // Point the org's corpus at a dead endpoint — fail-closed by contract.
+    // The purge routes through the same per-org pool as the indexer, whose
+    // resolution is cached, so forget it the way the admin door does when a
+    // connection is saved (domains/knowledge/admin.ts → invalidateOrgUrl);
+    // `corpusPool` above was captured before and keeps reading the real
+    // corpus.
+    const { invalidateOrgUrl } = await import('./core/knowledge/pool.ts');
     const badConnectionPath = path.join(knowledgeDir, 'connection.json');
     await writeFile(
       badConnectionPath,
@@ -7357,6 +7350,7 @@ async function checkCorpusPurgeConsistency(
         sslmode: 'disable',
       }),
     );
+    invalidateOrgUrl(orgSlug);
     const failedDelete = await send(
       'POST',
       `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
@@ -7368,6 +7362,7 @@ async function checkCorpusPurgeConsistency(
     const corpusKept = (await corpusCount(honest.ref)) === 1;
     const blobKept = await blobExists(honest.ref);
     await rm(badConnectionPath, { force: true });
+    invalidateOrgUrl(orgSlug);
     const retryDelete = await send(
       'POST',
       `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
@@ -7736,6 +7731,9 @@ async function checkChat(
   const TRACE_MARKER = 'TRACE THE TOOLS';
   const FINAL_ANSWER = 'The ledger mentions verdigris pigments.';
   const SLOW_CHUNKS = 40;
+  /** Every chat-completion request body the model saw, in order — the
+   * guardrail probe reads what actually reached the wire. */
+  const aiBodies: string[] = [];
 
   const sse = (payload: unknown): string =>
     `data: ${JSON.stringify(payload)}\n\n`;
@@ -7777,6 +7775,7 @@ async function checkChat(
         res.end('{}');
         return;
       }
+      aiBodies.push(body);
       const parsed = z
         .object({
           messages: z.array(
@@ -7981,12 +7980,19 @@ async function checkChat(
         headers: { 'content-type': 'application/json', cookie, origin: base },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
-    await send(`/api/app/provider-credentials?orgId=${orgId}`, {
-      providerSlug: 'itestchat',
-      authMethod: 'api-key',
-      name: 'Chat key',
-      secret: 'sk-itest-chat-key',
-    });
+    const chatCredential = z.object({ credentialId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+          providerSlug: 'itestchat',
+          authMethod: 'api-key',
+          name: 'Chat key',
+          secret: 'sk-itest-chat-key',
+        })
+      ).json(),
+    );
+    const chatCredentialId = chatCredential.success
+      ? chatCredential.data.credentialId
+      : '';
 
     const created = z.object({ id: z.string() }).safeParse(
       await (
@@ -8533,6 +8539,196 @@ async function checkChat(
         (raceReply.text ?? '').includes(`tick${SLOW_CHUNKS}`) &&
         raceGen[0]?.count === '0',
       `outcomes=${raceStatuses.join('/')} (want completed/refused), http=${raceHttp.join('/')} (want 200/409), rows=${raceRows.length} (want 2), reply=${raceReply?.status ?? 'NONE'} full=${(raceReply?.text ?? '').includes(`tick${SLOW_CHUNKS}`)}, genGone=${raceGen[0]?.count === '0'}`,
+    );
+
+    // Guardrails + mandatory instructions on the turn: the org's chat_filter
+    // refuses a banned word BEFORE the model (user row + blocked reply +
+    // event row), the pii_config masks what the model receives, and the
+    // system_prompt policy is the first block of the system prompt.
+    const governanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(governanceDir, { recursive: true });
+    const MANDATORY_MARKER = 'ITEST-MANDATORY-RULE: never quote prices.';
+    await writeFile(
+      path.join(governanceDir, 'chat-filter.yml'),
+      [
+        'enabled: true',
+        'appliesTo: [input]',
+        'categories:',
+        '  - id: codenames',
+        '    label: Codenames',
+        '    enabled: true',
+        '    mode: block',
+        '    words: [verboten]',
+        '    patterns: []',
+      ].join('\n'),
+    );
+    await writeFile(
+      path.join(governanceDir, 'pii-config.yml'),
+      ['enabled: true', 'mode: mask', 'enabledPatterns: [email]'].join('\n'),
+    );
+    await writeFile(
+      path.join(governanceDir, 'system-prompt.yml'),
+      ['enabled: true', `mandatoryInstructions: "${MANDATORY_MARKER}"`].join(
+        '\n',
+      ),
+    );
+    (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+    const guardThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Guardrail probe',
+        })
+      ).json(),
+    );
+    const guardThreadId = guardThread.success ? guardThread.data.id : '';
+    const turnOutcome = z.object({
+      status: z.string(),
+      reason: z.string().optional(),
+      persisted: z.boolean().optional(),
+    });
+    const bodiesBefore = aiBodies.length;
+    const blockedTurn = turnOutcome.safeParse(
+      await (
+        await send(
+          `/api/app/chat/threads/${guardThreadId}/messages?orgId=${orgId}`,
+          {
+            text: 'this word is verboten here',
+            modelId: 'itest-chat',
+            providerSlug: 'itestchat',
+          },
+        )
+      ).json(),
+    );
+    const blockedRows = await sql<
+      { role: string; text: string | null; blockedReason: string | null }[]
+    >`
+      SELECT role, text, blocked_reason AS "blockedReason" FROM app.messages
+      WHERE thread_id = ${guardThreadId}
+      ORDER BY "order", step_order
+    `;
+    const maskedTurn = turnOutcome.safeParse(
+      await (
+        await send(
+          `/api/app/chat/threads/${guardThreadId}/messages?orgId=${orgId}`,
+          {
+            text: 'please mail anna@example.com about the quarterly review',
+            modelId: 'itest-chat',
+            providerSlug: 'itestchat',
+          },
+        )
+      ).json(),
+    );
+    const wireBodies = aiBodies.slice(bodiesBefore);
+    const maskedUserRow = (
+      await sql<{ text: string | null }[]>`
+        SELECT text FROM app.messages
+        WHERE thread_id = ${guardThreadId} AND role = 'user'
+        ORDER BY "order" DESC LIMIT 1
+      `
+    )[0];
+    const guardEvents = await sql<
+      {
+        filterName: string;
+        direction: string;
+        kind: string;
+        categoryIds: string[];
+      }[]
+    >`
+      SELECT filter_name AS "filterName", direction, kind,
+             category_ids AS "categoryIds"
+      FROM app.chat_filter_events
+      WHERE org_id = ${orgId} AND thread_id = ${guardThreadId}
+      ORDER BY created_at_ms
+    `;
+    for (const file of [
+      'chat-filter.yml',
+      'pii-config.yml',
+      'system-prompt.yml',
+    ]) {
+      await rm(path.join(governanceDir, file), { force: true });
+    }
+    (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+
+    // A catalog connector whose default credential is DISABLED: the model
+    // still resolves from the catalog, so the credential fault used to
+    // surface inside the stream — a persisted user row and a generic failed
+    // bubble. It is a pre-turn refusal the composer shows, with no rows.
+    // Serving reads the ACTIVE default only (the documented contract in
+    // domains/provider_credentials), so the fault is CREDENTIAL_NONE_CONFIGURED
+    // — the send body carries no credential id, so the DISABLED code has no
+    // composer path to reach.
+    const credThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Credential probe',
+        })
+      ).json(),
+    );
+    const credThreadId = credThread.success ? credThread.data.id : '';
+    await send(
+      `/api/app/provider-credentials/${chatCredentialId}?orgId=${orgId}`,
+      { status: 'disabled' },
+    );
+    const credRes = await send(
+      `/api/app/chat/threads/${credThreadId}/messages?orgId=${orgId}`,
+      { text: 'hello?', modelId: 'itest-chat', providerSlug: 'itestchat' },
+    );
+    const credStatus = credRes.status;
+    const credOutcome = turnOutcome.safeParse(await credRes.json());
+    await send(
+      `/api/app/provider-credentials/${chatCredentialId}?orgId=${orgId}`,
+      { status: 'active' },
+    );
+    const credRows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.messages
+      WHERE thread_id = ${credThreadId}
+    `;
+    record(
+      'chat send with a disabled default credential refuses before any row is written',
+      credStatus === 200 &&
+        credOutcome.success &&
+        credOutcome.data.status === 'refused' &&
+        credOutcome.data.persisted === false &&
+        (credOutcome.data.reason ?? '').includes('No default credential') &&
+        credRows[0]?.count === '0',
+      `http=${credStatus}, outcome=${credOutcome.success ? `${credOutcome.data.status} persisted=${String(credOutcome.data.persisted)} (${credOutcome.data.reason ?? ''})` : 'ERR'} (want refused, persisted=false: a disabled default serves nothing — the none-configured sentence), rows=${credRows[0]?.count} (want 0)`,
+    );
+    record(
+      'chat guardrails: chat_filter refuses before the model, pii masks the wire, mandatory instructions lead the prompt, events land',
+      blockedTurn.success &&
+        blockedTurn.data.status === 'refused' &&
+        // The refusal is on the record — the composer must not hand the
+        // text back — and the response says so.
+        blockedTurn.data.persisted === true &&
+        (blockedTurn.data.reason ?? '').includes('chat_filter') &&
+        blockedRows.length === 2 &&
+        blockedRows[0]?.role === 'user' &&
+        blockedRows[0].text === 'this word is verboten here' &&
+        blockedRows[1]?.role === 'assistant' &&
+        (blockedRows[1].blockedReason ?? '').includes('chat_filter') &&
+        maskedTurn.success &&
+        maskedTurn.data.status === 'completed' &&
+        wireBodies.length >= 1 &&
+        wireBodies.every((body) => !body.includes('anna@example.com')) &&
+        wireBodies.every((body) => body.includes('[EMAIL]')) &&
+        wireBodies.every((body) => body.includes(MANDATORY_MARKER)) &&
+        maskedUserRow?.text ===
+          'please mail [EMAIL] about the quarterly review' &&
+        guardEvents.some(
+          (event) =>
+            event.filterName === 'chat_filter' &&
+            event.direction === 'input' &&
+            event.kind === 'blocked' &&
+            event.categoryIds[0] === 'codenames',
+        ) &&
+        guardEvents.some(
+          (event) =>
+            event.filterName === 'pii' &&
+            event.direction === 'input' &&
+            event.kind === 'detected' &&
+            event.categoryIds[0] === 'email',
+        ),
+      `blocked=${blockedTurn.success ? `${blockedTurn.data.status} persisted=${String(blockedTurn.data.persisted)} (${blockedTurn.data.reason ?? ''})` : 'ERR'} (want refused persisted=true) rows=${blockedRows.map((row) => `${row.role}${row.blockedReason ? '!' : ''}`).join(',')} (want user,assistant!), masked=${maskedTurn.success ? maskedTurn.data.status : 'ERR'} wireBodies=${wireBodies.length} noRawEmail=${wireBodies.every((body) => !body.includes('anna@example.com'))} masked=${wireBodies.every((body) => body.includes('[EMAIL]'))} mandatory=${wireBodies.every((body) => body.includes(MANDATORY_MARKER))} userRow="${maskedUserRow?.text ?? 'MISSING'}", events=${guardEvents.map((event) => `${event.filterName}/${event.kind}`).join(',')}`,
     );
   } finally {
     await new Promise<void>((resolve) => {
@@ -10437,13 +10633,18 @@ async function checkGovernance(
   );
 
   // The chat turns and tool dispatches already run accumulated buckets.
-  const buckets = await governance.readUsageBuckets(sql, {
-    organizationId: orgId,
-    userId,
-  });
-  const chatBucket = buckets.find(
-    (bucket) => bucket.model === 'itest-chat' && bucket.granularity === 'daily',
-  );
+  const buckets = await sql<
+    { totalTokens: number; costEstimateCents: number }[]
+  >`
+    SELECT total_tokens::float8 AS "totalTokens",
+           cost_estimate_cents AS "costEstimateCents"
+    FROM app.usage_ledger
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND model = 'itest-chat' AND granularity = 'daily'
+    ORDER BY period_key DESC
+    LIMIT 1
+  `;
+  const chatBucket = buckets[0];
   const connectorBuckets = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.usage_ledger
     WHERE org_id = ${orgId} AND connector_name = 'chat-tools'
@@ -13553,7 +13754,7 @@ async function checkTurnReattach(
           org_id, session_id, exec_id, kind, status, heartbeat_at_ms,
           started_at_ms
         ) VALUES (
-          ${orgId}, ${sessionId}, ${execId}, 'agent-run',
+          ${orgId}, ${sessionId}, ${execId}, 'task-agent',
           ${opts.opStatus ?? 'running'},
           ${now - (opts.heartbeatAgoMs ?? 0)}, ${now - 600_000}
         )
@@ -13619,10 +13820,19 @@ async function checkTurnReattach(
       return typeof data?.runId === 'string' ? data.runId : '';
     }),
   );
-  const createdOp = await sql<{ resumedBy: string | null; status: string }[]>`
-    SELECT resumed_by AS "resumedBy", status FROM app.sandbox_session_ops
+  const createdOp = await sql<
+    { resumedBy: string | null; status: string; kind: string }[]
+  >`
+    SELECT resumed_by AS "resumedBy", status, kind
+    FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
+  // The created row must be the one the run card reads: `getAgentRunSandboxOp`
+  // is keyed on the task lane's kind, so a row filed under any other kind
+  // answers `op: null` for exactly the recovered turn an operator inspects.
+  const { getAgentRunSandboxOp } =
+    await import('./domains/tasks/agent-runs.ts');
+  const recoveredCard = await getAgentRunSandboxOp(sql, orgId, noOp.runId);
   const bumpedOp = await sql<{ resumedBy: string | null }[]>`
     SELECT resumed_by AS "resumedBy" FROM app.sandbox_session_ops
     WHERE session_id = ${abandoned.sessionId} AND exec_id = ${abandoned.execId}
@@ -13642,12 +13852,14 @@ async function checkTurnReattach(
       // durable proof the turn exists).
       createdOp[0]?.resumedBy === 'watchdog' &&
       createdOp[0]?.status === 'running' &&
+      createdOp[0]?.kind === 'task-agent' &&
+      recoveredCard?.op?.execId === noOp.execId &&
       bumpedOp[0]?.resumedBy === 'watchdog',
-    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}`,
+    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind} runCard=${recoveredCard?.op?.execId ?? 'null'}`,
   );
 
   // Leave nothing behind: live sessions hold sandbox slots, and settled
-  // `agent-run` ops are counted by the external-turn metrics fold.
+  // `task-agent` ops are counted by the external-turn metrics fold.
   await sql`
     UPDATE app.project_agent_runs SET status = 'cancelled'
     WHERE project_id = ${projectId} AND status IN ('queued', 'running')
@@ -14211,8 +14423,11 @@ async function checkWorkflowTurnReattach(
     }),
   );
   const driveKeys = objectAt(driveJobs[0]?.data ?? null, '');
-  const createdOp = await sql<{ resumedBy: string | null; status: string }[]>`
-    SELECT resumed_by AS "resumedBy", status FROM app.sandbox_session_ops
+  const createdOp = await sql<
+    { resumedBy: string | null; status: string; kind: string }[]
+  >`
+    SELECT resumed_by AS "resumedBy", status, kind
+    FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
   record(
@@ -14228,8 +14443,11 @@ async function checkWorkflowTurnReattach(
       driveKeys?.gatewayModel === 'itestauto/agent-model' &&
       driveKeys?.providerSlug === 'itestauto' &&
       createdOp[0]?.resumedBy === 'watchdog' &&
-      createdOp[0]?.status === 'running',
-    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}`,
+      createdOp[0]?.status === 'running' &&
+      // The lane's own kind — the run dialog's `getAgentNodeSandboxOp` and
+      // the metric folds are keyed on it.
+      createdOp[0]?.kind === 'workflow-agent',
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}`,
   );
 
   // Leave nothing for later sweeps or metrics folds to trip over.
@@ -14588,7 +14806,7 @@ async function checkRunProvenance(
       org_id, session_id, exec_id, kind, status, model_ref,
       vision_model_ref, minted_key_id, spent_cents, started_at_ms
     ) VALUES (
-      ${orgId}, ${sessionId}, ${execId}, 'agent-run', 'running',
+      ${orgId}, ${sessionId}, ${execId}, 'task-agent', 'running',
       'gw/itest-model', 'gw/vision-model', 'key-ledger-1', 42,
       ${now - 60_000}
     )
@@ -17223,7 +17441,10 @@ async function checkSlackInbound(
       event: { type: 'message', text: 'hi' },
     });
 
-    // A verified delivery for a CONNECTED workspace enqueues exactly one job.
+    // A verified delivery for a CONNECTED workspace routes to that org and
+    // is acknowledged. Nothing consumes inbound events yet, so NO job may be
+    // queued for it — a queue with no consumer was the dead end this lane
+    // used to assert into.
     const oauth = await import('./domains/connectors/oauth.ts');
     const credential = await sql<{ id: string }[]>`
       SELECT id FROM app.connector_credentials
@@ -17237,7 +17458,7 @@ async function checkSlackInbound(
     });
     const jobsBefore = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pgboss.job
-      WHERE name = 'connector.slack_event'
+      WHERE name LIKE 'connector.%'
     `;
     const delivered = await post({
       type: 'event_callback',
@@ -17245,74 +17466,36 @@ async function checkSlackInbound(
       event_id: 'Ev-ITEST-1',
       event: { type: 'app_mention', text: 'hello there', user: 'U-ITEST' },
     });
-    // Slack retries an unacknowledged delivery; the same event id must
-    // collapse to ONE job rather than replaying the conversation.
+    // Slack retries an unacknowledged delivery; every retry is acknowledged
+    // too (Slack disables an endpoint that does not answer).
     const redelivered = await post({
       type: 'event_callback',
       team_id: 'T-INBOUND-1',
       event_id: 'Ev-ITEST-1',
       event: { type: 'app_mention', text: 'hello there', user: 'U-ITEST' },
     });
-    const jobRows = await sql<{ data: unknown; singletonKey: string | null }[]>`
-      SELECT data, singleton_key AS "singletonKey" FROM pgboss.job
-      WHERE name = 'connector.slack_event'
+    const jobsAfter = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name LIKE 'connector.%'
     `;
-    const enqueued = jobRows.length - Number(jobsBefore[0]?.count ?? '0');
-    // Both deliveries are acknowledged (Slack disables an endpoint that does
-    // not answer) and both carry the SAME per-delivery key.
-    const queued =
-      enqueued >= 1 &&
-      jobRows.every((row) => row.singletonKey === 'slack:Ev-ITEST-1');
-    const payload = jobRows[0]?.data;
+    const enqueued =
+      Number(jobsAfter[0]?.count ?? '0') - Number(jobsBefore[0]?.count ?? '0');
+    const routed = await oauth.resolveTeamRoute(sql, 'T-INBOUND-1');
     const routedToOrg =
-      payload !== null &&
-      typeof payload === 'object' &&
-      'organizationId' in payload &&
-      payload.organizationId === orgId;
+      routed !== null &&
+      routed.organizationId === orgId &&
+      routed.credentialId === credentialId;
     record(
-      'slack inbound: handshake echoes, unmapped refuses, a verified event routes once',
+      'slack inbound: handshake echoes, unmapped refuses, a verified event is routed and acknowledged without a queue',
       handshake.status === 200 &&
         handshakeBody.success &&
         handshakeBody.data.challenge === 'itest-challenge-value' &&
         unmapped.status === 404 &&
         delivered.status === 200 &&
         redelivered.status === 200 &&
-        queued &&
+        enqueued === 0 &&
         routedToOrg,
-      `handshake=${handshake.status}/${handshakeBody.success ? handshakeBody.data.challenge : 'ERR'}, unmapped=${unmapped.status} (want 404), delivered=${delivered.status}/${redelivered.status}, enqueued=${enqueued} keyed=${jobRows.every((row) => row.singletonKey === 'slack:Ev-ITEST-1')}, routedToOrg=${routedToOrg}`,
-    );
-
-    // The dedup itself, deterministically: pg-boss's `short` policy allows at
-    // most ONE QUEUED job per key, so a retry that arrives while the original
-    // is still waiting collapses into it. (Over HTTP the worker often drains
-    // the first before the retry lands, which frees the key again — that is
-    // the intended behaviour, not a missed dedup, so the invariant is
-    // asserted at the enqueue seam where "still queued" is guaranteed.)
-
-    const retryPayload = {
-      organizationId: orgId,
-      credentialId,
-      teamId: 'T-INBOUND-1',
-      eventId: 'Ev-ITEST-RETRY',
-      eventType: 'app_mention',
-      event: { type: 'app_mention', text: 'retry me' },
-    };
-    // Both sends ride ONE transaction, so the first is still `created` when
-    // the second lands — the exact race Slack's retry creates, made
-    // deterministic (over HTTP a fast worker may drain the first, which frees
-    // the key again by design).
-    const [firstSend, secondSend] = await sql.begin(async (tx) => [
-      await addJobInTx(tx, 'connector.slack_event', retryPayload, {
-        singletonKey: 'slack:Ev-ITEST-RETRY',
-      }),
-      await addJobInTx(tx, 'connector.slack_event', retryPayload, {
-        singletonKey: 'slack:Ev-ITEST-RETRY',
-      }),
-    ]);
-    record(
-      'slack inbound: a retry of a still-queued delivery collapses into it',
-      firstSend !== null && secondSend === null,
-      `first=${firstSend === null ? 'refused' : 'queued'}, retry=${secondSend === null ? 'collapsed' : 'DUPLICATED'}`,
+      `handshake=${handshake.status}/${handshakeBody.success ? handshakeBody.data.challenge : 'ERR'}, unmapped=${unmapped.status} (want 404), delivered=${delivered.status}/${redelivered.status}, enqueued=${enqueued} (want 0), routedToOrg=${routedToOrg}`,
     );
 
     // ---- external identities --------------------------------------------
@@ -17496,6 +17679,34 @@ async function checkConnectorOauth(
       `forged=${forged.status}, declined=${declined.status}, replayed=${replayed.status} (all want 400), pendingLeft=${afterReplay[0]?.count}, vendorCalls=${seen.length} (want 0)`,
     );
 
+    // ---- callback: the completer must be the initiator ------------------
+    // A valid state completed by a browser with NO session (a forwarded
+    // consent link) is refused like a forgery — and burned, so the link
+    // cannot be finished by anyone afterwards.
+    const startedAgain = await get(
+      `/api/connectors/oauth2/start?connector=slack&organizationId=${orgId}`,
+    );
+    const strangerState =
+      new URL(
+        startedAgain.headers.get('location') ?? 'https://x.invalid',
+      ).searchParams.get('state') ?? '';
+    const stranger = await get(
+      `/api/connectors/oauth2/callback?state=${encodeURIComponent(strangerState)}&code=abc`,
+      false,
+    );
+    const afterStranger = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.connector_oauth_states
+    `;
+    record(
+      'connector oauth: a callback without the initiator session is refused and burns the state',
+      startedAgain.status === 302 &&
+        strangerState.length > 0 &&
+        stranger.status === 400 &&
+        afterStranger[0]?.count === '0' &&
+        seen.length === 0,
+      `start=${startedAgain.status}, stranger=${stranger.status} (want 400), pendingLeft=${afterStranger[0]?.count} (want 0), vendorCalls=${seen.length} (want 0)`,
+    );
+
     // ---- callback: the happy path, driven through the service -----------
     // The vendor endpoint comes from the catalog, so the exchange is driven
     // at the service seam with the fake token URL — the routes above already
@@ -17556,7 +17767,12 @@ async function checkConnectorOauth(
       );
     const completed = await oauth.completeOauth2(
       sql,
-      { state: happyState, code: 'itest-auth-code', vendorError: null },
+      {
+        state: happyState,
+        code: 'itest-auth-code',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     const credentialRows = await sql<
@@ -17646,7 +17862,12 @@ async function checkConnectorOauth(
     });
     const reconnected = await oauth.completeOauth2(
       sql,
-      { state: reconnectState, code: 'itest-auth-code-r', vendorError: null },
+      {
+        state: reconnectState,
+        code: 'itest-auth-code-r',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     const afterReconnect = await sql<
@@ -17688,7 +17909,12 @@ async function checkConnectorOauth(
     });
     const secondConnected = await oauth.completeOauth2(
       sql,
-      { state: secondState, code: 'itest-auth-code-s', vendorError: null },
+      {
+        state: secondState,
+        code: 'itest-auth-code-s',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     const afterSecond = await sql<{ id: string; name: string }[]>`
@@ -17761,7 +17987,12 @@ async function checkConnectorOauth(
     await foreignClaimInPlace;
     const racing = oauth.completeOauth2(
       sql,
-      { state: raceState, code: 'itest-auth-code-race', vendorError: null },
+      {
+        state: raceState,
+        code: 'itest-auth-code-race',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     // Release the holder once this org's claim is queued behind it — after
@@ -17799,8 +18030,137 @@ async function checkConnectorOauth(
       `outcome=${raced.kind}/${raced.kind === 'error' ? raced.error : '-'} (want workspace_claimed), queuedBehindHolder=${queuedBehindHolder}, loserCredentials=${raceCredentials[0]?.count} (want 0) default=${raceCredentials[0]?.isDefault}, routeOwner=${raceRoute[0]?.orgId}`,
     );
 
-    // ---- a rejected exchange writes nothing -----------------------------
+    // ---- an expired grant is refreshed on resolve --------------------------
+    // The happy-path credential's token is made stale in place (the same
+    // update door Reconnect uses), then resolved: the resolve seam must renew
+    // it from the refresh token through the vendor, store the renewed
+    // envelope, and hand out the fresh bearer — a second resolve is served
+    // from the store without another vendor call.
+    const { resolveConnectorCredential: resolveForRefresh, updateCredential } =
+      await import('./domains/connector_credentials/service.ts');
+    const refreshTargetId = credentialRows[0]?.id ?? '';
+    await updateCredential(sql, {
+      organizationId: orgId,
+      credentialId: refreshTargetId,
+      secret: {
+        accessToken: 'xoxb-itest-stale',
+        refreshToken: 'xoxe-itest-refresh',
+        expiresAt: Date.now() - 1_000,
+      },
+    });
+    const vendorCallsBeforeRefresh = seen.length;
+    let refreshedHeader = '';
+    let refreshError = '';
+    try {
+      refreshedHeader =
+        (
+          await resolveForRefresh(
+            sql,
+            {
+              organizationId: orgId,
+              connectorSlug: 'slack',
+              credentialRef: refreshTargetId,
+            },
+            { fetchImpl: vendorFetch },
+          )
+        ).authHeader ?? '';
+    } catch (error) {
+      refreshError = error instanceof Error ? error.message : String(error);
+    }
+    const refreshGrantSent =
+      seen.length === vendorCallsBeforeRefresh + 1 &&
+      (seen[seen.length - 1]?.body ?? '').includes(
+        'grant_type=refresh_token',
+      ) &&
+      (seen[seen.length - 1]?.body ?? '').includes(
+        'refresh_token=xoxe-itest-refresh',
+      );
+    const againHeader =
+      (
+        await resolveForRefresh(
+          sql,
+          {
+            organizationId: orgId,
+            connectorSlug: 'slack',
+            credentialRef: refreshTargetId,
+          },
+          { fetchImpl: vendorFetch },
+        )
+      ).authHeader ?? '';
+    const afterRefresh = await sql<
+      { status: string; statusDetail: string | null }[]
+    >`
+      SELECT status, status_detail AS "statusDetail"
+      FROM app.connector_credentials WHERE id = ${refreshTargetId}
+    `;
+    record(
+      'connector oauth: an expired grant is refreshed on resolve and stored once',
+      refreshedHeader === 'Bearer xoxb-itest-access' &&
+        refreshGrantSent &&
+        againHeader === 'Bearer xoxb-itest-access' &&
+        seen.length === vendorCallsBeforeRefresh + 1 &&
+        afterRefresh[0]?.status === 'active',
+      `header=${refreshedHeader || refreshError || '-'} (want Bearer xoxb-itest-access), refreshGrantSent=${refreshGrantSent}, again=${againHeader}, vendorCalls=${seen.length - vendorCallsBeforeRefresh} (want 1), status=${afterRefresh[0]?.status}`,
+    );
+
+    // ---- a refresh the vendor rejects marks the row needs-reauth ---------
     denyExchange = true;
+    await updateCredential(sql, {
+      organizationId: orgId,
+      credentialId: refreshTargetId,
+      secret: {
+        accessToken: 'xoxb-itest-stale-2',
+        refreshToken: 'xoxe-itest-revoked',
+        expiresAt: Date.now() - 1_000,
+      },
+    });
+    let rejectedCode = '';
+    try {
+      await resolveForRefresh(
+        sql,
+        {
+          organizationId: orgId,
+          connectorSlug: 'slack',
+          credentialRef: refreshTargetId,
+        },
+        { fetchImpl: vendorFetch },
+      );
+    } catch (error) {
+      rejectedCode =
+        error instanceof Error && 'code' in error
+          ? String(Reflect.get(error, 'code'))
+          : '';
+    }
+    const afterRejected = await sql<
+      { status: string; statusDetail: string | null }[]
+    >`
+      SELECT status, status_detail AS "statusDetail"
+      FROM app.connector_credentials WHERE id = ${refreshTargetId}
+    `;
+    const { listConnectedConnectorSlugs } =
+      await import('./domains/connector_credentials/service.ts');
+    const offeredAfterRejected = await listConnectedConnectorSlugs(sql, orgId);
+    record(
+      'connector oauth: a vendor-rejected refresh marks the row needs-reauth',
+      rejectedCode === 'CREDENTIAL_NEEDS_REAUTH' &&
+        afterRejected[0]?.status === 'needs-reauth' &&
+        (afterRejected[0]?.statusDetail ?? '').includes('invalid_grant'),
+      `code=${rejectedCode} (want CREDENTIAL_NEEDS_REAUTH), status=${afterRejected[0]?.status}, detail=${afterRejected[0]?.statusDetail}, stillOffered=${offeredAfterRejected.includes('slack') ? 'yes (a second slack row is active)' : 'no'}`,
+    );
+    // Restore the row so later sweeps see the happy-path grant active.
+    await updateCredential(sql, {
+      organizationId: orgId,
+      credentialId: refreshTargetId,
+      secret: {
+        accessToken: 'xoxb-itest-access',
+        refreshToken: 'xoxe-itest-refresh',
+        expiresAt: Date.now() + 3_600_000,
+      },
+      status: 'active',
+      statusDetail: null,
+    });
+
+    // ---- a rejected exchange writes nothing -----------------------------
     const denyState = 'itest-oauth-state-denied';
     await oauth.createPendingAuthorization(sql, {
       stateHash: await hashStateToken(denyState),
@@ -17812,7 +18172,12 @@ async function checkConnectorOauth(
     });
     const refused = await oauth.completeOauth2(
       sql,
-      { state: denyState, code: 'itest-auth-code-2', vendorError: null },
+      {
+        state: denyState,
+        code: 'itest-auth-code-2',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     if (savedSystemDir === undefined) {
@@ -17831,6 +18196,220 @@ async function checkConnectorOauth(
         credentialsAfter[0]?.count === '2',
       `outcome=${refused.kind}/${refused.kind === 'error' ? refused.error : '-'}, credentials=${credentialsAfter[0]?.count} (want 2, unchanged)`,
     );
+
+    // ---- a live yaml-js body runs IN PROCESS for a caller with no session --
+    // Automation runs, chat and the platform's own senders own no sandbox
+    // session; the door hands them the in-process live runner, so the shipped
+    // Slack body reaches its vendor through the mediated host with the stored
+    // bearer applied. Slack's host is fixed, so the vendor is answered by a
+    // global-fetch interception (the safe-fetch layer calls the global).
+    const realFetchForLive = globalThis.fetch;
+    const slackCalls: { url: string; auth: string | null; body: string }[] = [];
+    const liveFetchStub = async (
+      input: Parameters<typeof globalThis.fetch>[0],
+      init?: Parameters<typeof globalThis.fetch>[1],
+    ): Promise<Response> => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      if (!url.startsWith('https://slack.com/api/conversations.list')) {
+        return realFetchForLive(input, init);
+      }
+      const headers = new Headers(init?.headers);
+      slackCalls.push({
+        url,
+        auth: headers.get('authorization'),
+        body: typeof init?.body === 'string' ? init.body : '',
+      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          channels: [{ id: 'C-ITEST', name: 'general', is_private: false }],
+          response_metadata: { next_cursor: 'cursor-2' },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    };
+    globalThis.fetch = Object.assign(liveFetchStub, {
+      preconnect: realFetchForLive.preconnect,
+    });
+    let liveOut: unknown = null;
+    let liveError = '';
+    try {
+      const { runConnectorAction } =
+        await import('./domains/connectors/service.ts');
+      const live = await runConnectorAction(sql, {
+        organizationId: orgId,
+        connector: 'slack',
+        action: 'list_channels',
+        input: { limit: 5 },
+        credentialRef: refreshTargetId,
+        mode: 'live',
+        caller: { kind: 'system', reason: 'itest live yaml-js in process' },
+      });
+      liveOut = live.status === 'ok' ? live.output : live;
+    } catch (err) {
+      liveError = err instanceof Error ? err.message : String(err);
+    } finally {
+      globalThis.fetch = realFetchForLive;
+    }
+    const liveParsed = z
+      .object({
+        channels: z.array(z.object({ id: z.string() })),
+        next_cursor: z.string().nullable(),
+      })
+      .safeParse(liveOut);
+    record(
+      'connector live: a yaml-js body runs in process for a caller without a sandbox session',
+      liveError === '' &&
+        liveParsed.success &&
+        liveParsed.data.channels[0]?.id === 'C-ITEST' &&
+        liveParsed.data.next_cursor === 'cursor-2' &&
+        slackCalls.length === 1 &&
+        slackCalls[0]?.auth === 'Bearer xoxb-itest-access' &&
+        slackCalls[0]?.body === '{"limit":5}',
+      `error=${liveError || '-'} out=${liveParsed.success ? `${liveParsed.data.channels[0]?.id}/${liveParsed.data.next_cursor}` : JSON.stringify(liveOut).slice(0, 200)} vendorCalls=${slackCalls.length} auth=${slackCalls[0]?.auth ?? '-'} body=${slackCalls[0]?.body ?? '-'}`,
+    );
+
+    // ---- ctx.files: a live body stores into the ORG's blob store ---------
+    // Confluence get_page hard-requires ctx.files (it stores the page text).
+    // The in-process lane hands the body the org-scoped sink: bytes land in
+    // the org's store, a file_metadata row names the connector as source, and
+    // the body gets the blob ref back. Needs the object store, like every
+    // blob lane.
+    if (process.env.ITEST_S3_ENDPOINT) {
+      const files = await import('./domains/files/service.ts');
+      const { credentialId: confluenceId } =
+        await credentialService.createCredential(sql, {
+          organizationId: orgId,
+          connectorSlug: 'confluence',
+          authMethod: 'basic',
+          name: 'itest wiki',
+          createdBy: userId,
+          endpointUrl: 'https://itest.atlassian.net',
+          secret: { username: 'itest@door.test', password: 'itest-api-token' },
+        });
+      const realFetchForFiles = globalThis.fetch;
+      const wikiCalls: string[] = [];
+      const wikiFetchStub = async (
+        input: Parameters<typeof globalThis.fetch>[0],
+        init?: Parameters<typeof globalThis.fetch>[1],
+      ): Promise<Response> => {
+        const url =
+          typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        if (
+          !url.startsWith('https://itest.atlassian.net/wiki/rest/api/content/')
+        ) {
+          return realFetchForFiles(input, init);
+        }
+        wikiCalls.push(url);
+        return new Response(
+          JSON.stringify({
+            body: { storage: { value: '<p>Hello <b>wiki</b></p><p>Bye</p>' } },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      };
+      globalThis.fetch = Object.assign(wikiFetchStub, {
+        preconnect: realFetchForFiles.preconnect,
+      });
+      let storedOut: unknown = null;
+      let storedError = '';
+      try {
+        const { runConnectorAction } =
+          await import('./domains/connectors/service.ts');
+        const stored = await runConnectorAction(sql, {
+          organizationId: orgId,
+          connector: 'confluence',
+          action: 'get_page',
+          input: { pageId: '4242', title: 'Onboarding' },
+          credentialRef: confluenceId,
+          mode: 'live',
+          caller: { kind: 'user', userId },
+        });
+        storedOut = stored.status === 'ok' ? stored.output : stored;
+      } catch (err) {
+        storedError = err instanceof Error ? err.message : String(err);
+      } finally {
+        globalThis.fetch = realFetchForFiles;
+      }
+      const storedParsed = z
+        .object({
+          file: z.object({
+            id: z.string(),
+            fileName: z.string(),
+            contentType: z.string(),
+            size: z.number(),
+          }),
+        })
+        .safeParse(storedOut);
+      const storedRef = storedParsed.success ? storedParsed.data.file.id : '';
+      const fileRow = storedRef
+        ? await sql<
+            {
+              source: string | null;
+              fileName: string;
+              size: string;
+              uploadedBy: string | null;
+              skipRag: boolean | null;
+            }[]
+          >`
+            SELECT source, file_name AS "fileName", size::text AS size,
+                   uploaded_by AS "uploadedBy", skip_rag_indexing AS "skipRag"
+            FROM app.file_metadata
+            WHERE org_id = ${orgId} AND storage_ref = ${storedRef}
+          `
+        : [];
+      let storedText = '';
+      if (storedRef) {
+        try {
+          const blob = await files.getOrgBlobBytes(sql, orgId, storedRef);
+          storedText = Buffer.from(blob.bytes).toString('utf8');
+        } catch (err) {
+          storedError += ` blobRead=${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+      // A stranger's org must not be able to read the ref back.
+      let foreignRefused = false;
+      if (storedRef) {
+        try {
+          await files.getOrgBlobBytes(sql, 'some-other-org', storedRef);
+        } catch {
+          foreignRefused = true;
+        }
+      }
+      await credentialService.deleteCredential(sql, orgId, confluenceId);
+      record(
+        'connector live: ctx.files stores into the org blob store and returns the ref',
+        storedError === '' &&
+          storedParsed.success &&
+          storedParsed.data.file.fileName === 'Onboarding.txt' &&
+          storedParsed.data.file.contentType === 'text/plain' &&
+          wikiCalls.length === 1 &&
+          storedText === 'Hello wiki\n\nBye' &&
+          fileRow.length === 1 &&
+          fileRow[0]?.source === 'confluence' &&
+          fileRow[0]?.fileName === 'Onboarding.txt' &&
+          fileRow[0]?.uploadedBy === userId &&
+          fileRow[0]?.skipRag === true &&
+          Number(fileRow[0]?.size) === Buffer.byteLength(storedText) &&
+          foreignRefused,
+        `error=${storedError || '-'} file=${storedParsed.success ? `${storedParsed.data.file.fileName}/${storedParsed.data.file.contentType}/${storedParsed.data.file.size}B` : JSON.stringify(storedOut).slice(0, 200)} wikiCalls=${wikiCalls.length} text=${JSON.stringify(storedText)} row=${fileRow.length ? `${fileRow[0]?.source}/${fileRow[0]?.fileName}/${fileRow[0]?.size}B/by=${fileRow[0]?.uploadedBy === userId}/skipRag=${fileRow[0]?.skipRag}` : 'none'} foreignRefused=${foreignRefused}`,
+      );
+    } else {
+      record(
+        'connector live: ctx.files stores into the org blob store and returns the ref',
+        true,
+        'SKIPPED, no ITEST_S3_ENDPOINT',
+      );
+    }
   } finally {
     vendor.close();
     if (savedSiteUrl === undefined) delete process.env.SITE_URL;
@@ -22504,18 +23083,38 @@ async function checkCloudImport(
   // replay reads as invalid_state.
   const declined = await fetch(
     `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(state)}&error=access_denied`,
-    { redirect: 'manual' },
+    { headers: { cookie, origin: base }, redirect: 'manual' },
   );
   const declinedBody = await declined.text();
   const replay = await fetch(
     `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(state)}&code=abc`,
-    { redirect: 'manual' },
+    { headers: { cookie, origin: base }, redirect: 'manual' },
   );
   const replayBody = await replay.text();
   const consumed = await consumePendingCloudAuthorization(
     sql,
     await hashStateToken(state),
   );
+  // The completer must be the initiator: a valid state finished by a browser
+  // with no session is refused like a forgery, and the state is burned.
+  const strangerStart = await fetch(
+    `${base}/api/cloud-import/oauth2/start?provider=google-drive&organizationId=${orgId}`,
+    { headers: { cookie, origin: base }, redirect: 'manual' },
+  );
+  const strangerState =
+    new URL(
+      strangerStart.headers.get('location') ?? 'https://x.invalid',
+    ).searchParams.get('state') ?? '';
+  const stranger = await fetch(
+    `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(strangerState)}&code=abc`,
+    { redirect: 'manual' },
+  );
+  const strangerBurned = !(
+    await consumePendingCloudAuthorization(
+      sql,
+      await hashStateToken(strangerState),
+    )
+  ).ok;
 
   // Grant lifecycle, service-level (the vendor exchange is live-only).
   await storeCloudAuthorization(sql, {
@@ -22607,6 +23206,9 @@ async function checkCloudImport(
       replay.status === 400 &&
       replayBody.length > 0 &&
       !consumed.ok &&
+      strangerState.length > 20 &&
+      stranger.status === 400 &&
+      strangerBurned &&
       fresh.success &&
       fresh.accessToken === 'itest-oauth-token' &&
       listed.success &&
@@ -24575,17 +25177,16 @@ async function checkTranscription(
 
     const uploadAudio = async (bytes: Buffer = wav): Promise<string> => {
       const handoff = z
-        .object({ storageRef: z.string(), uploadUrl: z.string() })
+        .object({ s3Ref: z.string(), url: z.string() })
         .safeParse(
           await (
-            await send(`/api/app/files/upload-handoff?orgId=${orgId}`, {
+            await send(`/api/app/files/blob-upload?orgId=${orgId}`, {
               contentType: 'audio/wav',
-              size: bytes.length,
             })
           ).json(),
         );
       if (!handoff.success) throw new Error('upload handoff failed');
-      const put = await fetch(handoff.data.uploadUrl, {
+      const put = await fetch(handoff.data.url, {
         method: 'PUT',
         headers: { 'content-type': 'audio/wav' },
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Buffer is a valid BodyInit at runtime
@@ -24593,14 +25194,14 @@ async function checkTranscription(
       });
       if (!put.ok) throw new Error(`audio PUT failed: ${put.status}`);
       const registered = await send(`/api/app/files/register?orgId=${orgId}`, {
-        storageRef: handoff.data.storageRef,
+        storageRef: handoff.data.s3Ref,
         fileName: 'meeting.wav',
         contentType: 'audio/wav',
       });
       if (registered.status !== 200) {
         throw new Error(`register failed: ${registered.status}`);
       }
-      return handoff.data.storageRef;
+      return handoff.data.s3Ref;
     };
     const rowFor = async (
       ref: string,
@@ -25475,9 +26076,11 @@ exit 1
 
 /**
  * Browser-session pool — the warmed-cookie-jar substrate behind the
- * video-link ingest's bot-wall mitigation: the editor-allowlist import
- * gate (the reused `decideInstanceAdmin`), the masked listing, LRU claim
- * rotation with an at-rest-encrypted jar that decrypts back, the
+ * video-link ingest's bot-wall mitigation, seeded through its only door,
+ * the REST machine door (`/api/v1/browser-sessions`, an API key acting as
+ * its user): the editor-allowlist import gate (the reused
+ * `decideInstanceAdmin`, refusing with a stable code), the masked listing,
+ * LRU claim rotation with an at-rest-encrypted jar that decrypts back, the
  * blocked→cooling→expired strike ladder, and the sweep's cooled-recovery.
  */
 async function checkBrowserSessions(
@@ -25496,10 +26099,23 @@ async function checkBrowserSessions(
   const DOMAIN = 'itest-pool.example';
 
   try {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie, origin: base },
+          body: JSON.stringify({ name: 'itest-browser-pool' }),
+        })
+      ).json(),
+    );
+    const apiKey = minted.success ? minted.data.key : '';
     const send = (route: string, body?: unknown): Promise<Response> =>
-      fetch(`${base}/api/app/browser-sessions${route}?orgId=${orgId}`, {
+      fetch(`${base}/api/v1/browser-sessions${route}`, {
         method: body === undefined ? 'GET' : 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
 
@@ -25508,6 +26124,10 @@ async function checkBrowserSessions(
       domain: DOMAIN,
       cookiesJar: '# Netscape HTTP Cookie File\nitest\tjar-A',
     });
+    const refusedCode = z
+      .object({ code: z.string() })
+      .loose()
+      .safeParse(await refused.json());
     process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = email;
     const importedA = z.object({ sessionId: z.string() }).safeParse(
       await (
@@ -25594,8 +26214,11 @@ async function checkBrowserSessions(
       domain: DOMAIN,
     });
     record(
-      'browser sessions: import gate, masked list, LRU claim, strikes, sweep',
-      refused.status === 403 &&
+      'browser sessions: REST import gate, masked list, LRU claim, strikes, sweep',
+      minted.success &&
+        refused.status === 403 &&
+        refusedCode.success &&
+        refusedCode.data.code === 'FORBIDDEN_DEPLOYMENT_EDITOR' &&
         importedA.success &&
         importedB.success &&
         listed.success &&
@@ -25606,7 +26229,7 @@ async function checkBrowserSessions(
         statusB === 'expired' &&
         claimEmpty === null &&
         recovered?.sessionId === idA,
-      `gate=${refused.status}/403 imports=${importedA.success}/${importedB.success} list=${listed.success ? listed.data.sessions.length : 'ERR'}/2 masked=${masked}, lru=${rotation} jarRoundtrip=${jar1.includes('jar-A')}, strikes A=${statusA}/cooling B=${statusB}/expired empty=${claimEmpty === null}, sweepRecovers=${recovered?.sessionId === idA}`,
+      `key=${minted.success} gate=${refused.status}/403 code=${refusedCode.success ? refusedCode.data.code : 'ERR'}/FORBIDDEN_DEPLOYMENT_EDITOR imports=${importedA.success}/${importedB.success} list=${listed.success ? listed.data.sessions.length : 'ERR'}/2 masked=${masked}, lru=${rotation} jarRoundtrip=${jar1.includes('jar-A')}, strikes A=${statusA}/cooling B=${statusB}/expired empty=${claimEmpty === null}, sweepRecovers=${recovered?.sessionId === idA}`,
     );
   } finally {
     if (savedAdmins === undefined) {
@@ -27004,10 +27627,12 @@ async function checkAutomationAgentNode(
 }
 
 /**
- * Sandbox session substrate: per-owner and per-budget caps, park-on-capacity
- * FIFO tickets (fairness + release-edge admission), hibernate/resume slot
- * accounting, hash-only token lifecycle, and durable op rows — all under the
- * per-org advisory-lock admission section.
+ * Sandbox session substrate: per-owner and per-budget caps, the slot a
+ * hibernated session frees, hibernate/resume slot accounting, and the
+ * hash-only token lifecycle (minted → looked up by hash → revoked by the
+ * session's destroy) — all under the per-org advisory-lock admission
+ * section. Op rows ride the turn-drive probes: their one writer is the
+ * host's shim upsert.
  */
 async function checkSandboxSessions(
   sql: Sql,
@@ -27015,11 +27640,7 @@ async function checkSandboxSessions(
 ): Promise<void> {
   const sessions = await import('./domains/sandbox/sessions.ts');
   const { orgId, userId } = ctx;
-  const reserve = (
-    n: number,
-    ownerType: string,
-    ticket?: { source: 'chat' | 'workflow' },
-  ): Promise<string> =>
+  const reserve = (n: number, ownerType: string): Promise<string> =>
     sessions.reserveSessionSlot(sql, {
       organizationId: orgId,
       sessionId: `itest-sb-${n}`,
@@ -27027,7 +27648,6 @@ async function checkSandboxSessions(
       ownerType,
       ownerId: `owner-${n}`,
       createdBy: userId,
-      ...(ticket !== undefined ? { ticket } : {}),
     });
   const code = (error: unknown): string =>
     error !== null && typeof error === 'object' && 'code' in error
@@ -27056,39 +27676,14 @@ async function checkSandboxSessions(
   const hardCap = await reserve(3, 'project_agent')
     .then(() => 'ok')
     .catch(code);
-  const parked3 = await reserve(3, 'project_agent', { source: 'workflow' })
-    .then(() => 'ok')
-    .catch(code);
-  // A second, LATER waiter — FIFO fairness must keep it behind owner-3.
-  const parked4 = await reserve(4, 'project_agent', { source: 'workflow' })
-    .then(() => 'ok')
-    .catch(code);
-  const pollWhileFull = await sessions.pollAdmission(sql, {
-    organizationId: orgId,
-    ownerType: 'project_agent',
-    ownerId: 'owner-3',
-    ticket: { source: 'workflow' },
-  });
 
-  // Release edge: hibernating slot 1 opens exactly one slot — the FIFO head
-  // (owner-3) may proceed, the later waiter (owner-4) may not.
-  await sessions.markSessionStopped(sql, {
+  // A hibernated session holds no slot: stopping slot 1 admits owner-3.
+  await sessions.setSessionStatus(sql, {
     organizationId: orgId,
     sessionId: 'itest-sb-1',
+    status: 'stopped',
   });
-  const pollLater = await sessions.pollAdmission(sql, {
-    organizationId: orgId,
-    ownerType: 'project_agent',
-    ownerId: 'owner-4',
-    ticket: { source: 'workflow' },
-  });
-  const pollHead = await sessions.pollAdmission(sql, {
-    organizationId: orgId,
-    ownerType: 'project_agent',
-    ownerId: 'owner-3',
-    ticket: { source: 'workflow' },
-  });
-  const admitted3 = await reserve(3, 'project_agent', { source: 'workflow' })
+  const admitted3 = await reserve(3, 'project_agent')
     .then(() => 'ok')
     .catch(code);
 
@@ -27100,10 +27695,26 @@ async function checkSandboxSessions(
     })
     .then(() => 'ok')
     .catch(code);
+  // Tokens: hash-only lifecycle — minted on slot 3, readable by hash, and
+  // revoked by the destroy that frees the slot (the ONE revocation path).
+  await sessions.insertSessionToken(sql, {
+    organizationId: orgId,
+    sessionId: 'itest-sb-3',
+    tokenHash: 'hash-abc',
+    scope: {
+      agentKind: 'claude-code',
+      allowedModels: ['m1'],
+      connectorGrants: [],
+      budgetCents: 100,
+    },
+    ttlMs: 60_000,
+  });
+  const tokenLive = await sessions.getSessionTokenByHash(sql, 'hash-abc');
   await sessions.markSessionDestroyed(sql, {
     organizationId: orgId,
     sessionId: 'itest-sb-3',
   });
+  const tokenRevoked = await sessions.getSessionTokenByHash(sql, 'hash-abc');
   const resumeAfterFree = await sessions
     .resumeSessionSlot(sql, {
       organizationId: orgId,
@@ -27117,78 +27728,18 @@ async function checkSandboxSessions(
     .then(() => 'ok')
     .catch(code);
 
-  // Tokens: hash-only lifecycle.
-  await sessions.insertSessionToken(sql, {
-    organizationId: orgId,
-    sessionId: 'itest-sb-1',
-    tokenHash: 'hash-abc',
-    scope: {
-      agentKind: 'claude-code',
-      allowedModels: ['m1'],
-      connectorGrants: [],
-      budgetCents: 100,
-    },
-    ttlMs: 60_000,
-  });
-  const tokenLive = await sessions.getSessionTokenByHash(sql, 'hash-abc');
-  await sessions.revokeTokensForSession(sql, orgId, 'itest-sb-1');
-  const tokenRevoked = await sessions.getSessionTokenByHash(sql, 'hash-abc');
-
-  // Ops: start → progress → exactly-once finalize; watchdog staleness read.
-  await sessions.startSessionOp(sql, {
-    organizationId: orgId,
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    kind: 'agent-run',
-    threadId: 'itest-thread-1',
-  });
-  await sessions.flushOpProgress(sql, {
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    progressText: 'working…',
-    lastSeq: 7,
-  });
-  const liveOp = await sessions.latestAgentRunForThread(sql, 'itest-thread-1');
-  const abandoned = await sessions.listAbandonedOps(sql, Date.now() + 60_000);
-  const finalizedOnce = await sessions.finalizeSessionOp(sql, {
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    status: 'completed',
-    exitCode: 0,
-  });
-  const finalizedTwice = await sessions.finalizeSessionOp(sql, {
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    status: 'failed',
-  });
-
-  const reaped = await sessions.reapStaleAdmissionTickets(
-    sql,
-    Date.now() + 60_000,
-  );
-
   record(
-    'sandbox sessions (caps + FIFO admission + tokens + ops)',
+    'sandbox sessions (caps + freed slots + tokens)',
     dupOwner === 'QUOTA_EXCEEDED' &&
       hardCap === 'QUOTA_EXCEEDED' &&
-      parked3 === 'WAIT_FIFO' &&
-      parked4 === 'WAIT_FIFO' &&
-      !pollWhileFull.proceed &&
-      !pollLater.proceed &&
-      pollHead.proceed &&
       admitted3 === 'ok' &&
       resumeFull === 'QUOTA_EXCEEDED' &&
       resumeAfterFree === 'ok' &&
       wf === 'ok' &&
       tokenLive !== null &&
       tokenLive.scope.agentKind === 'claude-code' &&
-      tokenRevoked === null &&
-      liveOp?.progressText === 'working…' &&
-      abandoned.some((op) => op.execId === 'exec-1') &&
-      finalizedOnce &&
-      !finalizedTwice &&
-      reaped >= 1,
-    `dupOwner=${dupOwner}, hardCap=${hardCap}, park=${parked3}/${parked4}, fifo(full=${pollWhileFull.proceed},later=${pollLater.proceed},head=${pollHead.proceed}), admit=${admitted3}, resume(full=${resumeFull},freed=${resumeAfterFree}), wfBudget=${wf}, token(live=${tokenLive !== null},revoked=${tokenRevoked === null}), op(progress=${liveOp?.progressText === 'working…'},finalize=${finalizedOnce}/${finalizedTwice}), reaped=${reaped}`,
+      tokenRevoked === null,
+    `dupOwner=${dupOwner}, hardCap=${hardCap}, admitAfterStop=${admitted3}, resume(full=${resumeFull},freed=${resumeAfterFree}), wfBudget=${wf}, token(live=${tokenLive !== null},revokedByDestroy=${tokenRevoked === null})`,
   );
 }
 
@@ -27662,7 +28213,7 @@ async function checkAutomationRunToolLane(
       orgFind.status === 'ok' &&
       orgFindRaw.includes('Filed on a bound board') &&
       !orgFindRaw.includes("Someone else's card"),
-    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")})`,
+    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status}${syncedFirst.status === 'ok' ? '' : ` (first: ${syncedFirst.raw})`}${syncedAgain.status === 'ok' ? '' : ` (again: ${syncedAgain.raw})`} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")})`,
   );
   const placement = (project: string | null | undefined): string =>
     project === undefined ? 'no-row' : project === null ? 'hub' : 'project';
@@ -27861,8 +28412,9 @@ async function checkSandboxGatewayKeyReclaim(
   // management API is reachable from every sandbox session. The fake gateway
   // below does not check the value, but without one set every revoke fails
   // authentication and the check would pass its fail-open lane while proving
-  // nothing about the revoke itself.
-  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD ??= 'itest-gateway-admin';
+  // nothing about the revoke itself. main() defaults the variable before any
+  // lane runs (two earlier lanes mint too); this lane only restores whatever
+  // it found.
   const now = Date.now();
   const seedSession = async (
     sessionId: string,
@@ -28008,7 +28560,7 @@ async function checkSandboxGatewayKeyReclaim(
           org_id, session_id, exec_id, kind, status, minted_key_id,
           heartbeat_at_ms, started_at_ms
         ) VALUES (
-          ${orgId}, 'pa-gk-agent', ${execId ?? ''}, 'agent-run', 'running',
+          ${orgId}, 'pa-gk-agent', ${execId ?? ''}, 'task-agent', 'running',
           ${keyId ?? ''}, ${now}, ${now}
         )
       `;
@@ -28081,9 +28633,9 @@ async function checkSandboxGatewayKeyReclaim(
 
 /**
  * Sandbox spawner dispatch: the REUSED session client (HMAC signing, drain
- * semantics) against a fake spawner that VERIFIES every signature, plus the
- * provisioning choreography (reuse-in-place, phantom heal, orphan adopt,
- * host-busy re-park) and the admin management surface.
+ * semantics) against a fake spawner that VERIFIES every signature, driven
+ * through the admin management surface (list, pin both sides, destroy) and
+ * the in-sandbox workspace-tool door.
  */
 async function checkSandboxSpawner(
   sql: Sql,
@@ -28097,7 +28649,6 @@ async function checkSandboxSpawner(
   const SPAWNER_TOKEN = 'itest-spawner-token';
   const live = new Map<string, { pinned: boolean }>();
   let badSignatures = 0;
-  const busyOnce = new Set<string>();
   const spawner = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -28138,13 +28689,6 @@ async function checkSandboxSpawner(
           .loose()
           .safeParse(JSON.parse(body || '{}'));
         const sessionId = parsed.success ? parsed.data.sessionId : '';
-        if (busyOnce.has(sessionId)) {
-          busyOnce.delete(sessionId);
-          res.statusCode = 429;
-          res.setHeader('retry-after', '1');
-          res.end('{"error":"session_quota"}');
-          return;
-        }
         if (live.has(sessionId)) {
           res.statusCode = 409;
           res.end('{"error":"duplicate"}');
@@ -28196,80 +28740,43 @@ async function checkSandboxSpawner(
   process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
 
   try {
-    const service = await import('./domains/sandbox/service.ts');
     const sessions = await import('./domains/sandbox/sessions.ts');
-    const code = (error: unknown): string =>
-      error !== null && typeof error === 'object' && 'name' in error
-        ? String(error.name)
-        : String(error);
-
-    const first = await service.provisionSession(sql, {
-      organizationId: orgId,
-      sessionId: 'itest-spawn-1',
-      profile: 'agent',
+    const { sessionCreate } =
+      await import('./core/node_only/sandbox/helpers/session_client.ts');
+    // The hosts' own choreography: reserve the platform slot, create the
+    // container through the signed client, activate the row.
+    const provision = async (
+      sessionId: string,
+      owner: { ownerType: string; ownerId: string },
+    ): Promise<void> => {
+      await sessions.reserveSessionSlot(sql, {
+        organizationId: orgId,
+        sessionId,
+        profile: 'agent',
+        ownerType: owner.ownerType,
+        ownerId: owner.ownerId,
+        createdBy: userId,
+      });
+      await sessionCreate({
+        sessionId,
+        organizationId: orgId,
+        profile: 'agent',
+      });
+      await sessions.setSessionStatus(sql, {
+        organizationId: orgId,
+        sessionId,
+        status: 'active',
+      });
+    };
+    await provision('itest-spawn-1', {
       ownerType: 'workflow_run',
       ownerId: 'wf-20',
-      createdBy: userId,
     });
     const rowAfterCreate = await sessions.getSessionBySessionId(
       sql,
       orgId,
       'itest-spawn-1',
     );
-    const reused = await service.provisionSession(sql, {
-      organizationId: orgId,
-      sessionId: 'itest-spawn-1',
-      profile: 'agent',
-      ownerType: 'workflow_run',
-      ownerId: 'wf-20',
-      createdBy: userId,
-    });
-
-    // Phantom heal: container vanishes spawner-side; re-provision recreates.
-    live.delete('itest-spawn-1');
-    const healed = await service.provisionSession(sql, {
-      organizationId: orgId,
-      sessionId: 'itest-spawn-1',
-      profile: 'agent',
-      ownerType: 'workflow_run',
-      ownerId: 'wf-20',
-      createdBy: userId,
-    });
-
-    // Orphan adopt: the spawner holds a container the platform lost track of.
-    live.set('itest-spawn-adopt', { pinned: false });
-    const adopted = await service.provisionSession(sql, {
-      organizationId: orgId,
-      sessionId: 'itest-spawn-adopt',
-      profile: 'agent',
-      ownerType: 'workflow_run',
-      ownerId: 'wf-21',
-      createdBy: userId,
-    });
-    const adoptedRow = await sessions.getSessionBySessionId(
-      sql,
-      orgId,
-      'itest-spawn-adopt',
-    );
-
-    // Host-capacity busy: the FIFO ticket goes back to waiting for the retry.
-    busyOnce.add('itest-spawn-busy');
-    const busy = await service
-      .provisionSession(sql, {
-        organizationId: orgId,
-        sessionId: 'itest-spawn-busy',
-        profile: 'agent',
-        ownerType: 'workflow_run',
-        ownerId: 'wf-22',
-        createdBy: userId,
-        ticket: { source: 'workflow' },
-      })
-      .then(() => 'ok')
-      .catch(code);
-    const ticketRows = await sql<{ status: string }[]>`
-      SELECT status FROM app.sandbox_admission_tickets
-      WHERE owner_type = 'workflow_run' AND owner_id = 'wf-22'
-    `;
 
     // Admin surface over HTTP: list + pin + destroy.
     const listed = z
@@ -28303,25 +28810,17 @@ async function checkSandboxSpawner(
     );
 
     record(
-      'sandbox spawner dispatch (reused HMAC client + provisioning)',
+      'sandbox spawner dispatch (reused HMAC client + admin surface)',
       badSignatures === 0 &&
-        first.created &&
         rowAfterCreate?.status === 'active' &&
-        !reused.created &&
-        healed.created &&
-        adopted.created &&
-        adoptedRow?.status === 'active' &&
-        busy === 'SpawnerBusyError' &&
-        ticketRows[0]?.status === 'waiting' &&
+        !live.has('itest-spawn-1') &&
         listed.success &&
         listed.data.sessions.some(
           (row) => row.sessionId === 'itest-spawn-1' && row.status === 'active',
         ) &&
         pinRes.ok &&
-        destroyRes.ok &&
-        live.get('itest-spawn-1') === undefined &&
-        live.get('itest-spawn-adopt')?.pinned === false,
-      `signatures ok=${badSignatures === 0}, create=${first.created}/active=${rowAfterCreate?.status === 'active'}, reuse=${!reused.created}, heal=${healed.created}, adopt=${adopted.created}, busy=${busy} (ticket=${ticketRows[0]?.status}), admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), containerGone=${live.get('itest-spawn-1') === undefined}`,
+        destroyRes.ok,
+      `signatures ok=${badSignatures === 0}, active=${rowAfterCreate?.status === 'active'}, admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), containerGone=${live.get('itest-spawn-1') === undefined}`,
     );
 
     // --- the in-sandbox workspace-tool door (the REUSED bridge on the shim).
@@ -28352,25 +28851,15 @@ async function checkSandboxSpawner(
     );
     const toolAgentId = agentRes.success ? agentRes.data.agentId : '';
     // Free the project budget of every session earlier scenarios left live.
-    for (const leftover of [
-      'itest-sb-1',
-      'itest-sb-2',
-      'itest-sb-3',
-      'itest-sb-4',
-      'itest-spawn-adopt',
-    ]) {
+    for (const leftover of ['itest-sb-1', 'itest-sb-2', 'itest-sb-3']) {
       await sessions.markSessionDestroyed(sql, {
         organizationId: orgId,
         sessionId: leftover,
       });
     }
-    await service.provisionSession(sql, {
-      organizationId: orgId,
-      sessionId: 'itest-spawn-tools',
-      profile: 'agent',
+    await provision('itest-spawn-tools', {
       ownerType: 'project_agent',
       ownerId: toolAgentId,
-      createdBy: userId,
     });
     const { createHash: hashFn } = await import('node:crypto');
     const vk = 'itest-vk-tools-1';
@@ -28521,16 +29010,23 @@ async function checkTaskAgentRuns(
   // The mechanics run on a HAND-INSERTED row (no turn job): the kick +
   // full drive are proven end to end by the turn-drive check, and letting
   // the live worker race these park/claim assertions would make them
-  // meaningless.
+  // meaningless. Every wake below enqueues the run's REAL `task.agent_turn`
+  // job, and the notify-driven worker fetches it within milliseconds — no
+  // retire-after-the-fact can win that race — so the row's agent is a
+  // PHANTOM id with no `project_agents` row: the job handler's agent-gone
+  // guard skips such a job before it touches the run (the sweep that fails
+  // agent-less runs is the watchdog's, which this lane never runs).
   const agentRuns = await import('./domains/tasks/agent-runs.ts');
+  const ledgerAgentId = `itest-ledger-agent-${randomUUID()}`;
+  const ledgerSessionId = `pa-${ledgerAgentId}`;
   const inserted = await sql<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
       harness, model, started_by, started_at_ms, deadline_at_ms,
       updated_at_ms
     ) VALUES (
-      ${orgId}, ${projectId}, ${taskId}, ${agentId}, 'exec-ledger-1',
-      ${`pa-${agentId}`}, 'queued', 'claude-code', 'itest-model',
+      ${orgId}, ${projectId}, ${taskId}, ${ledgerAgentId}, 'exec-ledger-1',
+      ${ledgerSessionId}, 'queued', 'claude-code', 'itest-model',
       'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}, ${Date.now()}
     ) RETURNING id
   `;
@@ -28565,6 +29061,70 @@ async function checkTaskAgentRuns(
   const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
   const wokenAgain = await agentRuns.wakeParkedAgentRuns(sql, orgId);
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
+
+  // The release EDGE itself: a project-agent turn ending frees the agent's
+  // standing slot, and that release wakes the org's oldest parked run at
+  // once — no watchdog tick in between. Counted org-wide (a live worker may
+  // have parked a sibling), so the proof is one fewer parked run and one
+  // more turn job, plus the slot really hibernated.
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+  });
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${ledgerSessionId}, 'active', 'project_agent', ${ledgerAgentId},
+      'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}
+    )
+  `;
+  const countParked = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.project_agent_runs
+          WHERE org_id = ${orgId} AND status = 'queued'
+            AND waiting_for_capacity_at_ms IS NOT NULL
+        `
+      )[0]?.count ?? '0',
+    );
+  const countTurnJobs = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pgboss.job
+          WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+        `
+      )[0]?.count ?? '0',
+    );
+  const parkedBeforeRelease = await countParked();
+  const turnJobsBeforeRelease = await countTurnJobs();
+  const sessionsApi = await import('./domains/sandbox/sessions.ts');
+  const released = await sessionsApi.releaseProjectAgentSessionSlot(sql, {
+    organizationId: orgId,
+    agentId: ledgerAgentId,
+  });
+  const parkedAfterRelease = await countParked();
+  const turnJobsAfterRelease = await countTurnJobs();
+  const releasedSlot = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
+    ORDER BY created_at_ms DESC LIMIT 1
+  `;
+  const releaseEdgeOk =
+    released &&
+    releasedSlot[0]?.status === 'stopped' &&
+    // ≤/≥, not ==: a live worker's own release edge may wake a sibling in
+    // the same window; the edge under test still accounts for one of them.
+    parkedAfterRelease <= parkedBeforeRelease - 1 &&
+    turnJobsAfterRelease >= turnJobsBeforeRelease + 1;
+  // Un-park OUR run for the launch below if the edge woke a sibling
+  // instead: the wake claims the org's oldest parked run, ours included
+  // (`claimParkedAgentRun` is gone — one live run per task is the schema's
+  // rule and the wake is the one un-park door).
+  await agentRuns.wakeParkedAgentRuns(sql, orgId);
 
   // Launch (the host's running flip) + exactly-once settle through the
   // host's mark; `launchedAt` distinct from kick time. A late failure must
@@ -28636,13 +29196,14 @@ async function checkTaskAgentRuns(
   const failedLedger = await ledgerRows(failedRunId);
   const finalRun = await agentRuns.getAgentRun(sql, orgId, runId);
 
-  // A live run makes a concurrent kick REUSE it; a terminal one mints anew.
+  // A live run makes a concurrent kick REUSE it; a terminal one mints anew
+  // (under the phantom agent too, so its turn job is skipped, not driven).
   const reuseProbe = await sql.begin((tx) =>
     agentRuns.kickAgentRun(tx, {
       organizationId: orgId,
       projectId,
       taskId,
-      agentId,
+      agentId: ledgerAgentId,
       harness: 'claude-code',
       model: 'itest-model',
       startedBy: 'itest:ledger',
@@ -28664,6 +29225,7 @@ async function checkTaskAgentRuns(
       woken === 1 &&
       wokenAgain === 0 &&
       afterWake?.waitingForCapacityAt === null &&
+      releaseEdgeOk &&
       launched &&
       settled &&
       !settledTwice &&
@@ -28680,8 +29242,9 @@ async function checkTaskAgentRuns(
       // ≥3, not ==3: the rekicked run's start fails on the fake model and
       // the auto-retry arm may already have added attempts by this read.
       secondRuns.data.runs.length >= 3 &&
+      releaseEdgeOk &&
       !reuseProbe.reused,
-    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), wake=${woken}/${wokenAgain} (want 1/0), launched=${launched}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status}, ledger settled=${settledLedger.length}/${settledLedger[0]?.status ?? '-'} (want 1/success) failed=${failedOnce}/${failedTwice} → ${failedLedger.length}/${failedLedger[0]?.status ?? '-'} (want 1/failure), rekick runs=${secondRuns.data.runs.length} (want ≥3, fresh=${!reuseProbe.reused})`,
+    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), wake=${woken}/${wokenAgain} (want 1/0), releaseEdge=${released}/slot=${releasedSlot[0]?.status}/parked ${parkedBeforeRelease}→${parkedAfterRelease}/turnJobs ${turnJobsBeforeRelease}→${turnJobsAfterRelease} (want true/stopped/-1/+1), launched=${launched}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status}, ledger settled=${settledLedger.length}/${settledLedger[0]?.status ?? '-'} (want 1/success) failed=${failedOnce}/${failedTwice} → ${failedLedger.length}/${failedLedger[0]?.status ?? '-'} (want 1/failure), rekick runs=${secondRuns.data.runs.length} (want ≥3, fresh=${!reuseProbe.reused})`,
   );
 }
 
@@ -33737,7 +34300,7 @@ async function checkGovernanceSettingsTail(
     `sweep applied=${dsarSwept} (want ≥1), pending after sweep=${dsarPendingAfterSweep[0]?.count} (want 0), applied-audit rows=${dsarAppliedAudits[0]?.count} (want 1), enforcement read limit=${enforcedDsar.dailyLimitPerAdmin} (want 6), pending after read=${dsarPendingAfterRead[0]?.count} (want 0)`,
   );
 
-  // --- D. Moderation secret + offline test stub ---------------------------
+  // --- D. Moderation secret + the live provider probe ---------------------
   const statusEmpty = z
     .object({ masked: z.null() })
     .safeParse(
@@ -33748,7 +34311,10 @@ async function checkGovernanceSettingsTail(
   const saved = z.object({ ok: z.boolean() }).safeParse(
     await (
       await post(`/api/app/governance/moderation/secret?orgId=${orgId}`, {
-        authHeader: 'Bearer itest-moderation-secret-value',
+        // The stored value is the provider key; the endpoint's header
+        // template (`Bearer {{secret}}`, as the presets ship it) adds the
+        // scheme.
+        authHeader: 'itest-moderation-secret-value',
       })
     ).json(),
   );
@@ -33759,26 +34325,131 @@ async function checkGovernanceSettingsTail(
         await get(`/api/app/governance/moderation/secret/status?orgId=${orgId}`)
       ).json(),
     );
-  const testRes = await post(
-    `/api/app/governance/moderation/test?orgId=${orgId}`,
-    { text: 'probe' },
-  );
-  const testBody = z
-    .object({ error: z.string() })
+  // Not configured yet: the probe says so instead of pretending.
+  const testUnconfigured = z
+    .object({ ok: z.boolean(), kind: z.string() })
     .loose()
-    .safeParse(await testRes.json());
+    .safeParse(
+      await (
+        await post(`/api/app/governance/moderation/test?orgId=${orgId}`, {
+          text: 'probe',
+        })
+      ).json(),
+    );
+  // A mock provider on the loopback: it expects the stored header verbatim
+  // and answers the OpenAI moderation shape, flagging "hate" on the probe.
+  const { createServer } = await import('node:http');
+  const seenAuth: string[] = [];
+  const moderationServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      seenAuth.push(req.headers.authorization ?? '');
+      const input = z
+        .object({ input: z.string() })
+        .safeParse(JSON.parse(body || '{}'));
+      const hate = input.success && input.data.input.includes('probe');
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          results: [
+            {
+              flagged: hate,
+              categories: { hate, violence: false },
+              category_scores: { hate: hate ? 0.97 : 0.01, violence: 0.02 },
+            },
+          ],
+        }),
+      );
+    });
+  });
+  await new Promise<void>((resolve) => {
+    moderationServer.listen(0, '127.0.0.1', resolve);
+  });
+  // The deployment host policy gates the moderation endpoint like every
+  // other admin-supplied URL; the probe's mock is loopback, so this lane
+  // needs the operator opt-in whatever ran before it.
+  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+  const moderationAddress = moderationServer.address();
+  const moderationPort =
+    moderationAddress !== null && typeof moderationAddress === 'object'
+      ? moderationAddress.port
+      : 0;
+  const moderationPolicy = (enabled: boolean): unknown => ({
+    config: {
+      enabled,
+      appliesTo: ['input'],
+      endpoint: {
+        url: `http://127.0.0.1:${moderationPort}/v1/moderations`,
+        headers: { Authorization: 'Bearer {{secret}}' },
+        requestTemplate: '{"input": {{text}}}',
+      },
+      responseShape: { type: 'openai_moderation' },
+      categoryMappings: [
+        {
+          providerCategory: 'hate',
+          internalLabel: 'Hate',
+          enabled: true,
+          mode: 'block',
+        },
+      ],
+    },
+  });
+  const testRoundSchema = z
+    .object({
+      ok: z.boolean(),
+      kind: z.string(),
+      categoryIds: z.array(z.string()).optional(),
+      httpStatus: z.number().optional(),
+      durationMs: z.number().optional(),
+    })
+    .loose();
+  let testRound: z.infer<typeof testRoundSchema> | undefined;
+  let testResStatus = 0;
+  try {
+    const savedPolicy = await post(
+      `/api/app/governance/policies/moderation_provider?orgId=${orgId}`,
+      moderationPolicy(true),
+    );
+    const testRes = await post(
+      `/api/app/governance/moderation/test?orgId=${orgId}`,
+      { text: 'a probe of the classifier' },
+    );
+    testResStatus = savedPolicy.ok ? testRes.status : -1;
+    testRound = testRoundSchema.parse(await testRes.json());
+  } finally {
+    // Switch the layer off again: later chat sends in this org must not
+    // ride through a mock that is about to close.
+    await post(
+      `/api/app/governance/policies/moderation_provider?orgId=${orgId}`,
+      moderationPolicy(false),
+    );
+    await new Promise<void>((resolve) => {
+      moderationServer.close(() => resolve());
+    });
+  }
   record(
-    'governance tail: moderation secret masked status + offline test stub',
+    'governance tail: moderation secret masked status + live provider probe round trip',
     statusEmpty.success &&
       saved.success &&
       saved.data.ok &&
       statusMasked.success &&
-      statusMasked.data.masked.startsWith('Bearer') &&
+      statusMasked.data.masked.startsWith('itest-') &&
       statusMasked.data.masked.includes('••') &&
-      testRes.status === 400 &&
-      testBody.success &&
-      testBody.data.error === 'MODERATION_TEST_OFFLINE',
-    `empty=${statusEmpty.success}, saved=${saved.success}, masked=${statusMasked.success ? statusMasked.data.masked.slice(0, 8) : 'ERR'}, test=${testRes.status}/${testBody.success ? testBody.data.error : '?'}`,
+      !statusMasked.data.masked.includes('secret-value') &&
+      testUnconfigured.success &&
+      !testUnconfigured.data.ok &&
+      testUnconfigured.data.kind === 'not_configured' &&
+      testResStatus === 200 &&
+      testRound !== undefined &&
+      testRound.ok &&
+      testRound.kind === 'blocked' &&
+      testRound.categoryIds?.[0] === 'Hate' &&
+      testRound.httpStatus === 200 &&
+      seenAuth[0] === 'Bearer itest-moderation-secret-value',
+    `empty=${statusEmpty.success}, saved=${saved.success}, masked=${statusMasked.success ? statusMasked.data.masked.slice(0, 8) : 'ERR'}, unconfigured=${testUnconfigured.success ? testUnconfigured.data.kind : 'ERR'} (want not_configured), probe=${testResStatus}/${testRound?.kind ?? '?'} cats=${testRound?.categoryIds?.join(',') ?? ''} http=${testRound?.httpStatus ?? '?'} (want blocked/Hate/200), auth=${seenAuth[0] === 'Bearer itest-moderation-secret-value'}`,
   );
 
   // --- E. Chat-filter events listing (admin telemetry) --------------------
@@ -33816,7 +34487,11 @@ async function checkGovernanceSettingsTail(
       ).json(),
     );
   const blockedOnly = z
-    .object({ events: z.array(z.object({ kind: z.string() }).loose()) })
+    .object({
+      events: z.array(
+        z.object({ kind: z.string(), sanitizationRunId: z.string() }).loose(),
+      ),
+    })
     .safeParse(
       await (
         await get(
@@ -33826,7 +34501,11 @@ async function checkGovernanceSettingsTail(
     );
   const piiOnly = z
     .object({
-      events: z.array(z.object({ filterName: z.string() }).loose()),
+      events: z.array(
+        z
+          .object({ filterName: z.string(), sanitizationRunId: z.string() })
+          .loose(),
+      ),
     })
     .safeParse(
       await (
@@ -33835,19 +34514,41 @@ async function checkGovernanceSettingsTail(
         )
       ).json(),
     );
+  // The guardrail lane earlier in this run recorded real events for the same
+  // org (a chat_filter block, a pii detection), so each listing is judged on
+  // the rows seeded here — newest first, and each filter keeping only its
+  // own kind or filter across the whole org.
+  const seededRuns = new Set(['run-1', 'run-2']);
+  const seededAll = allEvents.success
+    ? allEvents.data.events.filter((event) =>
+        seededRuns.has(event.sanitizationRunId),
+      )
+    : [];
+  const seededBlocked = blockedOnly.success
+    ? blockedOnly.data.events.filter((event) =>
+        seededRuns.has(event.sanitizationRunId),
+      )
+    : [];
+  const seededPii = piiOnly.success
+    ? piiOnly.data.events.filter((event) =>
+        seededRuns.has(event.sanitizationRunId),
+      )
+    : [];
   record(
     'governance tail: chat-filter events listing + filters',
     allEvents.success &&
-      allEvents.data.events.length === 2 &&
+      seededAll.length === 2 &&
       allEvents.data.events[0]?.sanitizationRunId === 'run-2' &&
-      allEvents.data.events[1]?.categoryIds[0] === 'iban' &&
+      seededAll[1]?.categoryIds[0] === 'iban' &&
       blockedOnly.success &&
-      blockedOnly.data.events.length === 1 &&
-      blockedOnly.data.events[0]?.kind === 'blocked' &&
+      blockedOnly.data.events.every((event) => event.kind === 'blocked') &&
+      seededBlocked.length === 1 &&
+      seededBlocked[0]?.sanitizationRunId === 'run-2' &&
       piiOnly.success &&
-      piiOnly.data.events.length === 1 &&
-      piiOnly.data.events[0]?.filterName === 'pii',
-    `all=${allEvents.success ? allEvents.data.events.length : 'ERR'}, newestFirst=${allEvents.success ? allEvents.data.events[0]?.sanitizationRunId : '?'}, blocked=${blockedOnly.success ? blockedOnly.data.events.length : 'ERR'}, pii=${piiOnly.success ? piiOnly.data.events.length : 'ERR'}`,
+      piiOnly.data.events.every((event) => event.filterName === 'pii') &&
+      seededPii.length === 1 &&
+      seededPii[0]?.sanitizationRunId === 'run-1',
+    `all=${allEvents.success ? `${allEvents.data.events.length} (seeded ${seededAll.length}, want 2)` : 'ERR'}, newestFirst=${allEvents.success ? allEvents.data.events[0]?.sanitizationRunId : '?'} (want run-2), blocked=${blockedOnly.success ? `${blockedOnly.data.events.length} (seeded ${seededBlocked.length}, want 1)` : 'ERR'}, pii=${piiOnly.success ? `${piiOnly.data.events.length} (seeded ${seededPii.length}, want 1)` : 'ERR'}`,
   );
 
   // --- F. Retention: catalog, shortening cooldown, bounds proposal OCC ----
@@ -34889,6 +35590,40 @@ async function checkDataResidency(
   );
   const bucketReady = mkBucket.ok || mkBucket.status === 409;
 
+  // A blob the org stores BEFORE it connects its own bucket: minted through
+  // the app's own door (blob-upload → PUT → register) while the org still
+  // resolves to the deployment default store, with a content type the move
+  // must carry over.
+  const preHandoff = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+    await (
+      await post(`/api/app/files/blob-upload?orgId=${orgId}`, {
+        contentType: 'text/markdown',
+      })
+    ).json(),
+  );
+  let preUpload: { fileId: string; s3Ref: string } | null = null;
+  if (preHandoff.success) {
+    const put = await fetch(preHandoff.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/markdown' },
+      body: `# pre-switch blob ${Date.now()}\n`,
+    });
+    const registered = z.object({ fileId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/files/register?orgId=${orgId}`, {
+          storageRef: preHandoff.data.s3Ref,
+          fileName: 'pre-switch.md',
+          contentType: 'text/markdown',
+        })
+      ).json(),
+    );
+    if (put.ok && registered.success) {
+      preUpload = {
+        fileId: registered.data.fileId,
+        s3Ref: preHandoff.data.s3Ref,
+      };
+    }
+  }
   const osFresh = z
     .object({ configured: z.boolean() })
     .loose()
@@ -34939,6 +35674,31 @@ async function checkDataResidency(
         })
       ).json(),
     );
+
+  // A blob stored BEFORE the switch must stay readable the moment the
+  // connection exists — served from the default store until the move
+  // (`locateOrgObjectStore`), then from the BYO bucket with the type it had.
+  // `preUpload` was minted above, while the org still resolved to the default
+  // store; earlier lanes seed rows whose refs never had a blob, so a row pick
+  // would probe a ghost.
+  /** GET /files/:id/url → follow the presigned URL → [ok, content-type]. */
+  const serveBlob = async (): Promise<{
+    ok: boolean;
+    contentType: string | null;
+  }> => {
+    if (preUpload === null) return { ok: false, contentType: null };
+    const url = z
+      .object({ url: z.string() })
+      .safeParse(
+        await (
+          await get(`/api/app/files/${preUpload.fileId}/url?orgId=${orgId}`)
+        ).json(),
+      );
+    if (!url.success) return { ok: false, contentType: null };
+    const res = await fetch(url.data.url);
+    return { ok: res.ok, contentType: res.headers.get('content-type') };
+  };
+  const servedBeforeMove = await serveBlob();
 
   const dryStart = z.object({ runId: z.string() }).safeParse(
     await (
@@ -35029,21 +35789,40 @@ async function checkDataResidency(
     }
     await sleep(250);
   }
-  // A migrated object is REALLY in the BYO bucket now.
+  // A migrated object is REALLY in the BYO bucket now — and no longer in
+  // the default store (the move retires the source once the copy verified).
   let landed = false;
+  let sourceRetired = false;
+  let preMoved = false;
   if (realStatus !== null && realStatus.sample.length > 0) {
     const { parseBlobRef } = await import('./core/lib/storage/blob_ref.ts');
-    const { s3HeadObject } = await import('./core/lib/storage/object_store.ts');
+    const { resolveOrgObjectStore, s3HeadObject } =
+      await import('./core/lib/storage/object_store.ts');
     const sampleRef = realStatus.sample[0]?.ref ?? '';
     try {
       const parsed = parseBlobRef(sampleRef);
+      const defaultStore = await resolveOrgObjectStore('default');
       if (parsed.backend === 's3') {
         landed = (await s3HeadObject(byoStore, parsed.key)) !== null;
+        sourceRetired = (await s3HeadObject(defaultStore, parsed.key)) === null;
+      }
+      // The blob minted before the switch, specifically: in the BYO bucket
+      // now, gone from the default store.
+      if (preUpload !== null) {
+        const pre = parseBlobRef(preUpload.s3Ref);
+        preMoved =
+          pre.backend === 's3' &&
+          (await s3HeadObject(byoStore, pre.key)) !== null &&
+          (await s3HeadObject(defaultStore, pre.key)) === null;
       }
     } catch (error) {
       console.warn('[itest] byo sample head failed:', error);
     }
   }
+  const servedAfterMove = await serveBlob();
+  const typeKept =
+    servedBeforeMove.contentType !== null &&
+    servedBeforeMove.contentType === servedAfterMove.contentType;
   record(
     'data residency: object storage connection + blob backfill to BYO',
     bucketReady &&
@@ -35067,8 +35846,13 @@ async function checkDataResidency(
       realStatus.status === 'completed' &&
       realStatus.migrated > 0 &&
       realStatus.bytesMigrated > 0 &&
-      landed,
-    `bucket=${bucketReady}, fresh=${osFresh.success ? osFresh.data.configured : 'ERR'}, noCreds=${osNoCreds.status} (want 400), saved=${osSaved.success}, view=${osView.success ? `${osView.data.bucket}/${osView.data.hasCredentials}` : 'ERR'}, probe=${osProbe.success ? osProbe.data.ok : 'ERR'}, dry=${dryStatus?.status ?? 'timeout'}/${dryStatus?.candidates ?? '?'}c/${dryStatus?.migrated ?? '?'}m, real=${realStatus?.status ?? 'timeout'}/${realStatus?.migrated ?? '?'}m/${realStatus?.bytesMigrated ?? '?'}B, landed=${landed}`,
+      landed &&
+      sourceRetired &&
+      preMoved &&
+      servedBeforeMove.ok &&
+      servedAfterMove.ok &&
+      typeKept,
+    `bucket=${bucketReady}, fresh=${osFresh.success ? osFresh.data.configured : 'ERR'}, noCreds=${osNoCreds.status} (want 400), saved=${osSaved.success}, view=${osView.success ? `${osView.data.bucket}/${osView.data.hasCredentials}` : 'ERR'}, probe=${osProbe.success ? osProbe.data.ok : 'ERR'}, dry=${dryStatus?.status ?? 'timeout'}/${dryStatus?.candidates ?? '?'}c/${dryStatus?.migrated ?? '?'}m, real=${realStatus?.status ?? 'timeout'}/${realStatus?.migrated ?? '?'}m/${realStatus?.bytesMigrated ?? '?'}B, landed=${landed}, sourceRetired=${sourceRetired}, preMoved=${preMoved}, servedBeforeMove=${servedBeforeMove.ok}, servedAfterMove=${servedAfterMove.ok}, type=${servedBeforeMove.contentType ?? 'none'}→${servedAfterMove.contentType ?? 'none'} (want kept)`,
   );
 
   // --- Knowledge: connection + embedding admin files --------------------
@@ -36173,7 +36957,7 @@ async function checkMetricsSurface(
       (${orgId}, 'mx-run', 'mx-health-t', 'pii', 'output', 'blocked',
        ARRAY['cat1', 'cat2'], ${now - 1000})
   `;
-  // External turns: one session, four settled agent-run ops (the four
+  // External turns: one session, four settled task-agent ops (the four
   // outcomes; the completed one is a recovered continuation).
   await sql`
     INSERT INTO app.sandbox_sessions (
@@ -36187,13 +36971,13 @@ async function checkMetricsSurface(
       org_id, session_id, exec_id, kind, status, agent_result_status,
       continuation_count, spent_cents, started_at_ms, finished_at_ms
     ) VALUES
-      (${orgId}, 'mx-sess', 'mx-e1', 'agent-run', 'completed', 'completed',
+      (${orgId}, 'mx-sess', 'mx-e1', 'task-agent', 'completed', 'completed',
        1, 5, ${now - 60_000}, ${now - 50_000}),
-      (${orgId}, 'mx-sess', 'mx-e2', 'agent-run', 'failed', 'failed',
+      (${orgId}, 'mx-sess', 'mx-e2', 'task-agent', 'failed', 'failed',
        0, 2, ${now - 40_000}, ${now - 35_000}),
-      (${orgId}, 'mx-sess', 'mx-e3', 'agent-run', 'cancelled', 'cancelled',
+      (${orgId}, 'mx-sess', 'mx-e3', 'task-agent', 'cancelled', 'cancelled',
        0, NULL, ${now - 30_000}, ${now - 29_000}),
-      (${orgId}, 'mx-sess', 'mx-e4', 'agent-run', 'failed', 'timeout',
+      (${orgId}, 'mx-sess', 'mx-e4', 'task-agent', 'failed', 'timeout',
        0, 1, ${now - 20_000}, ${now - 5_000})
   `;
 
@@ -37509,7 +38293,9 @@ async function checkAccountAuthzHardening(
   ctx: { cookie: string },
   suffix: string,
 ): Promise<void> {
-  const signUp = (label: string): Promise<{ cookie: string; userId: string }> =>
+  const signUp = (
+    label: string,
+  ): Promise<{ cookie: string; userId: string; email: string }> =>
     signUpUser(base, `authz-${label}-${suffix}`);
   const createOrg = async (cookie: string, slug: string): Promise<string> => {
     const res = await fetch(`${base}/api/auth/organization/create`, {
@@ -37587,6 +38373,114 @@ async function checkAccountAuthzHardening(
       adminResetsShared.status === 403 &&
       ownerResetsLow.status === 200,
     `admin→owner=${adminResetsOwner.status} (want 403), admin→cross-org=${adminResetsShared.status} (want 403), owner→member=${ownerResetsLow.status} (want 200)`,
+  );
+
+  // --- One credential row per user (org-core-2) ---------------------------
+  // The low member signed up with a password, so the reset above was the
+  // second write onto their credential; a further reset is the third. Better
+  // Auth declares no unique key on account(userId, providerId), so the old
+  // blind INSERT left one extra row per reset — and only the newest password
+  // may sign in afterwards.
+  const ownerResetsLowAgain = await setMemberPw(orgCOwner.cookie, lowMemberC);
+  const credentialRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "account"
+    WHERE "userId" = ${lowN.userId} AND "providerId" = 'credential'
+  `;
+  const signIn = (password: string): Promise<Response> =>
+    fetch(`${base}/api/auth/sign-in/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ email: lowN.email, password }),
+    });
+  const newPasswordSignsIn = (await signIn('Itest-Passw0rd!2')).ok;
+  const oldPasswordRefused = (await signIn('itest-password-1')).status === 401;
+  record(
+    'credential reset: repeated resets keep ONE credential row and only the newest password signs in',
+    ownerResetsLowAgain.status === 200 &&
+      credentialRows[0]?.count === '1' &&
+      newPasswordSignsIn &&
+      oldPasswordRefused,
+    `second=${ownerResetsLowAgain.status} rows=${credentialRows[0]?.count ?? '?'} newSignsIn=${newPasswordSignsIn} oldRefused=${oldPasswordRefused}`,
+  );
+
+  // --- The settings-UI member door carries audit + hint (org-core-4) ------
+  const createMemberVia = (
+    cookie: string,
+    body: Record<string, unknown>,
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/users/members`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ organizationId: orgC, ...body }),
+    });
+  const createdRes = await createMemberVia(orgCOwner.cookie, {
+    email: `itest-authz-created-${suffix}@example.com`,
+    password: 'Itest-Passw0rd!3',
+    displayName: 'Created Via Users Door',
+    role: 'editor',
+  });
+  const created = z
+    .object({
+      userId: z.string(),
+      memberId: z.string(),
+      isExistingUser: z.boolean(),
+    })
+    .safeParse(await createdRes.json().catch(() => ({})));
+  const existingRes = await createMemberVia(orgCOwner.cookie, {
+    email: orgDOwner.email,
+    role: 'member',
+  });
+  const existing = z
+    .object({
+      userId: z.string(),
+      memberId: z.string(),
+      isExistingUser: z.boolean(),
+    })
+    .safeParse(await existingRes.json().catch(() => ({})));
+  const duplicateRes = await createMemberVia(orgCOwner.cookie, {
+    email: orgDOwner.email,
+  });
+  const duplicate = z
+    .object({ error: z.string() })
+    .safeParse(await duplicateRes.json().catch(() => ({})));
+  const memberIds = [
+    created.success ? created.data.memberId : '',
+    existing.success ? existing.data.memberId : '',
+  ];
+  const addMemberAudits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgC} AND action = 'add_member'
+      AND resource_id IN ${sql(memberIds)}
+  `;
+  const memberHints = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgC} AND entity = 'member'
+      AND entity_id IN ${sql([
+        created.success ? created.data.userId : '',
+        existing.success ? existing.data.userId : '',
+      ])}
+  `;
+  const createdRole = created.success
+    ? await sql<{ role: string }[]>`
+        SELECT "role" FROM "member" WHERE "id" = ${created.data.memberId}
+      `
+    : [];
+  record(
+    'users/members (the settings door) adds new and existing users with an add_member audit row and a member hint',
+    createdRes.status === 200 &&
+      created.success &&
+      !created.data.isExistingUser &&
+      createdRole[0]?.role === 'editor' &&
+      existingRes.status === 200 &&
+      existing.success &&
+      existing.data.isExistingUser &&
+      existing.data.userId === orgDOwner.userId &&
+      duplicateRes.status === 400 &&
+      duplicate.success &&
+      duplicate.data.error === 'DUPLICATE_MEMBER' &&
+      addMemberAudits[0]?.count === '2' &&
+      memberHints[0]?.count === '2',
+    `created=${createdRes.status}/${created.success ? (createdRole[0]?.role ?? 'no-role') : 'unparsed'} existing=${existingRes.status}/${existing.success ? String(existing.data.isExistingUser) : 'unparsed'} duplicate=${duplicateRes.status}/${duplicate.success ? duplicate.data.error : '?'} audits=${addMemberAudits[0]?.count ?? '?'} hints=${memberHints[0]?.count ?? '?'}`,
   );
 
   // --- API-key rate-limit window unit (finding 5) -------------------------
@@ -38156,35 +39050,34 @@ async function checkReviewArc(
       headers: { 'content-type': 'application/json', cookie, origin: base },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
+  const postJson = async (route: string, body?: unknown): Promise<unknown> =>
+    readJson(await post(route, body), `POST ${route}`);
   const get = async (route: string): Promise<unknown> =>
-    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
-  const project = z
-    .object({ projectId: z.string() })
-    .safeParse(
-      await (
-        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Review Arc' })
-      ).json(),
+    readJson(
+      await fetch(`${base}${route}`, { headers: { cookie } }),
+      `GET ${route}`,
     );
+  const project = z.object({ projectId: z.string() }).safeParse(
+    await postJson(`/api/app/projects?orgId=${orgId}`, {
+      name: 'Review Arc',
+    }),
+  );
   const projectId = project.success ? project.data.projectId : '';
   const agent = z.object({ agentId: z.string() }).safeParse(
-    await (
-      await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
-        name: 'Review Bot',
-        harness: 'claude-code',
-        model: 'itest-model',
-        skills: [],
-        connectors: [],
-      })
-    ).json(),
+    await postJson(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+      name: 'Review Bot',
+      harness: 'claude-code',
+      model: 'itest-model',
+      skills: [],
+      connectors: [],
+    }),
   );
   const agentId = agent.success ? agent.data.agentId : '';
   const task = z.object({ taskId: z.string() }).safeParse(
-    await (
-      await post(`/api/app/tasks?orgId=${orgId}`, {
-        projectId,
-        title: 'Reviewed work',
-      })
-    ).json(),
+    await postJson(`/api/app/tasks?orgId=${orgId}`, {
+      projectId,
+      title: 'Reviewed work',
+    }),
   );
   const taskId = task.success ? task.data.taskId : '';
   await post(`/api/app/tasks/${taskId}/assign?orgId=${orgId}`, {
@@ -38754,9 +39647,8 @@ async function checkBackfillRecovery(
  * assertions are on ROW STATE so a cron firing mid-check changes nothing):
  * an overdue running run deadline-fails with its op cancelled and its
  * session slot released; an overdue PARKED run fails too; an expired-TTL
- * session flips while a fresh one stays; a dead admission ticket reaps
- * while a live one stays; a stale chat generation clears with its thread
- * settled idle and its pending placeholder failed.
+ * session flips while a fresh one stays; a stale chat generation clears
+ * with its thread settled idle and its pending placeholder failed.
  */
 /**
  * Abandoned presigned uploads (files/upload-intents): a key minted and PUT to
@@ -39453,7 +40345,7 @@ async function checkWatchdogs(
       org_id, session_id, exec_id, kind, status, heartbeat_at_ms,
       started_at_ms
     ) VALUES (
-      ${orgId}, 'pa-wd-agent', 'exec-wd-1', 'agent-run', 'running',
+      ${orgId}, 'pa-wd-agent', 'exec-wd-1', 'task-agent', 'running',
       ${now - 3_600_000}, ${now - 13 * 3_600_000}
     )
   `;
@@ -39561,8 +40453,8 @@ async function checkWatchdogs(
     `cancels=${cancels.length === 0 ? 'none' : cancels.join(', ')} (want exactly /v1/sessions/pa-wd-agent/exec/exec-wd-1/cancel — the parked run never launched, so no cancel for it)`,
   );
 
-  // Lane 3: sandbox expiry + admission reap (reconcile skipped — no spawner
-  // is live here; the cron lane fail-closes on probe errors by design).
+  // Lane 3: sandbox expiry (reconcile skipped — no spawner is live here; the
+  // cron lane fail-closes on probe errors by design).
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
@@ -39573,33 +40465,17 @@ async function checkWatchdogs(
       (${orgId}, 'wd-ttl-live', 'active', 'render', 'wd-ttl-live',
        'itest:wd', ${now}, ${now + 24 * 3_600_000})
   `;
-  await sql`
-    INSERT INTO app.sandbox_admission_tickets (
-      org_id, kind, owner_type, owner_id, source, status, created_at_ms,
-      last_seen_at_ms
-    ) VALUES
-      (${orgId}, 'session', 'render', 'wd-ticket-dead', 'workflow',
-       'waiting', ${now - 3_600_000}, ${now - 3_600_000}),
-      (${orgId}, 'session', 'render', 'wd-ticket-live', 'workflow',
-       'waiting', ${now}, ${now})
-  `;
   const sandboxWatchdogs = await import('./domains/sandbox/watchdogs.ts');
   await sandboxWatchdogs.runSandboxWatchdog(sql, { skipReconcile: true });
   const ttlRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
     WHERE session_id IN ('wd-ttl-gone', 'wd-ttl-live')
   `;
-  const tickets = await sql<{ ownerId: string }[]>`
-    SELECT owner_id AS "ownerId" FROM app.sandbox_admission_tickets
-    WHERE owner_id IN ('wd-ticket-dead', 'wd-ticket-live')
-  `;
   record(
-    'sandbox watchdog expires overdue sessions and reaps dead tickets',
+    'sandbox watchdog expires overdue sessions',
     ttlRows.find((r) => r.sessionId === 'wd-ttl-gone')?.status === 'expired' &&
-      ttlRows.find((r) => r.sessionId === 'wd-ttl-live')?.status === 'active' &&
-      tickets.length === 1 &&
-      tickets[0]?.ownerId === 'wd-ticket-live',
-    `ttl=${JSON.stringify(ttlRows)} tickets=${tickets.map((t) => t.ownerId).join(',')}`,
+      ttlRows.find((r) => r.sessionId === 'wd-ttl-live')?.status === 'active',
+    `ttl=${JSON.stringify(ttlRows)}`,
   );
 
   // Lane 3b: the spawner-facing passes with a SCRIPTED spawner — the fair
@@ -40250,6 +41126,113 @@ async function checkOrganizationLifecycle(
     UPDATE "user" SET "lastActiveOrganizationId" = ${orgA}
     WHERE "id" = ${owner.userId}
   `;
+  // One realtime hint per org: the outbox lives outside the `app` schema,
+  // so the catalog-driven cascade never lists it — A's must still go, B's
+  // must stay.
+  await sql`
+    INSERT INTO app_realtime.outbox (org_id, entity, entity_id)
+    VALUES (${orgA}, 'projects', 'life-hint-a'),
+           (${orgB}, 'projects', 'life-hint-b')
+  `;
+  // What the deletion used to leave behind: rows in org-keyed app tables
+  // joined by a foreign key WITHOUT a cascade (a binding references its
+  // project), the slug-keyed corpus — a private document, a website only A
+  // holds and one A shares with B — and, when blob storage is available, one
+  // object under A's key prefix.
+  const lifeProjectId = randomUUID();
+  await sql`
+    INSERT INTO app.projects (
+      id, org_id, name, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${lifeProjectId}, ${orgA}, 'Life project', ${owner.userId},
+      ${Date.now()}, ${Date.now()}
+    )
+  `;
+  await sql`
+    INSERT INTO app.automation_project_bindings (
+      org_id, automation_name, project_id, bound_at_ms, bound_by
+    ) VALUES (
+      ${orgA}, 'life-automation', ${lifeProjectId}, ${Date.now()},
+      ${owner.userId}
+    )
+  `;
+  const corpusPool = await import('./core/knowledge/pool.ts');
+  const knowledge = await corpusPool.getKnowledgePoolForOrg(slugA);
+  await knowledge.unsafe(
+    `INSERT INTO private_knowledge.documents (file_id, org_slug, status)
+     VALUES ($1, $2, 'completed')`,
+    [`life-file-${orgSuffix}`, slugA],
+  );
+  const soleDomain = `life-sole-${orgSuffix}.example`;
+  const sharedDomain = `life-shared-${orgSuffix}.example`;
+  for (const [domain, slugs] of [
+    [soleDomain, [slugA]],
+    [sharedDomain, [slugA, slugB]],
+  ] as const) {
+    await knowledge.unsafe(
+      `INSERT INTO public_web.websites (domain) VALUES ($1)
+       ON CONFLICT (domain) DO NOTHING`,
+      [domain],
+    );
+    for (const slug of slugs) {
+      await knowledge.unsafe(
+        `INSERT INTO public_web.website_org_memberships (domain, org_slug)
+         VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [domain, slug],
+      );
+    }
+  }
+  const storage = await import('./core/lib/storage/object_store.ts');
+  const lifeStore = process.env.ITEST_S3_ENDPOINT
+    ? await storage.resolveOrgObjectStore(slugA)
+    : null;
+  if (lifeStore) {
+    await storage.s3PutObject(
+      lifeStore,
+      storage.buildObjectKey(lifeStore, slugA),
+      new TextEncoder().encode('life'),
+      'text/plain',
+    );
+  }
+  const corpusCount = async (
+    query: string,
+    params: string[],
+  ): Promise<number> => {
+    const rows = await knowledge.unsafe<{ count: string }[]>(query, params);
+    return Number(rows[0]?.count ?? '0');
+  };
+  const corpusRowsFor = async (
+    slug: string,
+  ): Promise<{ documents: number; memberships: number }> => ({
+    documents: await corpusCount(
+      `SELECT count(*)::text AS count FROM private_knowledge.documents
+        WHERE org_slug = $1`,
+      [slug],
+    ),
+    memberships: await corpusCount(
+      `SELECT count(*)::text AS count FROM public_web.website_org_memberships
+        WHERE org_slug = $1`,
+      [slug],
+    ),
+  });
+  const blobsUnder = async (slug: string): Promise<number> =>
+    lifeStore
+      ? (
+          await storage.s3ListObjectKeys(
+            lifeStore,
+            storage.orgObjectPrefix(lifeStore, slug),
+          )
+        ).length
+      : 0;
+  const seededCorpus = await corpusRowsFor(slugA);
+  const seededBlobs = await blobsUnder(slugA);
+  record(
+    'org lifecycle slug-keyed fixture in place (corpus rows + blob)',
+    seededCorpus.documents === 1 &&
+      seededCorpus.memberships === 2 &&
+      (lifeStore === null || seededBlobs === 1),
+    `documents=${seededCorpus.documents} memberships=${seededCorpus.memberships} blobs=${lifeStore ? seededBlobs : 'n/a (no ITEST_S3_ENDPOINT)'}`,
+  );
 
   interface LifecycleSnapshot {
     org: number;
@@ -40510,6 +41493,141 @@ async function checkOrganizationLifecycle(
     `status=${deleted.status} ${describe(afterDelete)} teamMembers=${teamMembersLeft} sessions=${sessionsPointing} actorRole=${auditRows[0]?.actorRole ?? ''} treeGone=${treeGone}`,
   );
 
+  // Nothing keyed by the deleted organization's id survives in the app
+  // schema except the governance ledger (and the tombstone the deletion
+  // itself wrote) — checked against the catalog, so a table added later is
+  // covered by this probe the day its migration lands.
+  const orgKeyedTables = await sql<{ tableName: string }[]>`
+    SELECT c.table_name AS "tableName"
+    FROM information_schema.columns c
+    JOIN information_schema.tables t
+      ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+    WHERE c.table_schema = 'app' AND c.column_name = 'org_id'
+      AND t.table_type = 'BASE TABLE'
+    ORDER BY c.table_name
+  `;
+  const ledger = new Set([
+    'audit_logs',
+    'audit_chain_heads',
+    'audit_integrity_progress',
+    'organization_tombstones',
+  ]);
+  const survivorsA: string[] = [];
+  for (const { tableName } of orgKeyedTables) {
+    if (ledger.has(tableName)) continue;
+    const left = await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM ${sql(`app.${tableName}`)}
+      WHERE org_id = ${orgA}
+    `);
+    if (left > 0) survivorsA.push(`${tableName}=${left}`);
+  }
+  // The realtime hint outbox is org-keyed too, in its own schema.
+  const outboxLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgA}
+  `);
+  if (outboxLeft > 0) survivorsA.push(`app_realtime.outbox=${outboxLeft}`);
+  const outboxB = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgB}
+  `);
+  const projectRowsB = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.projects WHERE org_id = ${orgB}
+  `);
+  record(
+    'org delete cascades over every org-keyed app table and keeps only the governance ledger',
+    orgKeyedTables.length > 50 &&
+      survivorsA.length === 0 &&
+      afterDelete.audit === 1 &&
+      outboxB === 1 &&
+      projectRowsB === 0,
+    `tables=${orgKeyedTables.length} survivors=${survivorsA.join(',') || 'none'} audit=${afterDelete.audit} outboxB=${outboxB}`,
+  );
+
+  // The slug stays reserved (tombstone) until the job has removed what the
+  // slug keys outside the app database: the corpus rows, the blobs under the
+  // org's key prefix, the config tree. A website another organization still
+  // holds keeps its row; the one only A held goes.
+  const tombstoneCleared = await waitFor(async () => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.organization_tombstones
+      WHERE slug = ${slugA}
+    `;
+    return rows[0]?.count === '0';
+  }, 20_000);
+  const corpusAfter = await corpusRowsFor(slugA);
+  const corpusB = await corpusRowsFor(slugB);
+  const soleDomainLeft = await corpusCount(
+    `SELECT count(*)::text AS count FROM public_web.websites WHERE domain = $1`,
+    [soleDomain],
+  );
+  const sharedDomainLeft = await corpusCount(
+    `SELECT count(*)::text AS count FROM public_web.websites WHERE domain = $1`,
+    [sharedDomain],
+  );
+  const blobsAfter = await blobsUnder(slugA);
+  record(
+    'the teardown job removes the slug-keyed corpus, blobs and tree, then clears the tombstone',
+    tombstoneCleared &&
+      corpusAfter.documents === 0 &&
+      corpusAfter.memberships === 0 &&
+      soleDomainLeft === 0 &&
+      sharedDomainLeft === 1 &&
+      corpusB.memberships === 1 &&
+      blobsAfter === 0 &&
+      !(await exists(dirA)),
+    `tombstoneCleared=${tombstoneCleared} documents=${corpusAfter.documents} memberships=${corpusAfter.memberships} soleDomain=${soleDomainLeft} sharedDomain=${sharedDomainLeft} membershipsB=${corpusB.memberships} blobs=${lifeStore ? blobsAfter : 'n/a'} dirA=${await exists(dirA)}`,
+  );
+
+  // The freed slug is reusable exactly now — and the new tenant starts with
+  // an empty corpus rather than the old tenant's documents.
+  const reborn = await createOrg(owner.cookie, 'Life A reborn', slugA);
+  const rebornCorpus = await corpusRowsFor(slugA);
+  record(
+    'a freed slug can be taken again and the new organization starts with an empty corpus',
+    reborn !== '' &&
+      reborn !== orgA &&
+      rebornCorpus.documents === 0 &&
+      rebornCorpus.memberships === 0,
+    `reborn=${reborn || 'REFUSED'} documents=${rebornCorpus.documents} memberships=${rebornCorpus.memberships}`,
+  );
+
+  // While a tombstone stands the slug is refused — and the refusal
+  // re-enqueues the teardown, so a tombstone that outlived its job (this one
+  // never had one) heals itself instead of blocking the slug forever.
+  const slugC = `itest-life-c-${orgSuffix}`;
+  await sql`
+    INSERT INTO app.organization_tombstones (
+      slug, org_id, deleted_by, deleted_at_ms
+    ) VALUES (${slugC}, 'org-long-gone', ${owner.userId}, ${Date.now()})
+  `;
+  const refusedRetiring = await fetch(`${base}/api/auth/organization/create`, {
+    method: 'POST',
+    headers: { ...jsonHeaders, cookie: owner.cookie },
+    body: JSON.stringify({ name: 'Life C', slug: slugC }),
+  });
+  const refusedRetiringBody = await readError(refusedRetiring);
+  const orgCNotCreated = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "organization" WHERE "slug" = ${slugC}
+  `);
+  const healed = await waitFor(async () => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.organization_tombstones
+      WHERE slug = ${slugC}
+    `;
+    return rows[0]?.count === '0';
+  }, 20_000);
+  const orgC = healed ? await createOrg(owner.cookie, 'Life C', slugC) : '';
+  record(
+    'a retiring slug is refused until its teardown has run, then reusable',
+    refusedRetiring.status === 400 &&
+      /still being removed/.test(refusedRetiringBody.message ?? '') &&
+      orgCNotCreated === 0 &&
+      healed &&
+      orgC !== '',
+    `status=${refusedRetiring.status} message=${refusedRetiringBody.message ?? ''} created=${orgCNotCreated} healed=${healed} orgC=${orgC || 'REFUSED'}`,
+  );
+
   // Tenant isolation + shared users: B and both accounts are untouched.
   const survivors = await sql<
     {
@@ -40572,6 +41690,29 @@ async function sharedSessionAlive(
     .loose()
     .safeParse(await res.json().catch(() => null));
   return res.ok && parsed.success && parsed.data.user.id === ctx.userId;
+}
+
+/**
+ * Reads a JSON response body, naming the request when it cannot. `.json()`
+ * on a non-JSON error body throws a bare SyntaxError, so a 401/404/500 with
+ * a text body used to truncate the run as "Unexpected token …" and hide the
+ * status and body that explain it. Throws `<label>: HTTP <status> <body>`
+ * for a non-2xx status, and a parse failure carries the same context.
+ */
+async function readJson(res: Response, label: string): Promise<unknown> {
+  const text = await res.text();
+  const excerpt = text.slice(0, 300);
+  if (!res.ok) {
+    throw new Error(`${label}: HTTP ${res.status} ${excerpt}`);
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    throw new Error(
+      `${label}: HTTP ${res.status} body is not JSON (${errorText(error)}): ${excerpt}`,
+      { cause: error },
+    );
+  }
 }
 
 /**
@@ -40646,6 +41787,14 @@ async function main(): Promise<void> {
     // Secret-box key for the credential round-trip (64 hex chars = 32 bytes).
     process.env.ENCRYPTION_SECRET_HEX = 'ab'.repeat(32);
   }
+  // The sandbox gateway admin client refuses to run anonymous
+  // (requireGatewayAdminPassword throws before any network call), and three
+  // lanes mint keys against a fake gateway in this order:
+  // checkAutomationAgentNode, checkAutomationRunToolLane,
+  // checkSandboxGatewayKeyReclaim. Default it here, before any lane runs — the
+  // reclaim lane used to be the only setter, so on a machine without the
+  // variable the two earlier lanes failed their `minted === 1` assertions.
+  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD ??= 'itest-gateway-admin';
 
   // Better Auth validates the request Host against baseURL, so the server
   // port must be known BEFORE the auth instance is created — pick one

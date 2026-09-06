@@ -47,9 +47,29 @@ interface SseClient {
   // ping, which is enqueued directly at stream start and never passes
   // through the watcher fan-out.
   allowedOrgSlugs: Set<string>;
+  // The periodic comment frame (see SSE_HEARTBEAT_MS); cleared when the
+  // client goes away by either door (cancel, or a failed enqueue).
+  heartbeat: ReturnType<typeof setInterval>;
 }
 
 const sseClients = new Set<SseClient>();
+
+/**
+ * How often an idle `/events/file` stream writes a `: ping` comment frame.
+ * Config changes are rare, so without it a quiet client sits silent until
+ * Bun's `idleTimeout` (255 s, see Bun.serve below) cuts the socket; the
+ * EventSource then reconnects, costing a backend auth lookup per cycle and
+ * dropping any change event that lands in the gap. 30 s keeps a healthy
+ * client an order of magnitude inside the timeout; a comment frame is
+ * invisible to EventSource consumers.
+ */
+const SSE_HEARTBEAT_MS = 30_000;
+
+/** Forget a client and stop its heartbeat — the one place both happen. */
+function dropSseClient(client: SseClient): void {
+  clearInterval(client.heartbeat);
+  sseClients.delete(client);
+}
 
 /**
  * Fan-out predicate for config-watcher SSE events. Default-deny: an event
@@ -88,7 +108,7 @@ if (fileEventsEnabled && configDir && existsSync(configDir)) {
         client.controller.enqueue(payload);
       } catch (err) {
         console.warn('SSE enqueue failed; dropping client', err);
-        sseClients.delete(client);
+        dropSseClient(client);
       }
     }
   });
@@ -118,6 +138,9 @@ function backendBaseUrl(): string {
   return configured === '' ? 'http://127.0.0.1:3005' : configured;
 }
 
+/** Upper bound on one session-oracle round trip to the backend. */
+const SESSION_ORACLE_TIMEOUT_MS = 5_000;
+
 /**
  * Validate the request's session cookie against the backend's `/api/sse/auth`
  * door and answer the caller's org memberships — `null` means "no valid
@@ -131,6 +154,10 @@ async function resolveAllowedOrgSlugs(
   try {
     const res = await fetch(`${backendBaseUrl()}/api/sse/auth`, {
       headers: { cookie: cookieHeader },
+      // A hung backend must not leave every `/events/file` and
+      // `/canvas-preview` request pending forever; the catch below turns
+      // the timeout into a 401 like any other failed lookup.
+      signal: AbortSignal.timeout(SESSION_ORACLE_TIMEOUT_MS),
     });
     if (res.status === 401) return null;
     if (!res.ok) {
@@ -703,16 +730,24 @@ export function createApp(
     }
 
     // `undefined` until start() runs — a cancel that fires before then
-    // must not call `sseClients.delete(undefined)`, so cancel() guards.
+    // must not drop `undefined`, so cancel() guards.
     let client: SseClient | undefined;
     const stream = new ReadableStream({
       start(controller) {
-        client = { controller, allowedOrgSlugs };
+        const heartbeat = setInterval(() => {
+          try {
+            controller.enqueue(': ping\n\n');
+          } catch (err) {
+            console.warn('SSE heartbeat failed; dropping client', err);
+            if (client) dropSseClient(client);
+          }
+        }, SSE_HEARTBEAT_MS);
+        client = { controller, allowedOrgSlugs, heartbeat };
         sseClients.add(client);
         controller.enqueue('data: {"type":"connected"}\n\n');
       },
       cancel() {
-        if (client) sseClients.delete(client);
+        if (client) dropSseClient(client);
       },
     });
     return new Response(stream, {

@@ -233,6 +233,25 @@ describe('createPgTurnStore.beginTurn', () => {
   });
 });
 
+describe('createPgTurnStore.appendMessage', () => {
+  it('notifies the thread stream — a refusal lands its rows through this write alone', async () => {
+    const f = fakeChatSql();
+    const appended = await createPgTurnStore(f.sql).appendMessage({
+      organizationId: 'org_1',
+      threadId: 'thread_1',
+      role: 'assistant',
+      parts: [],
+      blockedReason: 'The chat_filter guardrail refused this message.',
+    });
+
+    expect(appended.id).toBe('msg_1');
+    // No generation row ever opens for a pre-model refusal, so without this
+    // NOTIFY the other viewers of the thread learn of the two rows only on a
+    // later invalidation.
+    expect(f.notified).toEqual(['chat_stream:thread_1']);
+  });
+});
+
 describe('createPgTurnStore.endGeneration', () => {
   it('closes the row, settles the sidecar, and fails a still-pending placeholder in one transaction', async () => {
     const f = fakeChatSql();

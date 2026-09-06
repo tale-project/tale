@@ -9,9 +9,18 @@ import {
   moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
   POLICY_SCHEMAS,
+  POLICY_TYPES,
   reviewPolicyConfigSchema,
   visionModelConfigSchema,
 } from './governance';
+
+describe('POLICY_TYPES', () => {
+  it('is the one list — every type has a file schema and every schema a type', () => {
+    expect(Object.keys(POLICY_SCHEMAS).toSorted()).toEqual(
+      [...POLICY_TYPES].toSorted(),
+    );
+  });
+});
 
 describe('featureFlagRuleSchema — maxContextTokens validation', () => {
   it('accepts valid maxContextTokens at minimum floor (4096)', () => {

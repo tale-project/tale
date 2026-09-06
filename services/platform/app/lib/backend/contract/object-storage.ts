@@ -66,7 +66,7 @@ export interface ObjectStorageContract {
       runId: string;
       status: 'running' | 'failed' | 'completed';
       dryRun: boolean;
-      phase: 'documents' | 'done' | 'fileMetadata';
+      phase: 'documents' | 'done' | 'fileMetadata' | 'ttsChunks' | 'videoLinks';
       continuation: number;
       rowsScanned: number;
       migrated: number;

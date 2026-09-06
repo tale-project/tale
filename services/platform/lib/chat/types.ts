@@ -196,7 +196,7 @@ const CHARS_PER_TOKEN_CJK = 1.5;
 const CHARS_PER_TOKEN_JSON = 3;
 
 /** Per-message structural overhead (role, formatting) in tokens. */
-export const MESSAGE_OVERHEAD_TOKENS = 4;
+const MESSAGE_OVERHEAD_TOKENS = 4;
 
 /** CJK Unified Ideographs (+ Ext A), Hiragana, Katakana, Hangul. */
 const CJK_PATTERN =
@@ -220,7 +220,7 @@ export function estimateTokens(text: string): number {
 }
 
 /** Token estimate for a structured value (tool payloads) at the JSON rate. */
-export function estimateJsonTokens(value: unknown): number {
+function estimateJsonTokens(value: unknown): number {
   return Math.ceil(safeJson(value).length / CHARS_PER_TOKEN_JSON);
 }
 

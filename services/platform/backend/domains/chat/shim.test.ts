@@ -1,7 +1,3 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
@@ -34,14 +30,9 @@ import { chatShimHandlers } from './shim.ts';
 
 /**
  * Where a chat dispatch begins — the reused 0.4 modules each 0.5 host hands
- * this shim to — and the one module it does NOT have to answer.
- *
- * `core/chat/turn_store.ts` is 0.4's Convex-backed `TurnStore` / `UsageLedger`
- * pair. `executeTurn` builds it and then spreads `overrides.deps` over it, and
- * `runChatTurn` always overrides both with the Postgres ports in
- * `domains/chat/store.ts` — so its seven `internal.chat.*` writes are dead
- * code here, not a gap in the map. The exclusion is a hole in this gate, so
- * the test below asserts the override is still wired.
+ * this shim to. `executeTurn` has no store of its own: the Postgres turn
+ * store and usage ledger (`domains/chat/store.ts`) are REQUIRED overrides,
+ * so no module on this walk is excluded.
  */
 const CHAT_DISPATCH = {
   entryPoints: [
@@ -53,7 +44,6 @@ const CHAT_DISPATCH = {
     'core/lib/providers/resolve_tts_model.ts',
     'core/lib/providers/resolve_transcription_model.ts',
   ],
-  replacedModules: ['core/chat/turn_store.ts'],
 };
 
 describe('chatShimHandlers', () => {
@@ -63,19 +53,6 @@ describe('chatShimHandlers', () => {
 
   it('answers every internal function a chat turn can reach', () => {
     expect(unansweredHandlerNames(handlers, CHAT_DISPATCH)).toEqual([]);
-  });
-
-  it('still replaces the 0.4 turn store the walk excludes', () => {
-    // Without the override, `executeTurn` would dispatch the excluded
-    // module's writes onto this map — which has no handler for any of them,
-    // so every turn would die on its first append. `Partial<TurnDeps>` makes
-    // dropping one a type-clean edit, which is why it needs an assertion.
-    const service = readFileSync(
-      path.join(path.dirname(fileURLToPath(import.meta.url)), 'service.ts'),
-      'utf8',
-    );
-    expect(service).toContain('store: createPgTurnStore(');
-    expect(service).toContain('usage: createPgUsageLedger(');
   });
 
   it('reaches the search legs, not just the turn host', () => {
