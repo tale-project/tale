@@ -22516,12 +22516,12 @@ async function checkWebdav(
   });
 
   // MKCOL + double-MKCOL (405 per RFC 4918 §9.3.1).
-  const mkcol = await dav('/documents/Reports', { method: 'MKCOL' });
-  const mkcolAgain = await dav('/documents/Reports', { method: 'MKCOL' });
+  const mkcol = await dav('/documents/DavReports', { method: 'MKCOL' });
+  const mkcolAgain = await dav('/documents/DavReports', { method: 'MKCOL' });
 
   // Sized PUT → blob in MinIO + document row + RAG queued.
   const putBody = 'hello webdav';
-  const put = await dav('/documents/Reports/plan.txt', {
+  const put = await dav('/documents/DavReports/plan.txt', {
     method: 'PUT',
     body: putBody,
     headers: {
@@ -22537,7 +22537,7 @@ async function checkWebdav(
     FROM app.documents d
     JOIN app.folders f ON f.id = d.folder_id
     WHERE d.org_id = ${orgId} AND d.title = 'plan.txt'
-      AND f.name = 'Reports'
+      AND f.name = 'DavReports'
     LIMIT 1
   `;
   const firstRef = docRows[0]?.fileRef ?? '';
@@ -22545,12 +22545,12 @@ async function checkWebdav(
     SELECT rag_status AS "ragStatus" FROM app.file_metadata
     WHERE org_id = ${orgId} AND storage_ref = ${firstRef} LIMIT 1
   `;
-  const got = await dav('/documents/Reports/plan.txt');
+  const got = await dav('/documents/DavReports/plan.txt');
   const gotBody = got.ok ? await got.text() : '';
 
   // Overwrite: new blob, the old one reclaimed (refcount 0).
   const put2Body = 'hello again, webdav';
-  const put2 = await dav('/documents/Reports/plan.txt', {
+  const put2 = await dav('/documents/DavReports/plan.txt', {
     method: 'PUT',
     body: put2Body,
     headers: {
@@ -22563,29 +22563,42 @@ async function checkWebdav(
     WHERE id = ${docRows[0]?.id ?? ''} LIMIT 1
   `;
   const secondRef = afterOverwrite[0]?.fileRef ?? '';
-  const oldMeta = await sql<{ lifecycleStatus: string | null }[]>`
-    SELECT lifecycle_status AS "lifecycleStatus" FROM app.file_metadata
-    WHERE org_id = ${orgId} AND storage_ref = ${firstRef} LIMIT 1
-  `;
-  const got2 = await dav('/documents/Reports/plan.txt');
+  // The overwrite trashes the old ref's file row and enqueues the durable
+  // `knowledge.release_refs` job; the worker (in this process) deletes the
+  // bytes and reaps the trashed, unbound row. The honest terminal state is
+  // therefore "row absent + blob absent" — pinning the transient 'trashed'
+  // raced the reap.
+  const storage = await import('./lib/object-store.ts');
+  const store = await storage.resolveObjectStore(orgSlug);
+  const oldRefReleased = await waitFor(async () => {
+    const rows = await sql<{ id: string }[]>`
+      SELECT id FROM app.file_metadata
+      WHERE org_id = ${orgId} AND storage_ref = ${firstRef} LIMIT 1
+    `;
+    return rows.length === 0;
+  }, 15_000);
+  const oldBlobGone =
+    firstRef.startsWith('s3:') &&
+    (await storage.s3HeadObject(store, firstRef.slice(3))) === null;
+  const got2 = await dav('/documents/DavReports/plan.txt');
   const got2Body = got2.ok ? await got2.text() : '';
 
   // Depth-1 PROPFIND on the folder lists the file with a length.
-  const folderList = await dav('/documents/Reports/', {
+  const folderList = await dav('/documents/DavReports/', {
     method: 'PROPFIND',
     headers: { depth: '1' },
   });
   const folderXml = folderList.ok ? await folderList.text() : '';
 
   // MOVE (rename), then COPY (shared bytes).
-  const move = await dav('/documents/Reports/plan.txt', {
+  const move = await dav('/documents/DavReports/plan.txt', {
     method: 'MOVE',
     headers: {
-      destination: `${base}/dav/${orgSlug}/documents/Reports/plan2.txt`,
+      destination: `${base}/dav/${orgSlug}/documents/DavReports/plan2.txt`,
     },
   });
-  const oldGone = await dav('/documents/Reports/plan.txt');
-  const copy = await dav('/documents/Reports/plan2.txt', {
+  const oldGone = await dav('/documents/DavReports/plan.txt');
+  const copy = await dav('/documents/DavReports/plan2.txt', {
     method: 'COPY',
     headers: {
       destination: `${base}/dav/${orgSlug}/documents/plan-copy.txt`,
@@ -22600,20 +22613,84 @@ async function checkWebdav(
     '<D:lockscope><D:exclusive/></D:lockscope>' +
     '<D:locktype><D:write/></D:locktype>' +
     '<D:owner>itest</D:owner></D:lockinfo>';
-  const lock = await dav('/documents/Reports/plan2.txt', {
+  const lock = await dav('/documents/DavReports/plan2.txt', {
     method: 'LOCK',
     body: lockXml,
     headers: { 'content-type': 'application/xml', timeout: 'Second-600' },
   });
   const lockToken = lock.headers.get('lock-token') ?? '';
-  const lockAgain = await dav('/documents/Reports/plan2.txt', {
+  const lockAgain = await dav('/documents/DavReports/plan2.txt', {
     method: 'LOCK',
     body: lockXml,
     headers: { 'content-type': 'application/xml', timeout: 'Second-600' },
   });
-  const unlock = await dav('/documents/Reports/plan2.txt', {
+  const unlock = await dav('/documents/DavReports/plan2.txt', {
     method: 'UNLOCK',
     headers: { 'lock-token': lockToken },
+  });
+
+  // Two concurrent LOCKs on the same unlocked path: exactly one wins (the
+  // per-org advisory section + the unique (org, path) index), the other
+  // sees 423 — never two "exclusive" tokens for one resource.
+  const lockPlan2 = (): Promise<Response> =>
+    dav('/documents/DavReports/plan2.txt', {
+      method: 'LOCK',
+      body: lockXml,
+      headers: { 'content-type': 'application/xml', timeout: 'Second-600' },
+    });
+  const raced = await Promise.all([lockPlan2(), lockPlan2()]);
+  const racedStatuses = raced
+    .map((r) => r.status)
+    .sort((a, b) => a - b)
+    .join('/');
+  const raceRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.webdav_locks
+    WHERE org_id = ${orgId}
+      AND resource_path = '/documents/DavReports/plan2.txt'
+  `;
+  const raceWinnerToken =
+    raced.find((r) => r.status === 200)?.headers.get('lock-token') ?? '';
+  const raceUnlock = await dav('/documents/DavReports/plan2.txt', {
+    method: 'UNLOCK',
+    headers: { 'lock-token': raceWinnerToken },
+  });
+
+  // Collation-safe subtree scans: a lock under `foobar` must not shadow its
+  // sibling `foo`, and it must still guard `foobar` itself (a depth-infinity
+  // LOCK over it and its DELETE both 423). The old `>= path/ AND <
+  // path/U+FFFF` range found no descendant at all on the shipped
+  // en_US.utf8 image.
+  await dav('/documents/DavReports/foo', { method: 'MKCOL' });
+  await dav('/documents/DavReports/foobar', { method: 'MKCOL' });
+  await dav('/documents/DavReports/foobar/x.txt', {
+    method: 'PUT',
+    body: 'x',
+    headers: { 'content-type': 'text/plain', 'content-length': '1' },
+  });
+  const memberLock = await dav('/documents/DavReports/foobar/x.txt', {
+    method: 'LOCK',
+    body: lockXml,
+    headers: { 'content-type': 'application/xml', timeout: 'Second-600' },
+  });
+  const memberToken = memberLock.headers.get('lock-token') ?? '';
+  const siblingDelete = await dav('/documents/DavReports/foo', {
+    method: 'DELETE',
+  });
+  const parentInfinityLock = await dav('/documents/DavReports/foobar', {
+    method: 'LOCK',
+    body: lockXml,
+    headers: {
+      'content-type': 'application/xml',
+      timeout: 'Second-600',
+      depth: 'infinity',
+    },
+  });
+  const parentDelete = await dav('/documents/DavReports/foobar', {
+    method: 'DELETE',
+  });
+  const memberUnlock = await dav('/documents/DavReports/foobar/x.txt', {
+    method: 'UNLOCK',
+    headers: { 'lock-token': memberToken },
   });
 
   // Hub-only visibility: a project doc + folder never surface (#2545).
@@ -22644,8 +22721,8 @@ async function checkWebdav(
   const projGet = await dav('/documents/proj-secret.txt');
 
   // Folder-cascade DELETE, then the flat .trash namespace lists the doc.
-  const del = await dav('/documents/Reports', { method: 'DELETE' });
-  const delGone = await dav('/documents/Reports/', {
+  const del = await dav('/documents/DavReports', { method: 'DELETE' });
+  const delGone = await dav('/documents/DavReports/', {
     method: 'PROPFIND',
     headers: { depth: '1' },
   });
@@ -22706,9 +22783,9 @@ async function checkWebdav(
     `created=${davEntry.success}, delete=${davEntryDelete.status} (want 204), doc=${davEntryChain[0]?.lifecycleStatus ?? 'missing'} (want trashed), chainDeleted=${davEntryChain[0]?.deleted ?? 'missing'} (want true), update=${davEntryUpdate.status} (want 404)`,
   );
 
-  // Chunked PUT (no Content-Length) refuses loudly — S3 needs a length.
-  // The shim's CHUNKED_PUT_UNSUPPORTED throw escapes to the adapter's 500
-  // (the 0.4 lane returned a Convex URL here, so put.ts has no catch).
+  // Chunked PUT (no Content-Length) is refused with 411 up front — the
+  // presigned object-store PUT needs the length, and the refusal is an
+  // expected client error, not a reported 500.
   const chunked = await fetch(`${base}/dav/${orgSlug}/documents/chunked.txt`, {
     method: 'PUT',
     headers: {
@@ -22826,6 +22903,64 @@ async function checkWebdav(
       ).json(),
     );
   const passwordId = list.success ? (list.data.appPasswords[0]?._id ?? '') : '';
+  // The revoke door is org-scoped: a credential minted in org B is not
+  // reachable through org A's door, even for its own owner. A throwaway
+  // guest owns B and holds a plain membership in A for the probe — removed
+  // afterwards, so the main itest user stays single-org for the REST lanes
+  // that follow (a multi-org user needs X-Organization-Slug there).
+  const guest = await signUpOrgMember(sql, base, orgId, 'dav-guest', 'member');
+  const foreignOrg = z.object({ id: z.string().optional() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/organization/create`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: guest.cookie,
+          origin: base,
+        },
+        body: JSON.stringify({
+          name: 'Dav Foreign',
+          slug: `${orgSlug}-dav-foreign`,
+        }),
+      })
+    ).json(),
+  );
+  const foreignOrgId = foreignOrg.success ? (foreignOrg.data.id ?? '') : '';
+  await fetch(`${base}/api/app/webdav/app-passwords?orgId=${foreignOrgId}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie: guest.cookie,
+      origin: base,
+    },
+    body: JSON.stringify({ label: 'guest device' }),
+  });
+  const foreignList = z
+    .object({ appPasswords: z.array(z.looseObject({ _id: z.string() })) })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/webdav/app-passwords?orgId=${foreignOrgId}`,
+          { headers: { cookie: guest.cookie, origin: base } },
+        )
+      ).json(),
+    );
+  const foreignPasswordId = foreignList.success
+    ? (foreignList.data.appPasswords[0]?._id ?? '')
+    : '';
+  const foreignRevoke = await fetch(
+    `${base}/api/app/webdav/app-passwords/${foreignPasswordId}/revoke?orgId=${orgId}`,
+    { method: 'POST', headers: { cookie: guest.cookie, origin: base } },
+  );
+  const afterForeignRevoke = await sql<{ revokedAt: number | null }[]>`
+    SELECT revoked_at_ms::float8 AS "revokedAt" FROM app.webdav_app_passwords
+    WHERE id = ${foreignPasswordId} LIMIT 1
+  `;
+  const ownDoorRevoke = await fetch(
+    `${base}/api/app/webdav/app-passwords/${foreignPasswordId}/revoke?orgId=${foreignOrgId}`,
+    { method: 'POST', headers: { cookie: guest.cookie, origin: base } },
+  );
+  await sql`DELETE FROM "member" WHERE "id" = ${guest.memberId}`;
   await fetch(
     `${base}/api/app/webdav/app-passwords/${passwordId}/revoke?orgId=${orgId}`,
     { method: 'POST', headers: { cookie, origin: base } },
@@ -22857,7 +22992,8 @@ async function checkWebdav(
       put2.status === 204 &&
       secondRef !== '' &&
       secondRef !== firstRef &&
-      oldMeta[0]?.lifecycleStatus === 'trashed' &&
+      oldRefReleased &&
+      oldBlobGone &&
       got2Body === put2Body &&
       folderList.status === 207 &&
       folderXml.includes('plan.txt') &&
@@ -22870,6 +23006,14 @@ async function checkWebdav(
       lockToken !== '' &&
       lockAgain.status === 423 &&
       unlock.status === 204 &&
+      racedStatuses === '200/423' &&
+      raceRows[0]?.count === '1' &&
+      raceUnlock.status === 204 &&
+      memberLock.status === 200 &&
+      siblingDelete.status === 204 &&
+      parentInfinityLock.status === 423 &&
+      parentDelete.status === 423 &&
+      memberUnlock.status === 204 &&
       !rootXml.includes('proj-secret.txt') &&
       !rootXml.includes('ProjFolder') &&
       projGet.status === 404 &&
@@ -22877,7 +23021,7 @@ async function checkWebdav(
       delGone.status === 404 &&
       trashList.status === 207 &&
       trashXml.includes('plan2.txt') &&
-      chunked.status === 500 &&
+      chunked.status === 411 &&
       doorWrite.status === 'ok' &&
       doorFile.status === 200 &&
       doorFileBody === 'from the agent lane' &&
@@ -22890,8 +23034,13 @@ async function checkWebdav(
       doorDelete.status === 'ok' &&
       heldDelete.status === 403 &&
       releasedDelete.status === 204 &&
+      foreignOrgId !== '' &&
+      foreignPasswordId !== '' &&
+      foreignRevoke.status === 404 &&
+      afterForeignRevoke[0]?.revokedAt === null &&
+      ownDoorRevoke.status === 200 &&
       afterRevoke.status === 401,
-    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldMeta=${oldMeta[0]?.lifecycleStatus} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 500), door w/g/l/r/d=${doorWrite.status}/${doorFile.status}:${doorFileBody === 'from the agent lane'}/${doorList.status}:${doorListRaw.includes('agent-note.txt')}/${doorRead.status}/${doorDelete.status} ghost=${JSON.stringify(doorDeleteGhost.status === 'ok' ? doorDeleteGhost.output : {})}, hold=${heldDelete.status} (want 403) released=${releasedDelete.status} (want 204), revoked=${afterRevoke.status} (want 401)`,
+    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldRefReleased=${oldRefReleased} oldBlobGone=${oldBlobGone} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status} race=${racedStatuses} (want 200/423) rows=${raceRows[0]?.count} raceUnlock=${raceUnlock.status}, subtree member=${memberLock.status} sibling=${siblingDelete.status} (want 204) parentLock=${parentInfinityLock.status} (want 423) parentDel=${parentDelete.status} (want 423) memberUnlock=${memberUnlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 411), door w/g/l/r/d=${doorWrite.status}/${doorFile.status}:${doorFileBody === 'from the agent lane'}/${doorList.status}:${doorListRaw.includes('agent-note.txt')}/${doorRead.status}/${doorDelete.status} ghost=${JSON.stringify(doorDeleteGhost.status === 'ok' ? doorDeleteGhost.output : {})}, hold=${heldDelete.status} (want 403) released=${releasedDelete.status} (want 204), foreignRevoke=${foreignRevoke.status} (want 404) stillActive=${afterForeignRevoke[0]?.revokedAt === null} ownDoor=${ownDoorRevoke.status} (want 200) revoked=${afterRevoke.status} (want 401)`,
   );
 }
 

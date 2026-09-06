@@ -139,25 +139,3 @@ export function isValidSegment(s: string): boolean {
   if (/[\x00-\x1f\x7f]/.test(s)) return false;
   return true;
 }
-
-/**
- * Re-home a blob URL onto the origin the server itself can reach. A stored
- * direct URL may name a host that only the browser resolves; the GET lane
- * streams the bytes server-side, so it rewrites protocol+host and keeps the
- * path. An unparseable URL is returned untouched — a bad stored value must
- * not turn a download into a crash.
- */
-export function rewriteStorageOrigin(
-  storageUrl: string,
-  backendUrl: string,
-): string {
-  try {
-    const target = new URL(backendUrl);
-    const url = new URL(storageUrl);
-    url.protocol = target.protocol;
-    url.host = target.host;
-    return url.toString();
-  } catch {
-    return storageUrl;
-  }
-}
