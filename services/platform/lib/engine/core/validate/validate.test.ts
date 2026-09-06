@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { nodeVmRunner } from '../../runners/node-vm';
-import { memoryStore } from '../../store/memory';
-import { registerNodeType, setCodeRunner, setStoreAdapter } from '../slots';
+import { memoryStore } from '../../selftest/memory-store';
+import { registerNodeType, setCodeRunner } from '../slots';
 import type { Automation, Issue, NodeDef } from '../types';
 import { validate } from './index';
 
@@ -76,9 +76,13 @@ beforeAll(() => {
   });
 });
 
+/** The caller's store: two saved automations, the way dispatch hands its
+ * org-scoped store to `validate()`. Rebuilt per test. */
+let store = memoryStore();
+
 beforeEach(() => {
   setCodeRunner(nodeVmRunner());
-  const store = memoryStore();
+  store = memoryStore();
   const noop: Automation = {
     version: 1,
     name: 'send-digest',
@@ -87,7 +91,6 @@ beforeEach(() => {
   store.save('send-digest', noop);
   store.save('send-digest', noop);
   store.save('weekly-report', { ...noop, name: 'weekly-report' });
-  setStoreAdapter(store);
 });
 
 function automationDoc(
@@ -145,7 +148,10 @@ describe('a realistic valid document', () => {
         output: '{{ nodes.format.output.text }}',
       },
     );
-    await expect(validate(doc)).resolves.toEqual({ errors: [], warnings: [] });
+    await expect(validate(doc, { store })).resolves.toEqual({
+      errors: [],
+      warnings: [],
+    });
   });
 
   it('is idempotent across repeated runs of the same document (schema $id reuse)', async () => {
@@ -642,7 +648,6 @@ describe('degrading without optional backends', () => {
   });
 
   it('skips subautomation resolution without a store, but still checks the reference syntax', async () => {
-    setStoreAdapter(null as never);
     const doc = automationDoc(
       [
         { id: 'ok', type: 'subautomation', automation: 'ghost-flow' },
@@ -656,18 +661,18 @@ describe('degrading without optional backends', () => {
   });
 
   it('survives a store whose list() rejects', async () => {
-    setStoreAdapter({
+    const down = {
       list: async () => {
         throw new Error('backend down');
       },
       get: async () => null,
       deployedVersion: async () => null,
-    });
+    };
     const doc = automationDoc(
       [{ id: 'sub', type: 'subautomation', automation: 'ghost-flow' }],
       { output: '{{ nodes.sub.output }}' },
     );
-    const { errors } = await validate(doc);
+    const { errors } = await validate(doc, { store: down });
     expect(codesOf(errors)).not.toContain('SUBAUTOMATION_NOT_FOUND');
   });
 });

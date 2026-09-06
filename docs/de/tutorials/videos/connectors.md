@@ -24,9 +24,8 @@ Der MCP-Abschnitt (1:09–1:45) wurde im Panel **MCP-Server** der früheren Vers
 | 0:52 | Der Gewinn: Tiefenrecherche gibt es, weil Tavily angebunden ist            |
 | 1:09 | MCP: eure eigenen Werkzeuge, den Agenten wie eingebaute serviert           |
 | 1:27 | Freigabe-Flags pro Werkzeug — eingebaut aussehen heißt nicht vertrauen     |
-| 1:45 | Die letzte Tür: Sandbox-Code, Egress standardmäßig zu, schließt im Zweifel |
 | 2:07 | Das Muster an jeder Tür                                                    |
 
 ## Wie es weitergeht
 
-Der [Connectors-Überblick](/de/platform/connectors/overview) behandelt Verbinden und Teilen; [MCP-Server](/de/platform/connectors/mcp-servers), was in dieser Version an der MCP-Tür steht. Zur Netzgrenze lies die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) — und was ein angebundener Connector freischaltet, zeigen die [Automatisierungs-Konzepte](/de/platform/automations/concepts).
+Der [Connectors-Überblick](/de/platform/connectors/overview) behandelt Verbinden und Teilen; [MCP-Server](/de/platform/connectors/mcp-servers), was in dieser Version an der MCP-Tür steht. Zur Netzgrenze lies [Hardening](/de/self-hosted/operate/security/hardening) — und was ein angebundener Connector freischaltet, zeigen die [Automatisierungs-Konzepte](/de/platform/automations/concepts).

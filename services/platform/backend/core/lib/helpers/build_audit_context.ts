@@ -1,4 +1,4 @@
-import type { AuditContext } from '../../audit_logs/types';
+import type { AuditContext } from '../../../domains/audit_logs/types.ts';
 import type { MutationCtx } from '../ctx';
 import { getAuthenticatedUser } from '../rls/auth/get_authenticated_user';
 

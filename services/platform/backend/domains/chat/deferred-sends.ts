@@ -1,6 +1,15 @@
 import type { Sql } from 'postgres';
 
-import { ThreadBusyError } from '../../../lib/chat/turn.ts';
+import {
+  ThreadBusyError,
+  userTurnParts,
+  type TurnOutcome,
+} from '../../../lib/chat/turn.ts';
+import {
+  classifyChatErrorCode,
+  encodeChatError,
+  type ChatErrorCode,
+} from '../../../lib/shared/chat-errors.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { isBackendDraining } from '../control/service.ts';
@@ -8,8 +17,10 @@ import {
   bindJobsForDeferredSend,
   buildBoundJobAttachments,
   cancelDeferredJobs,
+  unbindJobsWithoutMessage,
 } from '../video_links/service.ts';
 import { runChatTurn } from './service.ts';
+import { appendAssistantErrorMessage, appendMessageRow } from './store.ts';
 import { ChatThreadError, loadOwnedThread } from './threads.ts';
 
 /**
@@ -121,7 +132,8 @@ async function loadRow(
   };
 }
 
-/** Park a send; the poller job rides the insert's transaction. */
+/** Park a send; the video claim and the poller job ride the insert's
+ * transaction, in that order. */
 export async function enqueueDeferredSend(
   sql: Sql,
   args: {
@@ -152,11 +164,8 @@ export async function enqueueDeferredSend(
     throw new ChatThreadError('THREAD_NOT_FOUND', 'Thread not found', 404);
   }
   const trimmed = args.userText.trim();
-  if (
-    trimmed.length === 0 &&
-    (args.attachments?.length ?? 0) === 0 &&
-    (args.videoJobIds?.length ?? 0) === 0
-  ) {
+  const hasBody = trimmed.length > 0 || (args.attachments?.length ?? 0) > 0;
+  if (!hasBody && (args.videoJobIds?.length ?? 0) === 0) {
     throw new ChatThreadError('EMPTY_MESSAGE', 'Nothing to send');
   }
   if (
@@ -173,12 +182,30 @@ export async function enqueueDeferredSend(
     if (Number(pending[0]?.count ?? '0') >= MAX_DEFERRED_PER_THREAD) {
       throw new ChatThreadError('QUEUE_FULL', 'Too many parked sends', 409);
     }
+    // The video claim rides the insert's transaction, BEFORE the row and
+    // its poll exist: the claim releases the composer chips and stamps the
+    // row's set in the same commit the first poll wakes on, so a video-only
+    // send can never fire clip-less because the poll read the row a few ms
+    // before a post-commit claim wrote its ids. An unclaimable id (foreign,
+    // already bound, cancelled) is dropped — the 0.4 posture.
+    const claimedVideos =
+      args.videoJobIds !== undefined && args.videoJobIds.length > 0
+        ? await bindJobsForDeferredSend(tx, {
+            jobIds: args.videoJobIds,
+            userId: args.userId,
+            threadId: args.threadId,
+            organizationId: args.organizationId,
+          })
+        : [];
+    if (!hasBody && claimedVideos.length === 0) {
+      throw new ChatThreadError('EMPTY_MESSAGE', 'Nothing to send');
+    }
     const now = Date.now();
     const rows = await tx<{ id: string }[]>`
       INSERT INTO app.deferred_sends (
-        org_id, user_id, thread_id, user_text, attachments, model_id,
-        model_selection, provider_slug, reasoning_effort, locale, status,
-        created_at_ms, waiting_since_ms
+        org_id, user_id, thread_id, user_text, attachments, video_job_ids,
+        model_id, model_selection, provider_slug, reasoning_effort, locale,
+        status, created_at_ms, waiting_since_ms
       ) VALUES (
         ${args.organizationId}, ${args.userId}, ${args.threadId}, ${trimmed},
         ${
@@ -186,6 +213,7 @@ export async function enqueueDeferredSend(
             ? tx.json(toJson(args.attachments))
             : null
         },
+        ${claimedVideos.length > 0 ? claimedVideos : null},
         ${args.modelId ?? null}, ${args.modelSelection ?? null},
         ${args.providerSlug ?? null}, ${args.reasoningEffort ?? null},
         ${args.locale ?? 'en'}, 'waiting', ${now}, ${now}
@@ -196,6 +224,7 @@ export async function enqueueDeferredSend(
     // The per-send singletonKey (queue policy 'short') collapses the poll
     // self-chain to at most one queued hop, so the watchdog can blindly
     // re-enqueue a poll for a stalled row without doubling a live chain.
+    // Enqueued LAST: the poll wakes on this commit and finds the whole row.
     await addJobInTx(
       tx,
       'chat.deferred_send_poll',
@@ -204,36 +233,6 @@ export async function enqueueDeferredSend(
     );
     return { deferredSendId };
   });
-}
-
-/** The enqueue's video half, OUTSIDE the insert tx: claim the jobs, then
- * stamp the claimed set on the row (the claim releases the composer chips;
- * an unclaimable id — foreign, already bound, cancelled — is dropped, the
- * 0.4 posture). */
-export async function claimDeferredSendVideos(
-  sql: Sql,
-  args: {
-    organizationId: string;
-    userId: string;
-    threadId: string;
-    deferredSendId: string;
-    videoJobIds: readonly string[];
-  },
-): Promise<string[]> {
-  const claimed = await bindJobsForDeferredSend(sql, {
-    jobIds: args.videoJobIds,
-    userId: args.userId,
-    threadId: args.threadId,
-    organizationId: args.organizationId,
-  });
-  if (claimed.length > 0) {
-    await sql`
-      UPDATE app.deferred_sends
-      SET video_job_ids = ${claimed}
-      WHERE id = ${args.deferredSendId} AND org_id = ${args.organizationId}
-    `;
-  }
-  return claimed;
 }
 
 /** Abandon a waiting send. A `claimed` row is already running — too late,
@@ -259,6 +258,31 @@ export async function cancelDeferredSend(
     args.userId,
   );
   return true;
+}
+
+/** Trashing a conversation abandons every send still parked on it — the
+ * same cascade as cancelling each by hand (a `claimed` row is already
+ * running and settles itself). Called by the trash door after the thread
+ * flipped; a poll that fires in between is re-gated at fire time. */
+export async function cancelDeferredSendsForThread(
+  sql: Sql,
+  args: { organizationId: string; userId: string; threadId: string },
+): Promise<number> {
+  const rows = await sql<{ id: string; videoJobIds: unknown }[]>`
+    DELETE FROM app.deferred_sends
+    WHERE thread_id = ${args.threadId} AND org_id = ${args.organizationId}
+      AND user_id = ${args.userId} AND status = 'waiting'
+    RETURNING id, video_job_ids AS "videoJobIds"
+  `;
+  for (const row of rows) {
+    await cancelDeferredJobs(
+      sql,
+      args.organizationId,
+      readVideoJobIds(row.videoJobIds),
+      args.userId,
+    );
+  }
+  return rows.length;
 }
 
 /** The thread's parked sends, oldest first — the tray above the composer. */
@@ -370,9 +394,48 @@ export async function isDeferredSendReady(
 }
 
 /**
+ * The failure trace for a parked send that never reached the pipeline —
+ * refused at a pre-flight gate (model access, attachment ownership, no
+ * model) or thrown before the turn-open write. The direct lane hands such a
+ * refusal back to the composer and the REST lane appends an assistant error
+ * row; this lane has nobody waiting, so the parked message lands as its
+ * user row (the text plus the attachments it carried) followed by the error
+ * row, where the reply would have been. The tray row settles in the caller's
+ * `finally`. A failure INSIDE the pipeline needs none of this: the turn-open
+ * write persisted the user row and the placeholder carries the error.
+ */
+async function leaveFailureTrace(
+  sql: Sql,
+  row: DeferredSendRow,
+  attachments: readonly DeferredAttachment[],
+  failure: { code: ChatErrorCode; raw: string },
+): Promise<void> {
+  await appendMessageRow(sql, {
+    organizationId: row.organizationId,
+    threadId: row.threadId,
+    role: 'user',
+    parts: userTurnParts(row.userText, attachments),
+    text: row.userText,
+  });
+  await appendAssistantErrorMessage(sql, {
+    organizationId: row.organizationId,
+    threadId: row.threadId,
+    ...(row.modelId !== null ? { model: row.modelId } : {}),
+    error: encodeChatError({
+      code: failure.code,
+      ...(row.modelId !== null ? { model: row.modelId } : {}),
+      raw: failure.raw,
+    }),
+  });
+}
+
+/**
  * One poll step: not ready (or the thread busy) → re-enqueue with the aged
- * backoff; ready + idle → claim and run the turn under the stored identity,
- * settling (deleting) the row in a `finally` — the 0.4 mop-up posture. A
+ * backoff; ready + idle → claim and run the turn under the stored identity.
+ * The row settles the moment the turn persists the user message (the tray
+ * row and the bubble must never show together) and, as the mop-up for a
+ * turn that refused or threw before that, in a `finally` — the 0.4 posture,
+ * plus a trace in the thread for a message that would otherwise vanish. A
  * deleted row (user cancelled) ends the chain silently. Returns what it did
  * for the integration run's observability.
  */
@@ -382,6 +445,24 @@ export async function pollDeferredSend(
 ): Promise<'gone' | 'waiting' | 'busy' | 'ran'> {
   const row = await loadRow(sql, deferredSendId);
   if (!row || row.status !== 'waiting') return 'gone';
+
+  // Re-gated against the thread's lifecycle at FIRE time, not only at park:
+  // a conversation trashed (or lost) while the send waited must not receive
+  // a reply — LLM spend into a thread the user cannot see, racing the
+  // retention purge. The row is dropped and its claimed videos go back to
+  // the composer.
+  if (
+    (await loadOwnedThread(
+      sql,
+      row.organizationId,
+      row.userId,
+      row.threadId,
+    )) === null
+  ) {
+    await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+    await releaseUnsentVideos(sql, row.organizationId, row.videoJobIds);
+    return 'gone';
+  }
 
   const reschedule = async (delayMs: number): Promise<void> => {
     await addJobInTx(
@@ -425,7 +506,14 @@ export async function pollDeferredSend(
   `;
   if (claimed.length === 0) return 'gone';
 
+  const settle = async (): Promise<void> => {
+    await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+  };
   let parkedAgain = false;
+  // Flipped by the turn's own store hook once the user row is durable: from
+  // there the thread shows the bubble and the tray row is redundant; before
+  // it, a refusal or a throw has left NOTHING of the message behind.
+  let userAppended = false;
   try {
     // The claimed videos' transcripts join the send now (the 0.4
     // `buildBoundJobAttachments` semantics — a job without a completed
@@ -439,55 +527,111 @@ export async function pollDeferredSend(
           )
         : [];
     const attachments = [...row.attachments, ...videoAttachments];
-    const outcome = await runChatTurn(sql, {
-      organizationId: row.organizationId,
-      userId: row.userId,
-      threadId: row.threadId,
-      userText: row.userText,
-      ...(attachments.length > 0 ? { attachments } : {}),
-      ...(row.modelId !== null ? { modelId: row.modelId } : {}),
-      ...(row.modelSelection === 'auto'
-        ? { modelSelection: 'auto' as const }
-        : {}),
-      ...(row.providerSlug !== null ? { providerSlug: row.providerSlug } : {}),
-      ...(row.reasoningEffort !== null
-        ? {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly the effort union
-            reasoningEffort: row.reasoningEffort as never,
-          }
-        : {}),
-      locale: row.locale,
-    });
+    let outcome: TurnOutcome;
+    try {
+      outcome = await runChatTurn(sql, {
+        organizationId: row.organizationId,
+        userId: row.userId,
+        threadId: row.threadId,
+        userText: row.userText,
+        ...(attachments.length > 0 ? { attachments } : {}),
+        ...(row.modelId !== null ? { modelId: row.modelId } : {}),
+        ...(row.modelSelection === 'auto'
+          ? { modelSelection: 'auto' as const }
+          : {}),
+        ...(row.providerSlug !== null
+          ? { providerSlug: row.providerSlug }
+          : {}),
+        ...(row.reasoningEffort !== null
+          ? {
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly the effort union
+              reasoningEffort: row.reasoningEffort as never,
+            }
+          : {}),
+        locale: row.locale,
+        // The turn-open write persisted the user message: settle the tray
+        // row NOW (the 0.4 `settleDeferredSendOnUserAppend` wiring), not at
+        // the end of a generation that may run for minutes. Idempotent with
+        // the finally below.
+        onUserMessageAppended: async () => {
+          userAppended = true;
+          await settle();
+        },
+      });
+    } catch (error) {
+      // Lost the thread to a send that slipped in between the busy read
+      // above and the turn's atomic open. Nothing was appended, so this is
+      // the same "wait our turn" as the read — park the row again rather
+      // than drop the message into a deleted tray row.
+      if (error instanceof ThreadBusyError) {
+        await sql`
+          UPDATE app.deferred_sends
+          SET status = 'waiting', waiting_since_ms = ${Date.now()}
+          WHERE id = ${row.id} AND status = 'claimed'
+        `;
+        await reschedule(READY_POLL_MS);
+        parkedAgain = true;
+        return 'busy';
+      }
+      if (!userAppended) {
+        // Threw before the turn-open write (an unknown model, an unusable
+        // credential): the thread would show nothing of the message.
+        await leaveFailureTrace(sql, row, attachments, {
+          code: classifyChatErrorCode(error),
+          raw:
+            error instanceof Error
+              ? error.message
+              : 'The turn could not be started.',
+        });
+      }
+      throw error;
+    }
     if (outcome.status === 'refused') {
       console.warn(
         `[deferred-send] turn refused for ${row.id}: ${outcome.reason}`,
       );
+      // `steps` is empty exactly for the pre-flight refusals (`executeTurn`
+      // refuses before the pipeline runs); a guardrail refusal inside the
+      // pipeline already appended its blocked assistant row.
+      if (outcome.steps.length === 0) {
+        await leaveFailureTrace(sql, row, attachments, {
+          code: 'generic',
+          raw: outcome.reason,
+        });
+      }
     }
-  } catch (error) {
-    // Lost the thread to a send that slipped in between the busy read above
-    // and the turn's atomic open. Nothing was appended, so this is the same
-    // "wait our turn" as the read — park the row again rather than drop the
-    // message into a deleted tray row.
-    if (error instanceof ThreadBusyError) {
-      await sql`
-        UPDATE app.deferred_sends
-        SET status = 'waiting', waiting_since_ms = ${Date.now()}
-        WHERE id = ${row.id} AND status = 'claimed'
-      `;
-      await reschedule(READY_POLL_MS);
-      parkedAgain = true;
-      return 'busy';
-    }
-    throw error;
   } finally {
     // The terminal mop-up: the row settles whether the turn completed,
-    // refused, or threw — the thread shows the bubble (or nothing), and the
-    // tray row would only double-display or wedge.
+    // refused, or threw — the thread shows the bubble (or the trace), and
+    // the tray row would only double-display or wedge. The claimed videos
+    // the send did NOT carry (no transcript in time, or no message at all)
+    // are released, or they would stay hidden and unreapable forever.
     if (!parkedAgain) {
-      await sql`DELETE FROM app.deferred_sends WHERE id = ${row.id}`;
+      await settle();
+      await releaseUnsentVideos(sql, row.organizationId, row.videoJobIds);
     }
   }
   return 'ran';
+}
+
+/** The bind is what a deferred send holds on its videos; once the send is
+ * over, only a job a SENT message carries keeps it (the predicate lives in
+ * the video-links domain). Best-effort: the row is already settled, and a
+ * failed release is the unbound-GC's loss, not the user's. */
+async function releaseUnsentVideos(
+  sql: Sql,
+  organizationId: string,
+  jobIds: readonly string[],
+): Promise<void> {
+  if (jobIds.length === 0) return;
+  try {
+    await unbindJobsWithoutMessage(sql, { organizationId, jobIds });
+  } catch (error) {
+    console.warn(
+      `[deferred-send] could not release ${jobIds.length} claimed video(s):`,
+      error,
+    );
+  }
 }
 
 /** A waiting row is re-polled once it is older than this — a floor to skip a
@@ -509,8 +653,8 @@ const CLAIMED_STALE_MS = 15 * 60 * 1000;
  *    chain is revived, so this never doubles the healthy fast-poll cadence.
  *  - a CLAIMED row wedged by a crash between the claim and the finally-DELETE
  *    is uncancellable (cancel needs 'waiting') and a permanent tray chip.
- *    Clear it. The chat-generation watchdog owns the thread's composer; this
- *    only removes the tray row. At-most-once LLM spend: the turn is never
+ *    Clear it and release its unsent videos. The chat-generation watchdog
+ *    owns the thread's composer; this only removes the tray row. At-most-once LLM spend: the turn is never
  *    re-run (a crash surfaces through the generation watchdog, not a rerun).
  *
  * `waiting_since_ms` is stamped at both park and claim, so it dates the
@@ -539,11 +683,22 @@ export async function recoverStuckDeferredSends(
     );
     repolled += 1;
   }
-  const cleared = await sql<{ id: string }[]>`
+  const cleared = await sql<
+    { id: string; organizationId: string; videoJobIds: unknown }[]
+  >`
     DELETE FROM app.deferred_sends
     WHERE status = 'claimed' AND waiting_since_ms < ${claimedCutoff}
-    RETURNING id
+    RETURNING id, org_id AS "organizationId", video_job_ids AS "videoJobIds"
   `;
+  // A wedged row's videos: the ones its (crashed) turn never sent go back
+  // to the composer; a job a persisted user row carries stays bound.
+  for (const row of cleared) {
+    await releaseUnsentVideos(
+      sql,
+      row.organizationId,
+      readVideoJobIds(row.videoJobIds),
+    );
+  }
   if (repolled > 0 || cleared.length > 0) {
     console.warn(
       `[deferred-send-watchdog] re-polled ${repolled} waiting, cleared ${cleared.length} wedged claimed`,

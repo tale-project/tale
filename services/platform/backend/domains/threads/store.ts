@@ -6,20 +6,9 @@ import { toJson } from '../../db/sql.ts';
  * The message store — the 0.5 replacement for the `@convex-dev/agent`
  * component's thread/message tables. Deliberately surface-minimal: threads,
  * ordered messages ((order, step_order) exactly like the component), and the
- * reads the current consumers need (task/project discussions now, the chat
- * engine next). Streaming deltas ride the Tier-1 SSE lane when chat lands —
- * the store persists only settled messages.
+ * tail read the task/project discussions need; the chat engine keeps its own
+ * readers in `domains/chat/`. The store persists only settled messages.
  */
-
-export interface ThreadRow {
-  id: string;
-  organizationId: string;
-  userId: string | null;
-  title: string | null;
-  kind: string | null;
-  createdAt: number;
-  updatedAt: number;
-}
 
 export interface MessageRow {
   id: string;
@@ -61,19 +50,6 @@ export async function createThread(
     throw new Error('thread insert failed');
   }
   return id;
-}
-
-export async function getThread(
-  sql: Sql | TransactionSql,
-  threadId: string,
-): Promise<ThreadRow | null> {
-  const rows = await sql<ThreadRow[]>`
-    SELECT id, org_id AS "organizationId", user_id AS "userId", title, kind,
-           created_at_ms::float8 AS "createdAt",
-           updated_at_ms::float8 AS "updatedAt"
-    FROM app.threads WHERE id = ${threadId} LIMIT 1
-  `;
-  return rows[0] ?? null;
 }
 
 export interface SaveMessageArgs {
@@ -140,35 +116,6 @@ export async function saveMessage(
 
 /** The most messages one read may ask for, on either lane below. */
 export const THREAD_MESSAGES_READ_MAX = 500;
-
-/**
- * Ordered page of a thread's messages (ascending, keyset by order) — the
- * REPLAY lane: a reader walking a thread from its start (`afterOrder` = the
- * previous page's last order). A surface that must show what is NEWEST reads
- * {@link listThreadMessagesTail} instead — a fixed ascending window keeps
- * the first N turns forever and hides every later one.
- */
-export async function listThreadMessages(
-  sql: Sql | TransactionSql,
-  threadId: string,
-  options: {
-    afterOrder?: number;
-    limit?: number;
-    excludeToolRoles?: boolean;
-  } = {},
-): Promise<MessageRow[]> {
-  const limit = Math.min(options.limit ?? 200, THREAD_MESSAGES_READ_MAX);
-  const afterOrder = options.afterOrder ?? -1;
-  const excludeTools = options.excludeToolRoles ?? true;
-  return sql<MessageRow[]>`
-    SELECT ${sql.unsafe(MESSAGE_COLUMNS)} FROM app.messages
-    WHERE thread_id = ${threadId}
-      AND "order" > ${afterOrder}
-      AND (${!excludeTools} OR role IN ('user', 'assistant'))
-    ORDER BY "order" ASC, step_order ASC
-    LIMIT ${limit}
-  `;
-}
 
 /** A position in a thread's (order, step_order) sequence — the keyset the
  * tail read walks backwards from. */

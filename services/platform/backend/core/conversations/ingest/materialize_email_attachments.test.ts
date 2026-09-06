@@ -132,6 +132,50 @@ describe('materializeEmailAttachments', () => {
     expect(saved[0]).not.toHaveProperty('deferRagDispatch');
   });
 
+  it('keeps the connector truncated flag on a metadata-only part', async () => {
+    // The connector fetched the part but it exceeded its inline cap: no bytes
+    // to store, and the reason must survive to the persisted metadata.
+    const ctx = {
+      runAction: vi.fn(),
+      runMutation: vi.fn(),
+      storage: { getUrl: vi.fn() },
+    };
+    const emails = await materializeEmailAttachments(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub
+      ctx as never,
+      {
+        organizationId: 'org_1',
+        source: 'imap-smtp',
+        emails: [
+          {
+            messageId: '<big@x>',
+            attachments: [
+              {
+                id: 'big',
+                filename: 'huge.iso',
+                contentType: 'application/octet-stream',
+                size: 200 * 1024 * 1024,
+                truncated: true,
+              },
+            ],
+          },
+        ],
+      },
+    );
+    expect(ctx.runAction).not.toHaveBeenCalled();
+    expect(emails[0]).toMatchObject({
+      attachments: [
+        {
+          id: 'big',
+          filename: 'huge.iso',
+          contentType: 'application/octet-stream',
+          size: 200 * 1024 * 1024,
+          truncated: true,
+        },
+      ],
+    });
+  });
+
   it('passes through emails with no wire bytes', async () => {
     const ctx = {
       runAction: vi.fn(),

@@ -1044,8 +1044,13 @@ function ChatSurfaceInner({
         .then(({ a, b }) => {
           const failed = [a, b].find((side) => side.status === 'refused');
           if (failed === undefined) return;
-          // The composer cleared on submit; a refusal must not eat the text.
-          composerRef.current?.restoreText(text);
+          // The composer cleared on submit; a refusal that wrote nothing
+          // must not eat the text. A refusal already on the record (the
+          // side's transcript shows the prompt and a blocked reply) keeps
+          // the composer clear — restoring would invite a duplicate send.
+          if (failed.persisted !== true) {
+            composerRef.current?.restoreText(text);
+          }
           refusalToast(failed.reason);
         });
       return;
@@ -1174,16 +1179,20 @@ function ChatSurfaceInner({
         turn.outcome.then(
           (outcome) => {
             if (outcome.status !== 'refused') return;
-            // An early refusal can write no rows at all — drop the overlay
-            // so the thinking shell does not linger on a turn that will
-            // never answer.
+            // Drop the overlay so the thinking shell does not linger on a
+            // turn that will never answer: a refusal on the record replaces
+            // it with the persisted rows, an early one wrote no rows at all.
             setPendingSend((previous) =>
               previous !== null && previous.sentAt === sentAt ? null : previous,
             );
-            // A composer send cleared the field on submit — put the text
-            // (and any images / video chips it carried) back so nothing has
-            // to be redone. Edit sends never touched the composer.
-            if (intoThreadId === undefined) {
+            // A composer send cleared the field on submit. When the refusal
+            // wrote nothing, put the text (and any images / video chips it
+            // carried) back so nothing has to be redone. When it is already
+            // on the record — the thread shows the message and a blocked
+            // reply, the attachments and video jobs are bound to it — the
+            // composer stays clear: restoring would duplicate the message
+            // on the next Send. Edit sends never touched the composer.
+            if (intoThreadId === undefined && outcome.persisted !== true) {
               composerRef.current?.restoreText(text);
               if (consumedAttachments.length > 0) {
                 setStagedAttachments(consumedAttachments);

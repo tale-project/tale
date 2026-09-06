@@ -34,7 +34,7 @@ Jede Anfrage trägt eine Service-Level-Frist — standardmäßig 30 Tage ab Einr
 
 ## Interaktion mit Legal Hold
 
-Daten einer betroffenen Person werden _nicht_ gelöscht, solange sie auf Legal Hold liegen. Zeilen unter Hold erscheinen im Beleg in den Per-Kategorie-Zählern als **Durch Legal Hold übersprungen**; den Hold aufheben und die Anfrage erneut versuchen schließt die Löschung ab. Der Status Blockiert greift, wenn ein Hold von Anfang an jede Kategorie abdeckt — die Kaskade läuft nicht, und der Beleg spiegelt die Blockade.
+Daten einer betroffenen Person werden _nicht_ gelöscht, solange sie auf Legal Hold liegen. Zeilen unter Hold erscheinen im Beleg in den Per-Kategorie-Zählern als **Durch Legal Hold übersprungen**; den Hold aufheben und die Anfrage erneut versuchen schließt die Löschung ab. Der Status Blockiert greift, wenn ein Hold von Anfang an jede Kategorie abdeckt — die Kaskade läuft nicht, und der Beleg spiegelt die Blockade. Ein erneuter Versuch einer Anfrage, die schon bei der Einreichung blockiert wurde, durchläuft dieselbe Richtlinie wie eine neue Einreichung — das Cooling-off-Fenster oder bei Vier-Augen-Freigabe die Freigabe durch einen zweiten Admin. Solange für eine Person ein Beleg offen ist (ausstehend, laufend, blockiert oder teilweise), wird eine zweite Anfrage für sie abgewiesen: Wiederhole stattdessen die offene (oder storniere sie, solange sie noch aussteht).
 
 ## Die Kaskade-Kategorien
 

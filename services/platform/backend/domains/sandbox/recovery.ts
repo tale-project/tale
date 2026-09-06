@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { sessionOpLastSignOfLifeMs } from '../../core/sandbox/agent_deadline.ts';
+import type { SandboxAgentOpKind } from '../../core/sandbox/session_constants.ts';
 
 /**
  * The agent-turn recovery primitives shared by the task and automation
@@ -38,7 +39,9 @@ export async function claimRecoveryResume(
     staleBeforeMs: number;
     createMissing: {
       organizationId: string;
-      kind: string;
+      /** The lane's own op kind — the run-card and metric reads are keyed
+       * on it, so a row created under any other kind stays invisible. */
+      kind: SandboxAgentOpKind;
       deadlineMs: number;
     };
   },

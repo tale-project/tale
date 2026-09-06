@@ -36,8 +36,13 @@ export async function getOrgUsageMetricsPg(
     WHERE org_id = ${organizationId}
       AND granularity = ${args.granularity}
       AND period_key >= ${scanStart}
+    ORDER BY period_key DESC
     LIMIT ${MAX_SCAN + 1}
   `;
+  // Newest window first, so a capped org's current-period cards stay
+  // complete and the folded subset is the same on every call — an unordered
+  // LIMIT hands back whichever heap pages come first, which shifts after a
+  // vacuum or an update. The (org_id, period_key) index serves the order.
   const capped = rows.length > MAX_SCAN;
   // pg answers NULL where the 0.4 doc had absent — normalize for the fold.
   const walk = rows.slice(0, MAX_SCAN).map((row) => {

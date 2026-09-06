@@ -5,7 +5,6 @@ import { encryptSecret } from '../../core/lib/secret_box.ts';
 import {
   applyMicrosoftTenant,
   getCloudImportAppStatus,
-  getOauthAppStatus,
   resolveCloudImportApp,
   resolveConnectorOauthApp,
 } from './oauth-apps.ts';
@@ -171,25 +170,7 @@ describe('resolveCloudImportApp', () => {
   });
 });
 
-describe('getOauthAppStatus', () => {
-  test('reports org, env, and none', async () => {
-    vi.stubEnv('ENCRYPTION_SECRET_HEX', 'test-key-material');
-    expect(
-      await getOauthAppStatus(fakeSql([orgRow()]), 'org-1', 'google-drive'),
-    ).toEqual({ configured: true, source: 'org' });
-
-    vi.stubEnv('CONNECTOR_OAUTH_GOOGLE_DRIVE_CLIENT_ID', 'env-client-id');
-    vi.stubEnv('CONNECTOR_OAUTH_GOOGLE_DRIVE_CLIENT_SECRET', 'env-secret');
-    expect(
-      await getOauthAppStatus(fakeSql([]), 'org-1', 'google-drive'),
-    ).toEqual({ configured: true, source: 'env' });
-
-    vi.unstubAllEnvs();
-    expect(
-      await getOauthAppStatus(fakeSql([]), 'org-1', 'google-drive'),
-    ).toEqual({ configured: false, source: null });
-  });
-
+describe('getCloudImportAppStatus', () => {
   test('the cloud-import status consults ITS env chain, not the connector one', async () => {
     vi.stubEnv('AUTH_MICROSOFT_ENTRA_ID_ID', 'login-app-id');
     vi.stubEnv('AUTH_MICROSOFT_ENTRA_ID_SECRET', 'login-app-secret');
