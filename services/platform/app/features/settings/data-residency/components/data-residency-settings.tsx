@@ -12,17 +12,16 @@
  *     (the unified editor contract); Test/Remove/backfill stay instant
  *     actions. The per-org configs live under `$TALE_CONFIG_DIR/<org>/
  *     {knowledge,object-storage}/`, which stays the source of truth on disk.
- *   - Deployment stores after (knowledge database, file storage, and the
- *     advanced application database): viewable by any org admin, editable only
- *     by an operator in the `TALE_DEPLOYMENT_CONFIG_ADMINS` allowlist, with
- *     its own "Save deployment" header action (a save only takes effect on
- *     the next restart/deploy, which the editor contract cannot express).
+ *
+ * There is no deployment-wide store section: where the deployment's default
+ * data lives is environment-driven (`DATABASE_URL`, `KNOWLEDGE_DATABASE_URL`,
+ * `OBJECT_STORE_*`) and set at deploy time, never from this page.
  *
  * Read-only sections render the stored coordinates as native read-only fields
  * (conveyed to assistive tech, not by disabled/color alone) and the on/off
  * state as a status badge; write-only credentials are never shown to a viewer.
  *
- * Strings live under `settings.dataResidency.*` (deployment vocabulary +
+ * Strings live under `settings.dataResidency.*` (shared connection vocabulary +
  * `orgKnowledge.*` / `orgEmbedding.*` / `orgStorage.*` for the org sections),
  * plus `navigation.dataResidency`, `metadata.dataResidency`, and
  * `accessDenied.dataResidency` across en/de/fr (de-CH inherits de). Code
@@ -41,15 +40,12 @@ import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
-import { mapDeploymentError } from '../deployment-errors';
 import {
   useOrgKnowledgeConnection,
   useOrgKnowledgeEmbedding,
   useOrgObjectStorageConnection,
-  useReadDeploymentConfig,
 } from '../hooks/queries';
 import { mapOrgResidencyError } from '../org-residency-errors';
-import { DeploymentStoresView } from './deployment-stores';
 import { OrgEmbeddingSection } from './org-embedding-section';
 import { OrgKnowledgeSection } from './org-knowledge-section';
 import { OrgStorageSection } from './org-storage-section';
@@ -63,15 +59,12 @@ export function DataResidencySettings({
   const { t: tAccessDenied } = useT('accessDenied');
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
-  const deploymentQuery = useReadDeploymentConfig();
   const knowledgeQuery = useOrgKnowledgeConnection(organizationId);
   const embeddingQuery = useOrgKnowledgeEmbedding(organizationId);
   const storageQuery = useOrgObjectStorageConnection(organizationId);
 
-  // Viewing is open to any organization admin (`read orgSettings`) — the same
-  // gate the deployment read enforces server-side. Editing each store is a
-  // finer capability resolved per section: deployment stores need the operator
-  // allowlist (`canEdit` from the read); org sections need `write orgSettings`.
+  // Viewing is open to any organization admin (`read orgSettings`); editing
+  // needs `write orgSettings`.
   if (!abilityLoading && ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={tAccessDenied('dataResidency')} />;
   }
@@ -81,9 +74,6 @@ export function DataResidencySettings({
   // A failed read must not fall through to a blank, default-looking form — that
   // would imply "nothing configured" when the truth is unknown. Each section
   // reports its own read failure inline.
-  const deploymentReadError = deploymentQuery.isError
-    ? mapDeploymentError(deploymentQuery.error, t).message
-    : undefined;
   const knowledgeReadError = knowledgeQuery.isError
     ? mapOrgResidencyError(knowledgeQuery.error, t)
     : undefined;
@@ -98,7 +88,6 @@ export function DataResidencySettings({
     <Skeletonize
       loading={
         abilityLoading ||
-        deploymentQuery.isPending ||
         knowledgeQuery.isPending ||
         embeddingQuery.isPending ||
         storageQuery.isPending
@@ -126,10 +115,6 @@ export function DataResidencySettings({
             readOnly={!canWriteOrg}
           />
         </EditorGroup>
-        <DeploymentStoresView
-          data={deploymentQuery.data}
-          readError={deploymentReadError}
-        />
       </SettingsPage>
     </Skeletonize>
   );

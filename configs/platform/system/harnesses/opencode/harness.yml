@@ -121,4 +121,3 @@ exec:
             bridgeEnv:
               TALE_CONNECTORS_URL: '${bridgeUrl}'
               TALE_CONNECTORS_TOKEN: '{env:TALE_GATEWAY_TOKEN}'
-pinnedVersion: 1.17.3

@@ -10,15 +10,40 @@
  *   connection.secrets.json  — the database password (SOPS-encrypted at rest).
  *   embedding.json           — the embedding model, stated in full.
  *
- * `connection.json` reuses `pgConnectionSchema` verbatim rather than declaring
- * a second connection shape — the deployment-wide external-Postgres setting and
- * an organization's own database are the same kind of thing, and two schemas
- * for it would drift.
+ * `pgConnectionSchema` is THE external-Postgres connection shape: every
+ * config lane that points at a Postgres an operator brings (today: this one)
+ * reuses it verbatim rather than declaring a second shape that would drift.
  */
 
 import { z } from 'zod/v4';
 
-import { pgConnectionSchema } from './deployment';
+/**
+ * External-Postgres connection shape (no `table`/`schema` — the corpus owns
+ * whole schemas on the target DB). Secrets (password) are NEVER stored here —
+ * they live in the SOPS-encrypted secrets sidecar next to the file.
+ */
+export const pgConnectionSchema = z
+  .object({
+    // Restrict to hostname / IPv4 / IPv6 characters. Rejecting URL
+    // metacharacters (`/ ? & @ , space % #`) keeps a crafted host from
+    // smuggling libpq params / downgrading TLS once it is interpolated into a
+    // connection URL or DSN downstream (the SSRF-gate URL parser and the pg
+    // driver's DSN parser must not be able to disagree on the host).
+    host: z
+      .string()
+      .min(1)
+      .regex(
+        /^[A-Za-z0-9._:[\]-]+$/,
+        'Host may only contain letters, digits, and . _ - : [ ] (no URL metacharacters).',
+      ),
+    port: z.number().int().min(1).max(65535).default(5432),
+    database: z.string().min(1),
+    user: z.string().min(1),
+    sslmode: z
+      .enum(['disable', 'prefer', 'require', 'verify-ca', 'verify-full'])
+      .default('require'),
+  })
+  .strict();
 
 export const KNOWLEDGE_CONFIG_DOMAIN = 'knowledge';
 export const KNOWLEDGE_CONNECTION_KEY = 'connection';

@@ -22,7 +22,8 @@ mock.module('../../utils/logger', () => ({
   success: mock(),
 }));
 
-const { controlScript, drainSandbox } = await import('./drain-sandbox');
+const { CONTROL_TIMEOUT_S, controlScript, drainSandbox } =
+  await import('./drain-sandbox');
 
 function ok(stdout = '') {
   return { success: true, stdout, stderr: '', exitCode: 0 };
@@ -123,6 +124,16 @@ describe('drainSandbox', () => {
     } finally {
       if (prev === undefined) delete process.env.SANDBOX_TOKEN;
       else process.env.SANDBOX_TOKEN = prev;
+    }
+  });
+
+  test('every control call is bounded by timeout(1)', () => {
+    // A spawner that accepts TCP but never answers must not hang the deploy
+    // lock; both the signed-client door and the legacy curl shim are wrapped.
+    for (const command of ['drain', 'drain-status'] as const) {
+      const script = controlScript(command);
+      expect(script).toContain(`exec timeout ${CONTROL_TIMEOUT_S} bun `);
+      expect(script).toContain(`exec timeout ${CONTROL_TIMEOUT_S} curl `);
     }
   });
 

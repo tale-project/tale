@@ -29,7 +29,6 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -65,7 +64,6 @@ interface ChatFilterDraft {
   maskReplacement: string;
   appliesToInput: boolean;
   appliesToOutput: boolean;
-  preferNonStreaming: boolean;
   categories: ChatFilterCategory[];
 }
 
@@ -74,7 +72,6 @@ const DEFAULT_DRAFT: ChatFilterDraft = {
   maskReplacement: '[BLOCKED]',
   appliesToInput: true,
   appliesToOutput: false,
-  preferNonStreaming: false,
   categories: [],
 };
 
@@ -95,7 +92,6 @@ function deriveDraft(policy: ChatFilterPolicy): ChatFilterDraft {
     maskReplacement: config.maskReplacement ?? '[BLOCKED]',
     appliesToInput: config.appliesTo?.includes('input') ?? true,
     appliesToOutput: config.appliesTo?.includes('output') ?? false,
-    preferNonStreaming: config.preferNonStreamingForFiltering ?? false,
     categories: config.categories ?? [],
   };
 }
@@ -140,9 +136,6 @@ export function ChatFilterConfigView({
   const [appliesToOutput, setAppliesToOutput] = useState(
     initial.appliesToOutput,
   );
-  const [preferNonStreaming, setPreferNonStreaming] = useState(
-    initial.preferNonStreaming,
-  );
   const [categories, setCategories] = useState(initial.categories);
 
   const [editorIndex, setEditorIndex] = useState<number | 'new' | null>(null);
@@ -160,7 +153,6 @@ export function ChatFilterConfigView({
     setMaskReplacement(initial.maskReplacement);
     setAppliesToInput(initial.appliesToInput);
     setAppliesToOutput(initial.appliesToOutput);
-    setPreferNonStreaming(initial.preferNonStreaming);
     setCategories(initial.categories);
   }
 
@@ -170,7 +162,6 @@ export function ChatFilterConfigView({
       maskReplacement?: string;
       appliesToInput?: boolean;
       appliesToOutput?: boolean;
-      preferNonStreaming?: boolean;
       categories?: ChatFilterCategory[];
     }): ChatFilterConfig => {
       const nextInput = overrides.appliesToInput ?? appliesToInput;
@@ -184,20 +175,11 @@ export function ChatFilterConfigView({
         enabled: overrides.enabled ?? enabled,
         maskReplacement: overrides.maskReplacement ?? maskReplacement,
         appliesTo,
-        preferNonStreamingForFiltering:
-          overrides.preferNonStreaming ?? preferNonStreaming,
         configVersion: 1,
         categories: overrides.categories ?? categories,
       };
     },
-    [
-      enabled,
-      maskReplacement,
-      appliesToInput,
-      appliesToOutput,
-      preferNonStreaming,
-      categories,
-    ],
+    [enabled, maskReplacement, appliesToInput, appliesToOutput, categories],
   );
 
   const saveWith = useCallback(
@@ -287,14 +269,6 @@ export function ChatFilterConfigView({
     [buildConfig, saveWith],
   );
 
-  const handlePreferNonStreaming = useCallback(
-    (checked: boolean) => {
-      setPreferNonStreaming(checked);
-      void saveWith(buildConfig({ preferNonStreaming: checked }));
-    },
-    [buildConfig, saveWith],
-  );
-
   return (
     <Skeletonize loading={isLoading} label={t('contentSafety.title')}>
       <SettingsSection
@@ -356,17 +330,6 @@ export function ChatFilterConfigView({
                   wrapperClassName="w-full"
                 />
               </SettingsFieldRow>
-
-              {/* A toggle row is already a settings row — it joins the list
-                  so it shares the same divider and vertical rhythm. */}
-              <SettingsToggleRow
-                className="py-5"
-                label={t('contentSafety.preferNonStreaming')}
-                description={t('contentSafety.preferNonStreamingDescription')}
-                checked={preferNonStreaming}
-                disabled={cannotManage}
-                onCheckedChange={handlePreferNonStreaming}
-              />
             </SettingsFieldList>
 
             <FormSection

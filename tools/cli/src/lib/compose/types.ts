@@ -109,6 +109,20 @@ export const ALL_SERVICES = [
 ] as const;
 
 /**
+ * Best-effort sidecars the deploy brings up from the stateful compose AFTER
+ * the core tier is healthy (see deploy.ts). Kept out of the pull/health
+ * tiers on purpose — a third-party image that must never fail a deploy —
+ * but part of the project's Docker footprint, so teardown (`reset --all`,
+ * `uninstall --purge`), `restore --stop`, `status` and `logs` address them.
+ */
+export const SIDECAR_SERVICES = ['bgutil-provider'] as const;
+export type SidecarService = (typeof SIDECAR_SERVICES)[number];
+
+export function isSidecarService(name: string): name is SidecarService {
+  return (SIDECAR_SERVICES as readonly string[]).includes(name);
+}
+
+/**
  * Stop-gated tier — data/proxy infrastructure that is NOT rolled on a default
  * deploy while it's running. A running stop-gated container is left untouched
  * (with a warning) unless the operator opts into the downtime with

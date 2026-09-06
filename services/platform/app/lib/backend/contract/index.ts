@@ -25,7 +25,6 @@ import type { CollabContract } from './collab';
 import type { ConnectorCredentialsContract } from './connector-credentials';
 import type { ContactsContract } from './contacts';
 import type { ConversationsContract } from './conversations';
-import type { DeploymentContract } from './deployment';
 import type { DocumentsContract } from './documents';
 import type { EnterpriseSsoContract } from './enterprise-sso';
 import type { FeedbackContract } from './feedback';
@@ -77,7 +76,6 @@ export interface BackendContract
     ConnectorCredentialsContract,
     ContactsContract,
     ConversationsContract,
-    DeploymentContract,
     DocumentsContract,
     EnterpriseSsoContract,
     FeedbackContract,

@@ -85,7 +85,3 @@ exec:
       OPENAI_BASE_URL: '${gateway.baseUrl}/openai/v1'
       OPENAI_API_KEY: '${gateway.token}'
       TALE_GATEWAY_TOKEN: '${gateway.token}'
-# Pin chosen from the fork's release line at authoring time; the pin MUST be
-# re-verified against the qwen-code releases before the sandbox image bakes
-# the CLI in.
-pinnedVersion: 0.10.3

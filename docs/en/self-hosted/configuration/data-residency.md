@@ -1,43 +1,35 @@
 ---
 title: Data residency
-description: Point a self-hosted Tale deployment's knowledge database, application database, and uploaded-file storage at infrastructure you control, configured by administrators in Settings > Data residency and applied on restart.
+description: Where a self-hosted Tale deployment keeps its data, how the deployment defaults are set at deploy time, and how a single organization points its knowledge corpus and uploaded files at infrastructure of its own — live, without a restart.
 ---
 
-A self-hosted Tale deployment runs on infrastructure you already control, so its data lives on your hosts by default. **Data residency** is for the case where you want individual data stores pointed at your own managed Postgres or object storage instead of the bundled containers — for example to keep document text in a database your team operates, or uploaded files in your own S3 bucket. The knowledge corpus runs as its own container (`knowledge-db`) precisely so it can be relocated or replaced independently of the operational database — it is the store most residency requirements care about. Administrators configure this in **Settings > Data residency**; the change is written to a single deployment-level config file and **takes effect when the affected containers restart**.
+A self-hosted Tale deployment runs on infrastructure you already control, so its data lives on your hosts by default. **Data residency** is for the case where a store has to live somewhere specific — document text in a database your team operates, uploaded files in your own S3 bucket, one tenant's corpus isolated from every other tenant's. Tale answers that at two levels: the **deployment defaults**, which every organization shares and which you set with environment variables when you deploy, and the **per-organization connections** an org admin manages live in **Settings > Data residency**.
 
-This page covers what can be relocated, the one prerequisite that bites (ParadeDB), how the configuration is stored and applied, and how to restart safely.
+This page covers what lives where, how to relocate the deployment defaults, the one prerequisite that bites (ParadeDB), and the per-organization knowledge and object-storage lanes, including moving an organization's existing files.
 
-## Enabling editing
+## Where the deployment's data lives
 
-**Settings > Data residency** is one page with two kinds of section: the deployment-wide stores every organization shares, and the stores a single organization brings for itself. Each section renders read-only or editable depending on what the reader may change, and the page says which state you are in. Viewing is open to any organization owner or admin; **editing the deployment-wide stores** — repointing a data store, saving secrets, running a connection test, or applying a restart — is restricted to a named allowlist of operators. List their sign-in emails (comma-separated) in `.env` and restart:
+Three stores, each with its own environment variable. An unset variable means "use the bundled container", so a fresh deployment with no overrides is unchanged.
 
-```bash
-TALE_DEPLOYMENT_CONFIG_ADMINS=alice@example.com,bob@example.com
-```
+- **Knowledge database** — the knowledge corpus: document metadata, the extracted chunk text, embeddings, the BM25 index, the semantic cache, and the crawled web pages. It ships as the bundled `knowledge-db` container (`tale_knowledge`, with the `private_knowledge` and `public_web` schemas) and is the store most residency requirements care about, because it holds your document content. `KNOWLEDGE_DATABASE_URL` points the backend at a managed Postgres of your own instead; the database can start empty — the backend creates its schemas on first use.
+- **File storage** — where uploaded files (the original blobs) live. By default they sit in the bundled object store (the `object-store` service, on its own volume). This store is configured differently from the two databases: on the **first boot only**, the backend seeds the deployment default from the `OBJECT_STORE_*` variables into `$TALE_CONFIG_DIR/default/object-storage/connection.json` (plus `connection.secrets.json` for the access keys, SOPS-encrypted when a key is configured), and from then on it reads that file, never the variables again — a file that already exists is never overwritten. So set `OBJECT_STORE_*` to an external S3-compatible bucket **before the first boot** to start there; to relocate the default of a running deployment, edit `connection.json` and `connection.secrets.json` by hand and roll the backend containers. Either way the switch is greenfield: blobs already written to the bundled store are not copied, so copy the volume into the bucket out of band first — and read [Backups and restore](/self-hosted/operate/backups-and-restore), because a repointed default takes the blobs out of `tale backup`'s snapshots.
+- **Application database** — the operational store behind agents, runs, and the audit log (the bundled `db` container, the `tale_app` database). `DATABASE_URL` relocates it; the database name defaults to `tale_app` (override with `APP_DB_NAME`).
 
-With the allowlist empty or unset, the deployment sections still show the current configuration to administrators, but read-only — the **Save deployment** and **Apply & restart** header actions appear only for allowlisted operators. Only a signed-in admin whose email is on the list gets those sections editable; the page tells you which email to add. The entrypoints always consume the config file regardless of the allowlist, so an operator who prefers to hand-edit the file on disk can do so without naming any UI editors.
+The variables live in the deployment's `.env`. `DATABASE_URL` and `KNOWLEDGE_DATABASE_URL` are read every time the backend containers start — change one, then roll with `tale deploy` (zero-downtime blue-green) or `docker compose restart backend-api backend-worker`; the `OBJECT_STORE_*` variables only matter for the first boot, as described above. Every variable, its default and its exact form is in the [Environment reference](/self-hosted/configuration/environment-reference). Nothing in the app writes these values: earlier releases carried a deployment-wide store section in Settings > Data residency that saved a `dataStores` block into `deployment.yml`, but no boot path read it — that section is gone, and a leftover `dataStores` block in an existing `deployment.yml` is ignored and dropped on the file's next save.
 
-## What you can relocate
-
-Three stores, each independent and optional. An absent setting means "use the bundled default" — so a fresh deployment with no config is unchanged.
-
-- **Knowledge database** — the knowledge corpus: document metadata, the extracted chunk text, embeddings, the BM25 index, the semantic cache, and the crawled web pages. It ships as the bundled `knowledge-db` container (`tale_knowledge`, with the `private_knowledge` and `public_web` schemas) and is the store most residency requirements care about, because it holds your document content. Point it at your own managed Postgres to keep the corpus on infrastructure your team operates.
-- **File storage** — where uploaded files (the original blobs) live. By default they sit in the bundled object store that ships with the stack (the `object-store` service, on its own volume); you can point them at an external S3-compatible bucket.
-- **Application database** (advanced) — the operational store behind agents, runs, and the audit log (the bundled `db` container, the `tale_app` database). Relocating it points the backend's `DATABASE_URL` at your own Postgres; the database name defaults to `tale_app` (override with `APP_DB_NAME`), so an external Postgres must contain a database of that name.
-
-> Note: the knowledge database and the application database are two separate Postgres instances — moving one does not touch the other. Relocating the knowledge database moves the extracted text and embeddings; the original uploaded files move only when you also relocate **File storage** to S3.
+> Note: the knowledge database and the application database are two separate Postgres instances — moving one does not touch the other. Relocating the knowledge database moves the extracted text and embeddings; the original uploaded files move only when you also relocate **File storage**.
 
 ## The ParadeDB prerequisite
 
-The knowledge database uses two Postgres extensions: `vector` (pgvector) for embeddings and `pg_search` (ParadeDB) for full-text/BM25 hybrid search. An external knowledge Postgres **must run ParadeDB** (which bundles both) for full search quality. If you point it at a plain Postgres that has only `pgvector`, indexing and vector search still work, but hybrid search degrades to **vector-only** — the BM25 leg is silently skipped. The **Test connection** button reports both `pgvector` and `pg_search` availability so you can see this before you commit. The external knowledge database must already exist (it can have any name you enter — `tale_knowledge` by convention) with the `private_knowledge` and `public_web` schemas; the baseline schema migrations live in [`services/db/migrations/`](https://github.com/tale-project/tale/tree/main/services/db/migrations) and are applied via dbmate when the database comes up.
+The knowledge database uses two Postgres extensions: `vector` (pgvector) for embeddings and `pg_search` (ParadeDB) for full-text/BM25 hybrid search. An external knowledge Postgres — the deployment default or an organization's own — **must run ParadeDB** (which bundles both) for full search quality. If you point it at a plain Postgres that has only `pgvector`, indexing and vector search still work, but hybrid search degrades to **vector-only**: the BM25 leg is silently skipped. The per-organization **Test connection** button reports both `pgvector` and `pg_search` availability so you see this before you commit; for the deployment default, check the extensions on the target database before you change `KNOWLEDGE_DATABASE_URL`.
 
 ## Per-organization knowledge databases
 
-The stores above are deployment-wide — every organization shares them. A single organization can instead point **its own** knowledge corpus at a Postgres you provision for it, while every other org keeps using the bundled `knowledge-db`. Reach for this when one tenant's document and crawled-web content must sit on infrastructure isolated from the rest — a stricter residency requirement than the deployment default satisfies.
+The deployment default is shared by every organization. A single organization can instead point **its own** knowledge corpus at a Postgres you provision for it, while every other org keeps using the default `knowledge-db`. Reach for this when one tenant's document and crawled-web content must sit on infrastructure isolated from the rest — a stricter residency requirement than the deployment default satisfies.
 
 The org's **entire** knowledge corpus moves — both schemas: `private_knowledge` (document metadata, chunk text, embeddings, and the semantic cache) and `public_web` (the crawler's website pages, their chunk text, and embeddings). Nothing in an organization's knowledge database is shared with any other organization.
 
-The connection lives under the organization's own config directory, not the deployment file:
+The connection lives under the organization's own config directory:
 
 - `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.json` — host, port, database, user, and sslmode.
 - `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.secrets.json` — the password, SOPS-encrypted when a SOPS age key is configured (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
@@ -45,9 +37,9 @@ The connection lives under the organization's own config directory, not the depl
 
 The same ParadeDB requirement applies. The org validates its candidate database with an org-scoped connection test that reports `pgvector` and `pg_search` availability before switching, and a plain-pgvector target degrades that org's search to vector-only. The database can start empty — Tale creates the `private_knowledge` and `public_web` schemas on first use, so you never apply the baseline migrations by hand.
 
-This path is fallback-safe. An organization with no `connection.json` keeps using the deployment-default `knowledge-db` exactly as before, so the feature changes nothing for orgs that don't opt in. Two organizations pointed at the same database share one connection pool, and — unlike the deployment-wide stores — a per-org change needs no container restart: the next request for that org routes to its own database.
+This path is fallback-safe. An organization with no `connection.json` keeps using the deployment-default `knowledge-db` exactly as before, so the feature changes nothing for orgs that don't opt in. Two organizations pointed at the same database share one connection pool, and a per-org change needs no container restart: the next request for that org routes to its own database.
 
-An organization owner or admin can also manage this connection from the UI: the per-organization sections of **Settings > Data residency** read and write exactly these files, with the same connection test before switching. Those sections stay editable for an org owner or admin whether or not the operator allowlist names them, because the files they touch belong to the organization rather than the deployment. The JSON files on disk stay the source of truth — an operator who prefers to edit them by hand needs no UI step.
+**Settings > Data residency** is this per-organization surface: an organization owner or admin reads and writes exactly these files there, with the same connection test before switching. The JSON files on disk stay the source of truth — an operator who prefers to edit them by hand needs no UI step.
 
 ### The organization's embedding model
 
@@ -64,9 +56,9 @@ The connection lives next to the knowledge one, under the organization's config 
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` — region, optional endpoint (for MinIO/R2), path-style flag, bucket, and an optional key prefix.
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.secrets.json` — the access key pair, SOPS-encrypted when a SOPS age key is configured (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
 
-Unlike the deployment-wide S3 switch above, this path is **not** greenfield-only: from the moment the config exists, new uploads go to the org's bucket, while files stored earlier stay readable where they are in the deployment's object store — mixed references are supported, so you can switch at any time and relocate the older files afterward with the blob backfill below. Removing the config sends new uploads back to the deployment default; files already written to the bucket stay there, but Tale can't read them until the connection is added again. No restart is needed in either direction.
+This path is **not** greenfield-only: from the moment the config exists, new uploads go to the org's bucket, while files stored earlier stay readable where they are in the deployment's object store — mixed references are supported, so you can switch at any time and relocate the older files afterward with the blob backfill below. Removing the config sends new uploads back to the deployment default; files already written to the bucket stay there, but Tale can't read them until the connection is added again. No restart is needed in either direction.
 
-Org admins can manage this connection from the same per-organization sections of **Settings > Data residency**; its connection test performs a real upload/read/delete round-trip against the bucket before you commit. As with the knowledge connection, the JSON files remain the source of truth.
+Org admins manage this connection from the same **Settings > Data residency** page; its connection test performs a real upload/read/delete round-trip against the bucket before you commit. As with the knowledge connection, the JSON files remain the source of truth.
 
 > **Allow the app's origin in the bucket's CORS policy.** Uploads and downloads run directly between the browser and the bucket via presigned URLs, so the bucket must accept cross-origin requests from your deployment's URL — allow that origin with the methods `GET`, `PUT`, and `HEAD` and all request headers (Cloudflare R2: the bucket's **Settings > CORS Policy**; AWS S3 and MinIO: the bucket's CORS configuration). The in-app connection test runs from the server, not the browser, so a missing CORS policy surfaces only later, as a failed upload.
 
@@ -78,23 +70,4 @@ An org admin runs it from the UI: with the bucket connection saved, the Object s
 
 The backfill is **idempotent** and **org-scoped**: it moves only that organization's blobs, skips anything already in the bucket, and leaves each source blob in place until its copy is verified — so a re-run after an interruption resumes safely, finishing any move that was cut off between the verified copy and the source delete. It walks every table that holds blob references: documents and their history, uploaded files, synthesized speech audio, and video-link transcripts. It needs the bucket connection configured first, and it refuses to run when the org's bucket is the deployment's own store — there would be nothing to move, and finishing a move would delete the only copy. This is deliberately **not** a versioned framework migration — it runs on demand, per organization, when you choose to relocate a tenant's history, not at a release boundary.
 
-## File storage on S3
-
-External file storage uses a single S3-compatible bucket — a bucket name, region, credentials, and (for MinIO or Cloudflare R2) an endpoint with path-style addressing enabled. These map to the `OBJECT_STORE_*` variables in [Environment reference](/self-hosted/configuration/environment-reference).
-
-> **Greenfield only.** Switching the deployment-wide file storage from the bundled store to an external bucket does **not** migrate the blobs already on the local volume — the backend will look for them in the bucket and not find them. Set S3 at initial deployment, or copy the existing local storage into the bucket out of band before switching.
-
-## How the configuration is stored
-
-Saving writes two files at the config root (not under an org directory):
-
-- `deployment.json` — the non-secret config (hosts, ports, buckets, modes).
-- `deployment.secrets.json` — the database passwords and S3 keys, SOPS-encrypted (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
-
-At boot the backend reads these and derives its connections before starting. Knowledge ingestion and retrieval run inside the backend worker, so the backend is what opens the knowledge-database connection — there is no separate retrieval service to configure. The contract is **fail-closed**: a present-but-unparseable `deployment.json`, an undecryptable secret, or a config missing required fields **aborts startup** rather than silently falling back to the bundled database — mis-routing regulated data is worse than not starting. An absent file is the normal default path.
-
-## Applying a change: restart
-
-The config is read at boot, so a save does not take effect until the backend containers (`backend-api` and `backend-worker`) restart. Run `docker compose restart backend-api backend-worker`, or `tale deploy` for a zero-downtime blue-green roll — the settings page shows the same commands after a save.
-
-The relevant environment variable is `TALE_DEPLOYMENT_CONFIG_ADMINS` (the comma-separated email allowlist of operators allowed to edit). Set it in `.env`. See also [Environment reference](/self-hosted/configuration/environment-reference) and [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).
+The deployment defaults and their variables are listed in the [Environment reference](/self-hosted/configuration/environment-reference); the per-organization secrets sidecars follow [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).

@@ -12,9 +12,6 @@
  */
 
 import { spawn } from 'node:child_process';
-import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 
 import { detectAdapters, getAdapter } from './adapters/index';
 import type { AdapterDetection } from './adapters/types';
@@ -65,6 +62,31 @@ interface ExecResult {
   code: number | null;
   cancelled: boolean;
   timedOut: boolean;
+  /**
+   * The child never started (ENOENT: adapter binary missing; E2BIG: the
+   * prompt overflowed argv; EACCES…). Distinct from a non-zero exit — a run
+   * that cannot start on this daemon will not start on a retry either.
+   */
+  spawnError?: string;
+}
+
+/** How a finished adapter run is reported to the server. */
+export function describeRunFailure(
+  result: Pick<ExecResult, 'stdout' | 'code' | 'spawnError'>,
+): { message: string; retryable: boolean } | null {
+  if (result.spawnError !== undefined) {
+    return {
+      message: `CLI could not be started: ${result.spawnError}`,
+      retryable: false,
+    };
+  }
+  if (result.code !== 0) {
+    return {
+      message: `CLI exited with code ${result.code}: ${result.stdout.slice(-400)}`,
+      retryable: true,
+    };
+  }
+  return null;
 }
 
 function execAdapter(args: {
@@ -113,7 +135,13 @@ function execAdapter(args: {
       clearTimeout(timer);
       stopCancelWatch();
       console.error('[tale-daemon] spawn failed', error);
-      resolve({ stdout, code: -1, cancelled: false, timedOut: false });
+      resolve({
+        stdout,
+        code: -1,
+        cancelled: false,
+        timedOut: false,
+        spawnError: error.message,
+      });
     });
   });
 }
@@ -151,93 +179,76 @@ async function executeRun(
     `run ${work.externalRunId} adapter=${work.adapterType} permission=${permission} cwd=${workspace.cwd}`,
   );
 
-  // Long prompts go through a temp file when the adapter reads argv —
-  // argv length limits are real. All three v1 adapters take the prompt as
-  // an argument; clip defensively and keep a copy for local debugging.
-  const promptDir = mkdtempSync(path.join(tmpdir(), 'tale-run-'));
-  try {
-    writeFileSync(path.join(promptDir, 'prompt.md'), work.prompt, {
-      mode: 0o600,
-    });
+  // All three v1 adapters take the prompt as an argument. argv length limits
+  // are real: a prompt that overflows them fails the spawn with E2BIG, which
+  // is reported below as a non-retryable start failure.
+  const invocation = adapter.buildInvocation({
+    prompt: work.prompt,
+    permissionMode: permission,
+    resumeSessionRef:
+      work.kind === 'revision' && adapter.capabilities.sessionResume
+        ? work.resumeSessionRef
+        : undefined,
+  });
 
-    const invocation = adapter.buildInvocation({
-      prompt: work.prompt,
-      permissionMode: permission,
-      resumeSessionRef:
-        work.kind === 'revision' && adapter.capabilities.sessionResume
-          ? work.resumeSessionRef
-          : undefined,
-    });
+  await api.sendEvent(work.externalRunId, 'started');
 
-    await api.sendEvent(work.externalRunId, 'started');
+  // While the CLI runs: heartbeat (lease renewal) + cancellation watch.
+  let stopRequested: (() => void) | null = null;
+  const heartbeatLoop = setInterval(() => {
+    void api
+      .heartbeat()
+      .then(({ cancel }) => {
+        if (cancel.includes(work.externalRunId)) stopRequested?.();
+        return null;
+      })
+      .catch((error) => {
+        console.warn('[tale-daemon] heartbeat during run failed', error);
+      });
+  }, HEARTBEAT_ACTIVE_MS);
 
-    // While the CLI runs: heartbeat (lease renewal) + cancellation watch.
-    let stopRequested: (() => void) | null = null;
-    const heartbeatLoop = setInterval(() => {
-      void api
-        .heartbeat()
-        .then(({ cancel }) => {
-          if (cancel.includes(work.externalRunId)) stopRequested?.();
-          return null;
-        })
-        .catch((error) => {
-          console.warn('[tale-daemon] heartbeat during run failed', error);
-        });
-    }, HEARTBEAT_ACTIVE_MS);
+  const result = await execAdapter({
+    command: invocation.command,
+    argv: invocation.args,
+    cwd: workspace.cwd,
+    timeoutMs: resolveTimeoutMs(work.timeoutMs),
+    // Agent-declared env first, then the adapter's own env (which wins on a
+    // name collision — never let user config clobber the adapter's wiring).
+    env: { ...work.env, ...invocation.env },
+    onCancelCheck: (kill) => {
+      stopRequested = kill;
+      return () => {
+        stopRequested = null;
+      };
+    },
+  });
+  clearInterval(heartbeatLoop);
 
-    const result = await execAdapter({
-      command: invocation.command,
-      argv: invocation.args,
-      cwd: workspace.cwd,
-      timeoutMs: resolveTimeoutMs(work.timeoutMs),
-      // Agent-declared env first, then the adapter's own env (which wins on a
-      // name collision — never let user config clobber the adapter's wiring).
-      env: { ...work.env, ...invocation.env },
-      onCancelCheck: (kill) => {
-        stopRequested = kill;
-        return () => {
-          stopRequested = null;
-        };
-      },
-    });
-    clearInterval(heartbeatLoop);
-
-    if (result.cancelled) {
-      await api.fail(work.externalRunId, 'cancelled by server request', false);
-      return;
-    }
-    if (result.timedOut) {
-      await api.fail(work.externalRunId, 'CLI run timed out locally', false);
-      return;
-    }
-    if (result.code !== 0) {
-      await api.fail(
-        work.externalRunId,
-        `CLI exited with code ${result.code}: ${result.stdout.slice(-400)}`,
-        true,
-      );
-      return;
-    }
-
-    const outcome = adapter.parseOutput(result.stdout);
-    const diffStat = await collectDiffStat(workspace);
-    await api.complete(work.externalRunId, {
-      summary: outcome.summary,
-      diffStat,
-      sessionRef: outcome.sessionRef,
-      inputTokens: outcome.inputTokens,
-      outputTokens: outcome.outputTokens,
-      costCents: outcome.costCents,
-    });
-    log(`run ${work.externalRunId} completed`);
-  } finally {
-    // The prompt copy is local-debug only — never leak the temp dir.
-    try {
-      rmSync(promptDir, { recursive: true, force: true });
-    } catch (error) {
-      console.warn('[tale-daemon] failed to remove prompt temp dir', error);
-    }
+  if (result.cancelled) {
+    await api.fail(work.externalRunId, 'cancelled by server request', false);
+    return;
   }
+  if (result.timedOut) {
+    await api.fail(work.externalRunId, 'CLI run timed out locally', false);
+    return;
+  }
+  const failure = describeRunFailure(result);
+  if (failure) {
+    await api.fail(work.externalRunId, failure.message, failure.retryable);
+    return;
+  }
+
+  const outcome = adapter.parseOutput(result.stdout);
+  const diffStat = await collectDiffStat(workspace);
+  await api.complete(work.externalRunId, {
+    summary: outcome.summary,
+    diffStat,
+    sessionRef: outcome.sessionRef,
+    inputTokens: outcome.inputTokens,
+    outputTokens: outcome.outputTokens,
+    costCents: outcome.costCents,
+  });
+  log(`run ${work.externalRunId} completed`);
 }
 
 export async function runDaemon(config: DaemonConfig): Promise<void> {

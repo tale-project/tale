@@ -69,15 +69,37 @@ DNSMASQ_PID=$!
 touch /var/log/tinyproxy/tinyproxy.log
 chown nobody:nobody /var/log/tinyproxy/tinyproxy.log
 
-# Run tinyproxy in the background, then `exec tail -F` so the tail process
-# replaces this shell as PID 1. SIGTERM from `docker stop` then goes
-# straight to tail (which exits on signal), tail's death tears down the
-# container, and tinyproxy — as a sibling child of the original shell —
-# is reaped by the kernel rather than zombified through this entrypoint.
-# A signal trap forwards INT/TERM to tinyproxy so it gets a clean shutdown
-# instead of SIGKILL when the container stops.
+# Run tinyproxy and the log tail in the background and `wait` on tinyproxy
+# from this shell (PID 1). A trap forwards INT/TERM to tinyproxy and dnsmasq
+# so `docker stop` gives them a clean shutdown (drained CONNECT tunnels)
+# instead of the SIGKILL that follows the grace period; the log tail is
+# stopped last, once tinyproxy has been reaped, so its "Shutting down." line
+# still reaches `docker logs`. The final `wait` reaps everything before the
+# shell exits and the container goes down. (An `exec tail` here would have
+# replaced the shell and with it the trap — shell traps do not survive exec —
+# so the forwarding never ran.) If tinyproxy dies on its own the first `wait`
+# returns and the container exits for the restart policy to act on.
+#
+# errexit is switched off from here on: when the trap fires mid-`wait`, POSIX
+# `wait` returns 128+signal (143) and `set -e` would exit PID 1 right there —
+# before the forwarded TERM is acted on and before the reaping `wait` — which
+# tears down the pid namespace and SIGKILLs the children anyway. The shell
+# still exits with tinyproxy's status (143 on stop, its own code on a crash).
 tinyproxy -d -c /etc/tinyproxy/tinyproxy.conf &
 TINYPROXY_PID=$!
+tail -n0 -F /var/log/tinyproxy/tinyproxy.log &
+TAIL_PID=$!
 trap 'kill -TERM "$TINYPROXY_PID" "$DNSMASQ_PID" 2>/dev/null || true' INT TERM
 
-exec tail -n0 -F /var/log/tinyproxy/tinyproxy.log
+set +e
+wait "$TINYPROXY_PID"
+rc=$?
+# A signal interrupts `wait` before tinyproxy has exited; wait on it again so
+# its clean shutdown (not the trap's delivery) is what we report and reap.
+wait "$TINYPROXY_PID" 2>/dev/null
+# busybox `tail -F` polls the file once a second: give it one cycle to echo
+# tinyproxy's shutdown lines before it is stopped too.
+sleep 1
+kill -TERM "$DNSMASQ_PID" "$TAIL_PID" 2>/dev/null
+wait
+exit "$rc"

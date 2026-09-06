@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { resolveOutputMode, setActiveOutputMode } from './output-mode';
 import {
   confirm,
-  confirmChoice,
   input,
   NonInteractiveError,
   password,
@@ -84,8 +83,5 @@ describe('--yes resolves defaults without prompting', () => {
         default: 'b',
       }),
     ).toBe('b');
-  });
-  test('confirmChoice resolves to accept-all', async () => {
-    expect(await confirmChoice({ message: 'step?' })).toBe('accept-all');
   });
 });

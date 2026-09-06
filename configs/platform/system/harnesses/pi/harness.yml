@@ -86,4 +86,3 @@ exec:
   env:
     managed:
       TALE_GATEWAY_TOKEN: '${gateway.token}'
-pinnedVersion: 0.80.3

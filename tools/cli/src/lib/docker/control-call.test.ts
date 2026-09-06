@@ -10,7 +10,8 @@ const execMock = mock();
 mock.module('./docker', () => ({ docker: dockerMock }));
 mock.module('./exec', () => ({ exec: execMock }));
 
-const { backendApiContainer, controlCall } = await import('./control-call');
+const { backendApiContainer, controlCall, DEFAULT_CONTROL_TIMEOUT_S } =
+  await import('./control-call');
 
 function ok(stdout = '{}') {
   return { success: true, stdout, stderr: '', exitCode: 0 };
@@ -60,6 +61,18 @@ describe('controlCall', () => {
     expect(argvOf(args as unknown[])).toContain('-i');
     expect((options as { stdin?: string }).stdin).toBe(
       JSON.stringify({ newPassword: 'hunter2-not-in-argv' }),
+    );
+  });
+
+  test('bounds every call with the default budget when none is given', async () => {
+    // A door that accepts TCP but never answers must not hang the deploy
+    // (which holds the deploy lock) — drain/drain-status/end-drain all omit
+    // an explicit budget.
+    dockerMock.mockReset();
+    dockerMock.mockResolvedValue(ok());
+    await controlCall('GET', '/api/control/drain-status');
+    expect(argvOf(dockerMock.mock.calls[0] ?? [])).toContain(
+      `timeout ${DEFAULT_CONTROL_TIMEOUT_S} curl`,
     );
   });
 

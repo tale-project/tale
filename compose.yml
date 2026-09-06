@@ -286,13 +286,7 @@ services:
       - path: .env
         required: false
 
-    # Live browser view (read-only mirror). Read here too — the sandbox spawner
-    # reads the SAME var, so the two MUST stay in lockstep. Unset ⇒ default ON; set
-    # SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt out. Interpolates from the
-    # same root .env as the sandbox service so one value drives both. Mirrors the
-    # CLI generator (create-platform-service.ts).
     environment:
-      SANDBOX_BROWSER_VIEW: ${SANDBOX_BROWSER_VIEW:-}
       # Where the public `/status` page probes the application backend.
       TALE_BACKEND_URL: ${TALE_BACKEND_URL:-http://backend-api:3005}
 

@@ -102,8 +102,8 @@ export type DomainResult = {
 //   - 'flat' = one file per item, no subdirs. Today that's just `governance`.
 //     override:true overwrites per-file via atomicWrite; user-added files
 //     survive, secrets sidecars + `.history/` at the dir level survive. A
-//     catalog `.yml`/`.json` file that matches one of the domain's `v8Sync`
-//     keys is schema-validated before being written (corrupt files are
+//     catalog `.yml`/`.json` file that matches one of the domain's
+//     `seedSchemas` keys is schema-validated before being written (corrupt files are
 //     skipped, never copied); anything else (e.g. `retention.yml`) copies
 //     unchecked.
 // `bundle` (skills/connectors/automations pre-rewrite) and `tree`
@@ -172,9 +172,9 @@ export async function pathsOverlap(a: string, b: string): Promise<boolean> {
 
 /**
  * The schema for a single catalog config file (`.yml` or `.json`), keyed by
- * matching its basename (no extension) against the domain's `v8Sync` keys
- * via `fileBaseFor` — the same mapping the file→`configCache` mirror uses.
- * Returns `undefined` when the domain has no `v8Sync` spec, or when no key
+ * matching its basename (no extension) against the domain's `seedSchemas`
+ * keys via `fileBaseFor`.
+ * Returns `undefined` when the domain has no `seedSchemas` spec, or when no key
  * maps to this filename (e.g. governance's `retention.yml`, which is not a
  * policy) — the caller then copies the file unchecked, same as the old
  * per-domain `domainCatalogFileSchema` fallback.
@@ -183,12 +183,12 @@ function schemaForCatalogFile(
   domain: ConfigDomain,
   fileName: string,
 ): z.ZodType | undefined {
-  const v8Sync = domain.v8Sync;
-  if (!v8Sync) return undefined;
+  const seedSchemas = domain.seedSchemas;
+  if (!seedSchemas) return undefined;
   const base = fileName.replace(/\.(yml|json)$/, '');
-  for (const key of v8Sync.keys) {
-    if (v8Sync.fileBaseFor(key) === base) {
-      return v8Sync.schemaFor(key);
+  for (const key of seedSchemas.keys) {
+    if (seedSchemas.fileBaseFor(key) === base) {
+      return seedSchemas.schemaFor(key);
     }
   }
   return undefined;
@@ -198,8 +198,8 @@ function schemaForCatalogFile(
  * A single catalog config file that fails its domain schema is SKIPPED
  * (warn + return false) rather than copied — corrupt bytes must never reach
  * a new org's disk. `.yml` parses through the shared safe loader, `.json`
- * through `JSON.parse`. Files with no matching `v8Sync` key (or a domain
- * with no `v8Sync` spec at all) keep copying unchecked (the CI
+ * through `JSON.parse`. Files with no matching `seedSchemas` key (or a domain
+ * with no `seedSchemas` spec at all) keep copying unchecked (the CI
  * catalog-validation gate is the exhaustive check; this is only "catch the
  * common case").
  */
@@ -276,7 +276,7 @@ export async function writeFileFromCatalog(
  * cross-tenant content — skip with a warning rather than recurse.
  *
  * `domain` is threaded down to `writeFileFromCatalog` so each `.json` file
- * is schema-checked (via its `v8Sync` mapping, when it has one) before being
+ * is schema-checked (via its `seedSchemas` mapping, when it has one) before being
  * written — omit it to copy unchecked.
  */
 export async function copyTree(
@@ -339,15 +339,12 @@ export async function copyTree(
  * domains. There is deliberately no `default`/org level and no fallback to any
  * org's live dir: every org is seeded only from the built-in catalog.
  *
- * MINIMAL interim: only `scaffoldKind: 'flat'` is implemented. `bundle` and
- * `tree` domains throw rather than attempt copy semantics this module no
- * longer carries — a silent no-op or a naive flat copy would either strand an
- * operator expecting a real seed or corrupt a nested bundle/tree layout. The
- * only caller that can currently reach a non-flat domain is the pre-rewrite
- * `v0_3_4/33` migration (via `getConfigDomain('automations')`), which only
- * matters on a deployment still mid-upgrade from before this rewrite —
- * failing loud there is correct: it tells the operator to land a pre-rewrite
- * release first rather than silently mis-seeding.
+ * `scaffoldKind: 'flat'` and `'bundle'` are implemented. A `tree` domain
+ * throws rather than attempt copy semantics this module does not carry — a
+ * silent no-op or a naive flat copy would either strand an operator expecting
+ * a real seed or corrupt a nested tree layout. No registered domain is a
+ * `tree` today, so the throw is a guard for a future registration, not a
+ * reachable path.
  *
  * A missing `<catalogRoot>/<domain>` source dir degrades to `{ok:true}` with
  * nothing seeded (see the file header) rather than the deploy-misconfig

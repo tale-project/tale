@@ -148,37 +148,3 @@ export async function select<T>(options: SelectOptions<T>): Promise<T> {
     theme: buildTheme(),
   });
 }
-
-/** The choices a per-step migration review offers. */
-type StepChoice = 'yes' | 'skip' | 'accept-all' | 'abort';
-
-interface ConfirmChoiceOptions {
-  message: string;
-  assumeYes?: boolean;
-}
-
-/**
- * The per-step decision for `tale migrate --step`:
- *  - `yes`        run this one step, then ask again at the next
- *  - `skip`       do not run this step, advance to the next
- *  - `accept-all` run this and every remaining step without prompting
- *  - `abort`      stop the whole run now (already-applied steps stay applied)
- *
- * `--yes` resolves to `accept-all`.
- */
-export async function confirmChoice(
-  options: ConfirmChoiceOptions,
-): Promise<StepChoice> {
-  if (assumeYes(options.assumeYes)) return 'accept-all';
-  requireInteractive(options.message);
-  return inquirerSelect<StepChoice>({
-    message: options.message,
-    choices: [
-      { name: 'Run this step', value: 'yes' },
-      { name: 'Skip this step', value: 'skip' },
-      { name: 'Run this and all remaining steps', value: 'accept-all' },
-      { name: 'Abort the migration', value: 'abort' },
-    ],
-    theme: buildTheme(),
-  });
-}

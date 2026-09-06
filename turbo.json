@@ -109,6 +109,7 @@
     }
   },
   "globalDependencies": [
+    ".github/actions/setup-turbo/action.yml",
     ".oxlintrc.json",
     ".oxfmtrc.json",
     "tsconfig.base.json"

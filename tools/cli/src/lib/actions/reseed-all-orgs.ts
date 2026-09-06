@@ -20,6 +20,7 @@
  */
 
 import * as logger from '../../utils/logger';
+import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
 import {
   backendApiContainer,
@@ -31,6 +32,18 @@ interface ReseedAllOrgsOptions {
   dryRun: boolean;
   assumeYes: boolean;
 }
+
+/**
+ * The control-door collaborators, injectable so the tests can script them
+ * without module-mocking `../docker/control-call` — bun's `mock.module` is
+ * process-wide and would leak into that module's own test file.
+ */
+export interface ReseedDeps {
+  isBackendTierRunning: typeof isBackendTierRunning;
+  controlCall: typeof controlCall;
+}
+
+const DEFAULT_DEPS: ReseedDeps = { isBackendTierRunning, controlCall };
 
 const RESEED_TIMEOUT_S = 1800;
 const RESEED_TIMEOUT_EXIT = 124;
@@ -78,6 +91,7 @@ function failureLines(result: ReseedResult): string[] {
 
 export async function reseedAllOrgsFromBuiltin(
   options: ReseedAllOrgsOptions,
+  deps: ReseedDeps = DEFAULT_DEPS,
 ): Promise<void> {
   const { dryRun, assumeYes } = options;
   const container = backendApiContainer();
@@ -97,12 +111,13 @@ export async function reseedAllOrgsFromBuiltin(
 
   // Gate non-interactive callers behind --yes to avoid silent abort in CI.
   const isTty = Boolean(process.stdin.isTTY);
-  if (!assumeYes && !isTty) {
+  const consented = resolveConsent(assumeYes);
+  if (!consented && !isTty) {
     throw new Error(
       '--override-all requires --yes (-y) when stdin is not a TTY (e.g. CI).',
     );
   }
-  if (!assumeYes && isTty) {
+  if (!consented && isTty) {
     const ok = await confirm({ message: CONFIRM_MESSAGE, default: false });
     if (!ok) {
       logger.info('Aborted by user.');
@@ -110,17 +125,17 @@ export async function reseedAllOrgsFromBuiltin(
     }
   }
 
-  if (!(await isBackendTierRunning())) {
+  if (!(await deps.isBackendTierRunning())) {
     throw new Error(
       `--override-all needs the backend tier: no ${container} container is running. ` +
-        'Start the deployment (`tale start`), then re-run.',
+        'Start the deployment (`tale deploy`, or `tale dev` for a local stack), then re-run.',
     );
   }
 
   logger.blank();
   logger.step('Reseeding builtin catalog into all registered orgs...');
 
-  const result = await controlCall('POST', '/api/control/reseed', {
+  const result = await deps.controlCall('POST', '/api/control/reseed', {
     container,
     timeoutS: RESEED_TIMEOUT_S,
   });

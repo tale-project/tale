@@ -12,22 +12,20 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
 import { DataResidencySettings } from './data-residency-settings';
 
 /**
- * Component coverage for the unified data-residency page — the two access
- * levels of the SAME surface:
- *
- *   - A deployment operator (`canEdit` from the read) edits the deployment
- *     stores; a non-operator admin sees them read-only with a stated reason.
- *   - An org admin (`write orgSettings`) edits this organization's knowledge
- *     database, embedding model, and object storage; a member without it sees
- *     them read-only with a stated reason.
+ * Component coverage for the unified data-residency page — one surface, two
+ * access levels: an org admin (`write orgSettings`) edits this organization's
+ * knowledge database, embedding model, and object storage; a member without it
+ * sees them read-only with a stated reason. There is no deployment-wide store
+ * section any more (where the deployment default lives is environment-driven),
+ * and the page must not grow one back.
  *
  * Backend behaviour (config validation, SOPS sidecars, the real probes) is
- * covered by the convex action tests — here the hooks are stubbed at the
- * module boundary. The org sections save through the settings header's shared
+ * covered by the backend tests — here the hooks are stubbed at the module
+ * boundary. The org sections save through the settings header's shared
  * Save/Discard cluster; its slot is absent in this harness, so saves are
  * driven through the composed controller captured from `useActiveEditor`
- * (exactly what the cluster does). Deployment editing is asserted via the
- * rendered controls; Test/backfill via their own inline buttons.
+ * (exactly what the cluster does). Test/backfill run via their own inline
+ * buttons.
  */
 
 const saveStorage = vi.hoisted(() => vi.fn());
@@ -71,8 +69,6 @@ interface EmbeddingFixture {
 }
 
 const fixtures = vi.hoisted(() => ({
-  deployment: undefined as unknown,
-  deploymentError: false,
   storage: { configured: false } as unknown,
   knowledge: { configured: false } as unknown,
   embedding: { configured: false } as unknown,
@@ -90,52 +86,6 @@ const fixtures = vi.hoisted(() => ({
   }>,
 }));
 
-/** A deployment config with all three stores populated. */
-function deploymentConfig(canEdit: boolean) {
-  return {
-    config: {
-      version: 1,
-      dataStores: {
-        knowledgePostgres: {
-          host: 'kb.example.org',
-          port: 5432,
-          database: 'knowledge',
-          user: 'tale',
-          sslmode: 'require',
-        },
-        convexStorage: {
-          mode: 's3',
-          region: 'eu-central-1',
-          endpoint: 'https://minio.example.org',
-          forcePathStyle: true,
-          buckets: {
-            files: 'files-b',
-            exports: 'exports-b',
-            snapshotImports: 'snap-b',
-            modules: 'mods-b',
-            search: 'search-b',
-          },
-        },
-        appPostgres: {
-          host: 'app.example.org',
-          port: 5432,
-          database: 'appdb',
-          user: 'tale',
-        },
-      },
-    },
-    hash: 'h1',
-    secrets: {},
-    canEdit,
-    email: canEdit ? 'op@example.org' : 'viewer@example.org',
-  };
-}
-
-function setDeployment(canEdit: boolean) {
-  fixtures.deployment = deploymentConfig(canEdit);
-  fixtures.deploymentError = false;
-}
-
 function setStorageFixture(view: StorageFixture) {
   fixtures.storage = view;
 }
@@ -149,14 +99,6 @@ function setEmbeddingFixture(view: EmbeddingFixture) {
 }
 
 vi.mock('../hooks/queries', () => ({
-  useReadDeploymentConfig: () => ({
-    data: fixtures.deployment,
-    isPending: false,
-    isError: fixtures.deploymentError,
-    error: fixtures.deploymentError
-      ? { data: { code: 'DEPLOYMENT_CONFIG_UNREADABLE', message: 'boom' } }
-      : null,
-  }),
   useOrgObjectStorageConnection: () => ({
     data: fixtures.storage,
     isPending: false,
@@ -190,12 +132,6 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useSaveDeploymentConfig: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useSaveDeploymentSecret: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useTestDeploymentConnection: () => ({
-    mutateAsync: vi.fn(),
-    isPending: false,
-  }),
   useSaveOrgObjectStorageConnection: () => ({
     mutateAsync: saveStorage,
     isPending: false,
@@ -297,7 +233,6 @@ describe('DataResidencySettings', () => {
     vi.clearAllMocks();
     abilityState.canRead = true;
     abilityState.canWrite = true;
-    setDeployment(false);
     setStorageFixture({ configured: false });
     setKnowledgeFixture({ configured: false });
     setEmbeddingFixture({ configured: false });
@@ -330,8 +265,7 @@ describe('DataResidencySettings', () => {
     await waitFor(() => expect(capture.current?.isValid).toBe(true));
   });
 
-  it('renders the org sections first and the deployment stores after', () => {
-    setDeployment(true);
+  it('renders exactly the three org sections — no deployment-wide store section', () => {
     render(<DataResidencySettings organizationId="org-1" />);
 
     const headings = screen
@@ -341,65 +275,20 @@ describe('DataResidencySettings', () => {
       'Knowledge database',
       'Embedding model',
       'Object storage',
-      'Knowledge database (RAG)',
-      'File storage (uploaded documents)',
-      'Application database (advanced)',
     ].map((name) => headings.findIndex((text) => text === name));
     expect(order.every((index) => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-  });
-
-  it('lets a deployment operator edit the deployment stores (editable state)', async () => {
-    setDeployment(true);
-    const { container } = render(
-      <DataResidencySettings organizationId="org-1" />,
-    );
-
-    // Operator sees the enable switches (state as an interactive control) and
-    // editable, non-readonly inputs. Three "External Postgres" switches: the
-    // two deployment Postgres stores plus the org knowledge section's toggle.
-    expect(
-      screen.getAllByRole('switch', { name: 'External Postgres' }),
-    ).toHaveLength(3);
-    const hosts = screen.getAllByRole('textbox', { name: 'Host' });
-    expect(hosts).toHaveLength(2);
-    expect(hosts[0]).toHaveValue('kb.example.org');
-    expect(hosts[0]).not.toHaveAttribute('readonly');
-
-    await waitFor(() => checkAccessibility(container));
-  });
-
-  it('shows the deployment stores read-only, with the operator-allowlist reason', async () => {
-    setDeployment(false); // caller is not in TALE_DEPLOYMENT_CONFIG_ADMINS
-    const { container } = render(
-      <DataResidencySettings organizationId="org-1" />,
-    );
-
-    // State is conveyed as text (a status pill), never a bare disabled switch —
-    // there are no enable switches inside the deployment sections at all.
-    // (The org knowledge section keeps its own toggle: this caller IS an org
-    // admin, just not a deployment operator.)
-    expect(
-      within(sectionByHeading('Knowledge database (RAG)')).queryByRole(
-        'switch',
-      ),
-    ).toBeNull();
-    expect(
-      within(sectionByHeading('Application database (advanced)')).queryByRole(
-        'switch',
-      ),
-    ).toBeNull();
-    // The stored coordinates render as native read-only fields.
-    const hosts = screen.getAllByRole('textbox', { name: 'Host' });
-    expect(hosts[0]).toHaveValue('kb.example.org');
-    expect(hosts[0]).toHaveAttribute('readonly');
-    // The reason is stated, not left as a silent disabled control.
-    expect(screen.getAllByText('Read-only access').length).toBeGreaterThan(0);
-    expect(
-      screen.getByText(/TALE_DEPLOYMENT_CONFIG_ADMINS/),
-    ).toBeInTheDocument();
-
-    await waitFor(() => checkAccessibility(container));
+    // The retired deployment-wide stores (saved but never read at boot) are
+    // gone for good: no store may claim a restart applies it.
+    for (const retired of [
+      'Knowledge database (RAG)',
+      'File storage (uploaded documents)',
+      'Application database (advanced)',
+      'Save deployment',
+    ]) {
+      expect(screen.queryByText(retired)).toBeNull();
+    }
+    expect(screen.queryByText(/TALE_DEPLOYMENT_CONFIG_ADMINS/)).toBeNull();
   });
 
   it('renders the org knowledge section from a loaded config with its stored values', async () => {
@@ -904,27 +793,5 @@ describe('DataResidencySettings', () => {
     expect(
       screen.queryByRole('button', { name: 'Move existing files' }),
     ).toBeNull();
-  });
-
-  it('surfaces a deployment read failure without hiding the org sections', () => {
-    fixtures.deployment = undefined;
-    fixtures.deploymentError = true;
-
-    render(<DataResidencySettings organizationId="org-1" />);
-
-    // The deployment group reports its own failure inline...
-    expect(
-      screen.getByText(/Couldn't load the deployment configuration/),
-    ).toBeInTheDocument();
-    // ...while the org sections still render.
-    expect(
-      screen.getByRole('heading', { name: 'Object storage' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: 'Knowledge database' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: 'Embedding model' }),
-    ).toBeInTheDocument();
   });
 });

@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DeploymentEnv } from '../../utils/load-env';
+import {
+  resolveOutputMode,
+  setActiveOutputMode,
+} from '../../utils/output-mode';
 import { setProjectId } from '../project/project-context';
 import { restore, type RestoreDeps } from './restore';
 
@@ -178,7 +182,10 @@ describe('restore', () => {
     });
 
     expect(stopContainerMock).toHaveBeenCalledWith('tale-db');
-    expect(verifySnapshotMock).toHaveBeenCalledWith('tale_', MANIFEST.id);
+    // The bgutil-provider sidecar is a stop candidate like the stateful tier:
+    // left running it keeps the volumes' network alive across the restore.
+    expect(isContainerRunningMock).toHaveBeenCalledWith('tale-bgutil-provider');
+    expect(verifySnapshotMock).toHaveBeenCalledWith('tale_', MANIFEST);
     // One wipe+extract per volume in the manifest.
     expect(execMock).toHaveBeenCalledTimes(2);
     const scripts = execMock.mock.calls.map(
@@ -191,6 +198,30 @@ describe('restore', () => {
     expect(
       infoLines.some((line) => line.includes('tale update --version 0.9.6')),
     ).toBe(true);
+  });
+
+  test('treats the global `tale -y` as consent when the local flag is absent', async () => {
+    resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+    listSnapshotsMock.mockResolvedValue([MANIFEST]);
+    isContainerRunningMock.mockResolvedValue(false);
+    verifySnapshotMock.mockResolvedValue(undefined);
+    ensureVolumesMock.mockResolvedValue(true);
+    execMock.mockResolvedValue({
+      success: true,
+      stdout: '',
+      stderr: '',
+      exitCode: 0,
+    });
+
+    setActiveOutputMode(resolveOutputMode({ yes: true }, {}));
+    try {
+      await run({ env, snapshotId: MANIFEST.id });
+    } finally {
+      setActiveOutputMode(resolveOutputMode({}, {}));
+    }
+
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(verifySnapshotMock).toHaveBeenCalledTimes(1);
   });
 
   test('aborts when the confirmation prompt is declined', async () => {

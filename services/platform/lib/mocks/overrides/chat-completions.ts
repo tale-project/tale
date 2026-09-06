@@ -221,9 +221,8 @@ function mockTitleFor(body: ChatCompletionRequest): string {
 
 /**
  * The docs entry for this conversation: every message text scanned
- * NEWEST-FIRST — system messages included. A human-input RESUME arrives as a
- * REBUILT conversation whose only user message is the
- * `[HUMAN_INPUT_RESPONSE]` line; the on-camera prompt that owns the script
+ * NEWEST-FIRST — system messages included, because a resume can arrive as a
+ * REBUILT conversation where the on-camera prompt that owns the script
  * survives only inside a system message's embedded history block. Docs
  * phrases are distinctive full clauses, so scanning system text cannot
  * shadow the e2e paths.
@@ -255,12 +254,7 @@ function isToolResume(messages: ParsedMessage[]): boolean {
     (message) =>
       message.role === 'tool' ||
       message.hasToolCalls ||
-      message.text.includes('human_response') ||
-      // The human-input RESUME rebuilds the conversation; its user line is
-      // "[HUMAN_INPUT_RESPONSE] <field>: <answer>" (note: NOT a substring of
-      // 'human_response'). Without this, a tool-scripted docs entry would
-      // re-emit its tool call and pause forever.
-      message.text.toLowerCase().includes('[human_input_response]'),
+      message.text.includes('human_response'),
   );
 }
 

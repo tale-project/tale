@@ -1,6 +1,8 @@
 import { sameMinor } from '../../utils/compare-versions';
+import { externalDepError } from '../../utils/fail';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { resolveConsent } from '../../utils/output-mode';
 import { runStepsInParallel } from '../../utils/progress';
 import { confirm } from '../../utils/prompt';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
@@ -24,8 +26,11 @@ import { withLock } from '../state/with-lock';
 
 interface RollbackOptions {
   env: DeploymentEnv;
-  /** Skip the confirmation prompt (the `-y/--yes` flag / non-interactive use). */
-  assumeYes: boolean;
+  /**
+   * Skip the confirmation prompt (the command's `-y/--yes` flag). The global
+   * `tale -y <cmd>` flag counts as consent too — see `resolveConsent`.
+   */
+  assumeYes?: boolean;
 }
 
 /**
@@ -50,29 +55,29 @@ interface RollbackDeps {
 function printSnapshotRestoreRunbook(): void {
   logger.blank();
   logger.info(
-    'Minor and major upgrades can run data migrations. Redeploying an',
+    'Minor and major upgrades can run forward-only data migrations, so an',
   );
-  logger.info('older binary on top of migrated data corrupts the instance, so');
-  logger.info('reverse the migrations FIRST. To roll back across versions:');
-  logger.info('  1. Reverse the data migrations to the target version');
-  logger.info('     (interactive, snapshot-backed):');
-  logger.info('       tale migrate down --to <version> --step');
+  logger.info('older binary must never run on top of migrated data. To roll');
+  logger.info('back across versions, restore the pre-upgrade snapshot:');
+  logger.info('  1. List the snapshots taken before deploys:');
+  logger.info('       tale restore');
+  logger.info('  2. Restore the one taken before the upgrade:');
+  logger.info('       tale restore <snapshot-id> --stop');
   logger.info(
-    '  2. Move the CLI to the version that matches the migrated-down data,',
+    '  3. Move the CLI to the version that matches the restored data,',
   );
   logger.info('     then roll the containers to match:');
   logger.info('       tale update --version <version>');
   logger.info('       tale deploy --stop');
-  logger.info('  If a migration is not reversible, restore the data-volume');
-  logger.info('  backup taken before the upgrade instead');
-  logger.info('  (see docs/self-hosted/operate/backups-and-restore.md).');
+  logger.info('  (see docs/en/self-hosted/operate/backups-and-restore.md).');
 }
 
 export async function rollback(
   options: RollbackOptions,
   deps: RollbackDeps = {},
 ): Promise<void> {
-  const { env, assumeYes } = options;
+  const { env } = options;
+  const assumeYes = resolveConsent(options.assumeYes);
   const pull = deps.pullImage ?? pullImage;
 
   await withLock(env.DEPLOY_DIR, 'rollback', async () => {
@@ -88,11 +93,10 @@ export async function rollback(
     // Image-rollback gate: this command only swaps the running binary, so the
     // only safe automatic target is a patch-level step from the running version
     // (the "patch = always safe" contract in
-    // docs/self-hosted/operate/upgrades.md). Crossing a minor/major may have
-    // run data migrations; the migration ledger now makes those reversible, but
-    // the reverse must be done deliberately via `tale migrate down` BEFORE
-    // swapping the binary — so here we refuse and point at that runbook rather
-    // than rolling the image onto a forward-migrated schema.
+    // docs/en/self-hosted/operate/upgrades.md). Crossing a minor/major may have
+    // run forward-only data migrations, so here we refuse and point at the
+    // snapshot-restore runbook rather than rolling the image onto a
+    // forward-migrated schema.
     const rollbackVersion = await getPreviousVersion(env.DEPLOY_DIR);
     if (!rollbackVersion) {
       logger.error('No previous version recorded — nothing to roll back to.');
@@ -182,7 +186,8 @@ export async function rollback(
     );
     const failedPulls = pullResults.filter((r) => !r.ok).map((r) => r.label);
     if (failedPulls.length > 0) {
-      throw new Error(
+      // The registry is an external dependency: exit 5, as documented.
+      throw externalDepError(
         `Failed to pull ${failedPulls.length} image(s): ${failedPulls.join(', ')}`,
       );
     }

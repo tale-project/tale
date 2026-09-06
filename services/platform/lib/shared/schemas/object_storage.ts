@@ -23,9 +23,8 @@ import { z } from 'zod/v4';
  *   {TALE_CONFIG_DIR}/<orgSlug>/object-storage/connection.json          (config)
  *   {TALE_CONFIG_DIR}/<orgSlug>/object-storage/connection.secrets.json  (SOPS)
  *
- * The bucket SHAPE reuses the S3 fields the deployment-wide
- * `dataStores.convexStorage` already uses (region/endpoint/forcePathStyle) — a
- * single bucket rather than Convex's five, since one org owns the whole bucket.
+ * The bucket SHAPE is the plain S3 coordinate set (region/endpoint/
+ * forcePathStyle) — a single bucket, since one org owns the whole bucket.
  * Credentials (`accessKeyId`/`secretAccessKey`) live ONLY in the SOPS-encrypted
  * secrets sidecar, exactly like `providers/*.secrets.json`.
  */
@@ -34,9 +33,8 @@ export const OBJECT_STORAGE_CONFIG_DOMAIN = 'object-storage';
 export const OBJECT_STORAGE_CONNECTION_KEY = 'connection';
 
 /**
- * `connection.json` — the org's S3-compatible bucket coordinates. Reuses the
- * `dataStores.convexStorage` S3 shape (region + optional endpoint +
- * forcePathStyle), narrowed to ONE bucket the org owns.
+ * `connection.json` — the org's S3-compatible bucket coordinates (region +
+ * optional endpoint + forcePathStyle) for ONE bucket the org owns.
  */
 export const objectStorageConnectionFileSchema = z
   .object({
@@ -46,7 +44,7 @@ export const objectStorageConnectionFileSchema = z
      * Restricted to http(s):// — `.url()` alone also admits
      * file:/javascript:/ftp:, and the SSRF host gate only checks the hostname,
      * so a non-http scheme with a public host would otherwise reach the signer.
-     * Mirrors `convexStorageSchema` in deployment.ts.
+     * Mirrors `moderationEndpointSchema` in governance.ts.
      */
     endpoint: z
       .string()

@@ -1,11 +1,12 @@
 /**
  * Deployment-editor allowlist — pure env parsing, no Convex/Node deps.
  *
- * Editing deployment data-residency config (repointing a data store, saving
- * secrets, testing a connection, applying a restart) is restricted to a named
- * set of operators. The operator lists their sign-in emails in
- * `TALE_DEPLOYMENT_CONFIG_ADMINS` at the host; viewing stays open to all
- * organization owners/admins (see `auth.ts`).
+ * Writing the deployment config file (`deployment.yml` — today the
+ * `sandboxRuntime` section) and the other deployment-level operator doors that
+ * reuse this gate is restricted to a named set of operators. The operator lists
+ * their sign-in emails in `TALE_DEPLOYMENT_CONFIG_ADMINS` at the host; viewing
+ * stays open to all organization owners/admins (see `auth_policy.ts`). Data
+ * residency is per organization and is not gated here.
  *
  * Kept free of Convex component imports so the logic is unit-testable in plain
  * vitest (the betterAuth/rateLimiter components don't register under convexTest).

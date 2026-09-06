@@ -1047,8 +1047,6 @@ export const harnessDefinitionSchema = z
     /** Subscription-key delivery, for harnesses a subscription credential
      * can force (absent = no subscription path). */
     subscription: harnessSubscriptionSchema.optional(),
-    /** The CLI version baked into the sandbox image, when pinned. */
-    pinnedVersion: z.string().min(1).max(64).optional(),
   })
   .strict()
   .superRefine((provider, ctx) => {

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { ConfigIcon } from '@/app/components/catalog/config-icon';
 import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useProjects } from '@/app/features/projects/hooks/queries';
@@ -23,7 +24,11 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { useT } from '@/lib/i18n/client';
-import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
+import {
+  automationDisplayIcon,
+  automationDisplayLabels,
+  automationDisplayName,
+} from '@/lib/shared/schemas/automation_presentation';
 
 import { useAutomations } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
@@ -36,6 +41,10 @@ import { UploadAutomationDialog } from './upload-automation-dialog';
 interface AutomationListRow {
   name: string;
   displayName: string;
+  /** Iconify id of the pack's declared glyph; absent → the neutral fallback. */
+  icon?: string;
+  /** The pack's catalog chips, in declaration order. */
+  labels: string[];
   latest: number;
   projectIds: string[];
   deployedVersion?: number;
@@ -92,6 +101,7 @@ export function AutomationsList({
       a.name.localeCompare(b.name),
     );
     return listed.map((automation) => {
+      const icon = automationDisplayIcon(automation.presentation);
       const row: AutomationListRow = {
         name: automation.name,
         displayName: automationDisplayName(
@@ -99,10 +109,12 @@ export function AutomationsList({
           automation.name,
           locale,
         ),
+        labels: automationDisplayLabels(automation.presentation),
         latest: automation.latest,
         projectIds: automation.projectIds,
         presentation: automation.presentation,
       };
+      if (icon !== undefined) row.icon = icon;
       if (
         'deployedVersion' in automation &&
         automation.deployedVersion !== undefined
@@ -120,16 +132,34 @@ export function AutomationsList({
         header: t('list.columnName'),
         size: 280,
         cell: ({ row }) => (
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-medium">
-              {row.original.displayName}
+          <HStack align="center" gap={2} className="min-w-0">
+            {/* The pack's declared glyph, like a skill's on its list; a
+                canvas-authored automation gets the same neutral fallback. */}
+            <ConfigIcon icon={row.original.icon} className="size-4 shrink-0" />
+            <span className="flex min-w-0 flex-col">
+              <HStack align="center" gap={1} className="min-w-0">
+                <span className="truncate text-sm font-medium">
+                  {row.original.displayName}
+                </span>
+                {/* Catalog chips the pack declared — proper nouns, so they
+                    read the same in every locale. */}
+                {row.original.labels.map((label) => (
+                  <Badge
+                    key={label}
+                    variant="slate"
+                    className="hidden px-1.5 py-px text-[10px] md:inline-flex"
+                  >
+                    {label}
+                  </Badge>
+                ))}
+              </HStack>
+              {/* The slug stays visible on the admin surface: it is what the
+                  store, the CLI and the run log address. */}
+              <span className="text-muted-foreground truncate text-xs">
+                {row.original.name}
+              </span>
             </span>
-            {/* The slug stays visible on the admin surface: it is what the
-                store, the CLI and the run log address. */}
-            <span className="text-muted-foreground truncate text-xs">
-              {row.original.name}
-            </span>
-          </span>
+          </HStack>
         ),
       },
     ];

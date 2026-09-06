@@ -15,16 +15,6 @@ export function createPlatformService(
     // does not mount caddy-data any more (zero outbound HTTPS).
     volumes: ['convex-data:/app/data:ro'],
     env_file: ['.env'],
-    // Live browser view (read-only mirror). Read here too — the entrypoint
-    // pushes it to Convex (run_external_agent gates on it) and the sandbox
-    // spawner reads the SAME var, so the two MUST stay in lockstep. Unset ⇒
-    // default ON; set SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt out.
-    // Interpolates from the same root .env as the sandbox service so one value
-    // drives both; empty ⇒ the entrypoint skips pushing it, leaving the
-    // Convex-side default ON. Mirrors compose.yml.
-    environment: {
-      SANDBOX_BROWSER_VIEW: '${SANDBOX_BROWSER_VIEW:-}',
-    },
     restart: 'unless-stopped',
     // Graceful shutdown budget. The entrypoint's SIGTERM trap
     // (services/platform/docker-entrypoint.sh) drains for

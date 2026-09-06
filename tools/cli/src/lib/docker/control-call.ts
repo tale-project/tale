@@ -43,10 +43,18 @@ export interface ControlCallResult {
 }
 
 /**
+ * Default budget for a control-door call. The doors answer in milliseconds;
+ * a container that accepts TCP but never answers (a half-alive api tier —
+ * exactly what a deploy often fixes) must not hang the caller while it holds
+ * the deploy lock. Callers with genuinely long calls (reseed) pass their own.
+ */
+export const DEFAULT_CONTROL_TIMEOUT_S = 15;
+
+/**
  * One control-door call. `body`, when given, is sent as a JSON request body
- * over stdin (never argv). `timeoutS` wraps curl in `timeout(1)` so a wedged
- * door cannot hang a deploy — the caller distinguishes that case by
- * `exitCode === 124`.
+ * over stdin (never argv). `timeoutS` (default `DEFAULT_CONTROL_TIMEOUT_S`)
+ * wraps curl in `timeout(1)` so a wedged door cannot hang a deploy — the
+ * caller distinguishes that case by `exitCode === 124`.
  */
 export async function controlCall(
   method: 'GET' | 'POST',
@@ -56,8 +64,7 @@ export async function controlCall(
   const container = options.container ?? backendApiContainer();
   const auth = '-H "Authorization: Bearer $TALE_CONTROL_TOKEN"';
   const url = `http://localhost:${BACKEND_CONTROL_PORT}${path}`;
-  const prefix =
-    options.timeoutS === undefined ? '' : `timeout ${options.timeoutS} `;
+  const prefix = `timeout ${options.timeoutS ?? DEFAULT_CONTROL_TIMEOUT_S} `;
 
   if (options.body === undefined) {
     return docker(

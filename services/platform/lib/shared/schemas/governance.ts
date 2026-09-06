@@ -576,7 +576,6 @@ export const chatFilterConfigSchema = z.object({
     .array(z.enum(['input', 'output']))
     .min(1)
     .default(['input']),
-  preferNonStreamingForFiltering: z.boolean().default(false),
   configVersion: z.number().int().default(1),
   categories: z.array(chatFilterCategorySchema).max(20),
 });

@@ -193,7 +193,6 @@ function escapeHtmlAttr(value: string) {
 interface EnvConfig {
   SITE_URL: string | undefined;
   BASE_PATH: string;
-  MICROSOFT_AUTH_ENABLED: boolean;
   TRUSTED_HEADERS_ENABLED: boolean;
   FILE_EVENTS_ENABLED: boolean;
   SENTRY_DSN: string | undefined;
@@ -333,7 +332,6 @@ function getEnvConfig(): EnvConfig {
   return {
     SITE_URL: process.env.SITE_URL,
     BASE_PATH: getBasePath(),
-    MICROSOFT_AUTH_ENABLED: !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
     TRUSTED_HEADERS_ENABLED: process.env.TRUSTED_HEADERS_ENABLED === 'true',
     FILE_EVENTS_ENABLED: fileEventsEnabled,
     SENTRY_DSN: process.env.SENTRY_DSN,

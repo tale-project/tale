@@ -1,6 +1,7 @@
 import { formatBytes } from '../../utils/format-bytes';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
 import {
   archiveTimeoutSeconds,
@@ -14,7 +15,11 @@ import type { SnapshotManifest } from '../backup/create-snapshot';
 import { listSnapshots } from '../backup/list-snapshots';
 import { resolveSnapshotPrefix } from '../backup/resolve-prefix';
 import { verifySnapshot } from '../backup/verify-snapshot';
-import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from '../compose/types';
+import {
+  ROTATABLE_SERVICES,
+  SIDECAR_SERVICES,
+  STATEFUL_SERVICES,
+} from '../compose/types';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { isContainerRunning } from '../docker/is-container-running';
@@ -63,7 +68,7 @@ async function findRunningProjectContainers(
 ): Promise<string[]> {
   const projectId = getProjectId();
   const candidates: string[] = [];
-  for (const service of STATEFUL_SERVICES) {
+  for (const service of [...STATEFUL_SERVICES, ...SIDECAR_SERVICES]) {
     candidates.push(`${projectId}-${service}`);
   }
   for (const service of ROTATABLE_SERVICES) {
@@ -183,7 +188,7 @@ export async function restore(
       );
     }
 
-    if (!options.assumeYes) {
+    if (!resolveConsent(options.assumeYes)) {
       logger.warn(
         `This wipes the current contents of: ${volumes.map((volume) => `${prefix}${volume}`).join(', ')}`,
       );
@@ -197,7 +202,7 @@ export async function restore(
     }
 
     logger.step('Verifying snapshot integrity...');
-    await deps.verifySnapshot(prefix, snapshotId);
+    await deps.verifySnapshot(prefix, manifest);
 
     // Fresh-host case: re-create any missing target volumes first.
     const volumesReady = await ensureVolumes(volumes, prefix);
@@ -219,7 +224,10 @@ export async function restore(
           BACKUP_HELPER_IMAGE,
           'sh',
           '-c',
-          `find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${volume}.tar.gz -C /data`,
+          // Never wipe the live volume for an archive that is not there:
+          // the existence check runs BEFORE the delete, inside the same
+          // helper container that will extract.
+          `test -f /backup/${snapshotId}/${volume}.tar.gz && find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${volume}.tar.gz -C /data`,
         ],
         { timeout: archiveTimeoutSeconds(volume) },
       );

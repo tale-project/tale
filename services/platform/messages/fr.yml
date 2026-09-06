@@ -3240,10 +3240,6 @@ governance:
     userInput: Entrée utilisateur
     modelOutput: Sortie modèle
     maskReplacement: Remplacement du masque
-    preferNonStreaming: Préférer le non-streaming quand le filtre de sortie est activé
-    preferNonStreamingDescription: Attendre la réponse complète avant d'afficher
-      quoi que ce soit. Élimine tout flash bref de contenu non filtré, en
-      échange d'une latence perçue plus élevée.
     categoriesTitle: Catégories
     categoriesDescription:
       Chaque catégorie a son propre mode. block l'emporte sur
@@ -5026,8 +5022,8 @@ settings:
       description: Authentification unique et synchronisation d’annuaire pour ton personnel.
     dataResidency:
       description:
-        Où vivent les données de cette organisation, et les stockages de
-        déploiement qui les sous-tendent.
+        Où vivent la base de connaissances et les fichiers téléversés de cette
+        organisation, et quel modèle d'embedding les traite.
   mcpEndpoint:
     title: Endpoint MCP
     description: Branche n'importe quel client MCP sur ce déploiement pour
@@ -6219,20 +6215,7 @@ settings:
   dataResidency:
     readOnly:
       title: Accès en lecture seule
-      before: La modification est réservée aux opérateurs listés dans
-      after:
-        (dans le .env du déploiement). Demande à un opérateur d'y ajouter ton
-        courriel, puis redémarre pour activer la modification.
-      yourEmail: Ton courriel de connexion est {email}.
-    secretsEncryptedNoKey:
-      Les secrets stockés sont chiffrés avec SOPS, mais aucune
-      clé age n'est configurée — les secrets existants ne peuvent pas être lus.
-    secretsUnreadable: Les secrets stockés existent mais ne peuvent pas être
-      déchiffrés (texte chiffré corrompu, ou clé age manquante/incorrecte).
-      Saisis à nouveau les valeurs et enregistre pour les écraser.
     externalPostgres: Postgres externe
-    status:
-      builtIn: Intégrée
     field:
       host: Hôte
       port: Port
@@ -6244,7 +6227,6 @@ settings:
       storedNoPreviewHint:
         Une valeur est stockée — laisse vide pour la conserver, ou
         saisis-en une nouvelle pour la remplacer.
-      storedHint: 'Stocké : {masked} — laisse vide pour conserver'
       writeOnlyHint: Écriture seule ; laisse vide pour conserver la valeur stockée
     testConnection: Tester la connexion
     testing: Test…
@@ -6252,78 +6234,18 @@ settings:
       ok: OK
       failed: Échec
     knowledge:
-      title: Base de connaissances (RAG)
-      description:
-        La base Postgres qui alimente la recherche et la récupération de
-        connaissances.
       paradeDbNote:
         La base de connaissances externe doit utiliser ParadeDB (pgvector
         + pg_search) pour la recherche hybride complète ; pgvector seul se
         limite à la recherche vectorielle.
     storage:
-      title: Stockage de fichiers (documents téléversés)
-      description: L'emplacement où sont stockés les documents téléversés et les
-        exports générés.
       externalS3: S3 externe
-      localLabel: Volume local
       region: Région
       endpoint: Endpoint (MinIO/R2 ; vide pour AWS)
       forcePathStyle: Forcer le path-style (MinIO/R2)
-      bucketsLabel: Buckets
-      credentialsLabel: Identifiants
-      bucket:
-        files: Bucket Files
-        exports: Bucket Exports
-        snapshotImports: Bucket Snapshot-Imports
-        modules: Bucket Modules
-        search: Bucket Search
       accessKeyId: Access Key ID
-      accessKeyIdStoredHint: 'Stocké : {masked} — laisse vide pour conserver'
       writeOnly: Écriture seule
       secretAccessKey: Secret Access Key
-      testReachability: Tester l'accessibilité
-      reachable: Accessible
-      greenfieldWarning:
-        'Le stockage S3 est greenfield : passer du local ne migre PAS
-        les fichiers déjà téléversés. Définis-le au premier déploiement, ou
-        copie les blobs locaux dans le bucket séparément.'
-    appDb:
-      summary: Base de données applicative (avancé)
-      description: Le magasin de métadonnées interne de Convex. La plupart des
-        déploiements devraient conserver la base fournie.
-      databaseNameNote:
-        Le backend Convex déduit le nom de sa base de données de la
-        configuration de l'instance ; le Postgres externe doit donc déjà
-        contenir cette base. Le champ « Base de données » ci-dessus sert
-        uniquement au test de connexion.
-      sslModeNote:
-        Le mode TLS de cette base de données est fixé par le pilote Convex
-        et ne peut pas être configuré ici.
-    saved:
-      title: Enregistré — redémarre pour appliquer.
-      runPrefix: Exécute
-      orPrefix: (ou
-      tail: pour le Zero-Downtime).
-    saving: Enregistrement…
-    saveDeployment: Enregistrer le déploiement
-    forceOverwrite:
-      title: Écraser les secrets illisibles ?
-      description: Le fichier de secrets existant ne peut pas être déchiffré.
-        L'écraser le remplace par les valeurs que tu as saisies — tout autre
-        secret qu'il contenait sera perdu. Continuer ?
-      confirm: Écraser
-    errors:
-      versionConflict: La configuration du déploiement a changé dans une autre
-        session. Recharge pour voir l'état le plus récent, puis réapplique tes
-        modifications.
-      invalidConfig: 'La configuration est invalide : {issues}'
-      invalidConfigGeneric: La configuration est invalide. Vérifie les champs et réessaie.
-      forbidden: Tu n'es pas autorisé à modifier la configuration du déploiement.
-      secretUnreadable:
-        Le fichier de secrets existant ne peut pas être déchiffré.
-        Confirme l'écrasement pour le remplacer.
-      configUnreadable: La configuration du déploiement sur le disque ne peut pas être lue.
-      readFailed: 'Impossible de charger la configuration du déploiement : {error}'
     orgKnowledge:
       title: Base de connaissances
       description:
