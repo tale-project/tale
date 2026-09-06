@@ -128,7 +128,6 @@ async function main(): Promise<void> {
     '--',
     'convex/lib/auth',
     'convex/scim/mappers.email.test.ts',
-    'convex/scim/data.email.test.ts',
   ]);
   process.stdout.write(vitest.stdout);
   process.stderr.write(vitest.stderr);

@@ -157,9 +157,14 @@ describe('control routes — HMAC gate', () => {
   test('drain is idempotent (second signed drain keeps the original anchor)', async () => {
     const control = makeControl();
     await dispatch(control, signedRequest('POST', '/v1/drain'));
-    const first = control.drainStartedAt;
+    const anchoredBy = Date.now(); // the first drain's anchor is <= this
+    await new Promise((r) => setTimeout(r, 30));
     await dispatch(control, signedRequest('POST', '/v1/drain'));
-    expect(control.drainStartedAt).toBe(first);
+    // Observed through the linger reap, the anchor's only consumer: at
+    // anchoredBy + linger + 1 the ORIGINAL anchor has expired, while a
+    // re-anchored drain (>= 30ms later) would not have.
+    const linger = 1_000;
+    expect(control.takeLingerReap(linger, anchoredBy + linger + 1)).toBe(true);
   });
 
   test('ignores every other path/method so the router falls through', async () => {
@@ -196,11 +201,12 @@ describe('control routes — max-linger self-reap', () => {
 
   test('fires exactly once, only after maxLingerMs has elapsed since the drain', async () => {
     const control = makeControl();
+    const before = Date.now();
     await dispatch(control, signedRequest('POST', '/v1/drain'));
-    const startedAt = control.drainStartedAt ?? 0;
-    expect(control.takeLingerReap(60_000, startedAt + 59_999)).toBe(false);
-    expect(control.takeLingerReap(60_000, startedAt + 60_001)).toBe(true);
+    const after = Date.now(); // the anchor lies in [before, after]
+    expect(control.takeLingerReap(60_000, before + 60_000)).toBe(false);
+    expect(control.takeLingerReap(60_000, after + 60_001)).toBe(true);
     // One-shot: the reap must not re-fire on the next sweep tick.
-    expect(control.takeLingerReap(60_000, startedAt + 120_000)).toBe(false);
+    expect(control.takeLingerReap(60_000, after + 120_000)).toBe(false);
   });
 });

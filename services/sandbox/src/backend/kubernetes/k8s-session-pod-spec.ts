@@ -24,6 +24,10 @@ import {
   transparentEgressSupported,
 } from '../../runtime-tier.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
+import {
+  sessionBrowserViewEnabled,
+  sessionDindEnabled,
+} from '../../session/session-profile.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../../types.ts';
 import type { SandboxSessionProfile } from '../../wire.ts';
 
@@ -104,7 +108,11 @@ export function buildSessionPod(
   //   runc ('privileged') — privileged: true; NO boundary (in-pod root = node
   //     root). config allows this only with a loud trusted-only warning, and on
   //     a shared node it is genuinely dangerous — operator's single-tenant call.
-  const dind = cfg.dockerInContainer;
+  // Agent-profile ONLY (sessionDindEnabled, shared with the Docker builder): a
+  // `default` Pod must never run untrusted content as root/privileged, and the
+  // entrypoint's DinD branch drops to uid 10001 which cannot write the
+  // 65534-group workspace — the Pod would never become ready.
+  const dind = sessionDindEnabled(cfg, inp.profile);
   const dindPrivileged = dindCapabilityOf(cfg.runtimeTier) === 'privileged';
   const dindSecurityContext = {
     runAsUser: 0,
@@ -271,6 +279,14 @@ export function buildSessionPod(
                   { name: 'TALE_DIND', value: '1' },
                   { name: 'TALE_RUNTIME_TIER', value: cfg.runtimeTier },
                 ]
+              : []),
+            // Live browser view (operator flag, agent-only — same gate as the
+            // Docker builder): the entrypoint brings up the headed Chromium +
+            // x11vnc mirror and runnerd enables browser-control; Playwright MCP
+            // attaches over CDP. Writes only /tmp (emptyDir) + /agent (PVC), so
+            // the hardened read-only rootfs is untouched. Absent ⇒ headless.
+            ...(sessionBrowserViewEnabled(cfg, inp.profile)
+              ? [{ name: 'TALE_BROWSER_CDP', value: '1' }]
               : []),
             // DinD transparent egress: the already-root runner installs the
             // OUTPUT REDIRECT inline after the inner dockerd is up (non-DinD uses

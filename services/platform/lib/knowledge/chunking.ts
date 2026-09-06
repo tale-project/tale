@@ -31,10 +31,10 @@
  */
 
 /** Target size of a chunk body, in UTF-16 code units. */
-export const CHUNK_SIZE = 2048;
+const CHUNK_SIZE = 2048;
 
 /** How much of the previous chunk's tail each chunk repeats. */
-export const CHUNK_OVERLAP = 200;
+const CHUNK_OVERLAP = 200;
 
 /** Separator between the levels of a contextual header. */
 export const HEADER_SEPARATOR = ' › ';

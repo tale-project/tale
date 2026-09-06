@@ -20,6 +20,10 @@ import {
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 import { sessionContainerName } from './session-naming.ts';
+import {
+  sessionBrowserViewEnabled,
+  sessionDindEnabled,
+} from './session-profile.ts';
 
 interface DockerSessionRunInput {
   sessionId: string;
@@ -90,24 +94,6 @@ const DEFAULT_PROFILE: SessionAgentProfileConfig = {
   uid: 65534,
   gid: 65534,
 };
-
-/**
- * DinD is an AGENT-profile capability, never a `default`-profile one. The
- * `default` profile is the hardened run_code posture (untrusted user code,
- * uid 65534): giving it the DinD boot would (a) hand untrusted code a
- * `--privileged` container on the runc tier, and (b) crash the session —
- * the entrypoint's DinD branch setpriv-drops to the agent uid (10001)
- * unconditionally, which cannot write the 65534-owned workspace, so the
- * skeleton mkdir dies and runnerd never comes up. Gating here (not in the
- * caller) keeps the argv builder and the backend's volume/buildkitd setup in
- * lockstep.
- */
-export function sessionDindEnabled(
-  cfg: SpawnerConfig,
-  profile: SandboxSessionProfile,
-): boolean {
-  return cfg.dockerInContainer && profile === 'agent';
-}
 
 export function buildDockerSessionRunArgs(
   cfg: SpawnerConfig,
@@ -283,12 +269,10 @@ export function buildDockerSessionRunArgs(
   // headed-Chromium + x11vnc read-only mirror (start_browser_stack). Additive
   // and only present when enabled — off keeps today's argv byte-identical. The
   // CDP (9222) / VNC (5900) endpoints are loopback-only; no port is published.
-  // Agent-only, like DinD: a run_code (`default`) session has no browser tool,
-  // so the headed-Chromium stack would be pure boot latency + attack surface.
-  const browserViewEnv =
-    cfg.browserView && inp.profile === 'agent'
-      ? ['--env', 'TALE_BROWSER_CDP=1']
-      : [];
+  // Agent-only, like DinD (see session-profile.ts).
+  const browserViewEnv = sessionBrowserViewEnabled(cfg, inp.profile)
+    ? ['--env', 'TALE_BROWSER_CDP=1']
+    : [];
 
   // Transparent egress signal for the entrypoint. On the non-DinD hardening path
   // the container boots as root, so TALE_DROP_UID/GID tell the entrypoint which
