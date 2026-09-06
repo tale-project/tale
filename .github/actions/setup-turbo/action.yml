@@ -4,7 +4,12 @@ description: Bun + deps with cache, optional Turbo remote cache server
 inputs:
   bun-version:
     description: Bun version
-    default: '1.3.12'
+    # Floor 1.4.1. Earlier Bun ran N-API addon finalizers and cleanup hooks
+    # inside process.exit() and could hand a still-queued threadsafe-function
+    # call a null env; rolldown (Vite 8) is such an addon, so the docs client
+    # build hung at its explicit exit on roughly one CI run in fifteen and the
+    # docs Playwright webServer timed out with zero tests run.
+    default: '1.4.2'
   start-turbo-cache:
     description: Start the Turborepo GH artifacts cache server
     default: 'true'

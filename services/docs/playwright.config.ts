@@ -23,7 +23,8 @@ export default createPlaywrightConfig({
     // `scripts/build-client.ts` (vite's JS API + an explicit exit), not the
     // `vite build` CLI: the CLI process occasionally never exits after a
     // successful build, and the `&&` chain then starves silently until this
-    // webServer timeout with zero tests run.
+    // webServer timeout with zero tests run. The explicit exit is only safe
+    // on Bun ≥ 1.4.1 — see build-client.ts for why.
     command:
       `bun --bun scripts/build-search-index.ts && ` +
       `bun --bun scripts/build-client.ts && ` +
