@@ -59,6 +59,14 @@ function stubPool(url: string): Sql {
   sql.url = url;
   sql.end = () => Promise.resolve();
   sql.unsafe = unsafe as never;
+  // The corpus bootstrap holds its advisory lock on one reserved connection
+  // (`applyCorpusSchema` → `sql.reserve()`); the double answers it with the
+  // same recording surface, as the pool double does.
+  sql.reserve = (() =>
+    Promise.resolve({
+      unsafe,
+      release: () => undefined,
+    })) as unknown as Sql['reserve'];
   sql.begin = ((fn: (tx: Sql) => Promise<unknown>) =>
     fn({ unsafe } as unknown as Sql)) as never;
   return sql;

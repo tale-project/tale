@@ -19664,7 +19664,9 @@ async function checkMailboxSyncLane(
     `;
     // The #3220 decision on the row the bind produced: retrievable inside
     // the scope of the conversation it arrived on — the admin reaches Bob's
-    // unassigned thread, the plain inbox member does not.
+    // unassigned thread, the plain inbox member does not. Dispatched the way
+    // the reused search/fetch modules dispatch it: the identity travels as a
+    // top-level `userId`, and the shim resolves the member role behind it.
     const filterRetrievable =
       knowledgeShimHandlers(sql)[
         'documents/internal_queries:filterRetrievableRagFileIds'
@@ -19673,23 +19675,20 @@ async function checkMailboxSyncLane(
     const memberRows = await sql<{ id: string }[]>`
       SELECT "id" FROM "user" WHERE "email" = 'inbox.member@door.test' LIMIT 1
     `;
-    const retrievableFor = async (caller: {
-      userId: string;
-      isAdmin: boolean;
-    }) =>
+    const retrievableFor = async (callerUserId: string | undefined) =>
       z.array(z.string()).parse(
         await filterRetrievable({
           organizationId: orgId,
           fileIds: [attachment?.storageRef ?? ''],
-          access: { teamIds: [] },
-          caller,
+          access: { teamIds: [], includeConversationScoped: true },
+          ...(callerUserId !== undefined ? { userId: callerUserId } : {}),
         }),
       );
-    const adminSees = await retrievableFor({ userId, isAdmin: true });
-    const memberSees = await retrievableFor({
-      userId: memberRows[0]?.id ?? 'no-such-user',
-      isAdmin: false,
-    });
+    const adminSees = await retrievableFor(userId);
+    const memberSees = await retrievableFor(
+      memberRows[0]?.id ?? 'no-such-user',
+    );
+    const nobodySees = await retrievableFor(undefined);
     record(
       'emailed attachment: the bind un-skips, queues and dispatches indexing inside the conversation scope',
       attachmentRows.length === 1 &&
@@ -19700,8 +19699,9 @@ async function checkMailboxSyncLane(
         indexJobs[0]?.count === '1' &&
         adminSees.length === 1 &&
         adminSees[0] === attachment.storageRef &&
-        memberSees.length === 0,
-      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0)`,
+        memberSees.length === 0 &&
+        nobodySees.length === 0,
+      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0) anonymous=${nobodySees.length} (want 0)`,
     );
 
     // Outbound send through the same door (system caller: runs + audited).
@@ -22247,6 +22247,57 @@ async function checkWebdav(
     headers: { depth: '1' },
   });
   const trashXml = trashList.ok ? await trashList.text() : '';
+
+  // A knowledge entry's backing document is an ordinary hub row on this
+  // tree, so a WebDAV DELETE trashes it — and must retire the entry chain
+  // with it (0.4's `deleteDocument → markEntryChainDeleted`): otherwise the
+  // entry stays listed and served while its corpus rows are dark. Its own
+  // record, independent of the protocol verdict above.
+  const davEntry = z.object({ id: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/knowledge-entries?orgId=${orgId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({
+          topic: 'itest-webdav-entry',
+          content: 'An entry whose document a WebDAV client deletes.',
+        }),
+      })
+    ).json(),
+  );
+  const davEntryId = davEntry.success ? davEntry.data.id : '';
+  const davEntryDelete = await dav('/documents/itest-webdav-entry.md', {
+    method: 'DELETE',
+  });
+  const davEntryChain = await sql<
+    { deleted: boolean; lifecycleStatus: string | null }[]
+  >`
+    SELECT ke.deleted_at_ms IS NOT NULL AS deleted,
+           d.lifecycle_status AS "lifecycleStatus"
+    FROM app.knowledge_entries ke
+    LEFT JOIN app.documents d ON d.id = ke.document_id
+    WHERE ke.id = ${davEntryId}
+  `;
+  const davEntryUpdate = await fetch(
+    `${base}/api/app/knowledge-entries/${davEntryId}?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        topic: 'itest-webdav-entry',
+        content: 'A version onto a trashed document.',
+      }),
+    },
+  );
+  record(
+    'knowledge entries: a WebDAV DELETE of the backing document retires the chain',
+    davEntry.success &&
+      davEntryDelete.status === 204 &&
+      davEntryChain[0]?.lifecycleStatus === 'trashed' &&
+      davEntryChain[0].deleted &&
+      davEntryUpdate.status === 404,
+    `created=${davEntry.success}, delete=${davEntryDelete.status} (want 204), doc=${davEntryChain[0]?.lifecycleStatus ?? 'missing'} (want trashed), chainDeleted=${davEntryChain[0]?.deleted ?? 'missing'} (want true), update=${davEntryUpdate.status} (want 404)`,
+  );
 
   // Chunked PUT (no Content-Length) refuses loudly — S3 needs a length.
   // The shim's CHUNKED_PUT_UNSUPPORTED throw escapes to the adapter's 500
@@ -32127,6 +32178,219 @@ async function checkKnowledgeEntries(
       afterDelete.data.rows.length === 0 &&
       docTrashed[0]?.lifecycleStatus === 'trashed',
     `dup=${dup.status} (want 409), sameFile=${afterUpdate[0]?.fileId === firstFile[0]?.fileId}, rotatedRef=${afterUpdate[0]?.storageRef !== firstFile[0]?.storageRef}, versions=${versions.success ? versions.data.versions.length : 'ERR'}, agent=${agentListing.success ? agentListing.data.page.length : 'ERR'}, deleted=${afterDelete.success ? afterDelete.data.rows.length : 'ERR'}, doc=${docTrashed[0]?.lifecycleStatus}`,
+  );
+
+  // The reverse door: the backing document removed from the Documents tab
+  // (the purge) retires the entry chain — the entry is not listed, and a
+  // new version is refused as not found rather than materialized onto a
+  // document nobody can retrieve. Two versions first, so the chain has more
+  // than the row that points at the document.
+  const purgedEntry = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Payroll cutoff',
+        content: 'Payroll closes on the 25th.',
+      })
+    ).json(),
+  );
+  const purgedEntryId = purgedEntry.success ? purgedEntry.data.id : '';
+  const purgedV2 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries/${purgedEntryId}?orgId=${orgId}`, {
+        topic: 'Payroll cutoff',
+        content: 'Payroll closes on the 25th of each month.',
+      })
+    ).json(),
+  );
+  const purgedV2Id = purgedV2.success ? purgedV2.data.id : '';
+  const backing = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${purgedV2Id}
+  `;
+  const backingId = backing[0]?.documentId ?? '';
+  const purge = await post(
+    `/api/app/documents/${backingId}/delete?orgId=${orgId}`,
+  );
+  const chainAfterPurge = await sql<{ deleted: boolean }[]>`
+    SELECT deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'payroll cutoff'
+  `;
+  const listAfterPurge = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateAfterPurge = await post(
+    `/api/app/knowledge-entries/${purgedV2Id}?orgId=${orgId}`,
+    { topic: 'Payroll cutoff', content: 'A version onto a purged document.' },
+  );
+  const updateAfterPurgeBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await updateAfterPurge.json());
+  record(
+    'knowledge entries: purging the backing document retires the chain',
+    purgedEntry.success &&
+      purgedV2.success &&
+      backingId !== '' &&
+      purge.status === 200 &&
+      chainAfterPurge.length === 2 &&
+      chainAfterPurge.every((row) => row.deleted) &&
+      listAfterPurge.success &&
+      !listAfterPurge.data.rows.some((row) => row.id === purgedV2Id) &&
+      updateAfterPurge.status === 404 &&
+      updateAfterPurgeBody.success &&
+      updateAfterPurgeBody.data.error === 'KNOWLEDGE_ENTRY_NOT_FOUND',
+    `purge=${purge.status} (want 200), chain=${chainAfterPurge.map((row) => row.deleted).join(',')} (want 2× true), listed=${listAfterPurge.success ? listAfterPurge.data.rows.some((row) => row.id === purgedV2Id) : 'ERR'} (want false), update=${updateAfterPurge.status} ${updateAfterPurgeBody.success ? updateAfterPurgeBody.data.error : 'ERR'} (want 404 KNOWLEDGE_ENTRY_NOT_FOUND)`,
+  );
+
+  // A deleted chain frees its topic key: deleting the entry trashes doc A
+  // and a re-created entry with the same topic gets a NEW doc B. The purge
+  // of the still-trashed doc A (Documents-tab Trash, or the retention
+  // sweep days later) must retire only doc A's chain — never the live chain
+  // that reused the key. The hook is keyed by document, not topic key.
+  const reusedV1 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Vacation carryover',
+        content: 'Up to five days carry over.',
+      })
+    ).json(),
+  );
+  const reusedV1Id = reusedV1.success ? reusedV1.data.id : '';
+  const oldBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${reusedV1Id}
+  `;
+  const oldBackingId = oldBacking[0]?.documentId ?? '';
+  const deleteReused = await fetch(
+    `${base}/api/app/knowledge-entries/${reusedV1Id}?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  const reusedV2 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Vacation carryover',
+        content: 'Up to ten days carry over.',
+      })
+    ).json(),
+  );
+  const reusedV2Id = reusedV2.success ? reusedV2.data.id : '';
+  const newBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${reusedV2Id}
+  `;
+  const newBackingId = newBacking[0]?.documentId ?? '';
+  const purgeOld = await post(
+    `/api/app/documents/${oldBackingId}/delete?orgId=${orgId}`,
+  );
+  const chainsAfterOldPurge = await sql<{ id: string; deleted: boolean }[]>`
+    SELECT id, deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'vacation carryover'
+  `;
+  const newStillLive =
+    chainsAfterOldPurge.find((row) => row.id === reusedV2Id)?.deleted === false;
+  const oldStillDeleted =
+    chainsAfterOldPurge.find((row) => row.id === reusedV1Id)?.deleted === true;
+  const listAfterOldPurge = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateReused = await post(
+    `/api/app/knowledge-entries/${reusedV2Id}?orgId=${orgId}`,
+    { topic: 'Vacation carryover', content: 'Up to ten days, use by March.' },
+  );
+  record(
+    "knowledge entries: purging a deleted chain's old document spares the chain that reused its topic",
+    reusedV1.success &&
+      oldBackingId !== '' &&
+      deleteReused.status === 200 &&
+      reusedV2.success &&
+      newBackingId !== '' &&
+      newBackingId !== oldBackingId &&
+      purgeOld.status === 200 &&
+      newStillLive &&
+      oldStillDeleted &&
+      listAfterOldPurge.success &&
+      listAfterOldPurge.data.rows.some((row) => row.id === reusedV2Id) &&
+      updateReused.status === 200,
+    `delete=${deleteReused.status} (want 200), recreate=${reusedV2.success} newDoc≠old=${newBackingId !== oldBackingId}, purgeOld=${purgeOld.status} (want 200), newLive=${newStillLive} (want true), oldDeleted=${oldStillDeleted} (want true), listed=${listAfterOldPurge.success ? listAfterOldPurge.data.rows.some((row) => row.id === reusedV2Id) : 'ERR'} (want true), update=${updateReused.status} (want 200)`,
+  );
+
+  // The retention sweep's expiry flip (grace > 0) has no source filter: an
+  // entry's backing document ages out like any other and lands in the admin
+  // Trash as 'expired'. That flip must retire the chain in the same
+  // transaction — otherwise the entry stays listed and served for the whole
+  // grace window while the retrievability filter keeps its corpus rows dark,
+  // and an update onto it answers 404 for a row the list still shows. The
+  // policy is ~55 years and the document is aged just past it, so no other
+  // document of the org can be a candidate of this sweep — while both the
+  // cutoff and the aged stamp stay positive epochs (the sweep floors a
+  // document's age at `coalesce(status_changed_at_ms, 0)`, so a negative
+  // stamp would never age out).
+  const expiring = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Expense cap',
+        content: 'Single expenses above 500 EUR need approval.',
+      })
+    ).json(),
+  );
+  const expiringId = expiring.success ? expiring.data.id : '';
+  const expiringBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${expiringId}
+  `;
+  const expiringDocId = expiringBacking[0]?.documentId ?? '';
+  const retentionDays = 20_000;
+  await sql`
+    UPDATE app.documents
+    SET created_at_ms = ${Date.now() - (retentionDays + 1) * 86_400_000}
+    WHERE id = ${expiringDocId} AND org_id = ${orgId}
+  `;
+  const { sweepOrgPhase2: sweepExpiring } =
+    await import('./domains/retention/service.ts');
+  const { loadActiveHolds: holdsForExpiring } =
+    await import('./domains/legal_holds/service.ts');
+  const expiringStats = await sweepExpiring(
+    sql,
+    {
+      organizationId: orgId,
+      config: {
+        documentsEnabled: true,
+        documentsRetentionDays: retentionDays,
+        deletionGraceDays: 7,
+      },
+    },
+    await holdsForExpiring(sql, orgId),
+  );
+  const expiredDoc = await sql<{ lifecycleStatus: string | null }[]>`
+    SELECT lifecycle_status AS "lifecycleStatus" FROM app.documents
+    WHERE id = ${expiringDocId}
+  `;
+  const chainAfterExpiry = await sql<{ deleted: boolean }[]>`
+    SELECT deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'expense cap'
+  `;
+  const listAfterExpiry = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateAfterExpiry = await post(
+    `/api/app/knowledge-entries/${expiringId}?orgId=${orgId}`,
+    { topic: 'Expense cap', content: 'A version onto an expired document.' },
+  );
+  record(
+    "knowledge entries: the retention sweep's expiry flip retires the chain with the document",
+    expiring.success &&
+      expiringDocId !== '' &&
+      expiringStats.documents >= 1 &&
+      expiredDoc[0]?.lifecycleStatus === 'expired' &&
+      chainAfterExpiry.length === 1 &&
+      chainAfterExpiry.every((row) => row.deleted) &&
+      listAfterExpiry.success &&
+      !listAfterExpiry.data.rows.some((row) => row.id === expiringId) &&
+      updateAfterExpiry.status === 404,
+    `swept=${expiringStats.documents} (want ≥1), doc=${expiredDoc.length === 0 ? 'missing' : String(expiredDoc[0]?.lifecycleStatus)} (want expired), chain=${chainAfterExpiry.map((row) => row.deleted).join(',')} (want true), listed=${listAfterExpiry.success ? listAfterExpiry.data.rows.some((row) => row.id === expiringId) : 'ERR'} (want false), update=${updateAfterExpiry.status} (want 404)`,
   );
 }
 
