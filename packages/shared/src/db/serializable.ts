@@ -72,6 +72,16 @@ function jitteredSleep(ms: number): Promise<void> {
  * snapshot post-dates the writer it lost to, and other appenders that take
  * the transaction-level lock on the same key inside their own transaction
  * queue behind it instead of bumping the row underneath it.
+ *
+ * Marks nest. A callback wrapped in another queue (a task comment inside a
+ * task's queue, whose audit write sits inside the org's chain-head queue)
+ * marks inner-first, and each outer mark is PREPENDED, so the list reads in
+ * the callback's own acquisition order — task, then chain head. The queued
+ * retry takes the session locks in exactly that order and unlocks in
+ * reverse; every first attempt takes its transaction-level locks in the same
+ * order, so a queued retry and a first attempt never hold the two keys in
+ * opposite orders. A retry queued on the outer key alone would drop the
+ * inner one and lose there again.
  */
 
 const RETRY_QUEUE_KEY = Symbol.for('tale.db.retryQueueKey');
@@ -87,26 +97,42 @@ export const RETRY_QUEUE_LOCK_CLASS = 72_085_002;
 
 /**
  * Mark a serialization failure so the retry queues on `key` (see the retry
- * queues note). Returns the same error for `throw markRetryQueueKey(e, k)`.
+ * queues note). An outer mark is prepended to the keys an inner callback
+ * already put on the error; a key already present is not added twice.
+ * Returns the same error for `throw markRetryQueueKey(e, k)`.
  */
 export function markRetryQueueKey<E>(error: E, key: string): E {
   if (isSerializationFailure(error)) {
-    Object.defineProperty(error, RETRY_QUEUE_KEY, {
-      value: key,
-      enumerable: false,
-      configurable: true,
-    });
+    const keys = retryQueueKeysOf(error);
+    if (!keys.includes(key)) {
+      Object.defineProperty(error, RETRY_QUEUE_KEY, {
+        value: [key, ...keys],
+        enumerable: false,
+        configurable: true,
+      });
+    }
   }
   return error;
 }
 
-/** The queue key a failure was marked with, if any. */
-export function retryQueueKeyOf(error: unknown): string | undefined {
+/**
+ * The queue keys a failure was marked with, outermost first (the order the
+ * queued retry locks them in); empty when unmarked.
+ */
+export function retryQueueKeysOf(error: unknown): readonly string[] {
   if (error === null || typeof error !== 'object') {
-    return undefined;
+    return [];
   }
-  const key: unknown = Reflect.get(error, RETRY_QUEUE_KEY);
-  return typeof key === 'string' ? key : undefined;
+  const keys: unknown = Reflect.get(error, RETRY_QUEUE_KEY);
+  return Array.isArray(keys) &&
+    keys.every((key): key is string => typeof key === 'string')
+    ? keys
+    : [];
+}
+
+/** The outermost queue key a failure was marked with, if any. */
+export function retryQueueKeyOf(error: unknown): string | undefined {
+  return retryQueueKeysOf(error)[0];
 }
 
 /** Postgres accepts unquoted savepoint names of this shape only. */
@@ -154,20 +180,28 @@ function transactionOver(reserved: ReservedSql): TransactionSql {
 }
 
 /**
- * One serializable attempt queued on `key`: session advisory lock → BEGIN →
- * callback → COMMIT → unlock, all on one reserved connection.
+ * One serializable attempt queued on `keys`: session advisory locks in that
+ * order → BEGIN → callback → COMMIT → unlocks in reverse, all on one
+ * reserved connection. A key that cannot be locked releases the ones
+ * already held before the connection goes back to the pool — a session
+ * lock outlives the reservation, and a pooled connection still holding one
+ * would block that key for everyone until the connection dies.
  */
 async function beginQueued<T>(
   reserve: () => Promise<ReservedSql>,
-  key: string,
+  keys: readonly string[],
   callback: (tx: TransactionSql) => Promise<T>,
 ): Promise<T> {
   const reserved = await reserve();
   try {
-    await reserved`
-      SELECT pg_advisory_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${key}))
-    `;
+    const locked: string[] = [];
     try {
+      for (const key of keys) {
+        await reserved`
+          SELECT pg_advisory_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${key}))
+        `;
+        locked.push(key);
+      }
       await reserved.unsafe('BEGIN ISOLATION LEVEL SERIALIZABLE');
       let result: T;
       try {
@@ -190,36 +224,46 @@ async function beginQueued<T>(
       }
       return result;
     } finally {
-      await reserved`
-        SELECT pg_advisory_unlock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${key}))
-      `.catch((unlockError: unknown) => {
-        // The lock is session-scoped: it dies with the connection anyway.
-        console.warn(
-          `[db] advisory unlock after a queued retry failed: ${String(unlockError)}`,
-        );
-      });
+      for (const key of locked.reverse()) {
+        await reserved`
+          SELECT pg_advisory_unlock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${key}))
+        `.catch((unlockError: unknown) => {
+          // The lock is session-scoped: it dies with the connection anyway.
+          console.warn(
+            `[db] advisory unlock after a queued retry failed: ${String(unlockError)}`,
+          );
+        });
+      }
     }
   } finally {
     reserved.release();
   }
 }
 
+/** True when every key in `keys` is already in `of`. */
+function isSubsetOf(
+  keys: readonly string[],
+  of: readonly string[] | undefined,
+): boolean {
+  return of !== undefined && keys.every((key) => of.includes(key));
+}
+
 /**
  * Open a SERIALIZABLE transaction and execute `callback`, retrying the entire
  * transaction on serialization failures (40001/40P01) and on transient
  * connection faults. Each retry runs in a fresh transaction; a retry after a
- * failure marked with a queue key runs queued on that key (see above).
+ * failure marked with queue keys runs queued on those keys (see above).
  */
 export function transactSerializable<T>(
   sql: SerializableTransactionRunner,
   callback: (tx: TransactionSql) => Promise<T>,
   options: RetryOptions = {},
 ): Promise<T> {
-  let queueKey: string | undefined;
+  let queueKeys: readonly string[] | undefined;
   const reserve = sql.reserve?.bind(sql);
   const attempt = (): Promise<T> =>
-    queueKey !== undefined && reserve !== undefined
-      ? beginQueued(reserve, queueKey, callback)
+    queueKeys !== undefined && reserve !== undefined
+      ? beginQueued(reserve, queueKeys, callback)
       : sql.begin('isolation level serializable', callback);
   const isTransient =
     options.isTransient ??
@@ -232,7 +276,14 @@ export function transactSerializable<T>(
     sleep: jitteredSleep,
     ...options,
     isTransient: (error) => {
-      queueKey = retryQueueKeyOf(error) ?? queueKey;
+      // A queued attempt that loses to a writer outside its inner queues is
+      // re-marked with fewer keys than it held; the held list is a superset
+      // in the same acquisition order, so keep it — dropping a key is how a
+      // retry loses at that resource again.
+      const keys = retryQueueKeysOf(error);
+      if (keys.length > 0 && !isSubsetOf(keys, queueKeys)) {
+        queueKeys = keys;
+      }
       return isTransient(error);
     },
   });

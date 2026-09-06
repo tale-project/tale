@@ -1,3 +1,7 @@
+import {
+  markRetryQueueKey,
+  RETRY_QUEUE_LOCK_CLASS,
+} from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
@@ -92,24 +96,89 @@ async function ensureTaskDiscussionThread(
   return rows[0]?.discussionThreadId ?? threadId;
 }
 
-/** Append one comment (message + lockstep meta + count + activity + audit).
- * `bodyByLocale` is the same text written natively per language (the
- * workflow `task.comment` native and the automated date nudge carry it); the
- * reader picks their locale and falls back to `body`. */
-export async function addTaskComment(
+/** Retry-queue key for one task's discussion (see `queuedOnTask`). */
+export function taskCommentQueueKey(taskId: string): string {
+  return `task-comment:${taskId}`;
+}
+
+/**
+ * The transaction-level lock every comment write takes FIRST. A transaction
+ * that writes the task row for another reason and then comments (the
+ * overdue nudge's claim) must take it before that write too, or it holds the
+ * row while a commenter holds the key — a deadlock pair.
+ */
+export async function lockTaskCommentQueue(
   tx: TransactionSql,
-  auth: ProjectAuthContext,
-  args: {
-    taskId: string;
-    body: string;
-    bodyByLocale?: Record<string, string>;
-    author?: CommentAuthor;
-  },
-): Promise<{
+  taskId: string,
+): Promise<void> {
+  await tx`
+    SELECT pg_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${taskCommentQueueKey(taskId)}))
+  `;
+}
+
+/**
+ * Run one comment write queued on its task. Every comment on a task bumps
+ * the same rows — the task's `comment_count` and the discussion thread's
+ * next message slot — so serializable writers that overlap all lose but the
+ * first, and a plain retry loses again whenever another commits first: the
+ * storm `withRetry`'s five attempts cannot outlast. Two pieces make a retry
+ * deterministic instead (the audit chain head's `lockChainHead` is the
+ * twin): the transaction-level advisory lock on the task's queue key, taken
+ * before the write's first read, queues this transaction behind a retry that
+ * holds the same key as a session lock from before its BEGIN (see
+ * `transactSerializable`); and a 40001/40P01 raised anywhere in `work` is
+ * marked with the key, which is what makes the caller's next attempt take
+ * that session lock first. The audit write inside `work` marks a loss at the
+ * org's chain head with its own key; marks nest, so that retry queues on the
+ * task AND the chain head, in that order (the retry-queue note in
+ * `@tale/shared/db/serializable`). Under contention on this task's rows a
+ * writer wastes at most one attempt. Plain READ COMMITTED callers pay only
+ * the lock, which orders the task's comments and marks nothing.
+ */
+export async function queuedOnTask<T>(
+  tx: TransactionSql,
+  taskId: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  try {
+    await lockTaskCommentQueue(tx, taskId);
+    return await work();
+  } catch (error) {
+    throw markRetryQueueKey(error, taskCommentQueueKey(taskId));
+  }
+}
+
+interface AddedTaskComment {
   messageId: string;
   threadId: string;
   unresolvedMentionTokens: string[];
-}> {
+}
+
+interface AddTaskCommentArgs {
+  taskId: string;
+  body: string;
+  bodyByLocale?: Record<string, string>;
+  author?: CommentAuthor;
+}
+
+/** Append one comment (message + lockstep meta + count + activity + audit),
+ * queued on its task (`queuedOnTask`). `bodyByLocale` is the same text
+ * written natively per language (the workflow `task.comment` native and the
+ * automated date nudge carry it); the reader picks their locale and falls
+ * back to `body`. */
+export function addTaskComment(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: AddTaskCommentArgs,
+): Promise<AddedTaskComment> {
+  return queuedOnTask(tx, args.taskId, () => appendTaskComment(tx, auth, args));
+}
+
+async function appendTaskComment(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: AddTaskCommentArgs,
+): Promise<AddedTaskComment> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   // Commenting is READ-level (0.4 `addTaskComment*`): anyone who can see
@@ -361,15 +430,17 @@ export async function listTaskComments(
   };
 }
 
-async function loadCommentMeta(
-  tx: TransactionSql | Sql,
-  messageId: string,
-): Promise<{
+interface CommentMeta {
   taskId: string;
   authorType: string;
   authorId: string;
   mentions: ResolvedMention[] | null;
-}> {
+}
+
+async function loadCommentMeta(
+  tx: TransactionSql | Sql,
+  messageId: string,
+): Promise<CommentMeta> {
   const rows = await tx<
     {
       taskId: string;
@@ -496,12 +567,25 @@ export async function editTaskComment(
   });
 }
 
+/** Delete one comment, queued on its task (`queuedOnTask`): the count it
+ * decrements is the same hot row every append bumps. */
 export async function deleteTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   messageId: string,
 ): Promise<void> {
   const meta = await loadCommentMeta(tx, messageId);
+  await queuedOnTask(tx, meta.taskId, () =>
+    removeTaskComment(tx, auth, messageId, meta),
+  );
+}
+
+async function removeTaskComment(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  messageId: string,
+  meta: CommentMeta,
+): Promise<void> {
   const task = await loadTaskOrThrow(tx, meta.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
