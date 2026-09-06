@@ -28,7 +28,9 @@ export async function reset(options: ResetOptions): Promise<void> {
 
   logger.warn('This will remove ALL blue-green containers');
   if (includeStateful) {
-    logger.warn(`Including stateful services: ${STATEFUL_SERVICES.join(', ')}`);
+    logger.warn(
+      `Including stateful services: ${[...STATEFUL_SERVICES, ...SIDECAR_SERVICES].join(', ')}`,
+    );
   }
 
   // `--force` or the global `tale -y` consents; the confirm below would

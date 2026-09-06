@@ -59,9 +59,7 @@ function printSnapshotRestoreRunbook(): void {
   );
   logger.info('older binary must never run on top of migrated data. To roll');
   logger.info('back across versions, restore the pre-upgrade snapshot:');
-  logger.info(
-    '  1. Stop the stack and list the snapshots taken before deploys:',
-  );
+  logger.info('  1. List the snapshots taken before deploys:');
   logger.info('       tale restore');
   logger.info('  2. Restore the one taken before the upgrade:');
   logger.info('       tale restore <snapshot-id> --stop');
