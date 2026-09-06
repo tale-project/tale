@@ -36,18 +36,27 @@ const CONTROL_CLIENT = '/app/src/control-cli.ts';
 type ControlCommand = 'drain' | 'drain-status';
 
 /**
- * The in-container shell line for one control call. The signed client is the
- * door; the `curl` branch fires ONLY when the running image predates it (the
- * single deploy that rolls a pre-signed-client spawner, whose routes were still
- * open) — a one-release shim to drop once no such spawner can be running.
- * Nothing secret appears here: the token is read by the client from the
- * container's own environment.
+ * Budget for one control call. The routes answer in milliseconds; a spawner
+ * that accepts TCP but never answers must not hang `tale deploy` inside the
+ * deploy lock (the same shape docker/control-call.ts bounds for the backend
+ * door). Past it the call fails and the drain degrades to "proceed".
+ */
+export const CONTROL_TIMEOUT_S = 15;
+
+/**
+ * The in-container shell line for one control call, wrapped in `timeout(1)`.
+ * The signed client is the door; the `curl` branch fires ONLY when the running
+ * image predates it (the single deploy that rolls a pre-signed-client spawner,
+ * whose routes were still open) — a one-release shim to drop once no such
+ * spawner can be running. Nothing secret appears here: the token is read by
+ * the client from the container's own environment.
  */
 export function controlScript(command: ControlCommand): string {
   const method = command === 'drain' ? 'POST' : 'GET';
+  const bounded = `exec timeout ${CONTROL_TIMEOUT_S}`;
   return (
-    `if [ -f ${CONTROL_CLIENT} ]; then exec bun ${CONTROL_CLIENT} ${command}; ` +
-    `else exec curl -fsS -X ${method} http://localhost:8003/v1/${command}; fi`
+    `if [ -f ${CONTROL_CLIENT} ]; then ${bounded} bun ${CONTROL_CLIENT} ${command}; ` +
+    `else ${bounded} curl -fsS -X ${method} http://localhost:8003/v1/${command}; fi`
   );
 }
 

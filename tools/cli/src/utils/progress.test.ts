@@ -4,7 +4,6 @@ import {
   formatHeartbeat,
   formatStepLine,
   runStepsInParallel,
-  startActivityWatchdog,
 } from './progress';
 
 /** Capture logger calls without touching stdout. */
@@ -94,54 +93,5 @@ describe('runStepsInParallel', () => {
     expect(failed.label).toBe('boom');
     expect((failed.error as Error).message).toBe('pull failed');
     expect(log.lines.some((l) => l.includes('boom — failed'))).toBe(true);
-  });
-});
-
-describe('startActivityWatchdog', () => {
-  test('is a no-op under a TTY', () => {
-    const log = fakeLogger();
-    const wd = startActivityWatchdog('deploy', { isTTY: true, log });
-    wd.beat();
-    wd.stop();
-    expect(log.lines).toHaveLength(0);
-  });
-
-  test('emits heartbeats during silence in non-TTY', async () => {
-    const log = fakeLogger();
-    const wd = startActivityWatchdog('deploy', {
-      isTTY: false,
-      intervalMs: 20,
-      log,
-    });
-    try {
-      await new Promise((r) => setTimeout(r, 75));
-    } finally {
-      wd.stop();
-    }
-    expect(log.lines.length).toBeGreaterThanOrEqual(1);
-    expect(log.lines[0]).toContain('still working: deploy');
-  });
-
-  test('beat() resets the silence timer (no heartbeat while active)', async () => {
-    const log = fakeLogger();
-    let clock = 0;
-    const wd = startActivityWatchdog('deploy', {
-      isTTY: false,
-      intervalMs: 20,
-      log,
-      now: () => clock,
-    });
-    try {
-      // Advance the injected clock only a little and keep beating: each tick
-      // sees elapsed < interval, so nothing is logged.
-      for (let i = 0; i < 3; i++) {
-        clock += 5;
-        wd.beat();
-        await new Promise((r) => setTimeout(r, 20));
-      }
-    } finally {
-      wd.stop();
-    }
-    expect(log.lines).toHaveLength(0);
   });
 });

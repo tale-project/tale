@@ -10,6 +10,8 @@ import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 
+import { toEmbeddedKey } from './embedded-key';
+
 const CLI_ROOT = resolve(dirname(Bun.main), '..');
 const REPO_ROOT = resolve(CLI_ROOT, '../..');
 
@@ -73,7 +75,8 @@ async function collectFiles(
     } else {
       if (shouldSkipFile(entry.name)) continue;
       const content = await Bun.file(fullPath).text();
-      const relPath = join(prefix, relative(baseDir, fullPath));
+      // POSIX key regardless of host — see toEmbeddedKey.
+      const relPath = toEmbeddedKey(prefix, relative(baseDir, fullPath));
       files.set(relPath, content);
     }
   }

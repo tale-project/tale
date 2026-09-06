@@ -6,6 +6,7 @@ import * as logger from '../../utils/logger';
 import {
   type DeploymentColor,
   ROTATABLE_SERVICES,
+  SIDECAR_SERVICES,
   STATEFUL_SERVICES,
 } from '../compose/types';
 import { containerExists } from '../docker/container-exists';
@@ -86,7 +87,10 @@ async function gatherStatus(deployDir: string): Promise<StatusReport> {
   const [lock, state, stateful, blue, green, containers] = await Promise.all([
     getLockInfo(deployDir),
     getDeploymentState(deployDir),
-    rowsFor(STATEFUL_SERVICES, (s) => `${project}-${s}`),
+    rowsFor(
+      [...STATEFUL_SERVICES, ...SIDECAR_SERVICES],
+      (s) => `${project}-${s}`,
+    ),
     rowsFor(ROTATABLE_SERVICES, (s) => `${project}-${s}-blue`),
     rowsFor(ROTATABLE_SERVICES, (s) => `${project}-${s}-green`),
     listContainers(`name=${project}`),

@@ -4,6 +4,8 @@ import { mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { SCAFFOLD_DOMAINS } from '../src/lib/project/org-dirs';
+
 /**
  * Smoke tests for the compiled `tale` binary. Skipped unless TALE_BINARY
  * points at a binary (CI sets it after `bun run build:<platform>`), so a
@@ -191,8 +193,10 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
 
       // The summary reports active vs catalog instead of raw file counts —
       // only `metadata.autoInstall: true` agents are live on a new org.
-      expect(result.stdout).toContain('in catalog');
-      expect(result.stdout).toContain('available');
+      // Non-zero counts: a binary whose embedded keys were built with the
+      // host path separator (Windows) matched no domain and printed 0 here.
+      expect(result.stdout).toMatch(/[1-9]\d* in catalog/);
+      expect(result.stdout).toMatch(/[1-9]\d* available/);
 
       const proj = join(dir, 'proj');
 
@@ -218,14 +222,14 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
       const reference = await readdir(join(proj, '.tale', 'reference'));
       expect(reference.length).toBeGreaterThan(0);
 
-      for (const domain of [
-        'agents',
-        'workflows',
-        'connectors',
-        'providers',
-        'skills',
-      ]) {
+      // Exactly the embedded catalog domains (SCAFFOLD_DOMAINS) — and none
+      // of the retired layout: builtin connectors/providers live in
+      // configs/platform/system and workflows were replaced by automations.
+      for (const domain of SCAFFOLD_DOMAINS) {
         expect(existsSync(join(proj, 'default', domain))).toBe(true);
+      }
+      for (const retired of ['workflows', 'connectors', 'providers']) {
+        expect(existsSync(join(proj, 'default', retired))).toBe(false);
       }
 
       const branding = await readFile(

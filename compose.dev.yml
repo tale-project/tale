@@ -183,7 +183,6 @@ services:
   proxy:
     environment:
       <<: *dev-secrets
-      CADDY_DEBUG: 'true'
 
   # When the backend runs on the HOST (`cd services/platform && bun dev`
   # instead of the dockerized `backend-api` service), the spawner container
