@@ -22,7 +22,6 @@ type InAppPrefKey =
   | 'taskDeadlines'
   | 'taskReview'
   | 'escalation'
-  | 'automationAlerts'
   | 'conversationMessages';
 
 const IN_APP_PREF_KEYS: InAppPrefKey[] = [
@@ -33,7 +32,6 @@ const IN_APP_PREF_KEYS: InAppPrefKey[] = [
   'taskDeadlines',
   'taskReview',
   'escalation',
-  'automationAlerts',
   'conversationMessages',
 ];
 
@@ -76,7 +74,6 @@ function NotificationPreferencesSettingsView({
         taskDeadlines?: boolean;
         taskReview?: boolean;
         escalation?: boolean;
-        automationAlerts?: boolean;
         digest?: boolean;
         conversationMessages?: boolean;
         actionableEmail?: boolean;

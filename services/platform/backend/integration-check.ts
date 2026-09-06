@@ -25156,6 +25156,69 @@ async function checkWebsitesCrawl(
       `paused=${pausedRow?.status}/${String(pausedMeta.scanPausedAt != null)} failures=${String(pausedMeta.corpusConnectionFailures)}/3 schedPaused=${scheduled?.scanPaused} due=${pausedIsDue}(want false) bell=${bell[0]?.count}/1, resume=${resume.status} cleared=${resumedMeta.scanPausedAt == null && resumedMeta.corpusConnectionFailures == null} status=${resumedRow?.status}/active(post-rescan)`,
     );
 
+    // 3a. The scheduler's projection walks EVERY row: the 0.4 take(500) was
+    //     ported as a hard oldest-first ceiling, so on a deployment past 500
+    //     sites every newer one got its register-kicked scan and then never
+    //     a periodic one. Seed 501 older rows and prove the newest (the real
+    //     site of this lane) is still projected.
+    await sql`
+      INSERT INTO app.websites (org_id, domain, scan_interval, status,
+                                created_at_ms, updated_at_ms)
+      SELECT ${orgId}, 'itest-bulk-' || n || '.example', '30d', 'active',
+             ${Date.now() - 86_400_000}::bigint - n, ${Date.now()}::bigint
+      FROM generate_series(1, 501) AS n
+    `;
+    const bulkSchedule = await websites.listWebsitesForScanScheduling(sql);
+    const bulkSeeded = bulkSchedule.filter((s) =>
+      s.domain.startsWith('itest-bulk-'),
+    ).length;
+    const bulkHasNewest = bulkSchedule.some((s) => s.domain === DOMAIN);
+    await sql`
+      DELETE FROM app.websites
+      WHERE org_id = ${orgId} AND domain LIKE 'itest-bulk-%'
+    `;
+    record(
+      'websites scheduler projection walks past the 500th row',
+      bulkSeeded === 501 && bulkHasNewest,
+      `seededProjected=${bulkSeeded}/501 newestProjected=${bulkHasNewest}`,
+    );
+
+    // 3b. A row whose domain has NO corpus registration (the register job
+    //     never landed, or the registration was released): the scan must
+    //     record the failure on the row — attempt clock + `error` status
+    //     with the delete-and-re-add message — instead of logging "already
+    //     running" and letting the scheduler re-pick it every tick forever.
+    const UNREGISTERED_DOMAIN = 'itest-unregistered.example';
+    const unregisteredId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: UNREGISTERED_DOMAIN,
+      scanInterval: '6h',
+      status: 'active',
+    });
+    await websites.runWebsitesScan(sql, {
+      domain: UNREGISTERED_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    const unregisteredRow = await websites.getWebsite(sql, unregisteredId);
+    const unregisteredMeta = unregisteredRow?.metadata ?? {};
+    const unregisteredSite = (
+      await websites.listWebsitesForScanScheduling(sql)
+    ).find((s) => s.domain === UNREGISTERED_DOMAIN);
+    const unregisteredDueNow = unregisteredSite
+      ? scheduling.isDueForScan(unregisteredSite, Date.now())
+      : true;
+    await sql`DELETE FROM app.websites WHERE id = ${unregisteredId}`;
+    record(
+      'websites scan of an unregistered domain records the failure',
+      unregisteredRow?.status === 'error' &&
+        typeof unregisteredMeta.lastScanAttemptAt === 'number' &&
+        unregisteredMeta.lastSyncError ===
+          scheduling.WEBSITE_NOT_IN_CORPUS_MESSAGE &&
+        !unregisteredDueNow,
+      `status=${unregisteredRow?.status}/error attemptStamped=${typeof unregisteredMeta.lastScanAttemptAt === 'number'} error=${String(unregisteredMeta.lastSyncError)} dueAgainNow=${unregisteredDueNow}(want false)`,
+    );
+
     // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list
     //    registration merging on re-post, and delete deregistering the
     //    corpus rows (last member takes the domain with it).
@@ -25264,6 +25327,22 @@ async function checkWebsitesCrawl(
       method: 'PATCH',
       body: { scanInterval: '1d' },
     });
+    // The domain is immutable after create: a rename would orphan the
+    // corpus registration (keyed by domain) and never scan again, so both
+    // doors refuse it before touching the row.
+    const restPatchDomain = await v1(`/websites/${websiteId}`, {
+      method: 'PATCH',
+      body: { domain: 'renamed.example', title: 'Renamed' },
+    });
+    const appPatchDomain = await fetch(
+      `${base}/api/app/websites/${websiteId}?orgId=${orgId}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ domain: 'renamed.example' }),
+      },
+    );
+    const rowAfterPatch = await websites.getWebsite(sql, websiteId);
     const restPages = z
       .object({ total: z.number() })
       .safeParse(await (await v1(`/websites/${websiteId}/pages`)).json());
@@ -25305,6 +25384,10 @@ async function checkWebsitesCrawl(
         restList.success &&
         restList.data.page.length >= 2 &&
         restPatch.status === 204 &&
+        restPatchDomain.status === 400 &&
+        appPatchDomain.status === 400 &&
+        rowAfterPatch?.domain === DOMAIN &&
+        rowAfterPatch.title !== 'Renamed' &&
         restPages.success &&
         // 3 again: step 2b brought the 404'd page back.
         restPages.data.total === 3 &&
@@ -25315,7 +25398,7 @@ async function checkWebsitesCrawl(
         restDeleteSite.status === 204 &&
         Number(corpusGone[0]?.count ?? '9') === 0 &&
         Number(rowsGone[0]?.count ?? '9') === 0,
-      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/204 pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
+      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/204 patchDomain=${restPatchDomain.status}/${appPatchDomain.status}(want 400/400) domainKept=${rowAfterPatch?.domain === DOMAIN} pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
     );
   } finally {
     globalThis.fetch = realFetch;
@@ -26208,6 +26291,59 @@ exit 1
       DELETE FROM app.video_link_jobs
       WHERE id = ANY(${seededIds.slice(1)})
     `;
+
+    // The cap is decided INSIDE the insert transaction under a per-org
+    // advisory lock: with two rows in flight, two SIMULTANEOUS pastes must
+    // land exactly one job — the pre-fix pool-side count let both through.
+    const raceSeed = await sql<{ id: string }[]>`
+      INSERT INTO app.video_link_jobs (
+        org_id, uploaded_by, source_url, source_url_hash, source_platform,
+        pasted_token, status, status_changed_at_ms, attempts,
+        lifecycle_status, created_at_ms
+      )
+      SELECT ${orgId}, ${userId}, 'https://www.youtube.com/watch?v=race' || n,
+             'racehash' || n, 'youtube', 'race', 'fetching_metadata',
+             ${Date.now()}::bigint, 0, 'active', ${Date.now()}::bigint
+      FROM generate_series(1, 2) AS n
+      RETURNING id
+    `;
+    const raceResults = await Promise.allSettled(
+      ['raceA1', 'raceB2'].map((token) =>
+        video.ingestVideoUrl(sql, {
+          organizationId: orgId,
+          userId,
+          url: `https://www.youtube.com/watch?v=${token}`,
+          pastedToken: token,
+        }),
+      ),
+    );
+    const raceLanded = raceResults.filter((r) => r.status === 'fulfilled');
+    const raceCapped = raceResults.filter(
+      (r) =>
+        r.status === 'rejected' &&
+        r.reason instanceof video.VideoLinkError &&
+        r.reason.code === 'inFlightCap',
+    );
+    for (const landed of raceLanded) {
+      if (landed.status !== 'fulfilled') continue;
+      // Park it before its ingest job runs (the orchestrator bails on a
+      // non-queued row), then drop it with the seed rows.
+      await video.cancelVideoLink(sql, {
+        organizationId: orgId,
+        userId,
+        jobId: landed.value,
+      });
+      await sql`DELETE FROM app.video_link_jobs WHERE id = ${landed.value}`;
+    }
+    await sql`
+      DELETE FROM app.video_link_jobs
+      WHERE id = ANY(${raceSeed.map((row) => row.id)})
+    `;
+    record(
+      'video links: concurrent pastes cannot exceed the in-flight cap',
+      raceLanded.length === 1 && raceCapped.length === 1,
+      `landed=${raceLanded.length}/1 capped=${raceCapped.length}/1 (2 seeded in flight + 2 simultaneous ingests)`,
+    );
     record(
       'video links: whisper path + failure/retry/cancel + cap + watchdog',
       // The job row itself must land terminal when the transcription lane
@@ -41658,6 +41794,258 @@ async function checkWorkflowDocumentListing(
 }
 
 /**
+ * Team scope retirement: the columns a team scopes (projects' owner/shared
+ * teams, folder + document tags, conversation queues, sync configs) have no
+ * FK to `"team"`, and every team-deletion door used to delete the team row
+ * alone — a project scoped to the gone team was locked to admins with no way
+ * out. Every door now retires the scopes: SCIM `deleteGroup` in its own
+ * transaction, Better Auth's `remove-team` (the settings UI's door) through
+ * `afterDeleteTeam`, and the daily sweep for ghosts that predate the doors.
+ */
+async function checkTeamScopeRetirement(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const now = Date.now();
+  const mkTeam = async (name: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                          "updatedAt")
+      VALUES (gen_random_uuid(), ${name}, ${orgId}, ${new Date()},
+              ${new Date()})
+      RETURNING "id"
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const teamA = await mkTeam('Scope A');
+  const teamB = await mkTeam('Scope B');
+  const teamC = await mkTeam('Scope C');
+  const member = await signUpOrgMember(sql, base, orgId, 'teamscope', 'member');
+  let projectSeq = 0;
+  const mkProject = async (
+    name: string,
+    teamId: string | null,
+    shared: string[],
+  ): Promise<string> => {
+    projectSeq += 1;
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (
+        org_id, name, key, team_id, shared_with_team_ids,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${name}, ${`TS${now.toString(36).slice(-4)}${projectSeq}`},
+        ${teamId}, ${shared}, ${ctx.userId}, ${now}, ${now}
+      )
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const ownedByA = await mkProject('Owned by A, shared B', teamA, [teamB]);
+  const sharedWithA = await mkProject('Owned by B, shared A', teamB, [teamA]);
+  const folderRows = await sql<{ id: string }[]>`
+    INSERT INTO app.folders (org_id, name, team_id, team_tags, created_by,
+                             created_at_ms)
+    VALUES (${orgId}, 'Scoped folder', ${teamA}, ${[teamA, teamB]},
+            ${ctx.userId}, ${now})
+    RETURNING id
+  `;
+  const folderId = folderRows[0]?.id ?? '';
+  const docRows = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (org_id, title, content, team_id, team_tags,
+                               folder_id, created_by, created_at_ms,
+                               updated_at_ms)
+    VALUES (${orgId}, 'Scoped note', 'body', ${teamA}, ${[teamA, teamB]},
+            ${folderId}, ${ctx.userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const documentId = docRows[0]?.id ?? '';
+  const convRows = await sql<{ id: string }[]>`
+    INSERT INTO app.conversations (org_id, assignee_team_id, status,
+                                   created_at_ms)
+    VALUES (${orgId}, ${teamA}, 'open', ${now})
+    RETURNING id
+  `;
+  const conversationId = convRows[0]?.id ?? '';
+  const syncRows = await sql<{ id: string }[]>`
+    INSERT INTO app.onedrive_sync_configs (
+      org_id, user_id, item_type, item_id, item_name, target_bucket, team_id,
+      status, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${ctx.userId}, 'folder', ${`item-${now}`}, 'Synced',
+      'documents', ${teamA}, 'active', ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const syncId = syncRows[0]?.id ?? '';
+
+  const { getProject, getProjectAuthContext } =
+    await import('./domains/projects/service.ts');
+  const memberAuth = await getProjectAuthContext(sql, {
+    organizationId: orgId,
+    userId: member.userId,
+    role: 'member',
+  });
+  const memberCanRead = async (projectId: string): Promise<boolean> => {
+    try {
+      await getProject(sql, memberAuth, projectId);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const lockedBefore = !(await memberCanRead(ownedByA));
+
+  // Door 1 — SCIM deleteGroup retires the scopes in its own transaction.
+  const { deleteGroup } = await import('./domains/scim/service.ts');
+  const scimDeleted = await deleteGroup(sql, orgId, teamA);
+  const scope = async (): Promise<{
+    ownedTeam: string | null;
+    ownedShared: string[];
+    sharedTeam: string | null;
+    sharedShared: string[];
+    folderTeam: string | null;
+    folderTags: string[];
+    docTeam: string | null;
+    docTags: string[];
+    convTeam: string | null;
+    syncTeam: string | null;
+  }> => {
+    const rows = await sql<
+      {
+        ownedTeam: string | null;
+        ownedShared: string[];
+        sharedTeam: string | null;
+        sharedShared: string[];
+        folderTeam: string | null;
+        folderTags: string[];
+        docTeam: string | null;
+        docTags: string[];
+        convTeam: string | null;
+        syncTeam: string | null;
+      }[]
+    >`
+      SELECT
+        (SELECT team_id FROM app.projects WHERE id = ${ownedByA}) AS "ownedTeam",
+        (SELECT shared_with_team_ids FROM app.projects WHERE id = ${ownedByA})
+          AS "ownedShared",
+        (SELECT team_id FROM app.projects WHERE id = ${sharedWithA})
+          AS "sharedTeam",
+        (SELECT shared_with_team_ids FROM app.projects WHERE id = ${sharedWithA})
+          AS "sharedShared",
+        (SELECT team_id FROM app.folders WHERE id = ${folderId}) AS "folderTeam",
+        (SELECT team_tags FROM app.folders WHERE id = ${folderId}) AS "folderTags",
+        (SELECT team_id FROM app.documents WHERE id = ${documentId}) AS "docTeam",
+        (SELECT team_tags FROM app.documents WHERE id = ${documentId})
+          AS "docTags",
+        (SELECT assignee_team_id FROM app.conversations
+          WHERE id = ${conversationId}) AS "convTeam",
+        (SELECT team_id FROM app.onedrive_sync_configs WHERE id = ${syncId})
+          AS "syncTeam"
+    `;
+    return (
+      rows[0] ?? {
+        ownedTeam: 'missing',
+        ownedShared: [],
+        sharedTeam: 'missing',
+        sharedShared: [],
+        folderTeam: 'missing',
+        folderTags: [],
+        docTeam: 'missing',
+        docTags: [],
+        convTeam: 'missing',
+        syncTeam: 'missing',
+      }
+    );
+  };
+  const afterScim = await scope();
+  const scimAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'scim_delete_group'
+      AND resource_id = ${teamA}
+  `;
+  record(
+    'teams: SCIM group delete re-homes every scope the team carried',
+    lockedBefore &&
+      scimDeleted &&
+      afterScim.ownedTeam === teamB &&
+      afterScim.ownedShared.length === 0 &&
+      afterScim.sharedTeam === teamB &&
+      afterScim.sharedShared.length === 0 &&
+      afterScim.folderTeam === teamB &&
+      afterScim.folderTags.join(',') === teamB &&
+      afterScim.docTeam === teamB &&
+      afterScim.docTags.join(',') === teamB &&
+      afterScim.convTeam === null &&
+      afterScim.syncTeam === null &&
+      scimAudit[0]?.count === '1',
+    `member locked out before=${lockedBefore} (want true), deleted=${scimDeleted}, ` +
+      `owned project team=${afterScim.ownedTeam === teamB ? 'B' : String(afterScim.ownedTeam)}/shared=${afterScim.ownedShared.length} (want B/0), ` +
+      `shared project team=${afterScim.sharedTeam === teamB ? 'B' : String(afterScim.sharedTeam)}/shared=${afterScim.sharedShared.length} (want B/0), ` +
+      `folder=${afterScim.folderTeam === teamB ? 'B' : String(afterScim.folderTeam)}[${afterScim.folderTags.length}] doc=${afterScim.docTeam === teamB ? 'B' : String(afterScim.docTeam)}[${afterScim.docTags.length}] (want B[1]), ` +
+      `conversation=${String(afterScim.convTeam)} sync=${String(afterScim.syncTeam)} (want null), audit=${scimAudit[0]?.count}`,
+  );
+
+  // Door 2 — the Better Auth endpoint the settings UI calls; its
+  // afterDeleteTeam hook retires the scopes, so the project the member
+  // could not see becomes organization-wide and readable.
+  const removeTeam = await fetch(`${base}/api/auth/organization/remove-team`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, origin: base },
+    body: JSON.stringify({ teamId: teamB, organizationId: orgId }),
+  });
+  const afterAuth = await scope();
+  const readableAfter = await memberCanRead(ownedByA);
+  record(
+    'teams: the settings door (Better Auth remove-team) frees the scoped project',
+    removeTeam.status === 200 &&
+      afterAuth.ownedTeam === null &&
+      afterAuth.ownedShared.length === 0 &&
+      afterAuth.folderTeam === null &&
+      afterAuth.folderTags.length === 0 &&
+      afterAuth.docTeam === null &&
+      afterAuth.docTags.length === 0 &&
+      readableAfter,
+    `remove-team → ${removeTeam.status} (want 200), project team=${String(afterAuth.ownedTeam)}/shared=${afterAuth.ownedShared.length} (want null/0), folder tags=${afterAuth.folderTags.length} doc tags=${afterAuth.docTags.length} (want 0), member reads project=${readableAfter} (want true)`,
+  );
+
+  // The sweep — a ghost from before the doors retired scopes (or a door
+  // that failed after its delete): retired the same way, once.
+  const ghostId = `ghost-${now}`;
+  const preExisting = await mkProject('Ghost owned, shared C', ghostId, [
+    teamC,
+  ]);
+  const { repairTeamScopes } = await import('./domains/teams/service.ts');
+  const firstSweep = await repairTeamScopes(sql);
+  const ghostRow = await sql<
+    { teamId: string | null; shared: string[]; updatedAt: number }[]
+  >`
+    SELECT team_id AS "teamId", shared_with_team_ids AS shared,
+           updated_at_ms::float8 AS "updatedAt"
+    FROM app.projects WHERE id = ${preExisting}
+  `;
+  const secondSweep = await repairTeamScopes(sql);
+  const ghostRowAfter = await sql<{ updatedAt: number }[]>`
+    SELECT updated_at_ms::float8 AS "updatedAt"
+    FROM app.projects WHERE id = ${preExisting}
+  `;
+  const sweptOurs = firstSweep.ghosts.some(
+    (g) => g.orgId === orgId && g.teamId === ghostId,
+  );
+  const sweptAgain = secondSweep.ghosts.some((g) => g.orgId === orgId);
+  record(
+    'teams: the daily sweep retires a pre-existing ghost team once',
+    sweptOurs &&
+      ghostRow[0]?.teamId === teamC &&
+      ghostRow[0]?.shared.length === 0 &&
+      !sweptAgain &&
+      ghostRowAfter[0]?.updatedAt === ghostRow[0]?.updatedAt,
+    `first sweep found ours=${sweptOurs} (ghosts=${firstSweep.ghosts.length}), project team=${ghostRow[0]?.teamId === teamC ? 'C' : String(ghostRow[0]?.teamId)}/shared=${ghostRow[0]?.shared.length} (want C/0), second sweep touches this org=${sweptAgain} (want false)`,
+  );
+}
+
+/**
  * Organization lifecycle — deletion is ONE server transaction behind the
  * legal-hold gate: a hold (org-wide or on any member), a non-owner, Better
  * Auth's own delete door and an aborted transaction all leave the
@@ -43004,6 +43392,10 @@ async function main(): Promise<void> {
       ],
       ['checkDevSeed', () => checkDevSeed(sql, auth)],
       ['checkWebTierOracles', () => checkWebTierOracles(sql, baseUrl, authCtx)],
+      [
+        'checkTeamScopeRetirement',
+        () => checkTeamScopeRetirement(sql, baseUrl, authCtx),
+      ],
       [
         'checkOrganizationLifecycle',
         () => checkOrganizationLifecycle(sql, baseUrl, orgSuffix),

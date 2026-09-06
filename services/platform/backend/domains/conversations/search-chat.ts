@@ -178,7 +178,9 @@ export async function searchConversationsForChat(
   const admin = viewerIsAdmin(role);
   let teamIds: Set<string> | undefined;
   const hasTeam = async (teamId: string): Promise<boolean> => {
-    teamIds ??= new Set(await getUserTeamIds(sql, args.userId));
+    teamIds ??= new Set(
+      await getUserTeamIds(sql, args.organizationId, args.userId),
+    );
     return teamIds.has(teamId);
   };
 

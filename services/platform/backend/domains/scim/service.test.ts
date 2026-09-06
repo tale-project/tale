@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
+  deleteGroup,
   deprovisionUser,
   listGroupRecords,
   listUserRecords,
@@ -323,6 +324,49 @@ describe('group writes — every member must belong to the org', () => {
       q.text.startsWith('INSERT INTO "teamMember"'),
     );
     expect(added?.values).toEqual(expect.arrayContaining(['t-1', 'u-in']));
+  });
+});
+
+describe('deleteGroup', () => {
+  it('retires the scopes the group carried in the same transaction and audits the counts', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (
+        text.startsWith('SELECT "id", "name", "organizationId", "createdAt"')
+      ) {
+        return [{ id: 't-fin', name: 'Finance', organizationId: 'org-1' }];
+      }
+      if (text.startsWith('UPDATE app.projects SET team_id')) {
+        return [{ id: 'p1' }];
+      }
+      return undefined;
+    });
+
+    await expect(deleteGroup(sql, 'org-1', 't-fin')).resolves.toBe(true);
+
+    const order = writes(queries).map((q) =>
+      q.text.split(' ').slice(0, 3).join(' '),
+    );
+    expect(order.indexOf('DELETE FROM "team"')).toBeLessThan(
+      order.indexOf('UPDATE app.projects SET'),
+    );
+    const audit = queries.find((q) =>
+      q.text.startsWith('INSERT INTO app.audit_logs'),
+    );
+    expect(audit?.values).toContain('scim_delete_group');
+    expect(JSON.stringify(audit?.values)).toContain('"projectsUnscoped":1');
+  });
+
+  it('answers false and writes nothing for a team of another org', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (
+        text.startsWith('SELECT "id", "name", "organizationId", "createdAt"')
+      ) {
+        return [{ id: 't-x', name: 'X', organizationId: 'org-other' }];
+      }
+      return undefined;
+    });
+    await expect(deleteGroup(sql, 'org-1', 't-x')).resolves.toBe(false);
+    expect(writes(queries)).toEqual([]);
   });
 });
 

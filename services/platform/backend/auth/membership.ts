@@ -253,13 +253,22 @@ export async function removeMembershipCascade(
   return { teamIds: [...new Set(left.map((row) => row.teamId))] };
 }
 
-/** Team ids the user belongs to (the other half of the RLS prime). */
+/**
+ * Team ids the user belongs to IN THIS ORGANIZATION (the other half of the
+ * RLS prime). Scoped through the team's own org: a membership in another
+ * tenant's team must never widen what this org's team-scoped rows show, and
+ * a membership whose team row is gone is no team at all.
+ */
 export async function getUserTeamIds(
   sql: Sql | TransactionSql,
+  organizationId: string,
   userId: string,
 ): Promise<string[]> {
   const rows = await sql<{ teamId: string }[]>`
-    SELECT "teamId" FROM "teamMember" WHERE "userId" = ${userId}
+    SELECT tm."teamId"
+    FROM "teamMember" tm
+    JOIN "team" t ON t."id" = tm."teamId"
+    WHERE tm."userId" = ${userId} AND t."organizationId" = ${organizationId}
   `;
   return rows.map((row) => row.teamId);
 }

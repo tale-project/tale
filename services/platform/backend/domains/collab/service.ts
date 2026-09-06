@@ -44,7 +44,12 @@ export interface CollabNotificationInput {
   undoes?: boolean;
 }
 
-/** The per-type preference column (the 0.4 PREF_FIELD map). */
+/** The per-type preference column (the 0.4 PREF_FIELD map). The 0.4
+ * `automation_alerts` group (automation_failed / budget_alert /
+ * runtime_offline) has no emitter in 0.5 — its column stays in
+ * `app.notification_preferences` unread and unwritten (deprecated, never
+ * dropped) so a later producer can revive the group with a migration-free
+ * re-wire; until then the setting is not offered. */
 const PREF_FIELD: Record<string, string> = {
   task_assigned: 'task_assigned',
   task_unassigned: 'task_assigned',
@@ -57,9 +62,6 @@ const PREF_FIELD: Record<string, string> = {
   document_review_requested: 'task_review',
   document_review_resolved: 'task_review',
   agent_escalation: 'escalation',
-  automation_failed: 'automation_alerts',
-  budget_alert: 'automation_alerts',
-  runtime_offline: 'automation_alerts',
   conversation_message: 'conversation_messages',
   conversation_assigned: 'conversation_messages',
 };
@@ -77,8 +79,7 @@ export async function isNotificationAllowed(
   if (field === 'task_review') return true;
   const rows = await db<Record<string, boolean | null>[]>`
     SELECT task_assigned, task_status_changed, task_commented, mention,
-           task_deadlines, escalation, automation_alerts,
-           conversation_messages
+           task_deadlines, escalation, conversation_messages
     FROM app.notification_preferences
     WHERE user_id = ${userId} AND org_id = ${organizationId}
     LIMIT 1
@@ -457,7 +458,6 @@ const PREF_COLUMNS = [
   'task_deadlines',
   'task_review',
   'escalation',
-  'automation_alerts',
   'conversation_messages',
   'actionable_email',
 ] as const;
@@ -476,8 +476,7 @@ export async function getNotificationPreferences(
            task_status_changed AS "taskStatusChanged",
            task_commented AS "taskCommented", mention,
            task_deadlines AS "taskDeadlines", task_review AS "taskReview",
-           escalation, automation_alerts AS "automationAlerts",
-           conversation_messages AS "conversationMessages",
+           escalation, conversation_messages AS "conversationMessages",
            actionable_email AS "actionableEmail"
     FROM app.notification_preferences
     WHERE user_id = ${userId} AND org_id = ${organizationId}
@@ -497,13 +496,13 @@ export async function setNotificationPreferences(
   await sql`
     INSERT INTO app.notification_preferences (
       user_id, org_id, task_assigned, task_status_changed, task_commented,
-      mention, task_deadlines, task_review, escalation, automation_alerts,
+      mention, task_deadlines, task_review, escalation,
       conversation_messages, actionable_email, updated_at_ms
     ) VALUES (
       ${userId}, ${organizationId}, ${value('taskAssigned')},
       ${value('taskStatusChanged')}, ${value('taskCommented')},
       ${value('mention')}, ${value('taskDeadlines')}, ${value('taskReview')},
-      ${value('escalation')}, ${value('automationAlerts')},
+      ${value('escalation')},
       ${value('conversationMessages')}, ${value('actionableEmail')},
       ${Date.now()}
     )
@@ -515,7 +514,6 @@ export async function setNotificationPreferences(
       task_deadlines = EXCLUDED.task_deadlines,
       task_review = EXCLUDED.task_review,
       escalation = EXCLUDED.escalation,
-      automation_alerts = EXCLUDED.automation_alerts,
       conversation_messages = EXCLUDED.conversation_messages,
       actionable_email = EXCLUDED.actionable_email,
       updated_at_ms = EXCLUDED.updated_at_ms

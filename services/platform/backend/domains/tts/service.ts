@@ -530,7 +530,11 @@ async function reserveChunk(
       throw error;
     }
 
-    const userTeamIds = await getUserTeamIds(tx, args.userId);
+    const userTeamIds = await getUserTeamIds(
+      tx,
+      args.organizationId,
+      args.userId,
+    );
     const teamId = userTeamIds[0];
     const prospectiveCostCents = estimateTtsCostCents(
       args.text.length,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { collectTaskBlobRefs } from './service.ts';
+import { collectTaskBlobRefs } from './retire.ts';
 
 /**
  * The hard delete reclaims a task subtree's attachment/output blobs through

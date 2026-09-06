@@ -44,6 +44,8 @@ Wenn du eine Berechtigungs-Entscheidung brauchst, die bestehende Rollen und Team
 
 Klick auf die Team-Zeile, dann auf **Team löschen**. Löschen ist Hard-Stop — das Team ist weg, alle Mitglieder werden daraus entfernt, und sie verlieren den team-gebundenen Ausschnitt ihres Zugriffs. Es gibt kein Undo. Greif zu Löschen, wenn ein Team wirklich aufgelöst wird, nicht wenn es umorganisiert wird.
 
+Was das Team eingegrenzt hat, bekommt ein neues Zuhause statt zu stranden: Ein Projekt, das dem Team gehörte, geht an das erste Team über, mit dem es geteilt war — gibt es keins, wird es organisationsweit. Ein Ordner oder Dokument behält seine übrigen Teams, und eine Konversation in der Warteschlange des Teams ist wieder nicht zugewiesen. Nichts wird weiter geöffnet, als das gelöschte Team ohnehin erlaubt hat.
+
 ## Wo das hingehört
 
 Teams sind die Eingrenzungsebene direkt unter Rollen — Rollen sagen _was_, Teams sagen _wo_. Die natürliche nächste Lektüre hängt von der Ressource ab, die du eingrenzt: [Skill-Bibliothek](/de/platform/workspace/skills) dafür, wie eine geteilte Anleitung alle erreicht, [Connectors (Admin-Sicht)](/de/platform/admin/connectors) für die Zugangsdaten, die die Automatisierungen eines Teams aufrufen, und [Projekte](/de/platform/projects/overview) für die Projekt-zu-Team-Zuweisung.

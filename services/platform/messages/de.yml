@@ -4361,9 +4361,6 @@ notificationPreferences:
       label: Agenten-Eskalationen
       description: Wenn ein Agent dir eine Frage stellt oder eine Aufgabe an
         einen Menschen eskaliert.
-    automationAlerts:
-      label: Automatisierungs-Warnungen
-      description: Fehler, Budget-Warnungen und offline gegangene Runtimes.
     conversationMessages:
       label: Konversationsnachrichten
       description: Wenn eine Kontaktnachricht in Konversationen ankommt.

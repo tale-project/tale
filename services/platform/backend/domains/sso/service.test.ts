@@ -427,6 +427,12 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     ]);
     expect(removed[0]?.values).toEqual(['tm-ops']);
     expect(removed[2]?.values).toEqual(['t-ops', 'org-1']);
+    // The reaped team's scopes go with it: whatever an admin pointed at the
+    // synced team meanwhile must not stay pointed at a ghost.
+    const retired = queries.find((q) =>
+      q.text.startsWith('UPDATE app.projects SET team_id'),
+    );
+    expect(retired?.values.slice(1)).toEqual(['org-1', 't-ops']);
   });
 
   it.each([

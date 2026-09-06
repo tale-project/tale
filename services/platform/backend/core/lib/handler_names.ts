@@ -233,11 +233,6 @@ interface HandlerNames {
       getMemberRole: FunctionRef;
     };
   };
-  notifications: FunctionRef & {
-    email_notification: FunctionRef & {
-      deliverActionableEmailAction: FunctionRef;
-    };
-  };
   products: FunctionRef & {
     internal_queries: FunctionRef & {
       queryProducts: FunctionRef;

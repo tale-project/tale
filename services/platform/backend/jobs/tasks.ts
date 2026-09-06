@@ -30,6 +30,8 @@ export interface TaskPayloads {
   'tasks.enforce_dates': Record<string, never>;
   /** Recompute drifted project rollup counters from their source rows. */
   'projects.repair_rollups': Record<string, never>;
+  /** Retire scope references to teams that no longer exist in their org. */
+  'teams.repair_scopes': Record<string, never>;
   /** Start a task's owning automation (the comment-@mention trigger). */
   'task.start_workflow': {
     organizationId: string;
@@ -328,6 +330,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'tts.gc_chunks': { retryLimit: 1, expireInSeconds: 600 },
   'tasks.enforce_dates': { retryLimit: 1, expireInSeconds: 600 },
   'projects.repair_rollups': { retryLimit: 1, expireInSeconds: 600 },
+  'teams.repair_scopes': { retryLimit: 1, expireInSeconds: 600 },
   // The steer owns its OWN retry ladder (it re-enqueues itself with an
   // attempt counter, tight then coarse), so pg-boss must not add a second
   // one on top: a failed job is a lost steer, and the comment is still in

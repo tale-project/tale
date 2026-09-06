@@ -44,6 +44,8 @@ When you need a permission decision the existing roles and teams cannot express,
 
 Click the team's row, then **Delete team**. Deletion is hard-stop — the team is gone, all its members are removed from it, and they lose the team-scoped slice of their access. There is no undo. Reach for delete when a team is genuinely retired, not when it is reorganising.
 
+What the team scoped is re-homed, not stranded: a project it owned passes to the first team it was shared with, or becomes organization-wide when there is none; a folder or document keeps its other teams; a conversation queued on the team goes back to unassigned. Nothing gets wider than the deleted team already allowed.
+
 ## Where this fits
 
 Teams are the scoping layer right below roles — roles say _what_, teams say _where_. The natural next read depends on the resource you are scoping: [Skill library](/platform/workspace/skills) for how a shared instruction reaches everyone, [Connectors (admin view)](/platform/admin/connectors) for the credentials a team's automations call, and [Projects](/platform/projects/overview) for project-to-team assignment.

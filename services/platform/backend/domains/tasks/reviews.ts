@@ -122,7 +122,7 @@ export async function resolveReviewer(
       candidate,
     );
     if (member === null || member.role === 'disabled') continue;
-    const teamIds = await getUserTeamIds(tx, candidate);
+    const teamIds = await getUserTeamIds(tx, task.organizationId, candidate);
     const access = checkProjectAccess(
       {
         teamId: project?.teamId ?? null,
