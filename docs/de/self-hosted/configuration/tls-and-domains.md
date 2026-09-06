@@ -76,8 +76,9 @@ ADDITIONAL_SITE_URLS=https://tale.partner.example,https://app.example.org
 ```
 
 Jeder Eintrag ist ein blanker Origin — Schema, Host, optionaler Port, kein Pfad. Caddy bedient
-alle aus demselben Site-Block und holt unter `TLS_MODE=letsencrypt` pro Name ein Zertifikat, also
-muss das DNS jeder Domain auf diesen Host zeigen, bevor du den Proxy neu erstellst.
+alle aus demselben Site-Block und holt unter `TLS_MODE=letsencrypt` pro Name ein Zertifikat.
+Zeig das DNS jeder Domain auf diesen Host; eine Domain, deren DNS später landet, wird so lange
+erneut versucht, bis ihr Zertifikat da ist — es müssen also nicht alle am selben Tag bereit sein.
 
 Jede gelistete Domain ist ein vollwertiger Eingang und keine Weiterleitung: Wer sich auf einer
 anmeldet, bleibt dort, und die Links, die die App baut — Sign-in-Callbacks, Connector-Freigaben,

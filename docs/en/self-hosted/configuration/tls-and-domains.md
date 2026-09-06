@@ -75,8 +75,9 @@ ADDITIONAL_SITE_URLS=https://tale.partner.example,https://app.example.org
 ```
 
 Each entry is a bare origin — scheme, host, optional port, no path. Caddy serves every one of
-them from the same site block and, under `TLS_MODE=letsencrypt`, obtains a certificate per name,
-so each domain's DNS has to point at this host before you recreate the proxy.
+them from the same site block and, under `TLS_MODE=letsencrypt`, obtains a certificate per name.
+Point each domain's DNS at this host; a domain whose DNS lands later is retried until its
+certificate is issued, so the domains do not all have to be ready on the same day.
 
 Every listed domain is a complete entry point rather than a redirect: a visitor who signs in on
 one stays on it, and the links the app builds — sign-in callbacks, connector consent flows,

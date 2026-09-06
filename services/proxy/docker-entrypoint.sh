@@ -370,6 +370,17 @@ fi
 # This loop checks that DNS resolves to our public IP before reloading Caddy,
 # covering the common case where DNS is configured hours or days after deployment.
 if [ "${TLS_MODE:-selfsigned}" = "letsencrypt" ]; then
+  # The hostnames ACME must issue for: every address on the site block, with
+  # the scheme and any port stripped. This is deliberately NOT $HOST — $HOST
+  # is the deployment's identity (docker alias, default SNI, docs subdomain),
+  # while these are the names Caddy actually serves and therefore the names
+  # certificates are filed under.
+  CERT_HOSTNAMES=""
+  for addr in $SITE_ADDRESSES; do
+    cert_host=$(echo "${addr}" | sed -E 's|^https?://||; s|/.*$||; s|:[0-9]+$||')
+    [ -n "$cert_host" ] && CERT_HOSTNAMES="${CERT_HOSTNAMES} ${cert_host}"
+  done
+  echo "ACME retry: watching for certificates on:${CERT_HOSTNAMES}"
   (
     sleep 60
     SERVER_IP=$(wget -qO- -T5 http://ipv4.icanhazip.com 2>/dev/null | tr -d '[:space:]')
@@ -380,15 +391,31 @@ if [ "${TLS_MODE:-selfsigned}" = "letsencrypt" ]; then
     fi
 
     while true; do
-      if find /data/caddy/certificates -name "${HOST}" -type d 2>/dev/null | grep -q .; then
-        echo "ACME certificate obtained for ${HOST}"
+      # Every hostname the site block serves still missing a certificate.
+      # Derived from the site ADDRESSES, not from $HOST: a multi-domain
+      # deployment needs one certificate per domain, and each domain's DNS
+      # may land days apart — so the retry has to outlive the first one.
+      PENDING=""
+      for cert_host in $CERT_HOSTNAMES; do
+        if ! find /data/caddy/certificates -name "${cert_host}" -type d 2>/dev/null | grep -q .; then
+          PENDING="${PENDING} ${cert_host}"
+        fi
+      done
+      if [ -z "$PENDING" ]; then
+        echo "ACME certificates obtained for:${CERT_HOSTNAMES}"
         break
       fi
       if [ -n "$SERVER_IP" ]; then
         # Verify domain resolves to our IP via external DNS (bypasses Docker DNS,
         # handles wildcard DNS that resolves non-existent subdomains to a fallback IP)
-        if nslookup "${HOST}" 1.1.1.1 2>/dev/null | grep -q "${SERVER_IP}"; then
-          echo "DNS resolved ${HOST} to ${SERVER_IP}, reloading Caddy..."
+        RESOLVED=""
+        for cert_host in $PENDING; do
+          if nslookup "${cert_host}" 1.1.1.1 2>/dev/null | grep -q "${SERVER_IP}"; then
+            RESOLVED="${RESOLVED} ${cert_host}"
+          fi
+        done
+        if [ -n "$RESOLVED" ]; then
+          echo "DNS resolved${RESOLVED} to ${SERVER_IP}, reloading Caddy..."
           caddy reload --config "$CADDYFILE" --adapter caddyfile 2>/dev/null || true
           sleep 120
         else
