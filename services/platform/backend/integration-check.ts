@@ -5424,6 +5424,81 @@ async function checkTaskCommentBurst(
   );
 }
 
+/**
+ * A burst of serializable commenters on DIFFERENT tasks of one org: the task
+ * keys never collide, so every one of them meets the others at the org's
+ * audit chain head and all but the first lose there. The loss is marked with
+ * the chain-head key inside the task's queue, and the marks nest, so each
+ * retry holds the task key AND the chain-head key from before its BEGIN —
+ * a retry queued on the task key alone would lose at the head again.
+ */
+async function checkTaskCommentCrossTaskBurst(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const { addTaskComment } = await import('./domains/tasks/comments.ts');
+  const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
+  const now = Date.now();
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Cross-task burst project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const COMMENTERS = 12;
+  const taskIds: string[] = [];
+  for (let index = 0; index < COMMENTERS; index += 1) {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.tasks (
+        org_id, project_id, title, status, rank, created_by, created_by_type,
+        outputs, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${`Cross-task burst ${index}`}, 'todo',
+        ${`r${index}`}, ${userId}, 'user', ${sql.json([])}, ${now}, ${now}
+      ) RETURNING id
+    `;
+    taskIds.push(rows[0]?.id ?? '');
+  }
+  const auth = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    teamIds: [] as string[],
+  };
+  let attempts = 0;
+  const outcomes = await Promise.allSettled(
+    taskIds.map((taskId, index) =>
+      transactSerializable(sql, async (tx) => {
+        attempts += 1;
+        await tx`SELECT 1`;
+        await sleep(50);
+        return addTaskComment(tx, auth, {
+          taskId,
+          body: `cross-task comment ${index}`,
+        });
+      }),
+    ),
+  );
+  const failures = outcomes.filter((o) => o.status === 'rejected');
+  const counts = await sql<{ commentCount: number }[]>`
+    SELECT comment_count AS "commentCount" FROM app.tasks
+    WHERE project_id = ${projectId}
+  `;
+  const landed = counts.filter((row) => row.commentCount === 1).length;
+  const chain = await verifyAuditChain(sql, orgId);
+  record(
+    "tasks: a burst of serializable commenters across one org's tasks all land",
+    failures.length === 0 &&
+      landed === COMMENTERS &&
+      chain.valid &&
+      attempts > COMMENTERS &&
+      attempts <= COMMENTERS * 2,
+    `landed=${landed}/${COMMENTERS} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} chainValid=${chain.valid} attempts=${attempts} (want >${COMMENTERS} — losers at the chain head retried — and ≤${COMMENTERS * 2}: each lost at most once, queued on task + chain head)`,
+  );
+}
+
 async function checkRateLimitShapes(
   sql: Sql,
   base: string,
@@ -44216,6 +44291,10 @@ async function main(): Promise<void> {
       ['checkSmallDomains', () => checkSmallDomains(sql, baseUrl, authCtx)],
       ['checkMessageSlots', () => checkMessageSlots(sql, authCtx)],
       ['checkTaskCommentBurst', () => checkTaskCommentBurst(sql, authCtx)],
+      [
+        'checkTaskCommentCrossTaskBurst',
+        () => checkTaskCommentCrossTaskBurst(sql, authCtx),
+      ],
       [
         'checkRateLimitShapes',
         () => checkRateLimitShapes(sql, baseUrl, authCtx),

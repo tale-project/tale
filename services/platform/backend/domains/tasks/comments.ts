@@ -97,8 +97,23 @@ async function ensureTaskDiscussionThread(
 }
 
 /** Retry-queue key for one task's discussion (see `queuedOnTask`). */
-function taskCommentQueueKey(taskId: string): string {
+export function taskCommentQueueKey(taskId: string): string {
   return `task-comment:${taskId}`;
+}
+
+/**
+ * The transaction-level lock every comment write takes FIRST. A transaction
+ * that writes the task row for another reason and then comments (the
+ * overdue nudge's claim) must take it before that write too, or it holds the
+ * row while a commenter holds the key — a deadlock pair.
+ */
+export async function lockTaskCommentQueue(
+  tx: TransactionSql,
+  taskId: string,
+): Promise<void> {
+  await tx`
+    SELECT pg_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${taskCommentQueueKey(taskId)}))
+  `;
 }
 
 /**
@@ -113,23 +128,23 @@ function taskCommentQueueKey(taskId: string): string {
  * holds the same key as a session lock from before its BEGIN (see
  * `transactSerializable`); and a 40001/40P01 raised anywhere in `work` is
  * marked with the key, which is what makes the caller's next attempt take
- * that session lock first. Under contention a writer wastes at most one
- * attempt. Plain READ COMMITTED callers pay only the lock, which orders the
- * task's comments and marks nothing.
+ * that session lock first. The audit write inside `work` marks a loss at the
+ * org's chain head with its own key; marks nest, so that retry queues on the
+ * task AND the chain head, in that order (the retry-queue note in
+ * `@tale/shared/db/serializable`). Under contention on this task's rows a
+ * writer wastes at most one attempt. Plain READ COMMITTED callers pay only
+ * the lock, which orders the task's comments and marks nothing.
  */
-async function queuedOnTask<T>(
+export async function queuedOnTask<T>(
   tx: TransactionSql,
   taskId: string,
   work: () => Promise<T>,
 ): Promise<T> {
-  const queueKey = taskCommentQueueKey(taskId);
   try {
-    await tx`
-      SELECT pg_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${queueKey}))
-    `;
+    await lockTaskCommentQueue(tx, taskId);
     return await work();
   } catch (error) {
-    throw markRetryQueueKey(error, queueKey);
+    throw markRetryQueueKey(error, taskCommentQueueKey(taskId));
   }
 }
 
@@ -415,15 +430,17 @@ export async function listTaskComments(
   };
 }
 
-async function loadCommentMeta(
-  tx: TransactionSql | Sql,
-  messageId: string,
-): Promise<{
+interface CommentMeta {
   taskId: string;
   authorType: string;
   authorId: string;
   mentions: ResolvedMention[] | null;
-}> {
+}
+
+async function loadCommentMeta(
+  tx: TransactionSql | Sql,
+  messageId: string,
+): Promise<CommentMeta> {
   const rows = await tx<
     {
       taskId: string;
@@ -567,7 +584,7 @@ async function removeTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   messageId: string,
-  meta: Awaited<ReturnType<typeof loadCommentMeta>>,
+  meta: CommentMeta,
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, meta.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
