@@ -3,7 +3,6 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { authorizeRls } from '../../auth/access.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -11,8 +10,6 @@ import { requireSession } from '../../auth/session.ts';
 import {
   FeedbackError,
   listMyThreadFeedback,
-  getMyMessageFeedback,
-  listMessageFeedback,
   removeMessageFeedback,
   submitMessageFeedback,
   getFeedbackStats,
@@ -36,7 +33,8 @@ const submitSchema = z.object({
   provider: z.string().max(100).optional(),
 });
 
-/** /api/app/feedback — thumbs on assistant messages + the insights feed. */
+/** /api/app/feedback — thumbs on assistant messages + the metrics-page
+ * reads (`/stats`, `/recent`). */
 export function createFeedbackRoutes(deps: {
   sql: Sql;
   auth: Auth;
@@ -86,28 +84,6 @@ export function createFeedbackRoutes(deps: {
         c.req.param('threadId'),
       ),
     });
-  });
-
-  app.get('/mine/:messageId', async (c) => {
-    return c.json({
-      feedback: await getMyMessageFeedback(
-        deps.sql,
-        scopeOf(c),
-        c.req.param('messageId'),
-      ),
-    });
-  });
-
-  // Org insights feed — role-gated by the matrix (members can read).
-  app.get('/', async (c) => {
-    if (!authorizeRls(c.get('orgMember').role, 'messageFeedback', 'read')) {
-      return c.json({ error: 'forbidden' }, 403);
-    }
-    const ratingParsed = z
-      .enum(['positive', 'negative'])
-      .safeParse(c.req.query('rating'));
-    const options = ratingParsed.success ? { rating: ratingParsed.data } : {};
-    return c.json(await listMessageFeedback(deps.sql, c.get('orgId'), options));
   });
 
   /** Metrics-page stats (the 0.4 `getFeedbackStats`; admin). */

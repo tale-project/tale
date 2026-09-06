@@ -9,8 +9,9 @@ import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
+import { UNATTRIBUTED_AGENT_SLUG } from '@/lib/shared/constants/usage';
 
-import { UNATTRIBUTED_AGENT_SLUG, type FeedbackAgentBucket } from './types';
+import type { FeedbackAgentBucket } from './types';
 
 interface TopAgentsFeedbackTableProps {
   rows: FeedbackAgentBucket[];

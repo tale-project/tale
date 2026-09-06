@@ -1,19 +1,6 @@
+import type { ArenaVerdict } from '../../../lib/shared/arena.ts';
+import { UNATTRIBUTED_AGENT_SLUG } from '../../../lib/shared/constants/usage.ts';
 import type { Doc } from '../lib/rows';
-
-export type ArenaVerdict = 'a_better' | 'b_better' | 'tie' | 'both_bad';
-export const ARENA_VERDICTS: ArenaVerdict[] = [
-  'a_better',
-  'b_better',
-  'tie',
-  'both_bad',
-];
-
-const SYNTHETIC_AGENT_DIRECT_API = '__direct_api__';
-const SYNTHETIC_AGENT_CONNECTOR = '__connector__';
-// Sentinel slug used in the ranking when a row has no agent attribution
-// (typically arena rows or legacy / pre-attribution rows). Distinct from
-// the Usage-page synthetic slugs so the UI can label it differently.
-export const UNATTRIBUTED_AGENT_SLUG = '__unattributed__';
 
 export interface ComputeFeedbackStatsOptions {
   /** Lower bound (inclusive) on `createdAt`. `null` = no period filter. */
@@ -303,20 +290,4 @@ export function computeFeedbackStats(
     scanned,
     windowStartMs: opts.cutoffMs,
   };
-}
-
-/**
- * Synthetic-slug helpers — kept colocated with the reducer because the
- * UI needs them too (label resolution).
- */
-export function isUnattributedAgentSlug(slug: string): boolean {
-  return slug === UNATTRIBUTED_AGENT_SLUG;
-}
-
-export function isFeedbackSyntheticAgentSlug(slug: string): boolean {
-  return (
-    slug === UNATTRIBUTED_AGENT_SLUG ||
-    slug === SYNTHETIC_AGENT_DIRECT_API ||
-    slug === SYNTHETIC_AGENT_CONNECTOR
-  );
 }

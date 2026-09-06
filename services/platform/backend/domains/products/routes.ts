@@ -13,11 +13,11 @@ import {
   deleteProduct,
   getProduct,
   listProducts,
+  PRODUCT_CATEGORY_MAX,
   PRODUCT_STATUSES,
   ProductError,
   type ProductScope,
   updateProduct,
-  upsertProductTranslation,
 } from './service.ts';
 
 const productInputSchema = z.object({
@@ -31,15 +31,6 @@ const productInputSchema = z.object({
   tags: z.array(z.string().max(60)).max(50).optional(),
   status: z.enum(PRODUCT_STATUSES).optional(),
   externalId: z.string().max(256).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
-
-const translationSchema = z.object({
-  language: z.string().min(2).max(20),
-  name: z.string().max(300).optional(),
-  description: z.string().max(5000).optional(),
-  category: z.string().max(120).optional(),
-  tags: z.array(z.string().max(60)).max(50).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -70,28 +61,38 @@ export function createProductRoutes(deps: {
 
   app.get('/', async (c) => {
     try {
-      const statusParsed = z
-        .enum(PRODUCT_STATUSES)
-        .safeParse(c.req.query('status'));
-      const cursorUpdatedAt = Number(
-        c.req.query('cursorUpdatedAt') ?? Number.NaN,
-      );
-      const cursorId = c.req.query('cursorId');
-      const limitRaw = Number(c.req.query('limit') ?? Number.NaN);
+      // The same query contract the contacts listing enforces: `limit` is an
+      // integer in 1..200 and the keyset cursor a positive integer, refused
+      // with 400 — `Number()` used to forward `-5` (Postgres: LIMIT must not
+      // be negative) and `1.5` (an uncastable bigint) straight to a 500.
+      const query = z
+        .object({
+          search: z.string().max(200).optional(),
+          status: z.enum(PRODUCT_STATUSES).optional(),
+          category: z.string().max(PRODUCT_CATEGORY_MAX).optional(),
+          limit: z.coerce.number().int().min(1).max(200).optional(),
+          cursorUpdatedAt: z.coerce.number().int().positive().optional(),
+          cursorId: z.string().optional(),
+        })
+        .safeParse({
+          search: c.req.query('search'),
+          status: c.req.query('status'),
+          category: c.req.query('category'),
+          limit: c.req.query('limit'),
+          cursorUpdatedAt: c.req.query('cursorUpdatedAt'),
+          cursorId: c.req.query('cursorId'),
+        });
+      if (!query.success) {
+        return c.json({ error: 'invalid query' }, 400);
+      }
+      const { cursorUpdatedAt, cursorId, ...rest } = query.data;
       return c.json(
         await listProducts(deps.sql, scopeOf(c), {
-          ...(c.req.query('search') !== undefined
-            ? { search: c.req.query('search') ?? '' }
-            : {}),
-          ...(statusParsed.success ? { status: statusParsed.data } : {}),
-          ...(c.req.query('category') !== undefined
-            ? { category: c.req.query('category') ?? '' }
-            : {}),
+          ...rest,
           cursor:
-            Number.isFinite(cursorUpdatedAt) && cursorId !== undefined
+            cursorUpdatedAt !== undefined && cursorId !== undefined
               ? { updatedAt: cursorUpdatedAt, id: cursorId }
               : null,
-          ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
         }),
       );
     } catch (error) {
@@ -158,27 +159,6 @@ export function createProductRoutes(deps: {
       const scope = scopeOf(c);
       await transactSerializable(deps.sql, (tx) =>
         updateProduct(tx, scope, c.req.param('productId'), body.data),
-      );
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/:productId/translations', async (c) => {
-    const body = translationSchema.safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const scope = scopeOf(c);
-      await transactSerializable(deps.sql, (tx) =>
-        upsertProductTranslation(
-          tx,
-          scope,
-          c.req.param('productId'),
-          body.data,
-        ),
       );
       return c.json({ ok: true });
     } catch (error) {
