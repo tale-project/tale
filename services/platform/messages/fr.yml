@@ -5503,6 +5503,10 @@ settings:
       » dans votre inscription d'application — elle doit correspondre au
       caractère près (schéma, hôte, chemin, sans barre oblique finale), sinon
       la connexion échoue avec AADSTS50011.
+    additionalDomainsHint:
+      Ce déploiement répond aussi sur d'autres domaines. Enregistrez
+      également cette URL — la personne qui se connecte là-bas y est
+      ramenée, et non sur le domaine canonique.
     deploymentWarning:
       title: Déploiement non entièrement configuré pour le SSO
       callbackMissing:

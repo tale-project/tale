@@ -51,18 +51,31 @@ const MICROSOFT_SLUGS = new Set(['outlook', 'teams', ONEDRIVE_SLUG]);
 const CONNECTORS_CALLBACK_PATH = '/api/connectors/oauth2/callback';
 const CLOUD_IMPORT_CALLBACK_PATH = '/api/cloud-import/oauth2/callback';
 
-/** The redirect URIs the admin must register on the vendor app. */
+/**
+ * The redirect URIs the admin must register on the vendor app — one set per
+ * domain this deployment answers on. A consent flow started on a given domain
+ * comes back to that same domain (the session cookie lives there), so on a
+ * multi-domain deployment every domain's callback has to be registered.
+ * `SITE_ORIGINS` carries the full list, canonical first; the single-domain
+ * case is exactly the one-or-two URLs it always was.
+ */
 function redirectUris(slug: string): string[] {
-  const base = `${getEnv('SITE_URL')}${getEnv('BASE_PATH')}`;
-  if (slug === ONEDRIVE_SLUG) return [`${base}${CLOUD_IMPORT_CALLBACK_PATH}`];
-  if (slug === 'google-drive') {
-    // One Google app serves the connector lane AND Knowledge import.
-    return [
-      `${base}${CONNECTORS_CALLBACK_PATH}`,
-      `${base}${CLOUD_IMPORT_CALLBACK_PATH}`,
-    ];
-  }
-  return [`${base}${CONNECTORS_CALLBACK_PATH}`];
+  const basePath = getEnv('BASE_PATH');
+  const origins = window.__ENV__?.SITE_ORIGINS?.length
+    ? window.__ENV__.SITE_ORIGINS
+    : [getEnv('SITE_URL')];
+  return origins.flatMap((origin) => {
+    const base = `${origin}${basePath}`;
+    if (slug === ONEDRIVE_SLUG) return [`${base}${CLOUD_IMPORT_CALLBACK_PATH}`];
+    if (slug === 'google-drive') {
+      // One Google app serves the connector lane AND Knowledge import.
+      return [
+        `${base}${CONNECTORS_CALLBACK_PATH}`,
+        `${base}${CLOUD_IMPORT_CALLBACK_PATH}`,
+      ];
+    }
+    return [`${base}${CONNECTORS_CALLBACK_PATH}`];
+  });
 }
 
 interface OauthAppTarget {

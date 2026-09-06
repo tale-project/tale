@@ -908,3 +908,74 @@ describe('EnterpriseSsoForm PKCE under Advanced (#2653)', () => {
     expect(pkce).toHaveAttribute('aria-checked', 'true');
   });
 });
+
+/**
+ * Multi-domain deployments (ADDITIONAL_SITE_URLS) return a browser to the
+ * domain it signed in on, so the IdP needs EVERY domain's callback / ACS URL
+ * registered — not just the canonical one. The form has to show them, or an
+ * admin silently registers one domain and the others fail at sign-in.
+ */
+describe('EnterpriseSsoForm — additional site domains', () => {
+  const oidcMultiDomain: SsoConnectionView = {
+    ...connectedOidc,
+    additionalCallbackUrls: [
+      'https://tale.partner.example/api/sso/callback',
+      'https://app.other.example/api/sso/callback',
+    ],
+  };
+
+  it('lists every domain’s OIDC callback URL, labelled by host', async () => {
+    renderForm(oidcMultiDomain);
+    // The canonical one is still there (twice: the sign-in section and the
+    // setup guide both show it)…
+    expect(
+      (await screen.findAllByText('https://app.example.com/api/sso/callback'))
+        .length,
+    ).toBeGreaterThan(0);
+    // …and each additional domain gets its own row, named by its host so the
+    // admin can tell which registration each belongs to.
+    expect(
+      screen.getAllByText('https://tale.partner.example/api/sso/callback')
+        .length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText('https://app.other.example/api/sso/callback').length,
+    ).toBeGreaterThan(0);
+    // The row label names the host it belongs to.
+    expect(
+      screen.getAllByText(/\(tale\.partner\.example\)/).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('lists every domain’s SAML ACS URL', async () => {
+    renderForm({
+      ...samlConfig,
+      additionalSamlAcsUrls: ['https://tale.partner.example/api/sso/saml/acs'],
+    });
+    expect(
+      await screen.findByText('https://app.example.com/api/sso/saml/acs'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('https://tale.partner.example/api/sso/saml/acs'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows nothing extra on a single-domain deployment', async () => {
+    renderForm(connectedOidc);
+    expect(
+      (await screen.findAllByText('https://app.example.com/api/sso/callback'))
+        .length,
+    ).toBeGreaterThan(0);
+    // No stray row, and no empty-value placeholder from an absent list.
+    expect(screen.queryByText(/partner\.example/)).not.toBeInTheDocument();
+  });
+
+  it('passes axe with several domains listed', async () => {
+    const { container } = render(
+      <Bare>
+        <EnterpriseSsoForm organizationId="org-1" config={oidcMultiDomain} />
+      </Bare>,
+    );
+    await checkAccessibility(container);
+  });
+});
