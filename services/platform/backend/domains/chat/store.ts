@@ -47,7 +47,7 @@ export async function appendMessageRow(
     truncation?: { droppedMessages: number };
     status?: string;
   },
-  claim: SlotClaimOptions = {},
+  slot: SlotClaimOptions = {},
 ): Promise<{ id: string; sequence: number }> {
   // The slot is UNIQUE: two turns appending to one thread at once both read
   // the same max, and the one the index refuses re-claims the next slot on
@@ -74,7 +74,7 @@ export async function appendMessageRow(
       RETURNING id, "order"
     `;
     return rows[0]; // undefined: the slot went to a concurrent append
-  }, claim);
+  }, slot);
   // A turn just wrote to the thread; keep its list ordering fresh. An
   // assistant row also stamps the unread watermark; activity on a hidden
   // branch surfaces on its ROOT — the row the sidebar shows for the lineage.

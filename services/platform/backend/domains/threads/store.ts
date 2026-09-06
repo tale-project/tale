@@ -68,18 +68,23 @@ export interface SaveMessageArgs {
  * concurrent appends take the ones it computes. The slot is UNIQUE
  * (`messages_thread_slot`), so a lost race is refused at the index rather
  * than landing two rows on one slot; under READ COMMITTED each claim is a
- * fresh statement that sees the winner's row. Every round has exactly one
- * winner among the appenders racing for a thread, so a burst of N appenders
- * lands within N rounds — which is why the budget is wall-clock and never a
- * count: a count is defeated by any burst larger than itself. Under
+ * fresh statement that sees the winner's row. Every round has at least one
+ * winner among the appenders racing for a thread (exactly one when they run
+ * in lockstep), so a burst of N appenders lands within N rounds — which is
+ * why the budget is wall-clock and never a count: a count is defeated by any
+ * burst larger than itself. Under
  * SERIALIZABLE the same conflict surfaces as a serialization failure and
  * `transactSerializable` reruns the whole transaction instead, so the loop
  * never spins there.
  */
 export const MESSAGE_SLOT_CLAIM_DEADLINE_MS = 10_000;
 
-/** The longest pause between two claims of one appender. */
-const MESSAGE_SLOT_BACKOFF_CAP_MS = 50;
+/**
+ * The longest pause between two claims of one appender: enough to break the
+ * lockstep, small enough that the last member of a large burst waits well
+ * under a second in total.
+ */
+const MESSAGE_SLOT_BACKOFF_CAP_MS = 20;
 
 export interface SlotClaimOptions {
   /** Wall-clock budget for the whole claim; the default is the constant above. */
@@ -141,7 +146,7 @@ export async function claimMessageSlot<T>(
 export async function saveMessage(
   tx: TransactionSql,
   args: SaveMessageArgs,
-  claim: SlotClaimOptions = {},
+  slot: SlotClaimOptions = {},
 ): Promise<{ messageId: string; order: number }> {
   const row = await claimMessageSlot(async () => {
     const rows = await tx<{ id: string; order: number }[]>`
@@ -159,7 +164,7 @@ export async function saveMessage(
       RETURNING id, "order"
     `;
     return rows[0]; // undefined: the slot went to a concurrent append
-  }, claim);
+  }, slot);
   await tx`
     UPDATE app.threads SET updated_at_ms = ${Date.now()}
     WHERE id = ${args.threadId}

@@ -4,7 +4,7 @@
  * A message slot is unique: an append that loses the race for `max+1` gets
  * no row back from `ON CONFLICT DO NOTHING` and must claim the next slot on
  * a fresh statement — never land on the winner's slot, never surface the
- * lost race as an error while attempts remain.
+ * lost race as an error while the deadline remains.
  */
 
 import type { TransactionSql } from 'postgres';
@@ -84,6 +84,29 @@ describe('saveMessage — claiming a unique slot', () => {
       saveMessage(tx, ARGS, { sleep: () => Promise.resolve() }),
     ).resolves.toEqual({ messageId: 'm-41', order: 40 });
     expect(insertsOf(statements)).toBe(41);
+  });
+
+  it('lets an error from the claim through unchanged, after one insert', async () => {
+    // A 40001 under SERIALIZABLE belongs to transactSerializable's rerun;
+    // the claim must neither retry nor swallow it.
+    const boom = Object.assign(new Error('could not serialize access'), {
+      code: '40001',
+    });
+    const statements: string[] = [];
+    const tag = (strings: TemplateStringsArray): Promise<unknown[]> => {
+      statements.push(strings.join('?'));
+      return Promise.reject(boom);
+    };
+    Object.assign(tag, { json: (value: unknown) => value });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and `json` are exercised
+    const tx = tag as unknown as TransactionSql;
+    await expect(
+      saveMessage(tx, ARGS, { sleep: () => Promise.resolve() }),
+    ).rejects.toBe(boom);
+    expect(insertsOf(statements)).toBe(1);
+    expect(statements.some((text) => text.includes('UPDATE app.threads'))).toBe(
+      false,
+    );
   });
 
   it('gives up only when the deadline is spent', async () => {

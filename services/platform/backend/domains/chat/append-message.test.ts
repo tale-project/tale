@@ -96,7 +96,28 @@ describe('appendMessageRow — claiming a unique slot', () => {
     expect(insertsOf(statements)).toBe(41);
     // One jittered pause per lost race, never longer than the cap.
     expect(pauses).toHaveLength(40);
-    expect(Math.max(...pauses)).toBeLessThanOrEqual(75);
+    expect(Math.max(...pauses)).toBeLessThanOrEqual(30);
+  });
+
+  it('lets an error from the claim through unchanged, after one insert', async () => {
+    // Under SERIALIZABLE the lost race surfaces as a 40001 and the enclosing
+    // transactSerializable reruns the transaction; the claim must not retry
+    // or swallow it.
+    const boom = Object.assign(new Error('could not serialize access'), {
+      code: '40001',
+    });
+    const statements: string[] = [];
+    const tag = (strings: TemplateStringsArray): Promise<unknown[]> => {
+      statements.push(strings.join('?'));
+      return Promise.reject(boom);
+    };
+    Object.assign(tag, { json: (value: unknown) => value });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and `json` are exercised
+    const sql = tag as unknown as Sql;
+    await expect(
+      appendMessageRow(sql, MESSAGE, { sleep: () => Promise.resolve() }),
+    ).rejects.toBe(boom);
+    expect(insertsOf(statements)).toBe(1);
   });
 
   it('fails loudly, and writes nothing else, once the deadline is spent', async () => {
