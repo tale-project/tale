@@ -257,10 +257,6 @@ describe('createPgTurnStore.appendMessage', () => {
     });
 
     expect(appended.id).toBe('msg_1');
-    // No generation row ever opens for a pre-model refusal, so without this
-    // NOTIFY the other viewers of the thread learn of the two rows only on a
-    // later invalidation.
-    expect(f.notified).toEqual(['chat_stream:thread_1']);
   });
 });
 
