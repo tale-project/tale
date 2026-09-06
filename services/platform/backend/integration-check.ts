@@ -35699,13 +35699,12 @@ async function checkDataResidency(
     });
   process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
 
-  // --- Deployment: read view, editor gate, hash OCC, secrets ------------
+  // --- Deployment: read view, editor gate, hash OCC, retired section ----
   const readFresh = z
     .object({
       config: z.object({ version: z.number() }).loose(),
       hash: z.null(),
       canEdit: z.boolean(),
-      secrets: z.record(z.string(), z.object({ present: z.boolean() }).loose()),
     })
     .loose()
     .safeParse(await (await get('/api/app/deployment/config')).json());
@@ -35729,40 +35728,46 @@ async function checkDataResidency(
     config: { version: 1 },
     expectedHash: 'not-the-hash',
   });
-  const secretSaved = z.object({ ok: z.boolean() }).safeParse(
-    await (
-      await post('/api/app/deployment/secrets', {
-        secrets: {
-          'dataStores.convexStorage.accessKeyId': 'AKITEST1234567890',
-        },
-      })
-    ).json(),
-  );
-  const badSecret = await post('/api/app/deployment/secrets', {
-    secrets: { 'not.a.known.key': 'x' },
-  });
-  const readSecrets = z
+  // The Convex-era `dataStores` section (saved by the old Data residency
+  // page, read by no boot path) is dropped on read — an operator's older
+  // file keeps parsing — and the save refuses to write it back. Only the
+  // save is allowed to touch the file, so the read must not rewrite it.
+  const { resolveDeploymentConfigPath } =
+    await import('./core/deployment/file_utils.ts');
+  const deploymentConfigPath = resolveDeploymentConfigPath();
+  const legacyFile =
+    'version: 1\n' +
+    'dataStores:\n' +
+    '  knowledgePostgres: { host: pg.acme.internal, database: k, user: u }\n' +
+    '  convexStorage: { mode: local }\n' +
+    'sandboxRuntime: { tier: sysbox }\n';
+  await writeFile(deploymentConfigPath, legacyFile);
+  const legacyRead = z
     .object({
-      secrets: z.record(
-        z.string(),
-        z.object({ present: z.boolean(), masked: z.string().optional() }),
-      ),
+      config: z
+        .object({
+          version: z.number(),
+          sandboxRuntime: z.object({ tier: z.string() }).loose(),
+        })
+        .strict(),
+      hash: z.string(),
     })
     .loose()
     .safeParse(await (await get('/api/app/deployment/config')).json());
-  const maskedPreview = readSecrets.success
-    ? readSecrets.data.secrets['dataStores.convexStorage.accessKeyId']
-    : undefined;
-  const localProbe = z.object({ ok: z.boolean(), hint: z.string() }).safeParse(
-    await (
-      await post('/api/app/deployment/test', {
-        target: 'convexStorage',
-        config: { mode: 'local' },
+  const legacyUntouched =
+    (await readFile(deploymentConfigPath, 'utf8')) === legacyFile;
+  const rejectedLegacySave = await post('/api/app/deployment/config', {
+    config: { version: 1, dataStores: { convexStorage: { mode: 'local' } } },
+  });
+  const resaved = legacyRead.success
+    ? await post('/api/app/deployment/config', {
+        config: legacyRead.data.config,
+        expectedHash: legacyRead.data.hash,
       })
-    ).json(),
-  );
+    : null;
+  const rewritten = await readFile(deploymentConfigPath, 'utf8');
   record(
-    'data residency: deployment config view, editor gate, OCC, secrets',
+    'data residency: deployment config view, editor gate, OCC, retired dataStores dropped',
     readFresh.success &&
       !readFresh.data.canEdit &&
       writeDenied.status === 403 &&
@@ -35771,14 +35776,14 @@ async function checkDataResidency(
       readBack.data.hash === saved.data.hash &&
       readBack.data.canEdit &&
       staleSave.status === 409 &&
-      secretSaved.success &&
-      badSecret.status === 400 &&
-      maskedPreview !== undefined &&
-      maskedPreview.present &&
-      maskedPreview.masked?.startsWith('AKITES') === true &&
-      localProbe.success &&
-      localProbe.data.ok,
-    `fresh=${readFresh.success ? `edit=${readFresh.data.canEdit}` : 'ERR'}, denied=${writeDenied.status} (want 403), saved=${saved.success}, hashMatch=${readBack.success && saved.success ? readBack.data.hash === saved.data.hash : '?'}, stale=${staleSave.status} (want 409), secret=${secretSaved.success}/${badSecret.status}/${maskedPreview?.masked?.slice(0, 6) ?? '?'}, probe=${localProbe.success ? localProbe.data.ok : 'ERR'}`,
+      legacyRead.success &&
+      legacyRead.data.config.sandboxRuntime.tier === 'sysbox' &&
+      legacyUntouched &&
+      rejectedLegacySave.status === 400 &&
+      resaved?.status === 200 &&
+      !rewritten.includes('dataStores') &&
+      rewritten.includes('sysbox'),
+    `fresh=${readFresh.success ? `edit=${readFresh.data.canEdit}` : 'ERR'}, denied=${writeDenied.status} (want 403), saved=${saved.success}, hashMatch=${readBack.success && saved.success ? readBack.data.hash === saved.data.hash : 'n/a'}, stale=${staleSave.status} (want 409), legacyRead=${legacyRead.success ? `tier=${legacyRead.data.config.sandboxRuntime.tier}` : JSON.stringify(legacyRead.error?.issues)}, legacyUntouched=${legacyUntouched}, legacySaveRejected=${rejectedLegacySave.status} (want 400), resaved=${resaved?.status}, rewrittenDroppedSection=${!rewritten.includes('dataStores')}`,
   );
 
   // --- Object storage: connection files + probe + blob backfill ---------
