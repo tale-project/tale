@@ -3240,10 +3240,6 @@ governance:
     userInput: Entrée utilisateur
     modelOutput: Sortie modèle
     maskReplacement: Remplacement du masque
-    preferNonStreaming: Préférer le non-streaming quand le filtre de sortie est activé
-    preferNonStreamingDescription: Attendre la réponse complète avant d'afficher
-      quoi que ce soit. Élimine tout flash bref de contenu non filtré, en
-      échange d'une latence perçue plus élevée.
     categoriesTitle: Catégories
     categoriesDescription:
       Chaque catégorie a son propre mode. block l'emporte sur

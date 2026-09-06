@@ -3059,10 +3059,6 @@ governance:
     userInput: User input
     modelOutput: Model output
     maskReplacement: Mask replacement
-    preferNonStreaming: Prefer non-streaming when output filter is on
-    preferNonStreamingDescription: Wait for the complete response before showing
-      anything. Eliminates any brief flash of unfiltered content in exchange for
-      higher perceived latency.
     categoriesTitle: Categories
     categoriesDescription:
       Each category has its own mode. block wins over mask wins

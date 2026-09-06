@@ -3167,10 +3167,6 @@ governance:
     userInput: Nutzer-Eingabe
     modelOutput: Modell-Ausgabe
     maskReplacement: Maskierungsersatz
-    preferNonStreaming: Non-Streaming bevorzugen, wenn Output-Filter aktiv ist
-    preferNonStreamingDescription: Warte auf die komplette Antwort, bevor etwas
-      angezeigt wird. Verhindert das kurze Aufblitzen ungefilterter Inhalte — im
-      Austausch für höhere gefühlte Latenz.
     categoriesTitle: Kategorien
     categoriesDescription: Jede Kategorie hat ihren eigenen Modus. block schlägt
       mask schlägt flag bei mehreren Treffern.

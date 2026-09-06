@@ -2,7 +2,6 @@
   "enabled": true,
   "maskReplacement": "[REDACTED]",
   "appliesTo": ["input", "output"],
-  "preferNonStreamingForFiltering": false,
   "configVersion": 1,
   "categories": [
     {
