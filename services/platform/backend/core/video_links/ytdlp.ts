@@ -657,8 +657,17 @@ async function runYtdlp(
       } catch {
         try {
           proc.kill(signal);
-        } catch {
-          /* already exited */
+        } catch (err) {
+          // ESRCH is the child already gone; anything else (EPERM) means
+          // the signal never landed and an ffmpeg may be orphaned.
+          const code =
+            err instanceof Error && 'code' in err ? err.code : undefined;
+          if (code !== 'ESRCH') {
+            console.warn(
+              `[ytdlp] ${signal} fallback failed for pid ${pid}:`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
         }
       }
     };

@@ -88,7 +88,6 @@ export interface WebsitesContract {
     kind: 'action';
     args: {
       title?: string;
-      domain?: string;
       description?: string;
       scanInterval?: string;
       websiteId: string;

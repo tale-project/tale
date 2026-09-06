@@ -2,8 +2,6 @@
  * Type definitions for website operations
  */
 
-import type { Id } from '../lib/rows';
-
 export type WebsiteStatus =
   | 'idle'
   | 'scanning'
@@ -41,70 +39,25 @@ export function isValidScanInterval(value: unknown): value is ScanInterval {
   );
 }
 
-export interface Website {
-  _id: string;
-  _creationTime: number;
-  organizationId: string;
-  domain: string;
-  kind?: WebsiteKind;
-  title?: string;
-  description?: string;
-  scanInterval: string;
-  lastScannedAt?: number;
-  status?: WebsiteStatus;
-  pageCount?: number;
-  crawledPageCount?: number;
-  metadata?: Record<string, unknown>;
-}
-
-// =============================================================================
-// MANUAL TYPES (no corresponding validator)
-// =============================================================================
-
-/**
- * Result from getting websites with pagination
- */
-export interface GetWebsitesResult {
-  page: Array<{
-    _id: Id<'websites'>;
-    _creationTime: number;
-    organizationId: string;
-    domain: string;
-    kind?: WebsiteKind;
-    title?: string;
-    description?: string;
-    scanInterval: string;
-    lastScannedAt?: number;
-    status?: WebsiteStatus;
-    metadata?: unknown;
-  }>;
-  isDone: boolean;
-  continueCursor?: string;
-}
-
-/**
- * Result from bulk creating websites
- */
-export interface BulkCreateWebsitesResult {
-  success: number;
-  failed: number;
-  errors: Array<{
-    index: number;
-    error: string;
-    website: unknown;
-  }>;
-}
-
-/**
- * Website data for bulk creation
- */
-export interface BulkWebsiteData {
-  domain: string;
-  title?: string;
-  description?: string;
-  scanInterval: string;
-  status?: WebsiteStatus;
-  metadata?: Record<string, string | number | boolean | null>;
+export function scanIntervalToSeconds(interval: string): number {
+  switch (interval) {
+    case '60m':
+      return 3600;
+    case '6h':
+      return 21600;
+    case '12h':
+      return 43200;
+    case '1d':
+      return 86400;
+    case '5d':
+      return 432000;
+    case '7d':
+      return 604800;
+    case '30d':
+      return 2592000;
+    default:
+      return 21600;
+  }
 }
 
 // =============================================================================
@@ -137,21 +90,6 @@ export interface CrawlerWebsiteInfo {
   error: string | null;
 }
 
-export interface CrawlerPagesResponse {
-  domain: string;
-  pages: CrawlerPage[];
-  total: number;
-  offset: number;
-  has_more: boolean;
-}
-
-export interface FetchPagesResult {
-  pages: CrawlerPage[];
-  total: number;
-  offset: number;
-  hasMore: boolean;
-}
-
 export interface CrawlerChunk {
   chunk_index: number;
   chunk_content: string;
@@ -159,19 +97,6 @@ export interface CrawlerChunk {
   // Prefer this over chunk_content for display/reassembly; chunk_content is
   // removed in Phase 5.
   core_content?: string;
-}
-
-export interface CrawlerChunksResponse {
-  url: string;
-  domain: string;
-  chunks: CrawlerChunk[];
-  total: number;
-}
-
-export interface FetchChunksResult {
-  url: string;
-  chunks: CrawlerChunk[];
-  total: number;
 }
 
 export interface CrawlerSearchResult {
@@ -184,16 +109,4 @@ export interface CrawlerSearchResult {
   // Adjacent-chunk hits duplicate overlap bytes when rendering from
   // chunk_content; prefer core_content once rollout completes.
   core_content?: string;
-}
-
-export interface CrawlerSearchResponse {
-  query: string;
-  results: CrawlerSearchResult[];
-  total: number;
-}
-
-export interface SearchContentResult {
-  query: string;
-  results: CrawlerSearchResult[];
-  total: number;
 }
