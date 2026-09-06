@@ -139,6 +139,9 @@ export interface BuilderModelArgs {
   target: BuilderModelTarget;
   /** Ceiling for one reply; defaults to a full document's worth. */
   maxTokens?: number;
+  /** The caller's own deadline: when it fires the provider request is torn
+   * down at once instead of running on to the client's request timeout. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -182,6 +185,7 @@ export function createBuilderModel(
         body: request.body,
         timeoutMs: REQUEST_TIMEOUT_MS,
         maxResponseBytes: MAX_RESPONSE_BYTES,
+        ...(args.signal !== undefined ? { signal: args.signal } : {}),
       });
     } catch (error) {
       if (error instanceof SafeFetchError) {

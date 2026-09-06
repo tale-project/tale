@@ -1,8 +1,7 @@
 /**
  * Episode 10 — "Bonus: Tale for developers". The builder's lap: scoped API
  * keys, the API surfaces (REST, MCP, WebDAV), webhook triggers on agents,
- * external external agents working in sandboxes, and the run-code policy that
- * keeps package installs and network egress contained. Closes the series.
+ * external external agents working in sandboxes. Closes the series.
  *
  * AI-literacy beat: power tools in a contained blast radius — scoped keys,
  * sandboxes, default-deny networks.
@@ -84,15 +83,6 @@ export const EP10_DEVELOPERS: EpisodeSpec = {
         en: 'And the heavy machinery: external external agents — Claude Code, Cursor, and their peers — work inside Tale in their own sandboxes. They plan, write files, run commands… inside a box that starts empty and stays disconnected except for what the policy allows.',
         de: 'Und das schwere Gerät: externe Coding-Agenten — Claude Code, Cursor und ihre Kollegen — arbeiten in Tale in eigenen Sandboxes. Sie planen, schreiben Dateien, führen Befehle aus … in einer Box, die leer startet und getrennt bleibt, bis auf das, was die Richtlinie erlaubt.',
         fr: 'Et l’artillerie lourde : les agents de code externes — Claude Code, Cursor et leurs pairs — travaillent dans Tale dans leurs propres bacs à sable. Ils planifient, écrivent des fichiers, lancent des commandes… dans une boîte qui démarre vide et reste déconnectée, sauf ce que la politique autorise.',
-      },
-    },
-    {
-      id: 'run-code-policy',
-      minMs: 13_000,
-      narration: {
-        en: 'That policy is explicit and yours: which packages may install, which hosts code may reach. Cloud metadata and private ranges are always refused, and when the egress proxy is down, nothing gets out — the system fails closed, never open.',
-        de: 'Diese Richtlinie ist explizit und gehört euch: welche Pakete installiert werden dürfen, welche Hosts Code erreichen darf. Cloud-Metadaten und private Netzbereiche sind immer verweigert, und fällt der Egress-Proxy aus, kommt nichts hinaus — das System schließt im Fehlerfall, es öffnet nie.',
-        fr: 'Cette politique est explicite et vous appartient : quels paquets peuvent s’installer, quels hôtes le code peut atteindre. Les métadonnées cloud et les plages privées sont toujours refusées, et si le proxy de sortie tombe, rien ne sort — le système échoue fermé, jamais ouvert.',
       },
     },
     {

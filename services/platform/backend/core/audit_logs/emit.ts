@@ -1,6 +1,9 @@
+import type {
+  AuditContext,
+  AuditLogCategory,
+} from '../../domains/audit_logs/types.ts';
 import type { MutationCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
-import type { AuditContext, AuditLogCategory } from './types';
 
 interface EmitAuditSuccessOptions {
   auditCtx: AuditContext;

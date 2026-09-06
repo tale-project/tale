@@ -104,12 +104,14 @@ export interface TokenExchangeParams {
 }
 
 /**
- * Redeem an authorization code. Never throws for a vendor-side outcome — every
- * failure is a typed result the caller can render without leaking anything.
+ * The one request shape both grants share: a form-encoded POST to the vendor's
+ * token endpoint, answered as a typed result that carries nothing a log line
+ * should not.
  */
-export async function exchangeAuthorizationCode(
-  params: TokenExchangeParams,
-  fetchImpl: FetchLike = fetch,
+async function postTokenGrant(
+  tokenUrl: string,
+  body: URLSearchParams,
+  fetchImpl: FetchLike,
 ): Promise<TokenExchangeResult> {
   // The token endpoint comes from the shipped catalog (schema-validated as a
   // URL), so this is defense in depth against a tampered config file rather
@@ -117,7 +119,7 @@ export async function exchangeAuthorizationCode(
   // the tokens on the wire.
   let parsedUrl: URL;
   try {
-    parsedUrl = new URL(params.tokenUrl);
+    parsedUrl = new URL(tokenUrl);
   } catch {
     console.error('[connectors:oauth2] connector token URL is not a URL');
     return { ok: false, reason: 'vendor_unreachable' };
@@ -128,15 +130,6 @@ export async function exchangeAuthorizationCode(
     );
     return { ok: false, reason: 'vendor_unreachable' };
   }
-
-  const body = new URLSearchParams({
-    grant_type: 'authorization_code',
-    code: params.code,
-    redirect_uri: params.redirectUri,
-    client_id: params.clientId,
-    client_secret: params.clientSecret,
-    code_verifier: params.codeVerifier,
-  });
 
   let response: Response;
   try {
@@ -208,4 +201,58 @@ export async function exchangeAuthorizationCode(
       teamName: team ? getString(team, 'name') : undefined,
     },
   };
+}
+
+/**
+ * Redeem an authorization code. Never throws for a vendor-side outcome — every
+ * failure is a typed result the caller can render without leaking anything.
+ */
+export async function exchangeAuthorizationCode(
+  params: TokenExchangeParams,
+  fetchImpl: FetchLike = fetch,
+): Promise<TokenExchangeResult> {
+  return postTokenGrant(
+    params.tokenUrl,
+    new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: params.code,
+      redirect_uri: params.redirectUri,
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+      code_verifier: params.codeVerifier,
+    }),
+    fetchImpl,
+  );
+}
+
+export interface TokenRefreshParams {
+  readonly tokenUrl: string;
+  readonly refreshToken: string;
+  readonly clientId: string;
+  readonly clientSecret: string;
+}
+
+/**
+ * Renew an access token from the grant's refresh token — the same scrubbed
+ * server-to-server call as the code exchange, with the `refresh_token` grant.
+ * A vendor that omits `refresh_token` in its answer keeps the old one valid
+ * (Google), one that rotates it sends a new one (Microsoft); the caller keeps
+ * whichever it holds after this. `vendor_rejected` means the grant is dead
+ * (`invalid_grant`: revoked, expired, or consent withdrawn) and only a new
+ * consent restores it; the other two reasons say nothing about the grant.
+ */
+export async function refreshAccessToken(
+  params: TokenRefreshParams,
+  fetchImpl: FetchLike = fetch,
+): Promise<TokenExchangeResult> {
+  return postTokenGrant(
+    params.tokenUrl,
+    new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: params.refreshToken,
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+    }),
+    fetchImpl,
+  );
 }

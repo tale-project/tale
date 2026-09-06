@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { isPrivateIp } from './safe-fetch';
+import { isPrivateIp, safeFetch, SafeFetchError } from './safe-fetch';
 
 describe('lib/http/safe_fetch.isPrivateIp', () => {
   it.each([
@@ -41,5 +41,51 @@ describe('lib/http/safe_fetch.isPrivateIp', () => {
     '11.0.0.1', // just outside 10/8
   ])('accepts public host / address: %s', (host) => {
     expect(isPrivateIp(host)).toBe(false);
+  });
+});
+
+describe('lib/http/safe_fetch.signal', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('tears the request down when the caller aborts, as its own kind', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: { signal: AbortSignal }) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal.addEventListener('abort', () => {
+              const error = new Error('The operation was aborted');
+              error.name = 'AbortError';
+              reject(error);
+            });
+          }),
+      ),
+    );
+    const caller = new AbortController();
+    const pending = safeFetch('https://example.com/slow', {
+      signal: caller.signal,
+      timeoutMs: 60_000,
+    });
+    caller.abort();
+
+    await expect(pending).rejects.toMatchObject({
+      name: 'SafeFetchError',
+      kind: 'aborted',
+    });
+  });
+
+  it('refuses at once when the caller signal is already aborted', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const caller = new AbortController();
+    caller.abort();
+
+    await expect(
+      safeFetch('https://example.com/slow', { signal: caller.signal }),
+    ).rejects.toBeInstanceOf(SafeFetchError);
+    // No request left the process.
+    expect(fetchSpy).toHaveBeenCalledTimes(0);
   });
 });

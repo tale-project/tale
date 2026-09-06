@@ -64,10 +64,11 @@ export function ensureEncryptionSecret(env: NodeJS.ProcessEnv): void {
  * host `bun dev` backend can't — point it at the port compose publishes to
  * localhost (the `knowledge-db` service maps 5433:5432) so RAG works with zero
  * setup. Inherited by the host backend through its spawn env. An explicit
- * KNOWLEDGE_DATABASE_URL / RAG_DATABASE_URL wins; needs DB_PASSWORD.
+ * KNOWLEDGE_DATABASE_URL wins (the retired RAG_DATABASE_URL alias is ignored —
+ * nothing reads it any more); needs DB_PASSWORD.
  */
 export function ensureKnowledgeDatabaseUrl(env: NodeJS.ProcessEnv): void {
-  if (env.KNOWLEDGE_DATABASE_URL || env.RAG_DATABASE_URL) return;
+  if (env.KNOWLEDGE_DATABASE_URL) return;
   const password = env.DB_PASSWORD;
   if (!password) {
     warnLine(

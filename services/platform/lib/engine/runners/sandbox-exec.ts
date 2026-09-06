@@ -4,19 +4,18 @@
  *
  * Every template expression, transform body, and connector mock/live body an
  * agent authors is untrusted. The bundled `node-vm` backend runs those bodies
- * IN-PROCESS and is honest that it is not a security boundary: a determined
- * payload can climb out of a vm context, and vm's `timeout` only bounds
- * synchronous work — it cannot interrupt a body parked inside `await`. This
- * backend closes both gaps by running the body OUT OF PROCESS, in the
- * platform's isolated per-org sandbox session, reached through an injected
- * transport:
+ * in a supervised child process on the same host and is honest that it is a
+ * fault boundary, not a security boundary: a determined payload can climb out
+ * of a vm context into a process that shares the host's user, filesystem and
+ * network. This backend closes that gap by running the body in the platform's
+ * isolated per-org sandbox session, reached through an injected transport:
  *
- *  - **Out of process** — the code never executes in the engine's process, so
- *    an escape lands in a disposable sandbox rather than in the host.
+ *  - **Isolated** — the code never executes on the engine's host, so an
+ *    escape lands in a disposable sandbox rather than next to the platform.
  *  - **A hard, killable deadline** — `limits.timeoutMs` crosses to the
  *    transport on every run, and the transport enforces it by KILLING the
  *    sandbox process when it overruns. A body wedged inside `await` is bounded
- *    exactly like a busy loop, which the in-process fallback can never promise.
+ *    exactly like a busy loop.
  *  - **Data-only, preserved exactly** — the scope crosses as JSON and the
  *    result returns as JSON, so agent code can never hold a host reference: a
  *    function, socket, or prototype simply is not representable on the wire.

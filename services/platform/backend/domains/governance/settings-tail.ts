@@ -9,6 +9,7 @@ import {
   RETENTION_CATEGORIES,
   type RetentionCategory,
 } from '../../../lib/shared/schemas/retention.ts';
+import type { ChatFilterEventInput } from '../../core/governance/chat_filter_events.ts';
 import { isLoosening } from '../../core/governance/dsar_policy.ts';
 import { RETENTION_POLICY_FIELD_BY_CATEGORY } from '../../core/governance/retention_floors.ts';
 import { decryptSecret, encryptSecret } from '../../core/lib/secret_box.ts';
@@ -402,11 +403,6 @@ export async function cancelPendingRetentionChange(
       404,
     );
   }
-  await writeGovernancePolicyFile(
-    orgSlug,
-    'retention_policy',
-    pending.oldConfig,
-  );
   await sql.begin(async (tx) => {
     await tx`
       DELETE FROM app.retention_policy_pending_changes
@@ -428,6 +424,14 @@ export async function cancelPendingRetentionChange(
       entity: 'governance_policy',
       entityId: 'retention_policy',
     });
+    // The revert LAST, inside the transaction: a failed transaction must
+    // not leave the cancel visible on disk while the pending shortening row
+    // survives to be applied anyway.
+    await writeGovernancePolicyFile(
+      orgSlug,
+      'retention_policy',
+      pending.oldConfig,
+    );
   });
 }
 
@@ -448,11 +452,13 @@ export interface DsarPendingView {
 async function readDsarConfig(
   sql: Sql,
   organizationId: string,
+  options: { fresh?: boolean } = {},
 ): Promise<DsarGovernanceConfig> {
   const raw = await readGovernancePolicyForOrg(
     sql,
     organizationId,
     'dsar_governance',
+    options,
   );
   if (raw === null) return DEFAULT_DSAR_GOVERNANCE;
   const parsed = dsarGovernanceConfigSchema.safeParse(raw);
@@ -630,7 +636,11 @@ export async function proposeDsarPolicy(
       'A pending DSAR policy change is already staged. Cancel it before proposing a new one.',
     );
   }
-  const current = await readDsarConfig(sql, auth.organizationId);
+  // The file as it IS (not the TTL cache), so the audit row names the
+  // config this proposal replaces.
+  const current = await readDsarConfig(sql, auth.organizationId, {
+    fresh: true,
+  });
   const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
   if (orgSlug === null) {
     throw new GovernanceTailError(
@@ -640,8 +650,8 @@ export async function proposeDsarPolicy(
     );
   }
   if (!isLoosening(current, config)) {
-    // Tightening (or no-op): effective immediately.
-    await writeGovernancePolicyFile(orgSlug, 'dsar_governance', config);
+    // Tightening (or no-op): effective immediately — audited first, the
+    // file written last inside the same transaction.
     await sql.begin(async (tx) => {
       await createAuditLog(tx, {
         organizationId: auth.organizationId,
@@ -661,6 +671,7 @@ export async function proposeDsarPolicy(
         entity: 'governance_policy',
         entityId: 'dsar_governance',
       });
+      await writeGovernancePolicyFile(orgSlug, 'dsar_governance', config);
     });
     return { staged: false };
   }
@@ -861,6 +872,31 @@ export interface ChatFilterEventRow {
   attempt: number | null;
   agentSlug: string | null;
   createdAt: number;
+}
+
+/** The PRODUCER of the table the Security page lists and the stats fold
+ * reads — one row per non-pass guardrail verdict of a chat turn. */
+export async function recordChatFilterEvent(
+  sql: Sql,
+  organizationId: string,
+  event: ChatFilterEventInput,
+): Promise<void> {
+  await sql`
+    INSERT INTO app.chat_filter_events (
+      org_id, sanitization_run_id, thread_id, message_id, filter_name,
+      direction, kind, category_ids, match_count, truncated, error_class,
+      http_status, duration_ms, attempt, agent_slug, actor_type,
+      created_at_ms
+    ) VALUES (
+      ${organizationId}, ${event.sanitizationRunId}, ${event.threadId},
+      ${event.messageId ?? null}, ${event.filterName}, ${event.direction},
+      ${event.kind}, ${sql.array([...event.categoryIds])},
+      ${event.matchCount ?? null}, ${event.truncated ?? null},
+      ${event.errorClass ?? null}, ${event.httpStatus ?? null},
+      ${event.durationMs ?? null}, ${event.attempt ?? null},
+      ${event.agentSlug ?? null}, ${event.actorType ?? null}, ${Date.now()}
+    )
+  `;
 }
 
 export async function listRecentChatFilterEvents(

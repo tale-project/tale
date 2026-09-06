@@ -2,7 +2,6 @@ import { spawn as nodeSpawn } from 'node:child_process';
 import { createServer as nodeCreateServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import vm from 'node:vm';
 
 import {
   afterEach,
@@ -14,7 +13,7 @@ import {
   vi,
 } from 'vitest';
 
-import { setCodeRunner, type CodeRunner } from '../engine/core/runner';
+import { setCodeRunner } from '../engine/core/runner';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import {
   createSandboxExecRunner,
@@ -33,6 +32,7 @@ import {
   type NativeConnectorContext,
 } from './dispatcher';
 import { CONNECTOR_CODES, ConnectorError } from './errors';
+import { inProcessLiveRunner } from './in-process-live';
 
 /**
  * The dispatcher is the only door into a connector, so these tests are about
@@ -48,33 +48,6 @@ const SYSTEM_ROOT = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   '../../../../configs/platform/system',
 );
-
-/**
- * A CodeRunner that can hand a live body the host's capability functions.
- *
- * The bundled node-vm runner is data-only by contract — a scope crosses it as
- * JSON — so it can run a mock body but cannot give a live body `ctx.http`.
- * Live execution therefore needs a backend able to proxy host capabilities;
- * this test double is the smallest thing with that property (it is emphatically
- * NOT a sandbox: the body is compiled in this realm).
- */
-function liveCapableRunner(): CodeRunner {
-  const base = nodeVmRunner();
-  return {
-    ...base,
-    runBody: async (code, scope, limits, opts) => {
-      if (opts?.async !== true) return base.runBody(code, scope, limits, opts);
-      const body = vm.runInThisContext(
-        `(async function (input, ctx) {\n${code}\n})`,
-      ) as (input: unknown, ctx: unknown) => Promise<unknown>;
-      return body(scope.input, scope.ctx);
-    },
-    // Identify as what it is: the dispatcher refuses live yaml-js on the
-    // data-only 'node-vm' backend, and this double is exactly the
-    // host-capable runner that rule waits for.
-    kind: () => 'live-capable-test',
-  };
-}
 
 /** A connector that exists only here, so the dispatch rules can be exercised
  * without depending on any shipped vendor's shape. */
@@ -220,7 +193,9 @@ let fetchStub: ReturnType<typeof vi.fn>;
 let shipped: Connector[];
 
 beforeAll(() => {
-  setCodeRunner(liveCapableRunner());
+  // The host-capable in-process runner the connectors door hands every live
+  // caller without a sandbox session.
+  setCodeRunner(inProcessLiveRunner());
   shipped = loadConnectorCatalog(SYSTEM_ROOT);
 });
 
@@ -532,7 +507,7 @@ describe('live yaml-js backend', () => {
       ).rejects.toMatchObject({ code: 'LIVE_RUNNER_UNAVAILABLE' });
       expect(fetchStub).not.toHaveBeenCalled();
     } finally {
-      setCodeRunner(liveCapableRunner());
+      setCodeRunner(inProcessLiveRunner());
     }
   });
 
@@ -564,6 +539,39 @@ describe('live yaml-js backend', () => {
     expect(init.headers.Authorization).toBe('Bearer resolved-token');
   });
 
+  it('runs a workflow caller with no session on the in-process live runner', async () => {
+    // Automation runs and chat own no sandbox session, so the door hands them
+    // the in-process runner per invocation — the body reaches its vendor
+    // through the mediated host, with the resolved credential applied.
+    setCodeRunner(nodeVmRunner());
+    try {
+      const result = await executeConnectorAction({
+        connector: 'demo',
+        action: 'echo',
+        input: { message: 'from a run' },
+        credentialRef: 'primary',
+        caller: { kind: 'workflow', runId: 'run_1', nodeId: 'n1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          codeRunner: inProcessLiveRunner(),
+        },
+      });
+      expect(result).toMatchObject({ status: 'ok', backend: 'yaml-js' });
+      expect(result.status === 'ok' && result.output).toMatchObject({
+        echoed: 'from the vendor',
+        status: 200,
+        token: 'sekrit',
+      });
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      const [, init] = fetchStub.mock.calls[0];
+      expect(init.headers.Authorization).toBe('Bearer resolved-token');
+    } finally {
+      setCodeRunner(inProcessLiveRunner());
+    }
+  });
+
   it('derives a retry-stable idempotency key and lets a caller override it', async () => {
     const run = (idempotencyKey?: string) =>
       executeConnectorAction({
@@ -586,6 +594,37 @@ describe('live yaml-js backend', () => {
         : undefined;
     expect(keyOf(first)).toBe(keyOf(second));
     expect(keyOf(await run('run_1:n1:0'))).toBe('run_1:n1:0');
+  });
+
+  it('derives a collision-resistant key — the approvals identity, not a checksum', async () => {
+    // These two bodies collide under the 32-bit FNV-1a the key used to be
+    // (both hash to 5add3855 for org_test_1/demo.send): with that key the
+    // second write would have inherited the first one's completed approval.
+    const seen: string[] = [];
+    const approvals: ApprovalGate = {
+      check: async (request) => {
+        seen.push(request.idempotencyKey);
+        return { status: 'allowed' };
+      },
+    };
+    for (const message of ['hello 53zx', 'hello cpad']) {
+      await executeConnectorAction({
+        connector: 'demo',
+        action: 'send',
+        input: { message },
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          approvals,
+        },
+      });
+    }
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toMatch(/^demo\.send:[0-9a-f]{64}$/);
+    expect(seen[1]).toMatch(/^demo\.send:[0-9a-f]{64}$/);
+    expect(seen[0]).not.toBe(seen[1]);
   });
 
   it('reports a failing live body as a coded error, not as output', async () => {
@@ -777,6 +816,66 @@ describe('caller modes', () => {
         ctx: { organizationId: ORG, mode: 'live', credentials: resolver() },
       }),
     ).rejects.toMatchObject({ code: 'APPROVAL_GATE_MISSING' });
+  });
+
+  it("records a rejected approval and surfaces the gate's own code", async () => {
+    const audit = auditSink();
+    const approvals: ApprovalGate = {
+      check: async () => {
+        throw new ConnectorError('APPROVAL_REJECTED', 'a human said no');
+      },
+    };
+    await expect(
+      executeConnectorAction({
+        connector: 'demo',
+        action: 'send',
+        input: { message: 'hi' },
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          approvals,
+          audit,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'APPROVAL_REJECTED' });
+    expect(audit.records).toHaveLength(1);
+    expect(audit.records[0]).toMatchObject({
+      outcome: 'error',
+      error: 'a human said no',
+    });
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('records a gate that cannot answer as a gating failure, not a body failure', async () => {
+    const audit = auditSink();
+    const approvals: ApprovalGate = {
+      check: async () => {
+        throw new Error('approvals store unreachable');
+      },
+    };
+    await expect(
+      executeConnectorAction({
+        connector: 'demo',
+        action: 'send',
+        input: { message: 'hi' },
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          approvals,
+          audit,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'APPROVAL_GATE_MISSING' });
+    expect(audit.records).toEqual([
+      expect.objectContaining({
+        outcome: 'error',
+        error: 'approvals store unreachable',
+      }),
+    ]);
   });
 
   it('lets the system caller skip approvals — and records why', async () => {
