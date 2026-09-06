@@ -75,11 +75,11 @@ Nimm `run_deployed`, wenn die Automatisierung schnell ist und du einen Aufruf mi
 
 | Tool                  | Was es tut                                                                                                                                |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `search_capabilities` | Alles durchsuchen, was diese Organisation kann — ihre Automatisierungen, Connectorsaktionen, Skills und Tools.                            |
+| `search_capabilities` | Alles durchsuchen, was diese Organisation kann — ihre deployten Automatisierungen, nach Name und Beschreibung.                            |
 | `invoke_capability`   | Eine Capability per id aufrufen. Eine Aktion, die die Organisation gated, antwortet mit einem Pending-Approval-Ergebnis, statt zu laufen. |
 | `get_knowledge`       | Passagen aus dem Wissen der Organisation abrufen — ihren Dokumenten und ihren gecrawlten Webseiten.                                       |
 
-In dieser Version hält die Registry die deployten Automatisierungen der Organisation — `invoke_capability` auf einer davon ist derselbe Akt wie `run_deployed`. Builtin-Tools, Skills und externe MCP-Server sind hier nicht registriert; ein Aufruf, der zu einem davon führt, antwortet mit einer lesbaren Ablehnung, nicht mit einem Fehler. Eine Capability, die die Organisation hinter eine Freigabe stellt, läuft nicht lautlos — `invoke_capability` antwortet mit einem Pending-Approval-Ergebnis, das das Modell weitergeben kann.
+In dieser Version hält die Registry die deployten Automatisierungen der Organisation — `invoke_capability` auf einer davon ist derselbe Akt wie `run_deployed`. Builtin-Tools, Connector-Aktionen, Skills und externe MCP-Server gehören nicht zu dieser Registry; eine id, die keine deployte Automatisierung ist, bekommt eine lesbare Ablehnung, keinen Fehler. Eine Capability, die die Organisation hinter eine Freigabe stellt, läuft nicht lautlos — `invoke_capability` antwortet mit einem Pending-Approval-Ergebnis, das das Modell weitergeben kann.
 
 ## Was der Schlüssel darf
 

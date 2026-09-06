@@ -3,7 +3,8 @@
  *
  * The properties: every window stays under the engine clamp, the pieces
  * join back to the input exactly, a match past the clamp is found in every
- * mode, a rewritten document keeps its length, and a truncated window —
+ * mode, a rewritten document keeps its length, no window cut ever falls
+ * inside an identifier the engine would detect, and a truncated window —
  * whatever verdict it came back with, a `pass` included — is rescanned in
  * halves rather than returned.
  */
@@ -21,6 +22,7 @@ import {
   pass,
   scrubDocument,
   splitIntoWindows,
+  type PiiPattern,
   type Scrubber,
 } from '../../lib/pii';
 
@@ -42,9 +44,33 @@ function longText(head: string, tail: string): string {
   return [head, FILLER.repeat(2_500), tail].join('\n');
 }
 
-function fakeScrubber(scrub: Scrubber['scrub']): Scrubber {
-  return { scrub, patterns: [], locales: [] };
+function fakeScrubber(
+  scrub: Scrubber['scrub'],
+  patterns: PiiPattern[] = [],
+): Scrubber {
+  return { scrub, patterns, locales: [] };
 }
+
+/**
+ * Identifiers placed so that the preferred cut — the last space in the
+ * second half of the first window — falls inside them: the head is one
+ * unbroken word, so the only separators in range are the identifier's own.
+ * A single-line CSV export or minified text has exactly this shape. The
+ * filler is a character outside every enabled pattern's classes: on a
+ * letter run the email regex backtracks quadratically (hundreds of
+ * milliseconds per scan here, past the test timeout on a saturated CI
+ * worker) without changing any verdict.
+ */
+const STRADDLE_HEAD = '#'.repeat(WINDOW_CHARS - 10);
+const STRADDLE_CARD = `${STRADDLE_HEAD} 4111 1111 1111 1111 rest of the line`;
+const STRADDLE_IBAN = `${STRADDLE_HEAD} DE89 3704 0044 0532 0130 00 rest`;
+const STRADDLE_PHONE = `${STRADDLE_HEAD} +49 30 12345678 rest of the line`;
+/**
+ * No separator at all: the hard cut lands inside the address. A letter head
+ * would also be swallowed into the local part and make the whole text one
+ * match.
+ */
+const STRADDLE_EMAIL = `${STRADDLE_HEAD}ada.lovelace@example.com${'#'.repeat(50)}`;
 
 describe('splitIntoWindows', () => {
   it('keeps every window under the size and joins back to the input', () => {
@@ -78,6 +104,93 @@ describe('splitIntoWindows', () => {
 
   it('returns one window for a short text', () => {
     expect(splitIntoWindows('short', WINDOW_CHARS)).toEqual(['short']);
+  });
+
+  it('baseline: cuts inside a spaced identifier when given no patterns to check', () => {
+    // The pre-fix defect, pinned as the baseline the checked cut below is
+    // measured against, not as desired behaviour: without patterns the
+    // space inside the card number is the preferred cut. The only
+    // production caller (`scrubDocument`) always passes the scrubber's
+    // patterns.
+    const [first, second] = splitIntoWindows(STRADDLE_CARD, WINDOW_CHARS);
+    expect(first?.endsWith(' 4111 ')).toBe(true);
+    expect(second?.startsWith('1111 1111 1111 ')).toBe(true);
+  });
+
+  describe('with the patterns to keep whole', () => {
+    const { patterns } = createScrubber({
+      mode: 'mask',
+      registry: REGISTRY,
+      patterns: { email: true, creditCard: true, iban: true, phone: true },
+    });
+
+    it.each([
+      ['card number', STRADDLE_CARD, '4111 1111 1111 1111'],
+      ['IBAN', STRADDLE_IBAN, 'DE89 3704 0044 0532 0130 00'],
+      ['phone number', STRADDLE_PHONE, '+49 30 12345678'],
+      ['email at a hard cut', STRADDLE_EMAIL, 'ada.lovelace@example.com'],
+    ])('keeps a straddling %s whole in one window', (_, text, identifier) => {
+      const windows = splitIntoWindows(text, WINDOW_CHARS, patterns);
+      expect(windows.join('')).toBe(text);
+      for (const w of windows) {
+        expect(w.length).toBeLessThanOrEqual(WINDOW_CHARS);
+      }
+      expect(windows.filter((w) => w.includes(identifier))).toHaveLength(1);
+    });
+
+    it('moves the cut back to the separator before the identifier', () => {
+      const [first, second] = splitIntoWindows(
+        STRADDLE_CARD,
+        WINDOW_CHARS,
+        patterns,
+      );
+      expect(first).toBe(`${STRADDLE_HEAD} `);
+      expect(second).toBe('4111 1111 1111 1111 rest of the line');
+    });
+
+    it('never ends a window inside a digit group of a dense single line', () => {
+      // A CSV export without line breaks: every second-half separator sits
+      // next to or inside an identifier, so cuts move on most windows.
+      const row =
+        'Ada Lovelace,4111 1111 1111 1111,DE89 3704 0044 0532 0130 00,+49 30 12345678,ada@example.com,';
+      const text = row.repeat(Math.ceil((WINDOW_CHARS * 6) / row.length));
+      const windows = splitIntoWindows(text, WINDOW_CHARS, patterns);
+      expect(windows.length).toBeGreaterThan(5);
+      expect(windows.join('')).toBe(text);
+      for (const w of windows) {
+        expect(w.length).toBeLessThanOrEqual(WINDOW_CHARS);
+      }
+      // Every identifier survives whole in some window: the windows hold
+      // exactly as many copies as the text does.
+      const count = (haystack: string, needle: string): number =>
+        haystack.split(needle).length - 1;
+      for (const identifier of [
+        '4111 1111 1111 1111',
+        'DE89 3704 0044 0532 0130 00',
+        '+49 30 12345678',
+      ]) {
+        expect(windows.reduce((n, w) => n + count(w, identifier), 0)).toBe(
+          count(text, identifier),
+        );
+      }
+    });
+
+    it('cuts an identifier longer than a window like any text, and ends', () => {
+      // A JWT-shaped run longer than the window: the engine cannot see it
+      // whole anywhere, so the split is unavoidable — the cut stands.
+      const { patterns: jwt } = createScrubber({
+        mode: 'mask',
+        registry: REGISTRY,
+        patterns: { jwt: true },
+      });
+      const token = `eyJ${'a'.repeat(WINDOW_CHARS)}.eyJ${'b'.repeat(40)}.sig`;
+      const windows = splitIntoWindows(`head ${token} tail`, WINDOW_CHARS, jwt);
+      expect(windows.join('')).toBe(`head ${token} tail`);
+      expect(windows.length).toBeGreaterThan(1);
+      for (const w of windows) {
+        expect(w.length).toBeLessThanOrEqual(WINDOW_CHARS);
+      }
+    });
   });
 });
 
@@ -119,6 +232,66 @@ describe('scrubDocument over the engine', () => {
     expect(scrubDocument(mask, longText('clean', 'also clean'))).toEqual(
       pass(),
     );
+  });
+
+  describe('an identifier straddling the window cut', () => {
+    const straddle = createScrubber({
+      mode: 'block',
+      registry: REGISTRY,
+      patterns: { email: true, creditCard: true, iban: true, phone: true },
+    });
+    const straddleMask = createScrubber({
+      mode: 'mask',
+      registry: REGISTRY,
+      patterns: { email: true, creditCard: true, iban: true, phone: true },
+    });
+
+    it.each([
+      ['card number', STRADDLE_CARD, 'creditCard', '4111 1111 1111 1111'],
+      ['IBAN', STRADDLE_IBAN, 'iban', 'DE89 3704 0044 0532 0130 00'],
+      ['phone number', STRADDLE_PHONE, 'phone', '+49 30 12345678'],
+      [
+        'email at a hard cut',
+        STRADDLE_EMAIL,
+        'email',
+        'ada.lovelace@example.com',
+      ],
+    ])('is blocked and masked: %s', (_, text, category, identifier) => {
+      // The engine sees the identifier in a message; the document scan
+      // must not lose it to the cut.
+      expect(straddle.scrub(`x ${identifier} y`).kind).toBe('blocked');
+      expect(scrubDocument(straddle, text)).toEqual(blocked([category], 1));
+
+      const o = scrubDocument(straddleMask, text);
+      expect(o.kind).toBe('modified');
+      if (o.kind !== 'modified') return;
+      expect(o.text).not.toContain(identifier);
+      expect(o.categoryIds).toEqual([category]);
+      expect(o.matchCount).toBe(1);
+      // Neither half of the identifier survives raw around the token.
+      expect(o.text).toMatch(/# \[(CREDIT_CARD|IBAN|PHONE)\] rest|#\[EMAIL\]#/);
+    });
+  });
+
+  it('normalizes once, so a window is never clamped inside the engine', () => {
+    // The NFC-growing head is normalized before it is windowed: it arrives
+    // at the engine already grown and cut under the clamp, so every window
+    // is scanned exactly once — no truncated verdict, no halving.
+    const calls: number[] = [];
+    const counting: Scrubber = {
+      ...block,
+      scrub: (piece) => {
+        const outcome = block.scrub(piece);
+        calls.push(piece.length);
+        expect(outcome.kind === 'step_error' || !outcome.truncated).toBe(true);
+        return outcome;
+      },
+    };
+    const text = `${NFC_GROWING_HEAD} ${CARD}`;
+    expect(scrubDocument(counting, text)).toEqual(blocked(['creditCard'], 1));
+    const normalizedLength = normalizeForDetection(text).length;
+    expect(normalizedLength).toBeGreaterThan(WINDOW_CHARS);
+    expect(calls).toHaveLength(Math.ceil(normalizedLength / WINDOW_CHARS));
   });
 
   it('blocks an identifier behind a head that doubles under NFC', () => {
@@ -185,9 +358,50 @@ describe('scrubDocument aggregation', () => {
     expect(seen.join('')).toBe('abcdefgh ijkl!mnop qrstuvwx');
   });
 
+  it('halves a truncated window without cutting inside an identifier', () => {
+    // The engine's flag, forced on anything 16 units or longer. The
+    // midpoint cut would fall on the space inside `1234 5678`; the checked
+    // cut moves it back to the space before the identifier.
+    const spaced: PiiPattern = {
+      name: 'x',
+      regex: /\d{4} \d{4}/g,
+      replacement: '[X]',
+    };
+    const seen: string[] = [];
+    const scrubber = fakeScrubber(
+      (text) => {
+        if (text.length >= 16) return pass(true);
+        seen.push(text);
+        return /\d{4} \d{4}/.test(text)
+          ? modified(text.replace(/\d{4} \d{4}/, '[X]'), ['x'], 1)
+          : pass();
+      },
+      [spaced],
+    );
+    const text = 'abcdefghij 1234 5678 klmnopqrstuv';
+    const o = scrubDocument(scrubber, text, { windowBytes: 4 * 40 });
+    expect(seen).toEqual(['abcdefghij ', '1234 5678 ', 'klmnopqrstuv']);
+    expect(o).toEqual(modified('abcdefghij [X] klmnopqrstuv', ['x'], 1));
+  });
+
   it('surfaces a step error instead of indexing an unscanned window', () => {
     const scrubber = fakeScrubber(() => modified('', [], 0, true));
     const o = scrubDocument(scrubber, 'abcd', { windowBytes: 16 });
+    expect(o.kind).toBe('step_error');
+  });
+
+  it('lets a step error outrank a modified window elsewhere', () => {
+    // Deliberate: a partially masked text would present the unscanned
+    // window as scanned. The caller decides fail-open or fail-closed on its
+    // own original text.
+    let calls = 0;
+    const scrubber = fakeScrubber(() => {
+      calls += 1;
+      return calls === 1
+        ? modified('[X]', ['x'], 1)
+        : { kind: 'step_error', filterName: 'pii', reason: 'forced' };
+    });
+    const o = scrubDocument(scrubber, 'one two', { windowBytes: 16 });
     expect(o.kind).toBe('step_error');
   });
 

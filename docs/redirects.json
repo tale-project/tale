@@ -46,6 +46,7 @@
     "tutorials/developer/mcp-server-from-scratch": "develop/mcp-endpoint",
     "tutorials/editor/agent-with-knowledge": "platform/knowledge/overview",
     "tutorials/editor/delegate-between-agents": "platform/projects/task-automation",
-    "tutorials/admin/office-add-in": "platform/connectors/overview"
+    "tutorials/admin/office-add-in": "platform/connectors/overview",
+    "platform/admin/governance/run-code-policy": "self-hosted/operate/security/hardening"
   }
 }

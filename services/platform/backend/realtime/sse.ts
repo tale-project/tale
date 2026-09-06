@@ -63,21 +63,34 @@ async function streamStillAuthorized(
 }
 
 /**
- * Every live `/events` stream of this process. An SSE response never ends on
- * its own — the loop below exits only on client abort — while
- * `server.close()` waits for every open connection: without a proactive end,
- * graceful shutdown hangs until the orchestrator SIGKILLs the process (10s
- * default compose grace), killing in-flight jobs mid-write. Shutdown calls
- * {@link endAllEventStreams}; clients reconnect against the next pod and
- * resume via `Last-Event-ID`.
+ * Every live SSE stream of this process — the `/events` hint stream below
+ * and the per-thread chat progress lane (`domains/chat/routes.ts`). An SSE
+ * response never ends on its own — each loop exits only on client abort —
+ * while `server.close()` waits for every open connection: without a
+ * proactive end, graceful shutdown hangs until the orchestrator SIGKILLs the
+ * process (10s default compose grace), killing in-flight jobs mid-write.
+ * Shutdown calls {@link endAllEventStreams}; clients reconnect against the
+ * next pod (`/events` resumes via `Last-Event-ID`; the chat lane repaints
+ * from the generation row).
  */
 const liveStreams = new Set<SSEStreamingApi>();
 
+/** Enrol a streaming response in the shutdown drain — pair with
+ * {@link unregisterLiveStream} in the loop's `finally`. */
+export function registerLiveStream(stream: SSEStreamingApi): void {
+  liveStreams.add(stream);
+}
+
+export function unregisterLiveStream(stream: SSEStreamingApi): void {
+  liveStreams.delete(stream);
+}
+
 /**
- * Proactively end every live `/events` stream (shutdown path). `abort()`
- * cancels the response readable — the connection goes idle immediately, so
- * `server.close()` can complete — and flips `stream.aborted`, which the poll
- * loop reads as its exit condition. Returns how many streams were ended.
+ * Proactively end every live SSE stream (shutdown path). `abort()` cancels
+ * the response readable — the connection goes idle immediately, so
+ * `server.close()` can complete — and flips `stream.aborted`, which every
+ * poll loop reads as its exit condition. Returns how many streams were
+ * ended.
  */
 export function endAllEventStreams(): number {
   const ended = liveStreams.size;
@@ -147,7 +160,7 @@ export function createEventsHandler(
 
     return streamSSE(c, async (stream) => {
       hintStreamOpened();
-      liveStreams.add(stream);
+      registerLiveStream(stream);
       const resumeCursor =
         resumeFrom !== null && /^\d+$/.test(resumeFrom) ? resumeFrom : null;
       let cursor = resumeCursor ?? (await latestOutboxId(sql));
@@ -221,7 +234,7 @@ export function createEventsHandler(
           await stream.sleep(pollIntervalMs);
         }
       } finally {
-        liveStreams.delete(stream);
+        unregisterLiveStream(stream);
         // Paired with the open above — an aborted stream decrements too, or
         // the gauge climbs forever on client churn.
         hintStreamClosed();

@@ -126,19 +126,16 @@ Approvals before actions ship — and the controls around them.
       <br/><sub><b>Guardrails</b> — content safety, PII detection, and a moderation provider, layered per message</sub>
     </td>
     <td width="50%">
-      <a href="services/docs/public/images/platform/governance-run-code-policy.webp"><img src="services/docs/public/images/platform/governance-run-code-policy.webp" alt="The Run-code policy governance page showing the Denylist and Allowlist mode radiogroup above the Python allow and deny list text areas" width="100%"></a>
-      <br/><sub><b>Run-code policy</b> — allowlist or denylist what sandboxed code may use</sub>
+      <a href="services/docs/public/images/platform/governance-security-monitoring.webp"><img src="services/docs/public/images/platform/governance-security-monitoring.webp" alt="The Security and Monitoring governance page showing login-attempt limit fields and the password-policy character-class requirements" width="100%"></a>
+      <br/><sub><b>Security & monitoring</b> — login-attempt limits and password policy</sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/governance-security-monitoring.webp"><img src="services/docs/public/images/platform/governance-security-monitoring.webp" alt="The Security and Monitoring governance page showing login-attempt limit fields and the password-policy character-class requirements" width="100%"></a>
-      <br/><sub><b>Security & monitoring</b> — login-attempt limits and password policy</sub>
-    </td>
-    <td width="50%">
       <a href="services/docs/public/images/platform/governance-data-subject-requests.webp"><img src="services/docs/public/images/platform/governance-data-subject-requests.webp" alt="The Data subject requests governance page showing the cooling-off window, dual-approval toggle, and daily-limit fields above the erasure-requests table, which holds one pending request with 24 hours left before execution" width="100%"></a>
       <br/><sub><b>Data subject requests</b> — GDPR Art. 17 erasure with cooling-off and dual approval</sub>
     </td>
+    <td width="50%"></td>
   </tr>
 </table>
 

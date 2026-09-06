@@ -737,6 +737,9 @@ export interface ChatTurnHandle {
   readonly outcome: Promise<{
     status: 'completed' | 'refused';
     reason?: string;
+    /** The refusal is on the thread's record (user row + blocked reply) —
+     * the composer must not restore the text. Absent: nothing landed. */
+    persisted?: boolean;
   }>;
 }
 

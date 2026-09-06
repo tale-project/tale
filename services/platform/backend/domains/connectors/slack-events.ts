@@ -9,7 +9,6 @@ import {
   verifySlackSignature,
 } from '../../core/http_connectors/slack_signature.ts';
 import { getClientIp } from '../../core/lib/utils/client_ip.ts';
-import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../../lib/org-config.ts';
 import { rateLimitedPlainResponse } from '../../lib/rate-limit-response.ts';
 import {
@@ -31,8 +30,13 @@ import { resolveTeamRoute } from './oauth.ts';
  *  2. The tenant comes from `team_id` and nowhere else. An unmapped workspace
  *     is refused — never delivered to "the only organization".
  *  3. Slack disables an endpoint that misses its three-second
- *     acknowledgement, so the response goes out as soon as routing is decided
- *     and the work is enqueued.
+ *     acknowledgement, so the response goes out as soon as routing is decided.
+ *
+ * What happens after routing: nothing yet. No surface consumes inbound Slack
+ * events in this version (the conversational lane that would answer them is
+ * not wired), so a verified, routed delivery is logged and acknowledged —
+ * never queued into a handler that would only log it again. When a consumer
+ * lands it takes delivery HERE, after `resolveTeamRoute`.
  *
  * Unverified traffic is throttled by client IP, and tokens are consumed only
  * on FAILURE, so a forged flood is bounded while genuine signed deliveries
@@ -155,35 +159,16 @@ export function createSlackEventRoutes(deps: { sql: Sql }): Hono {
 
     const event = isRecord(payload.event) ? payload.event : undefined;
     if (event) {
-      const eventId = getString(payload, 'event_id');
-      // Enqueued, not awaited: acknowledging inside Slack's three-second
-      // budget is what keeps the endpoint enabled. Slack's own delivery id
-      // is the singleton key, so its at-least-once retries collapse to one
-      // job instead of replaying the event.
-      await addJobInTx(
-        deps.sql,
-        'connector.slack_event',
-        {
-          organizationId: route.organizationId,
-          credentialId: route.credentialId,
-          teamId,
-          ...(eventId !== undefined ? { eventId } : {}),
-          ...(getString(event, 'type') !== undefined
-            ? { eventType: getString(event, 'type') }
-            : {}),
-          event,
-        },
-        {
-          // EVERY job on this queue carries a key: the queue's `short`
-          // policy dedups per key, and a keyless job would share the default
-          // one and lock out every other delivery. A payload with no
-          // `event_id` (nothing to dedup on) gets a unique key instead.
-          singletonKey:
-            eventId === undefined
-              ? `slack:${teamId}:${crypto.randomUUID()}`
-              : `slack:${eventId}`,
-        },
-      );
+      // Verified and routed — and acknowledged, because nothing consumes
+      // inbound Slack events yet (see the module header). The log line is
+      // the whole delivery until a consumer takes it.
+      console.info('[connectors:slack] inbound event acknowledged', {
+        organizationId: route.organizationId,
+        credentialId: route.credentialId,
+        teamId,
+        eventId: getString(payload, 'event_id'),
+        eventType: getString(event, 'type'),
+      });
     }
 
     return new Response(null, {

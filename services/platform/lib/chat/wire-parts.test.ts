@@ -63,6 +63,64 @@ describe('explodeMessagesForWire', () => {
     ]);
   });
 
+  it('answers a call whose result never landed, so the replay is accepted', () => {
+    // A reply the watchdog failed mid-round (or one stored before the
+    // pipeline answered stopped calls): two calls, one result.
+    const stored: ChatMessage = {
+      role: 'assistant',
+      parts: [
+        { type: 'text', text: 'Searching.' },
+        {
+          type: 'tool-call',
+          callId: 'c1',
+          capabilityId: 'rag_search',
+          input: { query: 'returns' },
+        },
+        {
+          type: 'tool-call',
+          callId: 'c2',
+          capabilityId: 'rag_search',
+          input: { query: 'shipping' },
+        },
+        {
+          type: 'tool-result',
+          callId: 'c2',
+          capabilityId: 'rag_search',
+          output: { hits: 1 },
+          structured: true,
+        },
+      ],
+    };
+    const wire = explodeMessagesForWire('', [stored]);
+    expect(wire).toEqual([
+      {
+        role: 'assistant',
+        content: 'Searching.',
+        toolCalls: [
+          { id: 'c1', name: 'rag_search', input: { query: 'returns' } },
+          { id: 'c2', name: 'rag_search', input: { query: 'shipping' } },
+        ],
+      },
+      // The orphan is answered right after its call — before the stored
+      // result turn, so every call is paired before the next turn.
+      {
+        role: 'tool',
+        content: '',
+        toolResults: [
+          {
+            callId: 'c1',
+            content: expect.stringContaining('interrupted'),
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        content: '',
+        toolResults: [{ callId: 'c2', content: '{"hits":1}' }],
+      },
+    ]);
+  });
+
   it('never replays reasoning and keeps an empty assistant turn occupied', () => {
     const wire = explodeMessagesForWire('', [
       { role: 'assistant', parts: [{ type: 'reasoning', text: 'secret' }] },

@@ -7,6 +7,7 @@
  */
 
 import { execute } from '../core/execute';
+import type { StoreAdapter } from '../core/slots';
 import type { Automation } from '../core/types';
 
 /** Deep-equality serialization independent of key order. */
@@ -34,8 +35,15 @@ export interface MissingTests {
   hint?: string;
 }
 
+export interface TestRunOptions {
+  /** The caller's org-scoped store, so a test can exercise subautomation
+   * nodes; without it those nodes fail and the test reports why. */
+  store?: StoreAdapter;
+}
+
 export async function runAutomationTests(
   automation: Automation,
+  opts: TestRunOptions = {},
 ): Promise<TestReport | MissingTests> {
   const tests = automation.tests ?? [];
   if (tests.length === 0) {
@@ -47,7 +55,11 @@ export async function runAutomationTests(
   const results: TestReport['results'] = [];
   let passed = 0;
   for (const t of tests) {
-    const r = await execute(automation, { input: t.input, mode: 'mock' });
+    const r = await execute(automation, {
+      input: t.input,
+      mode: 'mock',
+      ...(opts.store !== undefined && { store: opts.store }),
+    });
     let pass = r.status === 'success';
     let message = pass
       ? undefined

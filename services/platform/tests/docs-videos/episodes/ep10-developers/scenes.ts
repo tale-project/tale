@@ -1,7 +1,7 @@
 /**
  * Episode 10 choreography — the developer surface, read-only: API keys, the
  * four API doors (REST, MCP, WebDAV, runtimes), an agent's webhook view,
- * the external external agents in the list, and the run-code policy.
+ * and the external external agents in the list.
  */
 
 import {
@@ -24,7 +24,6 @@ export async function warmup(
     `/dashboard/${ctx.orgId}/settings/api-keys`,
     `/dashboard/${ctx.orgId}/settings/api/rest`,
     `/dashboard/${ctx.orgId}/settings/api/mcp`,
-    `/dashboard/${ctx.orgId}/settings/governance/run-code-policy`,
     `/dashboard/${ctx.orgId}/agents`,
     `/dashboard/${ctx.orgId}/chat`,
   ];
@@ -163,27 +162,6 @@ export const SCENES: readonly SceneChoreography[] = [
       if (await cursorAgent.isVisible().catch(() => false)) {
         await cursor.hover(cursorAgent);
       }
-    },
-  },
-  {
-    // The run-code policy: packages and hosts, fail-closed.
-    id: 'run-code-policy',
-    run: async (rt) => {
-      const { page, cursor, cue, ctx } = rt;
-      await spaNavigate(
-        page,
-        `/dashboard/${ctx.orgId}/settings/governance/run-code-policy`,
-      );
-      await page
-        .waitForLoadState('networkidle', { timeout: 10_000 })
-        .catch(() => {});
-      await cue(5.0);
-      const anchor = page.getByText(/allow|deny/i).first();
-      if (await anchor.isVisible().catch(() => false)) {
-        await cursor.hover(anchor);
-      }
-      await cue(10.0);
-      await cursor.hide();
     },
   },
   {

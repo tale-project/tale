@@ -37,25 +37,6 @@ export interface TasksContract {
     };
     returns: null;
   };
-  'tasks/mutations:bulkUpdateTasks': {
-    kind: 'mutation';
-    args: {
-      status?:
-        | 'cancelled'
-        | 'done'
-        | 'in_review'
-        | 'backlog'
-        | 'todo'
-        | 'in_progress';
-      archived?: boolean;
-      priority?: null | 'p0' | 'p1' | 'p2' | 'p3';
-      assigneeType?: 'user' | 'agent' | 'app';
-      assigneeId?: string;
-      clearAssignee?: boolean;
-      taskIds: string[];
-    };
-    returns: { updated: number; skipped: number };
-  };
   'tasks/mutations:cancelTaskAgentRun': {
     kind: 'mutation';
     args: { taskId: string };
@@ -102,11 +83,6 @@ export interface TasksContract {
     kind: 'mutation';
     args: { name: string; projectId: string };
     returns: string;
-  };
-  'tasks/mutations:deleteBoardView': {
-    kind: 'mutation';
-    args: { viewId: string };
-    returns: null;
   };
   'tasks/mutations:deleteTask': {
     kind: 'mutation';
@@ -158,33 +134,6 @@ export interface TasksContract {
     kind: 'mutation';
     args: { taskId: string };
     returns: null;
-  };
-  'tasks/mutations:saveBoardView': {
-    kind: 'mutation';
-    args: {
-      sort?: { field: string; desc: boolean };
-      isDefault?: boolean;
-      viewId?: string;
-      name: string;
-      projectId: string;
-      scope: 'shared' | 'personal';
-      viewType: 'table' | 'board' | 'timeline';
-      filters: {
-        search?: string;
-        labels?: string[];
-        statuses?: Array<
-          | 'cancelled'
-          | 'done'
-          | 'in_review'
-          | 'backlog'
-          | 'todo'
-          | 'in_progress'
-        >;
-        priorities?: Array<'p0' | 'p1' | 'p2' | 'p3'>;
-        assigneeIds?: string[];
-      };
-    };
-    returns: string;
   };
   'tasks/mutations:startTaskAgentRun': {
     kind: 'mutation';

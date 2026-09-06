@@ -67,7 +67,7 @@ The hardening lever is `SANDBOX_EGRESS_ALLOWLIST`. Set it in `.env` to a pipe-se
 SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$|^registry\.npmjs\.org$|^objects\.githubusercontent\.com$|^codeload\.github\.com$|^github\.com$|^api\.github\.com$
 ```
 
-Keep the list short and prefer specific hosts over wildcards. Package installs are gated separately, through the [run-code policy](/platform/admin/governance/run-code-policy) screen.
+Keep the list short and prefer specific hosts over wildcards.
 
 ## Monitoring
 

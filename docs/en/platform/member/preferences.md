@@ -41,6 +41,8 @@ Nothing is added to a prompt on your behalf. A saved memory reaches a reply only
 
 Saved memories are listed on the same page with a control to delete each one. Deleting a memory takes it out of what a search can return, which is the whole of its effect — no second copy is riding along in some other prompt.
 
+The **Memories** switch above the lists is the whole feature's gate, not just the page's: with it off, the assistant can neither propose a memory nor read one back — a proposal made while it is off is refused on the spot, not queued for later — and what you already saved waits untouched until you switch it back on.
+
 ## Signing out
 
 The **Log out** row at the bottom of the profile menu confirms with a dialog before clearing the session. After confirming, Tale does a full page reload to the sign-in page so no stale state lingers in the tab. Sign-out is per-device — signing out on your laptop does not log you out on your phone, and vice versa.

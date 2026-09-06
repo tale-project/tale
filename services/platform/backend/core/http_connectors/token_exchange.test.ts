@@ -7,7 +7,10 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { exchangeAuthorizationCode } from './token_exchange';
+import {
+  exchangeAuthorizationCode,
+  refreshAccessToken,
+} from './token_exchange';
 
 const PARAMS = {
   tokenUrl: 'https://vendor.example/oauth/token',
@@ -154,6 +157,89 @@ describe('exchangeAuthorizationCode', () => {
       fetchImpl,
     );
 
+    expect(result).toEqual({ ok: false, reason: 'vendor_unreachable' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('refreshAccessToken', () => {
+  const REFRESH = {
+    tokenUrl: 'https://vendor.example/oauth/token',
+    refreshToken: 'refresh-1',
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+  };
+
+  it('posts the refresh grant as a form body and normalizes the result', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        access_token: 'access-2',
+        expires_in: 3600,
+        scope: 'mail.read',
+      }),
+    );
+
+    const before = Date.now();
+    const result = await refreshAccessToken(REFRESH, fetchImpl);
+
+    // No refresh_token in the answer: the caller keeps the one it holds.
+    expect(result).toMatchObject({
+      ok: true,
+      tokens: { accessToken: 'access-2', scopes: ['mail.read'] },
+    });
+    if (!result.ok) return;
+    expect(result.tokens.refreshToken).toBeUndefined();
+    expect(result.tokens.expiresAt).toBeGreaterThanOrEqual(before + 3_600_000);
+
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe(REFRESH.tokenUrl);
+    expect(init.method).toBe('POST');
+    expect(Object.fromEntries(new URLSearchParams(String(init.body)))).toEqual({
+      grant_type: 'refresh_token',
+      refresh_token: 'refresh-1',
+      client_id: 'client-id',
+      client_secret: 'client-secret',
+    });
+  });
+
+  it('carries a rotated refresh token back', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ access_token: 'access-2', refresh_token: 'refresh-2' }),
+      );
+    const result = await refreshAccessToken(REFRESH, fetchImpl);
+    expect(result).toMatchObject({
+      ok: true,
+      tokens: { accessToken: 'access-2', refreshToken: 'refresh-2' },
+    });
+  });
+
+  it('reports a dead grant as vendor_rejected with the symbolic code only', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          error: 'invalid_grant',
+          error_description: 'Token has been expired or revoked. secret-echo',
+        },
+        400,
+      ),
+    );
+    const result = await refreshAccessToken(REFRESH, fetchImpl);
+    expect(result).toEqual({
+      ok: false,
+      reason: 'vendor_rejected',
+      code: 'invalid_grant',
+    });
+    expect(JSON.stringify(result)).not.toContain('secret-echo');
+  });
+
+  it('refuses a plaintext token endpoint without contacting it', async () => {
+    const fetchImpl = vi.fn();
+    const result = await refreshAccessToken(
+      { ...REFRESH, tokenUrl: 'http://vendor.example/oauth/token' },
+      fetchImpl,
+    );
     expect(result).toEqual({ ok: false, reason: 'vendor_unreachable' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });

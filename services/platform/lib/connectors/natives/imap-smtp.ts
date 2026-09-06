@@ -29,6 +29,7 @@
 import { z } from 'zod/v4';
 
 import { resolveReplyFrom } from '../../shared/conversations/reply-from';
+import { CHAT_MAX_FILE_SIZE } from '../../shared/file-types';
 import type {
   NativeConnectorContext,
   NativeConnectorImpl,
@@ -126,18 +127,22 @@ export interface MailAttachment {
   readonly contentId?: string;
   /** Present when the part's body fit under {@link MAX_ATTACHMENT_BYTES}. */
   readonly contentBase64?: string;
+  /** True when the part's bytes were fetched but exceeded
+   * {@link MAX_ATTACHMENT_BYTES}, so only its metadata is listed — the caller
+   * can tell "too large to carry" from "the part had no body". */
+  readonly truncated?: boolean;
 }
 
 /**
- * Cap for attachment bytes returned inline from `get_message`. Deliberately
- * well under Convex's function-payload ceiling: base64 inflates by ~4/3, and
- * this string crosses the connector-action boundary before sync writes it to
- * blob storage. 5 MiB raw (≈6.7 MiB encoded) matches the repo's other
- * cross-a-Convex-boundary blob cap and covers ordinary mail attachments —
- * providers cap a whole message near 25 MB. A bigger part is listed as
- * metadata only rather than risking the pass.
+ * Cap for attachment bytes returned inline from `get_message`: the platform's
+ * own per-file ceiling, so a part that would be refused as an upload is not
+ * carried either. The native returns in process to the dispatcher (no
+ * function-payload boundary), and the whole message source is already in
+ * memory to be parsed, so the base64 copy is the only extra cost. Mail
+ * providers cap a whole message near 25 MB, so every real attachment fits; a
+ * bigger part is listed as metadata with `truncated: true`.
  */
-export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = CHAT_MAX_FILE_SIZE;
 
 /**
  * One message body plus the fields conversation ingest needs — Message-ID
@@ -181,16 +186,17 @@ export interface ImapSession {
 }
 
 /**
- * One outbound attachment. Bytes are NOT inlined here: the send lane presigns a
- * short-lived GET against the org's own blob store (the same `getFileUrl` the
- * Gmail/Graph send paths use) and the transport streams from that URL, so a
- * reply carries the files the sender attached without holding them in memory.
+ * One outbound attachment, bytes in hand. The native resolves them itself from
+ * the org-scoped blob ref the caller names (see {@link MailAttachmentResolver})
+ * BEFORE the transport opens; the transport never fetches a URL or reads a
+ * path — a caller-supplied location handed to the mail library was a read of
+ * any file or URL the backend could reach, mailed to a recipient of the
+ * caller's choosing.
  */
 export interface OutboundAttachment {
   readonly filename: string;
   readonly contentType?: string;
-  /** Presigned org-blob GET the transport fetches the bytes from. */
-  readonly url: string;
+  readonly content: Uint8Array;
 }
 
 export interface OutboundMail {
@@ -236,9 +242,21 @@ export type MailboxConfigResolver = (
   ctx: NativeConnectorContext,
 ) => Promise<MailboxConfig> | MailboxConfig;
 
+/**
+ * Where an outbound attachment's bytes come from: the platform's own blob
+ * store, scoped to the organization the invocation runs for. The native never
+ * accepts a URL or a path for an attachment — the resolver is the ONLY door
+ * to bytes, and it is the host's job to refuse a ref outside the org.
+ */
+export type MailAttachmentResolver = (args: {
+  organizationId: string;
+  storageRef: string;
+}) => Promise<{ bytes: Uint8Array; contentType?: string }>;
+
 export interface MailNativeDeps {
   readonly transport: MailTransport;
   readonly resolveConfig?: MailboxConfigResolver;
+  readonly resolveAttachment: MailAttachmentResolver;
 }
 
 // -------------------------------------------------------------------- helpers
@@ -505,12 +523,20 @@ const listInput = z.object({
   mailbox: z.string().optional(),
 });
 
-const sendAttachmentInput = z.object({
-  name: z.string().min(1),
-  contentType: z.string().optional(),
-  size: z.number().optional(),
-  url: z.string().min(1),
-});
+/**
+ * An attachment names an org blob ref — never a URL or a path. `strict` so a
+ * caller that still passes `url` (or any other location) is refused at the
+ * input check rather than silently ignored: the bytes MUST come through the
+ * host's org-scoped resolver.
+ */
+const sendAttachmentInput = z
+  .object({
+    name: z.string().min(1),
+    contentType: z.string().optional(),
+    size: z.number().optional(),
+    storageRef: z.string().min(1),
+  })
+  .strict();
 
 const sendInput = z.object({
   to: z.string().min(1),
@@ -667,11 +693,36 @@ export function imapSmtpNatives(
       parsed.notificationSender === true
         ? notificationSenderFrom(config.from)
         : resolveReplyFrom(requestedFrom, config.from);
-    const attachments: OutboundAttachment[] = (parsed.attachments ?? []).map(
-      (att) =>
-        att.contentType !== undefined
-          ? { filename: att.name, url: att.url, contentType: att.contentType }
-          : { filename: att.name, url: att.url },
+    // Resolve every attachment through the host's org-scoped store BEFORE the
+    // SMTP session opens: a ref the org does not own is refused here, and the
+    // transport only ever sees bytes.
+    const attachments: OutboundAttachment[] = await Promise.all(
+      (parsed.attachments ?? []).map(async (att) => {
+        let resolved: Awaited<ReturnType<MailAttachmentResolver>>;
+        try {
+          resolved = await deps.resolveAttachment({
+            organizationId: ctx.organizationId,
+            storageRef: att.storageRef,
+          });
+        } catch (cause) {
+          throw new ConnectorError(
+            'INPUT_INVALID',
+            `attachment "${att.name.slice(0, 120)}" does not resolve to a file this organization owns`,
+            {
+              connector: CONNECTOR,
+              action: 'send',
+              hint: 'pass the storageRef of a file uploaded to this organization',
+              cause,
+            },
+          );
+        }
+        const contentType = att.contentType ?? resolved.contentType;
+        const outbound: OutboundAttachment =
+          contentType !== undefined
+            ? { filename: att.name, content: resolved.bytes, contentType }
+            : { filename: att.name, content: resolved.bytes };
+        return outbound;
+      }),
     );
     const message: OutboundMail = {
       from,
@@ -876,8 +927,9 @@ type SimpleParser = (source: Buffer | string) => Promise<{
 
 /**
  * Map mailparser attachment parts into the connector's attachment shape.
- * Oversized parts keep metadata only — sync still lists the file, but bytes
- * must be fetched another way (not yet wired for IMAP).
+ * A part above {@link MAX_ATTACHMENT_BYTES} keeps metadata only and says so
+ * (`truncated`) — sync still lists the file, and the chip can tell the reader
+ * the bytes were too large to carry rather than merely absent.
  */
 export function mailAttachmentsFromParsed(
   attachments: readonly ParsedMailAttachment[] | undefined,
@@ -921,13 +973,15 @@ export function mailAttachmentsFromParsed(
       size,
       ...(contentId !== undefined && contentId !== '' && { contentId }),
     };
-    if (bytes !== null && bytes.byteLength <= MAX_ATTACHMENT_BYTES) {
+    if (bytes === null) {
+      out.push(mapped);
+    } else if (bytes.byteLength <= MAX_ATTACHMENT_BYTES) {
       out.push({
         ...mapped,
         contentBase64: Buffer.from(bytes).toString('base64'),
       });
     } else {
-      out.push(mapped);
+      out.push({ ...mapped, truncated: true });
     }
   }
   return out;
@@ -1144,19 +1198,21 @@ export function nodeMailTransport(): MailTransport {
               inReplyTo: message.inReplyTo,
             }),
             ...(references !== undefined && { references }),
-            // Stream each part from its presigned org-blob GET rather than
-            // buffering the bytes here.
+            // The library may read a `path` or fetch an `href` for any part
+            // that names one. Every part here carries bytes, and these two
+            // flags make the library refuse a location outright should one
+            // ever reach it — the transport is never a file or URL reader.
+            disableFileAccess: true,
+            disableUrlAccess: true,
             ...(message.attachments !== undefined &&
               message.attachments.length > 0 && {
-                attachments: message.attachments.map((att) =>
-                  att.contentType !== undefined
-                    ? {
-                        filename: att.filename,
-                        path: att.url,
-                        contentType: att.contentType,
-                      }
-                    : { filename: att.filename, path: att.url },
-                ),
+                attachments: message.attachments.map((att) => ({
+                  filename: att.filename,
+                  content: Buffer.from(att.content),
+                  ...(att.contentType !== undefined && {
+                    contentType: att.contentType,
+                  }),
+                })),
               }),
           });
           // Empty falls through to the action's own Message-ID check.
