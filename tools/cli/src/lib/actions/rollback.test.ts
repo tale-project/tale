@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DeploymentEnv } from '../../utils/load-env';
+import {
+  resolveOutputMode,
+  setActiveOutputMode,
+} from '../../utils/output-mode';
 import { setProjectId } from '../project/project-context';
 import { rollback } from './rollback';
 
@@ -237,6 +241,23 @@ describe('rollback confirmation', () => {
     arrangePatchRollback();
 
     await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(pullImageMock).toHaveBeenCalledTimes(1);
+    expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
+  });
+
+  test('treats the global `tale -y` as consent when the local flag is absent', async () => {
+    // `tale -y rollback` routes `--yes` to program.opts(); the command's own
+    // flag stays unset. Under the global flag `confirm` would return its
+    // `default` (false) and cancel — the opposite of what was asked.
+    arrangePatchRollback();
+    setActiveOutputMode(resolveOutputMode({ yes: true }, {}));
+    try {
+      await rollback({ env }, { pullImage: pullImageMock });
+    } finally {
+      setActiveOutputMode(resolveOutputMode({}, {}));
+    }
 
     expect(confirmMock).not.toHaveBeenCalled();
     expect(pullImageMock).toHaveBeenCalledTimes(1);

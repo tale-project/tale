@@ -2,6 +2,7 @@ import { unlink } from 'node:fs/promises';
 
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
 import type { DeploymentColor } from '../compose/types';
 import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from '../compose/types';
@@ -26,7 +27,9 @@ export async function reset(options: ResetOptions): Promise<void> {
     logger.warn(`Including stateful services: ${STATEFUL_SERVICES.join(', ')}`);
   }
 
-  if (!force) {
+  // `--force` or the global `tale -y` consents; the confirm below would
+  // otherwise resolve to its `default` (false) under --yes and cancel.
+  if (!resolveConsent(force)) {
     const confirmed = await confirm({
       message: 'Are you sure you want to reset?',
       default: false,

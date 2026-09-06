@@ -86,3 +86,14 @@ export function setActiveOutputMode(mode: OutputMode): void {
 export function getOutputMode(): OutputMode {
   return active ?? resolveOutputMode();
 }
+
+/**
+ * Consent to a destructive step comes from the command's own `-y` OR the
+ * global `tale -y` (documented as 'assume yes for all prompts'). Commander
+ * routes the global flag to `program.opts()`, so a command that only read its
+ * local flag would prompt — and under `--yes` `confirm` returns its `default`
+ * (false here), silently cancelling the very action the operator asked for.
+ */
+export function resolveConsent(local: boolean | undefined): boolean {
+  return Boolean(local) || getOutputMode().assumeYes;
+}

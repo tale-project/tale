@@ -20,6 +20,7 @@
  */
 
 import * as logger from '../../utils/logger';
+import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
 import {
   backendApiContainer,
@@ -97,12 +98,13 @@ export async function reseedAllOrgsFromBuiltin(
 
   // Gate non-interactive callers behind --yes to avoid silent abort in CI.
   const isTty = Boolean(process.stdin.isTTY);
-  if (!assumeYes && !isTty) {
+  const consented = resolveConsent(assumeYes);
+  if (!consented && !isTty) {
     throw new Error(
       '--override-all requires --yes (-y) when stdin is not a TTY (e.g. CI).',
     );
   }
-  if (!assumeYes && isTty) {
+  if (!consented && isTty) {
     const ok = await confirm({ message: CONFIRM_MESSAGE, default: false });
     if (!ok) {
       logger.info('Aborted by user.');
@@ -113,7 +115,7 @@ export async function reseedAllOrgsFromBuiltin(
   if (!(await isBackendTierRunning())) {
     throw new Error(
       `--override-all needs the backend tier: no ${container} container is running. ` +
-        'Start the deployment (`tale start`), then re-run.',
+        'Start the deployment (`tale deploy`, or `tale dev` for a local stack), then re-run.',
     );
   }
 

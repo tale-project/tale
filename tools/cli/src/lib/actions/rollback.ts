@@ -1,6 +1,7 @@
 import { sameMinor } from '../../utils/compare-versions';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { resolveConsent } from '../../utils/output-mode';
 import { runStepsInParallel } from '../../utils/progress';
 import { confirm } from '../../utils/prompt';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
@@ -24,8 +25,11 @@ import { withLock } from '../state/with-lock';
 
 interface RollbackOptions {
   env: DeploymentEnv;
-  /** Skip the confirmation prompt (the `-y/--yes` flag / non-interactive use). */
-  assumeYes: boolean;
+  /**
+   * Skip the confirmation prompt (the command's `-y/--yes` flag). The global
+   * `tale -y <cmd>` flag counts as consent too — see `resolveConsent`.
+   */
+  assumeYes?: boolean;
 }
 
 /**
@@ -72,7 +76,8 @@ export async function rollback(
   options: RollbackOptions,
   deps: RollbackDeps = {},
 ): Promise<void> {
-  const { env, assumeYes } = options;
+  const { env } = options;
+  const assumeYes = resolveConsent(options.assumeYes);
   const pull = deps.pullImage ?? pullImage;
 
   await withLock(env.DEPLOY_DIR, 'rollback', async () => {

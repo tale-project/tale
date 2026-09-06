@@ -1,6 +1,7 @@
 import { formatBytes } from '../../utils/format-bytes';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
 import {
   archiveTimeoutSeconds,
@@ -183,7 +184,7 @@ export async function restore(
       );
     }
 
-    if (!options.assumeYes) {
+    if (!resolveConsent(options.assumeYes)) {
       logger.warn(
         `This wipes the current contents of: ${volumes.map((volume) => `${prefix}${volume}`).join(', ')}`,
       );
