@@ -953,13 +953,6 @@ export function webdavHandlers(
       });
       return { url, method: 'PUT', s3Ref: `s3:${key}` };
     },
-    'webdav/tree_mutations:generateWebdavUploadUrl': async () => {
-      // The 0.4 fallback targeted Convex `_storage`'s chunked POST ingest;
-      // 0.5 is S3-only and a presigned PUT needs a Content-Length. A
-      // chunked PUT (no declared length) is refused loudly — the handler
-      // maps this to 502 with its own log line.
-      throw new AppError({ code: 'CHUNKED_PUT_UNSUPPORTED' });
-    },
     'webdav/tree_mutations:deleteWebdavBlob': async (raw) => {
       const args = asArgs<{ storageId: string; organizationId?: string }>(raw);
       if (args.organizationId === undefined) {

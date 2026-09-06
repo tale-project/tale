@@ -39,7 +39,7 @@ Chaque requête authentifiée vérifie aussi que l’utilisateur est membre acti
 | PROPFIND   | Lister une ressource (Depth 0) ou les enfants directs d’une collection (Depth 1). La liste de propriétés émise est documentée plus bas. **Depth: infinity est rejeté avec 403** pour éviter des réponses sans borne.    | Requise    |
 | PROPPATCH  | Renvoie succès 207 par propriété sans stocker les valeurs. Les dead properties ne sont pas persistées en v1 ; PROPPATCH réussit de manière optimiste pour la compatibilité client.                                      | Requise    |
 | GET / HEAD | Streamer le blob du document. Pose `Content-Type`, `Content-Length`, `ETag` et `Last-Modified`. GET sur une collection renvoie 405.                                                                                     | Requise    |
-| PUT        | Créer ou remplacer un document. Le nouveau blob est stocké dans le stockage objet ; la ligne du document reçoit `sourceProvider: "webdav"`. Renvoie 201 à la création, 204 à l’écrasement. | Requise    |
+| PUT        | Créer ou remplacer un document. Le nouveau blob est stocké dans le stockage objet ; la ligne du document reçoit `sourceProvider: "webdav"`. Renvoie 201 à la création, 204 à l’écrasement. Exige `Content-Length` ; un corps en chunked est refusé avec 411. | Requise    |
 | DELETE     | Soft-supprimer un document (`lifecycleStatus: "trashed"`) ou un dossier (corbeille en cascade sur les documents contenus, hard-supprime les lignes de dossier). Renvoie 204.                                            | Requise    |
 | MKCOL      | Créer un dossier sous un parent existant. Corps vide uniquement. Renvoie 201, 405 si la cible existe, 409 si le parent manque.                                                                                          | Requise    |
 | MOVE       | Renommer ou déplacer. Atomique pour les documents. Pour les dossiers, met à jour le `parentId` du dossier déplacé. Respecte `Overwrite: T/F` et `If`. Renvoie 201 (nouvelle destination) ou 204 (écrasement).           | Requise    |
@@ -91,6 +91,7 @@ Les verrous vivent dans leur propre table Postgres (`app.webdav_locks`), indexé
 - `404` — ressource introuvable
 - `405` — GET sur une collection ; PUT sur un chemin de collection ; MKCOL sur un chemin existant ; MKCOL racine
 - `409` — MKCOL, MOVE ou COPY quand le parent de destination n’existe pas
+- `411` — PUT sans `Content-Length` (le transfert chunked n’est pas pris en charge : le corps part vers une URL de stockage objet pré-signée qui a besoin de la longueur dès le départ)
 - `412` — non-correspondance de jeton `If` ; précondition `If-Match` / `If-None-Match` échouée ; MOVE/COPY avec `Overwrite: F` sur une destination existante
 - `413` — corps PUT au-delà de la limite de taille, ou un corps XML (PROPFIND / PROPPATCH / MKCOL / LOCK) au-delà de 64 Ko
 - `415` — MKCOL avec corps XML non vide (extended MKCOL non implémenté)
@@ -111,7 +112,7 @@ Le serveur annonce `DAV: 1, 2` dans la réponse OPTIONS.
 
 - `Depth: infinity` sur PROPFIND est rejeté avec `403`.
 - `Timeout: Second-N` sur LOCK est borné à `[1, 3600]`.
-- La taille du corps PUT est plafonnée à **5 Go** par défaut (`413` au-delà), appliquée à la fois au reverse-proxy et dans le serveur de plateforme. Les opérateurs peuvent l’ajuster via la variable d’environnement `WEBDAV_MAX_PUT_BYTES`. Le corps est streamé vers une URL S3 pré-signée sans qu’un gros upload soit mis en mémoire tampon côté plateforme.
+- La taille du corps PUT est plafonnée à **5 Go** par défaut (`413` au-delà), appliquée à la fois au reverse-proxy et dans le serveur de plateforme. Les opérateurs peuvent l’ajuster via la variable d’environnement `WEBDAV_MAX_PUT_BYTES`. Le corps est streamé vers une URL S3 pré-signée sans qu’un gros upload soit mis en mémoire tampon côté plateforme. Comme cette URL a besoin de la longueur dès le départ, un PUT sans `Content-Length` (transfert chunked) est refusé avec `411`.
 - Les corps XML (PROPFIND / PROPPATCH / MKCOL / LOCK) sont plafonnés à **64 Ko** (`413` au-delà) — ces enveloppes sont minuscules par conception.
 - Les mots de passe applicatifs sont hachés avec HMAC-SHA256 ; le secret n’apparaît dans aucune réponse après l’appel de création.
 - `lastUsedAt` est patché au plus une fois par minute par mot de passe applicatif pour éviter les write-storms sur les montages actifs.

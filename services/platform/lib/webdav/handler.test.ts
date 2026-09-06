@@ -365,6 +365,23 @@ describe('PUT', () => {
     );
     expect(res.status).toBe(405);
   });
+
+  it('PUT without Content-Length (chunked) → 411 before any tree call', async () => {
+    // No tree stubs: the stub ctx throws on any unstubbed backend call, so a
+    // 411 proves the refusal happens before resolvePath and the upload.
+    const ctx = makeStubCtx();
+    const res = await dispatch(
+      makeRequest({
+        method: 'PUT',
+        pathname: '/dav/myorg/documents/chunked.txt',
+        body: 'streamed',
+        authenticated: true,
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(411);
+    expect(res.body).toBe('Content-Length required');
+  });
 });
 
 describe('MKCOL', () => {
@@ -1253,7 +1270,7 @@ describe('conditional preconditions + conflict mapping (F17 / F19 / F62)', () =>
       makeRequest({
         method: 'PUT',
         pathname: '/dav/myorg/documents/foo.txt',
-        headers: { 'If-None-Match': '*' },
+        headers: { 'If-None-Match': '*', 'Content-Length': '3' },
         authenticated: true,
       }),
       ctx,

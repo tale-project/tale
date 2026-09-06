@@ -39,7 +39,7 @@ Jede authentifizierte Anfrage prüft zusätzlich, dass der anfragende Benutzer a
 | PROPFIND   | Eine Ressource auflisten (Depth 0) oder die direkten Kinder einer Sammlung (Depth 1). Die emittierte Eigenschaftsliste ist unten dokumentiert. **Depth: infinity wird mit 403 abgelehnt**, um unbegrenzte Antworten zu verhindern. | Erforderlich |
 | PROPPATCH  | Gibt 207-Erfolg pro Eigenschaft zurück, ohne Werte zu speichern. Dead Properties werden in v1 nicht persistiert; PROPPATCH gelingt optimistisch zur Client-Kompatibilität.                                                         | Erforderlich |
 | GET / HEAD | Den Dokument-Blob streamen. Setzt `Content-Type`, `Content-Length`, `ETag` und `Last-Modified`. GET auf eine Sammlung gibt 405 zurück.                                                                                             | Erforderlich |
-| PUT        | Ein Dokument erstellen oder ersetzen. Neuer Blob im Objektspeicher; die Dokument-Zeile erhält `sourceProvider: "webdav"`. Gibt 201 beim Erstellen, 204 beim Überschreiben zurück.                          | Erforderlich |
+| PUT        | Ein Dokument erstellen oder ersetzen. Neuer Blob im Objektspeicher; die Dokument-Zeile erhält `sourceProvider: "webdav"`. Gibt 201 beim Erstellen, 204 beim Überschreiben zurück. Braucht `Content-Length`; ein Chunked-Body wird mit 411 abgelehnt. | Erforderlich |
 | DELETE     | Ein Dokument soft-löschen (`lifecycleStatus: "trashed"`) oder einen Ordner (kaskadiert Trash auf enthaltene Dokumente, hard-löscht die Ordner-Zeilen). Gibt 204 zurück.                                                            | Erforderlich |
 | MKCOL      | Einen Ordner unter einem bestehenden Eltern erstellen. Nur leerer Body. Gibt 201 zurück, 405 wenn das Ziel existiert oder 409 wenn der Eltern fehlt.                                                                               | Erforderlich |
 | MOVE       | Umbenennen oder verschieben. Atomar für Dokumente. Für Ordner wird die `parentId` des verschobenen Ordners aktualisiert. Beachtet `Overwrite: T/F` und `If`. Gibt 201 (neues Ziel) oder 204 (Überschreiben) zurück.                | Erforderlich |
@@ -91,6 +91,7 @@ Sperren leben in ihrer eigenen Postgres-Tabelle (`app.webdav_locks`), gekeyt mit
 - `404` — Ressource nicht gefunden
 - `405` — GET auf eine Sammlung; PUT auf einen Sammlungs-Pfad; MKCOL auf existierendem Pfad; Root-MKCOL
 - `409` — MKCOL, MOVE oder COPY wenn das Ziel-Elternverzeichnis nicht existiert
+- `411` — PUT ohne `Content-Length` (Chunked Transfer wird nicht unterstützt: der Body geht an eine präsignierte Objektspeicher-URL, die die Länge vorab braucht)
 - `412` — `If`-Token-Mismatch; `If-Match` / `If-None-Match`-Vorbedingung fehlgeschlagen; MOVE/COPY mit `Overwrite: F` auf ein existierendes Ziel
 - `413` — PUT-Body über dem Größenlimit, oder ein XML-Request-Body (PROPFIND / PROPPATCH / MKCOL / LOCK) über 64 KB
 - `415` — MKCOL mit nicht-leerem XML-Body (extended MKCOL nicht implementiert)
@@ -111,7 +112,7 @@ Der Server bewirbt `DAV: 1, 2` in der OPTIONS-Antwort.
 
 - `Depth: infinity` auf PROPFIND wird mit `403` abgelehnt.
 - `Timeout: Second-N` auf LOCK wird auf `[1, 3600]` begrenzt.
-- Die PUT-Body-Größe ist standardmäßig auf **5 GB** begrenzt (`413` bei Überschreitung), erzwungen sowohl am Reverse-Proxy als auch im Plattform-Server. Betreiber können das Limit über die Umgebungsvariable `WEBDAV_MAX_PUT_BYTES` anpassen. Der Body wird an eine präsignierte S3-URL gestreamt, ohne dass ein großer Upload im Plattform-Speicher gepuffert wird.
+- Die PUT-Body-Größe ist standardmäßig auf **5 GB** begrenzt (`413` bei Überschreitung), erzwungen sowohl am Reverse-Proxy als auch im Plattform-Server. Betreiber können das Limit über die Umgebungsvariable `WEBDAV_MAX_PUT_BYTES` anpassen. Der Body wird an eine präsignierte S3-URL gestreamt, ohne dass ein großer Upload im Plattform-Speicher gepuffert wird. Weil diese URL die Länge vorab braucht, wird ein PUT ohne `Content-Length` (Chunked Transfer) mit `411` abgelehnt.
 - XML-Request-Bodys (PROPFIND / PROPPATCH / MKCOL / LOCK) sind auf **64 KB** begrenzt (`413` bei Überschreitung) — diese Envelopes sind per Design winzig.
 - App-Passwörter werden mit HMAC-SHA256 gehasht; das Geheimnis taucht nach dem Create-Call in keiner Antwort mehr auf.
 - `lastUsedAt` wird höchstens einmal pro Minute pro App-Passwort gepatcht, um Write-Storms auf belebten Mounts zu vermeiden.

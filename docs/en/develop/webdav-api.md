@@ -39,7 +39,7 @@ Every authenticated request also verifies the requesting user is an active membe
 | PROPFIND   | List a resource (Depth 0) or a collection's immediate children (Depth 1). The property list emitted is documented below. **Depth: infinity is rejected with 403** to prevent unbounded responses. | Required     |
 | PROPPATCH  | Returns 207 success per-property without storing values. Dead properties are not persisted in v1; PROPPATCH succeeds optimistically for client compatibility.                                     | Required     |
 | GET / HEAD | Stream the document blob. Sets `Content-Type`, `Content-Length`, `ETag`, and `Last-Modified`. GET on a collection returns 405.                                                                    | Required     |
-| PUT        | Create or replace a document. New blob is stored in the object store; the document row picks up `sourceProvider: "webdav"`. Returns 201 on create, 204 on overwrite.                              | Required     |
+| PUT        | Create or replace a document. New blob is stored in the object store; the document row picks up `sourceProvider: "webdav"`. Returns 201 on create, 204 on overwrite. Requires `Content-Length`; a chunked body is refused with 411. | Required     |
 | DELETE     | Soft-delete a document (sets `lifecycleStatus: "trashed"`) or a folder (cascades trash on contained documents, hard-deletes the folder rows). Returns 204.                                        | Required     |
 | MKCOL      | Create a folder under an existing parent. Empty body only. Returns 201, 405 if the target exists, or 409 if the parent does not.                                                                  | Required     |
 | MOVE       | Rename or relocate. Atomic for documents. For folders, updates the `parentId` of the moved folder. Honours `Overwrite: T/F` and `If` headers. Returns 201 (new destination) or 204 (overwrite).   | Required     |
@@ -91,6 +91,7 @@ Locks live in their own Postgres table (`app.webdav_locks`), keyed by `(organiza
 - `404` — resource not found
 - `405` — GET on a collection; PUT to a collection path; MKCOL on existing path; root MKCOL
 - `409` — MKCOL, MOVE, or COPY when the destination parent does not exist
+- `411` — PUT without `Content-Length` (chunked transfer is not supported: the body goes to a presigned object-store URL that needs the length up front)
 - `412` — `If` token mismatch; `If-Match` / `If-None-Match` precondition failed; MOVE/COPY with `Overwrite: F` onto an existing destination
 - `413` — PUT body over the size cap, or an XML request body (PROPFIND / PROPPATCH / MKCOL / LOCK) over 64 KB
 - `415` — MKCOL with non-empty XML body (extended MKCOL not implemented)
@@ -111,7 +112,7 @@ The server advertises `DAV: 1, 2` in the OPTIONS response.
 
 - `Depth: infinity` on PROPFIND is rejected with `403`.
 - `Timeout: Second-N` on LOCK is clamped to `[1, 3600]`.
-- PUT body size is capped at **5 GB** by default (`413` once exceeded), enforced both at the reverse proxy and in the platform server. Operators can raise or lower it with the `WEBDAV_MAX_PUT_BYTES` environment variable. The body is streamed to a presigned S3 URL with backpressure, so a large upload does not buffer in platform memory.
+- PUT body size is capped at **5 GB** by default (`413` once exceeded), enforced both at the reverse proxy and in the platform server. Operators can raise or lower it with the `WEBDAV_MAX_PUT_BYTES` environment variable. The body is streamed to a presigned S3 URL with backpressure, so a large upload does not buffer in platform memory. Because that URL needs the length up front, a PUT without `Content-Length` (chunked transfer) is refused with `411`.
 - XML request bodies (PROPFIND / PROPPATCH / MKCOL / LOCK) are capped at **64 KB** (`413` once exceeded) — these envelopes are tiny by design.
 - App-passwords are hashed with HMAC-SHA256; the secret never appears in any response after the create call.
 - `lastUsedAt` is patched at most once per minute per app-password to avoid write storms on busy mounts.

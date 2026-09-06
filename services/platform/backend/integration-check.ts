@@ -21214,9 +21214,9 @@ async function checkWebdav(
   });
   const trashXml = trashList.ok ? await trashList.text() : '';
 
-  // Chunked PUT (no Content-Length) refuses loudly — S3 needs a length.
-  // The shim's CHUNKED_PUT_UNSUPPORTED throw escapes to the adapter's 500
-  // (the 0.4 lane returned a Convex URL here, so put.ts has no catch).
+  // Chunked PUT (no Content-Length) is refused with 411 up front — the
+  // presigned object-store PUT needs the length, and the refusal is an
+  // expected client error, not a reported 500.
   const chunked = await fetch(`${base}/dav/${orgSlug}/documents/chunked.txt`, {
     method: 'PUT',
     headers: {
@@ -21394,7 +21394,7 @@ async function checkWebdav(
       delGone.status === 404 &&
       trashList.status === 207 &&
       trashXml.includes('plan2.txt') &&
-      chunked.status === 500 &&
+      chunked.status === 411 &&
       doorWrite.status === 'ok' &&
       doorFile.status === 200 &&
       doorFileBody === 'from the agent lane' &&
@@ -21408,7 +21408,7 @@ async function checkWebdav(
       heldDelete.status === 403 &&
       releasedDelete.status === 204 &&
       afterRevoke.status === 401,
-    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldRefReleased=${oldRefReleased} oldBlobGone=${oldBlobGone} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status} race=${racedStatuses} (want 200/423) rows=${raceRows[0]?.count} raceUnlock=${raceUnlock.status}, subtree member=${memberLock.status} sibling=${siblingDelete.status} (want 204) parentLock=${parentInfinityLock.status} (want 423) parentDel=${parentDelete.status} (want 423) memberUnlock=${memberUnlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 500), door w/g/l/r/d=${doorWrite.status}/${doorFile.status}:${doorFileBody === 'from the agent lane'}/${doorList.status}:${doorListRaw.includes('agent-note.txt')}/${doorRead.status}/${doorDelete.status} ghost=${JSON.stringify(doorDeleteGhost.status === 'ok' ? doorDeleteGhost.output : {})}, hold=${heldDelete.status} (want 403) released=${releasedDelete.status} (want 204), revoked=${afterRevoke.status} (want 401)`,
+    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldRefReleased=${oldRefReleased} oldBlobGone=${oldBlobGone} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status} race=${racedStatuses} (want 200/423) rows=${raceRows[0]?.count} raceUnlock=${raceUnlock.status}, subtree member=${memberLock.status} sibling=${siblingDelete.status} (want 204) parentLock=${parentInfinityLock.status} (want 423) parentDel=${parentDelete.status} (want 423) memberUnlock=${memberUnlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 411), door w/g/l/r/d=${doorWrite.status}/${doorFile.status}:${doorFileBody === 'from the agent lane'}/${doorList.status}:${doorListRaw.includes('agent-note.txt')}/${doorRead.status}/${doorDelete.status} ghost=${JSON.stringify(doorDeleteGhost.status === 'ok' ? doorDeleteGhost.output : {})}, hold=${heldDelete.status} (want 403) released=${releasedDelete.status} (want 204), revoked=${afterRevoke.status} (want 401)`,
   );
 }
 
