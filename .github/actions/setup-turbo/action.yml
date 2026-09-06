@@ -6,9 +6,12 @@ inputs:
     description: Bun version
     # Floor 1.4.1. Earlier Bun ran N-API addon finalizers and cleanup hooks
     # inside process.exit() and could hand a still-queued threadsafe-function
-    # call a null env; rolldown (Vite 8) is such an addon, so the docs client
-    # build hung at its explicit exit on roughly one CI run in fifteen and the
-    # docs Playwright webServer timed out with zero tests run.
+    # call a null env; rolldown (Vite 8) is such an addon. The docs client
+    # build stalled on roughly one CI run in fifteen after its last build
+    # output and before `vite preview` started, and the evidence places that
+    # stall at the build's explicit exit; the docs Playwright webServer then
+    # timed out with zero tests run. The pin is hashed into every Turbo task
+    # (`globalDependencies`), so a bump reruns the cached tasks under it.
     default: '1.4.2'
   start-turbo-cache:
     description: Start the Turborepo GH artifacts cache server
