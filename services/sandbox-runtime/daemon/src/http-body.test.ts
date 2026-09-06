@@ -48,6 +48,27 @@ describe('readJsonBody', () => {
     });
   });
 
+  test('a chunked body over the cap (no Content-Length) is 413 too', async () => {
+    // No declared length: the cap has to trip on the running total, and the
+    // refusal must still reach the client — the stream is paused, not destroyed.
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let i = 0; i < 4; i += 1) {
+          controller.enqueue(new TextEncoder().encode('x'.repeat(CAP / 2)));
+        }
+        controller.close();
+      },
+    });
+    const init: RequestInit & { duplex: 'half' } = {
+      method: 'POST',
+      body: stream,
+      duplex: 'half',
+    };
+    const res = await fetch(base, init);
+    expect(res.status).toBe(413);
+    expect(await res.json()).toMatchObject({ error: 'payload_too_large' });
+  });
+
   test('malformed JSON under the cap is 400 bad_request', async () => {
     const res = await fetch(base, { method: 'POST', body: '{not json' });
     expect(res.status).toBe(400);

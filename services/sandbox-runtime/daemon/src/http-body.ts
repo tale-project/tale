@@ -14,28 +14,62 @@ export type JsonBodyResult =
   | { ok: false; status: 400; error: 'bad_request' }
   | { ok: false; status: 413; error: 'payload_too_large' };
 
-class PayloadTooLarge extends Error {
-  constructor() {
-    super('payload_too_large');
-    this.name = 'PayloadTooLarge';
-  }
-}
+type BodyRead = { kind: 'read'; raw: string } | { kind: 'too_large' };
 
-async function readBody(
-  req: IncomingMessage,
-  maxBytes: number,
-): Promise<string> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of req) {
-    // req yields Buffer chunks; the stream iterator types them as `any`, so
-    // Buffer.from accepts it without an assertion.
-    const buf = Buffer.from(chunk);
-    total += buf.byteLength;
-    if (total > maxBytes) throw new PayloadTooLarge();
-    chunks.push(buf);
-  }
-  return Buffer.concat(chunks).toString('utf8');
+/**
+ * Collect the request body up to `maxBytes` WITHOUT ever destroying the
+ * request stream. Refusing from inside a `for await` (throw/break) calls the
+ * iterator's `return()`, which destroys the IncomingMessage: on Node that
+ * aborts the socket, and under Bun's node:http the 413 the route writes
+ * afterwards is lost and the client reads a 200 — so the body is taken off
+ * the `data` event, an oversize body is refused by pausing the stream (a
+ * declared oversize `Content-Length` before the first byte, a running total
+ * past the cap otherwise), and the route's 413 goes out on a live socket
+ * that `Connection: close` then closes with the unread remainder.
+ */
+function readBody(req: IncomingMessage, maxBytes: number): Promise<BodyRead> {
+  return new Promise((resolve, reject) => {
+    const declared = Number(req.headers['content-length']);
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      req.pause();
+      resolve({ kind: 'too_large' });
+      return;
+    }
+    const chunks: Buffer[] = [];
+    let total = 0;
+    let settled = false;
+    const finish = (result: BodyRead): void => {
+      if (settled) return;
+      settled = true;
+      req.removeListener('data', onData);
+      resolve(result);
+    };
+    const onData = (chunk: unknown): void => {
+      if (settled) return;
+      const buf = Buffer.isBuffer(chunk)
+        ? chunk
+        : chunk instanceof Uint8Array
+          ? Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+          : Buffer.from(String(chunk), 'utf8');
+      total += buf.length;
+      if (total > maxBytes) {
+        req.pause();
+        finish({ kind: 'too_large' });
+        return;
+      }
+      chunks.push(buf);
+    };
+    req.on('data', onData);
+    req.once('end', () => {
+      finish({ kind: 'read', raw: Buffer.concat(chunks).toString('utf8') });
+    });
+    req.once('error', (error: Error) => {
+      if (settled) return;
+      settled = true;
+      req.removeListener('data', onData);
+      reject(error);
+    });
+  });
 }
 
 /** Read and JSON-parse a request body under `maxBytes`. Never throws: the
@@ -44,17 +78,17 @@ export async function readJsonBody(
   req: IncomingMessage,
   maxBytes: number = RUNNERD_MAX_REQUEST_BODY_BYTES,
 ): Promise<JsonBodyResult> {
-  let raw: string;
+  let read: BodyRead;
   try {
-    raw = await readBody(req, maxBytes);
-  } catch (err) {
-    if (err instanceof PayloadTooLarge) {
-      return { ok: false, status: 413, error: 'payload_too_large' };
-    }
+    read = await readBody(req, maxBytes);
+  } catch {
     return { ok: false, status: 400, error: 'bad_request' };
   }
+  if (read.kind === 'too_large') {
+    return { ok: false, status: 413, error: 'payload_too_large' };
+  }
   try {
-    return { ok: true, value: JSON.parse(raw) };
+    return { ok: true, value: JSON.parse(read.raw) };
   } catch {
     return { ok: false, status: 400, error: 'bad_request' };
   }

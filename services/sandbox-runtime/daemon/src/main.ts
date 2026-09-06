@@ -148,7 +148,13 @@ function tokenOk(req: IncomingMessage): boolean {
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
-  res.writeHead(status, { 'content-type': 'application/json' });
+  res.writeHead(status, {
+    'content-type': 'application/json',
+    // A 413 leaves the oversize request body unread (`readJsonBody` pauses
+    // the stream instead of destroying it); closing the connection drops
+    // that remainder with the socket instead of draining it.
+    ...(status === 413 ? { connection: 'close' } : {}),
+  });
   res.end(payload);
 }
 
