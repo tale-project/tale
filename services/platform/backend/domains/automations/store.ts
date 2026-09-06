@@ -109,11 +109,35 @@ export interface SaveVersionArgs {
    * via `setAutomationProjects`, so saving a version cannot move an
    * automation between surfaces. */
   projectId?: string;
+  /** Create-only: refuse with `AUTOMATION_NAME_TAKEN` (409) when the name
+   * already has versions, instead of appending one to — and letting the
+   * caller then rebind the trigger of — a live automation that happens to
+   * share the slug (the wizard's contract, the 0.4 `create: true`). */
+  create?: boolean;
   message?: string;
   testsPassed?: boolean;
   taskContract?: unknown;
   settings?: unknown;
   presentation?: unknown;
+}
+
+/** Serialize every writer of ONE automation name (two tabs, the builder's
+ * autosave racing the editor, MCP `save_automation`): the version number is
+ * `max(version) + 1` read inside the transaction, so without this the loser
+ * of two concurrent saves trips UNIQUE (org_id, name, version) and surfaces
+ * as an opaque 500 — and the create-only check below would be a
+ * check-then-act race. The same idiom the sandbox admission and the skill
+ * writer use. */
+async function lockAutomationName(
+  tx: TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  await tx`
+    SELECT pg_advisory_xact_lock(
+      hashtextextended('automation:' || ${organizationId} || '/' || ${name}, 0)
+    )
+  `;
 }
 
 export async function saveVersion(
@@ -122,6 +146,7 @@ export async function saveVersion(
 ): Promise<{ name: string; version: number }> {
   const name = assertAutomationName(args.name);
   return sql.begin(async (tx) => {
+    await lockAutomationName(tx, args.organizationId, name);
     // The FIRST version is the create: a name the router keeps for itself is
     // refused here, once, before anything is written.
     const existing = await tx<{ version: number }[]>`
@@ -130,6 +155,13 @@ export async function saveVersion(
       LIMIT 1
     `;
     if (existing.length === 0) assertAutomationNameCreatable(name);
+    if (args.create === true && existing.length > 0) {
+      throw new AutomationError(
+        'AUTOMATION_NAME_TAKEN',
+        `An automation named "${name}" already exists — pick a different name.`,
+        409,
+      );
+    }
     const rows = await tx<{ version: number }[]>`
       INSERT INTO app.automations (
         org_id, name, version, document, message, tests_passed,
@@ -177,12 +209,29 @@ export async function saveVersion(
         ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
       `;
     }
-    await emitHintInTx(tx, {
-      orgId: args.organizationId,
-      entity: 'automation',
-      entityId: name,
-    });
+    await emitDefinitionHint(tx, args.organizationId, name);
     return { name, version };
+  });
+}
+
+/**
+ * Every write to an automation's DEFINITION — a version, a deploy, a trigger,
+ * a project binding, the delete — emits the `automation` hint inside its own
+ * transaction, the realtime contract the run doors already honour for
+ * `automation_run`: the app keys the list, the detail page, the trigger and
+ * the binding reads under one `automation` entity prefix, so this is what
+ * keeps another member's screen from showing a deleted automation, a stale
+ * deployedVersion badge or the previous trigger until reload.
+ */
+async function emitDefinitionHint(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  await emitHintInTx(tx, {
+    orgId: organizationId,
+    entity: 'automation',
+    entityId: name,
   });
 }
 
@@ -262,17 +311,20 @@ export async function deploy(
       409,
     );
   }
-  await sql`
-    INSERT INTO app.automation_deployments (
-      org_id, name, version, deployed_by, deployed_at_ms
-    ) VALUES (
-      ${args.organizationId}, ${args.name}, ${args.version}, ${args.actor},
-      ${Date.now()}
-    )
-    ON CONFLICT (org_id, name) DO UPDATE SET
-      version = EXCLUDED.version, deployed_by = EXCLUDED.deployed_by,
-      deployed_at_ms = EXCLUDED.deployed_at_ms
-  `;
+  await sql.begin(async (tx) => {
+    await tx`
+      INSERT INTO app.automation_deployments (
+        org_id, name, version, deployed_by, deployed_at_ms
+      ) VALUES (
+        ${args.organizationId}, ${args.name}, ${args.version}, ${args.actor},
+        ${Date.now()}
+      )
+      ON CONFLICT (org_id, name) DO UPDATE SET
+        version = EXCLUDED.version, deployed_by = EXCLUDED.deployed_by,
+        deployed_at_ms = EXCLUDED.deployed_at_ms
+    `;
+    await emitDefinitionHint(tx, args.organizationId, args.name);
+  });
   return { name: args.name, version: args.version };
 }
 
@@ -480,6 +532,7 @@ export async function setAutomationProjects(
         ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
       `;
     }
+    await emitDefinitionHint(tx, args.organizationId, args.name);
   });
 }
 
@@ -504,16 +557,21 @@ export async function bindProject(
       404,
     );
   }
-  const inserted = await sql`
-    INSERT INTO app.automation_project_bindings (
-      org_id, automation_name, project_id, bound_at_ms, bound_by
-    ) VALUES (
-      ${args.organizationId}, ${args.name}, ${args.projectId}, ${Date.now()},
-      ${args.actor}
-    )
-    ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-  `;
-  return { bound: inserted.count > 0 };
+  return sql.begin(async (tx) => {
+    const inserted = await tx`
+      INSERT INTO app.automation_project_bindings (
+        org_id, automation_name, project_id, bound_at_ms, bound_by
+      ) VALUES (
+        ${args.organizationId}, ${args.name}, ${args.projectId}, ${Date.now()},
+        ${args.actor}
+      )
+      ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+    `;
+    const bound = inserted.count > 0;
+    // An idempotent re-add changed nothing — no screen needs a refetch.
+    if (bound) await emitDefinitionHint(tx, args.organizationId, args.name);
+    return { bound };
+  });
 }
 
 export async function bindingProjectIds(
@@ -618,30 +676,34 @@ export async function setTrigger(
     minted !== undefined ? await hashWebhookToken(minted) : null;
   const rotate = args.trigger.rotateToken === true;
   const enabled = args.trigger.enabled ?? true;
-  const rows = await sql<{ tokenHash: string | null }[]>`
-    INSERT INTO app.automation_triggers AS t (
-      org_id, name, kind, cron, timezone, event, token_hash, enabled,
-      created_by, created_at_ms, updated_at_ms
-    ) VALUES (
-      ${args.organizationId}, ${args.name}, ${args.trigger.kind},
-      ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
-      ${args.trigger.event ?? null}, ${mintedHash}, ${enabled},
-      ${args.actor}, ${now}, ${now}
-    )
-    ON CONFLICT (org_id, name) DO UPDATE SET
-      kind = EXCLUDED.kind,
-      cron = EXCLUDED.cron,
-      timezone = EXCLUDED.timezone,
-      event = EXCLUDED.event,
-      token_hash = CASE
-        WHEN EXCLUDED.kind <> 'webhook' THEN NULL
-        WHEN ${rotate}::boolean OR t.token_hash IS NULL THEN EXCLUDED.token_hash
-        ELSE t.token_hash
-      END,
-      enabled = EXCLUDED.enabled,
-      updated_at_ms = EXCLUDED.updated_at_ms
-    RETURNING token_hash AS "tokenHash"
-  `;
+  const rows = await sql.begin(async (tx) => {
+    const upserted = await tx<{ tokenHash: string | null }[]>`
+      INSERT INTO app.automation_triggers AS t (
+        org_id, name, kind, cron, timezone, event, token_hash, enabled,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${args.organizationId}, ${args.name}, ${args.trigger.kind},
+        ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
+        ${args.trigger.event ?? null}, ${mintedHash}, ${enabled},
+        ${args.actor}, ${now}, ${now}
+      )
+      ON CONFLICT (org_id, name) DO UPDATE SET
+        kind = EXCLUDED.kind,
+        cron = EXCLUDED.cron,
+        timezone = EXCLUDED.timezone,
+        event = EXCLUDED.event,
+        token_hash = CASE
+          WHEN EXCLUDED.kind <> 'webhook' THEN NULL
+          WHEN ${rotate}::boolean OR t.token_hash IS NULL THEN EXCLUDED.token_hash
+          ELSE t.token_hash
+        END,
+        enabled = EXCLUDED.enabled,
+        updated_at_ms = EXCLUDED.updated_at_ms
+      RETURNING token_hash AS "tokenHash"
+    `;
+    await emitDefinitionHint(tx, args.organizationId, args.name);
+    return upserted;
+  });
   const landed = rows[0]?.tokenHash ?? null;
   return minted !== undefined && landed !== null && landed === mintedHash
     ? { token: minted }
@@ -653,12 +715,16 @@ export async function deleteTrigger(
   organizationId: string,
   name: string,
 ): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`
-    DELETE FROM app.automation_triggers
-    WHERE org_id = ${organizationId} AND name = ${name}
-    RETURNING id
-  `;
-  return rows.length > 0;
+  return sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      DELETE FROM app.automation_triggers
+      WHERE org_id = ${organizationId} AND name = ${name}
+      RETURNING id
+    `;
+    const deleted = rows.length > 0;
+    if (deleted) await emitDefinitionHint(tx, organizationId, name);
+    return deleted;
+  });
 }
 
 export async function listTriggers(
@@ -784,6 +850,37 @@ async function stopRunSandboxSessions(
       AND status IN ('creating', 'active', 'degraded')
       AND pinned = false
   `;
+}
+
+/**
+ * A run that ends ANY way — cancel, finish, fail — leaves no question
+ * soliciting an answer: its pending asks close as `cancelled` and every
+ * recipient's unread `agent_escalation` bell is marked read (the same
+ * dismissal the answer and the host's `closeAsk` perform). Without this a
+ * cancel during an ask park left the ask `pending` forever — still
+ * answerable, enqueueing a resume for a dead run — with its bells unread:
+ * an ask park ends its exec on purpose, so no drive window re-enters to
+ * reach `closeAsk`, the poll chain exits on the terminal status, and no
+ * sweep exists. Called on every terminal door, like the session stop.
+ */
+async function closePendingAsksForRun(
+  tx: TransactionSql,
+  organizationId: string,
+  runId: string,
+): Promise<number> {
+  const closed = await tx<{ id: string }[]>`
+    UPDATE app.automation_human_asks SET status = 'cancelled'
+    WHERE run_id = ${runId} AND org_id = ${organizationId}
+      AND status = 'pending'
+    RETURNING id
+  `;
+  for (const ask of closed) {
+    await dismissAgentQuestionNotifications(tx, {
+      organizationId,
+      askId: ask.id,
+    });
+  }
+  return closed.length;
 }
 
 export async function getRun(
@@ -969,6 +1066,7 @@ export async function cancelRunInTx(
       });
     }
     await stopRunSandboxSessions(tx, organizationId, runId);
+    await closePendingAsksForRun(tx, organizationId, runId);
     await emitRunHint(tx, organizationId, runId);
     return { cancelled: true };
   }
@@ -1299,9 +1397,11 @@ export async function finishRun(
         },
       });
     }
-    // The run's sandbox sessions are per-execution — free their slots now
-    // (the terminal contract, shared with cancelRun).
+    // The run's sandbox sessions are per-execution — free their slots now,
+    // and close any question nobody can answer any more (the terminal
+    // contract, shared with cancelRun).
     await stopRunSandboxSessions(tx, args.organizationId, args.runId);
+    await closePendingAsksForRun(tx, args.organizationId, args.runId);
     await emitRunHint(tx, args.organizationId, args.runId);
     return { status: args.status };
   });
@@ -1409,6 +1509,7 @@ export async function deleteAutomationCascade(
         deleted_by = EXCLUDED.deleted_by,
         deleted_at_ms = EXCLUDED.deleted_at_ms
     `;
+    await emitDefinitionHint(tx, args.organizationId, args.name);
   });
 }
 

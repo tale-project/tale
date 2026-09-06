@@ -8951,10 +8951,10 @@ async function checkChat(
 async function checkAutomations(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
   orgSlug: string,
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const { createServer } = await import('node:http');
 
   // Fake OpenAI-compatible provider for the llm node (non-streaming).
@@ -9111,6 +9111,130 @@ async function checkAutomations(
         reservedRows.length === 0,
       `runs/nightly → ${reservedName.status} ${reservedBody.success ? reservedBody.data.error : 'UNPARSEABLE'} (want 400 AUTOMATION_NAME_RESERVED), metrics → ${reservedExact.status} (want 400), ops/runs → ${reservedNested.status} (want 201), stranded rows=${reservedRows.length} (want 0)`,
     );
+    // The wizard's create-only save: a slug that already has versions is
+    // REFUSED with a coded 409 — never appended to (the trigger rebind that
+    // follows a "create" would otherwise replace a live automation's
+    // schedule or webhook). A fresh name creates as usual.
+    const takenRes = await post(
+      `/api/app/automations/ops/greet/save?orgId=${orgId}`,
+      { document, message: 'wizard', create: true },
+    );
+    const takenBody = z
+      .object({ error: z.string() })
+      .loose()
+      .safeParse(await takenRes.json().catch(() => null));
+    const freshCreate = z
+      .object({ name: z.string(), version: z.number() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/automations/ops/greet-fresh/save?orgId=${orgId}`,
+            {
+              document: { ...document, name: 'ops/greet-fresh' },
+              create: true,
+            },
+          )
+        ).json(),
+      );
+    const greetVersions = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automations
+      WHERE org_id = ${orgId} AND name = 'ops/greet'
+    `;
+    record(
+      'automations: a create-only save refuses a taken name (409) and creates a fresh one',
+      takenRes.status === 409 &&
+        takenBody.success &&
+        takenBody.data.error === 'AUTOMATION_NAME_TAKEN' &&
+        freshCreate.success &&
+        freshCreate.data.version === 1 &&
+        greetVersions[0]?.count === '1',
+      `taken → ${takenRes.status} ${takenBody.success ? takenBody.data.error : 'UNPARSEABLE'} (want 409 AUTOMATION_NAME_TAKEN), fresh → v${freshCreate.success ? freshCreate.data.version : 'ERR'} (want 1), ops/greet versions=${greetVersions[0]?.count} (want 1)`,
+    );
+
+    // The save door carries the install project: a first save from a
+    // project surface binds v1 to that project (so the project's tab lists
+    // it); a later save never moves the binding; a phantom project is
+    // refused before anything is written.
+    const installProject = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES (${orgId}, 'Install target', ${userId}, ${Date.now()},
+              ${Date.now()})
+      RETURNING id
+    `;
+    const installProjectId = installProject[0]?.id ?? '';
+    const boundSave = await post(
+      `/api/app/automations/ops/project-bound/save?orgId=${orgId}`,
+      {
+        document: { ...document, name: 'ops/project-bound' },
+        create: true,
+        projectId: installProjectId,
+      },
+    );
+    await post(`/api/app/automations/ops/project-bound/save?orgId=${orgId}`, {
+      document: { ...document, name: 'ops/project-bound' },
+      projectId: 'some-other-project',
+    });
+    const phantomSave = await post(
+      `/api/app/automations/ops/project-phantom/save?orgId=${orgId}`,
+      {
+        document: { ...document, name: 'ops/project-phantom' },
+        projectId: 'phantom-project-does-not-exist',
+      },
+    );
+    const boundRows = await sql<{ projectId: string }[]>`
+      SELECT project_id AS "projectId" FROM app.automation_project_bindings
+      WHERE org_id = ${orgId} AND automation_name = 'ops/project-bound'
+    `;
+    const phantomRows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automations
+      WHERE org_id = ${orgId} AND name = 'ops/project-phantom'
+    `;
+    const projectListing = z
+      .object({ automations: z.array(z.object({ name: z.string() }).loose()) })
+      .safeParse(
+        await get(
+          `/api/app/automations/listing?orgId=${orgId}&projectId=${encodeURIComponent(installProjectId)}`,
+        ),
+      );
+    record(
+      'automations: the save door binds v1 to the install project',
+      boundSave.status === 201 &&
+        boundRows.length === 1 &&
+        boundRows[0]?.projectId === installProjectId &&
+        phantomSave.status === 404 &&
+        phantomRows[0]?.count === '0' &&
+        projectListing.success &&
+        projectListing.data.automations.some(
+          (row) => row.name === 'ops/project-bound',
+        ),
+      `save=${boundSave.status} (want 201), bindings=${boundRows.map((row) => row.projectId === installProjectId).join(',')} (want one true), phantom=${phantomSave.status}/${phantomRows[0]?.count} (want 404/0), inProjectListing=${projectListing.success ? projectListing.data.automations.some((row) => row.name === 'ops/project-bound') : 'ERR'}`,
+    );
+
+    // Concurrent saves of ONE name serialize on the per-name lock: every
+    // writer lands its own contiguous version, none trips the
+    // (org_id, name, version) UNIQUE constraint into a 500.
+    const racers = await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
+        post(`/api/app/automations/ops/racing/save?orgId=${orgId}`, {
+          document: { ...document, name: 'ops/racing' },
+          message: `racer ${index}`,
+        }),
+      ),
+    );
+    const racerStatuses = racers.map((res) => res.status);
+    const racerRows = await sql<{ version: number }[]>`
+      SELECT version FROM app.automations
+      WHERE org_id = ${orgId} AND name = 'ops/racing'
+      ORDER BY version
+    `;
+    record(
+      'automations: concurrent saves of one name serialize into contiguous versions',
+      racerStatuses.every((status) => status === 201) &&
+        racerRows.map((row) => row.version).join(',') === '1,2,3,4,5,6,7,8',
+      `statuses=${racerStatuses.join(',')} (want all 201), versions=${racerRows.map((row) => row.version).join(',')} (want 1..8)`,
+    );
+
     const deployed = await post(
       `/api/app/automations/ops/greet/deploy?orgId=${orgId}`,
       { version: 1 },
@@ -9469,6 +9593,37 @@ async function checkAutomations(
  * it lands on a run. Runs a transform-only automation so nothing external is
  * needed and every settle is deterministic.
  */
+/**
+ * Migration 0083 retired the automation shape nothing ever read or wrote:
+ * `app.automation_upload_intents` (superseded by `app.upload_intents`), the
+ * never-written `automation_runs.lifecycle_status` / `status_changed_at_ms`
+ * and their index. Proves the drop landed on the real schema — and, since
+ * every automation lane above already ran, that the store's explicit
+ * column lists never depended on them.
+ */
+async function checkAutomationsDeadSchemaDropped(sql: Sql): Promise<void> {
+  const table = await sql<{ present: boolean }[]>`
+    SELECT to_regclass('app.automation_upload_intents') IS NOT NULL AS present
+  `;
+  const columns = await sql<{ column: string }[]>`
+    SELECT column_name AS column FROM information_schema.columns
+    WHERE table_schema = 'app' AND table_name = 'automation_runs'
+      AND column_name IN ('lifecycle_status', 'status_changed_at_ms')
+  `;
+  const index = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pg_indexes
+    WHERE schemaname = 'app' AND tablename = 'automation_runs'
+      AND indexname = 'automation_runs_org_lifecycle'
+  `;
+  record(
+    'migration 0083 drops the dead automation upload-intents table, lifecycle columns and index',
+    !(table[0]?.present ?? true) &&
+      columns.length === 0 &&
+      index[0]?.count === '0',
+    `upload_intents table=${table[0]?.present ? 'PRESENT' : 'gone'}, lifecycle columns=${columns.map((row) => row.column).join(',') || 'gone'}, index=${index[0]?.count} (want 0)`,
+  );
+}
+
 async function checkAutomationRunLifecycle(
   sql: Sql,
   base: string,
@@ -14656,6 +14811,26 @@ async function checkWorkflowTurnReattach(
     agentResultStatus: 'awaiting_human',
   });
 
+  // The fleet: 120 NEWER `waiting` runs — approval parks, no agent cursor —
+  // ahead of every probe run above. The sweep used to page the 100 newest
+  // waiting rows of any kind and filter in JS, so this fleet pushed the
+  // stalled turn out of the page on every sweep; the predicates now live in
+  // SQL and the walk is oldest first, so the fleet is never a candidate.
+  await sql`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, input, checkpoints,
+      claim_epoch, started_at_ms
+    )
+    SELECT ${orgId}, 'wf-reattach-fleet', 1, 'waiting', 'live',
+           'itest:reattach', '{}'::jsonb,
+           jsonb_build_object(
+             'nodes', '{}'::jsonb, 'executions', 1,
+             'cursor', jsonb_build_object('node', 'approve', 'index', 0)
+           ),
+           0, ${now - 60_000}::bigint + g
+    FROM generate_series(1, 120) AS g
+  `;
+
   const { recoverStalledWorkflowAgentTurns } =
     await import('./domains/automations/reattach.ts');
   const jobsBefore = await sql<{ count: string }[]>`
@@ -14699,7 +14874,7 @@ async function checkWorkflowTurnReattach(
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
   record(
-    'automations re-attach: abandoned turns resume; live and ask-parked stay',
+    'automations re-attach: abandoned turns resume behind a fleet of newer parks; live and ask-parked stay',
     unreachable.resumed === 0 &&
       jobsAfterUnreachable[0]?.count === jobsBefore[0]?.count &&
       recovered.resumed === 2 &&
@@ -14728,6 +14903,10 @@ async function checkWorkflowTurnReattach(
     UPDATE app.automation_runs SET status = 'cancelled',
                                    finished_at_ms = ${Date.now()}
     WHERE org_id = ${orgId} AND name = 'wf-reattach-probe'
+  `;
+  await sql`
+    DELETE FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = 'wf-reattach-fleet'
   `;
   await sql`
     DELETE FROM app.sandbox_session_ops
@@ -30297,6 +30476,150 @@ async function checkAskAnswer(
     WHERE org_id = ${orgId} AND type = 'agent_escalation'
       AND params ->> 'askId' = ${bellAskId}
   `;
+  // Two ask_human calls RACING inside one turn (an at-least-once tool lane)
+  // converge on ONE pending row carrying both questions — the partial unique
+  // index (0082) plus the single INSERT … ON CONFLICT fold; the former
+  // SELECT-then-INSERT left a second pending row nothing ever read.
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, 'wf-ask-race', 'active', 'workflow_run', ${runAId},
+      'itest:ask', ${now}, ${now + 3_600_000}
+    )
+  `;
+  const raceShape = z
+    .object({ askId: z.string(), folded: z.boolean() })
+    .loose();
+  const raced = await Promise.all(
+    ['First racing question?', 'Second racing question?'].map((question) =>
+      createAsk?.({
+        organizationId: orgId,
+        sessionId: 'wf-ask-race',
+        question,
+      }),
+    ),
+  );
+  const racedAsks = raced.map((result) => raceShape.safeParse(result));
+  const racePending = await sql<{ id: string; question: string }[]>`
+    SELECT id, question FROM app.automation_human_asks
+    WHERE session_id = 'wf-ask-race' AND exec_id = 'exec-ask-other'
+      AND status = 'pending'
+  `;
+  record(
+    'racing ask_human calls in one turn fold into a single pending ask',
+    racedAsks.every((result) => result.success) &&
+      racePending.length === 1 &&
+      racedAsks.every(
+        (result) => result.success && result.data.askId === racePending[0]?.id,
+      ) &&
+      racedAsks.filter((result) => result.success && result.data.folded)
+        .length === 1 &&
+      (racePending[0]?.question.includes('First racing question?') ?? false) &&
+      (racePending[0]?.question.includes('Second racing question?') ?? false),
+    `results=${racedAsks.map((result) => (result.success ? `${result.data.askId === racePending[0]?.id}/${result.data.folded}` : 'ERR')).join(',')} (want one folded, same id), pending=${racePending.length} (want 1), merged=${JSON.stringify(racePending[0]?.question ?? '').slice(0, 80)}`,
+  );
+
+  // The 0082 dedupe, replayed from the shipped file onto planted duplicates
+  // (the index dropped first, as a pre-0082 database has it): the OLDEST
+  // pending row survives carrying both questions, the phantom closes as
+  // cancelled AND the bell the racing loser fanned out under the phantom's
+  // id is marked read — the survivor's bell stays unread — and the partial
+  // unique index comes back.
+  const migrationsDir = new URL('./db/migrations/', import.meta.url);
+  const { readdir } = await import('node:fs/promises');
+  const dedupFile = (await readdir(migrationsDir)).find((file) =>
+    file.startsWith('0082_'),
+  );
+  if (dedupFile === undefined) {
+    record(
+      'migration 0082 keeps the oldest pending ask and dismisses the phantom bells',
+      false,
+      'no 0082_* migration file under backend/db/migrations',
+    );
+  } else {
+    const ddl = await readFile(new URL(dedupFile, migrationsDir), 'utf8');
+    const t0 = now - 600_000;
+    await sql`DROP INDEX IF EXISTS app.automation_asks_pending_exec`;
+    const planted = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_human_asks (
+        org_id, run_id, node_id, session_id, exec_id, question, status,
+        expires_at_ms, created_at_ms
+      ) VALUES
+        (${orgId}, ${runAId}, 'ask_node', 'wf-ask-migrate', 'exec-migrate',
+         'Older racing question?', 'pending', ${now + 3_600_000}, ${t0}),
+        (${orgId}, ${runAId}, 'ask_node', 'wf-ask-migrate', 'exec-migrate',
+         'Newer racing question?', 'pending', ${now + 3_600_000}, ${t0 + 1})
+      RETURNING id
+    `;
+    const survivorId = planted[0]?.id ?? '';
+    const phantomId = planted[1]?.id ?? '';
+    await sql`
+      INSERT INTO app.user_notifications (
+        user_id, org_id, type, title_key, body_key, params, resource_type,
+        resource_id, actor_type, actor_id, created_at_ms
+      ) VALUES
+        (${userId}, ${orgId}, 'agent_escalation', 'agentQuestionAsked',
+         'agentQuestionAskedNoTaskBody',
+         ${sql.json({ askId: survivorId, runId: runAId })}, 'dashboard',
+         ${orgId}, 'agent', 'itest', ${t0}),
+        (${userId}, ${orgId}, 'agent_escalation', 'agentQuestionAsked',
+         'agentQuestionAskedNoTaskBody',
+         ${sql.json({ askId: phantomId, runId: runAId })}, 'dashboard',
+         ${orgId}, 'agent', 'itest', ${t0 + 1})
+    `;
+    await sql.begin(async (tx) => {
+      await tx.unsafe(ddl);
+    });
+    const asksAfter = await sql<
+      { id: string; status: string; question: string }[]
+    >`
+      SELECT id, status, question FROM app.automation_human_asks
+      WHERE session_id = 'wf-ask-migrate' AND exec_id = 'exec-migrate'
+      ORDER BY created_at_ms ASC
+    `;
+    const bellsAfter = await sql<
+      { askId: string | null; read: boolean; readAt: number | null }[]
+    >`
+      SELECT params ->> 'askId' AS "askId", read, read_at_ms::float8 AS "readAt"
+      FROM app.user_notifications
+      WHERE org_id = ${orgId} AND type = 'agent_escalation'
+        AND params ->> 'askId' IN (${survivorId}, ${phantomId})
+    `;
+    const survivorBell = bellsAfter.find((row) => row.askId === survivorId);
+    const phantomBell = bellsAfter.find((row) => row.askId === phantomId);
+    const pendingIndex = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pg_indexes
+      WHERE schemaname = 'app' AND tablename = 'automation_human_asks'
+        AND indexname = 'automation_asks_pending_exec'
+    `;
+    await sql`
+      DELETE FROM app.user_notifications
+      WHERE org_id = ${orgId} AND type = 'agent_escalation'
+        AND params ->> 'askId' IN (${survivorId}, ${phantomId})
+    `;
+    await sql`
+      DELETE FROM app.automation_human_asks
+      WHERE session_id = 'wf-ask-migrate' AND exec_id = 'exec-migrate'
+    `;
+    record(
+      'migration 0082 keeps the oldest pending ask and dismisses the phantom bells',
+      asksAfter.length === 2 &&
+        asksAfter[0]?.id === survivorId &&
+        asksAfter[0]?.status === 'pending' &&
+        asksAfter[0]?.question.includes('Older racing question?') &&
+        asksAfter[0]?.question.includes('Newer racing question?') &&
+        asksAfter[1]?.id === phantomId &&
+        asksAfter[1]?.status === 'cancelled' &&
+        survivorBell?.read === false &&
+        phantomBell?.read === true &&
+        phantomBell.readAt !== null &&
+        pendingIndex[0]?.count === '1',
+      `asks=${asksAfter.map((row) => `${row.id === survivorId ? 'survivor' : 'phantom'}:${row.status}`).join(',')} (want survivor:pending,phantom:cancelled), merged=${asksAfter[0]?.question.includes('Newer racing question?')}, survivor bell read=${survivorBell?.read} (want false), phantom bell read=${phantomBell?.read}/${phantomBell?.readAt !== null} (want true/true), unique index=${pendingIndex[0]?.count} (want 1)`,
+    );
+  }
+
   await answerRoute(bellAskId, 'Account 4400, box 81.');
   const bellAfterAnswer = await sql<{ read: boolean }[]>`
     SELECT read FROM app.user_notifications
@@ -30384,11 +30707,41 @@ async function checkAskAnswer(
     `returned=${taskAsk.success ? taskAsk.data.taskId === askTaskId : 'ERR'}, row=${taskAskRow[0]?.taskId === askTaskId}, bell=${taskBell[0]?.resourceType}/${taskBell[0]?.resourceId === askTaskId}, params=${JSON.stringify(taskBell[0]?.params?.title)}/${taskBell[0]?.params?.projectId === askProjectId}`,
   );
 
+  // Cancelling a run parked on a question CLOSES the question: the ask flips
+  // to `cancelled` (no longer answerable, no resume for a dead run) and every
+  // recipient's bell is read — the same terminal contract the answer has.
+  const taskAskId = taskAsk.success ? taskAsk.data.askId : '';
+  const cancelRes = await fetch(
+    `${base}/api/app/automations/runs/${boundRun[0]?.id ?? ''}/cancel?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+    },
+  );
+  const cancelledAsk = await sql<{ status: string }[]>`
+    SELECT status FROM app.automation_human_asks WHERE id = ${taskAskId}
+  `;
+  const cancelledBells = await sql<{ read: boolean }[]>`
+    SELECT read FROM app.user_notifications
+    WHERE org_id = ${orgId} AND type = 'agent_escalation'
+      AND params ->> 'askId' = ${taskAskId}
+  `;
+  const cancelledAnswer = await answerRoute(taskAskId, 'too late, cancelled');
+  record(
+    'cancelling an ask-parked run closes the ask and reads its bells',
+    cancelRes.status === 200 &&
+      cancelledAsk[0]?.status === 'cancelled' &&
+      cancelledBells.length >= 1 &&
+      cancelledBells.every((row) => row.read) &&
+      cancelledAnswer.status === 409,
+    `cancel=${cancelRes.status}, ask=${cancelledAsk[0]?.status} (want cancelled), bells=${cancelledBells.length}/${cancelledBells.every((row) => row.read)} (want >=1/true), answer=${cancelledAnswer.status} (want 409)`,
+  );
+
   // The bell sessions must not linger — later capacity scenarios count the
   // org's live workflow sessions.
   await sql`
     UPDATE app.sandbox_sessions SET status = 'destroyed'
-    WHERE session_id IN ('wf-ask-bell', 'wf-ask-task')
+    WHERE session_id IN ('wf-ask-bell', 'wf-ask-task', 'wf-ask-race')
   `;
   record(
     'ask bells: fan-out on create, fold carries the merged question, answer dismisses',
@@ -43161,6 +43514,10 @@ async function main(): Promise<void> {
       [
         'checkAutomations',
         () => checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkAutomationsDeadSchemaDropped',
+        () => checkAutomationsDeadSchemaDropped(sql),
       ],
       [
         'checkAutomationRunLifecycle',
