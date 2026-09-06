@@ -21111,6 +21111,70 @@ async function checkWebdav(
     headers: { 'lock-token': lockToken },
   });
 
+  // Two concurrent LOCKs on the same unlocked path: exactly one wins (the
+  // per-org advisory section + the unique (org, path) index), the other
+  // sees 423 — never two "exclusive" tokens for one resource.
+  const lockPlan2 = (): Promise<Response> =>
+    dav('/documents/DavReports/plan2.txt', {
+      method: 'LOCK',
+      body: lockXml,
+      headers: { 'content-type': 'application/xml', timeout: 'Second-600' },
+    });
+  const raced = await Promise.all([lockPlan2(), lockPlan2()]);
+  const racedStatuses = raced
+    .map((r) => r.status)
+    .sort((a, b) => a - b)
+    .join('/');
+  const raceRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.webdav_locks
+    WHERE org_id = ${orgId}
+      AND resource_path = '/documents/DavReports/plan2.txt'
+  `;
+  const raceWinnerToken =
+    raced.find((r) => r.status === 200)?.headers.get('lock-token') ?? '';
+  const raceUnlock = await dav('/documents/DavReports/plan2.txt', {
+    method: 'UNLOCK',
+    headers: { 'lock-token': raceWinnerToken },
+  });
+
+  // Collation-safe subtree scans: a lock under `foobar` must not shadow its
+  // sibling `foo`, and it must still guard `foobar` itself (a depth-infinity
+  // LOCK over it and its DELETE both 423). The old `>= path/ AND <
+  // path/U+FFFF` range found no descendant at all on the shipped
+  // en_US.utf8 image.
+  await dav('/documents/DavReports/foo', { method: 'MKCOL' });
+  await dav('/documents/DavReports/foobar', { method: 'MKCOL' });
+  await dav('/documents/DavReports/foobar/x.txt', {
+    method: 'PUT',
+    body: 'x',
+    headers: { 'content-type': 'text/plain', 'content-length': '1' },
+  });
+  const memberLock = await dav('/documents/DavReports/foobar/x.txt', {
+    method: 'LOCK',
+    body: lockXml,
+    headers: { 'content-type': 'application/xml', timeout: 'Second-600' },
+  });
+  const memberToken = memberLock.headers.get('lock-token') ?? '';
+  const siblingDelete = await dav('/documents/DavReports/foo', {
+    method: 'DELETE',
+  });
+  const parentInfinityLock = await dav('/documents/DavReports/foobar', {
+    method: 'LOCK',
+    body: lockXml,
+    headers: {
+      'content-type': 'application/xml',
+      timeout: 'Second-600',
+      depth: 'infinity',
+    },
+  });
+  const parentDelete = await dav('/documents/DavReports/foobar', {
+    method: 'DELETE',
+  });
+  const memberUnlock = await dav('/documents/DavReports/foobar/x.txt', {
+    method: 'UNLOCK',
+    headers: { 'lock-token': memberToken },
+  });
+
   // Hub-only visibility: a project doc + folder never surface (#2545).
   const projRows = await sql<{ id: string }[]>`
     INSERT INTO app.projects (org_id, name, key, created_by, created_at_ms,
@@ -21315,6 +21379,14 @@ async function checkWebdav(
       lockToken !== '' &&
       lockAgain.status === 423 &&
       unlock.status === 204 &&
+      racedStatuses === '200/423' &&
+      raceRows[0]?.count === '1' &&
+      raceUnlock.status === 204 &&
+      memberLock.status === 200 &&
+      siblingDelete.status === 204 &&
+      parentInfinityLock.status === 423 &&
+      parentDelete.status === 423 &&
+      memberUnlock.status === 204 &&
       !rootXml.includes('proj-secret.txt') &&
       !rootXml.includes('ProjFolder') &&
       projGet.status === 404 &&
@@ -21336,7 +21408,7 @@ async function checkWebdav(
       heldDelete.status === 403 &&
       releasedDelete.status === 204 &&
       afterRevoke.status === 401,
-    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldRefReleased=${oldRefReleased} oldBlobGone=${oldBlobGone} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 500), door w/g/l/r/d=${doorWrite.status}/${doorFile.status}:${doorFileBody === 'from the agent lane'}/${doorList.status}:${doorListRaw.includes('agent-note.txt')}/${doorRead.status}/${doorDelete.status} ghost=${JSON.stringify(doorDeleteGhost.status === 'ok' ? doorDeleteGhost.output : {})}, hold=${heldDelete.status} (want 403) released=${releasedDelete.status} (want 204), revoked=${afterRevoke.status} (want 401)`,
+    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldRefReleased=${oldRefReleased} oldBlobGone=${oldBlobGone} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status} race=${racedStatuses} (want 200/423) rows=${raceRows[0]?.count} raceUnlock=${raceUnlock.status}, subtree member=${memberLock.status} sibling=${siblingDelete.status} (want 204) parentLock=${parentInfinityLock.status} (want 423) parentDel=${parentDelete.status} (want 423) memberUnlock=${memberUnlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 500), door w/g/l/r/d=${doorWrite.status}/${doorFile.status}:${doorFileBody === 'from the agent lane'}/${doorList.status}:${doorListRaw.includes('agent-note.txt')}/${doorRead.status}/${doorDelete.status} ghost=${JSON.stringify(doorDeleteGhost.status === 'ok' ? doorDeleteGhost.output : {})}, hold=${heldDelete.status} (want 403) released=${releasedDelete.status} (want 204), revoked=${afterRevoke.status} (want 401)`,
   );
 }
 
