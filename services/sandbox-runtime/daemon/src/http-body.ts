@@ -17,35 +17,30 @@ export type JsonBodyResult =
 type BodyRead = { kind: 'read'; raw: string } | { kind: 'too_large' };
 
 /**
- * Collect the request body up to `maxBytes` WITHOUT ever destroying the
- * request stream. Refusing from inside a `for await` (throw/break) calls the
- * iterator's `return()`, which destroys the IncomingMessage: on Node that
- * aborts the socket, and under Bun's node:http the 413 the route writes
- * afterwards is lost and the client reads a 200 — so the body is taken off
- * the `data` event, an oversize body is refused by pausing the stream (a
- * declared oversize `Content-Length` before the first byte, a running total
- * past the cap otherwise), and the route's 413 goes out on a live socket
- * that `Connection: close` then closes with the unread remainder.
+ * Collect the request body up to `maxBytes`, reading the stream TO ITS END
+ * whatever the verdict. Refusing from inside a `for await` (throw/break)
+ * calls the iterator's `return()`, which destroys the IncomingMessage: on
+ * Node that aborts the socket, and under Bun's node:http the 413 the route
+ * writes afterwards is lost and the client reads a 200. Answering early on a
+ * live socket is no better: a response that ends with request bytes still
+ * unread leaves the connection in a state the two sides disagree on — the
+ * next request on it is parsed as body and answered 400 with no JSON at
+ * all (this module's own suite flaked that way on Bun 1.3.12), and closing
+ * the socket instead hangs Bun 1.3.12's fetch (the spawner's runtime) on
+ * its next call. So an oversize body — a declared oversize `Content-Length`,
+ * or a running total past the cap — is DRAINED: everything past the cap is
+ * dropped unbuffered (memory stays bounded by `maxBytes`), and the 413 is
+ * answered once the upload has ended, on a clean keep-alive connection.
  */
 function readBody(req: IncomingMessage, maxBytes: number): Promise<BodyRead> {
   return new Promise((resolve, reject) => {
-    const declared = Number(req.headers['content-length']);
-    if (Number.isFinite(declared) && declared > maxBytes) {
-      req.pause();
-      resolve({ kind: 'too_large' });
-      return;
-    }
     const chunks: Buffer[] = [];
     let total = 0;
     let settled = false;
-    const finish = (result: BodyRead): void => {
-      if (settled) return;
-      settled = true;
-      req.removeListener('data', onData);
-      resolve(result);
-    };
-    const onData = (chunk: unknown): void => {
-      if (settled) return;
+    const declared = Number(req.headers['content-length']);
+    let tooLarge = Number.isFinite(declared) && declared > maxBytes;
+    req.on('data', (chunk: unknown) => {
+      if (tooLarge) return;
       const buf = Buffer.isBuffer(chunk)
         ? chunk
         : chunk instanceof Uint8Array
@@ -53,20 +48,24 @@ function readBody(req: IncomingMessage, maxBytes: number): Promise<BodyRead> {
           : Buffer.from(String(chunk), 'utf8');
       total += buf.length;
       if (total > maxBytes) {
-        req.pause();
-        finish({ kind: 'too_large' });
+        tooLarge = true;
+        chunks.length = 0;
         return;
       }
       chunks.push(buf);
-    };
-    req.on('data', onData);
+    });
     req.once('end', () => {
-      finish({ kind: 'read', raw: Buffer.concat(chunks).toString('utf8') });
+      if (settled) return;
+      settled = true;
+      resolve(
+        tooLarge
+          ? { kind: 'too_large' }
+          : { kind: 'read', raw: Buffer.concat(chunks).toString('utf8') },
+      );
     });
     req.once('error', (error: Error) => {
       if (settled) return;
       settled = true;
-      req.removeListener('data', onData);
       reject(error);
     });
   });
