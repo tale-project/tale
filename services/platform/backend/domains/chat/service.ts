@@ -21,7 +21,8 @@ import { createPgTurnStore, createPgUsageLedger } from './store.ts';
  *
  * Same execution contract as the 0.4 action host: the caller awaits the
  * turn (at-most-once, no retry — an LLM spend must not replay), streaming
- * progress lands on `app.generations` (NOTIFY-nudged, see `store.ts`), and
+ * progress lands on `app.generations` (polled by the stream lane, see
+ * `store.ts`), and
  * cancel is a flag on that row the throttled progress writes read back.
  */
 
@@ -39,6 +40,11 @@ export interface ChatTurnRequest {
   /** Auto — the server resolves a concrete (provider, model) pair for THIS
    * message before anything binds. Exactly one of modelId / this. */
   readonly modelSelection?: 'auto';
+  /** Runs the moment the turn-open write persisted the user message — the
+   * deferred-send lane settles its tray row here, so the parked message is
+   * never shown twice (bubble + "sending" row) for the whole generation.
+   * Never called on a turn that refused or threw before that write. */
+  readonly onUserMessageAppended?: () => Promise<void>;
 }
 
 export async function runChatTurn(
@@ -64,7 +70,6 @@ export async function runChatTurn(
     ...(request.reasoningEffort !== undefined
       ? { reasoningEffort: request.reasoningEffort }
       : {}),
-    sandbox: false,
     locale: request.locale ?? 'en',
     ...(request.resend === true ? { resend: true } : {}),
   };
@@ -74,7 +79,12 @@ export async function runChatTurn(
     args,
     {
       deps: {
-        store: createPgTurnStore(sql),
+        store: createPgTurnStore(
+          sql,
+          request.onUserMessageAppended !== undefined
+            ? { onUserMessageAppended: request.onUserMessageAppended }
+            : {},
+        ),
         usage: createPgUsageLedger(sql),
       },
     },

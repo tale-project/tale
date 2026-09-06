@@ -21,8 +21,8 @@ import {
 import { MAX_UPLOAD_BYTES, readBodyBounded } from './bounded-body.ts';
 import {
   createRestUploadHandoff,
-  createUploadHandoff,
   deleteFile,
+  deleteOrgBlobRefs,
   deleteRejectedUploadBlob,
   FileError,
   getFileMetadataByIdOrRef,
@@ -37,11 +37,6 @@ import {
   transcribeDictation,
 } from './transcription.ts';
 import { recordUploadIntent, uploadPurposeSchema } from './upload-intents.ts';
-
-const handoffSchema = z.object({
-  contentType: z.string().min(1).max(255),
-  size: z.number().int().positive(),
-});
 
 const registerSchema = z.object({
   storageRef: z.string().min(1).max(1024),
@@ -108,12 +103,20 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         bytes,
         contentType: c.req.header('content-type') ?? 'application/octet-stream',
       });
-      await recordUploadIntent(deps.sql, {
-        organizationId: c.get('orgId'),
-        userId,
-        purpose: purpose.data,
-        storageRef: storageId,
-      });
+      // The bytes are already in the bucket; the intent row is the ONLY
+      // record they exist. If it cannot be written, reclaim the blob before
+      // answering the error — otherwise nothing would ever find it again.
+      try {
+        await recordUploadIntent(deps.sql, {
+          organizationId: c.get('orgId'),
+          userId,
+          purpose: purpose.data,
+          storageRef: storageId,
+        });
+      } catch (error) {
+        await deleteOrgBlobRefs(deps.sql, c.get('orgId'), [storageId]);
+        throw error;
+      }
       return c.json({ storageId });
     } catch (error) {
       return handleError(c, error);
@@ -174,31 +177,6 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           body.data.storageRef,
         ),
       );
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/upload-handoff', async (c) => {
-    const body = handoffSchema.safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const userId = c.get('sessionBundle').user.id;
-      await checkUserRateLimit(deps.sql, 'file:upload', userId);
-      const handoff = await createUploadHandoff(
-        deps.sql,
-        { organizationId: c.get('orgId') },
-        body.data,
-      );
-      await recordUploadIntent(deps.sql, {
-        organizationId: c.get('orgId'),
-        userId,
-        purpose: 'file',
-        storageRef: handoff.storageRef,
-      });
-      return c.json(handoff);
     } catch (error) {
       return handleError(c, error);
     }

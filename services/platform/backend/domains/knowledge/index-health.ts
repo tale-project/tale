@@ -1,7 +1,6 @@
 import type { Sql } from 'postgres';
 
 import { logger } from '../../../lib/knowledge/logger.ts';
-import type { CreateAuditLogArgs } from '../../core/audit_logs/types.ts';
 import {
   allowCorpusWrites,
   healBm25Indexes,
@@ -29,6 +28,7 @@ import {
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import type { CreateAuditLogArgs } from '../audit_logs/types.ts';
 import {
   writeNotificationForOrgs,
   type WriteNotificationArgs,

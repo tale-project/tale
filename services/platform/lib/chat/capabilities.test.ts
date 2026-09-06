@@ -1,30 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createConnectorBackend } from './backends';
 import {
   CAPABILITY_KINDS,
   CapabilityRegistry,
-  capabilityDocs,
   createCapabilitySurface,
-  isEventOnlyAutomation,
   isUnstructured,
-  KNOWLEDGE_UNAVAILABLE_REASON,
-  mcpToolsToCapabilities,
   type Capability,
   type CapabilityAuditEntry,
   type CapabilityBackends,
   type CapabilitySurfaceDeps,
-  type McpToolDefinition,
   type MemoryRecord,
   type MemorySaveRequest,
   type MemoryStore,
 } from './capabilities';
 
 /**
- * The surface's promises: one registry that knows every kind, one dispatcher
- * that sends each kind to exactly one backend, an event-only automation that
- * is visible but not invocable, a memory tool that can only ever propose, and
- * a knowledge method that says "unavailable" instead of "nothing found".
+ * The surface's promises: one registry of the org's deployed automations,
+ * one dispatcher that validates the input and sends the call to the
+ * automations backend, a memory tool that can only ever propose, and a
+ * knowledge method that is a separate question from finding a capability.
  *
  * Every backend here is a spy — nothing runs, nothing leaves the process.
  */
@@ -40,14 +34,15 @@ function objectSchema(
 
 function capability(overrides: Partial<Capability> = {}): Capability {
   return {
-    kind: 'builtin',
-    id: 'builtin.run_code',
-    name: 'run_code',
-    description: 'Run code in a sandbox.',
-    inputSchema: objectSchema({ code: { type: 'string' } }),
-    handler: 'run_code',
+    kind: 'automation',
+    id: 'automation.github/triage-issues',
+    name: 'Triage GitHub issues',
+    description: 'Score open issues and rank the ones ready to be worked.',
+    tags: ['github', 'issues'],
+    inputSchema: objectSchema({ dry: { type: 'boolean' } }),
+    automation: 'github/triage-issues',
     ...overrides,
-  } as Capability;
+  };
 }
 
 function fakeBackends(): {
@@ -55,13 +50,9 @@ function fakeBackends(): {
   calls: Record<keyof CapabilityBackends, ReturnType<typeof vi.fn>>;
 } {
   const calls = {
-    builtin: vi.fn().mockResolvedValue({ status: 'ok', output: 'builtin' }),
-    connector: vi.fn().mockResolvedValue({ status: 'ok', output: 'connector' }),
-    skill: vi.fn().mockResolvedValue({ status: 'ok', output: 'skill' }),
     automation: vi
       .fn()
       .mockResolvedValue({ status: 'ok', output: 'automation' }),
-    mcp: vi.fn().mockResolvedValue({ status: 'ok', output: 'mcp' }),
   };
   return { backends: calls, calls };
 }
@@ -98,6 +89,9 @@ function surface(
     userId: USER,
     registry,
     backends,
+    knowledge: {
+      search: () => Promise.resolve({ status: 'ok', passages: [] }),
+    },
     memory: memory.store,
     audit: {
       record(entry) {
@@ -118,6 +112,26 @@ function surface(
   };
 }
 
+const catalog: Capability[] = [
+  capability(),
+  capability({
+    id: 'automation.sales/daily-digest',
+    name: 'Daily sales digest',
+    description: 'Send the daily pipeline digest to the sales channel.',
+    tags: ['sales', 'digest'],
+    automation: 'sales/daily-digest',
+  }),
+  capability({
+    id: 'automation/release-notes',
+    name: 'Write release notes',
+    description:
+      'How this team writes release notes from merged pull requests.',
+    tags: [],
+    automation: 'release-notes',
+    outputSchema: { type: 'string' },
+  }),
+];
+
 describe('CapabilityRegistry', () => {
   it('is bound to one organization and refuses a surface for another', () => {
     const registry = new CapabilityRegistry('org_other');
@@ -127,6 +141,9 @@ describe('CapabilityRegistry', () => {
         userId: USER,
         registry,
         backends: fakeBackends().backends,
+        knowledge: {
+          search: () => Promise.resolve({ status: 'ok', passages: [] }),
+        },
         memory: fakeMemoryStore().store,
         audit: { record: () => Promise.resolve() },
       }),
@@ -136,73 +153,40 @@ describe('CapabilityRegistry', () => {
   it('refuses two capabilities answering to one id', () => {
     const registry = new CapabilityRegistry(ORG).register(capability());
     expect(() =>
-      registry.register(capability({ kind: 'skill', slug: 'run-code' })),
+      registry.register(capability({ automation: 'github/triage-issues-v2' })),
     ).toThrow(/registered twice/);
   });
 });
 
 describe('search_capabilities', () => {
-  const catalog: Capability[] = [
-    capability(),
-    capability({
-      kind: 'connector-action',
-      id: 'connector.github.list_issues',
-      name: 'list_issues',
-      description: 'List the open issues of a GitHub repository.',
-      tags: ['github', 'issues'],
-      connector: 'github',
-      action: 'list_issues',
-    }),
-    capability({
-      kind: 'automation',
-      id: 'automation.github/triage-issues',
-      name: 'Triage GitHub issues',
-      description: 'Score open issues and rank the ones ready to be worked.',
-      automation: 'github/triage-issues',
-      eventOnly: false,
-    }),
-    capability({
-      kind: 'skill',
-      id: 'skill.write-release-notes',
-      name: 'write-release-notes',
-      description: 'How this team writes release notes.',
-      slug: 'write-release-notes',
-    }),
-    capability({
-      kind: 'mcp-tool',
-      id: 'mcp.figma.get_file',
-      name: 'get_file',
-      description: 'Read a Figma file.',
-      server: 'figma',
-      tool: 'get_file',
-    }),
-  ];
-
-  it('searches across every capability kind at once', () => {
-    const { surface: s } = surface({}, catalog);
-    const kinds = new Set(
-      CAPABILITY_KINDS.flatMap((kind) =>
-        s.searchCapabilities({ query: kindQuery(kind) }).map((hit) => hit.kind),
-      ),
-    );
-    expect(kinds).toEqual(new Set(CAPABILITY_KINDS));
-  });
-
   it('ranks by relevance and reports whether a hit is structured', () => {
     const { surface: s } = surface({}, catalog);
-    const hits = s.searchCapabilities({ query: 'list_issues' });
+    const hits = s.searchCapabilities({ query: 'sales digest' });
 
-    expect(hits[0]?.id).toBe('connector.github.list_issues');
+    expect(hits[0]?.id).toBe('automation.sales/daily-digest');
     // No declared output schema, so the model is told the result is whatever
-    // the connector returned.
+    // the automation returned.
     expect(hits[0]?.structured).toBe(false);
+    expect(
+      s.searchCapabilities({ query: 'release notes' })[0]?.structured,
+    ).toBe(true);
   });
 
   it('finds a capability by its description, not just its id', () => {
     const { surface: s } = surface({}, catalog);
     expect(
-      s.searchCapabilities({ query: 'release notes' }).map((hit) => hit.id),
-    ).toContain('skill.write-release-notes');
+      s
+        .searchCapabilities({ query: 'merged pull requests' })
+        .map((hit) => hit.id),
+    ).toContain('automation/release-notes');
+  });
+
+  it('names the one registered kind on every hit', () => {
+    const { surface: s } = surface({}, catalog);
+    const kinds = new Set(
+      s.searchCapabilities({ query: 'issues digest notes' }).map((h) => h.kind),
+    );
+    expect(kinds).toEqual(new Set(CAPABILITY_KINDS));
   });
 
   it('returns nothing rather than an arbitrary tail when nothing matches', () => {
@@ -213,106 +197,24 @@ describe('search_capabilities', () => {
   });
 });
 
-function kindQuery(kind: string): string {
-  switch (kind) {
-    case 'builtin':
-      return 'run_code';
-    case 'connector-action':
-      return 'github issues';
-    case 'skill':
-      return 'release notes';
-    case 'automation':
-      return 'triage';
-    default:
-      return 'figma';
-  }
-}
-
-describe('invoke_capability — one backend per kind', () => {
-  const catalog: Capability[] = [
-    capability(),
-    capability({
-      kind: 'connector-action',
-      id: 'connector.github.list_issues',
-      connector: 'github',
-      action: 'list_issues',
-    }),
-    capability({ kind: 'skill', id: 'skill.notes', slug: 'notes' }),
-    capability({
-      kind: 'automation',
-      id: 'automation.daily',
-      automation: 'daily',
-      eventOnly: false,
-    }),
-    capability({
-      kind: 'mcp-tool',
-      id: 'mcp.figma.get_file',
-      server: 'figma',
-      tool: 'get_file',
-    }),
-  ];
-
-  it('dispatches a builtin to the builtin backend', async () => {
+describe('invoke_capability', () => {
+  it('dispatches an automation to the automations backend as the user, in their org', async () => {
     const { surface: s, calls } = surface({}, catalog);
     await expect(
-      s.invokeCapability({ id: 'builtin.run_code', input: { code: '1+1' } }),
-    ).resolves.toMatchObject({ status: 'ok', output: 'builtin' });
-    expect(calls.builtin).toHaveBeenCalledWith({
-      organizationId: ORG,
-      userId: USER,
-      handler: 'run_code',
-      input: { code: '1+1' },
+      s.invokeCapability({
+        id: 'automation.github/triage-issues',
+        input: { dry: true },
+      }),
+    ).resolves.toMatchObject({
+      status: 'ok',
+      kind: 'automation',
+      output: 'automation',
     });
-    expect(calls.connector).not.toHaveBeenCalled();
-  });
-
-  it('dispatches a connector action to the connectors dispatcher', async () => {
-    const { surface: s, calls } = surface({}, catalog);
-    await s.invokeCapability({
-      id: 'connector.github.list_issues',
-      input: { owner: 'tale' },
-      credential: 'cred_2',
-    });
-    expect(calls.connector).toHaveBeenCalledWith({
-      organizationId: ORG,
-      userId: USER,
-      connector: 'github',
-      action: 'list_issues',
-      input: { owner: 'tale' },
-      credentialRef: 'cred_2',
-    });
-  });
-
-  it('dispatches a skill to the skills backend', async () => {
-    const { surface: s, calls } = surface({}, catalog);
-    await s.invokeCapability({ id: 'skill.notes' });
-    expect(calls.skill).toHaveBeenCalledWith({
-      organizationId: ORG,
-      slug: 'notes',
-      input: {},
-    });
-  });
-
-  it('dispatches an automation to the automations store', async () => {
-    const { surface: s, calls } = surface({}, catalog);
-    await s.invokeCapability({ id: 'automation.daily', input: { dry: true } });
     expect(calls.automation).toHaveBeenCalledWith({
       organizationId: ORG,
       userId: USER,
-      automation: 'daily',
+      automation: 'github/triage-issues',
       input: { dry: true },
-    });
-  });
-
-  it('dispatches an MCP tool to its server', async () => {
-    const { surface: s, calls } = surface({}, catalog);
-    await s.invokeCapability({ id: 'mcp.figma.get_file' });
-    expect(calls.mcp).toHaveBeenCalledWith({
-      organizationId: ORG,
-      userId: USER,
-      server: 'figma',
-      tool: 'get_file',
-      input: {},
     });
   });
 
@@ -321,35 +223,35 @@ describe('invoke_capability — one backend per kind', () => {
       capability({
         inputSchema: {
           type: 'object',
-          properties: { code: { type: 'string' } },
-          required: ['code'],
+          properties: { dry: { type: 'boolean' } },
+          required: ['dry'],
         },
       }),
     ]);
 
     const result = await s.invokeCapability({
-      id: 'builtin.run_code',
-      input: { code: 42 },
+      id: 'automation.github/triage-issues',
+      input: { dry: 'yes' },
     });
 
     expect(result).toMatchObject({ status: 'refused' });
-    expect(calls.builtin).not.toHaveBeenCalled();
+    expect(calls.automation).not.toHaveBeenCalled();
   });
 
   it('refuses an unknown id with a suggestion instead of guessing', async () => {
     const { surface: s } = surface({}, catalog);
-    const result = await s.invokeCapability({ id: 'builtin.run_cod' });
+    const result = await s.invokeCapability({
+      id: 'automation.github/triage-issue',
+    });
     expect(result).toMatchObject({
       status: 'refused',
-      hint: 'Did you mean "builtin.run_code"?',
+      hint: 'Did you mean "automation.github/triage-issues"?',
     });
   });
 
   it('passes a backend refusal through with its hint', async () => {
-    const { backends } = fakeBackends();
     const refusing: CapabilityBackends = {
-      ...backends,
-      connector: vi.fn().mockResolvedValue({
+      automation: vi.fn().mockResolvedValue({
         status: 'refused',
         reason: 'Approval required.',
         hint: 'Ask an admin.',
@@ -358,136 +260,43 @@ describe('invoke_capability — one backend per kind', () => {
     const { surface: s } = surface({ backends: refusing }, catalog);
 
     await expect(
-      s.invokeCapability({ id: 'connector.github.list_issues' }),
+      s.invokeCapability({ id: 'automation.github/triage-issues' }),
     ).resolves.toMatchObject({
       status: 'refused',
       reason: 'Approval required.',
       hint: 'Ask an admin.',
     });
   });
-});
 
-describe('event-only automations', () => {
-  const eventOnly = capability({
-    kind: 'automation',
-    id: 'automation.inbox/triage',
-    name: 'Triage the shared inbox',
-    description: 'Runs when an email arrives in the shared inbox.',
-    automation: 'inbox/triage',
-    eventOnly: true,
-  });
-
-  it('derives event-only from the manifest triggers', () => {
-    expect(isEventOnlyAutomation([{ kind: 'event' }])).toBe(true);
-    expect(
-      isEventOnlyAutomation([{ kind: 'event' }, { kind: 'schedule' }]),
-    ).toBe(false);
-    expect(isEventOnlyAutomation([])).toBe(false);
-    expect(isEventOnlyAutomation(undefined)).toBe(false);
-  });
-
-  it('lists it, marked EVENT-ONLY', () => {
-    const { surface: s } = surface({}, [eventOnly]);
-    const [hit] = s.searchCapabilities({ query: 'triage inbox' });
-
-    expect(hit?.id).toBe('automation.inbox/triage');
-    expect(hit?.eventOnly).toBe(true);
-    expect(hit?.note).toContain('EVENT-ONLY');
-  });
-
-  it('refuses to invoke it, with a hint about what to do instead', async () => {
-    const { surface: s, calls } = surface({}, [eventOnly]);
-    const result = await s.invokeCapability({ id: 'automation.inbox/triage' });
-
-    expect(result).toMatchObject({ status: 'refused' });
-    expect(result).toHaveProperty(
-      'reason',
-      expect.stringContaining('event-only'),
-    );
-    expect(result).toHaveProperty('hint', expect.stringContaining('Trigger'));
-    expect(calls.automation).not.toHaveBeenCalled();
-  });
-
-  it('carries the marker into the tool docs the model reads', () => {
-    const registry = new CapabilityRegistry(ORG).register(eventOnly);
-    expect(capabilityDocs(registry)[0]?.description).toContain('EVENT-ONLY');
-  });
-});
-
-describe('MCP tools', () => {
-  /** One MCP tool, registered exactly as a server advertised it. */
-  const mcpTool = (definition: McpToolDefinition): Capability => {
-    const [tool] = mcpToolsToCapabilities('figma', [definition]);
-    if (!tool) throw new Error('expected one capability per tool definition');
-    return tool;
-  };
-
-  it('treats a tool with no output schema as unstructured', async () => {
-    const tool = mcpTool({
-      name: 'get_file',
-      description: 'Read a Figma file.',
-    });
-
-    expect(isUnstructured(tool)).toBe(true);
-
-    const { surface: s } = surface({}, [tool]);
-    const result = await s.invokeCapability({ id: 'mcp.figma.get_file' });
-
-    expect(result).toMatchObject({ status: 'ok', structured: false });
-  });
-
-  it('still validates the input of an unstructured tool', async () => {
-    const tool = mcpTool({
-      name: 'get_file',
-      inputSchema: {
-        type: 'object',
-        properties: { key: { type: 'string' } },
-        required: ['key'],
-      },
-    });
-    const { surface: s, calls } = surface({}, [tool]);
-
+  it('treats a capability with no output schema as unstructured', async () => {
+    const { surface: s } = surface({}, catalog);
+    expect(isUnstructured(catalog[0]!)).toBe(true);
     await expect(
-      s.invokeCapability({ id: 'mcp.figma.get_file', input: {} }),
-    ).resolves.toMatchObject({ status: 'refused' });
-    expect(calls.mcp).not.toHaveBeenCalled();
+      s.invokeCapability({ id: 'automation.github/triage-issues' }),
+    ).resolves.toMatchObject({ status: 'ok', structured: false });
   });
 
-  it('marks a tool that declares an output schema as structured', async () => {
-    const tool = mcpTool({
-      name: 'get_file',
-      outputSchema: { type: 'string' },
-    });
-    const { surface: s } = surface({}, [tool]);
-
+  it('marks a capability that declares an output schema as structured', async () => {
+    const { surface: s } = surface({}, catalog);
     await expect(
-      s.invokeCapability({ id: 'mcp.figma.get_file' }),
+      s.invokeCapability({ id: 'automation/release-notes' }),
     ).resolves.toMatchObject({ status: 'ok', structured: true });
   });
 
   it('reports a declared output schema that the result does not satisfy', async () => {
-    const tool = mcpTool({
-      name: 'get_file',
-      outputSchema: { type: 'number' },
-    });
-    const { surface: s } = surface({}, [tool]);
+    const { surface: s } = surface({}, [
+      capability({ outputSchema: { type: 'number' } }),
+    ]);
 
-    const result = await s.invokeCapability({ id: 'mcp.figma.get_file' });
-    expect(result).toMatchObject({ status: 'ok', output: 'mcp' });
+    const result = await s.invokeCapability({
+      id: 'automation.github/triage-issues',
+    });
+    expect(result).toMatchObject({ status: 'ok', output: 'automation' });
     expect(result).toHaveProperty('schemaViolation', expect.any(String));
   });
 });
 
 describe('get_knowledge', () => {
-  it('says the backend is unavailable rather than returning an empty result', async () => {
-    const { surface: s } = surface();
-    await expect(s.getKnowledge({ query: 'refund policy' })).resolves.toEqual({
-      status: 'unavailable',
-      reason: KNOWLEDGE_UNAVAILABLE_REASON,
-    });
-    expect(KNOWLEDGE_UNAVAILABLE_REASON).toContain('not');
-  });
-
   it('is a separate method — it never appears in a capability search', () => {
     const { surface: s } = surface();
     expect(
@@ -495,7 +304,7 @@ describe('get_knowledge', () => {
     ).not.toContain('get_knowledge');
   });
 
-  it('passes the org, the corpus and the limit to the backend once one is installed', async () => {
+  it('passes the org, the corpus and the limit to the backend', async () => {
     const search = vi.fn().mockResolvedValue({ status: 'ok', passages: [] });
     const { surface: s } = surface({ knowledge: { search } });
 
@@ -511,6 +320,19 @@ describe('get_knowledge', () => {
       corpus: 'private',
       limit: 3,
     });
+  });
+
+  it('passes an unavailable-with-reason answer through untouched', async () => {
+    const unavailable = {
+      status: 'unavailable' as const,
+      reason: 'index offline',
+    };
+    const { surface: s } = surface({
+      knowledge: { search: () => Promise.resolve(unavailable) },
+    });
+    await expect(s.getKnowledge({ query: 'refund policy' })).resolves.toEqual(
+      unavailable,
+    );
   });
 
   it('reads the corpus and limit off a dispatched call', async () => {
@@ -636,7 +458,7 @@ describe('memory', () => {
     const { surface: s } = surface({ memory: store.store });
 
     s.searchCapabilities({ query: 'anything' });
-    await s.invokeCapability({ id: 'builtin.run_code' });
+    await s.invokeCapability({ id: 'automation.github/triage-issues' });
 
     expect(search).not.toHaveBeenCalled();
   });
@@ -647,12 +469,16 @@ describe('dispatch', () => {
     const { surface: s, calls } = surface();
 
     await expect(
-      s.dispatch('search_capabilities', { query: 'run_code' }),
+      s.dispatch('search_capabilities', { query: 'triage issues' }),
     ).resolves.toMatchObject({
-      capabilities: [expect.objectContaining({ id: 'builtin.run_code' })],
+      capabilities: [
+        expect.objectContaining({ id: 'automation.github/triage-issues' }),
+      ],
     });
-    await s.dispatch('invoke_capability', { id: 'builtin.run_code' });
-    expect(calls.builtin).toHaveBeenCalled();
+    await s.dispatch('invoke_capability', {
+      id: 'automation.github/triage-issues',
+    });
+    expect(calls.automation).toHaveBeenCalled();
 
     await expect(s.dispatch('memory.search', { query: 'x' })).resolves.toEqual({
       memories: [],
@@ -665,69 +491,6 @@ describe('dispatch', () => {
     // separate tables, and asking this one for the other's method fails.
     await expect(s.dispatch('run_automation', {})).resolves.toMatchObject({
       error: 'unknown method "run_automation"',
-    });
-  });
-});
-
-describe('createConnectorBackend', () => {
-  it('always calls the connectors dispatcher as the user, in their org', async () => {
-    const execute = vi.fn().mockResolvedValue({
-      status: 'ok',
-      connector: 'github',
-      action: 'list_issues',
-      nodeType: 'github.list_issues',
-      mode: 'live',
-      backend: 'yaml-js',
-      effects: 'read',
-      output: { issues: [] },
-    });
-    const backend = createConnectorBackend({
-      ctx: { mode: 'live' },
-      execute,
-    });
-
-    await expect(
-      backend({
-        organizationId: ORG,
-        userId: USER,
-        connector: 'github',
-        action: 'list_issues',
-        input: { owner: 'tale' },
-        credentialRef: 'cred_1',
-      }),
-    ).resolves.toEqual({ status: 'ok', output: { issues: [] } });
-
-    expect(execute).toHaveBeenCalledWith({
-      connector: 'github',
-      action: 'list_issues',
-      input: { owner: 'tale' },
-      credentialRef: 'cred_1',
-      caller: { kind: 'user', userId: USER },
-      ctx: { mode: 'live', organizationId: ORG },
-    });
-  });
-
-  it('turns an approval requirement into a refusal the model can explain', async () => {
-    const execute = vi.fn().mockResolvedValue({
-      status: 'approval-required',
-      connector: 'github',
-      action: 'create_issue',
-      nodeType: 'github.create_issue',
-      message: 'Creating an issue needs approval.',
-    });
-    const backend = createConnectorBackend({ ctx: {}, execute });
-
-    await expect(
-      backend({
-        organizationId: ORG,
-        userId: USER,
-        connector: 'github',
-        action: 'create_issue',
-        input: {},
-      }),
-    ).resolves.toMatchObject({
-      status: 'refused',
-      reason: 'Creating an issue needs approval.',
     });
   });
 });

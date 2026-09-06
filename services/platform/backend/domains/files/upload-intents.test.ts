@@ -15,12 +15,15 @@
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { s3DeleteObject } from '../../lib/object-store.ts';
-import { ownsUploadedBlob, sweepUploadIntents } from './upload-intents.ts';
+import { deleteOrgObject } from '../../lib/object-store.ts';
+import {
+  ownsUploadedBlob,
+  recordUploadIntent,
+  sweepUploadIntents,
+} from './upload-intents.ts';
 
 vi.mock('../../lib/object-store.ts', () => ({
-  resolveObjectStore: vi.fn(() => Promise.resolve({ bucket: 'itest' })),
-  s3DeleteObject: vi.fn(() => Promise.resolve()),
+  deleteOrgObject: vi.fn(() => Promise.resolve()),
 }));
 vi.mock('../../lib/org-config.ts', () => ({
   resolveOrgSlug: vi.fn(() => Promise.resolve('acme')),
@@ -53,6 +56,8 @@ function fakeLedger(script: {
   abandoned?: { id: string; s3Ref: string }[];
   stamped?: { id: string }[];
   uploaderRow?: boolean;
+  /** Fail the sweep's first statement (the consumed-row DELETE). */
+  sweepFails?: boolean;
 }): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -72,6 +77,13 @@ function fakeLedger(script: {
     });
     text = text.replace(/\s+/g, ' ').trim();
     statements.push({ text, values: flat });
+    if (script.sweepFails && text.includes('consumed_at_ms IS NOT NULL')) {
+      const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
+      return Object.assign(
+        Promise.reject(new Error('deadlock detected')),
+        fragment,
+      );
+    }
     let rows: unknown[] = [];
     if (text.startsWith('SELECT i.id, i.s3_ref')) {
       rows = script.abandoned ?? [];
@@ -167,11 +179,10 @@ describe('sweepUploadIntents', () => {
     });
 
     expect(outcome).toEqual({ reclaimed: 1 });
-    expect(s3DeleteObject).toHaveBeenCalledTimes(1);
-    expect(s3DeleteObject).toHaveBeenCalledWith(
-      { bucket: 'itest' },
-      'blobs/acme/aaa',
-    );
+    // Every store that may hold the key — an intent minted before the org
+    // connected its own bucket left its blob in the deployment default.
+    expect(deleteOrgObject).toHaveBeenCalledTimes(1);
+    expect(deleteOrgObject).toHaveBeenCalledWith('acme', 'blobs/acme/aaa');
 
     const issued = sqlStatements(fake.statements);
     // Consumed rows are dead handshakes.
@@ -205,7 +216,9 @@ describe('sweepUploadIntents', () => {
 
   it('keeps the row of a blob whose delete failed, for the next sweep', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    vi.mocked(s3DeleteObject).mockRejectedValueOnce(new Error('503 slow down'));
+    vi.mocked(deleteOrgObject).mockRejectedValueOnce(
+      new Error('503 slow down'),
+    );
     const fake = fakeLedger({
       abandoned: [{ id: 'i-stuck', s3Ref: 's3:blobs/acme/bbb' }],
     });
@@ -239,7 +252,7 @@ describe('sweepUploadIntents', () => {
     });
 
     expect(outcome).toEqual({ reclaimed: 0 });
-    expect(s3DeleteObject).not.toHaveBeenCalled();
+    expect(deleteOrgObject).not.toHaveBeenCalled();
     const rowDrop = fake.statements.find(
       (s) => s.text === 'DELETE FROM app.upload_intents WHERE id = ?',
     );
@@ -262,5 +275,30 @@ describe('sweepUploadIntents', () => {
       expect(statement.text).not.toContain('bound_at_ms');
     }
     expect(issued[2]?.text).toContain('NOT (FALSE)');
+  });
+});
+
+describe('recordUploadIntent', () => {
+  // Regression: the sweep ran unguarded on the mint path, so a bookkeeping
+  // failure failed the mint AFTER the byte lane had already stored the blob.
+  it('records the intent even when the lazy sweep fails, and logs the sweep', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = fakeLedger({ sweepFails: true });
+
+    await expect(
+      recordUploadIntent(fake.sql, {
+        ...scope,
+        purpose: 'file',
+        storageRef: 's3:blobs/acme/aaa',
+      }),
+    ).resolves.toBeUndefined();
+
+    const insert = sqlStatements(fake.statements)[0];
+    expect(insert?.text).toContain('INSERT INTO app.upload_intents');
+    expect(insert?.values).toContain('s3:blobs/acme/aaa');
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('upload-intent sweep failed'),
+      'deadlock detected',
+    );
   });
 });

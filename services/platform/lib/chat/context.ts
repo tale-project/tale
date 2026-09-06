@@ -243,7 +243,7 @@ const TOOL_RESULT_MAX_DEPTH = 8;
  * rewritten (dropping whole old messages is honest; silently editing the
  * user's words is not).
  */
-export function boundToolResult(value: unknown, depth = 0): unknown {
+function boundToolResult(value: unknown, depth = 0): unknown {
   return boundJson(
     value,
     {

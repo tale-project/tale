@@ -85,10 +85,6 @@ function hmacRoot(): string | null {
   return raw;
 }
 
-export function hostcallSigningAvailable(): boolean {
-  return hmacRoot() !== null;
-}
-
 async function deriveKey(root: string): Promise<CryptoKey> {
   const keyBytes = await crypto.subtle.digest(
     'SHA-256',

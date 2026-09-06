@@ -5,7 +5,8 @@
  * Connector inputs are checked statically against their JSON Schemas:
  * value judgments are skipped exactly where a template resolves at runtime,
  * while missing required fields and unknown properties are always decidable.
- * Subautomation references must parse and, when a store is installed, resolve.
+ * Subautomation references must parse and, when the caller supplies a store,
+ * resolve.
  *
  * The output-typing rule guards the one bridge from text to data: an
  * unstructured node exposes only `.output.text`, and an llm node becomes
@@ -16,7 +17,7 @@ import type { ErrorObject } from 'ajv';
 
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
-import { nodeTypes, storeAdapter, type ConnectorLike } from '../slots';
+import { nodeTypes, type ConnectorLike, type StoreAdapter } from '../slots';
 import { refsInSource, templateExprsIn, TPL_RE } from '../template';
 import type { Issue, NodeDef } from '../types';
 import { NAME_RE } from './document';
@@ -123,6 +124,7 @@ export async function validateContracts(
   doc: Record<string, unknown>,
   validNodes: NodeDef[],
   issues: Issue[],
+  store: StoreAdapter | undefined,
 ): Promise<void> {
   // Duplicate ids already carry their own error; contract checks run once
   // per id, on the first occurrence.
@@ -134,7 +136,6 @@ export async function validateContracts(
     unique.push(n);
   }
 
-  const store = storeAdapter();
   // undefined = not fetched yet; null = no store, or the store failed (a
   // backend outage is not a document problem — resolution is skipped).
   let names: Array<{ name: string; latest: number }> | null | undefined;

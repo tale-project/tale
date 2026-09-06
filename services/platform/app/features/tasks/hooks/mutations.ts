@@ -88,10 +88,6 @@ export function useRemoveTaskDependency() {
   return useBackendMutation('tasks/mutations:removeTaskDependency');
 }
 
-export function useBulkUpdateTasks() {
-  return useBackendMutation('tasks/mutations:bulkUpdateTasks');
-}
-
 export function useUpdateTaskLabel() {
   return useBackendMutation('tasks/mutations:updateTaskLabel');
 }
@@ -106,14 +102,6 @@ export function useEnsureDefaultTaskLabels() {
 
 export function useDeleteTaskLabel() {
   return useBackendMutation('tasks/mutations:deleteTaskLabel');
-}
-
-export function useSaveBoardView() {
-  return useBackendMutation('tasks/mutations:saveBoardView');
-}
-
-export function useDeleteBoardView() {
-  return useBackendMutation('tasks/mutations:deleteBoardView');
 }
 
 export function useSetTaskReviewer() {

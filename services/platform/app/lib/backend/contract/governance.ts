@@ -7,6 +7,8 @@
  * actually serve them.
  */
 
+import type { PolicyType } from '@/lib/shared/schemas/governance';
+
 export interface GovernanceContract {
   'governance/dsar_policy:cancelPendingDsarPolicyChange': {
     kind: 'mutation';
@@ -600,7 +602,6 @@ export interface GovernanceContract {
     kind: 'query';
     args: { organizationId: string };
     returns: {
-      inputGuardrailsActive: boolean;
       maxContextTokens?: number;
     };
   };
@@ -685,36 +686,9 @@ export interface GovernanceContract {
     kind: 'query';
     args: {
       organizationId: string;
-      policyType:
-        | 'review_policy'
-        | 'moderation_provider'
-        | 'system_prompt'
-        | 'budgets'
-        | 'upload_policy'
-        | 'retention_policy'
-        | 'feature_flags'
-        | 'pii_config'
-        | 'default_models'
-        | 'model_access'
-        | 'login_policy'
-        | 'password_policy'
-        | 'two_factor_policy'
-        | 'session_idle_timeout'
-        | 'chat_filter'
-        | 'custom_instructions'
-        | 'user_memories'
-        | 'voice_output'
-        | 'data_classification_notice'
-        | 'dsar_governance'
-        | 'agent_workforce'
-        | 'agent_jobs'
-        | 'task_automation'
-        | 'run_code'
-        | 'model_sync'
-        | 'sandbox_quota'
-        | 'conversation_access'
-        | 'conversation_routing'
-        | 'vision_model';
+      // The one list of policy types — `POLICY_TYPES` — so a type added
+      // there is readable here without a cast.
+      policyType: PolicyType;
     };
     returns: null | {
       _id: string;
