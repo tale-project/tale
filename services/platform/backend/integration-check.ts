@@ -33,7 +33,7 @@ import path from 'node:path';
 import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { PgBoss } from 'pg-boss';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
@@ -1507,10 +1507,11 @@ async function checkProjects(
  * → dependency cycle rejection → activity trail → archive.
  */
 async function checkTasks(
+  sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const get = async (path2: string): Promise<unknown> =>
     (await fetch(`${base}${path2}`, { headers: { cookie } })).json();
   const send = (
@@ -1584,6 +1585,106 @@ async function checkTasks(
       taskRead.data.canEdit &&
       taskRead.data.canComment,
     `parent #${taskRead.success ? taskRead.data.task.number : 'ERR'}, labels=${taskRead.success ? taskRead.data.task.labels.map((l) => l.name).join(',') : 'ERR'}, flags=${taskRead.success ? `${taskRead.data.canEdit}/${taskRead.data.canClaim}/${taskRead.data.canComment}` : 'ERR'}`,
+  );
+
+  // ---- attachments: the dialog's files are stored, owned, and released ---
+  // The create and edit dialogs send `attachments`; the routes used to strip
+  // the key, so an upload "succeeded" and was gone on the next read. Each
+  // NEW ref must be the caller's own upload; a dropped ref is released.
+  const ownRef = 's3:itest-task-attachment-own';
+  const foreignRef = 's3:itest-task-attachment-foreign';
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      created_at_ms
+    ) VALUES
+      (${orgId}, 'brief.pdf', 'application/pdf', 12, ${ownRef}, ${userId},
+       ${Date.now()}),
+      (${orgId}, 'theirs.pdf', 'application/pdf', 12, ${foreignRef},
+       'someone-else', ${Date.now()})
+  `;
+  const briefAttachment = {
+    fileId: ownRef,
+    fileName: 'brief.pdf',
+    fileType: 'application/pdf',
+    fileSize: 12,
+  };
+  // An empty list has ONE stored spelling (NULL, as createTask writes it),
+  // so a task emptied by update reads back exactly like one created bare.
+  const attachmentsRead = z
+    .object({
+      task: z
+        .object({
+          attachments: z
+            .array(z.object({ fileId: z.string(), fileName: z.string() }))
+            .nullable()
+            .optional(),
+        })
+        .loose(),
+    })
+    .loose();
+  const withFiles = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Task with a brief',
+        attachments: [briefAttachment],
+      })
+    ).json(),
+  );
+  const withFilesId = withFiles.success ? withFiles.data.taskId : '';
+  const afterCreate = attachmentsRead.safeParse(
+    await get(`/api/app/tasks/${withFilesId}?orgId=${orgId}`),
+  );
+  const removeResponse = await send(
+    'POST',
+    `/api/app/tasks/${withFilesId}?orgId=${orgId}`,
+    { attachments: [] },
+  );
+  const afterRemove = attachmentsRead.safeParse(
+    await get(`/api/app/tasks/${withFilesId}?orgId=${orgId}`),
+  );
+  const ownRow = await sql<{ lifecycleStatus: string | null }[]>`
+    SELECT lifecycle_status AS "lifecycleStatus" FROM app.file_metadata
+    WHERE org_id = ${orgId} AND storage_ref = ${ownRef}
+  `;
+  const releaseJobs = await sql<{ data: unknown }[]>`
+    SELECT data FROM pgboss.job WHERE name = 'knowledge.release_refs'
+  `;
+  const releasedOwn = releaseJobs.some((job) => {
+    const refs = objectAt(job.data, '')?.refs;
+    return Array.isArray(refs) && refs.includes(ownRef);
+  });
+  const foreignCreate = await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+    projectId,
+    title: 'Task with a stolen ref',
+    attachments: [{ ...briefAttachment, fileId: foreignRef }],
+  });
+  const foreignBody = z
+    .object({ error: z.string() })
+    .safeParse(await foreignCreate.json());
+  // The brief's card is this project's only extra open task; hard-delete it
+  // so the rollup probe below still counts the parent and the child alone.
+  const briefDeleted = await send(
+    'DELETE',
+    `/api/app/tasks/${withFilesId}?orgId=${orgId}`,
+  );
+  record(
+    'task attachments: created and read back, removed and released, foreign ref refused',
+    withFiles.success &&
+      afterCreate.success &&
+      afterCreate.data.task.attachments?.length === 1 &&
+      afterCreate.data.task.attachments[0]?.fileId === ownRef &&
+      removeResponse.status === 200 &&
+      afterRemove.success &&
+      (afterRemove.data.task.attachments?.length ?? 0) === 0 &&
+      ownRow[0]?.lifecycleStatus === 'trashed' &&
+      releasedOwn &&
+      foreignCreate.status === 403 &&
+      foreignBody.success &&
+      foreignBody.data.error === 'TASK_ATTACHMENT_NOT_OWNED' &&
+      briefDeleted.status === 200,
+    `create=${withFiles.success}, afterCreate=${JSON.stringify(afterCreate.success ? afterCreate.data.task.attachments : afterCreate.error.issues)} (want [brief]), remove=${removeResponse.status} (want 200), afterRemove=${afterRemove.success ? String(afterRemove.data.task.attachments?.length ?? 0) : 'unparsed'} (want 0), fileRow=${String(ownRow[0]?.lifecycleStatus)} (want trashed), releaseJob=${releasedOwn}, foreign=${foreignCreate.status}/${foreignBody.success ? foreignBody.data.error : 'unparsed'} (want 403/TASK_ATTACHMENT_NOT_OWNED), delete=${briefDeleted.status} (want 200)`,
   );
 
   // Board filters + flags: only `todo` rows, truncated false, canEdit true;
@@ -1972,14 +2073,6 @@ async function checkTasks(
   const appListing = z
     .object({ automations: z.array(z.unknown()) })
     .safeParse(await get(`/api/app/automations/listing?orgId=${orgId}`));
-  const bulk = z.object({ updated: z.number(), skipped: z.number() }).safeParse(
-    await (
-      await send('POST', `/api/app/tasks/bulk?orgId=${orgId}`, {
-        taskIds: [aId, bId, '00000000-0000-0000-0000-000000000000'],
-        priority: 'p1',
-      })
-    ).json(),
-  );
   const wfStart = z
     .object({
       started: z.literal(false),
@@ -2049,7 +2142,7 @@ async function checkTasks(
         )
     : { success: false as const };
   record(
-    'task search + mention preview + run reads + bulk + workflow + folder create',
+    'task search + mention preview + run reads + workflow + folder create',
     searchFields.success &&
       searchFields.data.results.some((hit) => hit.title.startsWith('Dep')) &&
       searchComment.success &&
@@ -2061,15 +2154,12 @@ async function checkTasks(
       latestRun.success &&
       liveAutomation.success &&
       appListing.success &&
-      bulk.success &&
-      bulk.data.updated === 2 &&
-      bulk.data.skipped === 1 &&
       wfStart.success &&
       wfCancel.success &&
       bCancelled.success &&
       fromIssue.success &&
       folderBound.success,
-    `search=${searchFields.success ? searchFields.data.results.length : 'ERR'}, comment-hit=${searchComment.success ? searchComment.data.results.length : 'ERR'}, mention=${mentionPreview.success ? JSON.stringify(mentionPreview.data.previews[0]) : 'ERR'}, latest=${latestRun.success}, live=${liveAutomation.success}, listing=${appListing.success}, bulk=${bulk.success ? `${bulk.data.updated}/${bulk.data.skipped}` : 'ERR'} (want 2/1), wf=${wfStart.success}/${wfCancel.success}/${bCancelled.success}, fromIssue=${fromIssue.success ? 'ok' : 'ERR'}, folderBound=${folderBound.success}`,
+    `search=${searchFields.success ? searchFields.data.results.length : 'ERR'}, comment-hit=${searchComment.success ? searchComment.data.results.length : 'ERR'}, mention=${mentionPreview.success ? JSON.stringify(mentionPreview.data.previews[0]) : 'ERR'}, latest=${latestRun.success}, live=${liveAutomation.success}, listing=${appListing.success}, wf=${wfStart.success}/${wfCancel.success}/${bCancelled.success}, fromIssue=${fromIssue.success ? 'ok' : 'ERR'}, folderBound=${folderBound.success}`,
   );
 }
 
@@ -2273,8 +2363,9 @@ async function checkTasksOrgIsolation(
     WHERE org_id = ${orgId} AND name = 'itest-iso-run'
   `;
 
-  // Deciding a review is deciding the task: a read-only member's respond
-  // refuses on the project write gate and the gate stays pending.
+  // Deciding a review is deciding the task: a read-only member's move to
+  // Done (the approve gesture) refuses on the project write gate and the
+  // gate stays pending.
   const approvalRows = await sql<{ id: string }[]>`
     INSERT INTO app.approvals (
       org_id, status, resource_type, resource_id, priority, metadata,
@@ -2285,17 +2376,15 @@ async function checkTasksOrgIsolation(
     ) RETURNING id
   `;
   const approvalId = approvalRows[0]?.id ?? '';
-  const { respondToTaskReview } = await import('./domains/tasks/reviews.ts');
-  const respondOutcome = await respondToTaskReview(sql, {
-    auth: {
-      organizationId: orgId,
-      userId: viewerId,
-      role: 'member',
-      teamIds: [],
-    },
-    approvalId,
-    decision: 'approve',
-  }).then(
+  const { updateTaskStatus } = await import('./domains/tasks/service.ts');
+  const respondOutcome = await transactSerializable(sql, (tx) =>
+    updateTaskStatus(
+      tx,
+      { organizationId: orgId, userId: viewerId, role: 'member', teamIds: [] },
+      taskId,
+      'done',
+    ),
+  ).then(
     () => 'approved',
     (error: unknown) =>
       error instanceof Error && 'code' in error
@@ -2306,10 +2395,10 @@ async function checkTasksOrgIsolation(
     SELECT status FROM app.approvals WHERE id = ${approvalId}
   `;
   record(
-    'tasks: responding to a review requires task-edit access',
+    'tasks: approving a review (the Done move) requires task-edit access',
     respondOutcome === 'RBAC_FORBIDDEN' &&
       approvalAfter[0]?.status === 'pending',
-    `respond → ${respondOutcome} (want RBAC_FORBIDDEN), approval=${approvalAfter[0]?.status} (want pending)`,
+    `done move → ${respondOutcome} (want RBAC_FORBIDDEN), approval=${approvalAfter[0]?.status} (want pending)`,
   );
 
   // The external-ref intake under concurrency: two simultaneous intakes of
@@ -13615,16 +13704,6 @@ async function checkTurnReattach(
     RETURNING id
   `;
   const projectId = projectRows[0]?.id ?? '';
-  const taskRows = await sql<{ id: string }[]>`
-    INSERT INTO app.tasks (
-      org_id, project_id, title, status, rank, created_by, created_by_type,
-      created_at_ms, updated_at_ms
-    ) VALUES (
-      ${orgId}, ${projectId}, 'Reattach task', 'in_progress', 'a0',
-      ${userId}, 'user', ${now}, ${now}
-    ) RETURNING id
-  `;
-  const taskId = taskRows[0]?.id ?? '';
   const agentRows = await sql<{ id: string }[]>`
     INSERT INTO app.project_agents (
       org_id, project_id, name, harness, model, created_by, created_at_ms,
@@ -13636,12 +13715,30 @@ async function checkTurnReattach(
   `;
   const agentId = agentRows[0]?.id ?? '';
 
+  // One task per run: a task holds at most one live run (migration 0080),
+  // so each shape gets its own card.
   const mkRun = async (
     suffix: string,
-    opts: { withOp: boolean; heartbeatAgoMs?: number; opStatus?: string },
+    opts: {
+      withOp: boolean;
+      heartbeatAgoMs?: number;
+      opStatus?: string;
+      /** How long ago the RUN row was last touched (default: 10 min). */
+      updatedAgoMs?: number;
+    },
   ): Promise<{ runId: string; sessionId: string; execId: string }> => {
     const sessionId = `reattach-session-${suffix}`;
     const execId = `reattach-exec-${suffix}`;
+    const taskRows = await sql<{ id: string }[]>`
+      INSERT INTO app.tasks (
+        org_id, project_id, title, status, rank, created_by, created_by_type,
+        created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${`Reattach task ${suffix}`}, 'in_progress',
+        'a0', ${userId}, 'user', ${now}, ${now}
+      ) RETURNING id
+    `;
+    const taskId = taskRows[0]?.id ?? '';
     await sql`
       INSERT INTO app.sandbox_sessions (
         org_id, session_id, status, owner_type, owner_id, created_by,
@@ -13671,20 +13768,27 @@ async function checkTurnReattach(
       ) VALUES (
         ${orgId}, ${taskId}, ${projectId}, ${agentId}, ${sessionId},
         ${execId}, 'claude-code', 'itest-model', 'manual', ${userId},
-        'running', ${now - 600_000}, ${now + 3_600_000}, ${now - 600_000}
+        'running', ${now - 600_000}, ${now + 3_600_000},
+        ${now - (opts.updatedAgoMs ?? 600_000)}
       ) RETURNING id
     `;
     return { runId: rows[0]?.id ?? '', sessionId, execId };
   };
 
-  // Three shapes: an abandoned turn (stale lease), a LIVE one (fresh
-  // heartbeat), and a start that died before writing its op row.
+  // Four shapes: an abandoned turn (stale lease), a LIVE one (fresh
+  // heartbeat), a start that died before writing its op row, and a run a
+  // restart-steer JUST rotated (fresh run row, no op row for the new exec
+  // yet) — alive, not abandoned.
   const abandoned = await mkRun('stale', {
     withOp: true,
     heartbeatAgoMs: 10 * 60_000,
   });
   const live = await mkRun('live', { withOp: true, heartbeatAgoMs: 5_000 });
   const noOp = await mkRun('noop', { withOp: false });
+  const justRotated = await mkRun('rotated', {
+    withOp: false,
+    updatedAgoMs: 5_000,
+  });
 
   const { recoverStalledTaskAgentTurns } =
     await import('./domains/tasks/reattach.ts');
@@ -13734,13 +13838,16 @@ async function checkTurnReattach(
     WHERE session_id = ${abandoned.sessionId} AND exec_id = ${abandoned.execId}
   `;
   record(
-    're-attach: abandoned turns resume, live ones are left alone',
+    're-attach: abandoned turns resume, live and just-rotated ones are left alone',
     unreachable.resumed === 0 &&
       jobsAfterUnreachable[0]?.count === jobsBefore[0]?.count &&
       recovered.resumed === 2 &&
       drivenRunIds.has(abandoned.runId) &&
       drivenRunIds.has(noOp.runId) &&
       !drivenRunIds.has(live.runId) &&
+      // Op-less but the run row was touched seconds ago: a steer's rotation
+      // in flight, not a dead start — no second drive chain.
+      !drivenRunIds.has(justRotated.runId) &&
       // The missing op row was CREATED by the claim (the run row is the
       // durable proof the turn exists).
       createdOp[0]?.resumedBy === 'watchdog' &&
@@ -13748,14 +13855,14 @@ async function checkTurnReattach(
       createdOp[0]?.kind === 'task-agent' &&
       recoveredCard?.op?.execId === noOp.execId &&
       bumpedOp[0]?.resumedBy === 'watchdog',
-    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind} runCard=${recoveredCard?.op?.execId ?? 'null'}`,
+    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind} runCard=${recoveredCard?.op?.execId ?? 'null'}`,
   );
 
   // Leave nothing behind: live sessions hold sandbox slots, and settled
   // `task-agent` ops are counted by the external-turn metrics fold.
   await sql`
     UPDATE app.project_agent_runs SET status = 'cancelled'
-    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+    WHERE project_id = ${projectId} AND status IN ('queued', 'running')
   `;
   await sql`
     DELETE FROM app.sandbox_session_ops
@@ -13765,6 +13872,181 @@ async function checkTurnReattach(
     UPDATE app.sandbox_sessions SET status = 'destroyed',
                                     destroyed_at_ms = ${Date.now()}
     WHERE org_id = ${orgId} AND session_id LIKE 'reattach-session-%'
+  `;
+}
+
+/**
+ * "At most one live run per task" is the schema's rule (migration 0080): a
+ * READ COMMITTED kick whose live-run probe cannot see a run another
+ * transaction is still minting must NOT insert a second one. The race is
+ * staged deterministically — transaction A inserts a live run and holds it
+ * uncommitted; the kick in transaction B misses it on the probe, blocks on
+ * the unique index at its insert, and once A commits answers with A's run as
+ * `reused`. A raw second live insert is refused outright.
+ */
+async function checkOneLiveRunPerTask(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'One live run project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'One live run task', 'in_progress', 'a0',
+      ${userId}, 'user', ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  const agentRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agents (
+      org_id, project_id, name, harness, model, created_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'One live run agent', 'claude-code',
+      'itest-model', ${userId}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const agentId = agentRows[0]?.id ?? '';
+  const insertLive = (tx: Sql | TransactionSql, exec: string) => tx<
+    { id: string }[]
+  >`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${taskId}, ${agentId}, ${exec},
+      ${`pa-${agentId}`}, 'queued', 'claude-code', 'itest-model',
+      ${userId}, ${Date.now()}, ${Date.now() + 3_600_000}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const { kickAgentRun } = await import('./domains/tasks/agent-runs.ts');
+  const kickArgs = {
+    organizationId: orgId,
+    projectId,
+    taskId,
+    agentId,
+    harness: 'claude-code',
+    model: 'itest-model',
+    startedBy: userId,
+  };
+
+  // A: mint a live run and HOLD the transaction open.
+  let releaseA: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    releaseA = resolve;
+  });
+  let heldRunId = '';
+  const held = sql.begin(async (tx) => {
+    heldRunId = (await insertLive(tx, 'exec-one-live-a'))[0]?.id ?? '';
+    await gate;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  // B: the kick under READ COMMITTED — its probe cannot see A's row; its
+  // insert blocks on the index until A commits.
+  const kicked = sql.begin((tx) => kickAgentRun(tx, kickArgs));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  releaseA();
+  await held;
+  const outcome = await kicked;
+
+  // A raw second live insert is refused by the index itself.
+  let rawRefused = '';
+  try {
+    await insertLive(sql, 'exec-one-live-raw');
+  } catch (error) {
+    rawRefused =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String(error.code)
+        : 'thrown';
+  }
+  const liveRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+  `;
+  const turnJobs = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${heldRunId}
+  `;
+  record(
+    'one live run per task: a read-committed kick racing a held mint reuses the winner',
+    outcome.reused &&
+      outcome.runId === heldRunId &&
+      liveRows.length === 1 &&
+      liveRows[0]?.id === heldRunId &&
+      turnJobs[0]?.count === '0' &&
+      rawRefused === '23505',
+    `kick reused=${outcome.reused} (want true, winner=${outcome.runId === heldRunId}), live rows=${liveRows.length} (want 1), turn jobs for winner=${turnJobs[0]?.count} (want 0), raw twin=${rawRefused || 'accepted'} (want 23505)`,
+  );
+
+  // A person closing the card through a human door CANCELS its live run
+  // (the server owns the rule, not just the browser choreography), and the
+  // run's later settle may not yank the closed card back to In review.
+  const { updateTaskStatus, agentUpdateTaskStatusTrusted } =
+    await import('./domains/tasks/service.ts');
+  const humanAuth = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    teamIds: [] as string[],
+  };
+  await transactSerializable(sql, (tx) =>
+    updateTaskStatus(tx, humanAuth, taskId, 'done'),
+  );
+  const cancelledRun = await sql<{ status: string }[]>`
+    SELECT status FROM app.project_agent_runs WHERE id = ${heldRunId}
+  `;
+  const cancelLedger = await sql<{ status: string }[]>`
+    SELECT status FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'agent.run_settled'
+      AND resource_id = ${heldRunId}
+  `;
+  const settleAfterClose = await sql.begin((tx) =>
+    agentUpdateTaskStatusTrusted(tx, {
+      organizationId: orgId,
+      actorId: agentId,
+      taskId,
+      status: 'in_review',
+      review: { runId: heldRunId },
+    }),
+  );
+  const closedTask = await sql<
+    { status: string; completedAt: number | null }[]
+  >`
+    SELECT status, completed_at_ms::float8 AS "completedAt" FROM app.tasks
+    WHERE id = ${taskId}
+  `;
+  const gateAfterClose = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+      AND status = 'pending'
+  `;
+  record(
+    'closing a card cancels its live run, and the run’s settle cannot reopen it',
+    cancelledRun[0]?.status === 'cancelled' &&
+      cancelLedger.length === 1 &&
+      !settleAfterClose.ok &&
+      settleAfterClose.reason === 'TASK_MOVED' &&
+      closedTask[0]?.status === 'done' &&
+      closedTask[0]?.completedAt !== null &&
+      gateAfterClose[0]?.count === '0',
+    `run=${cancelledRun[0]?.status} (want cancelled, ledger rows=${cancelLedger.length}/1), settle=${settleAfterClose.ok}/${settleAfterClose.reason ?? '-'} (want false/TASK_MOVED), task=${closedTask[0]?.status} completed=${closedTask[0]?.completedAt !== null}, pending gates=${gateAfterClose[0]?.count} (want 0)`,
+  );
+
+  // Leave nothing the live worker could act on.
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled'
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
   `;
 }
 
@@ -13787,16 +14069,6 @@ async function checkQueuedRunRecovery(
     RETURNING id
   `;
   const projectId = projectRows[0]?.id ?? '';
-  const taskRows = await sql<{ id: string }[]>`
-    INSERT INTO app.tasks (
-      org_id, project_id, title, status, rank, created_by, created_by_type,
-      created_at_ms, updated_at_ms
-    ) VALUES (
-      ${orgId}, ${projectId}, 'Queued recovery task', 'in_progress', 'a0',
-      ${userId}, 'user', ${now}, ${now}
-    ) RETURNING id
-  `;
-  const taskId = taskRows[0]?.id ?? '';
   const agentRows = await sql<{ id: string }[]>`
     INSERT INTO app.project_agents (
       org_id, project_id, name, harness, model, created_by, created_at_ms,
@@ -13808,10 +14080,22 @@ async function checkQueuedRunRecovery(
   `;
   const agentId = agentRows[0]?.id ?? '';
 
+  // One task per run: a task holds at most one live run (migration 0080),
+  // so each shape gets its own card.
   const mkQueuedRun = async (
     execId: string,
     opts: { agentId: string; updatedAt: number; parked?: boolean },
   ): Promise<string> => {
+    const taskRows = await sql<{ id: string }[]>`
+      INSERT INTO app.tasks (
+        org_id, project_id, title, status, rank, created_by, created_by_type,
+        created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${`Queued recovery task ${execId}`},
+        'in_progress', 'a0', ${userId}, 'user', ${now}, ${now}
+      ) RETURNING id
+    `;
+    const taskId = taskRows[0]?.id ?? '';
     const rows = await sql<{ id: string }[]>`
       INSERT INTO app.project_agent_runs (
         org_id, task_id, project_id, agent_id, session_id, exec_id, harness,
@@ -13887,7 +14171,7 @@ async function checkQueuedRunRecovery(
   // Leave nothing the live worker could act on.
   await sql`
     UPDATE app.project_agent_runs SET status = 'cancelled'
-    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+    WHERE project_id = ${projectId} AND status IN ('queued', 'running')
   `;
 }
 
@@ -14566,10 +14850,11 @@ async function checkRunProvenance(
     ) RETURNING id
   `;
   const runId = runRows[0]?.id ?? '';
-  // A deliverable this run produced, plus one from another run.
+  // A deliverable from another run sits on the task already; THIS run's
+  // deliverable lands through the settle's attach step, which stamps the
+  // producing run on the entry — the binding the ledger filters on.
   await sql`
     UPDATE app.tasks SET outputs = ${sql.json([
-      { runId, fileName: 'report.md', fileSize: 1234, fileId: 's3:out-1' },
       {
         runId: 'other-run',
         fileName: 'stale.md',
@@ -14579,6 +14864,23 @@ async function checkRunProvenance(
     ])}
     WHERE id = ${taskId}
   `;
+  const { agentRecordTaskOutputsTrusted } =
+    await import('./domains/tasks/service.ts');
+  await sql.begin((tx) =>
+    agentRecordTaskOutputsTrusted(tx, {
+      organizationId: orgId,
+      taskId,
+      runId,
+      files: [
+        {
+          fileId: 's3:out-1',
+          fileName: 'report.md',
+          fileType: 'text/markdown',
+          fileSize: 1234,
+        },
+      ],
+    }),
+  );
   await sql`
     INSERT INTO app.approvals (
       org_id, status, resource_type, resource_id, priority, metadata,
@@ -14589,21 +14891,22 @@ async function checkRunProvenance(
     )
   `;
 
-  const { settleAgentRun } = await import('./domains/tasks/agent-runs.ts');
-  const settled = await settleAgentRun(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-    resultText: 'done',
-  });
+  // Through the HOST's own mark (the shim ref the drive chain calls), not a
+  // sibling helper: the entry must ride the path production takes.
+  const { agentTurnShimHandlers: ledgerShim } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const markSettled =
+    ledgerShim(sql)['tasks/agent_runs:markTaskAgentRunSettled'];
+  await markSettled?.({ runId, execId, resultText: 'done' });
   // The settle election admits exactly one terminal transition, so a second
-  // call must write no second ledger entry.
-  const settledTwice = await settleAgentRun(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-    resultText: 'done again',
-  });
+  // call must write no second ledger entry and leave the first result.
+  await markSettled?.({ runId, execId, resultText: 'done again' });
+  const settledRow = await sql<{ status: string; resultText: string | null }[]>`
+    SELECT status, result_text AS "resultText" FROM app.project_agent_runs
+    WHERE id = ${runId}
+  `;
+  const settled = settledRow[0]?.status === 'settled';
+  const settledTwice = settledRow[0]?.resultText !== 'done';
 
   const entries = await sql<
     { metadata: unknown; resourceName: string | null; status: string }[]
@@ -14778,6 +15081,80 @@ async function checkRunProvenance(
       startedRuns.length === Number(runsBefore[0]?.count ?? '0') + 1 &&
       runInput?.id === ownedTaskId,
     `plain=${runsAfterPlain[0]?.count} foreign=${runsAfterForeign[0]?.count} (both want ${runsBefore[0]?.count}), afterMention=${startedRuns.length}, subject=${runInput?.id === ownedTaskId}`,
+  );
+
+  // ---- the one-live-run guard under concurrency ------------------------
+  // Two doors starting the same automation for the same task at once (a
+  // board Start beside an @mention, two REST calls) must land ONE run: the
+  // guard takes a per-(org, automation, task) advisory lock around the
+  // live-run lookup and the insert, so the loser sees the winner's row.
+  const { startWorkflowForTask } =
+    await import('./domains/tasks/external-ref.ts');
+  const racedRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      assignee_type, assignee_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Raced start task', 'todo', 'b1',
+      ${userId}, 'user', 'app', ${automationName}, ${Date.now()},
+      ${Date.now()}
+    ) RETURNING id
+  `;
+  const racedTaskId = racedRows[0]?.id ?? '';
+  const { loadTaskOrThrow: loadRacedTask } =
+    await import('./domains/tasks/service.ts');
+  const racedTask = await loadRacedTask(sql, racedTaskId, orgId);
+  const startTwice = () =>
+    startWorkflowForTask(sql, {
+      organizationId: orgId,
+      task: racedTask,
+      workflowSlug: automationName,
+      startedByUserId: userId,
+    });
+  const raced = await Promise.all([startTwice(), startTwice(), startTwice()]);
+  const racedLive = await sql<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = ${automationName}
+      AND input->'task'->>'id' = ${racedTaskId}
+  `;
+  record(
+    'automations: concurrent starts for one task land exactly one run',
+    racedLive.length === 1 &&
+      raced.every((outcome) => outcome?.runId === racedLive[0]?.id) &&
+      raced.filter((outcome) => outcome?.alreadyRunning === false).length === 1,
+    `runs=${racedLive.length} (want 1), outcomes=${JSON.stringify(raced.map((outcome) => outcome?.alreadyRunning ?? 'null'))} (want exactly one false)`,
+  );
+  // The refusal is the caller's answer now, not a laundered "not started"
+  // — and the queue's retry ladder sees a transient failure at all. On a
+  // task with NO live run: the guard answers an existing run before the
+  // start is attempted, so the refusal has to come from the start itself.
+  const phantomRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      assignee_type, assignee_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Phantom start task', 'todo', 'b2',
+      ${userId}, 'user', 'app', ${automationName}, ${Date.now()},
+      ${Date.now()}
+    ) RETURNING id
+  `;
+  const phantomTask = await loadRacedTask(sql, phantomRows[0]?.id ?? '', orgId);
+  const phantomStart = await startWorkflowForTask(sql, {
+    organizationId: orgId,
+    task: { ...phantomTask, projectId: 'no-such-project' },
+    workflowSlug: automationName,
+    startedByUserId: userId,
+  }).then(
+    (outcome) => `resolved:${JSON.stringify(outcome)}`,
+    (error: unknown) =>
+      error instanceof Error && 'code' in error
+        ? String(error.code)
+        : 'other-error',
+  );
+  record(
+    'automations: a workflow start failure propagates instead of answering null',
+    phantomStart === 'AUTOMATION_PROJECT_UNKNOWN',
+    `phantom project start → ${phantomStart} (want AUTOMATION_PROJECT_UNKNOWN)`,
   );
 
   // ---- a mention of the RUNNING agent steers the live turn -------------
@@ -15462,22 +15839,19 @@ async function checkCompetences(
     `;
     return rows[0]?.id ?? '';
   };
-  const respond = (approvalId: string): Promise<Response> =>
-    fetch(
-      `${base}/api/app/tasks/reviews/${approvalId}/respond?orgId=${orgId}`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
-        body: JSON.stringify({ decision: 'approve' }),
-      },
-    );
+  // Approving IS the In review → Done move; the leave closes the gate.
+  const approve = (): Promise<Response> =>
+    fetch(`${base}/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ status: 'done' }),
+    });
 
   const holderApproval = await mintReview();
-  const holderRes = await respond(holderApproval);
-  const holderBody = z
-    .object({ taskCompleted: z.boolean() })
-    .loose()
-    .safeParse(await holderRes.json());
+  const holderRes = await approve();
+  const holderTask = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${taskId}
+  `;
   // The grants that justified the decision are stamped on the trail, so a
   // later auditor can see WHICH record admitted this reviewer.
   const stamped = await sql<{ metadata: Record<string, unknown> | null }[]>`
@@ -15495,13 +15869,12 @@ async function checkCompetences(
   record(
     'competences: a holder passes the review door and the grant is stamped',
     holderRes.status === 200 &&
-      holderBody.success &&
-      holderBody.data.taskCompleted &&
+      holderTask[0]?.status === 'done' &&
       Array.isArray(response.competenceRecordIds) &&
       response.competenceRecordIds.includes(recordId) &&
       Array.isArray(auditIds) &&
       auditIds.includes(recordId),
-    `status=${holderRes.status}, completed=${holderBody.success ? holderBody.data.taskCompleted : 'ERR'}, stamped=${JSON.stringify(response.competenceRecordIds)}, audit=${JSON.stringify(auditIds)}, want ${recordId}`,
+    `status=${holderRes.status}, task=${holderTask[0]?.status} (want done), stamped=${JSON.stringify(response.competenceRecordIds)}, audit=${JSON.stringify(auditIds)}, want ${recordId}`,
   );
 
   // ---- revocation retains the row and closes the door ------------------
@@ -15515,7 +15888,8 @@ async function checkCompetences(
   await sql`
     UPDATE app.tasks SET status = 'in_review' WHERE id = ${taskId}
   `;
-  const refusedRes = await respond(await mintReview());
+  await mintReview();
+  const refusedRes = await approve();
   const refusedBody = z
     .object({ error: z.string(), message: z.string() })
     .loose()
@@ -15632,93 +16006,7 @@ async function checkTasksCollabIntegrity(
         AND status = 'pending'
     `;
 
-  // ---- run cancel binds the run to the AUTHORIZED task --------------------
-  // Task A is the door the caller is authorized on; the run belongs to task
-  // B. Cancelling B's run through A's door must be refused (opaque 404) and
-  // leave the run live; B's own door cancels it exactly once.
-  const doorTask = await newTask('Cancel door');
-  const heldTask = await newTask('Held by a run');
-  const foreignRun = await seedRun(
-    heldTask,
-    'exec-integrity-foreign',
-    'running',
-  );
-  const throughOtherDoor = await post(
-    `/api/app/tasks/${doorTask}/agent-runs/${foreignRun}/cancel?orgId=${orgId}`,
-  );
-  const refusal = z
-    .object({ error: z.string() })
-    .loose()
-    .safeParse(await throughOtherDoor.json());
-  const stillLive = await sql<{ status: string }[]>`
-    SELECT status FROM app.project_agent_runs WHERE id = ${foreignRun}
-  `;
-  const ownDoor = z
-    .object({ cancelled: z.boolean() })
-    .safeParse(
-      await (
-        await post(
-          `/api/app/tasks/${heldTask}/agent-runs/${foreignRun}/cancel?orgId=${orgId}`,
-        )
-      ).json(),
-    );
-  const afterOwn = await sql<{ status: string }[]>`
-    SELECT status FROM app.project_agent_runs WHERE id = ${foreignRun}
-  `;
-  const ledger = await sql<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.audit_logs
-    WHERE org_id = ${orgId} AND action = 'agent.run_settled'
-      AND resource_id = ${foreignRun}
-  `;
-  record(
-    "tasks/collab: a run cancel is refused through another task's door",
-    throughOtherDoor.status === 404 &&
-      refusal.success &&
-      refusal.data.error === 'AGENT_RUN_NOT_FOUND' &&
-      stillLive[0]?.status === 'running' &&
-      ownDoor.success &&
-      ownDoor.data.cancelled &&
-      afterOwn[0]?.status === 'cancelled' &&
-      ledger[0]?.count === '1',
-    `foreign door → ${throughOtherDoor.status}/${refusal.success ? refusal.data.error : 'ERR'} (want 404/AGENT_RUN_NOT_FOUND), run after=${stillLive[0]?.status} (want running); own door → ${ownDoor.success ? ownDoor.data.cancelled : 'ERR'}, run=${afterOwn[0]?.status}, ledger=${ledger[0]?.count} (want 1)`,
-  );
-
   // ---- every in_review park mints the review gate --------------------------
-  // The bulk bar: the card reaches In review with a pending gate the creator
-  // (the resolved reviewer) can close — the leave to done records the
-  // approve instead of nothing.
-  const bulkTask = await newTask('Bulk parked');
-  await post(`/api/app/tasks/bulk?orgId=${orgId}`, {
-    taskIds: [bulkTask],
-    status: 'in_review',
-  });
-  const bulkGate = await pendingGate(bulkTask);
-  await post(`/api/app/tasks/${bulkTask}/status?orgId=${orgId}`, {
-    status: 'done',
-  });
-  const bulkClosed = await sql<
-    { status: string; metadata: Record<string, unknown> | null }[]
-  >`
-    SELECT status, metadata FROM app.approvals WHERE id = ${bulkGate[0]?.id ?? ''}
-  `;
-  const bulkDecision =
-    bulkClosed[0]?.metadata !== null &&
-    typeof bulkClosed[0]?.metadata === 'object' &&
-    'response' in bulkClosed[0].metadata &&
-    typeof bulkClosed[0].metadata.response === 'object' &&
-    bulkClosed[0].metadata.response !== null &&
-    'decision' in bulkClosed[0].metadata.response
-      ? String(bulkClosed[0].metadata.response.decision)
-      : 'none';
-  record(
-    'tasks/collab: a bulk move to In review mints the gate the leave resolves',
-    bulkGate.length === 1 &&
-      bulkGate[0]?.metadata?.requestedFor === userId &&
-      bulkClosed[0]?.status === 'completed' &&
-      bulkDecision === 'approve',
-    `gate rows=${bulkGate.length} (want 1) reviewer=${String(bulkGate[0]?.metadata?.requestedFor)} → after done: ${bulkClosed[0]?.status}/${bulkDecision} (want completed/approve)`,
-  );
-
   // An external close by a non-workflow actor parks the card at In review;
   // that park carries the gate too.
   const { upsertTaskByExternalRef } =
@@ -15751,6 +16039,47 @@ async function checkTasksCollabIntegrity(
       externalGate.length === 1 &&
       externalGate[0]?.metadata?.requestedFor === userId,
     `status=${externalStatus[0]?.status} (want in_review), gate rows=${externalGate.length} (want 1), reviewer=${String(externalGate[0]?.metadata?.requestedFor)}`,
+  );
+  // An ARCHIVED task is read-only to the intake too: local archival is
+  // authoritative everywhere else in the domain, so the upstream item's
+  // later close neither moves the hidden card nor mints a review gate.
+  const { archiveTask } = await import('./domains/tasks/service.ts');
+  const archivedArgs = { ...externalArgs, externalId: 'GATE-ARCHIVED' };
+  const archivedCreated = await transactSerializable(sql, (tx) =>
+    upsertTaskByExternalRef(tx, archivedArgs),
+  );
+  const archivedTask = archivedCreated.taskId ?? '';
+  await transactSerializable(sql, (tx) =>
+    archiveTask(
+      tx,
+      { organizationId: orgId, userId, role: 'owner', teamIds: [] },
+      archivedTask,
+    ),
+  );
+  const archivedReplay = await transactSerializable(sql, (tx) =>
+    upsertTaskByExternalRef(tx, {
+      ...archivedArgs,
+      title: 'Renamed upstream',
+      externalState: 'closed',
+    }),
+  );
+  const archivedAfter = await sql<
+    { status: string; title: string; archivedAt: number | null }[]
+  >`
+    SELECT status, title, archived_at_ms::float8 AS "archivedAt"
+    FROM app.tasks WHERE id = ${archivedTask}
+  `;
+  const archivedGate = await pendingGate(archivedTask);
+  record(
+    'tasks/collab: an external close leaves an archived task untouched',
+    archivedCreated.created &&
+      !archivedReplay.created &&
+      archivedReplay.taskId === archivedTask &&
+      archivedAfter[0]?.status === 'backlog' &&
+      archivedAfter[0]?.title === 'External item' &&
+      archivedAfter[0]?.archivedAt !== null &&
+      archivedGate.length === 0,
+    `replay=${String(archivedReplay.created)}/${archivedReplay.taskId === archivedTask} (want false/same task), status=${archivedAfter[0]?.status} (want backlog), title=${archivedAfter[0]?.title} (want unchanged), archived=${archivedAfter[0]?.archivedAt !== null}, gate rows=${archivedGate.length} (want 0)`,
   );
 
   // The agent's own `task_update_status` tool parks without a run key: the
@@ -16517,6 +16846,51 @@ async function checkPolicySweeps(
     SELECT count(*)::text AS count FROM app.messages
     WHERE org_id = ${orgId} AND text LIKE '[automated]%'
   `;
+  // Rescheduling re-arms the ladder (updateTask clears the stamps it owns):
+  // the overdue task pushed out to later today is "due soon" again on the
+  // next sweep, and a started task whose start moves is announced again.
+  // And the level-2 nudge speaks every locale the app ships.
+  const { updateTask } = await import('./domains/tasks/service.ts');
+  const sweepAuth = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    teamIds: [] as string[],
+  };
+  await transactSerializable(sql, (tx) =>
+    updateTask(tx, sweepAuth, { taskId: overdueId, dueDate: now + 3_600_000 }),
+  );
+  await transactSerializable(sql, (tx) =>
+    updateTask(tx, sweepAuth, { taskId: startedId, startDate: now - 30_000 }),
+  );
+  const third = await enforceTaskDatesForOrg(sql, orgId);
+  const rescheduled = await sql<
+    { id: string; startNotified: number | null; slaLevel: number | null }[]
+  >`
+    SELECT id, start_notified_at_ms::float8 AS "startNotified",
+           sla_level AS "slaLevel"
+    FROM app.tasks WHERE id IN (${startedId}, ${overdueId})
+  `;
+  const rescheduledById = new Map(rescheduled.map((row) => [row.id, row]));
+  const nudgeMeta = await sql<{ bodyByLocale: unknown }[]>`
+    SELECT meta.body_by_locale AS "bodyByLocale"
+    FROM app.task_discussion_message_meta meta
+    WHERE meta.task_id = ${overdueId}
+    ORDER BY meta.created_at_ms LIMIT 1
+  `;
+  const nudgeLocales = objectAt(nudgeMeta[0]?.bodyByLocale, '');
+  record(
+    'sweeps: a reschedule re-arms the date ladder, and the nudge speaks every locale',
+    third.dueSoon === 1 &&
+      third.start === 1 &&
+      rescheduledById.get(overdueId)?.slaLevel === 1 &&
+      rescheduledById.get(startedId)?.startNotified !== null &&
+      typeof nudgeLocales?.en === 'string' &&
+      typeof nudgeLocales?.de === 'string' &&
+      typeof nudgeLocales?.fr === 'string',
+    `third=${JSON.stringify(third)} (want dueSoon 1, start 1), overdue→slaLevel=${rescheduledById.get(overdueId)?.slaLevel} (want 1), started re-stamped=${rescheduledById.get(startedId)?.startNotified !== null}, nudge locales=${nudgeLocales ? Object.keys(nudgeLocales).sort().join(',') : 'none'} (want de,en,fr)`,
+  );
+
   record(
     'sweeps: the task date ladder fires each rung once and skips future work',
     first.start === 1 &&
@@ -26069,6 +26443,13 @@ async function checkTaskAgentTurnDrive(
   // the bare-EOS shape a weak model emits mid-work (set by the reportless
   // scenario below; every other session plays the normal settling turn).
   let reportlessSessionId = '';
+  // Every exec the spawner was asked to start, per session — the stand-down
+  // probe's "nothing was spawned" is an absence, so it must be observed.
+  const execsSeen = new Map<string, string[]>();
+  // The stand-down probe's race window: runs ONCE, while the cold session
+  // is being created (after the start's idempotency gate, before its
+  // running flip), and hands the run over before the spawner answers.
+  let onSessionCreate: (() => Promise<void>) | undefined;
   // --- fake spawner: sessions + exec SSE + files ---------------------------
   const spawner = createServer((req, res) => {
     let body = '';
@@ -26108,15 +26489,36 @@ async function checkTaskAgentTurnDrive(
           .object({ sessionId: z.string() })
           .loose()
           .safeParse(JSON.parse(body || '{}'));
-        res.end(
-          JSON.stringify(
-            sessionInfo(parsed.success ? parsed.data.sessionId : ''),
-          ),
-        );
+        const respond = (): void => {
+          res.end(
+            JSON.stringify(
+              sessionInfo(parsed.success ? parsed.data.sessionId : ''),
+            ),
+          );
+        };
+        const hook = onSessionCreate;
+        onSessionCreate = undefined;
+        if (hook === undefined) {
+          respond();
+          return;
+        }
+        hook().then(respond, (err: unknown) => {
+          console.error('[itest] session-create hook failed:', err);
+          respond();
+        });
         return;
       }
       const exec = /^\/v1\/sessions\/([^/]+)\/exec$/.exec(url.pathname);
       if (method === 'POST' && exec) {
+        const execSession = exec[1] ?? '';
+        const execBody = z
+          .object({ execId: z.string() })
+          .loose()
+          .safeParse(JSON.parse(body || '{}'));
+        execsSeen.set(execSession, [
+          ...(execsSeen.get(execSession) ?? []),
+          execBody.success ? execBody.data.execId : '?',
+        ]);
         // The canned claude-code stream-json turn, then the exec result. The
         // reportless session's turn ends SUCCESSFULLY with an empty result —
         // the parser then sets no finalText, which is the no-report signal.
@@ -26584,6 +26986,244 @@ async function checkTaskAgentTurnDrive(
       `;
       return pending[0]?.count === '0';
     }, 30_000);
+
+    // --- a start whose run changed hands before its flip stands down -------
+    // tasks-a-4 (host side): a cold session ensure plus input staging
+    // legitimately takes minutes, and in that window the queued-run
+    // recovery may rotate the run onto a fresh exec, or a cancel may land.
+    // The running flip is exec-fenced; the start that loses it must spawn
+    // NOTHING, finalize its own op row as cancelled and revoke the key it
+    // minted. The slot follows the run: a rotated run's successor keeps the
+    // session (it starts on it right after), a cancelled run's start frees
+    // it. Driven on the host directly (a hand-inserted row, no turn job) so
+    // the live worker cannot race the hand-over.
+    const { startTaskAgentTurnImpl } =
+      await import('./core/tasks/agent_run_host.ts');
+    const { agentTurnShimHandlers, taskAgentShimScheduler } =
+      await import('./domains/tasks/agent-turn-shim.ts');
+    const { createCtxShim } = await import('./lib/ctx-shim.ts');
+    const readOp = async (
+      sessionId: string,
+      execId: string,
+    ): Promise<{ status: string; finalizedAt: number | null } | undefined> =>
+      (
+        await sql<{ status: string; finalizedAt: number | null }[]>`
+          SELECT status, finalized_at_ms::float8 AS "finalizedAt"
+          FROM app.sandbox_session_ops
+          WHERE session_id = ${sessionId} AND exec_id = ${execId}
+        `
+      )[0];
+    const readStandDownRun = async (
+      runId: string,
+    ): Promise<
+      { status: string; execId: string; launchedAt: number | null } | undefined
+    > =>
+      (
+        await sql<
+          { status: string; execId: string; launchedAt: number | null }[]
+        >`
+          SELECT status, exec_id AS "execId",
+                 launched_at_ms::float8 AS "launchedAt"
+          FROM app.project_agent_runs WHERE id = ${runId}
+        `
+      )[0];
+    const readSession = async (sessionId: string): Promise<string> =>
+      (
+        await sql<{ status: string }[]>`
+          SELECT status FROM app.sandbox_sessions
+          WHERE session_id = ${sessionId} AND owner_type = 'project_agent'
+        `
+      )[0]?.status ?? 'missing';
+    const standDownStart = async (
+      name: string,
+      execId: string,
+      handOver: (runId: string) => Promise<void>,
+    ): Promise<{
+      runId: string;
+      sessionId: string;
+      threw: string;
+      start: (id: string) => Promise<string>;
+      minted: number;
+      revoked: number;
+    }> => {
+      const agentN = z.object({ agentId: z.string() }).safeParse(
+        await (
+          await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+            name,
+            harness: 'claude-code',
+            model: 'itest-agent-model',
+            skills: [],
+            connectors: [],
+          })
+        ).json(),
+      );
+      const agentNId = agentN.success ? agentN.data.agentId : '';
+      const sessionId = `pa-${agentNId}`;
+      const taskN = z.object({ taskId: z.string() }).safeParse(
+        await (
+          await post(`/api/app/tasks?orgId=${orgId}`, {
+            projectId,
+            title: `${name} hand-over`,
+          })
+        ).json(),
+      );
+      const taskNId = taskN.success ? taskN.data.taskId : '';
+      await post(`/api/app/tasks/${taskNId}/assign?orgId=${orgId}`, {
+        assigneeType: 'agent',
+        assigneeId: agentNId,
+      });
+      // In progress WITHOUT the status door's kick: the run below is the
+      // one live run, and nothing but this probe drives it.
+      await sql`
+        UPDATE app.tasks SET status = 'in_progress', updated_at_ms = ${Date.now()}
+        WHERE id = ${taskNId}
+      `;
+      const runId =
+        (
+          await sql<{ id: string }[]>`
+            INSERT INTO app.project_agent_runs (
+              org_id, project_id, task_id, agent_id, exec_id, session_id,
+              status, harness, model, started_by, started_at_ms,
+              deadline_at_ms, updated_at_ms
+            ) VALUES (
+              ${orgId}, ${projectId}, ${taskNId}, ${agentNId}, ${execId},
+              ${sessionId}, 'queued', 'claude-code', 'itest-agent-model',
+              'itest:stand-down', ${Date.now()}, ${Date.now() + 3_600_000},
+              ${Date.now()}
+            ) RETURNING id
+          `
+        )[0]?.id ?? '';
+      const shim = createCtxShim(agentTurnShimHandlers(sql), {
+        scheduler: taskAgentShimScheduler(sql),
+      });
+      const start = async (id: string): Promise<string> => {
+        try {
+          await startTaskAgentTurnImpl(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- reused host over the shim, as task-list.ts wires it; tsc requires the widening while tsgolint false-positives it as unnecessary
+            shim as unknown as Parameters<typeof startTaskAgentTurnImpl>[0],
+            {
+              organizationId: orgId,
+              runId,
+              taskId: taskNId,
+              agentId: agentNId,
+              execId: id,
+              sessionId,
+              harness: 'claude-code',
+              deadlineAt: Date.now() + 3_600_000,
+              model: 'itest-agent-model',
+              skills: [],
+              connectors: [],
+              tools: [],
+              secrets: [],
+            },
+          );
+          return '';
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      };
+      const minted = gatewayCalls.minted;
+      const revoked = gatewayCalls.revoked;
+      onSessionCreate = () => handOver(runId);
+      const threw = await start(execId);
+      return {
+        runId,
+        sessionId,
+        threw,
+        start,
+        minted: gatewayCalls.minted - minted,
+        revoked: gatewayCalls.revoked - revoked,
+      };
+    };
+
+    // Rotated: the recovery's claim shape (exec swapped under `queued`).
+    const rotated = await standDownStart(
+      'Rotated Bot',
+      'exec-standdown-rotated',
+      async (runId) => {
+        await sql`
+          UPDATE app.project_agent_runs SET
+            exec_id = 'exec-standdown-rotated-2', updated_at_ms = ${Date.now()}
+          WHERE id = ${runId} AND status = 'queued'
+            AND exec_id = 'exec-standdown-rotated'
+        `;
+      },
+    );
+    const rotatedOp = await readOp(rotated.sessionId, 'exec-standdown-rotated');
+    const rotatedRun = await readStandDownRun(rotated.runId);
+    const rotatedSession = await readSession(rotated.sessionId);
+    const rotatedSpawned = [...(execsSeen.get(rotated.sessionId) ?? [])];
+    record(
+      'task-agent start: a run rotated away before the flip stands down (no spawn, op cancelled, key revoked, slot kept for the successor)',
+      rotated.threw === '' &&
+        rotatedSpawned.length === 0 &&
+        rotatedOp?.status === 'cancelled' &&
+        rotatedOp.finalizedAt !== null &&
+        rotatedRun?.status === 'queued' &&
+        rotatedRun.execId === 'exec-standdown-rotated-2' &&
+        rotatedRun.launchedAt === null &&
+        rotatedSession === 'active' &&
+        rotated.minted === 1 &&
+        rotated.revoked === 1,
+      `threw="${rotated.threw}" spawned=${JSON.stringify(rotatedSpawned)} (want none), op=${rotatedOp?.status}/finalized=${rotatedOp?.finalizedAt !== null} (want cancelled), run=${rotatedRun?.status}/${rotatedRun?.execId}/launched=${rotatedRun?.launchedAt} (want queued/exec-standdown-rotated-2/null), session=${rotatedSession} (want active), vk mint/revoke=${rotated.minted}/${rotated.revoked} (want 1/1)`,
+    );
+
+    // …and the successor's start launches normally on the kept session.
+    const successorThrew = await rotated.start('exec-standdown-rotated-2');
+    const successorRun = await readStandDownRun(rotated.runId);
+    const successorOp = await readOp(
+      rotated.sessionId,
+      'exec-standdown-rotated-2',
+    );
+    const successorSession = await readSession(rotated.sessionId);
+    const successorSpawned = [...(execsSeen.get(rotated.sessionId) ?? [])];
+    record(
+      "task-agent start: the rotated run's successor exec launches and settles",
+      successorThrew === '' &&
+        successorSpawned.length === 1 &&
+        successorSpawned[0] === 'exec-standdown-rotated-2' &&
+        successorRun?.status === 'settled' &&
+        successorRun.execId === 'exec-standdown-rotated-2' &&
+        successorRun.launchedAt !== null &&
+        successorOp?.status === 'completed' &&
+        successorSession === 'stopped',
+      `threw="${successorThrew}" spawned=${JSON.stringify(successorSpawned)} (want the successor only), run=${successorRun?.status}/${successorRun?.execId}/launched=${successorRun?.launchedAt !== null}, op=${successorOp?.status} (want completed), session=${successorSession} (want stopped)`,
+    );
+
+    // Cancelled: nobody drives the run any more — this start frees the slot.
+    const cancelled = await standDownStart(
+      'Cancelled Bot',
+      'exec-standdown-cancelled',
+      async (runId) => {
+        await sql`
+          UPDATE app.project_agent_runs SET
+            status = 'cancelled', settled_at_ms = ${Date.now()},
+            updated_at_ms = ${Date.now()}
+          WHERE id = ${runId} AND status = 'queued'
+        `;
+      },
+    );
+    const cancelledOp = await readOp(
+      cancelled.sessionId,
+      'exec-standdown-cancelled',
+    );
+    const cancelledRun = await readStandDownRun(cancelled.runId);
+    const cancelledSession = await readSession(cancelled.sessionId);
+    const cancelledSpawned = [...(execsSeen.get(cancelled.sessionId) ?? [])];
+    record(
+      'task-agent start: a run cancelled before the flip stands down (no spawn, op cancelled, key revoked, slot released)',
+      cancelled.threw === '' &&
+        cancelledSpawned.length === 0 &&
+        cancelledOp?.status === 'cancelled' &&
+        cancelledOp.finalizedAt !== null &&
+        cancelledRun?.status === 'cancelled' &&
+        cancelledRun.execId === 'exec-standdown-cancelled' &&
+        cancelledRun.launchedAt === null &&
+        cancelledSession === 'stopped' &&
+        cancelled.minted === 1 &&
+        cancelled.revoked === 1,
+      `threw="${cancelled.threw}" spawned=${JSON.stringify(cancelledSpawned)} (want none), op=${cancelledOp?.status}/finalized=${cancelledOp?.finalizedAt !== null} (want cancelled), run=${cancelledRun?.status}/${cancelledRun?.execId} (want cancelled, exec kept), session=${cancelledSession} (want stopped), vk mint/revoke=${cancelled.minted}/${cancelled.revoked} (want 1/1)`,
+    );
   } finally {
     delete process.env.SANDBOX_URL;
     delete process.env.SANDBOX_TOKEN;
@@ -28409,28 +29049,17 @@ async function checkTaskAgentRuns(
     ? runsView.data.runs.find((run) => run.id === runId)
     : undefined;
 
-  // Park → single-winner claim (a second claim must lose) → re-park → wake.
-  await agentRuns.parkAgentRunForCapacity(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-  });
-  const firstClaim = await agentRuns.claimParkedAgentRun(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-  });
-  const secondClaim = await agentRuns.claimParkedAgentRun(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-  });
-  await agentRuns.parkAgentRunForCapacity(sql, {
-    organizationId: orgId,
+  // Park (the host's shim ref) → the wake CLAIMS it (clearing the stamp is
+  // the single-winner election: a second wake finds nothing).
+  const { agentTurnShimHandlers: runShim } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const shimRefs = runShim(sql);
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
     runId,
     execId,
   });
   const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  const wokenAgain = await agentRuns.wakeParkedAgentRuns(sql, orgId);
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // The release EDGE itself: a project-agent turn ending frees the agent's
@@ -28438,8 +29067,7 @@ async function checkTaskAgentRuns(
   // once — no watchdog tick in between. Counted org-wide (a live worker may
   // have parked a sibling), so the proof is one fewer parked run and one
   // more turn job, plus the slot really hibernated.
-  await agentRuns.parkAgentRunForCapacity(sql, {
-    organizationId: orgId,
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
     runId,
     execId,
   });
@@ -28492,21 +29120,37 @@ async function checkTaskAgentRuns(
     // the same window; the edge under test still accounts for one of them.
     parkedAfterRelease <= parkedBeforeRelease - 1 &&
     turnJobsAfterRelease >= turnJobsBeforeRelease + 1;
-  // Un-park OUR run for the launch below if the edge woke a sibling instead.
-  await agentRuns.claimParkedAgentRun(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-  });
+  // Un-park OUR run for the launch below if the edge woke a sibling
+  // instead: the wake claims the org's oldest parked run, ours included
+  // (`claimParkedAgentRun` is gone — one live run per task is the schema's
+  // rule and the wake is the one un-park door).
+  await agentRuns.wakeParkedAgentRuns(sql, orgId);
 
-  // Launch + exactly-once settle; `launchedAt` distinct from kick time.
-  const launched = await agentRuns.setAgentRunRunning(sql, {
-    organizationId: orgId,
-    runId,
-    execId,
-  });
+  // Launch (the host's running flip) + exactly-once settle through the
+  // host's mark; `launchedAt` distinct from kick time. A late failure must
+  // not overwrite the settle, and the ledger holds ONE entry for the run.
+  // The flip is exec-FENCED: a start whose exec the queued-run recovery
+  // rotated away must be refused (it would spawn a second exec), and the
+  // run must still be queued for the real exec's start.
+  const staleLaunch = await shimRefs[
+    'tasks/agent_runs:setTaskAgentRunRunning'
+  ]?.({ runId, execId: 'exec-rotated-away' });
+  const afterStaleLaunch = await agentRuns.getAgentRun(sql, orgId, runId);
+  const ownLaunch = await shimRefs['tasks/agent_runs:setTaskAgentRunRunning']?.(
+    {
+      runId,
+      execId,
+    },
+  );
+  const launchedRow = await agentRuns.getAgentRun(sql, orgId, runId);
+  const launched =
+    staleLaunch === false &&
+    afterStaleLaunch?.status === 'queued' &&
+    afterStaleLaunch.launchedAt === null &&
+    ownLaunch === true &&
+    launchedRow?.status === 'running' &&
+    launchedRow.launchedAt !== null;
   const settled = await agentRuns.settleAgentRun(sql, {
-    organizationId: orgId,
     runId,
     execId,
     resultText: 'Delivered the work.',
@@ -28517,6 +29161,39 @@ async function checkTaskAgentRuns(
     execId,
     error: 'late failure must not overwrite a settle',
   });
+  const ledgerRows = async (id: string): Promise<{ status: string }[]> =>
+    sql<{ status: string }[]>`
+      SELECT status FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'agent.run_settled'
+        AND resource_id = ${id}
+    `;
+  const settledLedger = await ledgerRows(runId);
+  // The drive chain's FAILED mark writes the entry too (a failure is a
+  // settled run in the provenance sense), once, as a failure row.
+  const failedInsert = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${taskId}, ${agentId}, 'exec-ledger-2',
+      ${`pa-${agentId}`}, 'running', 'claude-code', 'itest-model',
+      'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const failedRunId = failedInsert[0]?.id ?? '';
+  const failedOnce = await agentRuns.failAgentRunFromTurn(sql, {
+    runId: failedRunId,
+    execId: 'exec-ledger-2',
+    error: 'the harness crashed',
+    failureCode: 'deadline',
+  });
+  const failedTwice = await agentRuns.failAgentRunFromTurn(sql, {
+    runId: failedRunId,
+    execId: 'exec-ledger-2',
+    error: 'a second chain must not re-stamp',
+  });
+  const failedLedger = await ledgerRows(failedRunId);
   const finalRun = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // A live run makes a concurrent kick REUSE it; a terminal one mints anew
@@ -28540,14 +29217,13 @@ async function checkTaskAgentRuns(
   };
 
   record(
-    'task-agent run ledger (kick + park/claim/wake + exactly-once settle)',
+    'task-agent run ledger (kick + park/wake + fenced launch + exactly-once settle/fail with provenance)',
     runsView.success &&
       kicked !== undefined &&
       kicked.status === 'queued' &&
       kicked.launchedAt === null &&
-      firstClaim &&
-      !secondClaim &&
       woken === 1 &&
+      wokenAgain === 0 &&
       afterWake?.waitingForCapacityAt === null &&
       releaseEdgeOk &&
       launched &&
@@ -28556,10 +29232,19 @@ async function checkTaskAgentRuns(
       finalRun?.status === 'settled' &&
       finalRun.resultText === 'Delivered the work.' &&
       finalRun.launchedAt !== null &&
+      settledLedger.length === 1 &&
+      settledLedger[0]?.status === 'success' &&
+      failedOnce &&
+      !failedTwice &&
+      failedLedger.length === 1 &&
+      failedLedger[0]?.status === 'failure' &&
       secondRuns.success &&
-      secondRuns.data.runs.length === 2 &&
+      // ≥3, not ==3: the rekicked run's start fails on the fake model and
+      // the auto-retry arm may already have added attempts by this read.
+      secondRuns.data.runs.length >= 3 &&
+      releaseEdgeOk &&
       !reuseProbe.reused,
-    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, releaseEdge=${released}/slot=${releasedSlot[0]?.status}/parked ${parkedBeforeRelease}→${parkedAfterRelease}/turnJobs ${turnJobsBeforeRelease}→${turnJobsAfterRelease} (want true/stopped/-1/+1), settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want 2, fresh=${!reuseProbe.reused})`,
+    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), wake=${woken}/${wokenAgain} (want 1/0), releaseEdge=${released}/slot=${releasedSlot[0]?.status}/parked ${parkedBeforeRelease}→${parkedAfterRelease}/turnJobs ${turnJobsBeforeRelease}→${turnJobsAfterRelease} (want true/stopped/-1/+1), launched=${launched}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status}, ledger settled=${settledLedger.length}/${settledLedger[0]?.status ?? '-'} (want 1/success) failed=${failedOnce}/${failedTwice} → ${failedLedger.length}/${failedLedger[0]?.status ?? '-'} (want 1/failure), rekick runs=${secondRuns.data.runs.length} (want ≥3, fresh=${!reuseProbe.reused})`,
   );
 }
 
@@ -31564,28 +32249,14 @@ async function checkBoardMoveEffects(
   );
   const dragBell = await bellTo();
 
-  // 2. The bulk bar: one patch over the selection (the unread bell row
-  //    coalesces — same dimension, current truth).
-  const bulk = z.object({ updated: z.number(), skipped: z.number() }).safeParse(
-    await (
-      await post(`/api/app/tasks/bulk?orgId=${orgId}`, {
-        taskIds: [taskId],
-        status: 'todo',
-      })
-    ).json(),
-  );
-  const bulkFired = await waitFor(
-    async () => (await runsOf()) >= runsBefore + 2,
-    5_000,
-  );
-  const bulkBell = await bellTo();
-
-  // 3. The picker, for parity.
+  // 2. The picker, for parity — back to To do (a re-post of the same status
+  // is a no-op: no event, no bell, no trail). The mate's unread status bell
+  // is ONE row rewritten in place, so it now names the latest destination.
   const picked = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
-    status: 'in_progress',
+    status: 'todo',
   });
   const pickerFired = await waitFor(
-    async () => (await runsOf()) >= runsBefore + 3,
+    async () => (await runsOf()) >= runsBefore + 2,
     5_000,
   );
   const pickerBell = await bellTo();
@@ -31605,7 +32276,7 @@ async function checkBoardMoveEffects(
     { method: 'DELETE', headers: { cookie, origin: base } },
   );
   record(
-    'board drag + bulk bar bell the assignee and fire task.status_changed like the picker',
+    'board drag bells the assignee and fires task.status_changed like the picker',
     saved.ok &&
       deployed.ok &&
       armed.ok &&
@@ -31613,17 +32284,13 @@ async function checkBoardMoveEffects(
       dragged.ok &&
       dragFired &&
       JSON.stringify(dragBell) === '["in_progress"]' &&
-      bulk.success &&
-      bulk.data.updated === 1 &&
-      bulkFired &&
-      JSON.stringify(bulkBell) === '["todo"]' &&
       picked.ok &&
       pickerFired &&
-      JSON.stringify(pickerBell) === '["in_progress"]' &&
-      activity[0]?.count === '3' &&
-      audits[0]?.count === '3' &&
+      JSON.stringify(pickerBell) === '["todo"]' &&
+      activity[0]?.count === '2' &&
+      audits[0]?.count === '2' &&
       disarmed.ok,
-    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), bulk → ${bulk.success ? `${bulk.data.updated}/${bulk.data.skipped}` : 'ERR'} event=${bulkFired} bell=${JSON.stringify(bulkBell)} (want ["todo"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)}, activity=${activity[0]?.count} audit=${audits[0]?.count} (want 3/3), disarm=${disarmed.status}`,
+    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)} (want ["todo"] — the unread bell is rewritten in place), activity=${activity[0]?.count} audit=${audits[0]?.count} (want 2/2), disarm=${disarmed.status}`,
   );
 }
 
@@ -38364,11 +39031,11 @@ async function checkAutoRetryAndKickPlan(
 /**
  * The Driver/Reviewer arc: the settle's park to `in_review` mints ONE
  * review row (find-or-insert by runId — the replay never double-mints);
- * request-changes records the feedback as a comment, re-kicks the agent
- * driver, and hands the card back to In progress; a second round mints
- * with a bumped round; approve completes the task AS THE RESPONDER; a
- * non-human leave withdraws; the `review_policy` file blocks the run's own
- * starter when independence is required.
+ * the board's status doors decide it: the move back to In progress
+ * withdraws the gate and re-kicks the agent driver, a second round mints
+ * with a bumped round, the move to Done approves and completes the task AS
+ * THE RESPONDER; a non-human leave withdraws; the `review_policy` file
+ * blocks the run's own starter when independence is required.
  */
 async function checkReviewArc(
   sql: Sql,
@@ -38422,21 +39089,31 @@ async function checkReviewArc(
   await sql`
     UPDATE app.tasks SET status = 'in_progress' WHERE id = ${taskId}
   `;
+  // The run is LIVE when its settle parks the card — the host parks first
+  // and marks the run settled after (the park refuses a run that is not
+  // live any more) — so each round seeds a running run and settles it once
+  // the park has landed.
   const seedRun = async (exec: string): Promise<string> => {
     const rows = await sql<{ id: string }[]>`
       INSERT INTO app.project_agent_runs (
         org_id, project_id, task_id, agent_id, exec_id, session_id, status,
         harness, model, started_by, started_at_ms, launched_at_ms,
-        settled_at_ms, deadline_at_ms, updated_at_ms
+        deadline_at_ms, updated_at_ms
       ) VALUES (
         ${orgId}, ${projectId}, ${taskId}, ${agentId}, ${exec},
-        ${`pa-${agentId}`}, 'settled', 'claude-code', 'itest-model',
-        ${userId}, ${Date.now()}, ${Date.now()}, ${Date.now()},
-        ${Date.now() + 3_600_000}, ${Date.now()}
+        ${`pa-${agentId}`}, 'running', 'claude-code', 'itest-model',
+        ${userId}, ${Date.now()}, ${Date.now()}, ${Date.now() + 3_600_000},
+        ${Date.now()}
       ) RETURNING id
     `;
     return rows[0]?.id ?? '';
   };
+  const settleRun = (runId: string): Promise<unknown> => sql`
+    UPDATE app.project_agent_runs SET
+      status = 'settled', settled_at_ms = ${Date.now()},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${runId}
+  `;
   const runA = await seedRun('exec-review-a');
   const { agentTurnShimHandlers } =
     await import('./domains/tasks/agent-turn-shim.ts');
@@ -38456,6 +39133,7 @@ async function checkReviewArc(
     status: 'in_review',
     review: { runId: runA },
   });
+  await settleRun(runA);
   const minted = await sql<
     { id: string; status: string; metadata: Record<string, unknown> | null }[]
   >`
@@ -38482,40 +39160,36 @@ async function checkReviewArc(
     `rows=${minted.length} (want 1) run=${minted[0]?.metadata?.runId === runA} reviewer=${minted[0]?.metadata?.requestedFor === userId} view=${pendingView.success ? pendingView.data.review?.approvalId === minted[0]?.id : 'ERR'}`,
   );
 
-  const changes = z
-    .object({
-      taskCompleted: z.boolean(),
-      agentKicked: z.boolean(),
-      taskReopened: z.boolean(),
-    })
-    .safeParse(
-      await postJson(
-        `/api/app/tasks/reviews/${minted[0]?.id ?? ''}/respond?orgId=${orgId}`,
-        { decision: 'request_changes', feedback: 'Tighten the summary.' },
-      ),
-    );
-  const afterChanges = await sql<{ status: string; commentCount: number }[]>`
-    SELECT status, comment_count AS "commentCount" FROM app.tasks
-    WHERE id = ${taskId}
+  // Request changes is the person's move back to In progress (the board's
+  // gesture): the pending gate is withdrawn and the agent is re-kicked.
+  const changes = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  const afterChanges = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${taskId}
   `;
-  const kickedRun = await sql<{ trigger: string; feedback: string | null }[]>`
-    SELECT trigger, feedback FROM app.project_agent_runs
-    WHERE task_id = ${taskId} AND trigger = 'mention'
+  const withdrawnGate = await sql<
+    { status: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.approvals
+    WHERE id = ${minted[0]?.id ?? ''}
+  `;
+  const kickedRun = await sql<{ trigger: string; status: string }[]>`
+    SELECT trigger, status FROM app.project_agent_runs
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
     ORDER BY seq DESC LIMIT 1
   `;
   record(
-    'request-changes: comment + mention re-kick with feedback + card back',
-    changes.success &&
-      !changes.data.taskCompleted &&
-      changes.data.agentKicked &&
-      changes.data.taskReopened &&
+    'request-changes: the move back to In progress withdraws the gate and re-kicks',
+    changes.ok &&
       afterChanges[0]?.status === 'in_progress' &&
-      afterChanges[0].commentCount === 1 &&
-      kickedRun[0]?.feedback === 'Tighten the summary.',
-    `resp=${changes.success ? JSON.stringify(changes.data) : 'ERR'} task=${afterChanges[0]?.status}/${afterChanges[0]?.commentCount} kick=${kickedRun[0]?.trigger}/${kickedRun[0]?.feedback}`,
+      withdrawnGate[0]?.status === 'rejected' &&
+      withdrawnGate[0].metadata?.withdrawn === true &&
+      kickedRun[0]?.trigger === 'manual',
+    `move=${changes.status} task=${afterChanges[0]?.status} gate=${withdrawnGate[0]?.status}/${JSON.stringify(withdrawnGate[0]?.metadata?.withdrawn)} kick=${kickedRun[0]?.trigger ?? 'none'}/${kickedRun[0]?.status ?? '-'}`,
   );
 
-  // Round 2: cancel the mention run's retry noise, park again, approve.
+  // Round 2: cancel the re-kicked run's retry noise, park again, approve.
   await sql`
     UPDATE app.project_agent_runs SET
       status = 'cancelled', settled_at_ms = ${Date.now()}
@@ -38532,6 +39206,7 @@ async function checkReviewArc(
     status: 'in_review',
     review: { runId: runB },
   });
+  await settleRun(runB);
   const roundTwo = await sql<
     { id: string; metadata: Record<string, unknown> | null }[]
   >`
@@ -38539,30 +39214,35 @@ async function checkReviewArc(
     WHERE resource_type = 'task_review' AND resource_id = ${taskId}
       AND status = 'pending'
   `;
-  const approve = z
-    .object({ taskCompleted: z.boolean() })
-    .loose()
-    .safeParse(
-      await postJson(
-        `/api/app/tasks/reviews/${roundTwo[0]?.id ?? ''}/respond?orgId=${orgId}`,
-        { decision: 'approve' },
-      ),
-    );
+  const approve = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+    status: 'done',
+  });
   const afterApprove = await sql<
     { status: string; completedAt: number | null }[]
   >`
     SELECT status, completed_at_ms::float8 AS "completedAt" FROM app.tasks
     WHERE id = ${taskId}
   `;
+  const approvedGate = await sql<
+    { status: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.approvals
+    WHERE id = ${roundTwo[0]?.id ?? ''}
+  `;
+  const approvedDecision = objectAt(
+    approvedGate[0]?.metadata ?? null,
+    'response',
+  )?.decision;
   record(
-    'round-2 mint + approve completes the task as the responder',
+    'round-2 mint + the Done move approves and completes the task as the responder',
     roundTwo.length === 1 &&
       roundTwo[0]?.metadata?.round === 1 &&
-      approve.success &&
-      approve.data.taskCompleted &&
+      approve.ok &&
+      approvedGate[0]?.status === 'completed' &&
+      approvedDecision === 'approve' &&
       afterApprove[0]?.status === 'done' &&
       afterApprove[0].completedAt !== null,
-    `round=${JSON.stringify(roundTwo[0]?.metadata?.round)} (want 1), approve=${approve.success ? approve.data.taskCompleted : 'ERR'}, task=${afterApprove[0]?.status}`,
+    `round=${JSON.stringify(roundTwo[0]?.metadata?.round)} (want 1), move=${approve.status}, gate=${approvedGate[0]?.status}/${String(approvedDecision)}, task=${afterApprove[0]?.status}`,
   );
 
   // Withdraw lane: park round 3, then the agent leaves in_review itself.
@@ -38577,6 +39257,7 @@ async function checkReviewArc(
     status: 'in_review',
     review: { runId: runC },
   });
+  await settleRun(runC);
   await statusDoor?.({
     organizationId: orgId,
     actorId: agentId,
@@ -38618,14 +39299,15 @@ async function checkReviewArc(
     status: 'in_review',
     review: { runId: runD },
   });
+  await settleRun(runD);
   const gated = await sql<{ id: string }[]>`
     SELECT id FROM app.approvals
     WHERE resource_type = 'task_review' AND resource_id = ${taskId}
       AND metadata ->> 'runId' = ${runD}
   `;
   const refusedRes = await post(
-    `/api/app/tasks/reviews/${gated[0]?.id ?? ''}/respond?orgId=${orgId}`,
-    { decision: 'approve' },
+    `/api/app/tasks/${taskId}/status?orgId=${orgId}`,
+    { status: 'done' },
   );
   const refusedBody = z
     .object({ error: z.string() })
@@ -38665,25 +39347,6 @@ async function checkReviewArc(
     WHERE task_id = ${taskId} AND subscriber_type = 'user'
       AND subscriber_id = ${userId}
   `;
-  const facet = z
-    .object({
-      reviews: z.array(
-        z.object({ taskId: z.string(), approvalId: z.string() }).loose(),
-      ),
-    })
-    .safeParse(
-      await get(
-        `/api/app/tasks/pending-reviews?orgId=${orgId}&projectIds=${projectId}`,
-      ),
-    );
-  record(
-    'pending-reviews facet lists the open gate for the project',
-    facet.success &&
-      facet.data.reviews.some(
-        (row) => row.taskId === taskId && row.approvalId === gated[0]?.id,
-      ),
-    `facet=${facet.success ? facet.data.reviews.length : 'ERR'} rows, hasGated=${facet.success && facet.data.reviews.some((row) => row.approvalId === gated[0]?.id)}`,
-  );
 
   record(
     'review bells: one per mint, dismissed on respond/withdraw, reviewer subscribed',
@@ -39695,14 +40358,24 @@ async function checkWatchdogs(
       'itest:wd', ${now - 13 * 3_600_000}, ${now + 24 * 3_600_000}
     )
   `;
-  // Lane 2: an overdue PARKED run (never launched — no op, no slot).
+  // Lane 2: an overdue PARKED run (never launched — no op, no slot) on its
+  // own card — a task holds at most one live run (migration 0080).
+  const parkedTask = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Watchdog quarry (parked)',
+      })
+    ).json(),
+  );
+  const parkedTaskId = parkedTask.success ? parkedTask.data.taskId : '';
   const parked = await sql<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
       harness, model, started_by, started_at_ms, waiting_for_capacity_at_ms,
       deadline_at_ms, updated_at_ms
     ) VALUES (
-      ${orgId}, ${projectId}, ${taskId}, 'wd-agent-2', 'exec-wd-2',
+      ${orgId}, ${projectId}, ${parkedTaskId}, 'wd-agent-2', 'exec-wd-2',
       'pa-wd-agent-2', 'queued', 'claude-code', 'itest-model', 'itest:wd',
       ${now - 13 * 3_600_000}, ${now - 13 * 3_600_000}, ${now - 3_600_000},
       ${now}
@@ -41282,7 +41955,7 @@ async function main(): Promise<void> {
           ),
       ],
       ['checkProjects', () => checkProjects(sql, baseUrl, authCtx)],
-      ['checkTasks', () => checkTasks(baseUrl, authCtx)],
+      ['checkTasks', () => checkTasks(sql, baseUrl, authCtx)],
       [
         'checkTasksOrgIsolation',
         () => checkTasksOrgIsolation(sql, baseUrl, authCtx),
@@ -41529,6 +42202,7 @@ async function main(): Promise<void> {
       ],
       ['checkTurnReattach', () => checkTurnReattach(sql, authCtx)],
       ['checkQueuedRunRecovery', () => checkQueuedRunRecovery(sql, authCtx)],
+      ['checkOneLiveRunPerTask', () => checkOneLiveRunPerTask(sql, authCtx)],
       [
         'checkSteerFallbackRecovery',
         () => checkSteerFallbackRecovery(sql, authCtx),

@@ -73,8 +73,8 @@ export const POLICY_TYPES = [
   'vision_model',
   // Independent-review requirements for the task-review gate. Missing row /
   // empty config ⇒ no extra requirement — anyone with project edit access
-  // may respond, exactly as today. See `reviewPolicyConfigSchema`; enforced
-  // in `convex/tasks/review_mutations.ts::respondToTaskReview`.
+  // may approve, exactly as today. See `reviewPolicyConfigSchema`; enforced
+  // in `domains/tasks/reviews.ts::closePendingTaskReviewOnStatusLeave`.
   'review_policy',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
@@ -919,7 +919,8 @@ export type ApprovalPolicyConfig = z.infer<typeof approvalPolicyConfigSchema>;
 export type ApprovalPolicyRule = ApprovalPolicyConfig['rules'][number];
 
 /**
- * Who may sign off agent work parked at review (`respondToTaskReview`).
+ * Who may sign off agent work parked at review (the In review → Done move,
+ * `closePendingTaskReviewOnStatusLeave`).
  *
  * Both fields absent ⇒ today's behaviour exactly: any member with project
  * edit access may respond — which is why `parse({})` must succeed.

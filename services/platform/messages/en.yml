@@ -6483,10 +6483,6 @@ inbox:
   taskReviewRequestedBodyNoAgent: Agent work on "{taskTitle}" is ready for review — set the task to Done to approve, or comment to send it back.
   taskReviewRequestedByBody: '{actor} asked you to review "{taskTitle}" — set it to Done to approve, or comment to send it back.'
   taskReviewRequestedBodyHuman: '"{taskTitle}" is ready for your review — set it to Done to approve, or comment to send it back.'
-  taskReviewApproved: Review approved
-  taskReviewApprovedBody: '"{taskTitle}" was approved and completed.'
-  taskReviewChangesRequested: Changes requested
-  taskReviewChangesRequestedBody: Changes were requested on "{taskTitle}".
   taskReviewerAssigned: You're the reviewer
   taskReviewerAssignedBody: 'You''re now the reviewer on "{taskTitle}".'
   taskReviewerAssignedByBody: '{actor} made you the reviewer on "{taskTitle}".'

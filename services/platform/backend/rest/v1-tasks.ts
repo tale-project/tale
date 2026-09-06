@@ -205,14 +205,26 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           taskId,
           c.get('organizationId'),
         );
-        const started = await startWorkflowForTask(deps.sql, {
+        // The task is committed; a start that fails after it answers
+        // `executionId: null` (the caller starts it through /start) rather
+        // than an error that reads as "the task was not created".
+        executionId = await startWorkflowForTask(deps.sql, {
           organizationId: c.get('organizationId'),
           task,
           workflowSlug: body.data.runWorkflowSlug,
           startedByUserId: c.get('userId'),
           startedVia: 'api-key',
-        });
-        executionId = started === null ? null : started.runId;
+        }).then(
+          (started) => started?.runId ?? null,
+          (error: unknown) => {
+            console.error(
+              '[task-workflow] start after create failed',
+              body.data.runWorkflowSlug,
+              error,
+            );
+            return null;
+          },
+        );
       }
 
       const payload = {
@@ -347,16 +359,23 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       return domainErrorResponse(c, error);
     }
 
-    const started = await startWorkflowForTask(deps.sql, {
-      organizationId: c.get('organizationId'),
-      task,
-      workflowSlug: body.data.workflowSlug,
-      startedByUserId: c.get('userId'),
-      startedVia: 'api-key',
-    });
+    let started: Awaited<ReturnType<typeof startWorkflowForTask>>;
+    try {
+      started = await startWorkflowForTask(deps.sql, {
+        organizationId: c.get('organizationId'),
+        task,
+        workflowSlug: body.data.workflowSlug,
+        startedByUserId: c.get('userId'),
+        startedVia: 'api-key',
+      });
+    } catch (error) {
+      // The automation's own refusal (a project it is not bound to) is the
+      // caller's answer, not a laundered `not_started`.
+      return domainErrorResponse(c, error);
+    }
     // Exact parity with the session shape: `not_started` covers an
-    // undeployed slug (and any swallowed start failure); `already_running`
-    // answers the in-flight run's id instead of racing a duplicate.
+    // undeployed slug; `already_running` answers the in-flight run's id
+    // instead of racing a duplicate.
     if (started === null) {
       return c.json({
         started: false,

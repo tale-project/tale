@@ -3,20 +3,29 @@ import { randomUUID } from 'node:crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
-import { AUTO_RETRY_MAX_ATTEMPTS } from '../../core/tasks/task_auto_retry.ts';
+import {
+  AUTO_RETRY_MAX_ATTEMPTS,
+  isAutoRetryableFailure,
+} from '../../core/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
 /**
  * The project-agent run ledger over PG — the 0.5 twin of
- * `convex/tasks/agent_runs.ts`: exactly-once settle, the capacity-park
- * claim (clearing `waiting_for_capacity_at_ms` IS the single-winner
- * election — the release-edge wake and the watchdog both claim before
- * scheduling, so one run never gets two concurrent starts), `launched_at`
- * distinct from `started_at` (a parked-out run must never pass for one
- * that worked hours), and the kick that turns an agent-owned task's move
- * to `in_progress` into a queued run + a `task.agent_turn` job.
+ * `convex/tasks/agent_runs.ts`: the terminal transitions (the turn host's
+ * settle/fail marks, the watchdog's deadline fail, the cancel) each ride
+ * ONE `UPDATE … WHERE status IN (live) RETURNING` election with the
+ * provenance entry in the same transaction; the capacity-park claim
+ * (clearing `waiting_for_capacity_at_ms` IS the single-winner election —
+ * the release-edge wake and the watchdog both claim before scheduling, so
+ * one run never gets two concurrent starts); `launched_at` distinct from
+ * `started_at` (a parked-out run must never pass for one that worked
+ * hours); and the kick that turns an agent-owned task's move to
+ * `in_progress` into a queued run + a `task.agent_turn` job; and the
+ * exec-fenced launch (`queued` → `running`). The turn host's other
+ * non-terminal marks (broker token, park, rotate) live on its shim
+ * (`agent-turn-shim.ts`).
  */
 
 export const TASK_AGENT_RUN_DEADLINE_MS = 12 * 60 * 60 * 1000;
@@ -88,16 +97,32 @@ export async function kickAgentRun(
   tx: TransactionSql,
   args: KickAgentRunArgs,
 ): Promise<{ runId: string; execId: string; reused: boolean }> {
-  const live = await tx<{ id: string; execId: string }[]>`
-    SELECT id, exec_id AS "execId" FROM app.project_agent_runs
-    WHERE task_id = ${args.taskId} AND status IN ('queued', 'running')
-    LIMIT 1
-  `;
-  if (live[0]) {
-    return { runId: live[0].id, execId: live[0].execId, reused: true };
+  const liveRun = async (): Promise<
+    { id: string; execId: string } | undefined
+  > => {
+    const live = await tx<{ id: string; execId: string }[]>`
+      SELECT id, exec_id AS "execId" FROM app.project_agent_runs
+      WHERE task_id = ${args.taskId} AND status IN ('queued', 'running')
+      LIMIT 1
+    `;
+    return live[0];
+  };
+  const standing = await liveRun();
+  if (standing) {
+    return { runId: standing.id, execId: standing.execId, reused: true };
   }
   const now = Date.now();
   const execId = randomUUID();
+  // "At most one live run per task" is the schema's rule (migration 0080's
+  // partial unique index over the live statuses), not this read's: the human
+  // doors kick SERIALIZABLE but the auto-retry job and the steer-miss
+  // fallback kick READ COMMITTED, so the probe above can miss a run another
+  // transaction is minting. The insert defers to the index — a loser answers
+  // with the winner's run, exactly as if the probe had seen it. The re-read
+  // only serves READ COMMITTED callers: under a serializable door a
+  // conflicting row invisible to the snapshot makes the ON CONFLICT raise
+  // 40001 instead, which `transactSerializable` retries — that throw path is
+  // by design, not a gap.
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
@@ -112,10 +137,15 @@ export async function kickAgentRun(
       ${args.startedBy}, ${now},
       ${now + TASK_AGENT_RUN_DEADLINE_MS}, ${now}
     )
+    ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING
     RETURNING id
   `;
   const runId = rows[0]?.id;
-  if (!runId) throw new Error('agent run insert failed');
+  if (!runId) {
+    const winner = await liveRun();
+    if (!winner) throw new Error('agent run insert failed');
+    return { runId: winner.id, execId: winner.execId, reused: true };
+  }
   await addJobInTx(tx, 'task.agent_turn', {
     organizationId: args.organizationId,
     runId,
@@ -151,53 +181,74 @@ export async function listAgentRunsForTask(
   `;
 }
 
-/** The turn actually launched — `launched_at` distinct from kick time. */
-export async function setAgentRunRunning(
+/**
+ * The turn host's RUNNING flip — the launch, `launched_at` distinct from kick
+ * time. Exec-FENCED and elected on `queued`: between the start's idempotency
+ * gate and this flip lie the session ensure, the skill and input staging and
+ * the key mint (a cold sandbox create alone may take minutes), and in that
+ * window the queued-run recovery may rotate the run onto a fresh exec and
+ * re-kick it, or a cancel may land. A start whose exec no longer owns the
+ * run must NOT launch — a second spawn double-drives the run, and a spawn
+ * under a superseded exec is reaped as an orphan by the next drive window.
+ * Returns whether THIS exec's start won the launch.
+ */
+export async function launchAgentRun(
   sql: Sql,
-  args: { organizationId: string; runId: string; execId: string },
+  args: { runId: string; execId: string },
 ): Promise<boolean> {
   const now = Date.now();
   const rows = await sql<{ id: string }[]>`
     UPDATE app.project_agent_runs SET
-      status = 'running', launched_at_ms = ${now}, updated_at_ms = ${now}
-    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-      AND exec_id = ${args.execId} AND status = 'queued'
+      status = 'running',
+      launched_at_ms = coalesce(launched_at_ms, ${now}),
+      updated_at_ms = ${now}
+    WHERE id = ${args.runId} AND exec_id = ${args.execId}
+      AND status = 'queued'
     RETURNING id
   `;
   return rows.length > 0;
 }
 
-/** Settle exactly once (success). A cancelled run stays cancelled. */
+/**
+ * The turn host's SETTLE mark (the drive chain's success path). Exec-guarded
+ * when the host passes its exec: a chain superseded by a restart-steer
+ * rotation must not terminal-stamp the run its successor is working on. The
+ * status guard IS the settle election, so the provenance entry rides the same
+ * transaction — a raced double-settle that degrades to a no-op also writes no
+ * second ledger row. Returns whether THIS call won the flip.
+ */
 export async function settleAgentRun(
   sql: Sql,
   args: {
-    organizationId: string;
     runId: string;
-    execId: string;
-    resultText?: string;
+    resultText: string;
     resultMessageId?: string;
+    execId?: string;
+    /** The harness conversation id — the next kick's `--resume` handle. */
     agentSessionId?: string;
+    sessionCreatedAt?: number;
   },
 ): Promise<boolean> {
   const now = Date.now();
-  // The status guard IS the settle election, so the provenance entry rides
-  // the same transaction: a raced double-settle that degrades to a no-op
-  // also writes no second ledger row.
   return sql.begin(async (tx) => {
-    const rows = await tx<{ id: string }[]>`
+    const rows = await tx<{ organizationId: string }[]>`
       UPDATE app.project_agent_runs SET
-        status = 'settled', result_text = ${args.resultText ?? null},
+        status = 'settled', result_text = ${args.resultText},
         result_message_id = ${args.resultMessageId ?? null},
         agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
+        session_created_at_ms = coalesce(${args.sessionCreatedAt ?? null}::bigint, session_created_at_ms),
         settled_at_ms = ${now}, updated_at_ms = ${now}
-      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-        AND exec_id = ${args.execId} AND status IN ('queued', 'running')
-      RETURNING id
+      WHERE id = ${args.runId}
+        AND status NOT IN ('settled', 'failed', 'cancelled')
+        AND (${args.execId ?? null}::text IS NULL
+             OR exec_id = ${args.execId ?? null})
+      RETURNING org_id AS "organizationId"
     `;
-    if (rows.length === 0) return false;
+    const run = rows[0];
+    if (run === undefined) return false;
     await recordTaskAgentRunLedgerEntry(tx, {
       runId: args.runId,
-      organizationId: args.organizationId,
+      organizationId: run.organizationId,
       finalStatus: 'settled',
       settledAt: now,
     });
@@ -206,8 +257,71 @@ export async function settleAgentRun(
 }
 
 /**
+ * The turn host's FAILED mark (the drive chain's own failures: harness
+ * error, harvest failure, start failure, empty turn, deadline cut inside the
+ * chain). Same exec guard and same election as {@link settleAgentRun}; the
+ * provenance entry rides the flip. Auto-retry hangs off the SAME once-only
+ * claim: only the winning terminal flip arms `task.agent_retry`, so at most
+ * one retry arm per failed run — the kick job re-derives the budget and
+ * every guard; this is just the arm. Returns whether THIS call won the flip.
+ */
+export async function failAgentRunFromTurn(
+  sql: Sql,
+  args: {
+    runId: string;
+    error: string;
+    execId?: string;
+    agentSessionId?: string;
+    sessionCreatedAt?: number;
+    /** Producer-side classification (`TaskRunFailureCode`); absent = retryable
+     * (the default posture). */
+    failureCode?: string;
+    apiErrorStatus?: number;
+  },
+): Promise<boolean> {
+  const now = Date.now();
+  const error = args.error.slice(0, 2000);
+  return sql.begin(async (tx) => {
+    const flipped = await tx<
+      { organizationId: string; taskId: string; agentId: string }[]
+    >`
+      UPDATE app.project_agent_runs SET
+        status = 'failed', error = ${error},
+        api_error_status = ${args.apiErrorStatus ?? null},
+        agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
+        session_created_at_ms = coalesce(${args.sessionCreatedAt ?? null}::bigint, session_created_at_ms),
+        settled_at_ms = ${now}, updated_at_ms = ${now}
+      WHERE id = ${args.runId}
+        AND status NOT IN ('settled', 'failed', 'cancelled')
+        AND (${args.execId ?? null}::text IS NULL
+             OR exec_id = ${args.execId ?? null})
+      RETURNING org_id AS "organizationId", task_id AS "taskId",
+                agent_id AS "agentId"
+    `;
+    const run = flipped[0];
+    if (run === undefined) return false;
+    await recordTaskAgentRunLedgerEntry(tx, {
+      runId: args.runId,
+      organizationId: run.organizationId,
+      finalStatus: 'failed',
+      settledAt: now,
+      error,
+    });
+    if (isAutoRetryableFailure(args.failureCode)) {
+      await addJobInTx(tx, 'task.agent_retry', {
+        organizationId: run.organizationId,
+        taskId: run.taskId,
+        agentId: run.agentId,
+        expectedRunId: args.runId,
+      });
+    }
+    return true;
+  });
+}
+
+/**
  * Fail exactly once (the watchdog's deadline pass — the drive chain's own
- * failures go through the shim's `markTaskAgentRunFailed`). The turn died
+ * failures go through {@link failAgentRunFromTurn}). The turn died
  * without reaching `releaseTurnKey`, so its gateway key is reclaimed here:
  * the winning flip IS the election, so the revoke fires once even when two
  * sweeps race. Scoped to THIS exec — a sibling turn on the same standing
@@ -308,35 +422,6 @@ export async function cancelAgentRun(
   args: CancelAgentRunArgs,
 ): Promise<boolean> {
   return sql.begin((tx) => cancelAgentRunInTx(tx, args));
-}
-
-/** Park the run on a full session budget: it stays queued, stamped. */
-export async function parkAgentRunForCapacity(
-  sql: Sql,
-  args: { organizationId: string; runId: string; execId: string },
-): Promise<void> {
-  await sql`
-    UPDATE app.project_agent_runs SET
-      waiting_for_capacity_at_ms = ${Date.now()}, updated_at_ms = ${Date.now()}
-    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-      AND exec_id = ${args.execId} AND status = 'queued'
-  `;
-}
-
-/** Claim a parked run for a restart — clearing the stamp IS the election. */
-export async function claimParkedAgentRun(
-  sql: Sql,
-  args: { organizationId: string; runId: string; execId: string },
-): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`
-    UPDATE app.project_agent_runs SET
-      waiting_for_capacity_at_ms = NULL, updated_at_ms = ${Date.now()}
-    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-      AND exec_id = ${args.execId} AND status = 'queued'
-      AND waiting_for_capacity_at_ms IS NOT NULL
-    RETURNING id
-  `;
-  return rows.length > 0;
 }
 
 /**

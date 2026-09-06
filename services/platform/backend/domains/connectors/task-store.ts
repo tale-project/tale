@@ -58,12 +58,13 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       );
       return result;
     },
-    async comment({ organizationId, taskId, body }) {
+    async comment({ organizationId, taskId, body, bodyByLocale }) {
       const auth = await systemAuth(organizationId);
       const result = await sql.begin((tx) =>
         addTaskComment(tx, auth, {
           taskId,
           body,
+          ...(bodyByLocale !== undefined ? { bodyByLocale } : {}),
           author: { actorType: 'agent', actorId: 'workflow' },
         }),
       );
