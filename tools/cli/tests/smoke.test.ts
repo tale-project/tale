@@ -193,8 +193,10 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
 
       // The summary reports active vs catalog instead of raw file counts —
       // only `metadata.autoInstall: true` agents are live on a new org.
-      expect(result.stdout).toContain('in catalog');
-      expect(result.stdout).toContain('available');
+      // Non-zero counts: a binary whose embedded keys were built with the
+      // host path separator (Windows) matched no domain and printed 0 here.
+      expect(result.stdout).toMatch(/[1-9]\d* in catalog/);
+      expect(result.stdout).toMatch(/[1-9]\d* available/);
 
       const proj = join(dir, 'proj');
 

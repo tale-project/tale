@@ -88,10 +88,22 @@ interface OrgDiscovery {
   staleRootOrgDirs: string[];
 }
 
+/** A missing path is the expected "nothing here" answer; anything else is worth a warning. */
+function isMissing(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === 'ENOENT'
+  );
+}
+
 function listDirs(dir: string): string[] {
   try {
     return readdirSync(dir);
-  } catch {
+  } catch (error) {
+    if (!isMissing(error)) {
+      console.warn(`Could not list ${dir}: ${String(error)}`);
+    }
     return [];
   }
 }
@@ -99,7 +111,10 @@ function listDirs(dir: string): string[] {
 function isDirectory(path: string): boolean {
   try {
     return statSync(path).isDirectory();
-  } catch {
+  } catch (error) {
+    if (!isMissing(error)) {
+      console.warn(`Could not stat ${path}: ${String(error)}`);
+    }
     return false;
   }
 }
