@@ -21334,13 +21334,21 @@ async function checkWebdav(
       ).json(),
     );
   const passwordId = list.success ? (list.data.appPasswords[0]?._id ?? '') : '';
-  // The revoke door is org-scoped: the same user reaching this credential
-  // through ANOTHER org's door gets 404 and the row stays active.
+  // The revoke door is org-scoped: a credential minted in org B is not
+  // reachable through org A's door, even for its own owner. A throwaway
+  // guest owns B and holds a plain membership in A for the probe — removed
+  // afterwards, so the main itest user stays single-org for the REST lanes
+  // that follow (a multi-org user needs X-Organization-Slug there).
+  const guest = await signUpOrgMember(sql, base, orgId, 'dav-guest', 'member');
   const foreignOrg = z.object({ id: z.string().optional() }).safeParse(
     await (
       await fetch(`${base}/api/auth/organization/create`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
+        headers: {
+          'content-type': 'application/json',
+          cookie: guest.cookie,
+          origin: base,
+        },
         body: JSON.stringify({
           name: 'Dav Foreign',
           slug: `${orgSlug}-dav-foreign`,
@@ -21349,18 +21357,41 @@ async function checkWebdav(
     ).json(),
   );
   const foreignOrgId = foreignOrg.success ? (foreignOrg.data.id ?? '') : '';
+  await fetch(`${base}/api/app/webdav/app-passwords?orgId=${foreignOrgId}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie: guest.cookie,
+      origin: base,
+    },
+    body: JSON.stringify({ label: 'guest device' }),
+  });
+  const foreignList = z
+    .object({ appPasswords: z.array(z.looseObject({ _id: z.string() })) })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/webdav/app-passwords?orgId=${foreignOrgId}`,
+          { headers: { cookie: guest.cookie, origin: base } },
+        )
+      ).json(),
+    );
+  const foreignPasswordId = foreignList.success
+    ? (foreignList.data.appPasswords[0]?._id ?? '')
+    : '';
   const foreignRevoke = await fetch(
-    `${base}/api/app/webdav/app-passwords/${passwordId}/revoke?orgId=${foreignOrgId}`,
-    { method: 'POST', headers: { cookie, origin: base } },
+    `${base}/api/app/webdav/app-passwords/${foreignPasswordId}/revoke?orgId=${orgId}`,
+    { method: 'POST', headers: { cookie: guest.cookie, origin: base } },
   );
   const afterForeignRevoke = await sql<{ revokedAt: number | null }[]>`
     SELECT revoked_at_ms::float8 AS "revokedAt" FROM app.webdav_app_passwords
-    WHERE id = ${passwordId} LIMIT 1
+    WHERE id = ${foreignPasswordId} LIMIT 1
   `;
-  const stillActive = await dav('/documents/', {
-    method: 'PROPFIND',
-    headers: { depth: '1' },
-  });
+  const ownDoorRevoke = await fetch(
+    `${base}/api/app/webdav/app-passwords/${foreignPasswordId}/revoke?orgId=${foreignOrgId}`,
+    { method: 'POST', headers: { cookie: guest.cookie, origin: base } },
+  );
+  await sql`DELETE FROM "member" WHERE "id" = ${guest.memberId}`;
   await fetch(
     `${base}/api/app/webdav/app-passwords/${passwordId}/revoke?orgId=${orgId}`,
     { method: 'POST', headers: { cookie, origin: base } },
@@ -21435,11 +21466,12 @@ async function checkWebdav(
       heldDelete.status === 403 &&
       releasedDelete.status === 204 &&
       foreignOrgId !== '' &&
+      foreignPasswordId !== '' &&
       foreignRevoke.status === 404 &&
       afterForeignRevoke[0]?.revokedAt === null &&
-      stillActive.status === 207 &&
+      ownDoorRevoke.status === 200 &&
       afterRevoke.status === 401,
-    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldRefReleased=${oldRefReleased} oldBlobGone=${oldBlobGone} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status} race=${racedStatuses} (want 200/423) rows=${raceRows[0]?.count} raceUnlock=${raceUnlock.status}, subtree member=${memberLock.status} sibling=${siblingDelete.status} (want 204) parentLock=${parentInfinityLock.status} (want 423) parentDel=${parentDelete.status} (want 423) memberUnlock=${memberUnlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 411), door w/g/l/r/d=${doorWrite.status}/${doorFile.status}:${doorFileBody === 'from the agent lane'}/${doorList.status}:${doorListRaw.includes('agent-note.txt')}/${doorRead.status}/${doorDelete.status} ghost=${JSON.stringify(doorDeleteGhost.status === 'ok' ? doorDeleteGhost.output : {})}, hold=${heldDelete.status} (want 403) released=${releasedDelete.status} (want 204), foreignRevoke=${foreignRevoke.status} (want 404) stillActive=${afterForeignRevoke[0]?.revokedAt === null}/${stillActive.status} revoked=${afterRevoke.status} (want 401)`,
+    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldRefReleased=${oldRefReleased} oldBlobGone=${oldBlobGone} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status} race=${racedStatuses} (want 200/423) rows=${raceRows[0]?.count} raceUnlock=${raceUnlock.status}, subtree member=${memberLock.status} sibling=${siblingDelete.status} (want 204) parentLock=${parentInfinityLock.status} (want 423) parentDel=${parentDelete.status} (want 423) memberUnlock=${memberUnlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 411), door w/g/l/r/d=${doorWrite.status}/${doorFile.status}:${doorFileBody === 'from the agent lane'}/${doorList.status}:${doorListRaw.includes('agent-note.txt')}/${doorRead.status}/${doorDelete.status} ghost=${JSON.stringify(doorDeleteGhost.status === 'ok' ? doorDeleteGhost.output : {})}, hold=${heldDelete.status} (want 403) released=${releasedDelete.status} (want 204), foreignRevoke=${foreignRevoke.status} (want 404) stillActive=${afterForeignRevoke[0]?.revokedAt === null} ownDoor=${ownDoorRevoke.status} (want 200) revoked=${afterRevoke.status} (want 401)`,
   );
 }
 
