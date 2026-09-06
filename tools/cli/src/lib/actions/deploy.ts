@@ -473,9 +473,13 @@ export async function deploy(options: DeployOptions): Promise<void> {
             );
           }
 
-          for (const service of statefulToUpdate) {
-            startedContainers.push(`${getProjectId()}-${service}`);
-          }
+          // The stateful tier rolls in place: `up -d` above has already
+          // replaced the previous db/proxy/backend containers, so there is no
+          // predecessor to fall back to. They are deliberately NOT registered
+          // for teardown on interrupt — `startedContainers` is for the new
+          // blue-green colour that has not taken traffic yet; force-removing
+          // a healthy singleton Postgres on Ctrl-C would turn a cancelled
+          // deploy into a full outage.
 
           // Wait for stateful services to be healthy
           for (const service of statefulToUpdate) {
@@ -516,8 +520,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
             logger.warn(
               `${prefix}bgutil-provider sidecar did not start (YouTube ingestion falls back to no PO token): ${bgutilUp.stderr.trim().slice(0, 300) || 'no stderr captured'}`,
             );
-          } else {
-            startedContainers.push(`${getProjectId()}-bgutil-provider`);
           }
         }
       }
@@ -534,16 +536,14 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
           logger.info(`Updating in current color: ${currentColor}`);
 
-          // Save current version as previous (for rollback)
-          if (!dryRun) {
-            const currentPlatformVersion = await getContainerVersion(
-              `${getProjectId()}-platform-${currentColor}`,
-            );
-            if (currentPlatformVersion) {
-              await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
-              logger.info(`Previous version saved: ${currentPlatformVersion}`);
-            }
-          }
+          // Read the running version now (the recreate below replaces the
+          // container it lives in); it is recorded as the rollback target only
+          // once the update is healthy — see below.
+          const currentPlatformVersion = dryRun
+            ? null
+            : await getContainerVersion(
+                `${getProjectId()}-platform-${currentColor}`,
+              );
 
           // Update services in current color
           logger.step(`${prefix}Updating ${currentColor} services...`);
@@ -576,11 +576,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
               },
             );
 
-            for (const service of rotatableToUpdate) {
-              startedContainers.push(
-                `${getProjectId()}-${service}-${currentColor}`,
-              );
-            }
+            // In place in the CURRENT colour: `up -d` has already replaced
+            // the containers that were serving, so — like the stateful tier
+            // above — there is no predecessor to fall back to and they are
+            // not registered for teardown on interrupt.
 
             if (!deployResult.success) {
               logger.error(`Failed to update ${currentColor} services`);
@@ -603,8 +602,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
               }
             }
 
-            // In-place update succeeded — don't tear down on interrupt
-            startedContainers.length = 0;
+            // Only now record the replaced version as the rollback target. A
+            // deploy that failed its health check above leaves the old
+            // version live, and writing early would have overwritten the
+            // genuine fallback with the version that is still running
+            // (rollback.ts writes previous-version after the flip, too).
+            if (currentPlatformVersion) {
+              await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
+              logger.info(`Previous version saved: ${currentPlatformVersion}`);
+            }
           }
         } else {
           // Full blue-green deployment
@@ -613,16 +619,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
           logger.info(`Current color: ${currentColor ?? 'none'}`);
           logger.info(`Deploying to: ${nextColor}`);
 
-          // Save current version as previous (for rollback)
-          if (currentColor && !dryRun) {
-            const currentPlatformVersion = await getContainerVersion(
-              `${getProjectId()}-platform-${currentColor}`,
-            );
-            if (currentPlatformVersion) {
-              await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
-              logger.info(`Previous version saved: ${currentPlatformVersion}`);
-            }
-          }
+          // The running version becomes the rollback target only after the
+          // new colour is healthy and traffic has switched (below) — a failed
+          // deploy must not overwrite the genuine fallback.
+          const currentPlatformVersion =
+            currentColor && !dryRun
+              ? await getContainerVersion(
+                  `${getProjectId()}-platform-${currentColor}`,
+                )
+              : null;
 
           // Deploy new color
           logger.step(`${prefix}Deploying ${nextColor} services...`);
@@ -707,6 +712,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
             startedContainers.length = 0;
             logger.step(`Switching traffic to ${nextColor}...`);
             await setCurrentColor(env.DEPLOY_DIR, nextColor);
+            if (currentPlatformVersion) {
+              await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
+              logger.info(`Previous version saved: ${currentPlatformVersion}`);
+            }
 
             // Drain old color (if exists)
             if (currentColor) {
