@@ -119,7 +119,6 @@ export default {
         'lib/shared/constants/agents.ts',
         'lib/shared/schemas/skills.ts',
         'lib/shared/config/registry.ts',
-        'lib/shared/constants/system-message-tags.ts',
         'lib/shared/file-types.ts',
         'lib/shared/providers/attribution.ts',
         'lib/shared/schemas/agents.ts',

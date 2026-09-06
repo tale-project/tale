@@ -58,7 +58,6 @@ import { MessageParts } from './message-parts';
 import { MessageToolbar } from './message-toolbar';
 import { SourceCards } from './source-cards';
 import { StepLimitNotice, stepLimitHit } from './step-limit-notice';
-import { SystemNotice } from './system-notice';
 import { ThinkingDots } from './thinking-dots';
 import { ThoughtTimeline } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
@@ -180,8 +179,6 @@ function MessageItemComponent({
           voicePillForced={voicePillForced}
           isFreshSinceMount={isFreshSinceMount}
         />
-      ) : message.role === 'system' ? (
-        <SystemNotice text={message.text} parts={message.parts} />
       ) : (
         <MessageParts parts={message.parts} />
       )}
