@@ -148,13 +148,11 @@ function tokenOk(req: IncomingMessage): boolean {
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
-  res.writeHead(status, {
-    'content-type': 'application/json',
-    // A 413 leaves the oversize request body unread (`readJsonBody` pauses
-    // the stream instead of destroying it); closing the connection drops
-    // that remainder with the socket instead of draining it.
-    ...(status === 413 ? { connection: 'close' } : {}),
-  });
+  // A 413 needs no `Connection: close`: `readJsonBody` drains the refused
+  // body before the route answers, so the keep-alive connection is clean
+  // for the next request (closing it under a half-sent upload hangs Bun
+  // 1.3.12's fetch — the spawner — on its next call).
+  res.writeHead(status, { 'content-type': 'application/json' });
   res.end(payload);
 }
 
