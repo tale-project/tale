@@ -4,7 +4,7 @@ import { stringify as stringifyYaml } from 'yaml';
 import type { BuilderModel } from '../../../lib/automations_builder/session';
 import type { DispatchStore } from '../../../lib/engine/api/dispatch';
 import type { Automation } from '../../../lib/engine/core/types';
-import { memoryStore } from '../../../lib/engine/store/memory';
+import { memoryStore } from '../../../lib/engine/selftest/memory-store';
 import type { ActionCtx } from '../lib/ctx';
 import { runSessionWithStore } from './run_session';
 
