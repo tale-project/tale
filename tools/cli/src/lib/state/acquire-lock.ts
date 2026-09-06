@@ -1,4 +1,4 @@
-import { mkdir, rename, unlink, writeFile } from 'node:fs/promises';
+import { link, mkdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import * as logger from '../../utils/logger';
@@ -24,7 +24,9 @@ function isProcessRunning(pid: number): boolean {
  * both would proceed. Instead the file is moved aside atomically: whoever
  * wins the `rename` owns the stale file, and it is deleted only if it still
  * carries the stale pid we observed. If a live process's fresh lock was
- * moved instead, it is put back and this caller loses at the `wx` create.
+ * moved instead, it is put back with `link` — which fails EEXIST instead of
+ * overwriting a lock a third caller created meanwhile — and this caller
+ * loses at the `wx` create.
  */
 async function takeOverStaleLock(
   lockPath: string,
@@ -59,13 +61,17 @@ async function takeOverStaleLock(
     isProcessRunning(movedPid)
   ) {
     // Not the stale lock: a live process acquired it between our check and
-    // the rename. Hand it back; our own `wx` create will then fail.
+    // the rename. Hand it back; our own `wx` create will then fail. `link`
+    // never replaces a lock a third caller `wx`-created in between (EEXIST):
+    // that caller owns the lock now and the moved-aside copy is dropped.
     try {
-      await rename(aside, lockPath);
+      await link(aside, lockPath);
     } catch (err) {
-      logger.warn(`Could not restore a live lock moved aside: ${err}`);
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') {
+        logger.warn(`Could not restore a live lock moved aside: ${err}`);
+        return;
+      }
     }
-    return;
   }
   try {
     await unlink(aside);
