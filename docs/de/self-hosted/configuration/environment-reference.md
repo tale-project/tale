@@ -116,8 +116,9 @@ OAuth-Connectoren (Gmail, Google Drive, Outlook, Teams, Slack, …) lösen ihre 
 | -------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
 | `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID`     | unset   | OAuth-Client-ID für diesen Connector. Slug großgeschrieben, Bindestriche als Unterstriche (`gmail` → `GMAIL`). |
 | `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` | unset   | Passendes Client-Secret.                                                                                       |
+| `CONNECTOR_SLACK_SIGNING_SECRET`       | unset   | Das Signing-Secret der Slack-App. Der eingehende Events-Endpunkt prüft jede Zustellung damit und antwortet mit 503, solange es fehlt. |
 
-Registriere `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` in der Vendor-App. Details: [Connectors (Develop)](/de/develop/connectors).
+Registriere `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` in der Vendor-App, für Slack zusätzlich `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` als Events Request URL. Details: [Connectors (Develop)](/de/develop/connectors).
 
 ## Knowledge-Cloud-Import (Dokumente)
 
@@ -181,6 +182,14 @@ Re-Ranking ist standardmässig deaktiviert, weil es Latenz pro Query addiert und
 | `SESSION_IDLE_TIMEOUT_MINUTES` | unset   | **Optional.** Meldet eine Sitzung nach so vielen Minuten Inaktivität ab (`1`–`1440`). Das Fenster verschiebt sich bei Aktivität und wird serverseitig durchgesetzt — über E-Mail-/Passwort-, SSO- und Trusted-Headers-Sitzungen. |
 
 Lass es unset, um die Standard-Sitzungsdauer zu behalten. Wenn gesetzt, läuft eine inaktive Sitzung serverseitig ab, sobald das Fenster verstrichen ist, während eine aktive sich bei jeder Anfrage weiter verschiebt. Org-Admins können das wirksame Fenster pro Organisation verkürzen — niemals über diese Obergrenze hinaus verlängern — über die [Governance-Richtlinie zur Sitzungs-Leerlaufzeit](/de/platform/admin/governance/policies-and-limits); inaktive Sitzungen unter dieser Richtlinie widerruft ein Lauf, der etwa alle fünf Minuten läuft.
+
+## Sandbox-Agent-Turns
+
+| Name                             | Default              | Beschreibung                                                                                                                                                                                                                                                                                                       |
+| -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 Min.)  | **Optional.** Wie lange ein Coding-Agent-Turn in der Sandbox (Claude Code, OpenCode, Codex) ohne Abnehmer seiner Ausgabe liegen darf, bevor der Sandbox-Daemon ihn abräumt. Ein gleitendes Fenster, das bei jedem Wiederanbinden der Plattform neu startet — keine absolute Obergrenze für den Turn. Millisekunden. |
+
+Erhöhe den Wert, wenn lange Agent-Turns auf einem langsamen Host als abgeräumte Waisen zurückkommen; die Plattform bindet sich selbst wieder an, das Fenster beendet also nur einen Turn, dessen Abnehmerkette gestorben ist. Das Backend liest ihn beim Start — starte `backend-api backend-worker` nach einer Änderung neu.
 
 ## Video-Link-Ingestion (yt-dlp)
 

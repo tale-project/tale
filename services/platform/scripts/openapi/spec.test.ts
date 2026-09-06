@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Auth } from '../../backend/auth/auth.ts';
 import type { RestEnv } from '../../backend/rest/shared.ts';
 import { createAutomationRestRoutes } from '../../backend/rest/v1-automations.ts';
+import { createRestBrowserSessionRoutes } from '../../backend/rest/v1-browser-sessions.ts';
 import { createCoreRoutes } from '../../backend/rest/v1-core.ts';
 import { createProjectRestRoutes } from '../../backend/rest/v1-projects.ts';
 import { createThreadRestRoutes } from '../../backend/rest/v1-threads.ts';
@@ -202,6 +203,16 @@ const entry = {
   seq: 7,
 };
 
+const browserSession = {
+  id: 'bs-1',
+  domain: 'youtube.com',
+  label: 'Session A',
+  status: 'healthy',
+  expiresAt: 1_700_000_000_000,
+  lastUsedAt: null,
+  failureCount: 0,
+};
+
 const automation = {
   name: 'billing/dunning',
   latestVersion: 3,
@@ -279,6 +290,14 @@ describe('handler responses validate against the spec', () => {
       rows: [entry],
       request: '/knowledge-entries/k-1',
       spec: ['/api/v1/knowledge-entries/{id}', 'get', '200'],
+    },
+    {
+      name: 'GET /browser-sessions',
+      routes: () =>
+        createRestBrowserSessionRoutes({ sql: fakeSql([browserSession]) }),
+      rows: [browserSession],
+      request: '/browser-sessions',
+      spec: ['/api/v1/browser-sessions', 'get', '200'],
     },
     {
       name: 'GET /automations',

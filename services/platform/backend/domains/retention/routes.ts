@@ -200,12 +200,14 @@ export function createRetentionRoutes(deps: {
         if (typeof value !== 'number') continue;
         assertWithinBounds(boundsByCategory[category], value);
       }
+      // The file as it IS, not the TTL cache's view of it: the audit row
+      // (and the staged shortening) must name the config being replaced.
       const oldConfig = await readGovernancePolicyForOrg(
         deps.sql,
         organizationId,
         'retention_policy',
+        { fresh: true },
       );
-      await writeGovernancePolicyFile(orgSlug, 'retention_policy', cfg);
       const session = c.get('sessionBundle');
       await transactSerializable(deps.sql, async (tx) => {
         if (oldConfig !== null) {
@@ -243,6 +245,10 @@ export function createRetentionRoutes(deps: {
           entity: 'governance_policy',
           entityId: 'retention_policy',
         });
+        // The file LAST, inside the transaction: a write failure rolls the
+        // audit row and the staged shortening back, and a transaction
+        // failure never leaves an unaudited policy in force.
+        await writeGovernancePolicyFile(orgSlug, 'retention_policy', cfg);
       });
       // First-enable seed: an org saving its first policy applies the
       // current operator bounds implicitly (the 0.4 idempotent seed).

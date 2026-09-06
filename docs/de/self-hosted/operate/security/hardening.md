@@ -68,7 +68,7 @@ Der Hardening-Hebel ist `SANDBOX_EGRESS_ALLOWLIST`. Setz die Variable in `.env` 
 SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$|^registry\.npmjs\.org$|^objects\.githubusercontent\.com$|^codeload\.github\.com$|^github\.com$|^api\.github\.com$
 ```
 
-Halt die Liste kurz und bevorzuge spezifische Hosts gegenüber Wildcards. Paket-Installationen regelt separat die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy).
+Halt die Liste kurz und bevorzuge spezifische Hosts gegenüber Wildcards.
 
 ## Monitoring
 

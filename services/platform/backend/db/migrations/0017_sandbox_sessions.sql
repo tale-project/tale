@@ -64,7 +64,7 @@ CREATE TABLE app.sandbox_session_ops (
   session_id text NOT NULL,
   thread_id text,
   exec_id text NOT NULL,
-  kind text NOT NULL, -- 'exec' | 'agent-run'
+  kind text NOT NULL, -- 'task-agent' | 'workflow-agent' (SANDBOX_AGENT_OP_KINDS)
   status text NOT NULL CHECK (status IN (
     'running', 'completed', 'failed', 'cancelled'
   )),

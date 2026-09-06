@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { releaseProjectAgentSessionSlot } from '../sandbox/sessions.ts';
 import {
   failAgentRun,
   listOverdueAgentRuns,
@@ -63,18 +64,12 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
       WHERE session_id = ${run.sessionId} AND exec_id = ${run.execId}
         AND status = 'running'
     `;
-    // Free the agent's standing-session slot (running-op guard inline).
-    await sql`
-      UPDATE app.sandbox_sessions s SET status = 'stopped'
-      WHERE s.owner_type = 'project_agent' AND s.owner_id = ${run.agentId}
-        AND s.org_id = ${run.organizationId}
-        AND s.status IN ('creating', 'active', 'degraded')
-        AND s.pinned = false
-        AND NOT EXISTS (
-          SELECT 1 FROM app.sandbox_session_ops op
-          WHERE op.session_id = s.session_id AND op.status = 'running'
-        )
-    `;
+    // Free the agent's standing-session slot (the same running-op-guarded
+    // release the host runs after a settle; it wakes a parked run too).
+    await releaseProjectAgentSessionSlot(sql, {
+      organizationId: run.organizationId,
+      agentId: run.agentId,
+    });
   }
 
   const overdueParked = await sql<

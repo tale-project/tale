@@ -4,6 +4,12 @@ import {
   type SandboxQuotaConfig,
 } from '../../../lib/shared/schemas/governance';
 
+/**
+ * The per-org sandbox concurrency quota is the `sandbox_quota` governance
+ * policy, read through `readGovernancePolicyForOrg` by the session domain
+ * (sessions.ts) and the admin surface (routes.ts); a missing policy falls
+ * back to these schema defaults.
+ */
 export { DEFAULT_SANDBOX_QUOTA };
 
 /**

@@ -17,6 +17,7 @@
  * preference would give the same behaviour two sources of truth.
  */
 
+import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -39,6 +40,8 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {
+  useDeleteMemory,
+  useReviewMemory,
   useSetCustomInstructionsEnabled,
   useSetMemoriesEnabled,
   useUpsertMyPreferences,
@@ -263,6 +266,35 @@ function MemoriesSection({
   const { toast } = useToast();
   const { mutateAsync: setEnabled, isPending } = useSetMemoriesEnabled();
   const memories = useChatMemories(organizationId);
+  const { mutateAsync: review, isPending: reviewing } = useReviewMemory();
+  const { mutateAsync: remove, isPending: removing } = useDeleteMemory();
+
+  const settle = async (
+    memoryId: string,
+    decision: 'approved' | 'rejected',
+  ): Promise<void> => {
+    try {
+      await review({ organizationId, memoryId, decision });
+      toast({
+        title:
+          decision === 'approved'
+            ? t('toasts.memorySaved')
+            : t('toasts.memoryDiscarded'),
+      });
+    } catch (error) {
+      console.error('[personalization] memory review failed', error);
+      toast({ title: t('errors.saveFailed'), variant: 'destructive' });
+    }
+  };
+  const forget = async (memoryId: string): Promise<void> => {
+    try {
+      await remove({ organizationId, memoryId });
+      toast({ title: t('toasts.memoryDeleted') });
+    } catch (error) {
+      console.error('[personalization] memory delete failed', error);
+      toast({ title: t('errors.saveFailed'), variant: 'destructive' });
+    }
+  };
 
   const description = useGateHint(gate, t('page.memoriesToggle.description'));
 
@@ -296,6 +328,34 @@ function MemoriesSection({
             entries={
               memories.status === 'ready' ? memories.data.pending : undefined
             }
+            actions={(entry) => (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={reviewing}
+                  aria-label={t('page.pending.saveLabel', {
+                    content: entry.content,
+                  })}
+                  onClick={() => settle(entry.id, 'approved')}
+                >
+                  {t('page.pending.save')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={reviewing}
+                  aria-label={t('page.pending.discardLabel', {
+                    content: entry.content,
+                  })}
+                  onClick={() => settle(entry.id, 'rejected')}
+                >
+                  {t('page.pending.discard')}
+                </Button>
+              </>
+            )}
           />
           <MemoryList
             title={t('page.memories.title')}
@@ -303,6 +363,20 @@ function MemoriesSection({
             entries={
               memories.status === 'ready' ? memories.data.approved : undefined
             }
+            actions={(entry) => (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={removing}
+                aria-label={t('page.memories.deleteLabel', {
+                  content: entry.content,
+                })}
+                onClick={() => forget(entry.id)}
+              >
+                {t('page.memories.delete')}
+              </Button>
+            )}
           />
         </Stack>
       )}
@@ -313,18 +387,20 @@ function MemoriesSection({
 /**
  * One memory list under a plain label. `entries` is `undefined` while the
  * memories backend has not answered — the list says nothing has loaded rather
- * than claiming the user has no memories. The lists are read-only until the
- * memory mutations exist behind the same seam that feeds them; a review
- * control that silently did nothing would be worse than none.
+ * than claiming the user has no memories. Each row carries the controls that
+ * settle it (`actions`): a suggestion is saved or discarded, a saved memory
+ * deleted — the person decides, the model only proposes.
  */
 function MemoryList({
   title,
   empty,
   entries,
+  actions,
 }: {
   title: string;
   empty: string;
   entries?: readonly { id: string; content: string }[];
+  actions: (entry: { id: string; content: string }) => ReactNode;
 }) {
   const { t: tChat } = useT('chat');
 
@@ -344,6 +420,9 @@ function MemoryList({
           {entries.map((entry) => (
             <li key={entry.id} className="flex items-start gap-3 py-2">
               <Text className="flex-1">{entry.content}</Text>
+              <div className="flex shrink-0 items-center gap-1">
+                {actions(entry)}
+              </div>
             </li>
           ))}
         </ul>

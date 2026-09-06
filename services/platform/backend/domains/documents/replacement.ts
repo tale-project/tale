@@ -25,8 +25,8 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx, PRIORITY_INTERACTIVE } from '../../jobs/enqueue.ts';
 import {
   buildObjectKey,
+  deleteOrgObject,
   resolveObjectStore,
-  s3DeleteObject,
   s3PresignPutUrl,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
@@ -966,7 +966,6 @@ export async function runReplacementCleanup(sql: Sql): Promise<number> {
       refs.push(intent.stagingRef);
     }
     try {
-      const store = await resolveObjectStore(intent.orgSlug);
       for (const ref of refs) {
         const parsed = parseBlobRef(ref);
         if (parsed.backend !== 's3') continue;
@@ -977,7 +976,9 @@ export async function runReplacementCleanup(sql: Sql): Promise<number> {
           LIMIT 1
         `;
         if (owned[0]) continue;
-        await s3DeleteObject(store, parsed.key);
+        // Every store that may hold the key: a staging blob minted before
+        // the org connected its own bucket sits in the deployment default.
+        await deleteOrgObject(intent.orgSlug, parsed.key);
       }
       await sql`
         UPDATE app.document_replacement_uploads SET

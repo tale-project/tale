@@ -68,7 +68,7 @@ Le levier de durcissement est `SANDBOX_EGRESS_ALLOWLIST`. Mets-la dans `.env` su
 SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$|^registry\.npmjs\.org$|^objects\.githubusercontent\.com$|^codeload\.github\.com$|^github\.com$|^api\.github\.com$
 ```
 
-Garde la liste courte et préfère des hôtes spécifiques aux wildcards. Les installations de paquets sont régies séparément, via l'écran [politique run-code](/fr/platform/admin/governance/run-code-policy).
+Garde la liste courte et préfère des hôtes spécifiques aux wildcards.
 
 ## Monitoring
 

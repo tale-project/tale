@@ -14,6 +14,7 @@ import {
 import {
   NATIVE_IMPL_IDS,
   registerNativeConnectors,
+  type MailAttachmentResolver,
   type MailTransport,
   type SandboxScriptRunner,
   type WebdavStore,
@@ -252,6 +253,13 @@ const transport: MailTransport = {
     }),
 };
 
+/** The attachment double: bytes by blob ref, no object store. */
+const mailAttachments: MailAttachmentResolver = ({ storageRef }) =>
+  Promise.resolve({
+    bytes: new TextEncoder().encode(`bytes of ${storageRef}`),
+    contentType: 'application/octet-stream',
+  });
+
 /** The script-runner double: the declared shape, no sandbox. Mirrors the
  * connector mock's result keys so the live-vs-mock shape comparison holds. */
 const scriptRunner: SandboxScriptRunner = ({ skill, entry }) =>
@@ -402,6 +410,7 @@ beforeEach(() => {
     tasks: taskStore,
     documents: documentStore,
     conversations: conversationStore,
+    mailAttachments,
     mailTransport: transport,
     mailConfig: () => ({
       imap: {
@@ -446,6 +455,7 @@ describe('registration', () => {
       tasks: taskStore,
       documents: documentStore,
       conversations: conversationStore,
+      mailAttachments,
       mailTransport: transport,
     });
   });
@@ -497,6 +507,7 @@ describe('dispatching the shipped native actions', () => {
       tasks: taskStore,
       documents: documentStore,
       conversations: conversationStore,
+      mailAttachments,
       mailTransport: transport,
     });
   });
@@ -534,6 +545,7 @@ describe('dispatching the shipped native actions', () => {
         sandboxScripts: scriptRunner,
         documents: documentStore,
         conversations: conversationStore,
+        mailAttachments,
         mailTransport: transport,
         tasks: {
           ...taskStore,
@@ -546,6 +558,35 @@ describe('dispatching the shipped native actions', () => {
       } finally {
         restore();
       }
+    });
+  });
+
+  describe('conversation.ingest_emails re-checks the emails shape at the rim', () => {
+    const ingest = (emails: unknown) =>
+      executeConnectorAction({
+        connector: 'conversation',
+        action: 'ingest_emails',
+        input: { connectorSlug: 'gmail', emails },
+        caller: { kind: 'workflow', runId: 'run_1', nodeId: 'node_1' },
+        ctx: { organizationId: ORG, mode: 'live', credentials },
+      });
+
+    it('refuses a payload that is neither one email nor a list of them', async () => {
+      // The ingest normaliser swallows a non-array as "nothing to do"
+      // (processedCount 0), so the coded refusal has to land here.
+      await expect(ingest('not-a-list')).rejects.toMatchObject({
+        code: 'INPUT_INVALID',
+      });
+      await expect(ingest(42)).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+      await expect(ingest([{ subject: 1 }])).rejects.toMatchObject({
+        code: 'INPUT_INVALID',
+      });
+    });
+
+    it('accepts one email as well as a list — the declared shape', async () => {
+      const one = { messageId: 'msg-9', subject: 'Solo' };
+      expect(await ingest(one)).toMatchObject({ status: 'ok' });
+      expect(await ingest([one])).toMatchObject({ status: 'ok' });
     });
   });
 });

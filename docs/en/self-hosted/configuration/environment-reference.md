@@ -116,8 +116,9 @@ OAuth connectors (Gmail, Google Drive, Outlook, Teams, Slack, …) resolve their
 | -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
 | `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID`     | unset   | OAuth client ID for that connector. Slug is upper-cased with dashes as underscores (`gmail` → `GMAIL`). |
 | `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` | unset   | Matching client secret.                                                                                 |
+| `CONNECTOR_SLACK_SIGNING_SECRET`       | unset   | The Slack app's signing secret. The inbound Events endpoint verifies every delivery with it and answers 503 while it is unset. |
 
-Register `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` on the vendor app. Details: [Connectors (develop)](/develop/connectors).
+Register `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` on the vendor app, and for Slack also `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` as the Events Request URL. Details: [Connectors (develop)](/develop/connectors).
 
 ## Knowledge cloud import (Documents)
 
@@ -181,6 +182,14 @@ Re-ranking ships disabled because it adds per-query latency and depends on an ex
 | `SESSION_IDLE_TIMEOUT_MINUTES` | unset   | **Optional.** Sign a session out after this many minutes of inactivity (`1`–`1440`). The window slides on activity and is enforced server-side across email/password, SSO, and trusted-headers sessions. |
 
 Leave it unset to keep the default session lifetime. When set, an idle session expires server-side once the window elapses, while an active one keeps sliding forward on each request. Org admins can tighten the effective window per organisation — never loosen it past this cap — via the [session idle timeout governance policy](/platform/admin/governance/policies-and-limits); idle sessions under that policy are revoked by a sweep that runs about every five minutes.
+
+## Sandbox agent turns
+
+| Name                             | Default              | Description                                                                                                                                                                                                                                                                                       |
+| -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 min)   | **Optional.** How long an in-sandbox coding-agent turn (Claude Code, OpenCode, Codex) may sit with nobody draining its output before the sandbox daemon reaps it. A sliding window, re-armed every time the platform re-attaches to the output — not an absolute cap on the turn. Milliseconds. |
+
+Raise it when long agent turns on a slow host come back as reaped orphans; the platform re-attaches on its own, so the window only ends a turn whose drain chain died. Read by the backend at boot — restart `backend-api backend-worker` after changing it.
 
 ## Video-link ingestion (yt-dlp)
 

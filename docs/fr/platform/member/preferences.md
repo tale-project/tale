@@ -41,6 +41,8 @@ Rien n’est ajouté à un prompt en ton nom. Une mémoire enregistrée n’atte
 
 Les mémoires enregistrées figurent sur la même page, chacune avec un bouton pour la supprimer. Supprimer une mémoire la retire de ce qu’une recherche peut renvoyer, et c’est tout son effet — aucune seconde copie ne voyage dans un autre prompt.
 
+L’interrupteur **Souvenirs** au-dessus des listes commande toute la fonction, pas seulement la page : quand il est coupé, l’assistant ne peut ni proposer une mémoire ni en relire une — une proposition faite pendant ce temps est refusée sur-le-champ, pas mise de côté — et ce que tu as déjà enregistré attend, intact, que tu le rallumes.
+
 ## Se déconnecter
 
 La ligne **Se déconnecter** en bas du menu de profil confirme via une boîte de dialogue avant de purger la session. Après confirmation, Tale fait un rechargement complet vers la page de connexion pour qu’aucun état périmé ne traîne dans l’onglet. La déconnexion est par appareil — te déconnecter sur ton laptop ne te déconnecte pas sur ton téléphone, et réciproquement.

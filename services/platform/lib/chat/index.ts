@@ -12,31 +12,19 @@
  *  3. `capabilities.ts` — one registry and one dispatcher for everything the
  *     model can call, plus the knowledge seam and the memory tool.
  *
- * `backends.ts` holds the two adapters that must not be re-implemented: an
- * connector action always goes through the connectors dispatcher, and an
+ * `backends.ts` holds the adapter that must not be re-implemented: an
  * automation always goes through the automations store.
  */
 
 export {
   createAutomationsBackend,
-  createConnectorBackend,
   type AutomationsBackendOptions,
-  type ConnectorBackendOptions,
 } from './backends';
 export {
-  CAPABILITY_KINDS,
-  CAPABILITY_METHODS,
   CapabilityRegistry,
-  EVENT_ONLY_NOTE,
-  KNOWLEDGE_UNAVAILABLE_REASON,
-  capabilityDocs,
   createCapabilitySurface,
-  isEventOnlyAutomation,
-  isUnstructured,
-  mcpToolsToCapabilities,
   type AutomationInvocation,
   type BackendResult,
-  type BuiltinInvocation,
   type Capability,
   type CapabilityAuditEntry,
   type CapabilityAuditSink,
@@ -46,26 +34,18 @@ export {
   type CapabilitySearchHit,
   type CapabilitySurface,
   type CapabilitySurfaceDeps,
-  type ConnectorInvocation,
   type InvokeCapabilityParams,
   type InvokeResult,
   type KnowledgeBackend,
   type KnowledgePassage,
   type KnowledgeRequest,
   type KnowledgeResult,
-  type McpInvocation,
-  type McpToolDefinition,
   type MemoryRecord,
   type MemorySaveRequest,
   type MemorySearchRequest,
   type MemoryStore,
-  type SkillInvocation,
 } from './capabilities';
 export {
-  CONTEXT_BLOCK_ORDER,
-  assembleContext,
-  resolveAgentInstructions,
-  truncationNotice,
   type AgentInstructions,
   type AssembledContext,
   type ContextBlock,
@@ -75,79 +55,51 @@ export {
   type ContextTruncation,
   type ToolDoc,
 } from './context';
-export { deriveFallbackTitle } from './derive-fallback-title';
+export { type ReasoningEffort, type TurnSampling } from './effort';
 export {
-  EFFORT_LEVELS,
-  fitSamplingToWindow,
-  isReasoningEffort,
-  resolveTurnSampling,
-  type ReasoningEffort,
-  type TurnSampling,
-} from './effort';
-export {
-  DEFAULT_FAIL_BEHAVIOR,
-  GUARDRAIL_CHAIN_ORDER,
-  createChatFilter,
-  createModerationFilter,
-  createOutputTransform,
-  createPiiFilter,
-  runGuardrailChain,
   type GuardrailChainResult,
   type GuardrailFailBehavior,
   type GuardrailFilter,
+  type GuardrailOutcomeEvent,
   type GuardrailRefusal,
   type ModerationBackend,
+  type ModerationErrorClass,
+  type ModerationExtras,
+  type ModerationOutcome,
+  type ModerationRun,
   type OutputGuardrailTransform,
 } from './guardrails';
-export { CHAT_ASSISTANT, CHAT_ASSISTANT_SLUG } from './assistant';
+export { CHAT_ASSISTANT_SLUG } from './assistant';
 export {
-  MODEL_BANDS,
   assessPromptBand,
   type ModelBand,
   type PromptBandAssessment,
   type PromptBandFacts,
 } from './model-band';
 export {
-  PREFERRED_CHAT_MODELS,
   chooseChatModel,
   eligibleChatCandidates,
   type ChatAutoRefusal,
   type ChatModelChoice,
 } from './model-choice';
 export {
-  CHAT_TOOL_DOCS,
   CHAT_TOOL_NAMES,
   CHAT_WIRE_TOOLS,
-  PAUSING_CHAT_TOOLS,
-  RAG_SEARCH_ACTIONS,
   RAG_SEARCH_DEFAULT_LIMIT,
   RAG_SEARCH_ENTITY_LIMIT,
   RAG_SEARCH_KINDS,
   RAG_SEARCH_MAX_LIMIT,
   RAG_SEARCH_STATUS_VALUES,
-  isAwaitingAnswerResult,
   RAG_SEARCH_MIN_SIMILARITY,
-  isChatToolName,
-  isPausingChatTool,
   type AwaitingAnswerResult,
   type ChatToolExecutor,
   type ChatToolName,
-  type RagSearchAction,
   type RagSearchKind,
   type RagSearchStatus,
   type ToolCallRequest,
   type WireTool,
 } from './tools';
 export {
-  MAX_TOOL_ROUNDS,
-  TURN_STEPS,
-  assembleTurnContext,
-  estimateCostCents,
-  recordUsage,
-  resolveAgentAndExecution,
-  runInputGuardrails,
-  runTurn,
-  streamWithOutputGuardrails,
   type ModelCall,
   type ModelCallRequest,
   type ModelStreamChunk,
@@ -161,8 +113,6 @@ export {
   type UsageLedgerEntry,
 } from './turn';
 export {
-  estimateTokens,
-  messageText,
   type ChatMessage,
   type MessagePart,
   type MessageRole,

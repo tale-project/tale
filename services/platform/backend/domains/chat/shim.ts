@@ -18,6 +18,7 @@ import {
   getContextCapForUser,
   recordConnectorUsage,
 } from '../governance/service.ts';
+import { governanceShimHandlers } from '../governance/shim.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { listEntriesForAgent } from '../knowledge_entries/service.ts';
 import {
@@ -98,8 +99,10 @@ function pageOf<T>(
 }
 
 /** The turn user's knowledge scope — teams (+ the org pseudo-team), readable
- * projects, the hub — the 0.5 port of 0.4's `resolveKnowledgeAccessForUser`. */
-async function resolveAccessScope(
+ * projects, the hub — the 0.5 twin of `resolveKnowledgeAccessForUser`. The
+ * one resolver every door a member's identity opens uses (the chat tools,
+ * the MCP key's get_knowledge). */
+export async function resolveAccessScope(
   sql: Sql,
   organizationId: string,
   userId: string,
@@ -317,6 +320,9 @@ async function searchProjects(
 export function chatShimHandlers(sql: Sql): ShimHandlers {
   return {
     ...knowledgeShimHandlers(sql),
+    // The guardrail seams a turn dispatches: the policy reads, the
+    // moderation provider round, and the chat-filter event write.
+    ...governanceShimHandlers(sql),
 
     // ------------------------------------------------ governance (enforced)
     // The REAL policy verdicts over the org's governance files — the same
