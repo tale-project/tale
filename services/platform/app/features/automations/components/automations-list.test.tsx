@@ -52,6 +52,7 @@ let automationsData:
       latest: number;
       projectIds: string[];
       deployedVersion?: number;
+      presentation?: unknown;
     }>
   | undefined;
 vi.mock('../hooks/queries', () => ({
@@ -136,6 +137,41 @@ describe('AutomationsList', () => {
     expect(screen.getAllByText('automations.list.projectBound')).toHaveLength(
       2,
     );
+  });
+});
+
+describe('AutomationsList presentation', () => {
+  it('shows the pack s declared glyph and catalog chips beside the name', () => {
+    automationsData = [
+      {
+        name: 'gmail/triage-inbox',
+        latest: 1,
+        projectIds: [],
+        presentation: {
+          name: 'Triage the Gmail inbox',
+          icon: 'mail',
+          labels: ['Email', 'Gmail'],
+        },
+      },
+    ];
+    const { container } = render(<AutomationsList organizationId="org-1" />);
+
+    expect(screen.getByText('Triage the Gmail inbox')).toBeInTheDocument();
+    expect(screen.getByText('Email')).toBeInTheDocument();
+    expect(screen.getByText('Gmail')).toBeInTheDocument();
+    // The bundled lucide set resolves offline: the declared glyph renders as
+    // an Iconify svg, not the neutral fallback.
+    expect(container.querySelector('svg.iconify--lucide')).not.toBeNull();
+    expect(container.querySelector('svg.lucide-sparkles')).toBeNull();
+  });
+
+  it('falls back to the neutral glyph and no chips without a presentation', () => {
+    automationsData = [{ name: 'weekly-report', latest: 1, projectIds: [] }];
+    const { container } = render(<AutomationsList organizationId="org-1" />);
+
+    expect(screen.getByText('Weekly report')).toBeInTheDocument();
+    expect(container.querySelector('svg.iconify--lucide')).toBeNull();
+    expect(container.querySelector('svg.lucide-sparkles')).not.toBeNull();
   });
 });
 
