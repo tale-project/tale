@@ -59,6 +59,10 @@ export default defineConfig({
           name: 'pii',
           environment: 'node',
           include: ['tests/pii/**/*.test.ts', 'lib/pii/**/*.test.ts'],
+          // A per-TEST ceiling, not added wall-clock: under the fully parallel
+          // suite the 5s vitest default starves whichever file lands on a
+          // saturated worker.
+          testTimeout: 30_000,
           // The data-driven suite fans out to 67k+ cases — per-test
           // isolation would rebuild the shared scrubbers constantly. The
           // engine is pure; tests share no mutable state.

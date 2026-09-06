@@ -24,9 +24,8 @@ Le segment MCP (0:57–1:26) a été enregistré sur le panneau **Serveurs MCP**
 | 0:43 | Le gain : la recherche approfondie existe parce que Tavily est reliée                      |
 | 0:57 | MCP : vos propres outils, servis aux agents comme des natifs                               |
 | 1:11 | Les drapeaux de validation par outil — avoir l'air natif n'est pas être digne de confiance |
-| 1:26 | La dernière porte : code en bac à sable, sortie refusée par défaut                         |
 | 1:45 | Le motif à chaque porte                                                                    |
 
 ## Pour continuer
 
-[L'aperçu des connectors](/fr/platform/connectors/overview) couvre la connexion et le partage ; [les serveurs MCP](/fr/platform/connectors/mcp-servers) ce qui tient lieu de porte MCP dans cette version. Pour la frontière réseau, lis la [politique d'exécution de code](/fr/platform/admin/governance/run-code-policy) — et pour ce qu'une connector reliée débloque, va voir les [concepts d'automatisation](/fr/platform/automations/concepts).
+[L'aperçu des connectors](/fr/platform/connectors/overview) couvre la connexion et le partage ; [les serveurs MCP](/fr/platform/connectors/mcp-servers) ce qui tient lieu de porte MCP dans cette version. Pour la frontière réseau, lis [Durcissement](/fr/self-hosted/operate/security/hardening) — et pour ce qu'une connector reliée débloque, va voir les [concepts d'automatisation](/fr/platform/automations/concepts).

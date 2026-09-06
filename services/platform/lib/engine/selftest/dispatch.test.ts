@@ -5,7 +5,7 @@ import { DOC_EXAMPLE } from '../api/docs';
 import { setCodeRunner } from '../core/slots';
 import type { Automation, RunResult } from '../core/types';
 import { nodeVmRunner } from '../runners/node-vm';
-import { memoryStore } from '../store/memory';
+import { memoryStore } from './memory-store';
 
 /** A dispatch store for the selftest: the versioned in-memory store, which
  * doubles as the reference HOST — it records runs and triggers, so the
@@ -353,6 +353,92 @@ describe('dispatch — the shared method table', () => {
   });
 });
 
+describe("dispatch — subautomation nodes resolve through the caller's store", () => {
+  /** A child saved in the store, and a parent that calls it. */
+  async function saveChild(store: DispatchStore): Promise<void> {
+    const child: Automation = {
+      version: 1,
+      name: 'double-it',
+      nodes: [
+        {
+          id: 'double',
+          type: 'transform',
+          input: { n: '{{ input.n }}' },
+          code: 'return input.n * 2;',
+        },
+      ],
+      output: '{{ nodes.double.output }}',
+    };
+    await dispatch('save_automation', { automation: child }, { store });
+  }
+  const parent = (child: string): Automation => ({
+    version: 1,
+    name: 'call-child',
+    nodes: [
+      {
+        id: 'call',
+        type: 'subautomation',
+        automation: child,
+        input: { n: 21 },
+      },
+    ],
+    output: '{{ nodes.call.output }}',
+    tests: [{ name: 'doubles', input: {}, expect: { output: 42 } }],
+  });
+
+  it('run_automation and test_automation execute the referenced child with no process-global store', async () => {
+    const store = dispatchStore();
+    await saveChild(store);
+
+    const run = (await dispatch(
+      'run_automation',
+      { automation: parent('double-it'), input: {} },
+      { store },
+    )) as RunResult;
+    expect(run.status).toBe('success');
+    expect(run.output).toBe(42);
+
+    const report = await dispatch(
+      'test_automation',
+      { automation: parent('double-it') },
+      { store },
+    );
+    expect(report).toMatchObject({ passed: 1, failed: 0 });
+  });
+
+  it('validate_automation names a child the store does not have', async () => {
+    const store = dispatchStore();
+    await saveChild(store);
+    const result = (await dispatch(
+      'validate_automation',
+      { automation: parent('double-them') },
+      { store },
+    )) as { valid: boolean; errors: Array<{ code: string; hint?: string }> };
+    expect(result.valid).toBe(false);
+    expect(result.errors.map((e) => e.code)).toContain(
+      'SUBAUTOMATION_NOT_FOUND',
+    );
+    expect(result.errors[0]?.hint).toContain('double-it');
+  });
+
+  it('the deploy gate runs the tests of a parent with a subautomation node', async () => {
+    const store = dispatchStore();
+    await saveChild(store);
+    await dispatch(
+      'save_automation',
+      { automation: parent('double-it') },
+      { store },
+    );
+    const deployed = (await dispatch(
+      'deploy_automation',
+      { name: 'call-child', version: 1 },
+      { store },
+    )) as { deployed?: unknown; error?: string };
+    expect(deployed.error).toBeUndefined();
+    expect(deployed.deployed).toMatchObject({ name: 'call-child', version: 1 });
+  });
+});
+
 describe('dispatch — run and trigger management', () => {
   it('start_run hands the run to the host and get_run reports its outcome', async () => {
     const store = dispatchStore();
@@ -419,6 +505,55 @@ describe('dispatch — run and trigger management', () => {
       { store },
     )) as { error?: string };
     expect(result.error).toContain('must be a whole number');
+  });
+
+  it('get_automation and deploy_automation refuse a version that is not a whole number instead of forwarding NaN', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
+    // A store that would take the NaN straight into a query.
+    const gets: unknown[] = [];
+    const spying: DispatchStore = {
+      ...store,
+      get: (name, version) => {
+        gets.push(version);
+        return store.get(name, version);
+      },
+    };
+
+    const latest = (await dispatch(
+      'get_automation',
+      { name: 'order-report', version: 'latest' },
+      { store: spying },
+    )) as { error?: string; hint?: string };
+    expect(latest.error).toContain('must be a whole number');
+    expect(latest.error).toContain('"latest"');
+    expect(latest.hint).toContain('omit it');
+
+    const fractional = (await dispatch(
+      'deploy_automation',
+      { name: 'order-report', version: 1.5 },
+      { store: spying },
+    )) as { error?: string };
+    expect(fractional.error).toContain('must be a whole number');
+
+    const missing = (await dispatch(
+      'deploy_automation',
+      { name: 'order-report' },
+      { store: spying },
+    )) as { error?: string; hint?: string };
+    expect(missing.error).toBe('missing params.version');
+    expect(missing.hint).toContain('list_versions');
+
+    expect(gets).toEqual([]);
+
+    // The string form of a whole number is still accepted.
+    const asText = (await dispatch(
+      'get_automation',
+      { name: 'order-report', version: '1' },
+      { store: spying },
+    )) as { meta?: { version: number } };
+    expect(asText.meta?.version).toBe(1);
+    expect(gets).toEqual([1]);
   });
 
   it('start_run refuses an automation with nothing deployed', async () => {

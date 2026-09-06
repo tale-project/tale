@@ -19,8 +19,11 @@
  *
  * The store is injected (not a module singleton), because the host owns
  * persistence — the selftest passes an in-memory store, the automations host
- * passes a Convex-backed one. Reads use the same `StoreAdapter` the executor
- * resolves subautomations through; the write operations extend it.
+ * passes a Postgres-backed one. Reads use the same `StoreAdapter` the executor
+ * resolves subautomations through; the write operations extend it. Because a
+ * store is scoped to one organization, dispatch threads it into every
+ * `validate()`, `execute()` and test run as an option — there is no
+ * process-global store slot for a host to forget.
  *
  * The table covers two jobs, and the split matters when reading it: the
  * AUTHORING methods (validate/run/test/save/deploy/get/list) work on documents,
@@ -258,6 +261,27 @@ function asString(v: unknown): string {
   return '';
 }
 
+/**
+ * Read a present `params.version`: a whole number (or its string form) is the
+ * version, anything else is a refusal the caller returns as-is. Never
+ * forwards NaN — a store binds the value into a query, and a raw database
+ * error would blame the storage layer for a bad param. Callers that accept
+ * an omitted version branch on `undefined` before asking.
+ */
+function versionParam(
+  v: unknown,
+  hint: string,
+): { value: number } | { error: string; hint: string } {
+  const n = typeof v === 'number' || typeof v === 'string' ? Number(v) : NaN;
+  if (!Number.isInteger(n)) {
+    return {
+      error: `params.version must be a whole number — got ${JSON.stringify(v)}`,
+      hint,
+    };
+  }
+  return { value: n };
+}
+
 function paramsObject(params: unknown): Record<string, unknown> {
   return params !== null && typeof params === 'object' && !Array.isArray(params)
     ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the object check above
@@ -321,7 +345,7 @@ export async function dispatch(
 
     case 'validate_automation': {
       if (!p.automation) return { error: 'missing params.automation' };
-      const { errors, warnings } = await validate(p.automation);
+      const { errors, warnings } = await validate(p.automation, { store });
       return { valid: errors.length === 0, errors, warnings };
     }
 
@@ -354,7 +378,7 @@ export async function dispatch(
           hint: 'run it in mock mode, or save_automation + deploy_automation and run it live with run_deployed or start_run',
         };
       }
-      const { errors, warnings } = await validate(p.automation);
+      const { errors, warnings } = await validate(p.automation, { store });
       if (errors.length > 0) {
         return {
           status: 'invalid',
@@ -367,6 +391,7 @@ export async function dispatch(
       const result = await execute(p.automation as Automation, {
         input: p.input ?? {},
         mode,
+        store,
         ...(ctx.connectorHost !== undefined && {
           connectorHost: ctx.connectorHost,
         }),
@@ -382,15 +407,15 @@ export async function dispatch(
           hint: 'call as {method: test_automation, params: {automation: {...with tests...}}}',
         };
       }
-      const { errors, warnings } = await validate(p.automation);
+      const { errors, warnings } = await validate(p.automation, { store });
       if (errors.length > 0) return { status: 'invalid', errors, warnings };
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
-      return await runAutomationTests(p.automation as Automation);
+      return await runAutomationTests(p.automation as Automation, { store });
     }
 
     case 'save_automation': {
       if (!p.automation) return { error: 'missing params.automation' };
-      const { errors } = await validate(p.automation);
+      const { errors } = await validate(p.automation, { store });
       if (errors.length > 0) {
         return {
           error: 'automation failed validation — fix errors before saving',
@@ -403,10 +428,12 @@ export async function dispatch(
 
     case 'get_automation': {
       const name = asString(p.name);
-      const found = await store.get(
-        name,
-        p.version === undefined ? undefined : Number(p.version),
-      );
+      const version =
+        p.version === undefined
+          ? { value: undefined }
+          : versionParam(p.version, 'omit it to read the latest saved version');
+      if ('error' in version) return version;
+      const found = await store.get(name, version.value);
       return found ?? { error: `no saved automation named "${name}"` };
     }
 
@@ -417,14 +444,25 @@ export async function dispatch(
       // The deploy gate: a version only becomes live-eligible if it still
       // validates AND its tests pass, so triggers never run a broken flow.
       const name = asString(p.name);
-      const version = Number(p.version);
+      if (p.version === undefined) {
+        return {
+          error: 'missing params.version',
+          hint: '{method: deploy_automation, params: {name: "billing/dunning", version: 3}} — list_versions shows the saved ones',
+        };
+      }
+      const wanted = versionParam(
+        p.version,
+        'name one saved version to promote — list_versions shows them',
+      );
+      if ('error' in wanted) return wanted;
+      const version = wanted.value;
       const saved = await store.get(name, version);
       if (!saved) {
-        return { error: `no saved automation "${name}@${String(p.version)}"` };
+        return { error: `no saved automation "${name}@${version}"` };
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
       const automation = saved.automation as Automation;
-      const { errors } = await validate(automation);
+      const { errors } = await validate(automation, { store });
       if (errors.length > 0) {
         return {
           error: 'this version no longer validates; it cannot be deployed',
@@ -432,7 +470,7 @@ export async function dispatch(
         };
       }
       if (automation.tests && automation.tests.length > 0) {
-        const report = await runAutomationTests(automation);
+        const report = await runAutomationTests(automation, { store });
         if ('failed' in report && report.failed > 0) {
           return {
             error: 'deploy gate: the automation has failing tests',
@@ -494,6 +532,7 @@ export async function dispatch(
       const result = await execute(found.automation as Automation, {
         input: p.input ?? {},
         mode,
+        store,
         ...(ctx.connectorHost !== undefined && {
           connectorHost: ctx.connectorHost,
         }),
@@ -513,13 +552,12 @@ export async function dispatch(
           hint: '{method: start_run, params: {name: "billing/dunning", input: {…}}}',
         };
       }
-      const version = p.version === undefined ? undefined : Number(p.version);
-      if (version !== undefined && !Number.isInteger(version)) {
-        return {
-          error: `params.version must be a whole number — got "${String(p.version)}"`,
-          hint: 'omit it to run the deployed version',
-        };
-      }
+      const wanted =
+        p.version === undefined
+          ? { value: undefined }
+          : versionParam(p.version, 'omit it to run the deployed version');
+      if ('error' in wanted) return wanted;
+      const version = wanted.value;
       // The host's own execution mode: a deployment runs live, a test session
       // runs against mocks — the same rule `run_deployed` follows.
       const mode = ctx.allowLive ? 'live' : 'mock';

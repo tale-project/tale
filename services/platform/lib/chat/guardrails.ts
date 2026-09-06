@@ -29,8 +29,12 @@ import {
   flagged,
   modified,
   pass,
+  type FilterBlockedOutcome,
+  type FilterFlaggedOutcome,
   type FilterName,
   type FilterOutcome,
+  type FilterPassOutcome,
+  type FilterStepErrorOutcome,
   type GuardrailsDirection,
 } from '../pii/core/outcome';
 import {
@@ -40,6 +44,7 @@ import {
   REGEX_EXEC_BUDGET_MS,
 } from '../pii/core/regex-safety';
 import type { Scrubber } from '../pii/engine/scrubber';
+import type { TokenEntry, Tokenizer } from '../pii/engine/tokenizer';
 import type {
   ChatFilterCategory,
   ChatFilterConfig,
@@ -104,8 +109,24 @@ export interface GuardrailChainResult {
   readonly flaggedCategoryIds: readonly string[];
 }
 
+/** One filter's verdict, as the chain saw it — what the host records as a
+ * chat-filter event. Only non-`pass` outcomes are reported: a clean step is
+ * the normal case, not an event. */
+export interface GuardrailOutcomeEvent {
+  readonly filterName: FilterName;
+  readonly direction: GuardrailsDirection;
+  readonly outcome: Exclude<FilterOutcome, FilterPassOutcome>;
+}
+
 export interface GuardrailChainOptions {
   readonly failBehavior?: GuardrailFailBehavior;
+  /**
+   * Observes every non-pass outcome, in chain order, BEFORE the chain acts
+   * on it — so a `blocked` step is reported even though nothing after it
+   * runs. The observer's own failure is logged and never changes the
+   * verdict: an audit write must not decide whether a message goes through.
+   */
+  readonly onOutcome?: (event: GuardrailOutcomeEvent) => void | Promise<void>;
 }
 
 /**
@@ -143,6 +164,15 @@ export async function runGuardrailChain(
     ran.push(name);
     const outcome = await filter.run(current, direction);
     outcomes.push({ filterName: name, outcome });
+    if (outcome.kind !== 'pass' && options.onOutcome !== undefined) {
+      try {
+        await options.onOutcome({ filterName: name, direction, outcome });
+      } catch (error) {
+        console.warn(
+          `[chat] guardrail outcome observer failed for "${name}" on ${direction}: ${error instanceof Error ? error.message : 'unknown'}`,
+        );
+      }
+    }
 
     switch (outcome.kind) {
       case 'pass':
@@ -373,6 +403,44 @@ export function createPiiFilter(
   };
 }
 
+/**
+ * The PII step in TOKENIZE mode — a round trip rather than a one-way mask.
+ * On the way in, detections become indexed tokens (`[EMAIL_1]`) and the
+ * restore map is kept for the turn; on the way out, every token the model
+ * echoed is replaced by the original value, so the reader sees their own
+ * details while the model (and any provider after this step) never did.
+ *
+ * The restore reports as `modified` with NO categories and NO matches: it
+ * rewrites text but detects nothing, so a host recording detections can
+ * tell the two apart. One filter instance serves one turn — the map is
+ * per-turn state.
+ */
+export function createPiiTokenizeFilter(
+  tokenizer: Tokenizer | null,
+): GuardrailFilter | null {
+  if (!tokenizer) return null;
+  const mapping: Record<string, TokenEntry> = {};
+  return {
+    name: 'pii',
+    run(text, direction) {
+      if (direction === 'output') {
+        if (Object.keys(mapping).length === 0) return pass();
+        const restored = tokenizer.detokenize(text, mapping);
+        return restored === text ? pass() : modified(restored, [], 0);
+      }
+      const result = tokenizer.tokenize(text);
+      if (result.segments.length === 0) return pass();
+      Object.assign(mapping, result.mapping);
+      return modified(
+        result.text,
+        [...new Set(result.segments.map((segment) => segment.type))],
+        result.segments.length,
+        result.truncated || undefined,
+      );
+    },
+  };
+}
+
 // -------------------------------------------------------------- moderation
 
 /** The external moderation provider, as the chain sees it. The HTTP client,
@@ -382,6 +450,50 @@ export interface ModerationBackend {
     text: string,
     direction: GuardrailsDirection,
   ): Promise<FilterOutcome>;
+}
+
+/** How a provider round failed — the class the chat-filter event and the
+ * settings page's test result carry; never the provider's words. */
+export type ModerationErrorClass =
+  | 'timeout'
+  | 'network'
+  | 'parse'
+  | 'http_4xx'
+  | 'http_5xx'
+  | 'config'
+  | 'unknown';
+
+/** The audit facts of one provider round. Never the text, never the body. */
+export interface ModerationExtras {
+  readonly httpStatus?: number;
+  readonly durationMs?: number;
+  readonly attempts?: number;
+  readonly errorClass?: ModerationErrorClass;
+  /** This round's failure tripped the breaker. */
+  readonly circuitOpened?: boolean;
+  /** The breaker was already open, so no request was made. */
+  readonly circuitOpen?: boolean;
+}
+
+/** The provider's verdict as the chain consumes it — `step_error` for every
+ * provider fault, so the chain's fail behaviour decides. A `mask` mapping
+ * reads as `flagged`: an external classifier returns categories, not spans,
+ * so there is nothing to mask — the detection is recorded. */
+export type ModerationOutcome =
+  | FilterPassOutcome
+  | FilterFlaggedOutcome
+  | FilterBlockedOutcome
+  | (FilterStepErrorOutcome & {
+      readonly filterName: 'moderation_provider';
+      readonly reason: ModerationErrorClass;
+    });
+
+/** One provider round: the verdict plus its audit facts. The governance
+ * domain produces it; the chat host feeds the verdict to the chain and the
+ * facts to the event log. */
+export interface ModerationRun {
+  readonly outcome: ModerationOutcome;
+  readonly extras: ModerationExtras;
 }
 
 /**
@@ -433,9 +545,40 @@ export interface OutputGuardrailTransform {
 }
 
 export interface OutputTransformOptions extends GuardrailChainOptions {
-  /** Smallest segment worth checking. Small enough to stay responsive, large
-   * enough that a pattern is not split across two checks. */
+  /** Smallest segment worth checking — small enough to stay responsive. */
   readonly minFlushChars?: number;
+  /**
+   * Text held back across pushes so a pattern or token is judged whole: a
+   * segment ends at least this many characters before the stream's edge,
+   * and on a boundary no pattern spans (a line break, a sentence end, a
+   * space — in that order of preference). An address, a phone number or a
+   * `[EMAIL_1]` token that straddled the old hard cut escaped the mask or
+   * was never restored. 0 disables the hold-back (tests).
+   */
+  readonly holdbackChars?: number;
+}
+
+const DEFAULT_OUTPUT_HOLDBACK_CHARS = 64;
+
+/**
+ * Where to end a segment so that what follows starts on a boundary no
+ * pattern spans: the last line break at or before `limit`, else the last
+ * sentence end, else the last whitespace, else `limit` itself.
+ */
+function segmentCut(buffer: string, limit: number): number {
+  const head = buffer.slice(0, limit);
+  const lineBreak = head.lastIndexOf('\n');
+  if (lineBreak >= 0) return lineBreak + 1;
+  const sentenceEnd = Math.max(
+    head.lastIndexOf('. '),
+    head.lastIndexOf('? '),
+    head.lastIndexOf('! '),
+  );
+  if (sentenceEnd >= 0) return sentenceEnd + 2;
+  for (let index = head.length; index > 0; index -= 1) {
+    if (/\s/u.test(head[index - 1] ?? '')) return index;
+  }
+  return limit;
 }
 
 export function createOutputTransform(
@@ -443,6 +586,7 @@ export function createOutputTransform(
   options: OutputTransformOptions = {},
 ): OutputGuardrailTransform {
   const minFlushChars = options.minFlushChars ?? 120;
+  const holdbackChars = options.holdbackChars ?? DEFAULT_OUTPUT_HOLDBACK_CHARS;
   const passthrough = filters.length === 0;
   let buffer = '';
   let stopped = false;
@@ -462,9 +606,16 @@ export function createOutputTransform(
       if (stopped) return { text: '' };
       if (passthrough) return check(chunk);
       buffer += chunk;
-      if (buffer.length < minFlushChars) return { text: '' };
-      const segment = buffer;
-      buffer = '';
+      if (buffer.length < minFlushChars + holdbackChars) return { text: '' };
+      // Everything up to the cut is judged now; the tail waits for the next
+      // push (or the flush) so nothing straddling the edge is judged apart.
+      // With the hold-back off the whole buffer is one segment.
+      const cut =
+        holdbackChars === 0
+          ? buffer.length
+          : segmentCut(buffer, buffer.length - holdbackChars);
+      const segment = buffer.slice(0, cut);
+      buffer = buffer.slice(cut);
       return check(segment);
     },
     async flush() {

@@ -316,21 +316,6 @@ export async function resolveCloudImportApp(
   return env ? { ...env, source: 'env' } : null;
 }
 
-/** Non-secret configured/source state for the connector lane (the catalog
- * overlay). The env half consults the CONNECTOR_OAUTH_* names. */
-export async function getOauthAppStatus(
-  sql: Sql,
-  organizationId: string,
-  slug: string,
-): Promise<{ configured: boolean; source: 'org' | 'env' | null }> {
-  const row = await readRow(sql, organizationId, slug);
-  if (row) return { configured: true, source: 'org' };
-  if (resolveOauthAppCredentials(slug) !== null) {
-    return { configured: true, source: 'env' };
-  }
-  return { configured: false, source: null };
-}
-
 /** The cloud-import twin — same org row, but the env half consults the
  * CLOUD_IMPORT_* chain (google-drive's two lanes have different env names,
  * so the lanes report their own truth). */

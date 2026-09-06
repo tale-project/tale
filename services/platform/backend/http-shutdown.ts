@@ -26,14 +26,15 @@ const IDLE_REAP_INTERVAL_MS = 200;
 /**
  * Close the HTTP server without hanging on connections that never end.
  *
- * `server.close()` waits for every open connection, and the `/events` SSE
- * responses never end on their own (15s heartbeats; their loop exits only on
- * client abort) — so with any browser connected, a plain close never
- * resolved and every deploy ended in SIGKILL with in-flight jobs killed
- * mid-write. Two measures, layered:
+ * `server.close()` waits for every open connection, and the SSE responses
+ * (`/events`, the per-thread chat progress lane) never end on their own (15s
+ * heartbeats; their loops exit only on client abort) — so with any browser
+ * connected, a plain close never resolved and every deploy ended in SIGKILL
+ * with in-flight jobs killed mid-write. Two measures, layered:
  *
  * 1. Proactively end every live SSE stream ({@link endAllEventStreams}) —
- *    the graceful path: clients reconnect and resume via `Last-Event-ID`.
+ *    the graceful path: clients reconnect (`/events` resumes via
+ *    `Last-Event-ID`).
  * 2. After {@link FORCE_CLOSE_AFTER_MS}, force-close whatever connections
  *    remain (long streaming responses, stuck keep-alives) — the backstop
  *    that keeps the deadline honest for anything the registry cannot see.
@@ -45,7 +46,7 @@ export async function closeServerGracefully(
   const forceAfterMs = options.forceAfterMs ?? FORCE_CLOSE_AFTER_MS;
   const ended = endAllEventStreams();
   if (ended > 0) {
-    console.log(`[backend] ended ${ended} open /events stream(s) for shutdown`);
+    console.log(`[backend] ended ${ended} open SSE stream(s) for shutdown`);
   }
   await new Promise<void>((resolve) => {
     // The `in` checks narrow ServerType: the http/1 server (what `serve`

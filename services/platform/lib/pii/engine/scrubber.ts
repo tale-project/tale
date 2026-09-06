@@ -35,7 +35,11 @@ import { applyTokenization } from './tokenizer';
 export interface Scrubber {
   /** Detect + rewrite/block `text`, returning a filter outcome. */
   scrub(text: string): FilterOutcome;
-  /** The compiled pattern list — exposed for tests, not production code. */
+  /**
+   * The compiled pattern list — what `scrubDocument` checks its window
+   * cuts against, so a cut never lands inside an identifier this scrubber
+   * would detect; also exposed for tests.
+   */
   readonly patterns: ReadonlyArray<PiiPattern>;
   /** The locale union the patterns were composed over. */
   readonly locales: ReadonlyArray<LocaleConfig>;

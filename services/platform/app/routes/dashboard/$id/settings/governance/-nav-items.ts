@@ -6,7 +6,6 @@ import {
   ScrollText,
   Shield,
   ShieldAlert,
-  Terminal,
   Trash2,
   type LucideIcon,
 } from 'lucide-react';
@@ -14,7 +13,6 @@ import {
 const GOVERNANCE_GROUPS = [
   'content-models',
   'policies-limits',
-  'run-code-policy',
   'security-monitoring',
   'guardrails',
   'logs',
@@ -29,7 +27,6 @@ interface GovernanceNavItem {
   labelKey:
     | 'contentAndModels'
     | 'policiesAndLimits'
-    | 'runCodePolicy'
     | 'securityAndMonitoring'
     | 'guardrails'
     | 'logs'
@@ -48,7 +45,6 @@ interface GovernanceNavItem {
 export const GOVERNANCE_NAV_ITEMS: GovernanceNavItem[] = [
   { slug: 'content-models', labelKey: 'contentAndModels', icon: Brain },
   { slug: 'policies-limits', labelKey: 'policiesAndLimits', icon: Scale },
-  { slug: 'run-code-policy', labelKey: 'runCodePolicy', icon: Terminal },
   {
     slug: 'security-monitoring',
     labelKey: 'securityAndMonitoring',

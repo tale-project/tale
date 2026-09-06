@@ -5,7 +5,7 @@ import {
   listKnowledgeDocumentRefs,
 } from '../../core/legacy/knowledge_delete.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
-import { resolveObjectStore, s3DeleteObject } from '../../lib/object-store.ts';
+import { deleteOrgObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { reconcileDocumentScopeStamps } from './service.ts';
 
@@ -193,8 +193,7 @@ export async function releaseRefs(
     try {
       const parsed = parseBlobRef(entry.ref);
       if (parsed.backend === 's3') {
-        const store = await resolveObjectStore(args.orgSlug);
-        await s3DeleteObject(store, parsed.key);
+        await deleteOrgObject(args.orgSlug, parsed.key);
       }
       // The bytes are gone — reap trashed, unbound file rows that only
       // existed to remember this ref (the WebDAV overwrite strands).

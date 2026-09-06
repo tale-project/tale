@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { TASK_ATTACHMENTS_MAX } from '../../core/tasks/helpers.ts';
 import { resolveTaskServing } from '../../core/tasks/task_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
@@ -13,7 +14,7 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
-import { cancelRunInTx } from '../automations/store.ts';
+import { AutomationError, cancelRunInTx } from '../automations/store.ts';
 import { MentionDirectoryError } from '../collab/mention-directory.ts';
 import { getOrCreateProjectFolder } from '../folders/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
@@ -26,7 +27,6 @@ import {
 } from '../projects/service.ts';
 import {
   cancelAgentRun,
-  getAgentRun,
   getAgentRunSandboxOp,
   getLatestAgentRunCardForTask,
   listAgentRunsForTask,
@@ -45,12 +45,7 @@ import {
   startWorkflowForTask,
   upsertTaskByExternalRef,
 } from './external-ref.ts';
-import {
-  collectPendingReviewsForProjects,
-  getPendingReviewForTask,
-  respondToTaskReview,
-  TaskReviewError,
-} from './reviews.ts';
+import { getPendingReviewForTask, TaskReviewError } from './reviews.ts';
 import {
   addTaskDependency,
   archiveTask,
@@ -58,14 +53,12 @@ import {
   claimTask,
   createTask,
   createTaskLabel,
-  deleteBoardView,
   deleteTask,
   deleteTaskLabel,
   ensureDefaultProjectLabels,
   getTask,
   getTaskOpsIndicators,
   getTaskOpsIndicatorsForAccessibleProjects,
-  listBoardViews,
   listSubtasks,
   listTaskActivity,
   listTaskDependencies,
@@ -76,10 +69,8 @@ import {
   moveTask,
   removeTaskDependency,
   renameTaskLabel,
-  bulkUpdateTasks,
   mentionTriggerPreview,
   restoreTask,
-  saveBoardView,
   searchTasks,
   startTaskAgentRunManual,
   TaskError,
@@ -101,10 +92,24 @@ const statusSchema = z.enum([
 const prioritySchema = z.enum(['p0', 'p1', 'p2', 'p3']);
 const assigneeTypeSchema = z.enum(['user', 'agent', 'app']);
 
+/** One attachment as the dialog sends it (`stripPreviews`): the blob ref
+ * and the display trio. Ownership of the ref is the service's check. */
+const taskAttachmentSchema = z.object({
+  fileId: z.string().min(1).max(1024),
+  fileName: z.string().min(1).max(255),
+  fileType: z.string().max(255),
+  fileSize: z.number().int().min(0),
+});
+const attachmentsSchema = z
+  .array(taskAttachmentSchema)
+  .max(TASK_ATTACHMENTS_MAX)
+  .optional();
+
 const createTaskSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().min(1).max(500),
   description: z.string().max(50_000).optional(),
+  attachments: attachmentsSchema,
   status: statusSchema.optional(),
   priority: prioritySchema.optional(),
   labels: z.array(z.string()).max(100).optional(),
@@ -118,6 +123,7 @@ const createTaskSchema = z.object({
 const updateTaskSchema = z.object({
   title: z.string().max(500).optional(),
   description: z.string().max(50_000).nullable().optional(),
+  attachments: attachmentsSchema,
   priority: prioritySchema.nullable().optional(),
   labels: z.array(z.string()).max(100).optional(),
   startDate: z.number().int().positive().nullable().optional(),
@@ -141,17 +147,6 @@ const dependencySchema = z.object({
   blockedTaskId: z.string().min(1),
 });
 
-const boardViewSchema = z.object({
-  projectId: z.string().min(1),
-  viewId: z.string().optional(),
-  name: z.string().min(1).max(120),
-  scope: z.enum(['personal', 'shared']),
-  viewType: z.enum(['board', 'table', 'timeline']),
-  filters: z.record(z.string(), z.unknown()),
-  sort: z.object({ field: z.string().max(60), desc: z.boolean() }).optional(),
-  isDefault: z.boolean().optional(),
-});
-
 function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
@@ -167,6 +162,11 @@ function handleError<E extends OrgEnv>(
       },
       error.status,
     );
+  }
+  // The workflow start door surfaces the automation's own refusal (a
+  // project it is not bound to) instead of laundering it into "not started".
+  if (error instanceof AutomationError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
   }
   if (error instanceof RateLimitExceededError) {
     return rateLimitedResponse(c, error);
@@ -343,33 +343,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  // The multi-select bar: one patch over many tasks, per-task skips.
-  app.post('/bulk', async (c) => {
-    const body = z
-      .object({
-        taskIds: z.array(z.string().min(1)).max(200),
-        status: statusSchema.optional(),
-        priority: prioritySchema.nullable().optional(),
-        assigneeType: assigneeTypeSchema.optional(),
-        assigneeId: z.string().optional(),
-        clearAssignee: z.boolean().optional(),
-        archived: z.boolean().optional(),
-      })
-      .safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      const result = await transactSerializable(deps.sql, (tx) =>
-        bulkUpdateTasks(tx, auth, body.data),
-      );
-      return c.json(result);
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
   // Template create: materialize a task from an external subject (the desk
   // flow) — optionally minting the subject ROOT FOLDER in the same gesture.
   app.post('/from-external-issue', async (c) => {
@@ -519,13 +492,25 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           taskId,
           auth.organizationId,
         );
-        const started = await startWorkflowForTask(deps.sql, {
+        // The task is committed; a start that fails after it answers
+        // `executionId: null` (the caller starts it by hand) rather than an
+        // error that reads as "the task was not created".
+        executionId = await startWorkflowForTask(deps.sql, {
           organizationId: auth.organizationId,
           task,
           workflowSlug: args.runWorkflowSlug,
           startedByUserId: auth.userId,
-        });
-        executionId = started?.runId ?? null;
+        }).then(
+          (started) => started?.runId ?? null,
+          (error: unknown) => {
+            console.error(
+              '[task-workflow] start after create failed',
+              args.runWorkflowSlug,
+              error,
+            );
+            return null;
+          },
+        );
       }
       return c.json({
         taskId,
@@ -656,45 +641,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  app.get('/board-views/:projectId', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      return c.json({
-        views: await listBoardViews(deps.sql, auth, c.req.param('projectId')),
-      });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/board-views', async (c) => {
-    const body = boardViewSchema.safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      const viewId = await transactSerializable(deps.sql, (tx) =>
-        saveBoardView(tx, auth, body.data),
-      );
-      return c.json({ viewId });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.delete('/board-views/:viewId', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        deleteBoardView(tx, auth, c.req.param('viewId')),
-      );
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
   app.post('/dependencies', async (c) => {
     const body = dependencySchema.safeParse(await c.req.json());
     if (!body.success) {
@@ -739,29 +685,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         createTask(tx, auth, body.data),
       );
       return c.json({ taskId });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  // The board's review chips: pending review gates across the given
-  // projects (bounded org-level read).
-  app.get('/pending-reviews', async (c) => {
-    const raw = c.req.query('projectIds') ?? '';
-    const projectIds = raw
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0)
-      .slice(0, 100);
-    try {
-      const auth = await authCtx(c);
-      return c.json({
-        reviews: await collectPendingReviewsForProjects(
-          deps.sql,
-          auth.organizationId,
-          projectIds,
-        ),
-      });
     } catch (error) {
       return handleError(c, error);
     }
@@ -1154,40 +1077,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  app.post('/:taskId/agent-runs/:runId/cancel', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(
-        deps.sql,
-        c.req.param('taskId'),
-        auth.organizationId,
-      );
-      const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      assertTaskWritable(project, auth);
-      // Write access was asserted on the URL's task, so the run must be THAT
-      // task's: a run id lifted from another project's task (one the caller
-      // may not even read) answers as missing — the same opaque 404 a garbage
-      // id gets, so probing confirms nothing. The cancel itself binds to the
-      // task once more inside its UPDATE predicate.
-      const run = await getAgentRun(
-        deps.sql,
-        auth.organizationId,
-        c.req.param('runId'),
-      );
-      if (run === null || run.taskId !== task.id) {
-        throw new TaskError('AGENT_RUN_NOT_FOUND', 'Agent run not found', 404);
-      }
-      const cancelled = await cancelAgentRun(deps.sql, {
-        organizationId: auth.organizationId,
-        runId: run.id,
-        taskId: task.id,
-      });
-      return c.json({ cancelled });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
   // The task's open review gate (null when nothing waits on a reviewer).
   app.get('/:taskId/review', async (c) => {
     try {
@@ -1199,35 +1088,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           c.req.param('taskId'),
         ),
       });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  // A reviewer decides: approve completes the task as the responder;
-  // request-changes records the feedback and hands the work back.
-  app.post('/reviews/:approvalId/respond', async (c) => {
-    const body = z
-      .object({
-        decision: z.enum(['approve', 'request_changes']),
-        feedback: z.string().max(20_000).optional(),
-      })
-      .safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      return c.json(
-        await respondToTaskReview(deps.sql, {
-          auth,
-          approvalId: c.req.param('approvalId'),
-          decision: body.data.decision,
-          ...(body.data.feedback !== undefined
-            ? { feedback: body.data.feedback }
-            : {}),
-        }),
-      );
     } catch (error) {
       return handleError(c, error);
     }

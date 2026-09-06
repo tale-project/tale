@@ -1,6 +1,6 @@
 ---
 title: Audit-Logs
-description: Das chronologische Protokoll von wer-was-getan-hat in deiner Organisation — Anmeldungen, Rollenänderungen, Anbieter-Bearbeitungen, Agent-Bearbeitungen, Run-code-Aufrufe. Admins und Inhaber lesen das, wenn ein Audit fragt, wer eine Ressource wann angefasst hat.
+description: Das chronologische Protokoll von wer-was-getan-hat in deiner Organisation — Anmeldungen, Rollenänderungen, Anbieter-Bearbeitungen, Agent-Bearbeitungen. Admins und Inhaber lesen das, wenn ein Audit fragt, wer eine Ressource wann angefasst hat.
 ---
 
 Das Audit-Log ist die unveränderliche Aufzeichnung jeder folgenreichen Aktion in deiner Organisation. Jede Anmeldung, Rollenänderung, Anbieter-Bearbeitung, Agent-Speicherung, Workflow-Ausführung und jeder Sandbox-Aufruf landet hier mit Akteur, Ressource, Vorher-/Nachher-Status und Zeitstempel. Admins und Inhaber lesen das, wenn ein Audit fragt, wer eine Ressource wann angefasst hat, wenn ein Compliance-Officer einen Export braucht, oder wenn etwas schiefläuft und die Frage ist _wer hat um 03:14 was geändert_.
@@ -50,4 +50,4 @@ Audit-Zeilen sind unveränderlich: Bearbeitungen und Löschungen werden selbst a
 
 ## Wo das hingehört
 
-Das Audit-Log ist die Leseseite jedes anderen Governance-Features: Legal Hold benennt die platzierten Holds, Anfragen betroffener Personen protokollieren jeden Cascade-Schritt, die Run-code-Richtlinie protokolliert die URLs, die jede Sandbox zu erreichen versuchte. Wenn eine Frage mit _wer, wann, was_ beginnt, ist das Audit-Log die Antwort. Die Begleitseite ist die [Aufbewahrungsrichtlinie](/de/platform/admin/governance/policies-and-limits) — sie steuert, wie lange diese Zeilen bleiben, bevor Cleanup sie entfernt.
+Das Audit-Log ist die Leseseite jedes anderen Governance-Features: Legal Hold benennt die platzierten Holds, Anfragen betroffener Personen protokollieren jeden Cascade-Schritt. Wenn eine Frage mit _wer, wann, was_ beginnt, ist das Audit-Log die Antwort. Die Begleitseite ist die [Aufbewahrungsrichtlinie](/de/platform/admin/governance/policies-and-limits) — sie steuert, wie lange diese Zeilen bleiben, bevor Cleanup sie entfernt.

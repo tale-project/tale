@@ -22,18 +22,14 @@ import { MESSAGE_SLOT_ATTEMPTS } from '../threads/store.ts';
  * text, so skipped intervals never lose the tail), cancel piggybacked on the
  * progress write, and a generations row whose ABSENCE means idle.
  *
- * Realtime: every progress/finalize/end write NOTIFYs `chat_stream` with the
- * thread id; API pods LISTEN once per process and re-read the row for their
- * subscribed SSE clients (payload-cap-safe, reconnect-safe).
+ * Realtime rides the rows themselves: the per-thread progress lane
+ * (`routes.ts` `/threads/:id/stream`) polls the generation row at this
+ * store's write throttle, so no LISTEN/NOTIFY hub exists — a push could not
+ * beat the throttle, and a listener would add a connection without adding
+ * freshness.
  */
 
 const STREAM_WRITE_INTERVAL_MS = 250;
-
-export const CHAT_STREAM_CHANNEL = 'chat_stream';
-
-async function notifyThread(sql: Sql, threadId: string): Promise<void> {
-  await sql.notify(CHAT_STREAM_CHANNEL, threadId);
-}
 
 export async function appendMessageRow(
   sql: Sql,
@@ -147,18 +143,125 @@ export async function appendMessageRow(
   return { id: row.id, sequence: row.order };
 }
 
-/** A turn store over app.messages + app.generations. */
-export function createPgTurnStore(sql: Sql): TurnStore {
+/**
+ * The failure-shaped finalize: no `text` means "keep whatever the throttled
+ * streaming writes persisted" (the pipeline's contract) — but in Postgres the
+ * streamed text and reasoning live on the GENERATION row, which the same
+ * turn's `endGeneration` deletes a moment later. Copy the streamed tail onto
+ * the message first, in one transaction with the failure stamp: the text
+ * column, the reasoning column (the pipeline passes none on failure), and a
+ * trailing text part, because the client renders parts. A tool-round
+ * boundary resets the generation text BEFORE the round's text lands on the
+ * parts, so a non-empty generation text is always an unsettled tail — never
+ * a duplicate of a part already stored.
+ */
+async function finalizeWithStreamedTail(
+  sql: Sql,
+  message: Parameters<TurnStore['finalizeAssistantMessage']>[0],
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    const generation = await tx<{ text: string; reasoning: string | null }[]>`
+      SELECT text, reasoning FROM app.generations
+      WHERE thread_id = ${message.threadId} AND org_id = ${message.organizationId}
+      LIMIT 1
+    `;
+    const streamedText = generation[0]?.text ?? '';
+    const streamedReasoning = generation[0]?.reasoning ?? '';
+    let parts: unknown[] | null = null;
+    if (streamedText.length > 0) {
+      const stored = await tx<{ parts: unknown }[]>`
+        SELECT parts FROM app.messages
+        WHERE id = ${message.messageId} AND org_id = ${message.organizationId}
+        LIMIT 1
+      `;
+      const existing = Array.isArray(stored[0]?.parts) ? stored[0].parts : [];
+      const last: unknown = existing.at(-1);
+      const alreadyStored =
+        typeof last === 'object' &&
+        last !== null &&
+        'type' in last &&
+        last.type === 'text' &&
+        'text' in last &&
+        last.text === streamedText;
+      parts = alreadyStored
+        ? null
+        : [...existing, { type: 'text', text: streamedText }];
+    }
+    await tx`
+      UPDATE app.messages SET
+        text = coalesce(nullif(${streamedText}, ''), text),
+        reasoning = coalesce(
+          ${message.reasoning ?? null}, nullif(${streamedReasoning}, ''), reasoning
+        ),
+        parts = coalesce(${parts === null ? null : tx.json(toJson(parts))}, parts),
+        model = coalesce(${message.model ?? null}, model),
+        provider_slug = coalesce(${message.providerSlug ?? null}, provider_slug),
+        usage = coalesce(${message.usage === undefined ? null : tx.json(toJson(message.usage))}, usage),
+        blocked_reason = ${message.blockedReason ?? null},
+        error = ${message.error ?? null},
+        status = ${message.error !== undefined ? 'failed' : 'complete'}
+      WHERE id = ${message.messageId} AND org_id = ${message.organizationId}
+    `;
+  });
+}
+
+/**
+ * Decorate a turn store so a deferred send's row dies the moment the turn
+ * persists the user message — the turn-open write, when it carries the user
+ * parts. Until that write the row is the parked message's only
+ * representation (the tray above the composer); from it on the thread shows
+ * the bubble, and a row that survived to the action's terminal settle would
+ * double-display the message for the whole generation. A settle failure is
+ * logged, never fatal — the terminal settle in the action retries it.
+ * (Re-homed from the retired `core/chat/turn_store.ts`: the PG store is its
+ * only consumer.)
+ */
+function settleDeferredSendOnUserAppend(
+  store: TurnStore,
+  settle: () => Promise<void>,
+): TurnStore {
+  return {
+    ...store,
+    async beginTurn(setup) {
+      const opened = await store.beginTurn(setup);
+      if (setup.userParts !== undefined) {
+        try {
+          await settle();
+        } catch (error) {
+          console.warn('Deferred send settle at user append failed:', error);
+        }
+      }
+      return opened;
+    },
+  };
+}
+
+/** A turn store over app.messages + app.generations. With
+ * `onUserMessageAppended` the store is decorated to run it the moment
+ * `beginTurn` persisted the user row — the deferred-send lane settles its
+ * tray row there (the 0.4 `settleDeferredSendOnUserAppend` wiring). */
+export function createPgTurnStore(
+  sql: Sql,
+  options: { onUserMessageAppended?: () => Promise<void> } = {},
+): TurnStore {
+  const store = pgTurnStore(sql);
+  return options.onUserMessageAppended !== undefined
+    ? settleDeferredSendOnUserAppend(store, options.onUserMessageAppended)
+    : store;
+}
+
+function pgTurnStore(sql: Sql): TurnStore {
   let lastStreamWriteAt = 0;
   let lastCancelRequested = false;
   return {
     async appendMessage(message) {
-      return appendMessageRow(sql, {
+      const appended = await appendMessageRow(sql, {
         ...message,
         text: message.parts
           .map((part) => (part.type === 'text' ? part.text : ''))
           .join(''),
       });
+      return appended;
     },
 
     async streamProgress(update) {
@@ -181,7 +284,6 @@ export function createPgTurnStore(sql: Sql): TurnStore {
         RETURNING cancel_requested AS "cancelRequested"
       `;
       lastCancelRequested = rows[0]?.cancelRequested ?? false;
-      await notifyThread(sql, update.threadId);
       return { cancelRequested: lastCancelRequested };
     },
 
@@ -200,13 +302,16 @@ export function createPgTurnStore(sql: Sql): TurnStore {
         WHERE thread_id = ${update.threadId}
           AND org_id = ${update.organizationId}
       `;
-      await notifyThread(sql, update.threadId);
     },
 
     async finalizeAssistantMessage(message) {
+      if (message.text === undefined) {
+        await finalizeWithStreamedTail(sql, message);
+        return;
+      }
       await sql`
         UPDATE app.messages SET
-          text = coalesce(${message.text ?? null}, text),
+          text = coalesce(${message.text}, text),
           reasoning = ${message.reasoning ?? null},
           parts = coalesce(${message.parts === undefined ? null : sql.json(toJson([...message.parts]))}, parts),
           model = coalesce(${message.model ?? null}, model),
@@ -217,7 +322,6 @@ export function createPgTurnStore(sql: Sql): TurnStore {
           status = ${message.error !== undefined ? 'failed' : 'complete'}
         WHERE id = ${message.messageId} AND org_id = ${message.organizationId}
       `;
-      await notifyThread(sql, message.threadId);
     },
 
     async beginTurn(setup) {
@@ -279,7 +383,6 @@ export function createPgTurnStore(sql: Sql): TurnStore {
           assistantMessage,
         };
       });
-      await notifyThread(sql, setup.threadId);
       return opened;
     },
 
@@ -310,7 +413,6 @@ export function createPgTurnStore(sql: Sql): TurnStore {
             AND status = 'pending'
         `;
       });
-      await notifyThread(sql, generation.threadId);
     },
   };
 }

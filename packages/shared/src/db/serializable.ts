@@ -13,7 +13,7 @@
  * within the same transaction (see services/backend `addJobInTx`).
  */
 
-import type { TransactionSql } from 'postgres';
+import type { ReservedSql, TransactionSql } from 'postgres';
 
 import { isTransientDbError, withRetry, type RetryOptions } from './retry.ts';
 
@@ -27,6 +27,11 @@ export interface SerializableTransactionRunner {
     options: string,
     callback: (tx: TransactionSql) => Promise<T>,
   ): Promise<T>;
+  /**
+   * Reserve one connection (postgres.js `sql.reserve`). Optional: a runner
+   * without it retries queued failures like plain ones.
+   */
+  reserve?(): Promise<ReservedSql>;
 }
 
 const SERIALIZATION_SQLSTATES = new Set(['40001', '40P01']);
@@ -51,22 +56,184 @@ function jitteredSleep(ms: number): Promise<void> {
 }
 
 /**
+ * Retry queues.
+ *
+ * A retry re-collides whenever the row it lost on is written again before the
+ * retry reaches it, because a SERIALIZABLE snapshot is fixed at the
+ * transaction's FIRST statement — an advisory lock taken inside the
+ * transaction is therefore acquired after the snapshot and cannot protect a
+ * hot row (the audit chain head, bumped by every audited write of an org).
+ * Under a burst the five attempts all lose and the caller sees a 40001.
+ *
+ * A callback that knows which resource it lost on marks the failure with a
+ * queue key ({@link markRetryQueueKey}). The next attempt then reserves one
+ * connection, takes a SESSION-level advisory lock on the key BEFORE opening
+ * the transaction, and commits and unlocks on that same connection: its
+ * snapshot post-dates the writer it lost to, and other appenders that take
+ * the transaction-level lock on the same key inside their own transaction
+ * queue behind it instead of bumping the row underneath it.
+ */
+
+const RETRY_QUEUE_KEY = Symbol.for('tale.db.retryQueueKey');
+
+/**
+ * Advisory-lock class shared by every retry queue: the session lock the
+ * queued retry holds and the `pg_advisory_xact_lock(class, hashtext(key))`
+ * a first attempt takes inside its transaction both live here, so they
+ * conflict with each other and with nothing else (the migration runner and
+ * the sandbox/skill locks use the one-argument bigint form).
+ */
+export const RETRY_QUEUE_LOCK_CLASS = 72_085_002;
+
+/**
+ * Mark a serialization failure so the retry queues on `key` (see the retry
+ * queues note). Returns the same error for `throw markRetryQueueKey(e, k)`.
+ */
+export function markRetryQueueKey<E>(error: E, key: string): E {
+  if (isSerializationFailure(error)) {
+    Object.defineProperty(error, RETRY_QUEUE_KEY, {
+      value: key,
+      enumerable: false,
+      configurable: true,
+    });
+  }
+  return error;
+}
+
+/** The queue key a failure was marked with, if any. */
+export function retryQueueKeyOf(error: unknown): string | undefined {
+  if (error === null || typeof error !== 'object') {
+    return undefined;
+  }
+  const key: unknown = Reflect.get(error, RETRY_QUEUE_KEY);
+  return typeof key === 'string' ? key : undefined;
+}
+
+/** Postgres accepts unquoted savepoint names of this shape only. */
+const SAVEPOINT_NAME = /^[a-z_][a-z0-9_]*$/i;
+
+/**
+ * The `TransactionSql` surface over a reserved connection whose transaction
+ * was opened by hand (postgres.js's `begin` cannot run on a reserved
+ * connection). Savepoints follow postgres.js's own shape: a nested callback
+ * that throws rolls back to its savepoint and rethrows.
+ */
+function transactionOver(reserved: ReservedSql): TransactionSql {
+  let savepoints = 0;
+  const tx = Object.assign(reserved, {
+    savepoint: async <T>(
+      nameOrCallback: string | ((sql: TransactionSql) => T | Promise<T>),
+      maybeCallback?: (sql: TransactionSql) => T | Promise<T>,
+    ): Promise<T> => {
+      const callback =
+        typeof nameOrCallback === 'function' ? nameOrCallback : maybeCallback;
+      if (callback === undefined) {
+        throw new Error('savepoint needs a callback');
+      }
+      const suffix = typeof nameOrCallback === 'string' ? nameOrCallback : '';
+      if (suffix !== '' && !SAVEPOINT_NAME.test(suffix)) {
+        throw new Error(`invalid savepoint name ${JSON.stringify(suffix)}`);
+      }
+      const name = `s${savepoints++}${suffix === '' ? '' : `_${suffix}`}`;
+      await reserved.unsafe(`SAVEPOINT ${name}`);
+      try {
+        const result = await callback(tx);
+        await reserved.unsafe(`RELEASE SAVEPOINT ${name}`);
+        return result;
+      } catch (error) {
+        await reserved.unsafe(`ROLLBACK TO SAVEPOINT ${name}`);
+        throw error;
+      }
+    },
+    prepare: (): Promise<never> =>
+      Promise.reject(
+        new Error('PREPARE TRANSACTION is not supported on a queued retry'),
+      ),
+  });
+  return tx;
+}
+
+/**
+ * One serializable attempt queued on `key`: session advisory lock → BEGIN →
+ * callback → COMMIT → unlock, all on one reserved connection.
+ */
+async function beginQueued<T>(
+  reserve: () => Promise<ReservedSql>,
+  key: string,
+  callback: (tx: TransactionSql) => Promise<T>,
+): Promise<T> {
+  const reserved = await reserve();
+  try {
+    await reserved`
+      SELECT pg_advisory_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${key}))
+    `;
+    try {
+      await reserved.unsafe('BEGIN ISOLATION LEVEL SERIALIZABLE');
+      let result: T;
+      try {
+        result = await callback(transactionOver(reserved));
+      } catch (error) {
+        await reserved.unsafe('ROLLBACK').catch((rollbackError: unknown) => {
+          console.warn(
+            `[db] rollback of a queued retry failed: ${String(rollbackError)}`,
+          );
+        });
+        throw error;
+      }
+      // COMMIT on a transaction a swallowed statement error already aborted
+      // answers ROLLBACK without raising — surface that, never report success.
+      const commit = await reserved.unsafe('COMMIT');
+      if (commit.command !== 'COMMIT') {
+        throw new Error(
+          `queued retry did not commit (server answered ${commit.command})`,
+        );
+      }
+      return result;
+    } finally {
+      await reserved`
+        SELECT pg_advisory_unlock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${key}))
+      `.catch((unlockError: unknown) => {
+        // The lock is session-scoped: it dies with the connection anyway.
+        console.warn(
+          `[db] advisory unlock after a queued retry failed: ${String(unlockError)}`,
+        );
+      });
+    }
+  } finally {
+    reserved.release();
+  }
+}
+
+/**
  * Open a SERIALIZABLE transaction and execute `callback`, retrying the entire
  * transaction on serialization failures (40001/40P01) and on transient
- * connection faults. Each retry runs in a fresh transaction.
+ * connection faults. Each retry runs in a fresh transaction; a retry after a
+ * failure marked with a queue key runs queued on that key (see above).
  */
 export function transactSerializable<T>(
   sql: SerializableTransactionRunner,
   callback: (tx: TransactionSql) => Promise<T>,
   options: RetryOptions = {},
 ): Promise<T> {
-  return withRetry(() => sql.begin('isolation level serializable', callback), {
+  let queueKey: string | undefined;
+  const reserve = sql.reserve?.bind(sql);
+  const attempt = (): Promise<T> =>
+    queueKey !== undefined && reserve !== undefined
+      ? beginQueued(reserve, queueKey, callback)
+      : sql.begin('isolation level serializable', callback);
+  const isTransient =
+    options.isTransient ??
+    ((error: unknown) =>
+      isSerializationFailure(error) || isTransientDbError(error));
+  return withRetry(attempt, {
     attempts: 5,
     baseDelayMs: 20,
     timeoutMs: 30_000,
-    isTransient: (error) =>
-      isSerializationFailure(error) || isTransientDbError(error),
     sleep: jitteredSleep,
     ...options,
+    isTransient: (error) => {
+      queueKey = retryQueueKeyOf(error) ?? queueKey;
+      return isTransient(error);
+    },
   });
 }

@@ -50,7 +50,7 @@ documents the authoring conventions).
 | [settings.md](settings.md)             | account, personalization, org, teams, branding, connectors, API, providers           |
 | [connectors.md](connectors.md)         | credential table + catalog picker; mailbox (IMAP/SMTP), OAuth, MCP endpoint          |
 | [skills.md](skills.md)                 | skill library: table + facets, create/upload bundles, visibility, equip on agents    |
-| [governance.md](governance.md)         | content models, guardrails, policies, run-code, legal hold, DSAR, logs, trash        |
+| [governance.md](governance.md)         | content models, guardrails, policies, legal hold, DSAR, logs, trash                  |
 | [metrics.md](metrics.md)               | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects |
 | [notifications.md](notifications.md)   | the notification bell + panel                                                        |
 | [navigation.md](navigation.md)         | side-nav, breadcrumbs, command palette, changelog, page-loads                        |
@@ -78,7 +78,7 @@ _Automated coverage_ table is case-by-case.
 | conversations  | ⛔ manual-only | — (`email-automation` spec retired in #2857; status transitions, bulk actions, search all manual)                                                               |
 | settings       | ✅ strong      | `settings`, `settings-depth`, `preferences`                                                                                                                     |
 | connectors     | 🔶 partial     | `settings` (catalog rendering) + the connectors component suite; connect/credential flows manual                                                                |
-| governance     | 🔶 partial     | `governance` (system-prompt, voice-output, run-code, content-safety toggle, budget guard; DSAR/legal-hold dialogs, logs, security-monitoring, trash uncovered)  |
+| governance     | 🔶 partial     | `governance` (system-prompt, voice-output, content-safety toggle, budget guard; DSAR/legal-hold dialogs, logs, security-monitoring, trash uncovered)  |
 | skills         | ⛔ manual-only | — (no spec; logic-only unit tests `skill-filters.test.ts`, `skill-load-error.test.ts` + the `convex/skills/` backend suite)                                     |
 | metrics        | 🔶 partial     | `metrics` (usage/feedback/automations/projects tabs render, empty data); chat-health + harness-turns tabs component-tested only; redirects, gating, data manual |
 | notifications  | ⛔ manual-only | — (no spec)                                                                                                                                                     |
