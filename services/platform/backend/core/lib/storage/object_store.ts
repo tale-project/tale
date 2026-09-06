@@ -401,16 +401,26 @@ export async function s3ListObjectKeys(
 }
 
 /**
+ * The key prefix under which EVERY blob of an org lives: `<prefix>/<orgSlug>/`
+ * (or `<orgSlug>/` without a configured prefix). `buildObjectKey` mints below
+ * it and the org teardown lists and deletes exactly it, so the two cannot
+ * drift apart.
+ */
+export function orgObjectPrefix(store: S3ObjectStore, orgSlug: string): string {
+  const prefix = store.config.prefix?.replace(/^\/+|\/+$/g, '');
+  const parts = [prefix, orgSlug].filter(
+    (p): p is string => typeof p === 'string' && p.length > 0,
+  );
+  return `${parts.join('/')}/`;
+}
+
+/**
  * Namespaced object key for an org's blob. `<prefix>/<orgSlug>/<uuid>` — the
  * `orgSlug` segment keeps blobs legible/auditable inside a bucket even though a
  * per-org bucket is already dedicated; `prefix` is the org-chosen namespace.
  */
 export function buildObjectKey(store: S3ObjectStore, orgSlug: string): string {
-  const prefix = store.config.prefix?.replace(/^\/+|\/+$/g, '');
-  const parts = [prefix, orgSlug, randomUUID()].filter(
-    (p): p is string => typeof p === 'string' && p.length > 0,
-  );
-  return parts.join('/');
+  return `${orgObjectPrefix(store, orgSlug)}${randomUUID()}`;
 }
 
 /** PUT bytes to the org's bucket. Throws on a non-2xx response. */

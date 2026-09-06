@@ -139,13 +139,15 @@ export function createMemberRoutes(deps: {
   app.post('/:memberId/passkeys/:passkeyId/revoke', async (c) => {
     const session = c.get('sessionBundle');
     try {
-      await revokePasskeyForMember(
-        deps.sql,
-        { userId: session.user.id, email: session.user.email },
-        {
-          memberId: c.req.param('memberId'),
-          passkeyId: c.req.param('passkeyId'),
-        },
+      await transactSerializable(deps.sql, (tx) =>
+        revokePasskeyForMember(
+          tx,
+          { userId: session.user.id, email: session.user.email },
+          {
+            memberId: c.req.param('memberId'),
+            passkeyId: c.req.param('passkeyId'),
+          },
+        ),
       );
       return c.json({ ok: true });
     } catch (error) {
@@ -156,10 +158,12 @@ export function createMemberRoutes(deps: {
   app.post('/:memberId/two-factor/reset', async (c) => {
     const session = c.get('sessionBundle');
     try {
-      await resetTwoFactorForMember(
-        deps.sql,
-        { userId: session.user.id, email: session.user.email },
-        c.req.param('memberId'),
+      await transactSerializable(deps.sql, (tx) =>
+        resetTwoFactorForMember(
+          tx,
+          { userId: session.user.id, email: session.user.email },
+          c.req.param('memberId'),
+        ),
       );
       return c.json({ ok: true });
     } catch (error) {

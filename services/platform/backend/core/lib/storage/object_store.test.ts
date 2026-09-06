@@ -4,13 +4,16 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { s3KeyBelongsToOrg } from './blob_ref';
 import {
+  buildObjectKey,
   buildS3ObjectStore,
   clearOrgObjectStoreCache,
   deleteOrgObject,
   locateOrgObject,
   locateOrgObjectStore,
   ObjectStoreUnconfiguredError,
+  orgObjectPrefix,
   resolveOrgObjectStore,
   resolveOrgObjectStoresForRead,
   s3GetObject,
@@ -215,6 +218,31 @@ describe('resolveOrgObjectStore — fail-closed resolution', () => {
     expect((await resolveOrgObjectStore('acme')).config.bucket).toBe(
       'acme-own-bucket',
     );
+  });
+});
+
+describe('orgObjectPrefix — the namespace every org blob is minted under', () => {
+  it('is `<prefix>/<slug>/` with a configured prefix (slashes trimmed) and `<slug>/` without one', () => {
+    const withPrefix = buildS3ObjectStore(
+      {
+        endpoint: 'http://127.0.0.1:9000',
+        bucket: 'tale-blobs',
+        region: 'us-east-1',
+        forcePathStyle: true,
+        prefix: '/tenants/',
+      },
+      { accessKeyId: 'test-access', secretAccessKey: 'test-secret' },
+    );
+    expect(orgObjectPrefix(withPrefix, 'acme')).toBe('tenants/acme/');
+    expect(orgObjectPrefix(testStore(), 'acme')).toBe('acme/');
+  });
+
+  it('is exactly what buildObjectKey mints below, so a prefix listing finds every blob and only this org’s', () => {
+    const store = testStore();
+    const key = buildObjectKey(store, 'acme');
+    expect(key.startsWith(orgObjectPrefix(store, 'acme'))).toBe(true);
+    expect(key.startsWith(orgObjectPrefix(store, 'acme-2'))).toBe(false);
+    expect(s3KeyBelongsToOrg(key, 'acme')).toBe(true);
   });
 });
 

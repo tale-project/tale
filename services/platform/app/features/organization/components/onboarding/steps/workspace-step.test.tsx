@@ -198,6 +198,12 @@ describe('isSlugTakenError', () => {
       isSlugTakenError({ message: 'Organization slug "x" is already taken.' }),
     ).toBe(true);
     expect(isSlugTakenError({ message: 'Slug already exists' })).toBe(true);
+    expect(
+      isSlugTakenError({
+        message:
+          'Organization slug "x" belongs to an organization that is still being removed. Try again in a few minutes.',
+      }),
+    ).toBe(true);
     expect(isSlugTakenError({ message: 'internal error' })).toBe(false);
     expect(isSlugTakenError(null)).toBe(false);
     expect(isSlugTakenError(undefined)).toBe(false);
