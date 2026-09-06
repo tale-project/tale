@@ -215,8 +215,8 @@ export interface TaskPayloads {
   /** 2-min backstop for the automation agent lane: re-attach the drive
    * chain of an abandoned (but still live) workflow-agent turn. */
   'watchdog.automation_agents': Record<string, never>;
-  /** 5-min sandbox drift sweep: expire overdue sessions, reap stale
-   * admission tickets (the only guard against queue-head starvation). */
+  /** 5-min sandbox drift sweep: expire overdue sessions, heal phantom
+   * rows against the spawner, reclaim ended automation runs' sessions. */
   'watchdog.sandbox': Record<string, never>;
   /** 2-min direct-chat crash recovery: clear stale generation rows so a
    * hard-killed turn cannot wedge its thread's composer. */

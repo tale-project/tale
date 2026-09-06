@@ -11,10 +11,10 @@ import { governanceShimHandlers } from '../governance/shim.ts';
 import { orgAdapterShimHandlers } from '../knowledge/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import {
+  releaseProjectAgentSessionSlot,
   reserveSessionSlot,
   resumeSessionSlot,
   SandboxQuotaError,
-  WaitFifoError,
 } from '../sandbox/sessions.ts';
 import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import { kickAgentRun } from './agent-runs.ts';
@@ -38,7 +38,7 @@ import {
  */
 
 function quotaAsAppError(error: unknown): never {
-  if (error instanceof SandboxQuotaError || error instanceof WaitFifoError) {
+  if (error instanceof SandboxQuotaError) {
     throw new AppError({ code: 'QUOTA_EXCEEDED', message: error.message });
   }
   throw error;
@@ -686,20 +686,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     'sandbox/session_mutations:releaseProjectAgentSessionSlot': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { organizationId: string; agentId: string };
-      // Stop the agent's standing session unless a sibling turn is live.
-      const rows = await sql<{ id: string; sessionId: string }[]>`
-        UPDATE app.sandbox_sessions s SET status = 'stopped'
-        WHERE s.owner_type = 'project_agent' AND s.owner_id = ${args.agentId}
-          AND s.org_id = ${args.organizationId}
-          AND s.status IN ('creating', 'active', 'degraded')
-          AND s.pinned = false
-          AND NOT EXISTS (
-            SELECT 1 FROM app.sandbox_session_ops op
-            WHERE op.session_id = s.session_id AND op.status = 'running'
-          )
-        RETURNING s.id, s.session_id AS "sessionId"
-      `;
-      return rows.length > 0;
+      // Stop the agent's standing session unless a sibling turn is live —
+      // and wake the org's oldest parked run on the freed slot.
+      return releaseProjectAgentSessionSlot(sql, args);
     },
 
     'sandbox/session_queries:getActiveSessionByOwner': async (raw) => {

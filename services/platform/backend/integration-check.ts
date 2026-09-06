@@ -13670,7 +13670,7 @@ async function checkTurnReattach(
           org_id, session_id, exec_id, kind, status, heartbeat_at_ms,
           started_at_ms
         ) VALUES (
-          ${orgId}, ${sessionId}, ${execId}, 'agent-run',
+          ${orgId}, ${sessionId}, ${execId}, 'task-agent',
           ${opts.opStatus ?? 'running'},
           ${now - (opts.heartbeatAgoMs ?? 0)}, ${now - 600_000}
         )
@@ -13729,10 +13729,19 @@ async function checkTurnReattach(
       return typeof data?.runId === 'string' ? data.runId : '';
     }),
   );
-  const createdOp = await sql<{ resumedBy: string | null; status: string }[]>`
-    SELECT resumed_by AS "resumedBy", status FROM app.sandbox_session_ops
+  const createdOp = await sql<
+    { resumedBy: string | null; status: string; kind: string }[]
+  >`
+    SELECT resumed_by AS "resumedBy", status, kind
+    FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
+  // The created row must be the one the run card reads: `getAgentRunSandboxOp`
+  // is keyed on the task lane's kind, so a row filed under any other kind
+  // answers `op: null` for exactly the recovered turn an operator inspects.
+  const { getAgentRunSandboxOp } =
+    await import('./domains/tasks/agent-runs.ts');
+  const recoveredCard = await getAgentRunSandboxOp(sql, orgId, noOp.runId);
   const bumpedOp = await sql<{ resumedBy: string | null }[]>`
     SELECT resumed_by AS "resumedBy" FROM app.sandbox_session_ops
     WHERE session_id = ${abandoned.sessionId} AND exec_id = ${abandoned.execId}
@@ -13749,12 +13758,14 @@ async function checkTurnReattach(
       // durable proof the turn exists).
       createdOp[0]?.resumedBy === 'watchdog' &&
       createdOp[0]?.status === 'running' &&
+      createdOp[0]?.kind === 'task-agent' &&
+      recoveredCard?.op?.execId === noOp.execId &&
       bumpedOp[0]?.resumedBy === 'watchdog',
-    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}`,
+    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind} runCard=${recoveredCard?.op?.execId ?? 'null'}`,
   );
 
   // Leave nothing behind: live sessions hold sandbox slots, and settled
-  // `agent-run` ops are counted by the external-turn metrics fold.
+  // `task-agent` ops are counted by the external-turn metrics fold.
   await sql`
     UPDATE app.project_agent_runs SET status = 'cancelled'
     WHERE task_id = ${taskId} AND status IN ('queued', 'running')
@@ -14141,8 +14152,11 @@ async function checkWorkflowTurnReattach(
     }),
   );
   const driveKeys = objectAt(driveJobs[0]?.data ?? null, '');
-  const createdOp = await sql<{ resumedBy: string | null; status: string }[]>`
-    SELECT resumed_by AS "resumedBy", status FROM app.sandbox_session_ops
+  const createdOp = await sql<
+    { resumedBy: string | null; status: string; kind: string }[]
+  >`
+    SELECT resumed_by AS "resumedBy", status, kind
+    FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
   record(
@@ -14158,8 +14172,11 @@ async function checkWorkflowTurnReattach(
       driveKeys?.gatewayModel === 'itestauto/agent-model' &&
       driveKeys?.providerSlug === 'itestauto' &&
       createdOp[0]?.resumedBy === 'watchdog' &&
-      createdOp[0]?.status === 'running',
-    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}`,
+      createdOp[0]?.status === 'running' &&
+      // The lane's own kind — the run dialog's `getAgentNodeSandboxOp` and
+      // the metric folds are keyed on it.
+      createdOp[0]?.kind === 'workflow-agent',
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}`,
   );
 
   // Leave nothing for later sweeps or metrics folds to trip over.
@@ -14518,7 +14535,7 @@ async function checkRunProvenance(
       org_id, session_id, exec_id, kind, status, model_ref,
       vision_model_ref, minted_key_id, spent_cents, started_at_ms
     ) VALUES (
-      ${orgId}, ${sessionId}, ${execId}, 'agent-run', 'running',
+      ${orgId}, ${sessionId}, ${execId}, 'task-agent', 'running',
       'gw/itest-model', 'gw/vision-model', 'key-ledger-1', 42,
       ${now - 60_000}
     )
@@ -25699,9 +25716,11 @@ exit 1
 
 /**
  * Browser-session pool — the warmed-cookie-jar substrate behind the
- * video-link ingest's bot-wall mitigation: the editor-allowlist import
- * gate (the reused `decideInstanceAdmin`), the masked listing, LRU claim
- * rotation with an at-rest-encrypted jar that decrypts back, the
+ * video-link ingest's bot-wall mitigation, seeded through its only door,
+ * the REST machine door (`/api/v1/browser-sessions`, an API key acting as
+ * its user): the editor-allowlist import gate (the reused
+ * `decideInstanceAdmin`, refusing with a stable code), the masked listing,
+ * LRU claim rotation with an at-rest-encrypted jar that decrypts back, the
  * blocked→cooling→expired strike ladder, and the sweep's cooled-recovery.
  */
 async function checkBrowserSessions(
@@ -25720,10 +25739,23 @@ async function checkBrowserSessions(
   const DOMAIN = 'itest-pool.example';
 
   try {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie, origin: base },
+          body: JSON.stringify({ name: 'itest-browser-pool' }),
+        })
+      ).json(),
+    );
+    const apiKey = minted.success ? minted.data.key : '';
     const send = (route: string, body?: unknown): Promise<Response> =>
-      fetch(`${base}/api/app/browser-sessions${route}?orgId=${orgId}`, {
+      fetch(`${base}/api/v1/browser-sessions${route}`, {
         method: body === undefined ? 'GET' : 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
 
@@ -25732,6 +25764,10 @@ async function checkBrowserSessions(
       domain: DOMAIN,
       cookiesJar: '# Netscape HTTP Cookie File\nitest\tjar-A',
     });
+    const refusedCode = z
+      .object({ code: z.string() })
+      .loose()
+      .safeParse(await refused.json());
     process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = email;
     const importedA = z.object({ sessionId: z.string() }).safeParse(
       await (
@@ -25818,8 +25854,11 @@ async function checkBrowserSessions(
       domain: DOMAIN,
     });
     record(
-      'browser sessions: import gate, masked list, LRU claim, strikes, sweep',
-      refused.status === 403 &&
+      'browser sessions: REST import gate, masked list, LRU claim, strikes, sweep',
+      minted.success &&
+        refused.status === 403 &&
+        refusedCode.success &&
+        refusedCode.data.code === 'FORBIDDEN_DEPLOYMENT_EDITOR' &&
         importedA.success &&
         importedB.success &&
         listed.success &&
@@ -25830,7 +25869,7 @@ async function checkBrowserSessions(
         statusB === 'expired' &&
         claimEmpty === null &&
         recovered?.sessionId === idA,
-      `gate=${refused.status}/403 imports=${importedA.success}/${importedB.success} list=${listed.success ? listed.data.sessions.length : 'ERR'}/2 masked=${masked}, lru=${rotation} jarRoundtrip=${jar1.includes('jar-A')}, strikes A=${statusA}/cooling B=${statusB}/expired empty=${claimEmpty === null}, sweepRecovers=${recovered?.sessionId === idA}`,
+      `key=${minted.success} gate=${refused.status}/403 code=${refusedCode.success ? refusedCode.data.code : 'ERR'}/FORBIDDEN_DEPLOYMENT_EDITOR imports=${importedA.success}/${importedB.success} list=${listed.success ? listed.data.sessions.length : 'ERR'}/2 masked=${masked}, lru=${rotation} jarRoundtrip=${jar1.includes('jar-A')}, strikes A=${statusA}/cooling B=${statusB}/expired empty=${claimEmpty === null}, sweepRecovers=${recovered?.sessionId === idA}`,
     );
   } finally {
     if (savedAdmins === undefined) {
@@ -26962,10 +27001,12 @@ async function checkAutomationAgentNode(
 }
 
 /**
- * Sandbox session substrate: per-owner and per-budget caps, park-on-capacity
- * FIFO tickets (fairness + release-edge admission), hibernate/resume slot
- * accounting, hash-only token lifecycle, and durable op rows — all under the
- * per-org advisory-lock admission section.
+ * Sandbox session substrate: per-owner and per-budget caps, the slot a
+ * hibernated session frees, hibernate/resume slot accounting, and the
+ * hash-only token lifecycle (minted → looked up by hash → revoked by the
+ * session's destroy) — all under the per-org advisory-lock admission
+ * section. Op rows ride the turn-drive probes: their one writer is the
+ * host's shim upsert.
  */
 async function checkSandboxSessions(
   sql: Sql,
@@ -26973,11 +27014,7 @@ async function checkSandboxSessions(
 ): Promise<void> {
   const sessions = await import('./domains/sandbox/sessions.ts');
   const { orgId, userId } = ctx;
-  const reserve = (
-    n: number,
-    ownerType: string,
-    ticket?: { source: 'chat' | 'workflow' },
-  ): Promise<string> =>
+  const reserve = (n: number, ownerType: string): Promise<string> =>
     sessions.reserveSessionSlot(sql, {
       organizationId: orgId,
       sessionId: `itest-sb-${n}`,
@@ -26985,7 +27022,6 @@ async function checkSandboxSessions(
       ownerType,
       ownerId: `owner-${n}`,
       createdBy: userId,
-      ...(ticket !== undefined ? { ticket } : {}),
     });
   const code = (error: unknown): string =>
     error !== null && typeof error === 'object' && 'code' in error
@@ -27014,39 +27050,14 @@ async function checkSandboxSessions(
   const hardCap = await reserve(3, 'project_agent')
     .then(() => 'ok')
     .catch(code);
-  const parked3 = await reserve(3, 'project_agent', { source: 'workflow' })
-    .then(() => 'ok')
-    .catch(code);
-  // A second, LATER waiter — FIFO fairness must keep it behind owner-3.
-  const parked4 = await reserve(4, 'project_agent', { source: 'workflow' })
-    .then(() => 'ok')
-    .catch(code);
-  const pollWhileFull = await sessions.pollAdmission(sql, {
-    organizationId: orgId,
-    ownerType: 'project_agent',
-    ownerId: 'owner-3',
-    ticket: { source: 'workflow' },
-  });
 
-  // Release edge: hibernating slot 1 opens exactly one slot — the FIFO head
-  // (owner-3) may proceed, the later waiter (owner-4) may not.
-  await sessions.markSessionStopped(sql, {
+  // A hibernated session holds no slot: stopping slot 1 admits owner-3.
+  await sessions.setSessionStatus(sql, {
     organizationId: orgId,
     sessionId: 'itest-sb-1',
+    status: 'stopped',
   });
-  const pollLater = await sessions.pollAdmission(sql, {
-    organizationId: orgId,
-    ownerType: 'project_agent',
-    ownerId: 'owner-4',
-    ticket: { source: 'workflow' },
-  });
-  const pollHead = await sessions.pollAdmission(sql, {
-    organizationId: orgId,
-    ownerType: 'project_agent',
-    ownerId: 'owner-3',
-    ticket: { source: 'workflow' },
-  });
-  const admitted3 = await reserve(3, 'project_agent', { source: 'workflow' })
+  const admitted3 = await reserve(3, 'project_agent')
     .then(() => 'ok')
     .catch(code);
 
@@ -27058,10 +27069,26 @@ async function checkSandboxSessions(
     })
     .then(() => 'ok')
     .catch(code);
+  // Tokens: hash-only lifecycle — minted on slot 3, readable by hash, and
+  // revoked by the destroy that frees the slot (the ONE revocation path).
+  await sessions.insertSessionToken(sql, {
+    organizationId: orgId,
+    sessionId: 'itest-sb-3',
+    tokenHash: 'hash-abc',
+    scope: {
+      agentKind: 'claude-code',
+      allowedModels: ['m1'],
+      connectorGrants: [],
+      budgetCents: 100,
+    },
+    ttlMs: 60_000,
+  });
+  const tokenLive = await sessions.getSessionTokenByHash(sql, 'hash-abc');
   await sessions.markSessionDestroyed(sql, {
     organizationId: orgId,
     sessionId: 'itest-sb-3',
   });
+  const tokenRevoked = await sessions.getSessionTokenByHash(sql, 'hash-abc');
   const resumeAfterFree = await sessions
     .resumeSessionSlot(sql, {
       organizationId: orgId,
@@ -27075,78 +27102,18 @@ async function checkSandboxSessions(
     .then(() => 'ok')
     .catch(code);
 
-  // Tokens: hash-only lifecycle.
-  await sessions.insertSessionToken(sql, {
-    organizationId: orgId,
-    sessionId: 'itest-sb-1',
-    tokenHash: 'hash-abc',
-    scope: {
-      agentKind: 'claude-code',
-      allowedModels: ['m1'],
-      connectorGrants: [],
-      budgetCents: 100,
-    },
-    ttlMs: 60_000,
-  });
-  const tokenLive = await sessions.getSessionTokenByHash(sql, 'hash-abc');
-  await sessions.revokeTokensForSession(sql, orgId, 'itest-sb-1');
-  const tokenRevoked = await sessions.getSessionTokenByHash(sql, 'hash-abc');
-
-  // Ops: start → progress → exactly-once finalize; watchdog staleness read.
-  await sessions.startSessionOp(sql, {
-    organizationId: orgId,
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    kind: 'agent-run',
-    threadId: 'itest-thread-1',
-  });
-  await sessions.flushOpProgress(sql, {
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    progressText: 'working…',
-    lastSeq: 7,
-  });
-  const liveOp = await sessions.latestAgentRunForThread(sql, 'itest-thread-1');
-  const abandoned = await sessions.listAbandonedOps(sql, Date.now() + 60_000);
-  const finalizedOnce = await sessions.finalizeSessionOp(sql, {
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    status: 'completed',
-    exitCode: 0,
-  });
-  const finalizedTwice = await sessions.finalizeSessionOp(sql, {
-    sessionId: 'itest-sb-1',
-    execId: 'exec-1',
-    status: 'failed',
-  });
-
-  const reaped = await sessions.reapStaleAdmissionTickets(
-    sql,
-    Date.now() + 60_000,
-  );
-
   record(
-    'sandbox sessions (caps + FIFO admission + tokens + ops)',
+    'sandbox sessions (caps + freed slots + tokens)',
     dupOwner === 'QUOTA_EXCEEDED' &&
       hardCap === 'QUOTA_EXCEEDED' &&
-      parked3 === 'WAIT_FIFO' &&
-      parked4 === 'WAIT_FIFO' &&
-      !pollWhileFull.proceed &&
-      !pollLater.proceed &&
-      pollHead.proceed &&
       admitted3 === 'ok' &&
       resumeFull === 'QUOTA_EXCEEDED' &&
       resumeAfterFree === 'ok' &&
       wf === 'ok' &&
       tokenLive !== null &&
       tokenLive.scope.agentKind === 'claude-code' &&
-      tokenRevoked === null &&
-      liveOp?.progressText === 'working…' &&
-      abandoned.some((op) => op.execId === 'exec-1') &&
-      finalizedOnce &&
-      !finalizedTwice &&
-      reaped >= 1,
-    `dupOwner=${dupOwner}, hardCap=${hardCap}, park=${parked3}/${parked4}, fifo(full=${pollWhileFull.proceed},later=${pollLater.proceed},head=${pollHead.proceed}), admit=${admitted3}, resume(full=${resumeFull},freed=${resumeAfterFree}), wfBudget=${wf}, token(live=${tokenLive !== null},revoked=${tokenRevoked === null}), op(progress=${liveOp?.progressText === 'working…'},finalize=${finalizedOnce}/${finalizedTwice}), reaped=${reaped}`,
+      tokenRevoked === null,
+    `dupOwner=${dupOwner}, hardCap=${hardCap}, admitAfterStop=${admitted3}, resume(full=${resumeFull},freed=${resumeAfterFree}), wfBudget=${wf}, token(live=${tokenLive !== null},revokedByDestroy=${tokenRevoked === null})`,
   );
 }
 
@@ -27967,7 +27934,7 @@ async function checkSandboxGatewayKeyReclaim(
           org_id, session_id, exec_id, kind, status, minted_key_id,
           heartbeat_at_ms, started_at_ms
         ) VALUES (
-          ${orgId}, 'pa-gk-agent', ${execId ?? ''}, 'agent-run', 'running',
+          ${orgId}, 'pa-gk-agent', ${execId ?? ''}, 'task-agent', 'running',
           ${keyId ?? ''}, ${now}, ${now}
         )
       `;
@@ -28040,9 +28007,9 @@ async function checkSandboxGatewayKeyReclaim(
 
 /**
  * Sandbox spawner dispatch: the REUSED session client (HMAC signing, drain
- * semantics) against a fake spawner that VERIFIES every signature, plus the
- * provisioning choreography (reuse-in-place, phantom heal, orphan adopt,
- * host-busy re-park) and the admin management surface.
+ * semantics) against a fake spawner that VERIFIES every signature, driven
+ * through the admin management surface (list, pin both sides, destroy) and
+ * the in-sandbox workspace-tool door.
  */
 async function checkSandboxSpawner(
   sql: Sql,
@@ -28056,7 +28023,6 @@ async function checkSandboxSpawner(
   const SPAWNER_TOKEN = 'itest-spawner-token';
   const live = new Map<string, { pinned: boolean }>();
   let badSignatures = 0;
-  const busyOnce = new Set<string>();
   const spawner = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -28097,13 +28063,6 @@ async function checkSandboxSpawner(
           .loose()
           .safeParse(JSON.parse(body || '{}'));
         const sessionId = parsed.success ? parsed.data.sessionId : '';
-        if (busyOnce.has(sessionId)) {
-          busyOnce.delete(sessionId);
-          res.statusCode = 429;
-          res.setHeader('retry-after', '1');
-          res.end('{"error":"session_quota"}');
-          return;
-        }
         if (live.has(sessionId)) {
           res.statusCode = 409;
           res.end('{"error":"duplicate"}');
@@ -28155,80 +28114,43 @@ async function checkSandboxSpawner(
   process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
 
   try {
-    const service = await import('./domains/sandbox/service.ts');
     const sessions = await import('./domains/sandbox/sessions.ts');
-    const code = (error: unknown): string =>
-      error !== null && typeof error === 'object' && 'name' in error
-        ? String(error.name)
-        : String(error);
-
-    const first = await service.provisionSession(sql, {
-      organizationId: orgId,
-      sessionId: 'itest-spawn-1',
-      profile: 'agent',
+    const { sessionCreate } =
+      await import('./core/node_only/sandbox/helpers/session_client.ts');
+    // The hosts' own choreography: reserve the platform slot, create the
+    // container through the signed client, activate the row.
+    const provision = async (
+      sessionId: string,
+      owner: { ownerType: string; ownerId: string },
+    ): Promise<void> => {
+      await sessions.reserveSessionSlot(sql, {
+        organizationId: orgId,
+        sessionId,
+        profile: 'agent',
+        ownerType: owner.ownerType,
+        ownerId: owner.ownerId,
+        createdBy: userId,
+      });
+      await sessionCreate({
+        sessionId,
+        organizationId: orgId,
+        profile: 'agent',
+      });
+      await sessions.setSessionStatus(sql, {
+        organizationId: orgId,
+        sessionId,
+        status: 'active',
+      });
+    };
+    await provision('itest-spawn-1', {
       ownerType: 'workflow_run',
       ownerId: 'wf-20',
-      createdBy: userId,
     });
     const rowAfterCreate = await sessions.getSessionBySessionId(
       sql,
       orgId,
       'itest-spawn-1',
     );
-    const reused = await service.provisionSession(sql, {
-      organizationId: orgId,
-      sessionId: 'itest-spawn-1',
-      profile: 'agent',
-      ownerType: 'workflow_run',
-      ownerId: 'wf-20',
-      createdBy: userId,
-    });
-
-    // Phantom heal: container vanishes spawner-side; re-provision recreates.
-    live.delete('itest-spawn-1');
-    const healed = await service.provisionSession(sql, {
-      organizationId: orgId,
-      sessionId: 'itest-spawn-1',
-      profile: 'agent',
-      ownerType: 'workflow_run',
-      ownerId: 'wf-20',
-      createdBy: userId,
-    });
-
-    // Orphan adopt: the spawner holds a container the platform lost track of.
-    live.set('itest-spawn-adopt', { pinned: false });
-    const adopted = await service.provisionSession(sql, {
-      organizationId: orgId,
-      sessionId: 'itest-spawn-adopt',
-      profile: 'agent',
-      ownerType: 'workflow_run',
-      ownerId: 'wf-21',
-      createdBy: userId,
-    });
-    const adoptedRow = await sessions.getSessionBySessionId(
-      sql,
-      orgId,
-      'itest-spawn-adopt',
-    );
-
-    // Host-capacity busy: the FIFO ticket goes back to waiting for the retry.
-    busyOnce.add('itest-spawn-busy');
-    const busy = await service
-      .provisionSession(sql, {
-        organizationId: orgId,
-        sessionId: 'itest-spawn-busy',
-        profile: 'agent',
-        ownerType: 'workflow_run',
-        ownerId: 'wf-22',
-        createdBy: userId,
-        ticket: { source: 'workflow' },
-      })
-      .then(() => 'ok')
-      .catch(code);
-    const ticketRows = await sql<{ status: string }[]>`
-      SELECT status FROM app.sandbox_admission_tickets
-      WHERE owner_type = 'workflow_run' AND owner_id = 'wf-22'
-    `;
 
     // Admin surface over HTTP: list + pin + destroy.
     const listed = z
@@ -28262,25 +28184,17 @@ async function checkSandboxSpawner(
     );
 
     record(
-      'sandbox spawner dispatch (reused HMAC client + provisioning)',
+      'sandbox spawner dispatch (reused HMAC client + admin surface)',
       badSignatures === 0 &&
-        first.created &&
         rowAfterCreate?.status === 'active' &&
-        !reused.created &&
-        healed.created &&
-        adopted.created &&
-        adoptedRow?.status === 'active' &&
-        busy === 'SpawnerBusyError' &&
-        ticketRows[0]?.status === 'waiting' &&
+        !live.has('itest-spawn-1') &&
         listed.success &&
         listed.data.sessions.some(
           (row) => row.sessionId === 'itest-spawn-1' && row.status === 'active',
         ) &&
         pinRes.ok &&
-        destroyRes.ok &&
-        live.get('itest-spawn-1') === undefined &&
-        live.get('itest-spawn-adopt')?.pinned === false,
-      `signatures ok=${badSignatures === 0}, create=${first.created}/active=${rowAfterCreate?.status === 'active'}, reuse=${!reused.created}, heal=${healed.created}, adopt=${adopted.created}, busy=${busy} (ticket=${ticketRows[0]?.status}), admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), containerGone=${live.get('itest-spawn-1') === undefined}`,
+        destroyRes.ok,
+      `signatures ok=${badSignatures === 0}, active=${rowAfterCreate?.status === 'active'}, admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), containerGone=${live.get('itest-spawn-1') === undefined}`,
     );
 
     // --- the in-sandbox workspace-tool door (the REUSED bridge on the shim).
@@ -28311,25 +28225,15 @@ async function checkSandboxSpawner(
     );
     const toolAgentId = agentRes.success ? agentRes.data.agentId : '';
     // Free the project budget of every session earlier scenarios left live.
-    for (const leftover of [
-      'itest-sb-1',
-      'itest-sb-2',
-      'itest-sb-3',
-      'itest-sb-4',
-      'itest-spawn-adopt',
-    ]) {
+    for (const leftover of ['itest-sb-1', 'itest-sb-2', 'itest-sb-3']) {
       await sessions.markSessionDestroyed(sql, {
         organizationId: orgId,
         sessionId: leftover,
       });
     }
-    await service.provisionSession(sql, {
-      organizationId: orgId,
-      sessionId: 'itest-spawn-tools',
-      profile: 'agent',
+    await provision('itest-spawn-tools', {
       ownerType: 'project_agent',
       ownerId: toolAgentId,
-      createdBy: userId,
     });
     const { createHash: hashFn } = await import('node:crypto');
     const vk = 'itest-vk-tools-1';
@@ -28480,16 +28384,23 @@ async function checkTaskAgentRuns(
   // The mechanics run on a HAND-INSERTED row (no turn job): the kick +
   // full drive are proven end to end by the turn-drive check, and letting
   // the live worker race these park/claim assertions would make them
-  // meaningless.
+  // meaningless. Every wake below enqueues the run's REAL `task.agent_turn`
+  // job, and the notify-driven worker fetches it within milliseconds — no
+  // retire-after-the-fact can win that race — so the row's agent is a
+  // PHANTOM id with no `project_agents` row: the job handler's agent-gone
+  // guard skips such a job before it touches the run (the sweep that fails
+  // agent-less runs is the watchdog's, which this lane never runs).
   const agentRuns = await import('./domains/tasks/agent-runs.ts');
+  const ledgerAgentId = `itest-ledger-agent-${randomUUID()}`;
+  const ledgerSessionId = `pa-${ledgerAgentId}`;
   const inserted = await sql<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
       harness, model, started_by, started_at_ms, deadline_at_ms,
       updated_at_ms
     ) VALUES (
-      ${orgId}, ${projectId}, ${taskId}, ${agentId}, 'exec-ledger-1',
-      ${`pa-${agentId}`}, 'queued', 'claude-code', 'itest-model',
+      ${orgId}, ${projectId}, ${taskId}, ${ledgerAgentId}, 'exec-ledger-1',
+      ${ledgerSessionId}, 'queued', 'claude-code', 'itest-model',
       'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}, ${Date.now()}
     ) RETURNING id
   `;
@@ -28536,6 +28447,72 @@ async function checkTaskAgentRuns(
   const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
+  // The release EDGE itself: a project-agent turn ending frees the agent's
+  // standing slot, and that release wakes the org's oldest parked run at
+  // once — no watchdog tick in between. Counted org-wide (a live worker may
+  // have parked a sibling), so the proof is one fewer parked run and one
+  // more turn job, plus the slot really hibernated.
+  await agentRuns.parkAgentRunForCapacity(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+  });
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${ledgerSessionId}, 'active', 'project_agent', ${ledgerAgentId},
+      'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}
+    )
+  `;
+  const countParked = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.project_agent_runs
+          WHERE org_id = ${orgId} AND status = 'queued'
+            AND waiting_for_capacity_at_ms IS NOT NULL
+        `
+      )[0]?.count ?? '0',
+    );
+  const countTurnJobs = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pgboss.job
+          WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+        `
+      )[0]?.count ?? '0',
+    );
+  const parkedBeforeRelease = await countParked();
+  const turnJobsBeforeRelease = await countTurnJobs();
+  const sessionsApi = await import('./domains/sandbox/sessions.ts');
+  const released = await sessionsApi.releaseProjectAgentSessionSlot(sql, {
+    organizationId: orgId,
+    agentId: ledgerAgentId,
+  });
+  const parkedAfterRelease = await countParked();
+  const turnJobsAfterRelease = await countTurnJobs();
+  const releasedSlot = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
+    ORDER BY created_at_ms DESC LIMIT 1
+  `;
+  const releaseEdgeOk =
+    released &&
+    releasedSlot[0]?.status === 'stopped' &&
+    // ≤/≥, not ==: a live worker's own release edge may wake a sibling in
+    // the same window; the edge under test still accounts for one of them.
+    parkedAfterRelease <= parkedBeforeRelease - 1 &&
+    turnJobsAfterRelease >= turnJobsBeforeRelease + 1;
+  // Un-park OUR run for the launch below if the edge woke a sibling instead.
+  await agentRuns.claimParkedAgentRun(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+  });
+
   // Launch + exactly-once settle; `launchedAt` distinct from kick time.
   const launched = await agentRuns.setAgentRunRunning(sql, {
     organizationId: orgId,
@@ -28556,13 +28533,14 @@ async function checkTaskAgentRuns(
   });
   const finalRun = await agentRuns.getAgentRun(sql, orgId, runId);
 
-  // A live run makes a concurrent kick REUSE it; a terminal one mints anew.
+  // A live run makes a concurrent kick REUSE it; a terminal one mints anew
+  // (under the phantom agent too, so its turn job is skipped, not driven).
   const reuseProbe = await sql.begin((tx) =>
     agentRuns.kickAgentRun(tx, {
       organizationId: orgId,
       projectId,
       taskId,
-      agentId,
+      agentId: ledgerAgentId,
       harness: 'claude-code',
       model: 'itest-model',
       startedBy: 'itest:ledger',
@@ -28585,6 +28563,7 @@ async function checkTaskAgentRuns(
       !secondClaim &&
       woken === 1 &&
       afterWake?.waitingForCapacityAt === null &&
+      releaseEdgeOk &&
       launched &&
       settled &&
       !settledTwice &&
@@ -28592,11 +28571,9 @@ async function checkTaskAgentRuns(
       finalRun.resultText === 'Delivered the work.' &&
       finalRun.launchedAt !== null &&
       secondRuns.success &&
-      // ≥2, not ==2: the rekicked run's start fails on the fake model and
-      // the auto-retry arm may already have added attempts by this read.
-      secondRuns.data.runs.length >= 2 &&
+      secondRuns.data.runs.length === 2 &&
       !reuseProbe.reused,
-    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want ≥2, fresh=${!reuseProbe.reused})`,
+    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, releaseEdge=${released}/slot=${releasedSlot[0]?.status}/parked ${parkedBeforeRelease}→${parkedAfterRelease}/turnJobs ${turnJobsBeforeRelease}→${turnJobsAfterRelease} (want true/stopped/-1/+1), settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want 2, fresh=${!reuseProbe.reused})`,
   );
 }
 
@@ -36244,7 +36221,7 @@ async function checkMetricsSurface(
       (${orgId}, 'mx-run', 'mx-health-t', 'pii', 'output', 'blocked',
        ARRAY['cat1', 'cat2'], ${now - 1000})
   `;
-  // External turns: one session, four settled agent-run ops (the four
+  // External turns: one session, four settled task-agent ops (the four
   // outcomes; the completed one is a recovered continuation).
   await sql`
     INSERT INTO app.sandbox_sessions (
@@ -36258,13 +36235,13 @@ async function checkMetricsSurface(
       org_id, session_id, exec_id, kind, status, agent_result_status,
       continuation_count, spent_cents, started_at_ms, finished_at_ms
     ) VALUES
-      (${orgId}, 'mx-sess', 'mx-e1', 'agent-run', 'completed', 'completed',
+      (${orgId}, 'mx-sess', 'mx-e1', 'task-agent', 'completed', 'completed',
        1, 5, ${now - 60_000}, ${now - 50_000}),
-      (${orgId}, 'mx-sess', 'mx-e2', 'agent-run', 'failed', 'failed',
+      (${orgId}, 'mx-sess', 'mx-e2', 'task-agent', 'failed', 'failed',
        0, 2, ${now - 40_000}, ${now - 35_000}),
-      (${orgId}, 'mx-sess', 'mx-e3', 'agent-run', 'cancelled', 'cancelled',
+      (${orgId}, 'mx-sess', 'mx-e3', 'task-agent', 'cancelled', 'cancelled',
        0, NULL, ${now - 30_000}, ${now - 29_000}),
-      (${orgId}, 'mx-sess', 'mx-e4', 'agent-run', 'failed', 'timeout',
+      (${orgId}, 'mx-sess', 'mx-e4', 'task-agent', 'failed', 'timeout',
        0, 1, ${now - 20_000}, ${now - 5_000})
   `;
 
@@ -38828,9 +38805,8 @@ async function checkBackfillRecovery(
  * assertions are on ROW STATE so a cron firing mid-check changes nothing):
  * an overdue running run deadline-fails with its op cancelled and its
  * session slot released; an overdue PARKED run fails too; an expired-TTL
- * session flips while a fresh one stays; a dead admission ticket reaps
- * while a live one stays; a stale chat generation clears with its thread
- * settled idle and its pending placeholder failed.
+ * session flips while a fresh one stays; a stale chat generation clears
+ * with its thread settled idle and its pending placeholder failed.
  */
 /**
  * Abandoned presigned uploads (files/upload-intents): a key minted and PUT to
@@ -39527,7 +39503,7 @@ async function checkWatchdogs(
       org_id, session_id, exec_id, kind, status, heartbeat_at_ms,
       started_at_ms
     ) VALUES (
-      ${orgId}, 'pa-wd-agent', 'exec-wd-1', 'agent-run', 'running',
+      ${orgId}, 'pa-wd-agent', 'exec-wd-1', 'task-agent', 'running',
       ${now - 3_600_000}, ${now - 13 * 3_600_000}
     )
   `;
@@ -39625,8 +39601,8 @@ async function checkWatchdogs(
     `cancels=${cancels.length === 0 ? 'none' : cancels.join(', ')} (want exactly /v1/sessions/pa-wd-agent/exec/exec-wd-1/cancel — the parked run never launched, so no cancel for it)`,
   );
 
-  // Lane 3: sandbox expiry + admission reap (reconcile skipped — no spawner
-  // is live here; the cron lane fail-closes on probe errors by design).
+  // Lane 3: sandbox expiry (reconcile skipped — no spawner is live here; the
+  // cron lane fail-closes on probe errors by design).
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
@@ -39637,33 +39613,17 @@ async function checkWatchdogs(
       (${orgId}, 'wd-ttl-live', 'active', 'render', 'wd-ttl-live',
        'itest:wd', ${now}, ${now + 24 * 3_600_000})
   `;
-  await sql`
-    INSERT INTO app.sandbox_admission_tickets (
-      org_id, kind, owner_type, owner_id, source, status, created_at_ms,
-      last_seen_at_ms
-    ) VALUES
-      (${orgId}, 'session', 'render', 'wd-ticket-dead', 'workflow',
-       'waiting', ${now - 3_600_000}, ${now - 3_600_000}),
-      (${orgId}, 'session', 'render', 'wd-ticket-live', 'workflow',
-       'waiting', ${now}, ${now})
-  `;
   const sandboxWatchdogs = await import('./domains/sandbox/watchdogs.ts');
   await sandboxWatchdogs.runSandboxWatchdog(sql, { skipReconcile: true });
   const ttlRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
     WHERE session_id IN ('wd-ttl-gone', 'wd-ttl-live')
   `;
-  const tickets = await sql<{ ownerId: string }[]>`
-    SELECT owner_id AS "ownerId" FROM app.sandbox_admission_tickets
-    WHERE owner_id IN ('wd-ticket-dead', 'wd-ticket-live')
-  `;
   record(
-    'sandbox watchdog expires overdue sessions and reaps dead tickets',
+    'sandbox watchdog expires overdue sessions',
     ttlRows.find((r) => r.sessionId === 'wd-ttl-gone')?.status === 'expired' &&
-      ttlRows.find((r) => r.sessionId === 'wd-ttl-live')?.status === 'active' &&
-      tickets.length === 1 &&
-      tickets[0]?.ownerId === 'wd-ticket-live',
-    `ttl=${JSON.stringify(ttlRows)} tickets=${tickets.map((t) => t.ownerId).join(',')}`,
+      ttlRows.find((r) => r.sessionId === 'wd-ttl-live')?.status === 'active',
+    `ttl=${JSON.stringify(ttlRows)}`,
   );
 
   // Lane 3b: the spawner-facing passes with a SCRIPTED spawner — the fair

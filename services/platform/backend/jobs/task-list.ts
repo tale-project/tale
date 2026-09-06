@@ -470,14 +470,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     },
     'watchdog.sandbox': async () => {
       const result = await runSandboxWatchdog(deps.sql);
-      if (
-        result.expired > 0 ||
-        result.healed > 0 ||
-        result.reclaimed > 0 ||
-        result.reaped > 0
-      ) {
+      if (result.expired > 0 || result.healed > 0 || result.reclaimed > 0) {
         console.log(
-          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reclaimed ${result.reclaimed} ended-run session(s), reaped ${result.reaped} tickets`,
+          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reclaimed ${result.reclaimed} ended-run session(s)`,
         );
       }
     },

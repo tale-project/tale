@@ -7,7 +7,7 @@ import {
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import { reconcileSession } from './service.ts';
-import { markSessionDestroyed, reapStaleAdmissionTickets } from './sessions.ts';
+import { markSessionDestroyed } from './sessions.ts';
 
 /**
  * The spawner verbs the sweep's spawner-facing passes use. Injectable so the
@@ -38,7 +38,6 @@ const DEFAULT_SPAWNER: WatchdogSpawner = {
 export const SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS = 10 * 60_000;
 
 export interface SandboxWatchdogOptions {
-  ticketStaleMs?: number;
   /** Rows probed against the spawner per tick (reconcile). */
   reconcileBatch?: number;
   /** Ended-run sessions reclaimed per tick. */
@@ -54,13 +53,11 @@ export interface SandboxWatchdogResult {
   expired: number;
   healed: number;
   reclaimed: number;
-  reaped: number;
 }
 
 /**
  * The sandbox drift sweep (5 min) — the 0.5 twin of 0.4's
- * `recoverStuckSessions` + `reconcileSandboxSessions` +
- * `recoverStuckAdmissionTickets`:
+ * `recoverStuckSessions` + `reconcileSandboxSessions`:
  *
  *  - EXPIRE: unpinned sessions past their TTL among the compute-holding
  *    statuses flip to `expired` (freeing their slots), their gateway virtual
@@ -82,8 +79,6 @@ export interface SandboxWatchdogResult {
  *    the retention purge deletes runs) past a grace, and only when the
  *    spawner confirms the session is not executing (`if_idle`): a late node
  *    is left for the next tick, and a spawner error leaves the row alone.
- *  - REAP: admission tickets whose poll chain died are deleted — the ONLY
- *    guard against permanent queue-head starvation in the FIFO.
  */
 export async function runSandboxWatchdog(
   sql: Sql,
@@ -134,9 +129,7 @@ export async function runSandboxWatchdog(
     });
   }
 
-  const staleBefore = now - (options.ticketStaleMs ?? 5 * 60_000);
-  const reaped = await reapStaleAdmissionTickets(sql, staleBefore);
-  return { expired: expired.length, healed, reclaimed, reaped };
+  return { expired: expired.length, healed, reclaimed };
 }
 
 interface Candidate {
