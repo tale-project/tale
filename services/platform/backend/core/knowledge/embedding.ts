@@ -45,6 +45,19 @@ const MAX_CONCURRENCY = 3;
 const RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 
+/**
+ * How long ONE provider call may take. The SDK's own default is ten
+ * minutes with two internal retries, so a black-holed or slow-dripping
+ * provider held a single batch for half an hour — twice the 15-minute
+ * budget of the `rag.index_file` job, which pg-boss then failed and re-ran
+ * while the first handler was still embedding the same file (two indexers
+ * per document), and on the search path a chat request hung just as long.
+ * With this budget and the SDK's retries off, the worst case for a batch
+ * (three attempts here, with backoff) stays well inside the job budget, and
+ * this module's loop is the ONE retry policy.
+ */
+export const EMBED_REQUEST_TIMEOUT_MS = 60_000;
+
 /** Raised when an organization has not said which embedding model to use. */
 export class EmbeddingNotConfigured extends Error {
   constructor(orgSlug: string) {
@@ -72,6 +85,11 @@ export class Embedder implements QueryEmbedder {
     this.client = new OpenAI({
       apiKey,
       ...(model.baseUrl !== undefined && { baseURL: model.baseUrl }),
+      timeout: EMBED_REQUEST_TIMEOUT_MS,
+      // `request()` below retries the failures worth retrying; the SDK
+      // retrying the same classes underneath it multiplied both the wait
+      // and the load on a rate-limited provider.
+      maxRetries: 0,
     });
   }
 

@@ -3,7 +3,11 @@
 // quota + registry bookkeeping; the SessionBackend owns container/Pod
 // lifecycle and runnerd addressing; runnerd owns the actual exec.
 
-import type { CreateSessionResult, SessionBackend } from '../backend/types.ts';
+import type {
+  BackendSession,
+  CreateSessionResult,
+  SessionBackend,
+} from '../backend/types.ts';
 import { jsonResponse } from '../http-util.ts';
 import { sseResponse } from '../sse.ts';
 import type { SpawnerConfig } from '../types.ts';
@@ -25,7 +29,7 @@ import {
 import type { RunnerdExecEvent } from './runnerd-protocol.ts';
 import type { ScreencastTarget } from './screencast-relay.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
-import { SessionRegistry } from './session-registry.ts';
+import { SessionRegistry, type RegistrySession } from './session-registry.ts';
 import {
   validateCreateSession,
   validateExecSession,
@@ -37,19 +41,51 @@ function b64decode(b64: string): Uint8Array {
 
 export class SessionRoutes {
   private readonly registry = new SessionRegistry();
-  // Session ids with a createSession in flight. The registry is only populated
-  // AFTER the backend create resolves, so this Set closes the synchronous gap a
-  // concurrent create of the same id would otherwise slip through.
-  private readonly creating = new Set<string>();
+  // Session ids with a createSession in flight → their organization. The
+  // registry is only populated AFTER the backend create resolves (up to
+  // createHealthTimeoutMs later, through an image pull), so this map closes
+  // the gap a concurrent create would otherwise slip through: the same id
+  // (a duplicate) AND the host/org quotas, which count in-flight creates as
+  // occupied capacity — a burst of distinct ids during a slow pull must not
+  // oversubscribe the host by the number of creates in flight.
+  private readonly creating = new Map<string, string>();
 
+  // Backend lists behind ensureRegistered (the platform probes sessionIsAlive
+  // + exec-status per turn, so a stopped session would otherwise cost one
+  // `docker ps` / pod list PER probe). `resolving` is the list in flight;
+  // `resolvingNext` the ONE follow-up every miss that arrives during it waits
+  // for — a caller must only be answered by a snapshot taken after its miss.
+  // Both `null` when idle; at most two lists are ever in flight.
+  private resolving: Promise<BackendSession[]> | null = null;
+  private resolvingNext: Promise<BackendSession[]> | null = null;
+
+  /**
+   * @param isDraining Read on every registry miss: a lingering (draining)
+   * spawner must never adopt — the miss is a session its replacement created
+   * behind the shared alias / VIP, and adopting it would keep the deploy
+   * lingering and let the max-linger reap stop a live session another
+   * replica owns. Same rule as server.ts skipping adoptExisting while
+   * draining. Defaults to "never draining" for a routes instance with no
+   * deploy control (tests).
+   */
   constructor(
     private readonly cfg: SpawnerConfig,
     private readonly backend: SessionBackend,
+    private readonly isDraining: () => boolean = () => false,
   ) {}
 
   /** Number of live sessions this spawner currently manages (drain readiness). */
   sessionCount(): number {
     return this.registry.size();
+  }
+
+  /** Creates in flight for one org (the per-org quota's in-flight share). */
+  private creatingCountForOrg(organizationId: string): number {
+    let n = 0;
+    for (const org of this.creating.values()) {
+      if (org === organizationId) n += 1;
+    }
+    return n;
   }
 
   /** Live session ids — the deploy reads these from `/v1/drain-status` to decide
@@ -117,52 +153,162 @@ export class SessionRoutes {
   }
 
   /**
-   * Boot re-adoption: rebuild the in-memory registry from the backend objects
-   * still running (the registry is a cache; the backend labels/annotations are
-   * the source of truth). Idempotent — skips sessions already registered.
+   * Re-adoption: rebuild the in-memory registry from the backend objects still
+   * running (the registry is a cache; the backend labels/annotations are the
+   * source of truth). Idempotent — skips sessions already registered — and
+   * called at boot AND on every periodic sweep tick, so a session this spawner
+   * missed (a boot-time `docker ps`/apiserver blip, a peer replica's create)
+   * is registered within one interval and from then on routable + subject to
+   * the TTL/idle reaper, instead of lingering unregistered for the life of the
+   * process. Only RUNNING objects are adopted: a stopped/exited one is a
+   * resumable state whose correct answer is 404 (the platform resumes it).
    */
   async adoptExisting(): Promise<void> {
-    let sessions;
+    let sessions: BackendSession[];
     try {
       sessions = await this.backend.listSessions();
     } catch (err) {
       console.warn('[sandbox.session] adoptExisting list failed:', err);
       return;
     }
+    const adopted: BackendSession[] = [];
     for (const s of sessions) {
-      if (this.registry.has(s.sessionId)) continue;
-      const endpoint = await this.backend
-        .resolveEndpoint(s.sessionId)
-        .catch(() => null);
-      if (endpoint === null) continue;
-      this.registry.set({
-        sessionId: s.sessionId,
-        organizationId: s.organizationId,
-        profile: s.profile,
-        state: s.state,
-        createdAtMs: s.createdAtMs,
-        expiresAtMs: s.createdAtMs + s.ttlMs,
-        idleTimeoutMs: s.idleTimeoutMs,
-        endpoint,
-        liveExecs: new Map(),
-        // The reaper exemption is re-read from the backend object's durable
-        // record: a restart used to rebuild entries unpinned, and an always-on
-        // session older than maxLifetime was TTL-stopped on the first sweep.
-        pinned: s.pinned === true,
-      });
+      // A create in flight on this replica registers itself when it completes;
+      // adopting it early would race that registration.
+      if (this.registry.has(s.sessionId) || this.creating.has(s.sessionId)) {
+        continue;
+      }
+      if (s.state !== 'ready') continue;
+      const registered = await this.adoptSession(s);
+      if (registered !== undefined) adopted.push(s);
     }
 
-    // Heal the shared build cache for every org with a running session. The
-    // buildkitd outlives the spawner, so the same stack restart that bounced
+    // Heal the shared build cache for every org whose session was just adopted.
+    // The buildkitd outlives the spawner, so the same stack restart that bounced
     // this spawner may have moved sandbox-egress to a new IP — leaving the
     // daemon's egress fence stale. An adopted session that reuses it would build
     // with no DNS/egress (the createSession heal never fires for it). Best-effort
     // inside the backend; a no-op when there's no shared cache or nothing drifted.
-    if (sessions.length > 0) {
+    if (adopted.length > 0) {
       await this.backend.reconcileBuildCache(
-        sessions.map((s) => s.organizationId),
+        adopted.map((s) => s.organizationId),
       );
     }
+  }
+
+  /** Register one backend-listed session in the cache, resolving its runnerd
+   * endpoint. Returns the entry, or undefined (logged) when the endpoint can't
+   * be read right now — the next sweep or route miss retries. */
+  private async adoptSession(
+    s: BackendSession,
+  ): Promise<RegistrySession | undefined> {
+    let endpoint: string;
+    try {
+      endpoint = await this.backend.resolveEndpoint(s.sessionId);
+    } catch (err) {
+      console.warn(
+        `[sandbox.session] adopt skipped for ${s.sessionId} (endpoint unresolved; will retry):`,
+        err instanceof Error ? err.message : err,
+      );
+      return undefined;
+    }
+    // A concurrent create/adopt may have registered it while we awaited —
+    // never overwrite a live entry (it may already track in-flight execs).
+    const raced = this.registry.get(s.sessionId);
+    if (raced !== undefined) return raced;
+    const entry: RegistrySession = {
+      sessionId: s.sessionId,
+      organizationId: s.organizationId,
+      profile: s.profile,
+      state: s.state,
+      createdAtMs: s.createdAtMs,
+      expiresAtMs: s.createdAtMs + s.ttlMs,
+      idleTimeoutMs: s.idleTimeoutMs,
+      endpoint,
+      liveExecs: new Map(),
+      // The reaper exemption is re-read from the backend object's durable
+      // record: a restart used to rebuild entries unpinned, and an always-on
+      // session older than maxLifetime was TTL-stopped on the first sweep.
+      pinned: s.pinned === true,
+    };
+    this.registry.set(entry);
+    return entry;
+  }
+
+  /**
+   * Registry lookup that falls back to the backend on a miss. The registry is
+   * a per-replica cache: a session created by a peer replica (K8s Deployment
+   * behind a VIP) or missed at boot exists backend-side under its
+   * deterministic name but is unknown here. Answering 404 from the cache alone
+   * is the platform's "phantom session" signal — it would recreate a session
+   * that is alive elsewhere (and on K8s that create 409s against the live
+   * Pod). So a miss re-resolves: list the backend, adopt a RUNNING match, then
+   * route to it. A stopped/exited object (or nothing) stays a genuine 404.
+   * NOT while draining: a lingering spawner answers 404 for anything it does
+   * not already own and leaves the session to the replacement serving it.
+   */
+  private async ensureRegistered(
+    sessionId: string,
+  ): Promise<RegistrySession | undefined> {
+    const hit = this.registry.get(sessionId);
+    if (hit !== undefined) return hit;
+    // Our own in-flight create registers itself on completion.
+    if (this.creating.has(sessionId)) return undefined;
+    // A lingering spawner never adopts — 404 is the status quo; the
+    // replacement serves the session (see the constructor's isDraining).
+    if (this.isDraining()) return undefined;
+    let sessions: BackendSession[];
+    try {
+      sessions = await this.listForResolve();
+    } catch (err) {
+      console.warn(
+        `[sandbox.session] backend re-resolve for ${sessionId} failed (answering not-found):`,
+        err instanceof Error ? err.message : err,
+      );
+      return undefined;
+    }
+    const s = sessions.find((x) => x.sessionId === sessionId);
+    if (s === undefined || s.state !== 'ready') return undefined;
+    return this.adoptSession(s);
+  }
+
+  /**
+   * The backend list behind ensureRegistered. Concurrent misses share lists
+   * instead of each spawning their own (health-probe.ts shape, without the
+   * TTL — a resolve must see the current backend state), but a miss is only
+   * answered by a list STARTED AFTER it: `docker ps` / a pod list is a
+   * snapshot taken when it starts, so joining the one already in flight would
+   * hand a probe for a session a peer replica created a moment ago a snapshot
+   * from before it existed — a false 404 the platform reads as "gone" and
+   * finalizes the turn on. So a miss with no list in flight starts one; every
+   * miss that arrives while one is in flight is coalesced into ONE follow-up
+   * list that starts once the current one settles (success or failure).
+   */
+  private listForResolve(): Promise<BackendSession[]> {
+    if (this.resolving === null) return this.startResolve();
+    if (this.resolvingNext === null) {
+      // The in-flight list's outcome is its own callers' business — the
+      // follow-up starts either way (a failed list must not strand joiners).
+      this.resolvingNext = this.resolving
+        .then(
+          () => undefined,
+          () => undefined,
+        )
+        .then(() => {
+          this.resolvingNext = null;
+          return this.startResolve();
+        });
+    }
+    return this.resolvingNext;
+  }
+
+  private startResolve(): Promise<BackendSession[]> {
+    const list = this.backend.listSessions().finally(() => {
+      // Only clear our own slot: a follow-up may already occupy it.
+      if (this.resolving === list) this.resolving = null;
+    });
+    this.resolving = list;
+    return list;
   }
 
   /**
@@ -264,7 +410,6 @@ export class SessionRoutes {
       state: s.state,
       backend: this.backend.kind,
       createdAtMs: s.createdAtMs,
-      lastActivityAtMs: s.createdAtMs,
       expiresAtMs: s.expiresAtMs,
       idleTimeoutMs: s.idleTimeoutMs,
       pinned: s.pinned === true,
@@ -328,30 +473,8 @@ export class SessionRoutes {
         409,
       );
     }
-    if (this.registry.size() >= this.cfg.session.maxSessions) {
-      return jsonResponse(
-        { error: 'session_quota', message: 'spawner session cap reached' },
-        429,
-        { 'retry-after': '10' },
-      );
-    }
-    if (
-      this.registry.countForOrg(req.organizationId) >=
-      this.cfg.session.maxSessionsPerOrg
-    ) {
-      return jsonResponse(
-        { error: 'session_quota', message: 'org session cap reached' },
-        429,
-        { 'retry-after': '10' },
-      );
-    }
-
-    // Reserve the id synchronously. The registry isn't populated until AFTER
-    // backend.createSession resolves below, so without this a concurrent create
-    // of the SAME id would slip past the registry.has() check above and race
-    // into the backend — where the loser's name-conflict cleanup could
-    // `docker rm` the winner's healthy container (the backend also guards
-    // against rm-on-conflict as defense-in-depth).
+    // A retry of an id still being created is a duplicate (409), judged BEFORE
+    // the quotas so a full host does not turn it into a misleading 429.
     if (this.creating.has(req.sessionId)) {
       return jsonResponse(
         {
@@ -361,7 +484,36 @@ export class SessionRoutes {
         409,
       );
     }
-    this.creating.add(req.sessionId);
+    // Quotas count live sessions PLUS creates in flight (see `creating`).
+    if (
+      this.registry.size() + this.creating.size >=
+      this.cfg.session.maxSessions
+    ) {
+      return jsonResponse(
+        { error: 'session_quota', message: 'spawner session cap reached' },
+        429,
+        { 'retry-after': '10' },
+      );
+    }
+    if (
+      this.registry.countForOrg(req.organizationId) +
+        this.creatingCountForOrg(req.organizationId) >=
+      this.cfg.session.maxSessionsPerOrg
+    ) {
+      return jsonResponse(
+        { error: 'session_quota', message: 'org session cap reached' },
+        429,
+        { 'retry-after': '10' },
+      );
+    }
+
+    // Reserve the id synchronously (below). The registry isn't populated until
+    // AFTER backend.createSession resolves, so without this a concurrent create
+    // of the SAME id would slip past the registry.has() check above and race
+    // into the backend — where the loser's name-conflict cleanup could
+    // `docker rm` the winner's healthy container (the backend also guards
+    // against rm-on-conflict as defense-in-depth).
+    this.creating.set(req.sessionId, req.organizationId);
     try {
       const createdAtMs = Date.now();
       let created: CreateSessionResult;
@@ -438,6 +590,9 @@ export class SessionRoutes {
    * against the backend object: answering from the cache alone turns a dead
    * container into "alive" and the turn then fails on a dead address. */
   async handleGet(sessionId: string): Promise<Response> {
+    if ((await this.ensureRegistered(sessionId)) === undefined) {
+      return jsonResponse({ error: 'not_found' }, 404);
+    }
     if (await this.evictIfBackendGone(sessionId)) {
       return jsonResponse({ error: 'not_found' }, 404);
     }
@@ -529,8 +684,12 @@ export class SessionRoutes {
 
   /** POST /v1/sessions/:id/exec — proxies runnerd's NDJSON stream to SSE,
    * mirroring the /v1/execute event grammar. */
-  handleExec(req: Request, sessionId: string, body: string): Response {
-    const session = this.registry.get(sessionId);
+  async handleExec(
+    req: Request,
+    sessionId: string,
+    body: string,
+  ): Promise<Response> {
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: unknown;
     try {
@@ -682,7 +841,7 @@ export class SessionRoutes {
   }
 
   async handleExecCancel(sessionId: string, execId: string): Promise<Response> {
-    const session = this.registry.get(sessionId);
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     // Local abort (ends the SSE proxy) + tell runnerd to kill the process group.
     this.registry.getExec(sessionId, execId)?.abort();
@@ -717,7 +876,7 @@ export class SessionRoutes {
     sessionId: string,
     action: string,
   ): Promise<Response> {
-    const session = this.registry.get(sessionId);
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     if (
       action !== 'restart' &&
@@ -752,7 +911,7 @@ export class SessionRoutes {
    * returns 502 so the platform's restorative watchdog treats it as "unknown"
    * and skips (never finalizes a turn on a daemon hiccup). */
   async handleExecStatus(sessionId: string, execId: string): Promise<Response> {
-    const session = this.registry.get(sessionId);
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ execId, state: 'gone' }, 404);
     try {
       const status = await runnerdExecStatus(
@@ -783,7 +942,7 @@ export class SessionRoutes {
     execId: string,
     body: string,
   ): Promise<Response> {
-    const session = this.registry.get(sessionId);
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: { b64?: string; eof?: boolean };
     try {
@@ -825,8 +984,12 @@ export class SessionRoutes {
   /** GET /v1/sessions/:id/exec/:execId/attach — reconnect to a running or
    * just-finished exec; replays runnerd's ring then follows to exit. The
    * resilience path for a platform action that dropped its original SSE. */
-  handleExecAttach(req: Request, sessionId: string, execId: string): Response {
-    const session = this.registry.get(sessionId);
+  async handleExecAttach(
+    req: Request,
+    sessionId: string,
+    execId: string,
+  ): Promise<Response> {
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     const ac = new AbortController();
     const onAbort = () => ac.abort();
@@ -862,7 +1025,7 @@ export class SessionRoutes {
   /** PATCH /v1/sessions/:id/env — set/unset session env (the hook the
    * credential/gateway-token injection uses). */
   async handleEnvPatch(sessionId: string, body: string): Promise<Response> {
-    const session = this.registry.get(sessionId);
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: { set?: Record<string, string>; unset?: string[] };
     try {
@@ -902,7 +1065,7 @@ export class SessionRoutes {
    * spawner restart re-adopts it — the platform row is the durable truth
    * platform-side, but nothing re-pushes it at spawner boot. */
   async handleSetPinned(sessionId: string, body: string): Promise<Response> {
-    const session = this.registry.get(sessionId);
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: { pinned?: boolean };
     try {
@@ -934,7 +1097,7 @@ export class SessionRoutes {
   /** POST /v1/sessions/:id/files/stage — write files into /agent (inline
    * base64 content, or presigned URLs the daemon fetches). */
   async handleFilesStage(sessionId: string, body: string): Promise<Response> {
-    const session = this.registry.get(sessionId);
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: {
       files?: Array<{ path: string; url?: string; contentBase64?: string }>;
@@ -972,7 +1135,7 @@ export class SessionRoutes {
   /** POST /v1/sessions/:id/files/delete — remove paths (file or dir) from
    * /agent. Idempotent reconcile primitive (e.g. pruning stale skills). */
   async handleFilesDelete(sessionId: string, body: string): Promise<Response> {
-    const session = this.registry.get(sessionId);
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let parsed: { paths?: string[] };
     try {
@@ -1003,7 +1166,7 @@ export class SessionRoutes {
 
   /** GET /v1/sessions/:id/files?path= — directory listing. */
   async handleFilesList(sessionId: string, path: string): Promise<Response> {
-    const session = this.registry.get(sessionId);
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let entries;
     try {
@@ -1029,7 +1192,7 @@ export class SessionRoutes {
   /** GET /v1/sessions/:id/files/content?path= — raw file bytes streamed
    * through the spawner. */
   async handleFileContent(sessionId: string, path: string): Promise<Response> {
-    const session = this.registry.get(sessionId);
+    const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     let bytes;
     try {

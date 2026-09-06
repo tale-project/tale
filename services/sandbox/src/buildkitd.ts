@@ -254,7 +254,9 @@ async function ensureOneMirrorUnlocked(
       `type=volume,src=${volume},dst=/var/lib/registry`,
       cfg.buildkitdMirrorImage,
     ],
-    { timeoutMs: 30_000 },
+    // A first-use image pull can take a while; bounded so a wedged daemon
+    // can't pin the session create (or boot) forever.
+    { timeoutMs: 120_000 },
   );
   if (run.exitCode !== 0) {
     if (/already in use|already exists/i.test(run.stderr)) return;
@@ -441,7 +443,9 @@ async function ensureBuildkitdUnlocked(
       `HTTP_PROXY=${cfg.egressProxy}`,
       cfg.buildkitdImage,
     ],
-    { timeoutMs: 30_000 },
+    // A first-use image pull can take a while; bounded so a wedged daemon
+    // can't pin the session create (or boot) forever.
+    { timeoutMs: 120_000 },
   );
   if (run.exitCode !== 0) {
     // Racy across spawner replicas / restarts: a peer may have created it

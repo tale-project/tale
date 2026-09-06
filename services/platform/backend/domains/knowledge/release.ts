@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 
+import { isMessageRef } from '../../../lib/knowledge/message-ref.ts';
 import {
   deleteKnowledgeDocumentsBatch,
   listKnowledgeDocumentRefs,
@@ -152,7 +153,7 @@ export async function releaseRefs(
     ),
     // Conversation-message refs (`msg:`) belong to another vocabulary — the
     // file lifecycle never owns them.
-  ].filter((ref) => !ref.startsWith('msg:'));
+  ].filter((ref) => !isMessageRef(ref));
   if (refs.length === 0) return outcome;
 
   const liveness = await assessRefLiveness(sql, {

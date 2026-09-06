@@ -12,9 +12,9 @@
  * Kept free of Convex imports so the account-selection rules are unit-testable.
  */
 
-export const MICROSOFT_PROVIDER_IDS = ['microsoft', 'entra-id'] as const;
+const MICROSOFT_PROVIDER_IDS = ['microsoft', 'entra-id'] as const;
 
-export function isMicrosoftProvider(providerId: unknown): boolean {
+function isMicrosoftProvider(providerId: unknown): boolean {
   return (
     typeof providerId === 'string' &&
     (MICROSOFT_PROVIDER_IDS as readonly string[]).includes(providerId)
@@ -50,19 +50,4 @@ export function pickMicrosoftAccount<T extends MicrosoftAccountCandidate>(
     .filter((account) => isMicrosoftProvider(account.providerId))
     .sort((a, b) => updatedAtOf(b) - updatedAtOf(a));
   return candidates.find(hasLiveToken) ?? candidates[0] ?? null;
-}
-
-/**
- * Whether the scopes granted with the token include OneDrive/SharePoint read
- * access (`Files.Read`). Microsoft reports scopes either fully qualified
- * (`https://graph.microsoft.com/Files.Read`) or short (`Files.Read`) —
- * match case-insensitively on the permission name.
- *
- * A `null`/empty scope means the row predates scope persistence (legacy
- * `microsoft` rows, or `entra-id` rows written before scopes were stored):
- * treat it as capable rather than hiding a feature that may work.
- */
-export function scopeGrantsOneDrive(scope: string | null | undefined): boolean {
-  if (scope == null || scope.trim() === '') return true;
-  return /files\.read/i.test(scope);
 }

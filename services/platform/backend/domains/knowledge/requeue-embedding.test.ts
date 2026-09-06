@@ -16,11 +16,19 @@ import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '../../core/knowledge/rag_err
  * PII block gets silently retried on every config save.
  */
 
-const { addJobInTx } = vi.hoisted(() => ({ addJobInTx: vi.fn() }));
+const { addJobInTx, emitHintInTx } = vi.hoisted(() => ({
+  addJobInTx: vi.fn(),
+  emitHintInTx: vi.fn(),
+}));
 
 vi.mock('../../jobs/enqueue.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../jobs/enqueue.ts')>()),
   addJobInTx,
+}));
+
+vi.mock('../../realtime/outbox.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../realtime/outbox.ts')>()),
+  emitHintInTx,
 }));
 
 const { requeueEmbeddingBlockedDocuments } = await import('./service.ts');
@@ -47,6 +55,7 @@ describe('requeueEmbeddingBlockedDocuments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     addJobInTx.mockResolvedValue(undefined);
+    emitHintInTx.mockResolvedValue(undefined);
   });
 
   it('re-queues each blocked document and reports the count', async () => {
@@ -110,6 +119,24 @@ describe('requeueEmbeddingBlockedDocuments', () => {
 
     expect(out).toEqual({ requeued: 0 });
     expect(addJobInTx).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('tells the document lists the rows moved, in the same transaction', async () => {
+    const { sql } = fakeSql([{ id: 'f1' }, { id: 'f2' }]);
+
+    await requeueEmbeddingBlockedDocuments(sql, { organizationId: 'org-1' });
+
+    // Without the hint every other viewer's list kept showing 'failed — no
+    // embedding model' until the worker's first write per file, minutes
+    // away behind a backlog. One org-wide hint (the list is keyed by
+    // document, the status lives on the file row), never one per row.
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+    expect(emitHintInTx.mock.calls[0]?.[1]).toEqual({
+      orgId: 'org-1',
+      entity: 'document',
+      entityId: null,
+    });
   });
 
   it('enqueues at default priority — a drain must not outrank an upload', async () => {

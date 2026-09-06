@@ -52,10 +52,12 @@ function isFragment(value: unknown): value is Fragment {
 /**
  * A recorder that inlines nested `sql\`…\`` fragments the way postgres.js
  * does, so the recorded text is the statement Postgres would see. Answers
- * the documents pass-B candidate query from the script; everything else
- * answers no rows.
+ * the documents pass-A flip and pass-B candidate query from the script;
+ * everything else answers no rows.
  */
 function fakeSweep(script: {
+  /** The ids the documents pass-A expiry flip RETURNs (default: none). */
+  documentsPassA?: { id: string }[];
   documentsPassB: {
     id: string;
     fileRef: string | null;
@@ -91,10 +93,14 @@ function fakeSweep(script: {
       text.startsWith('SELECT id, file_ref') &&
       text.includes('FROM app.documents')
         ? script.documentsPassB
-        : text.startsWith('SELECT id, actor_id') &&
-            text.includes('FROM app.audit_logs')
-          ? (script.auditCandidates ?? [])
-          : [];
+        : text.startsWith(
+              "UPDATE app.documents SET lifecycle_status = 'expired'",
+            )
+          ? (script.documentsPassA ?? [])
+          : text.startsWith('SELECT id, actor_id') &&
+              text.includes('FROM app.audit_logs')
+            ? (script.auditCandidates ?? [])
+            : [];
     const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
     return Object.assign(Promise.resolve(rows), fragment);
   };
@@ -161,6 +167,58 @@ describe('sweepOrgPhase2 — custodian holds', () => {
       expect(pass.text).toContain('tm.user_id <> ALL(?)');
       expect(pass.values).toContainEqual(['held-user']);
     }
+  });
+
+  it('retires the knowledge-entry chains of the documents the expiry flip hides, in the same transaction', async () => {
+    // Pass A has no source filter: a knowledge entry's backing document
+    // (lifecycle NULL, created by the entry author) is a candidate like any
+    // other. Hiding it must retire its chain at once, or the entry stays
+    // listed, counted and served to the agent leg for the whole grace
+    // window while the retrievability filter keeps its corpus rows dark.
+    const fake = fakeSweep({
+      documentsPassA: [{ id: 'doc-expired-1' }, { id: 'doc-expired-2' }],
+      documentsPassB: [],
+    });
+
+    const stats = await sweepOrgPhase2(fake.sql, org, {
+      orgHeld: false,
+      userMembershipIds: new Set(),
+    });
+
+    expect(stats.documents).toBe(2);
+    const flipAt = fake.statements.findIndex((s) =>
+      s.text.startsWith(
+        "UPDATE app.documents SET lifecycle_status = 'expired'",
+      ),
+    );
+    const retireAt = fake.statements.findIndex((s) =>
+      s.text.startsWith('UPDATE app.knowledge_entries SET deleted_at_ms = ?'),
+    );
+    expect(flipAt).toBeGreaterThanOrEqual(0);
+    expect(retireAt).toBe(flipAt + 1);
+    expect(fake.statements[retireAt]?.text).toContain(
+      'document_id = ANY(?) AND deleted_at_ms IS NULL',
+    );
+    expect(fake.statements[retireAt]?.values).toEqual([
+      expect.any(Number),
+      'org_1',
+      ['doc-expired-1', 'doc-expired-2'],
+    ]);
+  });
+
+  it('issues no chain retire when the expiry flip hides nothing', async () => {
+    const fake = fakeSweep({ documentsPassB: [] });
+
+    await sweepOrgPhase2(fake.sql, org, {
+      orgHeld: false,
+      userMembershipIds: new Set(),
+    });
+
+    expect(
+      fake.statements.some((s) =>
+        s.text.startsWith('UPDATE app.knowledge_entries SET deleted_at_ms'),
+      ),
+    ).toBe(false);
   });
 
   it('purges every candidate the query answers — the query is the filter', async () => {
