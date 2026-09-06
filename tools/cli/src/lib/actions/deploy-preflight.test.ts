@@ -85,6 +85,7 @@ describe('checkProductionReadiness (advisory, non-blocking)', () => {
       HOST: 'demo.tale.dev',
       DB_PASSWORD: 'tale_password_change_me',
       TALE_AUDIT_SIGNING_KEY: 'set',
+      TALE_AUDIT_PEPPER: 'a-pepper-of-sixteen-chars',
     });
     expect(issues.length).toBe(1);
     expect(issues[0].message).toContain('DB_PASSWORD');
@@ -94,18 +95,39 @@ describe('checkProductionReadiness (advisory, non-blocking)', () => {
     const issues = checkProductionReadiness({
       HOST: 'demo.tale.dev',
       DB_PASSWORD: 'a-strong-password',
+      TALE_AUDIT_PEPPER: 'a-pepper-of-sixteen-chars',
     });
     expect(issues.length).toBe(1);
     expect(issues[0].message).toContain('TALE_AUDIT_SIGNING_KEY');
   });
 
-  test('production host, both footguns → two advisories', () => {
+  test('production host with a missing or too-short audit pepper → advises', () => {
+    const missing = checkProductionReadiness({
+      HOST: 'demo.tale.dev',
+      DB_PASSWORD: 'a-strong-password',
+      TALE_AUDIT_SIGNING_KEY: 'set',
+    });
+    expect(missing.length).toBe(1);
+    expect(missing[0].message).toContain('TALE_AUDIT_PEPPER');
+    // pii_hash.ts ignores a pepper under 16 chars and falls back to
+    // plaintext, so the advisory must fire for it too.
+    const short = checkProductionReadiness({
+      HOST: 'demo.tale.dev',
+      DB_PASSWORD: 'a-strong-password',
+      TALE_AUDIT_SIGNING_KEY: 'set',
+      TALE_AUDIT_PEPPER: 'short',
+    });
+    expect(short.length).toBe(1);
+    expect(short[0].message).toContain('TALE_AUDIT_PEPPER');
+  });
+
+  test('production host, every footgun → three advisories', () => {
     expect(
       checkProductionReadiness({
         HOST: 'demo.tale.dev',
         DB_PASSWORD: 'tale_password_change_me',
       }),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
   });
 
   test('production host, fully configured → no advisories', () => {
@@ -114,6 +136,7 @@ describe('checkProductionReadiness (advisory, non-blocking)', () => {
         HOST: 'demo.tale.dev',
         DB_PASSWORD: 'a-strong-password',
         TALE_AUDIT_SIGNING_KEY: 'deadbeef',
+        TALE_AUDIT_PEPPER: 'a-pepper-of-sixteen-chars',
       }),
     ).toEqual([]);
   });

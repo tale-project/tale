@@ -25,7 +25,6 @@ import {
 } from '../../core/knowledge/crawl_action.ts';
 import { getKnowledgePoolForOrg } from '../../core/knowledge/pool.ts';
 import { toWebsiteDomain } from '../../core/websites/create_website.ts';
-import { scanIntervalToSeconds } from '../../core/websites/internal_actions.ts';
 import { matchesWebsiteSearch } from '../../core/websites/match_website_search.ts';
 import {
   CONNECTION_FAILURES_BEFORE_PAUSE,
@@ -33,10 +32,12 @@ import {
   lastScanAttemptAt,
   scanPausedAt,
   type ScanSchedulingSite,
+  WEBSITE_NOT_IN_CORPUS_MESSAGE,
 } from '../../core/websites/scan_scheduling.ts';
 import {
   isValidScanInterval,
   SCAN_INTERVAL_VALUES,
+  scanIntervalToSeconds,
 } from '../../core/websites/types.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -82,6 +83,14 @@ export class WebsiteError extends Error {
     this.code = code;
     this.status = status;
   }
+}
+
+/** The refusal both write doors answer when a patch carries `domain`. */
+export function websiteDomainImmutableError(): WebsiteError {
+  return new WebsiteError(
+    'WEBSITE_DOMAIN_IMMUTABLE',
+    'domain is immutable after create; delete the website and re-add it under the new domain',
+  );
 }
 
 function assertScanInterval(scanInterval: string): void {
@@ -268,16 +277,19 @@ export async function createWebsiteRow(
 /**
  * Patch a row (the 0.4 `updateWebsite` semantics): metadata SHALLOW-MERGES
  * over the stored object (null values persist as explicit clears — the
- * scheduling accessors treat them as absent), a changed domain normalizes
- * and re-checks the (org, domain) uniqueness, `callerOrgId` closes the
+ * scheduling accessors treat them as absent), `callerOrgId` closes the
  * cross-tenant IDOR for REST/agent callers.
+ *
+ * The domain is IMMUTABLE after create: the corpus registration
+ * (`registerDomain`, memberships, frontier, chunks) is keyed by it, so a
+ * renamed row would never claim a scan again and its old registration would
+ * never be released — the doors answer 400 and the user deletes + re-adds.
  */
 export async function patchWebsite(
   db: Sql | TransactionSql,
   args: {
     websiteId: string;
     callerOrgId?: string;
-    domain?: string;
     kind?: 'site' | 'list';
     title?: string;
     description?: string;
@@ -299,25 +311,6 @@ export async function patchWebsite(
     throw new WebsiteError('WEBSITE_NOT_FOUND', 'Website not found', 404);
   }
 
-  let domain = existing.domain;
-  if (args.domain !== undefined) {
-    domain = toWebsiteDomain(args.domain);
-    if (domain !== existing.domain) {
-      const conflict = await getWebsiteByDomain(
-        db,
-        existing.organizationId,
-        domain,
-      );
-      if (conflict && conflict.id !== args.websiteId) {
-        throw new WebsiteError(
-          'DUPLICATE_DOMAIN',
-          `Website with domain ${domain} already exists`,
-          409,
-        );
-      }
-    }
-  }
-
   const metadata =
     args.metadata !== undefined
       ? { ...existing.metadata, ...args.metadata }
@@ -325,7 +318,6 @@ export async function patchWebsite(
 
   const rows = await db<WebsiteRow[]>`
     UPDATE app.websites SET
-      domain = ${domain},
       kind = ${args.kind !== undefined ? args.kind : db.unsafe('kind')},
       title = ${args.title !== undefined ? args.title : db.unsafe('title')},
       description = ${args.description !== undefined ? args.description : db.unsafe('description')},
@@ -442,66 +434,99 @@ export async function clearScanFailures(
   });
 }
 
-/** The scheduler's projection of every row (the 0.4 take(500) bound). */
+/** One keyset page of the scheduler's projection. */
+const SCHEDULING_PAGE_SIZE = 500;
+
+interface SchedulingRow {
+  id: string;
+  domain: string;
+  organizationId: string;
+  scanInterval: string;
+  lastScannedAt: number | null;
+  status: string | null;
+  createdAt: number;
+  metadata: Record<string, unknown> | null;
+}
+
+/**
+ * The scheduler's projection of EVERY row, walked in keyset pages over
+ * (created_at_ms, id) until exhausted. The 0.4 `take(500)` was a per-query
+ * Convex cap; ported as a hard ceiling it meant every site past the 500th
+ * (oldest-first) got its register-kicked scan and then never a periodic one.
+ * The throttle is `MAX_SCANS_PER_TICK` on the due set, not this listing.
+ */
 export async function listWebsitesForScanScheduling(
   sql: Sql,
 ): Promise<
   (ScanSchedulingSite & { domain: string; organizationId: string })[]
 > {
-  const rows = await sql<
-    {
-      domain: string;
-      organizationId: string;
-      scanInterval: string;
-      lastScannedAt: number | null;
-      status: string | null;
-      createdAt: number;
-      metadata: Record<string, unknown> | null;
-    }[]
-  >`
-    SELECT domain, org_id AS "organizationId",
-           scan_interval AS "scanInterval",
-           last_scanned_at_ms::float8 AS "lastScannedAt", status,
-           created_at_ms::float8 AS "createdAt", metadata
-    FROM app.websites
-    ORDER BY created_at_ms ASC
-    LIMIT 500
-  `;
   const sites: (ScanSchedulingSite & {
     domain: string;
     organizationId: string;
   })[] = [];
-  for (const row of rows) {
-    const metadata = row.metadata ?? undefined;
-    const attempt = lastScanAttemptAt(metadata);
-    const site: ScanSchedulingSite & {
-      domain: string;
-      organizationId: string;
-      lastScannedAt?: number;
-      lastAttemptAt?: number;
-      status?: string;
-    } = {
-      domain: row.domain,
-      organizationId: row.organizationId,
-      scanIntervalSeconds: scanIntervalToSeconds(row.scanInterval),
-      createdAt: row.createdAt,
-      connectionFailures: connectionFailureCount(metadata),
-      scanPaused: scanPausedAt(metadata) !== null,
-    };
-    if (row.lastScannedAt !== null) site.lastScannedAt = row.lastScannedAt;
-    if (attempt !== null) site.lastAttemptAt = attempt;
-    if (row.status !== null) site.status = row.status;
-    sites.push(site);
+  let after: { createdAt: number; id: string } | null = null;
+  for (;;) {
+    const rows: SchedulingRow[] = await sql<SchedulingRow[]>`
+      SELECT id, domain, org_id AS "organizationId",
+             scan_interval AS "scanInterval",
+             last_scanned_at_ms::float8 AS "lastScannedAt", status,
+             created_at_ms::float8 AS "createdAt", metadata
+      FROM app.websites
+      WHERE (${after === null}
+             OR (created_at_ms, id) > (${after?.createdAt ?? 0}, ${after?.id ?? ''}))
+      ORDER BY created_at_ms ASC, id ASC
+      LIMIT ${SCHEDULING_PAGE_SIZE}
+    `;
+    for (const row of rows) sites.push(toSchedulingSite(row));
+    const last = rows[rows.length - 1];
+    if (!last || rows.length < SCHEDULING_PAGE_SIZE) break;
+    after = { createdAt: last.createdAt, id: last.id };
   }
   return sites;
 }
 
+function toSchedulingSite(
+  row: SchedulingRow,
+): ScanSchedulingSite & { domain: string; organizationId: string } {
+  const metadata = row.metadata ?? undefined;
+  const attempt = lastScanAttemptAt(metadata);
+  const site: ScanSchedulingSite & {
+    domain: string;
+    organizationId: string;
+    lastScannedAt?: number;
+    lastAttemptAt?: number;
+    status?: string;
+  } = {
+    domain: row.domain,
+    organizationId: row.organizationId,
+    scanIntervalSeconds: scanIntervalToSeconds(row.scanInterval),
+    createdAt: row.createdAt,
+    connectionFailures: connectionFailureCount(metadata),
+    scanPaused: scanPausedAt(metadata) !== null,
+  };
+  if (row.lastScannedAt !== null) site.lastScannedAt = row.lastScannedAt;
+  if (attempt !== null) site.lastAttemptAt = attempt;
+  if (row.status !== null) site.status = row.status;
+  return site;
+}
+
 // ------------------------------------------------------------ crawl host
+
+/** The refs the reused engine SCHEDULES rather than dispatches — mapped
+ * onto pg-boss jobs by `crawlScheduler`, so the reachability gate counts
+ * them as answered. Exported for tests only (`shim.test.ts`). */
+export const SCHEDULED_CRAWL_REFS = {
+  scanWebsite: 'knowledge/crawl_action:scanWebsite',
+  syncWebsiteRow: 'websites/internal_actions:syncWebsiteRowForDomain',
+} as const;
 
 /** The ctx shim the REUSED crawl engine runs on: knowledge handlers (org
  * lookups + embedder legs), the sandbox session verbs behind the render
- * lane, and this service's websites handlers. */
-function crawlHandlers(sql: Sql): ShimHandlers {
+ * lane, and this service's websites handlers. Exported for tests only —
+ * the reachability gate (`shim.test.ts`), which requires a handler for
+ * every `internal.*` ref the engine can reach; production reaches it
+ * through `crawlCtx` below. */
+export function crawlHandlers(sql: Sql): ShimHandlers {
   return {
     ...knowledgeShimHandlers(sql),
     'websites/internal_mutations:recordScanFailure': async (raw) => {
@@ -560,7 +585,7 @@ function crawlHandlers(sql: Sql): ShimHandlers {
 /** The engine's scheduled refs, mapped onto pg-boss jobs. */
 function crawlScheduler(sql: Sql): ShimScheduler {
   return async (name, delayMs, args) => {
-    if (name === 'knowledge/crawl_action:scanWebsite') {
+    if (name === SCHEDULED_CRAWL_REFS.scanWebsite) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine self-chains with exactly this shape
       const payload = args as {
         domain: string;
@@ -577,7 +602,7 @@ function crawlScheduler(sql: Sql): ShimScheduler {
       );
       return;
     }
-    if (name === 'websites/internal_actions:syncWebsiteRowForDomain') {
+    if (name === SCHEDULED_CRAWL_REFS.syncWebsiteRow) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine fans out with exactly this shape
       const payload = args as { orgSlug: string; domain: string };
       await addJobInTx(sql, 'websites.row_sync', payload, {
@@ -763,8 +788,7 @@ export async function syncSingleWebsite(
         websiteId: args.websiteId,
         status: 'error',
         metadata: {
-          lastSyncError:
-            'Website not found in crawler. Please delete and re-add it.',
+          lastSyncError: WEBSITE_NOT_IN_CORPUS_MESSAGE,
           lastStatusSyncAt: syncTimestamp,
         },
       });

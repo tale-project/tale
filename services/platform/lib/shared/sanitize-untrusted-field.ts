@@ -5,11 +5,10 @@
  * marks that LLM tokenizers see but humans don't, and clamps length so a
  * 10 KB "title" can't blow up the prompt window.
  *
- * Lives in `lib/shared/` because both server (`buildMessageWithAttachments`
- * in start_agent_chat.ts) and client (optimistic-render formatter in
- * `video-link-markdown.ts`) need byte-identical output. The wrapping side
- * (`wrapUntrusted` / `UNTRUSTED_CONTENT_SYSTEM_PROMPT`) lives in
- * `lib/chat/untrusted-content.ts`.
+ * Lives in `lib/shared/` as the runtime-agnostic boundary helper; the
+ * backend reaches it through `lib/chat/untrusted-content` (the video-link
+ * ingest's metadata trust boundary, the assistant tools' titles), which
+ * remains the home for `wrapUntrusted` / `UNTRUSTED_CONTENT_SYSTEM_PROMPT`.
  */
 export function sanitizeUntrustedField(value: string, maxLen = 200): string {
   // eslint-disable-next-line no-control-regex

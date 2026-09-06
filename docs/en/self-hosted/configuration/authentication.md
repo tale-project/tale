@@ -38,7 +38,7 @@ This is the mode for teams that already run an IdP and want their existing ident
 
 ## Trusted headers
 
-Trusted headers is the mode for sites that terminate SSO at an upstream reverse proxy — oauth2-proxy, Pomerium, Authelia. The proxy authenticates the user and forwards identifying headers (`X-Auth-Request-Email`, `X-Auth-Request-Preferred-Username`); Tale trusts those headers and creates or updates the user record on the fly.
+Trusted headers is the mode for sites that terminate SSO at an upstream reverse proxy — oauth2-proxy, Pomerium, Authelia. The proxy authenticates the user and forwards identity headers; Tale reads `Remote-Email`, `Remote-Name`, `Remote-Role` and `Remote-Teams` by default, trusts them, and creates or updates the user record on the fly. A proxy that names its headers differently (oauth2-proxy sends `X-Auth-Request-Email`) is mapped with the `TRUSTED_*_HEADER` variables in the [environment reference](/self-hosted/configuration/environment-reference).
 
 ```bash
 # .env
@@ -47,6 +47,8 @@ TRUSTED_HEADERS_INTERNAL_SECRET=<long random value>
 ```
 
 The secret is not optional: the identity headers alone are forgeable by anything that can reach the backend, so the endpoint refuses to run until `TRUSTED_HEADERS_INTERNAL_SECRET` is set. Configure the authenticating proxy to send the same value in the `Remote-Internal-Secret` header on every request it forwards to Tale (rename the header with `TRUSTED_SECRET_HEADER` if your proxy dictates its own naming) — a request arriving without the matching value is refused before any user is looked up.
+
+`Remote-Teams` carries team memberships as comma-separated `id:name` entries — `t-fin:Finance, t-ops:Operations`. On every sign-in Tale creates each named team in the organization if it does not exist yet and puts the user in it; a team the header stops naming is left again. The sync only touches memberships it granted itself — a membership an admin assigned by hand stays. Leave the header out to keep Tale out of team management; send it present but empty to revoke every membership the proxy granted. A present value with no `id:name` entry in it (bare names, for instance) counts as empty and leaves a warning in the platform container's log — check there when users lose their teams after a proxy change.
 
 The threat model is still delicate. Anything that can reach the platform container with those headers **and** the secret becomes the user named in them. Restrict the platform port so only the proxy can speak to it (a Docker network or a host firewall rule), and never expose the platform container directly to the internet when this mode is on.
 

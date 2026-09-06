@@ -4,6 +4,7 @@ import {
   classifyChatErrorCode,
   decodeChatError,
 } from '../../../lib/shared/chat-errors.ts';
+import { UNATTRIBUTED_AGENT_SLUG } from '../../../lib/shared/constants/usage.ts';
 import {
   DAY_MS,
   dailyKeys,
@@ -19,7 +20,6 @@ import {
 const CHAT_HEALTH_MAX_SCAN = 5000;
 const CHAT_HEALTH_TOP_N = 10;
 const CHAT_HEALTH_RECENT_ERRORS = 20;
-const UNATTRIBUTED_AGENT_SLUG = '__unattributed__';
 
 function readTokenUsage(usage: unknown): {
   input: number;

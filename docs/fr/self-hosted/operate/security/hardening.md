@@ -46,6 +46,7 @@ Chaque secret dans `.env` est sensible — le secret de signature d'auth, la cl�
 - `BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`, `INSTANCE_SECRET` sont rotés depuis les valeurs d'exemple livrées dans `.env.example`.
 - `DB_PASSWORD` est changé du placeholder par défaut.
 - `SOPS_AGE_KEY` ou `SOPS_AGE_KEY_FILE` est défini — laisser les deux non définis est supporté mais réservé aux hôtes à disque chiffré avec gestion de secrets externe.
+- `TALE_AUDIT_PEPPER` est défini — sans lui, chaque connexion échouée laisse l'e-mail et l'IP en clair dans le journal d'audit, pendant toute la fenêtre de rétention. `tale init` le génère ; dans un `.env` écrit à la main, ajoute-le.
 
 Le walk SOPS complet et la procédure de rotation vivent dans [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops).
 

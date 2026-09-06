@@ -6,6 +6,8 @@ export interface FileMetadataResult {
     hash?: string;
     mimeType?: string;
     size?: number;
+    /** Graph `lastModifiedDateTime`, ms — the hash-less change key. */
+    modifiedAt?: number;
   };
   error?: string;
   /** Graph returned 404 — the item no longer exists at the source (deleted or
@@ -22,9 +24,9 @@ export async function getFileMetadata(
   try {
     let url: string;
     if (siteId && driveId) {
-      url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/items/${itemId}?$select=id,name,size,file`;
+      url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/items/${itemId}?$select=id,name,size,file,lastModifiedDateTime`;
     } else {
-      url = `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}?$select=id,name,size,file`;
+      url = `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}?$select=id,name,size,file,lastModifiedDateTime`;
     }
 
     const response = await fetch(url, {
@@ -47,6 +49,7 @@ export async function getFileMetadata(
       id: string;
       name: string;
       size?: number;
+      lastModifiedDateTime?: string;
       file?: {
         mimeType?: string;
         hashes?: {
@@ -68,6 +71,9 @@ export async function getFileMetadata(
         hash,
         mimeType: data.file?.mimeType,
         size: data.size,
+        modifiedAt: data.lastModifiedDateTime
+          ? Date.parse(data.lastModifiedDateTime)
+          : undefined,
       },
     };
   } catch (error) {

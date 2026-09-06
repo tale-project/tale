@@ -11,7 +11,6 @@ import {
   BrandingError,
   deleteBrandingImage,
   readBranding,
-  resetBranding,
   saveBranding,
   saveBrandingImage,
   snapshotBrandingToHistory,
@@ -113,13 +112,6 @@ export function createBrandingRoutes(deps: {
     } catch (error) {
       return handleError(c, error);
     }
-  });
-
-  admin.post('/reset', async (c) => {
-    const orgSlug = await orgSlugOf(c);
-    if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    await resetBranding(orgSlug);
-    return c.json({ ok: true });
   });
 
   admin.post('/snapshot', async (c) => {

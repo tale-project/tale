@@ -6,6 +6,11 @@ const DIRECT_API_SLUG = '__direct_api__';
 const CONNECTOR_SLUG = '__connector__';
 export const TRANSCRIPTION_SLUG = '__transcription__';
 export const TTS_SLUG = '__tts__';
+// The feedback / chat-health ranking key for a row with no agent attribution
+// (arena rows, legacy pre-attribution rows). Distinct from the usage-page
+// sentinels above so the tables can label it differently; the backend
+// reducers and the analytics pages share this one declaration.
+export const UNATTRIBUTED_AGENT_SLUG = '__unattributed__';
 
 type UsageRowKind = 'llm' | 'connector' | 'transcription' | 'tts';
 

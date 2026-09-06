@@ -42,7 +42,6 @@ import { createApp } from './server';
 const baseEnv = {
   SITE_URL: 'https://tale.example.com',
   BASE_PATH: '',
-  MICROSOFT_AUTH_ENABLED: false,
   TRUSTED_HEADERS_ENABLED: false,
   FILE_EVENTS_ENABLED: true,
   SENTRY_DSN: undefined,

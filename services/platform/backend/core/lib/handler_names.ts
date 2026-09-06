@@ -14,7 +14,10 @@
  *
  * HAND-MAINTAINED. Add a line when a reused handler starts naming a new
  * function, and give the shim a handler for it in the SAME change — an entry
- * without one is a runtime refusal waiting to happen.
+ * without one is a runtime refusal waiting to happen. The reverse is guarded:
+ * `handler_names.test.ts` fails on a leaf nothing names any more (no
+ * `internal.a.b.c` in code, no `'a/b:c'` key in a shim table), so the list
+ * stays a checklist and never a graveyard of retired 0.4 modules.
  */
 
 import {
@@ -28,9 +31,6 @@ interface HandlerNames {
     actions: FunctionRef & {
       resolveAgentSecretsEnv: FunctionRef;
     };
-  };
-  anthropic: FunctionRef & {
-    com: FunctionRef;
   };
   approvals: FunctionRef & {
     gate: FunctionRef & {
@@ -64,13 +64,6 @@ interface HandlerNames {
       recordAgentTurnSettled: FunctionRef;
       recordProgress: FunctionRef;
       stampAgentTurnLaunch: FunctionRef;
-      storeCancelRun: FunctionRef;
-      storeDeleteTrigger: FunctionRef;
-      storeDeploy: FunctionRef;
-      storeRecordRun: FunctionRef;
-      storeSave: FunctionRef;
-      storeSetTrigger: FunctionRef;
-      storeStartRun: FunctionRef;
       suspendRun: FunctionRef;
     };
     queries: FunctionRef & {
@@ -80,13 +73,6 @@ interface HandlerNames {
       loadLiveAgentOpForRun: FunctionRef;
       loadRunForStep: FunctionRef;
       readAgentCursor: FunctionRef;
-      storeDeployedVersion: FunctionRef;
-      storeGet: FunctionRef;
-      storeGetRun: FunctionRef;
-      storeList: FunctionRef;
-      storeListRuns: FunctionRef;
-      storeListTriggers: FunctionRef;
-      storeListVersions: FunctionRef;
     };
   };
   automations_builder: FunctionRef & {
@@ -120,7 +106,6 @@ interface HandlerNames {
     };
     queries: FunctionRef & {
       listActiveCredentialsInternal: FunctionRef;
-      listCredentials: FunctionRef;
       resolveCredentialRefInternal: FunctionRef;
     };
   };
@@ -152,9 +137,6 @@ interface HandlerNames {
     search_for_chat: FunctionRef & {
       searchConversationsForChat: FunctionRef;
     };
-  };
-  deepseek: FunctionRef & {
-    com: FunctionRef;
   };
   documents: FunctionRef & {
     internal_actions: FunctionRef & {
@@ -192,10 +174,6 @@ interface HandlerNames {
       };
     };
   };
-  example: FunctionRef & {
-    com: FunctionRef;
-    test: FunctionRef;
-  };
   file_metadata: FunctionRef & {
     internal_mutations: FunctionRef & {
       acquireTranscriptionLock: FunctionRef;
@@ -210,26 +188,17 @@ interface HandlerNames {
       filterStorageIdsReadable: FunctionRef;
       findCachedTranscript: FunctionRef;
       getByStorageId: FunctionRef;
-      getStorageSha256: FunctionRef;
       listMailAttachmentsForChat: FunctionRef;
       lookupVideoLinkSources: FunctionRef;
     };
-    mutations: FunctionRef;
     transcribe_audio: FunctionRef & {
       transcribeAudio: FunctionRef;
     };
   };
   files: FunctionRef & {
     blob_actions: FunctionRef & {
-      deleteOrgBlobs: FunctionRef;
       storeOrgBlob: FunctionRef;
     };
-  };
-  fireworks: FunctionRef & {
-    ai: FunctionRef;
-  };
-  github: FunctionRef & {
-    com: FunctionRef;
   };
   governance: FunctionRef & {
     internal_actions: FunctionRef & {
@@ -253,48 +222,16 @@ interface HandlerNames {
     crawl_action: FunctionRef & {
       scanWebsite: FunctionRef;
     };
-    crawl_ops: FunctionRef & {
-      deregisterDomainOp: FunctionRef;
-      homepageMetadataOp: FunctionRef;
-      registerDomainOp: FunctionRef;
-      registerUrlListOp: FunctionRef;
-      setScanIntervalOp: FunctionRef;
-      websiteInfoOp: FunctionRef;
-    };
   };
   knowledge_entries: FunctionRef & {
     internal_queries: FunctionRef & {
       listEntriesForAgent: FunctionRef;
     };
   };
-  lib: FunctionRef & {
-    config_store: FunctionRef & {
-      actions: FunctionRef & {
-        readConfigArea: FunctionRef;
-      };
-    };
-  };
-  login_attempts: FunctionRef & {
-    internal_queries: FunctionRef & {
-      getTrustedProxies: FunctionRef;
-    };
-  };
   members: FunctionRef & {
     internal_queries: FunctionRef & {
       getMemberRole: FunctionRef;
     };
-  };
-  notifications: FunctionRef & {
-    dispatch_notification: FunctionRef & {
-      dispatchNotificationAction: FunctionRef;
-    };
-    email_notification: FunctionRef & {
-      deliverActionableEmailAction: FunctionRef;
-    };
-  };
-  openai: FunctionRef & {
-    com: FunctionRef;
-    example: FunctionRef;
   };
   products: FunctionRef & {
     internal_queries: FunctionRef & {
@@ -356,12 +293,10 @@ interface HandlerNames {
       provisionGroup: FunctionRef;
       provisionUser: FunctionRef;
       replaceGroup: FunctionRef;
-      touchConfigLastUsed: FunctionRef;
     };
     internal_queries: FunctionRef & {
       findGroupRecordByDisplayName: FunctionRef;
       findUserRecordByUserName: FunctionRef;
-      getConfigByTokenHash: FunctionRef;
       getGroupRecord: FunctionRef;
       getUserRecord: FunctionRef;
       listGroupRecords: FunctionRef;
@@ -371,9 +306,6 @@ interface HandlerNames {
   skills: FunctionRef & {
     file_actions: FunctionRef & {
       readSkillBundle: FunctionRef;
-    };
-    upload_mutations: FunctionRef & {
-      deleteSkillUploadIntent: FunctionRef;
     };
   };
   tasks: FunctionRef & {
@@ -411,18 +343,6 @@ interface HandlerNames {
       searchTasksForChat: FunctionRef;
     };
   };
-  two_factor: FunctionRef & {
-    internal_mutations: FunctionRef & {
-      clearOnSuccess: FunctionRef;
-      logEnrollmentEvent: FunctionRef;
-      recordFailure: FunctionRef;
-      setGraceUntilIfAbsent: FunctionRef;
-    };
-    internal_queries: FunctionRef & {
-      evaluateEnforcement: FunctionRef;
-      getLockStateByUserId: FunctionRef;
-    };
-  };
   user_preferences: FunctionRef & {
     queries: FunctionRef & {
       getChatModelInternal: FunctionRef;
@@ -448,16 +368,12 @@ interface HandlerNames {
     };
     internal_mutations: FunctionRef & {
       clearScanFailures: FunctionRef;
-      deleteWebsite: FunctionRef;
       recordScanFailure: FunctionRef;
     };
     internal_queries: FunctionRef & {
       listWebsiteSummaries: FunctionRef;
       listWebsitesForScanScheduling: FunctionRef;
     };
-  };
-  z: FunctionRef & {
-    ai: FunctionRef;
   };
 }
 

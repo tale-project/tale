@@ -100,6 +100,18 @@ describe('useBackendHints', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['backend', 'org1'] });
   });
 
+  it('closes the source on the terminal forbidden event instead of reconnecting', () => {
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    const source = FakeEventSource.instances[0];
+    expect(source?.closed).toBe(false);
+    act(() => {
+      source?.emit('forbidden', '');
+    });
+    // The server ended the stream because the reader lost the org or the
+    // session; a native reconnect would only meet a 401/403.
+    expect(source?.closed).toBe(true);
+  });
+
   it('ignores malformed hint payloads without throwing', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     vi.spyOn(console, 'warn').mockImplementation(() => {});

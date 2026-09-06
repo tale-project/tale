@@ -13,7 +13,6 @@ import {
   parseAgentYaml,
   serializeAgentYaml,
 } from '../../../lib/agents/parse';
-import { resolveAgentForTurn } from '../../../lib/agents/resolve';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   isValidAgentSlug,
@@ -21,19 +20,15 @@ import {
 } from '../../../lib/shared/schemas/agents';
 import {
   createOrgAgentReader,
-  listAgentHistoryEntries,
-  readAgentHistoryText,
   relativeAgentPath,
   removeAgentFile,
   resolveAgentFilePath,
   writeAgentFileText,
-  type AgentHistoryEntry,
 } from './file_utils';
 import {
   type AgentDocumentView,
   type AgentListingView,
   type AgentSummaryView,
-  type ResolvedAgentView,
 } from './views';
 
 /**
@@ -139,31 +134,6 @@ export async function readAgentForCaller(
   const agent = await loadAgentOrThrow(args.orgSlug, args.slug);
   if (agent === null || !canViewAgent(agent.definition, viewer)) return null;
   return toDocument(agent, viewer);
-}
-/**
- * The agent answering one turn, resolved for `locale`: its localized words
- * plus what it may reach for. `null` when the org has no such agent or the
- * member may not use it — a turn cannot borrow a persona its author kept
- * private.
- */
-export async function resolveAgentForCaller(
-  args: AgentCallerArgs & { slug: string; locale: string },
-): Promise<ResolvedAgentView | null> {
-  assertValidSlug(args.slug);
-  const viewer = viewerFrom(args);
-  const agent = await loadAgentOrThrow(args.orgSlug, args.slug);
-  if (agent === null || !canViewAgent(agent.definition, viewer)) return null;
-
-  const resolved = resolveAgentForTurn(agent.definition, args.locale);
-  return {
-    slug: resolved.slug,
-    displayName: resolved.displayName,
-    description: resolved.description,
-    instructions: resolved.instructions,
-    tools: resolved.tools === undefined ? undefined : [...resolved.tools],
-    skills: resolved.skills === undefined ? undefined : [...resolved.skills],
-    knowledge: resolved.knowledge,
-  };
 }
 /**
  * Create or update an agent.
@@ -273,81 +243,6 @@ export async function saveAgentForCaller(
       slug: args.slug,
       path: relativeAgentPath(args.slug),
       definition: verified,
-    },
-    viewer,
-  );
-}
-/**
- * The superseded versions of one agent, newest first. Every save leaves the
- * previous file in the trail, so this is the whole restore surface. Visible
- * to whoever may view the agent; restoring is an edit and gated as one.
- */
-export async function listHistoryForCaller(
-  args: AgentCallerArgs & { slug: string },
-): Promise<AgentHistoryEntry[]> {
-  assertValidSlug(args.slug);
-  const viewer = viewerFrom(args);
-  const existing = await loadAgentOrThrow(args.orgSlug, args.slug);
-  if (existing === null || !canViewAgent(existing.definition, viewer)) {
-    return [];
-  }
-  return listAgentHistoryEntries(args.orgSlug, args.slug);
-}
-/**
- * Restore one history snapshot as the agent's current version. Additive on
- * purpose: the write snapshots the superseded current file into the trail
- * first, so a restore never destroys the state it replaced. The snapshot is
- * re-parsed before it lands — a trail entry the readers would reject (an
- * older shape, a hand-edited file) refuses with the parse detail instead of
- * bricking the agent.
- */
-export async function restoreFromHistoryForCaller(
-  args: AgentCallerArgs & { slug: string; entry: string },
-): Promise<AgentDocumentView> {
-  assertValidSlug(args.slug);
-  const viewer = viewerFrom(args);
-  const existing = await loadAgentOrThrow(args.orgSlug, args.slug);
-  if (existing === null || !canEditAgent(existing.definition, viewer)) {
-    throw new AppError({
-      code: 'AGENT_FORBIDDEN',
-      message: `You cannot restore the agent "${args.slug}".`,
-    });
-  }
-
-  const content = await readAgentHistoryText(
-    args.orgSlug,
-    args.slug,
-    args.entry,
-  );
-  if (content === null) {
-    throw new AppError({
-      code: 'AGENT_HISTORY_ENTRY_NOT_FOUND',
-      message: `History entry "${args.entry}" no longer exists for "${args.slug}".`,
-    });
-  }
-
-  let restored: AgentDefinition;
-  try {
-    restored = parseAgentYaml(
-      content,
-      resolveAgentFilePath(args.orgSlug, args.slug),
-    );
-  } catch (err) {
-    if (err instanceof AgentParseError) {
-      throw new AppError({
-        code: 'INVALID_AGENT',
-        message: `The snapshot could not be restored: ${err.detail}`,
-      });
-    }
-    throw err;
-  }
-
-  await writeAgentFileText(args.orgSlug, args.slug, content);
-  return toDocument(
-    {
-      slug: args.slug,
-      path: relativeAgentPath(args.slug),
-      definition: restored,
     },
     viewer,
   );

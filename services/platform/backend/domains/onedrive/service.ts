@@ -5,12 +5,7 @@ import {
   resolveFileType,
 } from '../../../lib/shared/file-types.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
-import {
-  pickMicrosoftAccount,
-  type MicrosoftAccountCandidate,
-} from '../../core/accounts/microsoft_account.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
-import { extractTenantId } from '../../core/enterprise_sso/entra_id/constants.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
@@ -21,14 +16,10 @@ import {
   selectDocumentsToPrune,
   type SyncedDocumentRef,
 } from '../../core/onedrive/reconcile_folder_sync.ts';
-import { refreshToken as refreshMicrosoftLoginToken } from '../../core/onedrive/refresh_token.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
-import {
-  isCloudImportProvider,
-  resolveCloudAccessToken,
-} from '../cloud_import/service.ts';
+import { resolveCloudAccessToken } from '../cloud_import/service.ts';
 import { MAX_UPLOAD_BYTES, readBodyBounded } from '../files/bounded-body.ts';
 import { putOrgBlobBytes } from '../files/service.ts';
 import {
@@ -40,7 +31,6 @@ import {
 import { markRagQueued, syncRagDocumentScope } from '../knowledge/service.ts';
 import { assertNotHeld, LegalHoldError } from '../legal_holds/service.ts';
 import { purgeDocument } from '../retention/service.ts';
-import { readSsoSecrets, resolveSignInConfig } from '../sso/config.ts';
 
 /**
  * OneDrive Knowledge sync — the 0.5 twin of `convex/onedrive`: the
@@ -50,9 +40,11 @@ import { readSsoSecrets, resolveSignInConfig } from '../sso/config.ts';
  * one `onedrive.sync_config` job per active config) — the 0.4 automation
  * pack that used to drive it was retired with the automation rebuild.
  *
- * Tokens resolve cloud-import grant FIRST (the explicit Documents grant from
- * inc 64), then the Better Auth Microsoft login account (legacy / SSO
- * shortcut) — the 0.4 `withMicrosoftToken` order. Agents never reach these.
+ * Tokens are GRANT-ONLY: the explicit per-user Documents grant (inc 64).
+ * The 0.4 fallback to the Better Auth Microsoft login account is gone — SSO
+ * sign-in deliberately never carries Graph file scopes, so that lane could
+ * only ever hand the engine a token Graph answers with 403. Agents never
+ * reach these.
  *
  * Like the 0.4 tree (google_drive imports onedrive's prune/reconcile
  * helpers), this module is also the home of the PROVIDER-GENERIC engine:
@@ -131,7 +123,12 @@ export interface SyncProviderAdapter {
     driveId?: string,
   ): Promise<{
     success: boolean;
-    data?: { hash?: string; mimeType?: string; size?: number };
+    data?: {
+      hash?: string;
+      mimeType?: string;
+      size?: number;
+      modifiedAt?: number;
+    };
     notFound?: boolean;
     error?: string;
   }>;
@@ -197,22 +194,15 @@ export async function getSyncConfigRow(
   return rows[0] ?? null;
 }
 
-export async function listActiveSyncConfigRows(
-  db: Sql | TransactionSql,
-  table: string,
-  organizationId: string,
-): Promise<SyncConfigRow[]> {
-  return db<SyncConfigRow[]>`
-    SELECT ${db.unsafe(CONFIG_COLUMNS)} FROM ${db.unsafe(table)}
-    WHERE org_id = ${organizationId} AND status = 'active'
-    ORDER BY created_at_ms ASC
-  `;
-}
-
 /**
  * Create-or-reactivate the sync config for a selected item (the 0.4
  * `create*SyncConfig`): one config per (org, source item); an
- * inactive/error row is reactivated in place with the fresh selection.
+ * inactive/error row is reactivated in place with the fresh selection. A
+ * reactivation starts a fresh run lifecycle — the previous one's marker is
+ * cleared so the first job claims at once (a 'running' left by a cancelled
+ * run would otherwise hold the claim fence for the stale window). A live
+ * row keeps its marker: re-selecting an item whose sync is in flight must
+ * not admit a second concurrent run.
  */
 export async function upsertSyncConfigRow(
   db: Sql | TransactionSql,
@@ -230,8 +220,10 @@ export async function upsertSyncConfigRow(
   },
 ): Promise<string | null> {
   const now = Date.now();
+  // `cfg` names the EXISTING row inside DO UPDATE — an unqualified column
+  // there is ambiguous against EXCLUDED (Postgres refuses the statement).
   const rows = await db<{ id: string }[]>`
-    INSERT INTO ${db.unsafe(table)} (
+    INSERT INTO ${db.unsafe(table)} AS cfg (
       org_id, user_id, item_type, item_id, item_name, item_path,
       target_bucket, storage_prefix, team_id, status, created_at_ms,
       updated_at_ms
@@ -250,11 +242,27 @@ export async function upsertSyncConfigRow(
       team_id = EXCLUDED.team_id,
       status = 'active',
       error_message = NULL,
+      last_sync_status = CASE
+        WHEN cfg.status = 'inactive' THEN NULL ELSE cfg.last_sync_status END,
       updated_at_ms = ${now}
     RETURNING id
   `;
   return rows[0]?.id ?? null;
 }
+
+/**
+ * The run marker a deactivation leaves behind. A cancel that lands while a
+ * run is in flight refuses that run's final stamp (see
+ * `updateSyncConfigStatusRow`), so without this the row kept
+ * `last_sync_status = 'running'` forever — the listing showed a running
+ * inactive config, and a reactivation sat behind the claim fence until the
+ * stamp was 30 minutes stale. The heartbeat is gated on 'running', so the
+ * in-flight run also stops renewing a claim it no longer holds.
+ */
+const SETTLE_RUN_MARKER_ON_DEACTIVATE = `
+  last_sync_status = CASE
+    WHEN last_sync_status = 'running' THEN 'cancelled' ELSE last_sync_status END
+`;
 
 /**
  * Patch a config's run outcome (the 0.4 `updateSyncConfig` twin). A status
@@ -300,7 +308,8 @@ export async function cancelSyncConfigRow(
 ): Promise<void> {
   const rows = await db<{ id: string }[]>`
     UPDATE ${db.unsafe(table)} SET
-      status = 'inactive', updated_at_ms = ${Date.now()}
+      status = 'inactive', updated_at_ms = ${Date.now()},
+      ${db.unsafe(SETTLE_RUN_MARKER_ON_DEACTIVATE)}
     WHERE id = ${configId} AND org_id = ${organizationId}
     RETURNING id
   `;
@@ -334,7 +343,8 @@ export async function deactivateSyncConfigsForPath(
   for (const table of ALL_SYNC_CONFIG_TABLES) {
     const rows = await db<{ id: string }[]>`
       UPDATE ${db.unsafe(table)} SET
-        status = 'inactive', updated_at_ms = ${Date.now()}
+        status = 'inactive', updated_at_ms = ${Date.now()},
+        ${db.unsafe(SETTLE_RUN_MARKER_ON_DEACTIVATE)}
       WHERE org_id = ${organizationId} AND status = 'active'
         AND (coalesce(item_path, '') = ${folderPath}
              OR coalesce(item_path, '') LIKE ${folderPath + '/%'})
@@ -368,7 +378,8 @@ export async function stopSyncForTrashedDocument(
   for (const table of ALL_SYNC_CONFIG_TABLES) {
     const rows = await db<{ id: string }[]>`
       UPDATE ${db.unsafe(table)} SET
-        status = 'inactive', updated_at_ms = ${Date.now()}
+        status = 'inactive', updated_at_ms = ${Date.now()},
+        ${db.unsafe(SETTLE_RUN_MARKER_ON_DEACTIVATE)}
       WHERE id = ${meta.syncConfigId} AND org_id = ${document.organizationId}
         AND status <> 'inactive'
       RETURNING id
@@ -384,163 +395,23 @@ export type GraphTokenResult =
   | { success: true; token: string }
   | { success: false; error: string };
 
-const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
-
-interface LoginAccountRow extends MicrosoftAccountCandidate {
-  id: string;
-  providerId: string;
-  accessToken: string | null;
-  refreshToken: string | null;
-  accessTokenExpiresAtDate: Date | null;
-  refreshTokenExpiresAtDate: Date | null;
-  updatedAt: number;
-}
-
 /**
- * Client credentials for refreshing a login-account Graph token (the 0.4
- * `resolveMicrosoftRefreshCredentials`): an `entra-id` row was issued by the
- * org's own SSO app registration — use that connection's client id/secret
- * and issuer tenant; the deployment env app is the fallback either way.
- */
-async function resolveRefreshCredentials(
-  sql: Sql,
-  providerId: string,
-): Promise<{
-  tenantId: string;
-  clientId: string;
-  clientSecret: string;
-} | null> {
-  if (providerId === 'entra-id') {
-    try {
-      const config = await resolveSignInConfig(sql, undefined);
-      if (
-        config !== null &&
-        config !== 'ambiguous' &&
-        config.providerId === 'entra-id' &&
-        typeof config.issuer === 'string' &&
-        typeof config.organizationId === 'string'
-      ) {
-        const tenantId = extractTenantId(config.issuer);
-        const secrets = await readSsoSecrets(sql, config.organizationId);
-        if (secrets.clientId && secrets.clientSecret) {
-          return {
-            tenantId,
-            clientId: secrets.clientId,
-            clientSecret: secrets.clientSecret,
-          };
-        }
-      }
-    } catch (error) {
-      console.warn(
-        '[onedrive] SSO connection credentials unavailable, falling back to env:',
-        error instanceof Error ? error.message : error,
-      );
-    }
-  }
-  const tenantId = process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID;
-  const clientId = process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
-  const clientSecret = process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET;
-  if (!tenantId || !clientId || !clientSecret) return null;
-  return { tenantId, clientId, clientSecret };
-}
-
-/** The Better Auth Microsoft login-account lane (legacy / SSO shortcut). */
-async function resolveLoginAccountToken(
-  sql: Sql,
-  userId: string,
-): Promise<string | null> {
-  const rows = await sql<
-    {
-      id: string;
-      providerId: string;
-      accessToken: string | null;
-      refreshToken: string | null;
-      accessTokenExpiresAt: Date | null;
-      refreshTokenExpiresAt: Date | null;
-      updatedAt: Date | null;
-    }[]
-  >`
-    SELECT "id", "providerId" AS "providerId", "accessToken",
-           "refreshToken", "accessTokenExpiresAt", "refreshTokenExpiresAt",
-           "updatedAt"
-    FROM "account"
-    WHERE "userId" = ${userId}
-  `;
-  const candidates: LoginAccountRow[] = rows.map((row) => ({
-    id: row.id,
-    providerId: row.providerId,
-    accessToken: row.accessToken,
-    refreshToken: row.refreshToken,
-    accessTokenExpiresAtDate: row.accessTokenExpiresAt,
-    refreshTokenExpiresAtDate: row.refreshTokenExpiresAt,
-    updatedAt: row.updatedAt?.getTime() ?? 0,
-  }));
-  const account = pickMicrosoftAccount(candidates);
-  if (!account) return null;
-
-  const now = Date.now();
-  const accessExpiresAt = account.accessTokenExpiresAtDate?.getTime();
-  const accessLive =
-    typeof account.accessToken === 'string' &&
-    account.accessToken !== '' &&
-    (accessExpiresAt === undefined ||
-      accessExpiresAt > now + TOKEN_EXPIRY_BUFFER_MS);
-  if (accessLive) return account.accessToken;
-
-  const refreshUsable =
-    typeof account.refreshToken === 'string' &&
-    account.refreshToken !== '' &&
-    (account.refreshTokenExpiresAtDate === null ||
-      account.refreshTokenExpiresAtDate.getTime() > now);
-  if (!refreshUsable || account.refreshToken === null) return null;
-
-  const credentials = await resolveRefreshCredentials(sql, account.providerId);
-  if (!credentials) {
-    console.warn('[onedrive] no OAuth credentials to refresh a login token');
-    return null;
-  }
-  const refreshed = await refreshMicrosoftLoginToken({
-    refreshToken: account.refreshToken,
-    ...credentials,
-  });
-  if (!refreshed.success || !refreshed.accessToken || !refreshed.expiresAt) {
-    return null;
-  }
-  await sql`
-    UPDATE "account" SET
-      "accessToken" = ${refreshed.accessToken},
-      "accessTokenExpiresAt" = ${new Date(refreshed.expiresAt)},
-      "refreshToken" = ${refreshed.newRefreshToken ?? account.refreshToken},
-      "refreshTokenExpiresAt" = ${
-        refreshed.refreshTokenExpiresAt !== undefined
-          ? new Date(refreshed.refreshTokenExpiresAt)
-          : account.refreshTokenExpiresAtDate
-      },
-      "updatedAt" = ${new Date()}
-    WHERE "id" = ${account.id}
-  `;
-  return refreshed.accessToken;
-}
-
-/**
- * Resolve a Microsoft Graph token for Knowledge OneDrive/SharePoint:
- * per-user cloud-import grant first, login account second (the 0.4
- * `withMicrosoftToken` order). Agents must not call this.
+ * Resolve a Microsoft Graph token for Knowledge OneDrive/SharePoint from the
+ * user's cloud-import grant. Only a missing/dead grant is fixed by
+ * reconnecting; a vendor outage or a deployment misconfiguration is named
+ * as itself so the sync error reads true. Agents must not call this.
  */
 export async function resolveGraphTokenForUser(
   sql: Sql,
   args: { organizationId: string; userId: string },
 ): Promise<GraphTokenResult> {
-  if (isCloudImportProvider('onedrive')) {
-    const cloud = await resolveCloudAccessToken(sql, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-      provider: 'onedrive',
-    });
-    if (cloud.success) return { success: true, token: cloud.accessToken };
-  }
-  const loginToken = await resolveLoginAccountToken(sql, args.userId);
-  if (loginToken !== null) return { success: true, token: loginToken };
+  const cloud = await resolveCloudAccessToken(sql, {
+    organizationId: args.organizationId,
+    userId: args.userId,
+    provider: 'onedrive',
+  });
+  if (cloud.success) return { success: true, token: cloud.accessToken };
+  if (cloud.needsReauth !== true) return { success: false, error: cloud.error };
   return {
     success: false,
     error:
@@ -693,7 +564,12 @@ export interface PgSyncImportDeps {
     driveId?: string,
   ) => Promise<{
     success: boolean;
-    data?: { hash?: string; mimeType?: string; size?: number };
+    data?: {
+      hash?: string;
+      mimeType?: string;
+      size?: number;
+      modifiedAt?: number;
+    };
     error?: string;
   }>;
   downloadToStorage: (args: {
@@ -777,6 +653,106 @@ export interface PgSyncImportDeps {
 }
 
 /**
+ * Refresh a synced document with a freshly landed blob — the 0.4
+ * `updateDocument` internal mutation. Whenever the blob actually changes,
+ * the previous one joins `history_files` (an addressable, erasable history
+ * rather than a hard drop) and its corpus chunks are released. This is
+ * keyed on the REF, never on the content hash: a vendor file without a
+ * hash (Graph omits `file.hashes` for some item types, Drive omits
+ * `md5Checksum` for non-binary items) used to swap `file_ref` with no
+ * bookkeeping at all — one stranded blob, file row and duplicate chunk set
+ * per scan, reclaimed by nothing, not even the document's delete.
+ */
+async function updateDocumentRow(
+  sql: Sql,
+  organizationId: string,
+  updateArgs: {
+    documentId: string;
+    title: string;
+    fileId: string;
+    mimeType?: string;
+    sourceProvider: string;
+    externalItemId: string;
+    contentHash?: string;
+    teamId?: string;
+    metadata?: Record<string, unknown>;
+    folderId?: string;
+  },
+): Promise<void> {
+  const documentId = updateArgs.documentId;
+  const rows = await sql<DocumentSyncRow[]>`
+    SELECT ${sql.unsafe(DOC_SYNC_COLUMNS)} FROM app.documents
+    WHERE id = ${documentId} LIMIT 1
+  `;
+  const doc = rows[0];
+  if (!doc) throw new Error('Document not found');
+  // `projectId`/`teamId` are mutually exclusive (the 0.4 invariant) —
+  // refuse rather than team-stamp a doc someone attached to a project.
+  if (updateArgs.teamId !== undefined && doc.projectId !== null) {
+    throw new Error('A project document cannot be assigned to a team');
+  }
+
+  const newFileRef = updateArgs.fileId;
+  const oldFileRef = doc.fileRef;
+  const blobReplaced = oldFileRef !== null && oldFileRef !== newFileRef;
+  let historyFiles = doc.historyFiles;
+  if (oldFileRef !== null && blobReplaced) {
+    if (!historyFiles.includes(oldFileRef)) {
+      historyFiles = [...historyFiles, oldFileRef];
+    }
+  }
+  // 0.4 patch semantics: an UNDEFINED field stays as it is — a sync
+  // must not strip a user's manual folder move, team assignment, or the
+  // stored hash just because the pipeline had nothing to say about it.
+  const folderId =
+    updateArgs.folderId !== undefined ? updateArgs.folderId : null;
+  const folderPath =
+    folderId !== null
+      ? await buildHubFolderPath(sql, organizationId, folderId)
+      : null;
+
+  await sql`
+    UPDATE app.documents SET
+      title = ${updateArgs.title},
+      file_ref = ${newFileRef},
+      mime_type = ${updateArgs.mimeType ?? null},
+      extension = ${extractExtension(updateArgs.title) ?? null},
+      source_provider = ${updateArgs.sourceProvider},
+      external_item_id = ${updateArgs.externalItemId},
+      content_hash = ${updateArgs.contentHash !== undefined ? updateArgs.contentHash : sql.unsafe('content_hash')},
+      team_id = ${updateArgs.teamId !== undefined ? updateArgs.teamId : sql.unsafe('team_id')},
+      team_tags = ${updateArgs.teamId !== undefined ? [updateArgs.teamId] : sql.unsafe('team_tags')},
+      metadata = ${updateArgs.metadata !== undefined ? sql.json(toJson(updateArgs.metadata)) : sql.unsafe('metadata')},
+      folder_id = ${updateArgs.folderId !== undefined ? folderId : sql.unsafe('folder_id')},
+      folder_path = ${updateArgs.folderId !== undefined ? folderPath : sql.unsafe('folder_path')},
+      history_files = ${historyFiles},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${documentId}
+  `;
+  // A re-filed document keeps its embeddings but moves in the corpus
+  // FILTER (folder-scoped search matches the stamped path) — re-stamp.
+  // A replaced blob re-indexes via the schedule dep and stamps itself.
+  if (updateArgs.folderId !== undefined && !blobReplaced) {
+    await syncRagDocumentScope(sql, organizationId, documentId);
+  }
+
+  // The replaced blob's corpus chunks are keyed by the OLD ref — release
+  // them through the shared refcounted seam (the 0.4
+  // `reindexDocumentInRag` old-entry purge, made durable: a swallowed
+  // failure used to strand the stale rows forever). The ref sits in
+  // `history_files` now, so the job de-indexes the corpus and keeps the
+  // bytes; the new blob indexes via the schedule dep.
+  if (oldFileRef !== null && blobReplaced) {
+    await sql.begin(async (tx) => {
+      await addJobInTx(tx, 'knowledge.release_refs', {
+        organizationId,
+        refs: [oldFileRef],
+      });
+    });
+  }
+}
+
+/**
  * The pg dependency object for the REUSED 0.4 `importFiles` pipelines —
  * direct SQL twins of the 0.4 internal mutations, provider-parameterized.
  * System lane: the route gates membership; the sync engine runs under the
@@ -855,9 +831,12 @@ export function createSyncImportDeps(
       if (id === undefined) {
         // Lost a race with a concurrent sync of the same item (an
         // overlapping run, a second config over the same folder): the key
-        // is unique in the schema (0073), so the row exists now — hand it
-        // back and let this run refresh it rather than fail the config on
-        // a unique violation.
+        // is unique in the schema (0073), so the row exists now. Refresh it
+        // with THIS run's blob through the update lane — the winner's blob
+        // joins the history and releases its corpus rows — rather than
+        // hand the id back over a blob the document never references
+        // (the pipeline's file row would then point at a document whose
+        // file_ref is a different blob, and the bytes leaked for good).
         const existing = await sql<{ id: string }[]>`
           SELECT id FROM app.documents
           WHERE org_id = ${createArgs.organizationId}
@@ -866,90 +845,37 @@ export function createSyncImportDeps(
           LIMIT 1
         `;
         id = existing[0]?.id;
+        if (id !== undefined) {
+          await updateDocumentRow(sql, organizationId, {
+            documentId: id,
+            title: createArgs.title,
+            fileId: createArgs.fileId,
+            ...(createArgs.mimeType !== undefined
+              ? { mimeType: createArgs.mimeType }
+              : {}),
+            sourceProvider: createArgs.sourceProvider,
+            externalItemId: createArgs.externalItemId,
+            ...(createArgs.contentHash !== undefined
+              ? { contentHash: createArgs.contentHash }
+              : {}),
+            ...(createArgs.teamId !== undefined
+              ? { teamId: createArgs.teamId }
+              : {}),
+            ...(createArgs.metadata !== undefined
+              ? { metadata: createArgs.metadata }
+              : {}),
+            ...(createArgs.folderId !== undefined
+              ? { folderId: createArgs.folderId }
+              : {}),
+          });
+        }
       }
       if (!id) throw new Error('Document insert failed');
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for the reused pipeline's Convex Id<'documents'> brand
       return id as never;
     },
-    updateDocument: async (updateArgs) => {
-      const documentId = updateArgs.documentId;
-      const rows = await sql<DocumentSyncRow[]>`
-        SELECT ${sql.unsafe(DOC_SYNC_COLUMNS)} FROM app.documents
-        WHERE id = ${documentId} LIMIT 1
-      `;
-      const doc = rows[0];
-      if (!doc) throw new Error('Document not found');
-      // `projectId`/`teamId` are mutually exclusive (the 0.4 invariant) —
-      // refuse rather than team-stamp a doc someone attached to a project.
-      if (updateArgs.teamId !== undefined && doc.projectId !== null) {
-        throw new Error('A project document cannot be assigned to a team');
-      }
-
-      const newFileRef = updateArgs.fileId;
-      const hashChanged =
-        updateArgs.contentHash !== undefined &&
-        doc.contentHash !== updateArgs.contentHash;
-      // Hash change + new blob → the old blob joins historyFiles (the 0.4
-      // contract: an addressable, erasable history rather than a hard drop).
-      let historyFiles = doc.historyFiles;
-      const blobReplaced =
-        hashChanged && doc.fileRef !== null && doc.fileRef !== newFileRef;
-      if (blobReplaced && doc.fileRef !== null) {
-        if (!historyFiles.includes(doc.fileRef)) {
-          historyFiles = [...historyFiles, doc.fileRef];
-        }
-      }
-      // 0.4 patch semantics: an UNDEFINED field stays as it is — a sync
-      // must not strip a user's manual folder move, team assignment, or the
-      // stored hash just because the pipeline had nothing to say about it.
-      const folderId =
-        updateArgs.folderId !== undefined ? updateArgs.folderId : null;
-      const folderPath =
-        folderId !== null
-          ? await buildHubFolderPath(sql, organizationId, folderId)
-          : null;
-
-      await sql`
-        UPDATE app.documents SET
-          title = ${updateArgs.title},
-          file_ref = ${newFileRef},
-          mime_type = ${updateArgs.mimeType ?? null},
-          extension = ${extractExtension(updateArgs.title) ?? null},
-          source_provider = ${updateArgs.sourceProvider},
-          external_item_id = ${updateArgs.externalItemId},
-          content_hash = ${updateArgs.contentHash !== undefined ? updateArgs.contentHash : sql.unsafe('content_hash')},
-          team_id = ${updateArgs.teamId !== undefined ? updateArgs.teamId : sql.unsafe('team_id')},
-          team_tags = ${updateArgs.teamId !== undefined ? [updateArgs.teamId] : sql.unsafe('team_tags')},
-          metadata = ${updateArgs.metadata !== undefined ? sql.json(toJson(updateArgs.metadata)) : sql.unsafe('metadata')},
-          folder_id = ${updateArgs.folderId !== undefined ? folderId : sql.unsafe('folder_id')},
-          folder_path = ${updateArgs.folderId !== undefined ? folderPath : sql.unsafe('folder_path')},
-          history_files = ${historyFiles},
-          updated_at_ms = ${Date.now()}
-        WHERE id = ${documentId}
-      `;
-      // A re-filed document keeps its embeddings but moves in the corpus
-      // FILTER (folder-scoped search matches the stamped path) — re-stamp.
-      // A replaced blob re-indexes via the schedule below and stamps itself.
-      if (updateArgs.folderId !== undefined && !blobReplaced) {
-        await syncRagDocumentScope(sql, organizationId, documentId);
-      }
-
-      // The replaced blob's corpus chunks are keyed by the OLD ref — release
-      // them through the shared refcounted seam (the 0.4
-      // `reindexDocumentInRag` old-entry purge, made durable: a swallowed
-      // failure used to strand the stale rows forever). The ref sits in
-      // `history_files` now, so the job de-indexes the corpus and keeps the
-      // bytes; the new blob indexes via the schedule dep below.
-      if (blobReplaced && doc.fileRef !== null) {
-        const oldRef = doc.fileRef;
-        await sql.begin(async (tx) => {
-          await addJobInTx(tx, 'knowledge.release_refs', {
-            organizationId,
-            refs: [oldRef],
-          });
-        });
-      }
-    },
+    updateDocument: (updateArgs) =>
+      updateDocumentRow(sql, organizationId, updateArgs),
     getOrCreateFolderPath: async (orgId, pathSegments, createdBy, teamId) =>
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for the reused pipeline's Convex Id<'folders'> brand
       (await getOrCreateHubFolderPath(sql, {
@@ -1123,8 +1049,9 @@ export interface ReconcileResult {
   skipped: number;
   deleted: number;
   errorsCount: number;
-  /** Single-file only: the source is gone (404) — mirror removed, config
-   *  should deactivate. */
+  /** The synced item itself is gone at the source (a definitive 404, or a
+   *  trashed Drive item) — its mirror is removed and the config should
+   *  deactivate. */
   sourceDeleted?: boolean;
 }
 
@@ -1213,36 +1140,12 @@ export async function reconcileFolderWith(
     userId: args.userId,
   });
 
-  const existingDocs = await listProviderDocumentRefs(
-    sql,
-    adapter,
-    args.organizationId,
-  );
-  const toPrune = selectDocumentsToPrune(
-    args.configId,
-    new Set(args.files.map((f) => f.id)),
-    existingDocs,
-  );
-  const refById = new Map(existingDocs.map((doc) => [doc.documentId, doc]));
-  const refsToPrune = toPrune
-    .map((documentId) => refById.get(documentId))
-    .filter((ref): ref is SyncedDocumentRef => ref !== undefined);
-
-  // Resolve the sync-target root so each prune reaps the now-empty
-  // subfolders it leaves behind, stopping at — never deleting — the root.
-  const rootSegments = (args.itemPath || args.itemName)
-    .split('/')
-    .filter((s) => s.trim().length > 0);
-  const cleanupAncestorsUpTo =
-    refsToPrune.length > 0 && rootSegments.length > 0
-      ? ((await findHubFolderByPath(sql, args.organizationId, rootSegments)) ??
-        undefined)
-      : undefined;
-
-  const deleted = await pruneSyncedDocuments(sql, {
+  const deleted = await pruneDepartedFolderDocuments(sql, adapter, {
     organizationId: args.organizationId,
-    refs: refsToPrune,
-    ...(cleanupAncestorsUpTo !== undefined ? { cleanupAncestorsUpTo } : {}),
+    configId: args.configId,
+    itemName: args.itemName,
+    ...(args.itemPath !== undefined ? { itemPath: args.itemPath } : {}),
+    currentItemIds: new Set(args.files.map((f) => f.id)),
   });
 
   return {
@@ -1252,6 +1155,55 @@ export async function reconcileFolderWith(
     errorsCount: importResult.results.filter((r) => r.status === 'error')
       .length,
   };
+}
+
+/**
+ * Delete the mirrors a folder config owns whose source files are not in
+ * `currentItemIds` — every one of them when the folder itself is gone.
+ * Each prune reaps the now-empty subfolders it leaves behind, stopping at —
+ * never deleting — the sync root (an emptied folder and a deleted one leave
+ * the same empty root behind; the user removes it).
+ */
+async function pruneDepartedFolderDocuments(
+  sql: Sql,
+  adapter: SyncProviderAdapter,
+  args: {
+    organizationId: string;
+    configId: string;
+    itemName: string;
+    itemPath?: string;
+    currentItemIds: ReadonlySet<string>;
+  },
+): Promise<number> {
+  const existingDocs = await listProviderDocumentRefs(
+    sql,
+    adapter,
+    args.organizationId,
+  );
+  const toPrune = selectDocumentsToPrune(
+    args.configId,
+    args.currentItemIds,
+    existingDocs,
+  );
+  const refById = new Map(existingDocs.map((doc) => [doc.documentId, doc]));
+  const refsToPrune = toPrune
+    .map((documentId) => refById.get(documentId))
+    .filter((ref): ref is SyncedDocumentRef => ref !== undefined);
+
+  const rootSegments = (args.itemPath || args.itemName)
+    .split('/')
+    .filter((s) => s.trim().length > 0);
+  const cleanupAncestorsUpTo =
+    refsToPrune.length > 0 && rootSegments.length > 0
+      ? ((await findHubFolderByPath(sql, args.organizationId, rootSegments)) ??
+        undefined)
+      : undefined;
+
+  return pruneSyncedDocuments(sql, {
+    organizationId: args.organizationId,
+    refs: refsToPrune,
+    ...(cleanupAncestorsUpTo !== undefined ? { cleanupAncestorsUpTo } : {}),
+  });
 }
 
 /** Every auto-synced document a single-file config owns for its file. */
@@ -1362,6 +1314,14 @@ export async function reconcileSingleFileWith(
  * the folder (recursive listing that THROWS on a truncated page walk — a
  * short read must fail the sync, never prune) or the single file. Throws
  * on hard failure so the caller marks the config `error`.
+ *
+ * A folder whose listing fails or comes back empty is probed at the source
+ * before anything else happens: a definitive not-found (deleted, or a
+ * trashed Drive folder — which lists empty rather than failing) removes
+ * the mirrors and reports `sourceDeleted`, the single-file terminal path.
+ * Without the probe a deleted folder never reached a terminal state — the
+ * listing 404 stamped `error`, and the scan re-enqueued it every tick for
+ * the lifetime of the org.
  */
 export async function syncOneConfigWith(
   sql: Sql,
@@ -1374,7 +1334,7 @@ export async function syncOneConfigWith(
   });
   if (!token.success) {
     throw new Error(
-      `No valid ${adapter.displayName} token for the config owner`,
+      `No valid ${adapter.displayName} token for the config owner: ${token.error}`,
     );
   }
 
@@ -1384,8 +1344,28 @@ export async function syncOneConfigWith(
       token: token.token,
       recursive: true,
     });
-    if (!listed.success) {
-      throw new Error(listed.error ?? 'Failed to list folder contents');
+    const files = listed.files ?? [];
+    if (!listed.success || files.length === 0) {
+      const probe = await adapter.getFileMetadata(config.itemId, token.token);
+      if (!probe.success && probe.notFound === true) {
+        const deleted = await pruneDepartedFolderDocuments(sql, adapter, {
+          organizationId: config.organizationId,
+          configId: config.id,
+          itemName: config.itemName,
+          ...(config.itemPath !== null ? { itemPath: config.itemPath } : {}),
+          currentItemIds: new Set<string>(),
+        });
+        return {
+          created: 0,
+          skipped: 0,
+          deleted,
+          errorsCount: 0,
+          sourceDeleted: true,
+        };
+      }
+      if (!listed.success) {
+        throw new Error(listed.error ?? 'Failed to list folder contents');
+      }
     }
     return reconcileFolderWith(sql, adapter, {
       organizationId: config.organizationId,
@@ -1395,7 +1375,7 @@ export async function syncOneConfigWith(
       ...(config.itemPath !== null ? { itemPath: config.itemPath } : {}),
       userId: config.userId,
       ...(config.teamId !== null ? { teamId: config.teamId } : {}),
-      files: listed.files ?? [],
+      files,
       token: token.token,
     });
   }

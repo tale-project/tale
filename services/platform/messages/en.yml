@@ -3059,10 +3059,6 @@ governance:
     userInput: User input
     modelOutput: Model output
     maskReplacement: Mask replacement
-    preferNonStreaming: Prefer non-streaming when output filter is on
-    preferNonStreamingDescription: Wait for the complete response before showing
-      anything. Eliminates any brief flash of unfiltered content in exchange for
-      higher perceived latency.
     categoriesTitle: Categories
     categoriesDescription:
       Each category has its own mode. block wins over mask wins
@@ -4211,9 +4207,6 @@ notificationPreferences:
     escalation:
       label: Agent escalations
       description: When an agent asks you a question or escalates a task to a human.
-    automationAlerts:
-      label: Automation alerts
-      description: Failures, budget warnings, and offline runtimes.
     conversationMessages:
       label: Conversation messages
       description: When a contact message arrives in Conversations.

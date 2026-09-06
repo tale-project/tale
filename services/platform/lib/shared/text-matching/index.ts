@@ -12,9 +12,6 @@
  * Pure + zero-IO + runtime-agnostic so it bundles into the Convex V8 runtime.
  */
 
-/** How a locale's terms are bounded when matched. */
-export type BoundaryMode = 'word' | 'substring';
-
 interface MatcherSpec {
   /** Terms matched with Unicode word boundaries (Latin / Cyrillic / Greek …). */
   wordTerms: Iterable<string>;

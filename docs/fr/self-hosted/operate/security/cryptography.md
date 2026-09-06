@@ -13,7 +13,7 @@ Tale chiffre deux classes de secrets au repos, avec deux mécanismes différents
 
 **Les clés API des fournisseurs** vivent dans `providers/*.secrets.json` et sont chiffrées avec [SOPS](/fr/self-hosted/configuration/secrets-with-sops) en utilisant une clé **age**. SOPS chiffre chaque valeur avec **AES-256-GCM** et enveloppe la clé de données vers le destinataire age, dont l'échange de clés est **X25519**. Une valeur chiffrée se lit `ENC[AES256_GCM,data:…,iv:…,tag:…]` sur le disque ; le déchiffrement se fait in-process et la clé privée age ne quitte jamais la mémoire du conteneur platform.
 
-**Les champs chiffrés par l'application** — tokens de connector OAuth et identifiants similaires stockés en base — sont chiffrés avec **AES-256-GCM** via un JWE compact (`alg: dir`, `enc: A256GCM`). La clé de 32 octets vient de `ENCRYPTION_SECRET` (base64) ou `ENCRYPTION_SECRET_HEX` (hex) ; la plateforme refuse de démarrer le chemin de chiffrement avec une clé qui ne fait pas exactement 32 octets.
+**Les champs chiffrés par l'application** — tokens de connector OAuth et identifiants similaires stockés en base — sont chiffrés avec **AES-256-GCM** via un JWE compact (`alg: dir`, `enc: A256GCM`). La clé de 32 octets est `ENCRYPTION_SECRET_HEX` (64 caractères hex), la même racine dont la secret-box des garde-fous dérive sa clé ; la plateforme refuse de démarrer avec une valeur qui ne fait pas exactement 32 octets.
 
 Les volumes Postgres et le store de blobs sont protégés par l'hôte : fais-les tourner sur un système de fichiers chiffré (LUKS, ou le chiffrement de volume de ton fournisseur cloud). Tale ne stocke pas d'identifiants en clair — une clé de fournisseur ou un token OAuth est soit chiffré par SOPS sur le disque, soit chiffré en AES-256-GCM en base, jamais écrit en clair.
 
@@ -42,7 +42,7 @@ Chaque primitive ci-dessous est dans l'ensemble recommandé de BSI TR-02102-1. T
 | Usage                         | Algorithme                        | Taille de clé / sortie | Contrôlé par                                  |
 | ----------------------------- | --------------------------------- | ---------------------- | --------------------------------------------- |
 | Secrets fournisseurs (disque) | AES-256-GCM + age (X25519)        | 256 bits               | `SOPS_AGE_KEY` / `SOPS_AGE_KEY_FILE`          |
-| Champs app (base de données)  | AES-256-GCM (JWE `dir`/`A256GCM`) | 256 bits               | `ENCRYPTION_SECRET` / `ENCRYPTION_SECRET_HEX` |
+| Champs app (base de données)  | AES-256-GCM (JWE `dir`/`A256GCM`) | 256 bits               | `ENCRYPTION_SECRET_HEX`                       |
 | Transport                     | TLS 1.3 (AES-256-GCM, ECDHE)      | 256 bits               | Reverse proxy / `tls-and-domains`             |
 | Hachage des mots de passe     | bcrypt                            | sel par hachage        | Better Auth (intégré)                         |
 | Signature de session          | HMAC-SHA-256                      | 256 bits               | `BETTER_AUTH_SECRET`                          |
@@ -50,7 +50,7 @@ Chaque primitive ci-dessous est dans l'ensemble recommandé de BSI TR-02102-1. T
 
 ## Stockage et rotation des clés
 
-Trois secrets sont porteurs, et chacun a un chemin de rotation. La **clé privée age** (`SOPS_AGE_KEY`) déchiffre les secrets fournisseurs ; fais-la tourner en ajoutant un nouveau destinataire et en re-chiffrant, en suivant le parcours dans [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops). La **clé de chiffrement de champ** (`ENCRYPTION_SECRET`) déchiffre les identifiants en base ; la faire tourner exige de re-chiffrer les lignes concernées, planifie-la donc comme une étape de maintenance plutôt qu'un échange à chaud. Le **secret d'auth** (`BETTER_AUTH_SECRET`) signe les sessions ; le faire tourner déconnecte tout le monde à la requête suivante. Les trois ne vivent que dans l'environnement du conteneur platform — ne les committe jamais et range-les dans ton gestionnaire de secrets de référence.
+Trois secrets sont porteurs, et chacun a un chemin de rotation. La **clé privée age** (`SOPS_AGE_KEY`) déchiffre les secrets fournisseurs ; fais-la tourner en ajoutant un nouveau destinataire et en re-chiffrant, en suivant le parcours dans [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops). La **clé de chiffrement de champ** (`ENCRYPTION_SECRET_HEX`) déchiffre les identifiants en base ; la faire tourner exige de re-chiffrer les lignes concernées, planifie-la donc comme une étape de maintenance plutôt qu'un échange à chaud. Le **secret d'auth** (`BETTER_AUTH_SECRET`) signe les sessions ; le faire tourner déconnecte tout le monde à la requête suivante. Les trois ne vivent que dans l'environnement du conteneur platform — ne les committe jamais et range-les dans ton gestionnaire de secrets de référence.
 
 ## Où cela s'inscrit
 

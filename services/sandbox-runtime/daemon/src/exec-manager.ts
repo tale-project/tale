@@ -49,10 +49,11 @@ interface LiveExec {
   /** Monotonic per-exec event counter (assigned in ringEmit). Lets a
    * reconnecting consumer request `/attach?sinceSeq=` and skip replayed lines. */
   seq: number;
-  /** SLIDING deadline: the kill timer is re-armed (extendDeadline) on every
-   * attach, so an actively-attached exec runs UNBOUNDED. A genuinely orphaned
-   * exec — no attach for `timeoutMs` — is the only thing this reaps (the orphan
-   * backstop; it subsumes the old detach-grace). `timeoutMs` is the window. */
+  /** SLIDING deadline: the kill timer is re-armed on every attach() — the ONLY
+   * refresh — so an actively-attached exec runs UNBOUNDED. A genuinely
+   * orphaned exec — no attach for `timeoutMs` — is the only thing this reaps
+   * (the orphan backstop; it subsumes the old detach-grace). `timeoutMs` is
+   * the window. */
   timeoutMs: number;
   timer: ReturnType<typeof setTimeout> | null;
   /** Set by the deadline timer so the terminal exit event reports timedOut. */
@@ -85,10 +86,6 @@ export class ExecManager {
 
   liveCount(): number {
     return this.live.size;
-  }
-
-  has(execId: string): boolean {
-    return this.live.has(execId);
   }
 
   /** True if attach() would find the exec (live or recently retained). */
@@ -140,15 +137,6 @@ export class ExecManager {
       rec.kill('SIGTERM');
       setTimeout(() => rec.kill('SIGKILL'), SIGKILL_GRACE_MS);
     }, rec.timeoutMs);
-  }
-
-  /** Public deadline refresh (e.g. a platform keepalive on an exec it's drains
-   * but isn't currently re-attaching). No-op once the exec has exited. */
-  extendDeadline(execId: string): boolean {
-    const rec = this.live.get(execId);
-    if (!rec) return false;
-    this.armDeadline(rec);
-    return true;
   }
 
   private retainRecent(

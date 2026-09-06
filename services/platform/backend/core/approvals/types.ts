@@ -1,6 +1,5 @@
 /**
- * Approval-operation vocabulary. Zod schemas for client-side validation live
- * in lib/shared/schemas/approvals.ts.
+ * Approval-operation vocabulary.
  */
 
 export type ApprovalStatus = 'pending' | 'executing' | 'completed' | 'rejected';

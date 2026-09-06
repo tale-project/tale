@@ -18,6 +18,19 @@ const envSchema = z.object({
    * boot without auth configuration.
    */
   BETTER_AUTH_SECRET: z.string().min(16).optional(),
+  /**
+   * The deployment's field-encryption root: 32 bytes as 64 hex chars. It is
+   * the direct AES-256 key of the JWE lanes (`core/lib/crypto/get_secret_key.ts`)
+   * and the HKDF input of the secret box (`core/lib/secret_box.ts`), and every
+   * role decrypts stored credentials — so a missing or malformed value fails
+   * HERE, at boot, instead of at the first credential save or SSO login.
+   */
+  ENCRYPTION_SECRET_HEX: z
+    .string()
+    .regex(
+      /^[0-9a-f]{64}$/i,
+      'ENCRYPTION_SECRET_HEX must be 32 bytes as 64 hex chars (`tale init` generates it; by hand: openssl rand -hex 32)',
+    ),
   /** Public origin auth cookies bind to; defaults to the direct dev port. */
   SITE_URL: z.string().url().default('http://localhost:3005'),
   /**

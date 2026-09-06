@@ -127,6 +127,13 @@ export function registerBackendCollectors(sql: Sql): client.Gauge[] {
           SELECT state::text AS state, count(*)::text AS count
           FROM pgboss.job GROUP BY state
         `;
+        // The row set is the whole truth: a state with no rows has no GROUP
+        // BY row, and a labelled child once set is retained by prom-client —
+        // without the reset a drained 'active'/'failed' series would keep
+        // exporting its last non-zero count (and keep depth alerts firing).
+        // Reset only AFTER a successful read so a failed scrape keeps the
+        // previous values rather than reporting an empty queue.
+        this.reset();
         for (const row of rows) {
           this.set({ state: row.state }, Number(row.count));
         }

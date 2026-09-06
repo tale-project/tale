@@ -37,6 +37,9 @@ export async function resolveDriveTokenForUser(
     provider: 'google-drive',
   });
   if (cloud.success) return { success: true, token: cloud.accessToken };
+  // Only a missing/dead grant is fixed by reconnecting; a vendor outage or a
+  // deployment misconfiguration is named as itself.
+  if (cloud.needsReauth !== true) return { success: false, error: cloud.error };
   return {
     success: false,
     error:

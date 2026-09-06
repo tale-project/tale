@@ -44,10 +44,8 @@ function likeContains(token: string): string {
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the strategy type is keyed to 0.4 table names; the matcher reads only the declared fields
 const SUBJECT_STRATEGY = {
   table: 'conversations',
-  orgIndex: 'by_organizationId',
   textFields: ['subject'],
   idFields: [],
-  engine: 'scan',
 } as never;
 
 async function matchingConversationIdsByBody(
@@ -178,7 +176,9 @@ export async function searchConversationsForChat(
   const admin = viewerIsAdmin(role);
   let teamIds: Set<string> | undefined;
   const hasTeam = async (teamId: string): Promise<boolean> => {
-    teamIds ??= new Set(await getUserTeamIds(sql, args.userId));
+    teamIds ??= new Set(
+      await getUserTeamIds(sql, args.organizationId, args.userId),
+    );
     return teamIds.has(teamId);
   };
 

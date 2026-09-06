@@ -32,7 +32,6 @@ capabilities:
   # would silently drop. Declared off until the exec vocabulary carries a
   # delivery channel for it.
   mcp: false
-pinnedVersion: 2026.03.20-44cb435
 parser: cursor-jsonl
 exec:
   bin: agent

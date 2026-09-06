@@ -33,16 +33,6 @@ export interface ChatContract {
       selections: null | string;
     };
   };
-  'chat/capabilities_action:listCapabilities': {
-    kind: 'action';
-    args: { organizationId: string };
-    returns: Array<{
-      id: string;
-      kind: string;
-      name: string;
-      description: string;
-    }>;
-  };
   'chat/composer:listAutomationCapabilities': {
     kind: 'action';
     args: { projectId?: string; organizationId: string };

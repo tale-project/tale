@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  hasInteriorWhitespace,
   maskAgentSecretPreview,
   validateAgentSecretName,
   validateAgentSecretValue,
@@ -44,12 +43,5 @@ describe('maskAgentSecretPreview', () => {
     const a = maskAgentSecretPreview('ghp_' + 'x'.repeat(10));
     const b = maskAgentSecretPreview('ghp_' + 'x'.repeat(40));
     expect(a?.length).toBe(b?.length);
-  });
-});
-
-describe('hasInteriorWhitespace', () => {
-  it('flags a wrapped token but not a clean one', () => {
-    expect(hasInteriorWhitespace('abc def')).toBe(true);
-    expect(hasInteriorWhitespace('  abcdef  ')).toBe(false);
   });
 });

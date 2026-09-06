@@ -67,6 +67,9 @@ async function notifyAskBestEffort(
   }
 }
 
+/** Between a turn's earlier question and a later one folded onto it. */
+const ASK_FOLD_SEPARATOR = '\n\n---\n\n';
+
 export function automationAskShimHandlers(sql: Sql): ShimHandlers {
   return {
     'automations/human_asks:createAskForExec': async (raw) => {
@@ -128,38 +131,14 @@ export function automationAskShimHandlers(sql: Sql): ShimHandlers {
       // hang the ask off it, so the bell deep-links to the card the person
       // is being asked about instead of the bare dashboard.
       const task = await resolveRunTask(sql, args.organizationId, run.taskId);
-      const existing = await sql<{ id: string; question: string }[]>`
-        SELECT id, question FROM app.automation_human_asks
-        WHERE session_id = ${args.sessionId} AND exec_id = ${execId}
-          AND status = 'pending'
-        LIMIT 1
-      `;
-      if (existing[0]) {
-        const merged = `${existing[0].question}\n\n---\n\n${question}`.slice(
-          0,
-          4000,
-        );
-        await sql`
-          UPDATE app.automation_human_asks SET
-            question = ${merged}, questions = NULL
-          WHERE id = ${existing[0].id}
-        `;
-        await notifyAskBestEffort(sql, {
-          organizationId: args.organizationId,
-          askId: existing[0].id,
-          runId,
-          question: merged,
-          task,
-        });
-        return {
-          askId: existing[0].id,
-          ...(task !== null ? { taskId: task.id } : {}),
-          question,
-          folded: true,
-        };
-      }
-      const inserted = await sql<{ id: string }[]>`
-        INSERT INTO app.automation_human_asks (
+      // ONE statement, never SELECT-then-INSERT: the pending-ask rule is a
+      // partial unique index (migration 0082), so two ask_human calls racing
+      // inside one turn converge on one row carrying both questions — the
+      // fold happens in the database, and `inserted` tells the two apart.
+      const rows = await sql<
+        { id: string; question: string; inserted: boolean }[]
+      >`
+        INSERT INTO app.automation_human_asks AS t (
           org_id, run_id, node_id, session_id, exec_id, question, questions,
           status, expires_at_ms, task_id, created_at_ms
         ) VALUES (
@@ -170,21 +149,25 @@ export function automationAskShimHandlers(sql: Sql): ShimHandlers {
           'pending', ${Date.now() + 7 * 24 * 3_600_000}, ${task?.id ?? null},
           ${Date.now()}
         )
-        RETURNING id
+        ON CONFLICT (session_id, exec_id) WHERE status = 'pending' DO UPDATE SET
+          question = left(t.question || ${ASK_FOLD_SEPARATOR}::text || EXCLUDED.question, 4000),
+          questions = NULL
+        RETURNING id, question, (xmax = 0) AS inserted
       `;
-      const askId = inserted[0]?.id ?? '';
+      const landed = rows[0];
+      if (!landed) return { refused: 'the question could not be recorded' };
       await notifyAskBestEffort(sql, {
         organizationId: args.organizationId,
-        askId,
+        askId: landed.id,
         runId,
-        question,
+        question: landed.question,
         task,
       });
       return {
-        askId,
+        askId: landed.id,
         ...(task !== null ? { taskId: task.id } : {}),
         question,
-        folded: false,
+        folded: !landed.inserted,
       };
     },
   };

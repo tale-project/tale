@@ -24,14 +24,5 @@ export const RUN_CLAIM_PROMISE_MS = 3 * 60_000;
  * OCC retry, a slow scheduler) does not read as death. */
 export const RUN_HEARTBEAT_INTERVAL_MS = 60_000;
 
-/** Slack the sweep grants past `wakeAt` before it calls a promise broken —
- * absorbs scheduler jitter and action queue latency, nothing more. */
-export const LIVENESS_GRACE_MS = 60_000;
-
-/** After the sweep pokes a run it re-arms the promise this far out, so the
- * next tick does not double-poke while the poked step sits in the queue; a
- * poke lost to the same outage is retried one re-arm later. */
-export const LIVENESS_REARM_MS = 2 * 60_000;
-
-/** Overdue runs re-poked per status per sweep tick, oldest first. */
-export const LIVENESS_SWEEP_LIMIT = 20;
+/** Overdue runs re-poked per sweep tick, oldest promise first. */
+export const LIVENESS_SWEEP_LIMIT = 50;

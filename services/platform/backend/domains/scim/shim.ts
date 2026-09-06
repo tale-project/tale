@@ -26,6 +26,11 @@ import {
  */
 export function scimShimHandlers(sql: Sql): ShimHandlers {
   const org = z.object({ organizationId: z.string() });
+  // The RFC 7644 page the dispatcher already clamped (count ≤ 200).
+  const page = org.extend({
+    offset: z.number().int().min(0),
+    limit: z.number().int().min(0).max(200),
+  });
   return {
     'scim/internal_queries:getUserRecord': async (raw) => {
       const args = org.extend({ userId: z.string() }).parse(raw);
@@ -36,8 +41,8 @@ export function scimShimHandlers(sql: Sql): ShimHandlers {
       return findUserRecordByUserName(sql, args.organizationId, args.userName);
     },
     'scim/internal_queries:listUserRecords': async (raw) => {
-      const args = org.parse(raw);
-      return listUserRecords(sql, args.organizationId);
+      const { organizationId, ...pageArgs } = page.parse(raw);
+      return listUserRecords(sql, organizationId, pageArgs);
     },
     'scim/internal_queries:getGroupRecord': async (raw) => {
       const args = org.extend({ teamId: z.string() }).parse(raw);
@@ -52,8 +57,8 @@ export function scimShimHandlers(sql: Sql): ShimHandlers {
       );
     },
     'scim/internal_queries:listGroupRecords': async (raw) => {
-      const args = org.parse(raw);
-      return listGroupRecords(sql, args.organizationId);
+      const { organizationId, ...pageArgs } = page.parse(raw);
+      return listGroupRecords(sql, organizationId, pageArgs);
     },
     'scim/internal_mutations:provisionUser': async (raw) => {
       const args = org

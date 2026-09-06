@@ -19,7 +19,7 @@ explicit value always wins over the derived one.
 ```bash
 cd services/platform
 # Ensure INSTANCE_SECRET is set in .env.local (64-char hex). Then:
-bun dev   # the Vite plugin mirrors /dav/* in dev.
+bun dev   # the backend serves /dav/*; Vite proxies it in dev.
 ```
 
 Then generate an app-password through the UI (Settings > WebDAV) and copy

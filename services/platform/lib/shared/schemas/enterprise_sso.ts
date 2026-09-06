@@ -69,8 +69,6 @@ export const ssoUserInfoSchema = z.object({
   location: z.string().optional(),
   country: z.string().optional(),
   city: z.string().optional(),
-  companyName: z.string().optional(),
-  customAttributes: z.record(z.string(), z.string()).optional(),
   groups: z.array(z.string()).optional(),
   appRoles: z.array(z.string()).optional(),
   rawClaims: z.record(z.string(), z.unknown()).optional(),
@@ -278,11 +276,6 @@ export const ssoConnectionSecretsSchema = z.object({
   spPrivateKey: z.string().optional(),
 });
 export type SsoConnectionSecrets = z.infer<typeof ssoConnectionSecretsSchema>;
-
-/** Effective, defaulted connection used when the org has no `connection.json`. */
-function emptySsoConnectionFile(): SsoConnectionFile {
-  return ssoConnectionFileSchema.parse({});
-}
 
 /**
  * `configCache` coordinates for the connection — V8-safe constants so queries /

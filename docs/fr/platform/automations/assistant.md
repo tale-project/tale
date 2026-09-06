@@ -17,7 +17,7 @@ Ouvre l’automatisation depuis **Automatisations**. Son canvas montre le graphe
 
 ## Laisser un modèle en rédiger une
 
-La voie faite pour les modèles est l’[endpoint MCP](/fr/develop/mcp-endpoint) : pointe dessus un agent de code, un IDE ou ta propre boucle avec une clé API de l’organisation, et il tient les outils de rédaction que l’assistant portait autrefois — `get_docs` pour la grammaire, `validate_automation`, `save_automation`, `run_automation` en mode simulation ou réel, `test_automation` et `deploy_automation` — plus `list_automations` et `search_capabilities` pour trouver ce qui existe déjà avant de construire un doublon. Enregistrer par l’endpoint ajoute une version exactement comme la page le fait, et rien ne passe en service tant que quelque chose ne le met pas en service. Ce qu’une clé peut enregistrer et mettre en service suit le rôle de son détenteur : un droit de développeur, comme sur la page.
+La voie faite pour les modèles est l’[endpoint MCP](/fr/develop/mcp-endpoint) : pointe dessus un agent de code, un IDE ou ta propre boucle avec une clé API de l’organisation, et il tient les outils de rédaction que l’assistant portait autrefois — `get_docs` pour la grammaire, `validate_automation`, `save_automation`, `run_automation` contre les mocks, `test_automation` et `deploy_automation` — plus `list_automations` et `search_capabilities` pour trouver ce qui existe déjà avant de construire un doublon. Enregistrer par l’endpoint ajoute une version exactement comme la page le fait, et rien ne passe en service tant que quelque chose ne le met pas en service. Ce qu’une clé peut enregistrer et mettre en service suit le rôle de son détenteur : un droit de développeur, comme sur la page.
 
 ## Où cela s’inscrit
 

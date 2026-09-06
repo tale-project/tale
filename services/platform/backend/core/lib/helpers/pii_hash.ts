@@ -9,11 +9,14 @@
  * GDPR-data-minimization intent of the phase-11 reframe. A leaked DB
  * snapshot exposes raw email + IP for every failed sign-in over years.
  *
- * The fix is opt-in: when `TALE_AUDIT_PEPPER` is set, new audit rows
- * carry a deterministic HMAC-SHA256 hash of the email and a CIDR-prefix
- * of the IP. When the env var is unset, callers fall back to plaintext
- * to preserve the existing behavior — operators turn on hashing by
- * setting the pepper.
+ * When `TALE_AUDIT_PEPPER` is set (>= 16 chars), new audit rows carry a
+ * deterministic HMAC-SHA256 hash of the email and a CIDR-prefix of the IP
+ * in the `*Hash` columns; without it the writers keep the plaintext
+ * columns and this module warns once. `tale init` generates the pepper
+ * with the other auto-secrets and an existing `.env` receives one on its
+ * next `tale deploy` (headless auto-fill), so hashing is ON on every
+ * CLI-managed deployment; the plaintext fallback only serves a hand-rolled
+ * environment that has not picked the variable up yet.
  *
  * The hash is deterministic per (pepper, value), so an admin investigating
  * a brute-force pattern can reproduce the hash for a known suspect email
@@ -23,8 +26,7 @@
  * Pepper rotation invalidates correlation across the rotation boundary.
  * That's the operator's intent — older rows age out under retention.
  *
- * Runs in the Convex V8 runtime (no `'use node'` needed); uses the
- * standard Web Crypto APIs already used by `audit_hash.ts`.
+ * Uses the standard Web Crypto APIs already used by `audit_hash.ts`.
  */
 
 const PEPPER_ENV = 'TALE_AUDIT_PEPPER';
@@ -65,23 +67,11 @@ async function hmacSha256Hex(secret: string, message: string): Promise<string> {
 }
 
 /**
- * Hash `email` with `TALE_AUDIT_PEPPER` for storage in `actorEmail`.
- * Returns the original email when no pepper is configured.
- *
- * Output shape: `sha256:<64-hex>` so a future `verifyIntegrity` walker
- * can tell the difference between a hash and a legacy plaintext email
- * without false-positive matches.
- */
-export async function hashEmailForAudit(email: string): Promise<string> {
-  const pepper = readPepper();
-  if (pepper === null) return email;
-  const h = await hmacSha256Hex(pepper, email.toLowerCase());
-  return `sha256:${h}`;
-}
-
-/**
  * Split form for audit-log writers: returns either a plaintext value or
  * a hash, never both, depending on whether the pepper is configured.
+ *
+ * Hash shape: `sha256:<64-hex>` — the prefix keeps a hash distinguishable
+ * from a legacy plaintext value for any walker that meets both.
  *
  * Lets callers populate `actorEmail` (plaintext column, searchable) when
  * no pepper is set, and `actorEmailHash` (separate column, opaque to UI)
@@ -99,26 +89,11 @@ export async function splitEmailForAudit(
 }
 
 /**
- * Reduce an IP to a coarse prefix (`/24` for v4, `/64` for v6) and
- * hash it for storage in `ipAddress`. Coarsening preserves rate-limit
- * forensics (CGNAT subnet, ISP geo) while removing the per-host PII.
- *
- * Returns the original IP when no pepper is configured.
- *
- * Falls back to the original string when the IP doesn't parse — better
- * to record an unparseable string than to drop the field entirely.
- */
-export async function hashIpForAudit(ip: string): Promise<string> {
-  const pepper = readPepper();
-  if (pepper === null) return ip;
-  const prefix = coarsePrefix(ip);
-  if (prefix === null) return ip;
-  const h = await hmacSha256Hex(pepper, prefix);
-  return `sha256:${h}`;
-}
-
-/**
- * Split form for audit-log writers — see `splitEmailForAudit`.
+ * Split form for audit-log writers — see `splitEmailForAudit`. The IP is
+ * reduced to a coarse prefix (`/24` for v4, `/64` for v6) before hashing:
+ * coarsening preserves rate-limit forensics (CGNAT subnet, ISP geo) while
+ * removing the per-host PII. An IP that doesn't parse is recorded as the
+ * plaintext string — better than dropping the field entirely.
  */
 export async function splitIpForAudit(
   ip: string,

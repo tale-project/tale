@@ -163,7 +163,9 @@ export function useGoogleDriveFiles(
       if (!result.success || !result.items) {
         throw new Error(result.error || 'Failed to load Google Drive files');
       }
-      return result.items;
+      // `truncated` rides along: the picker must say when a folder holds
+      // more than the listing bound instead of showing a shorter folder.
+      return { items: result.items, truncated: result.truncated ?? false };
     },
     enabled,
     staleTime: 5 * 60 * 1000,

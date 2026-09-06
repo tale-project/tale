@@ -37,10 +37,10 @@ import {
   toModelOptions,
 } from '@/app/features/projects/lib/model-options';
 import { toast } from '@/app/hooks/use-toast';
-import { EVENT_TYPES } from '@/backend/core/events/emit';
 import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
+import { EVENT_TYPES } from '@/lib/shared/event-types';
 
 import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
 import { useAutomationCapabilities } from '../hooks/queries';

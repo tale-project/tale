@@ -21,6 +21,7 @@ const {
   addMessageToConversation,
   markRagQueued,
   addJobInTx,
+  findOrCreateContactByEmail,
 } = vi.hoisted(() => ({
   patchMailSyncWatermarks: vi.fn(async () => undefined),
   patchCredentialConfigInternal: vi.fn(async () => undefined),
@@ -31,6 +32,10 @@ const {
   >(async () => ({ messageId: 'm-new', conversationId: 'c-new' })),
   markRagQueued: vi.fn(async () => undefined),
   addJobInTx: vi.fn(async () => 'job-1'),
+  findOrCreateContactByEmail: vi.fn(async () => ({
+    contactId: 'ct-1',
+    created: true,
+  })),
 }));
 
 vi.mock('../connector_credentials/service.ts', () => ({
@@ -51,6 +56,11 @@ vi.mock('./routing.ts', () => ({
   applyAddressRouting: vi.fn(async () => undefined),
 }));
 vi.mock('../knowledge/service.ts', () => ({ markRagQueued }));
+vi.mock('../contacts/service.ts', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../contacts/service.ts')>();
+  return { ...actual, findOrCreateContactByEmail };
+});
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 
 import { conversationShimHandlers } from './shim.ts';
@@ -213,10 +223,8 @@ describe('ingest writers — the loser of a Message-ID race', () => {
 });
 
 describe('findOrCreateContact shim', () => {
-  it('serializes the find-or-create per (org, email) before it looks', async () => {
-    const { sql, statements } = recordingSql((text) =>
-      text.includes('INSERT INTO app.contacts') ? [{ id: 'ct-1' }] : [],
-    );
+  it('delegates to the contacts domain inside one transaction, source vocabulary enforced', async () => {
+    const { sql } = recordingSql();
     const handler = conversationShimHandlers(sql, NO_CONNECTOR)[
       'contacts/internal_mutations:findOrCreateContact'
     ];
@@ -225,20 +233,27 @@ describe('findOrCreateContact shim', () => {
       handler({
         organizationId: 'o1',
         email: ' Carla@Ext.Test ',
-        source: 'email',
+        name: 'Carla',
+        source: 'conversation',
+        metadata: { createdFrom: 'email_sync' },
       }),
     ).resolves.toEqual({ contactId: 'ct-1', created: true });
-    // `contacts_org_email` is a plain index: without the lock two overlapping
-    // passes both miss the SELECT and both insert.
-    const lockIndex = statements.findIndex((s) =>
-      s.text.includes('pg_advisory_xact_lock'),
+    // The shim used to carry its own SELECT+INSERT (blind to trashed rows,
+    // no audit row); the contacts service owns the lock, lookup and record.
+    expect(findOrCreateContactByEmail).toHaveBeenCalledTimes(1);
+    expect(findOrCreateContactByEmail).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        organizationId: 'o1',
+        email: ' Carla@Ext.Test ',
+        name: 'Carla',
+        source: 'conversation',
+        metadata: { createdFrom: 'email_sync' },
+      }),
     );
-    const selectIndex = statements.findIndex((s) =>
-      s.text.includes('SELECT id FROM app.contacts'),
-    );
-    expect(lockIndex).toBeGreaterThanOrEqual(0);
-    expect(selectIndex).toBeGreaterThan(lockIndex);
-    expect(statements[lockIndex]?.values).toEqual(['o1', 'carla@ext.test']);
+    await expect(
+      handler({ organizationId: 'o1', email: 'x@ext.test', source: 'email' }),
+    ).rejects.toThrow();
   });
 });
 

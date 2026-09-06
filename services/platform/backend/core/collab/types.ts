@@ -37,12 +37,11 @@ export type NotificationType =
   // question (`collab/notify_agent_asks.ts`), or a root escalation / circuit
   // breaker. Actionable.
   | 'agent_escalation'
-  // A task-ops pack workflow execution failed (admins).
-  | 'automation_failed'
-  // Agent budget warn/pause threshold crossed (admins).
-  | 'budget_alert'
-  // An external agent runtime went offline (admins).
-  | 'runtime_offline'
+  // RETIRED with the 0.4 emitters that never made the port: the
+  // `automation_alerts` group (automation_failed / budget_alert /
+  // runtime_offline). Their preference column stays deprecated in
+  // `app.notification_preferences`; a revived producer re-adds the literal
+  // and the PREF_FIELD row together.
   // RETIRED — no emitter writes this type anymore (the digest automation was
   // removed). The literal stays so stored rows keep typing; drop it once the
   // stored rows are gone.

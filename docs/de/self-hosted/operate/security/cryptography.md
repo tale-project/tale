@@ -13,7 +13,7 @@ Tale verschlüsselt zwei Klassen von Secrets im Ruhezustand, mit zwei verschiede
 
 **Provider-API-Schlüssel** liegen in `providers/*.secrets.json` und werden mit [SOPS](/de/self-hosted/configuration/secrets-with-sops) unter Nutzung eines **age**-Schlüssels verschlüsselt. SOPS verschlüsselt jeden Wert mit **AES-256-GCM** und wrappt den Datenschlüssel an den age-Empfänger, dessen Schlüsselaustausch **X25519** ist. Ein verschlüsselter Wert liest sich auf der Festplatte als `ENC[AES256_GCM,data:…,iv:…,tag:…]`; die Entschlüsselung passiert in-process und der private age-Schlüssel verlässt den Speicher des platform-Containers nie.
 
-**Anwendungsverschlüsselte Felder** — OAuth-Connector-Tokens und ähnliche Credentials in der Datenbank — werden mit **AES-256-GCM** über ein kompaktes JWE (`alg: dir`, `enc: A256GCM`) verschlüsselt. Der 32-Byte-Schlüssel kommt aus `ENCRYPTION_SECRET` (base64) oder `ENCRYPTION_SECRET_HEX` (hex); die Plattform verweigert den Start des Verschlüsselungspfads mit einem Schlüssel, der nicht exakt 32 Byte hat.
+**Anwendungsverschlüsselte Felder** — OAuth-Connector-Tokens und ähnliche Credentials in der Datenbank — werden mit **AES-256-GCM** über ein kompaktes JWE (`alg: dir`, `enc: A256GCM`) verschlüsselt. Der 32-Byte-Schlüssel ist `ENCRYPTION_SECRET_HEX` (64 Hex-Zeichen), dieselbe Wurzel, aus der die Guardrails-Secret-Box ihren Schlüssel ableitet; die Plattform verweigert den Start mit einem Wert, der nicht exakt 32 Byte ergibt.
 
 Die Postgres-Volumes und der Blob-Store werden vom Host geschützt: betreibe sie auf einem verschlüsselten Dateisystem (LUKS oder die Volume-Verschlüsselung deines Cloud-Anbieters). Tale speichert Credentials nicht im Klartext — ein Provider-Schlüssel oder OAuth-Token ist entweder SOPS-verschlüsselt auf der Festplatte oder AES-256-GCM-verschlüsselt in der Datenbank, nie im Klartext geschrieben.
 
@@ -42,7 +42,7 @@ Jedes Primitiv unten liegt im empfohlenen Satz von BSI TR-02102-1. Tale liefert 
 | Verwendung              | Algorithmus                       | Schlüssel-/Ausgabegröße | Gesteuert durch                               |
 | ----------------------- | --------------------------------- | ----------------------- | --------------------------------------------- |
 | Provider-Secrets (Disk) | AES-256-GCM + age (X25519)        | 256-Bit                 | `SOPS_AGE_KEY` / `SOPS_AGE_KEY_FILE`          |
-| App-Felder (Datenbank)  | AES-256-GCM (JWE `dir`/`A256GCM`) | 256-Bit                 | `ENCRYPTION_SECRET` / `ENCRYPTION_SECRET_HEX` |
+| App-Felder (Datenbank)  | AES-256-GCM (JWE `dir`/`A256GCM`) | 256-Bit                 | `ENCRYPTION_SECRET_HEX`                       |
 | Übertragung             | TLS 1.3 (AES-256-GCM, ECDHE)      | 256-Bit                 | Reverse-Proxy / `tls-and-domains`             |
 | Passwort-Hashing        | bcrypt                            | Salt pro Hash           | Better Auth (eingebaut)                       |
 | Session-Signierung      | HMAC-SHA-256                      | 256-Bit                 | `BETTER_AUTH_SECRET`                          |
@@ -50,7 +50,7 @@ Jedes Primitiv unten liegt im empfohlenen Satz von BSI TR-02102-1. Tale liefert 
 
 ## Schlüsselspeicherung und -rotation
 
-Drei Secrets sind tragend, und jedes hat einen Rotationspfad. Der **private age-Schlüssel** (`SOPS_AGE_KEY`) entschlüsselt Provider-Secrets; rotier ihn, indem du einen neuen Empfänger hinzufügst und neu verschlüsselst, entlang des Wegs in [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops). Der **Feld-Verschlüsselungsschlüssel** (`ENCRYPTION_SECRET`) entschlüsselt Datenbank-Credentials; ihn zu rotieren erfordert das Neu-Verschlüsseln der betroffenen Zeilen, plan es also als Wartungsschritt statt als Hot-Swap. Das **Auth-Secret** (`BETTER_AUTH_SECRET`) signiert Sessions; es zu rotieren loggt alle bei ihrer nächsten Anfrage aus. Alle drei leben nur in der Umgebung des platform-Containers — committe sie nie und leg sie in deinem Secret-Manager der Wahl ab.
+Drei Secrets sind tragend, und jedes hat einen Rotationspfad. Der **private age-Schlüssel** (`SOPS_AGE_KEY`) entschlüsselt Provider-Secrets; rotier ihn, indem du einen neuen Empfänger hinzufügst und neu verschlüsselst, entlang des Wegs in [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops). Der **Feld-Verschlüsselungsschlüssel** (`ENCRYPTION_SECRET_HEX`) entschlüsselt Datenbank-Credentials; ihn zu rotieren erfordert das Neu-Verschlüsseln der betroffenen Zeilen, plan es also als Wartungsschritt statt als Hot-Swap. Das **Auth-Secret** (`BETTER_AUTH_SECRET`) signiert Sessions; es zu rotieren loggt alle bei ihrer nächsten Anfrage aus. Alle drei leben nur in der Umgebung des platform-Containers — committe sie nie und leg sie in deinem Secret-Manager der Wahl ab.
 
 ## Wo das hingehört
 

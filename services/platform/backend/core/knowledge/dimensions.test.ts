@@ -8,7 +8,6 @@ import {
   EmbeddingDimensionMismatch,
   forgetPinnedDimensions,
   pinDimensions,
-  pinnedDimensions,
 } from './dimensions';
 
 /**
@@ -72,7 +71,16 @@ describe('pinning a fresh corpus', () => {
       'ALTER COLUMN embedding TYPE vector(1536)',
     );
     expect(db.statements.join('\n')).toContain('create_chunks_hnsw_index');
-    expect(pinnedDimensions('postgresql://fresh')).toBe(1536);
+    // Pinned: the same width asks nothing more of the database.
+    const before = db.statements.length;
+    await pinDimensions({
+      sql: db.sql,
+      dbUrl: 'postgresql://fresh',
+      schema: SCHEMA,
+      dimensions: 1536,
+      context: 'organization "acme"',
+    });
+    expect(db.statements.length).toBe(before);
   });
 
   it('does nothing when the column already has the right width', async () => {
@@ -102,7 +110,19 @@ describe('pinning a fresh corpus', () => {
       dimensions: 1536,
       context: 'organization "acme"',
     });
-    expect(pinnedDimensions('postgresql://empty')).toBeUndefined();
+    // Nothing on record: another width is not refused from memory, and the
+    // column is narrowed to it once the table is there.
+    const db = fakeDb();
+    await pinDimensions({
+      sql: db.sql,
+      dbUrl: 'postgresql://empty',
+      schema: SCHEMA,
+      dimensions: 768,
+      context: 'organization "globex"',
+    });
+    expect(db.statements.join('\n')).toContain(
+      'ALTER COLUMN embedding TYPE vector(768)',
+    );
   });
 
   it('pins once the corpus table appears after a missed first attempt', async () => {
@@ -132,7 +152,16 @@ describe('pinning a fresh corpus', () => {
       'ALTER COLUMN embedding TYPE vector(1536)',
     );
     expect(db.statements.join('\n')).toContain('create_chunks_hnsw_index');
-    expect(pinnedDimensions('postgresql://late')).toBe(1536);
+    // And the width now holds: another one is refused.
+    await expect(
+      pinDimensions({
+        sql: db.sql,
+        dbUrl: 'postgresql://late',
+        schema: SCHEMA,
+        dimensions: 768,
+        context: 'organization "globex"',
+      }),
+    ).rejects.toBeInstanceOf(EmbeddingDimensionMismatch);
   });
 
   it('accepts a corpus too wide to index, rather than refusing documents', async () => {
@@ -146,7 +175,18 @@ describe('pinning a fresh corpus', () => {
       dimensions: 4096,
       context: 'organization "acme"',
     });
-    expect(pinnedDimensions('postgresql://wide')).toBe(4096);
+    expect(db.statements.join('\n')).toContain(
+      'ALTER COLUMN embedding TYPE vector(4096)',
+    );
+    await expect(
+      pinDimensions({
+        sql: db.sql,
+        dbUrl: 'postgresql://wide',
+        schema: SCHEMA,
+        dimensions: 1536,
+        context: 'organization "globex"',
+      }),
+    ).rejects.toMatchObject({ expected: 4096, received: 1536 });
   });
 
   it('discards cached query embeddings of a different width', async () => {
@@ -165,6 +205,79 @@ describe('pinning a fresh corpus', () => {
 });
 
 describe('a width that disagrees is refused', () => {
+  it('refuses a corpus already declared at another width, and never re-types it', async () => {
+    // Pinned by another organization on the shared database before this
+    // process started: the memo is empty, so the column itself is the
+    // contract. Re-typing it locked every tenant's chunks table and, on an
+    // empty table, silently re-pinned the whole corpus.
+    const db = fakeDb({ columnType: 'vector(1536)' });
+    const attempt = pinDimensions({
+      sql: db.sql,
+      dbUrl: 'postgresql://restarted',
+      schema: SCHEMA,
+      dimensions: 768,
+      context: 'organization "globex"',
+    });
+    await expect(attempt).rejects.toBeInstanceOf(EmbeddingDimensionMismatch);
+    await expect(attempt).rejects.toMatchObject({
+      expected: 1536,
+      received: 768,
+    });
+    expect(db.statements.join('\n')).not.toContain('ALTER');
+    expect(db.statements.join('\n')).not.toContain('TRUNCATE');
+    expect(db.statements.join('\n')).not.toContain('create_chunks_hnsw_index');
+
+    // The persisted width is now the memo: the next mismatch is refused
+    // without touching the database, and the matching width proceeds.
+    const before = db.statements.length;
+    await expect(
+      pinDimensions({
+        sql: db.sql,
+        dbUrl: 'postgresql://restarted',
+        schema: SCHEMA,
+        dimensions: 768,
+        context: 'organization "globex"',
+      }),
+    ).rejects.toBeInstanceOf(EmbeddingDimensionMismatch);
+    expect(db.statements.length).toBe(before);
+    await pinDimensions({
+      sql: db.sql,
+      dbUrl: 'postgresql://restarted',
+      schema: SCHEMA,
+      dimensions: 1536,
+      context: 'organization "acme"',
+    });
+    expect(db.statements.join('\n')).not.toContain('ALTER COLUMN');
+    expect(db.statements.join('\n')).toContain('create_chunks_hnsw_index');
+  });
+
+  it('refuses a column of a type it cannot read as a width', async () => {
+    const db = fakeDb({ columnType: 'halfvec(1536)' });
+    await expect(
+      pinDimensions({
+        sql: db.sql,
+        dbUrl: 'postgresql://odd',
+        schema: SCHEMA,
+        dimensions: 1536,
+        context: 'organization "acme"',
+      }),
+    ).rejects.toThrow(/halfvec\(1536\)/);
+    expect(db.statements.join('\n')).not.toContain('ALTER');
+    // Nothing on record: the next caller reads the column again rather than
+    // being answered from memory.
+    const before = db.statements.length;
+    await expect(
+      pinDimensions({
+        sql: db.sql,
+        dbUrl: 'postgresql://odd',
+        schema: SCHEMA,
+        dimensions: 1536,
+        context: 'organization "acme"',
+      }),
+    ).rejects.toThrow(/halfvec\(1536\)/);
+    expect(db.statements.length).toBeGreaterThan(before);
+  });
+
   it('refuses a second organization asking for a different width', async () => {
     const db = fakeDb();
     await pinDimensions({
@@ -223,8 +336,12 @@ describe('a width that disagrees is refused', () => {
       dimensions: 768,
       context: 'organization "globex"',
     });
-    expect(pinnedDimensions('postgresql://acme')).toBe(1536);
-    expect(pinnedDimensions('postgresql://globex')).toBe(768);
+    expect(acme.statements.join('\n')).toContain(
+      'ALTER COLUMN embedding TYPE vector(1536)',
+    );
+    expect(globex.statements.join('\n')).toContain(
+      'ALTER COLUMN embedding TYPE vector(768)',
+    );
   });
 
   it('pins each schema of a database, not just the first one touched', async () => {

@@ -20,6 +20,11 @@ export const SCHEDULES: CronSchedule[] = [
   // loginAttempts carry a 30-day retention (GDPR minimization); the hourly
   // block counters age out after 90 days. Daily sweep.
   { name: 'maintenance.login_attempts_ttl', cron: '40 3 * * *' },
+  // Realtime hints are reclaimed lazily by the `/events` poll loops, which
+  // only run while a browser is connected: a headless deployment (REST and
+  // automation use, nights, weekends) inserts hints on every write and
+  // deletes none. This sweep keeps the hour's retention honest without one.
+  { name: 'realtime.reclaim_outbox', cron: '*/10 * * * *' },
   // Automation schedule triggers fire at minute resolution; the liveness
   // sweep is the only wake source for a run whose scheduled resume was lost.
   { name: 'automation.trigger_scan', cron: '* * * * *' },
@@ -97,6 +102,11 @@ export const SCHEDULES: CronSchedule[] = [
   // Rollup drift repair: the board's counters are incremental, so something
   // has to reconcile them with the rows they summarize.
   { name: 'projects.repair_rollups', cron: '40 5 * * *' },
+  // Ghost-team repair: scope columns have no FK to "team", so a team that
+  // went before its scopes were retired (or a door that failed half-way)
+  // leaves rows nobody can see — the sweep retires them the same way the
+  // doors do.
+  { name: 'teams.repair_scopes', cron: '50 5 * * *' },
 ];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {

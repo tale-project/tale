@@ -312,6 +312,12 @@ export async function ensureEnv(
       // "Audit log integrity check failed" alert on an otherwise-clean stack.
       // See services/platform/backend/domains/audit_logs/.
       'TALE_AUDIT_SIGNING_KEY',
+      // Pepper for the HMAC pseudonymisation of the email + IP a failed
+      // sign-in writes into the audit log. Auto-generated so the control is
+      // ON by default and STABLE across deploys — without it the rows carry
+      // plaintext email + IP for the whole audit retention window. See
+      // services/platform/backend/core/lib/helpers/pii_hash.ts.
+      'TALE_AUDIT_PEPPER',
       // Admin password for the sandbox LLM gateway's management API (the platform
       // pushes provider keys / mints virtual keys through it). Auto-generated
       // so the gateway is locked by default and the credential is STABLE
@@ -386,6 +392,7 @@ async function runHeadlessAutoSecretFill(
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
+    TALE_AUDIT_PEPPER: generateHexSecret,
     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
     OBJECT_STORE_SECRET_KEY: generatePassword,
   };
@@ -512,6 +519,7 @@ async function runPartialEnvSetup(
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
+    TALE_AUDIT_PEPPER: generateHexSecret,
     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
     OBJECT_STORE_SECRET_KEY: generatePassword,
   };
@@ -583,6 +591,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     sopsAgeKey: ageKeypair.secretKey,
     sandboxToken: generateHexSecret(),
     auditSigningKey: generateHexSecret(),
+    auditPepper: generateHexSecret(),
     llmGatewayAdminPassword: generatePassword(),
     objectStoreSecretKey: generatePassword(),
   });
@@ -607,6 +616,7 @@ interface EnvConfig {
   sopsAgeKey: string;
   sandboxToken: string;
   auditSigningKey: string;
+  auditPepper: string;
   llmGatewayAdminPassword: string;
   objectStoreSecretKey: string;
 }
@@ -712,6 +722,11 @@ function generateEnvContent(config: EnvConfig): string {
     '#     previous key on the next rotation.',
     `TALE_AUDIT_SIGNING_KEY=${config.auditSigningKey}`,
     '# TALE_AUDIT_SIGNING_KEY_PREVIOUS=',
+    '# Pepper for the HMAC-SHA256 pseudonymisation of the email + IP a failed',
+    '# sign-in writes into the audit log (retained far longer than the attempt',
+    '# itself). Set, new rows carry hashes; unset, plaintext email + IP. Keep it',
+    '# STABLE — rotating it breaks correlation across the rotation boundary.',
+    `TALE_AUDIT_PEPPER=${config.auditPepper}`,
     '',
     '# ============================================================================',
     '# Sandbox LLM Gateway (model-routing proxy for in-sandbox coding agents)',
