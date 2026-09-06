@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   scimGroupResourceImpl,
+  scimGroupsImpl,
   scimUserResourceImpl,
+  scimUsersImpl,
   type ScimRc,
 } from './http_actions';
 
@@ -90,5 +92,64 @@ describe('scimGroupResourceImpl id resolution', () => {
       teamId: 'team_9',
     });
     expect(res.status).toBe(404);
+  });
+});
+
+/**
+ * Listing pages are delegated to the query: the dispatcher hands over the
+ * RFC 7644 window (startIndex-1 / count, clamped) and reports the total the
+ * query answers — it no longer loads and sorts the whole collection.
+ */
+describe('list paging is delegated to the query', () => {
+  function pagedRc(
+    records: unknown[],
+    total: number,
+  ): {
+    rc: ScimRc;
+    runQuery: ReturnType<typeof vi.fn>;
+  } {
+    const runQuery = vi.fn(async () => ({ records, total }));
+    const ctx = { runQuery, runMutation: vi.fn(), runAction: vi.fn() };
+    return {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub
+      rc: { ctx: ctx as never, organizationId: 'org_1', defaultRole: 'member' },
+      runQuery,
+    };
+  }
+
+  it('lists users with the requested window and the collection total', async () => {
+    const { rc, runQuery } = pagedRc(
+      [{ userId: 'u_3', email: 'c@x.test', name: 'C', active: true }],
+      7,
+    );
+    const res = await scimUsersImpl(
+      rc,
+      new Request('https://tale.example/scim/v2/Users?startIndex=3&count=2'),
+    );
+    expect(runQuery).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org_1',
+      offset: 2,
+      limit: 2,
+    });
+    expect(res.status).toBe(200);
+    const body: unknown = await res.json();
+    expect(body).toMatchObject({
+      totalResults: 7,
+      startIndex: 3,
+      itemsPerPage: 1,
+    });
+  });
+
+  it('clamps the window to the RFC bounds before asking', async () => {
+    const { rc, runQuery } = pagedRc([], 0);
+    await scimGroupsImpl(
+      rc,
+      new Request('https://tale.example/scim/v2/Groups?startIndex=0&count=999'),
+    );
+    expect(runQuery).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org_1',
+      offset: 0,
+      limit: 200,
+    });
   });
 });

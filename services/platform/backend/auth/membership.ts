@@ -210,6 +210,49 @@ export function evaluateCredentialResetAuthority(args: {
   return { allowed: true };
 }
 
+/**
+ * Remove every per-org trace of a membership BESIDES the member row: the
+ * user's teamMember rows in the org's teams (what Better Auth's own
+ * deleteMember does when teams are enabled — a raw DELETE FROM "member"
+ * does not), the SSO team-sync provenance for them (migration 0071) and
+ * the per-org preference row. Each caller deletes the member row itself —
+ * it has its own guard and audit — and runs this in the same transaction.
+ *
+ * Without the cascade a member removed by an admin or de-provisioned by
+ * SCIM kept their teamMember rows: a later re-add (or the IdP's next POST,
+ * which re-attaches the existing user) put them straight back into every
+ * team-scoped document, project and task they used to see, with no one
+ * re-asserting the membership; in between, SCIM Group reads listed a user
+ * GET /Users/:id 404ed, which IdPs flag as drift.
+ *
+ * Answers the ids of the teams the user was removed from, so a caller that
+ * emits realtime hints can invalidate those teams' member lists the way the
+ * teams door does on a direct removal.
+ */
+export async function removeMembershipCascade(
+  tx: TransactionSql,
+  organizationId: string,
+  userId: string,
+): Promise<{ teamIds: string[] }> {
+  const left = await tx<{ teamId: string }[]>`
+    DELETE FROM "teamMember"
+    WHERE "userId" = ${userId}
+      AND "teamId" IN (
+        SELECT "id" FROM "team" WHERE "organizationId" = ${organizationId}
+      )
+    RETURNING "teamId"
+  `;
+  await tx`
+    DELETE FROM app.sso_synced_team_members
+    WHERE org_id = ${organizationId} AND user_id = ${userId}
+  `;
+  await tx`
+    DELETE FROM app.user_preferences
+    WHERE org_id = ${organizationId} AND user_id = ${userId}
+  `;
+  return { teamIds: [...new Set(left.map((row) => row.teamId))] };
+}
+
 /** Team ids the user belongs to (the other half of the RLS prime). */
 export async function getUserTeamIds(
   sql: Sql | TransactionSql,
