@@ -3,6 +3,7 @@ import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { externalDepError } from '../../utils/fail';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { runStepsInParallel } from '../../utils/progress';
@@ -356,7 +357,8 @@ export async function deploy(options: DeployOptions): Promise<void> {
           .filter((r) => !r.ok)
           .map((r) => r.label);
         if (failedImages.length > 0) {
-          throw new Error(
+          // The registry is an external dependency: exit 5, as documented.
+          throw externalDepError(
             `Failed to pull ${failedImages.length} image(s): ${failedImages.join(', ')}\n` +
               'If this is a recent release, the container images may still be building and testing. ' +
               'Please wait a few minutes and try again.',

@@ -1,4 +1,5 @@
 import { sameMinor } from '../../utils/compare-versions';
+import { externalDepError } from '../../utils/fail';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { resolveConsent } from '../../utils/output-mode';
@@ -187,7 +188,8 @@ export async function rollback(
     );
     const failedPulls = pullResults.filter((r) => !r.ok).map((r) => r.label);
     if (failedPulls.length > 0) {
-      throw new Error(
+      // The registry is an external dependency: exit 5, as documented.
+      throw externalDepError(
         `Failed to pull ${failedPulls.length} image(s): ${failedPulls.join(', ')}`,
       );
     }
