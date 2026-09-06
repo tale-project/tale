@@ -142,6 +142,69 @@ async function checkSerializableRetry(sql: Sql): Promise<void> {
   );
 }
 
+/**
+ * The audit chain-head storm (compliance-x1): every audited write of an org
+ * bumps one head row, so serializable appenders that overlap all lose at the
+ * head lock except the first, and a plain retry loses again whenever another
+ * appender commits first. With the retry queue (`markRetryQueueKey` +
+ * `pg_advisory_xact_lock` in `lockChainHead`) every appender commits, the
+ * chain stays linear and the head names the last row.
+ */
+async function checkAuditChainConcurrentAppenders(sql: Sql): Promise<void> {
+  const { createAuditLog } = await import('./domains/audit_logs/service.ts');
+  const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
+  const orgId = `itest-chain-${randomUUID().slice(0, 8)}`;
+  const appenders = 8;
+  let attempts = 0;
+  const outcomes = await Promise.allSettled(
+    Array.from({ length: appenders }, (_, index) =>
+      transactSerializable(sql, async (tx) => {
+        attempts += 1;
+        // Fix the snapshot first, then let every appender overlap: each
+        // one's head read is now stale for all but the first committer.
+        await tx`SELECT 1`;
+        await sleep(50);
+        return createAuditLog(tx, {
+          organizationId: orgId,
+          actorId: 'itest',
+          actorType: 'system',
+          action: 'itest.chain_burst',
+          category: 'admin',
+          resourceType: 'itest',
+          resourceId: String(index),
+          status: 'success',
+        });
+      }),
+    ),
+  );
+  const failures = outcomes.filter((o) => o.status === 'rejected');
+  const rows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs WHERE org_id = ${orgId}
+  `;
+  const committed = Number(rows[0]?.count ?? '0');
+  const verified = await verifyAuditChain(sql, orgId);
+  const heads = await sql<{ lastHash: string }[]>`
+    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
+    WHERE org_id = ${orgId}
+  `;
+  const latest = await sql<{ integrityHash: string }[]>`
+    SELECT integrity_hash AS "integrityHash" FROM app.audit_logs
+    WHERE org_id = ${orgId} ORDER BY ts DESC LIMIT 1
+  `;
+  const headNamesLatest =
+    heads[0]?.lastHash !== undefined &&
+    heads[0].lastHash === latest[0]?.integrityHash;
+  record(
+    'audit chain: a burst of serializable appenders for one org all commit',
+    failures.length === 0 &&
+      committed === appenders &&
+      verified.valid &&
+      headNamesLatest &&
+      attempts > appenders,
+    `committed=${committed}/${appenders} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} chainValid=${verified.valid} headNamesLatest=${headNamesLatest} attempts=${attempts} (>${appenders} proves the head lock was lost at least once and the retry landed)`,
+  );
+}
+
 async function checkTransactionalEnqueue(sql: Sql): Promise<void> {
   const before = await countNoopJobs(sql);
 
@@ -33560,11 +33623,32 @@ async function checkErasure(
     SELECT status FROM app.gdpr_erasure_requests
     WHERE id = ${filedThree.success ? filedThree.data.requestId : ''}
   `;
+  // A blocked receipt is LIVE (the live index covers blocked and partial,
+  // matching the Retry door): a second filing for the same subject must
+  // answer ALREADY_PENDING naming the blocked receipt, not mint a twin that
+  // could run the cascade a second time once the hold lifts.
+  const dupOnBlockedRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectThree,
+    reason: 'Second filing against a blocked receipt',
+    reasonCode: 'objection',
+  });
+  const dupOnBlocked = z
+    .object({ error: z.string(), requestId: z.string(), status: z.string() })
+    .loose()
+    .safeParse(await dupOnBlockedRes.json());
   await sql`
     UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
     WHERE org_id = ${orgId} AND target_id = ${subjectThree}
   `;
-  await post(
+  // A receipt blocked AT FILING never passed the request-time policy, so
+  // its Retry honours it (cooling-off / dual approval) instead of running at
+  // once; the window is zeroed here so the re-armed cascade finishes now.
+  await writeFile(
+    path.join(governanceDir, 'dsar-governance.yml'),
+    'coolingOffHours: 0\n',
+  );
+  orgConfig.clearOrgConfigCaches();
+  const retryThreeRes = await post(
     `/api/app/erasure/${filedThree.success ? filedThree.data.requestId : ''}/retry?orgId=${orgId}`,
   );
   let threeStatus = '';
@@ -33577,6 +33661,13 @@ async function checkErasure(
     if (threeStatus === 'done') break;
     await sleep(300);
   }
+  // Back to the real window the governance-tail lanes assume (a cancel
+  // inside the window; the policy read answering 1).
+  await writeFile(
+    path.join(governanceDir, 'dsar-governance.yml'),
+    'coolingOffHours: 1\n',
+  );
+  orgConfig.clearOrgConfigCaches();
   record(
     'erasure: cascade + audit scrub, cancel window, hold-blocked receipt',
     selfRefused.status === 403 &&
@@ -33595,8 +33686,15 @@ async function checkErasure(
       filedThree.data.error === 'LEGAL_HOLD_BLOCKS_ERASURE' &&
       filedThree.data.userCustodianHeld &&
       blockedReceipt[0]?.status === 'blocked' &&
+      dupOnBlockedRes.status === 409 &&
+      dupOnBlocked.success &&
+      dupOnBlocked.data.error === 'ALREADY_PENDING' &&
+      dupOnBlocked.data.status === 'blocked' &&
+      dupOnBlocked.data.requestId ===
+        (filedThree.success ? filedThree.data.requestId : '') &&
+      retryThreeRes.status === 200 &&
       threeStatus === 'done',
-    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, reviewDeidentified=${reviewErased[0]?.count} (want 1), scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), retried=${threeStatus}`,
+    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, reviewDeidentified=${reviewErased[0]?.count} (want 1), scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), dupOnBlocked=${dupOnBlockedRes.status}/${dupOnBlocked.success ? `${dupOnBlocked.data.error}:${dupOnBlocked.data.status}` : 'ERR'} (want 409/ALREADY_PENDING:blocked, same requestId), retry=${retryThreeRes.status}/${threeStatus} (want 200/done)`,
   );
 
   // ---- the documented 'child' reason code files -------------------------
@@ -33776,7 +33874,7 @@ async function checkErasure(
     `afterFail=${fiveAfterFail[0]?.status}/${fiveAfterFail[0]?.error ?? ''} (want partial/failed passes: uploads), row=${fiveRowSurvives[0]?.count} (want 1), blob=${fiveBlobSurvives === null ? '404' : 'present'} (want present), retry=${fiveStatus} (want done), rowAfter=${fiveRowAfterRetry[0]?.count} (want 0), blobAfter=${fiveBlobAfterRetry === null ? '404' : 'present'} (want 404)`,
   );
 
-  // This section spent 4 of the admin's 5/day DSAR filings; the limiter is
+  // This section spent all 5 of the admin's 5/day DSAR filings; the limiter is
   // per (key, subject), so clearing its rows hands downstream sections the
   // full budget their probes assume.
   await sql`
@@ -42029,6 +42127,7 @@ async function main(): Promise<void> {
   let lanes: LaneSummary | null = null;
   try {
     await checkSerializableRetry(sql);
+    await checkAuditChainConcurrentAppenders(sql);
     await checkTransactionalEnqueue(sql);
     await checkPickupLatency(sql, boss);
 
