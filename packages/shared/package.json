@@ -13,7 +13,8 @@
     "./tux": "./src/tux/index.ts",
     "./process": "./src/process/index.ts",
     "./utils/hashing": "./src/utils/hashing.ts",
-    "./utils/model-list": "./src/utils/model-list.ts"
+    "./utils/model-list": "./src/utils/model-list.ts",
+    "./utils/site-urls": "./src/utils/site-urls.ts"
   },
   "scripts": {
     "lint": "bunx oxlint --type-aware",
