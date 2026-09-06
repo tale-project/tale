@@ -23724,13 +23724,17 @@ async function checkGoogleDriveSync(
     //    404 — the reconcile used to prune every mirror and leave the
     //    config active, polling forever. The engine now probes the folder
     //    itself on an empty listing: not found → mirrors pruned, terminal.
-    //    (Reactivate the config the cancel door just stopped.)
+    //    (Reactivate the config the cancel door just stopped. Deleting a
+    //    Drive folder trashes its subtree, which `trashed = false` hides —
+    //    the fake drops the whole subtree the same way.)
     await sql`
       UPDATE app.google_drive_sync_configs
       SET status = 'active', last_sync_status = NULL, error_message = NULL
       WHERE id = ${folderConfig.id}
     `;
-    drive.delete('g-root');
+    for (const gone of ['g-root', 'g-sub', 'g-q1', 'g-native', 'g-native2']) {
+      drive.delete(gone);
+    }
     await runConfig(folderConfig.id);
     const rootConfigGone = await configByItem('g-root');
     const q1Gone = await docsByExternalId('g-q1');
