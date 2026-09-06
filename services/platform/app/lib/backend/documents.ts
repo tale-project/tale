@@ -620,6 +620,16 @@ export const documentPaginatedAdapters: Record<string, PaginatedAdapter> = {
 // Write adapters
 // ---------------------------------------------------------------------------
 
+/**
+ * A document write refreshes the document reads — and the TASK reads: the
+ * task DTO stamps folder facts (`hasFiles`, `folderExists`) from the
+ * project's documents, and an automation-owned task's Start gate is that
+ * stamp. The server emits the matching `task` hint for every project
+ * document write (`backend/domains/documents/hints.ts`); this is the actor's
+ * own immediate refetch, the same pairing every entity family has, so the
+ * panel flips from "waiting for input files" to Start as the upload lands
+ * instead of a hint-poll later.
+ */
 function invalidateDocuments(
   client: QueryClient,
   args: Record<string, unknown>,
@@ -629,6 +639,9 @@ function invalidateDocuments(
   if (orgId === undefined) return;
   void client.invalidateQueries({
     queryKey: backendEntityPrefix(orgId, 'document'),
+  });
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'task'),
   });
 }
 
@@ -643,9 +656,13 @@ function invalidateFolders(
     queryKey: backendEntityPrefix(orgId, 'folder'),
   });
   // Folder team changes cascade to member documents; a folder delete
-  // removes its documents — refresh both families.
+  // removes its documents — refresh both families, and the task facts a
+  // project folder carries (see `invalidateDocuments`).
   void client.invalidateQueries({
     queryKey: backendEntityPrefix(orgId, 'document'),
+  });
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'task'),
   });
 }
 

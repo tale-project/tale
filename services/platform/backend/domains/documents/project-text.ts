@@ -21,6 +21,7 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import { releasePreviousBlob } from './blob-rotation.ts';
+import { emitDocumentChangeHints } from './hints.ts';
 import { DocumentError } from './service.ts';
 
 /**
@@ -204,6 +205,11 @@ export async function ensureProjectTextDocument(
           previousFileRef: existing.fileRef,
         });
       }
+      await emitDocumentChangeHints(tx, {
+        orgId: auth.organizationId,
+        entityId: existing.id,
+        projectId: args.projectId,
+      });
       return {
         folderId: folder.folderId,
         documentId: existing.id,
@@ -244,6 +250,11 @@ export async function ensureProjectTextDocument(
       UPDATE app.file_metadata SET document_id = ${documentId}
       WHERE id = ${fileId}
     `;
+    await emitDocumentChangeHints(tx, {
+      orgId: auth.organizationId,
+      entityId: documentId,
+      projectId: args.projectId,
+    });
     return {
       folderId: folder.folderId,
       documentId,

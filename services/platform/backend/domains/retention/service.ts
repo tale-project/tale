@@ -19,6 +19,7 @@ import {
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { emitDocumentChangeHints } from '../documents/hints.ts';
 import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
 import {
   markEntryChainDeletedForDocument,
@@ -502,7 +503,7 @@ async function sweepDocuments(
   // served to the agent leg for the whole grace window while they are.
   if (graceDays > 0) {
     processed += await sql.begin(async (tx) => {
-      const flipped = await tx<{ id: string }[]>`
+      const flipped = await tx<{ id: string; projectId: string | null }[]>`
         UPDATE app.documents SET
           lifecycle_status = 'expired', status_changed_at_ms = ${Date.now()}
         WHERE id IN (
@@ -513,13 +514,23 @@ async function sweepDocuments(
             AND ${custodianFree}
           LIMIT ${BATCH_LIMIT}
         )
-        RETURNING id
+        RETURNING id, project_id AS "projectId"
       `;
       await markEntryChainsDeletedForDocuments(
         tx,
         org.organizationId,
         flipped.map((row) => row.id),
       );
+      if (flipped.length > 0) {
+        // The flip hides rows from every Files list and from a bound folder's
+        // task facts — one batch-level hint per family, like every writer.
+        await emitDocumentChangeHints(tx, {
+          orgId: org.organizationId,
+          entityId: null,
+          projectId:
+            flipped.find((row) => row.projectId !== null)?.projectId ?? null,
+        });
+      }
       return flipped.length;
     });
   }
@@ -533,9 +544,11 @@ async function sweepDocuments(
             id: string;
             fileRef: string | null;
             historyFiles: string[];
+            projectId: string | null;
           }[]
         >`
-          SELECT id, file_ref AS "fileRef", history_files AS "historyFiles"
+          SELECT id, file_ref AS "fileRef", history_files AS "historyFiles",
+                 project_id AS "projectId"
           FROM app.documents
           WHERE org_id = ${org.organizationId}
             AND lifecycle_status IN ('trashed', 'expired')
@@ -554,9 +567,11 @@ async function sweepDocuments(
             id: string;
             fileRef: string | null;
             historyFiles: string[];
+            projectId: string | null;
           }[]
         >`
-          SELECT id, file_ref AS "fileRef", history_files AS "historyFiles"
+          SELECT id, file_ref AS "fileRef", history_files AS "historyFiles",
+                 project_id AS "projectId"
           FROM app.documents
           WHERE org_id = ${org.organizationId}
             AND ((lifecycle_status IS NULL
@@ -568,6 +583,8 @@ async function sweepDocuments(
         `;
   if (passB.length === 0) return processed;
   const orgSlug = await resolveOrgSlug(sql, org.organizationId);
+  let purged = 0;
+  let purgedProjectId: string | null = null;
   for (const doc of passB) {
     try {
       await purgeDocument(sql, orgSlug, {
@@ -583,6 +600,19 @@ async function sweepDocuments(
       continue;
     }
     processed += 1;
+    purged += 1;
+    purgedProjectId ??= doc.projectId;
+  }
+  if (purged > 0) {
+    // Rows are gone from the Files lists and from a bound folder's task
+    // facts — one batch-level hint per family, after the purges committed.
+    await sql.begin((tx) =>
+      emitDocumentChangeHints(tx, {
+        orgId: org.organizationId,
+        entityId: null,
+        projectId: purgedProjectId,
+      }),
+    );
   }
   return processed;
 }
