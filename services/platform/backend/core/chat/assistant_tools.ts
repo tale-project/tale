@@ -799,15 +799,18 @@ export function createChatToolExecutor(
       readAllowed('conversations'),
     ]);
 
-    // Leg 1 — the RAG corpora (documents + crawled pages), vector+keyword.
-    // Scoped to the turn user's own visibility: team libraries they belong
-    // to, projects they can read, and the org hub — never the whole org.
-    // The similarity floor drops weak dense neighbours BEFORE they reach the
-    // model; keyword (BM25) hits are never floored.
-    if (runLeg('document', 'web-page')) {
-      // One corpus leg serves both kinds; a narrow selects within it.
+    // Leg 1 — the RAG corpora (documents, emailed attachments, crawled
+    // pages), vector+keyword. Scoped to the turn user's own visibility: team
+    // libraries they belong to, projects they can read, and the org hub —
+    // never the whole org. The similarity floor drops weak dense neighbours
+    // BEFORE they reach the model; keyword (BM25) hits are never floored.
+    if (runLeg('document', 'mail-attachment', 'web-page')) {
+      // One corpus leg serves three kinds; a narrow selects within it. An
+      // emailed attachment lives in the documents corpus (its conversation
+      // is what marks it), so both document kinds read that corpus and the
+      // narrow splits them by provenance below.
       const corpus =
-        kindFilter === 'document'
+        kindFilter === 'document' || kindFilter === 'mail-attachment'
           ? ('documents' as const)
           : kindFilter === 'web-page'
             ? ('web' as const)
@@ -825,7 +828,27 @@ export function createChatToolExecutor(
             minSimilarity: RAG_SEARCH_MIN_SIMILARITY,
             access: docAccess,
           });
+          const found = { document: 0, mailAttachment: 0, webPage: 0 };
           for (const hit of knowledge.hits) {
+            // A hit that arrived by email is attacker-controlled: anyone who
+            // can email the organization chose its text, and #3014 puts the
+            // mail's subject and correspondent INSIDE the chunk, so the whole
+            // passage is wrapped rather than any one field stripped. The title
+            // is short attacker text and is sanitized wherever it came from.
+            const fromMail = hit.source.conversationId != null;
+            // The kind vocabulary the list action already speaks: a mail
+            // attachment is its own kind, never a "document" — so a narrow
+            // to either kind returns exactly that kind.
+            const kind: RagSearchKind =
+              hit.corpus !== 'documents'
+                ? 'web-page'
+                : fromMail
+                  ? 'mail-attachment'
+                  : 'document';
+            if (kindFilter !== undefined && kind !== kindFilter) continue;
+            if (kind === 'document') found.document += 1;
+            else if (kind === 'mail-attachment') found.mailAttachment += 1;
+            else found.webPage += 1;
             const score = hit.rerankScore ?? hit.fusedScore;
             // A document has no archive state of its own — only its project
             // does, so `projectArchived` is the only flag it can carry. It is
@@ -834,15 +857,9 @@ export function createChatToolExecutor(
               projectId: hit.source.projectId,
               archivedProjectIds: archivedForDocs,
             });
-            // A hit that arrived by email is attacker-controlled: anyone who
-            // can email the organization chose its text, and #3014 puts the
-            // mail's subject and correspondent INSIDE the chunk, so the whole
-            // passage is wrapped rather than any one field stripped. The title
-            // is short attacker text and is sanitized wherever it came from.
-            const fromMail = hit.source.conversationId != null;
             const snippet = clip(hit.text, SNIPPET_CHARS);
             results.push({
-              kind: hit.corpus === 'documents' ? 'document' : 'web-page',
+              kind,
               title: sanitizeUntrustedField(hit.source.title ?? hit.source.ref),
               ref: hit.source.ref,
               ...(hit.source.url ? { url: hit.source.url } : {}),
@@ -858,16 +875,22 @@ export function createChatToolExecutor(
             });
           }
           if (runLeg('document')) {
-            sources.documents = knowledge.hits.some(
-              (h) => h.corpus === 'documents',
-            )
-              ? 'searched'
-              : 'searched (no matches — the document index may also still be empty)';
+            sources.documents =
+              found.document > 0
+                ? 'searched'
+                : 'searched (no matches — the document index may also still be empty)';
+          }
+          if (runLeg('mail-attachment')) {
+            sources.mailAttachments =
+              found.mailAttachment > 0
+                ? 'searched'
+                : 'searched (no matches — indexed emailed attachments only)';
           }
           if (runLeg('web-page')) {
-            sources.webPages = knowledge.hits.some((h) => h.corpus === 'web')
-              ? 'searched'
-              : 'searched (no matches — no crawled pages may be indexed yet)';
+            sources.webPages =
+              found.webPage > 0
+                ? 'searched'
+                : 'searched (no matches — no crawled pages may be indexed yet)';
           }
         } catch (error) {
           // Two audiences, two messages — conflating them is what made this
@@ -888,6 +911,9 @@ export function createChatToolExecutor(
           if (runLeg('document')) {
             sources.documents = KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
           }
+          if (runLeg('mail-attachment')) {
+            sources.mailAttachments = KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
+          }
           if (runLeg('web-page')) {
             sources.webPages = KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
           }
@@ -895,6 +921,9 @@ export function createChatToolExecutor(
       } else {
         if (runLeg('document')) {
           sources.documents = 'access denied for your role';
+        }
+        if (runLeg('mail-attachment')) {
+          sources.mailAttachments = 'access denied for your role';
         }
         if (runLeg('web-page')) {
           sources.webPages = 'access denied for your role';

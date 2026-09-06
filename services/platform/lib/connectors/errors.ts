@@ -38,6 +38,7 @@ export const CONNECTOR_CODES = {
   AUDIT_SINK_MISSING: 'a system-caller invocation must be recordable',
   AUDIT_FAILED: 'a system-caller invocation must actually be recorded',
   APPROVAL_GATE_MISSING: 'a user-initiated write must be gate-able',
+  APPROVAL_REJECTED: 'a human rejected this operation; it does not run',
 
   // Host mediation (the SSRF posture a connector body must not opt out of).
   INVALID_URL: 'a live request URL must parse',

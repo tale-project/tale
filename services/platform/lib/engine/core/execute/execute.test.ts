@@ -1,13 +1,12 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { nodeVmRunner } from '../../runners/node-vm';
-import { memoryStore } from '../../store/memory';
+import { memoryStore } from '../../selftest/memory-store';
 import {
   registerNodeType,
   setAgentService,
   setCodeRunner,
   setLlmService,
-  setStoreAdapter,
 } from '../slots';
 import type { Automation, NodeDef } from '../types';
 import { execute } from './index';
@@ -62,7 +61,6 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  setStoreAdapter(null as never);
   setLlmService(null as never);
   setAgentService(null);
 });
@@ -360,12 +358,11 @@ describe('subautomation', () => {
         { name: 'child', output: '{{ nodes.double.output }}' },
       ),
     );
-    setStoreAdapter(store);
     return store;
   }
 
   it('runs the referenced automation and folds its effects under the parent node', async () => {
-    installStoreWithChild();
+    const store = installStoreWithChild();
     const doc = automationDoc(
       [
         {
@@ -377,7 +374,7 @@ describe('subautomation', () => {
       ],
       { output: '{{ nodes.call.output }}' },
     );
-    const result = await execute(doc, { input: {} });
+    const result = await execute(doc, { input: {}, store });
     expect(result.status).toBe('success');
     expect(result.output).toBe(42);
     expect(result.effects).toEqual([
@@ -409,22 +406,21 @@ describe('subautomation', () => {
       ],
       { output: '{{ nodes.call.output }}' },
     );
-    const result = await execute(doc, { input: {} });
+    const result = await execute(doc, { input: {}, store });
     expect(result.output).toBe(2);
   });
 
   it('missing reference and missing store both fail with guidance', async () => {
-    installStoreWithChild();
+    const store = installStoreWithChild();
     const missing = await execute(
       automationDoc([
         { id: 'call', type: 'subautomation', automation: 'ghost' },
       ]),
-      { input: {} },
+      { input: {}, store },
     );
     expect(missing.status).toBe('error');
     expect(missing.error?.message).toContain('save_automation it first');
 
-    setStoreAdapter(null as never);
     const storeless = await execute(
       automationDoc([
         { id: 'call', type: 'subautomation', automation: 'child' },
@@ -445,12 +441,11 @@ describe('subautomation', () => {
         },
       ),
     );
-    setStoreAdapter(store);
     const result = await execute(
       automationDoc([
         { id: 'start', type: 'subautomation', automation: 'loop' },
       ]),
-      { input: {} },
+      { input: {}, store },
     );
     expect(result.status).toBe('error');
     expect(result.error?.message).toContain('nest at most 3');
@@ -701,6 +696,71 @@ describe('guards and contracts', () => {
     const result = await execute(doc, { input: {} });
     expect(result.status).toBe('error');
     expect(result.error?.message).toContain('"inputs" schema');
+  });
+
+  it('keeps checking an inputs schema that carries an $id on every run', async () => {
+    // Ajv refuses to compile a cached $id twice; the runtime check must not
+    // silently drop out after the first run of the process.
+    const doc = automationDoc(
+      [{ id: 'a', type: 'transform', code: 'return 1;' }],
+      {
+        inputs: {
+          $id: 'https://example.test/schemas/run-input',
+          type: 'object',
+          properties: { n: { type: 'number' } },
+          required: ['n'],
+        },
+      },
+    );
+    const first = await execute(doc, { input: {} });
+    const second = await execute(doc, { input: {} });
+    expect(first.status).toBe('error');
+    expect(second.status).toBe('error');
+    expect(second.error?.message).toContain('"inputs" schema');
+    expect(await execute(doc, { input: { n: 1 } })).toMatchObject({
+      status: 'success',
+    });
+  });
+
+  it('runs a connector whose input schema carries an $id more than once', async () => {
+    registerNodeType({
+      type: 'ids.echo',
+      kind: 'connector',
+      outputKind: 'structured',
+      description: 'test connector: schema with an $id',
+      allowedFields: ['input'],
+      requiredFields: ['input'],
+      connector: {
+        name: 'ids.echo',
+        description: 'echo',
+        inputSchema: {
+          $id: 'https://example.test/schemas/ids-echo',
+          type: 'object',
+          properties: { v: { type: 'number' } },
+          required: ['v'],
+        },
+        outputSignature: '{ v: number }',
+        hasEffect: false,
+        mock: (input) => input,
+      },
+    });
+    const doc = automationDoc(
+      [{ id: 'echo', type: 'ids.echo', input: { v: 7 } }],
+      { output: '{{ nodes.echo.output.v }}' },
+    );
+    expect(await execute(doc, { input: {} })).toMatchObject({
+      status: 'success',
+      output: 7,
+    });
+    expect(await execute(doc, { input: {} })).toMatchObject({
+      status: 'success',
+      output: 7,
+    });
+    const bad = await execute(
+      automationDoc([{ id: 'echo', type: 'ids.echo', input: { v: 'x' } }]),
+      { input: {} },
+    );
+    expect(bad.error?.message).toContain('does not match the ids.echo schema');
   });
 
   it('rejects connector input that misses the connector schema', async () => {

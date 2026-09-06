@@ -13,6 +13,7 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { releaseProjectAgentSessionSlot } from '../sandbox/sessions.ts';
 import {
   type AgentRunRow,
   failAgentRun,
@@ -23,6 +24,9 @@ import { runTaskAgentWatchdog } from './watchdogs.ts';
 
 vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => ({
   sessionCancelExec: vi.fn(),
+}));
+vi.mock('../sandbox/sessions.ts', () => ({
+  releaseProjectAgentSessionSlot: vi.fn(() => Promise.resolve(true)),
 }));
 vi.mock('./agent-runs.ts', () => ({
   failAgentRun: vi.fn(),
@@ -98,11 +102,12 @@ describe('runTaskAgentWatchdog (deadline lane)', () => {
         event.startsWith('sql:UPDATE app.sandbox_session_ops'),
       ),
     ).toBe(true);
-    expect(
-      events.some((event) =>
-        event.startsWith('sql:UPDATE app.sandbox_sessions'),
-      ),
-    ).toBe(true);
+    // The slot is freed through the SAME release the host runs after a
+    // settle — the seam that also wakes the org's parked runs.
+    expect(releaseProjectAgentSessionSlot).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'org-1', agentId: 'agent-1' },
+    );
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('exec cancel failed for run run-1'),
       'fetch failed',

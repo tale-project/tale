@@ -37,8 +37,6 @@ import { decryptSecretsFile } from '../lib/sops';
 export type { ObjectStorageConnectionFile, ObjectStorageConnectionSecrets };
 export { OBJECT_STORAGE_CONFIG_DOMAIN, OBJECT_STORAGE_CONNECTION_KEY };
 
-export const MAX_FILE_SIZE_BYTES = 64 * 1024; // 64 KB
-
 /** `<orgSlug>/object-storage/` — the org's object-storage config directory. */
 export function resolveObjectStorageDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
@@ -114,20 +112,6 @@ export function serializeObjectStorageSecretsJson(
       2,
     ) + '\n'
   );
-}
-
-/** Parse + validate `connection.secrets.json`. Throws on invalid input. */
-export function parseObjectStorageSecretsJson(
-  content: string,
-): ObjectStorageConnectionSecrets {
-  const parsed: unknown = JSON.parse(content);
-  const result = objectStorageConnectionSecretsSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new Error(
-      zodErrorMessage('Invalid object-storage secrets file', result.error),
-    );
-  }
-  return result.data;
 }
 
 export interface ResolvedObjectStorageConnection {

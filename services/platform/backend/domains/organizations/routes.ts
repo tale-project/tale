@@ -13,7 +13,6 @@ import { writeNotificationForOrgs } from '../notifications/service.ts';
 import {
   deleteOrganization,
   getOrganization,
-  hasAnyOrganization,
   listUserOrganizations,
   OrganizationError,
   recordOrgSwitch,
@@ -32,12 +31,6 @@ export function createOrganizationRoutes(deps: {
 }): Hono<AuthEnv> {
   const app = new Hono<AuthEnv>();
   app.use(requireSession(deps.auth));
-
-  // Auth-gated (unlike users/has-any): instance provisioning state must not
-  // leak to anonymous probes.
-  app.get('/has-any', async (c) => {
-    return c.json({ hasAny: await hasAnyOrganization(deps.sql) });
-  });
 
   // The caller's own memberships (the org picker / boot resolution).
   app.get('/', async (c) => {

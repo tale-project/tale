@@ -8,9 +8,10 @@ import {
 } from '../session-idle';
 import { piiConfigSchema } from './pii';
 
-// Single source of truth for policy types. The Convex side
-// `governance/schema.ts::GOVERNANCE_POLICY_TYPES` MUST stay in sync;
-// drift causes silent type holes and `as const` casts at call sites.
+// THE list of policy types. Every other reader derives from it — the app
+// contract (`app/lib/backend/contract/governance.ts`) types `policyType` as
+// `PolicyType`, the file lane keys `POLICY_SCHEMAS` by it — so there is no
+// second copy to keep in sync; `governance.test.ts` pins the schema map.
 export const POLICY_TYPES = [
   'system_prompt',
   'budgets',
@@ -42,21 +43,9 @@ export const POLICY_TYPES = [
   // per-admin daily filing rate limit. See `dsarGovernanceConfigSchema`
   // for the config shape and defaults.
   'dsar_governance',
-  // Agent-on-demand job guardrails (spawn_agent): org concurrency cap,
-  // terminal-row TTL, stuck-run threshold. Missing row ⇒ schema defaults.
-  // See `agentJobsConfigSchema`.
-  'agent_jobs',
   // Master switch for the task-ops automation pack. Missing row → enabled.
   // See `taskAutomationConfigSchema`.
   'task_automation',
-  // Org-level package allowlist/denylist for the `run_code` tool. Missing file
-  // → denylist + empty lists = every package allowed. See
-  // `runCodePolicyConfigSchema`; the execution gate is in
-  // `agent_tools/run_code_tool.ts`.
-  'run_code',
-  // Per-org opt-out for the weekly in-instance provider-config auto-sync cron.
-  // Missing file → enabled. See `modelSyncConfigSchema`.
-  'model_sync',
   // Per-org sandbox session budgets (user / thread / workflow / render — every
   // sandbox is a session). The deployment-wide host-capacity ceiling is spawner
   // env `SANDBOX_MAX_SESSIONS`; this policy is the per-tenant slice under it an
@@ -84,35 +73,11 @@ export const POLICY_TYPES = [
   'vision_model',
   // Independent-review requirements for the task-review gate. Missing row /
   // empty config ⇒ no extra requirement — anyone with project edit access
-  // may respond, exactly as today. See `reviewPolicyConfigSchema`; enforced
-  // in `convex/tasks/review_mutations.ts::respondToTaskReview`.
+  // may approve, exactly as today. See `reviewPolicyConfigSchema`; enforced
+  // in `domains/tasks/reviews.ts::closePendingTaskReviewOnStatusLeave`.
   'review_policy',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
-
-/**
- * Agent-on-demand job guardrails (the `spawn_agent` tool). Missing row ⇒
- * these schema defaults; every field carries a `.default()` so
- * `agentJobsConfigSchema.parse({})` yields the effective config.
- */
-export const agentJobsConfigSchema = z.object({
-  /** Org-wide cap on concurrently RUNNING spawned jobs. */
-  maxConcurrentJobs: z.number().int().min(1).max(100).default(10),
-  /** Terminal job rows (and their transcript threads) older than this are GC'd. */
-  ttlMs: z
-    .number()
-    .int()
-    .min(60 * 60 * 1000)
-    .default(30 * 24 * 60 * 60 * 1000),
-  /** A `running` job older than this is presumed orphaned (its action died
-   *  before finalize) and is flipped to `timed_out` by the recovery sweep. */
-  jobStuckAfterMs: z
-    .number()
-    .int()
-    .min(60 * 1000)
-    .default(60 * 60 * 1000),
-});
-export type AgentJobsConfig = z.infer<typeof agentJobsConfigSchema>;
 
 /**
  * Master switch for the task-ops automation pack. Gates the run-agent action
@@ -683,10 +648,12 @@ function validateModerationUrl(u: string): string | null {
 
 const moderationEndpointSchema = z.object({
   // Accept http:// and https://. HTTPS is strongly recommended for public
-  // endpoints (the request carries chat text in the clear) but HTTP is
-  // valid for internal / localhost mocks. The URL's own host is auto-
-  // allowlisted by `safeFetch`, so admins don't need to also configure an
-  // SSRF allowlist — redirects to a different host still get rejected.
+  // endpoints (the request carries chat text in the clear); HTTP toward an
+  // internal / localhost mock works only where the deployment operator
+  // opted private hosts in (`TALE_ALLOW_PRIVATE_PROVIDER_HOSTS`) — the
+  // backend runs the deployment host policy over the URL before every call
+  // (`policeModerationEndpoint`), cloud-metadata hosts refused always, and
+  // redirects to a different host are rejected by `safeFetch`.
   //
   // Field-level validation intentionally stops at "is a string" — the
   // well-formed-http(s)-URL check only applies when the provider is enabled
@@ -845,33 +812,6 @@ export type DsarGovernanceConfig = z.infer<typeof dsarGovernanceConfigSchema>;
 export const DEFAULT_DSAR_GOVERNANCE: DsarGovernanceConfig =
   dsarGovernanceConfigSchema.parse({});
 
-/**
- * Org-level package allowlist policy for the `run_code` tool. The on-disk
- * `<org>/governance/run-code.json` is the source of truth; a missing file means
- * `denylist` + empty lists = every package allowed (the historical "no DB row"
- * behaviour). Package names carry no version constraint and are matched against
- * a spec's base name, case-insensitively. The execution-time gate lives in
- * `convex/agent_tools/run_code_tool.ts`.
- */
-export const runCodePolicyConfigSchema = z.object({
-  defaultMode: z.enum(['allowlist', 'denylist']).default('denylist'),
-  pythonAllow: z.array(z.string()).default([]),
-  pythonDeny: z.array(z.string()).default([]),
-  nodeAllow: z.array(z.string()).default([]),
-  nodeDeny: z.array(z.string()).default([]),
-});
-export type RunCodePolicyConfig = z.infer<typeof runCodePolicyConfigSchema>;
-
-/**
- * Per-org opt-out for the weekly in-instance provider-config auto-sync cron
- * (the job that 3-way-merges fresh OpenRouter facts into each org's provider
- * JSON). The on-disk `<org>/governance/model-sync.json` is the source of truth;
- * a missing file means enabled (default on).
- */
-export const modelSyncConfigSchema = z.object({
-  autoSyncEnabled: z.boolean().default(true),
-});
-
 // ---------------------------------------------------------------------------
 // Per-policy-type schema registry
 // ---------------------------------------------------------------------------
@@ -973,7 +913,8 @@ export type ApprovalPolicyConfig = z.infer<typeof approvalPolicyConfigSchema>;
 export type ApprovalPolicyRule = ApprovalPolicyConfig['rules'][number];
 
 /**
- * Who may sign off agent work parked at review (`respondToTaskReview`).
+ * Who may sign off agent work parked at review (the In review → Done move,
+ * `closePendingTaskReviewOnStatusLeave`).
  *
  * Both fields absent ⇒ today's behaviour exactly: any member with project
  * edit access may respond — which is why `parse({})` must succeed.
@@ -1023,10 +964,7 @@ export const POLICY_SCHEMAS = {
   voice_output: voiceOutputConfigSchema,
   data_classification_notice: dataNoticeConfigSchema,
   dsar_governance: dsarGovernanceConfigSchema,
-  agent_jobs: agentJobsConfigSchema,
   task_automation: taskAutomationConfigSchema,
-  run_code: runCodePolicyConfigSchema,
-  model_sync: modelSyncConfigSchema,
   sandbox_quota: sandboxQuotaConfigSchema,
   conversation_access: conversationAccessConfigSchema,
   conversation_routing: conversationRoutingConfigSchema,

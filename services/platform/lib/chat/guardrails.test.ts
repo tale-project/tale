@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FilterName, FilterOutcome } from '../pii/core/outcome';
 import { PatternRegistry } from '../pii/engine/registry';
 import { createScrubber } from '../pii/engine/scrubber';
+import { createTokenizer } from '../pii/engine/tokenizer';
 import { chatFilterConfigSchema } from '../shared/schemas/governance';
 import {
   createChatFilter,
   createModerationFilter,
   createOutputTransform,
   createPiiFilter,
+  createPiiTokenizeFilter,
   GUARDRAIL_CHAIN_ORDER,
   runGuardrailChain,
   type GuardrailFilter,
@@ -50,6 +52,56 @@ describe('runGuardrailChain', () => {
     expect(log).toEqual(['chat_filter', 'pii', 'moderation_provider']);
     expect(result.ran).toEqual(GUARDRAIL_CHAIN_ORDER);
     expect(result.refusal).toBeUndefined();
+  });
+
+  it('reports every non-pass outcome to the observer, the blocking one included', async () => {
+    const seen: Array<{ filterName: FilterName; kind: string }> = [];
+    const masking: GuardrailFilter = {
+      name: 'chat_filter',
+      run: () => ({
+        kind: 'modified',
+        text: 'masked',
+        categoryIds: ['codenames'],
+        matchCount: 1,
+      }),
+    };
+    const blocking: GuardrailFilter = {
+      name: 'pii',
+      run: () => ({ kind: 'blocked', categoryIds: ['iban'], matchCount: 2 }),
+    };
+    const result = await runGuardrailChain(
+      'hello',
+      'output',
+      [blocking, masking, recordingFilter('moderation_provider', [])],
+      {
+        onOutcome: (event) => {
+          expect(event.direction).toBe('output');
+          seen.push({ filterName: event.filterName, kind: event.outcome.kind });
+        },
+      },
+    );
+
+    // The pass from the third step is not an event, and nothing after the
+    // block ran to produce one.
+    expect(seen).toEqual([
+      { filterName: 'chat_filter', kind: 'modified' },
+      { filterName: 'pii', kind: 'blocked' },
+    ]);
+    expect(result.refusal?.filterName).toBe('pii');
+  });
+
+  it('keeps the verdict when the observer itself fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const blocking: GuardrailFilter = {
+      name: 'chat_filter',
+      run: () => ({ kind: 'blocked', categoryIds: ['x'], matchCount: 1 }),
+    };
+    const result = await runGuardrailChain('hello', 'input', [blocking], {
+      onOutcome: () => Promise.reject(new Error('events table is away')),
+    });
+    warn.mockRestore();
+
+    expect(result.refusal?.filterName).toBe('chat_filter');
   });
 
   it('skips a filter the org has not configured', async () => {
@@ -265,6 +317,47 @@ describe('createPiiFilter', () => {
   });
 });
 
+describe('createPiiTokenizeFilter', () => {
+  const tokenizer = createTokenizer({
+    mode: 'tokenize',
+    patterns: { email: true },
+    registry: PatternRegistry.fromDefaults(),
+  });
+
+  it('tokenizes on the way in and restores the same tokens on the way out', async () => {
+    const filter = createPiiTokenizeFilter(tokenizer);
+    if (filter === null) throw new Error('filter expected');
+
+    const inbound = await filter.run('mail anna@example.com today', 'input');
+    expect(inbound).toMatchObject({
+      kind: 'modified',
+      text: 'mail [EMAIL_1] today',
+      categoryIds: ['email'],
+      matchCount: 1,
+    });
+
+    // The model echoes the token; the reader gets the address back — as a
+    // rewrite that DETECTED nothing, so a host logging detections skips it.
+    const outbound = await filter.run('Sent to [EMAIL_1].', 'output');
+    expect(outbound).toEqual({
+      kind: 'modified',
+      text: 'Sent to anna@example.com.',
+      categoryIds: [],
+      matchCount: 0,
+      truncated: undefined,
+    });
+  });
+
+  it('passes output through untouched when nothing was tokenized', () => {
+    const filter = createPiiTokenizeFilter(tokenizer);
+    expect(filter?.run('plain reply', 'output')).toEqual({ kind: 'pass' });
+  });
+
+  it('is absent when the org has PII scrubbing switched off', () => {
+    expect(createPiiTokenizeFilter(null)).toBeNull();
+  });
+});
+
 describe('createModerationFilter', () => {
   it('turns a provider failure into a step error rather than throwing', async () => {
     const filter = createModerationFilter({
@@ -290,7 +383,7 @@ describe('createOutputTransform', () => {
           },
         },
       ],
-      { minFlushChars: 10 },
+      { minFlushChars: 10, holdbackChars: 0 },
     );
 
     expect(await transform.push('short')).toEqual({ text: '' });
@@ -316,7 +409,7 @@ describe('createOutputTransform', () => {
           },
         },
       ],
-      { minFlushChars: 1 },
+      { minFlushChars: 1, holdbackChars: 0 },
     );
 
     const chunk = await transform.push('write to a@b.com');
@@ -337,7 +430,7 @@ describe('createOutputTransform', () => {
           },
         },
       ],
-      { minFlushChars: 1 },
+      { minFlushChars: 1, holdbackChars: 0 },
     );
 
     const refused = await transform.push('anything');
@@ -367,5 +460,51 @@ describe('createOutputTransform', () => {
     });
     expect(await transform.push('tail')).toEqual({ text: '' });
     expect(await transform.flush()).toEqual({ text: 'tail' });
+  });
+
+  it('holds a tail back so a token split across pushes is restored whole', async () => {
+    const seen: string[] = [];
+    const transform = createOutputTransform(
+      [
+        {
+          name: 'pii',
+          run(text) {
+            seen.push(text);
+            return text.includes('[EMAIL_1]')
+              ? {
+                  kind: 'modified',
+                  text: text.replace('[EMAIL_1]', 'anna@example.com'),
+                  categoryIds: [],
+                  matchCount: 0,
+                }
+              : { kind: 'pass' };
+          },
+        },
+      ],
+      { minFlushChars: 10, holdbackChars: 8 },
+    );
+
+    let out = '';
+    out += (await transform.push('please write to [EMA')).text;
+    out += (await transform.push('IL_1] today')).text;
+    out += (await transform.flush()).text;
+
+    expect(out).toBe('please write to anna@example.com today');
+    // The token was never judged in two halves: no segment carries a torn
+    // '[EMA' without its closing bracket.
+    for (const segment of seen) {
+      expect(segment.includes('[EMA') && !segment.includes(']')).toBe(false);
+    }
+  });
+
+  it('cuts a segment on a line break before a sentence end or a space', async () => {
+    const transform = createOutputTransform([recordingFilter('pii', [])], {
+      minFlushChars: 5,
+      holdbackChars: 3,
+    });
+
+    expect((await transform.push('a b\ncd ef gh')).text).toBe('a b\n');
+    expect((await transform.push(' ij. kl mn op')).text).toBe('cd ef gh ij. ');
+    expect((await transform.flush()).text).toBe('kl mn op');
   });
 });

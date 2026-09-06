@@ -1,6 +1,6 @@
 /**
  * Dev-orchestrator output: the classifiers + child-capture, layered on the
- * shared `@tale/shared/reporter` (the SAME reporter `tale dev` uses, so both
+ * shared `@tale/shared/tux` (the SAME reporter `tale dev` uses, so both
  * commands render identically).
  *
  * `pipeChild` swaps child `stdio:'inherit'` for capture, with two modes:

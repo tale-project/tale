@@ -30,7 +30,6 @@
     "pwa:icons": "bunx pwa-assets-generator --preset minimal-2023 public/assets/logo-black.svg"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "2.0.41",
     "@ai-sdk/provider": "3.0.8",
     "@better-auth/api-key": "1.6.23",
     "@better-auth/passkey": "1.6.23",
@@ -74,7 +73,6 @@
     "@tanstack/react-virtual": "3.13.26",
     "@xmldom/xmldom": "0.8.15",
     "@xyflow/react": "12.10.2",
-    "ai": "6.0.156",
     "ajv": "8.20.0",
     "aws4fetch": "^1.0.20",
     "bcryptjs": "3.0.3",
