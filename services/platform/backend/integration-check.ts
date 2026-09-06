@@ -610,6 +610,56 @@ async function checkAuthAndSse(
     `live=${liveOk}, resume-replay=${replayOk}, no-duplicate-on-resume=${noDuplicate}`,
   );
 
+  // 5f. An open stream re-proves its reader: a member soft-removed and a
+  // session revoked mid-stream are each told `forbidden` and ended on the
+  // next re-check tick, instead of tailing the org's hints until the tab
+  // reconnects. Two throwaway members, both streams opened before either is
+  // revoked, so the (coarse, 15s) cadence is paid once for both cases.
+  const kicked = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'sse-kicked',
+    'member',
+  );
+  const revoked = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'sse-revoked',
+    'member',
+  );
+  const kickedStream = connectSse(url, { cookie: kicked.cookie });
+  const revokedStream = connectSse(url, { cookie: revoked.cookie });
+  await sleep(500); // both connect-time checks pass on live rows
+  await sql`
+    UPDATE "member" SET "role" = 'disabled' WHERE "id" = ${kicked.memberId}
+  `;
+  await sql`DELETE FROM "session" WHERE "userId" = ${revoked.userId}`;
+  const endedWithForbidden = (
+    stream: ReturnType<typeof connectSse>,
+  ): Promise<boolean> =>
+    Promise.race([
+      stream.done.then(() =>
+        stream.events.some((e) => e.event === 'forbidden'),
+      ),
+      sleep(25_000).then(() => false),
+    ]);
+  const [kickedEnded, revokedEnded] = await Promise.all([
+    endedWithForbidden(kickedStream),
+    endedWithForbidden(revokedStream),
+  ]);
+  kickedStream.abort();
+  revokedStream.abort();
+  await sql`
+    DELETE FROM "member" WHERE "id" IN (${kicked.memberId}, ${revoked.memberId})
+  `;
+  record(
+    'events ends a stream whose reader lost the org or the session',
+    kickedEnded && revokedEnded,
+    `disabled member: ended-with-forbidden=${kickedEnded}; revoked session: ended-with-forbidden=${revokedEnded} (want both true within one re-check interval)`,
+  );
+
   return { cookie, orgId, userId };
 }
 
@@ -655,6 +705,27 @@ async function checkOutboxRetention(
     `;
     return rows[0]?.id ?? '0';
   };
+  // The worker's `realtime.reclaim_outbox` cron is the reclaimer a headless
+  // deployment relies on — no `/events` stream open to tick the lazy one. A
+  // row past the horizon is drained by the task handler alone.
+  const cronStale = await insert('cron-stale');
+  await sql`
+    UPDATE app_realtime.outbox
+    SET created_at = ${new Date(Date.now() - 2 * OUTBOX_RETENTION_MS)}
+    WHERE id <= ${cronStale}::bigint
+  `;
+  const cronReclaim = createTaskList({ sql })['realtime.reclaim_outbox'];
+  if (cronReclaim !== undefined) await cronReclaim({});
+  const cronLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE id <= ${cronStale}::bigint
+  `;
+  record(
+    'realtime outbox retention: the worker cron sweep drains without a stream',
+    cronReclaim !== undefined && cronLeft[0]?.count === '0',
+    `handler=${cronReclaim !== undefined ? 'registered' : 'MISSING'}, rows left at or below the stale prefix=${cronLeft[0]?.count} (want 0)`,
+  );
+
   // Three rows in id order: one past the horizon, one fresh, and one past
   // the horizon ABOVE the fresh one (a stamp a long transaction can leave).
   const stale = await insert('stale');

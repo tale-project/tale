@@ -17,10 +17,13 @@ import type { Sql, TransactionSql } from 'postgres';
  * Retention: a hint matters only until every stream has passed it — live
  * tails are a poll behind, a reconnecting browser replays from
  * `Last-Event-ID` within seconds. Delivered rows older than
- * `OUTBOX_RETENTION_MS` are reclaimed lazily by the tailing pods
- * (`reclaimOutbox`, ticked from the `/events` poll loop — no cron), always
- * as a strict id-prefix, so a resumed cursor either proves its replay
- * complete or is told to `resync` (`outboxRetainsCursor`).
+ * `OUTBOX_RETENTION_MS` are reclaimed by `reclaimOutbox`: lazily by the
+ * tailing pods (ticked from the `/events` poll loop — the fast path while a
+ * browser is connected) and by the worker's `realtime.reclaim_outbox` cron
+ * (the backstop for a deployment with no stream open, which otherwise
+ * inserts a hint on every write and deletes none). Always as a strict
+ * id-prefix, so a resumed cursor either proves its replay complete or is
+ * told to `resync` (`outboxRetainsCursor`).
  *
  * Schema lives in db/migrations/ (boot-applied).
  */
@@ -54,6 +57,12 @@ export const OUTBOX_RETENTION_MS = 60 * 60 * 1000;
 export const OUTBOX_RECLAIM_BATCH = 500;
 /** DELETE rounds one sweep may run before it yields. */
 export const OUTBOX_RECLAIM_MAX_BATCHES = 20;
+/**
+ * DELETE rounds the cron sweep may run: it is off the API hot path and is
+ * the only reclaimer while no stream is open, so it takes a backlog of up
+ * to 100k rows per tick instead of the stream tick's 10k.
+ */
+export const OUTBOX_RECLAIM_CRON_MAX_BATCHES = 200;
 /** How often a process with open streams sweeps. */
 export const OUTBOX_RECLAIM_INTERVAL_MS = 60_000;
 /** A sweep that spent its whole budget comes back sooner: a backlog drains. */

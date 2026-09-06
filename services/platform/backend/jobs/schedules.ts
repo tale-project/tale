@@ -20,6 +20,11 @@ export const SCHEDULES: CronSchedule[] = [
   // loginAttempts carry a 30-day retention (GDPR minimization); the hourly
   // block counters age out after 90 days. Daily sweep.
   { name: 'maintenance.login_attempts_ttl', cron: '40 3 * * *' },
+  // Realtime hints are reclaimed lazily by the `/events` poll loops, which
+  // only run while a browser is connected: a headless deployment (REST and
+  // automation use, nights, weekends) inserts hints on every write and
+  // deletes none. This sweep keeps the hour's retention honest without one.
+  { name: 'realtime.reclaim_outbox', cron: '*/10 * * * *' },
   // Automation schedule triggers fire at minute resolution; the liveness
   // sweep is the only wake source for a run whose scheduled resume was lost.
   { name: 'automation.trigger_scan', cron: '* * * * *' },
