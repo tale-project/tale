@@ -45,7 +45,6 @@ const DIMENSION: Partial<Record<NotificationType, string>> = {
   conversation_assigned: 'assignment',
   // Who the gate waits on, and whether it is open.
   task_review_requested: 'review',
-  task_review_resolved: 'review',
   task_reviewer_assigned: 'review',
   document_review_requested: 'review',
   document_review_resolved: 'review',

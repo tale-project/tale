@@ -14,6 +14,7 @@ import {
   sessionCapFor,
   type SessionBudget,
 } from '../../core/sandbox/quota_policy.ts';
+import { SANDBOX_AGENT_OP_KINDS } from '../../core/sandbox/session_constants.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { pinSession, reconcileSession, teardownSession } from './service.ts';
 import {
@@ -119,7 +120,7 @@ export function createSandboxRoutes(deps: {
       FROM app.sandbox_session_ops o
       JOIN app.sandbox_sessions s ON s.session_id = o.session_id
       WHERE o.org_id = ${c.get('orgId')}
-        AND o.kind = 'agent-run'
+        AND o.kind = ANY(${[...SANDBOX_AGENT_OP_KINDS]})
         AND o.finished_at_ms IS NOT NULL
         AND o.started_at_ms >= ${since}
       ORDER BY o.started_at_ms DESC
@@ -221,7 +222,7 @@ export function createSandboxRoutes(deps: {
       FROM app.sandbox_session_ops o
       JOIN app.sandbox_sessions s ON s.session_id = o.session_id
       WHERE o.org_id = ${organizationId}
-        AND o.kind = 'agent-run'
+        AND o.kind = ANY(${[...SANDBOX_AGENT_OP_KINDS]})
         AND o.started_at_ms >= ${since}
         AND o.status IN ('completed', 'failed')
         AND s.agent_kind IS NOT NULL

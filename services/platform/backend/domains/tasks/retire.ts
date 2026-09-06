@@ -121,36 +121,11 @@ export async function retireTasksInTx(
   // I/O never runs inside this transaction, and the release re-checks
   // liveness itself (a document or a chat thread holding the same ref keeps
   // its bytes).
-  const refs = collectTaskBlobRefs(rows);
-  let releasedRefs: string[] = [];
-  if (refs.length > 0) {
-    const orphaned = await tx<{ ref: string }[]>`
-      SELECT r.ref FROM unnest(${refs}::text[]) AS r(ref)
-      WHERE NOT EXISTS (
-        SELECT 1 FROM app.tasks t
-        WHERE t.org_id = ${args.organizationId}
-          AND (t.outputs @> jsonb_build_array(jsonb_build_object('fileId', r.ref))
-               OR t.attachments
-                  @> jsonb_build_array(jsonb_build_object('fileId', r.ref)))
-      )
-    `;
-    releasedRefs = orphaned.map((row) => row.ref);
-    if (releasedRefs.length > 0) {
-      await tx`
-        UPDATE app.file_metadata SET
-          lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
-        WHERE org_id = ${args.organizationId}
-          AND storage_ref = ANY(${releasedRefs})
-          AND document_id IS NULL AND thread_id IS NULL
-          AND conversation_id IS NULL
-          AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
-      `;
-      await addJobInTx(tx, 'knowledge.release_refs', {
-        organizationId: args.organizationId,
-        refs: releasedRefs,
-      });
-    }
-  }
+  const releasedRefs = await releaseUnlistedTaskBlobRefs(
+    tx,
+    args.organizationId,
+    collectTaskBlobRefs(rows),
+  );
   return { cancelledRunCount, releasedRefs };
 }
 
@@ -182,4 +157,50 @@ export function collectTaskBlobRefs(
     }
   }
   return [...refs];
+}
+
+/**
+ * The blob release seam for refs no task row names any more — a hard delete's
+ * whole subtree, or the files an edit dropped from a task's attachments.
+ * Call it AFTER the row change: a ref some task still lists stays (the same
+ * deliverable can sit on two cards); for the rest, the tasks' own unbound
+ * file rows are trashed so the release sees them dead, and the durable job
+ * deletes the bytes after commit — network I/O never runs inside this
+ * transaction, and the release re-checks liveness itself (a document or a
+ * chat thread holding the same ref keeps its bytes). Answers the refs it
+ * released.
+ */
+export async function releaseUnlistedTaskBlobRefs(
+  tx: TransactionSql,
+  organizationId: string,
+  refs: readonly string[],
+): Promise<string[]> {
+  if (refs.length === 0) return [];
+  const orphaned = await tx<{ ref: string }[]>`
+    SELECT r.ref FROM unnest(${[...refs]}::text[]) AS r(ref)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM app.tasks t
+      WHERE t.org_id = ${organizationId}
+        AND (t.outputs @> jsonb_build_array(jsonb_build_object('fileId', r.ref))
+             OR t.attachments
+                @> jsonb_build_array(jsonb_build_object('fileId', r.ref)))
+    )
+  `;
+  const releasedRefs = orphaned.map((row) => row.ref);
+  if (releasedRefs.length > 0) {
+    await tx`
+      UPDATE app.file_metadata SET
+        lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
+      WHERE org_id = ${organizationId}
+        AND storage_ref = ANY(${releasedRefs})
+        AND document_id IS NULL AND thread_id IS NULL
+        AND conversation_id IS NULL
+        AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+    `;
+    await addJobInTx(tx, 'knowledge.release_refs', {
+      organizationId,
+      refs: releasedRefs,
+    });
+  }
+  return releasedRefs;
 }

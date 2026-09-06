@@ -14,8 +14,14 @@ import {
   TASK_AUDIT_ACTIONS,
   TASK_RESOURCE_TYPE,
 } from '../../core/tasks/audit_actions.ts';
+import {
+  TASK_ATTACHMENTS_MAX,
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
+  TASK_TITLE_MAX,
+} from '../../core/tasks/helpers.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
-import { REVIEW_POLICY_REFUSAL_CODES } from '../../core/tasks/review_shared.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -27,14 +33,15 @@ import {
   notifyTaskStatusChanged,
 } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
+import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
   listProjects,
   loadProjectOrThrow,
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
-import { kickAgentRun } from './agent-runs.ts';
-import { retireTasksInTx } from './retire.ts';
+import { cancelAgentRunInTx, kickAgentRun } from './agent-runs.ts';
+import { releaseUnlistedTaskBlobRefs, retireTasksInTx } from './retire.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
   collectPendingReviewsForProjects,
@@ -77,10 +84,12 @@ export const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
   'cancelled',
 ]);
 
-export const TASK_TITLE_MAX = 200;
-export const TASK_DESCRIPTION_MAX = 20_000;
-export const TASK_LABELS_MAX = 50;
-export const TASK_LABEL_CHARS_MAX = 50;
+export {
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
+  TASK_TITLE_MAX,
+} from '../../core/tasks/helpers.ts';
 export const TASK_BOARD_CAP = 2000;
 
 export class TaskError extends Error {
@@ -645,11 +654,9 @@ export interface AssigneeRef {
 }
 
 /**
- * Whether writing `assignee` onto `task` changes who holds it — ONE rule for
- * the picker (`assignTask`) and the bulk bar (`bulkUpdateTasks`), so the
- * live-run transfer gate they share can never disagree about what counts as
- * a transfer. A same-assignee re-select and clearing an already-unassigned
- * task are not transfers.
+ * Whether writing `assignee` onto `task` changes who holds it — the ONE rule
+ * behind the picker's (`assignTask`) live-run transfer gate. A same-assignee
+ * re-select and clearing an already-unassigned task are not transfers.
  */
 export function assigneeChanges(
   task: Pick<TaskRow, 'assigneeType' | 'assigneeId'>,
@@ -889,10 +896,118 @@ export async function settleTaskAssigneeChange(
 // Task CRUD
 // ---------------------------------------------------------------------------
 
+/**
+ * One file a person hung on a task: the client-named blob ref plus the
+ * display trio the dialog shows. The `attachments` column holds a list of
+ * these; the agent's brief mirrors them into its sandbox as inputs.
+ */
+export interface TaskAttachmentEntry {
+  fileId: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+}
+
+/** The stored `attachments` column read back as entries; malformed elements
+ * are skipped (the column is written only by this shape). */
+export function parseTaskAttachments(column: unknown): TaskAttachmentEntry[] {
+  if (!Array.isArray(column)) return [];
+  const entries: TaskAttachmentEntry[] = [];
+  for (const element of column) {
+    if (
+      element === null ||
+      typeof element !== 'object' ||
+      !('fileId' in element) ||
+      typeof element.fileId !== 'string' ||
+      element.fileId === ''
+    ) {
+      continue;
+    }
+    entries.push({
+      fileId: element.fileId,
+      fileName:
+        'fileName' in element && typeof element.fileName === 'string'
+          ? element.fileName
+          : '',
+      fileType:
+        'fileType' in element && typeof element.fileType === 'string'
+          ? element.fileType
+          : '',
+      fileSize:
+        'fileSize' in element && typeof element.fileSize === 'number'
+          ? element.fileSize
+          : 0,
+    });
+  }
+  return entries;
+}
+
+/** A submitted attachment list, bounded and de-duplicated by ref (first
+ * wins), display names trimmed to the column's 255. */
+function normalizeAttachments(
+  list: readonly TaskAttachmentEntry[],
+): TaskAttachmentEntry[] {
+  if (list.length > TASK_ATTACHMENTS_MAX) {
+    throw new TaskError(
+      'TASK_ATTACHMENTS_INVALID',
+      `A task carries at most ${TASK_ATTACHMENTS_MAX} attachments`,
+    );
+  }
+  const seen = new Set<string>();
+  const entries: TaskAttachmentEntry[] = [];
+  for (const entry of list) {
+    const fileName = entry.fileName.trim().slice(0, 255);
+    if (entry.fileId === '' || fileName === '') {
+      throw new TaskError(
+        'TASK_ATTACHMENTS_INVALID',
+        'Every attachment needs a file ref and a name',
+      );
+    }
+    if (seen.has(entry.fileId)) continue;
+    seen.add(entry.fileId);
+    entries.push({
+      fileId: entry.fileId,
+      fileName,
+      fileType: entry.fileType.slice(0, 255),
+      fileSize: entry.fileSize,
+    });
+  }
+  return entries;
+}
+
+/**
+ * Attachments are client-named blob refs. Each ref NEW to the task must be
+ * the caller's own upload (their upload intent inside its TTL, or the file
+ * row they registered) — a document's ref, which every reader of that
+ * document holds, is not theirs to hang on a task, and a guessed ref must
+ * not let the agent's brief stage another user's bytes. Refs already on the
+ * task stay whoever attached them: removing one file re-sends the rest.
+ */
+async function assertOwnedTaskAttachments(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  fileIds: readonly string[],
+): Promise<void> {
+  if (fileIds.length === 0) return;
+  const foreign = await firstForeignUpload(
+    tx,
+    { organizationId: auth.organizationId, userId: auth.userId },
+    fileIds,
+  );
+  if (foreign !== null) {
+    throw new TaskError(
+      'TASK_ATTACHMENT_NOT_OWNED',
+      'An attachment is not one of your uploads. Remove it and attach the file again.',
+      403,
+    );
+  }
+}
+
 export interface CreateTaskArgs {
   projectId: string;
   title: string;
   description?: string;
+  attachments?: TaskAttachmentEntry[];
   status?: TaskStatus;
   priority?: TaskPriority;
   labels?: string[];
@@ -923,6 +1038,15 @@ export async function createTask(
   const status = args.status ?? 'backlog';
   const assignee = normalizeAssignee(args);
   await assertAssigneeValid(tx, { project, auth, assignee });
+  const attachments =
+    args.attachments !== undefined
+      ? normalizeAttachments(args.attachments)
+      : [];
+  await assertOwnedTaskAttachments(
+    tx,
+    auth,
+    attachments.map((entry) => entry.fileId),
+  );
 
   if (args.parentTaskId) {
     const parent = await loadTaskOrThrow(
@@ -944,13 +1068,15 @@ export async function createTask(
 
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.tasks (
-      org_id, project_id, title, description, status, priority, label_ids,
-      assignee_type, assignee_id, parent_task_id, start_date_ms, due_date_ms,
-      rank, number, created_by, created_by_type, created_at_ms,
+      org_id, project_id, title, description, attachments, status, priority,
+      label_ids, assignee_type, assignee_id, parent_task_id, start_date_ms,
+      due_date_ms, rank, number, created_by, created_by_type, created_at_ms,
       updated_at_ms, status_changed_at_ms
     ) VALUES (
       ${auth.organizationId}, ${args.projectId}, ${title},
-      ${description ?? null}, ${status}, ${args.priority ?? null},
+      ${description ?? null},
+      ${attachments.length > 0 ? tx.json(toJson(attachments)) : null},
+      ${status}, ${args.priority ?? null},
       ${labelIds ?? []}, ${assignee?.assigneeType ?? null},
       ${assignee?.assigneeId ?? null}, ${args.parentTaskId ?? null},
       ${args.startDate ?? null}, ${args.dueDate ?? null}, ${rank}, ${number},
@@ -1008,6 +1134,25 @@ export async function createTask(
     subscriberId: auth.userId,
     reason: 'creator',
   });
+  // The status choreography applies to a card BORN in a column too — the
+  // create dialog offers the full picker: an agent-owned task created
+  // straight at In progress gets its run (the board never shows an
+  // in-progress agent task with no run behind it), and one created at In
+  // review opens the review gate, the same two rules a move enforces.
+  if (status === 'in_progress') {
+    await kickAssignedAgentRun(tx, auth, {
+      id: taskId,
+      projectId: args.projectId,
+      assigneeType: assignee?.assigneeType ?? null,
+      assigneeId: assignee?.assigneeId ?? null,
+    });
+  }
+  if (status === 'in_review') {
+    await requestTaskReview(tx, {
+      task: await loadTaskOrThrow(tx, taskId, auth.organizationId),
+      trigger: { kind: 'human', actorId: auth.userId },
+    });
+  }
   // TODO(collab): description mention fan-out rides the mention directory.
   return taskId;
 }
@@ -1016,6 +1161,9 @@ export interface UpdateTaskArgs {
   taskId: string;
   title?: string;
   description?: string | null;
+  /** Full replace, like labels: the dialog sends the whole list on every
+   * add and remove. */
+  attachments?: TaskAttachmentEntry[];
   priority?: TaskPriority | null;
   labels?: string[];
   startDate?: number | null;
@@ -1056,6 +1204,32 @@ export async function updateTask(
     priority = args.priority;
     previousState.priority = task.priority;
     newState.priority = priority;
+  }
+  // Attachments: the NEW refs must be the caller's own uploads; the refs
+  // the list drops go to the blob release seam once the row no longer
+  // names them (the same seam a hard delete uses).
+  let nextAttachments: TaskAttachmentEntry[] | undefined;
+  let droppedRefs: string[] = [];
+  if (args.attachments !== undefined) {
+    const current = parseTaskAttachments(task.attachments);
+    const next = normalizeAttachments(args.attachments);
+    const currentRefs = new Set(current.map((entry) => entry.fileId));
+    const nextRefs = new Set(next.map((entry) => entry.fileId));
+    await assertOwnedTaskAttachments(
+      tx,
+      auth,
+      next
+        .filter((entry) => !currentRefs.has(entry.fileId))
+        .map((entry) => entry.fileId),
+    );
+    if (JSON.stringify(next) !== JSON.stringify(current)) {
+      nextAttachments = next;
+      droppedRefs = current
+        .filter((entry) => !nextRefs.has(entry.fileId))
+        .map((entry) => entry.fileId);
+      previousState.attachments = current.map((entry) => entry.fileName);
+      newState.attachments = next.map((entry) => entry.fileName);
+    }
   }
   let labelIds = task.labelIds;
   if (args.labels !== undefined) {
@@ -1114,14 +1288,33 @@ export async function updateTask(
   if (Object.keys(newState).length === 0) {
     return;
   }
+  // A rescheduled task re-enters the date ladder: a changed due date clears
+  // the SLA rung (so "due soon", the nudge and the escalations fire again
+  // for the new date) and a changed start date clears the one-shot start
+  // stamp. Without this the ladder stayed off for good once it had fired —
+  // the common "overdue → pushed out" flow silenced every later alert.
+  const dueChanged = args.dueDate !== undefined && dueDate !== task.dueDate;
+  const startChanged =
+    args.startDate !== undefined && startDate !== task.startDate;
   await tx`
     UPDATE app.tasks SET
       title = ${title}, description = ${description},
       priority = ${priority}, label_ids = ${labelIds},
       start_date_ms = ${startDate}, due_date_ms = ${dueDate},
+      sla_level = CASE WHEN ${dueChanged}::boolean THEN NULL ELSE sla_level END,
+      sla_level_at_ms = CASE WHEN ${dueChanged}::boolean THEN NULL
+                             ELSE sla_level_at_ms END,
+      start_notified_at_ms = CASE WHEN ${startChanged}::boolean THEN NULL
+                                  ELSE start_notified_at_ms END,
+      attachments = CASE WHEN ${nextAttachments !== undefined}::boolean
+                         THEN ${nextAttachments !== undefined && nextAttachments.length > 0 ? tx.json(toJson(nextAttachments)) : null}::jsonb
+                         ELSE attachments END,
       reviewer_user_id = ${reviewerUserId}, updated_at_ms = ${Date.now()}
     WHERE id = ${args.taskId}
   `;
+  if (droppedRefs.length > 0) {
+    await releaseUnlistedTaskBlobRefs(tx, auth.organizationId, droppedRefs);
+  }
   await recordActivity(tx, {
     task,
     actorType: 'user',
@@ -1199,6 +1392,7 @@ export async function updateTaskStatus(
       ...(auth.email !== undefined ? { email: auth.email } : {}),
     },
   });
+  await cancelLiveAgentRunOnLeave(tx, task, status);
 
   const now = Date.now();
   const rank = await computeEndRank(tx, task.projectId, status);
@@ -1222,40 +1416,8 @@ export async function updateTaskStatus(
   // in_progress starts (or reuses) a run in the SAME transaction as the
   // status write — the board never shows an in-progress agent task with no
   // run behind it.
-  if (
-    status === 'in_progress' &&
-    task.assigneeType === 'agent' &&
-    task.assigneeId !== null
-  ) {
-    const agents = await tx<
-      {
-        id: string;
-        harness: string;
-        model: string;
-        modelProvider: string | null;
-      }[]
-    >`
-      SELECT id, harness, model, model_provider AS "modelProvider"
-      FROM app.project_agents
-      WHERE id = ${task.assigneeId} AND org_id = ${auth.organizationId}
-      LIMIT 1
-    `;
-    const agent = agents[0];
-    if (agent) {
-      await kickAgentRun(tx, {
-        organizationId: auth.organizationId,
-        projectId: task.projectId,
-        taskId,
-        agentId: agent.id,
-        harness: agent.harness,
-        model: agent.model,
-        ...(agent.modelProvider !== null
-          ? { modelProvider: agent.modelProvider }
-          : {}),
-        startedBy: auth.userId,
-        trigger: 'manual',
-      });
-    }
+  if (status === 'in_progress') {
+    await kickAssignedAgentRun(tx, auth, { ...task, id: taskId });
   }
   // Reaching `in_review` IS the request for review, whoever submitted —
   // the gate belongs to the STATE, not to the agent lane.
@@ -1265,6 +1427,79 @@ export async function updateTaskStatus(
       trigger: { kind: 'human', actorId: auth.userId },
     });
   }
+}
+
+/**
+ * The agent kick every human door that lands a card at `in_progress` shares
+ * (the status picker, the drag, and a card CREATED straight into the column):
+ * an agent-owned task gets its queued run + `task.agent_turn` job in the same
+ * transaction as the status write, attributed to the person whose gesture it
+ * was. A task with no agent assignee, or whose agent is gone, kicks nothing.
+ */
+async function kickAssignedAgentRun(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  task: Pick<TaskRow, 'id' | 'projectId' | 'assigneeType' | 'assigneeId'>,
+): Promise<void> {
+  if (task.assigneeType !== 'agent' || task.assigneeId === null) return;
+  const agents = await tx<
+    {
+      id: string;
+      harness: string;
+      model: string;
+      modelProvider: string | null;
+    }[]
+  >`
+    SELECT id, harness, model, model_provider AS "modelProvider"
+    FROM app.project_agents
+    WHERE id = ${task.assigneeId} AND org_id = ${auth.organizationId}
+    LIMIT 1
+  `;
+  const agent = agents[0];
+  if (!agent) return;
+  await kickAgentRun(tx, {
+    organizationId: auth.organizationId,
+    projectId: task.projectId,
+    taskId: task.id,
+    agentId: agent.id,
+    harness: agent.harness,
+    model: agent.model,
+    ...(agent.modelProvider !== null
+      ? { modelProvider: agent.modelProvider }
+      : {}),
+    startedBy: auth.userId,
+    trigger: 'manual',
+  });
+}
+
+/**
+ * Leaving `in_progress` through a HUMAN door cancels the task's live agent
+ * run: a person who closes, cancels or sends a card back has decided the
+ * agent's work is over, and a run left grinding would park the card back at
+ * In review on settle. The browser choreography cancels first and moves
+ * anyway when that cancel fails; owning the rule here keeps every door (REST,
+ * a stale client) honest. The exec itself is reaped by its next drive window
+ * (the orphan check), exactly as after the cancel-live door.
+ */
+async function cancelLiveAgentRunOnLeave(
+  tx: TransactionSql,
+  task: Pick<TaskRow, 'id' | 'organizationId' | 'status'>,
+  toStatus: TaskStatus,
+): Promise<void> {
+  if (task.status !== 'in_progress' || toStatus === 'in_progress') return;
+  const live = await tx<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE task_id = ${task.id} AND org_id = ${task.organizationId}
+      AND status IN ('queued', 'running')
+    LIMIT 1
+  `;
+  const run = live[0];
+  if (run === undefined) return;
+  await cancelAgentRunInTx(tx, {
+    organizationId: task.organizationId,
+    runId: run.id,
+    taskId: task.id,
+  });
 }
 
 /**
@@ -1456,6 +1691,28 @@ export async function agentUpdateTaskStatusTrusted(
     await mintReview();
     return { ok: true };
   }
+  // The settle's park names its run, and may only move a card that is still
+  // In progress FOR that run. A person or an automation who moved the card
+  // meanwhile (closed it, cancelled it, sent it back) made a decision this
+  // lane must not undo by yanking the card back to In review with its
+  // completion stamp cleared and a fresh reviewer bell; and a run cancelled
+  // while its last drive window was already draining must not park the card
+  // either. The auto-retry job refuses the same way (`task_moved`).
+  if (args.review !== undefined) {
+    if (task.status !== 'in_progress') {
+      return { ok: false, reason: 'TASK_MOVED' };
+    }
+    const live = await tx<{ id: string }[]>`
+      SELECT id FROM app.project_agent_runs
+      WHERE id = ${args.review.runId} AND task_id = ${args.taskId}
+        AND org_id = ${args.organizationId}
+        AND status IN ('queued', 'running')
+      LIMIT 1
+    `;
+    if (live.length === 0) {
+      return { ok: false, reason: 'RUN_NOT_LIVE' };
+    }
+  }
   // `done` is the REVIEW GATE's to give: an agent or an automation parks
   // finished work at `in_review` and a person certifies it. Cancelling is a
   // different act — abandoning work rather than certifying it — and the
@@ -1543,6 +1800,17 @@ export async function handTaskToInProgressForKick(
   return true;
 }
 
+/** One deliverable in the task's Output zone. `runId` names the run that
+ * produced it — the provenance ledger binds a run's entry to exactly the
+ * outputs stamped with its id. */
+export interface TaskOutputEntry {
+  fileId: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  runId?: string;
+}
+
 /**
  * TRUSTED deliverables merge into the task's Output zone (same fileName ⇒
  * replace) — the settle's attach step.
@@ -1552,6 +1820,8 @@ export async function agentRecordTaskOutputsTrusted(
   args: {
     organizationId: string;
     taskId: string;
+    /** The producing run — stamped on every merged entry. */
+    runId?: string;
     files: Array<{
       fileId: string;
       fileName: string;
@@ -1562,24 +1832,18 @@ export async function agentRecordTaskOutputsTrusted(
 ): Promise<void> {
   if (args.files.length === 0) return;
   const task = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
-  const next: Array<{
-    fileId: string;
-    fileName: string;
-    fileType: string;
-    fileSize: number;
-  }> = Array.isArray(task.outputs)
+  const next: TaskOutputEntry[] = Array.isArray(task.outputs)
     ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the outputs column is written only by this shape
-      ([...task.outputs] as Array<{
-        fileId: string;
-        fileName: string;
-        fileType: string;
-        fileSize: number;
-      }>)
+      ([...task.outputs] as TaskOutputEntry[])
     : [];
   for (const file of args.files) {
     const fileName = file.fileName.slice(0, 255);
     if (fileName === '') continue;
-    const entry = { ...file, fileName };
+    const entry: TaskOutputEntry = {
+      ...file,
+      fileName,
+      ...(args.runId !== undefined ? { runId: args.runId } : {}),
+    };
     const at = next.findIndex((output) => output.fileName === fileName);
     if (at === -1) next.push(entry);
     else next[at] = entry;
@@ -1610,10 +1874,9 @@ export async function assignTask(
   // A live run holds the task for its current worker: transferring it
   // mid-flight would leave the old agent driving (settle comments, the
   // in_review park) a card that now shows someone else's name, and "Run
-  // agent" answering already_running for the wrong agent. The bulk bar
-  // applies the same rule as a skip; here the caller asked for one card, so
-  // the refusal names itself — the picker cancels the run first, then
-  // reassigns (its confirmed-handoff flow).
+  // agent" answering already_running for the wrong agent. The refusal
+  // names itself — the picker cancels the run first, then reassigns (its
+  // confirmed-handoff flow).
   if (assigneeChanges(task, assignee) && (await taskHasLiveRun(tx, task))) {
     throw new TaskError(
       'TASK_HAS_LIVE_RUN',
@@ -1706,6 +1969,7 @@ export async function moveTask(
         ...(auth.email !== undefined ? { email: auth.email } : {}),
       },
     });
+    await cancelLiveAgentRunOnLeave(tx, task, args.status);
   }
   const rankOf = async (
     id: string | undefined,
@@ -2039,122 +2303,6 @@ export async function removeTaskDependency(
       metadata: { blockerTaskId: args.blockerTaskId },
     }),
   );
-}
-
-// ---------------------------------------------------------------------------
-// Board views
-// ---------------------------------------------------------------------------
-
-export interface BoardViewInput {
-  projectId: string;
-  viewId?: string;
-  name: string;
-  scope: 'personal' | 'shared';
-  viewType: 'board' | 'table' | 'timeline';
-  filters: Record<string, unknown>;
-  sort?: { field: string; desc: boolean };
-  isDefault?: boolean;
-}
-
-export async function saveBoardView(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  args: BoardViewInput,
-): Promise<string> {
-  const project = await loadProjectOrThrow(tx, args.projectId);
-  assertTaskReadable(project, auth);
-  const now = Date.now();
-  if (args.viewId) {
-    const rows = await tx<{ ownerId: string; scope: string }[]>`
-      SELECT owner_id AS "ownerId", scope FROM app.board_views
-      WHERE id = ${args.viewId} AND project_id = ${args.projectId} LIMIT 1
-    `;
-    const view = rows[0];
-    if (!view) {
-      throw new TaskError('BOARD_VIEW_NOT_FOUND', 'View not found', 404);
-    }
-    if (view.ownerId !== auth.userId && view.scope === 'personal') {
-      throw new TaskError('BOARD_VIEW_FORBIDDEN', 'Not your view', 403);
-    }
-    await tx`
-      UPDATE app.board_views SET
-        name = ${args.name}, scope = ${args.scope},
-        view_type = ${args.viewType},
-        filters = ${tx.json(toJson(args.filters))},
-        sort = ${args.sort === undefined ? null : tx.json(toJson(args.sort))},
-        is_default = ${args.isDefault ?? null}, updated_at_ms = ${now}
-      WHERE id = ${args.viewId}
-    `;
-    return args.viewId;
-  }
-  const inserted = await tx<{ id: string }[]>`
-    INSERT INTO app.board_views (
-      org_id, project_id, owner_id, name, scope, view_type, filters, sort,
-      is_default, created_at_ms, updated_at_ms
-    ) VALUES (
-      ${auth.organizationId}, ${args.projectId}, ${auth.userId}, ${args.name},
-      ${args.scope}, ${args.viewType}, ${tx.json(toJson(args.filters))},
-      ${args.sort === undefined ? null : tx.json(toJson(args.sort))},
-      ${args.isDefault ?? null}, ${now}, ${now}
-    )
-    RETURNING id
-  `;
-  const id = inserted[0]?.id;
-  if (!id) {
-    throw new TaskError('BOARD_VIEW_SAVE_FAILED', 'Insert failed');
-  }
-  return id;
-}
-
-export async function deleteBoardView(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  viewId: string,
-): Promise<void> {
-  const rows = await tx<
-    { ownerId: string; scope: string; projectId: string }[]
-  >`
-    SELECT owner_id AS "ownerId", scope, project_id AS "projectId"
-    FROM app.board_views WHERE id = ${viewId} LIMIT 1
-  `;
-  const view = rows[0];
-  if (!view) {
-    return;
-  }
-  const project = await loadProjectOrThrow(tx, view.projectId);
-  assertTaskReadable(project, auth);
-  if (view.ownerId !== auth.userId && view.scope === 'personal') {
-    throw new TaskError('BOARD_VIEW_FORBIDDEN', 'Not your view', 403);
-  }
-  await tx`DELETE FROM app.board_views WHERE id = ${viewId}`;
-}
-
-export interface BoardViewRow {
-  id: string;
-  name: string;
-  scope: string;
-  viewType: string;
-  filters: unknown;
-  sort: unknown;
-  isDefault: boolean | null;
-  ownerId: string;
-}
-
-export async function listBoardViews(
-  sql: Sql,
-  auth: ProjectAuthContext,
-  projectId: string,
-): Promise<BoardViewRow[]> {
-  const project = await loadProjectOrThrow(sql, projectId);
-  assertTaskReadable(project, auth);
-  return sql<BoardViewRow[]>`
-    SELECT id, name, scope, view_type AS "viewType", filters, sort,
-           is_default AS "isDefault", owner_id AS "ownerId"
-    FROM app.board_views
-    WHERE project_id = ${projectId}
-      AND (scope = 'shared' OR owner_id = ${auth.userId})
-    ORDER BY created_at_ms ASC
-  `;
 }
 
 // ---------------------------------------------------------------------------
@@ -2722,269 +2870,6 @@ export async function mentionTriggerPreview(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Bulk board ops (the multi-select bar)
-// ---------------------------------------------------------------------------
-
-const BULK_UPDATE_MAX = 100;
-
-/**
- * Apply one patch to many tasks with the 0.4 skip semantics: per-task
- * failures SKIP (missing row, read-only project, archived content edit,
- * open-subtask terminal close, review-policy refusal, live-run assignee
- * transfer, assignee without project access) instead of aborting the batch.
- */
-export async function bulkUpdateTasks(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  args: {
-    taskIds: string[];
-    status?: TaskStatus;
-    priority?: TaskPriority | null;
-    assigneeType?: TaskAssigneeType;
-    assigneeId?: string;
-    clearAssignee?: boolean;
-    archived?: boolean;
-  },
-): Promise<{ updated: number; skipped: number }> {
-  if (args.taskIds.length === 0) return { updated: 0, skipped: 0 };
-  if (args.taskIds.length > BULK_UPDATE_MAX) {
-    throw new TaskError('TASK_BULK_TOO_LARGE', 'Too many tasks');
-  }
-  const assignee = args.clearAssignee
-    ? null
-    : normalizeAssignee({
-        ...(args.assigneeType !== undefined
-          ? { assigneeType: args.assigneeType }
-          : {}),
-        ...(args.assigneeId !== undefined
-          ? { assigneeId: args.assigneeId }
-          : {}),
-      });
-
-  let updated = 0;
-  let skipped = 0;
-  const now = Date.now();
-  const canEditByProject = new Map<string, boolean>();
-  const assigneeAllowedByProject = new Map<string, boolean>();
-  const projectById = new Map<string, ProjectRow>();
-
-  for (const taskId of args.taskIds) {
-    const rows = await tx<TaskRow[]>`
-      SELECT ${tx.unsafe(TASK_COLUMNS)} FROM app.tasks
-      WHERE id = ${taskId} AND org_id = ${auth.organizationId} LIMIT 1
-    `;
-    const task = rows[0];
-    if (!task) {
-      skipped += 1;
-      continue;
-    }
-    let project = projectById.get(task.projectId);
-    if (project === undefined) {
-      try {
-        project = await loadProjectOrThrow(tx, task.projectId);
-      } catch (error) {
-        console.warn(
-          '[tasks] bulkUpdate: project load failed, skipping',
-          error,
-        );
-        skipped += 1;
-        continue;
-      }
-      projectById.set(task.projectId, project);
-    }
-    let canEdit = canEditByProject.get(task.projectId);
-    if (canEdit === undefined) {
-      canEdit = checkProjectAccess(
-        {
-          teamId: project.teamId,
-          sharedWithTeamIds: project.sharedWithTeamIds,
-        },
-        auth.teamIds,
-        auth.role,
-      ).canEdit;
-      canEditByProject.set(task.projectId, canEdit);
-    }
-    if (!canEdit) {
-      skipped += 1;
-      continue;
-    }
-    // Archived rows are read-only unless this bulk op is itself an
-    // archive/restore — never mutate their content.
-    if (task.archivedAt !== null && args.archived === undefined) {
-      skipped += 1;
-      continue;
-    }
-
-    const statusChanged =
-      args.status !== undefined && args.status !== task.status;
-    const sets: string[] = [];
-    // oxlint-disable-next-line typescript/no-explicit-any -- positional params for a closed column list
-    const values: any[] = [];
-    const push = (column: string, value: unknown): void => {
-      sets.push(column);
-      values.push(value);
-    };
-
-    if (args.status !== undefined) {
-      if (
-        TERMINAL_STATUSES.has(args.status) &&
-        (await hasOpenChildren(tx, taskId))
-      ) {
-        skipped += 1;
-        continue;
-      }
-      if (statusChanged) {
-        // A bulk leave from `in_review` closes the gate like the single-card
-        // paths; a `review_policy` refusal skips the task instead of
-        // aborting (the close validates before writing).
-        try {
-          await closePendingTaskReviewOnStatusLeave(tx, {
-            task,
-            toStatus: args.status,
-            actor: {
-              kind: 'user',
-              userId: auth.userId,
-              ...(auth.email !== undefined ? { email: auth.email } : {}),
-            },
-          });
-        } catch (error) {
-          if (!isReviewPolicyRefusalError(error)) throw error;
-          skipped += 1;
-          continue;
-        }
-      }
-      push('status', args.status);
-      push('rank', await computeEndRank(tx, task.projectId, args.status));
-      push(
-        'completed_at_ms',
-        TERMINAL_STATUSES.has(args.status) ? (task.completedAt ?? now) : null,
-      );
-      if (statusChanged) push('status_changed_at_ms', now);
-    }
-    if (args.priority !== undefined) {
-      push('priority', args.priority);
-    }
-    const assigneeChanged =
-      (args.clearAssignee === true || assignee !== null) &&
-      assigneeChanges(task, assignee);
-    if (assigneeChanged && (await taskHasLiveRun(tx, task))) {
-      // Same live-run transfer gate as `assignTask` (one `assigneeChanges`
-      // rule), applied as a skip.
-      skipped += 1;
-      continue;
-    }
-    if (args.clearAssignee === true || assignee !== null) {
-      if (assignee !== null) {
-        let allowed = assigneeAllowedByProject.get(task.projectId);
-        if (allowed === undefined) {
-          try {
-            await assertAssigneeValid(tx, { project, auth, assignee });
-            allowed = true;
-          } catch (error) {
-            if (!(error instanceof TaskError)) throw error;
-            allowed = false;
-          }
-          assigneeAllowedByProject.set(task.projectId, allowed);
-        }
-        if (!allowed) {
-          skipped += 1;
-          continue;
-        }
-      }
-      push('assignee_type', assignee?.assigneeType ?? null);
-      push('assignee_id', assignee?.assigneeId ?? null);
-    }
-    if (args.archived !== undefined) {
-      const nowArchived = task.archivedAt !== null;
-      if (args.archived !== nowArchived) {
-        push('archived_at_ms', args.archived ? now : null);
-      }
-    }
-    if (sets.length === 0) {
-      skipped += 1;
-      continue;
-    }
-    push('updated_at_ms', now);
-
-    const assignments = sets
-      .map((column, index) => `${column} = $${index + 1}`)
-      .join(', ');
-    await tx.unsafe(
-      `UPDATE app.tasks SET ${assignments} WHERE id = $${sets.length + 1}`,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- positional params for a column list closed over literals
-      [...values, taskId] as never[],
-    );
-    // A bulk status change is every single card's status door at once:
-    // the same seam (rollup, activity, audit, event, bell) per task.
-    const statusAfter = args.status ?? task.status;
-    if (statusChanged) {
-      await settleTaskStatusChange(tx, {
-        task,
-        toStatus: statusAfter,
-        actorType: 'user',
-        actorId: auth.userId,
-        audit: auth,
-      });
-      // Reaching `in_review` IS the request for review from the bulk bar
-      // too — the gate belongs to the STATE, not to the door that moved the
-      // card. Without the mint the cards sat In review with nobody belled
-      // and nothing to respond to. The row reflects this patch's assignee
-      // so the review names the right driver.
-      if (statusAfter === 'in_review') {
-        await requestTaskReview(tx, {
-          task: {
-            ...task,
-            status: 'in_review',
-            ...(assigneeChanged
-              ? {
-                  assigneeType: assignee?.assigneeType ?? null,
-                  assigneeId: assignee?.assigneeId ?? null,
-                }
-              : {}),
-          },
-          trigger: { kind: 'human', actorId: auth.userId },
-        });
-      }
-    }
-    // An archive/restore riding the same patch moves the rollup bucket
-    // once more, from where the status step left the row.
-    const settledBucket = taskCountBucket({
-      status: statusAfter,
-      archivedAt: task.archivedAt,
-    });
-    const nextBucket = taskCountBucket({
-      status: statusAfter,
-      archivedAt:
-        args.archived !== undefined
-          ? args.archived
-            ? now
-            : null
-          : task.archivedAt,
-    });
-    if (settledBucket !== nextBucket) {
-      await applyTaskCountTransition(
-        tx,
-        task.projectId,
-        settledBucket,
-        nextBucket,
-      );
-    }
-    if (assigneeChanged) {
-      await settleTaskAssigneeChange(tx, { task, assignee, auth });
-    }
-    if (!statusChanged && !assigneeChanged) {
-      await emitHintInTx(tx, {
-        orgId: auth.organizationId,
-        entity: 'task',
-        entityId: taskId,
-      });
-    }
-    updated += 1;
-  }
-  return { updated, skipped };
-}
-
 /** Whether any run family holds this task live (agent turn or automation). */
 async function taskHasLiveRun(
   tx: TransactionSql,
@@ -3016,19 +2901,6 @@ export async function taskHasLiveAutomationRun(
     LIMIT 1
   `;
   return automation.length > 0;
-}
-
-/** The pg twin of the 0.4 `isReviewPolicyRefusal` batch-skip check. */
-function isReviewPolicyRefusalError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    REVIEW_POLICY_REFUSAL_CODES.includes(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to string just above
-      error.code as (typeof REVIEW_POLICY_REFUSAL_CODES)[number],
-    )
-  );
 }
 
 /**

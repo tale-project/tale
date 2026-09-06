@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  AGENT_GRANTABLE_TOOLS,
   grantedToolsGuidance,
   KNOWLEDGE_READ_TOOLS,
   normalizeToolGrants,
@@ -48,7 +47,7 @@ describe('the catalog', () => {
 
   it('classifies the find tools as reads (not writes)', () => {
     for (const name of ['task_find', 'task_get', 'document_find']) {
-      expect(AGENT_GRANTABLE_TOOLS).toContain(name);
+      expect(normalizeToolGrants([name])).toEqual([name]);
       expect(WRITE_EFFECT_TOOLS).not.toContain(name);
     }
   });

@@ -284,32 +284,3 @@ export async function recordConnectorUsage(
     connectorCallCount: 1,
   });
 }
-
-export interface UsageBucketRow {
-  periodKey: string;
-  granularity: string;
-  model: string | null;
-  agentSlug: string | null;
-  totalTokens: number;
-  costEstimateCents: number;
-  requestCount: number;
-}
-
-export async function readUsageBuckets(
-  sql: Sql,
-  args: { organizationId: string; userId?: string; periodKey?: string },
-): Promise<UsageBucketRow[]> {
-  return sql<UsageBucketRow[]>`
-    SELECT period_key AS "periodKey", granularity, model,
-           agent_slug AS "agentSlug", total_tokens::float8 AS "totalTokens",
-           cost_estimate_cents AS "costEstimateCents",
-           request_count AS "requestCount"
-    FROM app.usage_ledger
-    WHERE org_id = ${args.organizationId}
-      AND (${args.userId ?? null}::text IS NULL
-           OR user_id = ${args.userId ?? null})
-      AND (${args.periodKey ?? null}::text IS NULL
-           OR period_key = ${args.periodKey ?? null})
-    ORDER BY period_key DESC
-  `;
-}

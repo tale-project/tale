@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildHumanErrorSentence,
   CHAT_ERROR_CODES,
   CHAT_ERROR_I18N_KEY,
   classifyChatErrorCode,
   decodeChatError,
+  describeChatError,
   encodeChatError,
   isChatErrorCode,
-  PROVIDER_SCOPED_ERROR_CODES,
 } from './chat-errors';
 
 describe('classifyChatErrorCode', () => {
@@ -108,6 +107,39 @@ describe('classifyChatErrorCode', () => {
     expect(classifyChatErrorCode(null)).toBe('generic');
   });
 
+  it('reads a platform refusal by its data code and sentence', () => {
+    const appError = (code: string, message: string) =>
+      Object.assign(new Error(JSON.stringify({ code, message })), {
+        data: { code, message },
+      });
+    expect(
+      classifyChatErrorCode(
+        appError('CREDENTIAL_DISABLED', 'Credential "Chat key" is disabled'),
+      ),
+    ).toBe('auth_error');
+    expect(
+      classifyChatErrorCode(
+        appError('CREDENTIAL_KEY_ROTATED', 'encrypted under a previous key'),
+      ),
+    ).toBe('auth_error');
+    expect(
+      classifyChatErrorCode(
+        appError('CREDENTIAL_NONE_CONFIGURED', 'No default credential'),
+      ),
+    ).toBe('missing_api_key');
+    expect(
+      classifyChatErrorCode(
+        appError('CREDENTIAL_ENV_UNSET', 'The env var is empty or unset'),
+      ),
+    ).toBe('missing_api_key');
+    // An unknown code still classifies on the sentence, not the JSON blob.
+    expect(
+      classifyChatErrorCode(
+        appError('SOMETHING_ELSE', 'Rate limit reached on the provider'),
+      ),
+    ).toBe('rate_limited');
+  });
+
   it('treats missing-provider / missing-key as missing_api_key', () => {
     expect(
       classifyChatErrorCode({
@@ -117,22 +149,6 @@ describe('classifyChatErrorCode', () => {
     expect(
       classifyChatErrorCode({ message: 'MissingApiKeyError: no key' }),
     ).toBe('missing_api_key');
-  });
-});
-
-describe('PROVIDER_SCOPED_ERROR_CODES', () => {
-  it('contains exactly the deterministic provider-level codes', () => {
-    expect([...PROVIDER_SCOPED_ERROR_CODES].sort()).toEqual([
-      'auth_error',
-      'credit_exhausted',
-      'provider_unreachable',
-    ]);
-  });
-
-  it('does not include transient or model-scoped codes', () => {
-    for (const code of ['provider_error', 'rate_limited', 'model_not_found']) {
-      expect(PROVIDER_SCOPED_ERROR_CODES.has(code as never)).toBe(false);
-    }
   });
 });
 
@@ -154,18 +170,14 @@ describe('i18n key coverage', () => {
   });
 });
 
-describe('buildHumanErrorSentence', () => {
-  it('names the provider for funds/auth/unreachable', () => {
-    expect(
-      buildHumanErrorSentence('credit_exhausted', { provider: 'OpenRouter' }),
-    ).toContain('OpenRouter');
-    expect(
-      buildHumanErrorSentence('auth_error', { provider: 'OpenRouter' }),
-    ).toContain('OpenRouter');
-  });
-
-  it('falls back gracefully when no provider is known', () => {
-    expect(buildHumanErrorSentence('credit_exhausted')).toContain('credits');
+describe('describeChatError', () => {
+  it('prefers the refusal sentence over the serialized payload', () => {
+    const error = Object.assign(new Error('{"code":"X","message":"Plain"}'), {
+      data: { code: 'X', message: 'Plain words.' },
+    });
+    expect(describeChatError(error, 'fallback')).toBe('Plain words.');
+    expect(describeChatError(new Error('boom'), 'fallback')).toBe('boom');
+    expect(describeChatError('not an error', 'fallback')).toBe('fallback');
   });
 });
 

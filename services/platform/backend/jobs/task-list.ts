@@ -8,7 +8,6 @@ import {
 } from '../core/automations/agent_host.ts';
 import { stepRunImpl } from '../core/automations/stepper.ts';
 import { generateThreadTitleImpl } from '../core/chat/generate_title.ts';
-import { removeOrgSubtree } from '../core/organizations/scaffold.ts';
 import {
   driveTaskAgentTurnImpl,
   startTaskAgentTurnImpl,
@@ -119,15 +118,6 @@ const steerSchema = z.object({
   attempt: z.number(),
 });
 
-const slackEventSchema = z.object({
-  organizationId: z.string().min(1),
-  credentialId: z.string().min(1),
-  teamId: z.string().min(1),
-  eventId: z.string().optional(),
-  eventType: z.string().optional(),
-  event: z.record(z.string(), z.unknown()),
-});
-
 const reindexBm25Schema = z.object({
   orgSlug: z.string().min(1).nullable(),
   schema: z.string().min(1),
@@ -186,21 +176,6 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // Throw so pg-boss retries — scaffold is idempotent per domain.
         throw new Error(`org scaffold failed: ${result.error}`);
       }
-    },
-    'connector.slack_event': (payload) => {
-      const input = slackEventSchema.parse(payload);
-      // The conversational surface that answers inbound messages is not wired
-      // to this lane yet (0.4 degrades the same way, deliberately: the
-      // signature check, the org resolution and the routing all still run,
-      // which is what keeps the endpoint honest). Accepting and logging is
-      // the whole handler until that surface takes delivery.
-      console.info('[connectors:slack] inbound event accepted', {
-        organizationId: input.organizationId,
-        teamId: input.teamId,
-        eventId: input.eventId,
-        eventType: input.eventType,
-      });
-      return Promise.resolve();
     },
     'watchdog.transcriptions': async () => {
       const { recoverStuckTranscriptions } =
@@ -319,30 +294,17 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     },
     'org.cleanup_files': async (payload) => {
       const input = orgCleanupSchema.parse(payload);
-      const configRoot = process.env.TALE_CONFIG_DIR;
-      if (!configRoot) {
-        throw new Error(
-          'TALE_CONFIG_DIR is unset — cannot clean up the org config subtree',
+      // The job is enqueued inside the deletion transaction, so the org row
+      // is gone by the time it runs; the teardown re-checks anyway and never
+      // touches a slug a live organization owns.
+      const { teardownDeletedOrganization } =
+        await import('../domains/organizations/teardown.ts');
+      const result = await teardownDeletedOrganization(deps.sql, input.orgSlug);
+      if (result.status === 'done') {
+        console.log(
+          `[org.cleanup_files] tore down "${input.orgSlug}": corpusDocuments=${result.corpusDocuments} blobs=${result.blobs}`,
         );
       }
-      // The job is enqueued inside the deletion transaction, so normally
-      // the org is gone by the time it runs. Re-check anyway: a live
-      // organization's config tree is never removed by a queued job
-      // (a stale row from an older release, or the slug re-taken by a new
-      // org whose own scaffold owns the directory now).
-      const owners = await deps.sql<{ id: string }[]>`
-        SELECT "id" FROM "organization" WHERE "slug" = ${input.orgSlug}
-        LIMIT 1
-      `;
-      if (owners.length > 0) {
-        console.error(
-          `[org.cleanup_files] refusing: organization ${owners[0]?.id} still owns slug "${input.orgSlug}"`,
-        );
-        return;
-      }
-      // Guarded two-phase rename-then-delete (slug validation, traversal +
-      // symlink defenses) — reused from the 0.4 module unchanged.
-      await removeOrgSubtree(configRoot, input.orgSlug);
     },
     'automation.step': async (payload) => {
       const input = z
@@ -498,14 +460,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     },
     'watchdog.sandbox': async () => {
       const result = await runSandboxWatchdog(deps.sql);
-      if (
-        result.expired > 0 ||
-        result.healed > 0 ||
-        result.reclaimed > 0 ||
-        result.reaped > 0
-      ) {
+      if (result.expired > 0 || result.healed > 0 || result.reclaimed > 0) {
         console.log(
-          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reclaimed ${result.reclaimed} ended-run session(s), reaped ${result.reaped} tickets`,
+          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reclaimed ${result.reclaimed} ended-run session(s)`,
         );
       }
     },

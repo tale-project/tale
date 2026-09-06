@@ -42,7 +42,6 @@ export interface CollabContract {
           | 'task_commented'
           | 'task_deadline'
           | 'task_review_requested'
-          | 'task_review_resolved'
           | 'task_reviewer_assigned'
           | 'document_review_requested'
           | 'document_review_resolved'

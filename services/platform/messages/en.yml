@@ -3305,68 +3305,6 @@ governance:
     guardrails: Guardrails
     logs: Logs
     dataSubjectRequests: Data subject requests
-    runCodePolicy: Run-code packages
-  runCodePolicy:
-    title: Run-code package policy
-    description: Controls which Python and Node packages the run_code tool may
-      install at execution time. Default mode is denylist with an empty deny
-      list, which allows every package. Switching to allowlist mode requires you
-      to enumerate every package you trust — anything not on the list is
-      blocked.
-    modeSectionTitle: Default mode
-    modeSectionDescription:
-      Pick the strategy run_code uses when it sees a package
-      the policy hasn't explicitly mentioned.
-    modeAllowlistLabel: Allowlist
-    modeAllowlistDescription: Only packages listed in the allow lists below are
-      installable. Anything else is rejected.
-    modeDenylistLabel: Denylist
-    modeDenylistDescription: Every package is installable except those listed in the deny lists below.
-    pythonSectionTitle: Python packages
-    nodeSectionTitle: Node packages
-    listsHint:
-      One package name per line (or comma-separated). Version constraints
-      are stripped automatically — `pandas==2.1` matches `pandas`.
-    pythonAllowLabel: Python allow list
-    pythonAllowDescription: Used when the default mode is Allowlist.
-    pythonDenyLabel: Python deny list
-    pythonDenyDescription: Used when the default mode is Denylist.
-    nodeAllowLabel: Node allow list
-    nodeAllowDescription:
-      Used when the default mode is Allowlist. Scoped packages
-      (`@scope/pkg`) supported.
-    nodeDenyLabel: Node deny list
-    nodeDenyDescription: Used when the default mode is Denylist. Scoped packages
-      (`@scope/pkg`) supported.
-    pythonPlaceholder: |-
-      pandas
-      numpy
-      requests
-    nodePlaceholder: |-
-      lodash
-      @scope/pkg
-    save: Save
-    saving: Saving…
-    saveFailed: Failed to update run-code package policy
-    testerTitle: Test this package list
-    testerDescription:
-      Paste pip or npm specs to preview whether each one would pass
-      under the current draft policy. Uses your unsaved edits, so you can
-      iterate before clicking Save.
-    testerBucketLabel: Bucket
-    bucketPython: Python (pip)
-    bucketNode: Node (npm)
-    testerInputLabel: Specs to test
-    testerPlaceholderPython: pandas==2.1, numpy>=1.26
-    testerPlaceholderNode: lodash@4.17.21, @scope/pkg
-    testerButton: Test
-    testerBaseLabel: Base name
-    testerAllowed: Allowed
-    testerDenied: Denied
-    reasonAllowlistMatch: matches the allow list
-    reasonAllowlistMiss: not on the allow list (allowlist mode rejects everything else)
-    reasonDenylistMatch: matches the deny list
-    reasonDenylistNotMatched: not on the deny list
   trash:
     title: Trash
     description: Recover retention-trashed records before they are permanently
@@ -3853,7 +3791,7 @@ governance:
       forbidden: You don't have permission to do this.
       validation: Check the form fields.
       notFound: Not found.
-      alreadyPending: An erasure request for this subject is already pending or running.
+      alreadyPending: An erasure request for this subject is already open — pending, running, blocked by a hold, or partially done. Retry it (or cancel it while it is still pending) instead of filing again.
       legalHoldBlocked: An active legal hold is preserving this subject's data.
       notRetriable: This request is not in a state that can be retried.
       notExtendable: This request is in a terminal state and cannot be extended.
@@ -4383,14 +4321,23 @@ personalization:
     memories:
       title: Saved memories
       empty: Memories appear here after the assistant proposes them and you save.
+      delete: Delete
+      deleteLabel: "Delete memory: {content}"
     pending:
       title: Pending suggestions
       empty: No suggestions waiting.
+      save: Save
+      saveLabel: "Save suggestion: {content}"
+      discard: Discard
+      discardLabel: "Discard suggestion: {content}"
   errors:
     saveFailed: Couldn't save. Try again.
     tooLong: Custom instructions exceed {max} characters.
   toasts:
     preferencesUpdated: Preferences updated.
+    memorySaved: Memory saved.
+    memoryDiscarded: Suggestion discarded.
+    memoryDeleted: Memory deleted.
 piiConfigPanel:
   modeLabel: Mode
   modeTokenize: Tokenize
@@ -6542,10 +6489,6 @@ inbox:
   taskReviewRequestedBodyNoAgent: Agent work on "{taskTitle}" is ready for review — set the task to Done to approve, or comment to send it back.
   taskReviewRequestedByBody: '{actor} asked you to review "{taskTitle}" — set it to Done to approve, or comment to send it back.'
   taskReviewRequestedBodyHuman: '"{taskTitle}" is ready for your review — set it to Done to approve, or comment to send it back.'
-  taskReviewApproved: Review approved
-  taskReviewApprovedBody: '"{taskTitle}" was approved and completed.'
-  taskReviewChangesRequested: Changes requested
-  taskReviewChangesRequestedBody: Changes were requested on "{taskTitle}".
   taskReviewerAssigned: You're the reviewer
   taskReviewerAssignedBody: 'You''re now the reviewer on "{taskTitle}".'
   taskReviewerAssignedByBody: '{actor} made you the reviewer on "{taskTitle}".'

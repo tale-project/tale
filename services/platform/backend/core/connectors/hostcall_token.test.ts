@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   HOSTCALL_TOKEN_TTL_MS,
-  hostcallSigningAvailable,
   signHostcallToken,
   verifyHostcallToken,
 } from './hostcall_token';
@@ -73,7 +72,6 @@ describe('hostcall token', () => {
     });
 
     vi.stubEnv('WEBDAV_APP_PASSWORD_HMAC_KEY', '');
-    expect(hostcallSigningAvailable()).toBe(false);
     expect(await signHostcallToken(CLAIMS)).toBeNull();
     expect(await verifyHostcallToken('v1.x.y')).toEqual({
       ok: false,

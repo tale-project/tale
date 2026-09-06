@@ -107,7 +107,13 @@ export function createAuditLogRoutes(deps: {
     if (!authorizeRls(c.get('orgMember').role, 'auditLogs', 'read')) {
       return c.json({ error: 'forbidden' }, 403);
     }
-    const limitParam = Number(c.req.query('limit') ?? '50');
+    const limitParsed = listQuerySchema.shape.limit.safeParse(
+      c.req.query('limit'),
+    );
+    if (!limitParsed.success) {
+      return c.json({ error: 'invalid query' }, 400);
+    }
+    const limitParam = limitParsed.data;
     const cursorTs = Number(c.req.query('cursorTs') ?? Number.NaN);
     const cursorId = c.req.query('cursorId');
     const categoryParsed = z
@@ -118,7 +124,7 @@ export function createAuditLogRoutes(deps: {
     const result = await listAuditLogs(deps.sql, c.get('orgId'), {
       onlyErrors: true,
       ...(category !== undefined ? { filter: { category } } : {}),
-      ...(Number.isFinite(limitParam) ? { limit: limitParam } : {}),
+      ...(limitParam !== undefined ? { limit: limitParam } : {}),
       cursor:
         Number.isFinite(cursorTs) && cursorId !== undefined
           ? { ts: cursorTs, id: cursorId }
