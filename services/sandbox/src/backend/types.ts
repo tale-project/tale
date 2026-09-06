@@ -146,8 +146,11 @@ export interface SessionBackend {
    * destroySession), so the reaper leaves a flaky session for the next sweep.
    */
   stopSession(sessionId: string): Promise<boolean>;
-  /** List live session objects (label-selected), for boot re-adoption, the
-   * GET /v1/sessions route, and the TTL/idle sweep. */
+  /** List session objects (label-selected), for boot + periodic re-adoption
+   * and the route layer's registry-miss re-resolve. THROWS when the backend
+   * cannot list (daemon/API hiccup) — never returns `[]` for "couldn't tell":
+   * callers read an empty list as "no sessions" and would leave every running
+   * session unregistered until the next successful list. */
   listSessions(organizationId?: string): Promise<BackendSession[]>;
   /**
    * Record the "always-on" pin on the backend object's DURABLE state (Docker:

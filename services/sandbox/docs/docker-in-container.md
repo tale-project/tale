@@ -19,7 +19,8 @@ every tenant in a deployment, never per-org. It is selected by a **tier**:
 | `kata`                   | `kata`             | `kata`                 | native, VM-isolated ✅                                                  |
 
 Docker-in-container is enabled with `SANDBOX_DOCKER_IN_CONTAINER=true`. It is
-**sessions-only** — the one-shot `/v1/execute` path never starts an inner daemon.
+an **agent-profile capability** — a `default`-profile session (run_code, crawler
+renders) never starts an inner daemon, on either backend.
 
 ### What each tier means for DinD
 
@@ -246,7 +247,8 @@ Notes / limits:
 
 - **Public images only.** Private-registry `docker login` / credential handling
   is deferred.
-- **Sessions-only.** One-shot `/v1/execute` does not get docker.
+- **Agent sessions only.** The `default` profile (run_code, crawler renders)
+  does not get docker.
 - **Idle reaper.** A detached `docker compose up -d` service does **not** count
   as session activity; an idle session is stopped and its inner containers go
   with it. Keep an exec live, or pin the session.

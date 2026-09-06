@@ -12,10 +12,9 @@ import {
 } from '../wire.ts';
 import {
   RUNNERD_ENV_MAX_ENTRIES,
+  RUNNERD_ENV_MAX_VALUE_BYTES,
   isDeniedEnvName,
 } from './runnerd-protocol.ts';
-
-const MAX_ENV_VALUE = 32 * 1024;
 
 interface CreateSessionRequest {
   sessionId: string;
@@ -63,7 +62,7 @@ function validateEnv(v: unknown): Result<Record<string, string>> {
     if (typeof val !== 'string') {
       return { ok: false, error: `env.${k} must be a string` };
     }
-    if (val.length > MAX_ENV_VALUE) {
+    if (val.length > RUNNERD_ENV_MAX_VALUE_BYTES) {
       return { ok: false, error: `env.${k} value too large` };
     }
     // Deny-listed names are silently dropped here (runnerd re-enforces); a

@@ -172,8 +172,8 @@ export function AutomationDetail({
   const saveMessageId = useId();
   const ability = useAbility();
   // Mirrors the backend split: reads and mock runs are member acts, while
-  // saving, deploying, triggering, and LIVE runs demand
-  // `requireOrgAdminOrDeveloper` — hiding what would only fail server-side.
+  // saving, deploying, triggering, and LIVE runs demand the
+  // `developerSettings` ability — hiding what would only fail server-side.
   const canAuthor = ability.can('read', 'developerSettings');
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>(
     undefined,

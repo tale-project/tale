@@ -35,11 +35,8 @@ const cfg: SpawnerConfig = {
   k8s: {
     namespace: 'tale-sandbox',
     runtimeClassName: null,
-    spawnerImage: 'tale-sandbox:test',
-    cacheMode: 'none',
     workspaceSizeLimit: '4Gi',
   },
-  defaultTimeoutMs: 30_000,
   maxTimeoutMs: 300_000,
   hostSessionRoot: '/var/lib/tale-sandbox/sessions',
   cacheVolumePrefix: { pip: 'pip', npm: 'npm', bun: 'bun' },
@@ -47,8 +44,6 @@ const cfg: SpawnerConfig = {
   egressProxy: 'http://sandbox-egress:3128',
   stdoutMaxBytes: 5_242_880,
   stderrMaxBytes: 5_242_880,
-  outputFileMaxBytes: 52_428_800,
-  outputTotalMaxBytes: 104_857_600,
   maxRequestBodyBytes: 262_144,
   session: TEST_SESSION_CONFIG,
 };
