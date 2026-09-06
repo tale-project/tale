@@ -10,10 +10,7 @@ import { chown, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ensureBuildkitd } from '../../buildkitd.ts';
-import {
-  buildDockerSessionRunArgs,
-  sessionDindEnabled,
-} from '../../session/docker-session-args.ts';
+import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
 import {
   runnerdEnvPatch,
   runnerdHealth,
@@ -25,6 +22,7 @@ import {
   sessionContainerName,
   sessionWorkspaceDirName,
 } from '../../session/session-naming.ts';
+import { sessionDindEnabled } from '../../session/session-profile.ts';
 import {
   dockerRm,
   dockerRmSucceeded,
@@ -580,15 +578,22 @@ export class DockerSessionBackend implements SessionBackend {
     }
     if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
     await this.clearPinMarker(sessionId);
-    await rm(workspaceHostDir, {
-      recursive: true,
-      force: true,
-    }).catch((err) => {
-      console.warn(
-        `[sandbox.session] rm workspace for ${sessionId} failed:`,
-        err,
+    // The data-deleting half of the ONLY data-deleting verb: a failure here
+    // (EBUSY/EACCES on the bind dir) must PROPAGATE. Swallowing it would let
+    // the route answer destroyed:true — the platform flips its row and releases
+    // the id — while the user's data survives on the host with nothing left to
+    // reclaim it. force:true already tolerates an already-gone dir, so the
+    // retry the throw provokes is idempotent (the container is gone by now,
+    // and removeContainer/clearPinMarker are no-ops on a second pass).
+    try {
+      await rm(workspaceHostDir, { recursive: true, force: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `destroy ${sessionId}: container removed but workspace ${workspaceHostDir} could not be deleted: ${msg}`,
+        { cause: err },
       );
-    });
+    }
     return existed;
   }
 
@@ -666,7 +671,16 @@ export class DockerSessionBackend implements SessionBackend {
       ],
       { timeoutMs: 10_000 },
     );
-    if (res.exitCode !== 0) return [];
+    // THROW, never `[]`, on a failed list: the callers (boot + periodic
+    // adoption, the route layer's re-resolve) treat an empty list as "no
+    // sessions", and a `docker ps` blip laundered into [] would leave every
+    // running session unregistered — unroutable and never reaped — until the
+    // next successful list. A throw is logged by the caller and retried.
+    if (res.exitCode !== 0) {
+      throw new Error(
+        `docker ps (sessions) failed (exit ${res.exitCode}): ${res.stderr.trim() || res.stdout.trim() || 'no output'}`,
+      );
+    }
     const out: BackendSession[] = [];
     for (const line of res.stdout.split('\n')) {
       const trimmed = line.trim();

@@ -3787,7 +3787,7 @@ governance:
       forbidden: You don't have permission to do this.
       validation: Check the form fields.
       notFound: Not found.
-      alreadyPending: An erasure request for this subject is already pending or running.
+      alreadyPending: An erasure request for this subject is already open — pending, running, blocked by a hold, or partially done. Retry it (or cancel it while it is still pending) instead of filing again.
       legalHoldBlocked: An active legal hold is preserving this subject's data.
       notRetriable: This request is not in a state that can be retried.
       notExtendable: This request is in a terminal state and cannot be extended.
@@ -4207,9 +4207,6 @@ notificationPreferences:
     escalation:
       label: Agent escalations
       description: When an agent asks you a question or escalates a task to a human.
-    automationAlerts:
-      label: Automation alerts
-      description: Failures, budget warnings, and offline runtimes.
     conversationMessages:
       label: Conversation messages
       description: When a contact message arrives in Conversations.
@@ -4320,14 +4317,23 @@ personalization:
     memories:
       title: Saved memories
       empty: Memories appear here after the assistant proposes them and you save.
+      delete: Delete
+      deleteLabel: "Delete memory: {content}"
     pending:
       title: Pending suggestions
       empty: No suggestions waiting.
+      save: Save
+      saveLabel: "Save suggestion: {content}"
+      discard: Discard
+      discardLabel: "Discard suggestion: {content}"
   errors:
     saveFailed: Couldn't save. Try again.
     tooLong: Custom instructions exceed {max} characters.
   toasts:
     preferencesUpdated: Preferences updated.
+    memorySaved: Memory saved.
+    memoryDiscarded: Suggestion discarded.
+    memoryDeleted: Memory deleted.
 piiConfigPanel:
   modeLabel: Mode
   modeTokenize: Tokenize

@@ -34,7 +34,7 @@ async function whoIs(
   userId: string,
 ): Promise<{ userId: string; teamIds: string[]; role: string | undefined }> {
   const member = await findOrganizationMember(sql, organizationId, userId);
-  const teamIds = await getUserTeamIds(sql, userId);
+  const teamIds = await getUserTeamIds(sql, organizationId, userId);
   return { userId, teamIds, role: member?.role };
 }
 

@@ -253,14 +253,6 @@ interface HandlerNames {
     crawl_action: FunctionRef & {
       scanWebsite: FunctionRef;
     };
-    crawl_ops: FunctionRef & {
-      deregisterDomainOp: FunctionRef;
-      homepageMetadataOp: FunctionRef;
-      registerDomainOp: FunctionRef;
-      registerUrlListOp: FunctionRef;
-      setScanIntervalOp: FunctionRef;
-      websiteInfoOp: FunctionRef;
-    };
   };
   knowledge_entries: FunctionRef & {
     internal_queries: FunctionRef & {
@@ -274,11 +266,6 @@ interface HandlerNames {
       };
     };
   };
-  login_attempts: FunctionRef & {
-    internal_queries: FunctionRef & {
-      getTrustedProxies: FunctionRef;
-    };
-  };
   members: FunctionRef & {
     internal_queries: FunctionRef & {
       getMemberRole: FunctionRef;
@@ -287,9 +274,6 @@ interface HandlerNames {
   notifications: FunctionRef & {
     dispatch_notification: FunctionRef & {
       dispatchNotificationAction: FunctionRef;
-    };
-    email_notification: FunctionRef & {
-      deliverActionableEmailAction: FunctionRef;
     };
   };
   openai: FunctionRef & {
@@ -356,12 +340,10 @@ interface HandlerNames {
       provisionGroup: FunctionRef;
       provisionUser: FunctionRef;
       replaceGroup: FunctionRef;
-      touchConfigLastUsed: FunctionRef;
     };
     internal_queries: FunctionRef & {
       findGroupRecordByDisplayName: FunctionRef;
       findUserRecordByUserName: FunctionRef;
-      getConfigByTokenHash: FunctionRef;
       getGroupRecord: FunctionRef;
       getUserRecord: FunctionRef;
       listGroupRecords: FunctionRef;
@@ -411,18 +393,6 @@ interface HandlerNames {
       searchTasksForChat: FunctionRef;
     };
   };
-  two_factor: FunctionRef & {
-    internal_mutations: FunctionRef & {
-      clearOnSuccess: FunctionRef;
-      logEnrollmentEvent: FunctionRef;
-      recordFailure: FunctionRef;
-      setGraceUntilIfAbsent: FunctionRef;
-    };
-    internal_queries: FunctionRef & {
-      evaluateEnforcement: FunctionRef;
-      getLockStateByUserId: FunctionRef;
-    };
-  };
   user_preferences: FunctionRef & {
     queries: FunctionRef & {
       getChatModelInternal: FunctionRef;
@@ -448,7 +418,6 @@ interface HandlerNames {
     };
     internal_mutations: FunctionRef & {
       clearScanFailures: FunctionRef;
-      deleteWebsite: FunctionRef;
       recordScanFailure: FunctionRef;
     };
     internal_queries: FunctionRef & {

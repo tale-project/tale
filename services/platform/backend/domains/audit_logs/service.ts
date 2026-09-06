@@ -1,3 +1,7 @@
+import {
+  markRetryQueueKey,
+  RETRY_QUEUE_LOCK_CLASS,
+} from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { computeAuditHash } from '../../core/lib/helpers/audit_hash.ts';
@@ -22,7 +26,11 @@ import type {
  * `createAuditLog` MUST run inside the caller's transaction: it locks the
  * per-org chain head (`FOR UPDATE`), so concurrent appends serialize and the
  * chain cannot fork; the audit row commits or rolls back atomically with the
- * change it describes. Hash algorithm and canonical record layout are the
+ * change it describes. Every audited write of an org bumps that one head
+ * row, so under SERIALIZABLE a concurrent appender that commits between the
+ * caller's snapshot and the lock is a 40001 — see `lockChainHead` for how
+ * the retry is made to queue instead of losing again. Hash algorithm and
+ * canonical record layout are the
  * 0.4 ones, so chains imported at cutover keep verifying. The hash covers
  * the record in its STORED form (`toStoredAuditRecord`) — what a later read
  * rebuilds — never the caller's in-memory strings.
@@ -48,27 +56,62 @@ interface ChainHead {
   lastTs: number;
 }
 
+/** Retry-queue key of an org's audit chain (see `lockChainHead`). */
+export function auditChainQueueKey(organizationId: string): string {
+  return `audit-chain:${organizationId}`;
+}
+
+/**
+ * Lock the org's chain head and read it.
+ *
+ * The head row is the hottest row in the database: every audited write of
+ * the org updates it. Inside a SERIALIZABLE transaction the row lock alone
+ * cannot serialize appenders — the snapshot is fixed at the transaction's
+ * first statement, so an appender whose head was bumped in the meantime
+ * aborts with 40001 at the lock, and a plain retry loses again whenever
+ * another appender commits first (the storm: a burst of audited writes
+ * exhausts the retry budget and the route answers 500).
+ *
+ * Two pieces make a retry deterministic instead:
+ * - the transaction-level advisory lock on the org's queue key, taken here
+ *   BEFORE the row lock, queues this transaction behind a retry that holds
+ *   the same key as a session lock from before its BEGIN (see
+ *   `transactSerializable`), so nobody bumps the head between that retry's
+ *   snapshot and its lock;
+ * - a 40001/40P01 raised by the head statements is marked with the queue
+ *   key, which is what makes the caller's next attempt take that session
+ *   lock first.
+ * Under contention an appender therefore wastes at most one attempt.
+ */
 async function lockChainHead(
   tx: TransactionSql,
   organizationId: string,
 ): Promise<ChainHead> {
-  // Ensure-then-lock: the INSERT is a no-op after the org's first audit
-  // write; the SELECT takes the row lock that serializes this org's chain.
-  await tx`
-    INSERT INTO app.audit_chain_heads (org_id) VALUES (${organizationId})
-    ON CONFLICT (org_id) DO NOTHING
-  `;
-  const rows = await tx<{ lastHash: string; lastTs: number }[]>`
-    SELECT last_hash AS "lastHash", last_ts::float8 AS "lastTs"
-    FROM app.audit_chain_heads
-    WHERE org_id = ${organizationId}
-    FOR UPDATE
-  `;
-  const head = rows[0];
-  if (!head) {
-    throw new Error(`audit chain head vanished for org ${organizationId}`);
+  const queueKey = auditChainQueueKey(organizationId);
+  try {
+    await tx`
+      SELECT pg_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${queueKey}))
+    `;
+    // Ensure-then-lock: the INSERT is a no-op after the org's first audit
+    // write; the SELECT takes the row lock that serializes this org's chain.
+    await tx`
+      INSERT INTO app.audit_chain_heads (org_id) VALUES (${organizationId})
+      ON CONFLICT (org_id) DO NOTHING
+    `;
+    const rows = await tx<{ lastHash: string; lastTs: number }[]>`
+      SELECT last_hash AS "lastHash", last_ts::float8 AS "lastTs"
+      FROM app.audit_chain_heads
+      WHERE org_id = ${organizationId}
+      FOR UPDATE
+    `;
+    const head = rows[0];
+    if (!head) {
+      throw new Error(`audit chain head vanished for org ${organizationId}`);
+    }
+    return head;
+  } catch (error) {
+    throw markRetryQueueKey(error, queueKey);
   }
-  return head;
 }
 
 /**
@@ -316,7 +359,10 @@ export async function listAuditLogs(
   items: AuditLogRow[];
   nextCursor: { ts: number; id: string } | null;
 }> {
-  const limit = Math.min(options.limit ?? 50, 200);
+  // Clamped here, not only at the doors: a negative or fractional limit
+  // reaching `LIMIT` is a Postgres error, and every caller pages through
+  // this one function.
+  const limit = Math.min(Math.max(1, Math.trunc(options.limit ?? 50)), 200);
   const filter = options.filter ?? {};
   const cursor = options.cursor ?? null;
   const search = filter.search ? `%${filter.search}%` : null;
@@ -453,14 +499,22 @@ const EXPORT_CSV_HEADERS = [
   'errorMessage',
 ] as const;
 
+/** A cell whose first character a spreadsheet would read as a formula
+ * (`=`, `+`, `-`, `@`, tab, CR). Titles and e-mails are member-authored,
+ * and the export's reader is the most privileged one in the org, so such
+ * a cell is neutralised with a leading apostrophe (the OWASP CSV-injection
+ * mitigation) before the ordinary quoting runs. */
+const FORMULA_PREFIX = /^[=+\-@\t\r]/;
+
 function csvCell(value: unknown): string {
   if (value == null) return '';
-  const str =
+  const raw =
     typeof value === 'string'
       ? value
       : typeof value === 'number' || typeof value === 'boolean'
         ? String(value)
         : JSON.stringify(value);
+  const str = FORMULA_PREFIX.test(raw) ? `'${raw}` : raw;
   if (str.includes(',') || str.includes('"') || str.includes('\n')) {
     return '"' + str.replaceAll('"', '""') + '"';
   }

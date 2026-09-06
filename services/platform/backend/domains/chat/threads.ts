@@ -7,6 +7,7 @@ import {
   findOrganizationMember,
 } from '../../auth/membership.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
+import { PROJECT_AUDIT_ACTIONS } from '../../core/projects/audit_actions.ts';
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { assertNotHeld, loadActiveHolds } from '../legal_holds/service.ts';
@@ -42,6 +43,9 @@ export class ChatThreadError extends Error {
   }
 }
 
+/** The 0.4 per-conversation loadout. Read-only in 0.5 — the column is kept
+ * for rows that carry one (branches copy it, summaries project it); no
+ * door writes it, chat runs the fixed loadout. */
 export interface ThreadCapabilities {
   skills: string[];
   connectors: string[];
@@ -151,36 +155,6 @@ function toSummary(
   };
 }
 
-/** A conversation may equip its agent with at most this many skills /
- * connectors — mirrors the project binding's ceilings. */
-const MAX_THREAD_SKILLS = 25;
-const MAX_THREAD_CONNECTORS = 25;
-
-/** Normalize a capability assembly for storage: enforce the ceilings,
- * dedupe, drop empties; an all-empty assembly collapses to null so the
- * thread falls back to its defaults rather than pinning "nothing". */
-export function sanitizeThreadCapabilities(
-  capabilities: ThreadCapabilities,
-): ThreadCapabilities | null {
-  if (
-    capabilities.skills.length > MAX_THREAD_SKILLS ||
-    capabilities.connectors.length > MAX_THREAD_CONNECTORS
-  ) {
-    throw new ChatThreadError(
-      'too_many_bindings',
-      `A conversation may equip at most ${MAX_THREAD_SKILLS} skills and ${MAX_THREAD_CONNECTORS} connectors.`,
-    );
-  }
-  const skills = [
-    ...new Set(capabilities.skills.filter((slug) => slug.length > 0)),
-  ];
-  const connectors = [
-    ...new Set(capabilities.connectors.filter((slug) => slug.length > 0)),
-  ];
-  if (skills.length === 0 && connectors.length === 0) return null;
-  return { skills, connectors };
-}
-
 /** 256 bits of randomness, hex encoded — the whole credential of the share
  * URL (the 0.4 entropy budget). */
 function mintShareToken(): string {
@@ -208,7 +182,7 @@ export async function projectChatAccess(
     args.userId,
   );
   if (member === null || member.role === 'disabled') return 'forbidden';
-  const teamIds = await getUserTeamIds(sql, args.userId);
+  const teamIds = await getUserTeamIds(sql, args.organizationId, args.userId);
   const access = checkProjectAccess(
     { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
     teamIds,
@@ -367,8 +341,6 @@ export interface CreateThreadArgs {
   kind: string;
   title?: string;
   agentSlug?: string;
-  harness?: string;
-  capabilities?: ThreadCapabilities;
   projectId?: string;
   reasoningEffort?: string;
 }
@@ -394,10 +366,6 @@ export async function createThread(
       );
     }
   }
-  const capabilities =
-    args.capabilities !== undefined
-      ? sanitizeThreadCapabilities(args.capabilities)
-      : null;
   const now = Date.now();
   return sql.begin(async (tx) => {
     const rows = await tx<{ id: string }[]>`
@@ -409,40 +377,22 @@ export async function createThread(
     `;
     const id = rows[0]?.id;
     if (!id) throw new Error('thread insert failed');
+    // `harness` / `capabilities` are 0.4-era columns no 0.5 writer sets:
+    // chat runs a fixed loadout (`lib/chat/tools.ts`), so a thread is
+    // created without either. The columns stay (deprecated, not dropped):
+    // branches copy them and the summaries still project them.
     await tx`
       INSERT INTO app.thread_metadata (
         thread_id, org_id, user_id, chat_type, status, project_id,
-        agent_slug, harness, capabilities, reasoning_effort, created_at_ms
+        agent_slug, reasoning_effort, created_at_ms
       ) VALUES (
         ${id}, ${args.organizationId}, ${args.userId}, ${args.kind},
         'active', ${args.projectId ?? null}, ${args.agentSlug ?? null},
-        ${args.harness ?? null},
-        ${capabilities === null ? null : tx.json(toJson(capabilities))},
         ${args.reasoningEffort ?? null}, ${now}
       )
     `;
     return id;
   });
-}
-
-/** Replace the conversation's capability assembly for the turns that follow.
- * A metadata edit — `updatedAt` stays untouched. */
-export async function setThreadCapabilities(
-  sql: Sql,
-  organizationId: string,
-  userId: string,
-  threadId: string,
-  capabilities: ThreadCapabilities,
-): Promise<boolean> {
-  const thread = await loadOwnedThread(sql, organizationId, userId, threadId);
-  if (!thread) return false;
-  const sanitized = sanitizeThreadCapabilities(capabilities);
-  await sql`
-    UPDATE app.thread_metadata SET
-      capabilities = ${sanitized === null ? null : sql.json(toJson(sanitized))}
-    WHERE thread_id = ${thread.id}
-  `;
-  return true;
 }
 
 /** Remember the conversation's reasoning-effort pick; absent clears it. */
@@ -509,27 +459,50 @@ export async function moveThreadToProject(
         shared_with_project = ${moved ? false : thread.sharedWithProject}
       WHERE thread_id = ${thread.id}
     `;
-    if (!endsShare) return;
-    const projects = await tx<{ name: string }[]>`
-      SELECT name FROM app.projects WHERE id = ${previousProjectId} LIMIT 1
-    `;
-    await createAuditLog(tx, {
+    if (!moved) return;
+    const projectName = async (id: string): Promise<string | undefined> => {
+      const rows = await tx<{ name: string }[]>`
+        SELECT name FROM app.projects WHERE id = ${id} LIMIT 1
+      `;
+      return rows[0]?.name;
+    };
+    const actor = {
       organizationId: auth.organizationId,
       actorId: auth.userId,
       ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-      actorType: 'user',
-      action: 'project.thread.unshared',
-      category: 'data',
+      actorType: 'user' as const,
+      category: 'data' as const,
       resourceType: 'project',
-      resourceId: previousProjectId,
-      ...(projects[0] ? { resourceName: projects[0].name } : {}),
-      status: 'success',
-      previousState: { threadId: thread.id, shared: true },
-      newState: {
-        threadId: thread.id,
-        shared: false,
-        movedToProjectId: projectId,
-      },
+      status: 'success' as const,
+    };
+    if (endsShare) {
+      const name = await projectName(previousProjectId);
+      await createAuditLog(tx, {
+        ...actor,
+        action: PROJECT_AUDIT_ACTIONS.threadUnshared,
+        resourceId: previousProjectId,
+        ...(name !== undefined ? { resourceName: name } : {}),
+        previousState: { threadId: thread.id, shared: true },
+        newState: {
+          threadId: thread.id,
+          shared: false,
+          movedToProjectId: projectId,
+        },
+      });
+    }
+    // Every refiling is governance-relevant, shared or not: the row hangs
+    // off the project the chat lands in (or the one it leaves, when it is
+    // taken out of projects altogether).
+    const anchorProjectId = projectId ?? previousProjectId;
+    if (anchorProjectId === null) return;
+    const anchorName = await projectName(anchorProjectId);
+    await createAuditLog(tx, {
+      ...actor,
+      action: PROJECT_AUDIT_ACTIONS.threadMoved,
+      resourceId: anchorProjectId,
+      ...(anchorName !== undefined ? { resourceName: anchorName } : {}),
+      previousState: { threadId: thread.id, projectId: previousProjectId },
+      newState: { threadId: thread.id, projectId },
     });
   });
   return true;
@@ -687,7 +660,9 @@ export async function setThreadSharedWithProject(
         actorId: auth.userId,
         ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
         actorType: 'user',
-        action: shared ? 'project.thread.shared' : 'project.thread.unshared',
+        action: shared
+          ? PROJECT_AUDIT_ACTIONS.threadShared
+          : PROJECT_AUDIT_ACTIONS.threadUnshared,
         category: 'data',
         resourceType: 'project',
         resourceId: thread.projectId ?? '',

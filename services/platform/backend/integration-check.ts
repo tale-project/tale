@@ -142,6 +142,69 @@ async function checkSerializableRetry(sql: Sql): Promise<void> {
   );
 }
 
+/**
+ * The audit chain-head storm (compliance-x1): every audited write of an org
+ * bumps one head row, so serializable appenders that overlap all lose at the
+ * head lock except the first, and a plain retry loses again whenever another
+ * appender commits first. With the retry queue (`markRetryQueueKey` +
+ * `pg_advisory_xact_lock` in `lockChainHead`) every appender commits, the
+ * chain stays linear and the head names the last row.
+ */
+async function checkAuditChainConcurrentAppenders(sql: Sql): Promise<void> {
+  const { createAuditLog } = await import('./domains/audit_logs/service.ts');
+  const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
+  const orgId = `itest-chain-${randomUUID().slice(0, 8)}`;
+  const appenders = 8;
+  let attempts = 0;
+  const outcomes = await Promise.allSettled(
+    Array.from({ length: appenders }, (_, index) =>
+      transactSerializable(sql, async (tx) => {
+        attempts += 1;
+        // Fix the snapshot first, then let every appender overlap: each
+        // one's head read is now stale for all but the first committer.
+        await tx`SELECT 1`;
+        await sleep(50);
+        return createAuditLog(tx, {
+          organizationId: orgId,
+          actorId: 'itest',
+          actorType: 'system',
+          action: 'itest.chain_burst',
+          category: 'admin',
+          resourceType: 'itest',
+          resourceId: String(index),
+          status: 'success',
+        });
+      }),
+    ),
+  );
+  const failures = outcomes.filter((o) => o.status === 'rejected');
+  const rows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs WHERE org_id = ${orgId}
+  `;
+  const committed = Number(rows[0]?.count ?? '0');
+  const verified = await verifyAuditChain(sql, orgId);
+  const heads = await sql<{ lastHash: string }[]>`
+    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
+    WHERE org_id = ${orgId}
+  `;
+  const latest = await sql<{ integrityHash: string }[]>`
+    SELECT integrity_hash AS "integrityHash" FROM app.audit_logs
+    WHERE org_id = ${orgId} ORDER BY ts DESC LIMIT 1
+  `;
+  const headNamesLatest =
+    heads[0]?.lastHash !== undefined &&
+    heads[0].lastHash === latest[0]?.integrityHash;
+  record(
+    'audit chain: a burst of serializable appenders for one org all commit',
+    failures.length === 0 &&
+      committed === appenders &&
+      verified.valid &&
+      headNamesLatest &&
+      attempts > appenders,
+    `committed=${committed}/${appenders} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} chainValid=${verified.valid} headNamesLatest=${headNamesLatest} attempts=${attempts} (>${appenders} proves the head lock was lost at least once and the retry landed)`,
+  );
+}
+
 async function checkTransactionalEnqueue(sql: Sql): Promise<void> {
   const before = await countNoopJobs(sql);
 
@@ -6904,6 +6967,80 @@ async function checkKnowledge(
         !connectionWritten,
       `probe(verify-ca)=${probeVerifyCa.status}/200 ok=${probeBody.success ? probeBody.data.ok : 'ERR'}/false error=${JSON.stringify(probeBody.success ? (probeBody.data.error ?? '').slice(0, 60) : 'ERR')}, save(blocked host)=${saveBlocked.status}/400 code=${saveBody.success ? saveBody.data.error : 'ERR'}/BLOCKED_HOST written=${connectionWritten}(want false)`,
     );
+
+    // ---- the organization's PII policy at the indexing gate -------------
+    // A `pii_config` policy is applied to every document before it is
+    // chunked or embedded. Driven end to end here — policy file → upload →
+    // rag.index_file on the live worker → `applyPiiPolicyForIndexing` →
+    // rag_status — because no unit test sees the worker read the policy.
+    // The identifier straddles the engine's window cut on purpose: the head
+    // is one word as long as a window (a single-line export), so the only
+    // separators in the cut's range are the card number's own spaces. Pre-
+    // fix neither window saw it — a block policy passed and a mask policy
+    // indexed the raw number.
+    const orgConfig = await import('./lib/org-config.ts');
+    const governanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(governanceDir, { recursive: true });
+    const piiPolicyPath = path.join(governanceDir, 'pii-config.yml');
+    const straddling = `${'a'.repeat(12_490)} 4111 1111 1111 1111 rest of the export line`;
+    const writePiiPolicy = async (mode: 'block' | 'mask'): Promise<void> => {
+      await writeFile(
+        piiPolicyPath,
+        [
+          'enabled: true',
+          `mode: ${mode}`,
+          'enabledPatterns:',
+          '  - creditCard',
+        ].join('\n'),
+      );
+      orgConfig.clearOrgConfigCaches();
+    };
+    try {
+      await writePiiPolicy('block');
+      const refused = await uploadTextDocument('cards-block.txt', straddling);
+      const refusedFailed = await waitFor(
+        async () => (await ragRow(refused.fileId)).status === 'failed',
+        20_000,
+      );
+      const refusedRow = await ragRow(refused.fileId);
+      record(
+        'knowledge: a block pii_config refuses a document whose identifier straddles the window cut',
+        refusedFailed &&
+          (refusedRow.error ?? '').includes('PII policy') &&
+          (refusedRow.error ?? '').includes('creditCard'),
+        `status=${refusedRow.status}/failed error=${JSON.stringify((refusedRow.error ?? '').slice(0, 90))}`,
+      );
+
+      await writePiiPolicy('mask');
+      const masked = await uploadTextDocument('cards-mask.txt', straddling);
+      const maskedIndexed = await waitFor(
+        async () => (await ragRow(masked.fileId)).status === 'completed',
+        20_000,
+      );
+      const maskedRow = await ragRow(masked.fileId);
+      // The corpus lives in the organization's knowledge database, not
+      // the app database.
+      const chunkRows = await corpusPool<{ content: string }[]>`
+        SELECT c.chunk_content AS content
+        FROM private_knowledge.chunks c
+        JOIN private_knowledge.documents d ON d.id = c.document_id
+        WHERE d.org_slug = ${orgSlug} AND d.file_id = ${masked.storageRef}
+      `;
+      const indexedText = chunkRows.map((row) => row.content).join('\n');
+      record(
+        'knowledge: a mask pii_config indexes the masked text, never the raw identifier',
+        maskedIndexed &&
+          chunkRows.length > 0 &&
+          !indexedText.includes('4111') &&
+          !indexedText.includes('1111 1111') &&
+          indexedText.includes('[CREDIT_CARD]'),
+        `status=${maskedRow.status}/completed chunks=${chunkRows.length} raw=${indexedText.includes('4111')}(want false) token=${indexedText.includes('[CREDIT_CARD]')}(want true)`,
+      );
+    } finally {
+      // Later lanes index under no policy, as before.
+      await rm(piiPolicyPath, { force: true });
+      orgConfig.clearOrgConfigCaches();
+    }
   } finally {
     await new Promise<void>((resolve) => {
       embedServer.close(() => resolve());
@@ -13202,18 +13339,36 @@ async function checkScim(
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
-  const before = z
-    .object({ enabled: z.boolean() })
-    .loose()
-    .safeParse(await (await admin('')).json());
+  // SCIM status rides the SSO settings view — the only reader the admin UI
+  // has; the token surface itself is regenerate / disable.
+  const scimStatus = async (): Promise<
+    | { success: true; data: { enabled: boolean; tokenPrefix: string | null } }
+    | { success: false }
+  > => {
+    const parsed = z
+      .object({
+        scim: z
+          .object({ enabled: z.boolean(), tokenPrefix: z.string().nullable() })
+          .loose(),
+      })
+      .loose()
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/sso/config?orgId=${orgId}`, {
+            headers: { cookie, origin: base },
+          })
+        ).json(),
+      );
+    return parsed.success
+      ? { success: true, data: parsed.data.scim }
+      : { success: false };
+  };
+  const before = await scimStatus();
   const minted = z
     .object({ token: z.string(), tokenPrefix: z.string() })
     .safeParse(await (await admin('/regenerate-token', {})).json());
   const token = minted.success ? minted.data.token : '';
-  const after = z
-    .object({ enabled: z.boolean(), tokenPrefix: z.string() })
-    .loose()
-    .safeParse(await (await admin('')).json());
+  const after = await scimStatus();
 
   const scim = (
     route: string,
@@ -13459,8 +13614,38 @@ async function checkScim(
   );
 
   // ---- hard DELETE (RFC 7644 §3.6) ---------------------------------------
+  // The user sits in an admin-built team (with SSO-sync provenance, as a
+  // group claim would leave it): DELETE must take the membership's whole
+  // per-org footprint with it, or the IdP's next POST — which re-attaches
+  // the existing user — puts them straight back into the team.
+  const cascadeTeamId = randomUUID();
+  await sql`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (${cascadeTeamId}, 'Cascade Crew', ${orgId}, now(), now())
+  `;
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (${randomUUID()}, ${cascadeTeamId}, ${scimUserId || '-'}, now())
+  `;
+  await sql`
+    INSERT INTO app.sso_synced_team_members (
+      org_id, team_id, user_id, created_at_ms
+    ) VALUES (${orgId}, ${cascadeTeamId}, ${scimUserId || '-'}, ${Date.now()})
+    ON CONFLICT DO NOTHING
+  `;
   const userDeleted = await scim(`/Users/${scimUserId}`, { method: 'DELETE' });
   const userGone = await scim(`/Users/${scimUserId}`);
+  const strandedTeamRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count
+    FROM "teamMember" tm JOIN "team" t ON t."id" = tm."teamId"
+    WHERE t."organizationId" = ${orgId} AND tm."userId" = ${scimUserId || '-'}
+  `;
+  const strandedProvenance = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.sso_synced_team_members
+    WHERE org_id = ${orgId} AND user_id = ${scimUserId || '-'}
+  `;
+  await sql`DELETE FROM "team" WHERE "id" = ${cascadeTeamId}`;
   const scimAudits = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.audit_logs
     WHERE org_id = ${orgId} AND actor_id = 'scim'
@@ -13498,15 +13683,18 @@ async function checkScim(
       teamGone.length === 0 &&
       userDeleted.status === 204 &&
       userGone.status === 404 &&
+      strandedTeamRows[0]?.count === '0' &&
+      strandedProvenance[0]?.count === '0' &&
       Number(scimAudits[0]?.count ?? '0') >= 7,
-    `admin=${before.success ? before.data.enabled : 'ERR'}→${after.success ? `${after.data.enabled}/${after.data.tokenPrefix}` : 'ERR'}, discovery=${discovery.status} bad=${badToken.status} alias=${alias.status} (want 200/401/200), user=${created.success}/${filtered.success ? filtered.data.totalResults : 'ERR'} role=${roleAfterCreate[0]?.role}→${roleDisabled[0]?.role}→${roleRestored[0]?.role} (want member→disabled→member), group=${group.success} patched=${patchedGroup.success ? `${patchedGroup.data.displayName}/${patchedGroup.data.members.length}` : 'ERR'} del=${groupDeleted.status} gone=${teamGone.length === 0}, userDel=${userDeleted.status}→${userGone.status} (want 204→404), audits=${scimAudits[0]?.count} (want ≥7)`,
+    `admin=${before.success ? before.data.enabled : 'ERR'}→${after.success ? `${after.data.enabled}/${after.data.tokenPrefix}` : 'ERR'}, discovery=${discovery.status} bad=${badToken.status} alias=${alias.status} (want 200/401/200), user=${created.success}/${filtered.success ? filtered.data.totalResults : 'ERR'} role=${roleAfterCreate[0]?.role}→${roleDisabled[0]?.role}→${roleRestored[0]?.role} (want member→disabled→member), group=${group.success} patched=${patchedGroup.success ? `${patchedGroup.data.displayName}/${patchedGroup.data.members.length}` : 'ERR'} del=${groupDeleted.status} gone=${teamGone.length === 0}, userDel=${userDeleted.status}→${userGone.status} (want 204→404) stranded teams/provenance=${strandedTeamRows[0]?.count}/${strandedProvenance[0]?.count} (want 0/0), audits=${scimAudits[0]?.count} (want ≥7)`,
   );
 }
 
 /**
  * Trusted-headers auth — the reverse-proxy hand-off door: identity headers
  * → user + placeholder membership provisioned, session minted with the
- * header-borne role/teams stamped on the SESSION row, cookie accepted by
+ * header-borne role stamped on the SESSION row, the teams header mirrored
+ * onto REAL team memberships (the SSO group→team sync), cookie accepted by
  * Better Auth, and the org middleware applying the session role override
  * at read time (proxy says admin ⇒ admin surface opens; proxy says member
  * ⇒ it refuses — same user, same member row).
@@ -13574,14 +13762,8 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
           })
         ).json(),
       );
-    const rows = await sql<
-      {
-        role: string;
-        trustedRole: string | null;
-        trustedTeams: string | null;
-      }[]
-    >`
-      SELECT m."role", s."trustedRole", s."trustedTeams"
+    const rows = await sql<{ role: string; trustedRole: string | null }[]>`
+      SELECT m."role", s."trustedRole"
       FROM "user" u
       JOIN "member" m ON m."userId" = u."id"
       JOIN "session" s ON s."userId" = u."id"
@@ -13595,14 +13777,33 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
       WHERE u."email" = 'proxy.user@door.test' LIMIT 1
     `;
     const landedOrg = memberOrg[0]?.organizationId ?? '';
-    const refused = await fetch(`${base}/api/app/scim?orgId=${landedOrg}`, {
+    // The teams header is not a session annotation: it is mirrored onto
+    // teamMember rows in the org the user landed in, with the sync's
+    // provenance so a later header can revoke exactly what it granted.
+    const teamNames = (
+      await sql<{ name: string }[]>`
+        SELECT t."name" FROM "teamMember" tm
+        JOIN "team" t ON t."id" = tm."teamId"
+        JOIN "user" u ON u."id" = tm."userId"
+        JOIN app.sso_synced_team_members p
+          ON p.team_id = t."id" AND p.user_id = u."id"
+          AND p.org_id = t."organizationId"
+        WHERE u."email" = 'proxy.user@door.test'
+          AND t."organizationId" = ${landedOrg}
+        ORDER BY t."name"
+      `
+    ).map((row) => row.name);
+    // An admin-gated read (the security page's block counters) refuses the
+    // proxy-role member and opens for the proxy-role admin below.
+    const adminSurface = `${base}/api/app/audit-logs/block-counters`;
+    const refused = await fetch(`${adminSurface}?orgId=${landedOrg}`, {
       headers: { cookie: first.cookie, origin: base },
     });
 
     // Re-auth as proxy-role ADMIN: the SAME session is reused (token equal),
     // its trustedRole updated, and the admin surface opens.
     const second = await authWith('admin', first.cookie);
-    const allowed = await fetch(`${base}/api/app/scim?orgId=${landedOrg}`, {
+    const allowed = await fetch(`${adminSurface}?orgId=${landedOrg}`, {
       headers: { cookie: second.cookie, origin: base },
     });
     const sessionsAfter = await sql<{ trustedRole: string | null }[]>`
@@ -13625,13 +13826,13 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
         session1.success &&
         session1.data.user?.email === 'proxy.user@door.test' &&
         rows[0]?.trustedRole === 'member' &&
-        (rows[0]?.trustedTeams ?? '').includes('Finance') &&
+        teamNames.join(',') === 'Finance,Operations' &&
         refused.status === 403 &&
         second.cookie === first.cookie &&
         allowed.status === 200 &&
         sessionsAfter.length === 1 &&
         sessionsAfter[0]?.trustedRole === 'admin',
-      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
+      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${teamNames.join('|')} (want Finance|Operations), member→admin surface=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→admin surface=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
     );
 
     // Session reuse is bound to the browser's OWN cookie: a second device
@@ -17341,9 +17542,9 @@ async function checkRecoverySweeps(
 async function checkSlackInbound(
   sql: Sql,
   base: string,
-  ctx: { orgId: string; userId: string },
+  ctx: { orgId: string },
 ): Promise<void> {
-  const { orgId, userId } = ctx;
+  const { orgId } = ctx;
   const SIGNING_SECRET = 'itest-slack-signing-secret';
   const saved = process.env.CONNECTOR_SLACK_SIGNING_SECRET;
 
@@ -17496,49 +17697,6 @@ async function checkSlackInbound(
         enqueued === 0 &&
         routedToOrg,
       `handshake=${handshake.status}/${handshakeBody.success ? handshakeBody.data.challenge : 'ERR'}, unmapped=${unmapped.status} (want 404), delivered=${delivered.status}/${redelivered.status}, enqueued=${enqueued} (want 0), routedToOrg=${routedToOrg}`,
-    );
-
-    // ---- external identities --------------------------------------------
-    const identities = await import('./domains/identities/service.ts');
-    const ownerId = await identities.upsertExternalIdentity(sql, {
-      source: 'slack',
-      organizationId: orgId,
-      externalUserId: 'U-ITEST',
-      displayName: 'Slack Person',
-      handle: 'slackperson',
-    });
-    const firstRow = await sql<{ updatedAt: number }[]>`
-      SELECT updated_at_ms::float8 AS "updatedAt"
-      FROM app.external_identities WHERE owner_id = ${ownerId}
-    `;
-    // A refresh that fetched NOTHING must not touch updatedAt, or the next
-    // message would be suppressed for the whole freshness window.
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    await identities.upsertExternalIdentity(sql, {
-      source: 'slack',
-      organizationId: orgId,
-      externalUserId: 'U-ITEST',
-    });
-    const afterEmpty = await sql<{ updatedAt: number; displayName: string }[]>`
-      SELECT updated_at_ms::float8 AS "updatedAt",
-             display_name AS "displayName"
-      FROM app.external_identities WHERE owner_id = ${ownerId}
-    `;
-    const names = await identities.resolveExternalDisplayNames(sql, [
-      ownerId,
-      userId,
-      'slack:other-org:U-ELSEWHERE',
-    ]);
-    const detail = await identities.getExternalIdentity(sql, ownerId);
-    record(
-      'external identities: org-scoped owner id, empty refresh keeps freshness',
-      ownerId === `slack:${orgId}:U-ITEST` &&
-        afterEmpty[0]?.updatedAt === firstRow[0]?.updatedAt &&
-        afterEmpty[0]?.displayName === 'Slack Person' &&
-        names.get(ownerId) === 'Slack Person' &&
-        !names.has(userId) &&
-        detail?.handle === 'slackperson',
-      `ownerId=${ownerId}, freshnessKept=${afterEmpty[0]?.updatedAt === firstRow[0]?.updatedAt}, name=${afterEmpty[0]?.displayName}, resolved=${names.get(ownerId) ?? 'none'} internalIgnored=${!names.has(userId)}, handle=${detail?.handle ?? 'none'}`,
     );
   } finally {
     if (saved === undefined) delete process.env.CONNECTOR_SLACK_SIGNING_SECRET;
@@ -19506,7 +19664,9 @@ async function checkMailboxSyncLane(
     `;
     // The #3220 decision on the row the bind produced: retrievable inside
     // the scope of the conversation it arrived on — the admin reaches Bob's
-    // unassigned thread, the plain inbox member does not.
+    // unassigned thread, the plain inbox member does not. Dispatched the way
+    // the reused search/fetch modules dispatch it: the identity travels as a
+    // top-level `userId`, and the shim resolves the member role behind it.
     const filterRetrievable =
       knowledgeShimHandlers(sql)[
         'documents/internal_queries:filterRetrievableRagFileIds'
@@ -19515,23 +19675,20 @@ async function checkMailboxSyncLane(
     const memberRows = await sql<{ id: string }[]>`
       SELECT "id" FROM "user" WHERE "email" = 'inbox.member@door.test' LIMIT 1
     `;
-    const retrievableFor = async (caller: {
-      userId: string;
-      isAdmin: boolean;
-    }) =>
+    const retrievableFor = async (callerUserId: string | undefined) =>
       z.array(z.string()).parse(
         await filterRetrievable({
           organizationId: orgId,
           fileIds: [attachment?.storageRef ?? ''],
-          access: { teamIds: [] },
-          caller,
+          access: { teamIds: [], includeConversationScoped: true },
+          ...(callerUserId !== undefined ? { userId: callerUserId } : {}),
         }),
       );
-    const adminSees = await retrievableFor({ userId, isAdmin: true });
-    const memberSees = await retrievableFor({
-      userId: memberRows[0]?.id ?? 'no-such-user',
-      isAdmin: false,
-    });
+    const adminSees = await retrievableFor(userId);
+    const memberSees = await retrievableFor(
+      memberRows[0]?.id ?? 'no-such-user',
+    );
+    const nobodySees = await retrievableFor(undefined);
     record(
       'emailed attachment: the bind un-skips, queues and dispatches indexing inside the conversation scope',
       attachmentRows.length === 1 &&
@@ -19542,8 +19699,9 @@ async function checkMailboxSyncLane(
         indexJobs[0]?.count === '1' &&
         adminSees.length === 1 &&
         adminSees[0] === attachment.storageRef &&
-        memberSees.length === 0,
-      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0)`,
+        memberSees.length === 0 &&
+        nobodySees.length === 0,
+      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0) anonymous=${nobodySees.length} (want 0)`,
     );
 
     // Outbound send through the same door (system caller: runs + audited).
@@ -22089,6 +22247,57 @@ async function checkWebdav(
     headers: { depth: '1' },
   });
   const trashXml = trashList.ok ? await trashList.text() : '';
+
+  // A knowledge entry's backing document is an ordinary hub row on this
+  // tree, so a WebDAV DELETE trashes it — and must retire the entry chain
+  // with it (0.4's `deleteDocument → markEntryChainDeleted`): otherwise the
+  // entry stays listed and served while its corpus rows are dark. Its own
+  // record, independent of the protocol verdict above.
+  const davEntry = z.object({ id: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/knowledge-entries?orgId=${orgId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({
+          topic: 'itest-webdav-entry',
+          content: 'An entry whose document a WebDAV client deletes.',
+        }),
+      })
+    ).json(),
+  );
+  const davEntryId = davEntry.success ? davEntry.data.id : '';
+  const davEntryDelete = await dav('/documents/itest-webdav-entry.md', {
+    method: 'DELETE',
+  });
+  const davEntryChain = await sql<
+    { deleted: boolean; lifecycleStatus: string | null }[]
+  >`
+    SELECT ke.deleted_at_ms IS NOT NULL AS deleted,
+           d.lifecycle_status AS "lifecycleStatus"
+    FROM app.knowledge_entries ke
+    LEFT JOIN app.documents d ON d.id = ke.document_id
+    WHERE ke.id = ${davEntryId}
+  `;
+  const davEntryUpdate = await fetch(
+    `${base}/api/app/knowledge-entries/${davEntryId}?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        topic: 'itest-webdav-entry',
+        content: 'A version onto a trashed document.',
+      }),
+    },
+  );
+  record(
+    'knowledge entries: a WebDAV DELETE of the backing document retires the chain',
+    davEntry.success &&
+      davEntryDelete.status === 204 &&
+      davEntryChain[0]?.lifecycleStatus === 'trashed' &&
+      davEntryChain[0].deleted &&
+      davEntryUpdate.status === 404,
+    `created=${davEntry.success}, delete=${davEntryDelete.status} (want 204), doc=${davEntryChain[0]?.lifecycleStatus ?? 'missing'} (want trashed), chainDeleted=${davEntryChain[0]?.deleted ?? 'missing'} (want true), update=${davEntryUpdate.status} (want 404)`,
+  );
 
   // Chunked PUT (no Content-Length) refuses loudly — S3 needs a length.
   // The shim's CHUNKED_PUT_UNSUPPORTED throw escapes to the adapter's 500
@@ -24876,6 +25085,69 @@ async function checkWebsitesCrawl(
       `paused=${pausedRow?.status}/${String(pausedMeta.scanPausedAt != null)} failures=${String(pausedMeta.corpusConnectionFailures)}/3 schedPaused=${scheduled?.scanPaused} due=${pausedIsDue}(want false) bell=${bell[0]?.count}/1, resume=${resume.status} cleared=${resumedMeta.scanPausedAt == null && resumedMeta.corpusConnectionFailures == null} status=${resumedRow?.status}/active(post-rescan)`,
     );
 
+    // 3a. The scheduler's projection walks EVERY row: the 0.4 take(500) was
+    //     ported as a hard oldest-first ceiling, so on a deployment past 500
+    //     sites every newer one got its register-kicked scan and then never
+    //     a periodic one. Seed 501 older rows and prove the newest (the real
+    //     site of this lane) is still projected.
+    await sql`
+      INSERT INTO app.websites (org_id, domain, scan_interval, status,
+                                created_at_ms, updated_at_ms)
+      SELECT ${orgId}, 'itest-bulk-' || n || '.example', '30d', 'active',
+             ${Date.now() - 86_400_000}::bigint - n, ${Date.now()}::bigint
+      FROM generate_series(1, 501) AS n
+    `;
+    const bulkSchedule = await websites.listWebsitesForScanScheduling(sql);
+    const bulkSeeded = bulkSchedule.filter((s) =>
+      s.domain.startsWith('itest-bulk-'),
+    ).length;
+    const bulkHasNewest = bulkSchedule.some((s) => s.domain === DOMAIN);
+    await sql`
+      DELETE FROM app.websites
+      WHERE org_id = ${orgId} AND domain LIKE 'itest-bulk-%'
+    `;
+    record(
+      'websites scheduler projection walks past the 500th row',
+      bulkSeeded === 501 && bulkHasNewest,
+      `seededProjected=${bulkSeeded}/501 newestProjected=${bulkHasNewest}`,
+    );
+
+    // 3b. A row whose domain has NO corpus registration (the register job
+    //     never landed, or the registration was released): the scan must
+    //     record the failure on the row — attempt clock + `error` status
+    //     with the delete-and-re-add message — instead of logging "already
+    //     running" and letting the scheduler re-pick it every tick forever.
+    const UNREGISTERED_DOMAIN = 'itest-unregistered.example';
+    const unregisteredId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: UNREGISTERED_DOMAIN,
+      scanInterval: '6h',
+      status: 'active',
+    });
+    await websites.runWebsitesScan(sql, {
+      domain: UNREGISTERED_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    const unregisteredRow = await websites.getWebsite(sql, unregisteredId);
+    const unregisteredMeta = unregisteredRow?.metadata ?? {};
+    const unregisteredSite = (
+      await websites.listWebsitesForScanScheduling(sql)
+    ).find((s) => s.domain === UNREGISTERED_DOMAIN);
+    const unregisteredDueNow = unregisteredSite
+      ? scheduling.isDueForScan(unregisteredSite, Date.now())
+      : true;
+    await sql`DELETE FROM app.websites WHERE id = ${unregisteredId}`;
+    record(
+      'websites scan of an unregistered domain records the failure',
+      unregisteredRow?.status === 'error' &&
+        typeof unregisteredMeta.lastScanAttemptAt === 'number' &&
+        unregisteredMeta.lastSyncError ===
+          scheduling.WEBSITE_NOT_IN_CORPUS_MESSAGE &&
+        !unregisteredDueNow,
+      `status=${unregisteredRow?.status}/error attemptStamped=${typeof unregisteredMeta.lastScanAttemptAt === 'number'} error=${String(unregisteredMeta.lastSyncError)} dueAgainNow=${unregisteredDueNow}(want false)`,
+    );
+
     // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list
     //    registration merging on re-post, and delete deregistering the
     //    corpus rows (last member takes the domain with it).
@@ -24984,6 +25256,22 @@ async function checkWebsitesCrawl(
       method: 'PATCH',
       body: { scanInterval: '1d' },
     });
+    // The domain is immutable after create: a rename would orphan the
+    // corpus registration (keyed by domain) and never scan again, so both
+    // doors refuse it before touching the row.
+    const restPatchDomain = await v1(`/websites/${websiteId}`, {
+      method: 'PATCH',
+      body: { domain: 'renamed.example', title: 'Renamed' },
+    });
+    const appPatchDomain = await fetch(
+      `${base}/api/app/websites/${websiteId}?orgId=${orgId}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ domain: 'renamed.example' }),
+      },
+    );
+    const rowAfterPatch = await websites.getWebsite(sql, websiteId);
     const restPages = z
       .object({ total: z.number() })
       .safeParse(await (await v1(`/websites/${websiteId}/pages`)).json());
@@ -25025,6 +25313,10 @@ async function checkWebsitesCrawl(
         restList.success &&
         restList.data.page.length >= 2 &&
         restPatch.status === 204 &&
+        restPatchDomain.status === 400 &&
+        appPatchDomain.status === 400 &&
+        rowAfterPatch?.domain === DOMAIN &&
+        rowAfterPatch.title !== 'Renamed' &&
         restPages.success &&
         // 3 again: step 2b brought the 404'd page back.
         restPages.data.total === 3 &&
@@ -25035,7 +25327,7 @@ async function checkWebsitesCrawl(
         restDeleteSite.status === 204 &&
         Number(corpusGone[0]?.count ?? '9') === 0 &&
         Number(rowsGone[0]?.count ?? '9') === 0,
-      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/204 pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
+      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/204 patchDomain=${restPatchDomain.status}/${appPatchDomain.status}(want 400/400) domainKept=${rowAfterPatch?.domain === DOMAIN} pages=${restPages.success ? restPages.data.total : 'ERR'}/3 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
     );
   } finally {
     globalThis.fetch = realFetch;
@@ -25928,6 +26220,59 @@ exit 1
       DELETE FROM app.video_link_jobs
       WHERE id = ANY(${seededIds.slice(1)})
     `;
+
+    // The cap is decided INSIDE the insert transaction under a per-org
+    // advisory lock: with two rows in flight, two SIMULTANEOUS pastes must
+    // land exactly one job — the pre-fix pool-side count let both through.
+    const raceSeed = await sql<{ id: string }[]>`
+      INSERT INTO app.video_link_jobs (
+        org_id, uploaded_by, source_url, source_url_hash, source_platform,
+        pasted_token, status, status_changed_at_ms, attempts,
+        lifecycle_status, created_at_ms
+      )
+      SELECT ${orgId}, ${userId}, 'https://www.youtube.com/watch?v=race' || n,
+             'racehash' || n, 'youtube', 'race', 'fetching_metadata',
+             ${Date.now()}::bigint, 0, 'active', ${Date.now()}::bigint
+      FROM generate_series(1, 2) AS n
+      RETURNING id
+    `;
+    const raceResults = await Promise.allSettled(
+      ['raceA1', 'raceB2'].map((token) =>
+        video.ingestVideoUrl(sql, {
+          organizationId: orgId,
+          userId,
+          url: `https://www.youtube.com/watch?v=${token}`,
+          pastedToken: token,
+        }),
+      ),
+    );
+    const raceLanded = raceResults.filter((r) => r.status === 'fulfilled');
+    const raceCapped = raceResults.filter(
+      (r) =>
+        r.status === 'rejected' &&
+        r.reason instanceof video.VideoLinkError &&
+        r.reason.code === 'inFlightCap',
+    );
+    for (const landed of raceLanded) {
+      if (landed.status !== 'fulfilled') continue;
+      // Park it before its ingest job runs (the orchestrator bails on a
+      // non-queued row), then drop it with the seed rows.
+      await video.cancelVideoLink(sql, {
+        organizationId: orgId,
+        userId,
+        jobId: landed.value,
+      });
+      await sql`DELETE FROM app.video_link_jobs WHERE id = ${landed.value}`;
+    }
+    await sql`
+      DELETE FROM app.video_link_jobs
+      WHERE id = ANY(${raceSeed.map((row) => row.id)})
+    `;
+    record(
+      'video links: concurrent pastes cannot exceed the in-flight cap',
+      raceLanded.length === 1 && raceCapped.length === 1,
+      `landed=${raceLanded.length}/1 capped=${raceCapped.length}/1 (2 seeded in flight + 2 simultaneous ingests)`,
+    );
     record(
       'video links: whisper path + failure/retry/cancel + cap + watchdog',
       // The job row itself must land terminal when the transcription lane
@@ -26478,7 +26823,6 @@ async function checkTaskAgentTurnDrive(
           state: 'ready',
           backend: 'itest',
           createdAtMs: Date.now(),
-          lastActivityAtMs: Date.now(),
           expiresAtMs: Date.now() + 3_600_000,
           idleTimeoutMs: 600_000,
         },
@@ -27304,7 +27648,6 @@ async function checkAutomationAgentNode(
               state: 'ready',
               backend: 'itest',
               createdAtMs: Date.now(),
-              lastActivityAtMs: Date.now(),
               expiresAtMs: Date.now() + 3_600_000,
               idleTimeoutMs: 600_000,
             },
@@ -28678,7 +29021,6 @@ async function checkSandboxSpawner(
           state: 'ready',
           backend: 'itest',
           createdAtMs: Date.now(),
-          lastActivityAtMs: Date.now(),
           expiresAtMs: Date.now() + 3_600_000,
           idleTimeoutMs: 600_000,
         },
@@ -29262,12 +29604,43 @@ async function checkLoginThrottleAndAuditChain(
   email: string,
 ): Promise<void> {
   const { cookie, orgId } = ctx;
-  const signIn = (password: string): Promise<Response> =>
+  const signIn = (password: string, asEmail = email): Promise<Response> =>
     fetch(`${base}/api/auth/sign-in/email`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: base },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: asEmail, password }),
     });
+
+  // A whitespace-padded address is refused by Better Auth's email check
+  // BEFORE any password check (400). That is not a failed attempt: it must
+  // neither open a counter for the real account nor — past the threshold —
+  // raise a lockout audit row and admin bell for a lock that does not exist.
+  const securityAudits = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.audit_logs
+          WHERE org_id = ${orgId}
+            AND action IN ('login_attempt', 'login_lockout')
+        `
+      )[0]?.count ?? '0',
+    );
+  const auditsBeforePadded = await securityAudits();
+  const padded: number[] = [];
+  for (let i = 0; i < 6; i += 1) {
+    padded.push((await signIn('wrong-password-1', `  ${email}  `)).status);
+  }
+  const counterAfterPadded = await sql<{ failures: number }[]>`
+    SELECT consecutive_failures AS failures FROM app.login_attempts
+    WHERE email = ${email.toLowerCase()}
+  `;
+  record(
+    'padded sign-in email is refused without failure accounting',
+    padded.every((s) => s === 400) &&
+      counterAfterPadded.length === 0 &&
+      (await securityAudits()) === auditsBeforePadded,
+    `padded attempts → ${padded.join(',')} (want 400s), counter rows=${counterAfterPadded.length} (want 0), audit delta=${(await securityAudits()) - auditsBeforePadded} (want 0)`,
+  );
 
   // Default policy: 5 failures lock the account (first backoff 1s).
   const statuses: number[] = [];
@@ -30725,6 +31098,15 @@ async function checkChatMemoriesDeferredAuto(
     (await fetch(`${base}${route}`, { headers: { cookie } })).json();
 
   // ---- memories -----------------------------------------------------------
+  // The feature is OFF until the person (or the org policy) turns it on: a
+  // proposal while off is refused, not queued.
+  const refusedWhileOff = await post(`/api/app/chat/memories?orgId=${orgId}`, {
+    content: 'Prefers metric units',
+  });
+  const enabledMemories = await post(
+    `/api/app/user-preferences/memories-enabled?orgId=${orgId}`,
+    { enabled: true },
+  );
   const saved = z.object({ id: z.string() }).safeParse(
     await (
       await post(`/api/app/chat/memories?orgId=${orgId}`, {
@@ -30762,9 +31144,32 @@ async function checkChatMemoriesDeferredAuto(
         )
       ).json(),
     );
+  // Delete takes a saved memory out of what a search can return; then the
+  // switch off hides the rest from retrieval without touching the rows.
+  const deleted = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/chat/memories/${memoryId}?orgId=${orgId}`, {
+        method: 'DELETE',
+        headers: { cookie, origin: base },
+      })
+    ).json(),
+  );
+  const searchAfterDelete = z
+    .object({ memories: z.array(z.unknown()) })
+    .safeParse(
+      await get(`/api/app/chat/memories/search?orgId=${orgId}&q=metric`),
+    );
+  await post(`/api/app/user-preferences/memories-enabled?orgId=${orgId}`, {
+    enabled: false,
+  });
+  const refusedAgain = await post(`/api/app/chat/memories?orgId=${orgId}`, {
+    content: 'Prefers imperial units',
+  });
   record(
-    'memories: pending until approved, retrieval sees approved only',
-    saved.success &&
+    'memories: off until enabled, pending until approved, retrieval sees approved only',
+    refusedWhileOff.status === 403 &&
+      enabledMemories.ok &&
+      saved.success &&
       listedPending.success &&
       listedPending.data.pending.some((row) => row.id === memoryId) &&
       listedPending.data.approved.length === 0 &&
@@ -30773,8 +31178,13 @@ async function checkChatMemoriesDeferredAuto(
       searchApproved.success &&
       searchApproved.data.memories.length === 1 &&
       bogusReview.success &&
-      !bogusReview.data.ok,
-    `pending=${listedPending.success ? listedPending.data.pending.length : 'ERR'}, hiddenWhilePending=${searchWhilePending.success ? searchWhilePending.data.memories.length === 0 : 'ERR'}, approvedHits=${searchApproved.success ? searchApproved.data.memories.length : 'ERR'}, bogus=${bogusReview.success ? bogusReview.data.ok : 'ERR'} (want false)`,
+      !bogusReview.data.ok &&
+      deleted.success &&
+      deleted.data.ok &&
+      searchAfterDelete.success &&
+      searchAfterDelete.data.memories.length === 0 &&
+      refusedAgain.status === 403,
+    `refusedWhileOff=${refusedWhileOff.status} (want 403), pending=${listedPending.success ? listedPending.data.pending.length : 'ERR'}, hiddenWhilePending=${searchWhilePending.success ? searchWhilePending.data.memories.length === 0 : 'ERR'}, approvedHits=${searchApproved.success ? searchApproved.data.memories.length : 'ERR'}, bogus=${bogusReview.success ? bogusReview.data.ok : 'ERR'} (want false), deleted=${deleted.success ? deleted.data.ok : 'ERR'}, afterDelete=${searchAfterDelete.success ? searchAfterDelete.data.memories.length : 'ERR'}, refusedAgain=${refusedAgain.status} (want 403)`,
   );
 
   // ---- a live fake provider (catalog + streaming completions) -------------
@@ -31076,14 +31486,22 @@ async function checkChatMemoriesDeferredAuto(
       UPDATE app.file_metadata SET rag_status = 'completed'
       WHERE storage_ref = ${storageRef}
     `;
+    // The tray row settles the moment the turn persists the user message
+    // (well before the reply streams), so "row gone" is not "turn done":
+    // wait for the generation row to disappear too before reading the reply.
     let sendsLeft = -1;
+    let generating = -1;
     for (let i = 0; i < 60; i++) {
-      const rows = await sql<{ count: string }[]>`
-        SELECT count(*)::text AS count FROM app.deferred_sends
-        WHERE thread_id = ${deferThreadId}
+      const rows = await sql<{ sends: string; generating: string }[]>`
+        SELECT
+          (SELECT count(*) FROM app.deferred_sends
+           WHERE thread_id = ${deferThreadId})::text AS sends,
+          (SELECT count(*) FROM app.generations
+           WHERE thread_id = ${deferThreadId})::text AS generating
       `;
-      sendsLeft = Number(rows[0]?.count ?? '-1');
-      if (sendsLeft === 0) break;
+      sendsLeft = Number(rows[0]?.sends ?? '-1');
+      generating = Number(rows[0]?.generating ?? '-1');
+      if (sendsLeft === 0 && generating === 0) break;
       await sleep(300);
     }
     const deferMessages = await sql<{ role: string; text: string | null }[]>`
@@ -31151,7 +31569,7 @@ async function checkChatMemoriesDeferredAuto(
         cancelRow.success &&
         cancelled.success &&
         cancelled.data.ok,
-      `noModel=${noModel.status} (want 400), parkedWhileIndexing=${stillWaiting.success && stillWaiting.data.sends.length > 0}, settled=${sendsLeft === 0}, answered=${deferMessages.filter((row) => row.role === 'assistant').length}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}`,
+      `noModel=${noModel.status} (want 400), parkedWhileIndexing=${stillWaiting.success && stillWaiting.data.sends.length > 0}, settled=${sendsLeft === 0}, turnDone=${generating === 0}, answered=${deferMessages.filter((row) => row.role === 'assistant' && (row.text ?? '').includes('Deferred answer done')).length} (want 1), cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}`,
     );
   } finally {
     // Lift the pick pin — later checks (automation llm nodes, the
@@ -31317,10 +31735,31 @@ async function checkBrandingAndTeams(
   await post(`/api/app/members/${hintMemberId}/role?orgId=${orgId}`, {
     role: 'developer',
   });
+  // Put the member on the team first: removing the ORG membership cascades
+  // the teamMember row away, and that cascade must land the same 'team' hint
+  // a direct team removal does (an open Teams page refreshes its counts).
+  await post(`/api/app/teams/${teamId}/members?orgId=${orgId}`, {
+    userId: hintUserId,
+  });
+  const teamHintsBeforeCascade = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'team' AND entity_id = ${teamId}
+  `;
   await fetch(`${base}/api/app/members/${hintMemberId}?orgId=${orgId}`, {
     method: 'DELETE',
     headers: { cookie, origin: base },
   });
+  const teamHintsAfterCascade = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'team' AND entity_id = ${teamId}
+  `;
+  const cascadeHint =
+    Number(teamHintsAfterCascade[0]?.count) -
+    Number(teamHintsBeforeCascade[0]?.count);
+  const cascadeLeftTeam = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "teamMember"
+    WHERE "teamId" = ${teamId} AND "userId" = ${hintUserId}
+  `;
   const memberHints = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app_realtime.outbox
     WHERE org_id = ${orgId} AND entity = 'member'
@@ -31373,11 +31812,14 @@ async function checkBrandingAndTeams(
       removed.success &&
       removed.data.removed &&
       mineHit &&
-      hintsAfterAdd[0]?.count === '1' &&
-      hintsAfterRemove[0]?.count === '2' &&
+      // caller add (1) + hint member add (2) + cascade (3) → direct remove (4)
+      hintsAfterAdd[0]?.count === '3' &&
+      hintsAfterRemove[0]?.count === '4' &&
       memberAdded.success &&
-      memberHints[0]?.count === '3',
-    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, mine=${mineHit}, hints=${hintsAfterAdd[0]?.count}→${hintsAfterRemove[0]?.count} (want 1→2), memberHints=${memberHints[0]?.count} (want 3), removed=${removed.success ? removed.data.removed : 'ERR'}`,
+      memberHints[0]?.count === '3' &&
+      cascadeHint === 1 &&
+      cascadeLeftTeam[0]?.count === '0',
+    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, mine=${mineHit}, hints=${hintsAfterAdd[0]?.count}→${hintsAfterRemove[0]?.count} (want 3→4), memberHints=${memberHints[0]?.count} (want 3), cascadeTeamHint=${cascadeHint} (want 1) cascadeLeftTeam=${cascadeLeftTeam[0]?.count} (want 0), removed=${removed.success ? removed.data.removed : 'ERR'}`,
   );
 
   // --- Org/Teams settings tail (inc 87) ------------------------------------
@@ -31872,6 +32314,219 @@ async function checkKnowledgeEntries(
       afterDelete.data.rows.length === 0 &&
       docTrashed[0]?.lifecycleStatus === 'trashed',
     `dup=${dup.status} (want 409), sameFile=${afterUpdate[0]?.fileId === firstFile[0]?.fileId}, rotatedRef=${afterUpdate[0]?.storageRef !== firstFile[0]?.storageRef}, versions=${versions.success ? versions.data.versions.length : 'ERR'}, agent=${agentListing.success ? agentListing.data.page.length : 'ERR'}, deleted=${afterDelete.success ? afterDelete.data.rows.length : 'ERR'}, doc=${docTrashed[0]?.lifecycleStatus}`,
+  );
+
+  // The reverse door: the backing document removed from the Documents tab
+  // (the purge) retires the entry chain — the entry is not listed, and a
+  // new version is refused as not found rather than materialized onto a
+  // document nobody can retrieve. Two versions first, so the chain has more
+  // than the row that points at the document.
+  const purgedEntry = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Payroll cutoff',
+        content: 'Payroll closes on the 25th.',
+      })
+    ).json(),
+  );
+  const purgedEntryId = purgedEntry.success ? purgedEntry.data.id : '';
+  const purgedV2 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries/${purgedEntryId}?orgId=${orgId}`, {
+        topic: 'Payroll cutoff',
+        content: 'Payroll closes on the 25th of each month.',
+      })
+    ).json(),
+  );
+  const purgedV2Id = purgedV2.success ? purgedV2.data.id : '';
+  const backing = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${purgedV2Id}
+  `;
+  const backingId = backing[0]?.documentId ?? '';
+  const purge = await post(
+    `/api/app/documents/${backingId}/delete?orgId=${orgId}`,
+  );
+  const chainAfterPurge = await sql<{ deleted: boolean }[]>`
+    SELECT deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'payroll cutoff'
+  `;
+  const listAfterPurge = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateAfterPurge = await post(
+    `/api/app/knowledge-entries/${purgedV2Id}?orgId=${orgId}`,
+    { topic: 'Payroll cutoff', content: 'A version onto a purged document.' },
+  );
+  const updateAfterPurgeBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await updateAfterPurge.json());
+  record(
+    'knowledge entries: purging the backing document retires the chain',
+    purgedEntry.success &&
+      purgedV2.success &&
+      backingId !== '' &&
+      purge.status === 200 &&
+      chainAfterPurge.length === 2 &&
+      chainAfterPurge.every((row) => row.deleted) &&
+      listAfterPurge.success &&
+      !listAfterPurge.data.rows.some((row) => row.id === purgedV2Id) &&
+      updateAfterPurge.status === 404 &&
+      updateAfterPurgeBody.success &&
+      updateAfterPurgeBody.data.error === 'KNOWLEDGE_ENTRY_NOT_FOUND',
+    `purge=${purge.status} (want 200), chain=${chainAfterPurge.map((row) => row.deleted).join(',')} (want 2× true), listed=${listAfterPurge.success ? listAfterPurge.data.rows.some((row) => row.id === purgedV2Id) : 'ERR'} (want false), update=${updateAfterPurge.status} ${updateAfterPurgeBody.success ? updateAfterPurgeBody.data.error : 'ERR'} (want 404 KNOWLEDGE_ENTRY_NOT_FOUND)`,
+  );
+
+  // A deleted chain frees its topic key: deleting the entry trashes doc A
+  // and a re-created entry with the same topic gets a NEW doc B. The purge
+  // of the still-trashed doc A (Documents-tab Trash, or the retention
+  // sweep days later) must retire only doc A's chain — never the live chain
+  // that reused the key. The hook is keyed by document, not topic key.
+  const reusedV1 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Vacation carryover',
+        content: 'Up to five days carry over.',
+      })
+    ).json(),
+  );
+  const reusedV1Id = reusedV1.success ? reusedV1.data.id : '';
+  const oldBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${reusedV1Id}
+  `;
+  const oldBackingId = oldBacking[0]?.documentId ?? '';
+  const deleteReused = await fetch(
+    `${base}/api/app/knowledge-entries/${reusedV1Id}?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  const reusedV2 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Vacation carryover',
+        content: 'Up to ten days carry over.',
+      })
+    ).json(),
+  );
+  const reusedV2Id = reusedV2.success ? reusedV2.data.id : '';
+  const newBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${reusedV2Id}
+  `;
+  const newBackingId = newBacking[0]?.documentId ?? '';
+  const purgeOld = await post(
+    `/api/app/documents/${oldBackingId}/delete?orgId=${orgId}`,
+  );
+  const chainsAfterOldPurge = await sql<{ id: string; deleted: boolean }[]>`
+    SELECT id, deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'vacation carryover'
+  `;
+  const newStillLive =
+    chainsAfterOldPurge.find((row) => row.id === reusedV2Id)?.deleted === false;
+  const oldStillDeleted =
+    chainsAfterOldPurge.find((row) => row.id === reusedV1Id)?.deleted === true;
+  const listAfterOldPurge = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateReused = await post(
+    `/api/app/knowledge-entries/${reusedV2Id}?orgId=${orgId}`,
+    { topic: 'Vacation carryover', content: 'Up to ten days, use by March.' },
+  );
+  record(
+    "knowledge entries: purging a deleted chain's old document spares the chain that reused its topic",
+    reusedV1.success &&
+      oldBackingId !== '' &&
+      deleteReused.status === 200 &&
+      reusedV2.success &&
+      newBackingId !== '' &&
+      newBackingId !== oldBackingId &&
+      purgeOld.status === 200 &&
+      newStillLive &&
+      oldStillDeleted &&
+      listAfterOldPurge.success &&
+      listAfterOldPurge.data.rows.some((row) => row.id === reusedV2Id) &&
+      updateReused.status === 200,
+    `delete=${deleteReused.status} (want 200), recreate=${reusedV2.success} newDoc≠old=${newBackingId !== oldBackingId}, purgeOld=${purgeOld.status} (want 200), newLive=${newStillLive} (want true), oldDeleted=${oldStillDeleted} (want true), listed=${listAfterOldPurge.success ? listAfterOldPurge.data.rows.some((row) => row.id === reusedV2Id) : 'ERR'} (want true), update=${updateReused.status} (want 200)`,
+  );
+
+  // The retention sweep's expiry flip (grace > 0) has no source filter: an
+  // entry's backing document ages out like any other and lands in the admin
+  // Trash as 'expired'. That flip must retire the chain in the same
+  // transaction — otherwise the entry stays listed and served for the whole
+  // grace window while the retrievability filter keeps its corpus rows dark,
+  // and an update onto it answers 404 for a row the list still shows. The
+  // policy is ~55 years and the document is aged just past it, so no other
+  // document of the org can be a candidate of this sweep — while both the
+  // cutoff and the aged stamp stay positive epochs (the sweep floors a
+  // document's age at `coalesce(status_changed_at_ms, 0)`, so a negative
+  // stamp would never age out).
+  const expiring = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Expense cap',
+        content: 'Single expenses above 500 EUR need approval.',
+      })
+    ).json(),
+  );
+  const expiringId = expiring.success ? expiring.data.id : '';
+  const expiringBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${expiringId}
+  `;
+  const expiringDocId = expiringBacking[0]?.documentId ?? '';
+  const retentionDays = 20_000;
+  await sql`
+    UPDATE app.documents
+    SET created_at_ms = ${Date.now() - (retentionDays + 1) * 86_400_000}
+    WHERE id = ${expiringDocId} AND org_id = ${orgId}
+  `;
+  const { sweepOrgPhase2: sweepExpiring } =
+    await import('./domains/retention/service.ts');
+  const { loadActiveHolds: holdsForExpiring } =
+    await import('./domains/legal_holds/service.ts');
+  const expiringStats = await sweepExpiring(
+    sql,
+    {
+      organizationId: orgId,
+      config: {
+        documentsEnabled: true,
+        documentsRetentionDays: retentionDays,
+        deletionGraceDays: 7,
+      },
+    },
+    await holdsForExpiring(sql, orgId),
+  );
+  const expiredDoc = await sql<{ lifecycleStatus: string | null }[]>`
+    SELECT lifecycle_status AS "lifecycleStatus" FROM app.documents
+    WHERE id = ${expiringDocId}
+  `;
+  const chainAfterExpiry = await sql<{ deleted: boolean }[]>`
+    SELECT deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'expense cap'
+  `;
+  const listAfterExpiry = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateAfterExpiry = await post(
+    `/api/app/knowledge-entries/${expiringId}?orgId=${orgId}`,
+    { topic: 'Expense cap', content: 'A version onto an expired document.' },
+  );
+  record(
+    "knowledge entries: the retention sweep's expiry flip retires the chain with the document",
+    expiring.success &&
+      expiringDocId !== '' &&
+      expiringStats.documents >= 1 &&
+      expiredDoc[0]?.lifecycleStatus === 'expired' &&
+      chainAfterExpiry.length === 1 &&
+      chainAfterExpiry.every((row) => row.deleted) &&
+      listAfterExpiry.success &&
+      !listAfterExpiry.data.rows.some((row) => row.id === expiringId) &&
+      updateAfterExpiry.status === 404,
+    `swept=${expiringStats.documents} (want ≥1), doc=${expiredDoc.length === 0 ? 'missing' : String(expiredDoc[0]?.lifecycleStatus)} (want expired), chain=${chainAfterExpiry.map((row) => row.deleted).join(',')} (want true), listed=${listAfterExpiry.success ? listAfterExpiry.data.rows.some((row) => row.id === expiringId) : 'ERR'} (want false), update=${updateAfterExpiry.status} (want 404)`,
   );
 }
 
@@ -33441,11 +34096,32 @@ async function checkErasure(
     SELECT status FROM app.gdpr_erasure_requests
     WHERE id = ${filedThree.success ? filedThree.data.requestId : ''}
   `;
+  // A blocked receipt is LIVE (the live index covers blocked and partial,
+  // matching the Retry door): a second filing for the same subject must
+  // answer ALREADY_PENDING naming the blocked receipt, not mint a twin that
+  // could run the cascade a second time once the hold lifts.
+  const dupOnBlockedRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectThree,
+    reason: 'Second filing against a blocked receipt',
+    reasonCode: 'objection',
+  });
+  const dupOnBlocked = z
+    .object({ error: z.string(), requestId: z.string(), status: z.string() })
+    .loose()
+    .safeParse(await dupOnBlockedRes.json());
   await sql`
     UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
     WHERE org_id = ${orgId} AND target_id = ${subjectThree}
   `;
-  await post(
+  // A receipt blocked AT FILING never passed the request-time policy, so
+  // its Retry honours it (cooling-off / dual approval) instead of running at
+  // once; the window is zeroed here so the re-armed cascade finishes now.
+  await writeFile(
+    path.join(governanceDir, 'dsar-governance.yml'),
+    'coolingOffHours: 0\n',
+  );
+  orgConfig.clearOrgConfigCaches();
+  const retryThreeRes = await post(
     `/api/app/erasure/${filedThree.success ? filedThree.data.requestId : ''}/retry?orgId=${orgId}`,
   );
   let threeStatus = '';
@@ -33458,6 +34134,13 @@ async function checkErasure(
     if (threeStatus === 'done') break;
     await sleep(300);
   }
+  // Back to the real window the governance-tail lanes assume (a cancel
+  // inside the window; the policy read answering 1).
+  await writeFile(
+    path.join(governanceDir, 'dsar-governance.yml'),
+    'coolingOffHours: 1\n',
+  );
+  orgConfig.clearOrgConfigCaches();
   record(
     'erasure: cascade + audit scrub, cancel window, hold-blocked receipt',
     selfRefused.status === 403 &&
@@ -33476,8 +34159,15 @@ async function checkErasure(
       filedThree.data.error === 'LEGAL_HOLD_BLOCKS_ERASURE' &&
       filedThree.data.userCustodianHeld &&
       blockedReceipt[0]?.status === 'blocked' &&
+      dupOnBlockedRes.status === 409 &&
+      dupOnBlocked.success &&
+      dupOnBlocked.data.error === 'ALREADY_PENDING' &&
+      dupOnBlocked.data.status === 'blocked' &&
+      dupOnBlocked.data.requestId ===
+        (filedThree.success ? filedThree.data.requestId : '') &&
+      retryThreeRes.status === 200 &&
       threeStatus === 'done',
-    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, reviewDeidentified=${reviewErased[0]?.count} (want 1), scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), retried=${threeStatus}`,
+    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, reviewDeidentified=${reviewErased[0]?.count} (want 1), scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), dupOnBlocked=${dupOnBlockedRes.status}/${dupOnBlocked.success ? `${dupOnBlocked.data.error}:${dupOnBlocked.data.status}` : 'ERR'} (want 409/ALREADY_PENDING:blocked, same requestId), retry=${retryThreeRes.status}/${threeStatus} (want 200/done)`,
   );
 
   // ---- the documented 'child' reason code files -------------------------
@@ -33657,7 +34347,7 @@ async function checkErasure(
     `afterFail=${fiveAfterFail[0]?.status}/${fiveAfterFail[0]?.error ?? ''} (want partial/failed passes: uploads), row=${fiveRowSurvives[0]?.count} (want 1), blob=${fiveBlobSurvives === null ? '404' : 'present'} (want present), retry=${fiveStatus} (want done), rowAfter=${fiveRowAfterRetry[0]?.count} (want 0), blobAfter=${fiveBlobAfterRetry === null ? '404' : 'present'} (want 404)`,
   );
 
-  // This section spent 4 of the admin's 5/day DSAR filings; the limiter is
+  // This section spent all 5 of the admin's 5/day DSAR filings; the limiter is
   // per (key, subject), so clearing its rows hands downstream sections the
   // full budget their probes assume.
   await sql`
@@ -41033,6 +41723,258 @@ async function checkWorkflowDocumentListing(
 }
 
 /**
+ * Team scope retirement: the columns a team scopes (projects' owner/shared
+ * teams, folder + document tags, conversation queues, sync configs) have no
+ * FK to `"team"`, and every team-deletion door used to delete the team row
+ * alone — a project scoped to the gone team was locked to admins with no way
+ * out. Every door now retires the scopes: SCIM `deleteGroup` in its own
+ * transaction, Better Auth's `remove-team` (the settings UI's door) through
+ * `afterDeleteTeam`, and the daily sweep for ghosts that predate the doors.
+ */
+async function checkTeamScopeRetirement(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const now = Date.now();
+  const mkTeam = async (name: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                          "updatedAt")
+      VALUES (gen_random_uuid(), ${name}, ${orgId}, ${new Date()},
+              ${new Date()})
+      RETURNING "id"
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const teamA = await mkTeam('Scope A');
+  const teamB = await mkTeam('Scope B');
+  const teamC = await mkTeam('Scope C');
+  const member = await signUpOrgMember(sql, base, orgId, 'teamscope', 'member');
+  let projectSeq = 0;
+  const mkProject = async (
+    name: string,
+    teamId: string | null,
+    shared: string[],
+  ): Promise<string> => {
+    projectSeq += 1;
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (
+        org_id, name, key, team_id, shared_with_team_ids,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${name}, ${`TS${now.toString(36).slice(-4)}${projectSeq}`},
+        ${teamId}, ${shared}, ${ctx.userId}, ${now}, ${now}
+      )
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const ownedByA = await mkProject('Owned by A, shared B', teamA, [teamB]);
+  const sharedWithA = await mkProject('Owned by B, shared A', teamB, [teamA]);
+  const folderRows = await sql<{ id: string }[]>`
+    INSERT INTO app.folders (org_id, name, team_id, team_tags, created_by,
+                             created_at_ms)
+    VALUES (${orgId}, 'Scoped folder', ${teamA}, ${[teamA, teamB]},
+            ${ctx.userId}, ${now})
+    RETURNING id
+  `;
+  const folderId = folderRows[0]?.id ?? '';
+  const docRows = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (org_id, title, content, team_id, team_tags,
+                               folder_id, created_by, created_at_ms,
+                               updated_at_ms)
+    VALUES (${orgId}, 'Scoped note', 'body', ${teamA}, ${[teamA, teamB]},
+            ${folderId}, ${ctx.userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const documentId = docRows[0]?.id ?? '';
+  const convRows = await sql<{ id: string }[]>`
+    INSERT INTO app.conversations (org_id, assignee_team_id, status,
+                                   created_at_ms)
+    VALUES (${orgId}, ${teamA}, 'open', ${now})
+    RETURNING id
+  `;
+  const conversationId = convRows[0]?.id ?? '';
+  const syncRows = await sql<{ id: string }[]>`
+    INSERT INTO app.onedrive_sync_configs (
+      org_id, user_id, item_type, item_id, item_name, target_bucket, team_id,
+      status, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${ctx.userId}, 'folder', ${`item-${now}`}, 'Synced',
+      'documents', ${teamA}, 'active', ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const syncId = syncRows[0]?.id ?? '';
+
+  const { getProject, getProjectAuthContext } =
+    await import('./domains/projects/service.ts');
+  const memberAuth = await getProjectAuthContext(sql, {
+    organizationId: orgId,
+    userId: member.userId,
+    role: 'member',
+  });
+  const memberCanRead = async (projectId: string): Promise<boolean> => {
+    try {
+      await getProject(sql, memberAuth, projectId);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const lockedBefore = !(await memberCanRead(ownedByA));
+
+  // Door 1 — SCIM deleteGroup retires the scopes in its own transaction.
+  const { deleteGroup } = await import('./domains/scim/service.ts');
+  const scimDeleted = await deleteGroup(sql, orgId, teamA);
+  const scope = async (): Promise<{
+    ownedTeam: string | null;
+    ownedShared: string[];
+    sharedTeam: string | null;
+    sharedShared: string[];
+    folderTeam: string | null;
+    folderTags: string[];
+    docTeam: string | null;
+    docTags: string[];
+    convTeam: string | null;
+    syncTeam: string | null;
+  }> => {
+    const rows = await sql<
+      {
+        ownedTeam: string | null;
+        ownedShared: string[];
+        sharedTeam: string | null;
+        sharedShared: string[];
+        folderTeam: string | null;
+        folderTags: string[];
+        docTeam: string | null;
+        docTags: string[];
+        convTeam: string | null;
+        syncTeam: string | null;
+      }[]
+    >`
+      SELECT
+        (SELECT team_id FROM app.projects WHERE id = ${ownedByA}) AS "ownedTeam",
+        (SELECT shared_with_team_ids FROM app.projects WHERE id = ${ownedByA})
+          AS "ownedShared",
+        (SELECT team_id FROM app.projects WHERE id = ${sharedWithA})
+          AS "sharedTeam",
+        (SELECT shared_with_team_ids FROM app.projects WHERE id = ${sharedWithA})
+          AS "sharedShared",
+        (SELECT team_id FROM app.folders WHERE id = ${folderId}) AS "folderTeam",
+        (SELECT team_tags FROM app.folders WHERE id = ${folderId}) AS "folderTags",
+        (SELECT team_id FROM app.documents WHERE id = ${documentId}) AS "docTeam",
+        (SELECT team_tags FROM app.documents WHERE id = ${documentId})
+          AS "docTags",
+        (SELECT assignee_team_id FROM app.conversations
+          WHERE id = ${conversationId}) AS "convTeam",
+        (SELECT team_id FROM app.onedrive_sync_configs WHERE id = ${syncId})
+          AS "syncTeam"
+    `;
+    return (
+      rows[0] ?? {
+        ownedTeam: 'missing',
+        ownedShared: [],
+        sharedTeam: 'missing',
+        sharedShared: [],
+        folderTeam: 'missing',
+        folderTags: [],
+        docTeam: 'missing',
+        docTags: [],
+        convTeam: 'missing',
+        syncTeam: 'missing',
+      }
+    );
+  };
+  const afterScim = await scope();
+  const scimAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'scim_delete_group'
+      AND resource_id = ${teamA}
+  `;
+  record(
+    'teams: SCIM group delete re-homes every scope the team carried',
+    lockedBefore &&
+      scimDeleted &&
+      afterScim.ownedTeam === teamB &&
+      afterScim.ownedShared.length === 0 &&
+      afterScim.sharedTeam === teamB &&
+      afterScim.sharedShared.length === 0 &&
+      afterScim.folderTeam === teamB &&
+      afterScim.folderTags.join(',') === teamB &&
+      afterScim.docTeam === teamB &&
+      afterScim.docTags.join(',') === teamB &&
+      afterScim.convTeam === null &&
+      afterScim.syncTeam === null &&
+      scimAudit[0]?.count === '1',
+    `member locked out before=${lockedBefore} (want true), deleted=${scimDeleted}, ` +
+      `owned project team=${afterScim.ownedTeam === teamB ? 'B' : String(afterScim.ownedTeam)}/shared=${afterScim.ownedShared.length} (want B/0), ` +
+      `shared project team=${afterScim.sharedTeam === teamB ? 'B' : String(afterScim.sharedTeam)}/shared=${afterScim.sharedShared.length} (want B/0), ` +
+      `folder=${afterScim.folderTeam === teamB ? 'B' : String(afterScim.folderTeam)}[${afterScim.folderTags.length}] doc=${afterScim.docTeam === teamB ? 'B' : String(afterScim.docTeam)}[${afterScim.docTags.length}] (want B[1]), ` +
+      `conversation=${String(afterScim.convTeam)} sync=${String(afterScim.syncTeam)} (want null), audit=${scimAudit[0]?.count}`,
+  );
+
+  // Door 2 — the Better Auth endpoint the settings UI calls; its
+  // afterDeleteTeam hook retires the scopes, so the project the member
+  // could not see becomes organization-wide and readable.
+  const removeTeam = await fetch(`${base}/api/auth/organization/remove-team`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, origin: base },
+    body: JSON.stringify({ teamId: teamB, organizationId: orgId }),
+  });
+  const afterAuth = await scope();
+  const readableAfter = await memberCanRead(ownedByA);
+  record(
+    'teams: the settings door (Better Auth remove-team) frees the scoped project',
+    removeTeam.status === 200 &&
+      afterAuth.ownedTeam === null &&
+      afterAuth.ownedShared.length === 0 &&
+      afterAuth.folderTeam === null &&
+      afterAuth.folderTags.length === 0 &&
+      afterAuth.docTeam === null &&
+      afterAuth.docTags.length === 0 &&
+      readableAfter,
+    `remove-team → ${removeTeam.status} (want 200), project team=${String(afterAuth.ownedTeam)}/shared=${afterAuth.ownedShared.length} (want null/0), folder tags=${afterAuth.folderTags.length} doc tags=${afterAuth.docTags.length} (want 0), member reads project=${readableAfter} (want true)`,
+  );
+
+  // The sweep — a ghost from before the doors retired scopes (or a door
+  // that failed after its delete): retired the same way, once.
+  const ghostId = `ghost-${now}`;
+  const preExisting = await mkProject('Ghost owned, shared C', ghostId, [
+    teamC,
+  ]);
+  const { repairTeamScopes } = await import('./domains/teams/service.ts');
+  const firstSweep = await repairTeamScopes(sql);
+  const ghostRow = await sql<
+    { teamId: string | null; shared: string[]; updatedAt: number }[]
+  >`
+    SELECT team_id AS "teamId", shared_with_team_ids AS shared,
+           updated_at_ms::float8 AS "updatedAt"
+    FROM app.projects WHERE id = ${preExisting}
+  `;
+  const secondSweep = await repairTeamScopes(sql);
+  const ghostRowAfter = await sql<{ updatedAt: number }[]>`
+    SELECT updated_at_ms::float8 AS "updatedAt"
+    FROM app.projects WHERE id = ${preExisting}
+  `;
+  const sweptOurs = firstSweep.ghosts.some(
+    (g) => g.orgId === orgId && g.teamId === ghostId,
+  );
+  const sweptAgain = secondSweep.ghosts.some((g) => g.orgId === orgId);
+  record(
+    'teams: the daily sweep retires a pre-existing ghost team once',
+    sweptOurs &&
+      ghostRow[0]?.teamId === teamC &&
+      ghostRow[0]?.shared.length === 0 &&
+      !sweptAgain &&
+      ghostRowAfter[0]?.updatedAt === ghostRow[0]?.updatedAt,
+    `first sweep found ours=${sweptOurs} (ghosts=${firstSweep.ghosts.length}), project team=${ghostRow[0]?.teamId === teamC ? 'C' : String(ghostRow[0]?.teamId)}/shared=${ghostRow[0]?.shared.length} (want C/0), second sweep touches this org=${sweptAgain} (want false)`,
+  );
+}
+
+/**
  * Organization lifecycle — deletion is ONE server transaction behind the
  * legal-hold gate: a hold (org-wide or on any member), a non-owner, Better
  * Auth's own delete door and an aborted transaction all leave the
@@ -41910,6 +42852,7 @@ async function main(): Promise<void> {
   let lanes: LaneSummary | null = null;
   try {
     await checkSerializableRetry(sql);
+    await checkAuditChainConcurrentAppenders(sql);
     await checkTransactionalEnqueue(sql);
     await checkPickupLatency(sql, boss);
 
@@ -42378,6 +43321,10 @@ async function main(): Promise<void> {
       ],
       ['checkDevSeed', () => checkDevSeed(sql, auth)],
       ['checkWebTierOracles', () => checkWebTierOracles(sql, baseUrl, authCtx)],
+      [
+        'checkTeamScopeRetirement',
+        () => checkTeamScopeRetirement(sql, baseUrl, authCtx),
+      ],
       [
         'checkOrganizationLifecycle',
         () => checkOrganizationLifecycle(sql, baseUrl, orgSuffix),

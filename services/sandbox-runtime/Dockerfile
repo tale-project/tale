@@ -1,13 +1,14 @@
 # Tale Sandbox Runtime
 #
-# Two roles from ONE image (sessions plan — single-image decision):
-#   1. One-shot /v1/execute: ephemeral container per `artifact_run`, runs as
-#      uid 65534 under --read-only, all caps dropped (spawner forces these).
-#   2. Persistent session (`daemon` entrypoint dispatch): long-lived container
-#      running runnerd as PID 1, with coding agents (Claude Code, OpenCode)
-#      driven over the runnerd HTTP API. Session containers run as the `agent`
-#      user (uid 10001) — non-root is load-bearing (Claude Code refuses
-#      --dangerously-skip-permissions as root).
+# One image, two dispatches (entrypoint.sh):
+#   1. Persistent session (`daemon`): a long-lived container running runnerd
+#      under tini, with coding agents (Claude Code, OpenCode) driven over the
+#      runnerd HTTP API. Agent sessions run as the `agent` user (uid 10001) —
+#      non-root is load-bearing (Claude Code refuses
+#      --dangerously-skip-permissions as root); `default`-profile sessions
+#      (run_code, crawler renders) run as uid 65534 under --read-only with all
+#      caps dropped (the spawner forces these).
+#   2. `egress-sidecar`: the K8s transparent-egress native sidecar (redsocks).
 #
 # Layers: python:3.12-slim-bookworm + uv + Node 24 + fontconfig (Pillow) +
 # pinned claude/opencode/gh + Playwright/Chromium + ripgrep/fd/git.
@@ -38,7 +39,8 @@ ARG PILLOW_VERSION=12.3.0
 ARG TARGETARCH
 
 # Runtime additions — fontconfig + DejaVu so Pillow/matplotlib render text,
-# jq for the one-shot entrypoint, ca-certificates for HTTPS to pypi/npm via
+# jq for the hook scripts (tale-steer-hook, tale-plan-gate,
+# tale-vision-read-hook), ca-certificates for HTTPS to pypi/npm via
 # the egress proxy, bash for user `.sh` steps (Debian slim ships only dash),
 # and the coding-agent tooling: git/ripgrep/fd/curl/procps for the session
 # role, plus the Playwright system libraries (Chromium needs them to launch
@@ -82,8 +84,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # --- document conversion toolchain (Office / PDF) ---------------------------
 # Binaries the bundled document skills (configs/platform/custom/skills/*) and any agent
 # asked to read/convert .docx/.xlsx/.pptx/.pdf shell out to. These CANNOT come
-# in via the per-execution `uv pip install` path (that only provides Python
-# *libraries* into /agent/.runtime/deps/python — see entrypoint.sh install_python),
+# in via an in-session `pip install` (that only provides Python *libraries*
+# into /agent/.runtime/deps/python — see the `daemon` dispatch in entrypoint.sh),
 # so the OS-level tools must be baked here:
 #   libreoffice-writer/calc/impress — faithful Office→PDF conversion (docx,
 #       xlsx, pptx) and xlsx formula recalc via `soffice --headless`. Install
@@ -444,7 +446,7 @@ COPY services/sandbox-runtime/tale-vision-read-hook /usr/local/bin/tale-vision-r
 # analyzes images via the platform LLM gateway with the session virtual key —
 # same no-provider-key-in-container lane as tale-vision-transcribe (which stays
 # the single-image Read-hook polyfill). Pillow lives in a dedicated venv and
-# the shim runs `python -E -s` so the per-exec user deps that entrypoint.sh
+# the shim runs `python -E -s` so the per-session user deps that entrypoint.sh
 # prepends onto PYTHONPATH (/agent/.runtime/deps/python) can never shadow PIL.
 RUN python3 -m venv /opt/tale-vision \
     && /opt/tale-vision/bin/pip install --no-cache-dir "Pillow==${PILLOW_VERSION}" \

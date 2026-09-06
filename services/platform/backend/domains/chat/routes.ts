@@ -15,6 +15,10 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import {
+  registerLiveStream,
+  unregisterLiveStream,
+} from '../../realtime/sse.ts';
 import { isBackendDraining } from '../control/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
@@ -29,14 +33,16 @@ import {
   listProjectCapabilities,
 } from './composer.ts';
 import {
-  claimDeferredSendVideos,
   cancelDeferredSend,
+  cancelDeferredSendsForThread,
   enqueueDeferredSend,
   listDeferredSends,
 } from './deferred-sends.ts';
 import { getOrgChatHealth } from './health.ts';
 import {
+  deleteMemory,
   listMemories,
+  MemoryError,
   reviewMemory,
   saveMemory,
   searchApprovedMemories,
@@ -91,7 +97,6 @@ import {
   searchChats,
   setBranchSelection,
   setThreadArchived,
-  setThreadCapabilities,
   setThreadPinned,
   setThreadReasoningEffort,
   setThreadSharedWithProject,
@@ -111,19 +116,26 @@ import {
  * turns interleave on one thread.
  */
 
-const capabilitiesSchema = z.object({
-  skills: z.array(z.string().max(200)).max(50),
-  connectors: z.array(z.string().max(200)).max(50),
-});
-
 const createThreadSchema = z.object({
   title: z.string().max(200).optional(),
   projectId: z.string().max(128).optional(),
   kind: z.string().max(50).optional(),
   agentSlug: z.string().max(200).optional(),
-  harness: z.string().max(100).optional(),
-  capabilities: capabilitiesSchema.optional(),
   reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
+});
+
+// Query strings are a boundary too: `Number('abc')` is NaN, which postgres
+// serializes as the text 'NaN' — a 500 from `::bigint` / LIMIT instead of a
+// 400 — so the numeric params are coerced and bounded here. The listing's
+// own ceiling is the schema's max.
+const archivedQuerySchema = z.object({
+  cursor: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+const memorySearchQuerySchema = z.object({
+  q: z.string().max(500).optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 
 const arenaTurnSchema = z.object({
@@ -364,12 +376,6 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         ...(body.data.agentSlug !== undefined
           ? { agentSlug: body.data.agentSlug }
           : {}),
-        ...(body.data.harness !== undefined
-          ? { harness: body.data.harness }
-          : {}),
-        ...(body.data.capabilities !== undefined
-          ? { capabilities: body.data.capabilities }
-          : {}),
         ...(body.data.projectId !== undefined
           ? { projectId: body.data.projectId }
           : {}),
@@ -394,13 +400,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   app.get('/threads/archived', async (c) => {
+    const query = archivedQuerySchema.safeParse(c.req.query());
+    if (!query.success) return c.json({ error: 'invalid query' }, 400);
     const { organizationId, userId } = caller(c);
-    const cursorRaw = c.req.query('cursor');
-    const limitRaw = c.req.query('limit');
     return c.json(
       await listArchivedThreads(deps.sql, organizationId, userId, {
-        ...(cursorRaw !== undefined ? { cursor: Number(cursorRaw) } : {}),
-        ...(limitRaw !== undefined ? { limit: Number(limitRaw) } : {}),
+        ...(query.data.cursor !== undefined
+          ? { cursor: query.data.cursor }
+          : {}),
+        ...(query.data.limit !== undefined ? { limit: query.data.limit } : {}),
       }),
     );
   });
@@ -453,25 +461,6 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return status === null
       ? c.json({ error: 'thread not found' }, 404)
       : c.json(status);
-  });
-
-  app.post('/threads/:threadId/capabilities', async (c) => {
-    const body = capabilitiesSchema.safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    const { organizationId, userId } = caller(c);
-    try {
-      const ok = await setThreadCapabilities(
-        deps.sql,
-        organizationId,
-        userId,
-        c.req.param('threadId'),
-        body.data,
-      );
-      if (ok) await hintThread(c, c.req.param('threadId'));
-      return c.json({ ok });
-    } catch (error) {
-      return handleThreadError(c, error);
-    }
   });
 
   app.post('/threads/:threadId/reasoning-effort', async (c) => {
@@ -751,7 +740,17 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         },
         c.req.param('threadId'),
       );
-      if (ok) await hintThread(c, c.req.param('threadId'));
+      if (ok) {
+        // A trashed conversation takes its parked sends with it — otherwise
+        // they fire into the trash (the poll re-gates too; this cancels the
+        // media the sends were still waiting on).
+        await cancelDeferredSendsForThread(deps.sql, {
+          organizationId,
+          userId,
+          threadId: c.req.param('threadId'),
+        });
+        await hintThread(c, c.req.param('threadId'));
+      }
       return c.json({ ok });
     } catch (error) {
       return handleThreadError(c, error);
@@ -836,14 +835,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   app.get('/memories/search', async (c) => {
+    const query = memorySearchQuerySchema.safeParse(c.req.query());
+    if (!query.success) return c.json({ error: 'invalid query' }, 400);
     const { organizationId, userId } = caller(c);
-    const limitRaw = c.req.query('limit');
     return c.json({
       memories: await searchApprovedMemories(deps.sql, {
         organizationId,
         userId,
-        ...(c.req.query('q') !== undefined ? { query: c.req.query('q') } : {}),
-        ...(limitRaw !== undefined ? { limit: Number(limitRaw) } : {}),
+        ...(query.data.q !== undefined ? { query: query.data.q } : {}),
+        ...(query.data.limit !== undefined ? { limit: query.data.limit } : {}),
       }),
     });
   });
@@ -858,19 +858,29 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
-    const id = await saveMemory(deps.sql, {
-      organizationId,
-      userId,
-      email: c.get('sessionBundle').user.email,
-      content: body.data.content,
-      ...(body.data.sourceThreadId !== undefined
-        ? { sourceThreadId: body.data.sourceThreadId }
-        : {}),
-      ...(body.data.sourceMessageId !== undefined
-        ? { sourceMessageId: body.data.sourceMessageId }
-        : {}),
-    });
-    return c.json({ id }, 201);
+    try {
+      const id = await saveMemory(deps.sql, {
+        organizationId,
+        userId,
+        email: c.get('sessionBundle').user.email,
+        content: body.data.content,
+        ...(body.data.sourceThreadId !== undefined
+          ? { sourceThreadId: body.data.sourceThreadId }
+          : {}),
+        ...(body.data.sourceMessageId !== undefined
+          ? { sourceMessageId: body.data.sourceMessageId }
+          : {}),
+      });
+      return c.json({ id }, 201);
+    } catch (error) {
+      if (error instanceof MemoryError) {
+        return c.json(
+          { error: error.code, message: error.message },
+          error.status,
+        );
+      }
+      throw error;
+    }
   });
 
   app.post('/memories/:memoryId/review', async (c) => {
@@ -885,6 +895,17 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         userId,
         memoryId: c.req.param('memoryId'),
         decision: body.data.decision,
+      }),
+    });
+  });
+
+  app.delete('/memories/:memoryId', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      ok: await deleteMemory(deps.sql, {
+        organizationId,
+        userId,
+        memoryId: c.req.param('memoryId'),
       }),
     });
   });
@@ -944,20 +965,6 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           : {}),
         ...(body.data.locale !== undefined ? { locale: body.data.locale } : {}),
       });
-      // The claim releases the composer chips + stamps the row's set — an
-      // unclaimable id (foreign, bound, cancelled) is dropped, 0.4 posture.
-      if (
-        body.data.videoJobIds !== undefined &&
-        body.data.videoJobIds.length > 0
-      ) {
-        await claimDeferredSendVideos(deps.sql, {
-          organizationId,
-          userId,
-          threadId: c.req.param('threadId'),
-          deferredSendId: enqueued.deferredSendId,
-          videoJobIds: body.data.videoJobIds,
-        });
-      }
       return c.json(enqueued, 201);
     } catch (error) {
       return handleThreadError(c, error);
@@ -1392,9 +1399,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   // The per-thread progress lane. Emits `progress` while a generation row
   // exists (whenever its updated_at_ms moves) and `settled` with the final
   // message when it disappears; stays open for the thread's next turn.
-  // Polling AT the store's 250ms write throttle: pushing (the NOTIFY the
-  // store already sends) cannot beat the throttle, so a listener hub would
-  // add a connection without adding freshness.
+  // Polling AT the store's 250ms write throttle: a push (LISTEN/NOTIFY)
+  // could not beat the throttle, so a listener hub would add a connection
+  // without adding freshness. Enrolled in the shutdown drain like `/events`:
+  // the loop never ends on its own, and an open chat tab used to hold
+  // `server.close()` for the whole force deadline on every deploy.
   app.get('/threads/:threadId/stream', async (c) => {
     const { organizationId, userId } = caller(c);
     const thread = await ownedThread(
@@ -1407,6 +1416,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       return c.json({ error: 'thread not found' }, 404);
     }
     return streamSSE(c, async (stream) => {
+      registerLiveStream(stream);
       let lastSeenUpdate = 0;
       let lastSentParts: string | null = null;
       let lastMessageId: string | null = null;
@@ -1429,80 +1439,85 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       } catch (error) {
         console.warn('[chat] stream initial probe failed:', error);
       }
-      while (!stream.aborted) {
-        try {
-          const generation = await readGeneration(
-            deps.sql,
-            organizationId,
-            thread.id,
-          );
-          if (generation !== null) {
-            generating = true;
-            lastMessageId = generation.messageId ?? lastMessageId;
-            if (generation.updatedAt > lastSeenUpdate) {
-              lastSeenUpdate = generation.updatedAt;
-              // Parts ride along only when they CHANGED. Text ticks at the
-              // store's throttle while a tool result can be large (a RAG
-              // page), so resending an unchanged array four times a second
-              // would pay for the trace over and over. The client keeps the
-              // last one it saw.
-              let parts: unknown[] | null = null;
-              if (generation.messageId != null) {
-                const live = await readLiveParts(
-                  deps.sql,
-                  organizationId,
-                  generation.messageId,
-                );
-                const serialized = live === null ? null : JSON.stringify(live);
-                if (serialized !== null && serialized !== lastSentParts) {
-                  lastSentParts = serialized;
-                  parts = live;
-                }
-              }
-              await stream.writeSSE({
-                event: 'progress',
-                data: JSON.stringify({
-                  messageId: generation.messageId,
-                  text: generation.text,
-                  reasoning: generation.reasoning,
-                  cancelRequested: generation.cancelRequested,
-                  ...(parts !== null ? { parts } : {}),
-                  serverNow: Date.now(),
-                }),
-              });
-              lastBeatAt = Date.now();
-            }
-          } else if (generating) {
-            // The row's absence is the settle signal — ship the final row.
-            generating = false;
-            lastSeenUpdate = 0;
-            lastSentParts = null;
-            const messages = await listMessageViews(
+      try {
+        while (!stream.aborted) {
+          try {
+            const generation = await readGeneration(
               deps.sql,
               organizationId,
               thread.id,
             );
-            const settled =
-              lastMessageId !== null
-                ? (messages.find((row) => row.id === lastMessageId) ??
-                  messages.at(-1))
-                : messages.at(-1);
-            await stream.writeSSE({
-              event: 'settled',
-              data: JSON.stringify({ message: settled ?? null }),
-            });
-            lastBeatAt = Date.now();
-          } else if (Date.now() - lastBeatAt >= STREAM_HEARTBEAT_MS) {
-            await stream.writeSSE({ event: 'heartbeat', data: '' });
-            lastBeatAt = Date.now();
+            if (generation !== null) {
+              generating = true;
+              lastMessageId = generation.messageId ?? lastMessageId;
+              if (generation.updatedAt > lastSeenUpdate) {
+                lastSeenUpdate = generation.updatedAt;
+                // Parts ride along only when they CHANGED. Text ticks at the
+                // store's throttle while a tool result can be large (a RAG
+                // page), so resending an unchanged array four times a second
+                // would pay for the trace over and over. The client keeps the
+                // last one it saw.
+                let parts: unknown[] | null = null;
+                if (generation.messageId != null) {
+                  const live = await readLiveParts(
+                    deps.sql,
+                    organizationId,
+                    generation.messageId,
+                  );
+                  const serialized =
+                    live === null ? null : JSON.stringify(live);
+                  if (serialized !== null && serialized !== lastSentParts) {
+                    lastSentParts = serialized;
+                    parts = live;
+                  }
+                }
+                await stream.writeSSE({
+                  event: 'progress',
+                  data: JSON.stringify({
+                    messageId: generation.messageId,
+                    text: generation.text,
+                    reasoning: generation.reasoning,
+                    cancelRequested: generation.cancelRequested,
+                    ...(parts !== null ? { parts } : {}),
+                    serverNow: Date.now(),
+                  }),
+                });
+                lastBeatAt = Date.now();
+              }
+            } else if (generating) {
+              // The row's absence is the settle signal — ship the final row.
+              generating = false;
+              lastSeenUpdate = 0;
+              lastSentParts = null;
+              const messages = await listMessageViews(
+                deps.sql,
+                organizationId,
+                thread.id,
+              );
+              const settled =
+                lastMessageId !== null
+                  ? (messages.find((row) => row.id === lastMessageId) ??
+                    messages.at(-1))
+                  : messages.at(-1);
+              await stream.writeSSE({
+                event: 'settled',
+                data: JSON.stringify({ message: settled ?? null }),
+              });
+              lastBeatAt = Date.now();
+            } else if (Date.now() - lastBeatAt >= STREAM_HEARTBEAT_MS) {
+              await stream.writeSSE({ event: 'heartbeat', data: '' });
+              lastBeatAt = Date.now();
+            }
+          } catch (error) {
+            if (stream.aborted) break;
+            console.error('[chat] stream poll failed, backing off:', error);
+            await stream.sleep(1000);
+            continue;
           }
-        } catch (error) {
-          if (stream.aborted) break;
-          console.error('[chat] stream poll failed, backing off:', error);
-          await stream.sleep(1000);
-          continue;
+          await stream.sleep(STREAM_POLL_MS);
         }
-        await stream.sleep(STREAM_POLL_MS);
+      } finally {
+        unregisterLiveStream(stream);
       }
     });
   });

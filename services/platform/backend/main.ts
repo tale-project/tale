@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server';
 import { PatternRegistry } from '../lib/pii';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { closeKnowledgePools } from './core/knowledge/pool.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import {
@@ -166,7 +167,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     console.log(`[backend] ${signal} received — shutting down`);
     if (server) {
-      // Ends the never-ending /events SSE streams first and force-closes
+      // Ends the never-ending SSE streams first and force-closes
       // stragglers on a deadline — a bare server.close() waits for every
       // open connection, so one connected browser used to park shutdown
       // here until the orchestrator's SIGKILL, never reaching the graceful
@@ -175,6 +176,9 @@ async function main(): Promise<void> {
     }
     // Graceful: in-flight jobs finish before the instance stops.
     await boss.stop({ graceful: true });
+    // The knowledge pools outlive the jobs and requests that used them —
+    // drain them here rather than leaving their sockets to process.exit.
+    await closeKnowledgePools();
     await sql.end({ timeout: 5 });
     await flushErrorReporting();
     process.exit(0);

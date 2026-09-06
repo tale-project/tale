@@ -3931,7 +3931,7 @@ governance:
       forbidden: Du hast keine Berechtigung dafür.
       validation: Prüf die Formularfelder.
       notFound: Nicht gefunden.
-      alreadyPending: Für diese Person läuft bereits eine Löschungsanfrage.
+      alreadyPending: Für diese Person ist bereits eine Löschungsanfrage offen — ausstehend, laufend, durch einen Legal Hold blockiert oder teilweise ausgeführt. Wiederhole sie (oder storniere sie, solange sie noch aussteht), statt neu einzureichen.
       legalHoldBlocked: Ein aktiver Legal Hold bewahrt die Daten dieser Person.
       notRetriable: Diese Anfrage befindet sich nicht in einem wiederholbaren Zustand.
       notExtendable: Diese Anfrage ist in einem Endzustand und kann nicht verlängert werden.
@@ -4357,9 +4357,6 @@ notificationPreferences:
       label: Agenten-Eskalationen
       description: Wenn ein Agent dir eine Frage stellt oder eine Aufgabe an
         einen Menschen eskaliert.
-    automationAlerts:
-      label: Automatisierungs-Warnungen
-      description: Fehler, Budget-Warnungen und offline gegangene Runtimes.
     conversationMessages:
       label: Konversationsnachrichten
       description: Wenn eine Kontaktnachricht in Konversationen ankommt.
@@ -4474,14 +4471,23 @@ personalization:
       empty:
         Erinnerungen erscheinen hier, nachdem der Assistent sie vorgeschlagen hat
         und du sie speicherst.
+      delete: Löschen
+      deleteLabel: "Erinnerung löschen: {content}"
     pending:
       title: Ausstehende Vorschläge
       empty: Keine ausstehenden Vorschläge.
+      save: Speichern
+      saveLabel: "Vorschlag speichern: {content}"
+      discard: Verwerfen
+      discardLabel: "Vorschlag verwerfen: {content}"
   errors:
     saveFailed: Speichern fehlgeschlagen. Versuch es nochmal.
     tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.
   toasts:
     preferencesUpdated: Einstellungen aktualisiert.
+    memorySaved: Erinnerung gespeichert.
+    memoryDiscarded: Vorschlag verworfen.
+    memoryDeleted: Erinnerung gelöscht.
 piiConfigPanel:
   modeLabel: Modus
   modeTokenize: Tokenisieren

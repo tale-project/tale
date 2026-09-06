@@ -70,16 +70,15 @@ export async function ensureCacheVolume(name: string): Promise<void> {
 }
 
 async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
-  const inspect = await runDocker(['volume', 'inspect', name]);
+  const inspect = await runDocker(['volume', 'inspect', name], {
+    timeoutMs: 15_000,
+  });
   if (inspect.exitCode === 0) return; // already exists, already chowned
 
-  const create = await runDocker([
-    'volume',
-    'create',
-    '--label',
-    'tale.sandbox-cache=1',
-    name,
-  ]);
+  const create = await runDocker(
+    ['volume', 'create', '--label', 'tale.sandbox-cache=1', name],
+    { timeoutMs: 15_000 },
+  );
   if (create.exitCode !== 0) {
     // `volume create` is racey across processes/restarts: if another caller
     // (or a prior boot) created the volume between our inspect and our
@@ -97,20 +96,26 @@ async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
   // 1777 (sticky world-writable) rather than a chown because the per-org
   // volume is shared by the one-shot uid 65534 and the agent-session uid 10001;
   // chowning to one would lock out the other.
-  const perms = await runDocker([
-    'run',
-    '--rm',
-    '--user',
-    '0:0',
-    '--label',
-    'tale.sandbox-staging=1',
-    '--mount',
-    `type=volume,src=${name},dst=/cache`,
-    'busybox:1.36',
-    'chmod',
-    '1777',
-    '/cache',
-  ]);
+  const perms = await runDocker(
+    [
+      'run',
+      '--rm',
+      '--user',
+      '0:0',
+      '--label',
+      'tale.sandbox-staging=1',
+      '--mount',
+      `type=volume,src=${name},dst=/cache`,
+      'busybox:1.36',
+      'chmod',
+      '1777',
+      '/cache',
+    ],
+    {
+      // Pulls busybox on first use; a generous bound, not a routine wait.
+      timeoutMs: 120_000,
+    },
+  );
   if (perms.exitCode !== 0) {
     throw new Error(
       `volume: failed to set perms on cache volume ${name}: ${perms.stderr.trim()}`,

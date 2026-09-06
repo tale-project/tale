@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -28,6 +29,7 @@ vi.mock('../folders/paths.ts', async (importOriginal) => ({
 const { reconcileDocumentScopeStamps } = await import('./service.ts');
 
 interface DocRow {
+  id: string;
   fileRef: string;
   teamId: string | null;
   teamTags: string[];
@@ -36,9 +38,39 @@ interface DocRow {
   folderPath: string | null;
 }
 
-/** `sql` is only ever the document read here. */
-function fakeSql(rows: DocRow[]) {
-  return (() => Promise.resolve(rows)) as never;
+/**
+ * `sql` is only ever the document read here — answered the way the keyset
+ * page reads it: the rows after the `afterId` parameter in id order, at most
+ * the `LIMIT` parameter of them. The parameters are the tagged template's
+ * values, in the order the statement binds them.
+ */
+interface PageRead {
+  afterId: string | null;
+  limit: number;
+}
+
+function fakeSql(rows: DocRow[]): Sql & { reads: PageRead[] } {
+  const reads: PageRead[] = [];
+  const sql = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    // `strings[i]` precedes `values[i]`: the cursor is the value right
+    // before the `::text IS NULL` guard, the page size is the LIMIT value.
+    const guard = strings.findIndex((part) => part.includes('::text IS NULL'));
+    const afterId = values[guard - 1];
+    const limit = values.at(-1);
+    reads.push({
+      afterId: typeof afterId === 'string' ? afterId : null,
+      limit: typeof limit === 'number' ? limit : Number.NaN,
+    });
+    const sorted = [...rows].sort((a, b) => (a.id < b.id ? -1 : 1));
+    const page = sorted
+      .filter((row) => typeof afterId !== 'string' || row.id > afterId)
+      .slice(0, typeof limit === 'number' ? limit : rows.length);
+    return Promise.resolve(page);
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reconcile only ever issues this one tagged read
+  return Object.assign(sql, { reads }) as unknown as Sql & {
+    reads: PageRead[];
+  };
 }
 
 /** What postgres.js's `sql.json()` hands back: a typed parameter. */
@@ -69,6 +101,7 @@ function payloadOf(sent: unknown[][]) {
 }
 
 const doc = (over: Partial<DocRow> = {}): DocRow => ({
+  id: 'doc-1',
   fileRef: 'blob:f1',
   teamId: null,
   teamTags: [],
@@ -105,8 +138,8 @@ describe('reconcileDocumentScopeStamps', () => {
     const out = await reconcileDocumentScopeStamps(
       fakeSql([
         doc(),
-        doc({ fileRef: 'blob:f2' }),
-        doc({ fileRef: 'blob:f3' }),
+        doc({ id: 'doc-2', fileRef: 'blob:f2' }),
+        doc({ id: 'doc-3', fileRef: 'blob:f3' }),
       ]),
       { organizationId: 'org-1', orgSlug: 'acme' },
     );
@@ -226,6 +259,63 @@ describe('reconcileDocumentScopeStamps', () => {
     );
 
     expect(payloadOf(sent)[0]?.folder_path).toBeNull();
+  });
+
+  it('walks the whole corpus in keyset pages, not a fixed first page', async () => {
+    // Seven live documents, pages of three: a fixed `LIMIT` with no cursor
+    // re-checked the same three every run and never reached the other four,
+    // so their drift was never corrected — and the report under-counted.
+    const rows = Array.from({ length: 7 }, (_, index) =>
+      doc({ id: `doc-${index + 1}`, fileRef: `blob:f${index + 1}` }),
+    );
+    const sql = fakeSql(rows);
+    const { pool, sent } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    const out = await reconcileDocumentScopeStamps(sql, {
+      organizationId: 'org-1',
+      orgSlug: 'acme',
+      limit: 3,
+    });
+
+    // Every document was compared exactly once, across three pages.
+    expect(out).toEqual({ scanned: 7, corrected: 3 });
+    expect(sent.flatMap((params) => payloadOf([params]))).toHaveLength(7);
+    expect(
+      sent.flatMap((params) => payloadOf([params]).map((row) => row.file_id)),
+    ).toEqual(rows.map((row) => row.fileRef));
+    // Each read starts after the previous page's last id; the walk stops on
+    // the first short page rather than issuing an empty fourth read.
+    expect(sql.reads).toEqual([
+      { afterId: null, limit: 3 },
+      { afterId: 'doc-3', limit: 3 },
+      { afterId: 'doc-6', limit: 3 },
+    ]);
+  });
+
+  it('issues one more read when the corpus ends exactly on a page boundary', async () => {
+    const rows = Array.from({ length: 6 }, (_, index) =>
+      doc({ id: `doc-${index + 1}`, fileRef: `blob:f${index + 1}` }),
+    );
+    const sql = fakeSql(rows);
+    const { pool, sent } = fakePool(0);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    const out = await reconcileDocumentScopeStamps(sql, {
+      organizationId: 'org-1',
+      orgSlug: 'acme',
+      limit: 3,
+    });
+
+    // A full last page cannot know it is last; the empty read after it is
+    // what ends the walk — and it must not reach the corpus.
+    expect(out).toEqual({ scanned: 6, corrected: 0 });
+    expect(sent).toHaveLength(2);
+    expect(sql.reads.map((read) => read.afterId)).toEqual([
+      null,
+      'doc-3',
+      'doc-6',
+    ]);
   });
 
   it('sends the org slug the corpus rows are keyed by', async () => {

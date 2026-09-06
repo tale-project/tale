@@ -1,5 +1,5 @@
 /**
- * ONE write path for personal notifications, with collapse.
+ * The COLLAPSE identity for personal notifications.
  *
  * A person cares about the CURRENT state of a thing, not about every keystroke
  * that produced it. Assigning someone, unassigning them, and assigning them
@@ -11,21 +11,15 @@
  * place. Content-bearing rows (a comment, a mention) never collapse: each says
  * something different, and collapsing would lose it.
  *
- * The email rides the same rule. It is scheduled with a short delay instead of
- * `runAfter(0)`, and a rewrite cancels the pending job before scheduling the
- * next one — so a flurry inside the window sends at most one email, and that
- * email renders from the row as it stands when it finally fires (see
- * `notifications/email_notification.ts`). An event that UNDOES an unread one
- * (unassigned right after assigned) deletes the row and cancels the job: the
- * person was never told, and there is now nothing true left to tell them.
- *
- * Read rows are never touched — once someone has seen a notification it is part
- * of their history, so the next event starts a fresh row.
+ * This module is the pure half: the key. The write path that applies it (the
+ * rewrite-in-place, the `undoes` drop, the debounced email through the
+ * `notification.email` job with its epoch fence) is
+ * `domains/collab/service.ts` (`writeCoalescedNotification`) and the sink is
+ * `domains/collab/email-sink.ts`. Read rows are never touched — once someone
+ * has seen a notification it is part of their history, so the next event
+ * starts a fresh row.
  */
 
-import { isActionableNotificationType } from '../../../lib/shared/attention';
-import type { MutationCtx } from '../lib/ctx';
-import { internal } from '../lib/handler_names';
 import type { Doc, Id } from '../lib/rows';
 import type { NotificationType } from './types';
 
@@ -38,10 +32,6 @@ type ResourceType = Doc<'userNotifications'>['resourceType'];
  * desk.
  */
 export const NOTIFICATION_EMAIL_DEBOUNCE_MS = 60_000;
-
-/** How far back the collapse looks for its unread twin. Matches the scan bound
- *  the automation dedupe already used, so the read cost is unchanged. */
-const UNREAD_SCAN_CAP = 100;
 
 /**
  * The state a notification type talks about. Types sharing a dimension for the
@@ -67,8 +57,7 @@ const DIMENSION: Partial<Record<NotificationType, string>> = {
   // second card next to it.
   agent_escalation: 'question',
   // Deliberately absent — each carries its own content, so each is its own row:
-  // mention, task_commented, conversation_message, automation_failed,
-  // budget_alert, runtime_offline.
+  // mention, task_commented, conversation_message.
 };
 
 /**
@@ -112,127 +101,4 @@ function coalesceSubject(args: {
   // A dimension we can't tie to a subject would collapse unrelated rows
   // together, so it collapses nothing instead.
   return null;
-}
-
-export interface CoalescedNotification {
-  userId: string;
-  organizationId: string;
-  type: NotificationType;
-  titleKey: string;
-  bodyKey: string;
-  params?: Record<string, unknown>;
-  resourceType: ResourceType;
-  resourceId: string;
-  taskId?: Id<'tasks'>;
-  actorType: 'user' | 'agent' | 'system';
-  actorId?: string;
-  /**
-   * This event UNDOES its dimension rather than updating it (an unassignment
-   * after an assignment). If the row it would replace is still unread, both are
-   * dropped: nobody was told, so there is nothing to correct.
-   */
-  undoes?: boolean;
-}
-
-export type CoalesceOutcome =
-  | { kind: 'inserted'; notificationId: Id<'userNotifications'> }
-  | { kind: 'rewritten'; notificationId: Id<'userNotifications'> }
-  | { kind: 'cancelled' };
-
-/**
- * Write (or rewrite, or cancel) one notification and (re)schedule its email.
- * Callers own the preference gate — this is the mechanics of one row, not the
- * decision to notify.
- */
-export async function writeCoalescedNotification(
-  ctx: MutationCtx,
-  args: CoalescedNotification,
-): Promise<CoalesceOutcome> {
-  const key = coalesceKeyFor(args);
-  const existing = key === null ? null : await findUnreadTwin(ctx, args, key);
-
-  if (existing !== null && args.undoes === true) {
-    await cancelEmail(ctx, existing.emailJobId);
-    await ctx.db.delete(existing._id);
-    return { kind: 'cancelled' };
-  }
-
-  const row = {
-    userId: args.userId,
-    organizationId: args.organizationId,
-    type: args.type,
-    titleKey: args.titleKey,
-    bodyKey: args.bodyKey,
-    params: args.params,
-    resourceType: args.resourceType,
-    resourceId: args.resourceId,
-    taskId: args.taskId,
-    actorType: args.actorType,
-    actorId: args.actorId,
-    read: false,
-    createdAt: Date.now(),
-    ...(key !== null ? { coalesceKey: key } : {}),
-  };
-
-  if (existing !== null) {
-    // Rewrite in place: same row, current truth, and the pending email is
-    // replaced rather than joined by a second one. `createdAt` moves so the
-    // bell re-sorts to the top — this IS news, just not a second item.
-    await cancelEmail(ctx, existing.emailJobId);
-    await ctx.db.patch(existing._id, { ...row, emailJobId: undefined });
-    await scheduleEmail(ctx, existing._id, args);
-    return { kind: 'rewritten', notificationId: existing._id };
-  }
-
-  const notificationId = await ctx.db.insert('userNotifications', row);
-  await scheduleEmail(ctx, notificationId, args);
-  return { kind: 'inserted', notificationId };
-}
-
-/** The newest UNREAD row for this recipient sharing the collapse key. */
-async function findUnreadTwin(
-  ctx: MutationCtx,
-  args: Pick<CoalescedNotification, 'userId' | 'organizationId'>,
-  key: string,
-): Promise<Doc<'userNotifications'> | null> {
-  const recent = await ctx.db
-    .query('userNotifications')
-    .withIndex('by_user_org_read', (q) =>
-      q
-        .eq('userId', args.userId)
-        .eq('organizationId', args.organizationId)
-        .eq('read', false),
-    )
-    .order('desc')
-    .take(UNREAD_SCAN_CAP);
-  return recent.find((row) => row.coalesceKey === key) ?? null;
-}
-
-/**
- * Hand the row to the email sink after the debounce window, and remember the
- * job so a rewrite can cancel it. Non-actionable types never email, so they get
- * no job at all.
- */
-async function scheduleEmail(
-  ctx: MutationCtx,
-  notificationId: Id<'userNotifications'>,
-  args: CoalescedNotification,
-): Promise<void> {
-  if (!isActionableNotificationType(args.type)) return;
-  const emailJobId = await ctx.scheduler.runAfter(
-    NOTIFICATION_EMAIL_DEBOUNCE_MS,
-    internal.notifications.email_notification.deliverActionableEmailAction,
-    { notificationId },
-  );
-  await ctx.db.patch(notificationId, { emailJobId });
-}
-
-/** Cancelling an already-run job is a documented no-op, so this needs no guard
- *  beyond "was one scheduled". */
-async function cancelEmail(
-  ctx: MutationCtx,
-  emailJobId: Id<'_scheduled_functions'> | undefined,
-): Promise<void> {
-  if (emailJobId === undefined) return;
-  await ctx.scheduler.cancel(emailJobId);
 }

@@ -20,6 +20,10 @@ import {
 } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
+import {
+  markEntryChainDeletedForDocument,
+  markEntryChainsDeletedForDocuments,
+} from '../knowledge_entries/service.ts';
 import { loadActiveHolds, type ActiveHolds } from '../legal_holds/service.ts';
 import { cascadeDeleteThreadTtsChunks } from '../tts/service.ts';
 
@@ -454,10 +458,7 @@ export async function purgeDocument(
     }
   }
   await sql.begin(async (tx) => {
-    await tx`
-      UPDATE app.knowledge_entries SET deleted_at_ms = ${Date.now()}
-      WHERE document_id = ${doc.id} AND deleted_at_ms IS NULL
-    `;
+    await markEntryChainDeletedForDocument(tx, doc.organizationId, doc.id);
     await tx`
       DELETE FROM app.file_metadata WHERE document_id = ${doc.id}
     `;
@@ -494,22 +495,33 @@ async function sweepDocuments(
   // document's age is its creation — or its last lifecycle change, when a
   // restore from the Trash stamped one: a restore restarts the retention
   // clock, or the very next sweep re-expires the row the admin just brought
-  // back (and, with no grace, hard-deletes it outright).
+  // back (and, with no grace, hard-deletes it outright). The flip is a door
+  // that hides a document, so it retires the knowledge-entry chain the
+  // document backs in the same transaction — an expired document's corpus
+  // rows go dark at once, and an entry must never stay listed, counted and
+  // served to the agent leg for the whole grace window while they are.
   if (graceDays > 0) {
-    const flipped = await sql<{ id: string }[]>`
-      UPDATE app.documents SET
-        lifecycle_status = 'expired', status_changed_at_ms = ${Date.now()}
-      WHERE id IN (
-        SELECT id FROM app.documents
-        WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
-          AND GREATEST(created_at_ms, coalesce(status_changed_at_ms, 0))
-              < ${cutoff}
-          AND ${custodianFree}
-        LIMIT ${BATCH_LIMIT}
-      )
-      RETURNING id
-    `;
-    processed += flipped.length;
+    processed += await sql.begin(async (tx) => {
+      const flipped = await tx<{ id: string }[]>`
+        UPDATE app.documents SET
+          lifecycle_status = 'expired', status_changed_at_ms = ${Date.now()}
+        WHERE id IN (
+          SELECT id FROM app.documents
+          WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
+            AND GREATEST(created_at_ms, coalesce(status_changed_at_ms, 0))
+                < ${cutoff}
+            AND ${custodianFree}
+          LIMIT ${BATCH_LIMIT}
+        )
+        RETURNING id
+      `;
+      await markEntryChainsDeletedForDocuments(
+        tx,
+        org.organizationId,
+        flipped.map((row) => row.id),
+      );
+      return flipped.length;
+    });
   }
 
   // Pass B: hard-delete rows whose grace elapsed (or, no grace, active
@@ -958,8 +970,10 @@ export async function auditLogRetentionCutoff(
  * Audit logs are PREFIX-ONLY: the hash chain anchors on the oldest
  * remaining row's stored `previous_hash`, so a mid-chain hole would break
  * verification. The walk deletes oldest-first and STOPS at the first row
- * inside the window that must be preserved (a custodian-held actor) — the
- * spoliation duty wins over the retention window.
+ * inside the window that must be preserved — a custodian-held user's row,
+ * whether they ACTED (actor) or were acted UPON (`resource_type = 'user'`,
+ * the same two-sided definition the erasure scrub uses for a subject's
+ * rows) — the spoliation duty wins over the retention window.
  */
 async function sweepAuditLogs(
   sql: Sql,
@@ -971,9 +985,16 @@ async function sweepAuditLogs(
   // Refuse to delete the very table that records why the hold exists.
   if (holds.orgHeld) return 0;
   const candidates = await sql<
-    { id: string; actorId: string | null; ts: number }[]
+    {
+      id: string;
+      actorId: string | null;
+      resourceType: string;
+      resourceId: string | null;
+      ts: number;
+    }[]
   >`
-    SELECT id, actor_id AS "actorId", ts::float8 AS ts
+    SELECT id, actor_id AS "actorId", resource_type AS "resourceType",
+           resource_id AS "resourceId", ts::float8 AS ts
     FROM app.audit_logs
     WHERE org_id = ${org.organizationId} AND ts < ${cutoff}
     ORDER BY ts ASC, id ASC
@@ -981,7 +1002,13 @@ async function sweepAuditLogs(
   `;
   const prefix: string[] = [];
   for (const row of candidates) {
-    if (row.actorId !== null && holds.userMembershipIds.has(row.actorId)) {
+    const heldActor =
+      row.actorId !== null && holds.userMembershipIds.has(row.actorId);
+    const heldSubject =
+      row.resourceType === 'user' &&
+      row.resourceId !== null &&
+      holds.userMembershipIds.has(row.resourceId);
+    if (heldActor || heldSubject) {
       break; // preserve from here on — no mid-chain holes
     }
     prefix.push(row.id);

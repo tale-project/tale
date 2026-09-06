@@ -31,10 +31,11 @@ export default {
     // source of truth; `daemon/src/protocol.ts` is a hand-kept byte-mirror (the
     // daemon is bundled into the runtime image and cannot import across the
     // service boundary). Each side consumes a different subset of the shared
-    // contract, so knip sees the members used only by the *other* side as dead
-    // — but they are the cross-service contract and must stay in sync. Exclude
-    // both from the dead-export sweep so the mirror stays complete.
-    'services/sandbox/src/session/runnerd-protocol.ts',
+    // contract, so knip would see the members used only by the *other* side as
+    // dead — but they are the cross-service contract and must stay in sync.
+    // The canonical copy is anchored by runnerd-protocol.test.ts (which
+    // imports both copies whole and pins them equal); the mirror stays
+    // excluded so its spawner-only members are not reported as dead.
     'services/sandbox-runtime/daemon/src/protocol.ts',
     // Written by `optimize-images` for future responsive marketing assets;
     // empty until sources land, but the generator always emits the file.
@@ -67,6 +68,10 @@ export default {
         // launched by playwright's webServer (`bun lib/mocks/start.ts`), not
         // imported, so knip can't auto-detect it. It anchors gateway/registry.
         'lib/mocks/start.ts',
+        // The node-vm CodeRunner's evaluation loop: `runners/node-vm.ts` forks
+        // it as a child process (a heap-capped fault boundary), so nothing
+        // imports it.
+        'lib/engine/runners/node-vm-child.ts',
         // Playwright specs. The config now builds via the shared
         // `createPlaywrightConfig` factory (@tale/e2e), so knip's playwright
         // plugin can't statically read testDir/testMatch — declare them here.
@@ -111,7 +116,6 @@ export default {
         // (real skill/agent/automation sources with their own tests). Following
         // them would read those files as platform project files.
         'tests/e2e/fixtures/config/**',
-        'lib/knowledge/**',
         'lib/pii/**',
         'lib/connectors/natives/**',
         // Shared contract layer: types declared for the parked consumers

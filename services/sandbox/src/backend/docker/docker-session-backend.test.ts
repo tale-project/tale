@@ -78,17 +78,23 @@ describe('isReapableContainerStatus', () => {
 // ---------------------------------------------------------------------------
 
 const FAKE_DOCKER = `#!/usr/bin/env bash
-# Fake docker CLI for tests. Reads three lines from ./mode next to this script:
+# Fake docker CLI for tests. Reads four lines from ./mode next to this script:
 #   line 1: 1 when the container exists, else 0
 #   line 2: rm outcome — ok | nosuch | busy
 #   line 3: comma-separated session ids \`docker ps\` lists (may be empty)
+#   line 4: ps outcome — ok | fail (a daemon hiccup: non-zero exit + stderr)
 here="$(cd "$(dirname "$0")" && pwd)"
 present="$(sed -n 1p "$here/mode")"
 rm_mode="$(sed -n 2p "$here/mode")"
 listed="$(sed -n 3p "$here/mode")"
+ps_mode="$(sed -n 4p "$here/mode")"
 cmd="$1"; shift
 case "$cmd" in
   ps)
+    if [ "$ps_mode" = "fail" ]; then
+      echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock" >&2
+      exit 1
+    fi
     IFS=',' read -ra ids <<< "$listed"
     for id in "\${ids[@]}"; do
       [ -n "$id" ] && printf '%s\torg_fake\tagent\t1700000000000\trunning\n' "$id"
@@ -134,10 +140,11 @@ async function fakeDocker(scenario: {
   present: boolean;
   rm: 'ok' | 'nosuch' | 'busy';
   listed?: string[];
+  ps?: 'ok' | 'fail';
 }): Promise<void> {
   await writeFile(
     join(fakeRoot, 'mode'),
-    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n`,
+    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n`,
   );
 }
 
@@ -184,11 +191,8 @@ function backendConfig(): SpawnerConfig {
     k8s: {
       namespace: 'tale-sandbox',
       runtimeClassName: null,
-      spawnerImage: 'tale-sandbox:test',
-      cacheMode: 'none',
       workspaceSizeLimit: '4Gi',
     },
-    defaultTimeoutMs: 30_000,
     maxTimeoutMs: 300_000,
     hostSessionRoot,
     cacheVolumePrefix: { pip: 'pip', npm: 'npm', bun: 'bun' },
@@ -196,8 +200,6 @@ function backendConfig(): SpawnerConfig {
     egressProxy: 'http://sandbox-egress:3128',
     stdoutMaxBytes: 5_242_880,
     stderrMaxBytes: 5_242_880,
-    outputFileMaxBytes: 52_428_800,
-    outputTotalMaxBytes: 104_857_600,
     maxRequestBodyBytes: 262_144,
     session: TEST_SESSION_CONFIG,
   };
@@ -246,6 +248,39 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     expect(err?.message).toMatch(/docker rm tale-sbx-ses-destroy-busy failed/);
     // A container that may still be running keeps its bind-mounted data.
     expect(await exists(join(workspace, 'keep.txt'))).toBe(true);
+  });
+
+  test('destroySession THROWS when the workspace cannot be deleted (never a laundered destroyed:true)', async () => {
+    // The container half is already gone (idempotent); the data half fails —
+    // EACCES on a read-only parent. Before the fix this was warn + resolve,
+    // so the route answered destroyed:true while the user's data lived on.
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    const workspace = join(hostSessionRoot, 'ses-destroy-eacces');
+    await mkdir(join(workspace, 'sub'), { recursive: true });
+    await writeFile(join(workspace, 'sub', 'keep.txt'), 'user data');
+    await chmod(join(workspace, 'sub'), 0o555);
+    try {
+      const backend = new DockerSessionBackend(backendConfig());
+      const err = await rejection(backend.destroySession('destroy-eacces'));
+      expect(err?.message).toMatch(
+        /destroy destroy-eacces: container removed but workspace .* could not be deleted/,
+      );
+      expect(await exists(join(workspace, 'sub', 'keep.txt'))).toBe(true);
+    } finally {
+      await chmod(join(workspace, 'sub'), 0o755);
+    }
+  });
+});
+
+describe('DockerSessionBackend.listSessions', () => {
+  test('THROWS on a failed `docker ps` instead of reporting "no sessions"', async () => {
+    // A daemon blip laundered into [] would leave every running session
+    // unregistered (unroutable, never reaped) until the next successful list.
+    await fakeDocker({ present: true, rm: 'ok', listed: ['a'], ps: 'fail' });
+    const backend = new DockerSessionBackend(backendConfig());
+    const err = await rejection(backend.listSessions());
+    expect(err?.message).toMatch(/docker ps \(sessions\) failed \(exit 1\)/);
+    expect(err?.message).toMatch(/Cannot connect to the Docker daemon/);
   });
 });
 

@@ -4005,7 +4005,7 @@ governance:
       forbidden: Tu n'as pas la permission.
       validation: Vérifie les champs du formulaire.
       notFound: Introuvable.
-      alreadyPending: Une demande d'effacement est déjà en cours pour cette personne.
+      alreadyPending: Une demande d'effacement est déjà ouverte pour cette personne — en attente, en cours, bloquée par une rétention légale ou partiellement exécutée. Relance-la (ou annule-la tant qu'elle est encore en attente) au lieu d'en déposer une nouvelle.
       legalHoldBlocked: Une rétention légale active préserve les données de cette personne.
       notRetriable: Cette demande n'est pas dans un état qui permet une nouvelle tentative.
       notExtendable: Cette demande est dans un état terminal et ne peut pas être prolongée.
@@ -4435,9 +4435,6 @@ notificationPreferences:
       label: Escalades d'agent
       description: Quand un agent te pose une question ou escalade une tâche
         vers un humain.
-    automationAlerts:
-      label: Alertes d'automatisation
-      description: Échecs, avertissements de budget et runtimes hors ligne.
     conversationMessages:
       label: Messages de conversation
       description: Quand un message d'un contact arrive dans Conversations.
@@ -4562,14 +4559,23 @@ personalization:
       empty:
         Les souvenirs apparaissent ici après que l'assistant en propose et que tu
         les enregistres.
+      delete: Supprimer
+      deleteLabel: "Supprimer le souvenir : {content}"
     pending:
       title: Suggestions en attente
       empty: Aucune suggestion en attente.
+      save: Enregistrer
+      saveLabel: "Enregistrer la suggestion : {content}"
+      discard: Écarter
+      discardLabel: "Écarter la suggestion : {content}"
   errors:
     saveFailed: Échec de l'enregistrement. Réessaie.
     tooLong: Les instructions personnalisées dépassent {max} caractères.
   toasts:
     preferencesUpdated: Préférences mises à jour.
+    memorySaved: Souvenir enregistré.
+    memoryDiscarded: Suggestion écartée.
+    memoryDeleted: Souvenir supprimé.
 piiConfigPanel:
   modeLabel: Mode
   modeTokenize: Tokeniser

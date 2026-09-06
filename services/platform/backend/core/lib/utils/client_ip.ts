@@ -3,9 +3,6 @@ import { isIPv4 } from 'node:net';
 
 import proxyaddr from 'proxy-addr';
 
-import type { ActionCtx, MutationCtx } from '../ctx';
-import { internal } from '../handler_names';
-
 /** The peer stood in for callers that cannot see the TCP socket. */
 const SYNTHETIC_LOOPBACK_PEER = '127.0.0.1';
 
@@ -95,18 +92,4 @@ export function nodePeerAddress(env: unknown): string | undefined {
   if (socket === null || typeof socket !== 'object') return undefined;
   const address: unknown = Reflect.get(socket, 'remoteAddress');
   return typeof address === 'string' && address !== '' ? address : undefined;
-}
-
-/**
- * Load the trusted-proxy list from the `default` org's login policy,
- * falling back to the built-in defaults. Deployments self-configure
- * this from Settings → Governance → Login policy; there is no env var.
- */
-export async function loadTrustedProxies(
-  ctx: MutationCtx | ActionCtx,
-): Promise<string[]> {
-  return ctx.runQuery(
-    internal.login_attempts.internal_queries.getTrustedProxies,
-    {},
-  );
 }

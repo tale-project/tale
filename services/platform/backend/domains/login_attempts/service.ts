@@ -25,6 +25,11 @@ import { writeNotificationForOrgs } from '../notifications/service.ts';
  * Every entry point takes a transaction: the auth hooks wrap each call in
  * `transactSerializable`, so counter update + audit rows + lockout
  * notification commit atomically.
+ *
+ * Every entry point keys `app.login_attempts` by the CANONICAL address
+ * (`normalizeAuthEmail`: lowercase + trim) — the same form the user row is
+ * matched by — so a padded or differently-cased address can never open a
+ * second counter beside the real account's, or clear the wrong one.
  */
 
 async function findUserByEmail(
@@ -74,7 +79,7 @@ export async function recordFailure(
   tx: TransactionSql,
   args: { email: string; ip?: string; userAgent?: string },
 ): Promise<RecordFailureResult> {
-  const email = args.email.toLowerCase();
+  const email = normalizeAuthEmail(args.email);
   const user = await findUserByEmail(tx, email);
   if (!user) {
     return { locked: false, lockedUntil: null };
@@ -211,7 +216,7 @@ export async function recordBlocked(
   tx: TransactionSql,
   args: { email: string; ip?: string },
 ): Promise<void> {
-  const email = args.email.toLowerCase();
+  const email = normalizeAuthEmail(args.email);
   const user = await findUserByEmail(tx, email);
   if (!user) {
     return;
@@ -246,7 +251,7 @@ export async function clearOnSuccess(
   tx: TransactionSql,
   args: { email: string; ip?: string; userAgent?: string },
 ): Promise<void> {
-  const email = args.email.toLowerCase();
+  const email = normalizeAuthEmail(args.email);
   await tx`DELETE FROM app.login_attempts WHERE email = ${email}`;
 
   const user = await findUserByEmail(tx, email);
@@ -289,7 +294,7 @@ export async function getLockState(
 ): Promise<{ lockedUntil: number | null }> {
   const rows = await sql<{ lockedUntil: number | null }[]>`
     SELECT locked_until::float8 AS "lockedUntil"
-    FROM app.login_attempts WHERE email = ${email.toLowerCase()}
+    FROM app.login_attempts WHERE email = ${normalizeAuthEmail(email)}
   `;
   return { lockedUntil: rows[0]?.lockedUntil ?? null };
 }
