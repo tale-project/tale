@@ -7,6 +7,8 @@ export interface FileMetadataResult {
     hash?: string;
     mimeType?: string;
     size?: number;
+    /** Drive `modifiedTime`, ms — the hash-less change key. */
+    modifiedAt?: number;
   };
   error?: string;
   /** Drive answered 404, or the item sits in the trash — it is gone at the
@@ -21,7 +23,7 @@ export async function getFileMetadata(
 ): Promise<FileMetadataResult> {
   try {
     const params = new URLSearchParams({
-      fields: 'id,name,size,mimeType,md5Checksum,trashed',
+      fields: 'id,name,size,mimeType,md5Checksum,modifiedTime,trashed',
       supportsAllDrives: 'true',
     });
     const response = await fetch(
@@ -49,6 +51,7 @@ export async function getFileMetadata(
       size?: string;
       mimeType?: string;
       md5Checksum?: string;
+      modifiedTime?: string;
       trashed?: boolean;
     }>(response);
 
@@ -74,6 +77,9 @@ export async function getFileMetadata(
         hash: data.md5Checksum,
         mimeType: data.mimeType,
         size: data.size ? Number.parseInt(data.size, 10) : undefined,
+        modifiedAt: data.modifiedTime
+          ? Date.parse(data.modifiedTime)
+          : undefined,
       },
     };
   } catch (error) {

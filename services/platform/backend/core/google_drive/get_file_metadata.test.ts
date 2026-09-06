@@ -40,6 +40,7 @@ describe('google_drive getFileMetadata', () => {
       size: '1234',
       mimeType: 'application/pdf',
       md5Checksum: 'md5-a',
+      modifiedTime: '2026-01-02T03:04:05.000Z',
       trashed: false,
     });
 
@@ -47,9 +48,15 @@ describe('google_drive getFileMetadata', () => {
 
     expect(out).toEqual({
       success: true,
-      data: { hash: 'md5-a', mimeType: 'application/pdf', size: 1234 },
+      data: {
+        hash: 'md5-a',
+        mimeType: 'application/pdf',
+        size: 1234,
+        modifiedAt: Date.parse('2026-01-02T03:04:05.000Z'),
+      },
     });
     expect(urls[0]).toContain('trashed');
+    expect(urls[0]).toContain('modifiedTime');
   });
 
   it('reports a trashed item as not found', async () => {

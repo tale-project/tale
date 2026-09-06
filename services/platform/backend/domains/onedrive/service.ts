@@ -123,7 +123,12 @@ export interface SyncProviderAdapter {
     driveId?: string,
   ): Promise<{
     success: boolean;
-    data?: { hash?: string; mimeType?: string; size?: number };
+    data?: {
+      hash?: string;
+      mimeType?: string;
+      size?: number;
+      modifiedAt?: number;
+    };
     notFound?: boolean;
     error?: string;
   }>;
@@ -557,7 +562,12 @@ export interface PgSyncImportDeps {
     driveId?: string,
   ) => Promise<{
     success: boolean;
-    data?: { hash?: string; mimeType?: string; size?: number };
+    data?: {
+      hash?: string;
+      mimeType?: string;
+      size?: number;
+      modifiedAt?: number;
+    };
     error?: string;
   }>;
   downloadToStorage: (args: {
@@ -641,6 +651,106 @@ export interface PgSyncImportDeps {
 }
 
 /**
+ * Refresh a synced document with a freshly landed blob — the 0.4
+ * `updateDocument` internal mutation. Whenever the blob actually changes,
+ * the previous one joins `history_files` (an addressable, erasable history
+ * rather than a hard drop) and its corpus chunks are released. This is
+ * keyed on the REF, never on the content hash: a vendor file without a
+ * hash (Graph omits `file.hashes` for some item types, Drive omits
+ * `md5Checksum` for non-binary items) used to swap `file_ref` with no
+ * bookkeeping at all — one stranded blob, file row and duplicate chunk set
+ * per scan, reclaimed by nothing, not even the document's delete.
+ */
+async function updateDocumentRow(
+  sql: Sql,
+  organizationId: string,
+  updateArgs: {
+    documentId: string;
+    title: string;
+    fileId: string;
+    mimeType?: string;
+    sourceProvider: string;
+    externalItemId: string;
+    contentHash?: string;
+    teamId?: string;
+    metadata?: Record<string, unknown>;
+    folderId?: string;
+  },
+): Promise<void> {
+  const documentId = updateArgs.documentId;
+  const rows = await sql<DocumentSyncRow[]>`
+    SELECT ${sql.unsafe(DOC_SYNC_COLUMNS)} FROM app.documents
+    WHERE id = ${documentId} LIMIT 1
+  `;
+  const doc = rows[0];
+  if (!doc) throw new Error('Document not found');
+  // `projectId`/`teamId` are mutually exclusive (the 0.4 invariant) —
+  // refuse rather than team-stamp a doc someone attached to a project.
+  if (updateArgs.teamId !== undefined && doc.projectId !== null) {
+    throw new Error('A project document cannot be assigned to a team');
+  }
+
+  const newFileRef = updateArgs.fileId;
+  const oldFileRef = doc.fileRef;
+  const blobReplaced = oldFileRef !== null && oldFileRef !== newFileRef;
+  let historyFiles = doc.historyFiles;
+  if (oldFileRef !== null && blobReplaced) {
+    if (!historyFiles.includes(oldFileRef)) {
+      historyFiles = [...historyFiles, oldFileRef];
+    }
+  }
+  // 0.4 patch semantics: an UNDEFINED field stays as it is — a sync
+  // must not strip a user's manual folder move, team assignment, or the
+  // stored hash just because the pipeline had nothing to say about it.
+  const folderId =
+    updateArgs.folderId !== undefined ? updateArgs.folderId : null;
+  const folderPath =
+    folderId !== null
+      ? await buildHubFolderPath(sql, organizationId, folderId)
+      : null;
+
+  await sql`
+    UPDATE app.documents SET
+      title = ${updateArgs.title},
+      file_ref = ${newFileRef},
+      mime_type = ${updateArgs.mimeType ?? null},
+      extension = ${extractExtension(updateArgs.title) ?? null},
+      source_provider = ${updateArgs.sourceProvider},
+      external_item_id = ${updateArgs.externalItemId},
+      content_hash = ${updateArgs.contentHash !== undefined ? updateArgs.contentHash : sql.unsafe('content_hash')},
+      team_id = ${updateArgs.teamId !== undefined ? updateArgs.teamId : sql.unsafe('team_id')},
+      team_tags = ${updateArgs.teamId !== undefined ? [updateArgs.teamId] : sql.unsafe('team_tags')},
+      metadata = ${updateArgs.metadata !== undefined ? sql.json(toJson(updateArgs.metadata)) : sql.unsafe('metadata')},
+      folder_id = ${updateArgs.folderId !== undefined ? folderId : sql.unsafe('folder_id')},
+      folder_path = ${updateArgs.folderId !== undefined ? folderPath : sql.unsafe('folder_path')},
+      history_files = ${historyFiles},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${documentId}
+  `;
+  // A re-filed document keeps its embeddings but moves in the corpus
+  // FILTER (folder-scoped search matches the stamped path) — re-stamp.
+  // A replaced blob re-indexes via the schedule dep and stamps itself.
+  if (updateArgs.folderId !== undefined && !blobReplaced) {
+    await syncRagDocumentScope(sql, organizationId, documentId);
+  }
+
+  // The replaced blob's corpus chunks are keyed by the OLD ref — release
+  // them through the shared refcounted seam (the 0.4
+  // `reindexDocumentInRag` old-entry purge, made durable: a swallowed
+  // failure used to strand the stale rows forever). The ref sits in
+  // `history_files` now, so the job de-indexes the corpus and keeps the
+  // bytes; the new blob indexes via the schedule dep.
+  if (oldFileRef !== null && blobReplaced) {
+    await sql.begin(async (tx) => {
+      await addJobInTx(tx, 'knowledge.release_refs', {
+        organizationId,
+        refs: [oldFileRef],
+      });
+    });
+  }
+}
+
+/**
  * The pg dependency object for the REUSED 0.4 `importFiles` pipelines —
  * direct SQL twins of the 0.4 internal mutations, provider-parameterized.
  * System lane: the route gates membership; the sync engine runs under the
@@ -719,9 +829,12 @@ export function createSyncImportDeps(
       if (id === undefined) {
         // Lost a race with a concurrent sync of the same item (an
         // overlapping run, a second config over the same folder): the key
-        // is unique in the schema (0073), so the row exists now — hand it
-        // back and let this run refresh it rather than fail the config on
-        // a unique violation.
+        // is unique in the schema (0073), so the row exists now. Refresh it
+        // with THIS run's blob through the update lane — the winner's blob
+        // joins the history and releases its corpus rows — rather than
+        // hand the id back over a blob the document never references
+        // (the pipeline's file row would then point at a document whose
+        // file_ref is a different blob, and the bytes leaked for good).
         const existing = await sql<{ id: string }[]>`
           SELECT id FROM app.documents
           WHERE org_id = ${createArgs.organizationId}
@@ -730,90 +843,37 @@ export function createSyncImportDeps(
           LIMIT 1
         `;
         id = existing[0]?.id;
+        if (id !== undefined) {
+          await updateDocumentRow(sql, organizationId, {
+            documentId: id,
+            title: createArgs.title,
+            fileId: createArgs.fileId,
+            ...(createArgs.mimeType !== undefined
+              ? { mimeType: createArgs.mimeType }
+              : {}),
+            sourceProvider: createArgs.sourceProvider,
+            externalItemId: createArgs.externalItemId,
+            ...(createArgs.contentHash !== undefined
+              ? { contentHash: createArgs.contentHash }
+              : {}),
+            ...(createArgs.teamId !== undefined
+              ? { teamId: createArgs.teamId }
+              : {}),
+            ...(createArgs.metadata !== undefined
+              ? { metadata: createArgs.metadata }
+              : {}),
+            ...(createArgs.folderId !== undefined
+              ? { folderId: createArgs.folderId }
+              : {}),
+          });
+        }
       }
       if (!id) throw new Error('Document insert failed');
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for the reused pipeline's Convex Id<'documents'> brand
       return id as never;
     },
-    updateDocument: async (updateArgs) => {
-      const documentId = updateArgs.documentId;
-      const rows = await sql<DocumentSyncRow[]>`
-        SELECT ${sql.unsafe(DOC_SYNC_COLUMNS)} FROM app.documents
-        WHERE id = ${documentId} LIMIT 1
-      `;
-      const doc = rows[0];
-      if (!doc) throw new Error('Document not found');
-      // `projectId`/`teamId` are mutually exclusive (the 0.4 invariant) —
-      // refuse rather than team-stamp a doc someone attached to a project.
-      if (updateArgs.teamId !== undefined && doc.projectId !== null) {
-        throw new Error('A project document cannot be assigned to a team');
-      }
-
-      const newFileRef = updateArgs.fileId;
-      const hashChanged =
-        updateArgs.contentHash !== undefined &&
-        doc.contentHash !== updateArgs.contentHash;
-      // Hash change + new blob → the old blob joins historyFiles (the 0.4
-      // contract: an addressable, erasable history rather than a hard drop).
-      let historyFiles = doc.historyFiles;
-      const blobReplaced =
-        hashChanged && doc.fileRef !== null && doc.fileRef !== newFileRef;
-      if (blobReplaced && doc.fileRef !== null) {
-        if (!historyFiles.includes(doc.fileRef)) {
-          historyFiles = [...historyFiles, doc.fileRef];
-        }
-      }
-      // 0.4 patch semantics: an UNDEFINED field stays as it is — a sync
-      // must not strip a user's manual folder move, team assignment, or the
-      // stored hash just because the pipeline had nothing to say about it.
-      const folderId =
-        updateArgs.folderId !== undefined ? updateArgs.folderId : null;
-      const folderPath =
-        folderId !== null
-          ? await buildHubFolderPath(sql, organizationId, folderId)
-          : null;
-
-      await sql`
-        UPDATE app.documents SET
-          title = ${updateArgs.title},
-          file_ref = ${newFileRef},
-          mime_type = ${updateArgs.mimeType ?? null},
-          extension = ${extractExtension(updateArgs.title) ?? null},
-          source_provider = ${updateArgs.sourceProvider},
-          external_item_id = ${updateArgs.externalItemId},
-          content_hash = ${updateArgs.contentHash !== undefined ? updateArgs.contentHash : sql.unsafe('content_hash')},
-          team_id = ${updateArgs.teamId !== undefined ? updateArgs.teamId : sql.unsafe('team_id')},
-          team_tags = ${updateArgs.teamId !== undefined ? [updateArgs.teamId] : sql.unsafe('team_tags')},
-          metadata = ${updateArgs.metadata !== undefined ? sql.json(toJson(updateArgs.metadata)) : sql.unsafe('metadata')},
-          folder_id = ${updateArgs.folderId !== undefined ? folderId : sql.unsafe('folder_id')},
-          folder_path = ${updateArgs.folderId !== undefined ? folderPath : sql.unsafe('folder_path')},
-          history_files = ${historyFiles},
-          updated_at_ms = ${Date.now()}
-        WHERE id = ${documentId}
-      `;
-      // A re-filed document keeps its embeddings but moves in the corpus
-      // FILTER (folder-scoped search matches the stamped path) — re-stamp.
-      // A replaced blob re-indexes via the schedule below and stamps itself.
-      if (updateArgs.folderId !== undefined && !blobReplaced) {
-        await syncRagDocumentScope(sql, organizationId, documentId);
-      }
-
-      // The replaced blob's corpus chunks are keyed by the OLD ref — release
-      // them through the shared refcounted seam (the 0.4
-      // `reindexDocumentInRag` old-entry purge, made durable: a swallowed
-      // failure used to strand the stale rows forever). The ref sits in
-      // `history_files` now, so the job de-indexes the corpus and keeps the
-      // bytes; the new blob indexes via the schedule dep below.
-      if (blobReplaced && doc.fileRef !== null) {
-        const oldRef = doc.fileRef;
-        await sql.begin(async (tx) => {
-          await addJobInTx(tx, 'knowledge.release_refs', {
-            organizationId,
-            refs: [oldRef],
-          });
-        });
-      }
-    },
+    updateDocument: (updateArgs) =>
+      updateDocumentRow(sql, organizationId, updateArgs),
     getOrCreateFolderPath: async (orgId, pathSegments, createdBy, teamId) =>
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for the reused pipeline's Convex Id<'folders'> brand
       (await getOrCreateHubFolderPath(sql, {

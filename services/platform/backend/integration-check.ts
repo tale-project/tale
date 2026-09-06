@@ -22293,6 +22293,8 @@ async function checkOneDriveSync(
     hash?: string;
     mime?: string;
     folder?: boolean;
+    /** Graph `lastModifiedDateTime` — the change key for a hash-less file. */
+    modified?: string;
   }
   const drive = new Map<string, DriveNode>();
   const seed = (node: DriveNode): void => void drive.set(node.id, node);
@@ -22443,6 +22445,7 @@ async function checkOneDriveSync(
       id: node.id,
       name: node.name,
       size: (node.content ?? '').length,
+      lastModifiedDateTime: node.modified,
       file: { mimeType: node.mime, hashes: { quickXorHash: node.hash } },
     });
   };
@@ -23224,6 +23227,73 @@ async function checkOneDriveSync(
         hbConfigGone.lastSyncStatus === 'source-deleted' &&
         hbDocsGone.length === 0,
       `config=${hbConfigGone?.status}/${hbConfigGone?.lastSyncStatus} (want inactive/source-deleted), docs=${hbDocsGone.length}/0`,
+    );
+
+    // 12. A file WITHOUT a vendor hash (Graph omits `file.hashes` for some
+    //     item types) used to be re-downloaded every scan, each run
+    //     swapping `file_ref` with no bookkeeping — one stranded blob per
+    //     scan, reclaimed by nothing. The source's size + modified stamp
+    //     now stands in for the hash, and a replaced blob always joins the
+    //     history and releases its corpus rows.
+    seed({
+      id: 'f-nohash',
+      name: 'nohash.txt',
+      content: 'nohash v1',
+      mime: 'text/plain',
+      modified: '2026-01-01T00:00:00Z',
+    });
+    const nohashImport = importResultSchema.safeParse(
+      await (
+        await post('/import', {
+          importType: 'sync',
+          items: [
+            {
+              id: 'f-nohash',
+              name: 'nohash.txt',
+              size: 9,
+              relativePath: 'nohash.txt',
+              isDirectlySelected: true,
+            },
+          ],
+        })
+      ).json(),
+    );
+    await muteRagJobs();
+    const nohashConfig = await configByItem('f-nohash');
+    const nohashV1 = (await docsByExternalId('f-nohash'))[0];
+    await runConfig(nohashConfig?.id ?? '');
+    const nohashIdle = (await docsByExternalId('f-nohash'))[0];
+    const nohashIdleConfig = await configByItem('f-nohash');
+    seed({
+      id: 'f-nohash',
+      name: 'nohash.txt',
+      content: 'nohash v2 body',
+      mime: 'text/plain',
+      modified: '2026-01-02T00:00:00Z',
+    });
+    await runConfig(nohashConfig?.id ?? '');
+    const nohashV2 = (await docsByExternalId('f-nohash'))[0];
+    const nohashReleases = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'knowledge.release_refs'
+        AND data->'refs' ? ${nohashV1?.fileRef ?? ''}
+    `;
+    if (nohashConfig !== null) {
+      await post(`/sync-configs/${nohashConfig.id}/cancel`, {});
+    }
+    record(
+      'onedrive hash-less file: idle run skips by source stamp, edit replaces with bookkeeping',
+      nohashImport.success &&
+        nohashImport.data.successCount === 1 &&
+        nohashV1?.contentHash === null &&
+        nohashIdle?.fileRef === nohashV1.fileRef &&
+        nohashIdle.historyFiles.length === 0 &&
+        nohashIdleConfig?.lastSyncStatus === 'success' &&
+        nohashV2?.fileRef !== nohashV1.fileRef &&
+        nohashV2?.historyFiles.length === 1 &&
+        nohashV2.historyFiles[0] === nohashV1.fileRef &&
+        Number(nohashReleases[0]?.count ?? '0') === 1,
+      `import=${nohashImport.success ? nohashImport.data.successCount : 'ERR'}/1 hash=${String(nohashV1?.contentHash)} (want null), idle: refStable=${nohashIdle?.fileRef === nohashV1?.fileRef} history=${nohashIdle?.historyFiles.length}/0 status=${nohashIdleConfig?.lastSyncStatus}; edit: refChanged=${nohashV2?.fileRef !== nohashV1?.fileRef} history=${nohashV2?.historyFiles.length}/1 oldKept=${nohashV2?.historyFiles[0] === nohashV1?.fileRef} releaseJobs=${nohashReleases[0]?.count}/1`,
     );
   } finally {
     globalThis.fetch = realFetch;
