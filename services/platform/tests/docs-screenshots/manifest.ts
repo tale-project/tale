@@ -689,15 +689,6 @@ export const SHOTS: readonly Shot[] = [
     viewport: { width: 1440, height: 1530 },
   },
   {
-    // Governance > Run-code packages — the default-mode radiogroup plus the
-    // Python/Node allow/deny lists that gate sandbox package installs.
-    name: 'governance-run-code-policy',
-    section: 'platform',
-    route: '/dashboard/:orgId/settings/governance/run-code-policy',
-    readyWhen: (page) =>
-      page.getByText(t('governance.runCodePolicy.modeAllowlistLabel')).first(),
-  },
-  {
     // Governance > Guardrails — the three filter-layer status cards, the
     // org's custom instructions, and the content-safety, PII, and moderation
     // editors that filter every message in both directions. The enable

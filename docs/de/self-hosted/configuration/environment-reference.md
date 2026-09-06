@@ -182,6 +182,14 @@ Re-Ranking ist standardmässig deaktiviert, weil es Latenz pro Query addiert und
 
 Lass es unset, um die Standard-Sitzungsdauer zu behalten. Wenn gesetzt, läuft eine inaktive Sitzung serverseitig ab, sobald das Fenster verstrichen ist, während eine aktive sich bei jeder Anfrage weiter verschiebt. Org-Admins können das wirksame Fenster pro Organisation verkürzen — niemals über diese Obergrenze hinaus verlängern — über die [Governance-Richtlinie zur Sitzungs-Leerlaufzeit](/de/platform/admin/governance/policies-and-limits); inaktive Sitzungen unter dieser Richtlinie widerruft ein Lauf, der etwa alle fünf Minuten läuft.
 
+## Sandbox-Agent-Turns
+
+| Name                             | Default              | Beschreibung                                                                                                                                                                                                                                                                                                       |
+| -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TALE_EXTERNAL_TURN_DEADLINE_MS` | `1800000` (30 Min.)  | **Optional.** Wie lange ein Coding-Agent-Turn in der Sandbox (Claude Code, OpenCode, Codex) ohne Abnehmer seiner Ausgabe liegen darf, bevor der Sandbox-Daemon ihn abräumt. Ein gleitendes Fenster, das bei jedem Wiederanbinden der Plattform neu startet — keine absolute Obergrenze für den Turn. Millisekunden. |
+
+Erhöhe den Wert, wenn lange Agent-Turns auf einem langsamen Host als abgeräumte Waisen zurückkommen; die Plattform bindet sich selbst wieder an, das Fenster beendet also nur einen Turn, dessen Abnehmerkette gestorben ist. Das Backend liest ihn beim Start — starte `backend-api backend-worker` nach einer Änderung neu.
+
 ## Video-Link-Ingestion (yt-dlp)
 
 Liest Tale einen Video-Link ein, holt es dessen Transkript für den Agenten. YouTube blockiert automatisierten Zugriff von Rechenzentrums-/Server-IPs, sodass dies bei einer Cloud-Bereitstellung fehlschlagen kann. Die Bereitstellung bringt standardmäßig einen PO-Token-Provider verdrahtet mit (das vollständige Bild liefert [Video-Ingestion](/de/self-hosted/configuration/video-ingestion)); die Optionen unten sind optionale Überschreibungen und Eskalationen. Keine garantiert eine Umgehung — eine saubere Ausgangs-IP ist der wirksamste Hebel. Vom Backend-Worker gelesen und bei jeder Ingestion neu ausgewertet, sodass eine Änderung ohne Neustart greift.

@@ -1,6 +1,6 @@
 ---
 title: Journaux d'audit
-description: Le journal chronologique de qui-a-fait-quoi dans ton organisation — connexions, changements de rôle, modifications de fournisseur, modifications d'agent, invocations run-code. Les Administrateurs et Propriétaires lisent ceci quand un audit demande qui a touché une ressource et quand.
+description: Le journal chronologique de qui-a-fait-quoi dans ton organisation — connexions, changements de rôle, modifications de fournisseur, modifications d'agent. Les Administrateurs et Propriétaires lisent ceci quand un audit demande qui a touché une ressource et quand.
 ---
 
 Le journal d'audit est l'enregistrement immuable de chaque action conséquente dans ton organisation. Chaque connexion, changement de rôle, modification de fournisseur, sauvegarde d'agent, exécution de workflow et invocation de sandbox y atterrit avec l'acteur, la ressource, l'état avant/après et l'horodatage. Les Administrateurs et Propriétaires lisent ceci quand un audit demande qui a touché une ressource et quand, quand un responsable conformité a besoin d'un export, ou quand quelque chose dérape et la question est _qui a changé quoi à 03:14_.
@@ -50,4 +50,4 @@ Les lignes d'audit sont immuables : les modifications et suppressions sont elles
 
 ## Où cela s'inscrit
 
-Le journal d'audit est le côté lecture de toute autre fonction gouvernance : la conservation légale nomme les holds qu'elle a placés, les demandes des personnes concernées loggent chaque étape de cascade, la politique run-code logge les URLs que chaque sandbox a tenté d'atteindre. Quand une question commence par _qui, quand, quoi_, le journal d'audit est la réponse. La page compagnon est la [politique de rétention](/fr/platform/admin/governance/policies-and-limits) — elle contrôle combien de temps ces lignes restent avant que le nettoyage ne les retire.
+Le journal d'audit est le côté lecture de toute autre fonction gouvernance : la conservation légale nomme les holds qu'elle a placés, les demandes des personnes concernées loggent chaque étape de cascade. Quand une question commence par _qui, quand, quoi_, le journal d'audit est la réponse. La page compagnon est la [politique de rétention](/fr/platform/admin/governance/policies-and-limits) — elle contrôle combien de temps ces lignes restent avant que le nettoyage ne les retire.

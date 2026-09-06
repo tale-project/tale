@@ -5,8 +5,7 @@
  * host), pastes a token and watches Connect verify it live against the API
  * before anything persists (the pitfall, located: a wrong token fails on
  * the panel, unsaved), finds the connection under the Connected tab, stages
- * an MCP server in the add dialog without saving it, and reads the run-code
- * package policy. Verify: the Connected tab lists GitHub beside Tavily —
+ * an MCP server in the add dialog without saving it. Verify: the Connected tab lists GitHub beside Tavily —
  * that row is the episode's artifact.
  *
  * Register (produce-video STORYBOARD.md): a colleague showing you at your
@@ -215,20 +214,6 @@ export const EP7_CONNECTORS: EpisodeSpec = {
         en: 'Registering your own takes one form. Add MCP server… Two fields do the work: a name — support-tickets — and the URL where your server listens. Transport and authentication have sensible defaults. When your real server is live: save, test the connection, and its tools come in. Ours is imaginary — so we cancel, and nothing is saved.',
         de: 'Einen eigenen registrierst du mit einem Formular. MCP-Server hinzufügen … Zwei Felder tragen die Arbeit: ein Name — support-tickets — und die URL, unter der euer Server lauscht. Transport und Authentifizierung haben brauchbare Voreinstellungen. Wenn euer echter Server läuft: speichern, Verbindung testen, die Tools kommen herein. Unserer ist ausgedacht — also brechen wir ab, und nichts wird gespeichert.',
         fr: 'Enregistrer le tien tient dans un formulaire. Ajouter un serveur MCP… Deux champs font le travail : un nom — support-tickets — et l’URL où ton serveur écoute. Transport et authentification ont des réglages par défaut raisonnables. Quand ton vrai serveur tourne : enregistre, teste la connexion, ses outils arrivent. Le nôtre est imaginaire — alors on annule, et rien n’est enregistré.',
-      },
-    },
-    {
-      // The closing boundary: which packages run-code may install.
-      id: 'runcode',
-      chapterByLocale: { en: 'Boundaries', de: 'Grenzen', fr: 'Frontières' },
-      chapterTransition: 'cut',
-      leadInMs: 2600,
-      tailMs: 1800,
-      minMs: 29_000,
-      narration: {
-        en: 'One more page belongs in this story: the run-code package policy. When agents run code, which packages that code may install is decided here. Two modes: denylist — everything installs except what you list; allowlist — only what you list installs. Allowlist reads stricter, and it is — you can audit the whole list. Denylist keeps a fast-moving team unblocked.',
-        de: 'Eine Seite gehört noch in diese Geschichte: die Run-code-Paketrichtlinie. Wenn Agenten Code ausführen, entscheidet sich hier, welche Pakete dieser Code installieren darf. Zwei Modi: Sperrliste — alles installiert, außer dem, was du aufzählst; Zulassungsliste — nur das installiert, was du aufzählst. Die Zulassungsliste liest sich strenger, und das ist sie auch — du kannst die ganze Liste prüfen. Die Sperrliste hält ein schnelles Team am Laufen.',
-        fr: 'Une page encore appartient à cette histoire : la politique de paquets run-code. Quand les agents exécutent du code, c’est ici que se décide quels paquets ce code peut installer. Deux modes : liste de blocage — tout s’installe, sauf ce que tu nommes ; liste d’autorisation — seul ce que tu nommes s’installe. L’autorisation se lit plus stricte, et elle l’est — tu peux auditer la liste entière. La liste de blocage, elle, laisse une équipe avancer vite.',
       },
     },
     {

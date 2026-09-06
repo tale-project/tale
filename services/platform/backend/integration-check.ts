@@ -955,14 +955,14 @@ async function checkIdentityDomains(
     `/api/app/governance/policies/retention_policy?orgId=${orgId}`,
     { config: { enabled: false } },
   );
-  // The flags wire carries only what is enforced: the context cap and the
-  // composer's guardrail gate. The retired webSearch / codeExecution /
-  // fileUpload toggles must never reappear here — strict, not loose.
+  // The flags wire carries only what is enforced: the context cap. The
+  // retired webSearch / codeExecution / fileUpload toggles (and the
+  // never-read inputGuardrailsActive) must never reappear here — strict,
+  // not loose.
   const myFlags = z
     .object({
       flags: z
         .object({
-          inputGuardrailsActive: z.boolean(),
           maxContextTokens: z.number().optional(),
         })
         .strict(),
@@ -1083,7 +1083,7 @@ async function checkIdentityDomains(
       budget.success &&
       models.success &&
       models.data.models.length === 2,
-    `save → ${savePolicy.status}, read=${readPolicy.success ? JSON.stringify(readPolicy.data.policy?.config.idleTimeoutMinutes) : 'ERR'}, unknown → ${unknownPolicy.status} (want 400), special → ${specialPolicy.status} (want 400), flags=${myFlags.success ? myFlags.data.flags.inputGuardrailsActive : 'ERR'}, budget=${budget.success ? 'ok' : 'ERR'}, models=${models.success ? models.data.models.length : 'ERR'}`,
+    `save → ${savePolicy.status}, read=${readPolicy.success ? JSON.stringify(readPolicy.data.policy?.config.idleTimeoutMinutes) : 'ERR'}, unknown → ${unknownPolicy.status} (want 400), special → ${specialPolicy.status} (want 400), flags=${myFlags.success ? JSON.stringify(myFlags.data.flags) : 'ERR'}, budget=${budget.success ? 'ok' : 'ERR'}, models=${models.success ? models.data.models.length : 'ERR'}`,
   );
 
   // Trash: a trashed contact appears in the admin listing and restores live.
@@ -7655,6 +7655,9 @@ async function checkChat(
   const TRACE_MARKER = 'TRACE THE TOOLS';
   const FINAL_ANSWER = 'The ledger mentions verdigris pigments.';
   const SLOW_CHUNKS = 40;
+  /** Every chat-completion request body the model saw, in order — the
+   * guardrail probe reads what actually reached the wire. */
+  const aiBodies: string[] = [];
 
   const sse = (payload: unknown): string =>
     `data: ${JSON.stringify(payload)}\n\n`;
@@ -7696,6 +7699,7 @@ async function checkChat(
         res.end('{}');
         return;
       }
+      aiBodies.push(body);
       const parsed = z
         .object({
           messages: z.array(
@@ -7900,12 +7904,19 @@ async function checkChat(
         headers: { 'content-type': 'application/json', cookie, origin: base },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
-    await send(`/api/app/provider-credentials?orgId=${orgId}`, {
-      providerSlug: 'itestchat',
-      authMethod: 'api-key',
-      name: 'Chat key',
-      secret: 'sk-itest-chat-key',
-    });
+    const chatCredential = z.object({ credentialId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+          providerSlug: 'itestchat',
+          authMethod: 'api-key',
+          name: 'Chat key',
+          secret: 'sk-itest-chat-key',
+        })
+      ).json(),
+    );
+    const chatCredentialId = chatCredential.success
+      ? chatCredential.data.credentialId
+      : '';
 
     const created = z.object({ id: z.string() }).safeParse(
       await (
@@ -8452,6 +8463,196 @@ async function checkChat(
         (raceReply.text ?? '').includes(`tick${SLOW_CHUNKS}`) &&
         raceGen[0]?.count === '0',
       `outcomes=${raceStatuses.join('/')} (want completed/refused), http=${raceHttp.join('/')} (want 200/409), rows=${raceRows.length} (want 2), reply=${raceReply?.status ?? 'NONE'} full=${(raceReply?.text ?? '').includes(`tick${SLOW_CHUNKS}`)}, genGone=${raceGen[0]?.count === '0'}`,
+    );
+
+    // Guardrails + mandatory instructions on the turn: the org's chat_filter
+    // refuses a banned word BEFORE the model (user row + blocked reply +
+    // event row), the pii_config masks what the model receives, and the
+    // system_prompt policy is the first block of the system prompt.
+    const governanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(governanceDir, { recursive: true });
+    const MANDATORY_MARKER = 'ITEST-MANDATORY-RULE: never quote prices.';
+    await writeFile(
+      path.join(governanceDir, 'chat-filter.yml'),
+      [
+        'enabled: true',
+        'appliesTo: [input]',
+        'categories:',
+        '  - id: codenames',
+        '    label: Codenames',
+        '    enabled: true',
+        '    mode: block',
+        '    words: [verboten]',
+        '    patterns: []',
+      ].join('\n'),
+    );
+    await writeFile(
+      path.join(governanceDir, 'pii-config.yml'),
+      ['enabled: true', 'mode: mask', 'enabledPatterns: [email]'].join('\n'),
+    );
+    await writeFile(
+      path.join(governanceDir, 'system-prompt.yml'),
+      ['enabled: true', `mandatoryInstructions: "${MANDATORY_MARKER}"`].join(
+        '\n',
+      ),
+    );
+    (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+    const guardThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Guardrail probe',
+        })
+      ).json(),
+    );
+    const guardThreadId = guardThread.success ? guardThread.data.id : '';
+    const turnOutcome = z.object({
+      status: z.string(),
+      reason: z.string().optional(),
+      persisted: z.boolean().optional(),
+    });
+    const bodiesBefore = aiBodies.length;
+    const blockedTurn = turnOutcome.safeParse(
+      await (
+        await send(
+          `/api/app/chat/threads/${guardThreadId}/messages?orgId=${orgId}`,
+          {
+            text: 'this word is verboten here',
+            modelId: 'itest-chat',
+            providerSlug: 'itestchat',
+          },
+        )
+      ).json(),
+    );
+    const blockedRows = await sql<
+      { role: string; text: string | null; blockedReason: string | null }[]
+    >`
+      SELECT role, text, blocked_reason AS "blockedReason" FROM app.messages
+      WHERE thread_id = ${guardThreadId}
+      ORDER BY "order", step_order
+    `;
+    const maskedTurn = turnOutcome.safeParse(
+      await (
+        await send(
+          `/api/app/chat/threads/${guardThreadId}/messages?orgId=${orgId}`,
+          {
+            text: 'please mail anna@example.com about the quarterly review',
+            modelId: 'itest-chat',
+            providerSlug: 'itestchat',
+          },
+        )
+      ).json(),
+    );
+    const wireBodies = aiBodies.slice(bodiesBefore);
+    const maskedUserRow = (
+      await sql<{ text: string | null }[]>`
+        SELECT text FROM app.messages
+        WHERE thread_id = ${guardThreadId} AND role = 'user'
+        ORDER BY "order" DESC LIMIT 1
+      `
+    )[0];
+    const guardEvents = await sql<
+      {
+        filterName: string;
+        direction: string;
+        kind: string;
+        categoryIds: string[];
+      }[]
+    >`
+      SELECT filter_name AS "filterName", direction, kind,
+             category_ids AS "categoryIds"
+      FROM app.chat_filter_events
+      WHERE org_id = ${orgId} AND thread_id = ${guardThreadId}
+      ORDER BY created_at_ms
+    `;
+    for (const file of [
+      'chat-filter.yml',
+      'pii-config.yml',
+      'system-prompt.yml',
+    ]) {
+      await rm(path.join(governanceDir, file), { force: true });
+    }
+    (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+
+    // A catalog connector whose default credential is DISABLED: the model
+    // still resolves from the catalog, so the credential fault used to
+    // surface inside the stream — a persisted user row and a generic failed
+    // bubble. It is a pre-turn refusal the composer shows, with no rows.
+    // Serving reads the ACTIVE default only (the documented contract in
+    // domains/provider_credentials), so the fault is CREDENTIAL_NONE_CONFIGURED
+    // — the send body carries no credential id, so the DISABLED code has no
+    // composer path to reach.
+    const credThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Credential probe',
+        })
+      ).json(),
+    );
+    const credThreadId = credThread.success ? credThread.data.id : '';
+    await send(
+      `/api/app/provider-credentials/${chatCredentialId}?orgId=${orgId}`,
+      { status: 'disabled' },
+    );
+    const credRes = await send(
+      `/api/app/chat/threads/${credThreadId}/messages?orgId=${orgId}`,
+      { text: 'hello?', modelId: 'itest-chat', providerSlug: 'itestchat' },
+    );
+    const credStatus = credRes.status;
+    const credOutcome = turnOutcome.safeParse(await credRes.json());
+    await send(
+      `/api/app/provider-credentials/${chatCredentialId}?orgId=${orgId}`,
+      { status: 'active' },
+    );
+    const credRows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.messages
+      WHERE thread_id = ${credThreadId}
+    `;
+    record(
+      'chat send with a disabled default credential refuses before any row is written',
+      credStatus === 200 &&
+        credOutcome.success &&
+        credOutcome.data.status === 'refused' &&
+        credOutcome.data.persisted === false &&
+        (credOutcome.data.reason ?? '').includes('No default credential') &&
+        credRows[0]?.count === '0',
+      `http=${credStatus}, outcome=${credOutcome.success ? `${credOutcome.data.status} persisted=${String(credOutcome.data.persisted)} (${credOutcome.data.reason ?? ''})` : 'ERR'} (want refused, persisted=false: a disabled default serves nothing — the none-configured sentence), rows=${credRows[0]?.count} (want 0)`,
+    );
+    record(
+      'chat guardrails: chat_filter refuses before the model, pii masks the wire, mandatory instructions lead the prompt, events land',
+      blockedTurn.success &&
+        blockedTurn.data.status === 'refused' &&
+        // The refusal is on the record — the composer must not hand the
+        // text back — and the response says so.
+        blockedTurn.data.persisted === true &&
+        (blockedTurn.data.reason ?? '').includes('chat_filter') &&
+        blockedRows.length === 2 &&
+        blockedRows[0]?.role === 'user' &&
+        blockedRows[0].text === 'this word is verboten here' &&
+        blockedRows[1]?.role === 'assistant' &&
+        (blockedRows[1].blockedReason ?? '').includes('chat_filter') &&
+        maskedTurn.success &&
+        maskedTurn.data.status === 'completed' &&
+        wireBodies.length >= 1 &&
+        wireBodies.every((body) => !body.includes('anna@example.com')) &&
+        wireBodies.every((body) => body.includes('[EMAIL]')) &&
+        wireBodies.every((body) => body.includes(MANDATORY_MARKER)) &&
+        maskedUserRow?.text ===
+          'please mail [EMAIL] about the quarterly review' &&
+        guardEvents.some(
+          (event) =>
+            event.filterName === 'chat_filter' &&
+            event.direction === 'input' &&
+            event.kind === 'blocked' &&
+            event.categoryIds[0] === 'codenames',
+        ) &&
+        guardEvents.some(
+          (event) =>
+            event.filterName === 'pii' &&
+            event.direction === 'input' &&
+            event.kind === 'detected' &&
+            event.categoryIds[0] === 'email',
+        ),
+      `blocked=${blockedTurn.success ? `${blockedTurn.data.status} persisted=${String(blockedTurn.data.persisted)} (${blockedTurn.data.reason ?? ''})` : 'ERR'} (want refused persisted=true) rows=${blockedRows.map((row) => `${row.role}${row.blockedReason ? '!' : ''}`).join(',')} (want user,assistant!), masked=${maskedTurn.success ? maskedTurn.data.status : 'ERR'} wireBodies=${wireBodies.length} noRawEmail=${wireBodies.every((body) => !body.includes('anna@example.com'))} masked=${wireBodies.every((body) => body.includes('[EMAIL]'))} mandatory=${wireBodies.every((body) => body.includes(MANDATORY_MARKER))} userRow="${maskedUserRow?.text ?? 'MISSING'}", events=${guardEvents.map((event) => `${event.filterName}/${event.kind}`).join(',')}`,
     );
   } finally {
     await new Promise<void>((resolve) => {
@@ -10356,13 +10557,18 @@ async function checkGovernance(
   );
 
   // The chat turns and tool dispatches already run accumulated buckets.
-  const buckets = await governance.readUsageBuckets(sql, {
-    organizationId: orgId,
-    userId,
-  });
-  const chatBucket = buckets.find(
-    (bucket) => bucket.model === 'itest-chat' && bucket.granularity === 'daily',
-  );
+  const buckets = await sql<
+    { totalTokens: number; costEstimateCents: number }[]
+  >`
+    SELECT total_tokens::float8 AS "totalTokens",
+           cost_estimate_cents AS "costEstimateCents"
+    FROM app.usage_ledger
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND model = 'itest-chat' AND granularity = 'daily'
+    ORDER BY period_key DESC
+    LIMIT 1
+  `;
+  const chatBucket = buckets[0];
   const connectorBuckets = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.usage_ledger
     WHERE org_id = ${orgId} AND connector_name = 'chat-tools'
@@ -27381,7 +27587,7 @@ async function checkAutomationRunToolLane(
       orgFind.status === 'ok' &&
       orgFindRaw.includes('Filed on a bound board') &&
       !orgFindRaw.includes("Someone else's card"),
-    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")})`,
+    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status}${syncedFirst.status === 'ok' ? '' : ` (first: ${syncedFirst.raw})`}${syncedAgain.status === 'ok' ? '' : ` (again: ${syncedAgain.raw})`} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")})`,
   );
   const placement = (project: string | null | undefined): string =>
     project === undefined ? 'no-row' : project === null ? 'hub' : 'project';
@@ -33441,7 +33647,7 @@ async function checkGovernanceSettingsTail(
     `sweep applied=${dsarSwept} (want ≥1), pending after sweep=${dsarPendingAfterSweep[0]?.count} (want 0), applied-audit rows=${dsarAppliedAudits[0]?.count} (want 1), enforcement read limit=${enforcedDsar.dailyLimitPerAdmin} (want 6), pending after read=${dsarPendingAfterRead[0]?.count} (want 0)`,
   );
 
-  // --- D. Moderation secret + offline test stub ---------------------------
+  // --- D. Moderation secret + the live provider probe ---------------------
   const statusEmpty = z
     .object({ masked: z.null() })
     .safeParse(
@@ -33452,7 +33658,10 @@ async function checkGovernanceSettingsTail(
   const saved = z.object({ ok: z.boolean() }).safeParse(
     await (
       await post(`/api/app/governance/moderation/secret?orgId=${orgId}`, {
-        authHeader: 'Bearer itest-moderation-secret-value',
+        // The stored value is the provider key; the endpoint's header
+        // template (`Bearer {{secret}}`, as the presets ship it) adds the
+        // scheme.
+        authHeader: 'itest-moderation-secret-value',
       })
     ).json(),
   );
@@ -33463,26 +33672,131 @@ async function checkGovernanceSettingsTail(
         await get(`/api/app/governance/moderation/secret/status?orgId=${orgId}`)
       ).json(),
     );
-  const testRes = await post(
-    `/api/app/governance/moderation/test?orgId=${orgId}`,
-    { text: 'probe' },
-  );
-  const testBody = z
-    .object({ error: z.string() })
+  // Not configured yet: the probe says so instead of pretending.
+  const testUnconfigured = z
+    .object({ ok: z.boolean(), kind: z.string() })
     .loose()
-    .safeParse(await testRes.json());
+    .safeParse(
+      await (
+        await post(`/api/app/governance/moderation/test?orgId=${orgId}`, {
+          text: 'probe',
+        })
+      ).json(),
+    );
+  // A mock provider on the loopback: it expects the stored header verbatim
+  // and answers the OpenAI moderation shape, flagging "hate" on the probe.
+  const { createServer } = await import('node:http');
+  const seenAuth: string[] = [];
+  const moderationServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      seenAuth.push(req.headers.authorization ?? '');
+      const input = z
+        .object({ input: z.string() })
+        .safeParse(JSON.parse(body || '{}'));
+      const hate = input.success && input.data.input.includes('probe');
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          results: [
+            {
+              flagged: hate,
+              categories: { hate, violence: false },
+              category_scores: { hate: hate ? 0.97 : 0.01, violence: 0.02 },
+            },
+          ],
+        }),
+      );
+    });
+  });
+  await new Promise<void>((resolve) => {
+    moderationServer.listen(0, '127.0.0.1', resolve);
+  });
+  // The deployment host policy gates the moderation endpoint like every
+  // other admin-supplied URL; the probe's mock is loopback, so this lane
+  // needs the operator opt-in whatever ran before it.
+  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+  const moderationAddress = moderationServer.address();
+  const moderationPort =
+    moderationAddress !== null && typeof moderationAddress === 'object'
+      ? moderationAddress.port
+      : 0;
+  const moderationPolicy = (enabled: boolean): unknown => ({
+    config: {
+      enabled,
+      appliesTo: ['input'],
+      endpoint: {
+        url: `http://127.0.0.1:${moderationPort}/v1/moderations`,
+        headers: { Authorization: 'Bearer {{secret}}' },
+        requestTemplate: '{"input": {{text}}}',
+      },
+      responseShape: { type: 'openai_moderation' },
+      categoryMappings: [
+        {
+          providerCategory: 'hate',
+          internalLabel: 'Hate',
+          enabled: true,
+          mode: 'block',
+        },
+      ],
+    },
+  });
+  const testRoundSchema = z
+    .object({
+      ok: z.boolean(),
+      kind: z.string(),
+      categoryIds: z.array(z.string()).optional(),
+      httpStatus: z.number().optional(),
+      durationMs: z.number().optional(),
+    })
+    .loose();
+  let testRound: z.infer<typeof testRoundSchema> | undefined;
+  let testResStatus = 0;
+  try {
+    const savedPolicy = await post(
+      `/api/app/governance/policies/moderation_provider?orgId=${orgId}`,
+      moderationPolicy(true),
+    );
+    const testRes = await post(
+      `/api/app/governance/moderation/test?orgId=${orgId}`,
+      { text: 'a probe of the classifier' },
+    );
+    testResStatus = savedPolicy.ok ? testRes.status : -1;
+    testRound = testRoundSchema.parse(await testRes.json());
+  } finally {
+    // Switch the layer off again: later chat sends in this org must not
+    // ride through a mock that is about to close.
+    await post(
+      `/api/app/governance/policies/moderation_provider?orgId=${orgId}`,
+      moderationPolicy(false),
+    );
+    await new Promise<void>((resolve) => {
+      moderationServer.close(() => resolve());
+    });
+  }
   record(
-    'governance tail: moderation secret masked status + offline test stub',
+    'governance tail: moderation secret masked status + live provider probe round trip',
     statusEmpty.success &&
       saved.success &&
       saved.data.ok &&
       statusMasked.success &&
-      statusMasked.data.masked.startsWith('Bearer') &&
+      statusMasked.data.masked.startsWith('itest-') &&
       statusMasked.data.masked.includes('••') &&
-      testRes.status === 400 &&
-      testBody.success &&
-      testBody.data.error === 'MODERATION_TEST_OFFLINE',
-    `empty=${statusEmpty.success}, saved=${saved.success}, masked=${statusMasked.success ? statusMasked.data.masked.slice(0, 8) : 'ERR'}, test=${testRes.status}/${testBody.success ? testBody.data.error : '?'}`,
+      !statusMasked.data.masked.includes('secret-value') &&
+      testUnconfigured.success &&
+      !testUnconfigured.data.ok &&
+      testUnconfigured.data.kind === 'not_configured' &&
+      testResStatus === 200 &&
+      testRound !== undefined &&
+      testRound.ok &&
+      testRound.kind === 'blocked' &&
+      testRound.categoryIds?.[0] === 'Hate' &&
+      testRound.httpStatus === 200 &&
+      seenAuth[0] === 'Bearer itest-moderation-secret-value',
+    `empty=${statusEmpty.success}, saved=${saved.success}, masked=${statusMasked.success ? statusMasked.data.masked.slice(0, 8) : 'ERR'}, unconfigured=${testUnconfigured.success ? testUnconfigured.data.kind : 'ERR'} (want not_configured), probe=${testResStatus}/${testRound?.kind ?? '?'} cats=${testRound?.categoryIds?.join(',') ?? ''} http=${testRound?.httpStatus ?? '?'} (want blocked/Hate/200), auth=${seenAuth[0] === 'Bearer itest-moderation-secret-value'}`,
   );
 
   // --- E. Chat-filter events listing (admin telemetry) --------------------
@@ -33520,7 +33834,11 @@ async function checkGovernanceSettingsTail(
       ).json(),
     );
   const blockedOnly = z
-    .object({ events: z.array(z.object({ kind: z.string() }).loose()) })
+    .object({
+      events: z.array(
+        z.object({ kind: z.string(), sanitizationRunId: z.string() }).loose(),
+      ),
+    })
     .safeParse(
       await (
         await get(
@@ -33530,7 +33848,11 @@ async function checkGovernanceSettingsTail(
     );
   const piiOnly = z
     .object({
-      events: z.array(z.object({ filterName: z.string() }).loose()),
+      events: z.array(
+        z
+          .object({ filterName: z.string(), sanitizationRunId: z.string() })
+          .loose(),
+      ),
     })
     .safeParse(
       await (
@@ -33539,19 +33861,41 @@ async function checkGovernanceSettingsTail(
         )
       ).json(),
     );
+  // The guardrail lane earlier in this run recorded real events for the same
+  // org (a chat_filter block, a pii detection), so each listing is judged on
+  // the rows seeded here — newest first, and each filter keeping only its
+  // own kind or filter across the whole org.
+  const seededRuns = new Set(['run-1', 'run-2']);
+  const seededAll = allEvents.success
+    ? allEvents.data.events.filter((event) =>
+        seededRuns.has(event.sanitizationRunId),
+      )
+    : [];
+  const seededBlocked = blockedOnly.success
+    ? blockedOnly.data.events.filter((event) =>
+        seededRuns.has(event.sanitizationRunId),
+      )
+    : [];
+  const seededPii = piiOnly.success
+    ? piiOnly.data.events.filter((event) =>
+        seededRuns.has(event.sanitizationRunId),
+      )
+    : [];
   record(
     'governance tail: chat-filter events listing + filters',
     allEvents.success &&
-      allEvents.data.events.length === 2 &&
+      seededAll.length === 2 &&
       allEvents.data.events[0]?.sanitizationRunId === 'run-2' &&
-      allEvents.data.events[1]?.categoryIds[0] === 'iban' &&
+      seededAll[1]?.categoryIds[0] === 'iban' &&
       blockedOnly.success &&
-      blockedOnly.data.events.length === 1 &&
-      blockedOnly.data.events[0]?.kind === 'blocked' &&
+      blockedOnly.data.events.every((event) => event.kind === 'blocked') &&
+      seededBlocked.length === 1 &&
+      seededBlocked[0]?.sanitizationRunId === 'run-2' &&
       piiOnly.success &&
-      piiOnly.data.events.length === 1 &&
-      piiOnly.data.events[0]?.filterName === 'pii',
-    `all=${allEvents.success ? allEvents.data.events.length : 'ERR'}, newestFirst=${allEvents.success ? allEvents.data.events[0]?.sanitizationRunId : '?'}, blocked=${blockedOnly.success ? blockedOnly.data.events.length : 'ERR'}, pii=${piiOnly.success ? piiOnly.data.events.length : 'ERR'}`,
+      piiOnly.data.events.every((event) => event.filterName === 'pii') &&
+      seededPii.length === 1 &&
+      seededPii[0]?.sanitizationRunId === 'run-1',
+    `all=${allEvents.success ? `${allEvents.data.events.length} (seeded ${seededAll.length}, want 2)` : 'ERR'}, newestFirst=${allEvents.success ? allEvents.data.events[0]?.sanitizationRunId : '?'} (want run-2), blocked=${blockedOnly.success ? `${blockedOnly.data.events.length} (seeded ${seededBlocked.length}, want 1)` : 'ERR'}, pii=${piiOnly.success ? `${piiOnly.data.events.length} (seeded ${seededPii.length}, want 1)` : 'ERR'}`,
   );
 
   // --- F. Retention: catalog, shortening cooldown, bounds proposal OCC ----

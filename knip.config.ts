@@ -111,7 +111,6 @@ export default {
         // (real skill/agent/automation sources with their own tests). Following
         // them would read those files as platform project files.
         'tests/e2e/fixtures/config/**',
-        'lib/chat/**',
         'lib/knowledge/**',
         'lib/pii/**',
         'lib/connectors/natives/**',

@@ -107,21 +107,11 @@ interface HandlerNames {
     capabilities_action: FunctionRef & {
       dispatchCapabilityAs: FunctionRef;
     };
-    generations: FunctionRef & {
-      endGenerationInternal: FunctionRef;
-      streamProgressInternal: FunctionRef;
-    };
     messages: FunctionRef & {
-      appendMessageInternal: FunctionRef;
-      finalizeAssistantMessageInternal: FunctionRef;
       listRecentForTurnInternal: FunctionRef;
-      updateAssistantPartsInternal: FunctionRef;
     };
     threads: FunctionRef & {
       setThreadTitleInternal: FunctionRef;
-    };
-    turn_setup: FunctionRef & {
-      beginTurnInternal: FunctionRef;
     };
   };
   connector_credentials: FunctionRef & {
@@ -242,8 +232,11 @@ interface HandlerNames {
     com: FunctionRef;
   };
   governance: FunctionRef & {
+    internal_actions: FunctionRef & {
+      runModerationProvider: FunctionRef;
+    };
     internal_mutations: FunctionRef & {
-      incrementUsageLedger: FunctionRef;
+      recordChatFilterEvent: FunctionRef;
       recordConnectorUsage: FunctionRef;
       recordTranscriptionUsage: FunctionRef;
     };

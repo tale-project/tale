@@ -75,11 +75,11 @@ Pick `run_deployed` when the automation is quick and you want one call with the 
 
 | Tool                  | What it does                                                                                                        |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `search_capabilities` | Search everything this organization can do — its automations, connector actions, skills and tools.                  |
+| `search_capabilities` | Search everything this organization can do — its deployed automations, by name and description.                     |
 | `invoke_capability`   | Invoke one capability by id. An action the organization gates returns a pending-approval result instead of running. |
 | `get_knowledge`       | Retrieve passages from the organization's knowledge — its documents and its crawled web pages.                      |
 
-In this version the registry holds the organization's deployed automations — `invoke_capability` on one is the same act as `run_deployed`. Builtin tools, skills, and external MCP servers are not registered here; a call routed to one answers a readable refusal, not an error. A capability the organization gates behind approval does not silently run — `invoke_capability` answers a pending-approval result the model can relay.
+In this version the registry holds the organization's deployed automations — `invoke_capability` on one is the same act as `run_deployed`. Builtin tools, connector actions, skills, and external MCP servers are not part of this registry; an id that is not a deployed automation answers a readable refusal, not an error. A capability the organization gates behind approval does not silently run — `invoke_capability` answers a pending-approval result the model can relay.
 
 ## What the key may do
 
