@@ -53,6 +53,18 @@ beforeAll(() => {
   store.save('send-digest', noop);
   store.save('send-digest', noop);
   store.save('weekly-report', { ...noop, name: 'weekly-report' });
+  store.save('draft-reply', {
+    version: 1,
+    name: 'draft-reply',
+    nodes: [
+      { id: 'draft', type: 'agent', model: 'test-model', prompt: 'Draft it.' },
+    ],
+  });
+  store.save('send-mail', {
+    version: 1,
+    name: 'send-mail',
+    nodes: [{ id: 'send', type: 'mail.send', input: { to: 'a@b.test' } }],
+  });
 
   registerNodeType({
     type: 'weather.current',
@@ -77,6 +89,27 @@ beforeAll(() => {
       outputSignature: '{ tempC: number }',
       hasEffect: false,
       mock: () => ({ tempC: 21 }),
+    },
+  });
+  registerNodeType({
+    type: 'mail.send',
+    kind: 'connector',
+    outputKind: 'structured',
+    description: 'test connector: send a mail (a write)',
+    allowedFields: ['input'],
+    requiredFields: ['input'],
+    connector: {
+      name: 'mail.send',
+      description: 'send a mail',
+      inputSchema: {
+        type: 'object',
+        properties: { to: { type: 'string' } },
+        required: ['to'],
+        additionalProperties: false,
+      },
+      outputSignature: '{ id: string }',
+      hasEffect: true,
+      mock: () => ({ id: 'm-1' }),
     },
   });
   registerNodeType({
@@ -287,6 +320,14 @@ const fixtures: Record<string, unknown> = {
     nodes: [{ id: 'sub', type: 'subautomation', automation: 'send-digest@9' }],
     output: '{{ nodes.sub.output }}',
   }),
+  'subautomation-has-agent-node': flow({
+    nodes: [{ id: 'sub', type: 'subautomation', automation: 'draft-reply' }],
+    output: '{{ nodes.sub.output }}',
+  }),
+  'subautomation-has-write': flow({
+    nodes: [{ id: 'sub', type: 'subautomation', automation: 'send-mail@1' }],
+    output: '{{ nodes.sub.output }}',
+  }),
   'expr-syntax-prompt': flow({
     nodes: [
       {
@@ -442,6 +483,8 @@ const VALIDATION_CODES: IssueCode[] = [
   'ONERROR_INVALID',
   'SUBAUTOMATION_REF_INVALID',
   'SUBAUTOMATION_NOT_FOUND',
+  'SUBAUTOMATION_HAS_AGENT_NODE',
+  'SUBAUTOMATION_HAS_WRITE',
   'EXPR_SYNTAX',
   'REF_UNKNOWN_NODE',
   'REF_SELF',
@@ -487,7 +530,12 @@ async function renderCorpus(): Promise<Record<string, RenderedCase>> {
 it('renders exactly the pinned issue lists', async () => {
   const actual = await renderCorpus();
   if (process.env.GOLDEN_UPDATE === '1') {
-    writeFileSync(GOLDEN_PATH, HEADER + stringify(actual, { lineWidth: 0 }));
+    // Single quotes: the style the committed corpus carries, so a regenerate
+    // diffs only what changed.
+    writeFileSync(
+      GOLDEN_PATH,
+      HEADER + stringify(actual, { lineWidth: 0, singleQuote: true }),
+    );
     return;
   }
   const golden: unknown = parse(readFileSync(GOLDEN_PATH, 'utf8'));

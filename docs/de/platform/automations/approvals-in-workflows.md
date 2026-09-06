@@ -25,7 +25,7 @@ Zwischen dir und der Definition steht in dieser Version keine Vorschlagskarte �
 
 ## Was jede Entscheidung hinterlässt
 
-Beide Tore hinterlassen an zwei Orten eine Spur: in den Details des Laufs selbst, wo die Karte zu freigegeben oder abgelehnt wird und das Ergebnis des Schritts folgt, und im [Audit-Log](/de/platform/admin/governance/audit-logs), das festhält, wer wann entschieden hat. Eine entschiedene Karte lässt sich nicht wieder öffnen; ein abgelehnter Lauf ist vorbei, und die Automatisierung erneut laufen zu lassen ist ein frischer Lauf mit einer frischen Karte. Weil eine Entscheidung zu der Operation gehört, für die sie erbeten wurde, gibt eine danach gelockerte Richtlinie eine bereits wartende Karte nie frei.
+Beide Tore hinterlassen an zwei Orten eine Spur: in den Details des Laufs selbst, wo die Karte zu freigegeben oder abgelehnt wird und das Ergebnis des Schritts folgt, und im [Audit-Log](/de/platform/admin/governance/audit-logs), das festhält, wer wann entschieden hat. Eine entschiedene Karte lässt sich nicht wieder öffnen; ein abgelehnter Lauf ist vorbei, und die Automatisierung erneut laufen zu lassen ist ein frischer Lauf mit einer frischen Karte. Weil eine Entscheidung zu der Operation gehört, für die sie erbeten wurde, gibt eine danach gelockerte Richtlinie eine bereits wartende Karte nie frei. Endet ein Lauf, während seine Karte noch wartet — weil jemand ihn abbricht oder ein anderer Zweig fehlschlägt —, zieht er die Karte zurück: In den Details des Laufs steht sie als abgelehnt, denn die Schreiboperation, um die es ging, findet nicht mehr statt.
 
 ## Wo das hingehört
 

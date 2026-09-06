@@ -43,6 +43,20 @@ describe('the daily governance schedules stay spaced', () => {
   });
 });
 
+describe('the realtime outbox has a reclaimer that needs no browser', () => {
+  test('the outbox sweep is scheduled on the worker', () => {
+    // The `/events` poll loops reclaim only while a stream is open; without
+    // this entry a headless deployment grows app_realtime.outbox forever.
+    const entry = SCHEDULES.find(
+      (row) => row.name === 'realtime.reclaim_outbox',
+    );
+    expect(entry).toBeDefined();
+    // Minute-step cadence: the retention horizon is an hour, so a sweep well
+    // inside it keeps the table near its steady-state size.
+    expect(entry?.cron).toMatch(/^\*\/\d+ \* \* \* \*$/);
+  });
+});
+
 describe('the schedule roster is well formed', () => {
   test('every name is unique', () => {
     const names = SCHEDULES.map((row) => row.name);

@@ -204,59 +204,6 @@ describe('reading one agent', () => {
   });
 });
 
-describe('resolving the agent answering a turn', () => {
-  it('speaks the turn’s language and carries the bindings', async () => {
-    await seedAgent(
-      'acme',
-      'assistant',
-      [
-        'name: assistant',
-        'display-name: Assistant',
-        'instructions: Be concise.',
-        'knowledge: documents',
-        'skills:',
-        '  - pdf',
-        'i18n:',
-        '  de:',
-        '    display-name: Assistent',
-        '    instructions: Sei knapp.',
-        '',
-      ].join('\n'),
-    );
-    const resolveAgent = await load('resolveAgentForCaller');
-
-    const resolved = await resolveAgent({
-      orgSlug: 'acme',
-      slug: 'assistant',
-      locale: 'de-CH',
-      ...bob,
-    });
-    expect(resolved).toEqual({
-      slug: 'assistant',
-      displayName: 'Assistent',
-      description: undefined,
-      instructions: 'Sei knapp.',
-      tools: undefined,
-      skills: ['pdf'],
-      knowledge: 'documents',
-    });
-  });
-
-  it('cannot borrow a persona its author kept private', async () => {
-    await seedAgent('acme', 'draft', alicesDraft);
-    const resolveAgent = await load('resolveAgentForCaller');
-
-    expect(
-      await resolveAgent({
-        orgSlug: 'acme',
-        slug: 'draft',
-        locale: 'en',
-        ...bob,
-      }),
-    ).toBeNull();
-  });
-});
-
 describe('saving an agent', () => {
   it('starts as its author’s own and can be shared by an edit', async () => {
     const saveAgent = await load('saveAgentForCaller');

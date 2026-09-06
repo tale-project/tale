@@ -123,11 +123,3 @@ export function canEditSkill(
   if (skill.owner !== undefined && skill.owner === viewer.userId) return true;
   return skill.visibility !== 'private' && viewer.isOrgAdmin;
 }
-
-/** Keep only the skills `viewer` may see, preserving the input order. */
-export function filterVisibleSkills<T extends SkillAccessSubject>(
-  skills: readonly T[],
-  viewer: SkillViewer,
-): T[] {
-  return skills.filter((skill) => canViewSkill(skill, viewer));
-}

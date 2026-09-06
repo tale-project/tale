@@ -1,7 +1,6 @@
 import { anyRefs } from '../../shared/handlers/function-refs';
 import { backendErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
-import { rewriteStorageOrigin } from '../paths';
 import {
   WEBDAV_MAX_PUT_BYTES,
   WebDAVBodyTooLarge,
@@ -35,8 +34,8 @@ export async function handlePut(
     };
   }
 
-  // Up-front Content-Length cap. Aborts huge uploads before we touch
-  // Convex. mid-stream guard below catches Content-Length spoofing.
+  // Up-front Content-Length cap. Aborts huge uploads before we touch the
+  // backend; the mid-stream guard below catches Content-Length spoofing.
   const declaredSize = parseContentLength(req.headers.get('content-length'));
   if (declaredSize !== null && declaredSize > WEBDAV_MAX_PUT_BYTES) {
     return {
@@ -44,6 +43,12 @@ export async function handlePut(
       headers: {},
       body: 'Request body too large',
     };
+  }
+  // The bytes go to a presigned object-store PUT, which needs the length up
+  // front, so a chunked PUT (no Content-Length) is a permanent, expected
+  // refusal: RFC 7231 §6.5.10's 411 — before any backend call, never a 500.
+  if (declaredSize === null) {
+    return { status: 411, headers: {}, body: 'Content-Length required' };
   }
 
   // Pre-check existence to choose 201 vs 204 (RFC 4918 §9.7.1).
@@ -145,63 +150,35 @@ export async function handlePut(
     req.headers.get('content-type') ?? 'application/octet-stream';
 
   // Two-step upload:
-  // 1) Ask Convex for an upload target — backend-aware: the org's own S3 bucket
-  //    (a presigned PUT) when configured, else Convex `_storage` (a
-  //    generateUploadUrl POST). A chunked PUT (no Content-Length) can't target
-  //    a presigned S3 PUT — they require a known length — so those fall back to
-  //    the Convex `_storage` POST (native chunked ingest); the idempotent
-  //    per-org blob backfill relocates such a blob into the bucket later.
+  // 1) Ask the backend for an upload target — a presigned PUT into the org's
+  //    object store, whose key is handed back as the ref (`s3Ref`) up front.
   // 2) Stream the bytes to that target.
-  // A Convex POST url self-reports an origin (127.0.0.1:3210 self-hosted)
-  // unreachable from this container; re-home it onto the reachable backend
-  // origin (CONVEX_URL). A presigned S3 PUT already addresses the org's public
-  // endpoint — leave it untouched. See ctx.ts.
-  let uploadTarget: { url: string; method: 'POST' | 'PUT'; s3Ref?: string };
-  if (declaredSize !== null) {
-    const handoff: unknown = await ctx.backend.action(
-      anyRefs.files.blob_actions.generateWebdavBlobUpload,
-      { organizationId: auth.organizationId, contentType },
+  const handoff: unknown = await ctx.backend.action(
+    anyRefs.files.blob_actions.generateWebdavBlobUpload,
+    { organizationId: auth.organizationId, contentType },
+  );
+  if (!isUploadHandoff(handoff)) {
+    console.error(
+      '[webdav] PUT generateWebdavBlobUpload returned malformed handoff',
+      handoff,
     );
-    if (!isUploadHandoff(handoff)) {
-      console.error(
-        '[webdav] PUT generateWebdavBlobUpload returned malformed handoff',
-        handoff,
-      );
-      return { status: 502, headers: {}, body: 'Upload URL unavailable' };
-    }
-    uploadTarget = handoff;
-  } else {
-    const rawUploadUrl: unknown = await ctx.backend.mutation(
-      anyRefs.webdav.tree_mutations.generateWebdavUploadUrl,
-      {},
-    );
-    if (typeof rawUploadUrl !== 'string') {
-      console.error(
-        '[webdav] PUT generateWebdavUploadUrl returned non-string',
-        rawUploadUrl,
-      );
-      return { status: 502, headers: {}, body: 'Upload URL unavailable' };
-    }
-    uploadTarget = { url: rawUploadUrl, method: 'POST' };
+    return { status: 502, headers: {}, body: 'Upload URL unavailable' };
   }
-  const uploadUrl =
-    uploadTarget.method === 'POST'
-      ? rewriteStorageOrigin(uploadTarget.url, ctx.backendApiUrl)
-      : uploadTarget.url;
+  const uploadTarget = handoff;
 
   // Wrap the body in a counter so we can fail the request if the
-  // client sent more bytes than Content-Length (or no Content-Length)
-  // promised. Falls through when there is no body (Length: 0 PUT).
+  // client sent more bytes than Content-Length promised. Falls through
+  // when there is no body (Length: 0 PUT).
   const { body, sizeOf } = wrapWithCap(req.body, WEBDAV_MAX_PUT_BYTES);
 
-  const uploadHeaders: Record<string, string> = { 'Content-Type': contentType };
-  if (declaredSize !== null) {
-    uploadHeaders['Content-Length'] = String(declaredSize);
-  }
+  const uploadHeaders: Record<string, string> = {
+    'Content-Type': contentType,
+    'Content-Length': String(declaredSize),
+  };
 
   let upload: Response;
   try {
-    upload = await fetch(uploadUrl, {
+    upload = await fetch(uploadTarget.url, {
       method: uploadTarget.method,
       headers: uploadHeaders,
       body: body ?? new Uint8Array(),
@@ -235,12 +212,9 @@ export async function handlePut(
     console.warn('[webdav] PUT upload failed', upload.status, txt);
     return { status: 502, headers: {}, body: 'Upload failed' };
   }
-  // Convex POST returns `{ storageId }` in its body; an S3 PUT returns no body
-  // — the ref (the object key) was known up front and handed back as `s3Ref`.
-  const storageId =
-    uploadTarget.method === 'PUT'
-      ? (uploadTarget.s3Ref ?? null)
-      : extractStorageId(await upload.json().catch(() => null));
+  // A presigned PUT returns no body — the ref (the object key) was known up
+  // front and handed back as `s3Ref`.
+  const storageId = uploadTarget.s3Ref ?? null;
   if (!storageId) {
     return {
       status: 502,
@@ -344,23 +318,16 @@ function parseMtimeHeader(raw: string | null): number | undefined {
   return Math.trunc(n * 1000);
 }
 
-function extractStorageId(payload: unknown): string | null {
-  if (typeof payload !== 'object' || payload === null) return null;
-  if (!('storageId' in payload)) return null;
-  const candidate: unknown = payload.storageId;
-  return typeof candidate === 'string' ? candidate : null;
-}
-
-// Shape guard for the backend-aware upload handoff returned by
-// files.blob_actions.generateWebdavBlobUpload (crosses the ConvexHttpClient
-// boundary as `unknown`).
+// Shape guard for the upload handoff returned by
+// files.blob_actions.generateWebdavBlobUpload (crosses the backend seam as
+// `unknown`).
 function isUploadHandoff(
   value: unknown,
-): value is { url: string; method: 'POST' | 'PUT'; s3Ref?: string } {
+): value is { url: string; method: 'PUT'; s3Ref?: string } {
   if (typeof value !== 'object' || value === null) return false;
   const url: unknown = (value as { url?: unknown }).url;
   const method: unknown = (value as { method?: unknown }).method;
-  return typeof url === 'string' && (method === 'POST' || method === 'PUT');
+  return typeof url === 'string' && method === 'PUT';
 }
 
 function extractReason(err: unknown): string | null {

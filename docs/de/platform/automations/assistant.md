@@ -17,7 +17,7 @@ Der Automatisierungs-Assistent ist in dieser Version nicht verfügbar. Es gibt k
 
 ## Ein Modell eine verfassen lassen
 
-Der Weg für Modelle ist der [MCP-Endpoint](/de/develop/mcp-endpoint): Richte einen Coding-Agent, eine IDE oder deine eigene Schleife mit einem API-Schlüssel der Organisation darauf, und sie hält die Authoring-Tools, die der Assistent einmal trug — `get_docs` für die Grammatik, `validate_automation`, `save_automation`, `run_automation` im Mock- oder Live-Modus, `test_automation` und `deploy_automation` — dazu `list_automations` und `search_capabilities`, um zu finden, was schon existiert, bevor ein Duplikat entsteht. Ein Speichern über den Endpoint hängt genau wie die Seite eine Version an, und nichts geht live, bevor etwas es live schaltet. Was ein Schlüssel speichern und live schalten darf, folgt der Rolle seines Inhabers: Entwickler-Rechte, genau wie auf der Seite.
+Der Weg für Modelle ist der [MCP-Endpoint](/de/develop/mcp-endpoint): Richte einen Coding-Agent, eine IDE oder deine eigene Schleife mit einem API-Schlüssel der Organisation darauf, und sie hält die Authoring-Tools, die der Assistent einmal trug — `get_docs` für die Grammatik, `validate_automation`, `save_automation`, `run_automation` gegen die Mocks, `test_automation` und `deploy_automation` — dazu `list_automations` und `search_capabilities`, um zu finden, was schon existiert, bevor ein Duplikat entsteht. Ein Speichern über den Endpoint hängt genau wie die Seite eine Version an, und nichts geht live, bevor etwas es live schaltet. Was ein Schlüssel speichern und live schalten darf, folgt der Rolle seines Inhabers: Entwickler-Rechte, genau wie auf der Seite.
 
 ## Wo das hingehört
 

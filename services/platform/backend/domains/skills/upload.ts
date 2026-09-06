@@ -39,6 +39,10 @@ import { withSkillWriterLock } from './writer-lock.ts';
  * delete), and the parse/replace/write protocol (needs_confirm, force +
  * edit rights, owner adoption) is the reused helpers verbatim.
  */
+type UploadOutcome =
+  | { ok: true; slug: string }
+  | { ok: false; status: 'needs_confirm'; slug: string };
+
 export async function uploadSkillBundlePg(
   sql: Sql,
   args: {
@@ -48,10 +52,7 @@ export async function uploadSkillBundlePg(
     storageId: string;
     force?: boolean;
   },
-): Promise<
-  | { ok: true; slug: string }
-  | { ok: false; status: 'needs_confirm'; slug: string }
-> {
+): Promise<UploadOutcome> {
   // Single-use: the intent is consumed here, and the blob dies with this
   // attempt (success or failure) — a `needs_confirm` round-trip re-uploads.
   const owned = await consumeUploadIntent(sql, {
@@ -116,70 +117,75 @@ export async function uploadSkillBundlePg(
     });
   }
 
-  let existing: OrgSkill | null = null;
-  let existingUnreadable = false;
+  // The replace decision — is there a bundle, may this member replace it,
+  // whose skill does it stay — is taken INSIDE the per-(org, slug) writer
+  // lock, exactly like the editor's save. Decided before it, two uploads of
+  // one new slug both saw "no bundle": neither got needs_confirm and the
+  // second silently overwrote the first, owner included. The lock is held
+  // for a directory read and a rename, so a refusal holds it for nothing.
+  let outcome: UploadOutcome;
   try {
-    existing = await readOrgSkill(
-      createOrgSkillReader(args.orgSlug),
+    outcome = await withSkillWriterLock(
+      sql,
+      args.organizationId,
       parsed.slug,
+      async () => {
+        let existing: OrgSkill | null = null;
+        let existingUnreadable = false;
+        try {
+          existing = await readOrgSkill(
+            createOrgSkillReader(args.orgSlug),
+            parsed.slug,
+          );
+        } catch (err) {
+          if (!(err instanceof SkillParseError)) throw err;
+          existingUnreadable = true;
+        }
+        const entries = await listSkillBundleFileEntries(
+          args.orgSlug,
+          parsed.slug,
+        );
+        const bundleExists =
+          existing !== null || existingUnreadable || entries !== null;
+
+        if (bundleExists && args.force !== true) {
+          return { ok: false, status: 'needs_confirm', slug: parsed.slug };
+        }
+        if (bundleExists) {
+          const allowed =
+            existing !== null
+              ? canEditSkill(existing.meta, args.viewer)
+              : args.viewer.isOrgAdmin;
+          if (!allowed) {
+            throw new AppError({
+              code: 'SKILL_FORBIDDEN',
+              message: `You cannot replace the skill "${parsed.slug}".`,
+            });
+          }
+        }
+
+        // The owner and sharing rules the editor applies. An unreadable
+        // existing document counts as no bundle: there is nothing left to
+        // preserve.
+        const files = normalizedBundleFiles(parsed, args.viewer, existing);
+        try {
+          await writeSkillBundleFiles(args.orgSlug, parsed.slug, files);
+        } catch (err) {
+          if (err instanceof AppError) throw err;
+          throw new AppError({
+            code: 'WRITE_FAILED',
+            message:
+              err instanceof Error
+                ? err.message
+                : 'Failed to write skill bundle',
+          });
+        }
+        return { ok: true, slug: parsed.slug };
+      },
     );
-  } catch (err) {
-    if (err instanceof SkillParseError) {
-      existingUnreadable = true;
-    } else {
-      await cleanup();
-      throw err;
-    }
-  }
-  const entries = await listSkillBundleFileEntries(args.orgSlug, parsed.slug);
-  const bundleExists =
-    existing !== null || existingUnreadable || entries !== null;
-
-  if (bundleExists && args.force !== true) {
-    await cleanup();
-    return { ok: false, status: 'needs_confirm', slug: parsed.slug };
-  }
-  if (bundleExists) {
-    const allowed =
-      existing !== null
-        ? canEditSkill(existing.meta, args.viewer)
-        : args.viewer.isOrgAdmin;
-    if (!allowed) {
-      await cleanup();
-      throw new AppError({
-        code: 'SKILL_FORBIDDEN',
-        message: `You cannot replace the skill "${parsed.slug}".`,
-      });
-    }
-  }
-
-  // The owner and sharing rules the editor applies, decided BEFORE the lock
-  // so a refusal never holds it. An unreadable existing document counts as
-  // no bundle: there is nothing left to preserve.
-  let files: ReturnType<typeof normalizedBundleFiles>;
-  try {
-    files = normalizedBundleFiles(parsed, args.viewer, existing);
-  } catch (err) {
-    await cleanup();
-    throw err;
-  }
-
-  // Per-(org, slug) writer mutex — the one every skill writer holds, so the
-  // editor's save and delete cannot land between this swap's two renames.
-  try {
-    await withSkillWriterLock(sql, args.organizationId, parsed.slug, () =>
-      writeSkillBundleFiles(args.orgSlug, parsed.slug, files),
-    );
-  } catch (err) {
-    if (err instanceof AppError) throw err;
-    throw new AppError({
-      code: 'WRITE_FAILED',
-      message:
-        err instanceof Error ? err.message : 'Failed to write skill bundle',
-    });
   } finally {
     await cleanup();
   }
 
-  return { ok: true, slug: parsed.slug };
+  return outcome;
 }

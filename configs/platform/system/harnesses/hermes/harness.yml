@@ -60,4 +60,3 @@ subscription:
   kind: env
   tokenVar: OPENAI_API_KEY
   baseUrlVar: OPENAI_BASE_URL
-pinnedVersion: 0.18.0

@@ -119,6 +119,25 @@ describe('evaluateApprovalGate', () => {
     ).toBe(false);
   });
 
+  it('answers a policy-only ask from the policy alone — no record read, no card minted', async () => {
+    // A caller that cannot park (a subautomation's node) must not leave a
+    // pending card nothing would consume, nor inherit a same-key record.
+    const fake = fakeGate({
+      records: [[{ id: 'a-parent', status: 'executing', metadata: null }]],
+      inserts: [[{ id: 'never' }]],
+    });
+
+    const decision = await evaluateApprovalGate(fake.sql, {
+      ...args,
+      policyOnly: true,
+    });
+
+    // The default policy: an outbound write needs a person.
+    expect(decision).toEqual({ decision: 'needs-approval' });
+    expect(readGovernancePolicyForOrg).toHaveBeenCalledTimes(1);
+    expect(fake.statements).toEqual([]);
+  });
+
   it('consumes an approved record to completed on its first pass through', async () => {
     const fake = fakeGate({
       records: [[{ id: 'a-1', status: 'executing', metadata: null }]],

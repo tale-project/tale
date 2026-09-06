@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  formatZodError,
-  formatZodErrorFull,
-  zodErrorMessage,
-} from './format-error';
+import { formatZodError, zodErrorMessage } from './format-error';
 import { piiConfigSchema } from './pii';
 import { skillFrontmatterSchema } from './skills';
 
@@ -67,18 +63,6 @@ describe('formatZodError', () => {
 
     const message = formatZodError(result.error, { maxIssues: 1 });
     expect(message).toMatch(/\(\+\d+ more\)$/);
-  });
-});
-
-describe('formatZodErrorFull', () => {
-  it('renders every issue (zod/v4 prettifyError), never the raw dump', () => {
-    const result = piiConfigSchema.safeParse({});
-    expect(result.success).toBe(false);
-    if (result.success) throw new Error('unreachable');
-
-    const message = formatZodErrorFull(result.error);
-    expectNoRawDump(message);
-    expect(message.length).toBeGreaterThan(0);
   });
 });
 

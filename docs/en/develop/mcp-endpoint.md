@@ -46,7 +46,7 @@ Twenty-two tools, in three groups. The authoring tools take whole automation doc
 | `get_catalog`         | Every node type this deployment can execute.               |
 | `search_catalog`      | Search the node-type catalog by keyword.                   |
 | `validate_automation` | Validate an automation document without saving it.         |
-| `run_automation`      | Run an automation document directly (mock or live mode).   |
+| `run_automation`      | Run an automation document directly against the deterministic mocks. |
 | `test_automation`     | Run an automation's own acceptance tests.                  |
 | `save_automation`     | Save an automation document as a new immutable version.    |
 | `get_automation`      | Read one saved version (the latest when unversioned).      |
@@ -57,7 +57,7 @@ Twenty-two tools, in three groups. The authoring tools take whole automation doc
 
 | Tool             | What it does                                                                                                   |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
-| `run_deployed`   | Run the deployed version and WAIT for the finished result — output, trace and effects in one answer.           |
+| `run_deployed`   | Run the deployed version live and WAIT for the finished result — output, trace and effects in one answer; a run that outlives the wait answers with its `runId` to poll. |
 | `start_run`      | Start the deployed version in the background and return a run handle immediately; poll get_run for the result. |
 | `list_runs`      | Recent runs, newest first — of one automation or of the whole organization.                                    |
 | `get_run`        | One run in full: status, output, trace and effects.                                                            |
@@ -67,7 +67,7 @@ Twenty-two tools, in three groups. The authoring tools take whole automation doc
 | `delete_trigger` | Unbind an automation's trigger; its versions and run history stay.                                             |
 | `set_trigger`    | Bind what starts the automation (schedule/webhook/event).                                                      |
 
-Pick `run_deployed` when the automation is quick and you want one call with the answer in it. Pick `start_run` when the run may take minutes — it returns a `runId` immediately, and `get_run` polls it. Both run live.
+Pick `run_deployed` when the automation is quick and you want one call with the answer in it — it waits up to 30 seconds for the run, then hands you the `runId` instead of a half-finished result. Pick `start_run` when the run may take minutes — it returns a `runId` immediately, and `get_run` polls it. Both run live on the same durable runner, so both authorize, execute and record the run identically. `run_automation` is the authoring loop's tool: it runs an unsaved document against the deterministic mocks, and `mode: "live"` answers a refusal that points you at `run_deployed` — an unsaved document has no live lane.
 
 `start_run` also takes an optional `projectId` — the project the run operates in, so its task and document tools act there. Omit it for an organization-wide run, or, when the automation is bound to a single project, that one. A bound automation accepts only a project it is bound to.
 
@@ -85,8 +85,8 @@ In this version the registry holds the organization's deployed automations — `
 
 The key proves who is calling; the key holder's role decides what the call may do, exactly as in the product:
 
-- **Any member key** — every read tool, `run_automation` in mock mode, `search_capabilities`, `get_knowledge`.
-- **Developer capability required** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run`, and live execution (`run_deployed`, `start_run`, `run_automation` in live mode).
+- **Any member key** — every read tool, `run_automation` (always against the mocks), `search_capabilities`, `get_knowledge`.
+- **Developer capability required** — `save_automation`, `deploy_automation`, `set_trigger`, `delete_trigger`, `cancel_run`, and live execution (`run_deployed`, `start_run`).
 
 A refused call is not a protocol error: the tool answers a readable refusal — `{"error": "...", "hint": "..."}` — so the calling model can adjust instead of crashing. That convention holds everywhere: validation problems, missing deployments, and role refusals all come back as data; `isError` is reserved for a call that actually threw.
 

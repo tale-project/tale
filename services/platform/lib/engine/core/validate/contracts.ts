@@ -200,21 +200,25 @@ export async function validateContracts(
             },
           ),
         );
-      } else if (parsed.version !== undefined && store) {
+      } else if (store) {
         try {
           const got = await store.get(parsed.name, parsed.version);
           if (got === null) {
-            issues.push(
-              err(
-                'SUBAUTOMATION_NOT_FOUND',
-                `node "${n.id}": automation "${parsed.name}" has no version ${parsed.version}`,
-                { nodeId: n.id, hint: `latest version: ${entry.latest}` },
-              ),
-            );
+            if (parsed.version !== undefined) {
+              issues.push(
+                err(
+                  'SUBAUTOMATION_NOT_FOUND',
+                  `node "${n.id}": automation "${parsed.name}" has no version ${parsed.version}`,
+                  { nodeId: n.id, hint: `latest version: ${entry.latest}` },
+                ),
+              );
+            }
+          } else {
+            checkSubautomationBody(n, parsed.name, got.automation, issues);
           }
         } catch (e) {
           console.warn(
-            '[engine] skipping subautomation version check (store get failed):',
+            '[engine] skipping subautomation body check (store get failed):',
             e instanceof Error ? e.message : e,
           );
         }
@@ -299,5 +303,55 @@ export async function validateContracts(
         },
       ),
     );
+  }
+}
+
+/**
+ * What a subautomation's body may not contain. Its nodes run inline as ONE
+ * step of the parent, on a sink that cannot park the run — so a live `agent`
+ * node (an asynchronous turn spanning suspensions) can never run there, and
+ * a connector write the approval policy gates fails the run instead of
+ * waiting for a person. The runtime refuses both before spending anything;
+ * this says so at save time, where the author can still move the node.
+ *
+ * One level only: the referenced document's own `nodes` are inspected, not
+ * the subautomations THEY reference — a nested offender is still refused by
+ * the runtime guards, just without the save-time hint.
+ */
+function checkSubautomationBody(
+  n: NodeDef,
+  name: string,
+  body: unknown,
+  issues: Issue[],
+): void {
+  if (!isRecord(body) || !Array.isArray(body.nodes)) return;
+  for (const sub of body.nodes) {
+    if (!isRecord(sub) || typeof sub.type !== 'string') continue;
+    const subId = typeof sub.id === 'string' ? sub.id : '?';
+    if (sub.type === 'agent') {
+      issues.push(
+        err(
+          'SUBAUTOMATION_HAS_AGENT_NODE',
+          `node "${n.id}": automation "${name}" contains an agent node ("${subId}") — a live agent turn cannot run inside a subautomation`,
+          {
+            nodeId: n.id,
+            hint: 'hoist the agent node into the calling automation and pass its result to the subautomation as input',
+          },
+        ),
+      );
+      continue;
+    }
+    if (nodeTypes().get(sub.type)?.connector?.hasEffect === true) {
+      issues.push(
+        warn(
+          'SUBAUTOMATION_HAS_WRITE',
+          `node "${n.id}": automation "${name}" performs a write ("${subId}": ${sub.type}) — a subautomation cannot wait for approval, so the run fails when the approval policy asks a person to release it`,
+          {
+            nodeId: n.id,
+            hint: `hoist the write into the calling automation, or allow ${sub.type} without approval in the approval policy`,
+          },
+        ),
+      );
+    }
   }
 }

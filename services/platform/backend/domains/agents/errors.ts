@@ -16,7 +16,6 @@ export const AGENT_ERROR_STATUS: Readonly<Record<string, CodedRefusalStatus>> =
     INVALID_AGENT_SLUG: 400,
     INVALID_AGENT: 400,
     AGENT_FORBIDDEN: 403,
-    AGENT_HISTORY_ENTRY_NOT_FOUND: 404,
     AGENT_MALFORMED: 422,
   };
 

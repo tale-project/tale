@@ -79,46 +79,52 @@ export async function upsertAgentSecret(
   }
   const encryptedValue = encryptSecret(value);
   const maskedPreview = maskAgentSecretPreview(value);
+  const storedDescription =
+    description !== undefined && description !== '' ? description : null;
   const now = Date.now();
   return sql.begin(async (tx) => {
-    const existing = await tx<{ id: string }[]>`
-      SELECT id FROM app.agent_secrets
-      WHERE org_id = ${args.organizationId} AND name = ${args.name}
-      LIMIT 1
+    // The write is ONE upsert on UNIQUE (org_id, name), so two racing first
+    // saves of a name converge on one row instead of the second surfacing
+    // its 23505 as a 500. The cap is the one check an upsert cannot carry,
+    // so the org's creates serialize on an advisory lock around it.
+    await tx`
+      SELECT pg_advisory_xact_lock(
+        hashtext(${`agent-secrets:${args.organizationId}`})
+      )
     `;
-    if (existing[0]) {
-      await tx`
-        UPDATE app.agent_secrets SET
-          encrypted_value = ${tx.json(toJson(encryptedValue))},
-          description = ${description !== undefined && description !== '' ? description : null},
-          masked_preview = ${maskedPreview ?? null},
-          updated_at_ms = ${now}, updated_by = ${args.actorId}
-        WHERE id = ${existing[0].id}
-      `;
-    } else {
-      const count = await tx<{ count: string }[]>`
-        SELECT count(*)::text AS count FROM app.agent_secrets
-        WHERE org_id = ${args.organizationId}
-      `;
-      if (Number(count[0]?.count ?? '0') >= MAX_AGENT_SECRETS_PER_ORG) {
-        throw new AgentSecretError(
-          'AGENT_SECRET_LIMIT',
-          `An organization may store at most ${MAX_AGENT_SECRETS_PER_ORG} agent secrets.`,
-          409,
-        );
-      }
-      await tx`
-        INSERT INTO app.agent_secrets (
-          org_id, name, description, encrypted_value, masked_preview,
-          created_by, created_at_ms, updated_by, updated_at_ms
-        ) VALUES (
-          ${args.organizationId}, ${args.name},
-          ${description !== undefined && description !== '' ? description : null},
-          ${tx.json(toJson(encryptedValue))}, ${maskedPreview ?? null},
-          ${args.actorId}, ${now}, ${args.actorId}, ${now}
-        )
-      `;
+    // Only the OTHER names count: a full org may still rotate a secret it
+    // already holds, and only a new name is refused.
+    const others = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.agent_secrets
+      WHERE org_id = ${args.organizationId} AND name <> ${args.name}
+    `;
+    if (Number(others[0]?.count ?? '0') >= MAX_AGENT_SECRETS_PER_ORG) {
+      throw new AgentSecretError(
+        'AGENT_SECRET_LIMIT',
+        `An organization may store at most ${MAX_AGENT_SECRETS_PER_ORG} agent secrets.`,
+        409,
+      );
     }
+    // `xmax = 0` is true only for a row this statement inserted; an updated
+    // row carries the transaction id that replaced it.
+    const landed = await tx<{ created: boolean }[]>`
+      INSERT INTO app.agent_secrets (
+        org_id, name, description, encrypted_value, masked_preview,
+        created_by, created_at_ms, updated_by, updated_at_ms
+      ) VALUES (
+        ${args.organizationId}, ${args.name}, ${storedDescription},
+        ${tx.json(toJson(encryptedValue))}, ${maskedPreview ?? null},
+        ${args.actorId}, ${now}, ${args.actorId}, ${now}
+      )
+      ON CONFLICT (org_id, name) DO UPDATE SET
+        encrypted_value = EXCLUDED.encrypted_value,
+        description = EXCLUDED.description,
+        masked_preview = EXCLUDED.masked_preview,
+        updated_at_ms = EXCLUDED.updated_at_ms,
+        updated_by = EXCLUDED.updated_by
+      RETURNING (xmax = 0) AS created
+    `;
+    const created = landed[0]?.created ?? false;
     // The audit row records the name + description length only — never the
     // value, the preview, or the ciphertext.
     await createAuditLog(tx, {
@@ -126,9 +132,7 @@ export async function upsertAgentSecret(
       actorId: args.actorId,
       ...(args.actorEmail !== undefined ? { actorEmail: args.actorEmail } : {}),
       actorType: 'user',
-      action: existing[0]
-        ? AGENT_SECRET_AUDIT.updated
-        : AGENT_SECRET_AUDIT.created,
+      action: created ? AGENT_SECRET_AUDIT.created : AGENT_SECRET_AUDIT.updated,
       category: 'data',
       resourceType: AGENT_SECRET_RESOURCE_TYPE,
       resourceId: args.name,
@@ -141,7 +145,7 @@ export async function upsertAgentSecret(
       entity: 'agent_secret',
       entityId: args.name,
     });
-    return { created: existing.length === 0 };
+    return { created };
   });
 }
 

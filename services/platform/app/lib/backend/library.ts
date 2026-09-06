@@ -17,7 +17,6 @@ import { backendFetch, backendUrl } from './api-client';
 
 type AgentListingResult = ReturnsOf<'agents/actions:listAgents'>;
 type AgentDocumentResult = ReturnsOf<'agents/actions:getAgent'>;
-type AgentHistoryResult = ReturnsOf<'agents/actions:listAgentHistory'>;
 type SkillListingResult = ReturnsOf<'skills/actions:listSkills'>;
 type SkillDocumentResult = ReturnsOf<'skills/actions:getSkill'>;
 type SkillAssetResult = ReturnsOf<'skills/actions:getSkillAsset'>;
@@ -75,18 +74,6 @@ export const libraryActionQueryAdapters: Record<string, ActionQueryAdapter> = {
           throw error;
         },
       );
-  },
-  'agents/actions:listAgentHistory': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    const slug = args.slug;
-    if (orgId === undefined || typeof slug !== 'string' || slug === '') {
-      return null;
-    }
-    return () =>
-      backendFetch<{ entries: AgentHistoryResult }>(
-        `/agents/${encodeURIComponent(slug)}/history`,
-        { orgId },
-      ).then((body) => body.entries);
   },
   'skills/actions:listSkills': (args, ctx) => {
     const orgId = orgOf(args, ctx);

@@ -64,7 +64,10 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { extractText } from '../lib/knowledge/extraction/router';
 import { renderUrlsInSandbox } from '../node_only/sandbox/render_fetch';
-import { isDueForScan } from '../websites/scan_scheduling';
+import {
+  isDueForScan,
+  WEBSITE_NOT_IN_CORPUS_MESSAGE,
+} from '../websites/scan_scheduling';
 import { readOrgEmbeddingConfig } from './connection';
 import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
 import { pinDimensions } from './dimensions';
@@ -190,9 +193,21 @@ export async function scanWebsiteImpl(
     try {
       const kind = await domainKind(sql, args.domain);
       if (continuation === 0) {
-        const claimed = await claimScan(sql, args.domain);
-        if (!claimed) {
+        const claim = await claimScan(sql, args.domain);
+        if (claim === 'held') {
           console.log(`[crawl] ${args.domain}: scan already running, skipping`);
+          return null;
+        }
+        if (claim === 'missing') {
+          // No corpus row to claim (registration never landed, or was
+          // released): without a recorded attempt the scheduler re-picks
+          // the domain every tick and nothing ever shows the user why.
+          await recordFailureOnWebsiteRow(
+            ctx,
+            identity,
+            new Error(WEBSITE_NOT_IN_CORPUS_MESSAGE),
+            { corpusUnreachable: false },
+          );
           return null;
         }
         // Surface the claim right away — discovery can run minutes and the
@@ -447,10 +462,15 @@ async function domainKind(sql: Sql, domain: string): Promise<'site' | 'list'> {
   return rows[0]?.kind === 'list' ? 'list' : 'site';
 }
 
-/** Take the corpus-side claim on a domain, or report that another scan holds
- * it. A claim older than {@link STUCK_SCAN_TAKEOVER} belongs to a crashed
- * scan and is taken over. */
-async function claimScan(sql: Sql, domain: string): Promise<boolean> {
+/** Take the corpus-side claim on a domain (`claimed`), or report that
+ * another scan holds it (`held`) or that the domain has no corpus row at all
+ * (`missing` — the two zero-row cases must not be conflated: a held claim is
+ * routine, a missing row is a failure to record). A claim older than
+ * {@link STUCK_SCAN_TAKEOVER} belongs to a crashed scan and is taken over. */
+async function claimScan(
+  sql: Sql,
+  domain: string,
+): Promise<'claimed' | 'held' | 'missing'> {
   const rows = await sql.unsafe<{ domain: string }[]>(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
         SET status = 'scanning', error = NULL, updated_at = NOW()
@@ -460,7 +480,12 @@ async function claimScan(sql: Sql, domain: string): Promise<boolean> {
       RETURNING domain`,
     [domain],
   );
-  return rows.length > 0;
+  if (rows.length > 0) return 'claimed';
+  const present = await sql.unsafe<{ domain: string }[]>(
+    `SELECT domain FROM ${PUBLIC_WEB_SCHEMA}.websites WHERE domain = $1`,
+    [domain],
+  );
+  return present.length > 0 ? 'held' : 'missing';
 }
 
 /** Discover the domain's URLs (robots.txt sitemaps first, link-walk as the

@@ -15,9 +15,18 @@ import type { TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAuditLog } from '../audit_logs/service.ts';
+import { retireTasksInTx } from '../tasks/retire.ts';
 import { deleteProject, ProjectError } from './service.ts';
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
+// The task retirement walk is the tasks domain's own (pinned by
+// retire.test.ts); here it is a seam, so this file proves the project door
+// hands it EVERY task of the project before the row goes.
+vi.mock('../tasks/retire.ts', () => ({
+  retireTasksInTx: vi
+    .fn()
+    .mockResolvedValue({ cancelledRunCount: 0, releasedRefs: [] }),
+}));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 vi.mock('../events/emit.ts', () => ({ emitEvent: vi.fn() }));
 // The documents domain imports this one back; a factory without
@@ -59,7 +68,10 @@ interface DocRow {
   createdBy: string | null;
 }
 
-function fakeTx(docs: DocRow[]): {
+function fakeTx(
+  docs: DocRow[],
+  taskIds: string[] = [],
+): {
   tx: TransactionSql;
   statements: Statement[];
 } {
@@ -69,6 +81,9 @@ function fakeTx(docs: DocRow[]): {
     statements.push({ text, values });
     if (text.includes('FROM app.projects WHERE id = ?')) {
       return Promise.resolve([PROJECT]);
+    }
+    if (text.startsWith('SELECT id FROM app.tasks')) {
+      return Promise.resolve(taskIds.map((id) => ({ id })));
     }
     if (text.includes('FROM app.documents')) {
       return Promise.resolve(docs);
@@ -161,6 +176,39 @@ describe('deleteProject (cascade)', () => {
     expect(walkAt).toBeLessThan(statements.indexOf(cascade as Statement));
     expect(createAuditLog).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['detach', 'cascade'] as const)(
+    'retires every task of the project through the tasks walk before the row goes (%s)',
+    async (mode) => {
+      const { tx, statements } = fakeTx([], ['task-1', 'task-2']);
+      await deleteProject(tx, auth, {
+        projectId: 'project-1',
+        mode,
+        confirmPhrase: 'Q2 Sales',
+      });
+      expect(retireTasksInTx).toHaveBeenCalledTimes(1);
+      expect(retireTasksInTx).toHaveBeenCalledWith(tx, {
+        organizationId: 'org_1',
+        projectId: 'project-1',
+        taskIds: ['task-1', 'task-2'],
+        closedReason: 'project_deleted',
+      });
+      // The task ids are read, and the walk runs, BEFORE the project row is
+      // deleted — after it the FK cascade would already have taken them.
+      const taskRead = statements.findIndex((s) =>
+        s.text.startsWith('SELECT id FROM app.tasks'),
+      );
+      const projectDelete = statements.findIndex((s) =>
+        s.text.startsWith('DELETE FROM app.projects'),
+      );
+      expect(taskRead).toBeGreaterThanOrEqual(0);
+      expect(taskRead).toBeLessThan(projectDelete);
+      expect(createAuditLog).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(createAuditLog).mock.calls[0]?.[1]).toMatchObject({
+        metadata: { deletedTaskCount: 2, cancelledRunCount: 0 },
+      });
+    },
+  );
 
   it('leaves a detach alone — nothing is destroyed, so nothing is guarded', async () => {
     const { tx, statements } = fakeTx([

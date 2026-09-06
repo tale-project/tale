@@ -18,6 +18,9 @@ import { backendEntityPrefix, backendOrgPrefix } from './query-keys';
  * exactly the contract `backend/realtime/sse.ts` documents. When the server
  * cannot replay a resume in full (the cursor is older than the outbox's
  * retention) it sends `resync` first, and the whole org scope refetches.
+ * `forbidden` is terminal: the server re-proves membership and the session
+ * while the stream is open and ends it once either is gone — the source is
+ * closed here instead of reconnecting into a guaranteed 401/403.
  */
 export function useBackendHints(orgId: string | undefined): void {
   const queryClient = useQueryClient();
@@ -60,13 +63,20 @@ export function useBackendHints(orgId: string | undefined): void {
         queryKey: backendOrgPrefix(orgId),
       });
     };
+    // The reader lost the org (or the session): stop, do not auto-reconnect.
+    // The next mount — a fresh sign-in, a re-added member — reopens it.
+    const onForbidden = (): void => {
+      source.close();
+    };
     source.addEventListener('hint', onHint);
     source.addEventListener('resync', onResync);
     source.addEventListener('open', onOpen);
+    source.addEventListener('forbidden', onForbidden);
     return () => {
       source.removeEventListener('hint', onHint);
       source.removeEventListener('resync', onResync);
       source.removeEventListener('open', onOpen);
+      source.removeEventListener('forbidden', onForbidden);
       source.close();
       // A closed stream is not an outage — the next mount reopens it.
       reportBackendReachable();

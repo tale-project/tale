@@ -106,11 +106,7 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
     },
   };
 
-  return {
-    backend: fakeBackend,
-    storageBaseUrl: 'http://localhost:3211',
-    backendApiUrl: 'http://localhost:3210',
-  };
+  return { backend: fakeBackend };
 }
 
 interface MakeRequestOptions {
@@ -144,12 +140,6 @@ export function makeRequest(opts: MakeRequestOptions): WebDAVRequest {
       return new TextEncoder().encode(bodyText);
     },
   };
-}
-
-// Basic-auth header for the default test credentials — for tests that
-// drive the adapters through a real socket (no makeRequest shortcut).
-export function defaultBasicAuthHeader(): string {
-  return basicAuth(TEST_USERNAME, TEST_PASSWORD);
 }
 
 function basicAuth(user: string, pass: string): string {

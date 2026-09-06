@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { UNATTRIBUTED_AGENT_SLUG } from '../../../lib/shared/constants/usage.ts';
 import type { Doc } from '../lib/rows';
-import { computeFeedbackStats, UNATTRIBUTED_AGENT_SLUG } from './stats';
+import { computeFeedbackStats } from './stats';
 
 type FeedbackRow = Doc<'messageFeedback'>;
 

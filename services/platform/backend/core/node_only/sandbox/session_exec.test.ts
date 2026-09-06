@@ -161,7 +161,7 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     expect(files).toHaveLength(1);
     expect(files[0]?.storageId).toBe('s3:acme/blob');
     expect(putBlob).toHaveBeenCalledTimes(1);
-    expect(putBlob.mock.calls[0]?.[1]).toBe('acme');
+    expect(putBlob.mock.calls[0]?.[0]).toBe('acme');
   });
 
   it('treats a subdir 404 on a LIVE session as a legitimately empty harvest', async () => {

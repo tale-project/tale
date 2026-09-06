@@ -19,7 +19,8 @@ import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 
 export type ApprovalGateDecision =
   | { decision: 'allow'; approvalId?: string }
-  | { decision: 'needs-approval'; approvalId: string }
+  /** `approvalId` is absent on a policy-only answer: no card was minted. */
+  | { decision: 'needs-approval'; approvalId?: string }
   | { decision: 'rejected'; approvalId: string; reason?: string };
 
 export interface EvaluateApprovalGateArgs {
@@ -39,6 +40,14 @@ export interface EvaluateApprovalGateArgs {
   nodeId?: string;
   nodeType?: string;
   automation?: string;
+  /**
+   * Answer from the policy alone — never read or mint a record. For a caller
+   * that cannot park on a card (a subautomation's node runs inline inside its
+   * parent's step): the operation either passes the policy without a person
+   * or is refused before any side effect, and no card is left behind that
+   * nothing would ever consume.
+   */
+  policyOnly?: boolean;
 }
 
 export async function evaluateApprovalGate(
@@ -55,23 +64,19 @@ export async function evaluateApprovalGate(
     return { decision: 'allow' };
   }
 
+  if (args.policyOnly === true) {
+    return (await policyRequirement(sql, args)) === 'allow'
+      ? { decision: 'allow' }
+      : { decision: 'needs-approval' };
+  }
+
   return sql.begin(async (tx) => {
     const existing = await lockNewestRecord(tx, args);
     if (existing !== null) return answerFromRecord(tx, existing);
 
     // Nothing on file: the policy decides whether this operation needs a
     // human at all.
-    const policy = await readGovernancePolicyForOrg(
-      tx,
-      args.organizationId,
-      'approval_policy',
-    );
-    const requirement = resolveApprovalRequirement({
-      connector: args.connector,
-      action: args.action,
-      platformInternal: args.platformInternal === true,
-      policy,
-    });
+    const requirement = await policyRequirement(tx, args);
     if (requirement === 'allow') return { decision: 'allow' };
 
     // The insert IS the claim. FOR UPDATE over zero rows locks nothing, so
@@ -125,6 +130,24 @@ export async function evaluateApprovalGate(
     const winner = await lockNewestRecord(tx, args);
     if (winner === null) throw new Error('approval insert failed');
     return answerFromRecord(tx, winner);
+  });
+}
+
+/** What the org's approval policy says about this operation, no record read. */
+async function policyRequirement(
+  sql: Sql | TransactionSql,
+  args: EvaluateApprovalGateArgs,
+): Promise<ReturnType<typeof resolveApprovalRequirement>> {
+  const policy = await readGovernancePolicyForOrg(
+    sql,
+    args.organizationId,
+    'approval_policy',
+  );
+  return resolveApprovalRequirement({
+    connector: args.connector,
+    action: args.action,
+    platformInternal: args.platformInternal === true,
+    policy,
   });
 }
 

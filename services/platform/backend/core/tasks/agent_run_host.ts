@@ -290,11 +290,7 @@ async function stageTaskInputs(
   ] as const) {
     const taken = new Set<string>();
     for (const file of files) {
-      const url = await stageUrlForBlobRef(
-        ctx,
-        file.fileId,
-        args.organizationId,
-      );
+      const url = await stageUrlForBlobRef(file.fileId, args.organizationId);
       if (url === null) continue; // blob purged under a live row — skip, don't fail
       const name = safeInputFileName(file.fileName, taken);
       toStage.push({ path: `${dir}/${kind}/${name}`, url });

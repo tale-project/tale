@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   canEditSkill,
   canViewSkill,
-  filterVisibleSkills,
   type SkillAccessSubject,
   type SkillViewer,
 } from './visibility';
@@ -138,37 +137,5 @@ describe('canEditSkill', () => {
   it('never lets a project or org viewer edit', () => {
     expect(canEditSkill(shared, redProject)).toBe(false);
     expect(canEditSkill(shared, orgMachinery)).toBe(false);
-  });
-});
-
-describe('filterVisibleSkills', () => {
-  it('keeps org skills and the viewer’s own private ones, in order', () => {
-    const skills: SkillAccessSubject[] = [
-      shared,
-      alicesPrivate,
-      { visibility: 'private', owner: 'user_bob' },
-      ownerless,
-    ];
-
-    expect(filterVisibleSkills(skills, alice)).toEqual([
-      shared,
-      alicesPrivate,
-      ownerless,
-    ]);
-    expect(filterVisibleSkills(skills, bob)).toEqual([
-      shared,
-      { visibility: 'private', owner: 'user_bob' },
-      ownerless,
-    ]);
-  });
-
-  it('resolves team skills per viewer teams', () => {
-    const skills: SkillAccessSubject[] = [redTeamSkill, blueTeamSkill, shared];
-    expect(filterVisibleSkills(skills, carol)).toEqual([blueTeamSkill, shared]);
-    expect(filterVisibleSkills(skills, redProject)).toEqual([
-      redTeamSkill,
-      shared,
-    ]);
-    expect(filterVisibleSkills(skills, orgWideProject)).toEqual([shared]);
   });
 });

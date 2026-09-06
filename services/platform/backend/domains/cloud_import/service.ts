@@ -4,7 +4,7 @@ import { resolveMicrosoftCloudImportTenantId } from '../../core/cloud_import/dep
 import {
   refreshGoogleAccessToken,
   refreshMicrosoftAccessToken,
-  type RefreshedTokens,
+  type TokenRefreshResult,
 } from '../../core/cloud_import/token_refresh.ts';
 import {
   parseSecretPayload,
@@ -14,6 +14,7 @@ import { OAUTH_STATE_TTL_MS } from '../../core/http_connectors/oauth_state.ts';
 import {
   decryptSecret,
   encryptSecret,
+  KeyRotatedError,
   type EncryptedSecret,
 } from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
@@ -299,10 +300,22 @@ export async function resolveCloudAccessToken(
   try {
     const plaintext = decryptSecret(row.encryptedData);
     payload = parseSecretPayload('oauth2', JSON.parse(plaintext));
-  } catch {
+  } catch (error) {
+    // An unreadable envelope is a deployment event (a rotated
+    // ENCRYPTION_SECRET_HEX, a corrupted row), not a user action — name the
+    // cause for the operator, and flag the row so the UI stops calling a
+    // grant "connected" that every sync fails on.
+    console.error(
+      `[cloud-import] stored ${args.provider} authorization for user ${args.userId} in org ${args.organizationId} is unreadable:`,
+      error instanceof Error ? error.message : error,
+    );
+    await markCloudAuthorizationNeedsReauth(sql, args);
     return {
       success: false,
-      error: 'Stored cloud authorization could not be decrypted',
+      error:
+        error instanceof KeyRotatedError
+          ? 'Stored cloud authorization was encrypted under a previous ENCRYPTION_SECRET_HEX and cannot be decrypted — reconnect to continue'
+          : 'Stored cloud authorization could not be decrypted — reconnect to continue',
       needsReauth: true,
     };
   }
@@ -338,7 +351,7 @@ export async function resolveCloudAccessToken(
     };
   }
 
-  let refreshed: RefreshedTokens | null = null;
+  let refreshed: TokenRefreshResult;
   if (args.provider === 'onedrive') {
     // An org app refreshes against ITS tenant; the deployment chain only
     // backs the env-app fallback.
@@ -364,20 +377,34 @@ export async function resolveCloudAccessToken(
     });
   }
 
-  if (!refreshed) {
-    await markCloudAuthorizationNeedsReauth(sql, args);
+  if (!refreshed.ok) {
+    // Only a dead grant is the user's to fix. A throttle, an outage, or a
+    // misconfigured OAuth app is reported and left retryable: the grant
+    // stays 'active' and the sync engine's error → retry posture gets its
+    // chance on the next scan.
+    if (refreshed.kind === 'dead_grant') {
+      await markCloudAuthorizationNeedsReauth(sql, args);
+      return {
+        success: false,
+        error: 'Failed to refresh cloud authorization — reconnect to continue',
+        needsReauth: true,
+      };
+    }
+    console.warn(
+      `[cloud-import] ${args.provider} token refresh unavailable for user ${args.userId} in org ${args.organizationId}: ${refreshed.detail}`,
+    );
     return {
       success: false,
-      error: 'Failed to refresh cloud authorization — reconnect to continue',
-      needsReauth: true,
+      error: `Cloud authorization could not be refreshed right now (${refreshed.detail}) — the next sync retries`,
+      needsReauth: false,
     };
   }
 
   const nextDocument = {
-    accessToken: refreshed.accessToken,
-    refreshToken: refreshed.refreshToken ?? payload.refreshToken,
-    ...(refreshed.expiresAt !== undefined
-      ? { expiresAt: refreshed.expiresAt }
+    accessToken: refreshed.tokens.accessToken,
+    refreshToken: refreshed.tokens.refreshToken ?? payload.refreshToken,
+    ...(refreshed.tokens.expiresAt !== undefined
+      ? { expiresAt: refreshed.tokens.expiresAt }
       : {}),
     ...(payload.scopes !== undefined ? { scopes: [...payload.scopes] } : {}),
   };
@@ -388,5 +415,5 @@ export async function resolveCloudAccessToken(
     encryptedData: encryptSecret(JSON.stringify(nextDocument)),
     scopes: payload.scopes !== undefined ? [...payload.scopes] : [],
   });
-  return { success: true, accessToken: refreshed.accessToken };
+  return { success: true, accessToken: refreshed.tokens.accessToken };
 }

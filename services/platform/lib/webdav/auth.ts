@@ -162,9 +162,23 @@ interface AuthDeps {
 }
 
 // Track lastUsedAt write debouncing — one write per app-password per
-// minute. Caches the timestamp of the last successful auth per id.
+// minute. Caches the timestamp of the last successful auth per id. Once the
+// map passes the sweep size, entries older than the interval are evicted on
+// the next touch, so revoked or retired credentials never pin memory for
+// the life of the process: the map holds at most the credentials that
+// authenticated within the last minute (plus one sweep's worth of slack).
 const lastUseTouchAt = new Map<string, number>();
 const LAST_USE_TOUCH_INTERVAL_MS = 60_000;
+const LAST_USE_TOUCH_SWEEP_SIZE = 1_000;
+
+function sweepStaleLastUseTouches(now: number): void {
+  if (lastUseTouchAt.size < LAST_USE_TOUCH_SWEEP_SIZE) return;
+  for (const [id, touchedAt] of lastUseTouchAt) {
+    if (now - touchedAt > LAST_USE_TOUCH_INTERVAL_MS) {
+      lastUseTouchAt.delete(id);
+    }
+  }
+}
 
 export async function verifyBasicAuthForDav(
   req: WebDAVRequest,
@@ -276,6 +290,7 @@ export async function verifyBasicAuthForDav(
   const now = Date.now();
   const lastTouch = lastUseTouchAt.get(matched._id) ?? 0;
   if (now - lastTouch > LAST_USE_TOUCH_INTERVAL_MS) {
+    sweepStaleLastUseTouches(now);
     lastUseTouchAt.set(matched._id, now);
     void ctx.backend
       .mutation(anyRefs.webdav.app_password_mutations.recordAppPasswordUse, {

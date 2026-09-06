@@ -402,3 +402,108 @@ describe('importFiles sync configs', () => {
     expect(deps.downloadToStorage).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * A vendor file WITHOUT a content hash (Graph omits `file.hashes` for some
+ * item types and in-flight uploads) used to be re-downloaded on every scan.
+ * The source's size + modified stamp now stands in for the hash.
+ */
+describe('importFiles hash-less change detection', () => {
+  const stamped = {
+    _id: 'doc-1' as Id<'documents'>,
+    metadata: {
+      sourceMode: 'auto',
+      syncConfigId: 'cfg-1',
+      sourceFingerprint: '10:1700000000000',
+    },
+  };
+
+  it('skips an unchanged hash-less file by its stamped size + modified fingerprint', async () => {
+    const deps = makeDeps({
+      findDocumentByExternalId: vi.fn().mockResolvedValue(stamped),
+      getFileMetadata: vi.fn().mockResolvedValue({
+        success: true,
+        data: { size: 10, modifiedAt: 1700000000000 },
+      }),
+    });
+
+    const result = await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'sync' },
+      deps,
+    );
+
+    expect(result.skippedCount).toBe(1);
+    expect(deps.downloadToStorage).not.toHaveBeenCalled();
+    expect(deps.updateDocument).not.toHaveBeenCalled();
+  });
+
+  it('re-downloads a hash-less file whose modified stamp moved and re-stamps the fingerprint', async () => {
+    const deps = makeDeps({
+      findDocumentByExternalId: vi.fn().mockResolvedValue(stamped),
+      getFileMetadata: vi.fn().mockResolvedValue({
+        success: true,
+        data: { size: 10, modifiedAt: 1700000005000 },
+      }),
+    });
+
+    const result = await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'sync' },
+      deps,
+    );
+
+    expect(result.successCount).toBe(1);
+    expect(deps.downloadToStorage).toHaveBeenCalledTimes(1);
+    expect(deps.updateDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'doc-1',
+        contentHash: undefined,
+        metadata: expect.objectContaining({
+          sourceFingerprint: '10:1700000005000',
+        }),
+      }),
+    );
+  });
+
+  it('re-downloads a hash-less file when the vendor gives no usable stamp', async () => {
+    const deps = makeDeps({
+      findDocumentByExternalId: vi.fn().mockResolvedValue(stamped),
+      getFileMetadata: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { size: 10 } }),
+    });
+
+    await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'sync' },
+      deps,
+    );
+
+    expect(deps.downloadToStorage).toHaveBeenCalledTimes(1);
+    expect(deps.updateDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.not.objectContaining({
+          sourceFingerprint: expect.anything(),
+        }),
+      }),
+    );
+  });
+
+  it('never lets a fingerprint override a present hash', async () => {
+    const deps = makeDeps({
+      findDocumentByExternalId: vi.fn().mockResolvedValue({
+        ...stamped,
+        contentHash: 'old',
+      }),
+      getFileMetadata: vi.fn().mockResolvedValue({
+        success: true,
+        data: { hash: 'new', size: 10, modifiedAt: 1700000000000 },
+      }),
+    });
+
+    await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'sync' },
+      deps,
+    );
+
+    expect(deps.downloadToStorage).toHaveBeenCalledTimes(1);
+  });
+});

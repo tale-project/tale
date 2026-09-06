@@ -1,5 +1,4 @@
 import { anyRefs } from '../../shared/handlers/function-refs';
-import { rewriteStorageOrigin } from '../paths';
 import type {
   AuthContext,
   ParsedPath,
@@ -296,34 +295,28 @@ export async function handleGet(
     }
   };
 
-  // Prefer Convex's native file-serving URL: it streams and supports Range
-  // WITHOUT loading the blob into a V8 isolate, so large downloads work.
-  // The /storage httpAction (ctx.storage.get) buffers the whole blob in the
-  // isolate and caps at its memory limit — keep it only as a fallback for
-  // deployments where the direct URL isn't reachable from this process.
-  const directUrl: unknown = await ctx.backend
-    .query(anyRefs.webdav.tree_queries.getWebdavBlobUrl, {
-      storageId: doc.fileId,
-    })
-    .catch((err: unknown) => {
-      console.warn('[webdav] GET getWebdavBlobUrl failed', err);
-      return null;
-    });
-
-  let upstream: Response | null = null;
-  if (typeof directUrl === 'string' && directUrl.length > 0) {
-    // getUrl() bakes in the backend's self-origin (127.0.0.1:3210 self-hosted),
-    // unreachable from this container; re-home onto the reachable backend
-    // origin so the fast streaming path works in compose (no :3211 fallback).
-    upstream = await fetchBlob(
-      rewriteStorageOrigin(directUrl, ctx.backendApiUrl),
-      'direct',
+  // A presigned object-store URL: it streams and supports Range without
+  // loading the blob into this process. A null answer means the file row,
+  // the org or the object itself is gone (a purged ref) — the resource has
+  // no bytes to serve, which is a 404, not an upstream outage.
+  let directUrl: unknown;
+  try {
+    directUrl = await ctx.backend.query(
+      anyRefs.webdav.tree_queries.getWebdavBlobUrl,
+      { storageId: doc.fileId },
     );
+  } catch (err) {
+    console.warn('[webdav] GET getWebdavBlobUrl failed', err);
+    return { status: 502, headers: {}, body: 'Storage fetch failed' };
   }
-  if (!upstream) {
-    const proxyUrl = `${ctx.storageBaseUrl}/storage?id=${encodeURIComponent(doc.fileId)}`;
-    upstream = await fetchBlob(proxyUrl, 'proxy');
+  if (directUrl === null || directUrl === undefined) {
+    return { status: 404, headers: {}, body: 'Blob not found' };
   }
+  if (typeof directUrl !== 'string' || directUrl.length === 0) {
+    console.error('[webdav] GET getWebdavBlobUrl returned a malformed url');
+    return { status: 502, headers: {}, body: 'Storage fetch failed' };
+  }
+  const upstream = await fetchBlob(directUrl, 'object store');
   if (!upstream || !upstream.body) {
     return { status: 502, headers: {}, body: 'Storage fetch failed' };
   }
