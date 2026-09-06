@@ -33,7 +33,6 @@ Development and utility scripts for `@tale/platform`.
 
 ## Utilities
 
-- **`test-openai-compat.ts`** — probe an OpenAI-compatible endpoint by hand.
 - **`cls-harness.ts`** — layout-shift harness for the docs/screenshot lanes.
 
 ## Entry points (package.json)

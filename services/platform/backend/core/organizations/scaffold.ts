@@ -143,38 +143,6 @@ async function dirHasFiles(dir: string): Promise<boolean> {
 }
 
 /**
- * Source-side companion to {@link dirHasFiles}: does this CATALOG dir contain
- * anything the scaffold copy would actually seed? Mirrors {@link copyTree}'s
- * name-level source filters exactly — dotfiles (`.gitkeep`, `.history/`, tmp
- * orphans), `SKIP_DIR_NAMES`, and `*.secrets.json` are never copied, so they
- * must not count as seedable either. Without this, a catalog domain holding
- * only a `.gitkeep` is reported missing forever: the probe sees "content",
- * the copy seeds nothing, and the provisioning banner + retry loop can never
- * converge (#2676).
- *
- * Deliberately NOT used for target-side checks: a target holding only
- * `.history/` is *occupied* (see {@link seedDomain}'s override:false skip),
- * and the probe's target side must agree with that skip.
- */
-async function dirHasSeedableEntries(dir: string): Promise<boolean> {
-  try {
-    const entries = await readdir(dir);
-    return entries.some(
-      (n) => !n.startsWith('.') && !SKIP_DIR_NAMES.has(n) && !shouldSkipFile(n),
-    );
-  } catch (err) {
-    if (errnoCode(err) !== 'ENOENT') {
-      console.warn(
-        '[scaffold.dirHasSeedableEntries] readdir failed:',
-        dir,
-        err,
-      );
-    }
-    return false;
-  }
-}
-
-/**
  * realpath-aware equality / containment check. `path.resolve` only
  * canonicalizes `..`/`.` — it does NOT follow symlinks. A symlinked
  * `TALE_CONFIG_BUILTIN_DIR` (or bind-mount overlap between src/dst)
@@ -788,45 +756,4 @@ export async function scaffoldOrgFromCatalog(args: {
     skipped: false,
     results,
   };
-}
-
-/**
- * Derived provisioning status for one org: the scaffold-covered domains whose
- * builtin catalog dir HAS seedable files while the org's dir has none — i.e.
- * the org-create seed would have copied something but demonstrably didn't (the
- * failure mode a crashed/skipped `scaffoldNewOrganization` leaves behind).
- * "Seedable" mirrors what the copy actually copies (`dirHasSeedableEntries`):
- * a catalog dir holding only dotfiles/secrets seeds nothing, so it is never
- * reported missing (#2676). Deliberately file-derived rather than persisted:
- * no schema change, and the signal self-heals the moment a retry (or any
- * reseed) lands the files.
- *
- * Returns `null` when the probe cannot run (config root or builtin catalog
- * env unset) — callers must treat that as "unknown", not "unprovisioned",
- * so a misconfigured deploy doesn't nag every org with an unrepairable
- * banner. A partially-copied single domain (dir exists but incomplete) is
- * out of scope: the per-domain catalog sync covers that repair.
- */
-export async function listMissingScaffoldDomains(
-  orgSlug: string,
-): Promise<string[] | null> {
-  if (!validateOrgSlug(orgSlug)) return null;
-  const configRoot = process.env.TALE_CONFIG_DIR;
-  const catalogRoot = resolveBuiltinCatalogRoot();
-  if (!configRoot || !path.isAbsolute(configRoot)) return null;
-  if (!catalogRoot) return null;
-
-  const missing: string[] = [];
-  for (const domain of CONFIG_DOMAINS) {
-    if (!domain.scaffoldKind) continue; // not catalog-scaffolded (e.g. sso)
-    const sourceDir = path.join(catalogRoot, domain.name);
-    // Source side: only entries the copy would seed count (#2676).
-    if (!(await dirHasSeedableEntries(sourceDir))) continue; // nothing to seed from
-    const targetDir = resolveDomainDir(domain.name, orgSlug);
-    // Target side: `dirHasFiles` on purpose — it must agree with
-    // `seedDomain`'s override:false occupied-skip (a `.history/`-only target
-    // is occupied, not missing, or retry could never clear it).
-    if (!(await dirHasFiles(targetDir))) missing.push(domain.name);
-  }
-  return missing;
 }

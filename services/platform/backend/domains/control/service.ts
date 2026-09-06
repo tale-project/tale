@@ -9,7 +9,10 @@ import {
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { scaffoldNewOrganization } from '../organizations/scaffold.ts';
-import { recordPasswordChange } from '../users/service.ts';
+import {
+  recordPasswordChange,
+  setCredentialPassword,
+} from '../users/service.ts';
 
 /**
  * Deploy DRAIN control plane — the 0.5 twin of `convex/control/drain.ts`.
@@ -252,25 +255,13 @@ export async function resetOwnerCredentials(
       );
     }
     const passwordHash = await hashPassword(args.newPassword);
-    await sql`
-      INSERT INTO "account" (
-        "id", "userId", "providerId", "accountId", "password",
-        "createdAt", "updatedAt"
-      ) VALUES (
-        gen_random_uuid(), ${owner.userId}, 'credential', ${owner.userId},
-        ${passwordHash}, ${new Date()}, ${new Date()}
-      )
-      ON CONFLICT DO NOTHING
-    `;
-    await sql`
-      UPDATE "account"
-      SET "password" = ${passwordHash}, "updatedAt" = ${new Date()}
-      WHERE "userId" = ${owner.userId} AND "providerId" = 'credential'
-    `;
-    await sql`DELETE FROM "session" WHERE "userId" = ${owner.userId}`;
-    await transactSerializable(sql, (tx) =>
-      recordPasswordChange(tx, owner.userId),
-    );
+    // The credential write, the session sweep and the rotation anchor are
+    // one transaction (the same shape as the admin door's setMemberPassword).
+    await transactSerializable(sql, async (tx) => {
+      await setCredentialPassword(tx, owner.userId, passwordHash);
+      await tx`DELETE FROM "session" WHERE "userId" = ${owner.userId}`;
+      await recordPasswordChange(tx, owner.userId);
+    });
     updatedPassword = true;
   }
 

@@ -50,7 +50,14 @@ export function createLegalHoldRoutes(deps: {
     actorEmail: c.get('sessionBundle').user.email,
   });
 
+  /** The holds register (admin surface): reasons, matter names, who froze
+   * whom and why a hold was released are litigation facts — the member
+   * view of a single hold (`/by-target`) strips exactly these, so the list
+   * must not hand them out wholesale. Members keep `/targets`. */
   app.get('/', async (c) => {
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'FORBIDDEN' }, 403);
+    }
     const statusParam = c.req.query('status');
     const status =
       statusParam === 'active' ||

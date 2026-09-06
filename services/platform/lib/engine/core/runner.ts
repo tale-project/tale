@@ -5,11 +5,13 @@
  *
  * Data-only in, data-only out: a scope crosses the boundary as plain JSON
  * and the result comes back the same way, so agent-authored code can never
- * hold a host reference. Everything is async because the production backend
- * executes in an isolated sandbox session over the wire; the bundled
- * `runners/node-vm.ts` fallback exists for tests and CI determinism and is
- * NOT a security boundary — hosts must install a real backend before running
- * untrusted code live.
+ * hold a host reference. Everything is async because every backend executes
+ * out of the engine's process: `runners/sandbox-exec.ts` in the platform's
+ * isolated sandbox session over the wire — the security boundary — and the
+ * bundled `runners/node-vm.ts` in a supervised child process with a heap cap
+ * and a deadline kill — a FAULT boundary only (a runaway body cannot take the
+ * host down), NOT a security boundary. Hosts must install the sandbox backend
+ * before running untrusted code live.
  *
  * Syntax checking rides the same seam: validation wants "would this compile"
  * without executing anything, and only a backend has a parser.

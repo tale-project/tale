@@ -577,17 +577,17 @@ export async function getUserIdByEmail(
  * owner/admin in the target's org; an OWNER target is only touchable by a
  * DIFFERENT owner (self-service goes through account settings). */
 async function requireMemberAdminTarget(
-  sql: Sql,
+  tx: TransactionSql | Sql,
   actor: { userId: string; email?: string },
   memberId: string,
   opts: { ownerNeedsOtherOwner: boolean },
 ): Promise<MemberRow> {
-  const member = await findMemberById(sql, memberId);
+  const member = await findMemberById(tx, memberId);
   if (!member) {
     throw new MemberServiceError('MEMBER_NOT_FOUND', 'Member not found', 404);
   }
   const caller = await findOrganizationMember(
-    sql,
+    tx,
     member.organizationId,
     actor.userId,
   );
@@ -648,16 +648,19 @@ export async function listPasskeysForMember(
 }
 
 /** Admin passkey revocation: the credential must belong to the target
- * (IDOR guard), every session dies with it, and the act is audited. */
+ * (IDOR guard), every session dies with it, and the act is audited — all in
+ * the caller's transaction, so a failed audit row (or a failed session
+ * sweep) leaves the passkey exactly as it was: no half-revoked factor and
+ * no security action missing from the ledger. */
 export async function revokePasskeyForMember(
-  sql: Sql,
+  tx: TransactionSql,
   actor: { userId: string; email?: string },
   args: { memberId: string; passkeyId: string },
 ): Promise<void> {
-  const member = await requireMemberAdminTarget(sql, actor, args.memberId, {
+  const member = await requireMemberAdminTarget(tx, actor, args.memberId, {
     ownerNeedsOtherOwner: true,
   });
-  const deleted = await sql<{ id: string }[]>`
+  const deleted = await tx<{ id: string }[]>`
     DELETE FROM "passkey"
     WHERE "id" = ${args.passkeyId} AND "userId" = ${member.userId}
     RETURNING "id"
@@ -665,63 +668,62 @@ export async function revokePasskeyForMember(
   if (!deleted[0]) {
     throw new MemberServiceError('PASSKEY_NOT_FOUND', 'Passkey not found', 404);
   }
-  await sql`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
-  await sql.begin(async (tx) => {
-    await logSuccess(tx, {
-      auditCtx: {
-        organizationId: member.organizationId,
-        actor: {
-          id: actor.userId,
-          ...(actor.email !== undefined ? { email: actor.email } : {}),
-          type: 'user',
-        },
+  await tx`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
+  await logSuccess(tx, {
+    auditCtx: {
+      organizationId: member.organizationId,
+      actor: {
+        id: actor.userId,
+        ...(actor.email !== undefined ? { email: actor.email } : {}),
+        type: 'user',
       },
-      action: 'passkey.revoked_by_admin',
-      category: 'auth',
-      resourceType: 'user',
-      resourceId: member.userId,
-      metadata: { memberId: args.memberId, passkeyId: args.passkeyId },
-    });
+    },
+    action: 'passkey.revoked_by_admin',
+    category: 'auth',
+    resourceType: 'user',
+    resourceId: member.userId,
+    metadata: { memberId: args.memberId, passkeyId: args.passkeyId },
   });
 }
 
 /** Admin 2FA reset: clear TOTP enrolment + grace + lockout counters, kill
- * sessions — a clean slate to enrol fresh. */
+ * sessions — a clean slate to enrol fresh. One transaction: the enrolment
+ * row, the user flag, the counters, the sessions and the audit row commit
+ * together or not at all (a `twoFactor` row gone while `twoFactorEnabled`
+ * stays true is exactly the half-reset this prevents). */
 export async function resetTwoFactorForMember(
-  sql: Sql,
+  tx: TransactionSql,
   actor: { userId: string; email?: string },
   memberId: string,
 ): Promise<void> {
-  const member = await requireMemberAdminTarget(sql, actor, memberId, {
+  const member = await requireMemberAdminTarget(tx, actor, memberId, {
     ownerNeedsOtherOwner: true,
   });
-  await sql`DELETE FROM "twoFactor" WHERE "userId" = ${member.userId}`;
-  await sql`
+  await tx`DELETE FROM "twoFactor" WHERE "userId" = ${member.userId}`;
+  await tx`
     UPDATE "user" SET "twoFactorEnabled" = false
     WHERE "id" = ${member.userId}
   `;
-  await sql`
+  await tx`
     DELETE FROM app.two_factor_grace WHERE user_id = ${member.userId}
   `;
-  await sql`
+  await tx`
     DELETE FROM app.two_factor_attempts WHERE user_id = ${member.userId}
   `;
-  await sql`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
-  await sql.begin(async (tx) => {
-    await logSuccess(tx, {
-      auditCtx: {
-        organizationId: member.organizationId,
-        actor: {
-          id: actor.userId,
-          ...(actor.email !== undefined ? { email: actor.email } : {}),
-          type: 'user',
-        },
+  await tx`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
+  await logSuccess(tx, {
+    auditCtx: {
+      organizationId: member.organizationId,
+      actor: {
+        id: actor.userId,
+        ...(actor.email !== undefined ? { email: actor.email } : {}),
+        type: 'user',
       },
-      action: '2fa_reset_by_admin',
-      category: 'auth',
-      resourceType: 'user',
-      resourceId: member.userId,
-      metadata: { memberId },
-    });
+    },
+    action: '2fa_reset_by_admin',
+    category: 'auth',
+    resourceType: 'user',
+    resourceId: member.userId,
+    metadata: { memberId },
   });
 }

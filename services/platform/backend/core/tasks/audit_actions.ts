@@ -24,8 +24,5 @@ export const TASK_AUDIT_ACTIONS = {
   deleted: 'task.deleted',
 } as const;
 
-export type TaskAuditAction =
-  (typeof TASK_AUDIT_ACTIONS)[keyof typeof TASK_AUDIT_ACTIONS];
-
 export const TASK_RESOURCE_TYPE = 'task';
 export const TASK_COMMENT_RESOURCE_TYPE = 'task_comment';

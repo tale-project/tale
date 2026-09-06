@@ -2,7 +2,7 @@
 -- twin of the REST door's `rest_upload_intents` (0033).
 --
 -- Every blob key a session lane mints for a browser (`POST /api/app/files/
--- upload`, `/blob-upload`, `/upload-handoff`) is tracked by an intent row
+-- upload`, `/blob-upload`) is tracked by an intent row
 -- keyed on the org, the uploading user, the PURPOSE the key was minted for
 -- ('file' | 'skill_bundle' | 'automation_bundle'), and the ref itself. A bind
 -- step that later names the ref (`/files/register`, the skill and automation

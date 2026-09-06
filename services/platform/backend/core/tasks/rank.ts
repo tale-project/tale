@@ -13,8 +13,6 @@
 
 const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
 const BASE = ALPHABET.length;
-const MIN_CHAR = ALPHABET[0]; // '0'
-const MAX_CHAR = ALPHABET[BASE - 1]; // 'z'
 /** Midpoint digit used to seed the first key (\"i\" ≈ middle of the alphabet). */
 const MID_CHAR = ALPHABET[Math.floor(BASE / 2)];
 
@@ -92,25 +90,3 @@ export function rankBetween(before?: string, after?: string): string {
   }
   return result;
 }
-
-/**
- * Re-sequence an ordered list into `count` strictly increasing ranks (each the
- * append-after of the previous). Fallback for the rare case where repeated
- * midpoint inserts exhaust precision at one position; callers persist the
- * returned key for each id in order. Keys are short and ordered, though not
- * uniformly distributed across the keyspace.
- */
-export function rebalanceRanks(count: number): string[] {
-  if (count <= 0) return [];
-  const ranks: string[] = [];
-  let prev: string | undefined;
-  for (let i = 0; i < count; i += 1) {
-    const next = rankBetween(prev, undefined);
-    ranks.push(next);
-    prev = next;
-  }
-  return ranks;
-}
-
-export const RANK_ALPHABET = ALPHABET;
-export { MIN_CHAR as RANK_MIN_CHAR, MAX_CHAR as RANK_MAX_CHAR };

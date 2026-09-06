@@ -19,6 +19,7 @@ import { registerNativeImpl, nativeImplIds } from '../dispatcher';
 import {
   imapSmtpNatives,
   nodeMailTransport,
+  type MailAttachmentResolver,
   type MailboxConfigResolver,
   type MailTransport,
 } from './imap-smtp';
@@ -45,6 +46,7 @@ export {
   selectMailbox,
   type ImapSession,
   type ListedMailbox,
+  type MailAttachmentResolver,
   type MailboxConfig,
   type MailboxConfigResolver,
   type MailboxQuery,
@@ -112,6 +114,10 @@ export interface NativeConnectorDeps {
   readonly tasks: WorkflowTaskStore;
   readonly documents: WorkflowDocumentStore;
   readonly conversations: WorkflowConversationStore;
+  /** Outbound mail attachment bytes, by org-scoped blob ref — required for
+   * the same reason: the mail native must never read a file or a URL a
+   * caller names, so the org's blob store is its only source of bytes. */
+  readonly mailAttachments: MailAttachmentResolver;
   readonly mailTransport?: MailTransport;
   readonly mailConfig?: MailboxConfigResolver;
 }
@@ -154,6 +160,7 @@ export function registerNativeConnectors(
   const impls = {
     ...imapSmtpNatives({
       transport: deps.mailTransport ?? nodeMailTransport(),
+      resolveAttachment: deps.mailAttachments,
       ...(deps.mailConfig !== undefined && { resolveConfig: deps.mailConfig }),
     }),
     ...platformConversationNatives(deps.conversations),

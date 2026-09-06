@@ -24,8 +24,6 @@ export type NotificationType =
   // Work awaits human review (the in_review gate — agent OR human
   // submission). Actionable.
   | 'task_review_requested'
-  // A review the user was watching was approved / sent back.
-  | 'task_review_resolved'
   // The user was designated a task's reviewer while the work is still in
   // flight — a heads-up, so NOT actionable (bell only, no email). The
   // actionable request follows when the task reaches in_review.
