@@ -64,7 +64,7 @@ function parseDefaultModelsConfig(policy: unknown): DefaultModelsConfig | null {
 
 /**
  * Given a proposed model_access configuration, return the default-model rules
- * whose modelId would be denied. Mirrors backend `checkModelAccess` priority:
+ * whose modelId would be denied. Mirrors backend `evaluateModelAccess` priority:
  * team > role > default (default_models has no user scope).
  */
 function findDefaultRulesDeniedBy(

@@ -12,6 +12,11 @@ import {
   runBridgeConnectorImpl,
 } from '../../core/node_only/sandbox/connectors_bridge.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
+import {
+  hostcallTooLarge,
+  sandboxDoorBodyLimit,
+  toolResultTooLarge,
+} from '../sandbox/door-body-limit.ts';
 import { getSessionTokenByHash } from '../sandbox/sessions.ts';
 import { runConnectorAction } from './service.ts';
 
@@ -32,7 +37,8 @@ import { runConnectorAction } from './service.ts';
  *
  * The decision bodies are REUSED from the 0.4 bridge (one wording of every
  * refusal, for the model that relays it); only the dispatch and credential
- * seams differ.
+ * seams differ. Every body is capped before it is read (door-body-limit.ts)
+ * — this door bypasses the proxy, so nothing else bounds it.
  */
 
 const BEARER_PREFIX = 'Bearer ';
@@ -138,6 +144,9 @@ function isHostcallMethod(value: string): value is keyof typeof HTTP_VERBS {
 
 export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
   const app = new Hono();
+  app.use('/execute', sandboxDoorBodyLimit(toolResultTooLarge));
+  app.use('/status', sandboxDoorBodyLimit(toolResultTooLarge));
+  app.use('/hostcall', sandboxDoorBodyLimit(hostcallTooLarge));
 
   app.post('/execute', async (c) => {
     const auth = await authSessionToken(deps.sql, c.req.raw);

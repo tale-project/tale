@@ -1,6 +1,6 @@
 ---
 title: Two-factor authentication
-description: TOTP enrolment, passkeys, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator. Read this when wiring 2FA for the org or recovering an account.
+description: TOTP enrolment, passkeys, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator.
 ---
 
 Two-factor authentication adds a second proof of identity on top of the password — a six-digit code from an authenticator app, or a WebAuthn passkey. Tale ships TOTP (time-based one-time passwords) compatible with Google Authenticator, 1Password, Authy, and any other app that follows the standard, plus passkeys for a phishing-resistant alternative. The page covers per-user enrolment, passkeys, the backup codes that recover an account when the phone is gone, the org-wide enforce policy, and the admin reset for a locked-out member.

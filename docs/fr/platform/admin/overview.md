@@ -1,6 +1,6 @@
 ---
 title: Admin
-description: Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, connectors, branding, gouvernance. Les pages ici sont ce qu’un Administrateur ou Propriétaire parcourt pour monter une organisation et la faire tourner.
+description: Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, connectors, branding, gouvernance.
 ---
 
 Admin est le plan de configuration de Tale. Cela couvre les personnes qui peuvent se connecter, les équipes qui les regroupent, les fournisseurs IA derrière chaque réponse, les clés API qui permettent à du code externe de parler à l’organisation, les connectors tierces que les agents traversent, et le branding que le reste de l’organisation voit. Seuls les Administrateurs et Propriétaires voient le menu Admin complet ; les Développeurs en voient un sous-ensemble, et les autres rôles ne le voient pas du tout.

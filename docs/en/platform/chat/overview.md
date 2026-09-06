@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: Chat is where you ask and retrieve — send a message, let Auto pick the model or pin your own, read a reply with its steps and sources visible. This overview maps the screen and draws the line between chat, task, and automation work.
+description: Chat is where you ask and retrieve — send a message, let Auto pick the model or pin your own, read a reply with its steps and sources visible.
 ---
 
 Chat is the everyday entry point to Tale. You ask, the assistant searches the organisation's knowledge or fetches a page when the question needs it, and the reply streams back with every step and source on display. Chat deliberately does one job — questions and retrieval. Work that needs an owner and a reviewable result — a presentation, a translated document, a data export — lives on a task; a fixed process lives in an automation. The assistant knows that boundary and points you to a task the moment a request crosses it, so nothing heavy ever gets half-built inside a chat.

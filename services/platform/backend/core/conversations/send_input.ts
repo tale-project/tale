@@ -1,8 +1,8 @@
 /**
- * Pure send-lane helpers shared by the outbound send action
- * (`internal_actions.sendMessageViaConnectorAction`) and the 0.5 backend's
- * send job: shape the connector `send`/`send_message` input per provider and
- * read the provider's Message-ID back out of the send output.
+ * Pure send-lane helpers for the 0.5 backend's send job
+ * (`domains/conversations/send.ts`): shape the connector `send`/`send_message`
+ * input per provider and read the provider's Message-ID back out of the send
+ * output.
  */
 
 import { isRecord } from '../../../lib/utils/type-utils';
@@ -30,10 +30,18 @@ export function buildSendInput(args: {
   contentType?: string;
   inReplyTo?: string;
   references?: string[];
+  /** The address to send as (the Inbox's chosen alias or the address the
+   * customer wrote to). Forwarded to imap-smtp only — its native resolves it
+   * against the mailbox's configured From; gmail and outlook declare no From
+   * input (the connected account sends as itself), so it is dropped there. */
+  from?: string;
   attachments: Array<{
     name: string;
     contentType: string;
     size: number;
+    /** The org blob ref — what the imap-smtp native resolves bytes from. */
+    storageRef: string;
+    /** A presigned GET — what the API-mail bodies fetch bytes from. */
     url: string;
   }>;
 }): Record<string, unknown> {
@@ -43,8 +51,9 @@ export function buildSendInput(args: {
 
   if (connector === 'imap-smtp') {
     // The imap-smtp native carries the same fidelity as the API-mail send
-    // paths now: cc, the References chain, and attachments (streamed from their
-    // presigned URLs) — a reply must send everything the sender attached/cc'd.
+    // paths now: cc, the References chain, and attachments — a reply must send
+    // everything the sender attached/cc'd. Attachments travel as the org blob
+    // ref, never a URL: the native reads bytes only through the org's store.
     return {
       to: recipients,
       ...(args.cc && args.cc.length > 0 && { cc: joinRecipients(args.cc) }),
@@ -53,12 +62,13 @@ export function buildSendInput(args: {
       ...(args.inReplyTo !== undefined && { inReplyTo: args.inReplyTo }),
       ...(args.references &&
         args.references.length > 0 && { references: args.references }),
+      ...(args.from !== undefined && args.from !== '' && { from: args.from }),
       ...(args.attachments.length > 0 && {
         attachments: args.attachments.map((att) => ({
           name: att.name,
           contentType: att.contentType,
           size: att.size,
-          url: att.url,
+          storageRef: att.storageRef,
         })),
       }),
     };
@@ -79,7 +89,12 @@ export function buildSendInput(args: {
       connector === 'outlook' ? args.references : args.references.join(' ');
   }
   if (args.attachments.length > 0) {
-    base.attachments = args.attachments;
+    base.attachments = args.attachments.map((att) => ({
+      name: att.name,
+      contentType: att.contentType,
+      size: att.size,
+      url: att.url,
+    }));
   }
   return base;
 }
@@ -95,16 +110,6 @@ export function externalIdFromSendOutput(
   }
   if (typeof output.messageId === 'string') {
     return normalizeExternalMessageId(output.messageId) ?? output.messageId;
-  }
-  return undefined;
-}
-
-export function internetMessageIdFromSendOutput(
-  output: unknown,
-): string | undefined {
-  if (!isRecord(output)) return undefined;
-  if (typeof output.messageId === 'string' && output.messageId.includes('@')) {
-    return output.messageId;
   }
   return undefined;
 }

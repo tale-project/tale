@@ -1,6 +1,6 @@
 ---
 title: API-Referenz
-description: Wie du Tale von außen aufrufst — Authentifizierung, das Endpoint-Inventar, Pagination, die asynchronen Lauf- und Turn-Schleifen und das Fehlermodell. Die einzige Quelle der Wahrheit für die REST-Oberfläche.
+description: Wie du Tale von außen aufrufst — Authentifizierung, das Endpoint-Inventar, Pagination, die asynchronen Lauf- und Turn-Schleifen und das Fehlermodell.
 i18nLintExclude:
   - terminology-loanword
 ---
@@ -39,6 +39,7 @@ API-Schlüssel erzeugt jeder mit Admin- oder Entwickler-Berechtigungen im Produk
 | Wissenssuche      | `POST /api/v1/knowledge/search`         | Semantische Suche über das indexierte Wissen der Organisation.                                                                       |
 | Dokumente         | `/api/v1/documents/...`                 | Dokumente der Wissensdatenbank: CRUD plus `POST .../retry-indexing`. Projektdateien tauchen hier nie auf — sie leben unter Projekte. |
 | Websites          | `/api/v1/websites/...`                  | Gecrawlte Quellen: CRUD plus `.../pages`, `.../sync`, `.../search`.                                                                  |
+| Browser-Sessions  | `/api/v1/browser-sessions/...`          | Der vorgewärmte Cookie-Pool hinter der [Video-Ingestion](/de/self-hosted/configuration/video-ingestion): maskierte Liste, `POST .../import` für Operatoren auf der Allowlist. |
 | Produkte          | `/api/v1/products/...`                  | Produktkatalog-Einträge: CRUD.                                                                                                       |
 | Kontakte          | `/api/v1/contacts/...`                  | Kontaktdaten: CRUD plus `POST /api/v1/contacts/bulk`.                                                                                |
 | Projekte          | `/api/v1/projects/...`                  | Der Maschinenzugang für externe Worker: per externer ID nachschlagen, anlegen, Ordner vorbereiten, Dateien hochladen.                |

@@ -1,6 +1,6 @@
 ---
 title: Backlog du projet
-description: Le Backlog est le statut d’entrée du tableau pour le travail auquel personne ne s’est encore engagé — comment une tâche y atterrit et comment tu la fais avancer avec les mêmes contrôles que dans toute autre colonne.
+description: Le Backlog est le statut d’entrée du tableau pour le travail auquel personne ne s’est encore engagé.
 ---
 
 Une tâche au statut **Backlog** est du travail proposé auquel personne ne s’est encore engagé. Elle vit dans la colonne la plus à gauche du tableau et la section du haut de la liste, avec la même carte, la même fiche de détail, le même sélecteur de statut et le même sélecteur d’affectation que tout autre statut — il n’y a pas de contrôles réservés au backlog. Rien de livré ne remplit la colonne tout seul dans cette version : [Trier les issues GitHub](/fr/platform/automations/builtin) évalue les issues et renvoie un rapport, et aucune automatisation ne synchronise d’issues en tâches. Le Backlog se remplit quand une personne ou un agent dépose une proposition.

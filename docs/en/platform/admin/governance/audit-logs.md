@@ -1,6 +1,6 @@
 ---
 title: Audit logs
-description: The chronological log of who-did-what across your organisation — sign-ins, role changes, provider edits, agent edits, run-code invocations. Admins and Owners read this when an audit asks who touched a resource and when.
+description: The chronological log of who-did-what across your organisation — sign-ins, role changes, provider edits, agent edits.
 ---
 
 The audit log is the immutable record of every consequential action inside your organisation. Every sign-in, role change, provider edit, agent save, workflow run, and sandbox invocation lands here with the actor, the resource, the before/after state, and the timestamp. Admins and Owners read this when an audit asks who touched a resource and when, when a compliance officer needs an export, or when something goes sideways and the question is _who changed what at 03:14_.
@@ -50,4 +50,4 @@ Audit rows are immutable: edits and deletes are themselves audited, and the row 
 
 ## Where this fits
 
-The audit log is the read side of every other governance feature: legal hold names the holds it placed, data subject requests log every cascade step, the run-code policy logs the URLs each sandbox tried to reach. When a question starts with _who, when, what_, the audit log is the answer. The companion page is the [retention policy](/platform/admin/governance/policies-and-limits) — it controls how long these rows stay before cleanup removes them.
+The audit log is the read side of every other governance feature: legal hold names the holds it placed, data subject requests log every cascade step. When a question starts with _who, when, what_, the audit log is the answer. The companion page is the [retention policy](/platform/admin/governance/policies-and-limits) — it controls how long these rows stay before cleanup removes them.

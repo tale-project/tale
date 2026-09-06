@@ -17,7 +17,7 @@ import {
   markdownWrapperStyles,
 } from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
-import { formatBytes } from '@/lib/utils/format-bytes';
+import { formatBytes } from '@/lib/utils/format/number';
 import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';
 import {
   getFileExtensionLower,

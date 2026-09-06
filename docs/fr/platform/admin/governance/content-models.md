@@ -1,6 +1,6 @@
 ---
 title: Contenu et modèles
-description: Contrôles au niveau modèle — quels modèles sont autorisés par rôle ou équipe, et le modèle par défaut sur lequel chaque groupe d’utilisateurs atterrit. Les Administrateurs et Propriétaires lisent ceci quand une règle de conformité épingle une charge à un modèle approuvé ou quand une équipe a besoin d’un défaut moins cher.
+description: Contrôles au niveau modèle — quels modèles sont autorisés par rôle ou équipe, et le modèle par défaut sur lequel chaque groupe d’utilisateurs atterrit.
 ---
 
 Contenu et modèles est la surface où tu décides quels LLMs les personnes de ton organisation peuvent atteindre et celui sur lequel chaque groupe atterrit par défaut. Elle associe une liste d’autorisation ou de blocage par scope (organisation, équipe, rôle) à une règle de modèle par défaut que le résolveur applique quand aucun choix explicite ne l’a outrepassée. Les Administrateurs et Propriétaires lisent cette page quand une règle de conformité épingle une charge à un modèle approuvé, quand une équipe doit avoir un modèle par défaut moins cher que le reste de l’organisation, ou quand un nouveau modèle d’un fournisseur existant doit être rendu joignable.

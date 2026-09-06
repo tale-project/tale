@@ -15,8 +15,9 @@ import {
   checkIpRateLimit,
   checkUserRateLimit,
 } from '../lib/rate-limit.ts';
-import type { RestEnv } from './shared.ts';
+import { domainErrorResponse, type RestEnv } from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';
+import { createRestBrowserSessionRoutes } from './v1-browser-sessions.ts';
 import { createCoreRoutes } from './v1-core.ts';
 import { createRestMcpRoutes } from './v1-mcp.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
@@ -51,9 +52,11 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * this door: v1-core (contacts, products, documents, knowledge, agents,
  * skills), v1-automations (+ runs), v1-projects (folders, uploads, files),
  * v1-tasks (external-ref intake, comments, start), v1-threads (chat).
- * `/websites` rides the crawler family (v1-websites) and `/api/v1/mcp`
- * rides automations_builder (v1-mcp); the automation webhook trigger
- * lives at `/api/automations/webhook/:token` (app.ts).
+ * `/websites` rides the crawler family (v1-websites), `/browser-sessions`
+ * is the operator door to the video-ingest cookie pool
+ * (v1-browser-sessions), and `/api/v1/mcp` rides automations_builder
+ * (v1-mcp); the automation webhook trigger lives at
+ * `/api/automations/webhook/:token` (app.ts).
  */
 
 /** The 429 every lane answers: the flat envelope plus `Retry-After`. */
@@ -153,11 +156,11 @@ export function createRestV1Routes(deps: {
         requireExplicitOrgSlug: c.req.method !== 'GET',
       });
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Failed to resolve organization';
-      return c.json({ error: message }, 400);
+      // The domain's own status: 400 when a multi-org key named no org, 403
+      // for a foreign slug, 404 for an unknown one. Anything else — a
+      // driver failure — is an outage for the app-level handler to report,
+      // never a 400 with the driver's text on the wire.
+      return domainErrorResponse(c, error);
     }
 
     const member = await findOrganizationMember(
@@ -188,6 +191,7 @@ export function createRestV1Routes(deps: {
   app.route('/', createThreadRestRoutes({ sql: deps.sql }));
   app.route('/', createAutomationRestRoutes({ sql: deps.sql }));
   app.route('/', createRestWebsiteRoutes({ sql: deps.sql }));
+  app.route('/', createRestBrowserSessionRoutes({ sql: deps.sql }));
   app.route('/', createRestMcpRoutes({ sql: deps.sql }));
 
   return app;

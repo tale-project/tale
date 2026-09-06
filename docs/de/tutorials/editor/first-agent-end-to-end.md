@@ -1,6 +1,6 @@
 ---
 title: Deinen ersten Agent bauen
-description: Bring ein frisches Projekt von „ich will einen Agent“ zu einem geprüften Aufgaben-Ergebnis — leg einen Projekt-Agenten mit Agent-Laufzeit, Modell und einem Absatz Anweisungen an, gib ihm eine echte Aufgabe und prüfe, was zurückkommt.
+description: Bring ein frisches Projekt von „ich will einen Agent“ zu einem geprüften Aufgaben-Ergebnis.
 ---
 
 Ein erster Agent ist das kleinste nützliche Ding in Tale: ein Name, eine Agent-Laufzeit, ein Modell und ein Absatz Anweisungen im Tab **Agenten** eines Projekts. Dieser Durchlauf legt einen an, gibt ihm eine echte Aufgabe und prüft das Ergebnis dort, wo die Arbeit jedes Agenten wartet — in der Spalte **In Prüfung**. Die Form verallgemeinert sich: Jeder Agent, den du später baust, sind dieselben vier Züge mit anderen Entscheidungen, und die Schleife am Ende ist die, in der du die meiste Zeit verbringst.

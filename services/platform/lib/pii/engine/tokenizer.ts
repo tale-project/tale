@@ -22,10 +22,10 @@
 
 import { normalizeForDetection } from '../core/normalize';
 import { MAX_MESSAGE_BYTES, clampMessage } from '../core/regex-safety';
-import type { PiiMatch, PiiPattern } from '../core/types';
+import type { PiiMatch } from '../core/types';
 import { detectPii } from './detector';
-import { collectLocaleSelector, type ScrubberOptions } from './options';
-import { PatternRegistry } from './registry';
+import { materializePatterns } from './materialize';
+import type { ScrubberOptions } from './options';
 
 /** One entry in the restore map. */
 export interface TokenEntry {
@@ -140,32 +140,10 @@ export function applyTokenization(
   return { text: parts.join(''), mapping, segments };
 }
 
-/**
- * Materialize the enabled pattern factories for the tokenizer — the same
- * resolution the scrubber does, against the same registry seam.
- */
-function buildPatterns(options: ScrubberOptions): PiiPattern[] {
-  const registry = options.registry ?? PatternRegistry.fromDefaults();
-  const locales = registry.resolveLocales(collectLocaleSelector(options));
-
-  const patterns: PiiPattern[] = [];
-  for (const [name, toggle] of Object.entries(options.patterns)) {
-    if (!toggle) continue;
-    const factory = registry.get(name);
-    if (!factory) continue;
-    try {
-      patterns.push(...factory(locales));
-    } catch (err) {
-      console.warn(
-        `[pii] tokenizer factory "${name}" threw: ${err instanceof Error ? err.name : 'unknown'}`,
-      );
-    }
-  }
-  return patterns;
-}
-
 export function createTokenizer(options: ScrubberOptions): Tokenizer {
-  const patterns = buildPatterns(options);
+  // The same resolution the scrubber runs — one pattern list for both
+  // entry points, custom patterns included.
+  const { patterns } = materializePatterns(options);
   const maxBytes = options.maxBytes ?? MAX_MESSAGE_BYTES;
 
   function tokenize(text: string): TokenizeResult {

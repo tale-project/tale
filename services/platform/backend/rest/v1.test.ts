@@ -32,13 +32,27 @@ interface Charge {
  * the rate limiter's UPSERT/SELECT pair (a charge on an `exhausted` lane
  * UPSERTs nothing and reads back an empty bucket), and records every charge.
  */
-function fakeSql(exhausted: Set<string> = new Set()): {
+function fakeSql(
+  exhausted: Set<string> = new Set(),
+  world: {
+    /** Organizations by slug (the `X-Organization-Slug` lookup). */
+    organizations?: Record<string, { id: string; slug: string }>;
+    /** The org ids user-1 is a member of. */
+    memberOf?: Set<string>;
+    /** Fail every query whose text matches — a database outage. */
+    outage?: RegExp;
+  } = {},
+): {
   sql: Sql;
   charges: Charge[];
 } {
   const charges: Charge[] = [];
+  const memberOf = world.memberOf ?? new Set(['org-1']);
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+    if (world.outage?.test(text)) {
+      return Promise.reject(new Error('connection refused'));
+    }
     if (text.includes('INSERT INTO app.rate_limits')) {
       const [name, key] = values;
       charges.push({ name, key });
@@ -50,20 +64,35 @@ function fakeSql(exhausted: Set<string> = new Set()): {
       return Promise.resolve([{ value: '0', ts: String(Date.now()) }]);
     }
     if (text.includes('FROM "member" WHERE "userId"')) {
-      return Promise.resolve([{ organizationId: 'org-1', role: 'member' }]);
+      return Promise.resolve(
+        [...memberOf].map((organizationId) => ({
+          organizationId,
+          role: 'member',
+        })),
+      );
     }
     if (text.includes('FROM "organization" WHERE "id"')) {
       return Promise.resolve([{ slug: 'acme' }]);
     }
+    if (text.includes('FROM "organization" WHERE "slug"')) {
+      const [slug] = values;
+      const org = world.organizations?.[String(slug)];
+      return Promise.resolve(org === undefined ? [] : [org]);
+    }
     if (text.includes('FROM "member" WHERE "organizationId"')) {
-      return Promise.resolve([
-        {
-          id: 'm-1',
-          organizationId: 'org-1',
-          userId: 'user-1',
-          role: 'member',
-        },
-      ]);
+      const [organizationId] = values;
+      return Promise.resolve(
+        memberOf.has(String(organizationId))
+          ? [
+              {
+                id: 'm-1',
+                organizationId,
+                userId: 'user-1',
+                role: 'member',
+              },
+            ]
+          : [],
+      );
     }
     return Promise.resolve([]);
   };
@@ -246,5 +275,65 @@ describe('/api/v1 door — rate-limit attribution', () => {
     expect(charges).toEqual([
       { name: 'rest:auth-fail-ip', key: 'ip:198.51.100.7' },
     ]);
+  });
+});
+
+/**
+ * Org resolution answers the DOMAIN's status. The regression under test: the
+ * door wrapped `resolveUserOrganization` in a catch-all that flattened every
+ * failure to a 400 with the raw message — a foreign slug (403), an unknown
+ * one (404), and a database outage alike, the last with the driver's text on
+ * the wire and never reaching error reporting.
+ */
+describe('/api/v1 door — organization resolution statuses', () => {
+  it('answers 403 ORG_FORBIDDEN for a slug the key holder is no member of', async () => {
+    const { sql } = fakeSql(new Set(), {
+      organizations: { other: { id: 'org-2', slug: 'other' } },
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'other' }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
+  });
+
+  it('answers 404 ORG_SLUG_INVALID for an unknown slug', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'nowhere' }),
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'ORG_SLUG_INVALID' });
+  });
+
+  it('keeps 400 ORG_SLUG_REQUIRED for a multi-org key that names no org on a write', async () => {
+    const { sql } = fakeSql(new Set(), {
+      memberOf: new Set(['org-1', 'org-2']),
+    });
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.post('/probe', (c) => c.json({ ok: true }));
+    const res = await app.request('http://localhost/probe', {
+      method: 'POST',
+      ...bearer(GOOD_KEY),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'ORG_SLUG_REQUIRED' });
+  });
+
+  it('lets a database outage during resolution reach the error handler, not a 400', async () => {
+    const { sql } = fakeSql(new Set(), {
+      outage: /FROM "member" WHERE "userId"/,
+    });
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.onError((error, c) => c.text(`handled: ${error.message}`, 500));
+    const res = await app.request('http://localhost/probe', bearer(GOOD_KEY));
+    expect(res.status).toBe(500);
+    expect(await res.text()).toBe('handled: connection refused');
   });
 });

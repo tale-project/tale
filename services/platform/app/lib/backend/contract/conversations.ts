@@ -88,11 +88,6 @@ export interface ConversationsContract {
     args: { messageId: string };
     returns: null;
   };
-  'conversations/mutations:downloadAttachments': {
-    kind: 'mutation';
-    args: { messageId: string };
-    returns: null;
-  };
   'conversations/mutations:markConversationAsRead': {
     kind: 'mutation';
     args: { conversationId: string };

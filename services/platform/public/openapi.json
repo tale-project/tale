@@ -26,6 +26,10 @@
       "description": "Crawled website sources."
     },
     {
+      "name": "Browser sessions",
+      "description": "The warmed browser-session pool behind video-link ingestion."
+    },
+    {
       "name": "Products",
       "description": "Product catalog entries."
     },
@@ -1035,7 +1039,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Rows to skip (default 0)"
+            "description": "Rows to skip (default 0; a negative or fractional value is clamped to a whole, non-negative row count)"
           },
           {
             "name": "limit",
@@ -1044,7 +1048,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Rows to return (default 100)"
+            "description": "Rows to return, 1..500 (default 100; out-of-range values are clamped)"
           }
         ],
         "responses": {
@@ -1218,7 +1222,8 @@
                     "type": "string"
                   },
                   "limit": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Matches to return, 1..100 (default 10; out-of-range values are clamped)"
                   }
                 }
               }
@@ -1258,6 +1263,151 @@
           },
           "404": {
             "description": "Website not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/browser-sessions": {
+      "get": {
+        "tags": ["Browser sessions"],
+        "summary": "List browser sessions",
+        "description": "The organization’s warmed browser-session pool — the cookie jars the video-link ingest presents to get past a platform’s bot wall, with each session’s status, expiry and strike count. Masked: the jar itself is never returned.",
+        "operationId": "listBrowserSessions",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pool",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["sessions"],
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BrowserSession"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/browser-sessions/import": {
+      "post": {
+        "tags": ["Browser sessions"],
+        "summary": "Import a browser session",
+        "description": "Adds a warmed cookie jar to the pool for one domain; the jar is encrypted before it is stored. Restricted to organization administrators whose e-mail is on the deployment editor allowlist (`TALE_DEPLOYMENT_CONFIG_ADMINS`) — anyone else answers 403 with a `code` naming the gate that refused.",
+        "operationId": "importBrowserSession",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrowserSessionImport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Imported — the session’s id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["sessionId"],
+                  "properties": {
+                    "sessionId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder may not seed the pool (FORBIDDEN_INSTANCE_ADMIN or FORBIDDEN_DEPLOYMENT_EDITOR)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2704,7 +2854,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Mint an upload handoff",
-        "description": "Answers where to send the bytes: `method: \"PUT\"` is a presigned URL for the organization’s own bucket (bind the returned `s3Ref` afterwards) — a declared `contentType` is signed into the URL, so the PUT must carry that exact `Content-Type` header (omit `contentType` and the PUT has no header requirement); `method: \"POST\"` targets platform storage and answers `{\"storageId\": …}` — bind that id. The `uploadId` is a single-use intent valid until `expiresAt` (60 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; keyed on the key holder like every REST budget).",
+        "description": "Answers where to send the bytes: a presigned `PUT` URL for the organization’s bucket (every 0.5 blob is S3-backed) plus the `s3Ref` to bind afterwards as `fileId` — a declared `contentType` is signed into the URL, so the PUT must carry that exact `Content-Type` header (omit `contentType` and the PUT has no header requirement). The `uploadId` is a single-use intent valid until `expiresAt` (30 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; keyed on the key holder like every REST budget).",
         "operationId": "createProjectUpload",
         "security": [
           {
@@ -3027,7 +3177,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Bind an uploaded blob as a project file",
-        "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` for a PUT handoff, or the `storageId` the platform-storage POST answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. Upload policy applies (authoritative size cap → 413, MIME allowlist → 415). Uses the upload lane bucket (240/min, keyed on the key holder).",
+        "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` the handoff answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. The organization’s upload policy applies to the landed bytes (authoritative size): a size cap, MIME or extension allowlist, or per-user volume refusal answers 400 with code `UPLOAD_POLICY_REJECTED` / `FILE_TOO_LARGE` / `UNSUPPORTED_FILE_TYPE`, and the organization’s `file:upload` budget answers 429. A refusal rolls the intent consume back, so the handshake survives a corrected retry. Uses the upload lane bucket (240/min, keyed on the key holder).",
         "operationId": "bindProjectFile",
         "security": [
           {
@@ -3119,7 +3269,7 @@
             }
           },
           "400": {
-            "description": "Malformed body, or the upload intent is unknown, expired, already consumed, or does not match `fileId`",
+            "description": "Malformed body, or the upload policy refused the file (`UPLOAD_POLICY_REJECTED`, `FILE_TOO_LARGE`, `UNSUPPORTED_FILE_TYPE`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3158,18 +3308,8 @@
               }
             }
           },
-          "413": {
-            "description": "File exceeds the size cap",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Unsupported file type",
+          "409": {
+            "description": "The upload intent is unknown, expired, already consumed, or does not match `fileId`",
             "content": {
               "application/json": {
                 "schema": {
@@ -3195,7 +3335,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Create a task from an external ref (idempotent)",
-        "description": "Materializes an external item as a task of one project, keyed by `(projectId, externalSystem, externalId)`: the first call creates (201, `created: true`), any repeat answers the SAME task (200, `created: false`) instead of a duplicate — safe for a worker that retries after a crash. `projectId` is REQUIRED: this door never falls back to the org-wide project, and the project must exist AND be visible to the key’s minting user (an opaque 404 otherwise). `externalId` is a caller-owned opaque key the platform never interprets; `externalUrl` is stored verbatim. The task is created by the minting user; over-long titles are truncated to the board cap rather than refused. When `runWorkflowSlug` names a deployed automation, a NEWLY created task also schedules that workflow on itself — the response then carries `executionId: null` (the start is scheduled, no run identity yet). To recover the run identity, call `POST /api/v1/tasks/{id}/start` ONCE — it answers `already_running` with the live run’s executionId while the run is in flight — then poll `GET /api/v1/runs/{runId}`. Do NOT poll `/start` itself: once the run settles, another call starts a fresh run. Skipped on an idempotent re-pick. Shares the general REST bucket (120/min, keyed on the key holder).",
+        "description": "Materializes an external item as a task of one project, keyed by `(projectId, externalSystem, externalId)`: the first call creates (201, `created: true`), any repeat answers the SAME task (200, `created: false`) instead of a duplicate — safe for a worker that retries after a crash. `projectId` is REQUIRED: this door never falls back to the org-wide project, and the project must exist AND be visible to the key’s minting user (an opaque 404 otherwise). `externalId` is a caller-owned opaque key the platform never interprets; `externalUrl` is stored verbatim. The task is created by the minting user; over-long titles are truncated to the board cap rather than refused. When `runWorkflowSlug` is sent, a NEWLY created task also starts that workflow on itself, inline — the response then carries the run’s `executionId` (poll `GET /api/v1/runs/{runId}`), or `executionId: null` when the slug names no deployed automation. Skipped on an idempotent re-pick (no `executionId` field at all). Shares the general REST bucket (120/min, keyed on the key holder).",
         "operationId": "createTask",
         "security": [
           {
@@ -4124,7 +4264,7 @@
       "post": {
         "tags": ["Automations"],
         "summary": "Start a run of the deployed version",
-        "description": "Answers 202 with the run’s identity rather than its result: a run is durable and may take minutes, so poll `GET /api/v1/runs/{runId}`. Starting a run needs no trigger — the API key is the entitlement. `mode` defaults to `live`, which requires the key holder to have the developer capability; a `mock` run needs only membership. `projectId` scopes the run to a project (required, and restricted to the bound set, when the automation is bound to several). Charged against the execute bucket (20/min) on top of the general one.",
+        "description": "Answers 202 with the run’s identity rather than its result: a run is durable and may take minutes, so poll `GET /api/v1/runs/{runId}`. Starting a run needs no trigger — the API key is the entitlement. `mode` defaults to `live`, which requires the key holder to have the developer capability; a `mock` run needs only membership. `projectId` scopes the run to a project and must exist in this organization; a project-bound automation accepts only one of its bound projects (403 otherwise). Omitted, the run is attributed to the sole binding, or runs organization-wide. Charged against the execute bucket (20/min) on top of the general one.",
         "operationId": "startAutomationRun",
         "security": [
           {
@@ -4937,7 +5077,8 @@
                     "type": "string"
                   },
                   "agentSlug": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Pin the thread to one of the organization’s agents; every turn on the thread runs as that agent"
                   },
                   "projectId": {
                     "type": "string"
@@ -5237,9 +5378,6 @@
                     "type": "string",
                     "description": "The model to answer with (never auto-selected)"
                   },
-                  "agentSlug": {
-                    "type": "string"
-                  },
                   "locale": {
                     "type": "string"
                   }
@@ -5361,19 +5499,11 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "idle",
-                        "queued",
-                        "streaming",
-                        "waiting-approval",
-                        "waiting-input"
-                      ]
-                    },
-                    "waitingOn": {
-                      "type": "string"
+                      "enum": ["idle", "queued", "streaming"]
                     },
                     "messageId": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "The assistant message being streamed"
                     }
                   }
                 }
@@ -5682,7 +5812,7 @@
       "delete": {
         "tags": ["Agents"],
         "summary": "Delete agent",
-        "description": "Answers whether anything was deleted rather than a 404 — deleting an absent agent is a `deleted: false`.",
+        "description": "Removes the agent; deleting one that is not there answers 404 — you asked to remove a thing that does not exist (unlike the idempotent trigger unbind).",
         "operationId": "deleteAgent",
         "security": [
           {
@@ -5701,21 +5831,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Deletion result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["deleted"],
-                  "properties": {
-                    "deleted": {
-                      "type": "boolean"
-                    }
-                  }
-                }
-              }
-            }
+          "204": {
+            "description": "Deleted"
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -5739,6 +5856,16 @@
           },
           "403": {
             "description": "Not deletable with this key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -7115,6 +7242,77 @@
           }
         }
       },
+      "BrowserSession": {
+        "type": "object",
+        "required": [
+          "id",
+          "domain",
+          "label",
+          "status",
+          "expiresAt",
+          "lastUsedAt",
+          "failureCount"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "cooling", "expired"],
+            "description": "healthy = claimable; cooling = blocked once, recovers after a quiet period; expired = three strikes or past its TTL"
+          },
+          "expiresAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          },
+          "lastUsedAt": {
+            "type": "number",
+            "description": "Epoch ms of the last claim",
+            "nullable": true
+          },
+          "failureCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "BrowserSessionImport": {
+        "type": "object",
+        "required": ["domain", "cookiesJar"],
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "The hostname the jar was warmed for (lower-cased on import)"
+          },
+          "cookiesJar": {
+            "type": "string",
+            "description": "A Netscape-format cookie jar, at most 1 MB"
+          },
+          "userAgent": {
+            "type": "string"
+          },
+          "visitorData": {
+            "type": "string"
+          },
+          "poToken": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "ttlMs": {
+            "type": "integer",
+            "description": "Lifetime in milliseconds (default 14 days)"
+          }
+        }
+      },
       "Product": {
         "type": "object",
         "required": [
@@ -7449,7 +7647,7 @@
       },
       "ProjectUploadHandoff": {
         "type": "object",
-        "required": ["uploadId", "url", "method", "expiresAt"],
+        "required": ["uploadId", "url", "method", "s3Ref", "expiresAt"],
         "properties": {
           "uploadId": {
             "type": "string",
@@ -7461,11 +7659,11 @@
           },
           "method": {
             "type": "string",
-            "enum": ["POST", "PUT"]
+            "enum": ["PUT"]
           },
           "s3Ref": {
             "type": "string",
-            "description": "PUT lane only: the blob reference to bind as `fileId`"
+            "description": "The blob reference to bind as `fileId`"
           },
           "expiresAt": {
             "type": "number",
@@ -7577,7 +7775,7 @@
           "executionId": {
             "type": "string",
             "nullable": true,
-            "description": "Present (as null) only when a workflow start was SCHEDULED for a newly created task — no run identity exists yet"
+            "description": "Present only when `runWorkflowSlug` was sent and the task was newly created: the started run’s id to poll, or null when the slug names no deployed automation"
           }
         }
       },

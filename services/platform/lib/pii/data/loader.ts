@@ -15,16 +15,23 @@
  * per file, no re-parse, and return a stable reference. A changed file
  * (dev editing a locale dataset) is re-parsed on the next call.
  *
- * Root resolution mirrors the builtin-catalog convention: an explicit
- * `root` wins (deployments pass the baked-in path); otherwise the loader
- * walks up from the working directory to the repo checkout's
- * `configs/platform/system/pii` — which covers vitest, scripts, and a
- * source checkout's convex dev process.
+ * Root resolution goes through the shared system-catalog resolver
+ * (`lib/shared/config/system-root.ts`), like the providers and connectors
+ * readers: an explicit `root` wins (the pii tree itself); then
+ * `$TALE_CONFIG_SYSTEM_DIR/pii` — the deployment contract, since a shipped
+ * container bakes the tree in and has no repo checkout to walk up to;
+ * otherwise the walk-up from the working directory to the checkout's
+ * `configs/platform/system/pii`, which covers vitest, scripts, and a source
+ * checkout's dev process.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
+import {
+  resolveSystemConfigRoot,
+  SYSTEM_CONFIG_ROOT_REMEDY,
+} from '../../../lib/shared/config/system-root';
 import { parseYaml } from '../../../lib/shared/config/yaml';
 import {
   localeConfigSchema,
@@ -32,9 +39,6 @@ import {
   type LocaleConfig,
   type PiiPatternFile,
 } from '../schema';
-
-/** Repo-relative location of the shipped pii data tree. */
-const REPO_SYSTEM_PII = ['configs', 'platform', 'system', 'pii'] as const;
 
 export interface PiiData {
   readonly patterns: ReadonlyArray<PiiPatternFile>;
@@ -47,18 +51,6 @@ function isDirectory(candidate: string): boolean {
   } catch {
     // A missing path is the ordinary walk-up miss, not an error.
     return false;
-  }
-}
-
-/** Walk up from `startDir` to the checkout's system pii tree. */
-function findRepoPiiRoot(startDir: string): string | null {
-  let dir = path.resolve(startDir);
-  for (;;) {
-    const candidate = path.join(dir, ...REPO_SYSTEM_PII);
-    if (isDirectory(candidate)) return candidate;
-    const parent = path.dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
   }
 }
 
@@ -133,9 +125,23 @@ function parseFile<T>(
 export interface LoadPiiDataOptions {
   /**
    * Absolute path of the pii data tree (the directory containing
-   * `patterns/` and `locales/`). Defaults to the repo walk-up.
+   * `patterns/` and `locales/`). Defaults to `<system catalog root>/pii`,
+   * resolved through `$TALE_CONFIG_SYSTEM_DIR` or the repo walk-up.
    */
   readonly root?: string;
+}
+
+/** The pii tree's directory name inside the system catalog. */
+const PII_SUBTREE = 'pii';
+
+/**
+ * The pii data tree this process reads, or null when no source yields one.
+ * Exposed so a boot probe can name the path it checked.
+ */
+export function resolvePiiDataRoot(root?: string): string | null {
+  if (root !== undefined) return root;
+  const systemRoot = resolveSystemConfigRoot();
+  return systemRoot === null ? null : path.join(systemRoot, PII_SUBTREE);
 }
 
 /**
@@ -143,10 +149,13 @@ export interface LoadPiiDataOptions {
  * Returns a stable object reference until an underlying file changes.
  */
 export function loadPiiData(options: LoadPiiDataOptions = {}): PiiData {
-  const root = options.root ?? findRepoPiiRoot(process.cwd());
-  if (!root) {
+  const root = resolvePiiDataRoot(options.root);
+  // An unresolved root and a resolved-but-absent tree (an env var pointing
+  // at an image layout that did not bake `pii/`) are the same packaging
+  // defect; both name the path and the remedy.
+  if (root === null || !isDirectory(root)) {
     throw new Error(
-      '[pii] no data tree found: pass an explicit root or run inside a checkout with configs/platform/system/pii',
+      `[pii] no data tree at ${root ?? '<unresolved>'}: ${SYSTEM_CONFIG_ROOT_REMEDY}`,
     );
   }
 

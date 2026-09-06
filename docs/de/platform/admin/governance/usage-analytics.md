@@ -1,6 +1,6 @@
 ---
 title: Nutzungs-Analyse
-description: Das Dashboard für Tokens, Kosten und Anfragenvolumen nach Benutzer, Team, Modell und Agent — mit Trends und einer Top-Agent-Rangliste. Admins und Inhaber lesen das, wenn eine Rechnung unerwartet ist oder wenn die Führung die grobe Form der AI-Ausgaben will.
+description: Das Dashboard für Tokens, Kosten und Anfragenvolumen nach Benutzer, Team, Modell und Agent — mit Trends und einer Top-Agent-Rangliste.
 ---
 
 Nutzungs-Analyse ist das Dashboard, das jeden abrechenbaren AI-Aufruf in einer einzigen Ansicht von Tokens, Kosten und Anfragenvolumen aggregiert. Es schneidet nach Benutzer, Team, Rolle, Modell, Agent und Zeit, sodass die unerwartete Zeile auf der Rechnung zur Last zurückführbar ist, die sie verursacht hat. Admins und Inhaber lesen diese Seite, wenn eine Rechnung unerwartet ist, wenn die Führung die grobe Form der AI-Ausgaben will, oder wenn eine Budgetwarnung auslöst und die nächste Frage _wer und was_ ist.

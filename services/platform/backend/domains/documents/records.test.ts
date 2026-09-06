@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertReviewerNotSubmitter,
   assertReviewResponder,
+  pendingReviewEchoes,
 } from './records.ts';
 import { DocumentError } from './service.ts';
 
@@ -91,5 +92,26 @@ describe('assertReviewResponder (respond-side designee rule)', () => {
         ),
       ),
     ).toBeNull();
+  });
+});
+
+describe('pendingReviewEchoes (re-submit while in review)', () => {
+  const standing = {
+    metadata: { requestedFor: 'u_bob', requestedBy: 'u_ann', version: 1 },
+  };
+
+  it('echoes the live row when the same designee is named again', () => {
+    expect(pendingReviewEchoes(standing, 'u_bob')).toBe(true);
+  });
+
+  it('re-designates when another reviewer is named', () => {
+    // The stuck-review exit: the designee left or lost scope, the submitter
+    // names someone who can respond, and the mint-and-supersede path runs.
+    expect(pendingReviewEchoes(standing, 'u_cat')).toBe(false);
+  });
+
+  it('never echoes a row that names no designee', () => {
+    expect(pendingReviewEchoes({ metadata: null }, 'u_bob')).toBe(false);
+    expect(pendingReviewEchoes({ metadata: {} }, 'u_bob')).toBe(false);
   });
 });

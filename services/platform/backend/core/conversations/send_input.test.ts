@@ -13,8 +13,40 @@ const ATTACHMENT = {
   name: 'invoice.pdf',
   contentType: 'application/pdf',
   size: 2048,
+  storageRef: 's3:acme/blob-invoice',
   url: 'https://blob.example.test/invoice.pdf?sig=abc',
 };
+
+describe('buildSendInput — the From lane', () => {
+  const base = {
+    to: ['person@example.com'],
+    subject: 'Re: Order 42',
+    body: '<p>On its way.</p>',
+    from: 'billing@example.com',
+    attachments: [],
+  };
+
+  it('forwards the chosen From to imap-smtp, whose native guards it', () => {
+    expect(
+      buildSendInput({ ...base, connectorName: 'imap-smtp' }),
+    ).toHaveProperty('from', 'billing@example.com');
+  });
+
+  it('drops it for gmail and outlook, which declare no From input', () => {
+    expect(
+      buildSendInput({ ...base, connectorName: 'gmail' }),
+    ).not.toHaveProperty('from');
+    expect(
+      buildSendInput({ ...base, connectorName: 'outlook' }),
+    ).not.toHaveProperty('from');
+  });
+
+  it('sends nothing for an empty From', () => {
+    expect(
+      buildSendInput({ ...base, connectorName: 'imap-smtp', from: '' }),
+    ).not.toHaveProperty('from');
+  });
+});
 
 describe('buildSendInput — imap-smtp fidelity', () => {
   it('carries cc, references, and attachments on an imap-smtp reply', () => {
@@ -37,8 +69,17 @@ describe('buildSendInput — imap-smtp fidelity', () => {
       html: '<p>On its way.</p>',
       inReplyTo: '<parent@example.com>',
       references: ['<root@example.com>', '<parent@example.com>'],
-      attachments: [ATTACHMENT],
     });
+    // The native resolves bytes from the org blob ref itself; a URL handed to
+    // the mail library would be a read of whatever it points at.
+    expect(input.attachments).toEqual([
+      {
+        name: 'invoice.pdf',
+        contentType: 'application/pdf',
+        size: 2048,
+        storageRef: 's3:acme/blob-invoice',
+      },
+    ]);
   });
 
   it('omits cc/references/attachments when the reply has none', () => {
@@ -71,7 +112,16 @@ describe('buildSendInput — imap-smtp fidelity', () => {
     expect(gmail).toMatchObject({
       cc: 'boss@example.com',
       references: '<root@example.com>',
-      attachments: [ATTACHMENT],
     });
+    // The yaml-js bodies fetch the presigned URL through the mediated
+    // `ctx.http`; the blob ref is the native's contract, not theirs.
+    expect(gmail.attachments).toEqual([
+      {
+        name: 'invoice.pdf',
+        contentType: 'application/pdf',
+        size: 2048,
+        url: 'https://blob.example.test/invoice.pdf?sig=abc',
+      },
+    ]);
   });
 });

@@ -11,7 +11,7 @@ seo:
       Tale Enterprise is CHF 12 (EUR 14) per user/month, two months free
       on yearly billing. Community is free to self-host under MIT.
   contact:
-    title: Contact the Tale team
+    title: Contact the Tale team — sales, support, demos
     description:
       Talk to the Tale team about self-hosted AI for your organization —
       platform, pricing, hardware, or a guided demo. Replies land within one
@@ -22,7 +22,7 @@ seo:
       in 2020 — vendor-neutral, ISO 27001 & SOC 2 Type II certified, and fully
       open source under MIT.
   requestDemo:
-    title: Request a demo
+    title: Request a Tale demo — a guided walkthrough
     description:
       'Book a guided Tale demo: see self-hosted AI agents, automations,
       and governance in action. Built for data-sensitive organizations in
@@ -39,44 +39,44 @@ seo:
       governs every action — self-hosted for data-sensitive teams in Switzerland
       and the EU.
   platformAgents:
-    title: What are agents in Tale?
+    title: What are agents in Tale? — instructions, tools, models
     description:
       Tale agents combine instructions, knowledge, tools, and a model.
       Connect Claude Code, Codex, Hermes, and OpenClaw under one orchestrator
       you host.
   platformChat:
-    title: Chats in Tale
+    title: What is Chat in Tale? — agents, citations, approvals
     description: 'Tale Chat is the everyday entry point: pick an agent, send a
       message, and read a streamed reply with citations, tool calls, Arena mode,
       and in-chat approvals.'
   platformAutomations:
-    title: What are Automations in Tale?
+    title: What are Automations in Tale? — triggers to approvals
     description: Tale Automations bundle connectors, agents, and typed workflow
       steps — triggers, conditions, actions, and human approvals on
       infrastructure you run.
   platformKnowledge:
-    title: What is Knowledge in Tale?
+    title: What is Knowledge in Tale? — indexed and cited sources
     description:
       Tale Knowledge indexes documents, websites, and typed records so
       agents retrieve and cite your reality instead of model training data
       alone.
   platformGovernance:
-    title: What is Governance in Tale?
+    title: What is Governance in Tale? — approvals and audit trail
     description:
       Tale Governance holds agent actions behind approval cards, writes
       every decision to the audit log, and filters PII and unsafe content in
       both directions.
   platformProjects:
-    title: What are Projects in Tale?
+    title: What are Projects in Tale? — shared agent workspaces
     description:
       Tale Projects bundle chats, files, instructions, and a task board
       into one shared workspace — assign a task to an agent and review the
       result before it ships.
   changelog:
     title: What's new in Tale? — Changelog
-    description:
-      Release notes for every Tale version, newest first — published from
-      GitHub Releases.
+    description: Release notes for every Tale version, newest first — the
+      features, fixes, and breaking changes in each one, published from GitHub
+      Releases.
 notFound:
   title: This page doesn't exist
   body: The address may be mistyped, or the page has moved. The homepage is the
@@ -2081,8 +2081,8 @@ platformGovernance:
         docsLabel: Audit logs
       - title: Guardrails and policies
         body:
-          Org-level guardrails and the run-code policy set the limits on what agents
-          may attempt — before a card ever appears.
+          Org-level guardrails and policies set the limits on what agents may
+          attempt — before a card ever appears.
         docsLabel: Guardrails
       - title: PII filtered in both directions
         body:

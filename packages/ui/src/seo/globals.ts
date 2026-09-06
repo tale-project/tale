@@ -14,7 +14,8 @@
  * the build script:
  *
  *   `TALE_SITE_URL`    — marketing site origin (default `https://tale.dev`)
- *   `TALE_DOCS_URL`    — docs site origin      (default `${TALE_SITE_URL}/docs`)
+ *   `TALE_DOCS_URL`    — docs site origin      (default: TALE_SITE_URL's host
+ *                        prefixed with `docs.`)
  *   `TALE_GITHUB_URL`  — source repo URL       (default `https://github.com/tale-project/tale`)
  *
  * These are **build-time** variables consumed by Node/Bun scripts. The
@@ -23,6 +24,8 @@
  * canonical production defaults apply.
  */
 
+import { docsOriginForSite } from './urls';
+
 const env =
   (globalThis as { process?: { env?: Record<string, string | undefined> } })
     .process?.env ?? {};
@@ -30,8 +33,13 @@ const env =
 /** Marketing site origin. */
 export const TALE_SITE_URL = env.TALE_SITE_URL ?? 'https://tale.dev';
 
-/** Documentation site origin. */
-export const TALE_DOCS_URL = env.TALE_DOCS_URL ?? `${TALE_SITE_URL}/docs`;
+/**
+ * Documentation site origin. The docs site is its own host
+ * (`docs.tale.dev`), served by the proxy's docs block; it is no longer
+ * mounted at `/docs` on the marketing origin.
+ */
+export const TALE_DOCS_URL =
+  env.TALE_DOCS_URL ?? docsOriginForSite(TALE_SITE_URL);
 
 /** Public source repository. */
 export const TALE_GITHUB_URL =

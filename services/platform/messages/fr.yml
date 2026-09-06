@@ -479,6 +479,9 @@ auth:
       notOrgMember: Ton compte n’est pas membre de cette organisation. Demande à
         l’administration de cette organisation de t’inviter, puis
         reconnecte-toi.
+      flowMismatch:
+        Cette connexion ne s’est pas terminée dans le navigateur où elle a
+        commencé. Relance-la depuis cette page.
       assertionNotEncrypted:
         Cette organisation exige des assertions SAML chiffrées, mais le
         fournisseur d’identité en a envoyé une en clair. Demande à ton
@@ -2043,6 +2046,7 @@ documents:
       replaceFile: Remplacer le fichier
       submitForReview: Soumettre à la relecture
       review: Ouvrir la relecture
+      changeReviewer: Changer de relecteur
       newRevision: Nouvelle révision
     replace:
       title: Remplacer le fichier
@@ -2105,6 +2109,13 @@ documents:
       lastFeedback: 'Modifications demandées sur la v{version} par {name} :'
       lastFeedbackNoName: 'Modifications demandées sur la v{version} :'
       confirm: Soumettre
+    reassign:
+      title: Changer de relecteur
+      hint: 'Tale retire la demande en attente adressée à {name} — le nouveau
+        relecteur se prononce sur cette version.'
+      hintNoName: Tale retire la demande en attente — le nouveau relecteur se
+        prononce sur cette version.
+      confirm: Changer de relecteur
     review:
       title: 'Relecture (v{version})'
       frozenHint: Approuver fige cette version en instantané immuable —
@@ -2121,6 +2132,9 @@ documents:
       controlledFailed: Impossible de marquer le document comme maîtrisé
       submitted: Soumis à la relecture — le document est gelé
       submitFailed: Impossible de soumettre à la relecture
+      reviewerChanged: Relecteur changé — la demande est passée au nouveau
+        relecteur
+      reviewerChangeFailed: Impossible de changer de relecteur
       approved: 'Version {version} approuvée'
       changesRequested: Modifications demandées — le document redevient un brouillon
       respondFailed: Impossible d'enregistrer la décision
@@ -2503,6 +2517,7 @@ documents:
     clearSelection: Effacer la sélection
     dropOrClick: Dépose un fichier ici ou clique pour téléverser
     selectDocument: Sélectionner un document
+    listTruncated: Seuls les documents les plus récents sont listés ici. Charge le fichier pour en comparer un plus ancien.
   history:
     dialogTitle: Historique des versions — {name}
     dialogDescription:
@@ -3486,73 +3501,6 @@ governance:
     guardrails: Garde-fous
     logs: Journaux
     dataSubjectRequests: Personnes concernées
-    runCodePolicy: Paquets run-code
-  runCodePolicy:
-    title: Politique de paquets run-code
-    description: Contrôle quels paquets Python et Node l'outil run_code peut
-      installer à l'exécution. Le mode par défaut est liste de blocage avec une
-      liste vide, ce qui autorise tous les paquets. Passer en mode liste
-      d'autorisation oblige à énumérer chaque paquet de confiance — tout le
-      reste est bloqué.
-    modeSectionTitle: Mode par défaut
-    modeSectionDescription:
-      Choisissez la stratégie appliquée par run_code lorsqu'un
-      paquet n'est pas explicitement mentionné dans la politique.
-    modeAllowlistLabel: Liste d'autorisation
-    modeAllowlistDescription: Seuls les paquets figurant dans les listes
-      d'autorisation ci-dessous peuvent être installés. Tout le reste est
-      rejeté.
-    modeDenylistLabel: Liste de blocage
-    modeDenylistDescription:
-      Tous les paquets sont installables, à l'exception de
-      ceux figurant dans les listes de blocage ci-dessous.
-    pythonSectionTitle: Paquets Python
-    nodeSectionTitle: Paquets Node
-    listsHint: Un nom de paquet par ligne (ou séparé par des virgules). Les
-      contraintes de version sont supprimées automatiquement — `pandas==2.1`
-      correspond à `pandas`.
-    pythonAllowLabel: Liste d'autorisation Python
-    pythonAllowDescription: Utilisée lorsque le mode par défaut est Liste d'autorisation.
-    pythonDenyLabel: Liste de blocage Python
-    pythonDenyDescription: Utilisée lorsque le mode par défaut est Liste de blocage.
-    nodeAllowLabel: Liste d'autorisation Node
-    nodeAllowDescription: Utilisée lorsque le mode par défaut est Liste
-      d'autorisation. Les paquets scopés (`@scope/pkg`) sont pris en charge.
-    nodeDenyLabel: Liste de blocage Node
-    nodeDenyDescription:
-      Utilisée lorsque le mode par défaut est Liste de blocage.
-      Les paquets scopés (`@scope/pkg`) sont pris en charge.
-    pythonPlaceholder: |-
-      pandas
-      numpy
-      requests
-    nodePlaceholder: |-
-      lodash
-      @scope/pkg
-    save: Enregistrer
-    saving: Enregistrement…
-    saveFailed: Échec de la mise à jour de la politique de paquets run-code
-    testerTitle: Tester cette liste de paquets
-    testerDescription:
-      Collez des spécifications pip ou npm pour prévisualiser si
-      chacune passerait sous la politique en cours d'édition. Utilise vos
-      modifications non enregistrées, vous pouvez donc itérer avant
-      d'enregistrer.
-    testerBucketLabel: Catégorie
-    bucketPython: Python (pip)
-    bucketNode: Node (npm)
-    testerInputLabel: Spécifications à tester
-    testerPlaceholderPython: pandas==2.1, numpy>=1.26
-    testerPlaceholderNode: lodash@4.17.21, @scope/pkg
-    testerButton: Tester
-    testerBaseLabel: Nom de base
-    testerAllowed: Autorisé
-    testerDenied: Refusé
-    reasonAllowlistMatch: figure dans la liste d'autorisation
-    reasonAllowlistMiss: absent de la liste d'autorisation (le mode liste
-      d'autorisation refuse tout le reste)
-    reasonDenylistMatch: figure dans la liste de blocage
-    reasonDenylistNotMatched: absent de la liste de blocage
   trash:
     title: Corbeille
     description:
@@ -5460,6 +5408,30 @@ settings:
     idpCertHelp: Le certificat X.509 avec lequel l'IdP signe les assertions.
     spMetadataLabel: URL des métadonnées SP
     acsUrlLabel: URL ACS (réponse)
+    spKeypairHelp:
+      Utile seulement si ton IdP chiffre les assertions ou nomme les attributs
+      autrement. Colle un certificat SP et sa clé privée pour recevoir des
+      assertions chiffrées — le certificat est publié dans les métadonnées SP,
+      la clé est stockée comme secret et ne s'affiche plus jamais.
+    spCertLabel: Certificat SP (PEM)
+    spCertHelp: Le certificat X.509 vers lequel ton IdP chiffre les assertions.
+    spKeyLabel: Clé privée SP (PEM)
+    spKeyHelp: La clé privée qui correspond au certificat SP.
+    spKeyKeep: Une clé est stockée. Laisser vide pour la conserver.
+    wantSignedLabel: Exiger des assertions signées
+    wantSignedDescription:
+      Refuse une assertion sans signature valide du certificat IdP ci-dessus.
+      Laisse ce réglage activé.
+    wantEncryptedLabel: Exiger des assertions chiffrées
+    wantEncryptedDescription:
+      Refuse une assertion qui arrive en clair. Nécessite la clé privée SP et
+      un IdP configuré pour chiffrer.
+    attributeMappingsHelp:
+      Noms des attributs dans l'assertion. Laisser vide pour utiliser les noms
+      standard (email, name, groups et leurs URI de claim).
+    attrEmailLabel: Attribut e-mail
+    attrNameLabel: Attribut nom
+    attrGroupsLabel: Attribut groupes
     provisioningSection: Provisionnement
     defaultRoleLabel: Rôle par défaut
     role:
@@ -5505,6 +5477,7 @@ settings:
       required: Ce champ est requis.
       url: Saisissez une URL valide (avec https://).
       clientSecretRequired: Un secret client est requis.
+      spKeyRequired: Exiger des assertions chiffrées demande une clé privée SP.
     roleMapping:
       help: Associez les groupes, rôles d'application ou intitulés de poste du
         fournisseur d'identité à un rôle de la plateforme. Les utilisateurs
@@ -7585,6 +7558,7 @@ projects:
     PROJECT_HAS_BOUND_AUTOMATIONS: Retire d’abord ce projet des automatisations
       qui y sont liées, puis supprime-le.
     PROJECT_HAS_BOUND_AUTOMATIONS_NAMED: 'Retire d’abord ce projet de ces automatisations, puis supprime-le : {automations}.'
+    PROJECT_HAS_PROTECTED_RECORDS: Résous ou déplace d'abord les documents contrôlés de ce projet, puis supprime-le. Ils sont en relecture, approuvés ou conservent une version approuvée.
   sharing:
     effectiveAudience: Audience effective
     noTeamsHint: Aucune équipe pour l'instant.

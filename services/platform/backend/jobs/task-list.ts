@@ -118,15 +118,6 @@ const steerSchema = z.object({
   attempt: z.number(),
 });
 
-const slackEventSchema = z.object({
-  organizationId: z.string().min(1),
-  credentialId: z.string().min(1),
-  teamId: z.string().min(1),
-  eventId: z.string().optional(),
-  eventType: z.string().optional(),
-  event: z.record(z.string(), z.unknown()),
-});
-
 const reindexBm25Schema = z.object({
   orgSlug: z.string().min(1).nullable(),
   schema: z.string().min(1),
@@ -185,21 +176,6 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // Throw so pg-boss retries — scaffold is idempotent per domain.
         throw new Error(`org scaffold failed: ${result.error}`);
       }
-    },
-    'connector.slack_event': (payload) => {
-      const input = slackEventSchema.parse(payload);
-      // The conversational surface that answers inbound messages is not wired
-      // to this lane yet (0.4 degrades the same way, deliberately: the
-      // signature check, the org resolution and the routing all still run,
-      // which is what keeps the endpoint honest). Accepting and logging is
-      // the whole handler until that surface takes delivery.
-      console.info('[connectors:slack] inbound event accepted', {
-        organizationId: input.organizationId,
-        teamId: input.teamId,
-        eventId: input.eventId,
-        eventType: input.eventType,
-      });
-      return Promise.resolve();
     },
     'watchdog.transcriptions': async () => {
       const { recoverStuckTranscriptions } =
@@ -480,14 +456,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     },
     'watchdog.sandbox': async () => {
       const result = await runSandboxWatchdog(deps.sql);
-      if (
-        result.expired > 0 ||
-        result.healed > 0 ||
-        result.reclaimed > 0 ||
-        result.reaped > 0
-      ) {
+      if (result.expired > 0 || result.healed > 0 || result.reclaimed > 0) {
         console.log(
-          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reclaimed ${result.reclaimed} ended-run session(s), reaped ${result.reaped} tickets`,
+          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reclaimed ${result.reclaimed} ended-run session(s)`,
         );
       }
     },

@@ -1,6 +1,6 @@
 ---
 title: Video-Ingestion
-description: Konfiguriere, wie eine selbst gehostete Bereitstellung Video-Transkripte an YouTubes Bot-Abfrage vorbei abruft — der eingebaute PO-Token-Provider, ein Egress-Proxy und der vorgewärmte Browser-Session-Pool.
+description: Konfiguriere, wie eine selbst gehostete Bereitstellung Video-Transkripte an YouTubes Bot-Abfrage vorbei abruft.
 ---
 
 Liest Tale einen Videolink ein, ruft es das Transkript des Videos mit `yt-dlp` ab. Video-Plattformen — YouTube am aggressivsten — fordern Anfragen von Rechenzentrums- und Server-IPs mit einer „Bist du ein Mensch?"-Abfrage heraus, sodass eine frische, selbst gehostete Bereitstellung auf einer Cloud-VM beim Einlesen scheitern kann, wo ein Laptop an einem Heimanschluss durchkäme. Diese Seite behandelt die drei Ebenen, die Tale mitbringt, um daran vorbeizukommen — von der, die keine Konfiguration braucht, bis zu der, die am meisten verlangt.
@@ -35,7 +35,19 @@ Die stärkste Maßnahme präsentiert Cookies aus einer **echten Browser-Session,
 
 Sessions werden verschlüsselt gespeichert (der Cookie-Jar wird mit dem `ENCRYPTION_SECRET_HEX` der Bereitstellung versiegelt) und werden nie an vom Agent ausgeführten Code weitergegeben — sie leben nur in der serverseitigen Abruf-Ebene. Eine Session, die blockiert zu werden beginnt, wird automatisch abgekühlt und dann stillgelegt, und abgelaufene Sessions werden planmäßig aufgeräumt.
 
-Den Pool zu füllen ist ein fortgeschrittener, händischer Schritt: Erfasse einen Netscape-Cookie-Jar aus einem Browser, der die Abfrage für die Zielplattform gelöst hat, und importier ihn dann über die interne Action `importBrowserSession`. Derselbe Pool trägt auch das Web-Fetch-Tool und den Crawler des Agents, sodass eine für eine Domain vorgewärmte Session jedem serverseitigen Zugriff darauf zugutekommt.
+Den Pool zu füllen ist ein fortgeschrittener, händischer Schritt, und er läuft über die [REST-API](/de/develop/api-reference) — ein Formular dafür gibt es im Produkt nicht. Erfasse einen Netscape-Cookie-Jar aus einem Browser, der die Abfrage für die Zielplattform gelöst hat, und importier ihn dann für die Domain dieser Plattform:
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/v1/browser-sessions/import" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d "$(jq -n --arg domain youtube.com --rawfile cookiesJar cookies.txt \
+        '{ domain: $domain, cookiesJar: $cookiesJar, label: "warmed 2026-09-05" }')"
+# → 201 { "sessionId": "..." }
+```
+
+Der Import ist der heikelste Schreibzugriff der Bereitstellung und deshalb doppelt abgesichert: Der Schlüssel muss einem Administrator der Organisation gehören, und dessen E-Mail-Adresse muss auf der Allowlist `TALE_DEPLOYMENT_CONFIG_ADMINS` stehen — derselben Liste, die die [Datenresidenz](/de/self-hosted/configuration/data-residency) schützt. Alle anderen bekommen **403** mit einem `code`, der die verweigernde Hürde nennt. Gehört der Nutzer des Schlüssels mehreren Organisationen an, musst du mit `X-Organization-Slug` sagen, in welche importiert wird — ohne den Header antwortet der Schreibzugriff mit **400**; bei nur einer Mitgliedschaft kannst du den Header weglassen. `GET /api/v1/browser-sessions` listet den Pool mit Status, Ablauf und Fehlschlagzähler jeder Session — nie die Cookies selbst. Eine Session lebt 14 Tage, sofern `ttlMs` nichts anderes sagt, und nur das Einlesen von Videolinks schöpft aus dem Pool.
 
 <Warning>
 

@@ -57,14 +57,16 @@ import { purgeDocument } from '../retention/service.ts';
 
 export class DocumentError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404 | 429;
+  /** 4xx for a refusal the caller can act on; 503 for a dependency (the
+   * object store) that failed to answer — retryable, never the caller's. */
+  readonly status: 400 | 403 | 404 | 429 | 503;
   /** Structured refusal payload (reasonCode, limitBytes…) for the client. */
   readonly data?: Record<string, unknown>;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 429 = 400,
+    status: 400 | 403 | 404 | 429 | 503 = 400,
     data?: Record<string, unknown>,
     /** The refusal this one wraps (a rate limit), for the door to answer. */
     options?: ErrorOptions,
@@ -626,130 +628,16 @@ export async function updateDocument(
   return { teamScopeChanged, folderChanged, fileRef: doc.fileRef };
 }
 
-/** Soft trash / restore. Hard delete + blob erasure land with governance. */
-export async function setDocumentTrashed(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  documentId: string,
-  trashed: boolean,
-): Promise<void> {
-  const doc = await requireDocumentWriteAccess(tx, auth, documentId);
-  if (trashed) {
-    // Controlled-record protection: reviewed/approved records never trash.
-    assertRecordTrashableJson(doc.record);
-    // Preservation gate: an org hold (or the author's custodian hold)
-    // freezes destructive paths.
-    await assertNotHeld(
-      tx,
-      auth.organizationId,
-      'document',
-      documentId,
-      undefined,
-      doc.createdBy ?? undefined,
-    );
-  }
-  await tx`
-    UPDATE app.documents SET
-      lifecycle_status = ${trashed ? 'trashed' : null},
-      status_changed_at_ms = ${Date.now()}, updated_at_ms = ${Date.now()}
-    WHERE id = ${documentId}
-  `;
-  if (trashed) {
-    // A directly-selected single-file OneDrive sync maps 1:1 to this
-    // document — trashing it means "stop syncing it", or the next scheduled
-    // run refreshes the mirror the user just removed. No-op otherwise.
-    await stopSyncForTrashedDocument(tx, {
-      organizationId: doc.organizationId,
-      metadata: doc.metadata,
-    });
-  }
-  await createAuditLog(tx, {
-    organizationId: auth.organizationId,
-    actorId: auth.userId,
-    ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-    actorType: 'user',
-    action: trashed ? 'document.trashed' : 'document.restored',
-    category: 'data',
-    resourceType: 'document',
-    resourceId: documentId,
-    ...(doc.title !== null ? { resourceName: doc.title } : {}),
-    status: 'success',
-  });
-  await emitHintInTx(tx, {
-    orgId: auth.organizationId,
-    entity: 'document',
-    entityId: documentId,
-  });
-}
-
 // ---------------------------------------------------------------------------
-// Project attach/detach (the projects-domain gap, closed here)
+// Project detach (the projects-domain gap, closed here)
 // ---------------------------------------------------------------------------
 
 /**
- * Attach a hub document to a project (requires teamless doc + edit access).
- * Answers the blob ref so the caller can re-stamp the corpus scope AFTER the
- * transaction commits (`syncRagDocumentScope` talks to the knowledge pool):
- * a project file is retrievable only inside its project, so a hub document's
- * org-wide corpus rows must follow it in — the same re-stamp a team change
- * gets.
- */
-export async function attachDocumentToProject(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  args: { documentId: string; projectId: string },
-): Promise<{ fileRef: string | null }> {
-  assertDocumentsWriteRole(auth);
-  const doc = await loadDocumentOrThrow(tx, args.documentId);
-  await assertDocumentVisible(tx, auth, doc);
-  if (doc.projectId) {
-    throw new DocumentError(
-      'DOCUMENT_ALREADY_IN_PROJECT',
-      'Document already belongs to a project',
-    );
-  }
-  if (doc.teamId || doc.teamTags.length > 0) {
-    throw new DocumentError(
-      'DOCUMENT_SCOPE_CONFLICT',
-      'A team document cannot be attached to a project',
-    );
-  }
-  const project = await loadProjectOrThrow(tx, args.projectId);
-  const access = checkProjectAccess(
-    { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-    auth.teamIds,
-    auth.role,
-  );
-  if (!access.canRead || !access.canEdit) {
-    throw new DocumentError('RBAC_FORBIDDEN', 'Editor role required', 403);
-  }
-  await tx`
-    UPDATE app.documents SET
-      project_id = ${args.projectId}, folder_id = NULL,
-      updated_at_ms = ${Date.now()}
-    WHERE id = ${args.documentId}
-  `;
-  await createAuditLog(tx, {
-    organizationId: auth.organizationId,
-    actorId: auth.userId,
-    ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-    actorType: 'user',
-    action: 'project.file.attached',
-    category: 'data',
-    resourceType: 'project',
-    resourceId: args.projectId,
-    resourceName: project.name,
-    metadata: { documentId: args.documentId },
-    status: 'success',
-  });
-  return { fileRef: doc.fileRef };
-}
-
-/**
- * Detach back to the org-wide library (explicit destination, audited). Like
- * attach, answers the blob ref for the post-commit corpus re-stamp: the
- * detached document is org-wide again, so its corpus rows must stop carrying
- * the old project's scope or it silently vanishes from hub retrieval.
+ * Detach back to the org-wide library (explicit destination, audited).
+ * Answers the blob ref for the post-commit corpus re-stamp (`syncRagDocumentScope`
+ * talks to the knowledge pool): the detached document is org-wide again, so
+ * its corpus rows must stop carrying the old project's scope or it silently
+ * vanishes from hub retrieval.
  */
 export async function detachDocumentFromProject(
   tx: TransactionSql,
@@ -826,7 +714,13 @@ async function selectHubDocuments(
   `;
 }
 
-/** Hub listing (project docs never appear); optional folder filter. */
+/**
+ * Hub listing (project docs never appear); optional folder filter. Bounded,
+ * and honest about the bound: `truncated` says the hub holds more rows than
+ * `limit` — judged on the stored rows, so a row the caller may not see never
+ * masks a cut. A reader that pre-fills a picker from this list can tell the
+ * user to narrow by search instead of offering a complete-looking subset.
+ */
 export async function listDocuments(
   sql: Sql,
   auth: ProjectAuthContext,
@@ -835,12 +729,19 @@ export async function listDocuments(
     includeTrashed?: boolean;
     limit?: number;
   } = {},
-): Promise<DocumentRow[]> {
+): Promise<{ documents: DocumentRow[]; truncated: boolean }> {
+  const limit = Math.min(Math.max(options.limit ?? 200, 1), HUB_LIST_READ_MAX);
   const rows = await selectHubDocuments(sql, auth, {
     ...options,
-    limit: Math.min(options.limit ?? 200, HUB_LIST_READ_MAX),
+    limit: limit + 1,
   });
-  return rows.filter((doc) => hasKnowledgeHubDocumentAccess(doc, auth.teamIds));
+  const truncated = rows.length > limit;
+  return {
+    documents: (truncated ? rows.slice(0, limit) : rows).filter((doc) =>
+      hasKnowledgeHubDocumentAccess(doc, auth.teamIds),
+    ),
+    truncated,
+  };
 }
 
 /**
@@ -901,31 +802,6 @@ export async function getDocumentById(
   const doc = await loadDocumentOrThrow(sql, documentId);
   await assertDocumentVisible(sql, auth, doc);
   return doc;
-}
-
-/** Bounded hub title search for the `@` mention picker. */
-export async function searchDocumentsForMention(
-  sql: Sql,
-  auth: ProjectAuthContext,
-  query: string,
-  limit = 20,
-): Promise<DocumentRow[]> {
-  const term = `%${query.trim()}%`;
-  if (query.trim().length === 0) {
-    return [];
-  }
-  const rows = await sql<DocumentRow[]>`
-    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
-    WHERE org_id = ${auth.organizationId}
-      AND project_id IS NULL
-      AND lifecycle_status IS DISTINCT FROM 'trashed'
-      AND title ILIKE ${term}
-    ORDER BY updated_at_ms DESC
-    LIMIT ${Math.min(limit, 50) * 3}
-  `;
-  return rows
-    .filter((doc) => hasKnowledgeHubDocumentAccess(doc, auth.teamIds))
-    .slice(0, Math.min(limit, 50));
 }
 
 // ---------------------------------------------------------------------------
@@ -1744,8 +1620,10 @@ export async function createDocumentFromBlobUpload(
 // Hard delete (the 0.4 `deleteDocument` contract)
 // ---------------------------------------------------------------------------
 
-/** The 0.4 `recordTrashRefusal` on the jsonb record projection. */
-function recordTrashRefusalFromJson(
+/** The 0.4 `recordTrashRefusal` on the jsonb record projection — the ONE
+ * predicate every destructive walk (trash, hard delete, folder cascade, the
+ * project cascade) asks before it removes a document. */
+export function recordTrashRefusalFromJson(
   record: Record<string, unknown> | null,
 ): 'in_review' | 'approved' | 'retained_history' | null {
   if (record === null) return null;
@@ -1778,9 +1656,11 @@ export function assertRecordTrashableJson(
 
 /**
  * Hard-delete a document: visibility + project-edit gates, the controlled-
- * record protection, legal holds, sync stop, then `purgeDocument` (corpus
- * entry, blobs + history, file rows, dependent knowledge-entry chains, the
- * row). Controlled drafts leave an audit trail before they go.
+ * record protection, legal holds, then `purgeDocument` (corpus entry, blobs
+ * + history, file rows, dependent knowledge-entry chains, the row), and only
+ * once that succeeded the sync stop + the audit row. A purge that could not
+ * finish surfaces as `PurgeIncompleteError` with the row intact and no
+ * receipt written.
  */
 export async function deleteDocumentHard(
   sql: Sql,
@@ -1810,6 +1690,18 @@ export async function deleteDocumentHard(
     undefined,
     doc.createdBy ?? undefined,
   );
+  // Purge FIRST, audit after — the folder cascade's order. `purgeDocument`
+  // keeps the row when a corpus or blob release fails (it throws
+  // `PurgeIncompleteError` for the caller to retry), so an audit row
+  // committed ahead of it recorded a successful deletion that had not
+  // happened, and the retry that did delete wrote a second success row.
+  const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
+  await purgeDocument(sql, orgSlug, {
+    id: doc.id,
+    fileRef: doc.fileRef,
+    organizationId: doc.organizationId,
+    historyFiles: doc.historyFiles,
+  });
   await sql.begin(async (tx) => {
     // A directly-selected single-file sync maps 1:1 to this document —
     // deleting it means "stop syncing it".
@@ -1843,13 +1735,6 @@ export async function deleteDocumentHard(
       entity: 'document',
       entityId: documentId,
     });
-  });
-  const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
-  await purgeDocument(sql, orgSlug, {
-    id: doc.id,
-    fileRef: doc.fileRef,
-    organizationId: doc.organizationId,
-    historyFiles: doc.historyFiles,
   });
 }
 

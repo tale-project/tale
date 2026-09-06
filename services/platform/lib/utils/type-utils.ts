@@ -102,9 +102,3 @@ export async function fetchJson<T>(response: Response): Promise<T> {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Response.json() is inherently `any`
   return (await response.json()) as T;
 }
-
-/** Parse a JSON string to a typed value. */
-export function parseJson<T>(json: string): T {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse() is inherently `any`
-  return JSON.parse(json) as T;
-}

@@ -2,15 +2,12 @@ import {
   bucketAgentSlug,
   classifyUsageRow,
 } from '../../../lib/shared/constants/usage';
-import { getUserNamesBatch } from '../documents/get_user_names_batch';
-import type { QueryCtx } from '../lib/ctx';
 import { buildPeriodKeyFromTimestamp } from './helpers';
 
 export type PeriodDays = 7 | 30 | 90;
 export type Granularity = 'daily' | 'weekly' | 'monthly';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const MAX_SCAN = 20000;
 const TOP_N = 10;
 
 export interface GetOrgUsageMetricsArgs {
@@ -138,35 +135,6 @@ export interface UsageLedgerFoldRow {
   characterCount?: number;
 }
 
-export async function getOrgUsageMetrics(
-  ctx: QueryCtx,
-  args: GetOrgUsageMetricsArgs,
-): Promise<OrgUsageMetrics> {
-  const now = Date.now();
-  const scanStart = scanStartKeyFor(args, now);
-  const rows: UsageLedgerFoldRow[] = [];
-  let scanned = 0;
-  let capped = false;
-  for await (const row of ctx.db
-    .query('usageLedger')
-    .withIndex('by_org_granularity_period', (q) =>
-      q
-        .eq('organizationId', args.organizationId)
-        .eq('granularity', args.granularity)
-        .gte('periodKey', scanStart),
-    )) {
-    scanned++;
-    if (scanned > MAX_SCAN) {
-      capped = true;
-      break;
-    }
-    rows.push(row);
-  }
-  return foldOrgUsageMetrics(rows, capped, args, now, (userIds) =>
-    getUserNamesBatch(ctx, userIds),
-  );
-}
-
 /** The first period key the scan must cover (prior window's start). */
 export function scanStartKeyFor(
   args: Pick<GetOrgUsageMetricsArgs, 'granularity' | 'periodDays'>,
@@ -186,7 +154,7 @@ export function scanStartKeyFor(
   );
 }
 
-/** The fold itself — pure over the pre-fetched rows (both hosts feed it). */
+/** The fold itself — pure over the pre-fetched rows the pg reader feeds it. */
 export async function foldOrgUsageMetrics(
   fetchedRows: readonly UsageLedgerFoldRow[],
   capped: boolean,

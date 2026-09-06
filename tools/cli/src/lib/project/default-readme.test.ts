@@ -21,6 +21,6 @@ describe('default/README.md scaffold content', () => {
     expect(DEFAULT_README_CONTENT).toContain('*.secrets.json');
     expect(DEFAULT_README_CONTENT).toContain('.history/');
     // Where to learn more.
-    expect(DEFAULT_README_CONTENT).toContain('https://tale.dev/docs');
+    expect(DEFAULT_README_CONTENT).toContain('https://docs.tale.dev');
   });
 });

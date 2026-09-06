@@ -1,6 +1,6 @@
 ---
 title: Démarrage rapide
-description: De rien à ta première réponse d’agent — obtiens une instance, connecte-toi et envoie ton premier message. Cinq minutes sur une instance prête, quinze si tu en montes une sur ta propre machine.
+description: De rien à ta première réponse d’agent — obtiens une instance, connecte-toi et envoie ton premier message.
 ---
 
 C’est le chemin le plus court vers un chat qui répond : obtenir une instance, se connecter, envoyer un message, regarder la réponse arriver en streaming. Compte environ cinq minutes sur une instance prête et quinze sur ta propre machine ; à la fin tu vois l’écran ci-dessous — une vraie réponse d’un agent sur ton espace de travail.

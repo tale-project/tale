@@ -80,19 +80,23 @@ export function registerConnector(connector: Connector): string[] {
 }
 
 /**
- * Load every connector under `<systemRoot>/connectors/` and register its
- * actions.
+ * Load every connector under `<systemRoot>/connectors/` (the deployment's
+ * system tree when no root is given) and register its actions.
  *
  * A connector whose name disagrees with its directory is refused by the shared
  * reader rather than silently registered under the wrong prefix — the
  * directory is what the settings UI and credential rows key on, so a mismatch
  * would make an action unreachable in one surface and present in another.
  */
-export function loadConnectors(systemRoot: string): {
+export function loadConnectors(systemRoot?: string): {
   connectors: Connector[];
   nodeTypes: string[];
 } {
-  const connectors = [...loadConnectorDefinitions({ root: systemRoot })];
+  const connectors = [
+    ...loadConnectorDefinitions(
+      systemRoot !== undefined ? { root: systemRoot } : {},
+    ),
+  ];
   const nodeTypes = connectors.flatMap((connector) =>
     registerConnector(connector),
   );

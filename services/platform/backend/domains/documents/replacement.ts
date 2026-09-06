@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   DOCUMENT_MAX_FILE_SIZE,
   isRagIndexableFile,
@@ -24,8 +25,8 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx, PRIORITY_INTERACTIVE } from '../../jobs/enqueue.ts';
 import {
   buildObjectKey,
+  deleteOrgObject,
   resolveObjectStore,
-  s3DeleteObject,
   s3PresignPutUrl,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
@@ -182,6 +183,41 @@ function replacementTargetMatches(
     record.version === target.expectedVersion &&
     doc.fileRef !== null &&
     doc.fileRef === target.expectedFileId
+  );
+}
+
+/**
+ * The byte attestation as THIS door's refusal: the core attester speaks the
+ * runtime-neutral `AppError`, which no document route maps — a mismatched
+ * file answered as a text 500 (plus an error report per attempt) instead of
+ * the coded 400 the client is built for, and `last_error` stored the
+ * serialized payload. Only the attester's own refusal is translated; anything
+ * else (a store read failing mid-attest) stays the infrastructure error it is.
+ */
+export async function attestReplacementBytes(
+  bytes: Uint8Array,
+  fileName: string,
+): Promise<string> {
+  try {
+    return await attestDocumentContentType(bytes, fileName);
+  } catch (error) {
+    if (error instanceof AppError && isMimeMismatch(error.data)) {
+      throw new DocumentError('UPLOAD_MIME_MISMATCH', error.data.message, 400, {
+        reasonCode: 'mime_mismatch',
+      });
+    }
+    throw error;
+  }
+}
+
+function isMimeMismatch(
+  data: unknown,
+): data is { code: 'UPLOAD_MIME_MISMATCH'; message: string } {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    Reflect.get(data, 'code') === 'UPLOAD_MIME_MISMATCH' &&
+    typeof Reflect.get(data, 'message') === 'string'
   );
 }
 
@@ -537,7 +573,7 @@ export async function finalizeReplacementUpload(
           { reasonCode: 'file_too_large', limitBytes: DOCUMENT_MAX_FILE_SIZE },
         );
       }
-      const verifiedContentType = await attestDocumentContentType(
+      const verifiedContentType = await attestReplacementBytes(
         bytes,
         intent.fileName,
       );
@@ -930,7 +966,6 @@ export async function runReplacementCleanup(sql: Sql): Promise<number> {
       refs.push(intent.stagingRef);
     }
     try {
-      const store = await resolveObjectStore(intent.orgSlug);
       for (const ref of refs) {
         const parsed = parseBlobRef(ref);
         if (parsed.backend !== 's3') continue;
@@ -941,7 +976,9 @@ export async function runReplacementCleanup(sql: Sql): Promise<number> {
           LIMIT 1
         `;
         if (owned[0]) continue;
-        await s3DeleteObject(store, parsed.key);
+        // Every store that may hold the key: a staging blob minted before
+        // the org connected its own bucket sits in the deployment default.
+        await deleteOrgObject(intent.orgSlug, parsed.key);
       }
       await sql`
         UPDATE app.document_replacement_uploads SET

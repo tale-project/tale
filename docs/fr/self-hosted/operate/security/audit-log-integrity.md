@@ -1,6 +1,6 @@
 ---
 title: Alertes d’intégrité du journal d’audit
-description: Comment réagir quand le contrôle quotidien d’intégrité du journal d’audit lève une alerte — lire le constat, distinguer une falsification d’une lacune de configuration bénigne et préserver les preuves.
+description: Comment réagir quand le contrôle quotidien d’intégrité du journal d’audit lève une alerte.
 ---
 
 Tale vérifie la chaîne de hachage du journal d’audit de chaque organisation selon un planning et lève une alerte à l’instant où une vérification échoue. Cette page est le runbook de l’opérateur ou de l’admin qui a reçu cette alerte : comment lire le constat, comment séparer un vrai signal de falsification d’un artefact ordinaire de rétention ou de configuration, et quoi préserver avant de toucher à quoi que ce soit. L’alerte est volontairement bruyante parce qu’une vraie rupture est rare et grave — mais la plupart des ruptures qui se déclenchent en pratique ont une explication banale, donc le travail consiste à les écarter méthodiquement plutôt qu’à paniquer.

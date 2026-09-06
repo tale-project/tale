@@ -206,10 +206,13 @@ entries:
   # bounce (`sso.errors.multipleConnections`) are passed as literals from the
   # handlers but under a namespace the client-source scanner can't resolve;
   # the SAML validator's encryption-required refusal
-  # (`sso.errors.assertionNotEncrypted`) rides the same redirect.
+  # (`sso.errors.assertionNotEncrypted`) and the browser-binding refusal of a
+  # completion that did not start in this browser (`sso.errors.flowMismatch`,
+  # core/enterprise_sso/login/flow_cookie.ts) ride the same redirect.
   - 'auth.sso.errors.multipleConnections'
   - 'auth.sso.errors.notOrgMember'
   - 'auth.sso.errors.assertionNotEncrypted'
+  - 'auth.sso.errors.flowMismatch'
 
   # Skill load-error detail titles: skill-load-error.ts maps machine error codes
   # (yaml_syntax, not_found, …) to `skills.loadErrorDetail.title.*` /

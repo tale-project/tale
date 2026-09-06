@@ -120,9 +120,8 @@ function sanitizeTranscriptionError(err: unknown): string {
 
 /**
  * Whisper validates by file extension, and our compressed output is
- * Opus-in-OGG, so the `multipart` `file` field must use `.ogg` (`.opus` is NOT
- * in OpenAI's accepted list even though the content is identical). The same
- * `'ogg'` value feeds the `json-base64` `input_audio.format` field.
+ * Opus-in-OGG, so the multipart `file` field must use `.ogg` (`.opus` is NOT
+ * in OpenAI's accepted list even though the content is identical).
  * https://platform.openai.com/docs/guides/speech-to-text
  */
 function chunkFileName(originalFileName: string, chunk: AudioChunk): string {
@@ -352,7 +351,6 @@ export async function transcribeAudioImpl(
           model: modelData,
           blob: chunk.blob,
           fileName: chunkFileName(args.fileName, chunk),
-          format: 'ogg',
           timeoutMs: TRANSCRIBE_API_TIMEOUT_MS,
         });
         // Timestamps are only meaningful for video-link transcripts —

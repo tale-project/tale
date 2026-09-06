@@ -23,13 +23,13 @@
  * calls cost a readdir plus one stat per file and return a stable
  * reference. A changed file is re-parsed on the next call.
  *
- * Root resolution mirrors the builtin-catalog convention: an explicit
- * `root` (the `system/` directory) wins; then `$TALE_CONFIG_SYSTEM_DIR` (the
- * deployment contract — shipped containers bake the tree in and set this,
- * since a container has no repo checkout to walk up to); otherwise the loader
- * walks up from the working directory to the repo checkout's
- * `configs/platform/system` — which covers vitest, scripts, and a source
- * checkout's convex dev process.
+ * Root resolution is the shared system-catalog resolver
+ * (`lib/shared/config/system-root.ts`): an explicit `root` (the `system/`
+ * directory) wins; then `$TALE_CONFIG_SYSTEM_DIR` (the deployment contract —
+ * shipped containers bake the tree in and set this, since a container has no
+ * repo checkout to walk up to); otherwise the walk-up from the working
+ * directory to the repo checkout's `configs/platform/system` — which covers
+ * vitest, scripts, and a source checkout's dev process.
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -37,6 +37,10 @@ import path from 'node:path';
 
 import { z } from 'zod/v4';
 
+import {
+  resolveSystemConfigRoot,
+  SYSTEM_CONFIG_ROOT_REMEDY,
+} from '../../../../lib/shared/config/system-root';
 import { parseYaml } from '../../../../lib/shared/config/yaml';
 import { formatZodError } from '../../../../lib/shared/schemas/format-error';
 import {
@@ -48,9 +52,6 @@ import {
   type ProviderDefinition,
 } from '../../../../lib/shared/schemas/providers';
 
-/** Repo-relative location of the shipped system config tree. */
-const REPO_SYSTEM_ROOT = ['configs', 'platform', 'system'] as const;
-
 function isDirectory(candidate: string): boolean {
   try {
     return statSync(candidate).isDirectory();
@@ -58,27 +59,6 @@ function isDirectory(candidate: string): boolean {
     // A missing path is the ordinary walk-up miss, not an error.
     return false;
   }
-}
-
-/** Walk up from `startDir` to the checkout's `configs/platform/system`. */
-function findRepoSystemRoot(startDir: string): string | null {
-  let dir = path.resolve(startDir);
-  for (;;) {
-    const candidate = path.join(dir, ...REPO_SYSTEM_ROOT);
-    if (isDirectory(candidate)) return candidate;
-    const parent = path.dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-}
-
-/** `$TALE_CONFIG_SYSTEM_DIR` when it is set to an absolute path. A set-but-
- * relative value is a misconfiguration and resolves to nothing (mirrors the
- * builtin-catalog convention) rather than being guessed against the cwd. */
-function envSystemRoot(): string | undefined {
-  const fromEnv = process.env.TALE_CONFIG_SYSTEM_DIR;
-  if (fromEnv && path.isAbsolute(fromEnv)) return fromEnv;
-  return undefined;
 }
 
 export interface LoadSystemConfigOptions {
@@ -90,11 +70,10 @@ export interface LoadSystemConfigOptions {
 }
 
 function resolveRoot(options: LoadSystemConfigOptions): string {
-  const root =
-    options.root ?? envSystemRoot() ?? findRepoSystemRoot(process.cwd());
-  if (!root) {
+  const root = resolveSystemConfigRoot({ root: options.root });
+  if (root === null) {
     throw new Error(
-      '[providers] no system config tree found: set TALE_CONFIG_SYSTEM_DIR (absolute), pass an explicit root, or run inside a checkout with configs/platform/system',
+      `[providers] no system config tree found: ${SYSTEM_CONFIG_ROOT_REMEDY}`,
     );
   }
   return root;

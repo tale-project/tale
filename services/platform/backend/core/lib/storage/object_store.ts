@@ -9,11 +9,16 @@
  * `resolveOrgObjectStore(orgSlug)` returns the org's own bucket when
  * `<org>/object-storage/connection.json` is configured, else the deployment
  * default — the `default` config tree's connection — and otherwise FAILS
- * CLOSED with `ObjectStoreUnconfiguredError`. There is no fallback store: a
- * missing or broken connection is an operator-visible error at the door, never
- * a silently different backend deep in a blob lane. Callers that hold an
- * `ActionCtx` use `blob_access.ts`; this module owns only the resolution + the
- * raw S3 requests.
+ * CLOSED with `ObjectStoreUnconfiguredError`. There is no fallback for a
+ * missing or broken connection: it is an operator-visible error at the door,
+ * never a silently different backend deep in a blob lane. The one deliberate
+ * second store is on READS of an existing blob: an org that connects its own
+ * bucket keeps every blob written before that moment in the deployment
+ * default store until the blob backfill moves it, and a ref carries no store
+ * identity — so `resolveOrgObjectStoresForRead` lists own-then-default and
+ * `locateOrgObjectStore` asks them in turn. Callers that hold an `ActionCtx`
+ * use `blob_access.ts`; this module owns only the resolution + the raw S3
+ * requests.
  *
  * S3 requests are signed with `aws4fetch` (a few-KB SigV4 signer) rather than
  * `@aws-sdk/client-s3`. Works against any S3-compatible store (AWS S3, MinIO,
@@ -98,6 +103,161 @@ export async function resolveOrgObjectStore(
   const store = buildS3ObjectStore(resolved.connection, resolved.secrets);
   orgStoreCache.set(orgSlug, { store, expires: now + ORG_STORE_TTL_MS });
   return store;
+}
+
+/**
+ * The stores a READ (or delete) of an EXISTING org blob may find it in, most
+ * likely first: the org's resolved store, then — only when the org has its
+ * own bucket and the deployment default tree names a different one — the
+ * default store, where every blob written before the org connected its
+ * bucket still lives until the blob backfill moves it. Mint lanes never use
+ * this: a new key always lands in `resolveOrgObjectStore`. A broken default
+ * tree still throws (fail-closed); an absent one contributes no fallback.
+ */
+export async function resolveOrgObjectStoresForRead(
+  orgSlug: string,
+): Promise<S3ObjectStore[]> {
+  const primary = await resolveOrgObjectStore(orgSlug);
+  if (orgSlug === DEFAULT_TREE_SLUG) return [primary];
+  let fallback: S3ObjectStore;
+  try {
+    fallback = await resolveOrgObjectStore(DEFAULT_TREE_SLUG);
+  } catch (error) {
+    if (error instanceof ObjectStoreUnconfiguredError) return [primary];
+    throw error;
+  }
+  return sameObjectStore(primary, fallback) ? [primary] : [primary, fallback];
+}
+
+/**
+ * The endpoint an object request really goes to, in one spelling: parsed as
+ * a URL (host case-folded, a trailing slash dropped — `objectUrl` strips it
+ * too) so `http://minio:9000/` and `http://MinIO:9000` compare equal; an
+ * endpoint that does not parse is compared trimmed and case-folded. `null`
+ * for the AWS default.
+ */
+function endpointIdentity(endpoint: string | undefined): string | null {
+  if (endpoint === undefined) return null;
+  const trimmed = endpoint.trim();
+  if (trimmed === '') return null;
+  if (!URL.canParse(trimmed)) {
+    return trimmed.replace(/\/+$/, '').toLowerCase();
+  }
+  const u = new URL(trimmed);
+  return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, '')}`;
+}
+
+/**
+ * Two connections address the same physical bucket as far as their CONFIG
+ * can tell (a key stays one object however it is signed for): the same
+ * bucket at the same endpoint identity, or — with no endpoint on either
+ * side — the same bucket on AWS, where bucket names are global and the
+ * region string only says where the client looks first. Path-style is a
+ * request-shape choice, not a different store. A config compare cannot see
+ * DNS aliases or a proxy in front of the same bucket; a lane that DELETES
+ * on the strength of "different stores" probes with `sharesPhysicalStore`.
+ */
+export function sameObjectStore(a: S3ObjectStore, b: S3ObjectStore): boolean {
+  if (a.config.bucket !== b.config.bucket) return false;
+  const endpointA = endpointIdentity(a.config.endpoint);
+  const endpointB = endpointIdentity(b.config.endpoint);
+  if (endpointA === null && endpointB === null) return true;
+  return endpointA === endpointB;
+}
+
+/**
+ * Whether `source` and `target` are ONE physical bucket, proven rather than
+ * inferred: a marker object written through `target` under a fresh
+ * org-namespaced key must be invisible through `source`. Every alias the
+ * config compare is blind to — a trailing slash, a DNS name for the same
+ * host, a proxy, an AWS bucket reached through two endpoint strings — makes
+ * the marker show up on both sides. The marker is deleted again on every
+ * path; a PUT or DELETE failure surfaces to the caller. For a lane that is
+ * about to delete a source copy on the strength of "the target is a
+ * different store".
+ */
+export async function sharesPhysicalStore(
+  source: S3ObjectStore,
+  target: S3ObjectStore,
+  orgSlug: string,
+): Promise<boolean> {
+  const key = buildObjectKey(target, orgSlug);
+  const body = new TextEncoder().encode(
+    `tale-object-storage-identity-probe ${new Date().toISOString()}`,
+  );
+  await s3PutObject(target, key, body, 'text/plain; charset=utf-8');
+  try {
+    return (await s3HeadObject(source, key)) !== null;
+  } finally {
+    await s3DeleteObject(target, key);
+  }
+}
+
+/**
+ * The store that physically holds `key` for `orgSlug`: the org's store when
+ * it is the only candidate (no round-trip), else the first candidate whose
+ * HEAD answers — and the org's own store when none does, so a missing object
+ * surfaces at the caller's verb exactly as it did with one store. Readers
+ * presign, GET or HEAD against the returned store.
+ */
+export async function locateOrgObjectStore(
+  orgSlug: string,
+  key: string,
+): Promise<S3ObjectStore> {
+  const stores = await resolveOrgObjectStoresForRead(orgSlug);
+  const primary = stores[0];
+  if (primary === undefined) throw new ObjectStoreUnconfiguredError();
+  if (stores.length === 1) return primary;
+  return (await locateAmong(stores, key))?.store ?? primary;
+}
+
+/**
+ * `locateOrgObjectStore` for a reader that needs the object's HEAD anyway:
+ * the store holding `key` together with that HEAD, in ONE round-trip per
+ * candidate store, or `null` when no store holds it. Saves the second HEAD
+ * a caller would otherwise issue against the located store.
+ */
+export async function locateOrgObject(
+  orgSlug: string,
+  key: string,
+): Promise<{ store: S3ObjectStore; head: S3ObjectHead } | null> {
+  const stores = await resolveOrgObjectStoresForRead(orgSlug);
+  if (stores[0] === undefined) throw new ObjectStoreUnconfiguredError();
+  return locateAmong(stores, key);
+}
+
+async function locateAmong(
+  stores: S3ObjectStore[],
+  key: string,
+): Promise<{ store: S3ObjectStore; head: S3ObjectHead } | null> {
+  for (const store of stores) {
+    const head = await s3HeadObject(store, key);
+    if (head !== null) return { store, head };
+  }
+  return null;
+}
+
+/**
+ * DELETE `key` from every store that may hold it — S3 DELETE is idempotent,
+ * so the copies a blob has in the default store and the org bucket (before,
+ * during and after the backfill) all go. Every store is attempted; the first
+ * failure is rethrown afterwards so a caller's best-effort/retry semantics
+ * stay intact.
+ */
+export async function deleteOrgObject(
+  orgSlug: string,
+  key: string,
+): Promise<void> {
+  const stores = await resolveOrgObjectStoresForRead(orgSlug);
+  let failure: { error: unknown } | null = null;
+  for (const store of stores) {
+    try {
+      await s3DeleteObject(store, key);
+    } catch (error) {
+      failure ??= { error };
+    }
+  }
+  if (failure !== null) throw failure.error;
 }
 
 /** Drop every cached resolution (test hook + config-write invalidation). */
@@ -292,32 +452,86 @@ export async function s3PutObject(
   return 'created';
 }
 
-/** GET the raw bytes of an object. Throws on a non-2xx response. */
-export async function s3GetObjectBytes(
+/**
+ * GET an object: its raw bytes plus the Content-Type the store holds for it
+ * (`null` when the store answers none) — the pair a copy between stores needs
+ * to land the object as it was. Throws on a non-2xx response, 404 included.
+ */
+export async function s3GetObject(
   store: S3ObjectStore,
   key: string,
-): Promise<Uint8Array> {
+): Promise<{ bytes: Uint8Array; contentType: string | null }> {
+  const got = await s3GetObjectIfExists(store, key);
+  if (got === null) {
+    throw new Error(`S3 GET ${key} failed: 404 the object does not exist`);
+  }
+  return got;
+}
+
+/**
+ * GET an object, distinguishing ABSENCE from failure: `null` when the store
+ * answers 404, the bytes + Content-Type when it has them, a thrown error for
+ * everything else (unreachable store, 5xx, a denied key). For a reader whose
+ * contract treats a missing file as a legitimate state — a settings file
+ * nobody has saved yet — and must not treat an outage the same way.
+ */
+async function s3GetObjectIfExists(
+  store: S3ObjectStore,
+  key: string,
+): Promise<{ bytes: Uint8Array; contentType: string | null } | null> {
   const res = await store.client.fetch(objectUrl(store, key), {
     method: 'GET',
   });
+  if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(
       `S3 GET ${key} failed: ${res.status} ${await safeErrorBody(res)}`,
     );
   }
-  return new Uint8Array(await res.arrayBuffer());
+  const contentType = res.headers.get('content-type');
+  return {
+    bytes: new Uint8Array(await res.arrayBuffer()),
+    contentType:
+      contentType === null || contentType === '' ? null : contentType,
+  };
+}
+
+/** The bytes half of `s3GetObjectIfExists`: `null` on 404, thrown otherwise. */
+export async function s3GetObjectBytesIfExists(
+  store: S3ObjectStore,
+  key: string,
+): Promise<Uint8Array | null> {
+  const got = await s3GetObjectIfExists(store, key);
+  return got === null ? null : got.bytes;
+}
+
+/** GET the raw bytes of an object. Throws on a non-2xx response. */
+export async function s3GetObjectBytes(
+  store: S3ObjectStore,
+  key: string,
+): Promise<Uint8Array> {
+  return (await s3GetObject(store, key)).bytes;
+}
+
+/** What a HEAD says about a stored object: its authoritative size and the
+ * Content-Type the store holds for it (`null` when it answers none). */
+export interface S3ObjectHead {
+  size: number;
+  contentType: string | null;
 }
 
 /**
- * HEAD an object → its size in bytes (the authoritative server-side length).
- * Used to verify an `s3:` upload's real size against the product cap — a
- * presigned PUT enforces no Content-Length, so the client-declared size can't
- * be trusted. Returns `null` when the object is missing (404).
+ * HEAD an object → its size in bytes (the authoritative server-side length)
+ * and stored Content-Type. The size verifies an `s3:` upload's real size
+ * against the product cap — a presigned PUT enforces no Content-Length, so
+ * the client-declared size can't be trusted; the type lets a copy between
+ * stores be recognised as the SAME object rather than a same-length one.
+ * Returns `null` when the object is missing (404).
  */
 export async function s3HeadObject(
   store: S3ObjectStore,
   key: string,
-): Promise<{ size: number } | null> {
+): Promise<S3ObjectHead | null> {
   const res = await store.client.fetch(objectUrl(store, key), {
     method: 'HEAD',
   });
@@ -330,7 +544,12 @@ export async function s3HeadObject(
   if (!Number.isFinite(size)) {
     throw new Error(`S3 HEAD ${key} returned no usable content-length`);
   }
-  return { size };
+  const contentType = res.headers.get('content-type');
+  return {
+    size,
+    contentType:
+      contentType === null || contentType === '' ? null : contentType,
+  };
 }
 
 /** DELETE an object. S3 DELETE is idempotent (204 whether or not it existed). */

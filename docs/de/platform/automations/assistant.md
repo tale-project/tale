@@ -1,6 +1,6 @@
 ---
 title: Automatisierungs-Assistent
-description: Einen Chat-Agent, der auf eine Automatisierung fixiert ist, gibt es in dieser Version nicht — eine Automatisierung bearbeitest du auf ihrer eigenen Seite, und ein Modell verfasst sie über den MCP-Endpoint.
+description: Einen Chat-Agent, der auf eine Automatisierung fixiert ist, gibt es in dieser Version nicht.
 ---
 
 Diese Seite beschrieb einmal den **Automatisierungs-Assistenten**: einen Chat-Agent, der auf eine einzelne Automatisierung ausgerichtet war, deren Dokument, Agents, Skills und Connectors im Kontext hatte und für dich Nodes editieren, Versionen speichern und Mocks laufen lassen konnte. In dieser Version von Tale gibt es ihn nicht. Der Chat kennt keinen Agent, der auf irgendetwas ausgerichtet wäre — der Chat-Assistent trägt drei nur lesende Retrieval-Tools und kann eine Automatisierung weder lesen noch bearbeiten —, und der Canvas hat kein Assistenten-Panel. Was bleibt, sind die zwei Wege, auf denen eine Automatisierung tatsächlich gebaut und verstanden wird: ihre eigene Seite und der MCP-Endpoint.

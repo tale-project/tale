@@ -1,6 +1,6 @@
 ---
 title: Richtlinien und Limits
-description: Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff — eingegrenzt nach Benutzer, Team, Rolle oder einzelnem API-Schlüssel. Admins und Inhaber lesen das, wenn eine Last über Budget ist oder wenn ein Feature einen engeren Radius braucht.
+description: Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff.
 ---
 
 Richtlinien und Limits ist die Oberfläche, auf der du deckelst, was deine Mitglieder und Agents verbrauchen können. Budgets deckeln Tokens, Kosten und Anfragen pro Abrechnungsperiode; Feature-Kontrollen deckeln das Kontextfenster pro Bereich; Upload-Richtlinie regelt Dateitypen und Größen, die ein Mitglied anhängen darf; Aufbewahrungsrichtlinie entscheidet, wie lange jeder Datentyp lebt, bevor Cleanup eingreift. Admins und Inhaber lesen diese Seite, wenn eine Last über Budget ist, wenn eine Gruppe mit einem kleineren Kontextfenster arbeiten soll, oder wenn ein Regulierer ein Aufbewahrungsfenster benennt, das vom Default abweicht.

@@ -424,7 +424,7 @@ COPY --chown=app:app services/db/migrations/knowledge-db ./db/migrations/knowled
 # convex image used to carry them (its Dockerfile did these COPYs), and the
 # teardown left no image doing so: v0.5.0 500s on every provider read and
 # seeds no org catalog. system/ = the org-independent registries
-# (providers/models/harnesses/connectors) at TALE_CONFIG_SYSTEM_DIR;
+# (providers/models/harnesses/connectors/pii) at TALE_CONFIG_SYSTEM_DIR;
 # builtin/ = the per-org seed catalog at TALE_CONFIG_BUILTIN_DIR.
 COPY --chown=app:app configs/platform/system/ /app/system/
 COPY --chown=app:app configs/platform/custom/ /app/builtin/

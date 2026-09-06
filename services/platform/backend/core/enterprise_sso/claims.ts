@@ -35,6 +35,25 @@ export function claimValueToStrings(value: unknown): string[] {
   return [];
 }
 
+/**
+ * The email an adapter resolved for the signed-in user, or a readable error
+ * when the IdP sent none. Every adapter funnels its candidates (mapped claim,
+ * standard claim, fallback) through here so a scope set without `email`, a
+ * userinfo endpoint that emits only `sub`, or a mistyped `claimMappings.email`
+ * path surfaces as "the email claim is missing" — on the login page and in
+ * the audit row — instead of a `TypeError` from the first `.toLowerCase()`
+ * downstream. `source` names the response for the operator (e.g. "OIDC
+ * userinfo").
+ */
+export function requireEmailClaim(candidate: unknown, source: string): string {
+  if (typeof candidate === 'string' && candidate.trim() !== '') {
+    return candidate;
+  }
+  throw new Error(
+    `${source} response carries no email for the signed-in user — check the requested scopes and the email claim mapping`,
+  );
+}
+
 // Convex object field names must be non-empty printable ASCII and must not
 // start with `$` or `_`. IdPs occasionally emit claims that violate this
 // (non-ASCII keys, leading underscores); dropping those keys keeps the login

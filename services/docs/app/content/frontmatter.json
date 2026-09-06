@@ -52,7 +52,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Tutoriels vidéo",
-      "description": "Des visites guidées courtes et produites de la plateforme — ce que fait Tale, où l'IA aide, et où ton jugement reste nécessaire. Chaque épisode existe en français, en anglais et en allemand."
+      "description": "Des visites guidées courtes et produites de la plateforme — ce que fait Tale, où l'IA aide, et où ton jugement reste nécessaire."
     }
   },
   "fr:tutorials/videos/governance-and-trust": {
@@ -124,7 +124,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bonus — Tale pour les développeurs",
-      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, harnesses, et la politique d'exécution de code qui contient le tout."
+      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, et les harnesses qui travaillent dans des bacs à sable contenus."
     }
   },
   "fr:tutorials/member/chat-effectively": {
@@ -132,7 +132,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Chatter efficacement",
-      "description": "Cinq habitudes qui font passer un chat de « merci pour le pavé » à « exactement ce qu’il me fallait » — demander au lieu de passer commande, choisir le modèle, nourrir la base de connaissances, lire le déroulé et vérifier les sources."
+      "description": "Cinq habitudes qui font passer un chat de « merci pour le pavé » à « exactement ce qu’il me fallait »."
     }
   },
   "fr:tutorials/member/use-projects": {
@@ -140,14 +140,14 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Utiliser les projets pour grouper fichiers et chats",
-      "description": "Transforme un chat ponctuel en espace de travail partagé qui garde ensemble les mêmes fichiers, instructions et conversations — et arrête de re-charger les mêmes documents à chaque fois."
+      "description": "Transforme un chat ponctuel en espace de travail partagé qui garde ensemble les mêmes fichiers, instructions et conversations."
     }
   },
   "fr:tutorials/admin/meeting-transcription": {
     "slug": "tutorials/admin/meeting-transcription",
     "locale": "fr",
     "frontmatter": {
-      "title": "Piper les transcriptions de réunions dans la Base de connaissances",
+      "title": "Acheminer les transcriptions de réunions",
       "description": "Câble Meetily (ou un outil local de transcription de réunions similaire) dans la Base de connaissances d'un projet Tale pour que les transcriptions atterrissent toutes seules comme documents, sans que personne ne charge un fichier."
     }
   },
@@ -220,7 +220,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Plateforme",
-      "description": "Plateforme est la référence produit canonique — chaque fonctionnalité visible par l’utilisateur, identique pour Cloud et auto-hébergé. Chat, projets, agents, automatisations, connaissances, approbations, administration.",
+      "description": "Plateforme est la référence produit canonique — chaque fonctionnalité visible par l’utilisateur, identique pour Cloud et auto-hébergé.",
       "kind": "index"
     }
   },
@@ -229,7 +229,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Éditeur",
-      "description": "Éditeur est la surface de construction — créer agents, projets, automatisations et la connaissance dans laquelle ils s’étendent. Les pages ici sont ce que fait au quotidien une personne de rôle Éditeur."
+      "description": "Éditeur est la surface de construction — créer agents, projets, automatisations et la connaissance dans laquelle ils s’étendent."
     }
   },
   "fr:platform/agents/harnesses": {
@@ -325,7 +325,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Projets",
-      "description": "Un projet est un espace de travail partagé qui regroupe chats, fichiers, instructions et tâches autour d’un même travail. Cet aperçu cartographie les onglets du projet et pointe vers la page qui approfondit chacun."
+      "description": "Un projet est un espace de travail partagé qui regroupe chats, fichiers, instructions et tâches autour d’un même travail."
     }
   },
   "fr:platform/projects/manage-files": {
@@ -357,7 +357,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Backlog du projet",
-      "description": "Le Backlog est le statut d’entrée du tableau pour le travail auquel personne ne s’est encore engagé — comment une tâche y atterrit et comment tu la fais avancer avec les mêmes contrôles que dans toute autre colonne."
+      "description": "Le Backlog est le statut d’entrée du tableau pour le travail auquel personne ne s’est encore engagé."
     }
   },
   "fr:platform/projects/concepts": {
@@ -365,7 +365,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Concepts de projet",
-      "description": "Un projet regroupe chats, fichiers, instructions et tâches dans un même espace de travail partagé. Cette page te donne le modèle mental pour savoir quand préférer un projet à un chat isolé."
+      "description": "Un projet regroupe chats, fichiers, instructions et tâches dans un même espace de travail partagé."
     }
   },
   "fr:platform/connectors/webdav": {
@@ -373,7 +373,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "WebDAV",
-      "description": "Monte les documents de ton organisation comme un lecteur réseau dans le Finder, l’Explorateur de fichiers ou n’importe quel client WebDAV — génère un mot de passe applicatif sous Paramètres > API > WebDAV et connecte-toi depuis ton appareil."
+      "description": "Monte les documents de ton organisation comme un lecteur réseau dans le Finder, l’Explorateur de fichiers ou n’importe quel client WebDAV."
     }
   },
   "fr:platform/connectors/overview": {
@@ -389,7 +389,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Serveurs MCP",
-      "description": "Enregistrer des serveurs MCP externes pour que les agents les appellent ne fait pas partie de cette version — la seule surface MCP de Tale est l’endpoint entrant sous Paramètres > API > MCP."
+      "description": "Enregistrer des serveurs MCP externes pour que les agents les appellent ne fait pas partie de cette version."
     }
   },
   "fr:platform/member/overview": {
@@ -397,7 +397,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Membre",
-      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée. Les pages ici sont ce que fait au quotidien une personne de rôle Membre."
+      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée."
     }
   },
   "fr:platform/member/install-as-app": {
@@ -437,7 +437,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Changelog",
-      "description": "Le visualiseur de releases in-produit qui montre ce qui a changé dans la plateforme Tale elle-même. Les Administrateurs lisent ceci après une mise à jour pour voir ce qui a atterri et partager les points saillants avec l'org."
+      "description": "Le visualiseur de releases in-produit qui montre ce qui a changé dans la plateforme Tale elle-même."
     }
   },
   "fr:platform/admin/overview": {
@@ -445,7 +445,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Admin",
-      "description": "Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, connectors, branding, gouvernance. Les pages ici sont ce qu’un Administrateur ou Propriétaire parcourt pour monter une organisation et la faire tourner."
+      "description": "Admin est le plan de configuration — membres, équipes, fournisseurs, clés API, connectors, branding, gouvernance."
     }
   },
   "fr:platform/admin/enterprise-sso": {
@@ -453,7 +453,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "SSO d’entreprise et provisionnement",
-      "description": "Configurer l’authentification unique (OIDC, OAuth2, SAML 2.0) et le provisionnement SCIM des utilisateurs et des groupes pour ton organisation. Configuration pas à pas pour Microsoft Entra ID, Google, OIDC générique et SAML, ainsi que le mappage des rôles, la synchronisation groupe-vers-équipe et la désactivation. À lire pour câbler l’identité d’entreprise de l’organisation."
+      "description": "Configurer l’authentification unique (OIDC, OAuth2, SAML 2.0) et le provisionnement SCIM des utilisateurs et des groupes pour ton organisation."
     }
   },
   "fr:platform/admin/api-keys": {
@@ -461,7 +461,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Clés API",
-      "description": "Identifiants Bearer personnels qui permettent à du code externe d’appeler l’API REST de Tale. Les Administrateurs et Développeurs les créent, rotent et révoquent sous Paramètres > API > REST."
+      "description": "Identifiants Bearer personnels qui permettent à du code externe d’appeler l’API REST de Tale."
     }
   },
   "fr:platform/admin/governance/audit-logs": {
@@ -469,7 +469,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Journaux d'audit",
-      "description": "Le journal chronologique de qui-a-fait-quoi dans ton organisation — connexions, changements de rôle, modifications de fournisseur, modifications d'agent, invocations run-code. Les Administrateurs et Propriétaires lisent ceci quand un audit demande qui a touché une ressource et quand."
+      "description": "Le journal chronologique de qui-a-fait-quoi dans ton organisation — connexions, changements de rôle, modifications de fournisseur, modifications d'agent. Les Administrateurs et Propriétaires lisent ceci quand un audit demande qui a touché une ressource et quand."
     }
   },
   "fr:platform/admin/governance/content-models": {
@@ -477,7 +477,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Contenu et modèles",
-      "description": "Contrôles au niveau modèle — quels modèles sont autorisés par rôle ou équipe, et le modèle par défaut sur lequel chaque groupe d’utilisateurs atterrit. Les Administrateurs et Propriétaires lisent ceci quand une règle de conformité épingle une charge à un modèle approuvé ou quand une équipe a besoin d’un défaut moins cher."
+      "description": "Contrôles au niveau modèle — quels modèles sont autorisés par rôle ou équipe, et le modèle par défaut sur lequel chaque groupe d’utilisateurs atterrit."
     }
   },
   "fr:platform/admin/governance/legal-hold": {
@@ -501,7 +501,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Politiques et limites",
-      "description": "Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d’upload, la génération d’images et l’accès aux fonctionnalités — cadrés par utilisateur, équipe, rôle ou clé API individuelle. Les Administrateurs et Propriétaires lisent ceci quand une charge dépasse le budget ou quand une fonctionnalité a besoin d’un rayon plus serré."
+      "description": "Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d’upload, la génération d’images et l’accès aux fonctionnalités."
     }
   },
   "fr:platform/admin/governance/usage-analytics": {
@@ -509,7 +509,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Analyse d'utilisation",
-      "description": "Le dashboard des tokens, du coût et du volume de requêtes par utilisateur, équipe, modèle et agent — avec tendances et un classement des top agents. Les Administrateurs et Propriétaires lisent ceci quand une facture est inattendue ou quand la direction veut la forme approximative des dépenses AI."
+      "description": "Le dashboard des tokens, du coût et du volume de requêtes par utilisateur, équipe, modèle et agent — avec tendances et un classement des top agents."
     }
   },
   "fr:platform/admin/governance/guardrails": {
@@ -525,7 +525,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Demandes des personnes concernées",
-      "description": "Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, téléversements et préférences. Les Administrateurs et Propriétaires lisent ceci quand un utilisateur dépose une demande ou quand une échéance SLA approche."
+      "description": "Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, téléversements et préférences."
     }
   },
   "fr:platform/admin/governance/feedback-analytics": {
@@ -533,15 +533,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Analyse des retours",
-      "description": "Pouces haut et bas agrégés sur les réponses d'assistant et verdicts d'arène, ventilés par assistant et par modèle. Les Administrateurs et Propriétaires lisent ceci quand une régression d'agent a besoin d'un chiffre derrière."
-    }
-  },
-  "fr:platform/admin/governance/run-code-policy": {
-    "slug": "platform/admin/governance/run-code-policy",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Politique run-code",
-      "description": "La liste d’autorisation et la liste de blocage de paquets qui régissent ce que Run code en sandbox peut installer. Les Administrateurs et Propriétaires lisent ceci quand un agent a besoin d’une nouvelle bibliothèque ou quand un audit demande pourquoi un paquet était bloqué à un moment donné."
+      "description": "Pouces haut et bas agrégés sur les réponses d'assistant et verdicts d'arène, ventilés par assistant et par modèle."
     }
   },
   "fr:platform/admin/connectors": {
@@ -573,7 +565,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Équipes",
-      "description": "Les équipes sont des groupes nommés de membres qui partagent l’accès aux documents, projets, skills et conversations. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle."
+      "description": "Les équipes sont des groupes nommés de membres qui partagent l’accès aux documents, projets, skills et conversations."
     }
   },
   "fr:platform/admin/two-factor-authentication": {
@@ -581,7 +573,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Authentification à deux facteurs",
-      "description": "Inscription TOTP, passkeys, codes de secours, la politique d’application org-large et comment un admin réinitialise un membre qui a perdu son authenticator. Lis ceci quand tu câbles la 2FA pour l’org ou que tu récupères un compte."
+      "description": "Inscription TOTP, passkeys, codes de secours, la politique d’application org-large et comment un admin réinitialise un membre qui a perdu son authenticator."
     }
   },
   "fr:platform/admin/members-and-roles": {
@@ -589,7 +581,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Membres et rôles",
-      "description": "Les six rôles que Tale ship et la matrice de permissions au niveau ressource qui dit qui peut faire quoi. Les Administrateurs et Propriétaires lisent ceci quand ils montent une équipe ou quand un audit demande qui a quel accès."
+      "description": "Les six rôles que Tale ship et la matrice de permissions au niveau ressource qui dit qui peut faire quoi."
     }
   },
   "fr:platform/admin/branding": {
@@ -605,7 +597,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Données structurées",
-      "description": "La base de connaissances de Tale embarque trois entités structurées intégrées — Contacts, Produits, Sites web — à côté des Documents. Cette page te donne le modèle mental pour choisir une fiche typée plutôt qu’un document."
+      "description": "La base de connaissances de Tale embarque trois entités structurées intégrées — Contacts, Produits, Sites web — à côté des Documents."
     }
   },
   "fr:platform/knowledge/overview": {
@@ -637,7 +629,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Documents",
-      "description": "L’onglet Documents est l’endroit où les éditeurs téléversent des fichiers dans la base de connaissances, suivent leur indexation et gèrent leur cycle de vie — sources de téléversement, statut RAG, portée par équipe, dossiers et réindexation."
+      "description": "L’onglet Documents est l’endroit où les éditeurs téléversent des fichiers dans la base de connaissances, suivent leur indexation et gèrent leur cycle de vie."
     }
   },
   "fr:platform/workspace/skills": {
@@ -670,7 +662,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Dépannage",
-      "description": "Index par symptôme pour les problèmes que les opérateurs ont réellement rencontrés sur des instances Tale — ce que l'utilisateur rapporte, ce qui est cassé et quoi faire à ce sujet."
+      "description": "Index par symptôme pour les problèmes que les opérateurs ont réellement rencontrés sur des instances Tale."
     }
   },
   "fr:self-hosted/operate/observability/prometheus-grafana": {
@@ -702,7 +694,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Alertes d’intégrité du journal d’audit",
-      "description": "Comment réagir quand le contrôle quotidien d’intégrité du journal d’audit lève une alerte — lire le constat, distinguer une falsification d’une lacune de configuration bénigne et préserver les preuves."
+      "description": "Comment réagir quand le contrôle quotidien d’intégrité du journal d’audit lève une alerte."
     }
   },
   "fr:self-hosted/operate/security/cryptography": {
@@ -710,7 +702,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Cryptographie",
-      "description": "Les algorithmes que Tale utilise pour les données au repos, les données en transit, le hachage des mots de passe et l'intégrité du journal d'audit — et leur correspondance avec BSI TR-02102-1."
+      "description": "Les algorithmes que Tale utilise pour les données au repos, les données en transit, le hachage des mots de passe et l'intégrité du journal d'audit."
     }
   },
   "fr:self-hosted/operate/security/hardening": {
@@ -758,7 +750,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Auto-hébergé",
-      "description": "Tale auto-hébergé tourne sur ton infrastructure — on-premise, dans ton VPC, ou coupé du réseau. Neuf conteneurs, tes données sur ton stockage, aucune facturation au siège.",
+      "description": "Tale auto-hébergé tourne sur ton infrastructure — on-premise, dans ton VPC, ou coupé du réseau.",
       "kind": "index"
     }
   },
@@ -799,7 +791,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Créer le premier admin",
-      "description": "Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique — le premier compte devient Owner sans clé et les nouveaux arrivent par invitation."
+      "description": "Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique."
     }
   },
   "fr:self-hosted/install/linux-server": {
@@ -872,7 +864,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Ingestion vidéo",
-      "description": "Configure comment un déploiement auto-hébergé récupère les transcriptions vidéo au-delà du mur anti-bot de YouTube — le fournisseur de PO tokens intégré, un proxy de sortie et le pool de sessions de navigateur préchauffées."
+      "description": "Configure comment un déploiement auto-hébergé récupère les transcriptions vidéo au-delà du mur anti-bot de YouTube."
     }
   },
   "fr:self-hosted/configuration/tls-and-domains": {
@@ -963,7 +955,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Démarrage rapide",
-      "description": "De rien à ta première réponse d’agent — obtiens une instance, connecte-toi et envoie ton premier message. Cinq minutes sur une instance prête, quinze si tu en montes une sur ta propre machine."
+      "description": "De rien à ta première réponse d’agent — obtiens une instance, connecte-toi et envoie ton premier message."
     }
   },
   "fr:get-started/editors": {
@@ -1077,7 +1069,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Configuration contributeur",
-      "description": "La source unique de vérité pour mettre en place le code source de Tale en développement local — prérequis, bun install, la vérification pré-vol, ce que fait bun run dev, les conflits de port et la checklist pré-PR."
+      "description": "La source unique de vérité pour mettre en place le code source de Tale en développement local."
     }
   },
   "en:tutorials/overview": {
@@ -1133,7 +1125,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Video tutorials",
-      "description": "Short, produced walkthroughs of the platform — what Tale does, where AI helps, and where it needs your judgment. Every episode ships in English, German, and French."
+      "description": "Short, produced walkthroughs of the platform — what Tale does, where AI helps, and where it needs your judgment."
     }
   },
   "en:tutorials/videos/governance-and-trust": {
@@ -1205,7 +1197,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Bonus — Tale for developers",
-      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, harnesses, and the run-code policy that keeps everything contained."
+      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, and harnesses working in contained sandboxes."
     }
   },
   "en:tutorials/member/chat-effectively": {
@@ -1213,7 +1205,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Chat effectively",
-      "description": "Five habits that turn a chat from \"thanks for the wall of text\" into \"exactly what I needed\" — asking instead of commissioning, picking the model, feeding Knowledge, reading the timeline, and checking the sources."
+      "description": "Five habits that turn a chat from \"thanks for the wall of text\" into \"exactly what I needed\"."
     }
   },
   "en:tutorials/member/use-projects": {
@@ -1221,7 +1213,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Use projects to bundle files and chats",
-      "description": "Turn a one-off chat into a shared workspace that keeps the same files, instructions, and conversations together — and stops you from re-uploading the same documents every time."
+      "description": "Turn a one-off chat into a shared workspace that keeps the same files, instructions, and conversations together."
     }
   },
   "en:tutorials/admin/meeting-transcription": {
@@ -1261,7 +1253,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Chat",
-      "description": "Chat is where you ask and retrieve — send a message, let Auto pick the model or pin your own, read a reply with its steps and sources visible. This overview maps the screen and draws the line between chat, task, and automation work."
+      "description": "Chat is where you ask and retrieve — send a message, let Auto pick the model or pin your own, read a reply with its steps and sources visible."
     }
   },
   "en:platform/chat/shared-threads": {
@@ -1301,7 +1293,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Platform",
-      "description": "Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, knowledge, approvals, admin.",
+      "description": "Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted.",
       "kind": "index"
     }
   },
@@ -1310,7 +1302,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Editor",
-      "description": "Editor is the build surface — creating agents, projects, automations, and the knowledge they reach into. The pages here are what someone with the Editor role does day to day."
+      "description": "Editor is the build surface — creating agents, projects, automations, and the knowledge they reach into."
     }
   },
   "en:platform/agents/harnesses": {
@@ -1406,7 +1398,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Projects",
-      "description": "A project is a shared workspace that bundles chats, files, instructions, and tasks around one piece of work. This overview maps the project tabs and points to the page that goes deeper on each."
+      "description": "A project is a shared workspace that bundles chats, files, instructions, and tasks around one piece of work."
     }
   },
   "en:platform/projects/manage-files": {
@@ -1454,7 +1446,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "WebDAV",
-      "description": "Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client — generate an app-password under Settings > API > WebDAV and connect from your device."
+      "description": "Mount your organisation's documents as a network drive in Finder, File Explorer, or any WebDAV client."
     }
   },
   "en:platform/connectors/overview": {
@@ -1478,7 +1470,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Member",
-      "description": "Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox. The pages here are what someone with the Member role does day to day."
+      "description": "Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox."
     }
   },
   "en:platform/member/install-as-app": {
@@ -1510,7 +1502,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Approval concepts",
-      "description": "An approval is a parked step in a live automation run — a connector write waiting on the run's detail page until a person approves or rejects it. This page names what fires one, the decision it offers, and what it leaves behind."
+      "description": "An approval is a parked step in a live automation run — a connector write waiting on the run's detail page until a person approves or rejects it."
     }
   },
   "en:platform/admin/changelog": {
@@ -1526,7 +1518,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Admin",
-      "description": "Admin is the configuration plane — members, teams, providers, API keys, connectors, branding, governance. The pages here are what an Admin or Owner clicks through to set up an org and keep it running."
+      "description": "Admin is the configuration plane — members, teams, providers, API keys, connectors, branding, governance."
     }
   },
   "en:platform/admin/enterprise-sso": {
@@ -1534,7 +1526,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Enterprise SSO and provisioning",
-      "description": "Configure single sign-on (OIDC, OAuth2, SAML 2.0) and SCIM user and group provisioning for your organisation. Step-by-step setup for Microsoft Entra ID, Google, generic OIDC, and SAML, plus role mapping, group-to-team sync, and deactivation. Read this when wiring enterprise identity for the org."
+      "description": "Configure single sign-on (OIDC, OAuth2, SAML 2.0) and SCIM user and group provisioning for your organisation."
     }
   },
   "en:platform/admin/api-keys": {
@@ -1550,7 +1542,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Audit logs",
-      "description": "The chronological log of who-did-what across your organisation — sign-ins, role changes, provider edits, agent edits, run-code invocations. Admins and Owners read this when an audit asks who touched a resource and when."
+      "description": "The chronological log of who-did-what across your organisation — sign-ins, role changes, provider edits, agent edits."
     }
   },
   "en:platform/admin/governance/content-models": {
@@ -1558,7 +1550,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Content and models",
-      "description": "Model-level controls — which models are allowed per role or team, and the default model each user group lands on. Admins and Owners read this when a compliance rule pins a workload to an approved model or when a team needs a cheaper default."
+      "description": "Model-level controls — which models are allowed per role or team, and the default model each user group lands on."
     }
   },
   "en:platform/admin/governance/legal-hold": {
@@ -1566,7 +1558,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Legal hold",
-      "description": "The dual-controlled freeze that pauses retention sweeps and erasure cascades for a specific user or the whole organisation during litigation. Admins and Owners read this when counsel asks them to preserve evidence."
+      "description": "The dual-controlled freeze that pauses retention sweeps and erasure cascades for a specific user or the whole organisation during litigation."
     }
   },
   "en:platform/admin/governance/trash": {
@@ -1582,7 +1574,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Policies and limits",
-      "description": "Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, role, or individual API key. Admins and Owners read this when a workload is over budget or when a feature needs a tighter blast radius."
+      "description": "Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, role, or individual API key."
     }
   },
   "en:platform/admin/governance/usage-analytics": {
@@ -1590,7 +1582,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Usage analytics",
-      "description": "The dashboard for tokens, cost, and request volume by user, team, model, and agent — with trends and a top-agent leaderboard. Admins and Owners read this when a bill is unexpected or when leadership wants the rough shape of AI spend."
+      "description": "The dashboard for tokens, cost, and request volume by user, team, model, and agent — with trends and a top-agent leaderboard."
     }
   },
   "en:platform/admin/governance/guardrails": {
@@ -1598,7 +1590,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Guardrails",
-      "description": "The three filter layers — content safety, PII detection, and a moderation provider — that screen chat inputs and outputs before and after the model. Admins and Owners read this when a regulator names a content rule or when a leak warrants a tighter policy."
+      "description": "The three filter layers — content safety, PII detection, and a moderation provider — that screen chat inputs and outputs before and after the model."
     }
   },
   "en:platform/admin/governance/data-subject-requests": {
@@ -1606,7 +1598,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Data subject requests",
-      "description": "The GDPR Article 17 workflow for erasing a person's data across chats, documents, uploads, and preferences. Admins and Owners read this when a user files a request or when an SLA deadline is closing in."
+      "description": "The GDPR Article 17 workflow for erasing a person's data across chats, documents, uploads, and preferences."
     }
   },
   "en:platform/admin/governance/feedback-analytics": {
@@ -1614,15 +1606,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Feedback analytics",
-      "description": "Aggregated thumbs-up and thumbs-down on assistant replies plus arena verdicts, broken down per assistant and per model. Admins and Owners read this when an agent regression needs a number behind it."
-    }
-  },
-  "en:platform/admin/governance/run-code-policy": {
-    "slug": "platform/admin/governance/run-code-policy",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Run-code policy",
-      "description": "The package allowlist and denylist that gate what sandboxed Run code can install. Admins and Owners read this when an agent needs a new library or when an audit asks why a package was blocked at a given time."
+      "description": "Aggregated thumbs-up and thumbs-down on assistant replies plus arena verdicts, broken down per assistant and per model."
     }
   },
   "en:platform/admin/connectors": {
@@ -1654,7 +1638,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Teams",
-      "description": "Teams are named groups of members that share access to documents, projects, skills, and conversations. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer."
+      "description": "Teams are named groups of members that share access to documents, projects, skills, and conversations."
     }
   },
   "en:platform/admin/two-factor-authentication": {
@@ -1662,7 +1646,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Two-factor authentication",
-      "description": "TOTP enrolment, passkeys, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator. Read this when wiring 2FA for the org or recovering an account."
+      "description": "TOTP enrolment, passkeys, backup codes, the org-wide enforce policy, and how an admin resets a member who lost their authenticator."
     }
   },
   "en:platform/admin/members-and-roles": {
@@ -1670,7 +1654,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Members and roles",
-      "description": "The six roles that ship with Tale and the resource-level matrix that says who can do what. Admins and Owners read this when they set up a team or when an audit asks who has access to what."
+      "description": "The six roles that ship with Tale and the resource-level matrix that says who can do what."
     }
   },
   "en:platform/admin/branding": {
@@ -1686,7 +1670,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Structured data",
-      "description": "Tale's knowledge base ships three built-in structured entities — Contacts, Products, Websites — alongside Documents. This page hands you the mental model for when to pick a typed record over a document."
+      "description": "Tale's knowledge base ships three built-in structured entities — Contacts, Products, Websites — alongside Documents."
     }
   },
   "en:platform/knowledge/overview": {
@@ -1694,7 +1678,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Knowledge",
-      "description": "Knowledge is the org's shared library — documents, small facts, crawled websites, and typed records — that agents ground their replies in. This overview names the tabs and points at the per-area pages."
+      "description": "Knowledge is the org's shared library — documents, small facts, crawled websites, and typed records — that agents ground their replies in."
     }
   },
   "en:platform/knowledge/crawling": {
@@ -1718,7 +1702,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Documents",
-      "description": "The Documents tab is where Editors upload files into the knowledge base, watch them index, and manage their lifecycle — upload sources, RAG status, team scoping, folders, and reindexing."
+      "description": "The Documents tab is where Editors upload files into the knowledge base, watch them index, and manage their lifecycle."
     }
   },
   "en:platform/workspace/skills": {
@@ -2044,7 +2028,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Quickstart",
-      "description": "From nothing to your first agent answer — get an instance, sign in, and send your first message. Five minutes on a ready instance, fifteen if you stand one up on your own machine."
+      "description": "From nothing to your first agent answer — get an instance, sign in, and send your first message."
     }
   },
   "en:get-started/editors": {
@@ -2093,7 +2077,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "API reference",
-      "description": "How to call Tale from outside — authentication, the endpoint inventory, pagination, the async run and turn loops, and the error model. The single source of truth for the REST surface.",
+      "description": "How to call Tale from outside — authentication, the endpoint inventory, pagination, the async run and turn loops, and the error model.",
       "i18nLintExclude": ""
     }
   },
@@ -2190,7 +2174,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Deinen ersten Agent bauen",
-      "description": "Bring ein frisches Projekt von „ich will einen Agent“ zu einem geprüften Aufgaben-Ergebnis — leg einen Projekt-Agenten mit Agent-Laufzeit, Modell und einem Absatz Anweisungen an, gib ihm eine echte Aufgabe und prüfe, was zurückkommt."
+      "description": "Bring ein frisches Projekt von „ich will einen Agent“ zu einem geprüften Aufgaben-Ergebnis."
     }
   },
   "de:tutorials/editor/workflow-with-approvals": {
@@ -2214,7 +2198,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Video-Tutorials",
-      "description": "Kurze, produzierte Rundgänge durch die Plattform — was Tale kann, wo KI hilft und wo dein Urteil gefragt bleibt. Jede Episode erscheint auf Deutsch, Englisch und Französisch."
+      "description": "Kurze, produzierte Rundgänge durch die Plattform — was Tale kann, wo KI hilft und wo dein Urteil gefragt bleibt."
     }
   },
   "de:tutorials/videos/governance-and-trust": {
@@ -2286,7 +2270,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Bonus — Tale für Entwickler",
-      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser, Harnesses und die Run-Code-Richtlinie, die alles einhegt."
+      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser und Harnesses, die in eingehegten Sandboxes arbeiten."
     }
   },
   "de:tutorials/member/chat-effectively": {
@@ -2294,7 +2278,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Effektiv chatten",
-      "description": "Fünf Gewohnheiten, die einen Chat von „danke für die Textwand\" zu „genau, was ich brauchte\" drehen — fragen statt beauftragen, das Modell wählen, Wissen füttern, den Denkverlauf lesen und die Quellen prüfen."
+      "description": "Fünf Gewohnheiten, die einen Chat von „danke für die Textwand\" zu „genau, was ich brauchte\" drehen."
     }
   },
   "de:tutorials/member/use-projects": {
@@ -2302,7 +2286,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekte nutzen, um Dateien und Chats zu bündeln",
-      "description": "Verwandle einen Einmal-Chat in einen geteilten Arbeitsraum, der dieselben Dateien, Instruktionen und Konversationen zusammenhält — und hör auf, jedes Mal dieselben Dokumente erneut hochzuladen."
+      "description": "Verwandle einen Einmal-Chat in einen geteilten Arbeitsraum, der dieselben Dateien, Instruktionen und Konversationen zusammenhält."
     }
   },
   "de:tutorials/admin/meeting-transcription": {
@@ -2382,7 +2366,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Plattform",
-      "description": "Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet. Chat, Projekte, Agents, Automatisierungen, Wissen, Genehmigungen, Verwaltung.",
+      "description": "Plattform ist die kanonische Produktreferenz — jedes nutzersichtbare Feature, identisch für Cloud und selbst gehostet.",
       "kind": "index"
     }
   },
@@ -2391,7 +2375,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Redakteur",
-      "description": "Redakteur ist die Bau-Oberfläche — Agents, Projekte, Automatisierungen und das Wissen erstellen, in das sie reichen. Die Seiten hier sind das, was eine Person mit Redakteurs-Rolle tagtäglich tut."
+      "description": "Redakteur ist die Bau-Oberfläche — Agents, Projekte, Automatisierungen und das Wissen erstellen, in das sie reichen."
     }
   },
   "de:platform/agents/harnesses": {
@@ -2423,7 +2407,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungs-Assistent",
-      "description": "Einen Chat-Agent, der auf eine Automatisierung fixiert ist, gibt es in dieser Version nicht — eine Automatisierung bearbeitest du auf ihrer eigenen Seite, und ein Modell verfasst sie über den MCP-Endpoint."
+      "description": "Einen Chat-Agent, der auf eine Automatisierung fixiert ist, gibt es in dieser Version nicht."
     }
   },
   "de:platform/automations/editor": {
@@ -2487,7 +2471,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekte",
-      "description": "Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und Aufgaben rund um ein Stück Arbeit bündelt. Diese Übersicht führt durch die Projekt-Tabs und verweist auf die Seite, die den jeweiligen Tab vertieft."
+      "description": "Ein Projekt ist ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und Aufgaben rund um ein Stück Arbeit bündelt."
     }
   },
   "de:platform/projects/manage-files": {
@@ -2495,7 +2479,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekt-Dateien verwalten",
-      "description": "Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann — Ordner, Hochladen, Index-Status und wie Projekt-Dateien auf das Projekt begrenzt bleiben."
+      "description": "Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann."
     }
   },
   "de:platform/projects/project-agents": {
@@ -2519,7 +2503,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekt-Backlog",
-      "description": "Backlog ist der Eingangsstatus des Boards für Arbeit, zu der sich noch niemand verpflichtet hat — wie eine Aufgabe dort landet und wie du sie mit denselben Steuerelementen wie in jeder anderen Spalte weiterbewegst."
+      "description": "Backlog ist der Eingangsstatus des Boards für Arbeit, zu der sich noch niemand verpflichtet hat."
     }
   },
   "de:platform/projects/concepts": {
@@ -2527,7 +2511,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekt-Konzepte",
-      "description": "Ein Projekt bündelt Chats, Dateien, Anweisungen und Aufgaben in einem geteilten Arbeitsbereich. Diese Seite gibt dir das mentale Modell dafür, wann ein Projekt einen Einzel-Chat schlägt."
+      "description": "Ein Projekt bündelt Chats, Dateien, Anweisungen und Aufgaben in einem geteilten Arbeitsbereich."
     }
   },
   "de:platform/connectors/webdav": {
@@ -2535,7 +2519,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "WebDAV",
-      "description": "Hänge die Dokumente deiner Organisation als Netzlaufwerk im Finder, im Datei-Explorer oder in jedem WebDAV-Client ein — erzeuge ein App-Passwort unter Einstellungen > API > WebDAV und verbinde dich von deinem Gerät."
+      "description": "Hänge die Dokumente deiner Organisation als Netzlaufwerk im Finder, im Datei-Explorer oder in jedem WebDAV-Client ein."
     }
   },
   "de:platform/connectors/overview": {
@@ -2551,7 +2535,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "MCP-Server",
-      "description": "Externe MCP-Server zu registrieren, damit Agenten sie aufrufen, gibt es in dieser Version nicht — Tales einzige MCP-Oberfläche ist der eingehende Endpoint unter Einstellungen > API > MCP."
+      "description": "Externe MCP-Server zu registrieren, damit Agenten sie aufrufen, gibt es in dieser Version nicht."
     }
   },
   "de:platform/member/overview": {
@@ -2559,7 +2543,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitglied",
-      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut."
+      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten."
     }
   },
   "de:platform/member/install-as-app": {
@@ -2599,7 +2583,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Changelog",
-      "description": "Der In-Produkt-Release-Viewer, der zeigt, was sich in der Tale-Plattform selbst geändert hat. Admins lesen das nach einem Upgrade, um zu sehen, was gelandet ist, und um die Highlights mit der Org zu teilen."
+      "description": "Der In-Produkt-Release-Viewer, der zeigt, was sich in der Tale-Plattform selbst geändert hat."
     }
   },
   "de:platform/admin/overview": {
@@ -2607,7 +2591,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Admin",
-      "description": "Admin ist die Konfigurationsebene — Mitglieder, Teams, Anbieter, API-Schlüssel, Connectors, Branding, Richtlinien. Die Seiten hier sind das, was ein Admin oder Inhaber durchklickt, um eine Organisation aufzusetzen und am Laufen zu halten."
+      "description": "Admin ist die Konfigurationsebene — Mitglieder, Teams, Anbieter, API-Schlüssel, Connectors, Branding, Richtlinien."
     }
   },
   "de:platform/admin/enterprise-sso": {
@@ -2615,7 +2599,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Enterprise-SSO und Bereitstellung",
-      "description": "Single Sign-On (OIDC, OAuth2, SAML 2.0) und SCIM-Bereitstellung von Benutzern und Gruppen für deine Organisation konfigurieren. Schritt-für-Schritt-Einrichtung für Microsoft Entra ID, Google, generisches OIDC und SAML, plus Rollenzuordnung, Gruppe-zu-Team-Synchronisierung und Deaktivierung. Lies dies, wenn du die Unternehmensidentität für die Organisation einrichtest."
+      "description": "Single Sign-On (OIDC, OAuth2, SAML 2.0) und SCIM-Bereitstellung von Benutzern und Gruppen für deine Organisation konfigurieren."
     }
   },
   "de:platform/admin/api-keys": {
@@ -2631,7 +2615,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Audit-Logs",
-      "description": "Das chronologische Protokoll von wer-was-getan-hat in deiner Organisation — Anmeldungen, Rollenänderungen, Anbieter-Bearbeitungen, Agent-Bearbeitungen, Run-code-Aufrufe. Admins und Inhaber lesen das, wenn ein Audit fragt, wer eine Ressource wann angefasst hat."
+      "description": "Das chronologische Protokoll von wer-was-getan-hat in deiner Organisation — Anmeldungen, Rollenänderungen, Anbieter-Bearbeitungen, Agent-Bearbeitungen. Admins und Inhaber lesen das, wenn ein Audit fragt, wer eine Ressource wann angefasst hat."
     }
   },
   "de:platform/admin/governance/content-models": {
@@ -2639,7 +2623,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Inhalte und Modelle",
-      "description": "Modell-Ebenen-Kontrollen — welche Modelle pro Rolle oder Team erlaubt sind und das Default-Modell, auf dem jede Benutzergruppe landet. Admins und Inhaber lesen das, wenn eine Compliance-Regel eine Last an ein freigegebenes Modell bindet oder wenn ein Team einen günstigeren Default braucht."
+      "description": "Modell-Ebenen-Kontrollen — welche Modelle pro Rolle oder Team erlaubt sind und das Default-Modell, auf dem jede Benutzergruppe landet."
     }
   },
   "de:platform/admin/governance/legal-hold": {
@@ -2663,7 +2647,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Richtlinien und Limits",
-      "description": "Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff — eingegrenzt nach Benutzer, Team, Rolle oder einzelnem API-Schlüssel. Admins und Inhaber lesen das, wenn eine Last über Budget ist oder wenn ein Feature einen engeren Radius braucht."
+      "description": "Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff."
     }
   },
   "de:platform/admin/governance/usage-analytics": {
@@ -2671,7 +2655,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Nutzungs-Analyse",
-      "description": "Das Dashboard für Tokens, Kosten und Anfragenvolumen nach Benutzer, Team, Modell und Agent — mit Trends und einer Top-Agent-Rangliste. Admins und Inhaber lesen das, wenn eine Rechnung unerwartet ist oder wenn die Führung die grobe Form der AI-Ausgaben will."
+      "description": "Das Dashboard für Tokens, Kosten und Anfragenvolumen nach Benutzer, Team, Modell und Agent — mit Trends und einer Top-Agent-Rangliste."
     }
   },
   "de:platform/admin/governance/guardrails": {
@@ -2679,7 +2663,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Guardrails",
-      "description": "Die drei Filterebenen — Inhaltssicherheit, PII-Erkennung und ein Moderationsanbieter — die Chat-Eingaben und -Ausgaben vor und nach dem Modell prüfen. Admins und Inhaber lesen das, wenn ein Regulierer eine Inhaltsregel benennt oder wenn ein Leck eine strengere Richtlinie rechtfertigt."
+      "description": "Die drei Filterebenen — Inhaltssicherheit, PII-Erkennung und ein Moderationsanbieter — die Chat-Eingaben und -Ausgaben vor und nach dem Modell prüfen."
     }
   },
   "de:platform/admin/governance/data-subject-requests": {
@@ -2687,7 +2671,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Anfragen betroffener Personen",
-      "description": "Der Workflow nach DSGVO Artikel 17 zur Löschung der Daten einer Person über Chats, Dokumente, Uploads und Einstellungen hinweg. Admins und Inhaber lesen das, wenn ein Benutzer eine Anfrage stellt oder wenn eine SLA-Frist näher rückt."
+      "description": "Der Workflow nach DSGVO Artikel 17 zur Löschung der Daten einer Person über Chats, Dokumente, Uploads und Einstellungen hinweg."
     }
   },
   "de:platform/admin/governance/feedback-analytics": {
@@ -2695,15 +2679,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Feedback-Analyse",
-      "description": "Aggregierte Daumen-hoch- und Daumen-runter-Bewertungen auf Assistenten-Antworten plus Arena-Urteile, aufgeschlüsselt pro Assistent und pro Modell. Admins und Inhaber lesen das, wenn eine Agent-Regression eine Zahl dahinter braucht."
-    }
-  },
-  "de:platform/admin/governance/run-code-policy": {
-    "slug": "platform/admin/governance/run-code-policy",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Run-code-Richtlinie",
-      "description": "Die Paket-Zulassungsliste und -Sperrliste, die regeln, was sandgeboxtes Run code installieren darf. Admins und Inhaber lesen das, wenn ein Agent eine neue Bibliothek braucht oder wenn ein Audit fragt, warum ein Paket zu einem bestimmten Zeitpunkt blockiert war."
+      "description": "Aggregierte Daumen-hoch- und Daumen-runter-Bewertungen auf Assistenten-Antworten plus Arena-Urteile, aufgeschlüsselt pro Assistent und pro Modell."
     }
   },
   "de:platform/admin/connectors": {
@@ -2711,7 +2687,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Zugangsdaten für Connectors",
-      "description": "Unter Einstellungen > Connectors legt eine Organisation die Zugangsdaten an, mit denen sich jeder mitgelieferte Connector anmeldet — benennen, zum Standard machen, deaktivieren, neu verbinden."
+      "description": "Unter Einstellungen > Connectors legt eine Organisation die Zugangsdaten an, mit denen sich jeder mitgelieferte Connector anmeldet."
     }
   },
   "de:platform/admin/providers": {
@@ -2735,7 +2711,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Teams",
-      "description": "Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Dokumente, Projekte, Skills und Konversationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene."
+      "description": "Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Dokumente, Projekte, Skills und Konversationen teilen."
     }
   },
   "de:platform/admin/two-factor-authentication": {
@@ -2751,7 +2727,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitglieder und Rollen",
-      "description": "Die sechs Rollen, die Tale mitbringt, und die Berechtigungs-Matrix auf Ressourcen-Ebene, die sagt, wer was darf. Admins und Inhaber lesen das beim Aufsetzen eines Teams oder wenn ein Audit fragt, wer welchen Zugriff hat."
+      "description": "Die sechs Rollen, die Tale mitbringt, und die Berechtigungs-Matrix auf Ressourcen-Ebene, die sagt, wer was darf."
     }
   },
   "de:platform/admin/branding": {
@@ -2767,7 +2743,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Strukturierte Daten",
-      "description": "Tales Wissensdatenbank bringt drei eingebaute strukturierte Entitäten mit — Kontakte, Produkte, Websites — neben den Dokumenten. Diese Seite gibt dir das mentale Modell dafür, wann ein typisierter Datensatz ein Dokument schlägt."
+      "description": "Tales Wissensdatenbank bringt drei eingebaute strukturierte Entitäten mit — Kontakte, Produkte, Websites — neben den Dokumenten."
     }
   },
   "de:platform/knowledge/overview": {
@@ -2799,7 +2775,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Dokumente",
-      "description": "Auf dem Dokumente-Tab laden Redakteure Dateien in die Wissensdatenbank, sehen ihnen beim Indexieren zu und verwalten ihren Lebenszyklus — Upload-Quellen, RAG-Status, Team-Bindung, Ordner und Neuindexierung."
+      "description": "Auf dem Dokumente-Tab laden Redakteure Dateien in die Wissensdatenbank, sehen ihnen beim Indexieren zu und verwalten ihren Lebenszyklus."
     }
   },
   "de:platform/workspace/skills": {
@@ -2832,7 +2808,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Troubleshooting",
-      "description": "Symptomorientierter Index für die Probleme, die Operator auf Tale-Instanzen tatsächlich getroffen haben — was der Benutzer meldet, was kaputt ist und was zu tun ist."
+      "description": "Symptomorientierter Index für die Probleme, die Operator auf Tale-Instanzen tatsächlich getroffen haben."
     }
   },
   "de:self-hosted/operate/observability/prometheus-grafana": {
@@ -2864,7 +2840,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Audit-Log-Integritätswarnungen",
-      "description": "Wie du reagierst, wenn die tägliche Integritätsprüfung des Audit-Logs eine Warnung auslöst — den Befund lesen, Manipulation von einer harmlosen Konfigurationslücke unterscheiden und Beweise sichern."
+      "description": "Wie du reagierst, wenn die tägliche Integritätsprüfung des Audit-Logs eine Warnung auslöst."
     }
   },
   "de:self-hosted/operate/security/cryptography": {
@@ -2872,7 +2848,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Kryptografie",
-      "description": "Die Algorithmen, die Tale für Daten im Ruhezustand, Daten bei der Übertragung, Passwort-Hashing und Audit-Log-Integrität nutzt — und wie sie auf BSI TR-02102-1 abgebildet sind."
+      "description": "Die Algorithmen, die Tale für Daten im Ruhezustand, Daten bei der Übertragung, Passwort-Hashing und Audit-Log-Integrität nutzt."
     }
   },
   "de:self-hosted/operate/security/hardening": {
@@ -2920,7 +2896,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Selbst gehostet",
-      "description": "Selbst gehostetes Tale läuft auf deiner Infrastruktur — on-premise, in deiner VPC oder air-gapped. Neun Container, deine Daten auf deinem Storage, keine Pro-Sitz-Abrechnung.",
+      "description": "Selbst gehostetes Tale läuft auf deiner Infrastruktur — on-premise, in deiner VPC oder air-gapped.",
       "kind": "index"
     }
   },
@@ -3034,7 +3010,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Video-Ingestion",
-      "description": "Konfiguriere, wie eine selbst gehostete Bereitstellung Video-Transkripte an YouTubes Bot-Abfrage vorbei abruft — der eingebaute PO-Token-Provider, ein Egress-Proxy und der vorgewärmte Browser-Session-Pool."
+      "description": "Konfiguriere, wie eine selbst gehostete Bereitstellung Video-Transkripte an YouTubes Bot-Abfrage vorbei abruft."
     }
   },
   "de:self-hosted/configuration/tls-and-domains": {
@@ -3125,7 +3101,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Quickstart",
-      "description": "Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden. Fünf Minuten auf einer bereiten Instanz, fünfzehn, wenn du selbst eine aufstellst."
+      "description": "Von null zur ersten Agent-Antwort — Instanz besorgen, anmelden und die erste Nachricht senden."
     }
   },
   "de:get-started/editors": {
@@ -3174,7 +3150,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "API-Referenz",
-      "description": "Wie du Tale von außen aufrufst — Authentifizierung, das Endpoint-Inventar, Pagination, die asynchronen Lauf- und Turn-Schleifen und das Fehlermodell. Die einzige Quelle der Wahrheit für die REST-Oberfläche.",
+      "description": "Wie du Tale von außen aufrufst — Authentifizierung, das Endpoint-Inventar, Pagination, die asynchronen Lauf- und Turn-Schleifen und das Fehlermodell.",
       "i18nLintExclude": ""
     }
   },
@@ -3239,7 +3215,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Contributor-Setup",
-      "description": "Die zentrale Quelle der Wahrheit für das Aufsetzen von Tales Quellcode zur lokalen Entwicklung — Voraussetzungen, bun install, der Pre-flight-Check, was bun run dev tut, Port-Konflikte und die Pre-PR-Checkliste."
+      "description": "Die zentrale Quelle der Wahrheit für das Aufsetzen von Tales Quellcode zur lokalen Entwicklung."
     }
   }
 }

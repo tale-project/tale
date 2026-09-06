@@ -1,6 +1,6 @@
 ---
 title: Serveurs MCP
-description: Enregistrer des serveurs MCP externes pour que les agents les appellent ne fait pas partie de cette version — la seule surface MCP de Tale est l’endpoint entrant sous Paramètres > API > MCP.
+description: Enregistrer des serveurs MCP externes pour que les agents les appellent ne fait pas partie de cette version.
 ---
 
 Cette page décrivait un formulaire **Ajouter un serveur MCP** : un transport, une méthode d’authentification, une liste d’agents autorisés et une table d’outils découverts avec un drapeau d’approbation par outil. Rien de tout cela n’existe dans cette version de Tale. Il n’y a ni panneau de serveurs MCP, ni formulaire d’enregistrement, ni trousse d’agent qu’un serveur externe pourrait rejoindre — une capacité qui mènerait à un outil MCP externe est refusée à l’exécution avec une raison lisible. Ce qui est livré, c’est la direction inverse : Tale est lui-même un serveur MCP auquel des clients extérieurs se connectent.

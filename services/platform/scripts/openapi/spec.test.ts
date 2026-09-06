@@ -8,7 +8,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Auth } from '../../backend/auth/auth.ts';
 import type { RestEnv } from '../../backend/rest/shared.ts';
 import { createAutomationRestRoutes } from '../../backend/rest/v1-automations.ts';
+import { createRestBrowserSessionRoutes } from '../../backend/rest/v1-browser-sessions.ts';
 import { createCoreRoutes } from '../../backend/rest/v1-core.ts';
+import { createProjectRestRoutes } from '../../backend/rest/v1-projects.ts';
+import { createThreadRestRoutes } from '../../backend/rest/v1-threads.ts';
 import { createRestV1Routes } from '../../backend/rest/v1.ts';
 import { buildSpec, type Json } from './spec.ts';
 
@@ -27,6 +30,18 @@ import { buildSpec, type Json } from './spec.ts';
 vi.mock('../../backend/auth/auth.ts', () => ({
   API_KEY_RATE_LIMIT: { enabled: true, timeWindow: 60_000, maxRequests: 100 },
   loadTrustedProxies: () => Promise.resolve(['loopback', 'uniquelocal']),
+}));
+// The upload handoff presigns against the org's bucket; the wire shape is
+// what is under test here, so the presign is scripted.
+vi.mock('../../backend/domains/files/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../backend/domains/files/service.ts')
+  >()),
+  createRestUploadHandoff: () =>
+    Promise.resolve({
+      uploadUrl: 'https://blobs.example.com/acme/blob-1?signed',
+      storageRef: 'acme/blob-1',
+    }),
 }));
 
 const spec = buildSpec();
@@ -103,12 +118,22 @@ function responseValidator(path: string, method: string, status: string) {
   return ajv.compile({ ...schema, components: spec.components });
 }
 
-/** Tagged-template Sql double answering every query with `rows`. */
-function fakeSql(rows: object[]): Sql {
-  const tag = () => Promise.resolve(rows);
+/** Tagged-template Sql double answering every query with `rows`; an
+ * optional `respond` answers a query by its text first. `begin` runs the
+ * callback on the same tag. */
+function fakeSql(
+  rows: object[],
+  respond?: (text: string) => object[] | undefined,
+): Sql {
+  const tag = (strings: TemplateStringsArray) => {
+    const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+    return Promise.resolve(respond?.(text) ?? rows);
+  };
   const unsafe = (text: string) => ({ unsafe: text });
+  const begin = (fn: (tx: unknown) => Promise<unknown>) => fn(sql);
+  const sql = Object.assign(tag, { unsafe, begin });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-  return Object.assign(tag, { unsafe }) as unknown as Sql;
+  return sql as unknown as Sql;
 }
 
 function mount(routes: Hono<RestEnv>) {
@@ -119,7 +144,8 @@ function mount(routes: Hono<RestEnv>) {
     c.set('organizationId', 'org-1');
     c.set('orgSlug', 'acme');
     c.set('role', 'admin');
-    c.set('orgExplicit', false);
+    // Named, as the write-shaped families (projects, tasks) require.
+    c.set('orgExplicit', true);
     c.set('clientIp', '203.0.113.9');
     return next();
   });
@@ -175,6 +201,16 @@ const entry = {
   createdBy: 'user-1',
   createdAt: 1_700_000_000_000,
   seq: 7,
+};
+
+const browserSession = {
+  id: 'bs-1',
+  domain: 'youtube.com',
+  label: 'Session A',
+  status: 'healthy',
+  expiresAt: 1_700_000_000_000,
+  lastUsedAt: null,
+  failureCount: 0,
 };
 
 const automation = {
@@ -256,6 +292,14 @@ describe('handler responses validate against the spec', () => {
       spec: ['/api/v1/knowledge-entries/{id}', 'get', '200'],
     },
     {
+      name: 'GET /browser-sessions',
+      routes: () =>
+        createRestBrowserSessionRoutes({ sql: fakeSql([browserSession]) }),
+      rows: [browserSession],
+      request: '/browser-sessions',
+      spec: ['/api/v1/browser-sessions', 'get', '200'],
+    },
+    {
       name: 'GET /automations',
       routes: () => createAutomationRestRoutes({ sql: fakeSql([automation]) }),
       rows: [automation],
@@ -292,4 +336,136 @@ describe('handler responses validate against the spec', () => {
       ).toBe(true);
     },
   );
+});
+
+// ── Status + shape parity for the operations whose prose once drifted ───────
+
+const project = {
+  id: 'p-1',
+  organizationId: 'org-1',
+  name: 'Ledger',
+  description: null,
+  icon: null,
+  color: null,
+  key: null,
+  externalItemId: null,
+  taskCounter: 0,
+  openTaskCount: 0,
+  doneTaskCount: 0,
+  projectAgentCount: 0,
+  teamId: null,
+  sharedWithTeamIds: [],
+  instructions: null,
+  createdBy: 'user-1',
+  createdAt: 1_700_000_000_000,
+  updatedAt: 1_700_000_000_000,
+  archivedAt: null,
+};
+
+const thread = {
+  id: 't-1',
+  title: 'Refunds',
+  kind: 'direct',
+  agentSlug: null,
+  harness: null,
+  projectId: null,
+  archived: false,
+  isShared: null,
+  createdAt: 1_700_000_000_000,
+  updatedAt: 1_700_000_000_001,
+};
+
+/** The response keys the spec documents for `<method> <path>`. */
+function documentedStatuses(path: string, method: string): string[] {
+  const op = paths[path]?.[method];
+  const responses = op?.responses as Record<string, Json> | undefined;
+  return Object.keys(responses ?? {}).sort();
+}
+
+/**
+ * The spec's field- and status-level claims the path/verb parity above
+ * cannot see: each case drives the real handler and checks both that the
+ * status is documented and that a JSON body validates. Born from the drift
+ * where the upload handoff documented a `POST`/`storageId` lane and the
+ * generation poll documented `waiting-*` states neither route ever answered.
+ */
+describe('handler statuses and bodies match the documented operation', () => {
+  const projectSql = fakeSql([], (text) => {
+    if (text.includes('FROM "teamMember"')) return [];
+    if (text.includes('FROM app.projects WHERE id')) return [project];
+    if (text.includes('INSERT INTO app.rate_limits')) return [{ value: '1' }];
+    return [];
+  });
+
+  it('POST /projects/{id}/uploads answers the one PUT lane the schema names', async () => {
+    const res = await mount(
+      createProjectRestRoutes({ sql: projectSql }),
+    ).request('http://localhost/projects/p-1/uploads', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fileName: 'ledger.pdf' }),
+    });
+    expect(res.status).toBe(200);
+    const body: unknown = await res.json();
+    const validate = responseValidator(
+      '/api/v1/projects/{id}/uploads',
+      'post',
+      '200',
+    );
+    expect(
+      validate(body),
+      JSON.stringify({ errors: validate.errors, body }),
+    ).toBe(true);
+    expect(body).toMatchObject({ method: 'PUT', s3Ref: 'acme/blob-1' });
+  });
+
+  it('GET /threads/{id}/generation answers only the states the enum names', async () => {
+    const sql = fakeSql([], (text) => {
+      if (text.includes('FROM app.threads t')) return [thread];
+      if (text.includes('FROM app.generations')) return [{ messageId: 'm-9' }];
+      return [];
+    });
+    const res = await mount(createThreadRestRoutes({ sql })).request(
+      'http://localhost/threads/t-1/generation',
+    );
+    expect(res.status).toBe(200);
+    const body: unknown = await res.json();
+    const validate = responseValidator(
+      '/api/v1/threads/{id}/generation',
+      'get',
+      '200',
+    );
+    expect(
+      validate(body),
+      JSON.stringify({ errors: validate.errors, body }),
+    ).toBe(true);
+    expect(body).toEqual({ status: 'streaming', messageId: 'm-9' });
+  });
+
+  it('POST /projects/{id}/files documents the 409 the intent refusal throws', async () => {
+    const res = await mount(
+      createProjectRestRoutes({ sql: projectSql }),
+    ).request('http://localhost/projects/p-1/files', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        uploadId: 'u-unknown',
+        fileId: 'acme/blob-1',
+        folderId: 'fold-1',
+        fileName: 'ledger.pdf',
+      }),
+    });
+    expect(res.status).toBe(409);
+    expect(documentedStatuses('/api/v1/projects/{id}/files', 'post')).toContain(
+      '409',
+    );
+  });
+
+  it('DELETE /agents/{slug} documents 204 and 404, not a {deleted} 200', () => {
+    // The route itself is pinned in rest/v1-core.test.ts (204, then 404).
+    const statuses = documentedStatuses('/api/v1/agents/{slug}', 'delete');
+    expect(statuses).toContain('204');
+    expect(statuses).toContain('404');
+    expect(statuses).not.toContain('200');
+  });
 });
