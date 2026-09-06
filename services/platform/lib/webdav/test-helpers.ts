@@ -142,12 +142,6 @@ export function makeRequest(opts: MakeRequestOptions): WebDAVRequest {
   };
 }
 
-// Basic-auth header for the default test credentials — for tests that
-// drive the adapters through a real socket (no makeRequest shortcut).
-export function defaultBasicAuthHeader(): string {
-  return basicAuth(TEST_USERNAME, TEST_PASSWORD);
-}
-
 function basicAuth(user: string, pass: string): string {
   const utf8 = new TextEncoder().encode(`${user}:${pass}`);
   // btoa requires a binary string; round-trip through char codes.
