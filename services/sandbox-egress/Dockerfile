@@ -22,7 +22,7 @@
 # allowlist is opt-in.
 
 # trivy:ignore:AVD-DS-0002 -- entrypoint needs root to chown log + install iptables; tinyproxy drops privs at bind time
-FROM alpine:3.20
+FROM alpine:3.24
 
 # - tinyproxy:      the proxy daemon
 # - gettext:        provides envsubst for the conf template

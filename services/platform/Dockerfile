@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.25
 # Tale Platform Dockerfile
 # Builds the Vite SPA (web tier) and the Postgres backend (api/worker roles)
 # from ONE image — they share their wire contracts, so they must never
@@ -14,7 +14,7 @@ FROM oven/bun:1.3.12 AS bun-bin
 # Node binary for the 0.5 backend roles (api/worker). The backend runs its .ts
 # sources directly via Node's type stripping (>= 22.18); only the binary is
 # needed — no npm, no corepack.
-FROM node:22.21.1-bookworm-slim AS node-bin
+FROM node:22.23.0-bookworm-slim AS node-bin
 
 # ============================================================================
 # Stage 1: Dependencies
