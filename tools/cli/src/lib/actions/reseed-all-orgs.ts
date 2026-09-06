@@ -33,6 +33,18 @@ interface ReseedAllOrgsOptions {
   assumeYes: boolean;
 }
 
+/**
+ * The control-door collaborators, injectable so the tests can script them
+ * without module-mocking `../docker/control-call` — bun's `mock.module` is
+ * process-wide and would leak into that module's own test file.
+ */
+export interface ReseedDeps {
+  isBackendTierRunning: typeof isBackendTierRunning;
+  controlCall: typeof controlCall;
+}
+
+const DEFAULT_DEPS: ReseedDeps = { isBackendTierRunning, controlCall };
+
 const RESEED_TIMEOUT_S = 1800;
 const RESEED_TIMEOUT_EXIT = 124;
 
@@ -79,6 +91,7 @@ function failureLines(result: ReseedResult): string[] {
 
 export async function reseedAllOrgsFromBuiltin(
   options: ReseedAllOrgsOptions,
+  deps: ReseedDeps = DEFAULT_DEPS,
 ): Promise<void> {
   const { dryRun, assumeYes } = options;
   const container = backendApiContainer();
@@ -112,7 +125,7 @@ export async function reseedAllOrgsFromBuiltin(
     }
   }
 
-  if (!(await isBackendTierRunning())) {
+  if (!(await deps.isBackendTierRunning())) {
     throw new Error(
       `--override-all needs the backend tier: no ${container} container is running. ` +
         'Start the deployment (`tale deploy`, or `tale dev` for a local stack), then re-run.',
@@ -122,7 +135,7 @@ export async function reseedAllOrgsFromBuiltin(
   logger.blank();
   logger.step('Reseeding builtin catalog into all registered orgs...');
 
-  const result = await controlCall('POST', '/api/control/reseed', {
+  const result = await deps.controlCall('POST', '/api/control/reseed', {
     container,
     timeoutS: RESEED_TIMEOUT_S,
   });

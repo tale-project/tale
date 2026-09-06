@@ -182,6 +182,9 @@ describe('restore', () => {
     });
 
     expect(stopContainerMock).toHaveBeenCalledWith('tale-db');
+    // The bgutil-provider sidecar is a stop candidate like the stateful tier:
+    // left running it keeps the volumes' network alive across the restore.
+    expect(isContainerRunningMock).toHaveBeenCalledWith('tale-bgutil-provider');
     expect(verifySnapshotMock).toHaveBeenCalledWith('tale_', MANIFEST);
     // One wipe+extract per volume in the manifest.
     expect(execMock).toHaveBeenCalledTimes(2);
