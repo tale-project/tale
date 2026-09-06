@@ -36,7 +36,7 @@ import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
-import { resolveObjectStore } from '../../lib/object-store.ts';
+import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import {
@@ -515,7 +515,7 @@ export async function indexUploadedFile(
     if (parsed.backend !== 's3') {
       throw new Error('0.5 blobs are S3 refs by construction');
     }
-    const store = await resolveObjectStore(orgSlug);
+    const store = await locateOrgObjectStore(orgSlug, parsed.key);
     const bytes = await s3GetObjectBytes(store, parsed.key);
     const [text] = await extractText(bytes, file.fileName);
 
