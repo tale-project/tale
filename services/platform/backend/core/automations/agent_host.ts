@@ -85,7 +85,12 @@ import {
   answerResumePrompt,
   promptWithAnsweredAsks,
 } from './ask_answer_carryover';
-import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
+import type {
+  AgentCursor,
+  AgentTurnFile,
+  AgentTurnResult,
+  NodeCursor,
+} from './checkpoints';
 
 /** One file out of a skill bundle, as `readSkillBundle` returns it. */
 interface SkillBundleFile {
@@ -214,7 +219,7 @@ function readAskRow(value: unknown): AskRow | null {
 /** The extra margin the parked cursor's deadline gets past the ask's expiry,
  * so the poll-side expiry settle always wins over the stepper's generic
  * time-limit cut (whose message would blame the agent, not the silence). */
-const ASK_DEADLINE_MARGIN_MS = 60 * 60 * 1000;
+export const ASK_DEADLINE_MARGIN_MS = 60 * 60 * 1000;
 
 /** Best-effort close of a turn's pending ask on the cancel paths — an
  * unanswerable card must not keep soliciting an answer. */
@@ -1034,6 +1039,20 @@ export async function startWorkflowAgentTurnImpl(
 ): Promise<null> {
   {
     try {
+      // Liveness gate BEFORE any side effect: the cancel door only flips
+      // rows, so a run cancelled (or failed elsewhere) after the kick still
+      // had its scheduled start re-admit the session, stage files, mint a
+      // gateway key and open a harness window — paid for on the org's slot
+      // cap until the drive's first window reaped it. Lenient by design;
+      // see `workflowTurnStartRefusal`.
+      const early = workflowTurnStartRefusal(
+        await readCursorState(ctx, args),
+        args,
+      );
+      if (early !== null) {
+        await reapRefusedStart(ctx, args, early);
+        return null;
+      }
       await ensureWorkflowSession(ctx, args.organizationId, args.runId);
 
       const skillViewer = await resolveRunSkillViewer(
@@ -1237,6 +1256,18 @@ export async function startWorkflowAgentTurnImpl(
           : {}),
       });
 
+      // Re-checked after the container/staging/mint work, which takes
+      // seconds: a cancel landing in that window is caught here, and the
+      // key just minted is revoked through the op row's mintedKeyId.
+      const late = workflowTurnStartRefusal(
+        await readCursorState(ctx, args),
+        args,
+      );
+      if (late !== null) {
+        await reapRefusedStart(ctx, args, late);
+        return null;
+      }
+
       const progress = liveProgressSink(
         ctx,
         args,
@@ -1267,6 +1298,127 @@ export async function startWorkflowAgentTurnImpl(
   }
 }
 
+/** What `readAgentCursor` answers: the run's status and its cursor, or null
+ * for a run that is gone. */
+export interface AgentCursorState {
+  status: string;
+  cursor?: Pick<NodeCursor, 'node'> & { agent?: AgentCursor };
+}
+
+const LIVE_RUN_STATUSES = new Set(['waiting', 'running', 'queued']);
+
+/**
+ * Whether a turn is still the one its run waits on — the STRICT liveness
+ * predicate the drive and the answered-ask resume share: a non-terminal run
+ * whose durable cursor names this node and this exec with no result yet.
+ * Only meaningful once the stepper's wait has committed the cursor (every
+ * drive window and every resume run long after that).
+ */
+export function isWorkflowTurnLive(
+  state: AgentCursorState | null,
+  keys: { nodeId: string; execId: string },
+): boolean {
+  const agent = state?.cursor?.agent;
+  return (
+    state !== null &&
+    LIVE_RUN_STATUSES.has(state.status) &&
+    state.cursor?.node === keys.nodeId &&
+    agent?.execId === keys.execId &&
+    agent.result === undefined
+  );
+}
+
+/**
+ * Why a scheduled start must not run, or null when it may. Deliberately
+ * LENIENT where `isWorkflowTurnLive` is strict: the kick enqueues the start
+ * BEFORE the stepper's wait commits the cursor, so at start time the cursor
+ * may be absent (a first kick) or still name the previous, settled attempt
+ * (a re-kick) — neither is a refusal. What is: a run that is terminal or
+ * gone (cancelled after the kick — `runEnded`, so the caller also frees the
+ * run's session the terminal hooks skipped), a cursor that moved on to
+ * another node, this exec already settled (the watchdog got there first), or
+ * a newer live exec for the same node.
+ */
+export function workflowTurnStartRefusal(
+  state: AgentCursorState | null,
+  keys: { nodeId: string; execId: string },
+): { reason: string; runEnded: boolean } | null {
+  if (state === null) return { reason: 'the run is gone', runEnded: true };
+  if (!LIVE_RUN_STATUSES.has(state.status)) {
+    return { reason: `the run is ${state.status}`, runEnded: true };
+  }
+  const cursor = state.cursor;
+  if (cursor === undefined) return null;
+  if (cursor.node !== keys.nodeId) {
+    return {
+      reason: `the run moved on to node ${cursor.node}`,
+      runEnded: false,
+    };
+  }
+  const agent = cursor.agent;
+  if (agent === undefined) return null;
+  if (agent.execId === keys.execId) {
+    return agent.result !== undefined
+      ? { reason: 'this turn already settled', runEnded: false }
+      : null;
+  }
+  return agent.result === undefined
+    ? { reason: `exec ${agent.execId} superseded it`, runEnded: false }
+    : null;
+}
+
+/**
+ * Cut a turn whose start was refused: finalize its op row (revoking the key
+ * when the mint already happened) and, when the run itself ended, free the
+ * run's session the terminal hooks skipped past — never when the run is
+ * still live, since a newer exec shares that session.
+ */
+async function reapRefusedStart(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    runId: string;
+    sessionId: string;
+    execId: string;
+  },
+  refusal: { reason: string; runEnded: boolean },
+): Promise<void> {
+  console.warn(
+    `[agent-host] start for ${args.execId} refused: ${refusal.reason}`,
+  );
+  await releaseTurnKey(ctx, {
+    organizationId: args.organizationId,
+    sessionId: args.sessionId,
+    execId: args.execId,
+    status: 'cancelled',
+  });
+  if (!refusal.runEnded) return;
+  await ctx
+    .runMutation(
+      internal.sandbox.session_mutations.hibernateAutomationScopedSession,
+      { executionId: args.runId },
+    )
+    .catch((err) =>
+      console.warn('[agent-host] refused-start slot release failed:', err),
+    );
+}
+
+async function readCursorState(
+  ctx: ActionCtx,
+  args: { organizationId: string; runId: string },
+): Promise<AgentCursorState | null> {
+  const state: unknown = await ctx.runQuery(
+    internal.automations.queries.readAgentCursor,
+    {
+      organizationId: args.organizationId,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the durable run id, carried through as a string
+      runId: args.runId as never,
+    },
+  );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the shim's readAgentCursor answers exactly this shape
+  return state as AgentCursorState | null;
+}
+
 /** The self-chaining drainer as a PLAIN exported function: one attach window
  * per invocation, scheduled by `continueOrSettle` after every `running`
  * window. The 0.5 backend's `automation.agent_drive` job runs it on the ctx
@@ -1278,24 +1430,8 @@ export async function driveWorkflowAgentTurnImpl(
   // Orphan check: the run may have been cancelled, failed by the stepper's
   // deadline, or moved past this node. An orphan turn is cut, its key
   // revoked, and nothing else touched.
-  const state = await ctx.runQuery(
-    internal.automations.queries.readAgentCursor,
-    {
-      organizationId: args.organizationId,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-      runId: args.runId as never,
-    },
-  );
-  const agent = state?.cursor?.agent;
-  const live =
-    state !== null &&
-    (state.status === 'waiting' ||
-      state.status === 'running' ||
-      state.status === 'queued') &&
-    state.cursor?.node === args.nodeId &&
-    agent?.execId === args.execId &&
-    agent.result === undefined;
-  if (!live) {
+  const state = await readCursorState(ctx, args);
+  if (!isWorkflowTurnLive(state, args)) {
     await sessionCancelExec(args.sessionId, args.execId).catch(() => {
       // Already gone — the reap is best-effort.
       console.warn('[agent-host] orphan exec reap failed (already gone?)');
@@ -1383,21 +1519,12 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       return null;
     }
     const askRunId = ask.runId;
-    const state = await ctx.runQuery(
-      internal.automations.queries.readAgentCursor,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the ask row carries the durable run id
-      { organizationId: args.organizationId, runId: askRunId as never },
-    );
+    const state = await readCursorState(ctx, {
+      organizationId: args.organizationId,
+      runId: askRunId,
+    });
     const agent = state?.cursor?.agent;
-    const live =
-      state !== null &&
-      (state.status === 'waiting' ||
-        state.status === 'running' ||
-        state.status === 'queued') &&
-      state.cursor?.node === ask.nodeId &&
-      agent?.execId === ask.execId &&
-      agent.result === undefined;
-    if (!live || agent === undefined) {
+    if (!isWorkflowTurnLive(state, ask) || agent === undefined) {
       console.warn(
         '[agent-host] answered-ask resume: the run moved on — answer recorded, nothing to resume',
       );

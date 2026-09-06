@@ -1,6 +1,15 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  boundCheckpointTrace,
+  truncateRunDetail,
+} from '../../core/automations/bound_run_payload.ts';
+import type { NodeCheckpoint } from '../../core/automations/checkpoints.ts';
 import { parseCron, wallClockIn } from '../../core/automations/cron.ts';
+import {
+  LIVENESS_SWEEP_LIMIT,
+  RUN_CLAIM_PROMISE_MS,
+} from '../../core/automations/liveness.ts';
 import {
   hashWebhookToken,
   mintWebhookToken,
@@ -23,8 +32,6 @@ import { dismissAgentQuestionNotifications } from '../collab/service.ts';
  * transactional-enqueue rule) so a scheduled resume can never outrun or
  * miss its row.
  */
-
-export const RUN_CLAIM_PROMISE_MS = 3 * 60_000;
 
 export class AutomationError extends Error {
   readonly code: string;
@@ -853,6 +860,42 @@ async function stopRunSandboxSessions(
 }
 
 /**
+ * Close the run's open connector-operation approvals — the cards the gate
+ * minted for its live writes (`metadata.runId` names the run). Once the run
+ * is terminal nothing consumes them: a decision only pokes a WAITING run, so
+ * an approval given afterwards parked the row at `executing` forever and a
+ * pending one kept an actionable card in the inbox for a write that will
+ * never happen. Withdrawn the way the review lane withdraws a request nobody
+ * can answer any more (`rejected` + `withdrawn`), never deleted — the ledger
+ * keeps every row it minted. Called on every terminal door.
+ */
+async function closeRunApprovals(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  runId: string,
+): Promise<number> {
+  const closed = await tx<{ id: string }[]>`
+    UPDATE app.approvals SET
+      status = 'rejected', reviewed_at_ms = ${Date.now()},
+      metadata = coalesce(metadata, '{}'::jsonb)
+        || ${tx.json(toJson({ withdrawn: true, withdrawnBy: 'run_terminal' }))}
+    WHERE org_id = ${organizationId}
+      AND resource_type = 'connector_operation'
+      AND status IN ('pending', 'executing')
+      AND metadata->>'runId' = ${runId}
+    RETURNING id
+  `;
+  for (const approval of closed) {
+    await emitHintInTx(tx, {
+      orgId: organizationId,
+      entity: 'approval',
+      entityId: approval.id,
+    });
+  }
+  return closed.length;
+}
+
+/**
  * A run that ends ANY way — cancel, finish, fail — leaves no question
  * soliciting an answer: its pending asks close as `cancelled` and every
  * recipient's unread `agent_escalation` bell is marked read (the same
@@ -1066,6 +1109,7 @@ export async function cancelRunInTx(
       });
     }
     await stopRunSandboxSessions(tx, organizationId, runId);
+    await closeRunApprovals(tx, organizationId, runId);
     await closePendingAsksForRun(tx, organizationId, runId);
     await emitRunHint(tx, organizationId, runId);
     return { cancelled: true };
@@ -1158,6 +1202,29 @@ function readCheckpoints(raw: unknown): CheckpointsShape {
   return { nodes: {}, executions: 0 };
 }
 
+/**
+ * Bound a checkpoint's descriptive trace as it FIRST enters the row — never
+ * the already-stored `nodes` it is merged into (the bound is not idempotent:
+ * a second pass re-cuts its own marker and under-reports the loss). The
+ * checkpoint's `output` and `effects` pass through whole: one is the
+ * executor's scope for every later node, the other the side-effect audit
+ * trail. Anything not shaped like a checkpoint is stored as it came.
+ */
+function boundIncomingCheckpoint(checkpoint: unknown): unknown {
+  if (
+    checkpoint === null ||
+    typeof checkpoint !== 'object' ||
+    Array.isArray(checkpoint) ||
+    !('trace' in checkpoint) ||
+    checkpoint.trace === null ||
+    typeof checkpoint.trace !== 'object'
+  ) {
+    return checkpoint;
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper owns this JSON shape; narrowed above
+  return boundCheckpointTrace(checkpoint as NodeCheckpoint);
+}
+
 export async function recordProgress(
   sql: Sql,
   args: {
@@ -1185,7 +1252,7 @@ export async function recordProgress(
     const nodes =
       args.nodeId !== undefined && args.checkpoint !== undefined
         ? Object.assign({}, checkpoints.nodes, {
-            [args.nodeId]: args.checkpoint,
+            [args.nodeId]: boundIncomingCheckpoint(args.checkpoint),
           })
         : checkpoints.nodes;
     await tx`
@@ -1234,7 +1301,7 @@ export async function suspendRun(
     const seq = row.chainSeq + 1;
     await tx`
       UPDATE app.automation_runs SET
-        status = 'waiting', detail = ${args.detail.slice(0, 2000)},
+        status = 'waiting', detail = ${truncateRunDetail(args.detail)},
         checkpoints = ${tx.json(
           toJson({
             nodes: checkpoints.nodes,
@@ -1344,6 +1411,9 @@ export async function finishRun(
     epoch: number;
     status: 'success' | 'failed';
     output?: unknown;
+    /** Stored as given: the stepper assembles it from checkpoint traces
+     * `recordProgress` already bounded plus the failing node's entry, which
+     * it bounds itself — re-bounding here would re-cut the stored markers. */
     trace: unknown;
     effects: unknown;
     detail?: string;
@@ -1369,7 +1439,7 @@ export async function finishRun(
         output = coalesce(${args.output === undefined ? null : tx.json(toJson(JSON.stringify(args.output)))}, output),
         trace = ${tx.json(toJson(args.trace ?? []))},
         effects = ${tx.json(toJson(args.effects ?? []))},
-        detail = ${args.detail !== undefined ? args.detail.slice(0, 2000) : null},
+        detail = ${truncateRunDetail(args.detail) ?? null},
         checkpoints = ${tx.json(
           toJson({ nodes: checkpoints.nodes, executions: args.executions }),
         )},
@@ -1398,9 +1468,11 @@ export async function finishRun(
       });
     }
     // The run's sandbox sessions are per-execution — free their slots now,
-    // and close any question nobody can answer any more (the terminal
-    // contract, shared with cancelRun).
+    // and withdraw the approval cards no node will ever consume and close
+    // any question nobody can answer any more (the terminal contract,
+    // shared with cancelRun).
     await stopRunSandboxSessions(tx, args.organizationId, args.runId);
+    await closeRunApprovals(tx, args.organizationId, args.runId);
     await closePendingAsksForRun(tx, args.organizationId, args.runId);
     await emitRunHint(tx, args.organizationId, args.runId);
     return { status: args.status };
@@ -1410,7 +1482,10 @@ export async function finishRun(
 // ---------------------------------------------------------------- liveness
 
 /** The sweep: overdue non-terminal runs get a fresh stepper poke. */
-export async function sweepOverdueRuns(sql: Sql, limit = 50): Promise<number> {
+export async function sweepOverdueRuns(
+  sql: Sql,
+  limit = LIVENESS_SWEEP_LIMIT,
+): Promise<number> {
   const rows = await sql<{ id: string; orgId: string }[]>`
     SELECT id, org_id AS "orgId" FROM app.automation_runs
     WHERE status IN ('queued', 'running', 'waiting')
