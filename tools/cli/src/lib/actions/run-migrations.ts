@@ -40,7 +40,7 @@ export async function runMigrations(
   if (!(await isBackendTierRunning())) {
     throw new Error(
       `tale migrate needs the backend tier: no ${container} container is running. ` +
-        'Start the deployment (`tale start`), then re-run.',
+        'Start the deployment (`tale deploy`, or `tale dev` for a local stack), then re-run.',
     );
   }
 

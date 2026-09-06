@@ -51,7 +51,7 @@ describe('createDbService knowledge-db alias', () => {
   // The single-node CLI stack has no separate `knowledge-db` service: the
   // in-process RAG/crawler code (getKnowledgeDatabaseUrl) defaults to host
   // `knowledge-db`, so this service must answer to that DNS name or knowledge
-  // search/indexing can't reach its corpus in a `tale start`/`tale deploy`
+  // search/indexing can't reach its corpus in a `tale deploy`
   // deployment.
   test('exposes a knowledge-db network alias so the runtime default resolves', () => {
     const networks = createDbService(config).networks;
