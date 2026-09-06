@@ -63,14 +63,3 @@ export function maskAgentSecretPreview(plaintext: string): string | undefined {
   if (plaintext.length < FIRST + LAST + 4) return undefined;
   return `${plaintext.slice(0, FIRST)}••••${plaintext.slice(-LAST)}`;
 }
-
-/**
- * True when the value contains whitespace AFTER trimming its ends — an
- * interior space, tab, or line break. Credentials never contain these; the
- * usual cause is a token that wrapped across terminal lines on paste (a
- * silent → 401). The editor warns; it does NOT block, since PEM keys carry
- * interior newlines legitimately.
- */
-export function hasInteriorWhitespace(value: string): boolean {
-  return /\s/.test(value.trim());
-}

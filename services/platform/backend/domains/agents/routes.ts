@@ -9,10 +9,7 @@ import { requireSession } from '../../auth/session.ts';
 import {
   deleteAgentForCaller,
   listAgentsForCaller,
-  listHistoryForCaller,
   readAgentForCaller,
-  resolveAgentForCaller,
-  restoreFromHistoryForCaller,
   saveAgentForCaller,
   type AgentCallerArgs,
 } from '../../core/agents/file_actions.ts';
@@ -23,8 +20,8 @@ import { agentErrorResponse } from './errors.ts';
  * /api/app/agents — the org's agent personas, REUSING the 0.4 file layer
  * verbatim (`convex/agents/file_actions.ts` — pure filesystem logic over
  * the org config tree, yaml definitions + a history trail). Visibility
- * (`private | org`), owner adoption, verify-before-write, and additive
- * restore all live in the reused functions; this module only authenticates,
+ * (`private | org`), owner adoption and verify-before-write all live in the
+ * reused functions; this module only authenticates,
  * derives the caller, and maps the reused error codes onto HTTP through the
  * map the REST family shares (`errors.ts`).
  */
@@ -40,8 +37,6 @@ const editSchema = z.object({
   skills: z.array(z.string().max(200)).max(200).nullable().optional(),
   knowledge: z.enum(['none', 'documents', 'web', 'all']).optional(),
 });
-
-const restoreSchema = z.object({ entry: z.string().min(1).max(255) });
 
 export function createAgentRoutes(deps: {
   sql: Sql;
@@ -86,22 +81,6 @@ export function createAgentRoutes(deps: {
     }
   });
 
-  app.get('/:slug/resolved', async (c) => {
-    try {
-      const resolved = await resolveAgentForCaller({
-        ...(await caller(c)),
-        slug: c.req.param('slug'),
-        locale: c.req.query('locale') ?? 'en',
-      });
-      if (resolved === null) {
-        return c.json({ error: 'agent not found' }, 404);
-      }
-      return c.json({ agent: resolved });
-    } catch (error) {
-      return agentErrorResponse(c, error);
-    }
-  });
-
   app.put('/:slug', async (c) => {
     const body = editSchema.safeParse(await c.req.json());
     if (!body.success) {
@@ -126,35 +105,6 @@ export function createAgentRoutes(deps: {
         slug: c.req.param('slug'),
       });
       return c.json({ deleted });
-    } catch (error) {
-      return agentErrorResponse(c, error);
-    }
-  });
-
-  app.get('/:slug/history', async (c) => {
-    try {
-      const entries = await listHistoryForCaller({
-        ...(await caller(c)),
-        slug: c.req.param('slug'),
-      });
-      return c.json({ entries });
-    } catch (error) {
-      return agentErrorResponse(c, error);
-    }
-  });
-
-  app.post('/:slug/restore', async (c) => {
-    const body = restoreSchema.safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const agent = await restoreFromHistoryForCaller({
-        ...(await caller(c)),
-        slug: c.req.param('slug'),
-        entry: body.data.entry,
-      });
-      return c.json({ agent });
     } catch (error) {
       return agentErrorResponse(c, error);
     }

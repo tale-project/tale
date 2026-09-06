@@ -5,6 +5,4 @@ export const configKeys = {
     ['config', type, organizationId, '_list'] as const,
   detail: (type: string, organizationId: string, slug: string) =>
     ['config', type, organizationId, slug] as const,
-  history: (type: string, organizationId: string, slug: string) =>
-    ['config', type, organizationId, slug, 'history'] as const,
 };

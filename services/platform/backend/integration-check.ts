@@ -5946,8 +5946,8 @@ async function checkSmallDomains(
 
 /**
  * Agents: the REUSED 0.4 file layer (org config tree yaml + history trail)
- * behind the 0.5 routes — save (verify-before-write), list, read, resolve
- * for a turn, history + additive restore, delete, and the slug gate.
+ * behind the 0.5 routes — save (verify-before-write), list, read, delete,
+ * and the slug gate.
  */
 async function checkAgents(
   base: string,
@@ -5955,7 +5955,7 @@ async function checkAgents(
 ): Promise<void> {
   const { cookie, orgId } = ctx;
   const call = (
-    method: 'GET' | 'PUT' | 'POST' | 'DELETE',
+    method: 'GET' | 'PUT' | 'DELETE',
     route: string,
     body?: unknown,
   ): Promise<Response> =>
@@ -5998,39 +5998,15 @@ async function checkAgents(
     { displayName: 'Nope' },
   );
 
-  // Second save supersedes v1 into the history trail.
-  await call('PUT', `/api/app/agents/helper?orgId=${orgId}`, {
-    displayName: 'Helper',
-    instructions: 'Be helpful, v2.',
-  });
-  const history = z
-    .object({
-      entries: z.array(z.object({ entry: z.string(), savedAt: z.number() })),
-    })
-    .safeParse(
-      await (
-        await call('GET', `/api/app/agents/helper/history?orgId=${orgId}`)
-      ).json(),
-    );
-  const firstEntry = history.success ? history.data.entries[0]?.entry : '';
-  const restored = agentDoc.safeParse(
+  // A second save edits in place and keeps every field the edit omits.
+  const edited = agentDoc.safeParse(
     await (
-      await call('POST', `/api/app/agents/helper/restore?orgId=${orgId}`, {
-        entry: firstEntry,
+      await call('PUT', `/api/app/agents/helper?orgId=${orgId}`, {
+        displayName: 'Helper',
+        instructions: 'Be helpful, v2.',
       })
     ).json(),
   );
-  const resolved = z
-    .object({ agent: z.looseObject({ instructions: z.string().optional() }) })
-    .loose()
-    .safeParse(
-      await (
-        await call(
-          'GET',
-          `/api/app/agents/helper/resolved?locale=en&orgId=${orgId}`,
-        )
-      ).json(),
-    );
   const deleted = z
     .object({ deleted: z.boolean() })
     .safeParse(
@@ -6041,22 +6017,20 @@ async function checkAgents(
   const readAfter = await call('GET', `/api/app/agents/helper?orgId=${orgId}`);
 
   record(
-    'agents file layer (save/list/history/restore/resolve/delete)',
+    'agents file layer (save/list/edit/delete)',
     created.success &&
       created.data.agent.canEdit &&
       created.data.agent.visibility === 'org' &&
       listed.success &&
       listed.data.agents.some((agent) => agent.slug === 'helper') &&
       badSlug.status === 400 &&
-      history.success &&
-      history.data.entries.length >= 1 &&
-      restored.success &&
-      restored.data.agent.instructions === 'Be helpful, v1.' &&
-      resolved.success &&
+      edited.success &&
+      edited.data.agent.instructions === 'Be helpful, v2.' &&
+      edited.data.agent.visibility === 'org' &&
       deleted.success &&
       deleted.data.deleted &&
       readAfter.status === 404,
-    `created=${created.success}, listed=${listed.success ? listed.data.agents.length : 'ERR'}, badSlug → ${badSlug.status} (want 400), history=${history.success ? history.data.entries.length : 'ERR'}, restoredV1=${restored.success && restored.data.agent.instructions === 'Be helpful, v1.'}, delete=${deleted.success && deleted.data.deleted}, readAfter → ${readAfter.status} (want 404)`,
+    `created=${created.success}, listed=${listed.success ? listed.data.agents.length : 'ERR'}, badSlug → ${badSlug.status} (want 400), editedV2=${edited.success && edited.data.agent.instructions === 'Be helpful, v2.' && edited.data.agent.visibility === 'org'}, delete=${deleted.success && deleted.data.deleted}, readAfter → ${readAfter.status} (want 404)`,
   );
 }
 
@@ -10555,6 +10529,47 @@ async function checkMcp(
   const runShape = z
     .object({ run: z.object({ status: z.literal('success') }) })
     .safeParse(runView.value);
+  // run_deployed on this host: no in-process connector host, so the one-piece
+  // run goes through the SAME durable runner (started live, awaited, answered
+  // with the finished result + its runId) — never the mocks recorded as live.
+  const oneShot = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 13,
+        method: 'tools/call',
+        params: {
+          name: 'run_deployed',
+          arguments: {
+            name: 'mcp-example',
+            input: { min_total: 5, orders: [] },
+          },
+        },
+      })
+    ).body,
+  );
+  const oneShotShape = z
+    .object({
+      runId: z.string(),
+      version: z.number(),
+      mode: z.literal('live'),
+      status: z.literal('success'),
+      trace: z.array(z.unknown()),
+      effects: z.array(z.unknown()),
+    })
+    .safeParse(oneShot.value);
+  const oneShotRows = oneShotShape.success
+    ? await sql<{ status: string; mode: string; startedBy: string }[]>`
+        SELECT status, mode, started_by AS "startedBy"
+        FROM app.automation_runs WHERE id = ${oneShotShape.data.runId}
+      `
+    : [];
+  const oneShotRow = oneShotRows[0];
+  const oneShotRecorded =
+    oneShotRow !== undefined &&
+    oneShotRow.status === 'success' &&
+    oneShotRow.mode === 'live' &&
+    oneShotRow.startedBy.startsWith('api-key:');
 
   // The developer gate: a member-role key gets the refusal as DATA on the
   // persisting tools while every read tool keeps answering.
@@ -10583,6 +10598,42 @@ async function checkMcp(
     ).body,
   );
   const refusalShape = z.object({ error: z.string() }).safeParse(refusal.value);
+  // Live execution is developer work: the durable runner refuses the member
+  // key BEFORE anything runs, and the refusal is data (no run row is born).
+  const memberLive = toolValue(
+    (
+      await rpc(
+        {
+          jsonrpc: '2.0',
+          id: 14,
+          method: 'tools/call',
+          params: {
+            name: 'run_deployed',
+            arguments: {
+              name: 'mcp-example',
+              input: { min_total: 5, orders: [] },
+            },
+          },
+        },
+        memberKey,
+      )
+    ).body,
+  );
+  const memberLiveShape = z
+    .object({ error: z.string() })
+    .safeParse(memberLive.value);
+  const memberLiveRefused =
+    !memberLive.isError &&
+    memberLiveShape.success &&
+    memberLiveShape.data.error.includes('developer-settings');
+  const developerActor = oneShotRow?.startedBy ?? '';
+  const strangerRuns = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = 'mcp-example'
+      AND started_by <> ${developerActor}
+  `;
+  const memberLeftNoRun =
+    developerActor !== '' && (strangerRuns[0]?.n ?? 1) === 0;
   const memberList = toolValue(
     (
       await rpc(
@@ -10661,14 +10712,19 @@ async function checkMcp(
       startedShape.success &&
       settled &&
       runShape.success &&
+      !oneShot.isError &&
+      oneShotShape.success &&
+      oneShotRecorded &&
       !refusal.isError &&
       refusalShape.success &&
       refusalShape.data.error.includes('refused for this key') &&
+      memberLiveRefused &&
+      memberLeftNoRun &&
       memberListShape.success &&
       capHit &&
       !knowledge.isError &&
       knowledgeShape.success,
-    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchCode.success ? batchCode.data.error.code : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
+    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchCode.success ? batchCode.data.error.code : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
   );
   // This check spent ~16 requests of the shared `rest:api` token bucket the
   // three REST checks right after it live off — hand the bucket back (an

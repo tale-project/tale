@@ -17,7 +17,7 @@ Open the automation from **Automations**. Its canvas shows the whole graph at on
 
 ## Let a model author one
 
-The model-facing way in is the [MCP endpoint](/develop/mcp-endpoint): point a coding agent, an IDE, or your own loop at it with an organization API key and it holds the authoring tools the assistant used to carry — `get_docs` for the grammar, `validate_automation`, `save_automation`, `run_automation` in mock or live mode, `test_automation`, and `deploy_automation` — plus `list_automations` and `search_capabilities` to find what already exists before building a duplicate. Saving through the endpoint appends a version exactly as the page does, and nothing goes live until something deploys it. What a key may save and deploy follows its holder's role: Developer capability, the same as on the page.
+The model-facing way in is the [MCP endpoint](/develop/mcp-endpoint): point a coding agent, an IDE, or your own loop at it with an organization API key and it holds the authoring tools the assistant used to carry — `get_docs` for the grammar, `validate_automation`, `save_automation`, `run_automation` against the mocks, `test_automation`, and `deploy_automation` — plus `list_automations` and `search_capabilities` to find what already exists before building a duplicate. Saving through the endpoint appends a version exactly as the page does, and nothing goes live until something deploys it. What a key may save and deploy follows its holder's role: Developer capability, the same as on the page.
 
 ## Where this fits
 

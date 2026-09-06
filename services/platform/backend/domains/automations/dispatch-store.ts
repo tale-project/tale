@@ -204,7 +204,11 @@ export function pgAutomationStore(
     recordRun: async (name, version, result, mode) => {
       // A one-piece run (`run_deployed`) is born terminal — this insert IS
       // its exactly-once terminal transition, so a LIVE one also writes the
-      // provenance audit row (the 0.4 contract).
+      // provenance audit row (the 0.4 contract). Dispatch only executes in
+      // one piece when the host supplies an in-process connector host; this
+      // host has none, so a live `run_deployed` arrives through `startRun`
+      // (the durable stepper authorizes, executes and records it) and this
+      // path sees mock runs only.
       const now = Date.now();
       const status = result.status === 'success' ? 'success' : 'failed';
       const detail =

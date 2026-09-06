@@ -28,7 +28,7 @@ The rules the API enforces are the ones an admin should know:
 - **Who sees what.** An `org` persona is visible to every member. A `private` persona is visible to its owner only — an Owner or Admin cannot read it, and asking for it answers as if it did not exist.
 - **Who edits what.** The owner always may. Owners and Admins — anyone who may write the organization's settings — may edit and delete every `org` persona, so a member who leaves cannot strand shared configuration.
 - **Ownership by adoption.** A new persona belongs to whoever created it and starts `private`; turning a shared persona back to `private` when it has no recorded owner makes the editor its owner, because a private persona nobody owns would be reachable by nobody.
-- **History.** Every save keeps the superseded file in a history trail, and restoring an earlier entry snapshots the current one first — a restore is additive, never destructive. A persona that fails to parse is reported with its path rather than silently dropped from the roster.
+- **History.** Every save keeps the superseded file in a history trail under the organization's configuration tree, so an earlier version is never lost — an operator reaches it on disk; there is no restore door in the API. A persona that fails to parse is reported with its path rather than silently dropped from the roster.
 
 Self-hosted operators reach the files directly — the project layout is on [AI-assisted development](/develop/ai-assisted-development) and the CLI on [CLI install](/self-hosted/install/cli-install).
 
