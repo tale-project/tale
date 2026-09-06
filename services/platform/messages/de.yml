@@ -3421,68 +3421,6 @@ governance:
     guardrails: Guardrails
     logs: Protokolle
     dataSubjectRequests: Anfragen betroffener Personen
-    runCodePolicy: Run-code-Pakete
-  runCodePolicy:
-    title: Run-code-Paketrichtlinie
-    description: Steuert, welche Python- und Node-Pakete das run_code-Tool zur
-      Laufzeit installieren darf. Der Standardmodus ist Sperrliste mit leerer
-      Liste, wodurch jedes Paket erlaubt ist. Im Modus Zulassungsliste muss
-      jedes vertrauenswürdige Paket einzeln aufgeführt werden — alles andere
-      wird blockiert.
-    modeSectionTitle: Standardmodus
-    modeSectionDescription: Wähle die Strategie, die run_code anwendet, wenn ein
-      Paket nicht ausdrücklich in der Richtlinie erwähnt ist.
-    modeAllowlistLabel: Zulassungsliste
-    modeAllowlistDescription: Nur Pakete in den unten stehenden Zulassungslisten
-      sind installierbar. Alles andere wird abgelehnt.
-    modeDenylistLabel: Sperrliste
-    modeDenylistDescription:
-      Jedes Paket ist installierbar, außer denen in den unten
-      stehenden Sperrlisten.
-    pythonSectionTitle: Python-Pakete
-    nodeSectionTitle: Node-Pakete
-    listsHint:
-      Ein Paketname pro Zeile (oder kommagetrennt). Versionsangaben werden
-      automatisch entfernt — `pandas==2.1` entspricht `pandas`.
-    pythonAllowLabel: Python-Zulassungsliste
-    pythonAllowDescription: Wird verwendet, wenn der Standardmodus Zulassungsliste ist.
-    pythonDenyLabel: Python-Sperrliste
-    pythonDenyDescription: Wird verwendet, wenn der Standardmodus Sperrliste ist.
-    nodeAllowLabel: Node-Zulassungsliste
-    nodeAllowDescription: Wird verwendet, wenn der Standardmodus Zulassungsliste
-      ist. Scoped-Pakete (`@scope/pkg`) werden unterstützt.
-    nodeDenyLabel: Node-Sperrliste
-    nodeDenyDescription: Wird verwendet, wenn der Standardmodus Sperrliste ist.
-      Scoped-Pakete (`@scope/pkg`) werden unterstützt.
-    pythonPlaceholder: |-
-      pandas
-      numpy
-      requests
-    nodePlaceholder: |-
-      lodash
-      @scope/pkg
-    save: Speichern
-    saving: Speichert …
-    saveFailed: Run-code-Paketrichtlinie konnte nicht aktualisiert werden
-    testerTitle: Paketliste testen
-    testerDescription:
-      Füge pip- oder npm-Spezifikationen ein, um vorab zu sehen, ob
-      sie unter der aktuellen Entwurfsrichtlinie durchgelassen würden. Verwendet
-      ungespeicherte Änderungen, sodass du vor dem Speichern iterieren kannst.
-    testerBucketLabel: Bereich
-    bucketPython: Python (pip)
-    bucketNode: Node (npm)
-    testerInputLabel: Zu testende Spezifikationen
-    testerPlaceholderPython: pandas==2.1, numpy>=1.26
-    testerPlaceholderNode: lodash@4.17.21, @scope/pkg
-    testerButton: Testen
-    testerBaseLabel: Basisname
-    testerAllowed: Erlaubt
-    testerDenied: Abgelehnt
-    reasonAllowlistMatch: passt zur Zulassungsliste
-    reasonAllowlistMiss: nicht auf der Zulassungsliste (Modus Zulassungsliste lehnt alles andere ab)
-    reasonDenylistMatch: passt zur Sperrliste
-    reasonDenylistNotMatched: nicht auf der Sperrliste
   trash:
     title: Papierkorb
     description:
@@ -6464,10 +6402,6 @@ inbox:
   taskReviewRequestedBodyHuman:
     '"{taskTitle}" wartet auf dein Review — stelle die Aufgabe zum Freigeben
     auf "Erledigt" oder schicke sie mit einem Kommentar zurück.'
-  taskReviewApproved: Review freigegeben
-  taskReviewApprovedBody: '"{taskTitle}" wurde freigegeben und abgeschlossen.'
-  taskReviewChangesRequested: Änderungen angefordert
-  taskReviewChangesRequestedBody: Für "{taskTitle}" wurden Änderungen angefordert.
   taskReviewerAssigned: Du bist Reviewer
   taskReviewerAssignedBody: Du bist jetzt Reviewer für "{taskTitle}".
   taskReviewerAssignedByBody: '{actor} hat dich als Reviewer für "{taskTitle}"

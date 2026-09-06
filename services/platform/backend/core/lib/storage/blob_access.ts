@@ -36,8 +36,9 @@ import {
 } from './blob_ref';
 import {
   buildObjectKey,
+  deleteOrgObject,
+  locateOrgObjectStore,
   resolveOrgObjectStore,
-  s3DeleteObject,
   s3GetObjectBytes,
   s3HeadObject,
   s3PresignGetUrl,
@@ -80,7 +81,7 @@ export async function readBlobBytes(
     }
     return new Uint8Array(await blob.arrayBuffer());
   }
-  const store = await requireS3(orgSlug, parsed.key);
+  const store = await requireS3ForRead(orgSlug, parsed.key);
   return await s3GetObjectBytes(store, parsed.key);
 }
 
@@ -97,7 +98,7 @@ export async function s3BlobSize(
 ): Promise<number | null> {
   const parsed = parseBlobRef(ref);
   if (parsed.backend !== 's3') return null;
-  const store = await requireS3(orgSlug, parsed.key);
+  const store = await requireS3ForRead(orgSlug, parsed.key);
   const head = await s3HeadObject(store, parsed.key);
   return head?.size ?? null;
 }
@@ -117,8 +118,8 @@ export async function deleteBlob(
     await ctx.storage.delete(parsed.storageId);
     return;
   }
-  const store = await requireS3(orgSlug, parsed.key);
-  await s3DeleteObject(store, parsed.key);
+  requireOrgKey(orgSlug, parsed.key);
+  await deleteOrgObject(orgSlug, parsed.key);
 }
 
 /**
@@ -136,7 +137,7 @@ export async function getBlobUrl(
   if (parsed.backend === 'convex') {
     return await ctx.storage.getUrl(parsed.storageId);
   }
-  const store = await requireS3(orgSlug, parsed.key);
+  const store = await requireS3ForRead(orgSlug, parsed.key);
   return await s3PresignGetUrl(store, parsed.key, { filename: opts.filename });
 }
 
@@ -163,18 +164,34 @@ export async function putImmutableS3Blob(
 }
 
 /**
- * Resolve the org's S3 store for an operation on `key`, refusing a key outside
- * the org's own namespace. Blob refs are client-bindable strings, so without
- * this check a member of org A could bind org B's key and have A's read /
- * serve / delete address B's object whenever the two orgs resolve to the same
- * physical bucket (a supported config — `prefix` exists to share buckets).
- * Fail-closed: a foreign or malformed key throws, it is never "not found".
+ * Refuse a key outside the org's own namespace. Blob refs are client-bindable
+ * strings, so without this check a member of org A could bind org B's key and
+ * have A's read / serve / delete address B's object whenever the two orgs
+ * resolve to the same physical bucket (a supported config — `prefix` exists
+ * to share buckets). Fail-closed: a foreign or malformed key throws, it is
+ * never "not found".
  */
-async function requireS3(orgSlug: string, key: string): Promise<S3ObjectStore> {
+function requireOrgKey(orgSlug: string, key: string): void {
   if (!s3KeyBelongsToOrg(key, orgSlug)) {
     throw new Error(
       `s3 blob key is outside org '${orgSlug}' namespace; refusing`,
     );
   }
+}
+
+/** The org's CURRENT store for a WRITE to `key` (namespace-guarded). */
+async function requireS3(orgSlug: string, key: string): Promise<S3ObjectStore> {
+  requireOrgKey(orgSlug, key);
   return resolveOrgObjectStore(orgSlug);
+}
+
+/** The store that HOLDS the existing blob `key` (namespace-guarded): the
+ * org's own bucket, or the deployment default it was written to before the
+ * org connected one — see `locateOrgObjectStore`. */
+async function requireS3ForRead(
+  orgSlug: string,
+  key: string,
+): Promise<S3ObjectStore> {
+  requireOrgKey(orgSlug, key);
+  return locateOrgObjectStore(orgSlug, key);
 }

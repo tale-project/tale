@@ -913,18 +913,6 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
     },
     invalidate: taskWriteInvalidate,
   },
-  'tasks/mutations:bulkUpdateTasks': {
-    run: async (args, ctx) => {
-      const orgId = requireOrg(args, ctx);
-      const { organizationId: _org, ...body } = args;
-      return backendFetch<{ updated: number; skipped: number }>('/tasks/bulk', {
-        method: 'POST',
-        body,
-        orgId,
-      });
-    },
-    invalidate: taskWriteInvalidate,
-  },
   'tasks/mutations:startTaskAgentRun': {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);
@@ -1036,30 +1024,6 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
         `/collab/tasks/${encodeURIComponent(taskId)}/subscription`,
         { method: 'POST', body: { muted: args.muted === true }, orgId },
       );
-      return null;
-    },
-    invalidate: taskWriteInvalidate,
-  },
-  'tasks/mutations:saveBoardView': {
-    run: async (args, ctx) => {
-      const orgId = requireOrg(args, ctx);
-      const { organizationId: _org, ...body } = args;
-      const saved = await backendFetch<{ viewId: string }>(
-        '/tasks/board-views',
-        { method: 'POST', body, orgId },
-      );
-      return saved.viewId;
-    },
-    invalidate: taskWriteInvalidate,
-  },
-  'tasks/mutations:deleteBoardView': {
-    run: async (args, ctx) => {
-      const orgId = requireOrg(args, ctx);
-      const viewId = requireString(args, 'viewId');
-      await backendFetch(`/tasks/board-views/${encodeURIComponent(viewId)}`, {
-        method: 'DELETE',
-        orgId,
-      });
       return null;
     },
     invalidate: taskWriteInvalidate,

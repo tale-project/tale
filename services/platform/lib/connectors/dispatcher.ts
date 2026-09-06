@@ -31,6 +31,8 @@
  * through the connector registry, which reads the filesystem.
  */
 
+import { createHash } from 'node:crypto';
+
 import { Ajv, type ValidateFunction } from 'ajv';
 
 import { stableStringify } from '../engine/api/tests';
@@ -43,11 +45,7 @@ import type {
   ConnectorEffect,
 } from '../shared/schemas/connectors';
 import { ConnectorError } from './errors';
-import {
-  createLiveHost,
-  type ConnectorBlobSink,
-  type LiveHostOptions,
-} from './live-host';
+import { createLiveHost, type ConnectorBlobSink } from './live-host';
 import {
   buildPortableLiveCode,
   type PortableHostCall,
@@ -81,12 +79,14 @@ export function installConnectorCatalog(
 }
 
 /**
- * Load every shipped connector under `<systemRoot>/connectors/`, register
- * its actions as engine node types, and install the result as the dispatch
- * catalog — one read of the catalog serving both the engine and the
- * dispatcher, so the two can never disagree about which actions exist.
+ * Load every shipped connector under `<systemRoot>/connectors/` (the
+ * deployment's system tree when no root is given), register its actions as
+ * engine node types, and install the result as the dispatch catalog — one
+ * read of the catalog serving both the engine and the dispatcher, so the two
+ * can never disagree about which actions exist. Hosts call it at assembly
+ * time; the read is memoized per root, so calling it per invocation is cheap.
  */
-export function loadConnectorCatalog(systemRoot: string): Connector[] {
+export function loadConnectorCatalog(systemRoot?: string): Connector[] {
   const { connectors } = loadConnectors(systemRoot);
   installConnectorCatalog(connectors);
   return connectors;
@@ -220,13 +220,6 @@ export interface ConnectorAuditSink {
   record(entry: ConnectorInvocationRecord): Promise<void>;
 }
 
-/** How the mediated capabilities are built. Injectable so a host can supply a
- * different transport (a sandbox-side proxy, a test double) without the
- * dispatcher learning about it. */
-export type ConnectorHostFactory = (
-  options: LiveHostOptions,
-) => ReturnType<typeof createLiveHost>;
-
 // ------------------------------------------------------------------- callers
 
 /**
@@ -318,7 +311,6 @@ export interface ConnectorDispatchContext {
   idempotencyKey?: string;
   /** Ceiling for one live body, including the vendor calls it chains. */
   timeoutMs?: number;
-  hostFactory?: ConnectorHostFactory;
   /**
    * Per-invocation CodeRunner override for the LIVE yaml-js path. A caller
    * with a sandbox session hands in the session-bound out-of-process runner
@@ -398,8 +390,13 @@ function allowedValues(error: { keyword: string; params?: unknown }): string {
   return Array.isArray(allowed) ? ` (${allowed.join(', ')})` : '';
 }
 
-/** FNV-1a over the canonical call — same call, same key, no crypto import so
- * the derivation runs anywhere the dispatcher does. */
+/**
+ * SHA-256 over the canonical call — same call, same key. The key is the
+ * approvals resource identity (a `completed` approval is honoured on
+ * re-entry by key alone, with no input comparison), so it has to be
+ * collision-resistant: a 32-bit digest let a different write inherit an
+ * earlier approval by padding its body until the hashes matched.
+ */
 function derivedIdempotencyKey(
   organizationId: string,
   nodeType: string,
@@ -412,12 +409,8 @@ function derivedIdempotencyKey(
     credentialRef: credentialRef ?? null,
     input,
   });
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < canonical.length; i++) {
-    hash ^= canonical.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return `${nodeType}:${hash.toString(16).padStart(8, '0')}`;
+  const digest = createHash('sha256').update(canonical).digest('hex');
+  return `${nodeType}:${digest}`;
 }
 
 function resolveConnector(slug: string): Connector {
@@ -427,7 +420,7 @@ function resolveConnector(slug: string): Connector {
       'no connector catalog is installed',
       {
         connector: slug,
-        hint: 'call loadConnectorCatalog(dir) (or installConnectorCatalog) during host assembly',
+        hint: 'call loadConnectorCatalog() (or installConnectorCatalog) during host assembly',
       },
     );
   }
@@ -663,7 +656,7 @@ export async function executeConnectorAction(
       `${nodeType} has a live body, but this deployment's code runner is the data-only node-vm one, which cannot reach credentials or the network`,
       {
         ...where,
-        hint: 'live yaml-js execution needs the isolated sandbox runner, which is not wired up yet — run the action in mock mode until it lands',
+        hint: 'pass a host-capable runner as ctx.codeRunner: inProcessLiveRunner() for the shipped catalog, or the session-bound sandbox-exec runner (with ctx.portableHost) when the caller owns a sandbox session',
       },
     );
   }
@@ -689,15 +682,30 @@ export async function executeConnectorAction(
         },
       );
     }
-    const decision = await ctx.approvals.check({
-      organizationId: ctx.organizationId,
-      userId: caller.kind === 'user' ? caller.userId : '',
-      connector: connector.name,
-      action: action.name,
-      input,
-      idempotencyKey,
-      platformInternal: platformAuth,
-    });
+    // The gate's own refusal (a human rejected this operation) is a coded
+    // outcome like any other: it is recorded before it surfaces, so the audit
+    // trail shows the rejection the way it shows a credential failure.
+    let decision: ApprovalDecision;
+    try {
+      decision = await ctx.approvals.check({
+        organizationId: ctx.organizationId,
+        userId: caller.kind === 'user' ? caller.userId : '',
+        connector: connector.name,
+        action: action.name,
+        input,
+        idempotencyKey,
+        platformInternal: platformAuth,
+      });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      await record('error', { error: message });
+      if (cause instanceof ConnectorError) throw cause;
+      throw new ConnectorError(
+        'APPROVAL_GATE_MISSING',
+        `the approvals gate could not answer for ${nodeType}: ${message.slice(0, 300)}`,
+        { ...where, cause },
+      );
+    }
     if (decision.status === 'required') {
       await record('approval-required', {});
       return {
@@ -756,8 +764,6 @@ export async function executeConnectorAction(
     }
   }
 
-  const buildHost = ctx.hostFactory ?? createLiveHost;
-
   let output: unknown;
   try {
     if (runsPortable && backend.kind === 'yaml-js') {
@@ -787,7 +793,7 @@ export async function executeConnectorAction(
       // host-capable in-process runner). Building the host is itself
       // policed — a credential pointing outside the connector's allowlist is
       // refused here — so it shares the block whose failures are recorded.
-      const host = buildHost({
+      const host = createLiveHost({
         connector,
         action: action.name,
         ...(credential.endpoint !== undefined && {

@@ -241,18 +241,6 @@
       "height": 3060
     },
     {
-      "file": "images/platform/governance-run-code-policy.webp",
-      "shot": "governance-run-code-policy",
-      "route": "/dashboard/:orgId/settings/governance/run-code-policy",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
       "file": "images/platform/governance-security-monitoring.webp",
       "shot": "governance-security-monitoring",
       "route": "/dashboard/:orgId/settings/governance/security-monitoring",
