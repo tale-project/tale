@@ -168,19 +168,25 @@ describe('the portable live convention, end to end in a real node child', () => 
     ).rejects.toThrow(/evil\.test is not on the connector allowlist/);
   });
 
-  it('refuses ctx.files with a clear message instead of a TypeError', async () => {
+  it('leaves ctx.files undefined so a feature-detecting body degrades', async () => {
+    // The out-of-process lane has no blob sink. Bodies that can work without
+    // one branch on `ctx.files` (gmail/outlook get_message), so it must be
+    // ABSENT — a truthy stub would send them into the branch and throw.
     const body = `
-      await ctx.files.download('https://api.vendor.test/file', { fileName: 'a.bin' });
-      return 'unreachable';
+      const attachments = [];
+      if (input.includeAttachments && ctx.files) {
+        attachments.push(await ctx.files.download('https://api.vendor.test/file', { fileName: 'a.bin' }));
+      }
+      return { files: typeof ctx.files, attachments };
     `;
 
     await expect(
       runner.runBody(
         buildPortableLiveCode(body),
-        { input: {}, ctx: ctxData() },
+        { input: { includeAttachments: true }, ctx: ctxData() },
         { timeoutMs: 15_000 },
         { async: true },
       ),
-    ).rejects.toThrow(/ctx\.files is not available/);
+    ).resolves.toEqual({ files: 'undefined', attachments: [] });
   });
 });

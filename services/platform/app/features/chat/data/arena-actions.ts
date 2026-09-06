@@ -23,6 +23,8 @@ import type { ArenaVerdict } from '@/lib/shared/arena';
 interface SideResult {
   readonly status: 'completed' | 'refused';
   readonly reason?: string;
+  /** The side's refusal is on its thread's record — see `ChatTurnOutcome`. */
+  readonly persisted?: boolean;
 }
 
 export interface ArenaActions {

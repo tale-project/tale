@@ -53,7 +53,6 @@ const PREF_FIELD: Record<string, string> = {
   mention: 'mention',
   task_deadline: 'task_deadlines',
   task_review_requested: 'task_review',
-  task_review_resolved: 'task_review',
   task_reviewer_assigned: 'task_review',
   document_review_requested: 'task_review',
   document_review_resolved: 'task_review',
@@ -640,52 +639,6 @@ export async function notifyTaskReviewerAssigned(
     actorType: 'user',
     actorId: args.actorUserId,
   });
-}
-
-/** Review outcome to watchers (minus the deciding actor), pref-gated. */
-export async function notifyTaskReviewResolved(
-  db: Db,
-  args: {
-    organizationId: string;
-    task: { id: string; projectId: string; title: string };
-    decision: 'approve' | 'request_changes';
-    decidedByUserId: string;
-    recipientUserIds: string[];
-  },
-): Promise<void> {
-  const actorName = await resolveUserDisplayName(db, args.decidedByUserId);
-  const recipients = new Set(args.recipientUserIds);
-  recipients.delete(args.decidedByUserId);
-  for (const userId of recipients) {
-    await notifyUser(db, {
-      userId,
-      organizationId: args.organizationId,
-      type: 'task_review_resolved',
-      titleKey:
-        args.decision === 'approve'
-          ? 'taskReviewApproved'
-          : 'taskReviewChangesRequested',
-      bodyKey:
-        args.decision === 'approve'
-          ? actorName
-            ? 'taskReviewApprovedByBody'
-            : 'taskReviewApprovedBody'
-          : actorName
-            ? 'taskReviewChangesRequestedByBody'
-            : 'taskReviewChangesRequestedBody',
-      params: {
-        taskId: args.task.id,
-        projectId: args.task.projectId,
-        taskTitle: args.task.title,
-        ...(actorName ? { actor: actorName } : {}),
-      },
-      resourceType: 'task',
-      resourceId: args.task.id,
-      taskId: args.task.id,
-      actorType: 'user',
-      actorId: args.decidedByUserId,
-    });
-  }
 }
 
 /** Mark this approval's unread request bells read — the review was decided

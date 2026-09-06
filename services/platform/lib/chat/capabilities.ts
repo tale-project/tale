@@ -1,21 +1,20 @@
 /**
- * The unified capability surface — ONE registry and ONE dispatcher for
- * everything a model can call.
+ * The capability surface — ONE registry and ONE dispatcher for everything a
+ * model can call by id.
  *
- * A builtin tool, a connector action, a skill, an automation, and an MCP
- * tool are five different things to the platform and exactly one thing to the
- * model: something with a name, a description, an input schema, and a result.
- * Keeping them in one registry is what makes discovery honest — a search that
- * only knows about builtins teaches the model that the org's automations do
- * not exist — and the single dispatcher is what keeps invocation safe: the
- * `switch` on capability kind is exhaustive with a `never` check, so a sixth
- * kind cannot ship until someone has decided which backend runs it.
+ * In this version the registry holds the organization's deployed automations
+ * (the host registers them; `invoke_capability` on one is the same act as the
+ * engine's `run_deployed`). The `kind` discriminant and the exhaustive
+ * `switch` with its `never` arm stay, so a second kind cannot ship until
+ * someone has decided which backend runs it — a capability is something with
+ * a name, a description, an input schema, and a result, whatever the
+ * platform calls it.
  *
  * Design decisions worth keeping:
  *
  *  - **Input is always validated, output sometimes is.** Every capability
  *    declares an input schema and the dispatcher enforces it before anything
- *    runs. An output schema is optional: an MCP tool that declares none is
+ *    runs. An output schema is optional: a capability that declares none is
  *    UNSTRUCTURED, and its result is passed through as-is rather than being
  *    forced into a shape nobody promised.
  *  - **Knowledge is a separate method.** `get_knowledge` is not folded into
@@ -26,15 +25,11 @@
  *    PENDING row and an audit entry; `memory.search` reads approved rows only.
  *    Nothing is injected into a prompt automatically — a model cannot give
  *    itself durable state about a person by writing it down.
- *  - **Event-only automations are listed, not hidden.** A model that cannot
- *    see them invents workarounds; one that sees them marked EVENT-ONLY, and
- *    is refused with a hint on invoke, learns the actual shape of the org.
  *
  * Every method is org-scoped: the registry is bound to one organization at
  * construction and every backend call carries that id.
  *
- * Layer A: pure, no `node:*`, no Convex — the backends are ports the host
- * fills in.
+ * Layer A: pure, no `node:*` — the backends are ports the host fills in.
  */
 
 import { Ajv, type ValidateFunction } from 'ajv';
@@ -44,19 +39,12 @@ import { closestName } from '../engine/core/validate/similar';
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 
-export const CAPABILITY_KINDS = [
-  'builtin',
-  'connector-action',
-  'skill',
-  'automation',
-  'mcp-tool',
-] as const;
+export const CAPABILITY_KINDS = ['automation'] as const;
 
 export type CapabilityKind = (typeof CAPABILITY_KINDS)[number];
 
 interface CapabilityBase {
-  /** Stable id the model calls, e.g. `builtin.run_code`,
-   * `connector.github.list_issues`, `automation.github/triage-issues`. */
+  /** Stable id the model calls, e.g. `automation.github/triage-issues`. */
   readonly id: string;
   readonly name: string;
   readonly description: string;
@@ -68,25 +56,11 @@ interface CapabilityBase {
   readonly outputSchema?: Record<string, unknown>;
 }
 
-export type Capability =
-  | (CapabilityBase & { readonly kind: 'builtin'; readonly handler: string })
-  | (CapabilityBase & {
-      readonly kind: 'connector-action';
-      readonly connector: string;
-      readonly action: string;
-    })
-  | (CapabilityBase & { readonly kind: 'skill'; readonly slug: string })
-  | (CapabilityBase & {
-      readonly kind: 'automation';
-      readonly automation: string;
-      /** Started by an event only — listed, but not invocable on demand. */
-      readonly eventOnly: boolean;
-    })
-  | (CapabilityBase & {
-      readonly kind: 'mcp-tool';
-      readonly server: string;
-      readonly tool: string;
-    });
+export type Capability = CapabilityBase & {
+  readonly kind: 'automation';
+  /** The deployed automation's name — what `run_deployed` is given. */
+  readonly automation: string;
+};
 
 /** A capability with no declared output schema returns whatever its backend
  * returns. Chat is fine with that; an automation that needs typing declares one. */
@@ -94,24 +68,11 @@ export function isUnstructured(capability: Capability): boolean {
   return capability.outputSchema === undefined;
 }
 
-/**
- * An automation that can only be started by an event is not invocable on
- * demand. A manifest with no triggers at all is invocable (it is run by hand
- * or by an API call); one whose every trigger is an event is not.
- */
-export function isEventOnlyAutomation(
-  triggers: ReadonlyArray<{ kind: string }> | undefined,
-): boolean {
-  if (!triggers || triggers.length === 0) return false;
-  return triggers.every((trigger) => trigger.kind === 'event');
-}
-
 // ---------------------------------------------------------------- registry
 
 /**
  * The one registry. Bound to an organization, because a capability list is
- * org-owned: an org's automations, skills, MCP servers, and connected
- * connectors are not visible to any other org.
+ * org-owned: an org's automations are not visible to any other org.
  */
 export class CapabilityRegistry {
   readonly organizationId: string;
@@ -153,39 +114,6 @@ export class CapabilityRegistry {
   }
 }
 
-/** One MCP tool as its server advertises it. */
-export interface McpToolDefinition {
-  readonly name: string;
-  readonly description?: string;
-  readonly inputSchema?: Record<string, unknown>;
-  /** Optional in the protocol — absent means the tool is unstructured. */
-  readonly outputSchema?: Record<string, unknown>;
-}
-
-/**
- * Turn an MCP server's advertised tools into registry entries. They land in
- * the SAME registry as everything else, so search and invocation treat a
- * remote tool exactly like a builtin.
- */
-export function mcpToolsToCapabilities(
-  server: string,
-  tools: readonly McpToolDefinition[],
-): Capability[] {
-  return tools.map((tool) => ({
-    kind: 'mcp-tool' as const,
-    id: `mcp.${server}.${tool.name}`,
-    name: tool.name,
-    description:
-      tool.description ?? `Tool "${tool.name}" on MCP server "${server}".`,
-    // A server that advertises no input schema still gets one: an empty object
-    // schema, so "no arguments" is enforced rather than assumed.
-    inputSchema: tool.inputSchema ?? { type: 'object' },
-    outputSchema: tool.outputSchema,
-    server,
-    tool: tool.name,
-  }));
-}
-
 // ---------------------------------------------------------------- backends
 
 /** What every backend returns: the output, or a refusal the model can act on. */
@@ -197,29 +125,6 @@ export type BackendResult =
       readonly hint?: string;
     };
 
-export interface BuiltinInvocation {
-  readonly organizationId: string;
-  readonly userId: string;
-  readonly handler: string;
-  readonly input: unknown;
-}
-
-export interface ConnectorInvocation {
-  readonly organizationId: string;
-  readonly userId: string;
-  readonly connector: string;
-  readonly action: string;
-  readonly input: unknown;
-  /** Which stored credential to act as; omitted selects the org default. */
-  readonly credentialRef?: string;
-}
-
-export interface SkillInvocation {
-  readonly organizationId: string;
-  readonly slug: string;
-  readonly input: unknown;
-}
-
 export interface AutomationInvocation {
   readonly organizationId: string;
   readonly userId: string;
@@ -227,29 +132,12 @@ export interface AutomationInvocation {
   readonly input: unknown;
 }
 
-export interface McpInvocation {
-  readonly organizationId: string;
-  readonly userId: string;
-  readonly server: string;
-  readonly tool: string;
-  readonly input: unknown;
-}
-
 export interface CapabilityBackends {
-  /** Platform-owned tools: run code, generate an image, search the web, ask
-   * the user something. */
-  readonly builtin: (request: BuiltinInvocation) => Promise<BackendResult>;
-  /** Always `executeConnectorAction` with caller mode `user` — see
-   * {@link createConnectorBackend}. There is no second path to a connector. */
-  readonly connector: (request: ConnectorInvocation) => Promise<BackendResult>;
-  /** Skills are knowledge packs: invoking one READS it, never executes it. */
-  readonly skill: (request: SkillInvocation) => Promise<BackendResult>;
   /** Always through the automations store — see
    * {@link createAutomationsBackend}. */
   readonly automation: (
     request: AutomationInvocation,
   ) => Promise<BackendResult>;
-  readonly mcp: (request: McpInvocation) => Promise<BackendResult>;
 }
 
 // -------------------------------------------------------------- knowledge
@@ -286,21 +174,15 @@ export type KnowledgeResult =
   | { readonly status: 'unavailable'; readonly reason: string };
 
 /**
- * The retrieval seam. The knowledge pipeline is being rebuilt, and this is the
- * shape it plugs into: one org-scoped query in, passages out.
- *
- * Until it lands, the surface answers `unavailable` with a reason rather than
- * an empty passage list — "the knowledge base is not available" and "your
- * knowledge base contains nothing about this" are different facts, and a stub
- * that returns the second when it means the first teaches the model to stop
- * asking.
+ * The retrieval seam: one org-scoped query in, passages out. A backend that
+ * cannot run answers `unavailable` with a reason rather than an empty passage
+ * list — "the knowledge base is not available" and "your knowledge base
+ * contains nothing about this" are different facts, and a result that says
+ * the second when it means the first teaches the model to stop asking.
  */
 export interface KnowledgeBackend {
   search(request: KnowledgeRequest): Promise<KnowledgeResult>;
 }
-
-export const KNOWLEDGE_UNAVAILABLE_REASON =
-  'Knowledge retrieval is not available on this deployment yet. Do not treat this as "nothing found" — tell the user the knowledge base cannot be searched right now.';
 
 // ----------------------------------------------------------------- memory
 
@@ -361,10 +243,6 @@ export interface CapabilitySearchHit {
   readonly description: string;
   /** False when the capability declares no output schema. */
   readonly structured: boolean;
-  /** True for an automation that only an event can start. */
-  readonly eventOnly?: boolean;
-  /** Present when the hit cannot be invoked, explaining what to do instead. */
-  readonly note?: string;
 }
 
 export type InvokeResult =
@@ -386,9 +264,6 @@ export type InvokeResult =
       readonly hint?: string;
     };
 
-export const EVENT_ONLY_NOTE =
-  'EVENT-ONLY — this automation runs when its event fires; it cannot be invoked directly.';
-
 // -------------------------------------------------------------- the surface
 
 export interface CapabilitySurfaceDeps {
@@ -396,9 +271,7 @@ export interface CapabilitySurfaceDeps {
   readonly userId: string;
   readonly registry: CapabilityRegistry;
   readonly backends: CapabilityBackends;
-  /** Absent until the retrieval pipeline lands; `get_knowledge` then answers
-   * `unavailable` with a reason. */
-  readonly knowledge?: KnowledgeBackend;
+  readonly knowledge: KnowledgeBackend;
   readonly memory: MemoryStore;
   readonly audit: CapabilityAuditSink;
   /** The thread the turn belongs to, recorded on saved memories. */
@@ -414,8 +287,6 @@ export interface SearchCapabilitiesParams {
 export interface InvokeCapabilityParams {
   readonly id: string;
   readonly input?: unknown;
-  /** Which stored credential to act as, for capabilities that use one. */
-  readonly credential?: string;
 }
 
 export interface GetKnowledgeParams {
@@ -487,21 +358,16 @@ function refuse(reason: string, hint?: string, id?: string): InvokeResult {
   return { status: 'refused', reason, hint, id };
 }
 
-/** What a search result tells the model: what it is, whether its result is
- * typed, and — for an event-only automation — that seeing it does not mean it
- * can be called. */
+/** What a search result tells the model: what it is and whether its result
+ * is typed. */
 function toSearchHit(capability: Capability): CapabilitySearchHit {
-  const common = {
+  return {
     id: capability.id,
     kind: capability.kind,
     name: capability.name,
     description: capability.description,
     structured: !isUnstructured(capability),
   };
-  if (capability.kind === 'automation' && capability.eventOnly) {
-    return { ...common, eventOnly: true, note: EVENT_ONLY_NOTE };
-  }
-  return common;
 }
 
 export function createCapabilitySurface(
@@ -523,31 +389,8 @@ export function createCapabilitySurface(
   const runBackend = async (
     capability: Capability,
     input: unknown,
-    credential: string | undefined,
   ): Promise<BackendResult> => {
     switch (capability.kind) {
-      case 'builtin':
-        return backends.builtin({
-          organizationId,
-          userId,
-          handler: capability.handler,
-          input,
-        });
-      case 'connector-action':
-        return backends.connector({
-          organizationId,
-          userId,
-          connector: capability.connector,
-          action: capability.action,
-          input,
-          credentialRef: credential,
-        });
-      case 'skill':
-        return backends.skill({
-          organizationId,
-          slug: capability.slug,
-          input,
-        });
       case 'automation':
         return backends.automation({
           organizationId,
@@ -555,18 +398,10 @@ export function createCapabilitySurface(
           automation: capability.automation,
           input,
         });
-      case 'mcp-tool':
-        return backends.mcp({
-          organizationId,
-          userId,
-          server: capability.server,
-          tool: capability.tool,
-          input,
-        });
       default: {
-        const exhaustive: never = capability;
+        const exhaustive: never = capability.kind;
         throw new Error(
-          `[chat] no backend for capability kind: ${JSON.stringify(exhaustive)}`,
+          `[chat] no backend for capability kind: ${String(exhaustive)}`,
         );
       }
     }
@@ -600,14 +435,6 @@ export function createCapabilitySurface(
       );
     }
 
-    if (capability.kind === 'automation' && capability.eventOnly) {
-      return refuse(
-        `"${capability.id}" is event-only: it runs when its event fires and cannot be invoked directly.`,
-        'Trigger its event, or ask the user to run it from the automations page.',
-        capability.id,
-      );
-    }
-
     const input = params.input ?? {};
     const validate = validatorFor(capability.inputSchema);
     if (!validate(input)) {
@@ -618,7 +445,7 @@ export function createCapabilitySurface(
       );
     }
 
-    const result = await runBackend(capability, input, params.credential);
+    const result = await runBackend(capability, input);
     if (result.status === 'refused') {
       return refuse(result.reason, result.hint, capability.id);
     }
@@ -644,17 +471,13 @@ export function createCapabilitySurface(
 
   const getKnowledge = async (
     params: GetKnowledgeParams,
-  ): Promise<KnowledgeResult> => {
-    if (!deps.knowledge) {
-      return { status: 'unavailable', reason: KNOWLEDGE_UNAVAILABLE_REASON };
-    }
-    return deps.knowledge.search({
+  ): Promise<KnowledgeResult> =>
+    deps.knowledge.search({
       organizationId,
       query: params.query,
       corpus: params.corpus,
       limit: params.limit,
     });
-  };
 
   const saveMemory = async (
     params: MemorySaveParams,
@@ -743,12 +566,7 @@ export function createCapabilitySurface(
           }),
         };
       case 'invoke_capability':
-        return invokeCapability({
-          id: asString(p.id),
-          input: p.input,
-          credential:
-            typeof p.credential === 'string' ? p.credential : undefined,
-        });
+        return invokeCapability({ id: asString(p.id), input: p.input });
       case 'get_knowledge':
         return getKnowledge({
           query: asString(p.query),
@@ -792,18 +610,4 @@ export function createCapabilitySurface(
     searchMemories,
     dispatch,
   };
-}
-
-/** Tool documentation lines for the context contract — short by design; the
- * schemas ride the tool definitions the provider already receives. */
-export function capabilityDocs(
-  registry: CapabilityRegistry,
-): Array<{ id: string; description: string }> {
-  return registry.list().map((capability) => ({
-    id: capability.id,
-    description:
-      capability.kind === 'automation' && capability.eventOnly
-        ? `${capability.description} (${EVENT_ONLY_NOTE})`
-        : capability.description,
-  }));
 }

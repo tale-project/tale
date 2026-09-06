@@ -26,6 +26,10 @@ import {
   recordFailure,
 } from '../domains/login_attempts/service.ts';
 import {
+  assertOrgSlugNotRetiring,
+  OrganizationError,
+} from '../domains/organizations/service.ts';
+import {
   anchorTwoFactorGraceOnSignIn,
   getTwoFactorLockState,
   recordTwoFactorFailure,
@@ -172,6 +176,19 @@ export function createAuth(config: AuthConfig) {
   }
   const isHttps = siteUrl.startsWith('https://');
   const sql = config.sql;
+
+  /** The organization slug hooks' view of `assertOrgSlugNotRetiring`: the
+   * domain refusal becomes the plugin's 400 like the other slug guards. */
+  const refuseRetiringSlug = async (normalizedSlug: string): Promise<void> => {
+    try {
+      await assertOrgSlugNotRetiring(sql, normalizedSlug);
+    } catch (error) {
+      if (error instanceof OrganizationError) {
+        throw new APIError('BAD_REQUEST', { message: error.message });
+      }
+      throw error;
+    }
+  };
 
   /** The 2FA verify endpoints the lockout counter guards. */
   const TWO_FACTOR_VERIFY_PATHS = new Set([
@@ -583,6 +600,10 @@ export function createAuth(config: AuthConfig) {
                 message: `Organization slug "${normalizedSlug}" is already taken.`,
               });
             }
+            // A deleted organization's slug stays reserved until its corpus,
+            // blobs and config tree are gone — taking it earlier would route
+            // the new tenant onto the old tenant's documents.
+            await refuseRetiringSlug(normalizedSlug);
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Better Auth's loose hook payload; projecting the normalized slug back (0.4 pattern)
             (data.organization as Record<string, unknown>).slug =
               normalizedSlug;
@@ -654,6 +675,11 @@ export function createAuth(config: AuthConfig) {
               throw new APIError('BAD_REQUEST', {
                 message: `Organization slug "${normalizedSlug}" is already taken.`,
               });
+            }
+            if (collision.length === 0) {
+              // A slug-less org receiving its first slug: same reservation
+              // rule as create.
+              await refuseRetiringSlug(normalizedSlug);
             }
             orgPatch.slug = normalizedSlug;
           },

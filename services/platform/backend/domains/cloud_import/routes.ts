@@ -308,6 +308,22 @@ export function createCloudImportOauthRoutes(deps: {
     const { organizationId, userId, provider, codeVerifier, redirectUri } =
       pending;
 
+    // The state names who STARTED the flow; the session on the returning
+    // browser is who is completing it. They must match, or a forwarded
+    // consent link would store a stranger's grant under the initiator. The
+    // state is already consumed, so a mismatch burns it like a forgery.
+    const completer: SessionBundle | null = await deps.auth.api.getSession({
+      headers: c.req.raw.headers,
+    });
+    if (!completer || completer.user.id !== userId) {
+      console.warn(
+        `[cloud-import:oauth2] refused a "${provider}" callback completed by ${
+          completer ? 'a different user' : 'no session'
+        } than the one who started it`,
+      );
+      return errorPage('invalid_state');
+    }
+
     if (vendorError !== undefined || code === undefined) {
       return errorPage('vendor_declined', organizationId);
     }

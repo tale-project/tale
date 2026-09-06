@@ -27,17 +27,3 @@ export const SESSION_ACTION_SUBJECTS = [
 ] as const;
 
 export type SessionActionSubject = (typeof SESSION_ACTION_SUBJECTS)[number];
-/** One dispatch's resolved authority over a first-party domain. */
-export type WorkspaceActionContext =
-  | {
-      allowed: true;
-      /** Task/document-domain attribution for this session's writes. */
-      actorId: string;
-      scope:
-        | { kind: 'project'; projectId: string }
-        | { kind: 'org'; allowedProjectIds?: string[] };
-    }
-  | {
-      allowed: false;
-      reason: 'no_access_context' | 'not_a_member' | 'read_denied';
-    };

@@ -18,9 +18,9 @@ import {
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
 import { resolveOrgVisionModel } from '../../core/lib/providers/resolve_vision_model.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
-import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listComposerModels } from '../chat/composer.ts';
+import { governanceShimHandlers } from '../governance/shim.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { listCredentials } from '../provider_credentials/service.ts';
 
@@ -195,22 +195,12 @@ export function createProviderSettingRoutes(deps: {
     if (denied) return denied;
     const organizationId = c.get('orgId');
     try {
+      // The `vision_model` pin is read through the one governance seam every
+      // ctx-shim host shares (the policy reader over the org config tree),
+      // not a local copy of it.
       const shim = createCtxShim({
         ...knowledgeShimHandlers(deps.sql),
-        'governance/internal_queries:getPolicyConfigInternal': async (raw) => {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the reused 0.4 caller passes exactly this shape
-          const args = raw as { organizationId: string; policyType: string };
-          if (args.policyType !== 'vision_model') {
-            throw new Error(
-              `[providers-shim] unexpected policy type: ${args.policyType}`,
-            );
-          }
-          return readGovernancePolicyForOrg(
-            deps.sql,
-            args.organizationId,
-            'vision_model',
-          );
-        },
+        ...governanceShimHandlers(deps.sql),
       });
       const pick = await resolveOrgVisionModel(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 module; ctx usage covered by the shim handlers

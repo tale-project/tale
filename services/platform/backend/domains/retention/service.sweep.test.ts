@@ -61,6 +61,13 @@ function fakeSweep(script: {
     fileRef: string | null;
     historyFiles: string[];
   }[];
+  auditCandidates?: {
+    id: string;
+    actorId: string | null;
+    resourceType: string;
+    resourceId: string | null;
+    ts: number;
+  }[];
 }): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -84,7 +91,10 @@ function fakeSweep(script: {
       text.startsWith('SELECT id, file_ref') &&
       text.includes('FROM app.documents')
         ? script.documentsPassB
-        : [];
+        : text.startsWith('SELECT id, actor_id') &&
+            text.includes('FROM app.audit_logs')
+          ? (script.auditCandidates ?? [])
+          : [];
     const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
     return Object.assign(Promise.resolve(rows), fragment);
   };
@@ -230,6 +240,100 @@ describe('sweepOrgPhase2 — sandbox provenance ledgers', () => {
 
     expect(fake.statements.some((s) => s.text.includes('app.sandbox_'))).toBe(
       false,
+    );
+  });
+});
+
+describe('sweepOrgPhase2 — audit-log prefix walk under a custodian hold', () => {
+  // The chain is prefix-only: the walk deletes oldest-first and stops at the
+  // first row a held custodian owns. A custodian owns a row when they acted
+  // (actor_id) AND when they were acted upon (resource_type 'user',
+  // resource_id) — the same two-sided definition the erasure scrub uses —
+  // so the rows recording what was done TO the custodian (a role change,
+  // an erasure denial, the hold itself) survive the window too.
+  const auditOrg = {
+    organizationId: 'org_1',
+    config: {
+      auditLogEnabled: true,
+      auditLogRetentionDays: 365,
+      deletionGraceDays: 0,
+    },
+  };
+
+  it('stops at a row ABOUT the held user, not only at one BY them', async () => {
+    const fake = fakeSweep({
+      documentsPassB: [],
+      auditCandidates: [
+        {
+          id: 'a1',
+          actorId: 'other',
+          resourceType: 'document',
+          resourceId: 'd1',
+          ts: 1,
+        },
+        {
+          id: 'a2',
+          actorId: 'admin',
+          resourceType: 'user',
+          resourceId: 'held-user',
+          ts: 2,
+        },
+        {
+          id: 'a3',
+          actorId: 'other',
+          resourceType: 'document',
+          resourceId: 'd2',
+          ts: 3,
+        },
+      ],
+    });
+
+    const stats = await sweepOrgPhase2(fake.sql, auditOrg, {
+      orgHeld: false,
+      userMembershipIds: new Set(['held-user']),
+    });
+
+    const purge = fake.statements.find((s) =>
+      s.text.startsWith('DELETE FROM app.audit_logs'),
+    );
+    // `sql(prefix)` is a fragment, so the ids land inline in the text.
+    expect(purge?.text).toBe(
+      'DELETE FROM app.audit_logs WHERE id IN a1 RETURNING id',
+    );
+    expect(stats.auditLogs).toBe(0); // the fake answers no rows to the DELETE
+  });
+
+  it('still stops at a row BY the held user', async () => {
+    const fake = fakeSweep({
+      documentsPassB: [],
+      auditCandidates: [
+        {
+          id: 'a1',
+          actorId: 'other',
+          resourceType: 'document',
+          resourceId: null,
+          ts: 1,
+        },
+        {
+          id: 'a2',
+          actorId: 'held-user',
+          resourceType: 'document',
+          resourceId: null,
+          ts: 2,
+        },
+      ],
+    });
+
+    await sweepOrgPhase2(fake.sql, auditOrg, {
+      orgHeld: false,
+      userMembershipIds: new Set(['held-user']),
+    });
+
+    const purge = fake.statements.find((s) =>
+      s.text.startsWith('DELETE FROM app.audit_logs'),
+    );
+    expect(purge?.text).toBe(
+      'DELETE FROM app.audit_logs WHERE id IN a1 RETURNING id',
     );
   });
 });

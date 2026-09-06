@@ -1,7 +1,21 @@
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getProjectAuthContext } from '../projects/service.ts';
+import { addTaskComment } from '../tasks/comments.ts';
 import { pgTaskStore } from './task-store.ts';
+
+vi.mock('../projects/service.ts', () => ({ getProjectAuthContext: vi.fn() }));
+vi.mock('../tasks/comments.ts', () => ({
+  addTaskComment: vi.fn(),
+  listTaskComments: vi.fn(),
+  TASK_COMMENT_PAGE_MAX: 200,
+}));
+
+beforeEach(() => {
+  vi.mocked(getProjectAuthContext).mockReset();
+  vi.mocked(addTaskComment).mockReset();
+});
 
 /**
  * `task.get` answers `null` for exactly one thing — the task does not exist
@@ -63,5 +77,74 @@ describe('pgTaskStore.get', () => {
     await expect(
       store.get({ organizationId: 'org-1', taskId: 'task-1' }),
     ).rejects.toBe(failure);
+  });
+});
+
+describe('pgTaskStore.comment', () => {
+  /** The `task.comment` native validates `bodyByLocale` (one narrator per
+   * language) and the reader picks their locale from it; the store used to
+   * drop it on the floor, so every localized workflow comment rendered
+   * English-only. */
+  it('forwards the by-locale bodies to the comment writer', async () => {
+    const auth = {
+      organizationId: 'org-1',
+      userId: 'system',
+      role: 'owner' as const,
+      teamIds: [],
+    };
+    vi.mocked(getProjectAuthContext).mockResolvedValue(auth);
+    vi.mocked(addTaskComment).mockResolvedValue({
+      messageId: 'm-1',
+      threadId: 'th-1',
+      unresolvedMentionTokens: [],
+    });
+    const tx = sqlStub({ rows: [] });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `begin` runs the callback on the same stand-in
+    const sql = Object.assign(tx, {
+      begin: (callback: (tx: Sql) => unknown) => callback(tx),
+    }) as unknown as Sql;
+    const store = pgTaskStore(sql);
+
+    await expect(
+      store.comment({
+        organizationId: 'org-1',
+        taskId: 'task-1',
+        body: 'Done.',
+        bodyByLocale: { en: 'Done.', de: 'Erledigt.', fr: 'Terminé.' },
+      }),
+    ).resolves.toEqual({ messageId: 'm-1' });
+
+    expect(addTaskComment).toHaveBeenCalledWith(tx, auth, {
+      taskId: 'task-1',
+      body: 'Done.',
+      bodyByLocale: { en: 'Done.', de: 'Erledigt.', fr: 'Terminé.' },
+      author: { actorType: 'agent', actorId: 'workflow' },
+    });
+  });
+
+  it('leaves bodyByLocale out when the native sent none', async () => {
+    vi.mocked(getProjectAuthContext).mockResolvedValue({
+      organizationId: 'org-1',
+      userId: 'system',
+      role: 'owner',
+      teamIds: [],
+    });
+    vi.mocked(addTaskComment).mockResolvedValue({
+      messageId: 'm-2',
+      threadId: 'th-1',
+      unresolvedMentionTokens: [],
+    });
+    const tx = sqlStub({ rows: [] });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `begin` runs the callback on the same stand-in
+    const sql = Object.assign(tx, {
+      begin: (callback: (tx: Sql) => unknown) => callback(tx),
+    }) as unknown as Sql;
+    await pgTaskStore(sql).comment({
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      body: 'Done.',
+    });
+    const [, , args] = vi.mocked(addTaskComment).mock.calls[0] ?? [];
+    expect(args).not.toHaveProperty('bodyByLocale');
   });
 });

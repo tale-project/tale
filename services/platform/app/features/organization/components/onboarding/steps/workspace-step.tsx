@@ -37,14 +37,19 @@ const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _-]*$/;
  * Whether a better-auth create failure means the slug is already in use.
  * Matches both the plugin's own code and the platform's
  * `beforeCreateOrganization` collision guard (an APIError whose message is
- * `Organization slug "…" is already taken.` with no stable code).
+ * `Organization slug "…" is already taken.` with no stable code), and the
+ * guard's retiring-slug refusal (`… is still being removed.`): a slug whose
+ * previous organization is still being torn down is taken for now, and the
+ * user's move is the same — pick another name.
  */
 export function isSlugTakenError(
   error: { code?: string; message?: string } | null | undefined,
 ): boolean {
   if (!error) return false;
   if (error.code === 'ORGANIZATION_SLUG_ALREADY_TAKEN') return true;
-  return /already (?:taken|exists)/i.test(error.message ?? '');
+  return /already (?:taken|exists)|still being removed/i.test(
+    error.message ?? '',
+  );
 }
 
 /** Base language subtag of a locale (e.g. `en-US` → `en`). */

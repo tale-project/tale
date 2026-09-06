@@ -41,6 +41,8 @@ Nichts wandert in deinem Namen in einen Prompt. Eine gespeicherte Erinnerung err
 
 Gespeicherte Erinnerungen stehen auf derselben Seite, jede mit einem Knopf zum Löschen. Eine Erinnerung zu löschen nimmt sie aus dem heraus, was eine Suche zurückgeben kann — mehr Wirkung hat sie nicht, denn es fährt keine zweite Kopie in irgendeinem anderen Prompt mit.
 
+Der Schalter **Erinnerungen** über den Listen gilt für die ganze Funktion, nicht nur für die Seite: Ist er aus, kann der Assistent weder eine Erinnerung vorschlagen noch eine lesen — ein Vorschlag in dieser Zeit wird sofort abgewiesen, nicht für später aufgehoben — und was du schon gespeichert hast, bleibt unangetastet liegen, bis du ihn wieder einschaltest.
+
 ## Abmelden
 
 Die Zeile **Abmelden** unten im Profilmenü bestätigt mit einem Dialog, bevor sie die Session löscht. Nach der Bestätigung lädt Tale die Seite zur Anmeldeseite hart neu, damit kein veralteter Zustand im Tab hängenbleibt. Das Abmelden ist pro Gerät — dich auf dem Laptop abzumelden, meldet dich nicht auf dem Handy ab, und umgekehrt.
