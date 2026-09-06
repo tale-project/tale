@@ -3,7 +3,6 @@ declare global {
     __ENV__?: {
       SITE_URL?: string;
       BASE_PATH?: string;
-      MICROSOFT_AUTH_ENABLED?: boolean;
       TRUSTED_HEADERS_ENABLED?: boolean;
       FILE_EVENTS_ENABLED?: boolean;
       SENTRY_DSN?: string;
@@ -17,7 +16,6 @@ declare global {
 
 export function getEnv(key: 'SITE_URL'): string;
 export function getEnv(key: 'BASE_PATH'): string;
-export function getEnv(key: 'MICROSOFT_AUTH_ENABLED'): boolean;
 export function getEnv(key: 'TRUSTED_HEADERS_ENABLED'): boolean;
 export function getEnv(key: 'FILE_EVENTS_ENABLED'): boolean;
 export function getEnv(key: 'SENTRY_DSN'): string | undefined;
@@ -28,7 +26,6 @@ export function getEnv(
   key:
     | 'SITE_URL'
     | 'BASE_PATH'
-    | 'MICROSOFT_AUTH_ENABLED'
     | 'TRUSTED_HEADERS_ENABLED'
     | 'FILE_EVENTS_ENABLED'
     | 'SENTRY_DSN'
@@ -41,11 +38,7 @@ export function getEnv(
     if (key === 'BASE_PATH') {
       return '';
     }
-    if (
-      key === 'MICROSOFT_AUTH_ENABLED' ||
-      key === 'TRUSTED_HEADERS_ENABLED' ||
-      key === 'FILE_EVENTS_ENABLED'
-    ) {
+    if (key === 'TRUSTED_HEADERS_ENABLED' || key === 'FILE_EVENTS_ENABLED') {
       return false;
     }
     if (

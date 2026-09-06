@@ -89,7 +89,6 @@ const VALID_HARNESS = {
     stdin: { mode: 'ndjson-user-message' },
     env: { managed: { ANTHROPIC_AUTH_TOKEN: '${gateway.token}' } },
   },
-  pinnedVersion: '2.1.173',
 } as const;
 
 describe('SECRETS_ENV prefix gate', () => {
@@ -595,11 +594,6 @@ describe('brokerCredentialDataSchema', () => {
 describe('harnessDefinitionSchema', () => {
   it('accepts a full harness', () => {
     expect(harnessDefinitionSchema.safeParse(VALID_HARNESS).success).toBe(true);
-  });
-
-  it('accepts a harness without a pinned version', () => {
-    const { pinnedVersion: _pinnedVersion, ...unpinned } = VALID_HARNESS;
-    expect(harnessDefinitionSchema.safeParse(unpinned).success).toBe(true);
   });
 
   it('accepts one-sided credential policies', () => {

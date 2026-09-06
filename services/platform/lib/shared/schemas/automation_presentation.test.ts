@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   automationDisplayDescription,
+  automationDisplayIcon,
+  automationDisplayLabels,
   automationDisplayName,
   parseAutomationPresentation,
   titleFromSlug,
@@ -84,5 +86,27 @@ describe('automationDisplayDescription', () => {
 
   it('has nothing to say without a presentation', () => {
     expect(automationDisplayDescription(null, 'en')).toBeUndefined();
+  });
+});
+
+describe('automationDisplayIcon', () => {
+  it('speaks the Iconify id the renderer resolves offline', () => {
+    expect(automationDisplayIcon(PACK)).toBe('lucide:file-check');
+  });
+
+  it('leaves the renderer to its fallback when nothing was declared', () => {
+    expect(automationDisplayIcon({ name: 'Weekly report' })).toBeUndefined();
+    expect(automationDisplayIcon(undefined)).toBeUndefined();
+  });
+});
+
+describe('automationDisplayLabels', () => {
+  it('keeps the declared chips in declaration order', () => {
+    expect(automationDisplayLabels(PACK)).toEqual(['Review', 'Documents']);
+  });
+
+  it('reads no chips from an undeclared or unusable presentation', () => {
+    expect(automationDisplayLabels({ name: 'Weekly report' })).toEqual([]);
+    expect(automationDisplayLabels({ labels: 'Review' })).toEqual([]);
   });
 });

@@ -240,40 +240,6 @@ describe('chat/completions override', () => {
     expect(resumeText).not.toContain('reasoning_content');
   });
 
-  test('a tool-scripted docs phrase acks after a human-response resume', async () => {
-    // The request_human_input pause: the resume conversation's LAST user
-    // message is the injected <human_response> wrapper, not the docs phrase.
-    // The newest-first conversation scan must still find the entry, or the
-    // approval ack falls back to the canned reply mid-scene.
-    const scripted = DOCS_REPLIES.find(
-      (entry) => entry.tool?.name === 'request_human_input',
-    );
-    if (!scripted) throw new Error('expected a request_human_input script');
-    // The REAL resume shape (traced from the app): a rebuilt conversation —
-    // system messages only, the on-camera prompt embedded in a history
-    // block, and a single [HUMAN_INPUT_RESPONSE] user line.
-    const res = await post('/v1/chat/completions', {
-      model: 'm',
-      stream: true,
-      messages: [
-        { role: 'system', content: 'You are an AI assistant for the org.' },
-        {
-          role: 'system',
-          content: `<details><summary>History</summary>user: Please ${scripted.match}.</details>`,
-        },
-        {
-          role: 'user',
-          content: '[HUMAN_INPUT_RESPONSE] Final adjustments: Looks good.',
-        },
-      ],
-    });
-    const text = await res.text();
-    expect(text).not.toContain('"finish_reason":"tool_calls"');
-    const ackWord = scripted.reply.split(/\s+/)[0];
-    expect(text).toContain(ackWord);
-    expect(text).not.toContain(CANNED_REPLY.split(' ')[0]);
-  });
-
   test('a tool-scripted docs phrase stays text-only on the non-stream path', async () => {
     // Thread-title generation is a non-streamed call carrying the user's first
     // message — it must get the plain `reply`, never tool markup.

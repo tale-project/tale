@@ -146,4 +146,3 @@ exec:
       OPENCLAW_STATE_DIR: /agent/.runtime/home/.openclaw
     managed:
       TALE_GATEWAY_TOKEN: '${gateway.token}'
-pinnedVersion: 2026.6.11

@@ -309,19 +309,64 @@ function stripCrossHostSensitiveHeaders(
   return out;
 }
 
-export async function safeFetch(
+/** Request headers that describe a body; they leave with it. */
+const BODY_HEADERS: ReadonlySet<string> = new Set([
+  'content-type',
+  'content-length',
+  'content-encoding',
+]);
+
+function stripBodyHeaders(
+  headers: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    if (BODY_HEADERS.has(name.toLowerCase())) continue;
+    out[name] = value;
+  }
+  return out;
+}
+
+/**
+ * Whether following this redirect switches the request to GET (RFC 9110
+ * §15.4): a 303 always does (except for HEAD, which stays HEAD), and a
+ * 301/302 answered to a POST does — the convention every mainstream client
+ * (browsers, undici, curl) implements. 307/308 keep method and body by
+ * definition.
+ */
+function redirectSwitchesToGet(status: number, method: string): boolean {
+  const upper = method.toUpperCase();
+  if (upper === 'HEAD') return false;
+  if (status === 303) return true;
+  return (status === 301 || status === 302) && upper === 'POST';
+}
+
+/**
+ * The shared request loop of `safeFetch` and `safeFetchBinary`: derive the
+ * allowlist, validate the URL, follow redirects manually re-validating every
+ * hop, and hand back the final non-redirect response with the URL it came
+ * from. `signal` is the caller's abort controller (timeout + the caller's
+ * own `options.signal`; it also covers the body read that follows).
+ *
+ * A redirect may rewrite the request, not only its URL: credential headers
+ * are dropped on cross-host hops, and a 303 (or 301/302 to a POST) is
+ * followed with GET and no body — replaying a POST body against the
+ * Location would perform the mutation twice, or hand a JSON body to a read
+ * endpoint with the Authorization header still attached.
+ */
+async function fetchFollowingRedirects(
   rawUrl: string,
-  options: SafeFetchOptions = {},
-): Promise<SafeFetchResponse> {
+  options: SafeFetchOptions,
+  signal: AbortSignal,
+  timeoutMs: number,
+): Promise<{ response: Response; finalUrl: string }> {
   const {
     method = 'GET',
     headers = {},
     body,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-    maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
     maxRedirects = DEFAULT_MAX_REDIRECTS,
     allowedHosts: callerAllowedHosts,
-    signal,
+    signal: callerSignal,
   } = options;
 
   // When the caller doesn't supply an allowlist, auto-derive it from the
@@ -350,89 +395,112 @@ export async function safeFetch(
 
   validateUrl(rawUrl, allowedHosts, callerAllowedHosts);
 
-  if (signal?.aborted) {
+  if (callerSignal?.aborted) {
     throw new SafeFetchError(
       'aborted',
       'Request aborted by the caller before it started',
     );
   }
+
+  let currentUrl = rawUrl;
+  let currentMethod: string = method;
+  let currentHeaders = headers;
+  let currentBody = body;
+  let redirectsFollowed = 0;
+
+  while (true) {
+    let response: Response;
+    try {
+      response = await fetch(currentUrl, {
+        method: currentMethod,
+        headers: currentHeaders,
+        body: currentBody,
+        redirect: 'manual',
+        signal,
+      });
+    } catch (error) {
+      if (error instanceof SafeFetchError) throw error;
+      if (
+        error instanceof Error &&
+        (error.name === 'AbortError' || error.name === 'TimeoutError')
+      ) {
+        if (callerSignal?.aborted) {
+          throw new SafeFetchError(
+            'aborted',
+            'Request aborted by the caller before it completed',
+          );
+        }
+        throw new SafeFetchError(
+          'timeout',
+          `Request timed out after ${timeoutMs}ms`,
+        );
+      }
+      const message = error instanceof Error ? error.message : 'unknown';
+      throw new SafeFetchError('network_error', `fetch failed: ${message}`);
+    }
+
+    if (!REDIRECT_STATUSES.has(response.status)) {
+      // 304/305/306 land here too — they carry no Location header, so
+      // returning them to the caller is correct.
+      return { response, finalUrl: currentUrl };
+    }
+
+    const location = response.headers.get('Location');
+    if (!location) {
+      throw new SafeFetchError(
+        'redirect_missing_location',
+        `Redirect ${response.status} missing Location header`,
+        response.status,
+      );
+    }
+
+    redirectsFollowed += 1;
+    if (redirectsFollowed > maxRedirects) {
+      throw new SafeFetchError(
+        'redirect_limit_exceeded',
+        `Exceeded ${maxRedirects} redirects`,
+      );
+    }
+
+    const nextUrl = new URL(location, currentUrl);
+    validateUrl(nextUrl.toString(), allowedHosts, callerAllowedHosts);
+    // Drop credential-carrying headers on cross-host hops so an
+    // attacker who controls a redirect target on a second allowlisted
+    // host can't harvest the upstream provider's bearer token.
+    if (nextUrl.host.toLowerCase() !== new URL(currentUrl).host.toLowerCase()) {
+      currentHeaders = stripCrossHostSensitiveHeaders(currentHeaders);
+    }
+    if (redirectSwitchesToGet(response.status, currentMethod)) {
+      currentMethod = 'GET';
+      currentBody = undefined;
+      currentHeaders = stripBodyHeaders(currentHeaders);
+    }
+    currentUrl = nextUrl.toString();
+  }
+}
+
+export async function safeFetch(
+  rawUrl: string,
+  options: SafeFetchOptions = {},
+): Promise<SafeFetchResponse> {
+  const {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
+    signal,
+  } = options;
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const onCallerAbort = (): void => controller.abort();
   signal?.addEventListener('abort', onCallerAbort, { once: true });
 
   try {
-    let currentUrl = rawUrl;
-    let currentHeaders = headers;
-    let redirectsFollowed = 0;
-    let response: Response;
-
-    while (true) {
-      try {
-        response = await fetch(currentUrl, {
-          method,
-          headers: currentHeaders,
-          body,
-          redirect: 'manual',
-          signal: controller.signal,
-        });
-      } catch (error) {
-        if (error instanceof SafeFetchError) throw error;
-        if (
-          error instanceof Error &&
-          (error.name === 'AbortError' || error.name === 'TimeoutError')
-        ) {
-          if (signal?.aborted) {
-            throw new SafeFetchError(
-              'aborted',
-              'Request aborted by the caller before it completed',
-            );
-          }
-          throw new SafeFetchError(
-            'timeout',
-            `Request timed out after ${timeoutMs}ms`,
-          );
-        }
-        const message = error instanceof Error ? error.message : 'unknown';
-        throw new SafeFetchError('network_error', `fetch failed: ${message}`);
-      }
-
-      if (!REDIRECT_STATUSES.has(response.status)) {
-        // 304/305/306 land here too — they carry no Location header, so
-        // returning them to the caller is correct.
-        break;
-      }
-
-      const location = response.headers.get('Location');
-      if (!location) {
-        throw new SafeFetchError(
-          'redirect_missing_location',
-          `Redirect ${response.status} missing Location header`,
-          response.status,
-        );
-      }
-
-      redirectsFollowed += 1;
-      if (redirectsFollowed > maxRedirects) {
-        throw new SafeFetchError(
-          'redirect_limit_exceeded',
-          `Exceeded ${maxRedirects} redirects`,
-        );
-      }
-
-      const nextUrl = new URL(location, currentUrl);
-      validateUrl(nextUrl.toString(), allowedHosts, callerAllowedHosts);
-      // Drop credential-carrying headers on cross-host hops so an
-      // attacker who controls a redirect target on a second allowlisted
-      // host can't harvest the upstream provider's bearer token.
-      if (
-        nextUrl.host.toLowerCase() !== new URL(currentUrl).host.toLowerCase()
-      ) {
-        currentHeaders = stripCrossHostSensitiveHeaders(currentHeaders);
-      }
-      currentUrl = nextUrl.toString();
-    }
-
+    const { response, finalUrl } = await fetchFollowingRedirects(
+      rawUrl,
+      options,
+      controller.signal,
+      timeoutMs,
+    );
     const bodyText = await readBodyWithCap(response, maxResponseBytes);
 
     return {
@@ -440,7 +508,7 @@ export async function safeFetch(
       statusText: response.statusText,
       headers: response.headers,
       body: bodyText,
-      finalUrl: currentUrl,
+      finalUrl,
     };
   } finally {
     clearTimeout(timeout);
@@ -465,118 +533,24 @@ export async function safeFetchBinary(
   options: SafeFetchOptions & { defaultContentType?: string } = {},
 ): Promise<SafeFetchBinaryResponse> {
   const {
-    method = 'GET',
-    headers = {},
-    body,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
-    maxRedirects = DEFAULT_MAX_REDIRECTS,
-    allowedHosts: callerAllowedHosts,
     defaultContentType,
     signal,
   } = options;
 
-  let allowedHosts = callerAllowedHosts;
-  if (allowedHosts === undefined) {
-    try {
-      const ownHost = new URL(rawUrl).hostname.toLowerCase();
-      if (ownHost) allowedHosts = [ownHost];
-    } catch (err) {
-      // Intentional swallow: `validateUrl` below produces the canonical
-      // `invalid_url` SafeFetchError for malformed URLs. The debug log
-      // keeps a forensic trail per CLAUDE.md's no-silent-swallow rule
-      // without trying to recover here.
-      console.debug(
-        '[safe_fetch] auto-allowlist URL parse failed; deferring to validateUrl',
-        err,
-      );
-    }
-  }
-
-  validateUrl(rawUrl, allowedHosts, callerAllowedHosts);
-
-  if (signal?.aborted) {
-    throw new SafeFetchError(
-      'aborted',
-      'Request aborted by the caller before it started',
-    );
-  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const onCallerAbort = (): void => controller.abort();
   signal?.addEventListener('abort', onCallerAbort, { once: true });
 
   try {
-    let currentUrl = rawUrl;
-    let currentHeaders = headers;
-    let redirectsFollowed = 0;
-    let response: Response;
-
-    while (true) {
-      try {
-        response = await fetch(currentUrl, {
-          method,
-          headers: currentHeaders,
-          body,
-          redirect: 'manual',
-          signal: controller.signal,
-        });
-      } catch (error) {
-        if (error instanceof SafeFetchError) throw error;
-        if (
-          error instanceof Error &&
-          (error.name === 'AbortError' || error.name === 'TimeoutError')
-        ) {
-          if (signal?.aborted) {
-            throw new SafeFetchError(
-              'aborted',
-              'Request aborted by the caller before it completed',
-            );
-          }
-          throw new SafeFetchError(
-            'timeout',
-            `Request timed out after ${timeoutMs}ms`,
-          );
-        }
-        const message = error instanceof Error ? error.message : 'unknown';
-        throw new SafeFetchError('network_error', `fetch failed: ${message}`);
-      }
-
-      if (!REDIRECT_STATUSES.has(response.status)) {
-        // 304/305/306 land here too — they carry no Location header, so
-        // returning them to the caller is correct.
-        break;
-      }
-
-      const location = response.headers.get('Location');
-      if (!location) {
-        throw new SafeFetchError(
-          'redirect_missing_location',
-          `Redirect ${response.status} missing Location header`,
-          response.status,
-        );
-      }
-
-      redirectsFollowed += 1;
-      if (redirectsFollowed > maxRedirects) {
-        throw new SafeFetchError(
-          'redirect_limit_exceeded',
-          `Exceeded ${maxRedirects} redirects`,
-        );
-      }
-
-      const nextUrl = new URL(location, currentUrl);
-      validateUrl(nextUrl.toString(), allowedHosts, callerAllowedHosts);
-      // Drop credential-carrying headers on cross-host hops — see
-      // `safeFetch` above for the threat model.
-      if (
-        nextUrl.host.toLowerCase() !== new URL(currentUrl).host.toLowerCase()
-      ) {
-        currentHeaders = stripCrossHostSensitiveHeaders(currentHeaders);
-      }
-      currentUrl = nextUrl.toString();
-    }
-
+    const { response, finalUrl } = await fetchFollowingRedirects(
+      rawUrl,
+      options,
+      controller.signal,
+      timeoutMs,
+    );
     const { buffer, contentType } = await readBinaryBodyWithCap(
       response,
       maxResponseBytes,
@@ -590,7 +564,7 @@ export async function safeFetchBinary(
       statusText: response.statusText,
       headers: response.headers,
       body: blob,
-      finalUrl: currentUrl,
+      finalUrl,
     };
   } finally {
     clearTimeout(timeout);

@@ -46,16 +46,6 @@ export function formatZodError(
 }
 
 /**
- * The full, multi-line, every-issue rendering (zod/v4's own pretty-printer) —
- * for contexts that can afford more than one line (e.g. a CLI gate's console
- * output), where truncation would hide problems the operator needs to fix in
- * one pass.
- */
-export function formatZodErrorFull(error: z.ZodError): string {
-  return z.prettifyError(error);
-}
-
-/**
  * `formatZodError` prefixed with a caller-supplied label — the common shape
  * for a thrown `Error`/`AppError` message: `${label}: ${formatZodError()}`.
  */

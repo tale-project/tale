@@ -155,4 +155,3 @@ subscription:
   kind: env
   tokenVar: ANTHROPIC_AUTH_TOKEN
   baseUrlVar: ANTHROPIC_BASE_URL
-pinnedVersion: 2.1.173
