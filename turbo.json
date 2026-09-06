@@ -1,6 +1,5 @@
 {
   "$schema": "https://turbo.build/schema.v2.json",
-  "globalDependencies": [".github/actions/setup-turbo/action.yml"],
   "globalPassThroughEnv": [
     "DO_NOT_TRACK",
     "TURBO_TELEMETRY_DISABLED",
@@ -110,6 +109,7 @@
     }
   },
   "globalDependencies": [
+    ".github/actions/setup-turbo/action.yml",
     ".oxlintrc.json",
     ".oxfmtrc.json",
     "tsconfig.base.json"
