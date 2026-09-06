@@ -41723,6 +41723,258 @@ async function checkWorkflowDocumentListing(
 }
 
 /**
+ * Team scope retirement: the columns a team scopes (projects' owner/shared
+ * teams, folder + document tags, conversation queues, sync configs) have no
+ * FK to `"team"`, and every team-deletion door used to delete the team row
+ * alone — a project scoped to the gone team was locked to admins with no way
+ * out. Every door now retires the scopes: SCIM `deleteGroup` in its own
+ * transaction, Better Auth's `remove-team` (the settings UI's door) through
+ * `afterDeleteTeam`, and the daily sweep for ghosts that predate the doors.
+ */
+async function checkTeamScopeRetirement(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const now = Date.now();
+  const mkTeam = async (name: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                          "updatedAt")
+      VALUES (gen_random_uuid(), ${name}, ${orgId}, ${new Date()},
+              ${new Date()})
+      RETURNING "id"
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const teamA = await mkTeam('Scope A');
+  const teamB = await mkTeam('Scope B');
+  const teamC = await mkTeam('Scope C');
+  const member = await signUpOrgMember(sql, base, orgId, 'teamscope', 'member');
+  let projectSeq = 0;
+  const mkProject = async (
+    name: string,
+    teamId: string | null,
+    shared: string[],
+  ): Promise<string> => {
+    projectSeq += 1;
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (
+        org_id, name, key, team_id, shared_with_team_ids,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${name}, ${`TS${now.toString(36).slice(-4)}${projectSeq}`},
+        ${teamId}, ${shared}, ${ctx.userId}, ${now}, ${now}
+      )
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const ownedByA = await mkProject('Owned by A, shared B', teamA, [teamB]);
+  const sharedWithA = await mkProject('Owned by B, shared A', teamB, [teamA]);
+  const folderRows = await sql<{ id: string }[]>`
+    INSERT INTO app.folders (org_id, name, team_id, team_tags, created_by,
+                             created_at_ms)
+    VALUES (${orgId}, 'Scoped folder', ${teamA}, ${[teamA, teamB]},
+            ${ctx.userId}, ${now})
+    RETURNING id
+  `;
+  const folderId = folderRows[0]?.id ?? '';
+  const docRows = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (org_id, title, content, team_id, team_tags,
+                               folder_id, created_by, created_at_ms,
+                               updated_at_ms)
+    VALUES (${orgId}, 'Scoped note', 'body', ${teamA}, ${[teamA, teamB]},
+            ${folderId}, ${ctx.userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const documentId = docRows[0]?.id ?? '';
+  const convRows = await sql<{ id: string }[]>`
+    INSERT INTO app.conversations (org_id, assignee_team_id, status,
+                                   created_at_ms)
+    VALUES (${orgId}, ${teamA}, 'open', ${now})
+    RETURNING id
+  `;
+  const conversationId = convRows[0]?.id ?? '';
+  const syncRows = await sql<{ id: string }[]>`
+    INSERT INTO app.onedrive_sync_configs (
+      org_id, user_id, item_type, item_id, item_name, target_bucket, team_id,
+      status, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${ctx.userId}, 'folder', ${`item-${now}`}, 'Synced',
+      'documents', ${teamA}, 'active', ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const syncId = syncRows[0]?.id ?? '';
+
+  const { getProject, getProjectAuthContext } =
+    await import('./domains/projects/service.ts');
+  const memberAuth = await getProjectAuthContext(sql, {
+    organizationId: orgId,
+    userId: member.userId,
+    role: 'member',
+  });
+  const memberCanRead = async (projectId: string): Promise<boolean> => {
+    try {
+      await getProject(sql, memberAuth, projectId);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const lockedBefore = !(await memberCanRead(ownedByA));
+
+  // Door 1 — SCIM deleteGroup retires the scopes in its own transaction.
+  const { deleteGroup } = await import('./domains/scim/service.ts');
+  const scimDeleted = await deleteGroup(sql, orgId, teamA);
+  const scope = async (): Promise<{
+    ownedTeam: string | null;
+    ownedShared: string[];
+    sharedTeam: string | null;
+    sharedShared: string[];
+    folderTeam: string | null;
+    folderTags: string[];
+    docTeam: string | null;
+    docTags: string[];
+    convTeam: string | null;
+    syncTeam: string | null;
+  }> => {
+    const rows = await sql<
+      {
+        ownedTeam: string | null;
+        ownedShared: string[];
+        sharedTeam: string | null;
+        sharedShared: string[];
+        folderTeam: string | null;
+        folderTags: string[];
+        docTeam: string | null;
+        docTags: string[];
+        convTeam: string | null;
+        syncTeam: string | null;
+      }[]
+    >`
+      SELECT
+        (SELECT team_id FROM app.projects WHERE id = ${ownedByA}) AS "ownedTeam",
+        (SELECT shared_with_team_ids FROM app.projects WHERE id = ${ownedByA})
+          AS "ownedShared",
+        (SELECT team_id FROM app.projects WHERE id = ${sharedWithA})
+          AS "sharedTeam",
+        (SELECT shared_with_team_ids FROM app.projects WHERE id = ${sharedWithA})
+          AS "sharedShared",
+        (SELECT team_id FROM app.folders WHERE id = ${folderId}) AS "folderTeam",
+        (SELECT team_tags FROM app.folders WHERE id = ${folderId}) AS "folderTags",
+        (SELECT team_id FROM app.documents WHERE id = ${documentId}) AS "docTeam",
+        (SELECT team_tags FROM app.documents WHERE id = ${documentId})
+          AS "docTags",
+        (SELECT assignee_team_id FROM app.conversations
+          WHERE id = ${conversationId}) AS "convTeam",
+        (SELECT team_id FROM app.onedrive_sync_configs WHERE id = ${syncId})
+          AS "syncTeam"
+    `;
+    return (
+      rows[0] ?? {
+        ownedTeam: 'missing',
+        ownedShared: [],
+        sharedTeam: 'missing',
+        sharedShared: [],
+        folderTeam: 'missing',
+        folderTags: [],
+        docTeam: 'missing',
+        docTags: [],
+        convTeam: 'missing',
+        syncTeam: 'missing',
+      }
+    );
+  };
+  const afterScim = await scope();
+  const scimAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'scim_delete_group'
+      AND resource_id = ${teamA}
+  `;
+  record(
+    'teams: SCIM group delete re-homes every scope the team carried',
+    lockedBefore &&
+      scimDeleted &&
+      afterScim.ownedTeam === teamB &&
+      afterScim.ownedShared.length === 0 &&
+      afterScim.sharedTeam === teamB &&
+      afterScim.sharedShared.length === 0 &&
+      afterScim.folderTeam === teamB &&
+      afterScim.folderTags.join(',') === teamB &&
+      afterScim.docTeam === teamB &&
+      afterScim.docTags.join(',') === teamB &&
+      afterScim.convTeam === null &&
+      afterScim.syncTeam === null &&
+      scimAudit[0]?.count === '1',
+    `member locked out before=${lockedBefore} (want true), deleted=${scimDeleted}, ` +
+      `owned project team=${afterScim.ownedTeam === teamB ? 'B' : String(afterScim.ownedTeam)}/shared=${afterScim.ownedShared.length} (want B/0), ` +
+      `shared project team=${afterScim.sharedTeam === teamB ? 'B' : String(afterScim.sharedTeam)}/shared=${afterScim.sharedShared.length} (want B/0), ` +
+      `folder=${afterScim.folderTeam === teamB ? 'B' : String(afterScim.folderTeam)}[${afterScim.folderTags.length}] doc=${afterScim.docTeam === teamB ? 'B' : String(afterScim.docTeam)}[${afterScim.docTags.length}] (want B[1]), ` +
+      `conversation=${String(afterScim.convTeam)} sync=${String(afterScim.syncTeam)} (want null), audit=${scimAudit[0]?.count}`,
+  );
+
+  // Door 2 — the Better Auth endpoint the settings UI calls; its
+  // afterDeleteTeam hook retires the scopes, so the project the member
+  // could not see becomes organization-wide and readable.
+  const removeTeam = await fetch(`${base}/api/auth/organization/remove-team`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, origin: base },
+    body: JSON.stringify({ teamId: teamB, organizationId: orgId }),
+  });
+  const afterAuth = await scope();
+  const readableAfter = await memberCanRead(ownedByA);
+  record(
+    'teams: the settings door (Better Auth remove-team) frees the scoped project',
+    removeTeam.status === 200 &&
+      afterAuth.ownedTeam === null &&
+      afterAuth.ownedShared.length === 0 &&
+      afterAuth.folderTeam === null &&
+      afterAuth.folderTags.length === 0 &&
+      afterAuth.docTeam === null &&
+      afterAuth.docTags.length === 0 &&
+      readableAfter,
+    `remove-team → ${removeTeam.status} (want 200), project team=${String(afterAuth.ownedTeam)}/shared=${afterAuth.ownedShared.length} (want null/0), folder tags=${afterAuth.folderTags.length} doc tags=${afterAuth.docTags.length} (want 0), member reads project=${readableAfter} (want true)`,
+  );
+
+  // The sweep — a ghost from before the doors retired scopes (or a door
+  // that failed after its delete): retired the same way, once.
+  const ghostId = `ghost-${now}`;
+  const preExisting = await mkProject('Ghost owned, shared C', ghostId, [
+    teamC,
+  ]);
+  const { repairTeamScopes } = await import('./domains/teams/service.ts');
+  const firstSweep = await repairTeamScopes(sql);
+  const ghostRow = await sql<
+    { teamId: string | null; shared: string[]; updatedAt: number }[]
+  >`
+    SELECT team_id AS "teamId", shared_with_team_ids AS shared,
+           updated_at_ms::float8 AS "updatedAt"
+    FROM app.projects WHERE id = ${preExisting}
+  `;
+  const secondSweep = await repairTeamScopes(sql);
+  const ghostRowAfter = await sql<{ updatedAt: number }[]>`
+    SELECT updated_at_ms::float8 AS "updatedAt"
+    FROM app.projects WHERE id = ${preExisting}
+  `;
+  const sweptOurs = firstSweep.ghosts.some(
+    (g) => g.orgId === orgId && g.teamId === ghostId,
+  );
+  const sweptAgain = secondSweep.ghosts.some((g) => g.orgId === orgId);
+  record(
+    'teams: the daily sweep retires a pre-existing ghost team once',
+    sweptOurs &&
+      ghostRow[0]?.teamId === teamC &&
+      ghostRow[0]?.shared.length === 0 &&
+      !sweptAgain &&
+      ghostRowAfter[0]?.updatedAt === ghostRow[0]?.updatedAt,
+    `first sweep found ours=${sweptOurs} (ghosts=${firstSweep.ghosts.length}), project team=${ghostRow[0]?.teamId === teamC ? 'C' : String(ghostRow[0]?.teamId)}/shared=${ghostRow[0]?.shared.length} (want C/0), second sweep touches this org=${sweptAgain} (want false)`,
+  );
+}
+
+/**
  * Organization lifecycle — deletion is ONE server transaction behind the
  * legal-hold gate: a hold (org-wide or on any member), a non-owner, Better
  * Auth's own delete door and an aborted transaction all leave the
@@ -43069,6 +43321,10 @@ async function main(): Promise<void> {
       ],
       ['checkDevSeed', () => checkDevSeed(sql, auth)],
       ['checkWebTierOracles', () => checkWebTierOracles(sql, baseUrl, authCtx)],
+      [
+        'checkTeamScopeRetirement',
+        () => checkTeamScopeRetirement(sql, baseUrl, authCtx),
+      ],
       [
         'checkOrganizationLifecycle',
         () => checkOrganizationLifecycle(sql, baseUrl, orgSuffix),

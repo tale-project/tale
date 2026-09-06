@@ -150,6 +150,36 @@ describe('updateProjectIdentitySchema', () => {
       color: null,
     });
   });
+
+  it('accepts a null description (clear the field) — the service contract', () => {
+    expect(updateProjectIdentitySchema.parse({ description: null })).toEqual({
+      description: null,
+    });
+  });
+});
+
+describe('deleteProjectInputSchema', () => {
+  it('requires the confirm phrase for a cascade', () => {
+    expect(() => deleteProjectInputSchema.parse({ mode: 'cascade' })).toThrow();
+    expect(deleteProjectInputSchema.parse({ mode: 'detach' })).toEqual({
+      mode: 'detach',
+    });
+  });
+
+  it('bounds the phrase at the name cap after trimming (a longer one can never match a name)', () => {
+    expect(
+      deleteProjectInputSchema.parse({
+        mode: 'cascade',
+        confirmPhrase: `  ${'x'.repeat(PROJECT_NAME_MAX)}  `,
+      }).confirmPhrase,
+    ).toBe('x'.repeat(PROJECT_NAME_MAX));
+    expect(() =>
+      deleteProjectInputSchema.parse({
+        mode: 'cascade',
+        confirmPhrase: 'x'.repeat(PROJECT_NAME_MAX + 1),
+      }),
+    ).toThrow();
+  });
 });
 
 describe('updateProjectInstructionsSchema', () => {

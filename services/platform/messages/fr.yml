@@ -4439,9 +4439,6 @@ notificationPreferences:
       label: Escalades d'agent
       description: Quand un agent te pose une question ou escalade une tâche
         vers un humain.
-    automationAlerts:
-      label: Alertes d'automatisation
-      description: Échecs, avertissements de budget et runtimes hors ligne.
     conversationMessages:
       label: Messages de conversation
       description: Quand un message d'un contact arrive dans Conversations.

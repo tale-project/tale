@@ -97,6 +97,11 @@ export const SCHEDULES: CronSchedule[] = [
   // Rollup drift repair: the board's counters are incremental, so something
   // has to reconcile them with the rows they summarize.
   { name: 'projects.repair_rollups', cron: '40 5 * * *' },
+  // Ghost-team repair: scope columns have no FK to "team", so a team that
+  // went before its scopes were retired (or a door that failed half-way)
+  // leaves rows nobody can see — the sweep retires them the same way the
+  // doors do.
+  { name: 'teams.repair_scopes', cron: '50 5 * * *' },
 ];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {

@@ -7,6 +7,7 @@ import {
   findOrganizationMember,
 } from '../../auth/membership.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
+import { PROJECT_AUDIT_ACTIONS } from '../../core/projects/audit_actions.ts';
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { assertNotHeld, loadActiveHolds } from '../legal_holds/service.ts';
@@ -181,7 +182,7 @@ export async function projectChatAccess(
     args.userId,
   );
   if (member === null || member.role === 'disabled') return 'forbidden';
-  const teamIds = await getUserTeamIds(sql, args.userId);
+  const teamIds = await getUserTeamIds(sql, args.organizationId, args.userId);
   const access = checkProjectAccess(
     { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
     teamIds,
@@ -458,27 +459,50 @@ export async function moveThreadToProject(
         shared_with_project = ${moved ? false : thread.sharedWithProject}
       WHERE thread_id = ${thread.id}
     `;
-    if (!endsShare) return;
-    const projects = await tx<{ name: string }[]>`
-      SELECT name FROM app.projects WHERE id = ${previousProjectId} LIMIT 1
-    `;
-    await createAuditLog(tx, {
+    if (!moved) return;
+    const projectName = async (id: string): Promise<string | undefined> => {
+      const rows = await tx<{ name: string }[]>`
+        SELECT name FROM app.projects WHERE id = ${id} LIMIT 1
+      `;
+      return rows[0]?.name;
+    };
+    const actor = {
       organizationId: auth.organizationId,
       actorId: auth.userId,
       ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-      actorType: 'user',
-      action: 'project.thread.unshared',
-      category: 'data',
+      actorType: 'user' as const,
+      category: 'data' as const,
       resourceType: 'project',
-      resourceId: previousProjectId,
-      ...(projects[0] ? { resourceName: projects[0].name } : {}),
-      status: 'success',
-      previousState: { threadId: thread.id, shared: true },
-      newState: {
-        threadId: thread.id,
-        shared: false,
-        movedToProjectId: projectId,
-      },
+      status: 'success' as const,
+    };
+    if (endsShare) {
+      const name = await projectName(previousProjectId);
+      await createAuditLog(tx, {
+        ...actor,
+        action: PROJECT_AUDIT_ACTIONS.threadUnshared,
+        resourceId: previousProjectId,
+        ...(name !== undefined ? { resourceName: name } : {}),
+        previousState: { threadId: thread.id, shared: true },
+        newState: {
+          threadId: thread.id,
+          shared: false,
+          movedToProjectId: projectId,
+        },
+      });
+    }
+    // Every refiling is governance-relevant, shared or not: the row hangs
+    // off the project the chat lands in (or the one it leaves, when it is
+    // taken out of projects altogether).
+    const anchorProjectId = projectId ?? previousProjectId;
+    if (anchorProjectId === null) return;
+    const anchorName = await projectName(anchorProjectId);
+    await createAuditLog(tx, {
+      ...actor,
+      action: PROJECT_AUDIT_ACTIONS.threadMoved,
+      resourceId: anchorProjectId,
+      ...(anchorName !== undefined ? { resourceName: anchorName } : {}),
+      previousState: { threadId: thread.id, projectId: previousProjectId },
+      newState: { threadId: thread.id, projectId },
     });
   });
   return true;
@@ -636,7 +660,9 @@ export async function setThreadSharedWithProject(
         actorId: auth.userId,
         ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
         actorType: 'user',
-        action: shared ? 'project.thread.shared' : 'project.thread.unshared',
+        action: shared
+          ? PROJECT_AUDIT_ACTIONS.threadShared
+          : PROJECT_AUDIT_ACTIONS.threadUnshared,
         category: 'data',
         resourceType: 'project',
         resourceId: thread.projectId ?? '',

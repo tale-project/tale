@@ -30,6 +30,7 @@ import {
   assertOrgSlugNotRetiring,
   OrganizationError,
 } from '../domains/organizations/service.ts';
+import { retireDeletedTeamScopes } from '../domains/teams/service.ts';
 import {
   anchorTwoFactorGraceOnSignIn,
   getTwoFactorLockState,
@@ -739,6 +740,26 @@ export function createAuth(config: AuthConfig) {
             } catch (error) {
               console.error(
                 '[afterCreateOrganization] failed to write joined_organization audit',
+                error instanceof Error ? error.message : error,
+              );
+            }
+          },
+          // The plugin deletes the team row and its memberships alone; the
+          // rows the team SCOPED (projects, folders, documents, conversation
+          // queues, sync configs) have no FK to it and would stay pointed at
+          // a ghost nobody can satisfy. Runs after the plugin's own commit,
+          // so a failure here logs and the daily `teams.repair_scopes`
+          // sweep finishes the job — the team is already gone either way.
+          afterDeleteTeam: async (data) => {
+            try {
+              await retireDeletedTeamScopes(
+                sql,
+                data.organization.id,
+                data.team.id,
+              );
+            } catch (error) {
+              console.error(
+                '[afterDeleteTeam] failed to retire the team scopes',
                 error instanceof Error ? error.message : error,
               );
             }

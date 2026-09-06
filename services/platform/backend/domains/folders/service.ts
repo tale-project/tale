@@ -3,7 +3,6 @@ import type { Sql, TransactionSql } from 'postgres';
 import { hasTeamAccess } from '../../core/lib/team_access.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
-import { assertNotHeld } from '../legal_holds/service.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
@@ -20,10 +19,10 @@ import {
  * access = the project matrix) OR a hub folder (team rules; teamless =
  * org-wide). Children inherit the parent's scope; depth is capped.
  *
- * Ledger: legal-hold / controlled-record delete guards and sync-config
- * deactivation land with governance/documents-lifecycle; until the document
- * trash lane lands, deleting a folder REFUSES when any document lives in its
- * subtree (conservative — never destroys content).
+ * Deletion lives with the documents domain: `DELETE /folders/:folderId`
+ * runs `documents/service.ts` `deleteFolderCascade` (subtree trash with the
+ * legal-hold and controlled-record guards), so this module owns creation,
+ * naming, moves, listing and team scoping only.
  */
 
 // Depth cap + name validation live in paths.ts (shared with the sync
@@ -285,45 +284,6 @@ export async function renameFolder(
     entity: 'folder',
     entityId: folderId,
   });
-}
-
-/**
- * Delete a folder subtree. Conservative Tier-A rule: refuses while ANY
- * document lives in the subtree (`FOLDER_NOT_EMPTY`) — the trash-cascade
- * arrives with the documents lifecycle port. Child folders die by FK.
- * The org-level legal-hold gate refuses the delete up front; per-document
- * descendant guards (hold + controlled record) are moot while the delete
- * refuses on any descendant document at all.
- * TODO(onedrive/google_drive): sync-config deactivation for the path.
- */
-export async function deleteFolder(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  folderId: string,
-): Promise<void> {
-  const folder = await loadFolderOrThrow(tx, folderId);
-  await assertFolderMutable(tx, auth, folder);
-  // Org-level hold gate, up front. The per-document descendant walk the 0.4
-  // cascade needed is moot here: the delete refuses on ANY descendant
-  // document below, so an empty folder can hold nothing held.
-  await assertNotHeld(tx, auth.organizationId, 'folder', folderId);
-  const docs = await tx<{ id: string }[]>`
-    WITH RECURSIVE subtree AS (
-      SELECT id FROM app.folders WHERE id = ${folderId}
-      UNION ALL
-      SELECT f.id FROM app.folders f JOIN subtree s ON f.parent_id = s.id
-    )
-    SELECT d.id FROM app.documents d
-    WHERE d.folder_id IN (SELECT id FROM subtree)
-    LIMIT 1
-  `;
-  if (docs.length > 0) {
-    throw new FolderError(
-      'FOLDER_NOT_EMPTY',
-      'Folder still contains documents',
-    );
-  }
-  await tx`DELETE FROM app.folders WHERE id = ${folderId}`;
 }
 
 /** Hub folders visible to the caller, or one project's folders. */
