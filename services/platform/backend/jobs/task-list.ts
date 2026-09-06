@@ -223,6 +223,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       `;
       console.log(`[maintenance] rate_limit_gc removed ${deleted.count} rows`);
     },
+    'realtime.reclaim_outbox': async () => {
+      const { OUTBOX_RECLAIM_CRON_MAX_BATCHES, reclaimOutbox } =
+        await import('../realtime/outbox.ts');
+      const deleted = await reclaimOutbox(deps.sql, {
+        maxBatches: OUTBOX_RECLAIM_CRON_MAX_BATCHES,
+      });
+      if (deleted > 0) {
+        console.log(`[realtime] reclaim_outbox removed ${deleted} rows`);
+      }
+    },
     'maintenance.login_attempts_ttl': async () => {
       // ONE window for every table this job touches — the 0.4
       // `cleanupLoginAttemptsGlobal` contract. `login_attempts` and

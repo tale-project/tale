@@ -97,6 +97,25 @@ describe('pull-time collectors', () => {
     expect(metrics).toContain('tale_backend_drain_active 1');
   });
 
+  test('a job state that empties between scrapes drops out of the series', async () => {
+    let jobRows: unknown[] = [
+      { state: 'created', count: '12' },
+      { state: 'failed', count: '2' },
+    ];
+    registerBackendCollectors(
+      fakeSql((text) => (text.includes('pgboss.job') ? jobRows : [])),
+    );
+    expect(await client.register.metrics()).toContain(
+      'tale_backend_jobs{state="failed"} 2',
+    );
+    // The failed jobs were retried away: no GROUP BY row for that state.
+    jobRows = [{ state: 'created', count: '3' }];
+    const second = await client.register.metrics();
+    expect(second).toContain('tale_backend_jobs{state="created"} 3');
+    // A stale child would still read 2 here and keep a backlog alert firing.
+    expect(second).not.toContain('state="failed"');
+  });
+
   test('a failing query leaves its gauge unset instead of failing the scrape', async () => {
     const gauges = registerBackendCollectors(
       fakeSql(() => {

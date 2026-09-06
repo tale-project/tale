@@ -55,6 +55,8 @@ export interface GoogleDriveContract {
         lastModified?: number;
         webUrl?: string;
       }>;
+      /** The bound cut the listing — the folder holds more than `items`. */
+      truncated?: boolean;
       error?: string;
     };
   };

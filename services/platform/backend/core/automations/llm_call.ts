@@ -21,12 +21,11 @@
  * one wire for the builder, thread titles, and llm nodes.
  */
 
-import { Ajv } from 'ajv';
-
 import type {
   BuilderMessage,
   BuilderModel,
 } from '../../../lib/automations_builder/session';
+import { compileSchema } from '../../../lib/engine/core/validate/schema';
 import {
   createBuilderModel,
   type BuilderModelTarget,
@@ -57,8 +56,6 @@ const LLM_NODE_TEMPERATURE = 0.2;
 /** Ceiling for one reply. Nodes summarize and score; a document-sized budget
  * (the builder's own) covers every shipped pack with room. */
 const LLM_NODE_MAX_TOKENS = 8000;
-
-const ajv = new Ajv({ allErrors: true, strict: false });
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -138,13 +135,18 @@ export function extractJsonValue(reply: string): unknown {
 }
 
 /** Null when the value satisfies the schema, else a compact account of the
- * first violations. The schema is cloned before compiling: Ajv treats the
- * object as its own, and the node's document must stay untouched. */
+ * first violations. Compiled through the engine's ONE Ajv helper, which
+ * clones the schema (the node's document stays untouched) and clears the
+ * instance cache after every compile — a private instance here once kept
+ * every compiled validator for the life of the worker and, for a schema
+ * carrying `$id`, threw "schema with key or id already exists" on the second
+ * reply it checked (every later forEach item, repeat pass and run on that
+ * worker failed the node). */
 export function schemaViolations(
   schema: Record<string, unknown>,
   value: unknown,
 ): string | null {
-  const check = ajv.compile(structuredClone(schema));
+  const check = compileSchema(schema);
   if (check(value)) return null;
   const details = (check.errors ?? [])
     .slice(0, 3)

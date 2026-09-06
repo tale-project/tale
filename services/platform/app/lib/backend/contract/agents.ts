@@ -30,11 +30,6 @@ export interface AgentsContract {
       canEdit: boolean;
     };
   };
-  'agents/actions:listAgentHistory': {
-    kind: 'action';
-    args: { organizationId: string; slug: string };
-    returns: Array<{ entry: string; savedAt: number }>;
-  };
   'agents/actions:listAgents': {
     kind: 'action';
     args: { organizationId: string };

@@ -2,12 +2,14 @@
 
 /**
  * Unit lock for `setTrigger`'s write shape (trigger-delivery class): ONE
- * statement — an INSERT … ON CONFLICT (org_id, name) DO UPDATE — never a
- * SELECT-then-INSERT that two racing binds could both pass; and the webhook
- * plaintext is handed out only when the hash minted here is the one that
- * landed (RETURNING), so a re-bind that keeps its token answers `{}`. The
- * real-Postgres probe proves the convergence of concurrent binds and the
- * disable-stops-firing contract on the actual schema.
+ * trigger statement — an INSERT … ON CONFLICT (org_id, name) DO UPDATE —
+ * never a SELECT-then-INSERT that two racing binds could both pass; and the
+ * webhook plaintext is handed out only when the hash minted here is the one
+ * that landed (RETURNING), so a re-bind that keeps its token answers `{}`.
+ * The bind rides one transaction with the `automation` hint that refreshes
+ * other viewers' screens. The real-Postgres probe proves the convergence of
+ * concurrent binds and the disable-stops-firing contract on the actual
+ * schema.
  */
 
 import type { Sql } from 'postgres';
@@ -31,11 +33,19 @@ const TOKEN_HASH_PARAM = 6;
  */
 function fakeUpsert(landing: 'fresh' | 'kept'): {
   sql: Sql;
+  /** The trigger-table statements — the write shape under test. */
   statements: Statement[];
+  /** The realtime hints emitted alongside. */
+  hints: Statement[];
 } {
   const statements: Statement[] = [];
+  const hints: Statement[] = [];
   const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
+    if (text.includes('INSERT INTO app_realtime.outbox')) {
+      hints.push({ text, values });
+      return Promise.resolve([]);
+    }
     statements.push({ text, values });
     if (!text.includes('INSERT INTO app.automation_triggers')) {
       throw new Error(`unexpected statement: ${text}`);
@@ -47,10 +57,9 @@ function fakeUpsert(landing: 'fresh' | 'kept'): {
       },
     ]);
   };
-  fn.begin = (): never => {
-    throw new Error('setTrigger must be a single statement, not a transaction');
-  };
-  return { sql: fn as unknown as Sql, statements };
+  fn.begin = (callback: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
+    callback(fn);
+  return { sql: fn as unknown as Sql, statements, hints };
 }
 
 const args = (trigger: Parameters<typeof setTrigger>[1]['trigger']) => ({
@@ -74,6 +83,14 @@ describe('setTrigger', () => {
     expect(statement?.text).not.toContain('SELECT');
     // A schedule carries no token: the hash parameter is null.
     expect(statement?.values[TOKEN_HASH_PARAM]).toBeNull();
+    // The bind refreshes other viewers' automation reads.
+    expect(fake.hints).toHaveLength(1);
+    expect(fake.hints[0]?.values).toEqual([
+      'org_1',
+      null,
+      'automation',
+      'ops/greet',
+    ]);
   });
 
   it('hands the plaintext out exactly when the minted hash landed', async () => {
@@ -110,5 +127,6 @@ describe('setTrigger', () => {
       setTrigger(fake.sql, args({ kind: 'schedule', cron: 'not a cron' })),
     ).rejects.toBeInstanceOf(AutomationError);
     expect(fake.statements).toHaveLength(0);
+    expect(fake.hints).toHaveLength(0);
   });
 });

@@ -46,6 +46,7 @@ Jedes Secret in `.env` ist sensibel — das Auth-Signing-Secret, der Verschlüss
 - `BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`, `INSTANCE_SECRET` sind von den Beispielwerten weg rotiert, die `.env.example` mitbringt.
 - `DB_PASSWORD` ist vom Default-Platzhalter geändert.
 - `SOPS_AGE_KEY` oder `SOPS_AGE_KEY_FILE` ist gesetzt — beide unset zu lassen ist unterstützt, aber Hosts mit verschlüsselter Platte und externem Secret-Management vorbehalten.
+- `TALE_AUDIT_PEPPER` ist gesetzt — ohne ihn hinterlässt jeder fehlgeschlagene Login E-Mail und IP im Klartext im Audit-Log, und zwar für das gesamte Aufbewahrungsfenster. `tale init` erzeugt ihn; in einer handgeschriebenen `.env` trägst du ihn nach.
 
 Der vollständige SOPS-Walk und die Rotations-Prozedur leben in [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops).
 

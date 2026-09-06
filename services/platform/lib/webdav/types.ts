@@ -136,13 +136,6 @@ export interface WebDAVBackend {
 // Shared ctx threaded into every dispatch — built once at server start.
 export interface WebDAVCtx {
   backend: WebDAVBackend;
-  // Public base URL used to materialize blob fetch URLs for GET (we
-  // proxy legacy `_storage` blobs through the backend).
-  storageBaseUrl: string;
-  // Backend API origin. Legacy `_storage` upload/get URLs carry a
-  // self-reported origin that may be unreachable from this process;
-  // PUT/GET re-home those URLs onto this origin via `rewriteStorageOrigin`.
-  backendApiUrl: string;
 }
 
 export interface ParsedPath {

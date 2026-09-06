@@ -3,6 +3,10 @@
  */
 
 import { resolveFileType } from '../../../lib/shared/file-types';
+import {
+  isSourceUnchanged,
+  sourceFingerprint,
+} from '../cloud_import/source_fingerprint';
 import type { Id } from '../lib/rows';
 import type { BlobRef } from '../lib/storage/blob_ref';
 import { deriveSyncTargets, type SyncTarget } from './derive_sync_targets';
@@ -43,6 +47,9 @@ interface FileMetadata {
   hash?: string;
   mimeType?: string;
   size?: number;
+  /** Vendor last-modified, ms — with `size`, the change key when the
+   *  vendor sent no hash. */
+  modifiedAt?: number;
 }
 
 export interface ImportFilesDependencies {
@@ -267,10 +274,17 @@ export async function importFiles(
         ? existingDoc.metadata
         : {};
 
+      // Unchanged by hash, or — when the vendor sent none — by the stamped
+      // size + modified fingerprint; a file with neither re-downloads.
+      const fingerprint = sourceFingerprint(metadataResult.data);
       if (
         existingDoc &&
-        contentHash &&
-        existingDoc.contentHash === contentHash
+        isSourceUnchanged({
+          hash: contentHash,
+          storedHash: existingDoc.contentHash,
+          fingerprint,
+          storedFingerprint: existingMeta.sourceFingerprint,
+        })
       ) {
         // Unchanged — but a sync import still adopts a document an earlier
         // one-time import left unbound; otherwise the config would neither
@@ -332,6 +346,7 @@ export async function importFiles(
         sourceMode: args.importType === 'sync' ? 'auto' : 'manual',
         storagePath,
         size: fileSize,
+        ...(fingerprint !== undefined && { sourceFingerprint: fingerprint }),
         ...(syncConfigId && { syncConfigId }),
         ...selectionOf(item),
         ...(item.siteId && { siteId: item.siteId }),

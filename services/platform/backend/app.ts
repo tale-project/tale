@@ -57,7 +57,6 @@ import { createSkillRoutes } from './domains/skills/routes.ts';
 import { createSsoAdminRoutes } from './domains/sso/admin-routes.ts';
 import { createSsoRoutes } from './domains/sso/routes.ts';
 import { createTrustedHeadersRoutes } from './domains/sso/trusted-headers.ts';
-import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createTeamRoutes } from './domains/teams/routes.ts';
 import { createTtsRoutes } from './domains/tts/routes.ts';
@@ -233,7 +232,6 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   );
   app.route('/api/app/sandbox', createSandboxRoutes(deps));
   app.route('/api/app/skills', createSkillRoutes(deps));
-  app.route('/api/app/support-cases', createSupportCaseRoutes(deps));
   app.route('/api/app/tasks', createTaskRoutes(deps));
   app.route('/api/app/teams', createTeamRoutes(deps));
   app.route('/api/app/two-factor', createTwoFactorRoutes(deps));

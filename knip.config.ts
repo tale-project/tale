@@ -120,12 +120,10 @@ export default {
         'lib/connectors/natives/**',
         // Shared contract layer: types declared for the parked consumers
         // above (schemas, provider catalog shapes). Same debt, same exit.
-        'lib/shared/constants/agents.ts',
         'lib/shared/schemas/skills.ts',
         'lib/shared/file-types.ts',
         'lib/shared/providers/attribution.ts',
         'lib/shared/schemas/agents.ts',
-        'lib/shared/schemas/approvals.ts',
         'lib/shared/schemas/enterprise_sso.ts',
         'lib/shared/schemas/governance.ts',
         'lib/shared/schemas/connectors.ts',

@@ -94,6 +94,39 @@ describe('GET conditional + Range wiring (F63)', () => {
     expect(res.status).toBe(200);
   });
 
+  it('a gone blob (getWebdavBlobUrl → null) → 404 with no upstream fetch', async () => {
+    const fetchMock = vi.fn(async () => new Response('never', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const ctx = makeStubCtx({
+      queries: {
+        'webdav/tree_queries:resolvePath': () => ({
+          exists: true,
+          kind: 'document' as const,
+          documentId: 'doc1',
+        }),
+        'webdav/tree_queries:getDocumentProps': () => ({
+          fileId: 'storage_1',
+          size: SIZE,
+          contentHash: ETAG_HASH,
+          contentType: 'text/plain',
+          title: 'file.txt',
+          sourceModifiedAt: MTIME,
+        }),
+        'webdav/tree_queries:getWebdavBlobUrl': () => null,
+      },
+    });
+    const res = await dispatch(
+      makeRequest({
+        method: 'GET',
+        pathname: '/dav/myorg/documents/file.txt',
+        authenticated: true,
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('HEAD → 200 with no body', async () => {
     const res = await dispatch(
       makeRequest({

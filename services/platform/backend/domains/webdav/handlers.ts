@@ -9,6 +9,7 @@ import {
 } from '../../core/documents/access.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { canonicalResourcePath } from '../../core/webdav/helpers.ts';
+import { isUniqueViolation } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   buildObjectKey,
@@ -502,6 +503,23 @@ function lockKeyForSegments(segments: string[]): string {
   return '/documents/' + segments.map((s) => encodeURIComponent(s)).join('/');
 }
 
+/** Escaped `LIKE` pattern matching every lock path strictly below
+ * `resourcePath`. A `>= path || '/' AND < path || '/' || U+FFFF` range is
+ * NOT a prefix test on `text`: under the shipped `en_US.utf8` (libc)
+ * collation punctuation is weighed after letters and U+FFFF has no usable
+ * weight — on the shipped image a true descendant falls OUTSIDE that range,
+ * so no member lock ever guarded its collection. Every subtree scan goes
+ * through this pattern instead. */
+function descendantPathPattern(resourcePath: string): string {
+  const prefix = resourcePath.endsWith('/') ? resourcePath : resourcePath + '/';
+  return (
+    prefix
+      .replaceAll('\\', '\\\\')
+      .replaceAll('%', '\\%')
+      .replaceAll('_', '\\_') + '%'
+  );
+}
+
 async function purgeLocksAtAndBelow(
   tx: TransactionSql,
   organizationId: string,
@@ -513,11 +531,10 @@ async function purgeLocksAtAndBelow(
     WHERE org_id = ${organizationId} AND resource_path = ${resourcePath}
   `;
   if (!alsoDescendants) return;
-  const prefix = resourcePath.endsWith('/') ? resourcePath : resourcePath + '/';
   await tx`
     DELETE FROM app.webdav_locks
     WHERE org_id = ${organizationId}
-      AND resource_path LIKE ${prefix.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_') + '%'}
+      AND resource_path LIKE ${descendantPathPattern(resourcePath)}
   `;
 }
 
@@ -681,8 +698,6 @@ async function fixupMovedFolderDescendants(
 }
 
 // -------------------------------------------------------------- handlers
-
-export type WebdavHandler = (args: never) => Promise<unknown>;
 
 export function webdavHandlers(
   sql: Sql,
@@ -939,13 +954,6 @@ export function webdavHandlers(
         contentType: args.contentType,
       });
       return { url, method: 'PUT', s3Ref: `s3:${key}` };
-    },
-    'webdav/tree_mutations:generateWebdavUploadUrl': async () => {
-      // The 0.4 fallback targeted Convex `_storage`'s chunked POST ingest;
-      // 0.5 is S3-only and a presigned PUT needs a Content-Length. A
-      // chunked PUT (no declared length) is refused loudly — the handler
-      // maps this to 502 with its own log line.
-      throw new AppError({ code: 'CHUNKED_PUT_UNSUPPORTED' });
     },
     'webdav/tree_mutations:deleteWebdavBlob': async (raw) => {
       const args = asArgs<{ storageId: string; organizationId?: string }>(raw);
@@ -1384,8 +1392,7 @@ export function webdavHandlers(
                expires_at_ms::float8 AS "expiresAt"
         FROM app.webdav_locks
         WHERE org_id = ${args.organizationId}
-          AND resource_path >= ${path + '/'}
-          AND resource_path < ${path + '/￿'}
+          AND resource_path LIKE ${descendantPathPattern(path)}
       `;
       const now = Date.now();
       return rows
@@ -1431,6 +1438,17 @@ export function webdavHandlers(
       }>(raw);
       const path = canonicalResourcePath(args.resourcePath);
       return sql.begin(async (tx) => {
+        // One LOCK at a time per org: the exact-path, ancestor and
+        // descendant scans below are check-then-act (a FOR UPDATE over an
+        // empty result locks nothing), so two concurrent LOCKs on an
+        // unlocked path both used to pass and hand out two "exclusive"
+        // tokens. The unique (org_id, resource_path) index backstops the
+        // exact-path case.
+        await tx`
+          SELECT pg_advisory_xact_lock(
+            hashtext(${'webdav_locks:' + args.organizationId})
+          )
+        `;
         const now = Date.now();
         // Evict this password's expired rows, then cap live locks.
         await tx`
@@ -1479,8 +1497,7 @@ export function webdavHandlers(
             SELECT expires_at_ms::float8 AS "expiresAt"
             FROM app.webdav_locks
             WHERE org_id = ${args.organizationId}
-              AND resource_path >= ${path + '/'}
-              AND resource_path < ${path + '/￿'}
+              AND resource_path LIKE ${descendantPathPattern(path)}
           `;
           if (descendants.some((d) => d.expiresAt > now)) {
             throw new AppError({ code: 'LOCKED' });
@@ -1488,17 +1505,25 @@ export function webdavHandlers(
         }
         const timeoutMs = Math.min(args.timeoutMs, MAX_LOCK_TIMEOUT_MS);
         const expiresAt = now + timeoutMs;
-        const inserted = await tx<{ id: string }[]>`
-          INSERT INTO app.webdav_locks (
-            org_id, resource_path, lock_token, owner_xml, depth, scope,
-            owner_user_id, app_password_id, expires_at_ms
-          ) VALUES (
-            ${args.organizationId}, ${path}, ${args.lockToken},
-            ${args.ownerXml}, ${args.depth}, ${args.scope},
-            ${args.ownerUserId}, ${args.appPasswordId}, ${expiresAt}
-          )
-          RETURNING id
-        `;
+        let inserted: { id: string }[];
+        try {
+          inserted = await tx<{ id: string }[]>`
+            INSERT INTO app.webdav_locks (
+              org_id, resource_path, lock_token, owner_xml, depth, scope,
+              owner_user_id, app_password_id, expires_at_ms
+            ) VALUES (
+              ${args.organizationId}, ${path}, ${args.lockToken},
+              ${args.ownerXml}, ${args.depth}, ${args.scope},
+              ${args.ownerUserId}, ${args.appPasswordId}, ${expiresAt}
+            )
+            RETURNING id
+          `;
+        } catch (error) {
+          // The unique (org_id, resource_path) index arbitrates a race the
+          // scans above did not see: the other writer holds the lock.
+          if (isUniqueViolation(error)) throw new AppError({ code: 'LOCKED' });
+          throw error;
+        }
         return { _id: inserted[0]?.id, expiresAt };
       });
     },

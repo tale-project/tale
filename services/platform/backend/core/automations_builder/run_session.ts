@@ -55,6 +55,10 @@ export interface BuilderSessionArgs {
   goal: string;
   model: BuilderModelTarget;
   maxTurns?: number;
+  /** Polled at every turn boundary; true ends the session as `cancelled`
+   * before the next model call. The route passes the request's abort signal,
+   * so a caller that disappears stops spending the organization's budget. */
+  isCancelled?: () => boolean;
 }
 
 /** One compact step for the session timeline a UI replays. */
@@ -96,6 +100,7 @@ export async function runSessionWithStore(
       target: args.model,
     }),
     ...(args.maxTurns !== undefined && { policy: { maxTurns: args.maxTurns } }),
+    ...(args.isCancelled !== undefined && { isCancelled: args.isCancelled }),
   });
 
   const outcome: BuilderSessionOutcome = {

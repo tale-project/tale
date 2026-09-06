@@ -6,7 +6,6 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import { DEFAULT_COUNT_CAP } from '@/backend/core/lib/helpers/count_items_in_org';
 import { useT } from '@/lib/i18n/client';
 
 import { useApproxConversationCountByStatus } from '../hooks/queries';
@@ -19,10 +18,13 @@ interface ConversationsNavigationProps {
 
 const STATUSES = ['open', 'closed', 'spam', 'archived'] as const;
 
+/** The badge shows exact counts up to this bound and `20+` beyond it. */
+const COUNT_BADGE_CAP = 20;
+
 function CountBadge({ count }: { count: number }) {
   return (
     <span className="bg-muted text-muted-foreground flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-medium tabular-nums">
-      {count >= DEFAULT_COUNT_CAP ? `${DEFAULT_COUNT_CAP}+` : count}
+      {count >= COUNT_BADGE_CAP ? `${COUNT_BADGE_CAP}+` : count}
     </span>
   );
 }

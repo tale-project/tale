@@ -35,12 +35,15 @@ review + (eventually) lint guards:
    changing transaction, API pods fan hints out over `GET /events` (SSE), the
    web app maps hints to TanStack Query invalidations and refetches through
    normal authorized endpoints. No LISTEN/NOTIFY on the write path. Delivered
-   hints are kept for an hour (`OUTBOX_RETENTION_MS`) and reclaimed lazily by
-   the tailing API pods — a bounded, strict-id-prefix sweep ticked from the
-   `/events` poll loop, no cron — and a client resuming from a cursor older
-   than that gets a `resync` event and refetches its org scope. Tier-1 hot
-   streams (chat tokens, execution logs) will get dedicated SSE lanes, not the
-   hint bus.
+   hints are kept for an hour (`OUTBOX_RETENTION_MS`) and reclaimed by a
+   bounded, strict-id-prefix sweep — ticked lazily from the `/events` poll
+   loop while a browser is connected, and by the worker's
+   `realtime.reclaim_outbox` cron so a headless deployment prunes too — and a
+   client resuming from a cursor older than that gets a `resync` event and
+   refetches its org scope. An open
+   stream re-proves membership and the session every 15s and ends with a
+   terminal `forbidden` event once either is gone. Tier-1 hot streams (chat
+   tokens, execution logs) will get dedicated SSE lanes, not the hint bus.
 
 ## Process roles
 

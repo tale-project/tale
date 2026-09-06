@@ -56,16 +56,7 @@ function buildWebdavCtx(sql: Sql): WebDAVCtx {
     mutation: call,
     action: call,
   };
-  return {
-    backend: shim,
-    // The /storage proxy fallback only fires when the direct-URL lane
-    // reports the blob gone; pointing it at an unroutable origin keeps
-    // that lane an honest 404/502 instead of a second storage door.
-    storageBaseUrl: 'http://webdav-storage-proxy.invalid',
-    // Upload URLs are presigned S3 PUTs (never rewritten); the Convex-POST
-    // lane is refused up front, so there is no origin to re-home.
-    backendApiUrl: '',
-  };
+  return { backend: shim };
 }
 
 /** `/dav/*` — the protocol surface. Auth is HTTP Basic inside the reused
@@ -164,11 +155,18 @@ export function createWebdavAdminRoutes(deps: {
   });
 
   app.post('/app-passwords/:id/revoke', async (c) => {
+    // Ownership-gated (a member who lost role privileges can still revoke
+    // their own credential) AND org-scoped like the list and create doors:
+    // a credential is reachable only through the door of the org it
+    // belongs to, so a disabled membership elsewhere cannot mutate that
+    // org's rows from here.
     const userId = c.get('sessionBundle').user.id;
+    const organizationId = c.get('orgId');
     const rows = await deps.sql<{ id: string; revokedAt: number | null }[]>`
       SELECT id, revoked_at_ms::float8 AS "revokedAt"
       FROM app.webdav_app_passwords
-      WHERE id = ${c.req.param('id')} AND user_id = ${userId}
+      WHERE id = ${c.req.param('id')} AND org_id = ${organizationId}
+        AND user_id = ${userId}
       LIMIT 1
     `;
     const row = rows[0];
@@ -178,12 +176,13 @@ export function createWebdavAdminRoutes(deps: {
       await tx`
         UPDATE app.webdav_app_passwords
         SET revoked_at_ms = ${Date.now()}
-        WHERE id = ${row.id}
+        WHERE id = ${row.id} AND org_id = ${organizationId}
       `;
       // Force-release any live locks held under this credential — the
       // documented recovery path when a client crashed mid-edit.
       await tx`
-        DELETE FROM app.webdav_locks WHERE app_password_id = ${row.id}
+        DELETE FROM app.webdav_locks
+        WHERE app_password_id = ${row.id} AND org_id = ${organizationId}
       `;
     });
     return c.json({ ok: true });

@@ -112,14 +112,14 @@ unknown-node-type:
     - code: UNKNOWN_NODE_TYPE
       nodeId: main
       message: unknown node type "transfrom"
-      hint: 'did you mean "transform"? registered types include: transform, llm, agent, subautomation, weather.current, web.fetch_text — search the catalog for the full list'
+      hint: 'did you mean "transform"? registered types include: transform, llm, agent, subautomation, weather.current, mail.send, web.fetch_text — search the catalog for the full list'
   warnings: []
 unknown-node-type-keyword:
   errors:
     - code: UNKNOWN_NODE_TYPE
       nodeId: fetch
       message: unknown node type "connector"
-      hint: 'set "type" to the capability name itself, e.g. {"id": "fetch", "type": "weather.current", "input": {...}}; registered types include: transform, llm, agent, subautomation, weather.current, web.fetch_text — search the catalog for the full list'
+      hint: 'set "type" to the capability name itself, e.g. {"id": "fetch", "type": "weather.current", "input": {...}}; registered types include: transform, llm, agent, subautomation, weather.current, mail.send, web.fetch_text — search the catalog for the full list'
   warnings: []
 node-unknown-field:
   errors:
@@ -220,7 +220,7 @@ subautomation-not-found:
     - code: SUBAUTOMATION_NOT_FOUND
       nodeId: sub
       message: 'node "sub": no saved automation named "daily-digest"'
-      hint: 'saved automations: send-digest, weekly-report'
+      hint: 'saved automations: send-digest, weekly-report, draft-reply, send-mail'
   warnings: []
 subautomation-version-not-found:
   errors:
@@ -229,6 +229,20 @@ subautomation-version-not-found:
       message: 'node "sub": automation "send-digest" has no version 9'
       hint: 'latest version: 2'
   warnings: []
+subautomation-has-agent-node:
+  errors:
+    - code: SUBAUTOMATION_HAS_AGENT_NODE
+      nodeId: sub
+      message: 'node "sub": automation "draft-reply" contains an agent node ("draft") — a live agent turn cannot run inside a subautomation'
+      hint: hoist the agent node into the calling automation and pass its result to the subautomation as input
+  warnings: []
+subautomation-has-write:
+  errors: []
+  warnings:
+    - code: SUBAUTOMATION_HAS_WRITE
+      nodeId: sub
+      message: 'node "sub": automation "send-mail" performs a write ("send": mail.send) — a subautomation cannot wait for approval, so the run fails when the approval policy asks a person to release it'
+      hint: hoist the write into the calling automation, or allow mail.send without approval in the approval policy
 expr-syntax-prompt:
   errors:
     - code: EXPR_SYNTAX

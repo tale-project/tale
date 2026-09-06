@@ -138,12 +138,6 @@ export const HEADER_LANE_WINDOW_MS = 24 * 60 * 60_000;
 /** A byte-identical body reads as a retry for two minutes. */
 export const BODY_LANE_WINDOW_MS = 2 * 60_000;
 
-/** The longest window any lane grants — the horizon of the ledger sweep. */
-export const MAX_DELIVERY_WINDOW_MS = Math.max(
-  HEADER_LANE_WINDOW_MS,
-  BODY_LANE_WINDOW_MS,
-);
-
 export interface DeliveryIdentity {
   /** Which lane produced the key: `header:<header-name>` or `body`. */
   source: string;

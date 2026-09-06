@@ -27,6 +27,7 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
+import { UNATTRIBUTED_AGENT_SLUG } from '@/lib/shared/constants/usage';
 
 import { type ChatHealthPeriod, periodToDays } from './chat-health-period';
 
@@ -34,11 +35,6 @@ export type { ChatHealthPeriod } from './chat-health-period';
 
 type ChatHealthData = ReturnsOf<'chat/messages:getOrgChatHealth'>;
 type GuardrailStats = ReturnsOf<'chat_filter_events/queries:getGuardrailStats'>;
-
-// Sentinel mirrored from `convex/chat/messages.ts:getOrgChatHealth` — the
-// frontend re-declares it rather than importing a runtime value across the
-// convex boundary.
-const UNATTRIBUTED_AGENT_SLUG = '__unattributed__';
 
 // chatFilterEvents `kind` / `filterName` literals → the guardrails-overview
 // label keys (in the `governance` namespace) so both surfaces name them alike.

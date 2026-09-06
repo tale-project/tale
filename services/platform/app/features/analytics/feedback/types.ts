@@ -5,7 +5,9 @@
  * runtime).
  */
 
-export type ArenaVerdict = 'a_better' | 'b_better' | 'tie' | 'both_bad';
+import type { ArenaVerdict } from '@/lib/shared/arena';
+
+export type { ArenaVerdict };
 
 export interface FeedbackAgentBucket {
   agentSlug: string;
@@ -49,5 +51,3 @@ export interface RecentFeedbackItem {
   isArena: boolean;
   createdAt: number;
 }
-
-export const UNATTRIBUTED_AGENT_SLUG = '__unattributed__';

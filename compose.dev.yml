@@ -64,6 +64,10 @@ x-dev-secrets: &dev-secrets
   # Stable dev key so the audit hash-chain verifies; absent → "integrity check
   # failed" alert on an otherwise-clean stack. Rotate for production.
   TALE_AUDIT_SIGNING_KEY: ${TALE_AUDIT_SIGNING_KEY:-4f8c2a9e7b1d6035e4a8c2f9d7b3061a5e8c4f2a9d7b30615e4c8a2f9d7b30614}
+  # Stable dev pepper so failed sign-ins reach the audit log as hashes, the
+  # way a `tale init` deployment writes them; absent → plaintext email + IP
+  # and a [SECURITY] warning at the first write. Rotate for production.
+  TALE_AUDIT_PEPPER: ${TALE_AUDIT_PEPPER:-9c1e5b7d3a2f8064e1c7a9d5b3f2e8c604a7d1b9e5c3f8a2d6b0e4c7a1f9d3b5}
   # The sandbox control plane fails closed without these two: the spawner
   # refuses to boot without SANDBOX_TOKEN (it holds the docker socket and sits
   # on the network every session container shares), and the backend refuses
@@ -185,9 +189,9 @@ services:
   # instead of the dockerized `backend-api` service), the spawner container
   # needs to reach http://host.docker.internal:3005 for the EP1/EP2 callbacks.
   # Linux Docker doesn't add this DNS alias by default; the line below opts in.
-  # In that bun-dev setup, also set in `services/platform/.env.local`:
-  #   SANDBOX_STORAGE_INTERNAL_BASE_URL=http://host.docker.internal:3005
-  # The dockerized backend path uses `http://proxy` from compose.yml.
+  # In that bun-dev setup, also set in `services/platform/.env.local` so the
+  # blob stage URLs handed to a session resolve to the host-run backend:
+  #   SANDBOX_HTTP_API_BASE_URL=http://host.docker.internal:3005
   sandbox:
     extra_hosts:
       - 'host.docker.internal:host-gateway'

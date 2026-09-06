@@ -20,7 +20,47 @@ import {
 
 const POLL_INTERVAL_MS = 300;
 const HEARTBEAT_INTERVAL_MS = 15_000;
+/**
+ * How often an open stream re-proves its right to exist. Membership and the
+ * session are validated at connect, but a stream never ends on its own: a
+ * member removed or disabled mid-stream (and a session revoked — idle
+ * enforcement, a member removal that deletes the user's sessions) would keep
+ * receiving the org's entity kinds and ids until the tab reconnected. The
+ * cadence is coarse on purpose — two indexed reads per stream per interval —
+ * and it runs on its own clock: the heartbeat's is silenced by any hint.
+ */
+const AUTH_RECHECK_INTERVAL_MS = 15_000;
 const ERROR_BACKOFF_MS = 1_000;
+
+export interface EventsHandlerOptions {
+  pollIntervalMs?: number;
+  heartbeatIntervalMs?: number;
+  authRecheckIntervalMs?: number;
+}
+
+/**
+ * Whether the (org, user, session) behind an open stream is still allowed to
+ * read it. A definite refusal — no active membership, or the session row is
+ * gone or expired — is `false`; a database fault throws, so the caller's
+ * poll backoff handles it and a DB blip never ends a legitimate stream.
+ */
+async function streamStillAuthorized(
+  sql: Sql,
+  args: { orgId: string; userId: string; sessionId: string },
+): Promise<boolean> {
+  try {
+    await requireOrganizationMember(sql, args.orgId, args.userId);
+  } catch (error) {
+    if (error instanceof MembershipError) return false;
+    throw error;
+  }
+  const rows = await sql<{ id: string }[]>`
+    SELECT "id" FROM "session"
+    WHERE "id" = ${args.sessionId} AND "expiresAt" > now()
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
 
 /**
  * Every live SSE stream of this process — the `/events` hint stream below
@@ -77,12 +117,26 @@ export function endAllEventStreams(): number {
  * is answered with a `resync` event first: the client refetches its whole
  * org scope instead of trusting a cache with a hole in it.
  *
- * The same poll loops are where the outbox is kept from growing forever:
+ * Membership and the session are re-proved on a coarse cadence while the
+ * stream is open ({@link AUTH_RECHECK_INTERVAL_MS}); a stream whose reader
+ * lost either is told `forbidden` and ended — the client closes on that
+ * event, and a reconnect without it meets the 401/403 above.
+ *
+ * The same poll loops are the fast path that keeps the outbox from growing:
  * every poll ticks the process's one reclaimer, which sweeps delivered rows
- * older than the horizon at most once a minute — lazy housekeeping riding
- * the read path, no scheduled job.
+ * older than the horizon at most once a minute. The `realtime.reclaim_outbox`
+ * cron on the worker is the backstop for a deployment with no stream open
+ * (headless REST/automation use, nights, weekends).
  */
-export function createEventsHandler(sql: Sql) {
+export function createEventsHandler(
+  sql: Sql,
+  options: EventsHandlerOptions = {},
+) {
+  const pollIntervalMs = options.pollIntervalMs ?? POLL_INTERVAL_MS;
+  const heartbeatIntervalMs =
+    options.heartbeatIntervalMs ?? HEARTBEAT_INTERVAL_MS;
+  const authRecheckIntervalMs =
+    options.authRecheckIntervalMs ?? AUTH_RECHECK_INTERVAL_MS;
   const reclaimer = createOutboxReclaimer({
     reclaim: () => reclaimOutbox(sql),
   });
@@ -91,7 +145,9 @@ export function createEventsHandler(sql: Sql) {
     if (!orgId) {
       return c.json({ error: 'orgId is required' }, 400);
     }
-    const userId = c.get('sessionBundle').user.id;
+    const { user, session } = c.get('sessionBundle');
+    const userId = user.id;
+    const sessionId = session.id;
     try {
       await requireOrganizationMember(sql, orgId, userId);
     } catch (error) {
@@ -113,10 +169,27 @@ export function createEventsHandler(sql: Sql) {
       // read proves every row above it was there to be read.
       let verifyResume = resumeCursor !== null;
       let lastBeatAt = Date.now();
+      let lastAuthCheckAt = Date.now();
 
       try {
         while (!stream.aborted) {
           try {
+            if (Date.now() - lastAuthCheckAt >= authRecheckIntervalMs) {
+              lastAuthCheckAt = Date.now();
+              if (
+                !(await streamStillAuthorized(sql, {
+                  orgId,
+                  userId,
+                  sessionId,
+                }))
+              ) {
+                // Terminal: the reader no longer belongs here. Returning
+                // closes the response; the client closes its source on this
+                // event instead of reconnecting into a 401/403.
+                await stream.writeSSE({ event: 'forbidden', data: '' });
+                break;
+              }
+            }
             const rows = await readHintsAfter(sql, cursor, { orgId, userId });
             if (verifyResume) {
               verifyResume = false;
@@ -140,7 +213,7 @@ export function createEventsHandler(sql: Sql) {
                 });
               }
               lastBeatAt = Date.now();
-            } else if (Date.now() - lastBeatAt >= HEARTBEAT_INTERVAL_MS) {
+            } else if (Date.now() - lastBeatAt >= heartbeatIntervalMs) {
               await stream.writeSSE({ event: 'heartbeat', data: '' });
               lastBeatAt = Date.now();
             }
@@ -158,7 +231,7 @@ export function createEventsHandler(sql: Sql) {
           // Housekeeping rides the poll: throttled, non-overlapping, and
           // never awaited by the stream — its failures are its own.
           void reclaimer.tick();
-          await stream.sleep(POLL_INTERVAL_MS);
+          await stream.sleep(pollIntervalMs);
         }
       } finally {
         unregisterLiveStream(stream);

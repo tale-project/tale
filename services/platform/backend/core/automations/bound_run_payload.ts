@@ -29,7 +29,7 @@
  * **Bound exactly once, at first write.** {@link boundJson} is deliberately not
  * idempotent — a second pass re-cuts its own marker and reports a smaller loss
  * than really occurred. So bound a value as it first enters the row and never
- * re-bound one read back out: `recordCheckpoint` bounds only the incoming
+ * re-bound one read back out: `recordProgress` bounds only the incoming
  * entry, never the already-stored `checkpoints.nodes` it merges into.
  *
  * No governance surface: nothing here deletes a row or drops a side effect, so

@@ -77,6 +77,9 @@ export interface TaskPayloads {
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
   'maintenance.login_attempts_ttl': Record<string, never>;
+  /** Sweep delivered realtime hints past the retention horizon (cron) — the
+   * backstop for a deployment with no `/events` stream open to do it lazily. */
+  'realtime.reclaim_outbox': Record<string, never>;
   /** Index one uploaded file into the org's RAG corpus. */
   'rag.index_file': { fileId: string };
   /** Release rotated-away blob refs: de-index dead corpus rows, delete
@@ -342,6 +345,8 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'task.start_workflow': { retryLimit: 3, retryDelay: 5, expireInSeconds: 300 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
+  // A missed sweep is picked up by the next cron tick; nothing to retry.
+  'realtime.reclaim_outbox': { retryLimit: 0, expireInSeconds: 300 },
   // Releases are idempotent (liveness re-checked at run time; corpus and
   // blob deletes are no-ops on missing targets) — retry generously, and let
   // the daily corpus reconcile catch anything that exhausts the ladder.
@@ -366,15 +371,15 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryBackoff: true,
     expireInSeconds: 900,
   },
-  // Stepper turns are claim-fenced and idempotent — a retried turn either
-  // wins a fresh claim or no-ops; a long node keeps the job active well
-  // past a nominal budget, so the expiry is generous.
-  'automation.step': {
-    retryLimit: 3,
-    retryDelay: 2,
-    retryBackoff: true,
-    expireInSeconds: 1800,
-  },
+  // At-most-once walking: pg-boss expires an ACTIVE job whose handler is
+  // still running and a retry would then claim the run again — claimRun
+  // re-claims a 'running' row unconditionally — so a node body outlasting
+  // the expiry (a subautomation's inline walk under repeatUntil) ran under
+  // TWO walkers until the first one's next commit read 'stale'. A lost or
+  // crashed walker is the per-minute liveness sweep's to re-poke (its
+  // promise lapses in 3 min), never pg-boss's; the expiry only has to
+  // outlast the longest node body a single turn can hold.
+  'automation.step': { retryLimit: 0, expireInSeconds: 21_600 },
   'automation.poll': { retryLimit: 3, retryDelay: 2, expireInSeconds: 120 },
   'automation.trigger_scan': { retryLimit: 1, expireInSeconds: 120 },
   'automation.liveness': { retryLimit: 1, expireInSeconds: 120 },

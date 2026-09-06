@@ -61,8 +61,10 @@ import { incrementUsageLedger } from '../governance/service.ts';
  * seams), the closed error-code vocabulary, the host-policy re-check, the
  * capped binary fetch, cost estimation, and the budget rule evaluators.
  * Rule-5 upgrades: the `(message_id, chunk_index)` UNIQUE index replaces the
- * 0.4 post-insert dedupe walk (racers serialize at the constraint under
- * FOR UPDATE), and the stuck-pending watchdog is a pg-boss job instead of a
+ * 0.4 post-insert dedupe walk (racers serialize on a per-(message, index)
+ * advisory lock taken before the row read — FOR UPDATE over zero rows locks
+ * nothing, so the first reserve of a chunk needs the lock, not the
+ * constraint), and the stuck-pending watchdog is a pg-boss job instead of a
  * best-effort scheduler call.
  */
 
@@ -390,7 +392,12 @@ type ReserveOutcome =
       teamId: string | undefined;
     };
 
-async function reserveChunk(
+/**
+ * Reserve the `(message, index)` chunk row for one synthesis attempt.
+ * Exported for the real-Postgres race proof (integration-check) — the app
+ * door is `synthesizeChunk`.
+ */
+export async function reserveChunk(
   sql: Sql,
   args: {
     organizationId: string;
@@ -416,8 +423,18 @@ async function reserveChunk(
   }
 
   return sql.begin(async (tx) => {
-    // The unique (message_id, chunk_index) row is the race arbiter: lock it
-    // when present, branch exactly like 0.4.
+    // Serialize reserves per (message, index) BEFORE the row read. The unique
+    // row is the race arbiter once it exists, but `FOR UPDATE` over zero rows
+    // locks nothing: two first-time reserves of one chunk both saw no row and
+    // both reached the INSERT, and the loser surfaced the unique violation
+    // as a raw 500 instead of the `in-flight` answer the player polls on.
+    // The second racer now waits here, then reads the winner's committed
+    // pending row and takes the existing-row branch.
+    await tx`
+      SELECT pg_advisory_xact_lock(
+        hashtextextended('tts:' || ${args.messageId} || ':' || ${String(args.index)}, 0)
+      )
+    `;
     const existingRows = await tx<ChunkRow[]>`
       SELECT ${tx.unsafe(CHUNK_COLUMNS)} FROM app.tts_audio_chunks
       WHERE message_id = ${args.messageId} AND chunk_index = ${args.index}

@@ -388,7 +388,7 @@ export async function harvestSessionOutput(
     const harvestBytes = new Uint8Array(ab);
     let storageId: string;
     try {
-      storageId = await putBlob(ctx, orgSlug, harvestBytes, contentType);
+      storageId = await putBlob(orgSlug, harvestBytes, contentType);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[session_exec] harvest skipped ${absPath}: ${message}`);

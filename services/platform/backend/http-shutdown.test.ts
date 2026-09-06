@@ -44,7 +44,10 @@ function startServer(): Promise<Harness> {
   app.use(async (c, next) => {
     // requireSession's contract, minus the auth round-trip.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub
-    c.set('sessionBundle', { user: { id: 'u1' } } as never);
+    c.set('sessionBundle', {
+      user: { id: 'u1' },
+      session: { id: 's1' },
+    } as never);
     await next();
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub

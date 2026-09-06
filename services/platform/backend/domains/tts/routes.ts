@@ -5,10 +5,8 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { resolveTtsModel } from '../../core/lib/providers/resolve_tts_model.ts';
-import { errorCodeFromCaught } from '../../core/tts/error_codes.ts';
-import { createCtxShim } from '../../lib/ctx-shim.ts';
 import {
+  fetchPresignedObject,
   locateOrgObjectStore,
   s3PresignGetUrl,
 } from '../../lib/object-store.ts';
@@ -17,7 +15,6 @@ import {
   rateLimitExceededCause,
   rateLimitedResponse,
 } from '../../lib/rate-limit-response.ts';
-import { chatShimHandlers } from '../chat/shim.ts';
 import { loadOwnedThread } from '../chat/threads.ts';
 import {
   getChunkForServe,
@@ -32,7 +29,7 @@ import {
 /**
  * /api/app/tts — the voice-output surface: the per-chunk synthesis door,
  * chunk listing for the player, the effective voice-mode cascade, the two
- * preference writers, the capability probe, and the AUDIO SERVE route
+ * preference writers, and the AUDIO SERVE route
  * (cookie-bound and non-replayable by design: the backend streams the
  * bytes itself — a presigned URL handed to the client would be
  * bearer-replayable for its lifetime, the exact property 0.4 removed).
@@ -203,30 +200,6 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  /** The provider probe: can this org synthesize at all? */
-  app.get('/capability', async (c) => {
-    const shim = createCtxShim(chatShimHandlers(deps.sql));
-    try {
-      const model = await resolveTtsModel(
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 resolver on the chat shim
-        shim as unknown as Parameters<typeof resolveTtsModel>[0],
-        {
-          organizationId: c.get('orgId'),
-          locale: c.req.query('locale') ?? 'en',
-        },
-      );
-      return c.json({
-        available: true,
-        providerName: model.providerName,
-        modelId: model.modelId,
-        voice: model.voice,
-      });
-    } catch (error) {
-      const { code } = errorCodeFromCaught(error);
-      return c.json({ available: false, errorCode: code });
-    }
-  });
-
   /** Stream one ready chunk's audio. The gate is ownership of the chunk's
    * thread (the same `loadOwnedThread` the listing and usage doors use); the
    * bytes are fetched server-side so no replayable URL ever reaches the
@@ -247,7 +220,9 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       // lives in the deployment default store until the backfill moves it.
       const store = await locateOrgObjectStore(orgSlug, key);
       const url = await s3PresignGetUrl(store, key);
-      const upstream = await fetch(url);
+      const upstream = await fetchPresignedObject(url, {
+        signal: c.req.raw.signal,
+      });
       if (!upstream.ok || upstream.body === null) {
         return c.json({ error: 'audio unavailable' }, 502);
       }
