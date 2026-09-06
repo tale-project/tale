@@ -78,12 +78,24 @@ chown nobody:nobody /var/log/tinyproxy/tinyproxy.log
 # do not survive exec — so the forwarding never ran.) If tinyproxy dies on
 # its own the first `wait` returns and the container exits for the restart
 # policy to act on.
+#
+# errexit is switched off from here on: when the trap fires mid-`wait`, POSIX
+# `wait` returns 128+signal (143) and `set -e` would exit PID 1 right there —
+# before the forwarded TERM is acted on and before the reaping `wait` — which
+# tears down the pid namespace and SIGKILLs the children anyway. The shell
+# still exits with tinyproxy's status (143 on stop, its own code on a crash).
 tinyproxy -d -c /etc/tinyproxy/tinyproxy.conf &
 TINYPROXY_PID=$!
 tail -n0 -F /var/log/tinyproxy/tinyproxy.log &
 TAIL_PID=$!
 trap 'kill -TERM "$TINYPROXY_PID" "$DNSMASQ_PID" "$TAIL_PID" 2>/dev/null || true' INT TERM
 
+set +e
 wait "$TINYPROXY_PID"
-kill -TERM "$DNSMASQ_PID" "$TAIL_PID" 2>/dev/null || true
+rc=$?
+# A signal interrupts `wait` before tinyproxy has exited; wait on it again so
+# its clean shutdown (not the trap's delivery) is what we report and reap.
+wait "$TINYPROXY_PID" 2>/dev/null
+kill -TERM "$DNSMASQ_PID" "$TAIL_PID" 2>/dev/null
 wait
+exit "$rc"
