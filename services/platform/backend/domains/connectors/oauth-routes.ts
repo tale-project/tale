@@ -7,7 +7,11 @@ import {
   MembershipError,
   requireOrganizationMember,
 } from '../../auth/membership.ts';
-import { requireSession, type AuthEnv } from '../../auth/session.ts';
+import {
+  requireSession,
+  type AuthEnv,
+  type SessionBundle,
+} from '../../auth/session.ts';
 import { resolveConnectorSettingsUrl } from '../../core/http_connectors/deployment_config.ts';
 import { renderConnectorErrorPage } from '../../core/http_connectors/error_page.ts';
 import { completeOauth2, startOauth2 } from './oauth.ts';
@@ -19,10 +23,13 @@ import { completeOauth2, startOauth2 } from './oauth.ts';
  * `start` is session-gated: it must know WHO is asking and that their role
  * may add credentials to the named organization — connecting a connector IS
  * a credential write, just spelled as a consent flow. `callback` is
- * deliberately NOT session-gated: the vendor redirects the browser back and
- * the only thing that authorizes it is the single-use state row, which
- * carries the organization the credential is written for. Nothing in the
- * callback request can move it.
+ * authorized by the single-use state row, which carries the organization the
+ * credential is written for — nothing in the callback request can move it —
+ * AND bound to the session on the returning browser: the completer must be
+ * the member who started the flow, so a forwarded consent link cannot land a
+ * stranger's vendor grant in the initiator's organization. A completion
+ * without that session gets the same page as a forged state (not a JSON
+ * 401): a person is looking at this in a browser tab.
  *
  * Both answer HTML error pages rather than JSON: a person is looking at this
  * in a browser tab, mid-flow, and needs a way back to settings.
@@ -105,10 +112,14 @@ export function createConnectorOauthRoutes(deps: {
   });
 
   app.get('/callback', async (c) => {
+    const session: SessionBundle | null = await deps.auth.api.getSession({
+      headers: c.req.raw.headers,
+    });
     const outcome = await completeOauth2(deps.sql, {
       state: c.req.query('state') ?? null,
       code: c.req.query('code') ?? null,
       vendorError: c.req.query('error') ?? null,
+      requesterUserId: session?.user.id ?? null,
     });
     if (outcome.kind === 'error') {
       return errorPage(outcome.error, outcome.organizationId);

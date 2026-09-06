@@ -7257,6 +7257,12 @@ async function checkCorpusPurgeConsistency(
       return;
     }
     // Point the org's corpus at a dead endpoint — fail-closed by contract.
+    // The purge routes through the same per-org pool as the indexer, whose
+    // resolution is cached, so forget it the way the admin door does when a
+    // connection is saved (domains/knowledge/admin.ts → invalidateOrgUrl);
+    // `corpusPool` above was captured before and keeps reading the real
+    // corpus.
+    const { invalidateOrgUrl } = await import('./core/knowledge/pool.ts');
     const badConnectionPath = path.join(knowledgeDir, 'connection.json');
     await writeFile(
       badConnectionPath,
@@ -7268,6 +7274,7 @@ async function checkCorpusPurgeConsistency(
         sslmode: 'disable',
       }),
     );
+    invalidateOrgUrl(orgSlug);
     const failedDelete = await send(
       'POST',
       `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
@@ -7279,6 +7286,7 @@ async function checkCorpusPurgeConsistency(
     const corpusKept = (await corpusCount(honest.ref)) === 1;
     const blobKept = await blobExists(honest.ref);
     await rm(badConnectionPath, { force: true });
+    invalidateOrgUrl(orgSlug);
     const retryDelete = await send(
       'POST',
       `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
@@ -17055,7 +17063,10 @@ async function checkSlackInbound(
       event: { type: 'message', text: 'hi' },
     });
 
-    // A verified delivery for a CONNECTED workspace enqueues exactly one job.
+    // A verified delivery for a CONNECTED workspace routes to that org and
+    // is acknowledged. Nothing consumes inbound events yet, so NO job may be
+    // queued for it — a queue with no consumer was the dead end this lane
+    // used to assert into.
     const oauth = await import('./domains/connectors/oauth.ts');
     const credential = await sql<{ id: string }[]>`
       SELECT id FROM app.connector_credentials
@@ -17069,7 +17080,7 @@ async function checkSlackInbound(
     });
     const jobsBefore = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pgboss.job
-      WHERE name = 'connector.slack_event'
+      WHERE name LIKE 'connector.%'
     `;
     const delivered = await post({
       type: 'event_callback',
@@ -17077,74 +17088,36 @@ async function checkSlackInbound(
       event_id: 'Ev-ITEST-1',
       event: { type: 'app_mention', text: 'hello there', user: 'U-ITEST' },
     });
-    // Slack retries an unacknowledged delivery; the same event id must
-    // collapse to ONE job rather than replaying the conversation.
+    // Slack retries an unacknowledged delivery; every retry is acknowledged
+    // too (Slack disables an endpoint that does not answer).
     const redelivered = await post({
       type: 'event_callback',
       team_id: 'T-INBOUND-1',
       event_id: 'Ev-ITEST-1',
       event: { type: 'app_mention', text: 'hello there', user: 'U-ITEST' },
     });
-    const jobRows = await sql<{ data: unknown; singletonKey: string | null }[]>`
-      SELECT data, singleton_key AS "singletonKey" FROM pgboss.job
-      WHERE name = 'connector.slack_event'
+    const jobsAfter = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name LIKE 'connector.%'
     `;
-    const enqueued = jobRows.length - Number(jobsBefore[0]?.count ?? '0');
-    // Both deliveries are acknowledged (Slack disables an endpoint that does
-    // not answer) and both carry the SAME per-delivery key.
-    const queued =
-      enqueued >= 1 &&
-      jobRows.every((row) => row.singletonKey === 'slack:Ev-ITEST-1');
-    const payload = jobRows[0]?.data;
+    const enqueued =
+      Number(jobsAfter[0]?.count ?? '0') - Number(jobsBefore[0]?.count ?? '0');
+    const routed = await oauth.resolveTeamRoute(sql, 'T-INBOUND-1');
     const routedToOrg =
-      payload !== null &&
-      typeof payload === 'object' &&
-      'organizationId' in payload &&
-      payload.organizationId === orgId;
+      routed !== null &&
+      routed.organizationId === orgId &&
+      routed.credentialId === credentialId;
     record(
-      'slack inbound: handshake echoes, unmapped refuses, a verified event routes once',
+      'slack inbound: handshake echoes, unmapped refuses, a verified event is routed and acknowledged without a queue',
       handshake.status === 200 &&
         handshakeBody.success &&
         handshakeBody.data.challenge === 'itest-challenge-value' &&
         unmapped.status === 404 &&
         delivered.status === 200 &&
         redelivered.status === 200 &&
-        queued &&
+        enqueued === 0 &&
         routedToOrg,
-      `handshake=${handshake.status}/${handshakeBody.success ? handshakeBody.data.challenge : 'ERR'}, unmapped=${unmapped.status} (want 404), delivered=${delivered.status}/${redelivered.status}, enqueued=${enqueued} keyed=${jobRows.every((row) => row.singletonKey === 'slack:Ev-ITEST-1')}, routedToOrg=${routedToOrg}`,
-    );
-
-    // The dedup itself, deterministically: pg-boss's `short` policy allows at
-    // most ONE QUEUED job per key, so a retry that arrives while the original
-    // is still waiting collapses into it. (Over HTTP the worker often drains
-    // the first before the retry lands, which frees the key again — that is
-    // the intended behaviour, not a missed dedup, so the invariant is
-    // asserted at the enqueue seam where "still queued" is guaranteed.)
-
-    const retryPayload = {
-      organizationId: orgId,
-      credentialId,
-      teamId: 'T-INBOUND-1',
-      eventId: 'Ev-ITEST-RETRY',
-      eventType: 'app_mention',
-      event: { type: 'app_mention', text: 'retry me' },
-    };
-    // Both sends ride ONE transaction, so the first is still `created` when
-    // the second lands — the exact race Slack's retry creates, made
-    // deterministic (over HTTP a fast worker may drain the first, which frees
-    // the key again by design).
-    const [firstSend, secondSend] = await sql.begin(async (tx) => [
-      await addJobInTx(tx, 'connector.slack_event', retryPayload, {
-        singletonKey: 'slack:Ev-ITEST-RETRY',
-      }),
-      await addJobInTx(tx, 'connector.slack_event', retryPayload, {
-        singletonKey: 'slack:Ev-ITEST-RETRY',
-      }),
-    ]);
-    record(
-      'slack inbound: a retry of a still-queued delivery collapses into it',
-      firstSend !== null && secondSend === null,
-      `first=${firstSend === null ? 'refused' : 'queued'}, retry=${secondSend === null ? 'collapsed' : 'DUPLICATED'}`,
+      `handshake=${handshake.status}/${handshakeBody.success ? handshakeBody.data.challenge : 'ERR'}, unmapped=${unmapped.status} (want 404), delivered=${delivered.status}/${redelivered.status}, enqueued=${enqueued} (want 0), routedToOrg=${routedToOrg}`,
     );
 
     // ---- external identities --------------------------------------------
@@ -17328,6 +17301,34 @@ async function checkConnectorOauth(
       `forged=${forged.status}, declined=${declined.status}, replayed=${replayed.status} (all want 400), pendingLeft=${afterReplay[0]?.count}, vendorCalls=${seen.length} (want 0)`,
     );
 
+    // ---- callback: the completer must be the initiator ------------------
+    // A valid state completed by a browser with NO session (a forwarded
+    // consent link) is refused like a forgery — and burned, so the link
+    // cannot be finished by anyone afterwards.
+    const startedAgain = await get(
+      `/api/connectors/oauth2/start?connector=slack&organizationId=${orgId}`,
+    );
+    const strangerState =
+      new URL(
+        startedAgain.headers.get('location') ?? 'https://x.invalid',
+      ).searchParams.get('state') ?? '';
+    const stranger = await get(
+      `/api/connectors/oauth2/callback?state=${encodeURIComponent(strangerState)}&code=abc`,
+      false,
+    );
+    const afterStranger = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.connector_oauth_states
+    `;
+    record(
+      'connector oauth: a callback without the initiator session is refused and burns the state',
+      startedAgain.status === 302 &&
+        strangerState.length > 0 &&
+        stranger.status === 400 &&
+        afterStranger[0]?.count === '0' &&
+        seen.length === 0,
+      `start=${startedAgain.status}, stranger=${stranger.status} (want 400), pendingLeft=${afterStranger[0]?.count} (want 0), vendorCalls=${seen.length} (want 0)`,
+    );
+
     // ---- callback: the happy path, driven through the service -----------
     // The vendor endpoint comes from the catalog, so the exchange is driven
     // at the service seam with the fake token URL — the routes above already
@@ -17388,7 +17389,12 @@ async function checkConnectorOauth(
       );
     const completed = await oauth.completeOauth2(
       sql,
-      { state: happyState, code: 'itest-auth-code', vendorError: null },
+      {
+        state: happyState,
+        code: 'itest-auth-code',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     const credentialRows = await sql<
@@ -17478,7 +17484,12 @@ async function checkConnectorOauth(
     });
     const reconnected = await oauth.completeOauth2(
       sql,
-      { state: reconnectState, code: 'itest-auth-code-r', vendorError: null },
+      {
+        state: reconnectState,
+        code: 'itest-auth-code-r',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     const afterReconnect = await sql<
@@ -17520,7 +17531,12 @@ async function checkConnectorOauth(
     });
     const secondConnected = await oauth.completeOauth2(
       sql,
-      { state: secondState, code: 'itest-auth-code-s', vendorError: null },
+      {
+        state: secondState,
+        code: 'itest-auth-code-s',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     const afterSecond = await sql<{ id: string; name: string }[]>`
@@ -17593,7 +17609,12 @@ async function checkConnectorOauth(
     await foreignClaimInPlace;
     const racing = oauth.completeOauth2(
       sql,
-      { state: raceState, code: 'itest-auth-code-race', vendorError: null },
+      {
+        state: raceState,
+        code: 'itest-auth-code-race',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     // Release the holder once this org's claim is queued behind it — after
@@ -17631,8 +17652,137 @@ async function checkConnectorOauth(
       `outcome=${raced.kind}/${raced.kind === 'error' ? raced.error : '-'} (want workspace_claimed), queuedBehindHolder=${queuedBehindHolder}, loserCredentials=${raceCredentials[0]?.count} (want 0) default=${raceCredentials[0]?.isDefault}, routeOwner=${raceRoute[0]?.orgId}`,
     );
 
-    // ---- a rejected exchange writes nothing -----------------------------
+    // ---- an expired grant is refreshed on resolve --------------------------
+    // The happy-path credential's token is made stale in place (the same
+    // update door Reconnect uses), then resolved: the resolve seam must renew
+    // it from the refresh token through the vendor, store the renewed
+    // envelope, and hand out the fresh bearer — a second resolve is served
+    // from the store without another vendor call.
+    const { resolveConnectorCredential: resolveForRefresh, updateCredential } =
+      await import('./domains/connector_credentials/service.ts');
+    const refreshTargetId = credentialRows[0]?.id ?? '';
+    await updateCredential(sql, {
+      organizationId: orgId,
+      credentialId: refreshTargetId,
+      secret: {
+        accessToken: 'xoxb-itest-stale',
+        refreshToken: 'xoxe-itest-refresh',
+        expiresAt: Date.now() - 1_000,
+      },
+    });
+    const vendorCallsBeforeRefresh = seen.length;
+    let refreshedHeader = '';
+    let refreshError = '';
+    try {
+      refreshedHeader =
+        (
+          await resolveForRefresh(
+            sql,
+            {
+              organizationId: orgId,
+              connectorSlug: 'slack',
+              credentialRef: refreshTargetId,
+            },
+            { fetchImpl: vendorFetch },
+          )
+        ).authHeader ?? '';
+    } catch (error) {
+      refreshError = error instanceof Error ? error.message : String(error);
+    }
+    const refreshGrantSent =
+      seen.length === vendorCallsBeforeRefresh + 1 &&
+      (seen[seen.length - 1]?.body ?? '').includes(
+        'grant_type=refresh_token',
+      ) &&
+      (seen[seen.length - 1]?.body ?? '').includes(
+        'refresh_token=xoxe-itest-refresh',
+      );
+    const againHeader =
+      (
+        await resolveForRefresh(
+          sql,
+          {
+            organizationId: orgId,
+            connectorSlug: 'slack',
+            credentialRef: refreshTargetId,
+          },
+          { fetchImpl: vendorFetch },
+        )
+      ).authHeader ?? '';
+    const afterRefresh = await sql<
+      { status: string; statusDetail: string | null }[]
+    >`
+      SELECT status, status_detail AS "statusDetail"
+      FROM app.connector_credentials WHERE id = ${refreshTargetId}
+    `;
+    record(
+      'connector oauth: an expired grant is refreshed on resolve and stored once',
+      refreshedHeader === 'Bearer xoxb-itest-access' &&
+        refreshGrantSent &&
+        againHeader === 'Bearer xoxb-itest-access' &&
+        seen.length === vendorCallsBeforeRefresh + 1 &&
+        afterRefresh[0]?.status === 'active',
+      `header=${refreshedHeader || refreshError || '-'} (want Bearer xoxb-itest-access), refreshGrantSent=${refreshGrantSent}, again=${againHeader}, vendorCalls=${seen.length - vendorCallsBeforeRefresh} (want 1), status=${afterRefresh[0]?.status}`,
+    );
+
+    // ---- a refresh the vendor rejects marks the row needs-reauth ---------
     denyExchange = true;
+    await updateCredential(sql, {
+      organizationId: orgId,
+      credentialId: refreshTargetId,
+      secret: {
+        accessToken: 'xoxb-itest-stale-2',
+        refreshToken: 'xoxe-itest-revoked',
+        expiresAt: Date.now() - 1_000,
+      },
+    });
+    let rejectedCode = '';
+    try {
+      await resolveForRefresh(
+        sql,
+        {
+          organizationId: orgId,
+          connectorSlug: 'slack',
+          credentialRef: refreshTargetId,
+        },
+        { fetchImpl: vendorFetch },
+      );
+    } catch (error) {
+      rejectedCode =
+        error instanceof Error && 'code' in error
+          ? String(Reflect.get(error, 'code'))
+          : '';
+    }
+    const afterRejected = await sql<
+      { status: string; statusDetail: string | null }[]
+    >`
+      SELECT status, status_detail AS "statusDetail"
+      FROM app.connector_credentials WHERE id = ${refreshTargetId}
+    `;
+    const { listConnectedConnectorSlugs } =
+      await import('./domains/connector_credentials/service.ts');
+    const offeredAfterRejected = await listConnectedConnectorSlugs(sql, orgId);
+    record(
+      'connector oauth: a vendor-rejected refresh marks the row needs-reauth',
+      rejectedCode === 'CREDENTIAL_NEEDS_REAUTH' &&
+        afterRejected[0]?.status === 'needs-reauth' &&
+        (afterRejected[0]?.statusDetail ?? '').includes('invalid_grant'),
+      `code=${rejectedCode} (want CREDENTIAL_NEEDS_REAUTH), status=${afterRejected[0]?.status}, detail=${afterRejected[0]?.statusDetail}, stillOffered=${offeredAfterRejected.includes('slack') ? 'yes (a second slack row is active)' : 'no'}`,
+    );
+    // Restore the row so later sweeps see the happy-path grant active.
+    await updateCredential(sql, {
+      organizationId: orgId,
+      credentialId: refreshTargetId,
+      secret: {
+        accessToken: 'xoxb-itest-access',
+        refreshToken: 'xoxe-itest-refresh',
+        expiresAt: Date.now() + 3_600_000,
+      },
+      status: 'active',
+      statusDetail: null,
+    });
+
+    // ---- a rejected exchange writes nothing -----------------------------
     const denyState = 'itest-oauth-state-denied';
     await oauth.createPendingAuthorization(sql, {
       stateHash: await hashStateToken(denyState),
@@ -17644,7 +17794,12 @@ async function checkConnectorOauth(
     });
     const refused = await oauth.completeOauth2(
       sql,
-      { state: denyState, code: 'itest-auth-code-2', vendorError: null },
+      {
+        state: denyState,
+        code: 'itest-auth-code-2',
+        vendorError: null,
+        requesterUserId: userId,
+      },
       { fetchImpl: vendorFetch },
     );
     if (savedSystemDir === undefined) {
@@ -17663,6 +17818,220 @@ async function checkConnectorOauth(
         credentialsAfter[0]?.count === '2',
       `outcome=${refused.kind}/${refused.kind === 'error' ? refused.error : '-'}, credentials=${credentialsAfter[0]?.count} (want 2, unchanged)`,
     );
+
+    // ---- a live yaml-js body runs IN PROCESS for a caller with no session --
+    // Automation runs, chat and the platform's own senders own no sandbox
+    // session; the door hands them the in-process live runner, so the shipped
+    // Slack body reaches its vendor through the mediated host with the stored
+    // bearer applied. Slack's host is fixed, so the vendor is answered by a
+    // global-fetch interception (the safe-fetch layer calls the global).
+    const realFetchForLive = globalThis.fetch;
+    const slackCalls: { url: string; auth: string | null; body: string }[] = [];
+    const liveFetchStub = async (
+      input: Parameters<typeof globalThis.fetch>[0],
+      init?: Parameters<typeof globalThis.fetch>[1],
+    ): Promise<Response> => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      if (!url.startsWith('https://slack.com/api/conversations.list')) {
+        return realFetchForLive(input, init);
+      }
+      const headers = new Headers(init?.headers);
+      slackCalls.push({
+        url,
+        auth: headers.get('authorization'),
+        body: typeof init?.body === 'string' ? init.body : '',
+      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          channels: [{ id: 'C-ITEST', name: 'general', is_private: false }],
+          response_metadata: { next_cursor: 'cursor-2' },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    };
+    globalThis.fetch = Object.assign(liveFetchStub, {
+      preconnect: realFetchForLive.preconnect,
+    });
+    let liveOut: unknown = null;
+    let liveError = '';
+    try {
+      const { runConnectorAction } =
+        await import('./domains/connectors/service.ts');
+      const live = await runConnectorAction(sql, {
+        organizationId: orgId,
+        connector: 'slack',
+        action: 'list_channels',
+        input: { limit: 5 },
+        credentialRef: refreshTargetId,
+        mode: 'live',
+        caller: { kind: 'system', reason: 'itest live yaml-js in process' },
+      });
+      liveOut = live.status === 'ok' ? live.output : live;
+    } catch (err) {
+      liveError = err instanceof Error ? err.message : String(err);
+    } finally {
+      globalThis.fetch = realFetchForLive;
+    }
+    const liveParsed = z
+      .object({
+        channels: z.array(z.object({ id: z.string() })),
+        next_cursor: z.string().nullable(),
+      })
+      .safeParse(liveOut);
+    record(
+      'connector live: a yaml-js body runs in process for a caller without a sandbox session',
+      liveError === '' &&
+        liveParsed.success &&
+        liveParsed.data.channels[0]?.id === 'C-ITEST' &&
+        liveParsed.data.next_cursor === 'cursor-2' &&
+        slackCalls.length === 1 &&
+        slackCalls[0]?.auth === 'Bearer xoxb-itest-access' &&
+        slackCalls[0]?.body === '{"limit":5}',
+      `error=${liveError || '-'} out=${liveParsed.success ? `${liveParsed.data.channels[0]?.id}/${liveParsed.data.next_cursor}` : JSON.stringify(liveOut).slice(0, 200)} vendorCalls=${slackCalls.length} auth=${slackCalls[0]?.auth ?? '-'} body=${slackCalls[0]?.body ?? '-'}`,
+    );
+
+    // ---- ctx.files: a live body stores into the ORG's blob store ---------
+    // Confluence get_page hard-requires ctx.files (it stores the page text).
+    // The in-process lane hands the body the org-scoped sink: bytes land in
+    // the org's store, a file_metadata row names the connector as source, and
+    // the body gets the blob ref back. Needs the object store, like every
+    // blob lane.
+    if (process.env.ITEST_S3_ENDPOINT) {
+      const files = await import('./domains/files/service.ts');
+      const { credentialId: confluenceId } =
+        await credentialService.createCredential(sql, {
+          organizationId: orgId,
+          connectorSlug: 'confluence',
+          authMethod: 'basic',
+          name: 'itest wiki',
+          createdBy: userId,
+          endpointUrl: 'https://itest.atlassian.net',
+          secret: { username: 'itest@door.test', password: 'itest-api-token' },
+        });
+      const realFetchForFiles = globalThis.fetch;
+      const wikiCalls: string[] = [];
+      const wikiFetchStub = async (
+        input: Parameters<typeof globalThis.fetch>[0],
+        init?: Parameters<typeof globalThis.fetch>[1],
+      ): Promise<Response> => {
+        const url =
+          typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        if (
+          !url.startsWith('https://itest.atlassian.net/wiki/rest/api/content/')
+        ) {
+          return realFetchForFiles(input, init);
+        }
+        wikiCalls.push(url);
+        return new Response(
+          JSON.stringify({
+            body: { storage: { value: '<p>Hello <b>wiki</b></p><p>Bye</p>' } },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      };
+      globalThis.fetch = Object.assign(wikiFetchStub, {
+        preconnect: realFetchForFiles.preconnect,
+      });
+      let storedOut: unknown = null;
+      let storedError = '';
+      try {
+        const { runConnectorAction } =
+          await import('./domains/connectors/service.ts');
+        const stored = await runConnectorAction(sql, {
+          organizationId: orgId,
+          connector: 'confluence',
+          action: 'get_page',
+          input: { pageId: '4242', title: 'Onboarding' },
+          credentialRef: confluenceId,
+          mode: 'live',
+          caller: { kind: 'user', userId },
+        });
+        storedOut = stored.status === 'ok' ? stored.output : stored;
+      } catch (err) {
+        storedError = err instanceof Error ? err.message : String(err);
+      } finally {
+        globalThis.fetch = realFetchForFiles;
+      }
+      const storedParsed = z
+        .object({
+          file: z.object({
+            id: z.string(),
+            fileName: z.string(),
+            contentType: z.string(),
+            size: z.number(),
+          }),
+        })
+        .safeParse(storedOut);
+      const storedRef = storedParsed.success ? storedParsed.data.file.id : '';
+      const fileRow = storedRef
+        ? await sql<
+            {
+              source: string | null;
+              fileName: string;
+              size: string;
+              uploadedBy: string | null;
+              skipRag: boolean | null;
+            }[]
+          >`
+            SELECT source, file_name AS "fileName", size::text AS size,
+                   uploaded_by AS "uploadedBy", skip_rag_indexing AS "skipRag"
+            FROM app.file_metadata
+            WHERE org_id = ${orgId} AND storage_ref = ${storedRef}
+          `
+        : [];
+      let storedText = '';
+      if (storedRef) {
+        try {
+          const blob = await files.getOrgBlobBytes(sql, orgId, storedRef);
+          storedText = Buffer.from(blob.bytes).toString('utf8');
+        } catch (err) {
+          storedError += ` blobRead=${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+      // A stranger's org must not be able to read the ref back.
+      let foreignRefused = false;
+      if (storedRef) {
+        try {
+          await files.getOrgBlobBytes(sql, 'some-other-org', storedRef);
+        } catch {
+          foreignRefused = true;
+        }
+      }
+      await credentialService.deleteCredential(sql, orgId, confluenceId);
+      record(
+        'connector live: ctx.files stores into the org blob store and returns the ref',
+        storedError === '' &&
+          storedParsed.success &&
+          storedParsed.data.file.fileName === 'Onboarding.txt' &&
+          storedParsed.data.file.contentType === 'text/plain' &&
+          wikiCalls.length === 1 &&
+          storedText === 'Hello wiki\n\nBye' &&
+          fileRow.length === 1 &&
+          fileRow[0]?.source === 'confluence' &&
+          fileRow[0]?.fileName === 'Onboarding.txt' &&
+          fileRow[0]?.uploadedBy === userId &&
+          fileRow[0]?.skipRag === true &&
+          Number(fileRow[0]?.size) === Buffer.byteLength(storedText) &&
+          foreignRefused,
+        `error=${storedError || '-'} file=${storedParsed.success ? `${storedParsed.data.file.fileName}/${storedParsed.data.file.contentType}/${storedParsed.data.file.size}B` : JSON.stringify(storedOut).slice(0, 200)} wikiCalls=${wikiCalls.length} text=${JSON.stringify(storedText)} row=${fileRow.length ? `${fileRow[0]?.source}/${fileRow[0]?.fileName}/${fileRow[0]?.size}B/by=${fileRow[0]?.uploadedBy === userId}/skipRag=${fileRow[0]?.skipRag}` : 'none'} foreignRefused=${foreignRefused}`,
+      );
+    } else {
+      record(
+        'connector live: ctx.files stores into the org blob store and returns the ref',
+        true,
+        'SKIPPED, no ITEST_S3_ENDPOINT',
+      );
+    }
   } finally {
     vendor.close();
     if (savedSiteUrl === undefined) delete process.env.SITE_URL;
@@ -22336,18 +22705,38 @@ async function checkCloudImport(
   // replay reads as invalid_state.
   const declined = await fetch(
     `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(state)}&error=access_denied`,
-    { redirect: 'manual' },
+    { headers: { cookie, origin: base }, redirect: 'manual' },
   );
   const declinedBody = await declined.text();
   const replay = await fetch(
     `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(state)}&code=abc`,
-    { redirect: 'manual' },
+    { headers: { cookie, origin: base }, redirect: 'manual' },
   );
   const replayBody = await replay.text();
   const consumed = await consumePendingCloudAuthorization(
     sql,
     await hashStateToken(state),
   );
+  // The completer must be the initiator: a valid state finished by a browser
+  // with no session is refused like a forgery, and the state is burned.
+  const strangerStart = await fetch(
+    `${base}/api/cloud-import/oauth2/start?provider=google-drive&organizationId=${orgId}`,
+    { headers: { cookie, origin: base }, redirect: 'manual' },
+  );
+  const strangerState =
+    new URL(
+      strangerStart.headers.get('location') ?? 'https://x.invalid',
+    ).searchParams.get('state') ?? '';
+  const stranger = await fetch(
+    `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(strangerState)}&code=abc`,
+    { redirect: 'manual' },
+  );
+  const strangerBurned = !(
+    await consumePendingCloudAuthorization(
+      sql,
+      await hashStateToken(strangerState),
+    )
+  ).ok;
 
   // Grant lifecycle, service-level (the vendor exchange is live-only).
   await storeCloudAuthorization(sql, {
@@ -22439,6 +22828,9 @@ async function checkCloudImport(
       replay.status === 400 &&
       replayBody.length > 0 &&
       !consumed.ok &&
+      strangerState.length > 20 &&
+      stranger.status === 400 &&
+      strangerBurned &&
       fresh.success &&
       fresh.accessToken === 'itest-oauth-token' &&
       listed.success &&
@@ -27427,8 +27819,9 @@ async function checkSandboxGatewayKeyReclaim(
   // management API is reachable from every sandbox session. The fake gateway
   // below does not check the value, but without one set every revoke fails
   // authentication and the check would pass its fail-open lane while proving
-  // nothing about the revoke itself.
-  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD ??= 'itest-gateway-admin';
+  // nothing about the revoke itself. main() defaults the variable before any
+  // lane runs (two earlier lanes mint too); this lane only restores whatever
+  // it found.
   const now = Date.now();
   const seedSession = async (
     sessionId: string,
@@ -37834,35 +38227,34 @@ async function checkReviewArc(
       headers: { 'content-type': 'application/json', cookie, origin: base },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
+  const postJson = async (route: string, body?: unknown): Promise<unknown> =>
+    readJson(await post(route, body), `POST ${route}`);
   const get = async (route: string): Promise<unknown> =>
-    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
-  const project = z
-    .object({ projectId: z.string() })
-    .safeParse(
-      await (
-        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Review Arc' })
-      ).json(),
+    readJson(
+      await fetch(`${base}${route}`, { headers: { cookie } }),
+      `GET ${route}`,
     );
+  const project = z.object({ projectId: z.string() }).safeParse(
+    await postJson(`/api/app/projects?orgId=${orgId}`, {
+      name: 'Review Arc',
+    }),
+  );
   const projectId = project.success ? project.data.projectId : '';
   const agent = z.object({ agentId: z.string() }).safeParse(
-    await (
-      await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
-        name: 'Review Bot',
-        harness: 'claude-code',
-        model: 'itest-model',
-        skills: [],
-        connectors: [],
-      })
-    ).json(),
+    await postJson(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+      name: 'Review Bot',
+      harness: 'claude-code',
+      model: 'itest-model',
+      skills: [],
+      connectors: [],
+    }),
   );
   const agentId = agent.success ? agent.data.agentId : '';
   const task = z.object({ taskId: z.string() }).safeParse(
-    await (
-      await post(`/api/app/tasks?orgId=${orgId}`, {
-        projectId,
-        title: 'Reviewed work',
-      })
-    ).json(),
+    await postJson(`/api/app/tasks?orgId=${orgId}`, {
+      projectId,
+      title: 'Reviewed work',
+    }),
   );
   const taskId = task.success ? task.data.taskId : '';
   await post(`/api/app/tasks/${taskId}/assign?orgId=${orgId}`, {
@@ -37941,12 +38333,10 @@ async function checkReviewArc(
       taskReopened: z.boolean(),
     })
     .safeParse(
-      await (
-        await post(
-          `/api/app/tasks/reviews/${minted[0]?.id ?? ''}/respond?orgId=${orgId}`,
-          { decision: 'request_changes', feedback: 'Tighten the summary.' },
-        )
-      ).json(),
+      await postJson(
+        `/api/app/tasks/reviews/${minted[0]?.id ?? ''}/respond?orgId=${orgId}`,
+        { decision: 'request_changes', feedback: 'Tighten the summary.' },
+      ),
     );
   const afterChanges = await sql<{ status: string; commentCount: number }[]>`
     SELECT status, comment_count AS "commentCount" FROM app.tasks
@@ -37997,12 +38387,10 @@ async function checkReviewArc(
     .object({ taskCompleted: z.boolean() })
     .loose()
     .safeParse(
-      await (
-        await post(
-          `/api/app/tasks/reviews/${roundTwo[0]?.id ?? ''}/respond?orgId=${orgId}`,
-          { decision: 'approve' },
-        )
-      ).json(),
+      await postJson(
+        `/api/app/tasks/reviews/${roundTwo[0]?.id ?? ''}/respond?orgId=${orgId}`,
+        { decision: 'approve' },
+      ),
     );
   const afterApprove = await sql<
     { status: string; completedAt: number | null }[]
@@ -40251,6 +40639,29 @@ async function sharedSessionAlive(
 }
 
 /**
+ * Reads a JSON response body, naming the request when it cannot. `.json()`
+ * on a non-JSON error body throws a bare SyntaxError, so a 401/404/500 with
+ * a text body used to truncate the run as "Unexpected token …" and hide the
+ * status and body that explain it. Throws `<label>: HTTP <status> <body>`
+ * for a non-2xx status, and a parse failure carries the same context.
+ */
+async function readJson(res: Response, label: string): Promise<unknown> {
+  const text = await res.text();
+  const excerpt = text.slice(0, 300);
+  if (!res.ok) {
+    throw new Error(`${label}: HTTP ${res.status} ${excerpt}`);
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    throw new Error(
+      `${label}: HTTP ${res.status} body is not JSON (${errorText(error)}): ${excerpt}`,
+      { cause: error },
+    );
+  }
+}
+
+/**
  * Runs the session-bearing lanes in order and makes a TRUNCATION loud. A run
  * that stops early must never read as green, so: a lane that throws is
  * recorded as a failed check naming the lane and how many never ran; and
@@ -40322,6 +40733,14 @@ async function main(): Promise<void> {
     // Secret-box key for the credential round-trip (64 hex chars = 32 bytes).
     process.env.ENCRYPTION_SECRET_HEX = 'ab'.repeat(32);
   }
+  // The sandbox gateway admin client refuses to run anonymous
+  // (requireGatewayAdminPassword throws before any network call), and three
+  // lanes mint keys against a fake gateway in this order:
+  // checkAutomationAgentNode, checkAutomationRunToolLane,
+  // checkSandboxGatewayKeyReclaim. Default it here, before any lane runs — the
+  // reclaim lane used to be the only setter, so on a machine without the
+  // variable the two earlier lanes failed their `minted === 1` assertions.
+  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD ??= 'itest-gateway-admin';
 
   // Better Auth validates the request Host against baseURL, so the server
   // port must be known BEFORE the auth instance is created — pick one

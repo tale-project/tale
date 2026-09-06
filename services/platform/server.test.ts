@@ -738,6 +738,88 @@ describe('SSE /events/file', () => {
     fetchSpy.mockRestore();
   });
 
+  test('writes a `: ping` comment frame every 30 s and stops on cancel', async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ userId: 'u1', orgSlugs: ['acme'] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    try {
+      const app = createApp(baseEnv);
+      const res = await app.fetch(
+        new Request('http://localhost/events/file', {
+          headers: { cookie: 'better-auth.session_token=valid' },
+        }),
+      );
+      expect(res.status).toBe(200);
+      // The handler enqueues string frames; Response types the body as bytes.
+      const reader = (
+        res.body as unknown as ReadableStream<string>
+      ).getReader();
+      expect((await reader.read()).value).toBe(
+        'data: {"type":"connected"}\n\n',
+      );
+
+      // Config changes are rare: without the heartbeat a quiet client sits
+      // silent until Bun's 255 s idleTimeout cuts the socket. Nothing must
+      // be written before the interval elapses (a comment frame is not an
+      // event), and one frame per interval after it.
+      await vi.advanceTimersByTimeAsync(29_999);
+      let pending = false;
+      const race = reader.read().then((chunk) => {
+        pending = true;
+        return chunk;
+      });
+      await Promise.resolve();
+      expect(pending).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect((await race).value).toBe(': ping\n\n');
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect((await reader.read()).value).toBe(': ping\n\n');
+
+      // Cancelling the stream must clear the interval — a leaked timer
+      // would keep enqueueing into a closed controller forever.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      await reader.cancel();
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    } finally {
+      fetchSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('bounds the session-oracle round trip with an abort signal', async () => {
+    // A hung backend must not leave `/events/file` (and `/canvas-preview`,
+    // which shares the oracle) pending forever; the fetch carries a timeout
+    // signal and the existing catch turns the abort into a 401.
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(async (_input, init) => {
+        const signal = init?.signal;
+        expect(signal).toBeInstanceOf(AbortSignal);
+        expect(signal?.aborted).toBe(false);
+        // Behave like a backend that never answers: reject the way undici
+        // does once the signal fires.
+        throw new DOMException('The operation timed out.', 'TimeoutError');
+      });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      new Request('http://localhost/events/file', {
+        headers: { cookie: 'better-auth.session_token=valid' },
+      }),
+    );
+    expect(res.status).toBe(401);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+    fetchSpy.mockRestore();
+  });
+
   test('returns 404 when FILE_EVENTS_ENABLED is false', async () => {
     const app = createApp({ ...baseEnv, FILE_EVENTS_ENABLED: false });
     const res = await app.fetch(new Request('http://localhost/events/file'));

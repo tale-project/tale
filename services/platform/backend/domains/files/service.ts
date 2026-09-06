@@ -7,6 +7,7 @@ import {
   buildObjectKey,
   resolveObjectStore,
   s3DeleteObject,
+  s3GetObjectBytes,
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
@@ -452,6 +453,28 @@ export async function statOrgBlob(
   const key = requireOrgScopedKey(storageRef, orgSlug);
   const head = await s3HeadObject(store, key);
   return head === null ? null : { size: head.size };
+}
+
+/**
+ * GET the raw bytes of an org-scoped blob — the server-side read lane for a
+ * caller that needs the bytes in hand rather than a presigned URL (an
+ * outbound mail attachment the SMTP native composes). Throws on a ref outside
+ * the org's namespace, so a stranger's ref is refused before any request.
+ *
+ * The check is the org NAMESPACE, deliberately: a ref is a random object key
+ * under the org's prefix (capability-shaped — it is never listed to a caller
+ * who could not see the file), and document/project visibility belongs to
+ * the door that handed the ref out, not to this byte read. A caller that
+ * must enforce visibility resolves the document first and passes its ref.
+ */
+export async function getOrgBlobBytes(
+  sql: Sql,
+  organizationId: string,
+  storageRef: string,
+): Promise<{ bytes: Uint8Array }> {
+  const { orgSlug, store } = await requireOrgStore(sql, organizationId);
+  const key = requireOrgScopedKey(storageRef, orgSlug);
+  return { bytes: await s3GetObjectBytes(store, key) };
 }
 
 /**
