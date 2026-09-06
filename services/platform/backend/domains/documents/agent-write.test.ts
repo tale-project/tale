@@ -33,13 +33,24 @@ interface Statement {
 
 const LOOKUP = 'SELECT id, file_ref AS "fileRef", record FROM app.documents';
 
+/** A folder row as the scope read answers it (the folder write's target). */
+interface FolderScope {
+  projectId: string | null;
+  teamId: string | null;
+  teamTags: string[];
+}
+
 function fakeUpsert(script: {
+  /** Answers, in order, to every locked document read — by key AND, for a
+   * folder write, the same-name-in-folder fallback (same SELECT shape). */
   lookups: {
     id: string;
     fileRef: string | null;
     record: Record<string, unknown> | null;
   }[][];
   inserts: { id: string }[][];
+  /** The folder the write targets; `null` = no such folder in the org. */
+  folder?: FolderScope | null;
 }): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
   const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -47,6 +58,9 @@ function fakeUpsert(script: {
     statements.push({ text, values });
     if (text.startsWith('SELECT content_hash')) {
       return Promise.resolve([{ contentHash: 'sha-1' }]);
+    }
+    if (text.startsWith('SELECT project_id AS "projectId", team_id')) {
+      return Promise.resolve(script.folder ? [script.folder] : []);
     }
     if (text.startsWith(LOOKUP)) {
       return Promise.resolve(script.lookups.shift() ?? []);
@@ -60,6 +74,13 @@ function fakeUpsert(script: {
     begin: (callback: (t: typeof tx) => unknown): unknown => callback(tx),
   } as unknown as Sql;
   return { sql, statements };
+}
+
+/** The realtime hints the transaction wrote, as `(entity)` in order. */
+function hintEntities(statements: Statement[]): string[] {
+  return statements
+    .filter((s) => s.text.startsWith('INSERT INTO app_realtime.outbox'))
+    .map((s) => String(s.values[2]));
 }
 
 const args = {
@@ -82,7 +103,11 @@ describe('upsertAgentDocument', () => {
 
     const result = await upsertAgentDocument(fake.sql, args);
 
-    expect(result).toEqual({ documentId: 'doc-1', action: 'created' });
+    expect(result).toEqual({
+      documentId: 'doc-1',
+      action: 'created',
+      contentChanged: true,
+    });
     const insert = fake.statements.find((s) =>
       s.text.startsWith('INSERT INTO app.documents'),
     );
@@ -109,7 +134,12 @@ describe('upsertAgentDocument', () => {
 
     const result = await upsertAgentDocument(fake.sql, args);
 
-    expect(result).toEqual({ documentId: 'doc-winner', action: 'updated' });
+    // The winner's row served no bytes yet: this refresh brought new content.
+    expect(result).toEqual({
+      documentId: 'doc-winner',
+      action: 'updated',
+      contentChanged: true,
+    });
     const lookups = fake.statements.filter((s) => s.text.startsWith(LOOKUP));
     expect(lookups).toHaveLength(2);
     for (const lookup of lookups) expect(lookup.text).toContain('FOR UPDATE');
@@ -135,7 +165,12 @@ describe('upsertAgentDocument', () => {
 
     const result = await upsertAgentDocument(fake.sql, args);
 
-    expect(result).toEqual({ documentId: 'doc-1', action: 'updated' });
+    // Same blob again: the row's bytes did not change.
+    expect(result).toEqual({
+      documentId: 'doc-1',
+      action: 'updated',
+      contentChanged: false,
+    });
     expect(
       fake.statements.some((s) =>
         s.text.startsWith('INSERT INTO app.documents'),
@@ -173,5 +208,185 @@ describe('upsertAgentDocument', () => {
       'knowledge.release_refs',
       { organizationId: 'org_1', refs: ['s3:acme/blob-0'] },
     );
+  });
+
+  it('answers contentChanged only when the bytes are new to the row', async () => {
+    const fresh = fakeUpsert({ lookups: [[]], inserts: [[{ id: 'doc-1' }]] });
+    await expect(upsertAgentDocument(fresh.sql, args)).resolves.toMatchObject({
+      contentChanged: true,
+    });
+    const sameBlob = fakeUpsert({
+      lookups: [[{ id: 'doc-1', fileRef: 's3:acme/blob-1', record: null }]],
+      inserts: [],
+    });
+    await expect(
+      upsertAgentDocument(sameBlob.sql, args),
+    ).resolves.toMatchObject({ action: 'updated', contentChanged: false });
+    const swapped = fakeUpsert({
+      lookups: [[{ id: 'doc-1', fileRef: 's3:acme/blob-0', record: null }]],
+      inserts: [],
+    });
+    await expect(upsertAgentDocument(swapped.sql, args)).resolves.toMatchObject(
+      { action: 'updated', contentChanged: true },
+    );
+  });
+
+  // Every write is a realtime fact: a hub row owes the document hint; a
+  // project row ALSO owes the task hint (its folder's facts ride the task
+  // DTO — see documents/hints.ts).
+  it('emits the document hint, and the task hint for a project document', async () => {
+    const hub = fakeUpsert({ lookups: [[]], inserts: [[{ id: 'doc-1' }]] });
+    await upsertAgentDocument(hub.sql, args);
+    expect(hintEntities(hub.statements)).toEqual(['document']);
+
+    const project = fakeUpsert({
+      lookups: [[]],
+      inserts: [[{ id: 'doc-2' }]],
+      folder: { projectId: 'proj-1', teamId: null, teamTags: [] },
+    });
+    await upsertAgentDocument(project.sql, { ...args, folderId: 'fld-q1' });
+    expect(hintEntities(project.statements)).toEqual(['document', 'task']);
+  });
+});
+
+// The workflow `document.create` contract rides `folderId`: the document
+// lands IN the folder and takes the folder's scope — never a scope the
+// caller names — and a same-named active document in that folder is the
+// same document, refreshed rather than duplicated. The first 0.5 cut had no
+// folder at all here, so a desk automation's deliverables (return.xml,
+// report.md) landed at the project root where no task's Files zone lists
+// them, and a fresh row per run when they did.
+describe('upsertAgentDocument into a folder', () => {
+  const folderArgs = { ...args, folderId: 'fld-q1' };
+
+  it('files the row into the folder with the folder s project scope', async () => {
+    const fake = fakeUpsert({
+      lookups: [[], []],
+      inserts: [[{ id: 'doc-1' }]],
+      folder: { projectId: 'proj-1', teamId: null, teamTags: [] },
+    });
+
+    const result = await upsertAgentDocument(fake.sql, {
+      ...folderArgs,
+      // The folder wins over a caller-named project.
+      projectId: 'proj-other',
+    });
+
+    expect(result).toMatchObject({ documentId: 'doc-1', action: 'created' });
+    const scopeRead = fake.statements.find((s) =>
+      s.text.startsWith('SELECT project_id AS "projectId", team_id'),
+    );
+    expect(scopeRead?.values).toEqual(['fld-q1', 'org_1']);
+    const insert = fake.statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.documents'),
+    );
+    expect(insert?.text).toContain('project_id, folder_id, team_id');
+    expect(insert?.values).toEqual(
+      expect.arrayContaining(['proj-1', 'fld-q1', 'agent']),
+    );
+    expect(insert?.values).not.toContain('proj-other');
+  });
+
+  it('inherits a hub folder s team scope and owes no task hint there', async () => {
+    const fake = fakeUpsert({
+      lookups: [[], []],
+      inserts: [[{ id: 'doc-1' }]],
+      folder: { projectId: null, teamId: 'team-9', teamTags: ['team-9'] },
+    });
+
+    await upsertAgentDocument(fake.sql, folderArgs);
+
+    const insert = fake.statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.documents'),
+    );
+    expect(insert?.values).toEqual(
+      expect.arrayContaining(['fld-q1', 'team-9', ['team-9']]),
+    );
+    expect(hintEntities(fake.statements)).toEqual(['document']);
+  });
+
+  it('refreshes the folder s same-named document instead of parking a sibling', async () => {
+    const fake = fakeUpsert({
+      // No row under the key; the folder holds a same-named upload.
+      lookups: [
+        [],
+        [{ id: 'doc-upload', fileRef: 's3:acme/old', record: null }],
+      ],
+      inserts: [],
+      folder: { projectId: 'proj-1', teamId: null, teamTags: [] },
+    });
+
+    const result = await upsertAgentDocument(fake.sql, folderArgs);
+
+    expect(result).toEqual({
+      documentId: 'doc-upload',
+      action: 'updated',
+      contentChanged: true,
+    });
+    const byTitle = fake.statements.filter((s) => s.text.startsWith(LOOKUP))[1];
+    expect(byTitle?.text).toContain('AND folder_id = ? AND title = ?');
+    expect(byTitle?.text).toContain(
+      "(lifecycle_status IS NULL OR lifecycle_status = 'active')",
+    );
+    expect(byTitle?.text).toContain('FOR UPDATE');
+    expect(byTitle?.values).toEqual(['org_1', 'fld-q1', 'report.md']);
+    expect(
+      fake.statements.some((s) =>
+        s.text.startsWith('INSERT INTO app.documents'),
+      ),
+    ).toBe(false);
+    const update = fake.statements.find((s) =>
+      s.text.startsWith('UPDATE app.documents'),
+    );
+    // Filed there, re-scoped to the folder, stamped as the run's output; the
+    // row keeps its own key (a sync-owned row must stay reconcilable).
+    expect(update?.text).toContain(
+      'folder_id = CASE WHEN ? THEN ? ELSE folder_id END',
+    );
+    expect(update?.text).not.toContain('external_item_id');
+    expect(update?.values).toEqual(
+      expect.arrayContaining([
+        's3:acme/blob-1',
+        'agent',
+        'proj-1',
+        true,
+        'fld-q1',
+      ]),
+    );
+    expect(hintEntities(fake.statements)).toEqual(['document', 'task']);
+  });
+
+  it('refuses a folder the organization does not hold, before any row', async () => {
+    const fake = fakeUpsert({ lookups: [], inserts: [], folder: null });
+
+    await expect(
+      upsertAgentDocument(fake.sql, folderArgs),
+    ).rejects.toMatchObject({ code: 'FOLDER_NOT_FOUND' });
+    expect(
+      fake.statements.some(
+        (s) =>
+          s.text.startsWith('INSERT INTO app.documents') ||
+          s.text.startsWith('UPDATE app.documents'),
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps a folderless refresh where the row already sits', async () => {
+    const fake = fakeUpsert({
+      lookups: [[{ id: 'doc-1', fileRef: 's3:acme/blob-1', record: null }]],
+      inserts: [],
+    });
+
+    await upsertAgentDocument(fake.sql, args);
+
+    const update = fake.statements.find((s) =>
+      s.text.startsWith('UPDATE app.documents'),
+    );
+    expect(update?.text).toContain('ELSE folder_id END');
+    expect(update?.text).toContain('ELSE team_id END');
+    expect(update?.text).toContain('ELSE team_tags END');
+    // The re-file switch is off: every CASE keeps the column.
+    expect(update?.values).toContain(false);
+    expect(update?.values).not.toContain(true);
   });
 });

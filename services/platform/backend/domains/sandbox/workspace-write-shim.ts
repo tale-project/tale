@@ -188,11 +188,10 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
         auditActorId?: string;
       };
       const { fileId, ...rest } = args;
-      const result = await coded(() =>
-        // The bridge's `fileId` IS the blob ref `storeRawContent` answered.
+      // The bridge's `fileId` IS the blob ref `storeRawContent` answered.
+      return coded(() =>
         upsertAgentDocument(sql, { ...rest, fileRef: fileId }),
       );
-      return { ...result, contentChanged: true };
     },
 
     'file_metadata/internal_mutations:linkDocumentToFile': async (raw) => {
