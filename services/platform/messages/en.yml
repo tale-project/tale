@@ -6207,20 +6207,7 @@ settings:
   dataResidency:
     readOnly:
       title: Read-only access
-      before: Editing is restricted to the operators listed in
-      after:
-        (in the deployment .env). Ask an operator to add your email there and
-        restart to enable editing.
-      yourEmail: Your sign-in email is {email}.
-    secretsEncryptedNoKey:
-      The stored secrets are SOPS-encrypted but no age key is
-      configured — existing secrets can't be read.
-    secretsUnreadable: The stored secrets exist but can't be decrypted (corrupt
-      ciphertext, or a missing/incorrect age key). Re-enter the values and save
-      to overwrite them.
     externalPostgres: External Postgres
-    status:
-      builtIn: Built-in
     field:
       host: Host
       port: Port
@@ -6229,7 +6216,6 @@ settings:
       sslMode: SSL mode
       password: Password
     password:
-      storedHint: 'Stored: {masked} — leave blank to keep'
       storedNoPreviewHint:
         A value is stored — leave blank to keep it, or enter a new
         one to replace it.
@@ -6240,75 +6226,18 @@ settings:
       ok: OK
       failed: Failed
     knowledge:
-      title: Knowledge database (RAG)
-      description: The Postgres database backing knowledge search and retrieval.
       paradeDbNote:
         The external knowledge database must run ParadeDB (pgvector +
         pg_search) for full hybrid search; plain pgvector degrades to
         vector-only.
     storage:
-      title: File storage (uploaded documents)
-      description: Where uploaded documents and generated exports are kept.
       externalS3: External S3
-      localLabel: Local volume
       region: Region
       endpoint: Endpoint (MinIO/R2; blank for AWS)
       forcePathStyle: Force path-style (MinIO/R2)
-      bucketsLabel: Buckets
-      credentialsLabel: Credentials
-      bucket:
-        files: Files bucket
-        exports: Exports bucket
-        snapshotImports: Snapshot-imports bucket
-        modules: Modules bucket
-        search: Search bucket
       accessKeyId: Access key ID
-      accessKeyIdStoredHint: 'Stored: {masked} — leave blank to keep'
       writeOnly: Write-only
       secretAccessKey: Secret access key
-      testReachability: Test reachability
-      reachable: Reachable
-      greenfieldWarning:
-        'S3 storage is greenfield: switching from local does NOT
-        migrate existing uploaded files. Set this at initial deploy, or copy the
-        local blobs into the bucket separately.'
-    appDb:
-      summary: Application database (advanced)
-      description:
-        Convex's internal metadata store. Most deployments should leave
-        this on the bundled database.
-      databaseNameNote:
-        The Convex backend derives its database name from the instance
-        configuration, so the external Postgres must already contain that
-        database. The Database field above is used only for the connection test.
-      sslModeNote:
-        TLS mode for this database is fixed by the Convex driver and cannot
-        be configured here.
-    saved:
-      title: Saved — restart to apply.
-      runPrefix: Run
-      orPrefix: (or
-      tail: for zero-downtime).
-    saving: Saving…
-    saveDeployment: Save deployment
-    forceOverwrite:
-      title: Overwrite unreadable secrets?
-      description:
-        The existing secrets file can't be decrypted. Overwriting replaces
-        it with the values you entered — any other secrets it held will be lost.
-        Continue?
-      confirm: Overwrite
-    errors:
-      versionConflict:
-        The deployment config changed in another session. Reload to see
-        the latest, then re-apply your changes.
-      invalidConfig: 'The configuration is invalid: {issues}'
-      invalidConfigGeneric: The configuration is invalid. Check the fields and try again.
-      forbidden: You're not authorized to edit deployment configuration.
-      secretUnreadable: The existing secrets file can't be decrypted. Confirm
-        overwrite to replace it.
-      configUnreadable: The deployment configuration on disk can't be read.
-      readFailed: "Couldn't load the deployment configuration: {error}"
     orgKnowledge:
       title: Knowledge database
       description:

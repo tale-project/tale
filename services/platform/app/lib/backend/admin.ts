@@ -32,12 +32,6 @@ type TestSsoResult = ReturnsOf<'enterprise_sso/config/actions:testConnection'>;
 type ParseIdpMetadataResult =
   ReturnsOf<'enterprise_sso/config/actions:parseIdpMetadata'>;
 type RegenerateScimResult = ReturnsOf<'scim/mutations:regenerateToken'>;
-type DeploymentConfigViewResult =
-  ReturnsOf<'deployment/file_actions:readDeploymentConfig'>;
-type SaveDeploymentConfigResult =
-  ReturnsOf<'deployment/file_actions:saveDeploymentConfig'>;
-type DeploymentTestResult =
-  ReturnsOf<'deployment/file_actions:testDeploymentConnection'>;
 type ObjectStorageViewResult =
   ReturnsOf<'object_storage/actions:getObjectStorageConnection'>;
 type ObjectStorageProbeResult =
@@ -258,10 +252,6 @@ export const adminDataResidencyActionQueries: Record<
   string,
   ActionQueryAdapter
 > = {
-  'deployment/file_actions:readDeploymentConfig': () => {
-    return () =>
-      backendFetch<DeploymentConfigViewResult>('/deployment/config', {});
-  },
   'object_storage/actions:getObjectStorageConnection': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -517,40 +507,6 @@ export const adminWriteAdapters: Record<string, WriteAdapter> = {
       }).then(() => null),
     invalidate: invalidateSso,
   },
-  'deployment/file_actions:saveDeploymentConfig': {
-    run: (args) =>
-      backendFetch<SaveDeploymentConfigResult>('/deployment/config', {
-        body: {
-          config: args.config,
-          ...(typeof args.expectedHash === 'string'
-            ? { expectedHash: args.expectedHash }
-            : {}),
-        },
-      }),
-    invalidate: invalidateDeployment,
-  },
-  'deployment/file_actions:saveDeploymentSecret': {
-    run: (args) =>
-      backendFetch<{ ok: boolean }>('/deployment/secrets', {
-        body: {
-          secrets: args.secrets,
-          ...(args.force === true ? { force: true } : {}),
-        },
-      }).then(() => null),
-    invalidate: invalidateDeployment,
-  },
-  'deployment/file_actions:testDeploymentConnection': {
-    run: (args) =>
-      backendFetch<DeploymentTestResult>('/deployment/test', {
-        body: {
-          target: stringArg(args, 'target'),
-          config: args.config,
-          ...(typeof args.password === 'string'
-            ? { password: args.password }
-            : {}),
-        },
-      }),
-  },
   'object_storage/actions:saveObjectStorageConnection': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>('/object-storage/connection', {
@@ -625,12 +581,6 @@ export const adminWriteAdapters: Record<string, WriteAdapter> = {
     invalidate: invalidateKnowledgeConfig,
   },
 };
-
-function invalidateDeployment(
-  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
-): void {
-  void client.invalidateQueries({ queryKey: ['config', 'deployment'] });
-}
 
 function invalidateObjectStorage(
   client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
