@@ -85,3 +85,44 @@ describe('createAuth — trusted origins across domains', () => {
     ).toThrow(/must use HTTPS/);
   });
 });
+
+describe('createAuth — additional origins hold the HTTPS line', () => {
+  it('refuses a plaintext additional origin on an HTTPS deployment', () => {
+    // Better Auth's origin check would otherwise TRUST http://plain.example,
+    // so anyone able to tamper with that origin's traffic could mount the very
+    // cross-site requests the check exists to stop. The proxy blocks a
+    // plaintext entry in its default modes but not under TLS_MODE=external.
+    expect(() =>
+      createAuth({
+        ...BASE,
+        baseUrl: 'https://tale.example.com',
+        additionalOrigins: ['http://plain.example'],
+      }),
+    ).toThrow(/ADDITIONAL_SITE_URLS must use HTTPS/);
+  });
+
+  it('still allows a loopback http origin, exactly as SITE_URL does (dev)', () => {
+    const auth = createAuth({
+      ...BASE,
+      baseUrl: 'http://localhost:3000',
+      additionalOrigins: ['http://127.0.0.1:3000'],
+    });
+    expect(auth.options.trustedOrigins).toEqual([
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+    ]);
+  });
+
+  it('names the offending origin so the operator can find it', () => {
+    expect(() =>
+      createAuth({
+        ...BASE,
+        baseUrl: 'https://tale.example.com',
+        additionalOrigins: [
+          'https://fine.example',
+          'http://the-bad-one.example',
+        ],
+      }),
+    ).toThrow(/http:\/\/the-bad-one\.example/);
+  });
+});

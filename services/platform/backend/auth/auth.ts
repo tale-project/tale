@@ -202,16 +202,33 @@ export function createAuth(config: AuthConfig) {
 
   // Fail fast if a non-loopback hostname is served over HTTP — the backend
   // must never silently downgrade to insecure cookies (mirrors 0.4).
+  const isLoopbackOrigin = (value: string): boolean =>
+    ['localhost', '127.0.0.1', '::1', '[::1]'].includes(
+      new URL(value).hostname,
+    );
   {
     const parsed = new URL(siteUrl);
-    const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(
-      parsed.hostname,
-    );
-    if (parsed.protocol === 'http:' && !isLoopback) {
+    if (parsed.protocol === 'http:' && !isLoopbackOrigin(siteUrl)) {
       throw new Error(
         `SITE_URL must use HTTPS for non-loopback hostnames (got ${siteUrl}). ` +
           `Set SITE_URL=https://your-domain or run behind a TLS-terminating ` +
           `proxy with TLS_MODE=external.`,
+      );
+    }
+  }
+  // The same rule for every additional domain. Each is a full sign-in entry
+  // point, and Better Auth's origin check would otherwise TRUST a plaintext
+  // origin on an HTTPS deployment — letting anyone able to tamper with that
+  // origin's traffic mount the cross-site requests the check exists to stop.
+  // The proxy already refuses a plaintext entry, but not under
+  // `TLS_MODE=external`, where it terminates TLS upstream — so the guard
+  // belongs here too, next to the canonical one it mirrors.
+  for (const origin of config.additionalOrigins ?? []) {
+    if (new URL(origin).protocol === 'http:' && !isLoopbackOrigin(origin)) {
+      throw new Error(
+        `ADDITIONAL_SITE_URLS must use HTTPS for non-loopback hostnames (got ${origin}). ` +
+          `Every additional domain is a full sign-in entry point, so a plaintext ` +
+          `one would be trusted for cross-site request checks.`,
       );
     }
   }
