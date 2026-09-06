@@ -115,15 +115,12 @@ export default {
         'lib/pii/**',
         'lib/connectors/natives/**',
         // Shared contract layer: types declared for the parked consumers
-        // above (schemas, platform run/render vocabulary, provider catalog
-        // shapes). Same debt, same exit.
+        // above (schemas, provider catalog shapes). Same debt, same exit.
         'lib/shared/constants/agents.ts',
         'lib/shared/schemas/skills.ts',
         'lib/shared/config/registry.ts',
         'lib/shared/constants/system-message-tags.ts',
         'lib/shared/file-types.ts',
-        'lib/shared/metrics-window.ts',
-        'lib/shared/platform/**',
         'lib/shared/providers/attribution.ts',
         'lib/shared/schemas/agents.ts',
         'lib/shared/schemas/approvals.ts',
@@ -132,7 +129,6 @@ export default {
         'lib/shared/schemas/connectors.ts',
         'lib/shared/schemas/pii.ts',
         'lib/shared/schemas/providers.ts',
-        'lib/shared/text-matching/**',
         // E2E helper for the parked chat specs.
         'tests/e2e/helpers/chat.ts',
       ],
