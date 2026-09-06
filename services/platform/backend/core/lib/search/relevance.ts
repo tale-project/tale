@@ -1,14 +1,6 @@
 import type { Doc, TableNames } from '../rows';
 import type { SearchStrategy } from './types';
 
-/** A row is "active" unless an explicit `lifecycleStatus` says otherwise.
- *  Rows missing the field (legacy / other tables) are treated as active.
- *  Reads loosely so any `Doc<T>` can be passed without per-table narrowing. */
-export function isActiveRow(row: Record<string, unknown>): boolean {
-  const status = row.lifecycleStatus;
-  return (typeof status === 'string' ? status : 'active') === 'active';
-}
-
 /** Lowercased text for a searchable primitive field value. Strings and numbers
  *  are searchable; booleans, objects and arrays are not — ignoring them avoids
  *  both `[object Object]` matches and a boolean field accidentally matching the
@@ -31,8 +23,8 @@ function fieldText(value: unknown): string | undefined {
  * construction, so requiring all of them finds nothing: the real query
  * "recruitment ads Facebook ad account project tasks" cannot match a task
  * titled "Set up Facebook ad account" under `'all'`. `'any'` drops function
- * words, keeps rows that hit a remaining token at word-start or better, and
- * leaves {@link scoreAndSort} to put the row that hit the most tokens first.
+ * words and keeps rows that hit a remaining token at word-start or better;
+ * the SQL leg that fetched the candidates owns their order.
  */
 export type MatchMode = 'all' | 'any';
 
@@ -314,8 +306,7 @@ const ID_SUBSTRING_TIER = 2;
 
 /**
  * The strength of one token's best hit anywhere on the row, on the same scale
- * {@link fieldTier} uses (0 = no hit). Matching and ranking both read this, so
- * a row can never be kept by one rule and ordered by another.
+ * {@link fieldTier} uses (0 = no hit).
  */
 function tokenTier<T extends TableNames>(
   record: Record<string, unknown>,
@@ -376,73 +367,4 @@ export function rowMatches<T extends TableNames>(
   return tokens.every(
     (token) => tokenTier(record, strategy, token, rawTerm) > 0,
   );
-}
-
-/** A whole-query exact id match is the strongest possible signal — it dominates
- *  any combination of text-field matches. */
-const EXACT_ID_SCORE = 10_000;
-
-/**
- * Relevance score for a row. Sums each token's best signal across `textFields`,
- * where a stronger match tier (exact > field-prefix > word-prefix > substring)
- * dominates and, on a tie, an earlier (higher-priority) field wins — so a hit on
- * `name` outranks the same hit on `email`. An exact id match short-circuits to
- * the top. Pure and page-local.
- */
-function rowScore<T extends TableNames>(
-  row: Doc<T>,
-  strategy: SearchStrategy<T>,
-  lowerTerm: string,
-  mode: MatchMode,
-): number {
-  const tokens = queryTokens(lowerTerm, mode);
-  if (tokens.length === 0) return 0;
-  const record = row as Record<string, unknown>;
-
-  for (const field of strategy.idFields ?? []) {
-    const value = record[field];
-    if (
-      (typeof value === 'string' || typeof value === 'number') &&
-      value.toString().toLowerCase() === lowerTerm
-    ) {
-      return EXACT_ID_SCORE;
-    }
-  }
-
-  const fieldCount = strategy.textFields.length;
-  let total = 0;
-  for (const token of tokens) {
-    let bestForToken = 0;
-    strategy.textFields.forEach((field, index) => {
-      const tier = fieldTier(fieldText(record[field]), token);
-      if (tier === 0) return;
-      // Tier dominates; the field-priority weight (earlier field = higher) only
-      // breaks ties between equal tiers.
-      const weight = fieldCount - index;
-      bestForToken = Math.max(bestForToken, tier * (fieldCount + 1) + weight);
-    });
-    total += bestForToken;
-  }
-  return total;
-}
-
-/**
- * Order matched rows by relevance — strongest match first, then newest. Pure,
- * **page-local** sort: the caller has already paginated over the stable index
- * order, so re-ordering within the page keeps opaque cursors valid across
- * `loadMore`.
- */
-export function scoreAndSort<T extends TableNames>(
-  rows: ReadonlyArray<Doc<T>>,
-  strategy: SearchStrategy<T>,
-  lowerTerm: string,
-  mode: MatchMode = 'all',
-): Doc<T>[] {
-  return [...rows].sort((a, b) => {
-    const byScore =
-      rowScore(b, strategy, lowerTerm, mode) -
-      rowScore(a, strategy, lowerTerm, mode);
-    if (byScore !== 0) return byScore;
-    return b._creationTime - a._creationTime;
-  });
 }

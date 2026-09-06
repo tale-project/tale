@@ -96,6 +96,9 @@ describe('ensureEnv — audit signing key auto-gen', () => {
       expect(match).not.toBeNull();
       // 32 bytes hex-encoded = 64 chars; mirrors INSTANCE_SECRET shape.
       expect(match?.[1]).toHaveLength(64);
+      // The audit pepper ships with it: >= 16 chars is what pii_hash.ts
+      // requires before it hashes instead of writing plaintext email + IP.
+      expect(env).toMatch(/^TALE_AUDIT_PEPPER=[0-9a-f]{64}$/m);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -126,8 +129,10 @@ describe('ensureEnv — audit signing key auto-gen', () => {
       const res = await ensureEnv({ deployDir: dir });
       expect(res.success).toBe(true);
       expect(res.regeneratedAutoSecrets).toContain('TALE_AUDIT_SIGNING_KEY');
+      expect(res.regeneratedAutoSecrets).toContain('TALE_AUDIT_PEPPER');
       const env = readFileSync(join(dir, '.env'), 'utf-8');
       expect(env).toMatch(/^TALE_AUDIT_SIGNING_KEY=[0-9a-f]{64}$/m);
+      expect(env).toMatch(/^TALE_AUDIT_PEPPER=[0-9a-f]{64}$/m);
       // Existing secrets are preserved, not regenerated.
       expect(env).toContain('BETTER_AUTH_SECRET=existing-better-auth');
     } finally {

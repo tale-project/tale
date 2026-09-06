@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  expandIPv6,
-  hashEmailForAudit,
-  hashIpForAudit,
-  splitEmailForAudit,
-  splitIpForAudit,
-} from './pii_hash';
+import { expandIPv6, splitEmailForAudit, splitIpForAudit } from './pii_hash';
 
 const PEPPER = 'unit-test-pepper-very-long-secret';
 
@@ -98,39 +92,6 @@ describe('expandIPv6', () => {
   });
 });
 
-describe('hashEmailForAudit', () => {
-  beforeEach(() => {
-    delete process.env.TALE_AUDIT_PEPPER;
-  });
-  afterEach(() => {
-    delete process.env.TALE_AUDIT_PEPPER;
-  });
-
-  it('returns plaintext when pepper is unset', async () => {
-    const out = await hashEmailForAudit('User@Example.COM');
-    expect(out).toBe('User@Example.COM');
-  });
-
-  it('returns plaintext when pepper is too short', async () => {
-    process.env.TALE_AUDIT_PEPPER = 'short';
-    const out = await hashEmailForAudit('a@b.com');
-    expect(out).toBe('a@b.com');
-  });
-
-  it('returns sha256-prefixed hash when pepper is configured', async () => {
-    process.env.TALE_AUDIT_PEPPER = PEPPER;
-    const out = await hashEmailForAudit('a@b.com');
-    expect(out).toMatch(/^sha256:[0-9a-f]{64}$/);
-  });
-
-  it('lowercases the email before hashing', async () => {
-    process.env.TALE_AUDIT_PEPPER = PEPPER;
-    const lower = await hashEmailForAudit('a@b.com');
-    const mixed = await hashEmailForAudit('A@B.com');
-    expect(lower).toBe(mixed);
-  });
-});
-
 describe('splitEmailForAudit', () => {
   beforeEach(() => {
     delete process.env.TALE_AUDIT_PEPPER;
@@ -144,15 +105,28 @@ describe('splitEmailForAudit', () => {
     expect(out).toEqual({ plaintext: 'a@b.com' });
   });
 
+  it('returns plaintext only when pepper is too short', async () => {
+    process.env.TALE_AUDIT_PEPPER = 'short';
+    const out = await splitEmailForAudit('a@b.com');
+    expect(out).toEqual({ plaintext: 'a@b.com' });
+  });
+
   it('returns hash only when pepper is configured', async () => {
     process.env.TALE_AUDIT_PEPPER = PEPPER;
     const out = await splitEmailForAudit('a@b.com');
     expect(out.plaintext).toBeUndefined();
     expect(out.hash).toMatch(/^sha256:[0-9a-f]{64}$/);
   });
+
+  it('lowercases the email before hashing', async () => {
+    process.env.TALE_AUDIT_PEPPER = PEPPER;
+    const lower = await splitEmailForAudit('a@b.com');
+    const mixed = await splitEmailForAudit('A@B.com');
+    expect(lower.hash).toBe(mixed.hash);
+  });
 });
 
-describe('hashIpForAudit (IPv4)', () => {
+describe('splitIpForAudit (IPv4)', () => {
   beforeEach(() => {
     process.env.TALE_AUDIT_PEPPER = PEPPER;
   });
@@ -161,20 +135,27 @@ describe('hashIpForAudit (IPv4)', () => {
   });
 
   it('coarsens to /24 and hashes', async () => {
-    const a = await hashIpForAudit('203.0.113.5');
-    const b = await hashIpForAudit('203.0.113.99');
-    expect(a).toBe(b);
-    expect(a).toMatch(/^sha256:[0-9a-f]{64}$/);
+    const a = await splitIpForAudit('203.0.113.5');
+    const b = await splitIpForAudit('203.0.113.99');
+    expect(a.hash).toBe(b.hash);
+    expect(a.hash).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(a.plaintext).toBeUndefined();
   });
 
   it('treats v4-mapped v6 the same as the v4 form', async () => {
-    const v4 = await hashIpForAudit('1.2.3.4');
-    const mapped = await hashIpForAudit('::ffff:1.2.3.4');
-    expect(v4).toBe(mapped);
+    const v4 = await splitIpForAudit('1.2.3.4');
+    const mapped = await splitIpForAudit('::ffff:1.2.3.4');
+    expect(v4.hash).toBe(mapped.hash);
+  });
+
+  it('records an unparseable address as plaintext', async () => {
+    expect(await splitIpForAudit('not-an-ip')).toEqual({
+      plaintext: 'not-an-ip',
+    });
   });
 });
 
-describe('hashIpForAudit (IPv6) — round-2 v04 H3 regression', () => {
+describe('splitIpForAudit (IPv6) — round-2 v04 H3 regression', () => {
   beforeEach(() => {
     process.env.TALE_AUDIT_PEPPER = PEPPER;
   });

@@ -43590,8 +43590,9 @@ async function main(): Promise<void> {
       '/tale_knowledge',
     );
   }
-  if (!process.env.ENCRYPTION_SECRET_HEX && !process.env.ENCRYPTION_SECRET) {
-    // Secret-box key for the credential round-trip (64 hex chars = 32 bytes).
+  if (!process.env.ENCRYPTION_SECRET_HEX) {
+    // The field-encryption root for the credential round-trip and the JWE
+    // lanes (64 hex chars = 32 bytes) — the one variable both lanes read.
     process.env.ENCRYPTION_SECRET_HEX = 'ab'.repeat(32);
   }
   // The sandbox gateway admin client refuses to run anonymous

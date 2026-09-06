@@ -65,9 +65,11 @@ interface AdvisoryIssue {
  * real domain may legitimately differ), but surfacing them inline catches the
  * common "deployed straight from a hand-edited .env.example" footguns:
  *
- *  - a placeholder DB password still in place, and
+ *  - a placeholder DB password still in place,
  *  - a missing audit signing key (which leaves the audit chain unsigned and
- *    the daily integrity cron unable to verify it).
+ *    the daily integrity cron unable to verify it), and
+ *  - a missing audit pepper (which leaves failed sign-ins in the audit log
+ *    as plaintext email + IP for the whole retention window).
  *
  * Only relevant for a real (non-local) HOST — a localhost trial doesn't need
  * any of this. Pure so it's unit-testable; the caller renders the warnings.
@@ -90,6 +92,13 @@ export function checkProductionReadiness(
       message:
         'TALE_AUDIT_SIGNING_KEY is not set — audit checkpoints will be unsigned (tamper-evidence off).',
       fix: 'Re-run the CLI to auto-generate it, or set TALE_AUDIT_SIGNING_KEY=$(openssl rand -hex 32).',
+    });
+  }
+  if ((env.TALE_AUDIT_PEPPER ?? '').trim().length < 16) {
+    issues.push({
+      message:
+        'TALE_AUDIT_PEPPER is not set — failed sign-ins are written to the audit log as plaintext email + IP.',
+      fix: 'Re-run the CLI to auto-generate it, or set TALE_AUDIT_PEPPER=$(openssl rand -hex 32).',
     });
   }
   return issues;

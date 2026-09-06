@@ -1,15 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Doc } from '../rows';
-import {
-  isActiveRow,
-  queryTokens,
-  rowMatches,
-  scoreAndSort,
-} from './relevance';
+import { queryTokens, rowMatches } from './relevance';
 import { contactsSearchStrategy } from './strategies/contacts';
-import { projectsSearchStrategy } from './strategies/projects';
-import { tasksSearchStrategy } from './strategies/tasks';
+import type { SearchStrategy } from './types';
 
 /** Build a minimal contact doc for the pure matching/scoring helpers. `_id`
  *  is widened to `string` so a test can label rows ('exact'/'prefix'/…) without
@@ -77,82 +71,6 @@ describe('rowMatches', () => {
   });
 });
 
-describe('isActiveRow', () => {
-  it('treats a missing lifecycleStatus as active', () => {
-    expect(isActiveRow({})).toBe(true);
-  });
-  it('treats explicit active as active and anything else as inactive', () => {
-    expect(isActiveRow({ lifecycleStatus: 'active' })).toBe(true);
-    expect(isActiveRow({ lifecycleStatus: 'trashed' })).toBe(false);
-  });
-});
-
-describe('scoreAndSort', () => {
-  it('ranks exact > prefix > substring, then newest first', () => {
-    const rows = [
-      contact({ _id: 'sub', name: 'my config tool', _creationTime: 5 }),
-      contact({ _id: 'exact', name: 'config', _creationTime: 1 }),
-      contact({ _id: 'prefix', name: 'configuration', _creationTime: 2 }),
-    ];
-    const ordered = scoreAndSort(rows, contactsSearchStrategy, 'config');
-    expect(ordered.map((r) => r._id)).toEqual(['exact', 'prefix', 'sub']);
-  });
-
-  it('breaks ties by creation time (newest first)', () => {
-    const rows = [
-      contact({ _id: 'old', name: 'config', _creationTime: 1 }),
-      contact({ _id: 'new', name: 'config', _creationTime: 9 }),
-    ];
-    const ordered = scoreAndSort(rows, contactsSearchStrategy, 'config');
-    expect(ordered.map((r) => r._id)).toEqual(['new', 'old']);
-  });
-
-  it('ranks a word-prefix match above a mid-word substring', () => {
-    const rows = [
-      contact({ _id: 'mid', name: 'Brianna Smith', _creationTime: 9 }),
-      contact({ _id: 'word', name: 'Anna Lee', _creationTime: 1 }),
-    ];
-    // "anna" starts a word; "brianna" only contains "ann" mid-word — relevance
-    // wins over recency even though the mid-word row is newer.
-    const ordered = scoreAndSort(rows, contactsSearchStrategy, 'ann');
-    expect(ordered.map((r) => r._id)).toEqual(['word', 'mid']);
-  });
-
-  it('ranks a name hit above an equal-strength email hit', () => {
-    const rows = [
-      contact({
-        _id: 'email',
-        name: 'Zeta',
-        email: 'z.acme@x.io',
-        _creationTime: 9,
-      }),
-      contact({
-        _id: 'name',
-        name: 'My Acme',
-        email: 'z@x.io',
-        _creationTime: 1,
-      }),
-    ];
-    // Both match "acme" as a word-prefix; the higher-priority `name` field wins.
-    const ordered = scoreAndSort(rows, contactsSearchStrategy, 'acme');
-    expect(ordered.map((r) => r._id)).toEqual(['name', 'email']);
-  });
-
-  it('ranks an exact id match above a strong name match', () => {
-    const rows = [
-      contact({ _id: 'name', name: 'CUST-7 Industries', _creationTime: 9 }),
-      contact({
-        _id: 'id',
-        name: 'Other',
-        externalId: 'CUST-7',
-        _creationTime: 1,
-      }),
-    ];
-    const ordered = scoreAndSort(rows, contactsSearchStrategy, 'cust-7');
-    expect(ordered.map((r) => r._id)).toEqual(['id', 'name']);
-  });
-});
-
 // ---------------------------------------------------------------- 'any' mode
 
 /** A minimal task doc. Same widening trick as `contact` — only the searched
@@ -170,6 +88,14 @@ function task(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test fixture; only the searched fields matter
   } as Doc<'tasks'>;
 }
+
+/** Tasks as the 0.4 board leg searched them — title + description as prose,
+ *  the tracker's `externalId` as an id — a fixture for the pure matcher. */
+const tasksSearchStrategy: SearchStrategy<'tasks'> = {
+  table: 'tasks',
+  textFields: ['title', 'description'],
+  idFields: ['externalId'],
+};
 
 const anyMatch = (row: Doc<'tasks'>, term: string) =>
   rowMatches(row, tasksSearchStrategy, term.toLowerCase(), term, 'any');
@@ -278,78 +204,5 @@ describe("rowMatches in 'any' mode", () => {
     expect(anyMatch(task({ title: 'x', externalId: 'GH-914' }), 'GH-914')).toBe(
       true,
     );
-  });
-});
-
-describe("scoreAndSort in 'any' mode", () => {
-  it('puts the row that answers the most of the question first', () => {
-    const question = 'recruitment ads Facebook ad account project tasks';
-    const rows = [
-      // Hits one token, and is the newer row — recency must not win here.
-      task({ _id: 'weak', title: 'Facebook page refresh', _creationTime: 9 }),
-      // Hits three: facebook, ad, account.
-      task({
-        _id: 'strong',
-        title: 'Set up Facebook ad account',
-        _creationTime: 1,
-      }),
-    ];
-    const ordered = scoreAndSort(
-      rows,
-      tasksSearchStrategy,
-      question.toLowerCase(),
-      'any',
-    );
-    expect(ordered.map((r) => r._id)).toEqual(['strong', 'weak']);
-  });
-
-  it('scores over the same tokens it matched on', () => {
-    // Ranking must read the FILTERED tokens, not the raw query. The noise row
-    // is stuffed with function words so that, if stopwords still scored, its
-    // six weak hits would outrank the one row that actually answers.
-    const rows = [
-      task({
-        _id: 'noise',
-        title: 'What do we have about the shelf',
-        _creationTime: 9,
-      }),
-      task({ _id: 'real', title: 'Account', _creationTime: 1 }),
-    ];
-    const ordered = scoreAndSort(
-      rows,
-      tasksSearchStrategy,
-      'what do we have about the account',
-      'any',
-    );
-    expect(ordered.map((r) => r._id)).toEqual(['real', 'noise']);
-  });
-});
-
-describe('projectsSearchStrategy', () => {
-  function project(
-    overrides: Partial<Omit<Doc<'projects'>, '_id'>> & { _id?: string },
-  ): Doc<'projects'> {
-    return {
-      _id: 'p1',
-      _creationTime: 0,
-      organizationId: 'org',
-      name: '',
-      ...overrides,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test fixture; only the searched fields matter
-    } as Doc<'projects'>;
-  }
-
-  it('matches a project by name and by its short key', () => {
-    const row = project({ name: 'Recruitment', key: 'REC' });
-    expect(
-      rowMatches(row, projectsSearchStrategy, 'recruitment', 'recruitment'),
-    ).toBe(true);
-    expect(rowMatches(row, projectsSearchStrategy, 'rec', 'REC')).toBe(true);
-  });
-
-  it('does not match on colour or icon', () => {
-    const row = project({ name: 'Recruitment', color: 'teal', icon: 'flag' });
-    expect(rowMatches(row, projectsSearchStrategy, 'teal', 'teal')).toBe(false);
-    expect(rowMatches(row, projectsSearchStrategy, 'flag', 'flag')).toBe(false);
   });
 });
