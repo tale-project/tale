@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   checkProductionReadiness,
+  validateAdditionalSiteUrls,
   validateTlsPrereqs,
 } from './deploy-preflight';
 
@@ -137,6 +138,74 @@ describe('checkProductionReadiness (advisory, non-blocking)', () => {
         DB_PASSWORD: 'a-strong-password',
         TALE_AUDIT_SIGNING_KEY: 'deadbeef',
         TALE_AUDIT_PEPPER: 'a-pepper-of-sixteen-chars',
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('validateAdditionalSiteUrls', () => {
+  test('unset or empty is fine — the single-domain default', () => {
+    expect(
+      validateAdditionalSiteUrls({
+        additionalSiteUrls: undefined,
+        tlsMode: 'letsencrypt',
+      }),
+    ).toEqual([]);
+    expect(
+      validateAdditionalSiteUrls({
+        additionalSiteUrls: '   ',
+        tlsMode: 'letsencrypt',
+      }),
+    ).toEqual([]);
+  });
+
+  test('public domains under letsencrypt → no issues', () => {
+    expect(
+      validateAdditionalSiteUrls({
+        additionalSiteUrls: 'https://a.example.com, https://b.example.com',
+        tlsMode: 'letsencrypt',
+      }),
+    ).toEqual([]);
+  });
+
+  test('a malformed entry blocks — the backend would refuse to boot on it', () => {
+    const issues = validateAdditionalSiteUrls({
+      additionalSiteUrls: 'https://ok.example, not-a-url',
+      tlsMode: 'selfsigned',
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('not-a-url');
+  });
+
+  test('a subpath entry blocks (an origin, not a URL with a path)', () => {
+    const issues = validateAdditionalSiteUrls({
+      additionalSiteUrls: 'https://ok.example/app',
+      tlsMode: 'selfsigned',
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('BASE_PATH');
+  });
+
+  test('letsencrypt + a local additional hostname blocks (ACME cannot issue)', () => {
+    const issues = validateAdditionalSiteUrls({
+      additionalSiteUrls: 'https://tale.local',
+      tlsMode: 'letsencrypt',
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('tale.local');
+  });
+
+  test('the same local hostname is fine when TLS is not letsencrypt', () => {
+    expect(
+      validateAdditionalSiteUrls({
+        additionalSiteUrls: 'https://tale.local',
+        tlsMode: 'selfsigned',
+      }),
+    ).toEqual([]);
+    expect(
+      validateAdditionalSiteUrls({
+        additionalSiteUrls: 'https://tale.local',
+        tlsMode: 'external',
       }),
     ).toEqual([]);
   });
