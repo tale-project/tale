@@ -23837,9 +23837,12 @@ async function checkCloudImport(
  * grows, corpus purge attempted) and prunes the departed file (empty
  * subfolder reaped, sync root kept) → a legal hold parks the prune until
  * release → a single-file 404 removes the mirror and deactivates → trash
- * stops a directly-selected sync → token order (grant revoked → login
- * account, expiry → refresh writeback) → scan enqueue + the cancel door
- * (which an in-flight run's final stamp must never resurrect).
+ * stops a directly-selected sync → the token lane (grant-only: a revoked
+ * grant is refused with the connect message and no Graph call; an expired
+ * grant refreshes, and a 503 from the token endpoint is NOT sticky) → scan
+ * enqueue + the cancel door (which an in-flight run's final stamp must
+ * never resurrect, and which settles the run marker so a reactivated
+ * config claims at once).
  */
 async function checkOneDriveSync(
   sql: Sql,
@@ -23868,6 +23871,8 @@ async function checkOneDriveSync(
     hash?: string;
     mime?: string;
     folder?: boolean;
+    /** Graph `lastModifiedDateTime` — the change key for a hash-less file. */
+    modified?: string;
   }
   const drive = new Map<string, DriveNode>();
   const seed = (node: DriveNode): void => void drive.set(node.id, node);
@@ -23926,6 +23931,8 @@ async function checkOneDriveSync(
 
   const graphAuth: string[] = [];
   let refreshCalls = 0;
+  // What the fake token endpoint answers a grant refresh with.
+  let refreshAnswer: 'ok' | 'outage' = 'ok';
   const jsonResponse = (body: unknown, status = 200): Response =>
     new Response(JSON.stringify(body), {
       status,
@@ -24016,6 +24023,7 @@ async function checkOneDriveSync(
       id: node.id,
       name: node.name,
       size: (node.content ?? '').length,
+      lastModifiedDateTime: node.modified,
       file: { mimeType: node.mime, hashes: { quickXorHash: node.hash } },
     });
   };
@@ -24034,6 +24042,9 @@ async function checkOneDriveSync(
     if (url.hostname === 'graph.microsoft.com') return graphHandler(url, init);
     if (url.hostname === 'login.microsoftonline.com') {
       refreshCalls++;
+      if (refreshAnswer === 'outage') {
+        return jsonResponse({ error: 'temporarily_unavailable' }, 503);
+      }
       return jsonResponse({
         access_token: 'graph-refreshed-token',
         expires_in: 3600,
@@ -24491,51 +24502,99 @@ async function checkOneDriveSync(
       `import=${memoResult.success ? memoResult.data.successCount : 'ERR'}/1 delete=${trash.status} rows=${memoDocRows.length}/0 config=${memoConfigAfterTrash?.status} (want inactive)`,
     );
 
-    // 7. Token order: grant revoked → the Better Auth login account serves;
-    //    an expired login token refreshes (fake vendor) and writes back.
+    // 7. The token lane is grant-only: a revoked grant is refused with the
+    //    connect message and makes NO Graph call (the retired login-account
+    //    fallback could only hand Graph a file-scope-less SSO token → 403);
+    //    an expired grant refreshes; a 503 from the token endpoint is not
+    //    sticky — the grant stays active and the next attempt succeeds.
     await cloud.revokeCloudAuthorization(sql, {
       organizationId: orgId,
       userId,
       provider: 'onedrive',
     });
-    await sql`
-      INSERT INTO "account" (
-        "id", "userId", "providerId", "accountId", "accessToken",
-        "refreshToken", "accessTokenExpiresAt", "createdAt", "updatedAt"
-      ) VALUES (
-        gen_random_uuid(), ${userId}, 'microsoft', 'ms-ext-1',
-        'graph-login-token', 'rt-1', ${new Date(Date.now() + 3_600_000)},
-        ${new Date()}, ${new Date()}
-      )
+    const graphCallsBeforeRevoked = graphAuth.length;
+    const revokedList = z
+      .object({ success: z.boolean(), error: z.string().optional() })
+      .safeParse(
+        await (
+          await post('/list-files', { folderId: 'folder-reports' })
+        ).json(),
+      );
+    await runConfig(folderConfig.id);
+    const revokedConfig = await sql<
+      { status: string; errorMessage: string | null }[]
+    >`
+      SELECT status, error_message AS "errorMessage"
+      FROM app.onedrive_sync_configs WHERE id = ${folderConfig.id}
     `;
-    await post('/list-files', { folderId: 'folder-reports' });
-    const loginAuthUsed = graphAuth.at(-1) === 'Bearer graph-login-token';
-    await sql`
-      UPDATE "account" SET "accessTokenExpiresAt" = ${new Date(Date.now() - 1000)}
-      WHERE "userId" = ${userId} AND "providerId" = 'microsoft'
-    `;
-    await post('/list-files', { folderId: 'folder-reports' });
+    const graphCallsAfterRevoked = graphAuth.length;
+    const grantStatus = async (): Promise<string | undefined> =>
+      (
+        await sql<{ status: string }[]>`
+          SELECT status FROM app.user_cloud_authorizations
+          WHERE org_id = ${orgId} AND user_id = ${userId}
+            AND provider = 'onedrive'
+        `
+      )[0]?.status;
+    // An expired grant with a refresh token, against a token endpoint that
+    // is down for the first attempt.
+    await cloud.storeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'onedrive',
+      accessToken: 'graph-stale-token',
+      refreshToken: 'grant-refresh',
+      expiresAt: Date.now() - 1000,
+      scopes: ['Files.Read'],
+    });
+    refreshAnswer = 'outage';
+    const outageList = z
+      .object({ success: z.boolean(), error: z.string().optional() })
+      .safeParse(
+        await (
+          await post('/list-files', { folderId: 'folder-reports' })
+        ).json(),
+      );
+    const statusAfterOutage = await grantStatus();
+    const refreshCallsAfterOutage = refreshCalls;
+    refreshAnswer = 'ok';
+    const recoveredList = z
+      .object({ success: z.boolean() })
+      .safeParse(
+        await (
+          await post('/list-files', { folderId: 'folder-reports' })
+        ).json(),
+      );
     const refreshedAuthUsed =
       graphAuth.at(-1) === 'Bearer graph-refreshed-token';
-    const accountAfterRefresh = await sql<
-      { accessToken: string | null; refreshToken: string | null }[]
-    >`
-      SELECT "accessToken", "refreshToken" FROM "account"
-      WHERE "userId" = ${userId} AND "providerId" = 'microsoft'
-      LIMIT 1
-    `;
     record(
-      'onedrive token order: grant first, login fallback, refresh writeback',
-      loginAuthUsed &&
-        refreshCalls === 1 &&
+      'onedrive token lane: grant-only refusal, transient refresh failure not sticky',
+      revokedList.success &&
+        !revokedList.data.success &&
+        (revokedList.data.error ?? '').includes('Connect Microsoft 365') &&
+        graphCallsAfterRevoked === graphCallsBeforeRevoked &&
+        revokedConfig[0]?.status === 'error' &&
+        (revokedConfig[0].errorMessage ?? '').includes(
+          'Connect Microsoft 365',
+        ) &&
+        outageList.success &&
+        !outageList.data.success &&
+        (outageList.data.error ?? '').includes('HTTP 503') &&
+        statusAfterOutage === 'active' &&
+        refreshCallsAfterOutage === 1 &&
+        recoveredList.success &&
+        recoveredList.data.success &&
         refreshedAuthUsed &&
-        accountAfterRefresh[0]?.accessToken === 'graph-refreshed-token' &&
-        accountAfterRefresh[0].refreshToken === 'rt-2',
-      `loginAuth=${loginAuthUsed}, refreshCalls=${refreshCalls}/1 refreshedAuth=${refreshedAuthUsed}, writeback=${accountAfterRefresh[0]?.accessToken}/${accountAfterRefresh[0]?.refreshToken} (want graph-refreshed-token/rt-2)`,
+        refreshCalls === 2 &&
+        (await grantStatus()) === 'active',
+      `revoked: list=${revokedList.success ? `${revokedList.data.success}/${revokedList.data.error}` : 'ERR'} graphCalls=${graphCallsAfterRevoked - graphCallsBeforeRevoked} (want 0) config=${revokedConfig[0]?.status}/${revokedConfig[0]?.errorMessage}; outage: list=${outageList.success ? `${outageList.data.success}/${outageList.data.error}` : 'ERR'} grant=${statusAfterOutage} (want active) refreshCalls=${refreshCallsAfterOutage}/1; recovered: list=${recoveredList.success ? recoveredList.data.success : 'ERR'} refreshedAuth=${refreshedAuthUsed} refreshCalls=${refreshCalls}/2 grant=${await grantStatus()}`,
     );
 
     // 8. The scan enqueues one job per syncable config; cancel wins over an
-    //    in-flight run's final stamp (status write never leaves 'inactive').
+    //    in-flight run's final stamp (status write never leaves 'inactive'),
+    //    and settles the run marker that stamp would have cleared — so a
+    //    cancelled config never reads 'running', and re-activating it claims
+    //    at once instead of waiting out the 30-minute stale window.
     const scanned = await onedrive.runOneDriveSyncScan(sql);
     const scanDrained = await waitFor(async () => {
       const rows = await sql<{ count: string }[]>`
@@ -24545,22 +24604,48 @@ async function checkOneDriveSync(
       `;
       return Number(rows[0]?.count ?? '0') === 0;
     }, 15_000);
+    // A run in flight: the claim stamp is fresh when the cancel lands.
+    await onedrive.updateSyncConfigStatusRow(sql, 'app.onedrive_sync_configs', {
+      configId: folderConfig.id,
+      lastSyncStatus: 'running',
+    });
     const cancel = await post(`/sync-configs/${folderConfig.id}/cancel`, {});
     const cancelMissing = await post('/sync-configs/does-not-exist/cancel', {});
+    const markerAfterCancel = (await configByItem('folder-reports'))
+      ?.lastSyncStatus;
     await onedrive.updateSyncConfigStatusRow(sql, 'app.onedrive_sync_configs', {
       configId: folderConfig.id,
       status: 'active',
       lastSyncStatus: 'success',
     });
     const cancelSticky = (await configByItem('folder-reports'))?.status;
+    // Re-select the folder ("Sync import" again): the config reactivates
+    // with a clean lifecycle and its first job wins the claim.
+    await onedrive.upsertSyncConfigRow(sql, 'app.onedrive_sync_configs', {
+      organizationId: orgId,
+      userId,
+      itemType: 'folder',
+      itemId: 'folder-reports',
+      itemName: 'ODReports',
+      itemPath: 'ODReports',
+      targetBucket: 'documents',
+    });
+    const reactivated = await configByItem('folder-reports');
+    await runConfig(folderConfig.id);
+    const afterReactivatedRun = await configByItem('folder-reports');
+    await post(`/sync-configs/${folderConfig.id}/cancel`, {});
     record(
-      'onedrive scan + cancel door (cancel outlives a late run stamp)',
+      'onedrive scan + cancel door (cancel outlives a late run stamp, settles the run marker)',
       scanned === 1 &&
         scanDrained &&
         cancel.status === 200 &&
         cancelMissing.status === 404 &&
-        cancelSticky === 'inactive',
-      `scan=${scanned}/1 (only the folder config is syncable) drained=${scanDrained}, cancel=${cancel.status} missing=${cancelMissing.status}, lateStampAfterCancel=${cancelSticky} (want inactive)`,
+        markerAfterCancel === 'cancelled' &&
+        cancelSticky === 'inactive' &&
+        reactivated?.status === 'active' &&
+        reactivated.lastSyncStatus === null &&
+        afterReactivatedRun?.lastSyncStatus === 'success',
+      `scan=${scanned}/1 (only the folder config is syncable) drained=${scanDrained}, cancel=${cancel.status} missing=${cancelMissing.status}, markerAfterCancel=${markerAfterCancel} (want cancelled), lateStampAfterCancel=${cancelSticky} (want inactive), reactivated=${reactivated?.status}/${reactivated?.lastSyncStatus} (want active/null), firstRun=${afterReactivatedRun?.lastSyncStatus} (want success)`,
     );
 
     // 9. Truth in listing and transfer: a 250-child folder browses WHOLE
@@ -24704,6 +24789,90 @@ async function checkOneDriveSync(
         hbDocs.length === 1,
       `claimed=${claimLanded}, stampAge=${Math.round(stampAgeMs / 1000)}s (want fresh), listCalls=${listCallsAfterSecond} (want 1: the second job no-ops), final=${hbAfter?.lastSyncStatus}, docs=${hbDocs.length} (want 1)`,
     );
+
+    // 11. The synced FOLDER itself is deleted at the source: Graph answers
+    //     the listing with 404. The config used to stamp `error` and be
+    //     re-enqueued every scan for good; it now prunes its mirrors and
+    //     reaches the terminal state the single-file path had.
+    drive.delete('folder-hb');
+    drive.delete('f-hb');
+    await runConfig(hbConfigId);
+    const hbConfigGone = await configByItem('folder-hb');
+    const hbDocsGone = await docsByExternalId('f-hb');
+    record(
+      'onedrive folder deleted at the source: mirrors pruned, config source-deleted',
+      hbConfigGone?.status === 'inactive' &&
+        hbConfigGone.lastSyncStatus === 'source-deleted' &&
+        hbDocsGone.length === 0,
+      `config=${hbConfigGone?.status}/${hbConfigGone?.lastSyncStatus} (want inactive/source-deleted), docs=${hbDocsGone.length}/0`,
+    );
+
+    // 12. A file WITHOUT a vendor hash (Graph omits `file.hashes` for some
+    //     item types) used to be re-downloaded every scan, each run
+    //     swapping `file_ref` with no bookkeeping — one stranded blob per
+    //     scan, reclaimed by nothing. The source's size + modified stamp
+    //     now stands in for the hash, and a replaced blob always joins the
+    //     history and releases its corpus rows.
+    seed({
+      id: 'f-nohash',
+      name: 'nohash.txt',
+      content: 'nohash v1',
+      mime: 'text/plain',
+      modified: '2026-01-01T00:00:00Z',
+    });
+    const nohashImport = importResultSchema.safeParse(
+      await (
+        await post('/import', {
+          importType: 'sync',
+          items: [
+            {
+              id: 'f-nohash',
+              name: 'nohash.txt',
+              size: 9,
+              relativePath: 'nohash.txt',
+              isDirectlySelected: true,
+            },
+          ],
+        })
+      ).json(),
+    );
+    await muteRagJobs();
+    const nohashConfig = await configByItem('f-nohash');
+    const nohashV1 = (await docsByExternalId('f-nohash'))[0];
+    await runConfig(nohashConfig?.id ?? '');
+    const nohashIdle = (await docsByExternalId('f-nohash'))[0];
+    const nohashIdleConfig = await configByItem('f-nohash');
+    seed({
+      id: 'f-nohash',
+      name: 'nohash.txt',
+      content: 'nohash v2 body',
+      mime: 'text/plain',
+      modified: '2026-01-02T00:00:00Z',
+    });
+    await runConfig(nohashConfig?.id ?? '');
+    const nohashV2 = (await docsByExternalId('f-nohash'))[0];
+    const nohashReleases = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'knowledge.release_refs'
+        AND data->'refs' ? ${nohashV1?.fileRef ?? ''}
+    `;
+    if (nohashConfig !== null) {
+      await post(`/sync-configs/${nohashConfig.id}/cancel`, {});
+    }
+    record(
+      'onedrive hash-less file: idle run skips by source stamp, edit replaces with bookkeeping',
+      nohashImport.success &&
+        nohashImport.data.successCount === 1 &&
+        nohashV1?.contentHash === null &&
+        nohashIdle?.fileRef === nohashV1.fileRef &&
+        nohashIdle.historyFiles.length === 0 &&
+        nohashIdleConfig?.lastSyncStatus === 'success' &&
+        nohashV2?.fileRef !== nohashV1.fileRef &&
+        nohashV2?.historyFiles.length === 1 &&
+        nohashV2.historyFiles[0] === nohashV1.fileRef &&
+        Number(nohashReleases[0]?.count ?? '0') === 1,
+      `import=${nohashImport.success ? nohashImport.data.successCount : 'ERR'}/1 hash=${String(nohashV1?.contentHash)} (want null), idle: refStable=${nohashIdle?.fileRef === nohashV1?.fileRef} history=${nohashIdle?.historyFiles.length}/0 status=${nohashIdleConfig?.lastSyncStatus}; edit: refChanged=${nohashV2?.fileRef !== nohashV1?.fileRef} history=${nohashV2?.historyFiles.length}/1 oldKept=${nohashV2?.historyFiles[0] === nohashV1?.fileRef} releaseJobs=${nohashReleases[0]?.count}/1`,
+    );
   } finally {
     globalThis.fetch = realFetch;
     if (savedEnv.tenant === undefined) {
@@ -24721,14 +24890,9 @@ async function checkOneDriveSync(
     } else {
       process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET = savedEnv.secret;
     }
-    // The shared ctx serves later checks — remove this check's seeded
-    // Microsoft login account (the accounts probe asserts its absence) and
-    // the released hold row.
+    // The shared ctx serves later checks — remove this check's released
+    // hold row.
     try {
-      await sql`
-        DELETE FROM "account"
-        WHERE "userId" = ${userId} AND "providerId" = 'microsoft'
-      `;
       await sql`
         DELETE FROM app.legal_holds
         WHERE org_id = ${orgId} AND reason = 'onedrive prune guard'
@@ -25131,6 +25295,33 @@ async function checkGoogleDriveSync(
         cancel.status === 200 &&
         cancelMissing.status === 404,
       `404: gone=${memoGone} config=${memoConfigAfter?.status}/${memoConfigAfter?.lastSyncStatus}, trash=${trash.status} noteConfig=${noteConfigAfterTrash?.status} (cross-provider hook), scan=${scanned}/1 drained=${scanDrained}, cancel=${cancel.status}/${cancelMissing.status} (want 200/404)`,
+    );
+
+    // 4. The synced folder is gone at the source. Drive's children query
+    //    answers a missing (or trashed) parent with an EMPTY page, not a
+    //    404 — the reconcile used to prune every mirror and leave the
+    //    config active, polling forever. The engine now probes the folder
+    //    itself on an empty listing: not found → mirrors pruned, terminal.
+    //    (Reactivate the config the cancel door just stopped. Deleting a
+    //    Drive folder trashes its subtree, which `trashed = false` hides —
+    //    the fake drops the whole subtree the same way.)
+    await sql`
+      UPDATE app.google_drive_sync_configs
+      SET status = 'active', last_sync_status = NULL, error_message = NULL
+      WHERE id = ${folderConfig.id}
+    `;
+    for (const gone of ['g-root', 'g-sub', 'g-q1', 'g-native', 'g-native2']) {
+      drive.delete(gone);
+    }
+    await runConfig(folderConfig.id);
+    const rootConfigGone = await configByItem('g-root');
+    const q1Gone = await docsByExternalId('g-q1');
+    record(
+      'google-drive folder gone at the source (empty listing): mirrors pruned, config source-deleted',
+      rootConfigGone?.status === 'inactive' &&
+        rootConfigGone.lastSyncStatus === 'source-deleted' &&
+        q1Gone.length === 0,
+      `config=${rootConfigGone?.status}/${rootConfigGone?.lastSyncStatus} (want inactive/source-deleted), q1 docs=${q1Gone.length}/0`,
     );
 
     await cloud.revokeCloudAuthorization(sql, {

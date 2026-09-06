@@ -3,6 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
+import { Text } from '@tale/ui/text';
 import { Home } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -98,7 +99,7 @@ export function GoogleDriveImportDialog({
     !cloudImportAuthLoading && cloudImportAuth?.status === 'active';
 
   const {
-    data: itemsData,
+    data: listing,
     isLoading: loading,
     error: loadError,
   } = useGoogleDriveFiles(
@@ -106,6 +107,12 @@ export function GoogleDriveImportDialog({
     currentFolderId,
     stage === 'picker' && isGoogleConnected,
   );
+  const itemsData = listing?.items;
+  // How many items the picker shows when the folder holds MORE than the
+  // listing bound — null when the listing is whole.
+  const listingTruncatedCount = listing?.truncated
+    ? listing.items.length
+    : null;
 
   const isGoogleAccountError =
     (!cloudImportAuthLoading &&
@@ -242,35 +249,36 @@ export function GoogleDriveImportDialog({
             }),
         });
       } else if (isFolder(item)) {
-        try {
-          const folderResult = await listGoogleDriveFiles({
-            organizationId,
-            folderId: item.id,
-          });
-          if (folderResult.success && folderResult.items) {
-            const folderPathStr = currentPath
-              ? `${currentPath}/${item.name}`
-              : item.name;
-            const isFolderDirectlySelected =
-              directlySelectedItems?.has(item.id) ?? false;
-            const parentInfoForSubFiles = isFolderDirectlySelected
-              ? { id: item.id, name: item.name, path: folderPathStr }
-              : selectedParentInfo;
-            const subFiles = await collectAllFiles(
-              folderResult.items,
-              folderPathStr,
-              directlySelectedItems,
-              parentInfoForSubFiles,
-            );
-            allFiles.push(...subFiles);
-          }
-        } catch (error) {
-          console.error(error);
-          toast({
-            title: t('googledrive.loadFailed'),
-            variant: 'destructive',
-          });
+        const folderResult = await listGoogleDriveFiles({
+          organizationId,
+          folderId: item.id,
+        });
+        // A folder that cannot be listed whole cannot be imported whole:
+        // stop here (the caller reports it) instead of importing the rest
+        // and calling that a success — the OneDrive picker's posture.
+        if (!folderResult.success || !folderResult.items) {
+          throw new Error(folderResult.error || t('googledrive.loadFailed'));
         }
+        if (folderResult.truncated) {
+          throw new Error(
+            t('onedrive.folderTooLargeToImport', { name: item.name }),
+          );
+        }
+        const folderPathStr = currentPath
+          ? `${currentPath}/${item.name}`
+          : item.name;
+        const isFolderDirectlySelected =
+          directlySelectedItems?.has(item.id) ?? false;
+        const parentInfoForSubFiles = isFolderDirectlySelected
+          ? { id: item.id, name: item.name, path: folderPathStr }
+          : selectedParentInfo;
+        const subFiles = await collectAllFiles(
+          folderResult.items,
+          folderPathStr,
+          directlySelectedItems,
+          parentInfoForSubFiles,
+        );
+        allFiles.push(...subFiles);
       }
     }
     return allFiles;
@@ -447,6 +455,15 @@ export function GoogleDriveImportDialog({
             handleFolderClick={handleFolderClick}
             buildItemPath={buildItemPath}
           />
+          {listingTruncatedCount !== null && (
+            // The folder holds more than the listing bound: say so under the
+            // table, so the picker never passes a shorter folder off as the
+            // whole one (shared copy with the OneDrive picker, like the
+            // table's own empty state).
+            <Text as="p" variant="muted" role="status">
+              {t('onedrive.listingTruncated', { count: listingTruncatedCount })}
+            </Text>
+          )}
         </div>
       </Dialog>
     );
