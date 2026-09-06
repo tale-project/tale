@@ -4669,6 +4669,225 @@ async function checkDocuments(
 }
 
 /**
+ * The folder-bound task's live facts, on a real store.
+ *
+ * The Start gate of an automation-owned task IS the server's `hasFiles`
+ * stamp. An upload into the bound folder must flip the stamp AND emit a
+ * `task` hint — the modal's task read is keyed `task`, and before this the
+ * Files zone showed the new file while the panel beside it kept "waiting for
+ * input files" until a reload. The workflow `document.*` natives then read
+ * and write THAT project folder: `document.list` used to answer "does not
+ * exist" for every project folder, and `document.create` filed through the
+ * hub-only door — refusing the folder, dropping the harvested blob and the
+ * idempotency key. Needs the object store (a document always carries a blob),
+ * so it runs after `checkDocuments` seeded the deployment default.
+ */
+async function checkFolderBoundTaskFacts(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'folder-bound task facts + document natives (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const get = async (route: string): Promise<unknown> =>
+    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
+  const send = (route: string, body: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify(body),
+    });
+  try {
+    const proj = z.object({ projectId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/projects?orgId=${orgId}`, {
+          name: 'Folder Desk Project',
+        })
+      ).json(),
+    );
+    const projectId = proj.success ? proj.data.projectId : '';
+    const fromIssue = z
+      .object({ taskId: z.string(), folderId: z.string() })
+      .safeParse(
+        await (
+          await send(`/api/app/tasks/from-external-issue?orgId=${orgId}`, {
+            projectId,
+            externalSystem: 'folder-desk',
+            ensureFolder: { name: '2026Q1' },
+            title: 'VAT return 2026Q1',
+          })
+        ).json(),
+      );
+    if (!fromIssue.success) {
+      record(
+        'folder-bound task: an upload into the bound folder flips hasFiles and hints the task family',
+        false,
+        `folder-bound task create failed (project=${projectId || 'ERR'})`,
+      );
+      return;
+    }
+    const { taskId, folderId } = fromIssue.data;
+    const before = z
+      .object({ task: z.object({ hasFiles: z.literal(false) }).loose() })
+      .safeParse(await get(`/api/app/tasks/${taskId}?orgId=${orgId}`));
+    const outboxBefore = await latestOutboxId(sql);
+    const presign = z
+      .object({ url: z.string().url(), s3Ref: z.string() })
+      .safeParse(
+        await (
+          await send(`/api/app/files/blob-upload?orgId=${orgId}`, {
+            contentType: 'text/csv',
+          })
+        ).json(),
+      );
+    let uploadedDocId = '';
+    if (presign.success) {
+      await fetch(presign.data.url, {
+        method: 'PUT',
+        headers: { 'content-type': 'text/csv' },
+        body: 'date;amount\n2026-01-15;100\n',
+      });
+      const bound = z.object({ documentId: z.string() }).safeParse(
+        await (
+          await send(`/api/app/documents/from-blob-upload?orgId=${orgId}`, {
+            storageRef: presign.data.s3Ref,
+            fileName: 'sales.csv',
+            contentType: 'text/csv',
+            projectId,
+            folderId,
+          })
+        ).json(),
+      );
+      uploadedDocId = bound.success ? bound.data.documentId : '';
+    }
+    const afterUpload = z
+      .object({ task: z.object({ hasFiles: z.literal(true) }).loose() })
+      .safeParse(await get(`/api/app/tasks/${taskId}?orgId=${orgId}`));
+    const taskHints = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app_realtime.outbox
+      WHERE org_id = ${orgId} AND entity = 'task'
+        AND id > ${outboxBefore}::bigint
+    `;
+    record(
+      'folder-bound task: an upload into the bound folder flips hasFiles and hints the task family',
+      before.success &&
+        uploadedDocId !== '' &&
+        afterUpload.success &&
+        Number(taskHints[0]?.count ?? '0') >= 1,
+      `before=${before.success} (want hasFiles false), doc=${uploadedDocId || 'ERR'}, hasFiles=${afterUpload.success} (want true), taskHints=${taskHints[0]?.count ?? '0'} (want ≥1)`,
+    );
+
+    const { runConnectorAction } =
+      await import('./domains/connectors/service.ts');
+    const caller = {
+      kind: 'system' as const,
+      reason: 'itest document natives on a project folder',
+    };
+    const createInput = {
+      folderId,
+      name: 'return.xml',
+      content: '<return/>',
+      contentType: 'application/xml',
+    };
+    const filedShape = z.object({ documentId: z.string(), action: z.string() });
+    const created = await runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'document',
+      action: 'create',
+      input: createInput,
+      mode: 'live',
+      caller,
+    });
+    const createdOut =
+      created.status === 'ok'
+        ? filedShape.safeParse(created.output)
+        : { success: false as const };
+    // Same node again: the artifact is refreshed, never duplicated.
+    const again = await runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'document',
+      action: 'create',
+      input: createInput,
+      mode: 'live',
+      caller,
+    });
+    const againOut =
+      again.status === 'ok'
+        ? filedShape.safeParse(again.output)
+        : { success: false as const };
+    const filedRows = await sql<
+      {
+        id: string;
+        projectId: string | null;
+        sourceProvider: string | null;
+        fileRef: string | null;
+        externalItemId: string | null;
+      }[]
+    >`
+      SELECT id, project_id AS "projectId",
+             source_provider AS "sourceProvider", file_ref AS "fileRef",
+             external_item_id AS "externalItemId"
+      FROM app.documents
+      WHERE org_id = ${orgId} AND folder_id = ${folderId}
+        AND title = 'return.xml'
+    `;
+    const filed = filedRows[0];
+    const folderListing = await runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'document',
+      action: 'list',
+      input: { folderId },
+      mode: 'live',
+      caller,
+    });
+    const folderListingOut =
+      folderListing.status === 'ok'
+        ? z
+            .object({
+              count: z.number(),
+              files: z.array(
+                z.object({ name: z.string(), storageId: z.string() }),
+              ),
+            })
+            .safeParse(folderListing.output)
+        : { success: false as const };
+    const folderListingNames = folderListingOut.success
+      ? folderListingOut.data.files.map((file) => file.name).sort()
+      : [];
+    record(
+      'document natives file into and list a PROJECT folder (blob-backed, idempotent, run-stamped)',
+      createdOut.success &&
+        createdOut.data.action === 'created' &&
+        againOut.success &&
+        againOut.data.action === 'updated' &&
+        againOut.data.documentId === createdOut.data.documentId &&
+        filedRows.length === 1 &&
+        filed?.id === createdOut.data.documentId &&
+        filed.projectId === projectId &&
+        filed.sourceProvider === 'agent' &&
+        filed.fileRef !== null &&
+        filed.externalItemId === `workflow:${folderId}:return.xml` &&
+        folderListingOut.success &&
+        folderListingNames.join(',') === 'return.xml,sales.csv',
+      `create=${created.status}/${createdOut.success ? createdOut.data.action : 'ERR'}, again=${again.status}/${againOut.success ? againOut.data.action : 'ERR'}, rows=${filedRows.length}, project=${filed?.projectId === projectId}, provider=${filed?.sourceProvider ?? '-'}, blob=${filed?.fileRef != null}, key=${filed?.externalItemId ?? '-'}, list=${folderListing.status}:${folderListingNames.join(',')}`,
+    );
+  } catch (error) {
+    record(
+      'folder-bound task facts + document natives',
+      false,
+      `threw ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+/**
  * The document write-guard class: the org-role write matrix on every
  * mutating documents door (app + REST v1), the controlled-record content
  * freeze at the service seam, REST delete protection derived from the
@@ -44282,6 +44501,10 @@ async function main(): Promise<void> {
       ],
       ['checkFiles', () => checkFiles(baseUrl, authCtx)],
       ['checkDocuments', () => checkDocuments(sql, baseUrl, authCtx)],
+      [
+        'checkFolderBoundTaskFacts',
+        () => checkFolderBoundTaskFacts(sql, baseUrl, authCtx),
+      ],
       [
         'checkWorkflowDocumentListing',
         () => checkWorkflowDocumentListing(sql, baseUrl, authCtx),

@@ -14,6 +14,7 @@
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { purgeDocument } from '../retention/service.ts';
 import { deleteDocumentHard } from './service.ts';
@@ -54,16 +55,33 @@ const HUB_DOC = {
   metadata: {},
 };
 
-/** A recorder answering the one point read the lane makes; `begin` runs the
- * callback inline so the transaction's statements are recorded too. */
-function fakeSql(): { sql: Sql; statements: Statement[]; begun: number[] } {
+/** The project a project-scoped fixture belongs to: org-wide, so the admin
+ * caller passes the edit gate without team membership. */
+const PROJECT = {
+  id: 'proj-1',
+  organizationId: 'org_1',
+  teamId: null,
+  sharedWithTeamIds: [] as string[],
+};
+
+/** A recorder answering the point reads the lane makes (the document, and
+ * its project for a project-scoped fixture); `begin` runs the callback
+ * inline so the transaction's statements are recorded too. */
+function fakeSql(doc: Record<string, unknown> = HUB_DOC): {
+  sql: Sql;
+  statements: Statement[];
+  begun: number[];
+} {
   const statements: Statement[] = [];
   const begun: number[] = [];
   const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
     if (text.includes('FROM app.documents WHERE id = ?')) {
-      return Promise.resolve([HUB_DOC]);
+      return Promise.resolve([doc]);
+    }
+    if (text.includes('FROM app.projects WHERE id = ?')) {
+      return Promise.resolve([PROJECT]);
     }
     return Promise.resolve([]);
   };
@@ -130,5 +148,29 @@ describe('deleteDocumentHard', () => {
     const purgeOrder = vi.mocked(purgeDocument).mock.invocationCallOrder[0];
     const auditOrder = vi.mocked(createAuditLog).mock.invocationCallOrder[0];
     expect(purgeOrder).toBeLessThan(auditOrder ?? -1);
+  });
+
+  // The Files zone's "Delete" removes the last input of an automation-owned
+  // task: the task DTO's `hasFiles` flips, so the task reads must refetch —
+  // a hub document's deletion moves no task fact and owes no task hint.
+  it('emits the task hint for a project document, only the document hint for a hub one', async () => {
+    vi.mocked(purgeDocument).mockResolvedValue(undefined);
+
+    await deleteDocumentHard(fakeSql().sql, auth, 'doc-1');
+    expect(vi.mocked(emitHintInTx).mock.calls.map((call) => call[1])).toEqual([
+      { orgId: 'org_1', entity: 'document', entityId: 'doc-1' },
+    ]);
+
+    vi.clearAllMocks();
+    vi.mocked(purgeDocument).mockResolvedValue(undefined);
+    await deleteDocumentHard(
+      fakeSql({ ...HUB_DOC, projectId: 'proj-1' }).sql,
+      auth,
+      'doc-1',
+    );
+    expect(vi.mocked(emitHintInTx).mock.calls.map((call) => call[1])).toEqual([
+      { orgId: 'org_1', entity: 'document', entityId: 'doc-1' },
+      { orgId: 'org_1', entity: 'task', entityId: null },
+    ]);
   });
 });

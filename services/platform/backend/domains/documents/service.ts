@@ -42,6 +42,7 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import { purgeDocument } from '../retention/service.ts';
+import { emitDocumentChangeHints } from './hints.ts';
 
 /**
  * Documents domain, Tier A — the Document Hub core: create-from-upload,
@@ -475,10 +476,10 @@ export async function createDocumentFromUpload(
     },
     status: 'success',
   });
-  await emitHintInTx(tx, {
+  await emitDocumentChangeHints(tx, {
     orgId: auth.organizationId,
-    entity: 'document',
     entityId: documentId,
+    projectId: args.projectId ?? null,
   });
   // RAG ingest rides the same transaction: rollback enqueues nothing. A
   // skip-flagged upload never enters the corpus (sticky on the file row).
@@ -620,10 +621,10 @@ export async function updateDocument(
       updated_at_ms = ${Date.now()}
     WHERE id = ${args.documentId}
   `;
-  await emitHintInTx(tx, {
+  await emitDocumentChangeHints(tx, {
     orgId: auth.organizationId,
-    entity: 'document',
     entityId: args.documentId,
+    projectId: doc.projectId,
   });
   return { teamScopeChanged, folderChanged, fileRef: doc.fileRef };
 }
@@ -679,6 +680,12 @@ export async function detachDocumentFromProject(
     resourceName: project.name,
     metadata: { documentId, destination: 'org-library' },
     status: 'success',
+  });
+  // The row LEFT the project: its folder's task facts move with it.
+  await emitDocumentChangeHints(tx, {
+    orgId: auth.organizationId,
+    entityId: documentId,
+    projectId: doc.projectId,
   });
   return { fileRef: doc.fileRef };
 }
@@ -756,14 +763,31 @@ export async function listFolderDocumentsBounded(
   args: { folderId: string | null; limit: number },
 ): Promise<{ documents: DocumentRow[]; truncated: boolean }> {
   const limit = Math.min(Math.max(args.limit, 1), HUB_LIST_READ_MAX);
-  const rows = await selectHubDocuments(sql, auth, {
-    folderId: args.folderId,
-    limit: limit + 1,
-  });
+  // `null` is the hub root. A CONCRETE folder lists that folder whatever its
+  // scope — a project folder's rows included: the caller resolved the id in
+  // this org, and a task subject's folders ARE project folders. Hub rows
+  // still pass the team gate; project rows are the project's, gated by the
+  // caller's project access, never by hub team tags.
+  const rows =
+    args.folderId === null
+      ? await selectHubDocuments(sql, auth, {
+          folderId: null,
+          limit: limit + 1,
+        })
+      : await sql<DocumentRow[]>`
+          SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
+          WHERE org_id = ${auth.organizationId}
+            AND folder_id = ${args.folderId}
+            AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+          ORDER BY created_at_ms DESC
+          LIMIT ${limit + 1}
+        `;
   const truncated = rows.length > limit;
   return {
-    documents: (truncated ? rows.slice(0, limit) : rows).filter((doc) =>
-      hasKnowledgeHubDocumentAccess(doc, auth.teamIds),
+    documents: (truncated ? rows.slice(0, limit) : rows).filter(
+      (doc) =>
+        isProjectScoped(doc) ||
+        hasKnowledgeHubDocumentAccess(doc, auth.teamIds),
     ),
     truncated,
   };
@@ -907,10 +931,10 @@ export async function createHubDocument(
     metadata: { sourceProvider: args.sourceProvider ?? 'api_import' },
     status: 'success',
   });
-  await emitHintInTx(tx, {
+  await emitDocumentChangeHints(tx, {
     orgId: auth.organizationId,
-    entity: 'document',
     entityId: documentId,
+    projectId: null,
   });
   return documentId;
 }
@@ -1730,10 +1754,10 @@ export async function deleteDocumentHard(
       },
       status: 'success',
     });
-    await emitHintInTx(tx, {
+    await emitDocumentChangeHints(tx, {
       orgId: auth.organizationId,
-      entity: 'document',
       entityId: documentId,
+      projectId: doc.projectId,
     });
   });
 }
@@ -1817,10 +1841,12 @@ export async function deleteFolderCascade(
       metadata: { deletedDocumentCount: docs.length },
       status: 'success',
     });
-    await emitHintInTx(tx, {
+    // A project folder's deletion flips `folderExists` on every task bound
+    // to it — the same task hint a document change in it owes.
+    await emitDocumentChangeHints(tx, {
       orgId: auth.organizationId,
-      entity: 'document',
       entityId: folderId,
+      projectId: folder.projectId,
     });
     await emitHintInTx(tx, {
       orgId: auth.organizationId,
