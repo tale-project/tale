@@ -115,8 +115,9 @@ OAuth connectors (Gmail, Google Drive, Outlook, Teams, Slack, …) resolve their
 | -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
 | `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID`     | unset   | OAuth client ID for that connector. Slug is upper-cased with dashes as underscores (`gmail` → `GMAIL`). |
 | `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` | unset   | Matching client secret.                                                                                 |
+| `CONNECTOR_SLACK_SIGNING_SECRET`       | unset   | The Slack app's signing secret. The inbound Events endpoint verifies every delivery with it and answers 503 while it is unset. |
 
-Register `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` on the vendor app. Details: [Connectors (develop)](/develop/connectors).
+Register `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` on the vendor app, and for Slack also `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` as the Events Request URL. Details: [Connectors (develop)](/develop/connectors).
 
 ## Knowledge cloud import (Documents)
 

@@ -102,10 +102,6 @@ const PORTABLE_CTX_PRELUDE = `ctx = (function (d) {
       patch: function (u, r) { return hostHttp('PATCH', u, r); },
       delete: function (u, r) { return hostHttp('DELETE', u, r); },
     },
-    files: {
-      download: function () { throw new Error('ctx.files is not available when this connector runs in the sandbox yet'); },
-      store: function () { throw new Error('ctx.files is not available when this connector runs in the sandbox yet'); },
-    },
     base64Encode: function (s) { return Buffer.from(s, 'utf8').toString('base64'); },
     base64Decode: function (s) { return Buffer.from(s, 'base64').toString('utf8'); },
   };
