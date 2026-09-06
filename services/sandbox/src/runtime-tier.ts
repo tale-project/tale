@@ -59,10 +59,6 @@ export function isRuntimeTier(value: string): value is RuntimeTier {
   return value in TIERS;
 }
 
-export function resolveTier(tier: RuntimeTier): TierResolution {
-  return TIERS[tier];
-}
-
 /** docker `--runtime=` value for a tier. */
 export function dockerRuntimeFor(tier: RuntimeTier): string {
   return TIERS[tier].dockerRuntime;

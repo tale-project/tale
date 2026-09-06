@@ -42,15 +42,6 @@ export function getNumber(
   return typeof val === 'number' ? val : undefined;
 }
 
-/** Safely extract a boolean from a record. Returns `undefined` when missing or wrong type. */
-export function getBoolean(
-  obj: Record<string, unknown>,
-  key: string,
-): boolean | undefined {
-  const val = obj[key];
-  return typeof val === 'boolean' ? val : undefined;
-}
-
 /**
  * Display string for a primitive value: the string itself, or `String()` on a
  * number/boolean/bigint. Returns `undefined` for objects, arrays, `null`, and

@@ -164,7 +164,6 @@ export interface SessionInfo {
   state: string;
   backend: string;
   createdAtMs: number;
-  lastActivityAtMs: number;
   expiresAtMs: number;
   idleTimeoutMs: number;
 }

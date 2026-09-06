@@ -30,8 +30,8 @@ type CtxWithRunQuery = {
  * Extends `AppError` with `code: 'ORG_NOT_FOUND'` so that when it does
  * propagate uncaught out of a public function (a stale client whose
  * persisted active org was deleted), the client receives a structured,
- * dispatchable error — the same code the membership gate
- * (`auth/membership.ts`) uses for a dead org — instead of an opaque redacted
+ * dispatchable error — the same code `auth/membership.ts` and the org
+ * middleware (`auth/org.ts`) use for a dead org — instead of an opaque redacted
  * "Server Error" it retries forever. `message` is reassigned after
  * `super()` so server logs keep the human sentence (the wire serializes
  * `data`, not `message`).
@@ -67,8 +67,8 @@ export function isOrgSlugUnresolvable(
  * **This helper does NOT verify caller membership.** It is purely an
  * id → slug lookup that succeeds for any organization row that exists.
  * Callers must ensure `organizationId` came from a verified-membership
- * check upstream (the `requireOrgMember` middleware /
- * `requireOrganizationMember`, or a server-side context whose
+ * check upstream (e.g. `requireOrganizationMember` in `auth/membership.ts`,
+ * the `requireOrgMember` middleware, or a server-side context whose
  * `organizationId` is trusted by construction).
  *
  * **Never** call this with an `organizationId` taken directly from

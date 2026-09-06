@@ -431,24 +431,3 @@ export async function getTwoFactorWireStatus(
     backupCodesRemaining,
   };
 }
-
-export async function getTwoFactorStatus(
-  db: Db,
-  userId: string,
-): Promise<{
-  enabled: boolean;
-  hasPasskey: boolean;
-  enforcement: TwoFactorEnforcement;
-}> {
-  const users = await db<{ twoFactorEnabled: boolean | null }[]>`
-    SELECT "twoFactorEnabled" FROM "user" WHERE "id" = ${userId} LIMIT 1
-  `;
-  const passkeys = await db<{ id: string }[]>`
-    SELECT "id" FROM "passkey" WHERE "userId" = ${userId} LIMIT 1
-  `;
-  return {
-    enabled: users[0]?.twoFactorEnabled === true,
-    hasPasskey: passkeys.length > 0,
-    enforcement: await evaluateTwoFactorEnforcement(db, userId),
-  };
-}

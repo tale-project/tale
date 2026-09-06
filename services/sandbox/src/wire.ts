@@ -139,8 +139,6 @@ export interface SessionInfo {
   state: SandboxSessionState;
   backend: 'docker' | 'kubernetes';
   createdAtMs: number;
-  /** Last exec/file/env activity as reported by runnerd's activity clock. */
-  lastActivityAtMs: number;
   expiresAtMs: number;
   idleTimeoutMs: number;
   /** "Always-on": exempt from the idle/TTL reaper (PATCH /pin). */

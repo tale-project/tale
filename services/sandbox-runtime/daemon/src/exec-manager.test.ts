@@ -326,7 +326,7 @@ describe('ExecManager', () => {
       emit,
     );
     const started = Date.now();
-    while (!mgr.has('eg2')) {
+    while (mgr.status('eg2')?.state !== 'running') {
       if (Date.now() - started > 5_000) throw new Error('eg2 never started');
       await new Promise((r) => setTimeout(r, 10));
     }
@@ -336,37 +336,9 @@ describe('ExecManager', () => {
     const stream = mgr.attach('eg2', follower.emit, 0);
     expect(stream).not.toBeNull();
     await new Promise((r) => setTimeout(r, 2_600)); // past the original 3s
-    expect(mgr.has('eg2')).toBe(true); // survived: the attach slid the deadline
+    expect(mgr.status('eg2')?.state).toBe('running'); // survived: the attach slid the deadline
     expect(mgr.cancel('eg2')).toBe(true); // clean up
     await Promise.all([done, stream]);
-  });
-
-  test('extendDeadline keeps a live exec alive; no-op once exited', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
-    const { emit } = collect();
-    const windowMs = 3_000;
-    const done = mgr.run(
-      {
-        ...base,
-        execId: 'eg3',
-        timeoutMs: windowMs,
-        shell: 'sleep 30',
-        cwd: ROOT,
-      },
-      emit,
-    );
-    const started = Date.now();
-    while (!mgr.has('eg3')) {
-      if (Date.now() - started > 5_000) throw new Error('eg3 never started');
-      await new Promise((r) => setTimeout(r, 10));
-    }
-    await new Promise((r) => setTimeout(r, 600));
-    expect(mgr.extendDeadline('eg3')).toBe(true); // re-arms to now+window
-    await new Promise((r) => setTimeout(r, 2_600)); // past the original 3s
-    expect(mgr.has('eg3')).toBe(true);
-    expect(mgr.cancel('eg3')).toBe(true);
-    await done;
-    expect(mgr.extendDeadline('eg3')).toBe(false); // exited → no-op
   });
 
   test('status() reports running, then exited with the real exit code, then gone', async () => {

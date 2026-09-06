@@ -107,8 +107,8 @@ export async function resolveRestOrgRole(rc: RestContext): Promise<string> {
 /**
  * Assert the `developerSettings` capability — the gate on authoring and on
  * starting a LIVE automation run. Throws `FORBIDDEN_DEVELOPER_SETTINGS`, the
- * same coded error the session-caller developer gate raises, so both
- * surfaces answer a wrong role identically (→ 403).
+ * same coded error the session doors (`automations/dispatch-store.ts`) raise,
+ * so both surfaces answer a wrong role identically (→ 403).
  */
 export async function requireRestDeveloper(rc: RestContext): Promise<void> {
   const role = await resolveRestOrgRole(rc);

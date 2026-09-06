@@ -118,6 +118,35 @@ async function drainAndCap(
   };
 }
 
+/** Bound applied when a caller passes no `timeoutMs`. Every docker CLI call
+ * talks to a daemon that can wedge (stuck mounts, a hung containerd); the
+ * health probe, the periodic sweeps and the cache-volume setup used to run
+ * with NO bound, so under the exact failure the healthcheck exists to detect
+ * the spawner piled up one hung `docker` child per probe and per sweep tick,
+ * and session create blocked forever in ensureCacheVolume. Callers with a
+ * tighter or looser budget still pass their own; `Infinity` opts out. The one
+ * routine call that MUST outlive this default is the boot-time image pull in
+ * {@link ensureImage} — it carries {@link IMAGE_PULL_TIMEOUT_MS}. */
+export const RUN_DOCKER_DEFAULT_TIMEOUT_MS = 60_000;
+
+/** Budget for ONE `docker pull` attempt of the runtime image. The image is
+ * multi-GB (LibreOffice + Playwright/Chromium + Node + Python toolchains), so
+ * on a host without a `tale deploy` pre-pull (kind/dev hosts, a hand-run
+ * compose, K8s-less installs) the warm pull routinely runs for minutes; the
+ * 60 s default would SIGKILL the CLI — which cancels the daemon-side pull —
+ * on every attempt and no session could ever start. 30 min is the slow-link
+ * ceiling; a wedged daemon still cannot pin boot forever (3 attempts). */
+export const IMAGE_PULL_TIMEOUT_MS = 30 * 60_000;
+
+/** The kill-timer budget for one docker CLI invocation: the caller's value,
+ * else the default; `null` when the caller opted out with a non-finite value. */
+export function resolveDockerTimeoutMs(
+  timeoutMs: number | undefined,
+): number | null {
+  const budget = timeoutMs ?? RUN_DOCKER_DEFAULT_TIMEOUT_MS;
+  return Number.isFinite(budget) ? budget : null;
+}
+
 export async function runDocker(
   args: string[],
   opts: RunDockerOptions = {},
@@ -156,7 +185,8 @@ export async function runDocker(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stdoutResult = { bytes: new ArrayBuffer(0), truncated: false };
   let stderrResult = { bytes: new ArrayBuffer(0), truncated: false };
-  if (opts.timeoutMs !== undefined && Number.isFinite(opts.timeoutMs)) {
+  const budgetMs = resolveDockerTimeoutMs(opts.timeoutMs);
+  if (budgetMs !== null) {
     const timeoutPromise = new Promise<'timeout'>((resolve) => {
       timer = setTimeout(() => {
         timedOut = true;
@@ -179,7 +209,7 @@ export async function runDocker(
           });
         }
         resolve('timeout');
-      }, opts.timeoutMs);
+      }, budgetMs);
     });
     const winner = await Promise.race([
       collectIO.then((v) => ['io', v] as const),
@@ -249,19 +279,26 @@ export function dockerRmSucceeded(result: RunDockerResult): boolean {
 
 /**
  * Best-effort `docker pull` of an image, retried with exponential backoff.
- * Used once at spawner boot so the first /v1/execute call doesn't pay a cold
- * registry round-trip. Returns true on success; the caller decides whether
- * to fail-closed on a persistent failure.
+ * Used once at spawner boot so the first session create doesn't pay a cold
+ * registry round-trip (and doesn't die on its own `docker run -d` bound while
+ * the daemon is still pulling). The local `image inspect` keeps the default
+ * budget; each pull attempt gets {@link IMAGE_PULL_TIMEOUT_MS}. Returns true
+ * on success; the caller decides whether to fail-closed on a persistent
+ * failure.
  */
 export async function ensureImage(
   image: string,
-  opts: { attempts?: number } = {},
+  opts: { attempts?: number; run?: typeof runDocker } = {},
 ): Promise<boolean> {
-  const inspect = await runDocker(['image', 'inspect', image]);
+  // `run` is a test seam: the budget each call carries is part of the contract.
+  const run = opts.run ?? runDocker;
+  const inspect = await run(['image', 'inspect', image]);
   if (inspect.exitCode === 0) return true;
   const attempts = opts.attempts ?? 3;
   for (let i = 0; i < attempts; i++) {
-    const result = await runDocker(['pull', image]);
+    const result = await run(['pull', image], {
+      timeoutMs: IMAGE_PULL_TIMEOUT_MS,
+    });
     if (result.exitCode === 0) return true;
     if (i < attempts - 1) {
       const delayMs = 1000 * (i + 1);

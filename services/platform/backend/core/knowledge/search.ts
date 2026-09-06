@@ -3,15 +3,18 @@
 /**
  * The one entry point into knowledge retrieval.
  *
- * Everything that retrieves — the chat capability `get_knowledge`, the
- * automation node `knowledge.search`, the REST endpoint
- * `POST /api/v1/knowledge/search` — calls {@link searchKnowledge}. Nothing else does,
- * because there is nothing else: knowledge is never injected into a prompt on
- * its own. That was removed deliberately. Automatic injection spent context on
- * every turn whether the question needed knowledge or not, it made an answer
- * depend on a retrieval nobody had asked for, and it left no trace of what had
- * actually been read. As a tool and a node, retrieval is a visible act with a
- * visible result.
+ * Everything that retrieves calls {@link searchKnowledge}, through the 0.5
+ * service's `searchKnowledgeForOrg` (`domains/knowledge/service.ts`): the
+ * chat tools (`get_knowledge` / `rag_search`), the app's Knowledge page
+ * (`POST /api/app/knowledge/search`) and the REST endpoint
+ * (`POST /api/v1/knowledge/search`). Nothing else does, because there is
+ * nothing else: knowledge is never injected into a prompt on its own. That
+ * was removed deliberately. Automatic injection spent context on every turn
+ * whether the question needed knowledge or not, it made an answer depend on
+ * a retrieval nobody had asked for, and it left no trace of what had
+ * actually been read. As a tool, retrieval is a visible act with a visible
+ * result. (An automation node once planned for this seam never landed in
+ * 0.5 and was removed rather than left as an uninstallable backend.)
  *
  * ## Calling it from the chat capability surface
  *
@@ -44,10 +47,6 @@
  */
 
 import { retrieve, type CorpusReader } from '../../../lib/knowledge/retrieve';
-import type {
-  KnowledgeSearchBackend,
-  KnowledgeSearchInput,
-} from '../../../lib/knowledge/search-node';
 import {
   PRIVATE_KNOWLEDGE_SCHEMA,
   corporaFor,
@@ -186,23 +185,6 @@ function dropRepeatedPassages<Hit extends KnowledgeHit>(
     kept.push(hit);
   }
   return kept;
-}
-
-/**
- * A `knowledge.search` backend bound to one organization.
- *
- * An automation host installs this for the run it is executing, which is why
- * the node's own input has no organization field: the run decides whose
- * knowledge is searched, never the automation document.
- */
-export function knowledgeSearchBackendFor(
-  ctx: ActionCtx,
-  org: KnowledgeOrg,
-): KnowledgeSearchBackend {
-  return {
-    search: (input: KnowledgeSearchInput) =>
-      searchKnowledge(ctx, { ...org, ...input }),
-  };
 }
 
 /**

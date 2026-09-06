@@ -173,7 +173,7 @@ export function AutomationDetail({
   const ability = useAbility();
   // Mirrors the backend split: reads and mock runs are member acts, while
   // saving, deploying, triggering, and LIVE runs demand the
-  // `developerSettings` capability — hiding what would only fail server-side.
+  // `developerSettings` ability — hiding what would only fail server-side.
   const canAuthor = ability.can('read', 'developerSettings');
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>(
     undefined,

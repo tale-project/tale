@@ -99,9 +99,10 @@ function pageOf<T>(
 }
 
 /** The turn user's knowledge scope — teams (+ the org pseudo-team), readable
- * projects, the hub — the 0.5 twin of `resolveKnowledgeAccessForUser`. The
- * one resolver every door a member's identity opens uses (the chat tools,
- * the MCP key's get_knowledge). */
+ * projects, the hub, and the emailed attachments of the conversations they
+ * may read — the 0.5 twin of `resolveKnowledgeAccessForUser`. The one
+ * resolver every door a member's identity opens uses (the chat tools, the
+ * MCP key's get_knowledge). */
 export async function resolveAccessScope(
   sql: Sql,
   organizationId: string,
@@ -110,6 +111,7 @@ export async function resolveAccessScope(
   teamIds: string[];
   projectIds: string[];
   includeHub: boolean;
+  includeConversationScoped: boolean;
   archivedProjectIds: string[];
 }> {
   const member = await findOrganizationMember(sql, organizationId, userId);
@@ -118,6 +120,7 @@ export async function resolveAccessScope(
       teamIds: [],
       projectIds: [],
       includeHub: false,
+      includeConversationScoped: false,
       archivedProjectIds: [],
     };
   }
@@ -131,6 +134,13 @@ export async function resolveAccessScope(
     teamIds: [...new Set([`org_${organizationId}`, ...auth.teamIds])],
     projectIds: projects.map((project) => project.id),
     includeHub: true,
+    // A person asks here, so conversation-scoped rows (emailed attachments)
+    // are ADMITTED by the SQL pre-filter for the live-truth re-check to
+    // decide by the conversation's assignment (`filterRetrievableRagFileIds`
+    // resolves the caller from the `userId` this scope carries). Not a
+    // grant: absent, the rows were never even considered, and the #3220
+    // decision could not fire for anyone.
+    includeConversationScoped: true,
     archivedProjectIds: projects
       .filter((project) => project.archivedAt !== null)
       .map((project) => project.id),
