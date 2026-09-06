@@ -9,6 +9,7 @@ apiFormat: openai
 baseUrl: https://api.deepseek.com
 catalog:
   source: static
+embedding: unknown
 auth:
   - method: api-key
   - method: env

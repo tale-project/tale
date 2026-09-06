@@ -12,6 +12,7 @@ apiFormat: openai
 baseUrl: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 catalog:
   source: static
+embedding: unknown
 auth:
   - method: api-key
   - method: env
