@@ -18,6 +18,7 @@ import {
   getEmbeddedExamples,
 } from '../project/fetch-reference';
 import { generateProjectId } from '../project/generate-project-id';
+import { SCAFFOLD_DOMAINS } from '../project/org-dirs';
 import { setProjectId } from '../project/project-context';
 import { readProject } from '../project/read-project';
 import {
@@ -162,21 +163,6 @@ export async function init(options: InitOptions): Promise<InitResult> {
   // --override` pushes.
   const defaultOrgDir = join(target, 'default');
 
-  // Copy agents from embedded examples
-  logger.step('Copying agent configurations...');
-  const agentFiles = getEmbeddedExamples('agents');
-  await writeEmbeddedFiles(agentFiles, join(defaultOrgDir, 'agents'));
-
-  // Copy workflows from embedded examples
-  logger.step('Copying workflow configurations...');
-  const workflowFiles = getEmbeddedExamples('workflows');
-  await writeEmbeddedFiles(workflowFiles, join(defaultOrgDir, 'workflows'));
-
-  // Copy connectors from embedded examples
-  logger.step('Copying connector configurations...');
-  const connectorFiles = getEmbeddedExamples('connectors');
-  await writeEmbeddedFiles(connectorFiles, join(defaultOrgDir, 'connectors'));
-
   // Copy the branding config from the embedded example (fall back to an empty
   // object). Written directly rather than through writeEmbeddedFiles so this
   // single root-level file always lands cross-platform (a Map-iteration copy
@@ -191,24 +177,17 @@ export async function init(options: InitOptions): Promise<InitResult> {
   );
   await writeFile(join(defaultOrgDir, 'branding', 'images', '.gitkeep'), '');
 
-  // Copy provider configs (public JSON only, not encrypted secrets)
-  logger.step('Copying provider configurations...');
-  const providerFiles = getEmbeddedExamples('providers');
-  const providerConfigFiles = new Map<string, string>();
-  for (const [relPath, content] of providerFiles) {
-    if (!relPath.endsWith('.secrets.json')) {
-      providerConfigFiles.set(relPath, content);
-    }
+  // Every other embedded catalog domain (agents, automations, governance,
+  // skills — see SCAFFOLD_DOMAINS), public files only: encrypted
+  // *.secrets.json sidecars are never scaffolded.
+  for (const domain of SCAFFOLD_DOMAINS) {
+    if (domain === 'branding') continue;
+    logger.step(`Copying ${domain} configurations...`);
+    await writeEmbeddedFiles(
+      withoutSecrets(getEmbeddedExamples(domain)),
+      join(defaultOrgDir, domain),
+    );
   }
-  await writeEmbeddedFiles(
-    providerConfigFiles,
-    join(defaultOrgDir, 'providers'),
-  );
-
-  // Copy skills from embedded examples
-  logger.step('Copying skill bundles...');
-  const skillFiles = getEmbeddedExamples('skills');
-  await writeEmbeddedFiles(skillFiles, join(defaultOrgDir, 'skills'));
 
   // Explain the tree it sits in: most of `default/` is a passive catalog
   // (only `metadata.autoInstall: true` entries are active on a new org),
@@ -235,35 +214,16 @@ export async function init(options: InitOptions): Promise<InitResult> {
   for (const { relativePath, content } of rulesFiles) {
     allFiles.set(relativePath, computeContentHash(content));
   }
-  for (const [relPath, content] of agentFiles) {
-    allFiles.set(
-      join('default', 'agents', relPath),
-      computeContentHash(content),
-    );
-  }
-  for (const [relPath, content] of workflowFiles) {
-    allFiles.set(
-      join('default', 'workflows', relPath),
-      computeContentHash(content),
-    );
-  }
-  for (const [relPath, content] of connectorFiles) {
-    allFiles.set(
-      join('default', 'connectors', relPath),
-      computeContentHash(content),
-    );
-  }
-  for (const [relPath, content] of providerConfigFiles) {
-    allFiles.set(
-      join('default', 'providers', relPath),
-      computeContentHash(content),
-    );
-  }
-  for (const [relPath, content] of skillFiles) {
-    allFiles.set(
-      join('default', 'skills', relPath),
-      computeContentHash(content),
-    );
+  for (const domain of SCAFFOLD_DOMAINS) {
+    if (domain === 'branding') continue;
+    for (const [relPath, content] of withoutSecrets(
+      getEmbeddedExamples(domain),
+    )) {
+      allFiles.set(
+        join('default', domain, relPath),
+        computeContentHash(content),
+      );
+    }
   }
   allFiles.set(
     join('default', 'branding', 'branding.json'),
@@ -347,9 +307,9 @@ export async function init(options: InitOptions): Promise<InitResult> {
   logger.blank();
   // Honest inventory: a file on disk is a catalog entry, not an active
   // install (default/README.md explains the split). Agents split by
-  // `metadata.autoInstall`; connectors and skills are bundles of several
-  // files each, so count entries rather than files.
-  const agentCounts = countAutoInstall(agentFiles);
+  // `metadata.autoInstall`; skills are bundles of several files each, so
+  // count entries rather than files.
+  const agentCounts = countAutoInstall(getEmbeddedExamples('agents'));
   logger.table([
     ['Project', target],
     ['CLI version', pkg.version],
@@ -357,10 +317,18 @@ export async function init(options: InitOptions): Promise<InitResult> {
       'Agents',
       `${agentCounts.active} active, ${agentCounts.catalog} in catalog`,
     ],
-    ['Workflows', `${workflowFiles.size} available`],
-    ['Connectors', `${countTopLevelEntries(connectorFiles)} available`],
-    ['Providers', `${providerConfigFiles.size} available`],
-    ['Skills', `${countTopLevelEntries(skillFiles)} available`],
+    [
+      'Automations',
+      `${withoutSecrets(getEmbeddedExamples('automations')).size} available`,
+    ],
+    [
+      'Governance',
+      `${withoutSecrets(getEmbeddedExamples('governance')).size} files`,
+    ],
+    [
+      'Skills',
+      `${countTopLevelEntries(getEmbeddedExamples('skills'))} available`,
+    ],
     ['Branding', '1 file'],
   ]);
   logger.blank();
@@ -420,6 +388,15 @@ async function detectTaleProjectFiles(dir: string): Promise<string[]> {
     }
     return [];
   }
+}
+
+/** Drop encrypted `*.secrets.json` sidecars from an embedded file set. */
+function withoutSecrets(files: Map<string, string>): Map<string, string> {
+  const publicFiles = new Map<string, string>();
+  for (const [relPath, content] of files) {
+    if (!relPath.endsWith('.secrets.json')) publicFiles.set(relPath, content);
+  }
+  return publicFiles;
 }
 
 async function writeEmbeddedFiles(

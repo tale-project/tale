@@ -43,7 +43,26 @@ export const ORG_DOMAIN_DIRS = [
   'automations',
   'connectors',
   'branding',
+  'governance',
   'providers',
+  'skills',
+] as const;
+
+/**
+ * The domains `tale init` scaffolds into `default/` and `tale update` keeps
+ * in sync — exactly the builtin catalog the binary embeds
+ * (configs/platform/custom, see scripts/generate-embedded.ts). Single source
+ * for init.ts and update.ts so the scaffold can neither invent an empty
+ * directory for a domain the platform does not ship nor drop a catalog the
+ * binary carries (scaffold-domains.test.ts pins both directions).
+ * `connectors`/`providers` are org domains too, but their builtin entries
+ * live in configs/platform/system and are not scaffolded.
+ */
+export const SCAFFOLD_DOMAINS = [
+  'agents',
+  'automations',
+  'branding',
+  'governance',
   'skills',
 ] as const;
 

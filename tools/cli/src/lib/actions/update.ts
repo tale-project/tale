@@ -20,6 +20,7 @@ import {
 } from '../project/fetch-reference';
 import { findProject } from '../project/find-project';
 import { generateProjectId } from '../project/generate-project-id';
+import { SCAFFOLD_DOMAINS } from '../project/org-dirs';
 import { setProjectId } from '../project/project-context';
 import { readProject } from '../project/read-project';
 import type { Checksums } from '../project/types';
@@ -106,25 +107,13 @@ export async function update(options: UpdateOptions): Promise<void> {
   const newExampleFiles = new Map<string, string>();
   const DEFAULT_ORG = 'default';
 
-  for (const [relPath, content] of getEmbeddedExamples('agents')) {
-    newExampleFiles.set(join(DEFAULT_ORG, 'agents', relPath), content);
-  }
-  for (const [relPath, content] of getEmbeddedExamples('workflows')) {
-    newExampleFiles.set(join(DEFAULT_ORG, 'workflows', relPath), content);
-  }
-  for (const [relPath, content] of getEmbeddedExamples('connectors')) {
-    newExampleFiles.set(join(DEFAULT_ORG, 'connectors', relPath), content);
-  }
-  for (const [relPath, content] of getEmbeddedExamples('branding')) {
-    newExampleFiles.set(join(DEFAULT_ORG, 'branding', relPath), content);
-  }
-  for (const [relPath, content] of getEmbeddedExamples('providers')) {
-    if (!relPath.endsWith('.secrets.json')) {
-      newExampleFiles.set(join(DEFAULT_ORG, 'providers', relPath), content);
+  // Public files of every embedded catalog domain (see SCAFFOLD_DOMAINS);
+  // encrypted *.secrets.json sidecars are never scaffolded.
+  for (const domain of SCAFFOLD_DOMAINS) {
+    for (const [relPath, content] of getEmbeddedExamples(domain)) {
+      if (relPath.endsWith('.secrets.json')) continue;
+      newExampleFiles.set(join(DEFAULT_ORG, domain, relPath), content);
     }
-  }
-  for (const [relPath, content] of getEmbeddedExamples('skills')) {
-    newExampleFiles.set(join(DEFAULT_ORG, 'skills', relPath), content);
   }
   // The default/ README is CLI-generated (not in the embedded catalog) but
   // sync-managed under the same policy as every other scaffold file:

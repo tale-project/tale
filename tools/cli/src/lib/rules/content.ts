@@ -9,15 +9,14 @@ on a fresh \`tale init\`. Multi-org deployments add sibling subtrees
 
 \`\`\`
 default/                    — Canonical/template org (created by 'tale init')
-  agents/                   — Agent JSON configs (one file per agent)
-  workflows/                — Workflow JSON configs (organized by category)
-  connectors/             — Connector bundles (config.json + connector.ts + icon.svg)
+  agents/                   — Agent configs (one file per agent)
+  automations/              — Automation definitions (triggers + steps, one
+                              file per automation)
   branding/                 — Branding config (branding.json + images/)
-  providers/                — LLM provider configs (and *.secrets.json sidecars)
-  skills/                   — Skill bundles (per-skill subdirs)
   governance/               — Org governance policies (one <policyType>.json per
                               policy), the retention.json bounds catalog, and
                               *.secrets.json sidecars + sso/ provider configs
+  skills/                   — Skill bundles (per-skill subdirs)
 <other-org>/                — Same shape; one tree per registered org
 .tale/reference/            — Read-only implementation source code (read before
                               creating or editing configs)
@@ -32,11 +31,9 @@ project as examples.
 
 ## How modules connect
 
-- Agents can simultaneously bind connectors (\`connectorBindings\`),
-  delegate to other agents (\`delegates\`), and attach workflows
-  (\`workflows\`)
-- Workflows use connector operations within their steps and can be
-  triggered by agents
+- Agents can delegate to other agents (\`delegates\`) and use skills;
+  automations run agents and tools on a trigger (schedule, webhook,
+  mention) through their steps
 - Check existing configs to understand available bindings before creating
   new ones
 
@@ -45,12 +42,12 @@ project as examples.
 - Org slug (top-level directory name): \`[a-z0-9][a-z0-9_-]{0,63}\` (or
   the literal \`default\`)
 - Agent filenames: \`[a-z0-9][a-z0-9_-]*\\.json\`
-- Workflow step slugs: \`[a-z0-9][a-z0-9_-]*\`
-- Connector directory names: lowercase alphanumeric with hyphens/underscores
+- Automation step slugs: \`[a-z0-9][a-z0-9_-]*\`
+- Skill directory names: lowercase alphanumeric with hyphens/underscores
 
 ## Secrets
 
-\`*.secrets.json\` sidecars (e.g. \`providers/openrouter.secrets.json\`)
+\`*.secrets.json\` sidecars (e.g. \`governance/sso.secrets.json\`)
 are SOPS-encrypted and gitignored. Never commit them; never include them
 in PR diffs. The repo's root \`.gitignore\` covers \`**/*.secrets.json\`
 and \`**/.history/\` at all depths.
