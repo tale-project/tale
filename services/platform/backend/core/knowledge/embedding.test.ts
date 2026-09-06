@@ -15,7 +15,10 @@ const { constructed, create } = vi.hoisted(() => ({
   create:
     vi.fn<
       (args: {
+        model: string;
         input: string[];
+        dimensions: number;
+        encoding_format?: string;
       }) => Promise<{ data: { embedding: number[] }[] }>
     >(),
 }));
@@ -126,5 +129,28 @@ describe('batching', () => {
       MAX_BATCH,
       1,
     ]);
+  });
+});
+
+describe('the request shape', () => {
+  it('asks for float vectors explicitly, never the SDK base64 default', async () => {
+    // Left unspecified, the SDK requests base64 and decodes the answer as
+    // base64 without checking that it is a string. A provider that ignores
+    // the parameter (Z.ai) returns floats, which that decoder turns into a
+    // short vector of zeros — 256 for a 1024-wide request.
+    create.mockImplementation((args) =>
+      Promise.resolve({
+        data: args.input.map(() => ({ embedding: [1, 2, 3] })),
+      }),
+    );
+    const embedder = new Embedder(MODEL, 'sk-test');
+
+    await expect(embedder.embed('hello')).resolves.toEqual([1, 2, 3]);
+    expect(create).toHaveBeenCalledWith({
+      model: 'text-embedding-3-small',
+      input: ['hello'],
+      dimensions: 3,
+      encoding_format: 'float',
+    });
   });
 });

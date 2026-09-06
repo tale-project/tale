@@ -163,6 +163,15 @@ export class Embedder implements QueryEmbedder {
           model: this.model.model,
           input: [...texts],
           dimensions: this.model.dimensions,
+          // Stated explicitly because the SDK otherwise asks for base64 and
+          // then base64-decodes whatever comes back WITHOUT checking that it
+          // is a string. An OpenAI-compatible provider that ignores the
+          // parameter (Z.ai does) answers with a plain float array, which
+          // that decoder turns into a short vector of zeros — 256 of them for
+          // a 1024-wide request (observed 2026-09-06). The width check below
+          // caught it, but only because the garbage happened to be the wrong
+          // length; asking for floats makes the response unambiguous.
+          encoding_format: 'float',
         });
         const vectors: number[][] = [];
         for (const item of response.data) vectors.push(item.embedding);
