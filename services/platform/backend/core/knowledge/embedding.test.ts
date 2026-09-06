@@ -12,7 +12,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { constructed, create } = vi.hoisted(() => ({
   constructed: [] as Record<string, unknown>[],
-  create: vi.fn(),
+  create:
+    vi.fn<
+      (args: {
+        model: string;
+        input: string[];
+        dimensions: number;
+        encoding_format?: string;
+      }) => Promise<{ data: { embedding: number[] }[] }>
+    >(),
 }));
 
 vi.mock('openai', async (importOriginal) => {
@@ -29,7 +37,8 @@ vi.mock('openai', async (importOriginal) => {
 });
 
 const OpenAI = (await import('openai')).default;
-const { Embedder, EMBED_REQUEST_TIMEOUT_MS } = await import('./embedding.ts');
+const { Embedder, EMBED_REQUEST_TIMEOUT_MS, MAX_BATCH } =
+  await import('./embedding.ts');
 
 const MODEL = {
   providerSlug: 'openai',
@@ -96,5 +105,52 @@ describe('the one retry policy', () => {
 
     await expect(embedder.embed('hello')).rejects.toThrow('bad request');
     expect(create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('batching', () => {
+  it('never sends more texts per request than the tightest shipped cap', async () => {
+    // Z.ai's embedding-3 refuses more than 64 inputs (error 1214) before it
+    // bills anything; a document with more chunks than that must still index.
+    expect(MAX_BATCH).toBeLessThanOrEqual(64);
+    create.mockImplementation((args) =>
+      Promise.resolve({
+        data: args.input.map(() => ({ embedding: [1, 2, 3] })),
+      }),
+    );
+    const embedder = new Embedder(MODEL, 'sk-test');
+
+    const vectors = await embedder.embedAll(
+      Array.from({ length: MAX_BATCH + 1 }, (_, i) => `text ${i}`),
+    );
+
+    expect(vectors).toHaveLength(MAX_BATCH + 1);
+    expect(create.mock.calls.map(([args]) => args.input.length)).toEqual([
+      MAX_BATCH,
+      1,
+    ]);
+  });
+});
+
+describe('the request shape', () => {
+  it('asks for float vectors explicitly, never the SDK base64 default', async () => {
+    // Left unspecified, the SDK requests base64 and decodes the answer as
+    // base64 without checking that it is a string. A provider that ignores
+    // the parameter (Z.ai) returns floats, which that decoder turns into a
+    // short vector of zeros — 256 for a 1024-wide request.
+    create.mockImplementation((args) =>
+      Promise.resolve({
+        data: args.input.map(() => ({ embedding: [1, 2, 3] })),
+      }),
+    );
+    const embedder = new Embedder(MODEL, 'sk-test');
+
+    await expect(embedder.embed('hello')).resolves.toEqual([1, 2, 3]);
+    expect(create).toHaveBeenCalledWith({
+      model: 'text-embedding-3-small',
+      input: ['hello'],
+      dimensions: 3,
+      encoding_format: 'float',
+    });
   });
 });
