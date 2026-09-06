@@ -96,7 +96,7 @@ Sperren leben in ihrer eigenen Postgres-Tabelle (`app.webdav_locks`), gekeyt mit
 - `413` — PUT-Body über dem Größenlimit, oder ein XML-Request-Body (PROPFIND / PROPPATCH / MKCOL / LOCK) über 64 KB
 - `415` — MKCOL mit nicht-leerem XML-Body (extended MKCOL nicht implementiert)
 - `423` — Schreiben auf einem gesperrten Pfad ohne passendes `If`
-- `502` — Cross-Host-`Destination`; Storage-Proxy-Fetch fehlgeschlagen
+- `502` — Cross-Host-`Destination`; Objektspeicher-Fetch fehlgeschlagen
 - `503` — LOCK-Anzahl-Limit für das App-Passwort überschritten (mit `Retry-After`)
 - `507` — Ordner-Teilbaum zu groß zum Löschen, Verschieben oder Kopieren in einer einzigen Anfrage
 

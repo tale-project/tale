@@ -106,11 +106,7 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
     },
   };
 
-  return {
-    backend: fakeBackend,
-    storageBaseUrl: 'http://localhost:3211',
-    backendApiUrl: 'http://localhost:3210',
-  };
+  return { backend: fakeBackend };
 }
 
 interface MakeRequestOptions {

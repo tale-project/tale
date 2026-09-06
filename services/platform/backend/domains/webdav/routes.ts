@@ -56,16 +56,7 @@ function buildWebdavCtx(sql: Sql): WebDAVCtx {
     mutation: call,
     action: call,
   };
-  return {
-    backend: shim,
-    // The /storage proxy fallback only fires when the direct-URL lane
-    // reports the blob gone; pointing it at an unroutable origin keeps
-    // that lane an honest 404/502 instead of a second storage door.
-    storageBaseUrl: 'http://webdav-storage-proxy.invalid',
-    // Upload URLs are presigned S3 PUTs (never rewritten); the Convex-POST
-    // lane is refused up front, so there is no origin to re-home.
-    backendApiUrl: '',
-  };
+  return { backend: shim };
 }
 
 /** `/dav/*` — the protocol surface. Auth is HTTP Basic inside the reused

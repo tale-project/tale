@@ -96,7 +96,7 @@ Les verrous vivent dans leur propre table Postgres (`app.webdav_locks`), indexé
 - `413` — corps PUT au-delà de la limite de taille, ou un corps XML (PROPFIND / PROPPATCH / MKCOL / LOCK) au-delà de 64 Ko
 - `415` — MKCOL avec corps XML non vide (extended MKCOL non implémenté)
 - `423` — écriture tentée sur un chemin verrouillé sans `If` correspondant
-- `502` — `Destination` cross-host ; fetch proxy stockage échoué
+- `502` — `Destination` cross-host ; fetch du stockage objet échoué
 - `503` — limite du nombre de LOCK dépassée pour le mot de passe applicatif (avec `Retry-After`)
 - `507` — sous-arbre de dossier trop volumineux pour être supprimé, déplacé ou copié en une seule requête
 

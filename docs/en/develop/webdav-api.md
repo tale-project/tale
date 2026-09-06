@@ -96,7 +96,7 @@ Locks live in their own Postgres table (`app.webdav_locks`), keyed by `(organiza
 - `413` — PUT body over the size cap, or an XML request body (PROPFIND / PROPPATCH / MKCOL / LOCK) over 64 KB
 - `415` — MKCOL with non-empty XML body (extended MKCOL not implemented)
 - `423` — write attempted on a locked path without matching `If`
-- `502` — cross-host `Destination`; storage proxy fetch failed
+- `502` — cross-host `Destination`; object-store fetch failed
 - `503` — LOCK count cap exceeded for the app-password (with `Retry-After`)
 - `507` — folder subtree too large to delete, move, or copy in a single request
 
