@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import { selectSnapshotsToDelete } from './rotate-snapshots';
+import {
+  selectSnapshotsToDelete,
+  selectTornSnapshotDirs,
+} from './rotate-snapshots';
 
 const NOW = new Date('2026-06-11T12:00:00.000Z');
 
@@ -70,5 +73,41 @@ describe('selectSnapshotsToDelete', () => {
 
   test('empty input selects nothing', () => {
     expect(selectSnapshotsToDelete([], 5, 14, NOW)).toEqual([]);
+  });
+});
+
+describe('selectTornSnapshotDirs', () => {
+  test('removes manifest-less directories older than the newest complete snapshot', () => {
+    // A tar that failed before manifest.json was written leaves a partial
+    // archive under a fresh id that no listing sees; once a later snapshot
+    // completed, the torn one can no longer be in progress.
+    expect(
+      selectTornSnapshotDirs(
+        ['20260601-090000-deploy', '20260603-090000-manual'],
+        ['20260602-090000-deploy', '20260604-090000-deploy'],
+      ),
+    ).toEqual(['20260601-090000-deploy', '20260603-090000-manual']);
+  });
+
+  test('spares a manifest-less directory newer than every complete snapshot (may be in progress)', () => {
+    expect(
+      selectTornSnapshotDirs(
+        ['20260605-090000-deploy'],
+        ['20260604-090000-deploy'],
+      ),
+    ).toEqual([]);
+  });
+
+  test('removes nothing when no complete snapshot exists', () => {
+    expect(selectTornSnapshotDirs(['20260601-090000-deploy'], [])).toEqual([]);
+  });
+
+  test('never selects a name that is not a snapshot id', () => {
+    expect(
+      selectTornSnapshotDirs(
+        ['lost+found', '$(rm -rf /)', '20260601-090000-deploy'],
+        ['20260604-090000-deploy'],
+      ),
+    ).toEqual(['20260601-090000-deploy']);
   });
 });
