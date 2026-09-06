@@ -156,7 +156,7 @@ Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jede
 | `TRUSTED_HEADERS_INTERNAL_SECRET` | nicht gesetzt            | Shared Secret, das der authentifizierende Proxy mit jeder Trusted-Headers-Anfrage schicken muss. Pflicht, sobald der Modus an ist — ohne Secret verweigert der Endpunkt den Dienst. |
 | `TRUSTED_SECRET_HEADER`           | `Remote-Internal-Secret` | Name des Request-Headers, der das interne Secret trägt.                                                                                                                             |
 | `FILE_EVENTS_ENABLED`             | `false`                  | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Connector.                                                                                                                    |
-| `TALE_DEPLOYMENT_CONFIG_ADMINS`   | unset                    | Kommagetrennte E-Mail-Allowlist der Operatoren, die die Datenresidenz bearbeiten dürfen. Leer/nicht gesetzt = nur lesend für alle Admins.                                           |
+| `TALE_DEPLOYMENT_CONFIG_ADMINS`   | unset                    | Kommagetrennte E-Mail-Allowlist der Operatoren, die die Deployment-Konfigurationsdatei (`deployment.yml`, heute der Abschnitt zur Sandbox-Runtime) über die API schreiben dürfen. Leer/nicht gesetzt = nur lesend für alle Admins. Die Datenresidenz wird pro Organisation konfiguriert und hängt nicht an dieser Liste. |
 
 ## RAG-Retrieval-Tuning
 

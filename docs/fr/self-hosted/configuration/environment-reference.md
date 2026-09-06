@@ -156,7 +156,7 @@ Bascules optionnelles pour des fonctionnalités non activées par défaut. Chaqu
 | `TRUSTED_HEADERS_INTERNAL_SECRET` | non défini               | Secret partagé que le proxy authentifiant doit envoyer avec chaque requête trusted headers. Obligatoire dès que le mode est actif — sans lui, l'endpoint refuse de fonctionner.      |
 | `TRUSTED_SECRET_HEADER`           | `Remote-Internal-Secret` | Nom de l'en-tête de requête qui porte le secret interne.                                                                                                                             |
 | `FILE_EVENTS_ENABLED`             | `false`                  | Active les événements de surveillance de fichiers pour le connector OneDrive-sync.                                                                                                   |
-| `TALE_DEPLOYMENT_CONFIG_ADMINS`   | non défini               | Allowlist de courriels (séparés par des virgules) des opérateurs autorisés à modifier la résidence des données du déploiement. Vide/non défini = lecture seule pour tous les admins. |
+| `TALE_DEPLOYMENT_CONFIG_ADMINS`   | non défini               | Allowlist de courriels (séparés par des virgules) des opérateurs autorisés à écrire le fichier de configuration du déploiement (`deployment.yml`, aujourd’hui la section du runtime de la sandbox) via l’API. Vide/non défini = lecture seule pour tous les admins. La résidence des données se configure par organisation et ne dépend pas de cette liste. |
 
 ## Réglage du retrieval RAG
 

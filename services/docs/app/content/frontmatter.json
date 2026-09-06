@@ -823,7 +823,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Résidence des données",
-      "description": "Pointe la base de connaissances, la base de données applicative et le stockage des fichiers téléversés d'une installation Tale auto-hébergée vers une infrastructure que tu contrôles — configuré par les administrateurs dans Paramètres > Résidence des données et appliqué au redémarrage."
+      "description": "Où une installation Tale auto-hébergée garde ses données, comment tu fixes les défauts du déploiement au moment du déploiement, et comment une organisation pointe son corpus de connaissances et ses fichiers téléversés vers sa propre infrastructure — à chaud, sans redémarrage."
     }
   },
   "fr:self-hosted/configuration/environment-reference": {
@@ -1896,7 +1896,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Data residency",
-      "description": "Point a self-hosted Tale deployment's knowledge database, application database, and uploaded-file storage at infrastructure you control, configured by administrators in Settings > Data residency and applied on restart."
+      "description": "Where a self-hosted Tale deployment keeps its data, how the deployment defaults are set at deploy time, and how a single organization points its knowledge corpus and uploaded files at infrastructure of its own — live, without a restart."
     }
   },
   "en:self-hosted/configuration/environment-reference": {
@@ -2969,7 +2969,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Datenresidenz",
-      "description": "Richte die Wissensdatenbank, die Anwendungsdatenbank und den Speicher für hochgeladene Dateien einer selbst gehosteten Tale-Installation auf Infrastruktur aus, die du selbst kontrollierst — von Administratoren unter Einstellungen > Datenresidenz konfiguriert und beim Neustart angewendet."
+      "description": "Wo eine selbst gehostete Tale-Installation ihre Daten hält, wie du die Deployment-Defaults beim Deploy setzt und wie eine einzelne Organisation ihren Wissens-Korpus und ihre hochgeladenen Dateien auf eigene Infrastruktur ausrichtet — live, ohne Neustart."
     }
   },
   "de:self-hosted/configuration/environment-reference": {
