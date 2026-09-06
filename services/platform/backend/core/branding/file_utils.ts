@@ -151,17 +151,24 @@ export function resolveImagePath(orgSlug: string, filename: string): string {
 /**
  * Public URL for a branding image, segmented by org slug so the static image
  * route (server.ts + serve-branding-images.ts) resolves the right org's
- * bucket: `<SITE_URL><BASE_PATH>/branding/images/<orgSlug>/<filename>`. Returns
- * `null` when there's no filename so callers can pass through "no image".
+ * bucket: `<BASE_PATH>/branding/images/<orgSlug>/<filename>`. Returns `null`
+ * when there's no filename so callers can pass through "no image".
+ *
+ * ORIGIN-RELATIVE on purpose. These are rendered by the browser (`<img>`, the
+ * favicon link) and nothing server-side or e-mail-side reads them, so a
+ * leading `/` resolves against whichever domain the visitor is on. On a
+ * multi-domain deployment that keeps the logo same-origin instead of pointing
+ * every domain at the canonical one — which would fetch cross-origin and
+ * break outright wherever the canonical host is not reachable. This is the
+ * shape the URL already had whenever SITE_URL was unset (local dev).
  */
 export function buildBrandingImageUrl(
   orgSlug: string,
   filename: string | undefined,
 ): string | null {
   if (!filename) return null;
-  const siteUrl = (process.env.SITE_URL ?? '').replace(/\/$/, '');
-  const basePath = process.env.BASE_PATH ?? '';
-  return `${siteUrl}${basePath}/branding/images/${orgSlug}/${filename}`;
+  const basePath = (process.env.BASE_PATH ?? '').replace(/\/$/, '');
+  return `${basePath}/branding/images/${orgSlug}/${filename}`;
 }
 
 export { ALLOWED_IMAGE_EXTENSIONS, MAX_FILE_SIZE_BYTES, MAX_HISTORY_ENTRIES };

@@ -1,12 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { resolveSiteOrigins } from '@tale/shared/utils/site-urls';
 import { type Plugin } from 'vite';
 
 import { parseSessionIdleTimeoutMinutes } from '../lib/shared/session-idle';
 
 interface EnvConfig {
   SITE_URL: string;
+  /** Every origin the deployment answers on — mirrors `server.ts`, so the
+   * SPA's env has the same shape in dev as in production. */
+  SITE_ORIGINS: readonly string[];
   BASE_PATH: string;
   FILE_EVENTS_ENABLED: boolean;
   SENTRY_DSN?: string;
@@ -21,6 +25,10 @@ function getEnvConfig(): EnvConfig {
   }
   return {
     SITE_URL: process.env.SITE_URL,
+    SITE_ORIGINS: resolveSiteOrigins({
+      SITE_URL: process.env.SITE_URL,
+      ADDITIONAL_SITE_URLS: process.env.ADDITIONAL_SITE_URLS,
+    }),
     BASE_PATH: (process.env.BASE_PATH ?? '').replace(/\/$/, ''),
     FILE_EVENTS_ENABLED: process.env.TALE_FILE_EVENTS === 'true',
     SENTRY_DSN: process.env.SENTRY_DSN,

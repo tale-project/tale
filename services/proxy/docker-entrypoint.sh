@@ -34,6 +34,35 @@ SITE_URL=$(echo "${SITE_URL}" | sed 's|/\+$||')
 export BASE_PATH
 export SITE_URL
 
+# ----------------------------------------------------------------------------
+# Additional public origins (multi-domain deployments)
+# ----------------------------------------------------------------------------
+# ADDITIONAL_SITE_URLS lists the OTHER domains this same deployment answers on,
+# comma- or whitespace-separated. Each becomes another address on the site
+# block below, so Caddy serves — and, in letsencrypt mode, obtains a
+# certificate for — every one of them. Unset (the default) leaves the block
+# exactly as it was: one address, SITE_URL.
+ADDITIONAL_SITE_URLS=$(echo "${ADDITIONAL_SITE_URLS:-}" | tr ',' ' ')
+SITE_ADDRESSES="${SITE_URL}"
+for extra in $ADDITIONAL_SITE_URLS; do
+  extra=$(echo "${extra}" | sed 's|/\+$||')
+  [ -z "$extra" ] && continue
+  case "$extra" in
+    http://*|https://*) ;;
+    *)
+      echo "Error: ADDITIONAL_SITE_URLS entry '${extra}' must start with http:// or https://." >&2
+      exit 1
+      ;;
+  esac
+  # A duplicate of SITE_URL (or of an earlier entry) would make Caddy refuse
+  # the config with "duplicate site address".
+  case " ${SITE_ADDRESSES} " in
+    *" ${extra} "*) continue ;;
+  esac
+  SITE_ADDRESSES="${SITE_ADDRESSES} ${extra}"
+done
+export ADDITIONAL_SITE_URLS
+
 # Docs subdomain origin (https://docs.<HOST> by default; override with DOCS_URL
 # in .env when the docs site lives on a different host).
 if [ -z "${DOCS_URL:-}" ]; then
@@ -45,6 +74,9 @@ export DOCS_URL
 echo "Domain Configuration:"
 echo "  HOST: ${HOST}"
 echo "  SITE_URL: ${SITE_URL}"
+if [ "${SITE_ADDRESSES}" != "${SITE_URL}" ]; then
+  echo "  ADDITIONAL_SITE_URLS:${SITE_ADDRESSES#${SITE_URL}}"
+fi
 echo "  DOCS_URL: ${DOCS_URL}"
 if [ -n "$BASE_PATH" ]; then
   echo "  BASE_PATH: ${BASE_PATH}"
@@ -95,6 +127,17 @@ if [ "${TLS_MODE:-selfsigned}" != "external" ] && echo "${SITE_URL}" | grep -qi 
   echo "  If running behind a TLS-terminating reverse proxy, set TLS_MODE=external." >&2
   exit 1
 fi
+# Same rule for every additional domain — each is a full entry point, and a
+# plain-HTTP one would hand out insecure cookies on that domain.
+if [ "${TLS_MODE:-selfsigned}" != "external" ]; then
+  for addr in $SITE_ADDRESSES; do
+    if echo "${addr}" | grep -qi '^http://'; then
+      echo "Error: ADDITIONAL_SITE_URLS entry '${addr}' must use https://. Plain HTTP is not supported." >&2
+      echo "  If running behind a TLS-terminating reverse proxy, set TLS_MODE=external." >&2
+      exit 1
+    fi
+  done
+fi
 if [ "${TLS_MODE:-selfsigned}" != "external" ] && echo "${DOCS_URL}" | grep -qi '^http://'; then
   echo "Error: DOCS_URL must use https://. Plain HTTP is not supported." >&2
   echo "  If running behind a TLS-terminating reverse proxy, set TLS_MODE=external." >&2
@@ -105,9 +148,28 @@ fi
 cp "$CADDYFILE_SRC" "$CADDYFILE"
 sed -i "s|^[[:space:]]*#[[:space:]]*TLS_PLACEHOLDER[[:space:]]*\$|\\t${TLS_CONFIG}|" "$CADDYFILE"
 
-# Replace SITE_ORIGIN in Caddyfile with SITE_URL (no subpath in SITE_URL).
+# Replace SITE_ORIGIN in the Caddyfile with the deployment's address list —
+# SITE_URL plus every ADDITIONAL_SITE_URLS entry, comma-separated, which is
+# how one Caddy site block serves several domains (no subpath in any of them).
+# In `external` mode Caddy must listen on plain HTTP, so each address is
+# rewritten to http and its port dropped BEFORE substitution — doing it after
+# would have to string-match each address again inside the file.
+SITE_ADDRESS_LIST=""
+for addr in $SITE_ADDRESSES; do
+  if [ "${TLS_MODE:-selfsigned}" = "external" ]; then
+    addr=$(echo "${addr}" | sed -E 's|^https://|http://|; s|:[0-9]+$||')
+  fi
+  if [ -z "$SITE_ADDRESS_LIST" ]; then
+    SITE_ADDRESS_LIST="${addr}"
+  else
+    SITE_ADDRESS_LIST="${SITE_ADDRESS_LIST}, ${addr}"
+  fi
+done
+if [ "${TLS_MODE:-selfsigned}" = "external" ]; then
+  echo "  Caddy listen address (site): ${SITE_ADDRESS_LIST}"
+fi
+sed -i "s|{[\$]SITE_ORIGIN:[^}]*}|${SITE_ADDRESS_LIST}|" "$CADDYFILE"
 # DOCS_ORIGIN is the parallel host block for the docs site (docs.<HOST>).
-sed -i "s|{[\$]SITE_ORIGIN:[^}]*}|${SITE_URL}|" "$CADDYFILE"
 sed -i "s|{[\$]DOCS_ORIGIN:[^}]*}|${DOCS_URL}|" "$CADDYFILE"
 
 # ============================================================================
@@ -261,12 +323,11 @@ fi
 
 # For external mode, force Caddy to listen on HTTP by rewriting the scheme.
 # SITE_URL stays as-is for the platform (public URL), but Caddy must not auto-enable TLS.
+# The site addresses were already http-ified above, before substitution; the
+# docs block still carries its https origin and is rewritten here.
 if [ "${TLS_MODE:-selfsigned}" = "external" ]; then
-  CADDY_ADDR=$(echo "${SITE_URL}" | sed -E 's|^https://|http://|; s|:[0-9]+$||')
-  sed -i "s|${SITE_URL}|${CADDY_ADDR}|" "$CADDYFILE"
   DOCS_ADDR=$(echo "${DOCS_URL}" | sed -E 's|^https://|http://|; s|:[0-9]+$||')
   sed -i "s|${DOCS_URL}|${DOCS_ADDR}|" "$CADDYFILE"
-  echo "  Caddy listen address (site): ${CADDY_ADDR}"
   echo "  Caddy listen address (docs): ${DOCS_ADDR}"
 fi
 
@@ -309,6 +370,17 @@ fi
 # This loop checks that DNS resolves to our public IP before reloading Caddy,
 # covering the common case where DNS is configured hours or days after deployment.
 if [ "${TLS_MODE:-selfsigned}" = "letsencrypt" ]; then
+  # The hostnames ACME must issue for: every address on the site block, with
+  # the scheme and any port stripped. This is deliberately NOT $HOST — $HOST
+  # is the deployment's identity (docker alias, default SNI, docs subdomain),
+  # while these are the names Caddy actually serves and therefore the names
+  # certificates are filed under.
+  CERT_HOSTNAMES=""
+  for addr in $SITE_ADDRESSES; do
+    cert_host=$(echo "${addr}" | sed -E 's|^https?://||; s|/.*$||; s|:[0-9]+$||')
+    [ -n "$cert_host" ] && CERT_HOSTNAMES="${CERT_HOSTNAMES} ${cert_host}"
+  done
+  echo "ACME retry: watching for certificates on:${CERT_HOSTNAMES}"
   (
     sleep 60
     SERVER_IP=$(wget -qO- -T5 http://ipv4.icanhazip.com 2>/dev/null | tr -d '[:space:]')
@@ -319,15 +391,31 @@ if [ "${TLS_MODE:-selfsigned}" = "letsencrypt" ]; then
     fi
 
     while true; do
-      if find /data/caddy/certificates -name "${HOST}" -type d 2>/dev/null | grep -q .; then
-        echo "ACME certificate obtained for ${HOST}"
+      # Every hostname the site block serves still missing a certificate.
+      # Derived from the site ADDRESSES, not from $HOST: a multi-domain
+      # deployment needs one certificate per domain, and each domain's DNS
+      # may land days apart — so the retry has to outlive the first one.
+      PENDING=""
+      for cert_host in $CERT_HOSTNAMES; do
+        if ! find /data/caddy/certificates -name "${cert_host}" -type d 2>/dev/null | grep -q .; then
+          PENDING="${PENDING} ${cert_host}"
+        fi
+      done
+      if [ -z "$PENDING" ]; then
+        echo "ACME certificates obtained for:${CERT_HOSTNAMES}"
         break
       fi
       if [ -n "$SERVER_IP" ]; then
         # Verify domain resolves to our IP via external DNS (bypasses Docker DNS,
         # handles wildcard DNS that resolves non-existent subdomains to a fallback IP)
-        if nslookup "${HOST}" 1.1.1.1 2>/dev/null | grep -q "${SERVER_IP}"; then
-          echo "DNS resolved ${HOST} to ${SERVER_IP}, reloading Caddy..."
+        RESOLVED=""
+        for cert_host in $PENDING; do
+          if nslookup "${cert_host}" 1.1.1.1 2>/dev/null | grep -q "${SERVER_IP}"; then
+            RESOLVED="${RESOLVED} ${cert_host}"
+          fi
+        done
+        if [ -n "$RESOLVED" ]; then
+          echo "DNS resolved${RESOLVED} to ${SERVER_IP}, reloading Caddy..."
           caddy reload --config "$CADDYFILE" --adapter caddyfile 2>/dev/null || true
           sleep 120
         else

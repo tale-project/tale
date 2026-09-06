@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server';
+import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 
 import { PatternRegistry } from '../lib/pii';
 import { createApp } from './app.ts';
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
       databaseUrl: env.DATABASE_URL,
       secret: env.BETTER_AUTH_SECRET,
       baseUrl: env.SITE_URL,
+      additionalOrigins: parseAdditionalSiteUrls(env.ADDITIONAL_SITE_URLS),
       sql,
     });
   }

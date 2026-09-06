@@ -23,9 +23,10 @@ The `.env.example` file ships with inline comments that explain each variable in
 | ----------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `HOST`      | `localhost`         | **Required.** Hostname without protocol. Used for Docker networking and outbound email.                                   |
 | `SITE_URL`  | `https://localhost` | **Required.** Full canonical URL including scheme and any non-standard port. Auth callbacks and external links use this.  |
+| `ADDITIONAL_SITE_URLS` | unset      | **Optional.** Other origins the same deployment answers on, comma- or whitespace-separated (e.g. `https://a.example,https://b.example`). Each is a full entry point. See [TLS and domains](/self-hosted/configuration/tls-and-domains#several-domains-at-once). |
 | `BASE_PATH` | unset               | **Optional.** Path prefix for subpath deployments behind a reverse proxy (e.g. `/app`). Leave unset for root deployments. |
 
-The `SITE_URL` must match what the user types in the browser exactly. A trailing slash, a missing port, or `http` instead of `https` will break the auth callback and produce sign-in loops.
+The `SITE_URL` must match what the user types in the browser exactly. A trailing slash, a missing port, or `http` instead of `https` will break the auth callback and produce sign-in loops. When a deployment serves several domains, `SITE_URL` stays the canonical one and the rest go in `ADDITIONAL_SITE_URLS`; an entry there must be a bare origin, and a malformed one stops the backend at boot rather than leaving a domain nobody can sign in on.
 
 ## TLS
 

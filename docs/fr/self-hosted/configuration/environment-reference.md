@@ -23,9 +23,10 @@ Le fichier `.env.example` ship des commentaires inline qui expliquent chaque var
 | ----------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `HOST`      | `localhost`         | **Obligatoire.** Nom d'hôte sans protocole. Utilisé pour le réseau Docker et le mail sortant.                                             |
 | `SITE_URL`  | `https://localhost` | **Obligatoire.** URL canonique complète incluant le schéma et tout port non standard. Les callbacks d'auth l'utilisent.                   |
+| `ADDITIONAL_SITE_URLS` | non défini | **Optionnel.** Autres origines sur lesquelles le même déploiement répond, séparées par des virgules ou des espaces (ex. `https://a.example,https://b.example`). Chacune est une entrée complète. Voir [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains#plusieurs-domaines-a-la-fois). |
 | `BASE_PATH` | non défini          | **Optionnel.** Préfixe de chemin pour les déploiements en sous-chemin derrière un reverse proxy (ex. `/app`). Laisse vide pour la racine. |
 
-Le `SITE_URL` doit correspondre exactement à ce que l'utilisateur tape dans le navigateur. Un slash en queue, un port manquant ou `http` au lieu de `https` cassent le callback d'auth et produisent des boucles de sign-in.
+Le `SITE_URL` doit correspondre exactement à ce que l'utilisateur tape dans le navigateur. Un slash en queue, un port manquant ou `http` au lieu de `https` cassent le callback d'auth et produisent des boucles de sign-in. Quand un déploiement sert plusieurs domaines, `SITE_URL` reste le canonique et le reste va dans `ADDITIONAL_SITE_URLS` ; une entrée doit y être une origine nue, et une entrée malformée arrête le backend au boot plutôt que de laisser un domaine sur lequel personne ne peut se connecter.
 
 ## TLS
 

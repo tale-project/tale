@@ -1,6 +1,7 @@
 import { encryptString } from '../../lib/crypto/encrypt_string';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
+import { publicOrigin as resolvePublicOrigin } from '../../lib/helpers/public_origin';
 import { withoutGraphFileScopes } from '../entra_id/constants';
 import { generatePkcePair } from '../pkce';
 import { getAdapter } from '../registry';
@@ -40,10 +41,11 @@ export async function ssoAuthorizeHandler(
   // Hoisted so the catch can bounce the failure back to the login page with a
   // readable reason instead of painting a raw 500 (the one place a literal
   // "Internal server error" page used to show). Behind the reverse proxy the
-  // request origin is the INTERNAL Convex address (unreachable from a
-  // browser), so the redirect prefers the public SITE_URL.
+  // request origin is the INTERNAL upstream address (unreachable from a
+  // browser), so the redirect and the flow cookie use the public origin the
+  // browser is on — the configured site origin its Host names, else SITE_URL.
   const normalizedOrigin = normalizeOrigin(new URL(req.url).origin);
-  const publicOrigin = process.env.SITE_URL || normalizedOrigin;
+  const publicOrigin = resolvePublicOrigin(req);
   // Hoisted so the catch can write a durable audit row for the failed attempt
   // (populated as the login hint and connection are resolved below).
   let resolvedOrganizationId: string | undefined;

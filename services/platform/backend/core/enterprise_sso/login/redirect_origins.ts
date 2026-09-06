@@ -1,3 +1,5 @@
+import { siteOrigins } from '../../lib/helpers/public_origin';
+
 /**
  * The origins a login flow may hand the browser back to.
  *
@@ -5,7 +7,9 @@
  * `/callback` adopts that URI's origin for every redirect it answers with
  * (error bounces, the dashboard). The signature proves WE minted the state,
  * not that the URI points at us — the value is caller-chosen — so both doors
- * check its origin here before trusting it: the public SITE_URL and the
+ * check its origin here before trusting it: every configured site origin
+ * (`SITE_URL` and each `ADDITIONAL_SITE_URLS` entry — a multi-domain
+ * deployment's login page passes the origin the browser is on) and the
  * request's own origin (dev and tests, in both the `127.0.0.1` and
  * `localhost` spellings the authorize handler always normalised between).
  * That is every origin the login page ever passes
@@ -27,9 +31,7 @@ export function allowedRedirectOrigin(
     );
     return undefined;
   }
-  const allowed = new Set<string>();
-  const siteUrl = process.env.SITE_URL;
-  if (siteUrl) allowed.add(new URL(siteUrl).origin);
+  const allowed = new Set<string>(siteOrigins());
   const requestOrigin = new URL(requestUrl).origin;
   allowed.add(requestOrigin);
   allowed.add(requestOrigin.replace('127.0.0.1', 'localhost'));

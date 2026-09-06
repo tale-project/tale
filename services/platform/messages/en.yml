@@ -5520,6 +5520,9 @@ settings:
     redirectUrlHelp: Register this exact URL as a "Web" redirect URI in your app
       registration — it must byte-match (scheme, host, path, no trailing
       slash) or sign-in fails with AADSTS50011.
+    additionalDomainsHint: This deployment also answers on other domains.
+      Register this URL as well — someone who signs in there is returned
+      there, not to the canonical domain.
     deploymentWarning:
       title: Deployment not fully configured for SSO
       callbackMissing:

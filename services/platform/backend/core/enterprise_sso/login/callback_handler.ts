@@ -1,6 +1,7 @@
 import { decryptString } from '../../lib/crypto/decrypt_string';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
+import { publicOrigin as resolvePublicOrigin } from '../../lib/helpers/public_origin';
 import { sanitizeRawClaims } from '../claims';
 import { parseIdTokenAuthContext } from '../entra_id/adapter';
 import {
@@ -50,10 +51,11 @@ export async function ssoCallbackHandler(
   req: Request,
   deps: { finishLogin: FinishLogin },
 ): Promise<Response> {
-  // Behind the reverse proxy the request origin is the INTERNAL Convex address
-  // (unreachable from a browser), so the browser's origin is the public
+  // Behind the reverse proxy the request origin is the INTERNAL upstream
+  // address (unreachable from a browser), so the browser's origin is the
+  // public one its Host names among the configured site origins, else
   // SITE_URL — it names the flow cookie the authorize door set.
-  const browserOrigin = process.env.SITE_URL || new URL(req.url).origin;
+  const browserOrigin = resolvePublicOrigin(req);
   const response = await completeCallback(ctx, req, deps, browserOrigin);
   // The flow cookie is single-use: once the browser has been here it is gone,
   // whatever the verdict — a retry starts a fresh flow with a fresh nonce.

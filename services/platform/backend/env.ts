@@ -1,3 +1,4 @@
+import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
 
 import { ensureWebdavHmacKey } from '../lib/webdav/hmac-key.ts';
@@ -33,6 +34,27 @@ const envSchema = z.object({
     ),
   /** Public origin auth cookies bind to; defaults to the direct dev port. */
   SITE_URL: z.string().url().default('http://localhost:3005'),
+  /**
+   * The other public origins this deployment is served from, comma- or
+   * whitespace-separated (`https://tale.partner.example, https://…`). Each
+   * is a first-class entry point next to SITE_URL: Better Auth trusts it, and
+   * the doors that build browser-facing URLs answer on the origin the browser
+   * is on. Validated here so a typo fails boot instead of silently serving a
+   * domain nobody can sign in on — see `@tale/shared/utils/site-urls`.
+   */
+  ADDITIONAL_SITE_URLS: z
+    .string()
+    .optional()
+    .superRefine((value, ctx) => {
+      try {
+        parseAdditionalSiteUrls(value);
+      } catch (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }),
   /**
    * Sentry-compatible error reporting (Sentry, GlitchTip, Bugsink), opt-in —
    * unset disables it entirely. See `error-reporting.ts`.

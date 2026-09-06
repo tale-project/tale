@@ -5,8 +5,10 @@ import { generatePkcePair } from '../../core/enterprise_sso/pkce.ts';
 import { buildAuthorizeUrl } from '../../core/http_connectors/authorize_url.ts';
 import {
   oauthAppEnvPrefix,
+  publicBaseFromRedirectUri,
   resolveConnectorSettingsUrl,
   resolveOauthRedirectUri,
+  resolvePublicBaseUrl,
 } from '../../core/http_connectors/deployment_config.ts';
 import {
   hashStateToken,
@@ -363,14 +365,21 @@ export type ConnectorFlowError =
  */
 export async function startOauth2(
   sql: Sql,
-  args: { connectorSlug: string; organizationId: string; userId: string },
+  args: {
+    connectorSlug: string;
+    organizationId: string;
+    userId: string;
+    /** The configured site origin the browser is on — the callback must land
+     * on the domain holding the session that started the flow. */
+    publicOrigin?: string | null;
+  },
 ): Promise<StartOutcome> {
   if (!CONNECTOR_SLUG_RE.test(args.connectorSlug)) {
     return { kind: 'error', error: 'unsupported_connector' };
   }
   // Fixed by the deployment, read first: a misconfigured SITE_URL must fail
   // as configuration, not half-way through a consent flow.
-  const redirectUri = resolveOauthRedirectUri();
+  const redirectUri = resolveOauthRedirectUri(args.publicOrigin);
   if (!redirectUri) {
     console.error(
       '[connectors:oauth2] SITE_URL is unset — refusing to derive an OAuth redirect URI from the request',
@@ -595,7 +604,13 @@ export async function completeOauth2(
     return { kind: 'error', error: 'storage_failed', organizationId };
   }
 
-  const settingsUrl = resolveConnectorSettingsUrl(organizationId);
+  // Back to the domain the flow STARTED on — recovered from the redirect URI
+  // the state row carries, so a multi-domain deployment returns the browser
+  // where its session cookie lives rather than to the canonical origin.
+  const settingsUrl = resolveConnectorSettingsUrl(
+    organizationId,
+    publicBaseFromRedirectUri(redirectUri) ?? resolvePublicBaseUrl(),
+  );
   if (settingsUrl === null) {
     // Unreachable in practice: the pending row exists only because `start`
     // resolved a site URL. Refuse rather than invent a redirect target.

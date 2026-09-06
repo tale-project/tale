@@ -922,6 +922,11 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                     value={config?.oidcCallbackUrl ?? ''}
                     helpText={t('enterpriseSso.redirectUrlHelp')}
                   />
+                  <AdditionalOriginCopies
+                    label={t('enterpriseSso.redirectUrlLabel')}
+                    urls={config?.additionalCallbackUrls}
+                    hint={t('enterpriseSso.additionalDomainsHint')}
+                  />
                   <SettingsFieldRow label={t('enterpriseSso.issuerLabel')}>
                     <Input
                       id="sso-issuer"
@@ -1136,6 +1141,11 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                     label={t('enterpriseSso.acsUrlLabel')}
                     value={config?.samlAcsUrl ?? ''}
                   />
+                  <AdditionalOriginCopies
+                    label={t('enterpriseSso.acsUrlLabel')}
+                    urls={config?.additionalSamlAcsUrls}
+                    hint={t('enterpriseSso.additionalDomainsHint')}
+                  />
                 </SettingsFieldList>
                 {/* The SP keypair, the assertion requirements and the attribute
                     names are for IdPs that encrypt or name things differently;
@@ -1255,10 +1265,17 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                     {t('enterpriseSso.guide.samlIntro')}
                   </Text>
                 ) : (
-                  <ReadOnlyCopy
-                    label={t('enterpriseSso.guide.redirectLabel')}
-                    value={config?.oidcCallbackUrl ?? ''}
-                  />
+                  <>
+                    <ReadOnlyCopy
+                      label={t('enterpriseSso.guide.redirectLabel')}
+                      value={config?.oidcCallbackUrl ?? ''}
+                    />
+                    <AdditionalOriginCopies
+                      label={t('enterpriseSso.guide.redirectLabel')}
+                      urls={config?.additionalCallbackUrls}
+                      hint={t('enterpriseSso.additionalDomainsHint')}
+                    />
+                  </>
                 )}
                 <Text variant="muted" className="text-sm">
                   {t(`enterpriseSso.guide.${guideKey}.intro`)}
@@ -1535,6 +1552,46 @@ function ReadOnlyCopy({
         </Text>
       )}
     </SettingsFieldRow>
+  );
+}
+
+/** The host of an origin, for labelling — the origin itself if unparsable. */
+function originLabel(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch (error) {
+    console.warn('enterprise-sso: unparsable additional origin', url, error);
+    return url;
+  }
+}
+
+/**
+ * The same endpoint on the deployment's OTHER domains (ADDITIONAL_SITE_URLS).
+ * A browser that signs in on one domain is returned to that same domain, so
+ * each of these must be registered on the IdP next to the canonical URL above.
+ * Renders nothing on a single-domain deployment.
+ */
+function AdditionalOriginCopies({
+  label,
+  urls,
+  hint,
+}: {
+  label: string;
+  urls: string[] | undefined;
+  hint: string;
+}) {
+  if (!urls || urls.length === 0) return null;
+  return (
+    <>
+      {urls.map((url, index) => (
+        <ReadOnlyCopy
+          key={url}
+          label={`${label} (${originLabel(url)})`}
+          value={url}
+          {...(index === 0 ? { helpText: hint } : {})}
+        />
+      ))}
+    </>
   );
 }
 

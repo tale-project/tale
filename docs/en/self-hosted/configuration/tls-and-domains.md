@@ -61,6 +61,62 @@ SITE_URL=https://tale.example.com
 
 Subpath deployments — Tale behind `https://example.com/app/` — set `BASE_PATH=/app` in addition. The reverse proxy upstream of Caddy strips nothing; Tale handles the prefix itself.
 
+## Several domains at once
+
+One deployment can answer on more than one domain — an apex and a vanity domain, a partner's
+white-label host, a legacy name kept alive after a rename. List the extra origins in
+`ADDITIONAL_SITE_URLS`, comma- or whitespace-separated, and keep `SITE_URL` as the canonical one:
+
+```bash
+# .env
+HOST=tale.example.com
+SITE_URL=https://tale.example.com
+ADDITIONAL_SITE_URLS=https://tale.partner.example,https://app.example.org
+```
+
+Each entry is a bare origin — scheme, host, optional port, no path. Caddy serves every one of
+them from the same site block and, under `TLS_MODE=letsencrypt`, obtains a certificate per name.
+Point each domain's DNS at this host; a domain whose DNS lands later is retried until its
+certificate is issued, so the domains do not all have to be ready on the same day.
+
+Every listed domain is a complete entry point rather than a redirect: a visitor who signs in on
+one stays on it, and the links the app builds — sign-in callbacks, connector consent flows,
+audio and download URLs — keep them there, because the session cookie lives on that domain and
+nowhere else.
+
+<Warning>
+
+A domain not in this list is never honoured, even if a request arrives carrying its `Host`
+header: unrecognised hosts fall back to the canonical `SITE_URL`. That is what stops a forged
+`Host` from pointing a sign-in callback at someone else's server.
+
+</Warning>
+
+### What stays on the canonical domain
+
+`SITE_URL` remains the single answer wherever a deployment can only have one, so leave it
+pointing at your primary domain:
+
+| Stays canonical                | Why                                                                        |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| E-mail links and notifications | Sent without a browser request, so there is no domain to infer.            |
+| SAML SP entityID               | The identity provider knows the service provider by one stable identifier. |
+| SCIM `meta.location`           | Resource URLs must stay stable across directory syncs.                     |
+| Passkeys                       | WebAuthn binds a credential to one domain; one registered on the canonical host is not offered on the others. |
+| `OBJECT_STORE_PUBLIC_ENDPOINT` | Defaults to `SITE_URL`; presigned URLs are signed against that origin.     |
+
+### Register each domain with your identity and OAuth providers
+
+A sign-in that starts on `tale.partner.example` comes back to `tale.partner.example`, so that
+domain's own callback URL must be registered with the provider. The product shows the exact list
+per domain, so you never have to assemble the URLs by hand:
+
+- **Settings > Enterprise SSO** lists the redirect (OIDC) and ACS (SAML) URL for every domain.
+  The SAML metadata document advertises one `AssertionConsumerService` per domain, so importing
+  it registers them all at once.
+- **Settings > Connectors > OAuth apps** lists every domain's connector and cloud-import
+  redirect URI.
+
 ## Bring-your-own certificate
 
 For an internal CA or a wildcard cert you already own, mount the cert and key into `tale-proxy` and add a `tls` directive to the Caddyfile:

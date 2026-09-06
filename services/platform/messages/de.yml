@@ -5402,6 +5402,10 @@ settings:
       in Ihrer App-Registrierung — sie muss exakt übereinstimmen (Schema,
       Host, Pfad, kein abschließender Schrägstrich), sonst schlägt die
       Anmeldung mit AADSTS50011 fehl.
+    additionalDomainsHint:
+      Dieses Deployment antwortet auch auf weiteren Domains. Registrieren
+      Sie diese URL ebenfalls — wer sich dort anmeldet, wird auch dorthin
+      zurückgeführt und nicht auf die kanonische Domain.
     deploymentWarning:
       title: Deployment für SSO nicht vollständig konfiguriert
       callbackMissing:
