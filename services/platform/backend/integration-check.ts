@@ -23208,6 +23208,23 @@ async function checkOneDriveSync(
         hbDocs.length === 1,
       `claimed=${claimLanded}, stampAge=${Math.round(stampAgeMs / 1000)}s (want fresh), listCalls=${listCallsAfterSecond} (want 1: the second job no-ops), final=${hbAfter?.lastSyncStatus}, docs=${hbDocs.length} (want 1)`,
     );
+
+    // 11. The synced FOLDER itself is deleted at the source: Graph answers
+    //     the listing with 404. The config used to stamp `error` and be
+    //     re-enqueued every scan for good; it now prunes its mirrors and
+    //     reaches the terminal state the single-file path had.
+    drive.delete('folder-hb');
+    drive.delete('f-hb');
+    await runConfig(hbConfigId);
+    const hbConfigGone = await configByItem('folder-hb');
+    const hbDocsGone = await docsByExternalId('f-hb');
+    record(
+      'onedrive folder deleted at the source: mirrors pruned, config source-deleted',
+      hbConfigGone?.status === 'inactive' &&
+        hbConfigGone.lastSyncStatus === 'source-deleted' &&
+        hbDocsGone.length === 0,
+      `config=${hbConfigGone?.status}/${hbConfigGone?.lastSyncStatus} (want inactive/source-deleted), docs=${hbDocsGone.length}/0`,
+    );
   } finally {
     globalThis.fetch = realFetch;
     if (savedEnv.tenant === undefined) {
@@ -23630,6 +23647,29 @@ async function checkGoogleDriveSync(
         cancel.status === 200 &&
         cancelMissing.status === 404,
       `404: gone=${memoGone} config=${memoConfigAfter?.status}/${memoConfigAfter?.lastSyncStatus}, trash=${trash.status} noteConfig=${noteConfigAfterTrash?.status} (cross-provider hook), scan=${scanned}/1 drained=${scanDrained}, cancel=${cancel.status}/${cancelMissing.status} (want 200/404)`,
+    );
+
+    // 4. The synced folder is gone at the source. Drive's children query
+    //    answers a missing (or trashed) parent with an EMPTY page, not a
+    //    404 — the reconcile used to prune every mirror and leave the
+    //    config active, polling forever. The engine now probes the folder
+    //    itself on an empty listing: not found → mirrors pruned, terminal.
+    //    (Reactivate the config the cancel door just stopped.)
+    await sql`
+      UPDATE app.google_drive_sync_configs
+      SET status = 'active', last_sync_status = NULL, error_message = NULL
+      WHERE id = ${folderConfig.id}
+    `;
+    drive.delete('g-root');
+    await runConfig(folderConfig.id);
+    const rootConfigGone = await configByItem('g-root');
+    const q1Gone = await docsByExternalId('g-q1');
+    record(
+      'google-drive folder gone at the source (empty listing): mirrors pruned, config source-deleted',
+      rootConfigGone?.status === 'inactive' &&
+        rootConfigGone.lastSyncStatus === 'source-deleted' &&
+        q1Gone.length === 0,
+      `config=${rootConfigGone?.status}/${rootConfigGone?.lastSyncStatus} (want inactive/source-deleted), q1 docs=${q1Gone.length}/0`,
     );
 
     await cloud.revokeCloudAuthorization(sql, {

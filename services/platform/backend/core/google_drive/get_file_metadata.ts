@@ -9,6 +9,9 @@ export interface FileMetadataResult {
     size?: number;
   };
   error?: string;
+  /** Drive answered 404, or the item sits in the trash — it is gone at the
+   *  source either way (a trashed folder lists empty rather than failing,
+   *  so the sync engine relies on this probe to tell the two apart). */
   notFound?: boolean;
 }
 
@@ -18,7 +21,7 @@ export async function getFileMetadata(
 ): Promise<FileMetadataResult> {
   try {
     const params = new URLSearchParams({
-      fields: 'id,name,size,mimeType,md5Checksum',
+      fields: 'id,name,size,mimeType,md5Checksum,trashed',
       supportsAllDrives: 'true',
     });
     const response = await fetch(
@@ -46,7 +49,16 @@ export async function getFileMetadata(
       size?: string;
       mimeType?: string;
       md5Checksum?: string;
+      trashed?: boolean;
     }>(response);
+
+    if (data.trashed === true) {
+      return {
+        success: false,
+        error: `Failed to get file metadata: ${data.name} is in the trash`,
+        notFound: true,
+      };
+    }
 
     if (isGoogleWorkspaceMime(data.mimeType)) {
       return {

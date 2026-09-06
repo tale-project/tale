@@ -987,8 +987,9 @@ export interface ReconcileResult {
   skipped: number;
   deleted: number;
   errorsCount: number;
-  /** Single-file only: the source is gone (404) — mirror removed, config
-   *  should deactivate. */
+  /** The synced item itself is gone at the source (a definitive 404, or a
+   *  trashed Drive item) — its mirror is removed and the config should
+   *  deactivate. */
   sourceDeleted?: boolean;
 }
 
@@ -1077,36 +1078,12 @@ export async function reconcileFolderWith(
     userId: args.userId,
   });
 
-  const existingDocs = await listProviderDocumentRefs(
-    sql,
-    adapter,
-    args.organizationId,
-  );
-  const toPrune = selectDocumentsToPrune(
-    args.configId,
-    new Set(args.files.map((f) => f.id)),
-    existingDocs,
-  );
-  const refById = new Map(existingDocs.map((doc) => [doc.documentId, doc]));
-  const refsToPrune = toPrune
-    .map((documentId) => refById.get(documentId))
-    .filter((ref): ref is SyncedDocumentRef => ref !== undefined);
-
-  // Resolve the sync-target root so each prune reaps the now-empty
-  // subfolders it leaves behind, stopping at — never deleting — the root.
-  const rootSegments = (args.itemPath || args.itemName)
-    .split('/')
-    .filter((s) => s.trim().length > 0);
-  const cleanupAncestorsUpTo =
-    refsToPrune.length > 0 && rootSegments.length > 0
-      ? ((await findHubFolderByPath(sql, args.organizationId, rootSegments)) ??
-        undefined)
-      : undefined;
-
-  const deleted = await pruneSyncedDocuments(sql, {
+  const deleted = await pruneDepartedFolderDocuments(sql, adapter, {
     organizationId: args.organizationId,
-    refs: refsToPrune,
-    ...(cleanupAncestorsUpTo !== undefined ? { cleanupAncestorsUpTo } : {}),
+    configId: args.configId,
+    itemName: args.itemName,
+    ...(args.itemPath !== undefined ? { itemPath: args.itemPath } : {}),
+    currentItemIds: new Set(args.files.map((f) => f.id)),
   });
 
   return {
@@ -1116,6 +1093,55 @@ export async function reconcileFolderWith(
     errorsCount: importResult.results.filter((r) => r.status === 'error')
       .length,
   };
+}
+
+/**
+ * Delete the mirrors a folder config owns whose source files are not in
+ * `currentItemIds` — every one of them when the folder itself is gone.
+ * Each prune reaps the now-empty subfolders it leaves behind, stopping at —
+ * never deleting — the sync root (an emptied folder and a deleted one leave
+ * the same empty root behind; the user removes it).
+ */
+async function pruneDepartedFolderDocuments(
+  sql: Sql,
+  adapter: SyncProviderAdapter,
+  args: {
+    organizationId: string;
+    configId: string;
+    itemName: string;
+    itemPath?: string;
+    currentItemIds: ReadonlySet<string>;
+  },
+): Promise<number> {
+  const existingDocs = await listProviderDocumentRefs(
+    sql,
+    adapter,
+    args.organizationId,
+  );
+  const toPrune = selectDocumentsToPrune(
+    args.configId,
+    args.currentItemIds,
+    existingDocs,
+  );
+  const refById = new Map(existingDocs.map((doc) => [doc.documentId, doc]));
+  const refsToPrune = toPrune
+    .map((documentId) => refById.get(documentId))
+    .filter((ref): ref is SyncedDocumentRef => ref !== undefined);
+
+  const rootSegments = (args.itemPath || args.itemName)
+    .split('/')
+    .filter((s) => s.trim().length > 0);
+  const cleanupAncestorsUpTo =
+    refsToPrune.length > 0 && rootSegments.length > 0
+      ? ((await findHubFolderByPath(sql, args.organizationId, rootSegments)) ??
+        undefined)
+      : undefined;
+
+  return pruneSyncedDocuments(sql, {
+    organizationId: args.organizationId,
+    refs: refsToPrune,
+    ...(cleanupAncestorsUpTo !== undefined ? { cleanupAncestorsUpTo } : {}),
+  });
 }
 
 /** Every auto-synced document a single-file config owns for its file. */
@@ -1226,6 +1252,14 @@ export async function reconcileSingleFileWith(
  * the folder (recursive listing that THROWS on a truncated page walk — a
  * short read must fail the sync, never prune) or the single file. Throws
  * on hard failure so the caller marks the config `error`.
+ *
+ * A folder whose listing fails or comes back empty is probed at the source
+ * before anything else happens: a definitive not-found (deleted, or a
+ * trashed Drive folder — which lists empty rather than failing) removes
+ * the mirrors and reports `sourceDeleted`, the single-file terminal path.
+ * Without the probe a deleted folder never reached a terminal state — the
+ * listing 404 stamped `error`, and the scan re-enqueued it every tick for
+ * the lifetime of the org.
  */
 export async function syncOneConfigWith(
   sql: Sql,
@@ -1248,8 +1282,28 @@ export async function syncOneConfigWith(
       token: token.token,
       recursive: true,
     });
-    if (!listed.success) {
-      throw new Error(listed.error ?? 'Failed to list folder contents');
+    const files = listed.files ?? [];
+    if (!listed.success || files.length === 0) {
+      const probe = await adapter.getFileMetadata(config.itemId, token.token);
+      if (!probe.success && probe.notFound === true) {
+        const deleted = await pruneDepartedFolderDocuments(sql, adapter, {
+          organizationId: config.organizationId,
+          configId: config.id,
+          itemName: config.itemName,
+          ...(config.itemPath !== null ? { itemPath: config.itemPath } : {}),
+          currentItemIds: new Set<string>(),
+        });
+        return {
+          created: 0,
+          skipped: 0,
+          deleted,
+          errorsCount: 0,
+          sourceDeleted: true,
+        };
+      }
+      if (!listed.success) {
+        throw new Error(listed.error ?? 'Failed to list folder contents');
+      }
     }
     return reconcileFolderWith(sql, adapter, {
       organizationId: config.organizationId,
@@ -1259,7 +1313,7 @@ export async function syncOneConfigWith(
       ...(config.itemPath !== null ? { itemPath: config.itemPath } : {}),
       userId: config.userId,
       ...(config.teamId !== null ? { teamId: config.teamId } : {}),
-      files: listed.files ?? [],
+      files,
       token: token.token,
     });
   }
