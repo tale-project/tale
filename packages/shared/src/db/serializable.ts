@@ -240,12 +240,7 @@ async function beginQueued<T>(
   }
 }
 
-/**
- * Open a SERIALIZABLE transaction and execute `callback`, retrying the entire
- * transaction on serialization failures (40001/40P01) and on transient
- * connection faults. Each retry runs in a fresh transaction; a retry after a
- * failure marked with queue keys runs queued on those keys (see above).
- */
+/** True when every key in `keys` is already in `of`. */
 function isSubsetOf(
   keys: readonly string[],
   of: readonly string[] | undefined,
@@ -253,6 +248,12 @@ function isSubsetOf(
   return of !== undefined && keys.every((key) => of.includes(key));
 }
 
+/**
+ * Open a SERIALIZABLE transaction and execute `callback`, retrying the entire
+ * transaction on serialization failures (40001/40P01) and on transient
+ * connection faults. Each retry runs in a fresh transaction; a retry after a
+ * failure marked with queue keys runs queued on those keys (see above).
+ */
 export function transactSerializable<T>(
   sql: SerializableTransactionRunner,
   callback: (tx: TransactionSql) => Promise<T>,

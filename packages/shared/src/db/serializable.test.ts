@@ -484,6 +484,8 @@ describe('transactSerializable — nested retry queues, failure paths', () => {
       }),
     ).rejects.toBe(cancelled);
     expect(beginAttempts()).toBe(1);
+    // A cancelled statement is not transient: no second attempt of any kind.
+    expect(reservations).toHaveLength(1);
     const statements = reservations[0]?.statements ?? [];
     expect(texts(statements)).toEqual([
       'SELECT pg_advisory_lock(?, hashtext(?))',
