@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { authorizeRls } from '../../auth/access.ts';
+import { KNOWLEDGE_SOURCE_PROVIDER } from '../../core/knowledge_entries/constants.ts';
 import { validateTopicAndContent } from '../../core/knowledge_entries/helpers.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -13,6 +14,7 @@ import {
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { wordStartPatterns } from '../../lib/word-match.ts';
+import { markRagQueued } from '../knowledge/service.ts';
 
 /**
  * User-contributed knowledge entries — the 0.5 twin of
@@ -33,7 +35,14 @@ import { wordStartPatterns } from '../../lib/word-match.ts';
  * soft-deletes the chain and trashes the backing document — the
  * retrievability filter excludes trashed documents, so the corpus rows go
  * dark immediately, and the retention purge releases them physically (lazy
- * cleanup posture).
+ * cleanup posture). The reverse holds too: a backing document hidden or
+ * removed through ANY other door — the Documents tab's purge, a WebDAV
+ * DELETE, the retention sweep's expiry flip into the Trash and its later
+ * purge — soft-deletes its entry chain via
+ * `markEntryChainDeletedForDocument` / `markEntryChainsDeletedForDocuments`,
+ * so a trashed or expired document never leaves an entry listed, counted
+ * and served to the agent leg while its corpus rows are dark — the 0.4
+ * `deleteDocument → markEntryChainDeleted` contract.
  *
  * Mutations are role-gated at this seam (`authorizeRls(role, 'knowledge',
  * 'write')`): entries materialize `app.documents` rows and feed the org's
@@ -43,11 +52,11 @@ import { wordStartPatterns } from '../../lib/word-match.ts';
 
 export class KnowledgeEntryError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404 | 409;
+  readonly status: 400 | 403 | 404 | 409 | 503;
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 409 = 400,
+    status: 400 | 403 | 404 | 409 | 503 = 400,
   ) {
     super(message);
     this.name = 'KnowledgeEntryError';
@@ -118,6 +127,11 @@ interface StoredEntryBlob {
   contentHash: string;
 }
 
+/** How long the object store gets to accept an entry's markdown. Node's
+ * `fetch` has no timeout of its own: a stalled connection held the request
+ * (and the caller's spinner) indefinitely, with its rate-limit token spent. */
+const ENTRY_BLOB_STORE_TIMEOUT_MS = 30_000;
+
 /** Upload the entry's markdown BEFORE the transaction — the write path never
  * holds a tx open over network I/O; an orphaned blob from a failed tx is
  * inert (never referenced). */
@@ -136,11 +150,27 @@ async function storeEntryBlob(
   const putUrl = await s3PresignPutUrl(store, key, {
     contentType: 'text/markdown',
   });
-  const putRes = await fetch(putUrl, {
-    method: 'PUT',
-    headers: { 'content-type': 'text/markdown' },
-    body: bytes,
-  });
+  let putRes: Response;
+  try {
+    putRes = await fetch(putUrl, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/markdown' },
+      body: bytes,
+      signal: AbortSignal.timeout(ENTRY_BLOB_STORE_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.name === 'TimeoutError' || error.name === 'AbortError')
+    ) {
+      throw new KnowledgeEntryError(
+        'KNOWLEDGE_ENTRY_STORE_TIMEOUT',
+        `The object store did not accept the entry within ${ENTRY_BLOB_STORE_TIMEOUT_MS / 1000} seconds. Try again; if it keeps happening, check the object store.`,
+        503,
+      );
+    }
+    throw error;
+  }
   if (!putRes.ok) {
     throw new Error(`knowledge entry blob store failed: ${putRes.status}`);
   }
@@ -193,15 +223,22 @@ async function attachEntryDocument(
         updated_at_ms = ${now}
       WHERE id = ${args.existingDocumentId}
     `;
+    // The rotated blob is new content: whatever the previous version's
+    // indexing left behind (a failure and its code) no longer describes it.
     const files = await tx<{ id: string }[]>`
       UPDATE app.file_metadata SET
         storage_ref = ${storageRef}, file_name = ${fileName},
-        size = ${size}, rag_status = NULL
+        size = ${size}, rag_error = NULL, rag_error_code = NULL
       WHERE document_id = ${args.existingDocumentId}
       RETURNING id
     `;
     const fileId = files[0]?.id;
     if (fileId !== undefined) {
+      // The producer idiom: `queued` from the enqueue on, not NULL until the
+      // worker's first write. NULL read as "Not indexed" in the UI, and a job
+      // lost after its retries left the row there forever — the indexing
+      // watchdog only reconciles `queued`/`running` rows.
+      await markRagQueued(tx, fileId);
       await addJobInTx(tx, 'rag.index_file', { fileId });
     }
     if (previousRef !== null && previousRef !== storageRef) {
@@ -235,7 +272,7 @@ async function attachEntryDocument(
       team_tags, created_by, metadata, created_at_ms, updated_at_ms
     ) VALUES (
       ${args.organizationId}, ${fileName}, ${storageRef}, 'text/markdown',
-      'md', 'knowledge', ${[]}::text[], ${args.createdBy},
+      'md', ${KNOWLEDGE_SOURCE_PROVIDER}, ${[]}::text[], ${args.createdBy},
       ${tx.json(toJson({ contentHash }))}, ${now}, ${now}
     ) RETURNING id
   `;
@@ -249,6 +286,7 @@ async function attachEntryDocument(
     UPDATE app.knowledge_entries SET document_id = ${documentId}
     WHERE id = ${args.entryId}
   `;
+  await markRagQueued(tx, fileId);
   await addJobInTx(tx, 'rag.index_file', { fileId });
   return documentId;
 }
@@ -334,13 +372,20 @@ export async function updateKnowledgeEntry(
   const { topic, topicKey, content } = validate(args.topic, args.content);
   const blob = await storeEntryBlob(sql, args.organizationId, content);
   return sql.begin(async (tx) => {
+    // The backing document must still be ACTIVE: a version written onto a
+    // trashed document would rotate its blob and index content nobody can
+    // retrieve (the filter excludes trashed documents). Such an entry is
+    // gone from the caller's point of view, so it answers as not found.
     const currents = await tx<
       { id: string; topicKey: string; documentId: string | null }[]
     >`
-      SELECT id, topic_key AS "topicKey", document_id AS "documentId"
-      FROM app.knowledge_entries
-      WHERE id = ${args.entryId} AND org_id = ${args.organizationId}
-        AND status = 'active' AND deleted_at_ms IS NULL
+      SELECT ke.id, ke.topic_key AS "topicKey", ke.document_id AS "documentId"
+      FROM app.knowledge_entries ke
+      LEFT JOIN app.documents d ON d.id = ke.document_id
+      WHERE ke.id = ${args.entryId} AND ke.org_id = ${args.organizationId}
+        AND ke.status = 'active' AND ke.deleted_at_ms IS NULL
+        AND (d.id IS NULL OR d.lifecycle_status IS NULL
+             OR d.lifecycle_status = 'active')
       LIMIT 1
     `;
     const current = currents[0];
@@ -394,6 +439,46 @@ export async function updateKnowledgeEntry(
     });
     return entryId;
   });
+}
+
+/**
+ * Soft-delete every version of the entry chain a document backs — the hook
+ * every path that trashes or purges a document calls, so a knowledge entry
+ * can never outlive its backing document. Org-scoped and keyed by the
+ * DOCUMENT alone: every version of a chain re-materializes onto the same
+ * document (`attachEntryDocument` rotates the existing one), so the document
+ * IS the chain. Never hop through the topic key — a deleted chain's key is
+ * free for a new entry (`findActiveByTopicKey` ignores deleted rows), and a
+ * late purge of the OLD document must not retire the NEW chain that reused
+ * it. Returns how many rows were marked; zero when the document backs no
+ * entry.
+ */
+export async function markEntryChainDeletedForDocument(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  documentId: string,
+): Promise<number> {
+  return markEntryChainsDeletedForDocuments(tx, organizationId, [documentId]);
+}
+
+/**
+ * The batch form of {@link markEntryChainDeletedForDocument} for a door that
+ * hides many documents at once (the retention sweep's expiry flip): one
+ * statement for the whole batch, the same predicate. Zero documents is a
+ * no-op.
+ */
+export async function markEntryChainsDeletedForDocuments(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  documentIds: readonly string[],
+): Promise<number> {
+  if (documentIds.length === 0) return 0;
+  const result = await tx`
+    UPDATE app.knowledge_entries SET deleted_at_ms = ${Date.now()}
+    WHERE org_id = ${organizationId} AND document_id = ANY(${[...documentIds]})
+      AND deleted_at_ms IS NULL
+  `;
+  return result.count;
 }
 
 /** Soft-delete the whole topic chain and trash the backing document — the

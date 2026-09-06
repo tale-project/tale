@@ -2,7 +2,7 @@
   "name": "@tale/sandbox-runtime",
   "version": "0.1.0",
   "private": true,
-  "description": "Tale sandbox runtime image — ephemeral python/node executor invoked per /v1/execute call",
+  "description": "Tale sandbox runtime image — the persistent-session container (runnerd) that @tale/sandbox launches, plus the egress sidecar",
   "scripts": {
     "docker:build": "docker build -t tale-sandbox-runtime -f services/sandbox-runtime/Dockerfile ../../",
     "logs": "docker compose logs -f sandbox-runtime",

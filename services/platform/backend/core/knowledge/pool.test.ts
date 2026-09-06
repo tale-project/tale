@@ -42,6 +42,7 @@ const DEFAULT_URL = 'postgresql://tale:pw@knowledge-db:5432/tale_knowledge';
 
 let configRoot: string;
 let opened: string[];
+let ended: string[];
 let previousConfigDir: string | undefined;
 let previousDatabaseUrl: string | undefined;
 
@@ -53,8 +54,19 @@ function stubPool(url: string): Sql {
     url: string;
   };
   sql.url = url;
-  sql.end = () => Promise.resolve();
-  sql.unsafe = () => Promise.resolve([]) as never;
+  sql.end = () => {
+    ended.push(url);
+    return Promise.resolve();
+  };
+  const unsafe = () => Promise.resolve([]) as never;
+  sql.unsafe = unsafe;
+  // The bootstrap holds its advisory lock on one reserved connection; the
+  // double answers it with the same recording surface.
+  sql.reserve = (() =>
+    Promise.resolve({
+      unsafe,
+      release: () => undefined,
+    })) as unknown as Sql['reserve'];
   return sql;
 }
 
@@ -75,6 +87,7 @@ function urlOf(sql: Sql): string {
 beforeEach(() => {
   configRoot = mkdtempSync(path.join(tmpdir(), 'knowledge-pool-'));
   opened = [];
+  ended = [];
   previousConfigDir = process.env.TALE_CONFIG_DIR;
   previousDatabaseUrl = process.env.KNOWLEDGE_DATABASE_URL;
   process.env.TALE_CONFIG_DIR = configRoot;
@@ -166,6 +179,30 @@ describe('the tenant chokepoint', () => {
   it('keeps the deployment default reachable for maintenance', () => {
     const sql = getKnowledgePool();
     expect(urlOf(sql)).toBe(DEFAULT_URL);
+  });
+});
+
+describe('shutdown', () => {
+  it('closes every open pool and forgets it, so a later call opens afresh', async () => {
+    // main.ts drains these after pg-boss stops: an own database and the
+    // shared one are both ended, and neither is handed out again.
+    writeConnection('acme', {
+      host: 'acme-db.example.com',
+      port: 5432,
+      database: 'acme_knowledge',
+      user: 'acme',
+      sslmode: 'require',
+    });
+    const shared = getKnowledgePool();
+    const own = await getKnowledgePoolForOrg('acme');
+    expect(ended).toEqual([]);
+
+    await closeKnowledgePools();
+
+    expect(ended).toHaveLength(2);
+    expect(ended).toEqual(expect.arrayContaining([urlOf(shared), urlOf(own)]));
+    expect(getKnowledgePool()).not.toBe(shared);
+    expect(opened).toHaveLength(3);
   });
 });
 

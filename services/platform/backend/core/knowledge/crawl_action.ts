@@ -532,9 +532,20 @@ async function discoverAndRecordUrls(
         maxResponseBytes: SITEMAP_MAX_BYTES,
         allowedHosts: [...hosts],
       });
-      if (response.status < 200 || response.status >= 300) continue;
+      if (response.status < 200 || response.status >= 300) {
+        console.warn(
+          `[crawl] ${domain}: sitemap ${next.url} answered ${response.status}; skipping it`,
+        );
+        continue;
+      }
       xml = response.body;
-    } catch {
+    } catch (error) {
+      // A sitemap that times out, exceeds the size cap or is refused by the
+      // host allowlist silently degraded a large site to the link walk;
+      // the triage question is always WHICH of those it was.
+      console.warn(
+        `[crawl] ${domain}: sitemap fetch failed for ${next.url}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       continue;
     }
     if (isSitemapIndex(xml)) {
@@ -585,7 +596,10 @@ async function discoverAndRecordUrls(
             queue.push({ url: normalized, depth: next.depth + 1 });
           }
         }
-      } catch {
+      } catch (error) {
+        console.warn(
+          `[crawl] ${domain}: link-walk fetch failed for ${next.url}: ${error instanceof Error ? error.message : String(error)}`,
+        );
         continue;
       }
       await sleep(FETCH_DELAY_MS);

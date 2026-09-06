@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server';
 import { PatternRegistry } from '../lib/pii';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { closeKnowledgePools } from './core/knowledge/pool.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import {
@@ -175,6 +176,9 @@ async function main(): Promise<void> {
     }
     // Graceful: in-flight jobs finish before the instance stops.
     await boss.stop({ graceful: true });
+    // The knowledge pools outlive the jobs and requests that used them —
+    // drain them here rather than leaving their sockets to process.exit.
+    await closeKnowledgePools();
     await sql.end({ timeout: 5 });
     await flushErrorReporting();
     process.exit(0);

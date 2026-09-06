@@ -38,7 +38,7 @@ Das ist der Modus für Teams, die bereits einen IdP betreiben und ihre bestehend
 
 ## Trusted Headers
 
-Trusted Headers ist der Modus für Sites, die SSO an einem vorgelagerten Reverse-Proxy terminieren — oauth2-proxy, Pomerium, Authelia. Der Proxy authentifiziert den Benutzer und leitet identifizierende Header weiter (`X-Auth-Request-Email`, `X-Auth-Request-Preferred-Username`); Tale vertraut diesen Headern und legt den Benutzer-Datensatz on-the-fly an oder aktualisiert ihn.
+Trusted Headers ist der Modus für Sites, die SSO an einem vorgelagerten Reverse-Proxy terminieren — oauth2-proxy, Pomerium, Authelia. Der Proxy authentifiziert den Benutzer und leitet Identitäts-Header weiter; Tale liest standardmäßig `Remote-Email`, `Remote-Name`, `Remote-Role` und `Remote-Teams`, vertraut ihnen und legt den Benutzer-Datensatz on-the-fly an oder aktualisiert ihn. Nennt dein Proxy seine Header anders (oauth2-proxy schickt `X-Auth-Request-Email`), bildest du sie mit den `TRUSTED_*_HEADER`-Variablen aus der [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference) ab.
 
 ```bash
 # .env
@@ -47,6 +47,8 @@ TRUSTED_HEADERS_INTERNAL_SECRET=<langer zufälliger Wert>
 ```
 
 Das Secret ist keine Option: Die Identitäts-Header kann jeder fälschen, der das Backend erreicht — deshalb verweigert der Endpunkt den Dienst, bis `TRUSTED_HEADERS_INTERNAL_SECRET` gesetzt ist. Konfiguriere den authentifizierenden Proxy so, dass er denselben Wert bei jeder Anfrage an Tale im Header `Remote-Internal-Secret` mitschickt (der Header-Name lässt sich über `TRUSTED_SECRET_HEADER` umbenennen, falls dein Proxy eigene Namen vorgibt) — eine Anfrage ohne den passenden Wert wird abgewiesen, bevor irgendein Benutzer nachgeschlagen wird.
+
+`Remote-Teams` trägt Team-Zugehörigkeiten als kommagetrennte `id:name`-Einträge — `t-fin:Finance, t-ops:Operations`. Bei jeder Anmeldung legt Tale jedes genannte Team in der Organisation an, falls es noch fehlt, und nimmt den Benutzer auf; ein Team, das der Header nicht mehr nennt, verlässt er wieder. Der Abgleich fasst nur Zugehörigkeiten an, die er selbst vergeben hat — was ein Admin von Hand zugewiesen hat, bleibt. Lass den Header weg, wenn Tale sich aus der Team-Verwaltung heraushalten soll; schick ihn gesetzt, aber leer, um alle vom Proxy vergebenen Zugehörigkeiten zu entziehen. Ein gesetzter Wert ohne einen einzigen `id:name`-Eintrag (etwa bloße Namen) zählt als leer und hinterlässt eine Warnung im Log des Plattform-Containers — schau dort nach, wenn Benutzer nach einer Proxy-Änderung ihre Teams verlieren.
 
 Das Bedrohungsmodell bleibt heikel. Alles, was den Plattform-Container mit diesen Headern **und** dem Secret erreichen kann, wird zum Benutzer, der in ihnen genannt ist. Beschränke den Plattform-Port so, dass nur der Proxy mit ihm sprechen kann (ein Docker-Netzwerk oder eine Host-Firewall-Regel), und exponier den Plattform-Container nie direkt zum Internet, wenn dieser Modus an ist.
 

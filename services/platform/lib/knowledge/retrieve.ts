@@ -51,11 +51,11 @@ import {
 } from './types';
 
 /** Hits returned when the caller names no limit. */
-export const DEFAULT_LIMIT = 10;
+const DEFAULT_LIMIT = 10;
 
 /** Hard ceiling on one search. The hits land in a model's context, so an
  * unbounded limit trades an answer for a truncation. */
-export const MAX_LIMIT = 50;
+const MAX_LIMIT = 50;
 
 /**
  * How many candidates each leg fetches relative to the requested limit.
@@ -65,7 +65,7 @@ export const MAX_LIMIT = 50;
  * could never surface. Over-fetching is what lets agreement outrank a single
  * leg's confidence.
  */
-export const CANDIDATE_FACTOR = 3;
+const CANDIDATE_FACTOR = 3;
 
 /** What one leg is asked for. */
 export interface CorpusLegQuery {
@@ -343,7 +343,7 @@ async function applyRerank(
 }
 
 /** Keep one search's result set inside the bounds a context window can hold. */
-export function clampLimit(limit: number | undefined): number {
+function clampLimit(limit: number | undefined): number {
   if (limit === undefined || !Number.isFinite(limit)) return DEFAULT_LIMIT;
   return Math.max(1, Math.min(Math.floor(limit), MAX_LIMIT));
 }

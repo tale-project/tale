@@ -64,6 +64,40 @@ describe('file-ops', () => {
     ).toBe('{"text":"hi"}');
   });
 
+  // REGRESSION: a stage URL fetch had no deadline of its own — a server that
+  // accepted and never answered (or trickled) pinned the handler and every
+  // later item in the batch for undici's 300 s defaults, long after the
+  // spawner's 30 s RPC bound had already reported a timeout.
+  test('stageFiles gives up on a stalled URL within its deadline and moves on', async () => {
+    const stalled = Bun.serve({
+      port: 0,
+      fetch: () => new Promise<Response>(() => {}), // never answers
+    });
+    const live = Bun.serve({
+      port: 0,
+      fetch: () => new Response('after-the-stall'),
+    });
+    try {
+      const started = Date.now();
+      const result = await stageFiles(
+        [
+          { path: 'stalled.txt', url: `http://127.0.0.1:${stalled.port}/x` },
+          { path: 'later.txt', url: `http://127.0.0.1:${live.port}/x` },
+        ],
+        { fetchTimeoutMs: 200 },
+      );
+      expect(Date.now() - started).toBeLessThan(2_000);
+      expect(result.skipped).toEqual([
+        { path: 'stalled.txt', reason: 'timeout' },
+      ]);
+      // The item behind the stall still stages.
+      expect(result.staged).toEqual([{ path: 'later.txt', bytes: 15 }]);
+    } finally {
+      await stalled.stop(true);
+      await live.stop(true);
+    }
+  });
+
   test('stageFiles fetches a URL and writes under the workspace', async () => {
     // Stand up a tiny server serving the file bytes.
     const server = Bun.serve({
