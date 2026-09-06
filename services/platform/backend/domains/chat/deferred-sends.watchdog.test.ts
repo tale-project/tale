@@ -10,12 +10,27 @@ import { recoverStuckDeferredSends } from './deferred-sends.ts';
  * scan rides the real-Postgres probe in `integration-check.ts`.
  */
 
-// oxlint-disable-next-line typescript/no-explicit-any -- test double for the postgres.js tag
-function scriptedSql(script: unknown[][]): any {
+interface Statement {
+  text: string;
+  values: unknown[];
+}
+
+/** A scripted postgres.js tag: answers the statements in order and records
+ * what each one asked, so a test can assert on the follow-up writes too. */
+function scriptedSql(script: unknown[][]): {
+  // oxlint-disable-next-line typescript/no-explicit-any -- test double for the postgres.js tag
+  sql: any;
+  statements: Statement[];
+} {
   let i = 0;
+  const statements: Statement[] = [];
   const nextRows = (): unknown[] =>
     i < script.length ? (script[i++] ?? []) : [];
-  return () => Promise.resolve(nextRows());
+  const sql = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    statements.push({ text: strings.join('?'), values });
+    return Promise.resolve(nextRows());
+  };
+  return { sql, statements };
 }
 
 interface SentJob {
@@ -43,16 +58,25 @@ describe('recoverStuckDeferredSends', () => {
       },
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only `send` is exercised
     } as never);
-    const sql = scriptedSql([
+    const { sql, statements } = scriptedSql([
       // waiting rows the sever-recovery re-polls
       [{ id: 'wait_1' }, { id: 'wait_2' }],
       // claimed rows the wedge-recovery deletes
-      [{ id: 'claim_1' }],
+      [{ id: 'claim_1', organizationId: 'org_1', videoJobIds: ['job_1'] }],
+      // the release of the cleared row's videos
+      [],
     ]);
 
     const result = await recoverStuckDeferredSends(sql);
 
     expect(result).toEqual({ repolled: 2, cleared: 1 });
+    // The wedged row's claimed videos go back to unbound (a job a persisted
+    // user row carries is kept by the statement's own predicate) — bound to
+    // a row that no longer exists they would stay hidden and unreapable.
+    const release = statements.find((statement) =>
+      statement.text.includes('message_bound_at_ms = NULL'),
+    );
+    expect(release?.values.slice(0, 2)).toEqual([['job_1'], 'org_1']);
     expect(sent).toHaveLength(2);
     expect(sent.every((job) => job.name === 'chat.deferred_send_poll')).toBe(
       true,
@@ -72,7 +96,7 @@ describe('recoverStuckDeferredSends', () => {
       },
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only `send` is exercised
     } as never);
-    const sql = scriptedSql([[], []]);
+    const { sql } = scriptedSql([[], []]);
 
     const result = await recoverStuckDeferredSends(sql);
 

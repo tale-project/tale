@@ -30799,6 +30799,15 @@ async function checkChatMemoriesDeferredAuto(
     (await fetch(`${base}${route}`, { headers: { cookie } })).json();
 
   // ---- memories -----------------------------------------------------------
+  // The feature is OFF until the person (or the org policy) turns it on: a
+  // proposal while off is refused, not queued.
+  const refusedWhileOff = await post(`/api/app/chat/memories?orgId=${orgId}`, {
+    content: 'Prefers metric units',
+  });
+  const enabledMemories = await post(
+    `/api/app/user-preferences/memories-enabled?orgId=${orgId}`,
+    { enabled: true },
+  );
   const saved = z.object({ id: z.string() }).safeParse(
     await (
       await post(`/api/app/chat/memories?orgId=${orgId}`, {
@@ -30836,9 +30845,32 @@ async function checkChatMemoriesDeferredAuto(
         )
       ).json(),
     );
+  // Delete takes a saved memory out of what a search can return; then the
+  // switch off hides the rest from retrieval without touching the rows.
+  const deleted = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/chat/memories/${memoryId}?orgId=${orgId}`, {
+        method: 'DELETE',
+        headers: { cookie, origin: base },
+      })
+    ).json(),
+  );
+  const searchAfterDelete = z
+    .object({ memories: z.array(z.unknown()) })
+    .safeParse(
+      await get(`/api/app/chat/memories/search?orgId=${orgId}&q=metric`),
+    );
+  await post(`/api/app/user-preferences/memories-enabled?orgId=${orgId}`, {
+    enabled: false,
+  });
+  const refusedAgain = await post(`/api/app/chat/memories?orgId=${orgId}`, {
+    content: 'Prefers imperial units',
+  });
   record(
-    'memories: pending until approved, retrieval sees approved only',
-    saved.success &&
+    'memories: off until enabled, pending until approved, retrieval sees approved only',
+    refusedWhileOff.status === 403 &&
+      enabledMemories.ok &&
+      saved.success &&
       listedPending.success &&
       listedPending.data.pending.some((row) => row.id === memoryId) &&
       listedPending.data.approved.length === 0 &&
@@ -30847,8 +30879,13 @@ async function checkChatMemoriesDeferredAuto(
       searchApproved.success &&
       searchApproved.data.memories.length === 1 &&
       bogusReview.success &&
-      !bogusReview.data.ok,
-    `pending=${listedPending.success ? listedPending.data.pending.length : 'ERR'}, hiddenWhilePending=${searchWhilePending.success ? searchWhilePending.data.memories.length === 0 : 'ERR'}, approvedHits=${searchApproved.success ? searchApproved.data.memories.length : 'ERR'}, bogus=${bogusReview.success ? bogusReview.data.ok : 'ERR'} (want false)`,
+      !bogusReview.data.ok &&
+      deleted.success &&
+      deleted.data.ok &&
+      searchAfterDelete.success &&
+      searchAfterDelete.data.memories.length === 0 &&
+      refusedAgain.status === 403,
+    `refusedWhileOff=${refusedWhileOff.status} (want 403), pending=${listedPending.success ? listedPending.data.pending.length : 'ERR'}, hiddenWhilePending=${searchWhilePending.success ? searchWhilePending.data.memories.length === 0 : 'ERR'}, approvedHits=${searchApproved.success ? searchApproved.data.memories.length : 'ERR'}, bogus=${bogusReview.success ? bogusReview.data.ok : 'ERR'} (want false), deleted=${deleted.success ? deleted.data.ok : 'ERR'}, afterDelete=${searchAfterDelete.success ? searchAfterDelete.data.memories.length : 'ERR'}, refusedAgain=${refusedAgain.status} (want 403)`,
   );
 
   // ---- a live fake provider (catalog + streaming completions) -------------
@@ -31150,14 +31187,22 @@ async function checkChatMemoriesDeferredAuto(
       UPDATE app.file_metadata SET rag_status = 'completed'
       WHERE storage_ref = ${storageRef}
     `;
+    // The tray row settles the moment the turn persists the user message
+    // (well before the reply streams), so "row gone" is not "turn done":
+    // wait for the generation row to disappear too before reading the reply.
     let sendsLeft = -1;
+    let generating = -1;
     for (let i = 0; i < 60; i++) {
-      const rows = await sql<{ count: string }[]>`
-        SELECT count(*)::text AS count FROM app.deferred_sends
-        WHERE thread_id = ${deferThreadId}
+      const rows = await sql<{ sends: string; generating: string }[]>`
+        SELECT
+          (SELECT count(*) FROM app.deferred_sends
+           WHERE thread_id = ${deferThreadId})::text AS sends,
+          (SELECT count(*) FROM app.generations
+           WHERE thread_id = ${deferThreadId})::text AS generating
       `;
-      sendsLeft = Number(rows[0]?.count ?? '-1');
-      if (sendsLeft === 0) break;
+      sendsLeft = Number(rows[0]?.sends ?? '-1');
+      generating = Number(rows[0]?.generating ?? '-1');
+      if (sendsLeft === 0 && generating === 0) break;
       await sleep(300);
     }
     const deferMessages = await sql<{ role: string; text: string | null }[]>`
@@ -31225,7 +31270,7 @@ async function checkChatMemoriesDeferredAuto(
         cancelRow.success &&
         cancelled.success &&
         cancelled.data.ok,
-      `noModel=${noModel.status} (want 400), parkedWhileIndexing=${stillWaiting.success && stillWaiting.data.sends.length > 0}, settled=${sendsLeft === 0}, answered=${deferMessages.filter((row) => row.role === 'assistant').length}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}`,
+      `noModel=${noModel.status} (want 400), parkedWhileIndexing=${stillWaiting.success && stillWaiting.data.sends.length > 0}, settled=${sendsLeft === 0}, turnDone=${generating === 0}, answered=${deferMessages.filter((row) => row.role === 'assistant' && (row.text ?? '').includes('Deferred answer done')).length} (want 1), cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}`,
     );
   } finally {
     // Lift the pick pin — later checks (automation llm nodes, the

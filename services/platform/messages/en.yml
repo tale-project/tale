@@ -4324,14 +4324,23 @@ personalization:
     memories:
       title: Saved memories
       empty: Memories appear here after the assistant proposes them and you save.
+      delete: Delete
+      deleteLabel: "Delete memory: {content}"
     pending:
       title: Pending suggestions
       empty: No suggestions waiting.
+      save: Save
+      saveLabel: "Save suggestion: {content}"
+      discard: Discard
+      discardLabel: "Discard suggestion: {content}"
   errors:
     saveFailed: Couldn't save. Try again.
     tooLong: Custom instructions exceed {max} characters.
   toasts:
     preferencesUpdated: Preferences updated.
+    memorySaved: Memory saved.
+    memoryDiscarded: Suggestion discarded.
+    memoryDeleted: Memory deleted.
 piiConfigPanel:
   modeLabel: Mode
   modeTokenize: Tokenize
