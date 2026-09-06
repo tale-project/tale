@@ -149,10 +149,10 @@ describe('shipped static model catalogs', () => {
     expect(embedding?.tags).toEqual(['embedding']);
     expect(embedding?.supportsTools).toBe(false);
     expect(embedding?.supportsVision).toBe(false);
-    // The vendor accepts 256/512/1024/2048 only; its 2048 default is above
-    // pgvector's HNSW ceiling, so 1024 is the widest indexable width.
+    // The vendor's 2048 default is above pgvector's HNSW ceiling; 1536 is the
+    // width the other curated picks share, so one bundled corpus serves all.
     expect(embedding?.embedding).toEqual({
-      dimensions: 1024,
+      dimensions: 1536,
       recommended: true,
     });
     // The GLM chat lineup stays chat-only and the embedding tag never leaks

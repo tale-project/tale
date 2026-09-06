@@ -102,19 +102,22 @@
     inputCentsPerMillion: 30
     outputCentsPerMillion: 90
 # Embedding model — the vendor's current one (embedding-2 is a fixed-1024
-# legacy tag). Facts from the vendor's API reference, 2026-09-06: `dimensions`
-# accepts 256, 512, 1024 or 2048 (default 2048); one input holds at most 3072
-# tokens; one request carries at most 64 inputs (error 1214 — the embedder's
-# batch cap). 1024 is curated because the 2048 default sits above pgvector's
-# 2000-dim HNSW ceiling (a corpus that could only scan sequentially) and 1536
-# — the width the other curated picks share — is not an accepted value, so an
-# organization sharing the bundled knowledge database with a 1536-pinned
-# corpus needs its own database for this pick. Embeddings bill the API
-# balance, NOT the GLM Coding Plan quota: a plan key without balance gets 429
-# "Insufficient balance or no resource package" (code 1113) on the coding
-# base and the general base alike (verified 2026-09-06). No price: the
-# international pricing page publishes none for embeddings, so usage books at
-# 0 rather than at a rate converted from the CN list.
+# legacy tag). The vendor's API reference lists `dimensions` 256, 512, 1024
+# or 2048 (default 2048), 3072 tokens per input and at most 64 inputs per
+# request; live on api.z.ai (both bases, 2026-09-06) the model truncates to
+# ANY requested width — 1536 and 1000 came back at exactly that width — and
+# a 22k-token input was embedded, while the 64-input cap is enforced before
+# billing (error 1214; the embedder's batch cap). 1536 is curated: the 2048
+# default sits above pgvector's 2000-dim HNSW ceiling (a corpus that could
+# only scan sequentially), and 1536 is the width the other curated picks and
+# every existing bundled corpus are pinned to, so an organization adopting
+# this model can share the deployment's knowledge database instead of
+# needing its own. Embeddings bill the API balance, NOT the GLM Coding Plan
+# quota: a plan key without balance gets 429 "Insufficient balance or no
+# resource package" (code 1113) on the coding base and the general base
+# alike. No price: the international pricing page publishes none for
+# embeddings, so usage books at 0 rather than at a rate converted from the
+# CN list. contextWindow is the vendor's documented per-input limit.
 - id: embedding-3
   provider: zai
   tags:
@@ -123,5 +126,5 @@
   supportsVision: false
   contextWindow: 3072
   embedding:
-    dimensions: 1024
+    dimensions: 1536
     recommended: true
