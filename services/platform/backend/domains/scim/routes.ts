@@ -35,7 +35,6 @@ import { ssoShimHandlers } from '../sso/shim.ts';
 import {
   disableScim,
   getConfigByTokenHash,
-  getScimStatus,
   regenerateScimToken,
   touchConfigLastUsed,
 } from './service.ts';
@@ -46,7 +45,9 @@ import { scimShimHandlers } from './shim.ts';
  * bodies whole (Users/Groups CRUD + PATCH + filters + discovery) on the SCIM
  * shim. Bearer-token auth resolves the tenant from the `app.sso_connections`
  * hash row — org is NEVER read from the body or path. Plus the admin token
- * surface (`/api/app/scim`): status / regenerate / disable, orgSettings-gated.
+ * surface (`/api/app/scim`): regenerate / disable, orgSettings-gated — the
+ * status itself rides the `/api/app/sso/config` settings view, the only
+ * reader the admin UI has.
  */
 
 export function createScimRoutes(deps: { sql: Sql }): Hono {
@@ -178,12 +179,6 @@ export function createScimAdminRoutes(deps: {
     }
     return null;
   };
-
-  app.get('/', async (c) => {
-    const refused = requireAdmin(c);
-    if (refused) return refused;
-    return c.json(await getScimStatus(deps.sql, c.get('orgId')));
-  });
 
   /** Generate (or rotate) the bearer token — plaintext answered ONCE. */
   app.post('/regenerate-token', async (c) => {

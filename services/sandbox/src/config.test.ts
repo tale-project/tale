@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { loadConfig } from './config.ts';
+import { RUNNERD_MAX_REQUEST_BODY_BYTES } from './session/runnerd-protocol.ts';
 
 // loadConfig reads these from process.env; snapshot + restore so tests don't
 // leak into each other or the runner's environment.
@@ -17,6 +18,7 @@ const KEYS = [
   'SANDBOX_AGENT_MEMORY',
   'SANDBOX_HOST_SESSION_ROOT',
   'SANDBOX_TOKEN',
+  'SANDBOX_MAX_REQUEST_BODY_BYTES',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -274,5 +276,31 @@ describe('session root', () => {
   test('defaults to /var/lib/tale-sandbox/sessions when unset', () => {
     const cfg = loadConfig();
     expect(cfg.hostSessionRoot).toBe('/var/lib/tale-sandbox/sessions');
+  });
+});
+
+// REGRESSION (body-cap contract drift): the spawner accepted up to 8 MiB while
+// runnerd privately capped at 4 MiB, so a stage batch the spawner took could
+// be refused daemon-side. The spawner's cap now defaults to, and is clamped
+// at, the shared protocol constant.
+describe('loadConfig — request body cap follows runnerd', () => {
+  test('defaults to RUNNERD_MAX_REQUEST_BODY_BYTES', () => {
+    expect(loadConfig().maxRequestBodyBytes).toBe(
+      RUNNERD_MAX_REQUEST_BODY_BYTES,
+    );
+  });
+
+  test('an operator value above the daemon cap is clamped (warns, does not throw)', () => {
+    process.env.SANDBOX_MAX_REQUEST_BODY_BYTES = String(
+      RUNNERD_MAX_REQUEST_BODY_BYTES * 2,
+    );
+    expect(loadConfig().maxRequestBodyBytes).toBe(
+      RUNNERD_MAX_REQUEST_BODY_BYTES,
+    );
+  });
+
+  test('a lower operator value is honoured', () => {
+    process.env.SANDBOX_MAX_REQUEST_BODY_BYTES = String(256 * 1024);
+    expect(loadConfig().maxRequestBodyBytes).toBe(256 * 1024);
   });
 });

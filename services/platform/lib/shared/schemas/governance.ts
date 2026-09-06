@@ -460,12 +460,6 @@ export const loginPolicyConfigSchema = z.object({
     .min(1)
     .max(10)
     .default(DEFAULT_LOGIN_BACKOFF_MS),
-  perIpLimit: z
-    .object({
-      rate: z.number().int().min(1).max(1000),
-      periodSec: z.number().int().min(1).max(3600),
-    })
-    .optional(),
   // IP address / CIDR / `proxy-addr` keyword (`loopback`, `uniquelocal`,
   // `linklocal`) — these are the reverse proxies the deployment sits
   // behind. Used to extract the real client IP from `X-Forwarded-For`
@@ -499,7 +493,7 @@ export const DEFAULT_PASSWORD_POLICY: PasswordPolicyConfig =
 // - enforced: when true, credential-authenticated users without 2FA are
 //   redirected to enrollment (or blocked after grace).
 // - gracePeriodDays: days from when enforcement first applies to a given
-//   user (persisted per-user as `user.twoFactorGraceUntil`) during which
+//   user (persisted per-user in `app.two_factor_grace`) during which
 //   the user may continue to sign in while enrolment is pending.
 // - exemptSsoUsers: exclude users who authenticate only via SSO (their
 //   IdP handles MFA).

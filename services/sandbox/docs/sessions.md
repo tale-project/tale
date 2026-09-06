@@ -14,9 +14,9 @@ image; the only thing that varies is _when the session is destroyed_:
 Per-org fairness is the governance `sandbox_quota` policy (separate user /
 thread / workflow / render budgets); the host ceiling is `SANDBOX_MAX_SESSIONS`.
 
-> The legacy one-shot `POST /v1/execute` route still exists in the spawner but
-> has no caller — its `ExecutionBackend` doubles as the boot/shutdown lifecycle,
-> so removing it is a separate decouple-lifecycle-from-execute refactor.
+> The legacy one-shot `POST /v1/execute` route and the runtime image's one-shot
+> language lane are gone; the `ExecutionBackend` name survives only as the
+> host lifecycle (boot/shutdown, `/health`, the legacy-orphan sweep).
 
 ## Architecture
 
@@ -129,7 +129,7 @@ readiness probe on the unauthenticated `/readyz`, per-session Secret
 The workspace is a **per-session PVC** (`<pod>-ws`, `ReadWriteOnce`, sized by
 `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`, storage class from
 `SANDBOX_K8S_CACHE_STORAGECLASS`), `ensure`d before the Pod (read-before-create,
-409-tolerant — same pattern as the per-org cache PVCs). It is the durable home
+409-tolerant so a concurrent create on a peer replica wins cleanly). It is the durable home
 of `/agent` across stop→resume: `stopSession` deletes the Pod + Secret but
 **keeps** the PVC; only `destroySession` deletes it. **RWO caveat:** an RWO PVC
 binds to a node, so on a multi-node cluster a resume Pod must be schedulable
@@ -140,11 +140,13 @@ delete and PVC delete during an explicit destroy) are rare under the
 delete-only-on-Destroy model; a label-selector sweep (`tale.sandbox-session-ws`)
 is a follow-up if they accumulate.
 
-### RBAC delta (vs the one-shot backend)
+### RBAC
 
-The session backend needs, in the sandbox namespace, on `pods` and `secrets`:
-`get`, `list`, `create`, `delete`; and on `persistentvolumeclaims`: `get`,
-`create`, `delete` (the per-session workspace PVC). **No `pods/exec`, ever.**
+The session backend needs, in the sandbox namespace, on `pods`: `create`,
+`get`, `list`, `delete`, `patch`; on `secrets`: `create`, `delete`, `list`; and
+on `persistentvolumeclaims`: `get`, `create`, `delete` (the per-session
+workspace PVC). **No `pods/exec`, ever.** The full Role, including the
+NetworkPolicy verbs, is in [kubernetes.md](kubernetes.md#rbac-namespaced-role--no-cluster-scope-no-podsexec).
 
 ### NetworkPolicy
 

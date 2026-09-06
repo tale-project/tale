@@ -36,11 +36,13 @@ export class DockerBackend implements ExecutionBackend {
   async health(): Promise<HealthResult> {
     // `docker version --format` over `docker info` — smaller, API-stable
     // surface across the 20.10 ↔ 29.x CLI gap (see server.ts probe note).
-    const info = await runDocker([
-      'version',
-      '--format',
-      '{{.Server.Version}}',
-    ]);
+    // Bounded tightly: the compose healthcheck polls this every 10 s, and a
+    // wedged daemon must surface as `unhealthy` in one cycle rather than pile
+    // up hung `docker version` children.
+    const info = await runDocker(
+      ['version', '--format', '{{.Server.Version}}'],
+      { timeoutMs: 5_000 },
+    );
     if (info.exitCode !== 0) {
       return { ok: false, error: info.stderr.trim() || info.stdout.trim() };
     }

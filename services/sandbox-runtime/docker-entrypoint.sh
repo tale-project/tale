@@ -1,16 +1,16 @@
 #!/bin/sh
 # services/sandbox-runtime/docker-entrypoint.sh
 #
-# Container-level wrapper for the ephemeral sandbox runtime. This image
-# is launched once per /v1/execute call by the spawner via `docker run`,
-# so the "container init" envelope is intentionally minimal:
+# Container-level wrapper for the sandbox runtime. The spawner launches this
+# image as a long-lived session container (`daemon`) or a K8s egress sidecar
+# (`egress-sidecar`), so the "container init" envelope is intentionally
+# minimal:
 #
-#   - The spawner is the trust boundary; it has already validated the
-#     positional args we receive ($1 language, $2 packages.json, ...).
-#   - The user's code lives on a host bind-mount at /agent/code/.
-#   - There's no daemon to initialise — this script's only job is to
-#     `exec` `entrypoint.sh` with the args preserved so signals (SIGTERM
-#     from the spawner's kill on timeout) reach the language process.
+#   - The spawner is the trust boundary; the single positional dispatch arg
+#     is the only thing this image reads from argv.
+#   - The session workspace is a host bind-mount / PVC at /agent.
+#   - This script's only job is to `exec` `entrypoint.sh` with the args
+#     preserved so container signals (SIGTERM on stop) reach the daemon.
 #
 # The two-file split mirrors the Tale convention used by sandbox /
 # sandbox-egress / db: docker-entrypoint.sh is the container-level
