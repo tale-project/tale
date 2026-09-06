@@ -37,7 +37,10 @@
 
 import { visionModelConfigSchema } from '../../../../lib/shared/schemas/governance';
 import type { ModelCatalogEntry } from '../../../../lib/shared/schemas/providers';
-import { modelIdsEquivalent } from '../../../../lib/shared/utils/model-ref';
+import {
+  modelAllowlistPermits,
+  modelIdsEquivalent,
+} from '../../../../lib/shared/utils/model-ref';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
 import { getProviderCatalog } from './catalog_fetch';
@@ -136,10 +139,12 @@ function isEligibleVisionEntry(
   ) {
     return false;
   }
+  // The shared allowlist predicate (dialect-equivalent ids admit), as every
+  // other lane applies it; an EMPTY allowlist stays "unrestricted" here.
   if (
     allowlist !== undefined &&
     allowlist.length > 0 &&
-    !allowlist.includes(entry.id)
+    !modelAllowlistPermits(allowlist, entry.id)
   ) {
     return false;
   }

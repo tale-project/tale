@@ -3,9 +3,10 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useReactQuery } from '@/app/hooks/use-react-query';
-import type { ItemOf } from '@/app/lib/backend/contract';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 
-export type Document = ItemOf<'documents/queries:listDocuments'>;
+export type Document =
+  ReturnsOf<'documents/queries:listDocuments'>['documents'][number];
 
 export function useApproxDocumentCount(organizationId: string) {
   return useBackendQuery('documents/queries:approxCountDocuments', {
@@ -46,7 +47,10 @@ export function useDocuments(
   );
 
   return {
-    documents: data ?? [],
+    documents: data?.documents ?? [],
+    // The hub read is bounded; a consumer that offers the list as a picker
+    // must say so instead of presenting a complete-looking subset.
+    truncated: data?.truncated ?? false,
     isLoading,
   };
 }

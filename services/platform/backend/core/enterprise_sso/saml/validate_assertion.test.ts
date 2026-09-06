@@ -37,6 +37,7 @@ import {
  * xml-encryption's `decrypt` reads), under a per-run SP keypair.
  */
 
+const IDP_ENTITY_ID = 'https://idp.saml.itest/entity';
 const SP_ENTITY_ID = 'http://sp.itest/http_api/api/sso/saml/metadata';
 const ACS_URL = 'http://sp.itest/http_api/api/sso/saml/acs';
 const IDP_SSO_URL = 'https://idp.saml.itest/sso';
@@ -88,6 +89,11 @@ interface ResponseOpts {
   id: string;
   email: string;
   inResponseTo?: string;
+  /** The assertion's Issuer — the connection's IdP entity ID by default. */
+  issuer?: string;
+  /** Leave the Response element's InResponseTo off (a forwarder stripping
+   * it) while the signed Subject still carries it. */
+  omitResponseInResponseTo?: boolean;
 }
 
 /** A canonical, signed `saml:Assertion` (the IdP's signing step). */
@@ -99,7 +105,7 @@ function signedAssertion(opts: ResponseOpts): string {
     : `<saml:SubjectConfirmationData NotOnOrAfter="${iso(notOnOrAfter)}" Recipient="${ACS_URL}"></saml:SubjectConfirmationData>`;
   const assertion =
     `<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="${opts.id}" IssueInstant="${iso(now)}" Version="2.0">` +
-    `<saml:Issuer>https://idp.saml.itest/entity</saml:Issuer>` +
+    `<saml:Issuer>${opts.issuer ?? IDP_ENTITY_ID}</saml:Issuer>` +
     `<saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${opts.email}</saml:NameID>` +
     `<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">` +
     subjectConfirmationData +
@@ -135,9 +141,10 @@ function signedAssertion(opts: ResponseOpts): string {
 
 /** The `samlp:Response` envelope (base64, POST binding) around `body`. */
 function wrapResponse(body: string, opts: ResponseOpts): string {
-  const inResponseToAttr = opts.inResponseTo
-    ? ` InResponseTo="${opts.inResponseTo}"`
-    : '';
+  const inResponseToAttr =
+    opts.inResponseTo && !opts.omitResponseInResponseTo
+      ? ` InResponseTo="${opts.inResponseTo}"`
+      : '';
   return Buffer.from(
     `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(Date.now())}" Version="2.0" Destination="${ACS_URL}"${inResponseToAttr}>` +
       `<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"></samlp:StatusCode></samlp:Status>` +
@@ -196,6 +203,7 @@ function encryptedAssertion(
 function validateArgs(samlResponse: string) {
   return {
     samlResponse,
+    idpEntityId: IDP_ENTITY_ID,
     idpSsoUrl: IDP_SSO_URL,
     idpCertificate: publicKeyPem,
     spEntityId: SP_ENTITY_ID,
@@ -210,6 +218,7 @@ describe('SAML InResponseTo replay protection (real node-saml)', () => {
 
     const result = await buildSamlAuthnRedirectImpl(
       {
+        idpEntityId: IDP_ENTITY_ID,
         idpSsoUrl: IDP_SSO_URL,
         idpCertificate: publicKeyPem,
         spEntityId: SP_ENTITY_ID,
@@ -386,5 +395,98 @@ describe('SAML wantAssertionsEncrypted (real node-saml)', () => {
     expect(result.ok).toBe(false);
     expect(result.errorKey).toBeUndefined();
     expect(result.error).not.toMatch(/requires encrypted assertions/);
+  });
+});
+
+/**
+ * The connection's IdP entity ID is required, stored and (now) enforced: an
+ * assertion signed with the right certificate but issued under another
+ * entity ID is refused — the defence node-saml offers for shared or rotated
+ * signing certificates was collected by the admin door and never applied.
+ */
+describe('SAML issuer enforcement (real node-saml)', () => {
+  it('refuses a correctly signed assertion from a different issuer', async () => {
+    const response = buildSignedResponse({
+      id: '_issuer1',
+      email: 'saml.user@door.test',
+      issuer: 'https://other-idp.example/entity',
+    });
+
+    const result = await validateSamlResponseImpl(validateArgs(response), {
+      cacheProvider: memoryCache(),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/Unknown SAML issuer/);
+    expect(result.nameId).toBeUndefined();
+  });
+
+  it('accepts the same assertion under the configured entity ID', async () => {
+    const response = buildSignedResponse({
+      id: '_issuer2',
+      email: 'saml.user@door.test',
+    });
+
+    const result = await validateSamlResponseImpl(validateArgs(response), {
+      cacheProvider: memoryCache(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.nameId).toBe('saml.user@door.test');
+  });
+});
+
+/**
+ * The ACS demands the browser binding exactly when the response answers an
+ * AuthnRequest, so the validator reports which — from the Response element,
+ * or from the signed Subject when the Response-level attribute was stripped
+ * (node-saml checks the Subject's only when the Response's is present).
+ */
+describe('SAML InResponseTo reporting (real node-saml)', () => {
+  it('reports the answered request id of an SP-initiated response', async () => {
+    const cache = memoryCache();
+    await cache.saveAsync('_issued9', iso(Date.now()));
+    const response = buildSignedResponse({
+      id: '_report1',
+      email: 'saml.user@door.test',
+      inResponseTo: '_issued9',
+    });
+
+    const result = await validateSamlResponseImpl(validateArgs(response), {
+      cacheProvider: cache,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.inResponseTo).toBe('_issued9');
+  });
+
+  it('still reports it when only the signed Subject carries it', async () => {
+    const response = buildSignedResponse({
+      id: '_report2',
+      email: 'saml.user@door.test',
+      inResponseTo: '_issued10',
+      omitResponseInResponseTo: true,
+    });
+
+    const result = await validateSamlResponseImpl(validateArgs(response), {
+      cacheProvider: memoryCache(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.inResponseTo).toBe('_issued10');
+  });
+
+  it('reports nothing for an IdP-initiated response', async () => {
+    const response = buildSignedResponse({
+      id: '_report3',
+      email: 'idp.initiated@door.test',
+    });
+
+    const result = await validateSamlResponseImpl(validateArgs(response), {
+      cacheProvider: memoryCache(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.inResponseTo).toBeUndefined();
   });
 });

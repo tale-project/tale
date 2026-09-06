@@ -3,8 +3,6 @@
  * Lightweight replacements for lodash string functions
  */
 
-const LEADING_PUNCTUATION_RE = /^[\s:：;；,，.。!！?？…·\-—–]+/;
-
 /**
  * Converts a string to Start Case (capitalizes first letter of each word).
  * Handles camelCase, snake_case, kebab-case, and space-separated strings.
@@ -24,11 +22,6 @@ function startCase(str: string): string {
       .replace(/\B\w+/g, (word) => word.toLowerCase())
       .trim()
   );
-}
-
-/** Strips leading whitespace and punctuation from a string. */
-export function stripLeadingPunctuation(text: string): string {
-  return text.replace(LEADING_PUNCTUATION_RE, '');
 }
 
 /**

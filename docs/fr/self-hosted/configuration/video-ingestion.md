@@ -1,6 +1,6 @@
 ---
 title: Ingestion vidéo
-description: Configure comment un déploiement auto-hébergé récupère les transcriptions vidéo au-delà du mur anti-bot de YouTube — le fournisseur de PO tokens intégré, un proxy de sortie et le pool de sessions de navigateur préchauffées.
+description: Configure comment un déploiement auto-hébergé récupère les transcriptions vidéo au-delà du mur anti-bot de YouTube.
 ---
 
 Quand Tale ingère un lien vidéo, il va chercher la transcription de la vidéo avec `yt-dlp`. Les plateformes vidéo — YouTube le plus agressivement — soumettent les requêtes venant d’IP de centres de données et de serveurs à un mur « confirme que tu n’es pas un robot », si bien qu’un déploiement auto-hébergé tout neuf sur une VM cloud peut voir l’ingestion échouer là où un ordinateur portable sur une connexion domestique réussirait. Cette page couvre les trois couches que Tale fournit pour passer outre, de celle qui ne demande aucune configuration à celle qui en demande le plus.

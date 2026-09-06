@@ -5,12 +5,15 @@ import type { Sql } from 'postgres';
 
 import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
+import { ADMIN_ROLES } from '../../auth/membership.ts';
 import { resolveTeams } from '../../core/betterAuth/trusted_headers/resolve_team_names.ts';
-import { publicOrigin } from '../../core/enterprise_sso/login/public_origin.ts';
+import { readCookie } from '../../core/enterprise_sso/login/cookies.ts';
 import {
-  signCookieValue,
-  verifySignedValue,
-} from '../../core/enterprise_sso/sign_cookie_value.ts';
+  buildSessionCookie,
+  sessionCookieName,
+} from '../../core/enterprise_sso/login/finish_login.ts';
+import { publicOrigin } from '../../core/enterprise_sso/login/public_origin.ts';
+import { verifySignedValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
 import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
@@ -31,8 +34,6 @@ export interface TrustedHeadersAuthResult {
   userId: string;
   organizationId: string | null;
   sessionToken: string;
-  shouldClearOldSession: boolean;
-  trustedHeadersChanged: boolean;
 }
 
 function secretsMatch(supplied: string, required: string): boolean {
@@ -124,13 +125,16 @@ export async function trustedHeadersAuthenticate(
       if (createdId === undefined) throw new Error('user insert failed');
       userId = createdId;
 
-      // Attach to the existing org (the one with an admin) so trusted-
-      // headers users land together; the very first user gets a default org
-      // and the admin seat. The member ROLE is a placeholder — the real
-      // role rides the session.
+      // Attach to the existing org (the one with an elevated seat — its
+      // creating `owner`, or a granted `admin`) so trusted-headers users land
+      // together; the very first user gets a default org and the admin seat.
+      // Matching `admin` alone missed every org created through sign-up
+      // (Better Auth seats the creator as `owner`) and split the deployment
+      // into two tenants on the first proxy login. The member ROLE is a
+      // placeholder — the real role rides the session.
       const admins = await tx<{ organizationId: string }[]>`
         SELECT "organizationId" FROM "member"
-        WHERE lower("role") = 'admin'
+        WHERE lower("role") = ANY(${[...ADMIN_ROLES]})
         ORDER BY "createdAt" ASC LIMIT 1
       `;
       if (admins[0] !== undefined) {
@@ -174,7 +178,6 @@ export async function trustedHeadersAuthenticate(
     // ---- create or reuse the session ------------------------------------
     const nowMs = now.getTime();
     const expiresAt = new Date(sessionExpiryMs(nowMs, 24 * 60 * 60 * 1000));
-    let shouldClearOldSession = false;
 
     if (args.existingSessionToken !== undefined) {
       const existing = await tx<
@@ -194,13 +197,10 @@ export async function trustedHeadersAuthenticate(
       const row = existing[0];
       if (row !== undefined) {
         if (row.userId !== userId) {
-          // Account switch behind the proxy: the other user's session dies.
+          // Account switch behind the proxy: the other user's session dies
+          // (the fresh cookie below replaces it in the browser).
           await tx`DELETE FROM "session" WHERE "id" = ${row.id}`;
-          shouldClearOldSession = true;
         } else if (row.expiresAt.getTime() > nowMs) {
-          const trustedHeadersChanged =
-            (row.trustedRole ?? null) !== (args.role ?? null) ||
-            (row.trustedTeams ?? null) !== (trustedTeams ?? null);
           await tx`
             UPDATE "session" SET
               "expiresAt" = ${expiresAt}, "updatedAt" = ${now},
@@ -208,13 +208,7 @@ export async function trustedHeadersAuthenticate(
               "trustedTeams" = ${trustedTeams ?? null}
             WHERE "id" = ${row.id}
           `;
-          return {
-            userId,
-            organizationId,
-            sessionToken: row.token,
-            shouldClearOldSession: false,
-            trustedHeadersChanged,
-          };
+          return { userId, organizationId, sessionToken: row.token };
         }
       }
     }
@@ -233,13 +227,7 @@ export async function trustedHeadersAuthenticate(
         ${organizationId}
       )
     `;
-    return {
-      userId,
-      organizationId,
-      sessionToken,
-      shouldClearOldSession,
-      trustedHeadersChanged: true,
-    };
+    return { userId, organizationId, sessionToken };
   });
 }
 
@@ -273,25 +261,8 @@ async function joinedAudit(
 
 // ---------------------------------------------------------------- route
 
-const SESSION_COOKIE_NAME = 'better-auth.session_token';
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
-
 function headerName(envVar: string, fallback: string): string {
   return process.env[envVar] || fallback;
-}
-
-function extractCookieValue(
-  cookieHeader: string | undefined,
-  name: string,
-): string | undefined {
-  if (!cookieHeader) return undefined;
-  for (const part of cookieHeader.split(';')) {
-    const trimmed = part.trim();
-    if (trimmed.startsWith(`${name}=`)) {
-      return decodeURIComponent(trimmed.slice(name.length + 1));
-    }
-  }
-  return undefined;
 }
 
 function escapeHtmlAttr(str: string): string {
@@ -385,20 +356,14 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
       return c.html(errorPage(basePath, 'Server configuration error'));
     }
 
-    const isHttps = frontendOrigin.startsWith('https://');
-    const cookieName = isHttps
-      ? `__Secure-${SESSION_COOKIE_NAME}`
-      : SESSION_COOKIE_NAME;
+    const cookieName = sessionCookieName(frontendOrigin);
     // The cookie carries what signCookieValue minted — `${token}.${signature}`
     // — while the session row stores the bare token, so the lookup needs the
     // verified, stripped value. (Matching the signed string against the token
     // column never hit: the reuse and account-switch branches were dead, and
     // every request fell through to adopting an arbitrary row of the user.)
     // A cookie that fails verification is treated as no cookie at all.
-    const presentedCookie = extractCookieValue(
-      c.req.header('cookie'),
-      cookieName,
-    );
+    const presentedCookie = readCookie(c.req.header('cookie'), cookieName);
     const existingSessionToken =
       presentedCookie !== undefined
         ? ((await verifySignedValue(presentedCookie, secret)) ?? undefined)
@@ -421,15 +386,11 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
         ...(userAgent !== undefined ? { userAgent } : {}),
       });
 
-      const signedToken = await signCookieValue(result.sessionToken, secret);
-      const cookieParts = [
-        `${cookieName}=${signedToken}`,
-        `Max-Age=${SESSION_MAX_AGE}`,
-        'Path=/',
-        'HttpOnly',
-        'SameSite=Lax',
-      ];
-      if (isHttps) cookieParts.push('Secure');
+      const cookie = await buildSessionCookie(
+        result.sessionToken,
+        frontendOrigin,
+        secret,
+      );
 
       const html = `<!DOCTYPE html>
 <html>
@@ -442,7 +403,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
   <p>Completing login, please wait...</p>
 </body>
 </html>`;
-      c.header('Set-Cookie', cookieParts.join('; '));
+      c.header('Set-Cookie', cookie);
       return c.html(html);
     } catch (error) {
       console.error('[Trusted Headers] Error:', error);

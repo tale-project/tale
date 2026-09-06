@@ -1,9 +1,3 @@
-export type QueryResult<T = unknown> = {
-  page: T[];
-  isDone: boolean;
-  continueCursor: string;
-};
-
 export type ConversationStatus = 'open' | 'closed' | 'archived' | 'spam';
 
 export type ConversationPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -31,6 +25,9 @@ export type EmailType = {
     url?: string;
     /** Transient — stripped before metadata/persist; sync materializes bytes. */
     contentBase64?: string;
+    /** The connector fetched the part but it exceeded its inline cap, so no
+     * bytes were carried; persisted so the chip can say why it cannot open. */
+    truncated?: boolean;
   }>;
   direction?: 'inbound' | 'outbound';
 };

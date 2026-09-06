@@ -148,9 +148,6 @@ interface HandlerNames {
     };
   };
   conversations: FunctionRef & {
-    internal_actions: FunctionRef & {
-      sendMessageViaConnectorAction: FunctionRef;
-    };
     internal_mutations: FunctionRef & {
       addMessageToConversation: FunctionRef;
       createConversationWithMessage: FunctionRef;
@@ -195,7 +192,6 @@ interface HandlerNames {
       handleSsoLogin: FunctionRef;
     };
     internal_queries: FunctionRef & {
-      discoverByEmail: FunctionRef;
       resolveSamlConfig: FunctionRef;
       resolveSignInConfig: FunctionRef;
     };
@@ -276,11 +272,6 @@ interface HandlerNames {
   knowledge_entries: FunctionRef & {
     internal_queries: FunctionRef & {
       listEntriesForAgent: FunctionRef;
-    };
-  };
-  legacy: FunctionRef & {
-    knowledge_delete: FunctionRef & {
-      deleteDocument: FunctionRef;
     };
   };
   lib: FunctionRef & {

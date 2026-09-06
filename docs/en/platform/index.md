@@ -1,6 +1,6 @@
 ---
 title: Platform
-description: Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted. Chat, projects, agents, automations, knowledge, approvals, admin.
+description: Platform is the canonical product reference — every user-visible feature, identical for Cloud and self-hosted.
 kind: index
 ---
 

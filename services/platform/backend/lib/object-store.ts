@@ -4,6 +4,7 @@ import {
   ObjectStoreUnconfiguredError,
   resolveOrgObjectStore,
   s3DeleteObject,
+  s3GetObjectBytes,
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
@@ -43,6 +44,7 @@ export async function resolveObjectStore(
 export {
   buildObjectKey,
   s3DeleteObject,
+  s3GetObjectBytes,
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,

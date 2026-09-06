@@ -14,6 +14,7 @@
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { upsertAgentDocument } from './agent-write.ts';
 
@@ -30,8 +31,14 @@ interface Statement {
   values: unknown[];
 }
 
+const LOOKUP = 'SELECT id, file_ref AS "fileRef", record FROM app.documents';
+
 function fakeUpsert(script: {
-  lookups: { id: string; record: Record<string, unknown> | null }[][];
+  lookups: {
+    id: string;
+    fileRef: string | null;
+    record: Record<string, unknown> | null;
+  }[][];
   inserts: { id: string }[][];
 }): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
@@ -41,7 +48,7 @@ function fakeUpsert(script: {
     if (text.startsWith('SELECT content_hash')) {
       return Promise.resolve([{ contentHash: 'sha-1' }]);
     }
-    if (text.startsWith('SELECT id, record FROM app.documents')) {
+    if (text.startsWith(LOOKUP)) {
       return Promise.resolve(script.lookups.shift() ?? []);
     }
     if (text.startsWith('INSERT INTO app.documents')) {
@@ -95,7 +102,7 @@ describe('upsertAgentDocument', () => {
   it('refreshes the winner row when a concurrent run inserted first', async () => {
     const fake = fakeUpsert({
       // Nothing on the first locked read; the winner's row on the re-read.
-      lookups: [[], [{ id: 'doc-winner', record: null }]],
+      lookups: [[], [{ id: 'doc-winner', fileRef: null, record: null }]],
       // The insert conflicted — no row back.
       inserts: [[]],
     });
@@ -103,9 +110,7 @@ describe('upsertAgentDocument', () => {
     const result = await upsertAgentDocument(fake.sql, args);
 
     expect(result).toEqual({ documentId: 'doc-winner', action: 'updated' });
-    const lookups = fake.statements.filter((s) =>
-      s.text.startsWith('SELECT id, record FROM app.documents'),
-    );
+    const lookups = fake.statements.filter((s) => s.text.startsWith(LOOKUP));
     expect(lookups).toHaveLength(2);
     for (const lookup of lookups) expect(lookup.text).toContain('FOR UPDATE');
     const update = fake.statements.find((s) =>
@@ -124,7 +129,7 @@ describe('upsertAgentDocument', () => {
 
   it('refreshes an existing row (any lifecycle) without inserting', async () => {
     const fake = fakeUpsert({
-      lookups: [[{ id: 'doc-1', record: null }]],
+      lookups: [[{ id: 'doc-1', fileRef: 's3:acme/blob-1', record: null }]],
       inserts: [],
     });
 
@@ -136,9 +141,37 @@ describe('upsertAgentDocument', () => {
         s.text.startsWith('INSERT INTO app.documents'),
       ),
     ).toBe(false);
-    const lookup = fake.statements.find((s) =>
-      s.text.startsWith('SELECT id, record FROM app.documents'),
-    );
+    const lookup = fake.statements.find((s) => s.text.startsWith(LOOKUP));
     expect(lookup?.text).not.toContain('lifecycle_status');
+    // Same blob again: nothing to rotate out.
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('releases the previous blob when a refresh swaps the bytes', async () => {
+    // Every re-run of a report-writing automation stores a fresh blob; the
+    // one it replaces must stop being bound + active, or it stays counted
+    // against the quota and survives every purge (only the current ref was
+    // ever released).
+    const fake = fakeUpsert({
+      lookups: [[{ id: 'doc-1', fileRef: 's3:acme/blob-0', record: null }]],
+      inserts: [],
+    });
+
+    await upsertAgentDocument(fake.sql, args);
+
+    const unbind = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.file_metadata SET') &&
+        s.text.includes("lifecycle_status = 'trashed'"),
+    );
+    expect(unbind?.text).toContain('document_id = NULL');
+    expect(unbind?.values).toEqual(
+      expect.arrayContaining(['org_1', 'doc-1', 's3:acme/blob-0']),
+    );
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'knowledge.release_refs',
+      { organizationId: 'org_1', refs: ['s3:acme/blob-0'] },
+    );
   });
 });

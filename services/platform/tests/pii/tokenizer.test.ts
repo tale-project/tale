@@ -144,6 +144,34 @@ describe('token format and indexing', () => {
   });
 });
 
+describe('custom patterns', () => {
+  it('tokenizes an admin pattern exactly as the scrubber would mask it', () => {
+    // The same options drive both entry points; a tokenizer that resolved
+    // its own pattern list once dropped the custom patterns mask mode ran.
+    const tokenizer = createTokenizer({
+      registry: REGISTRY,
+      patterns: { email: true },
+      customPatterns: [
+        {
+          name: 'employeeId',
+          regex: 'EMP-\\d{5}',
+          replacement: '[EMPLOYEE_ID]',
+        },
+      ],
+    });
+    const r = tokenizer.tokenize('Badge EMP-12345 for a@x.co');
+    expect(r.text).toBe('Badge [EMPLOYEEID_1] for [EMAIL_1]');
+    expect(r.mapping['[EMPLOYEEID_1]']).toEqual({
+      value: 'EMP-12345',
+      type: 'employeeId',
+      index: 1,
+    });
+    expect(tokenizer.detokenize(r.text, r.mapping)).toBe(
+      'Badge EMP-12345 for a@x.co',
+    );
+  });
+});
+
 describe('detokenize resilience', () => {
   const tokenizer = createTokenizer({
     registry: REGISTRY,

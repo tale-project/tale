@@ -1,6 +1,6 @@
 ---
 title: Politique run-code
-description: La liste d’autorisation et la liste de blocage de paquets qui régissent ce que Run code en sandbox peut installer. Les Administrateurs et Propriétaires lisent ceci quand un agent a besoin d’une nouvelle bibliothèque ou quand un audit demande pourquoi un paquet était bloqué à un moment donné.
+description: La liste d’autorisation et la liste de blocage de paquets qui régissent ce que Run code en sandbox peut installer.
 ---
 
 Politique run-code est la surface où tu décides quels paquets Python et Node la sandbox peut installer à l’exécution. Les skills avec scripts et l’outil Run code tournent tous deux dans la même sandbox ; cette politique est la couture unique où tu serres ou desserres ce qu’ils peuvent installer. Les Administrateurs et Propriétaires lisent cette page quand un agent a besoin d’une nouvelle bibliothèque, ou quand un audit demande pourquoi un paquet était bloqué à un moment donné.

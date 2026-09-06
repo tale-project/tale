@@ -1,6 +1,6 @@
 ---
 title: API-Referenz
-description: Wie du Tale von außen aufrufst — Authentifizierung, das Endpoint-Inventar, Pagination, die asynchronen Lauf- und Turn-Schleifen und das Fehlermodell. Die einzige Quelle der Wahrheit für die REST-Oberfläche.
+description: Wie du Tale von außen aufrufst — Authentifizierung, das Endpoint-Inventar, Pagination, die asynchronen Lauf- und Turn-Schleifen und das Fehlermodell.
 i18nLintExclude:
   - terminology-loanword
 ---

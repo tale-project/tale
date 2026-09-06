@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 
+import { PatternRegistry } from '../lib/pii';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { runBootMigrations } from './db/migrate.ts';
@@ -87,6 +88,21 @@ async function main(): Promise<void> {
     console.error('[backend] knowledge index verification failed:', error);
     reportError(error, { tags: { 'tale.lane': 'boot' } });
   });
+  // The PII data tree is a packaging fact, not a tenant one: every role
+  // that can enforce a `pii_config` policy (indexing on workers, chat turns
+  // on the api) needs it, and a missing tree would otherwise surface only as
+  // a per-document warning at the first policy hit. Probe it once here so
+  // an image built without it says so at boot. Never fails boot — the
+  // gate itself degrades to today's behaviour.
+  try {
+    PatternRegistry.fromDefaults();
+  } catch (error: unknown) {
+    console.error(
+      '[backend] PII data tree unavailable — pii_config policies cannot be enforced:',
+      error,
+    );
+    reportError(error, { tags: { 'tale.lane': 'boot' } });
+  }
   if (env.ROLE !== 'api') {
     await startWorker({
       boss,

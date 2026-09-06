@@ -10,6 +10,7 @@ import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { dismissAgentQuestionNotifications } from '../collab/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
+import { listFilesByFolder } from '../documents/agent-list.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
 import {
@@ -48,6 +49,23 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     // The ask lane's CREATE side, stated here rather than inherited: it is
     // this domain's own contract, not something the sandbox map lends it.
     ...automationAskShimHandlers(sql),
+
+    // The agent node's `files:` mounts: a folder id string, {folderId} or a
+    // hub {folderPath} stages the folder's TREE into the session workspace.
+    // `handler_names` declared this ref and the host dispatched it from day
+    // one, but no map answered it — every folder mount failed the turn with
+    // an un-shimmed-query error instead of the host's own not-found /
+    // truncated refusals (only inline `{content}` ever worked).
+    'documents/internal_queries:listFilesByFolderInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        folderId?: string;
+        folderPath?: string;
+        recursive?: boolean;
+      };
+      return listFilesByFolder(sql, args);
+    },
 
     'automations/mutations:claimRun': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape

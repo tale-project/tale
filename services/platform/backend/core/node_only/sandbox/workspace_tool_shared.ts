@@ -53,6 +53,20 @@ export function readCursor(raw: unknown): string | null {
   return typeof raw === 'string' && raw !== '' ? raw : null;
 }
 
+/** A caller-supplied OFFSET cursor (the document listing pages by row
+ * offset and hands back `cursor: <nextOffset>` as a number): a non-negative
+ * integer, or its decimal string spelling — a model relays numbers as text
+ * often enough — else page one (`undefined`). */
+export function readOffsetCursor(raw: unknown): number | undefined {
+  const n =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string' && /^\d+$/.test(raw.trim())
+        ? Number(raw.trim())
+        : Number.NaN;
+  return Number.isSafeInteger(n) && n >= 0 ? n : undefined;
+}
+
 /** A caller-supplied string arg: trimmed, else `undefined`. */
 export function readString(raw: unknown): string | undefined {
   return typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : undefined;

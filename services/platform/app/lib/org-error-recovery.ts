@@ -4,8 +4,8 @@
  * A client whose persisted active org was deleted (or whose org context is
  * an empty/garbage id — a stale demo tab) keeps firing org-scoped queries
  * that can only ever fail: the server classifies them as `AppError`
- * `code: 'ORG_NOT_FOUND'` (`lib/rls/organization/get_organization_member.ts`,
- * `lib/auth/require_org_membership.ts`, `lib/helpers/org_slug.ts`). Observed
+ * `code: 'ORG_NOT_FOUND'` (`lib/auth/require_org_membership.ts`,
+ * `lib/helpers/org_slug.ts`). Observed
  * as a month of weekly `listAgents` / `readBranding` / `listProviders` error
  * bursts from one user in GlitchTip — the session never healed on its own.
  *

@@ -1,6 +1,6 @@
 ---
 title: Legal hold
-description: The dual-controlled freeze that pauses retention sweeps and erasure cascades for a specific user or the whole organisation during litigation. Admins and Owners read this when counsel asks them to preserve evidence.
+description: The dual-controlled freeze that pauses retention sweeps and erasure cascades for a specific user or the whole organisation during litigation.
 ---
 
 Legal hold is the mechanism Tale ships for preserving evidence under litigation hold. A hold pins a target — a user as custodian, or the whole organisation — out of reach of the retention sweep and the data-subject erasure cascade. Admins and Owners read this page when counsel asks them to preserve a custodian's data, when a release request needs the dual-control sign-off, or when an audit reconciles which holds were in force on a given date.

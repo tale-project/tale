@@ -9,7 +9,9 @@
  *
  * The walk resolves the org's connectors, gates each credential on the
  * provider actually declaring its auth method, applies the credential's
- * model allowlist, and warn-skips a connector whose catalog is unreachable —
+ * model allowlist (through the shared `modelAllowlistPermits`, the one
+ * predicate every serving lane reads), and warn-skips a connector whose
+ * catalog is unreachable —
  * exactly the composer's original loop. It deliberately does NOT dedupe and
  * does NOT filter by tag: the composer derives voice availability from
  * non-chat entries in the same pass, and each caller keys its own dedupe.
@@ -20,6 +22,7 @@
  */
 
 import type { ModelCatalogEntry } from '../../../../lib/shared/schemas/providers';
+import { modelAllowlistPermits } from '../../../../lib/shared/utils/model-ref';
 import type { ActionCtx } from '../ctx';
 import { credentialAuthFor } from './credential_auth';
 import { resolveProvidersForOrgId } from './org_providers';
@@ -75,9 +78,12 @@ export async function walkChatCatalog(
       continue;
     }
 
-    const allowlist = credential.modelAllowlist;
+    // The SAME predicate the voice resolvers and the turn-time serving
+    // checks apply (`modelAllowlistPermits`): an allowlist naming
+    // `openai/gpt-4o-mini` admits the catalog's bare `gpt-4o-mini` here
+    // exactly as it does there, so the picker never disagrees with a turn.
     for (const entry of catalog) {
-      if (allowlist && !allowlist.includes(entry.id)) continue;
+      if (!modelAllowlistPermits(credential.modelAllowlist, entry.id)) continue;
       hits.push({ connector, credential, credentialAuth, entry });
     }
   }

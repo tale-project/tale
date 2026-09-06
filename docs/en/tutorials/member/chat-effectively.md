@@ -1,6 +1,6 @@
 ---
 title: Chat effectively
-description: Five habits that turn a chat from "thanks for the wall of text" into "exactly what I needed" — asking instead of commissioning, picking the model, feeding Knowledge, reading the timeline, and checking the sources.
+description: Five habits that turn a chat from "thanks for the wall of text" into "exactly what I needed".
 ---
 
 Chatting effectively in Tale is not about clever prompts; it is about giving the assistant enough to read your intent the first time — and knowing which work does not belong in a chat at all. Five small habits — asking instead of commissioning, picking the right model, feeding Knowledge instead of pasting, reading the thought timeline, and checking the sources — turn the average reply from "thanks for the wall of text" into "exactly what I needed". This page walks the habits in order on a fresh chat.

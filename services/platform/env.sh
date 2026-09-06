@@ -15,8 +15,7 @@ env_normalize_common() {
   # POSTGRES_URL may be given explicitly; otherwise it is derived from
   # DB_PASSWORD (+ DB_USER/DB_HOST/DB_PORT) for the default self-hosted
   # compose stack. The URL carries NO database name in its path: the
-  # knowledge URL below appends `/tale_knowledge`, and the backend tier gets
-  # its own DATABASE_URL (`…/tale_app`) from compose.
+  # backend tier gets its own DATABASE_URL (`…/tale_app`) from compose.
   if [ -z "${POSTGRES_URL:-}" ]; then
     local db_user="${DB_USER:-tale}"
     if [ -z "${DB_PASSWORD:-}" ]; then
@@ -26,15 +25,15 @@ env_normalize_common() {
     local db_host="${DB_HOST:-db}"
     local db_port="${DB_PORT:-5432}"
     export POSTGRES_URL="postgresql://${db_user}:${DB_PASSWORD}@${db_host}:${db_port}"
-    # Knowledge corpus lives in the separate tale_knowledge database
-    # (ParadeDB image; private_knowledge + public_web schemas).
-    export RAG_DATABASE_URL="postgresql://${db_user}:${DB_PASSWORD}@${db_host}:${db_port}/tale_knowledge"
   else
     export POSTGRES_URL="${POSTGRES_URL}"
-    if [ -z "${RAG_DATABASE_URL:-}" ]; then
-      export RAG_DATABASE_URL="${POSTGRES_URL}/tale_knowledge"
-    fi
   fi
+  # The knowledge corpus is NOT derived from POSTGRES_URL: it lives on the
+  # separate `knowledge-db` service, which the backend reaches through
+  # KNOWLEDGE_DATABASE_URL (default `knowledge-db:5432/tale_knowledge`, see
+  # backend/core/knowledge/pool.ts). The retired RAG_DATABASE_URL alias used
+  # to point the purge path at `${POSTGRES_URL}/tale_knowledge` — an empty
+  # twin on the operational host — so nothing exports it any more.
 
   # Cross-service URLs (Docker service names by default; override in .env).
   export SANDBOX_URL="${SANDBOX_URL:-http://sandbox:8003}"

@@ -5,10 +5,14 @@ import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
 import { getProjectAuthContext } from '../domains/projects/service.ts';
-import { rateLimitedResponse } from '../lib/rate-limit-response.ts';
+import {
+  rateLimitedResponse,
+  rateLimitExceededCause,
+} from '../lib/rate-limit-response.ts';
 import {
   RateLimitExceededError,
   checkUserRateLimit,
+  type RateLimitName,
 } from '../lib/rate-limit.ts';
 
 /**
@@ -44,7 +48,7 @@ export class RestRefusal extends Error {
 }
 
 /** The `{code, 4xx status}` shape every domain error class carries. */
-function isDomainError(
+export function isDomainError(
   error: unknown,
 ): error is Error & { code: string; status: number } {
   if (!(error instanceof Error)) return false;
@@ -65,6 +69,13 @@ export function domainErrorResponse(
   if (error instanceof RestRefusal) {
     return c.json({ error: error.message }, error.status);
   }
+  // A domain wrapper around a spent budget (a `DocumentError` coded
+  // `RATE_LIMITED`) answers the one 429 every door speaks, `Retry-After`
+  // included, rather than a coded 429 without the wait.
+  const limited = rateLimitExceededCause(error);
+  if (limited !== null) {
+    return rateLimitedResponse(c, limited);
+  }
   if (isDomainError(error)) {
     // Every domain error carries a client-mappable status; NOT_FOUND-ish
     // codes read as 404 rather than leaking existence semantics.
@@ -75,6 +86,29 @@ export function domainErrorResponse(
     );
   }
   throw error;
+}
+
+/** What `readJsonBody` answers for a body that is not JSON — a sentinel no
+ * schema accepts, so `safeParse` refuses it like any other malformed body. */
+export const INVALID_JSON: unique symbol = Symbol('invalid-json');
+
+/**
+ * The request body as JSON, or `INVALID_JSON` when it does not parse (an
+ * empty body, a truncated `curl -d`). Hono's `c.req.json()` is a bare
+ * `JSON.parse`, and a SyntaxError left to the app-level handler reads as a
+ * 500 outage and lands in error reporting — a client mistake belongs in the
+ * documented 400 envelope instead.
+ */
+export async function readJsonBody(c: Context<RestEnv>): Promise<unknown> {
+  try {
+    return await c.req.json();
+  } catch (error) {
+    console.warn(
+      '[rest] unparseable JSON body:',
+      error instanceof Error ? error.message : String(error),
+    );
+    return INVALID_JSON;
+  }
 }
 
 /**
@@ -118,22 +152,23 @@ export async function assertExplicitOrg(
     });
     return null;
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Organization is ambiguous';
-    return c.json({ error: message }, 400);
+    // The domain's own status (400 slug required, 403 foreign, 404 unknown);
+    // anything else — a driver failure — is an outage, not a client mistake.
+    return domainErrorResponse(c, error);
   }
 }
 
 /**
- * Top-up charge on a second rate lane (`rest:execute`, `rest:upload`) so a
- * route's effective budget is the tighter of its lanes. Keyed like the
+ * Top-up charge on a second rate lane (`rest:execute`, `rest:upload`) — or
+ * on the per-user budget a write's in-app twin passes (`task:comment`) —
+ * so a route's effective budget is the tighter of its lanes. Keyed like the
  * door's `rest:api` charge — on the key holder (the key acts as its user),
  * so the budget is attributable and no header can mint a fresh one.
  */
 export async function chargeLane(
   sql: Sql,
   c: Context<RestEnv>,
-  rule: 'rest:api' | 'rest:execute' | 'rest:upload',
+  rule: RateLimitName,
 ): Promise<Response | null> {
   try {
     await checkUserRateLimit(sql, rule, c.get('userId'));
@@ -169,11 +204,13 @@ export function parseKeysetCursor(
   return Number.isFinite(at) ? { at, id: raw.slice(split + 1) } : null;
 }
 
-/** The page size a list route honours: the documented default, floored at
- * one row (a negative `LIMIT` is a Postgres error, zero a dead page) and
- * capped at `max`. */
+/** The page size a list route honours: the documented default, truncated
+ * to a whole row (the driver ships a JS number as text, so `2.5` is an
+ * `int8in` error), floored at one row (a negative `LIMIT` is a Postgres
+ * error, zero a dead page) and capped at `max`. Takes the query string or
+ * an already-numeric body field. */
 export function pageLimit(
-  raw: string | undefined,
+  raw: string | number | undefined,
   defaults: { fallback: number; max: number },
 ): number {
   const parsed = Number(raw ?? String(defaults.fallback));

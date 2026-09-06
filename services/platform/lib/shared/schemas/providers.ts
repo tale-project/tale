@@ -53,9 +53,10 @@ export const SECRETS_ENV_PREFIX = 'TALE_PROVIDER_KEY_';
 export const SECRETS_ENV_REGEX = /^TALE_PROVIDER_KEY_[A-Za-z0-9_]+$/;
 
 /**
- * A provider-key env-var name, prefix-gated. The 40-char cap matches the
- * platform→Convex env-name sync limit in `docker-entrypoint.sh` — a longer
- * name would silently never reach the Node action runtime.
+ * A provider-key env-var name, prefix-gated — the SAVE-time checker the
+ * credential admin service applies (the resolver's read-time gate is the
+ * bare regex: a namespace check, not a length one). The 40-char cap is the
+ * documented contract (self-hosted → configuration → environment reference).
  */
 export const providerKeyEnvNameSchema = z
   .string()
@@ -114,7 +115,10 @@ export type WireDialect = z.infer<typeof wireDialectSchema>;
  * `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1`, and cloud-metadata endpoints are
  * refused unconditionally. A private-http provider file on a deployment
  * without the opt-in is inert, not a hole.
- * Exported for the per-credential endpoint validation (Azure-style providers).
+ * Exported for the per-credential endpoint validation (Azure-style providers)
+ * and the broker `endpoint`, so the refusal names no field itself: the
+ * formatter prefixes the path (`baseUrl: …`, `endpoint: …`) and the
+ * credential service its own label.
  */
 export const providerBaseUrlSchema = z
   .string()
@@ -127,7 +131,7 @@ export const providerBaseUrlSchema = z
     } catch {
       return false;
     }
-  }, 'baseUrl must be an https:// URL (plain http:// is allowed only for ' + 'private/loopback hosts, e.g. a self-hosted model server)');
+  }, 'must be an https:// URL (plain http:// is allowed only for private/loopback hosts, e.g. a self-hosted model server)');
 
 /**
  * Where a provider's model catalog comes from. The four cases:
@@ -171,8 +175,6 @@ const executionConstraintsSchema = z
   })
   .strict();
 export type ExecutionConstraints = z.infer<typeof executionConstraintsSchema>;
-/** Historical name — the broker method carried these constraints first. */
-export type SubscriptionBrokerConstraints = ExecutionConstraints;
 
 /**
  * The credential auth methods a provider accepts, discriminated on
@@ -494,8 +496,14 @@ const brokerSecretEnvSchema = z
  */
 export const brokerResponseMappingSchema = z
   .object({
-    /** JSONPath to the token array, e.g. `$.tokens`. */
-    tokensPath: z.string().min(1).max(200),
+    /** JSONPath to the token array, e.g. `$.tokens`. Must start with `$`,
+     * as the reader (`json_path.ts`) requires — refused here so a path
+     * without the root never reaches a turn as an uncoded `JsonPathError`. */
+    tokensPath: z
+      .string()
+      .min(1)
+      .max(200)
+      .refine((path) => path.startsWith('$'), 'must start with $'),
     /** Field on each item holding the token value, e.g. `access_token`. */
     tokenField: z.string().min(1).max(80),
     /** Optional field naming the item's status, e.g. `status`. */

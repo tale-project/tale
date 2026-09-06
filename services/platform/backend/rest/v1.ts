@@ -15,7 +15,7 @@ import {
   checkIpRateLimit,
   checkUserRateLimit,
 } from '../lib/rate-limit.ts';
-import type { RestEnv } from './shared.ts';
+import { domainErrorResponse, type RestEnv } from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';
 import { createRestBrowserSessionRoutes } from './v1-browser-sessions.ts';
 import { createCoreRoutes } from './v1-core.ts';
@@ -156,11 +156,11 @@ export function createRestV1Routes(deps: {
         requireExplicitOrgSlug: c.req.method !== 'GET',
       });
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Failed to resolve organization';
-      return c.json({ error: message }, 400);
+      // The domain's own status: 400 when a multi-org key named no org, 403
+      // for a foreign slug, 404 for an unknown one. Anything else — a
+      // driver failure — is an outage for the app-level handler to report,
+      // never a 400 with the driver's text on the wire.
+      return domainErrorResponse(c, error);
     }
 
     const member = await findOrganizationMember(

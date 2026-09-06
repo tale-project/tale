@@ -574,7 +574,7 @@ describe('ProjectFilesTab', () => {
       expect(within(dialog).getByText('Reviewer')).toBeInTheDocument();
     });
 
-    it('offers only the review entry while a record is in review', async () => {
+    it('offers review + change reviewer while a record is in review', async () => {
       documentsFixture = [
         makeDoc({
           record: {
@@ -589,6 +589,11 @@ describe('ProjectFilesTab', () => {
       await openRowMenu(user);
       expect(
         await screen.findByRole('menuitem', { name: 'Review record' }),
+      ).toBeInTheDocument();
+      // The stuck-review exit: a writer re-designates when the designee
+      // cannot decide any more.
+      expect(
+        screen.getByRole('menuitem', { name: 'Change reviewer' }),
       ).toBeInTheDocument();
       expect(
         screen.queryByRole('menuitem', { name: 'Replace file' }),

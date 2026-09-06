@@ -1,6 +1,6 @@
 ---
 title: Effektiv chatten
-description: Fünf Gewohnheiten, die einen Chat von „danke für die Textwand" zu „genau, was ich brauchte" drehen — fragen statt beauftragen, das Modell wählen, Wissen füttern, den Denkverlauf lesen und die Quellen prüfen.
+description: Fünf Gewohnheiten, die einen Chat von „danke für die Textwand" zu „genau, was ich brauchte" drehen.
 ---
 
 Effektives Chatten in Tale dreht sich nicht um clevere Prompts; es dreht sich darum, dem Assistenten genug mitzugeben, damit er deine Absicht beim ersten Lesen erfasst — und zu wissen, welche Arbeit gar nicht in einen Chat gehört. Fünf kleine Gewohnheiten — fragen statt beauftragen, das passende Modell wählen, Wissen füttern statt einfügen, den Denkverlauf lesen, die Quellen prüfen — drehen die durchschnittliche Antwort von „danke für die Textwand" zu „genau, was ich brauchte". Diese Seite geht die Gewohnheiten der Reihe nach in einem frischen Chat durch.

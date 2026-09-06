@@ -1,6 +1,6 @@
 ---
 title: Run-code-Richtlinie
-description: Die Paket-Zulassungsliste und -Sperrliste, die regeln, was sandgeboxtes Run code installieren darf. Admins und Inhaber lesen das, wenn ein Agent eine neue Bibliothek braucht oder wenn ein Audit fragt, warum ein Paket zu einem bestimmten Zeitpunkt blockiert war.
+description: Die Paket-Zulassungsliste und -Sperrliste, die regeln, was sandgeboxtes Run code installieren darf.
 ---
 
 Run-code-Richtlinie ist die Oberfläche, auf der du entscheidest, welche Python- und Node-Pakete die Sandbox zur Laufzeit installieren kann. Skills mit Skripten und das Run-code-Tool laufen beide in derselben Sandbox; diese Richtlinie ist die einzige Naht, an der du anziehst oder lockerst, was sie installieren dürfen. Admins und Inhaber lesen diese Seite, wenn ein Agent eine neue Bibliothek braucht oder wenn ein Audit fragt, warum ein Paket zu einem bestimmten Zeitpunkt blockiert war.

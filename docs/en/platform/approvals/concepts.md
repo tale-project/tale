@@ -1,6 +1,6 @@
 ---
 title: Approval concepts
-description: An approval is a parked step in a live automation run — a connector write waiting on the run's detail page until a person approves or rejects it. This page names what fires one, the decision it offers, and what it leaves behind.
+description: An approval is a parked step in a live automation run — a connector write waiting on the run's detail page until a person approves or rejects it.
 ---
 
 An approval is the seam between an automation's initiative and your judgement. When a live run reaches a connector write that your organization's policy gates — sending mail, posting a message, opening an issue — the step does not run: the run parks, and its detail page shows a card with the operation and the exact input the step would call with, until a person decides. Nothing is sent while the card is pending, and a rejected step fails the run rather than being retried behind your back.

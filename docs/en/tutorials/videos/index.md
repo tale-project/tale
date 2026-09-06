@@ -1,6 +1,6 @@
 ---
 title: Video tutorials
-description: Short, produced walkthroughs of the platform — what Tale does, where AI helps, and where it needs your judgment. Every episode ships in English, German, and French.
+description: Short, produced walkthroughs of the platform — what Tale does, where AI helps, and where it needs your judgment.
 ---
 
 The video series walks the platform the way a colleague would show it to you: on screen, area by area, with the honest caveats spoken out loud. Episodes are short — three to four minutes — and each one picks up a piece of general AI literacy along the way: what grounding means, why hallucinations happen, where a human belongs in the loop.

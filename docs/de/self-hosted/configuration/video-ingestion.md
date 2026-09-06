@@ -1,6 +1,6 @@
 ---
 title: Video-Ingestion
-description: Konfiguriere, wie eine selbst gehostete Bereitstellung Video-Transkripte an YouTubes Bot-Abfrage vorbei abruft — der eingebaute PO-Token-Provider, ein Egress-Proxy und der vorgewärmte Browser-Session-Pool.
+description: Konfiguriere, wie eine selbst gehostete Bereitstellung Video-Transkripte an YouTubes Bot-Abfrage vorbei abruft.
 ---
 
 Liest Tale einen Videolink ein, ruft es das Transkript des Videos mit `yt-dlp` ab. Video-Plattformen — YouTube am aggressivsten — fordern Anfragen von Rechenzentrums- und Server-IPs mit einer „Bist du ein Mensch?"-Abfrage heraus, sodass eine frische, selbst gehostete Bereitstellung auf einer Cloud-VM beim Einlesen scheitern kann, wo ein Laptop an einem Heimanschluss durchkäme. Diese Seite behandelt die drei Ebenen, die Tale mitbringt, um daran vorbeizukommen — von der, die keine Konfiguration braucht, bis zu der, die am meisten verlangt.

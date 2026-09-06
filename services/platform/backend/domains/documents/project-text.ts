@@ -3,16 +3,24 @@ import type { Sql, TransactionSql } from 'postgres';
 import { parseYamlMap } from '../../core/documents/parse_yaml_map.ts';
 import { serializeYamlMap } from '../../core/documents/serialize_yaml_map.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
-import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import { s3GetObjectBytesIfExists } from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
-import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
-import { getOrCreateProjectFolder } from '../folders/service.ts';
+import {
+  deleteOrgBlobRefs,
+  putOrgBlobBytes,
+  registerUploadedBytes,
+} from '../files/service.ts';
+import {
+  assertProjectFolderWrite,
+  getOrCreateProjectFolder,
+} from '../folders/service.ts';
 import {
   assertReadable,
   loadProjectOrThrow,
   type ProjectAuthContext,
 } from '../projects/service.ts';
+import { releasePreviousBlob } from './blob-rotation.ts';
 import { DocumentError } from './service.ts';
 
 /**
@@ -93,9 +101,13 @@ export interface EnsureProjectTextResult {
 
 /**
  * Write (or rewrite) the folder's text file and answer where it landed.
- * Folder creation, blob write and the document upsert share ONE transaction
- * around the row work — a half-written pair would leave the panel reading a
- * file that no document points at.
+ * Authorization runs FIRST (the project's edit gate), then the blob, then
+ * folder creation and the document upsert in ONE transaction around the row
+ * work — a half-written pair would leave the panel reading a file that no
+ * document points at. A rewrite rotates the previous blob out (unbound,
+ * trashed, released after commit), and a transaction that fails after the
+ * blob landed reclaims the bytes it just wrote: nothing reaps a stranded
+ * `project_text` row otherwise.
  */
 export async function ensureProjectTextDocument(
   sql: Sql,
@@ -124,6 +136,11 @@ export async function ensureProjectTextDocument(
       fileName,
     });
 
+  // The gate before the bytes: this door's only authorization is the
+  // project's edit access, and running it after the store write let any org
+  // member put up to the body cap into org storage before being refused.
+  await assertProjectFolderWrite(sql, auth, args.projectId);
+
   // The blob first: a failed store must not leave a document pointing at
   // nothing (an empty panel is recoverable, a dangling ref is not).
   const storageRef = await putOrgBlobBytes(sql, auth.organizationId, {
@@ -143,7 +160,9 @@ export async function ensureProjectTextDocument(
     skipRagIndexing: true,
   });
 
-  return sql.begin(async (tx) => {
+  const bindProjectText = async (
+    tx: TransactionSql,
+  ): Promise<EnsureProjectTextResult> => {
     const folder = await getOrCreateProjectFolder(tx, auth, {
       projectId: args.projectId,
       name: args.folderName,
@@ -153,9 +172,10 @@ export async function ensureProjectTextDocument(
     // lifecycle on purpose: the panel writing its file again brings a
     // TRASHED twin back in place (the document IS the file; a second row
     // under the same key can no longer exist).
-    const refresh = async (
-      documentId: string,
-    ): Promise<EnsureProjectTextResult> => {
+    const refresh = async (existing: {
+      id: string;
+      fileRef: string | null;
+    }): Promise<EnsureProjectTextResult> => {
       await tx`
         UPDATE app.documents SET
           title = ${fileName}, file_ref = ${storageRef},
@@ -168,15 +188,25 @@ export async function ensureProjectTextDocument(
           END,
           lifecycle_status = NULL,
           updated_at_ms = ${now}
-        WHERE id = ${documentId}
+        WHERE id = ${existing.id}
       `;
       await tx`
-        UPDATE app.file_metadata SET document_id = ${documentId}
+        UPDATE app.file_metadata SET document_id = ${existing.id}
         WHERE id = ${fileId}
       `;
+      if (existing.fileRef !== null && existing.fileRef !== storageRef) {
+        // The file the panel just rewrote: its previous bytes have no
+        // reader left (no history here — the settings file IS its latest
+        // save), so they go the way a replaced agent blob goes.
+        await releasePreviousBlob(tx, {
+          organizationId: auth.organizationId,
+          documentId: existing.id,
+          previousFileRef: existing.fileRef,
+        });
+      }
       return {
         folderId: folder.folderId,
-        documentId,
+        documentId: existing.id,
         createdFolder: folder.created,
         action: 'updated' as const,
       };
@@ -220,7 +250,27 @@ export async function ensureProjectTextDocument(
       createdFolder: folder.created,
       action: 'created' as const,
     };
-  });
+  };
+
+  try {
+    return await sql.begin((tx) => bindProjectText(tx));
+  } catch (error) {
+    // The bytes landed but no document points at them, and no sweep covers
+    // a `project_text` row (the temp-file reaper takes 'user'/'agent' only):
+    // reclaim the row and the blob this call wrote, then surface the cause.
+    await sql`
+      DELETE FROM app.file_metadata
+      WHERE id = ${fileId} AND org_id = ${auth.organizationId}
+        AND document_id IS NULL
+    `.catch((cleanupError: unknown) =>
+      console.warn(
+        `[documents] project text row reclaim failed for ${fileName}:`,
+        cleanupError,
+      ),
+    );
+    await deleteOrgBlobRefs(sql, auth.organizationId, [storageRef]);
+    throw error;
+  }
 }
 
 /** The key's row (any lifecycle), locked for the write transaction. */
@@ -228,27 +278,30 @@ async function lockProjectTextDocument(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   externalItemId: string,
-): Promise<string | null> {
-  const rows = await tx<{ id: string }[]>`
-    SELECT id FROM app.documents
+): Promise<{ id: string; fileRef: string | null } | null> {
+  const rows = await tx<{ id: string; fileRef: string | null }[]>`
+    SELECT id, file_ref AS "fileRef" FROM app.documents
     WHERE org_id = ${auth.organizationId}
       AND external_item_id = ${externalItemId}
     ORDER BY created_at_ms
     LIMIT 1
     FOR UPDATE
   `;
-  return rows[0]?.id ?? null;
+  return rows[0] ?? null;
 }
 
 /**
  * Read the folder's flat-YAML file back into `{key: value}`. Absence in any
  * of its forms — no folder, no file, no blob — is an EMPTY MAP, never an
  * error: a form that cannot find its file falls back to its declared
- * defaults, which is exactly what a first-run panel must do. Access is not
- * absence: the caller needs READ access to the project (the write half runs
- * the project's edit gate through `getOrCreateProjectFolder`), or any org
- * member could read another team's settings by guessing the well-known
- * folder and file names.
+ * defaults, which is exactly what a first-run panel must do. FAILURE is not
+ * absence: an unreachable store or a 5xx answers a coded refusal
+ * (`PROJECT_TEXT_READ_FAILED`, 503) so the panel shows its load-failed state
+ * instead of pre-filling defaults that the operator's next Save would write
+ * over the real file. Access is not absence either: the caller needs READ
+ * access to the project (the write half runs the project's edit gate), or
+ * any org member could read another team's settings by guessing the
+ * well-known folder and file names.
  */
 export async function readProjectTextValues(
   sql: Sql,
@@ -273,19 +326,26 @@ export async function readProjectTextValues(
   `;
   const fileRef = rows[0]?.fileRef;
   if (fileRef === null || fileRef === undefined || fileRef === '') return {};
+  const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
+  if (orgSlug === null) return {};
+  const parsed = parseBlobRef(fileRef);
+  if (parsed.backend !== 's3') return {};
+  let bytes: Uint8Array | null;
   try {
-    const orgSlug = await resolveOrgSlug(sql, auth.organizationId);
-    if (orgSlug === null) return {};
-    const parsed = parseBlobRef(fileRef);
-    if (parsed.backend !== 's3') return {};
     const store = await resolveObjectStore(orgSlug);
-    const bytes = await s3GetObjectBytes(store, parsed.key);
-    return parseYamlMap(new TextDecoder().decode(bytes));
+    bytes = await s3GetObjectBytesIfExists(store, parsed.key);
   } catch (error) {
     console.warn(
       `[documents] project text read failed for ${fileName}:`,
       error,
     );
-    return {};
+    throw new DocumentError(
+      'PROJECT_TEXT_READ_FAILED',
+      'The settings file could not be read right now. Try again in a moment.',
+      503,
+    );
   }
+  // The row points at bytes the store no longer has: absence, not failure.
+  if (bytes === null) return {};
+  return parseYamlMap(new TextDecoder().decode(bytes));
 }

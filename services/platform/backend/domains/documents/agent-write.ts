@@ -7,6 +7,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
+import { releasePreviousBlob } from './blob-rotation.ts';
 import {
   assertGenericDocumentContentWritableJson,
   DocumentError,
@@ -136,6 +137,7 @@ export async function upsertAgentDocument(
 
     const refresh = async (existing: {
       id: string;
+      fileRef: string | null;
       record: Record<string, unknown> | null;
     }): Promise<{ documentId: string; action: 'updated' }> => {
       // 'agent' documents can be controlled records (records.ts): a re-run
@@ -152,6 +154,13 @@ export async function upsertAgentDocument(
           lifecycle_status = 'active', updated_at_ms = ${now}
         WHERE id = ${existing.id}
       `;
+      if (existing.fileRef !== null && existing.fileRef !== args.fileRef) {
+        await releasePreviousBlob(tx, {
+          organizationId: args.organizationId,
+          documentId: existing.id,
+          previousFileRef: existing.fileRef,
+        });
+      }
       await auditWrite(tx, args, 'updated', existing.id, title);
       return { documentId: existing.id, action: 'updated' as const };
     };
@@ -194,11 +203,19 @@ export async function upsertAgentDocument(
 async function lockAgentDocument(
   tx: TransactionSql,
   args: { organizationId: string; externalItemId: string },
-): Promise<{ id: string; record: Record<string, unknown> | null } | null> {
+): Promise<{
+  id: string;
+  fileRef: string | null;
+  record: Record<string, unknown> | null;
+} | null> {
   const rows = await tx<
-    { id: string; record: Record<string, unknown> | null }[]
+    {
+      id: string;
+      fileRef: string | null;
+      record: Record<string, unknown> | null;
+    }[]
   >`
-    SELECT id, record FROM app.documents
+    SELECT id, file_ref AS "fileRef", record FROM app.documents
     WHERE org_id = ${args.organizationId}
       AND external_item_id = ${args.externalItemId}
     ORDER BY created_at_ms

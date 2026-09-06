@@ -561,7 +561,11 @@ describe('dispatchWorkspaceToolImpl', () => {
           },
         },
       }).ctx,
-      { ...BASE, tool: 'document_find', callArgs: { extension: 'pdf' } },
+      {
+        ...BASE,
+        tool: 'document_find',
+        callArgs: { extension: 'pdf', cursor: 50 },
+      },
     );
     expect(result.status).toBe('ok');
     const [ref, qArgs] = readQuery.mock.calls[0] as [
@@ -575,8 +579,35 @@ describe('dispatchWorkspaceToolImpl', () => {
     expect(qArgs.teamIds).toEqual(['team_a']);
     expect(qArgs.projectIds).toEqual(['proj_1', 'proj_2']);
     expect(qArgs.projectId).toBeUndefined();
+    // The continuation the previous page handed back reaches the listing —
+    // it used to be dropped here, so the hub never paged past 50 documents.
+    expect(qArgs.cursor).toBe(50);
     // A binding read never carries a user id.
     expect(qArgs.userId).toBeUndefined();
+  });
+
+  it('document_find reads a numeric-string cursor and ignores a malformed one', async () => {
+    const { dispatch } = await getActions();
+    for (const [given, want] of [
+      ['100', 100],
+      [-1, undefined],
+      ['abc', undefined],
+      [12.5, undefined],
+    ] as const) {
+      const readQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+        Promise.resolve({ documents: [] }),
+      );
+      await dispatch(createCtx({ readQuery }).ctx, {
+        ...BASE,
+        tool: 'document_find',
+        callArgs: { cursor: given },
+      });
+      const [, qArgs] = readQuery.mock.calls[0] as [
+        unknown,
+        Record<string, unknown>,
+      ];
+      expect(qArgs.cursor).toBe(want);
+    }
   });
 
   it('document_find on a USER session (no binding) falls back to the user list', async () => {
@@ -592,7 +623,11 @@ describe('dispatchWorkspaceToolImpl', () => {
         scope: { allowed: false, reason: 'no_access_context' },
         access: { allowed: true, role: 'member' },
       }).ctx,
-      { ...BASE, tool: 'document_find', callArgs: { extension: 'pdf' } },
+      {
+        ...BASE,
+        tool: 'document_find',
+        callArgs: { extension: 'pdf', cursor: 50 },
+      },
     );
     expect(result.status).toBe('ok');
     const [ref, qArgs] = readQuery.mock.calls[0] as [
@@ -602,6 +637,8 @@ describe('dispatchWorkspaceToolImpl', () => {
     expect(fnName(ref)).toBe('documents/internal_queries:listForAgent');
     expect(qArgs.organizationId).toBe('org_1');
     expect(qArgs.userId).toBe('user_1');
+    // The user door pages too.
+    expect(qArgs.cursor).toBe(50);
   });
 
   it('knowledge_entry_find lists active entries with topic filter and cursor', async () => {

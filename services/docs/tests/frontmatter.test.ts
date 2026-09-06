@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { assertNoFindings, type Finding } from './lib/findings';
 import { hasFrontmatter, parseFrontmatter } from './lib/markdown';
@@ -53,5 +53,36 @@ describe('frontmatter', () => {
       }
     }
     assertNoFindings(findings, 'Frontmatter issues');
+  });
+
+  /**
+   * A description over 160 characters is cut off in a search result, so the
+   * tail is never read. 281 pages were over; 99 shortened cleanly by dropping
+   * a whole trailing sentence or a trailing clause, which leaves grammatical
+   * text in all three languages. The rest need a real rewrite per page: their
+   * commas separate subordinate clauses, not list items, so cutting at one
+   * produces a fragment.
+   *
+   * This budget is a ratchet. It may go down as pages are rewritten; a change
+   * that pushes it up is adding a description nobody will read the end of.
+   */
+  it('does not grow the backlog of over-long descriptions', () => {
+    const MAX = 160;
+    const BUDGET = 182;
+    const over: string[] = [];
+    for (const rel of walkDocs()) {
+      const raw = fs
+        .readFileSync(path.join(CONTENT_ROOT, rel), 'utf8')
+        .replaceAll('\r\n', '\n');
+      if (!hasFrontmatter(raw)) continue;
+      const { frontmatter } = parseFrontmatter(raw);
+      if (/^noindex:\s*true/m.test(frontmatter)) continue;
+      const match = /^description:\s*(.+)$/m.exec(frontmatter);
+      if (match && match[1].trim().length > MAX) over.push(rel);
+    }
+    expect(
+      over.length,
+      `over-long descriptions: ${over.length} (budget ${BUDGET})`,
+    ).toBeLessThanOrEqual(BUDGET);
   });
 });

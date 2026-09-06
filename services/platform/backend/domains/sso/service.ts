@@ -3,7 +3,6 @@ import type { Sql } from 'postgres';
 
 import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { mapEntraRoleToPlatformRole } from '../../core/enterprise_sso/entra_id/role_mapping.ts';
-import { shouldSyncMemberRole } from '../../core/enterprise_sso/find_or_create_sso_user.ts';
 import type {
   PlatformRole,
   SsoUserInfo,
@@ -41,6 +40,21 @@ export interface FindOrCreateSsoUserArgs {
 
 function toDate(ms: number | undefined): Date | null {
   return ms === undefined ? null : new Date(ms);
+}
+
+/**
+ * Whether to overwrite an existing membership's role with the IdP-mapped role on
+ * login. Only when "auto-assign roles from the IdP" is on (`syncRole`), never
+ * for an `owner` (that would orphan the org), and not for a no-op.
+ */
+export function shouldSyncMemberRole(
+  syncRole: boolean | undefined,
+  currentRole: string | undefined,
+  newRole: string,
+): boolean {
+  return (
+    Boolean(syncRole) && currentRole !== 'owner' && currentRole !== newRole
+  );
 }
 
 export interface FindOrCreateSsoUserResult {

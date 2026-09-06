@@ -6,7 +6,11 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { applyPiiPolicyForIndexing, parsePiiConfig } from './pii_gate';
+import {
+  applyPiiPolicyForIndexing,
+  parsePiiConfig,
+  scrubberForPolicy,
+} from './pii_gate';
 
 /** A policy with one obvious detector on, so a match is easy to arrange. */
 function policy(overrides: Record<string, unknown> = {}) {
@@ -74,6 +78,63 @@ describe('applyPiiPolicyForIndexing', () => {
     expect(decision.text).not.toContain('ada@example.com');
   });
 
+  // Documents past the engine's chat-sized clamp: PII near the top and at
+  // the very end of a ~120 KB text, both far enough apart that a message-
+  // sized scan would see only the first.
+  const CARD = 'card 4111 1111 1111 1111 on file';
+  const FILLER =
+    'The handbook covers refunds within thirty days of purchase.\n';
+  const LONG = [WITH_PII, FILLER.repeat(2_000), CARD, FILLER.repeat(10)].join(
+    '\n',
+  );
+  const LONG_TAIL_ONLY = [FILLER.repeat(2_000), CARD].join('\n');
+
+  it('masks a document longer than the engine clamp end to end', () => {
+    expect(LONG.length).toBeGreaterThan(100_000);
+    const decision = applyPiiPolicyForIndexing(
+      LONG,
+      policy({ enabledPatterns: ['email', 'creditCard'] }),
+    );
+    expect(decision.kind).toBe('index');
+    if (decision.kind !== 'index') return;
+    expect(decision.text).not.toContain('ada@example.com');
+    expect(decision.text).not.toContain('4111 1111 1111 1111');
+    expect(decision.text).toContain('[CREDIT_CARD]');
+    // The tail survives: nothing past the clamp was dropped.
+    expect(decision.text.endsWith(FILLER.repeat(10))).toBe(true);
+    expect(decision.text.length).toBeGreaterThan(LONG.length - 100);
+  });
+
+  it('refuses a document whose only identifier sits past the engine clamp', () => {
+    expect(LONG_TAIL_ONLY.length).toBeGreaterThan(100_000);
+    const decision = applyPiiPolicyForIndexing(
+      LONG_TAIL_ONLY,
+      policy({ mode: 'block', enabledPatterns: ['creditCard'] }),
+    );
+    expect(decision).toEqual({ kind: 'refuse', categoryIds: ['creditCard'] });
+  });
+
+  it('refuses an identifier behind a head that doubles under NFC', () => {
+    // U+0958 decomposes under NFC into two code units, so a window cut
+    // under the engine clamp grows past it inside the engine; the clamped
+    // prefix has no match and the identifier sits in the unscanned tail. A
+    // crafted document must not walk past a block policy that way.
+    const text = `${String.fromCharCode(0x0958).repeat(12_000)} ${CARD}`;
+    const decision = applyPiiPolicyForIndexing(
+      text,
+      policy({ mode: 'block', enabledPatterns: ['creditCard'] }),
+    );
+    expect(decision).toEqual({ kind: 'refuse', categoryIds: ['creditCard'] });
+    const masked = applyPiiPolicyForIndexing(
+      text,
+      policy({ enabledPatterns: ['creditCard'] }),
+    );
+    expect(masked.kind).toBe('index');
+    if (masked.kind !== 'index') return;
+    expect(masked.text).toContain('[CREDIT_CARD]');
+    expect(masked.text).not.toContain('4111 1111 1111 1111');
+  });
+
   it('indexes clean text unchanged', () => {
     const clean = 'The handbook covers refunds within 30 days.';
     expect(applyPiiPolicyForIndexing(clean, policy())).toEqual({
@@ -82,28 +143,64 @@ describe('applyPiiPolicyForIndexing', () => {
     });
   });
 
-  it('indexes unscrubbed when the scrubber cannot be built', async () => {
-    // Construction throws only on a programmer error, and the governance
-    // resolver filters the usual trigger (an unknown locale) upstream — so the
-    // failure is forced here. What matters is the guarantee: failing the index
-    // would take an organization's corpus offline over a governance typo.
+  it('indexes unscrubbed when the scrubber cannot be built, reporting once', async () => {
+    // Construction throws only on a programmer error or a missing data tree,
+    // and the governance resolver filters the usual trigger (an unknown
+    // locale) upstream — so the failure is forced here. What matters is the
+    // guarantee: failing the index would take an organization's corpus
+    // offline over a governance typo — and the report is one error per
+    // policy per process, not one per document.
     vi.resetModules();
-    vi.doMock('../../../lib/pii', () => ({
+    vi.doMock('../../../lib/pii', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('../../../lib/pii')>()),
       createScrubberFromConfig: () => {
-        throw new Error('unknown locale code');
+        throw new Error('no data tree at /app/system/pii');
       },
     }));
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { applyPiiPolicyForIndexing: withBrokenScrubber } =
       await import('./pii_gate');
     expect(withBrokenScrubber(WITH_PII, policy())).toEqual({
       kind: 'index',
       text: WITH_PII,
     });
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+    expect(withBrokenScrubber(WITH_PII, policy())).toEqual({
+      kind: 'index',
+      text: WITH_PII,
+    });
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error.mock.calls[0]?.[0]).toContain('/app/system/pii');
+
+    // The ledger of reported policies is bounded: after 32 further distinct
+    // failing policies the first one has been evicted and reports once more
+    // — the price of a bound, not a leak.
+    for (let i = 0; i < 32; i += 1) {
+      withBrokenScrubber(WITH_PII, policy({ enabledPatterns: [`p${i}`] }));
+    }
+    expect(error).toHaveBeenCalledTimes(33);
+    withBrokenScrubber(WITH_PII, policy());
+    expect(error).toHaveBeenCalledTimes(34);
+    error.mockRestore();
     vi.doUnmock('../../../lib/pii');
     vi.resetModules();
+  });
+});
+
+describe('scrubberForPolicy', () => {
+  it('reuses one scrubber for equal policies and builds anew for a changed one', () => {
+    // The engine's contract: build once per config, reuse per message. Two
+    // documents under the same policy must not pay for two constructions.
+    const first = scrubberForPolicy(policy({ mode: 'mask' }));
+    const second = scrubberForPolicy(policy({ mode: 'mask' }));
+    expect(first).not.toBeNull();
+    expect(second).toBe(first);
+    const changed = scrubberForPolicy(policy({ mode: 'block' }));
+    expect(changed).not.toBe(first);
+  });
+
+  it('caches the disabled verdict too', () => {
+    expect(scrubberForPolicy(policy({ enabled: false }))).toBeNull();
+    expect(scrubberForPolicy(policy({ enabled: false }))).toBeNull();
   });
 });
 

@@ -1,7 +1,8 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { toJson } from '../../db/sql.ts';
+import { isUniqueViolation, toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   listActiveCredentials,
   patchCredentialConfigInternal,
@@ -9,6 +10,7 @@ import {
   resolveCredentialRowForShim,
 } from '../connector_credentials/service.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
+import { markRagQueued } from '../knowledge/service.ts';
 import { applyAddressRouting } from './routing.ts';
 import {
   addMessageToConversation,
@@ -59,6 +61,39 @@ function wireConversation(row: ConversationRow): Record<string, unknown> {
 function wireMessage(row: ConversationMessageRow): Record<string, unknown> {
   const { id, createdAt, ...rest } = row;
   return dropNulls({ ...rest, _id: id, _creationTime: createdAt });
+}
+
+/**
+ * The row an org's Message-ID already landed on — where the LOSER of an
+ * ingest race lands. Two passes of one mailbox can overlap (the schedule
+ * claims the occurrence, not the run; a manual run can join a scheduled one),
+ * both miss `checkMessageExists`, and both insert. The partial unique index
+ * `conversation_messages_org_external_unique` (migration 0077) refuses the
+ * second insert; the writer then answers the winner's row, so the ingest
+ * treats the message as already landed instead of failing the pass or
+ * writing the mail twice. Null when the error is anything else.
+ */
+async function landOnExistingMessage(
+  sql: Sql,
+  error: unknown,
+  args: { organizationId: string; externalMessageId: string | undefined },
+): Promise<{ conversationId: string; messageId: string } | null> {
+  if (args.externalMessageId === undefined || !isUniqueViolation(error)) {
+    return null;
+  }
+  const rows = await sql<{ id: string; conversationId: string }[]>`
+    SELECT id, conversation_id AS "conversationId"
+    FROM app.conversation_messages
+    WHERE org_id = ${args.organizationId}
+      AND external_message_id = ${args.externalMessageId}
+    LIMIT 1
+  `;
+  const existing = rows[0];
+  if (!existing) return null;
+  console.info(
+    `[conversations-shim] Message-ID ${args.externalMessageId} landed twice; the second write joins message ${existing.id}`,
+  );
+  return { conversationId: existing.conversationId, messageId: existing.id };
 }
 
 const CONVERSATION_WIRE_COLUMNS = `
@@ -125,41 +160,6 @@ export function conversationShimHandlers(
       `;
       return rows[0] ? wireMessage(rows[0]) : null;
     },
-    'conversations/internal_queries:queryConversationMessages': async (
-      raw: unknown,
-    ) => {
-      const args = org
-        .extend({
-          conversationId: z.string().optional(),
-          channel: z.string().optional(),
-          direction: z.enum(['inbound', 'outbound']).optional(),
-          paginationOpts: z.object({
-            numItems: z.number(),
-            cursor: z.string().nullable(),
-          }),
-        })
-        .parse(raw);
-      const limit = Math.min(Math.max(args.paginationOpts.numItems, 1), 200);
-      const rows = await sql<ConversationMessageRow[]>`
-        SELECT ${sql.unsafe(MESSAGE_WIRE_COLUMNS)}
-        FROM app.conversation_messages
-        WHERE org_id = ${args.organizationId}
-          AND (${args.conversationId ?? null}::text IS NULL
-            OR conversation_id = ${args.conversationId ?? null})
-          AND (${args.channel ?? null}::text IS NULL
-            OR channel = ${args.channel ?? null})
-          AND (${args.direction ?? null}::text IS NULL
-            OR direction = ${args.direction ?? null})
-        ORDER BY coalesce(sent_at_ms, delivered_at_ms, created_at_ms) DESC,
-                 seq DESC
-        LIMIT ${limit}
-      `;
-      return {
-        page: rows.map(wireMessage),
-        isDone: true,
-        continueCursor: '',
-      };
-    },
     'conversations/internal_queries:queryLatestMessageByDeliveryState': async (
       raw: unknown,
     ) => {
@@ -187,29 +187,6 @@ export function conversationShimHandlers(
     },
 
     // ---------------------------------------------------------- mutations
-    'conversations/internal_mutations:createConversation': async (
-      raw: unknown,
-    ) => {
-      const args = org
-        .extend({
-          contactId: z.string().optional(),
-          assigneeUserId: z.string().optional(),
-          externalMessageId: z.string().optional(),
-          subject: z.string().optional(),
-          status: z.enum(['open', 'closed', 'spam', 'archived']).optional(),
-          priority: z.string().optional(),
-          type: z.string().optional(),
-          channel: z.string().optional(),
-          direction: z.enum(['inbound', 'outbound']).optional(),
-          connectorName: z.string().optional(),
-          metadata: z.record(z.string(), z.unknown()).optional(),
-        })
-        .parse(raw);
-      const conversationId = await sql.begin((tx) =>
-        createConversation(tx, args),
-      );
-      return { conversationId, created: true };
-    },
     'conversations/internal_mutations:createConversationWithMessage': async (
       raw: unknown,
     ) => {
@@ -244,58 +221,68 @@ export function conversationShimHandlers(
             .loose(),
         })
         .parse(raw);
-      return sql.begin(async (tx) => {
-        const { initialMessage, ...conversationArgs } = args;
-        const conversationId = await createConversation(tx, conversationArgs);
-        const { messageId } = await addMessageToConversation(tx, {
-          conversationId,
-          organizationId: args.organizationId,
-          sender: initialMessage.sender,
-          content: initialMessage.content,
-          isCustomer: initialMessage.isCustomer,
-          ...(initialMessage.status !== undefined
-            ? { status: initialMessage.status }
-            : {}),
-          ...(Array.isArray(initialMessage.attachments)
-            ? { attachments: initialMessage.attachments }
-            : {}),
-          ...(initialMessage.externalMessageId !== undefined
-            ? { externalMessageId: initialMessage.externalMessageId }
-            : {}),
-          ...(initialMessage.metadata !== undefined
-            ? { metadata: initialMessage.metadata }
-            : {}),
-          ...(initialMessage.sentAt !== undefined
-            ? { sentAt: initialMessage.sentAt }
-            : {}),
-          ...(initialMessage.deliveredAt !== undefined
-            ? { deliveredAt: initialMessage.deliveredAt }
-            : {}),
-          ...(initialMessage.connectorName !== undefined ||
-          args.connectorName !== undefined
-            ? {
-                connectorName:
-                  initialMessage.connectorName ?? args.connectorName,
-              }
-            : {}),
-        });
-        // Address routing (governance feature): auto-assign a NEW inbound
-        // conversation to the team/person mapped to the address it was sent
-        // to, BEFORE downstream notifications observe the row (the 0.4
-        // ingest-inline hook).
-        if (args.direction === 'inbound') {
-          await applyAddressRouting(tx, {
-            id: conversationId,
+      const { initialMessage, ...conversationArgs } = args;
+      try {
+        return await sql.begin(async (tx) => {
+          const conversationId = await createConversation(tx, conversationArgs);
+          const { messageId } = await addMessageToConversation(tx, {
+            conversationId,
             organizationId: args.organizationId,
-            subject: args.subject ?? null,
-            status: args.status ?? 'open',
-            assigneeUserId: args.assigneeUserId ?? null,
-            assigneeTeamId: args.assigneeTeamId ?? null,
-            metadata: args.metadata ?? null,
+            sender: initialMessage.sender,
+            content: initialMessage.content,
+            isCustomer: initialMessage.isCustomer,
+            ...(initialMessage.status !== undefined
+              ? { status: initialMessage.status }
+              : {}),
+            ...(Array.isArray(initialMessage.attachments)
+              ? { attachments: initialMessage.attachments }
+              : {}),
+            ...(initialMessage.externalMessageId !== undefined
+              ? { externalMessageId: initialMessage.externalMessageId }
+              : {}),
+            ...(initialMessage.metadata !== undefined
+              ? { metadata: initialMessage.metadata }
+              : {}),
+            ...(initialMessage.sentAt !== undefined
+              ? { sentAt: initialMessage.sentAt }
+              : {}),
+            ...(initialMessage.deliveredAt !== undefined
+              ? { deliveredAt: initialMessage.deliveredAt }
+              : {}),
+            ...(initialMessage.connectorName !== undefined ||
+            args.connectorName !== undefined
+              ? {
+                  connectorName:
+                    initialMessage.connectorName ?? args.connectorName,
+                }
+              : {}),
           });
-        }
-        return { conversationId, messageId };
-      });
+          // Address routing (governance feature): auto-assign a NEW inbound
+          // conversation to the team/person mapped to the address it was sent
+          // to, BEFORE downstream notifications observe the row (the 0.4
+          // ingest-inline hook).
+          if (args.direction === 'inbound') {
+            await applyAddressRouting(tx, {
+              id: conversationId,
+              organizationId: args.organizationId,
+              subject: args.subject ?? null,
+              status: args.status ?? 'open',
+              assigneeUserId: args.assigneeUserId ?? null,
+              assigneeTeamId: args.assigneeTeamId ?? null,
+              metadata: args.metadata ?? null,
+            });
+          }
+          return { conversationId, messageId };
+        });
+      } catch (error) {
+        const landed = await landOnExistingMessage(sql, error, {
+          organizationId: args.organizationId,
+          externalMessageId:
+            initialMessage.externalMessageId ?? args.externalMessageId,
+        });
+        if (!landed) throw error;
+        return landed;
+      }
     },
     'conversations/internal_mutations:addMessageToConversation': async (
       raw: unknown,
@@ -316,31 +303,40 @@ export function conversationShimHandlers(
           connectorName: z.string().optional(),
         })
         .parse(raw);
-      const result = await sql.begin((tx) =>
-        addMessageToConversation(tx, {
-          conversationId: args.conversationId,
+      try {
+        const result = await sql.begin((tx) =>
+          addMessageToConversation(tx, {
+            conversationId: args.conversationId,
+            organizationId: args.organizationId,
+            sender: args.sender,
+            content: args.content,
+            isCustomer: args.isCustomer,
+            ...(args.status !== undefined ? { status: args.status } : {}),
+            ...(Array.isArray(args.attachments)
+              ? { attachments: args.attachments }
+              : {}),
+            ...(args.externalMessageId !== undefined
+              ? { externalMessageId: args.externalMessageId }
+              : {}),
+            ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
+            ...(args.sentAt !== undefined ? { sentAt: args.sentAt } : {}),
+            ...(args.deliveredAt !== undefined
+              ? { deliveredAt: args.deliveredAt }
+              : {}),
+            ...(args.connectorName !== undefined
+              ? { connectorName: args.connectorName }
+              : {}),
+          }),
+        );
+        return result.conversationId;
+      } catch (error) {
+        const landed = await landOnExistingMessage(sql, error, {
           organizationId: args.organizationId,
-          sender: args.sender,
-          content: args.content,
-          isCustomer: args.isCustomer,
-          ...(args.status !== undefined ? { status: args.status } : {}),
-          ...(Array.isArray(args.attachments)
-            ? { attachments: args.attachments }
-            : {}),
-          ...(args.externalMessageId !== undefined
-            ? { externalMessageId: args.externalMessageId }
-            : {}),
-          ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
-          ...(args.sentAt !== undefined ? { sentAt: args.sentAt } : {}),
-          ...(args.deliveredAt !== undefined
-            ? { deliveredAt: args.deliveredAt }
-            : {}),
-          ...(args.connectorName !== undefined
-            ? { connectorName: args.connectorName }
-            : {}),
-        }),
-      );
-      return result.conversationId;
+          externalMessageId: args.externalMessageId,
+        });
+        if (!landed) throw error;
+        return landed.conversationId;
+      }
     },
     'conversations/internal_mutations:updateConversationMessage': async (
       raw: unknown,
@@ -358,65 +354,27 @@ export function conversationShimHandlers(
           retryCount: z.number().optional(),
         })
         .parse(raw);
+      // Metadata MERGES onto the stored object (the same `||` every other
+      // message metadata write uses): a re-sync of an already-ingested
+      // message hands back only the envelope (`buildEmailMetadata`: from/to/
+      // cc/…), and a wholesale replace dropped the insert-time `sender` /
+      // `isCustomer` the Inbox renders — on every mailbox, every second poll,
+      // because the sync re-fetches the message sitting on its cursor.
       await sql`
         UPDATE app.conversation_messages SET
           external_message_id = ${args.externalMessageId ?? sql.unsafe('external_message_id')},
           delivery_state = ${args.deliveryState ?? sql.unsafe('delivery_state')},
           sent_at_ms = ${args.sentAt ?? sql.unsafe('sent_at_ms')},
           delivered_at_ms = ${args.deliveredAt ?? sql.unsafe('delivered_at_ms')},
-          metadata = ${args.metadata !== undefined ? sql.json(toJson(args.metadata)) : sql.unsafe('metadata')},
+          metadata = ${
+            args.metadata !== undefined
+              ? sql`coalesce(metadata, '{}'::jsonb) || ${sql.json(toJson(args.metadata))}`
+              : sql.unsafe('metadata')
+          },
           retry_count = ${args.retryCount ?? sql.unsafe('retry_count')}
         WHERE id = ${args.messageId}
       `;
       return null;
-    },
-    'conversations/internal_mutations:updateConversations': async (
-      raw: unknown,
-    ) => {
-      const args = z
-        .object({
-          conversationId: z.string().optional(),
-          organizationId: z.string().optional(),
-          status: z.string().optional(),
-          priority: z.string().optional(),
-          updates: z
-            .object({
-              contactId: z.string().optional(),
-              subject: z.string().optional(),
-              status: z.enum(['open', 'closed', 'spam', 'archived']).optional(),
-              priority: z.string().optional(),
-              type: z.string().optional(),
-              metadata: z.record(z.string(), z.unknown()).optional(),
-            })
-            .loose(),
-        })
-        .parse(raw);
-      const updated = await sql<{ id: string }[]>`
-        UPDATE app.conversations SET
-          contact_id = ${args.updates.contactId ?? sql.unsafe('contact_id')},
-          subject = ${args.updates.subject ?? sql.unsafe('subject')},
-          status = ${args.updates.status ?? sql.unsafe('status')},
-          status_changed_at_ms = ${args.updates.status !== undefined ? Date.now() : sql.unsafe('status_changed_at_ms')},
-          priority = ${args.updates.priority ?? sql.unsafe('priority')},
-          type = ${args.updates.type ?? sql.unsafe('type')},
-          metadata = ${args.updates.metadata !== undefined ? sql.json(toJson(args.updates.metadata)) : sql.unsafe('metadata')}
-        WHERE (${args.conversationId ?? null}::text IS NULL
-            OR id = ${args.conversationId ?? null})
-          AND (${args.organizationId ?? null}::text IS NULL
-            OR org_id = ${args.organizationId ?? null})
-          AND (${args.status ?? null}::text IS NULL
-            OR status = ${args.status ?? null})
-          AND (${args.priority ?? null}::text IS NULL
-            OR priority = ${args.priority ?? null})
-          AND (${args.conversationId ?? null}::text IS NOT NULL
-            OR ${args.organizationId ?? null}::text IS NOT NULL)
-        RETURNING id
-      `;
-      return {
-        success: true,
-        updatedCount: updated.length,
-        updatedIds: updated.map((row) => row.id),
-      };
     },
 
     // ------------------------------------------------------------ contacts
@@ -431,6 +389,15 @@ export function conversationShimHandlers(
         .parse(raw);
       const email = args.email.toLowerCase().trim();
       return sql.begin(async (tx) => {
+        // `contacts_org_email` is a plain index, so two overlapping sync
+        // passes that both miss the lookup would both insert. Serialize the
+        // find-or-create per (org, email): the second transaction waits on
+        // the first's commit and its SELECT then sees the row.
+        await tx`
+          SELECT pg_advisory_xact_lock(
+            hashtextextended('contact:' || ${args.organizationId} || ':' || ${email}, 0)
+          )
+        `;
         const existing = await tx<{ id: string }[]>`
           SELECT id FROM app.contacts
           WHERE org_id = ${args.organizationId} AND email = ${email}
@@ -512,12 +479,15 @@ export function conversationShimHandlers(
           id: string;
           organizationId: string;
           conversationId: string | null;
+          documentId: string | null;
+          ragStatus: string | null;
           mailReceivedAt: number | null;
           createdAt: number;
         }[]
       >`
         SELECT id, org_id AS "organizationId",
                conversation_id AS "conversationId",
+               document_id AS "documentId", rag_status AS "ragStatus",
                mail_received_at_ms::float8 AS "mailReceivedAt",
                created_at_ms::float8 AS "createdAt"
         FROM app.file_metadata
@@ -530,16 +500,35 @@ export function conversationShimHandlers(
       const alreadyBound = row.conversationId === args.conversationId;
       const receivedAt = row.mailReceivedAt ?? args.receivedAt ?? row.createdAt;
       const needsReceivedAt = row.mailReceivedAt !== receivedAt;
-      if (alreadyBound && !needsReceivedAt) return 'unchanged';
-      await sql`
-        UPDATE app.file_metadata SET
-          conversation_id = ${alreadyBound ? sql.unsafe('conversation_id') : args.conversationId},
-          mail_received_at_ms = ${needsReceivedAt ? receivedAt : sql.unsafe('mail_received_at_ms')}
-        WHERE id = ${row.id}
-      `;
-      // The 0.4 conversation-scope RAG upgrade rides the conversation-corpus
-      // retrieval leg (still honest-empty in 0.5) — bound, never queued here.
-      return 'bound';
+      // Binding is what STARTS indexing. Materialize registers every emailed
+      // attachment `skip_rag_indexing = true` because at storage time there
+      // is no conversation to scope the corpus row to — an unscoped row would
+      // read as org-wide. The conversation is known here, and retrieval
+      // decides on `file_metadata.conversation_id` (`decideRetrievable`), so
+      // a row that was never queued (`rag_status IS NULL`) is un-skipped,
+      // marked queued and dispatched in the SAME transaction as the binding:
+      // a poll that cannot bind leaves the file unindexed rather than
+      // unscoped, and a row bound before this lane existed is queued on its
+      // next poll. A document's file rides the document's own indexing.
+      const neverQueued = row.ragStatus === null && row.documentId === null;
+      if (alreadyBound && !needsReceivedAt && !neverQueued) return 'unchanged';
+      await sql.begin(async (tx) => {
+        await tx`
+          UPDATE app.file_metadata SET
+            conversation_id = ${alreadyBound ? tx.unsafe('conversation_id') : args.conversationId},
+            mail_received_at_ms = ${needsReceivedAt ? receivedAt : tx.unsafe('mail_received_at_ms')},
+            skip_rag_indexing = ${neverQueued ? false : tx.unsafe('skip_rag_indexing')}
+          WHERE id = ${row.id}
+        `;
+        if (neverQueued) {
+          await markRagQueued(tx, row.id);
+          // Default priority: a mailbox backlog must not outrank an upload
+          // somebody is watching.
+          await addJobInTx(tx, 'rag.index_file', { fileId: row.id });
+        }
+      });
+      if (!neverQueued) return 'bound';
+      return alreadyBound ? 'queued' : 'bound_and_queued';
     },
 
     // -------------------------------------------------------- credentials

@@ -7,6 +7,7 @@ import path from 'node:path';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { buildSessionCookie } from '../../core/enterprise_sso/login/finish_login.ts';
 import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import {
@@ -296,8 +297,32 @@ describe('GET /api/trusted-headers/authenticate — the proxy hand-off door', ()
     expect(
       queries.some((q) => q.text.startsWith('INSERT INTO "session"')),
     ).toBe(false);
+    // …and the cookie is the ONE shared builder's output, byte for byte.
+    expect(res.headers.get('set-cookie')).toBe(
+      await buildSessionCookie(
+        'tok-1',
+        'http://backend-api:3005',
+        'session-signing-secret',
+      ),
+    );
+  });
+
+  it('answers the login page, not a 500, when the session cookie is malformed', async () => {
+    // A stray `%E0` in the cookie value throws URIError out of
+    // decodeURIComponent; that used to escape the route's own error-page
+    // contract as Hono's bare 500. Now it reads as "no cookie": fresh session.
+    const { app, queries } = makeApp(happyScript());
+
+    const res = await request(app, {
+      ...identityHeaders,
+      'Remote-Internal-Secret': 'door-secret',
+      cookie: 'better-auth.session_token=%E0%A4%A',
+    });
+
+    expect(res.status).toBe(200);
+    expect(queries.some((q) => /WHERE "token"/.test(q.text))).toBe(false);
     expect(res.headers.get('set-cookie')).toContain(
-      `better-auth.session_token=${signed}`,
+      'better-auth.session_token=',
     );
   });
 
@@ -317,6 +342,76 @@ describe('GET /api/trusted-headers/authenticate — the proxy hand-off door', ()
     expect(res.headers.get('set-cookie')).toContain(
       'better-auth.session_token=',
     );
+  });
+});
+
+/**
+ * A first proxy user joins the deployment's existing org — the one that
+ * holds an elevated seat. Better Auth seats an org's creator as `owner`
+ * (never `admin`), so matching `admin` alone missed every org created
+ * through sign-up: the first proxy login founded a SECOND org, and every
+ * later proxy user joined that one (it now had an `admin`), splitting the
+ * deployment across two tenants.
+ */
+describe('trustedHeadersAuthenticate — a new user joins the org with an elevated seat', () => {
+  beforeEach(() => {
+    process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'right-secret';
+  });
+
+  const newUser = [
+    { match: /SELECT "id", "name" FROM "user"/, rows: [] },
+    { match: /INSERT INTO "user"/, rows: [{ id: 'user-new' }] },
+  ];
+
+  it('attaches to an org whose only elevated member is its owner', async () => {
+    const { sql, queries } = fakeSql([
+      ...newUser,
+      {
+        match: /FROM "member" WHERE lower\("role"\) = ANY/,
+        rows: [{ organizationId: 'org-owned' }],
+      },
+    ]);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      secret: 'right-secret',
+    });
+
+    expect(result.userId).toBe('user-new');
+    expect(result.organizationId).toBe('org-owned');
+    const seatLookup = queries.find((q) =>
+      /FROM "member" WHERE lower\("role"\) = ANY/.test(q.text),
+    );
+    // Both elevated roles qualify — the creator's `owner` included.
+    expect(seatLookup?.values[0]).toEqual(
+      expect.arrayContaining(['owner', 'admin']),
+    );
+    const joined = queries.find((q) =>
+      q.text.startsWith('INSERT INTO "member"'),
+    );
+    expect(joined?.values).toEqual(
+      expect.arrayContaining(['org-owned', 'user-new']),
+    );
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "organization"')),
+    ).toBe(false);
+  });
+
+  it('founds a default org only when no org has an elevated seat', async () => {
+    const { sql, queries } = fakeSql([
+      ...newUser,
+      { match: /INSERT INTO "organization"/, rows: [{ id: 'org-founded' }] },
+    ]);
+
+    const result = await trustedHeadersAuthenticate(sql, {
+      ...baseArgs,
+      secret: 'right-secret',
+    });
+
+    expect(result.organizationId).toBe('org-founded');
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "organization"')),
+    ).toBe(true);
   });
 });
 
@@ -398,7 +493,6 @@ describe("trustedHeadersAuthenticate — reuse is bound to the browser's own ses
     });
 
     expect(result.sessionToken).toBe('tok-1');
-    expect(result.trustedHeadersChanged).toBe(true);
     const refresh = queries.find((q) => q.text.startsWith('UPDATE "session"'));
     expect(refresh?.values).toContain('admin');
     expect(
@@ -430,7 +524,6 @@ describe("trustedHeadersAuthenticate — reuse is bound to the browser's own ses
       existingSessionToken: 'tok-2',
     });
 
-    expect(result.shouldClearOldSession).toBe(true);
     expect(result.sessionToken).not.toBe('tok-2');
     const killed = queries.find((q) =>
       q.text.startsWith('DELETE FROM "session"'),

@@ -13,11 +13,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MAX_MESSAGE_BYTES,
   PatternRegistry,
   createScrubber,
   detectPii,
   loadPiiData,
   maskPii,
+  pass,
 } from '../../lib/pii';
 import { BUILT_IN_PII_PATTERN_NAMES } from '../../lib/shared/schemas/pii';
 
@@ -210,6 +212,27 @@ describe('createScrubber — mask mode', () => {
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
     expect(o.text).toContain('[DATE_OF_BIRTH]');
+  });
+});
+
+describe('createScrubber — input clamp', () => {
+  const scrubber = createScrubber({ mode: 'mask', patterns: { email: true } });
+
+  it('reports a clamped input as truncated even when nothing matched', () => {
+    // A clean prefix says nothing about the tail past the clamp; a caller
+    // reading a bare pass as "whole input clean" would index that tail.
+    // Word-broken filler: one unbroken 50k-char "word" sends the email
+    // pattern quadratic (each position scans ahead for a `@` that never
+    // comes) and the scan past vitest's 5s budget on a loaded runner.
+    const o = scrubber.scrub(
+      `${'xxxx '.repeat(MAX_MESSAGE_BYTES / 5)}write to ada@example.com`,
+    );
+    expect(o).toEqual(pass(true));
+  });
+
+  it('carries no truncated flag on a pass under the clamp', () => {
+    expect(scrubber.scrub('nothing to see here')).toEqual({ kind: 'pass' });
+    expect(scrubber.scrub('nothing to see here')).not.toEqual(pass(true));
   });
 });
 

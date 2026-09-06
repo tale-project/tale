@@ -6,7 +6,6 @@ import {
   buildBrokerAuthHeaders,
   describeEmptyPool,
   diagnoseTokenMapping,
-  mapTokens,
   parseExpiryMs,
   pickToken,
 } from './broker_pool';
@@ -81,14 +80,16 @@ describe('parseExpiryMs', () => {
   });
 });
 
-describe('diagnoseTokenMapping / mapTokens', () => {
+describe('diagnoseTokenMapping', () => {
   it('maps the happy path, de-duplicating and preserving order', () => {
     const json = pool([
       { access_token: 'tok-a', status: 'active' },
       { access_token: 'tok-b', status: 'active' },
       { access_token: 'tok-a', status: 'active' },
     ]);
-    expect(mapTokens(json, MAPPING, NOW, SKEW)).toEqual(['tok-a', 'tok-b']);
+    expect(diagnoseTokenMapping(json, MAPPING, NOW, SKEW).usableTokens).toEqual(
+      ['tok-a', 'tok-b'],
+    );
   });
 
   it('reports a missed tokensPath', () => {
@@ -141,7 +142,9 @@ describe('diagnoseTokenMapping / mapTokens', () => {
     const json = pool([
       { access_token: 'tok-a', status: 'revoked', expires_at: 0 },
     ]);
-    expect(mapTokens(json, bare, NOW, SKEW)).toEqual(['tok-a']);
+    expect(diagnoseTokenMapping(json, bare, NOW, SKEW).usableTokens).toEqual([
+      'tok-a',
+    ]);
   });
 });
 

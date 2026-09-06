@@ -1,6 +1,6 @@
 ---
 title: Anfragen betroffener Personen
-description: Der Workflow nach DSGVO Artikel 17 zur Löschung der Daten einer Person über Chats, Dokumente, Uploads und Einstellungen hinweg. Admins und Inhaber lesen das, wenn ein Benutzer eine Anfrage stellt oder wenn eine SLA-Frist näher rückt.
+description: Der Workflow nach DSGVO Artikel 17 zur Löschung der Daten einer Person über Chats, Dokumente, Uploads und Einstellungen hinweg.
 ---
 
 Anfragen betroffener Personen ist der Workflow, den Tale für die Einhaltung von DSGVO Artikel 17 (Recht auf Löschung) und das entsprechende CCPA-Recht nach kalifornischem Recht ausliefert. Jede Anfrage wird zu einem Beleg: er nennt die betroffene Person, den Begründungs-Code, die SLA-Frist und die Kaskade von Zeilen, die das System über Threads, Dokumente, Uploads und die übrigen Zeilen hinweg gelöscht hat, die die Person identifizieren. Admins und Inhaber lesen diese Seite, wenn eine Person eine Anfrage stellt, wenn eine Frist näher rückt, oder wenn ein Audit den Beleg einer vergangenen Löschung verlangt.

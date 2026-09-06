@@ -1,6 +1,6 @@
 ---
 title: WebDAV
-description: Monte les documents de ton organisation comme un lecteur réseau dans le Finder, l’Explorateur de fichiers ou n’importe quel client WebDAV — génère un mot de passe applicatif sous Paramètres > API > WebDAV et connecte-toi depuis ton appareil.
+description: Monte les documents de ton organisation comme un lecteur réseau dans le Finder, l’Explorateur de fichiers ou n’importe quel client WebDAV.
 ---
 
 WebDAV transforme le magasin de documents de Tale en un dossier distant que tu montes comme n’importe quel lecteur réseau partagé. Le magasin sous-jacent est le même que celui que montre le hub documentaire — ce que tu déposes dans le dossier monté apparaît dans l’interface, et inversement. Tout ce qu’il te faut tient sur un panneau : **Paramètres > API > WebDAV** porte les détails de connexion et le générateur de mots de passe applicatifs.

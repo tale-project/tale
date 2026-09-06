@@ -1,6 +1,6 @@
 ---
 title: Usage analytics
-description: The dashboard for tokens, cost, and request volume by user, team, model, and agent — with trends and a top-agent leaderboard. Admins and Owners read this when a bill is unexpected or when leadership wants the rough shape of AI spend.
+description: The dashboard for tokens, cost, and request volume by user, team, model, and agent — with trends and a top-agent leaderboard.
 ---
 
 Usage analytics is the dashboard that aggregates every billable AI call into a single view of tokens, cost, and request volume. It slices by user, team, role, model, agent, and time so the unexpected line on the bill is traceable to the workload that drove it. Admins and Owners read this page when a bill is unexpected, when leadership wants the rough shape of AI spend, or when a budget alert fires and the next question is _who and what_.
