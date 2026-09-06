@@ -13,6 +13,10 @@ import {
 import { withoutGraphFileScopes } from '../../core/enterprise_sso/entra_id/constants.ts';
 import { getAdapter } from '../../core/enterprise_sso/registry.ts';
 import { fetchAndParseIdpMetadataImpl } from '../../core/enterprise_sso/saml/parse_metadata.ts';
+import {
+  publicHttpApiUrlFor,
+  siteOrigins,
+} from '../../core/lib/helpers/public_origin.ts';
 import { getPublicHttpApiUrl } from '../../core/lib/helpers/public_storage_url.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -427,6 +431,15 @@ function publicBase(): string | null {
   }
 }
 
+/**
+ * The `/http_api` bases of the NON-canonical site origins — the extra
+ * domains whose callback/ACS URLs the admin must register alongside the
+ * canonical pair. Empty on a single-domain deployment.
+ */
+function extraHttpApiBases(): string[] {
+  return siteOrigins().slice(1).map(publicHttpApiUrlFor);
+}
+
 /** True when any OTHER org on this deployment has an enabled connection —
  * the multi-org state where a domain-less connection is unroutable by email
  * and only reachable via the login page's manual picker. */
@@ -477,6 +490,16 @@ export async function getSsoConnectionView(
     samlSpMetadataUrl: base ? `${base}/api/sso/saml/metadata` : null,
     samlAcsUrl: base ? `${base}/api/sso/saml/acs` : null,
     oidcCallbackUrl: base ? `${base}/api/sso/callback` : null,
+    // Every domain this deployment answers on — the admin registers one
+    // callback/ACS per domain on the IdP, since a browser signing in on one
+    // is returned to that same one. Canonical first; a single-domain
+    // deployment lists exactly the two URLs above.
+    additionalCallbackUrls: extraHttpApiBases().map(
+      (extra) => `${extra}/api/sso/callback`,
+    ),
+    additionalSamlAcsUrls: extraHttpApiBases().map(
+      (extra) => `${extra}/api/sso/saml/acs`,
+    ),
     deployment: {
       siteUrlSet: !!process.env.SITE_URL,
       basePathSet: process.env.BASE_PATH !== undefined,

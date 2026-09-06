@@ -1,8 +1,9 @@
 /**
  * Deployment inputs for Knowledge cloud-import OAuth.
  *
- * Redirect URI is fixed by SITE_URL (same doctrine as connectors). App
- * credentials resolve in order:
+ * Redirect URI is fixed by the deployment's configured site origins (same
+ * doctrine as connectors: the browser's own origin among them, never a raw
+ * `Host`). App credentials resolve in order:
  *   1. CLOUD_IMPORT_MICROSOFT_* / CLOUD_IMPORT_GOOGLE_DRIVE_* (dedicated)
  *   2. AUTH_MICROSOFT_ENTRA_ID_* (login app — Microsoft 365 import only)
  *
@@ -11,6 +12,11 @@
  * single-tenant registrations created after 2018-10-15.
  */
 
+import {
+  canonicalOrigin,
+  publicBaseUrlFor,
+  siteOrigins,
+} from '../lib/helpers/public_origin';
 import type { CloudImportProvider } from './types';
 
 export const CLOUD_IMPORT_OAUTH_CALLBACK_PATH =
@@ -21,21 +27,47 @@ export interface OauthAppCredentials {
   readonly clientSecret: string;
 }
 
-export function resolvePublicBaseUrl(): string | null {
-  const siteUrl = (process.env.SITE_URL ?? '').trim().replace(/\/$/, '');
-  if (!siteUrl) return null;
-  const basePath = (process.env.BASE_PATH ?? '').replace(/\/$/, '');
-  return `${siteUrl}${basePath}`;
+/**
+ * `<origin><BASE_PATH>`, or null when `SITE_URL` is unconfigured. `origin`
+ * is the public origin the browser is on; honoured only when it is one of
+ * the configured site origins, else the canonical one.
+ */
+export function resolvePublicBaseUrl(origin?: string | null): string | null {
+  const canonical = canonicalOrigin();
+  if (canonical === null) return null;
+  const chosen =
+    origin !== undefined && origin !== null && siteOrigins().includes(origin)
+      ? origin
+      : canonical;
+  return publicBaseUrlFor(chosen);
 }
 
-export function resolveCloudImportOauthRedirectUri(): string | null {
-  const base = resolvePublicBaseUrl();
+export function resolveCloudImportOauthRedirectUri(
+  origin?: string | null,
+): string | null {
+  const base = resolvePublicBaseUrl(origin);
   return base === null ? null : `${base}${CLOUD_IMPORT_OAUTH_CALLBACK_PATH}`;
 }
 
-/** Documents page after a successful (or failed) authorization. */
-export function resolveDocumentsUrl(organizationId: string): string | null {
-  const base = resolvePublicBaseUrl();
+/**
+ * The `<origin><BASE_PATH>` a cloud-import redirect URI we minted was built
+ * on, so the callback returns the browser to the domain it started on.
+ */
+export function publicBaseFromCloudImportRedirectUri(
+  redirectUri: string,
+): string | null {
+  if (!redirectUri.endsWith(CLOUD_IMPORT_OAUTH_CALLBACK_PATH)) return null;
+  return redirectUri.slice(0, -CLOUD_IMPORT_OAUTH_CALLBACK_PATH.length);
+}
+
+/**
+ * Documents page after a successful (or failed) authorization. `base` is the
+ * `<origin><BASE_PATH>` of the flow; omitted, the canonical one.
+ */
+export function resolveDocumentsUrl(
+  organizationId: string,
+  base: string | null = resolvePublicBaseUrl(),
+): string | null {
   return base === null
     ? null
     : `${base}/dashboard/${encodeURIComponent(organizationId)}/documents`;

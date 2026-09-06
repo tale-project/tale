@@ -1,11 +1,11 @@
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
+import { publicOrigin } from '../../lib/helpers/public_origin';
 import {
   buildFlowCookie,
   hashFlowNonce,
   newFlowNonce,
 } from '../login/flow_cookie';
-import { publicOrigin } from '../login/public_origin';
 import { redirectWithError } from '../login/redirect_with_error';
 import { samlEndpoints } from './metadata_handler';
 import { buildRelayState } from './relay_state';
@@ -24,7 +24,7 @@ export async function samlLoginHandler(
 ): Promise<Response> {
   try {
     const org = new URL(req.url).searchParams.get('org') ?? undefined;
-    const browserOrigin = publicOrigin(req.url);
+    const browserOrigin = publicOrigin(req);
     const config = await ctx.runQuery(
       internal.enterprise_sso.internal_queries.resolveSamlConfig,
       { organizationId: org },
@@ -37,7 +37,10 @@ export async function samlLoginHandler(
     if (!config) {
       return new Response('SAML is not configured', { status: 404 });
     }
-    const { spEntityId, acsUrl } = samlEndpoints();
+    // The ACS the IdP must post back to is THIS browser's origin — the
+    // flow cookie set below lives there, and the metadata advertises one
+    // ACS per configured site origin so the IdP accepts each of them.
+    const { spEntityId, acsUrl } = samlEndpoints(browserOrigin);
     const flowNonce = newFlowNonce();
     const result = await ctx.runAction(
       internal.enterprise_sso.saml.validate_assertion.buildSamlAuthnRedirect,

@@ -12,9 +12,11 @@ import {
   cloudImportMicrosoftTenantMissingEnvNames,
   cloudImportOauthMissingEnvNames,
   microsoftCloudImportOauthUrls,
+  publicBaseFromCloudImportRedirectUri,
   resolveCloudImportOauthRedirectUri,
   resolveDocumentsUrl,
   resolveMicrosoftCloudImportTenantId,
+  resolvePublicBaseUrl,
 } from '../../core/cloud_import/deployment_config.ts';
 import {
   getCloudImportProviderEndpoints,
@@ -36,6 +38,7 @@ import {
   mintStateToken,
 } from '../../core/http_connectors/oauth_state.ts';
 import { exchangeAuthorizationCode } from '../../core/http_connectors/token_exchange.ts';
+import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import {
   getCloudImportAppStatus,
   resolveCloudImportApp,
@@ -73,17 +76,28 @@ function plainText(body: string, status: number): Response {
   });
 }
 
+/** `base` keeps the "back to Documents" link on the browser's own domain. */
 function errorPage(
   kind: ConnectorErrorKind,
   organizationId?: string,
+  base: string | null = null,
 ): Response {
   const back =
-    organizationId !== undefined ? resolveDocumentsUrl(organizationId) : null;
+    organizationId !== undefined
+      ? resolveDocumentsUrl(organizationId, base ?? resolvePublicBaseUrl())
+      : null;
   return renderConnectorErrorPage(kind, back);
 }
 
-function successRedirect(organizationId: string, provider: string): Response {
-  const base = resolveDocumentsUrl(organizationId);
+function successRedirect(
+  organizationId: string,
+  provider: string,
+  publicBase: string | null = null,
+): Response {
+  const base = resolveDocumentsUrl(
+    organizationId,
+    publicBase ?? resolvePublicBaseUrl(),
+  );
   if (!base) {
     return plainText('Authorization saved. Return to Documents.', 200);
   }
@@ -202,7 +216,11 @@ export function createCloudImportOauthRoutes(deps: {
     }
     const provider = providerRaw;
 
-    const redirectUri = resolveCloudImportOauthRedirectUri();
+    // The grant returns to the domain it started on — the session the
+    // callback re-checks lives there.
+    const origin = publicOrigin(c.req.raw);
+    const publicBase = resolvePublicBaseUrl(origin);
+    const redirectUri = resolveCloudImportOauthRedirectUri(origin);
     if (!redirectUri) {
       console.error(
         '[cloud-import:oauth2] SITE_URL is unset — refusing OAuth redirect URI derivation',
@@ -240,7 +258,7 @@ export function createCloudImportOauthRoutes(deps: {
       console.error(
         `[cloud-import:oauth2] no OAuth app for "${provider}": configure one under Settings > Connectors, or set ${cloudImportOauthMissingEnvNames(provider)} on the deployment`,
       );
-      return errorPage('not_configured', organizationId);
+      return errorPage('not_configured', organizationId, publicBase);
     }
     const resolved = await resolveProviderEndpoints(
       deps.sql,
@@ -249,7 +267,7 @@ export function createCloudImportOauthRoutes(deps: {
       oauthApp.tenantId,
     );
     if (!resolved.ok) {
-      return errorPage('not_configured', organizationId);
+      return errorPage('not_configured', organizationId, publicBase);
     }
 
     const pkce = await generatePkcePair();
@@ -279,7 +297,7 @@ export function createCloudImportOauthRoutes(deps: {
           error instanceof Error ? error.name : 'unknown'
         })`,
       );
-      return errorPage('not_configured', organizationId);
+      return errorPage('not_configured', organizationId, publicBase);
     }
     return c.redirect(authorizeUrl, 302);
   });
@@ -307,6 +325,11 @@ export function createCloudImportOauthRoutes(deps: {
     }
     const { organizationId, userId, provider, codeVerifier, redirectUri } =
       pending;
+    // The domain the flow started on, recovered from the redirect URI the
+    // state row carries — every page below returns the browser there.
+    const publicBase =
+      publicBaseFromCloudImportRedirectUri(redirectUri) ??
+      resolvePublicBaseUrl();
 
     // The state names who STARTED the flow; the session on the returning
     // browser is who is completing it. They must match, or a forwarded
@@ -325,7 +348,7 @@ export function createCloudImportOauthRoutes(deps: {
     }
 
     if (vendorError !== undefined || code === undefined) {
-      return errorPage('vendor_declined', organizationId);
+      return errorPage('vendor_declined', organizationId, publicBase);
     }
     const oauthApp = await resolveCloudImportApp(
       deps.sql,
@@ -333,7 +356,7 @@ export function createCloudImportOauthRoutes(deps: {
       provider,
     );
     if (!oauthApp) {
-      return errorPage('not_configured', organizationId);
+      return errorPage('not_configured', organizationId, publicBase);
     }
     const resolved = await resolveProviderEndpoints(
       deps.sql,
@@ -342,7 +365,7 @@ export function createCloudImportOauthRoutes(deps: {
       oauthApp.tenantId,
     );
     if (!resolved.ok) {
-      return errorPage('not_configured', organizationId);
+      return errorPage('not_configured', organizationId, publicBase);
     }
 
     const exchange = await exchangeAuthorizationCode({
@@ -363,6 +386,7 @@ export function createCloudImportOauthRoutes(deps: {
           ? 'vendor_declined'
           : 'vendor_unreachable',
         organizationId,
+        publicBase,
       );
     }
 
@@ -391,9 +415,9 @@ export function createCloudImportOauthRoutes(deps: {
           error instanceof Error ? error.name : 'unknown'
         })`,
       );
-      return errorPage('storage_failed', organizationId);
+      return errorPage('storage_failed', organizationId, publicBase);
     }
-    return successRedirect(organizationId, provider);
+    return successRedirect(organizationId, provider, publicBase);
   });
 
   return app;

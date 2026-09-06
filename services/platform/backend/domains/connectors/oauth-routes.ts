@@ -12,8 +12,12 @@ import {
   type AuthEnv,
   type SessionBundle,
 } from '../../auth/session.ts';
-import { resolveConnectorSettingsUrl } from '../../core/http_connectors/deployment_config.ts';
+import {
+  resolveConnectorSettingsUrl,
+  resolvePublicBaseUrl,
+} from '../../core/http_connectors/deployment_config.ts';
 import { renderConnectorErrorPage } from '../../core/http_connectors/error_page.ts';
+import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { completeOauth2, startOauth2 } from './oauth.ts';
 
 /**
@@ -40,15 +44,21 @@ export function createConnectorOauthRoutes(deps: {
 }): Hono<AuthEnv> {
   const app = new Hono<AuthEnv>();
 
+  /** The error page's "back to settings" link stays on the domain the
+   * browser is on — `base` is that origin's public base when known. */
   const errorPage = (
     kind: Parameters<typeof renderConnectorErrorPage>[0],
     organizationId?: string,
+    base: string | null = null,
   ): Response =>
     renderConnectorErrorPage(
       kind,
       organizationId === undefined
         ? null
-        : resolveConnectorSettingsUrl(organizationId),
+        : resolveConnectorSettingsUrl(
+            organizationId,
+            base ?? resolvePublicBaseUrl(),
+          ),
     );
 
   const plainText = (body: string, status: 401 | 403): Response =>
@@ -89,13 +99,21 @@ export function createConnectorOauthRoutes(deps: {
       );
     }
 
+    // The consent flow returns to the domain it started on: the session
+    // cookie the callback needs lives there, not on the canonical origin.
+    const origin = publicOrigin(c.req.raw);
     const outcome = await startOauth2(deps.sql, {
       connectorSlug,
       organizationId,
       userId,
+      publicOrigin: origin,
     });
     if (outcome.kind === 'error') {
-      return errorPage(outcome.error, organizationId);
+      return errorPage(
+        outcome.error,
+        organizationId,
+        resolvePublicBaseUrl(origin),
+      );
     }
     return new Response(null, {
       status: 302,
@@ -122,7 +140,11 @@ export function createConnectorOauthRoutes(deps: {
       requesterUserId: session?.user.id ?? null,
     });
     if (outcome.kind === 'error') {
-      return errorPage(outcome.error, outcome.organizationId);
+      return errorPage(
+        outcome.error,
+        outcome.organizationId,
+        resolvePublicBaseUrl(publicOrigin(c.req.raw)),
+      );
     }
     return new Response(null, {
       status: 302,

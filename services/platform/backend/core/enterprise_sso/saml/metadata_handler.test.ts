@@ -33,6 +33,7 @@ describe('samlMetadataHandler — SP KeyDescriptor', () => {
 
   afterEach(() => {
     delete process.env.SITE_URL;
+    delete process.env.ADDITIONAL_SITE_URLS;
   });
 
   it('advertises the SP certificate for both signing and encryption', async () => {
@@ -61,6 +62,61 @@ describe('samlMetadataHandler — SP KeyDescriptor', () => {
       '<X509Certificate>MIIBspcertbodyMIIBsecondline</X509Certificate>',
       '<X509Certificate>MIIBspcertbodyMIIBsecondline</X509Certificate>',
     ]);
+  });
+
+  it('advertises one ACS per configured site origin, canonical first', async () => {
+    // A browser signs in on the domain it is on and the IdP must post the
+    // assertion back to THAT domain's ACS — so every configured origin needs
+    // its own AssertionConsumerService in the metadata the admin imports.
+    process.env.ADDITIONAL_SITE_URLS = 'https://tale.partner.example';
+    try {
+      const res = await samlMetadataHandler(
+        ctxWith({
+          organizationId: 'org-1',
+          idpEntityId: 'https://idp.example.com/entity',
+          idpSsoUrl: 'https://idp.example.com/sso',
+          idpCertificate: 'unused',
+        }),
+        request,
+      );
+      const xml = await res.text();
+      const locations = [
+        ...xml.matchAll(/<AssertionConsumerService[^>]*Location="([^"]+)"/g),
+      ].map((m) => m[1]);
+      expect(locations).toEqual([
+        'https://app.example.com/http_api/api/sso/saml/acs',
+        'https://tale.partner.example/http_api/api/sso/saml/acs',
+      ]);
+      // Exactly one default, and it is the canonical domain.
+      expect(xml.match(/isDefault="true"/g)).toHaveLength(1);
+      expect(xml).toContain(
+        'Location="https://app.example.com/http_api/api/sso/saml/acs" index="0" isDefault="true"',
+      );
+      // The SP entityID stays ONE stable value — the IdP knows the SP by it.
+      expect(
+        xml.match(/entityID="https:\/\/app\.example\.com[^"]*"/g),
+      ).toHaveLength(1);
+      expect(xml).not.toContain('entityID="https://tale.partner.example');
+    } finally {
+      delete process.env.ADDITIONAL_SITE_URLS;
+    }
+  });
+
+  it('advertises exactly one ACS on a single-domain deployment', async () => {
+    const res = await samlMetadataHandler(
+      ctxWith({
+        organizationId: 'org-1',
+        idpEntityId: 'https://idp.example.com/entity',
+        idpSsoUrl: 'https://idp.example.com/sso',
+        idpCertificate: 'unused',
+      }),
+      request,
+    );
+    const xml = await res.text();
+    expect(xml.match(/<AssertionConsumerService/g)).toHaveLength(1);
+    expect(xml).toContain(
+      'Location="https://app.example.com/http_api/api/sso/saml/acs" index="0" isDefault="true"',
+    );
   });
 
   it('emits no KeyDescriptor when the connection has no SP certificate', async () => {

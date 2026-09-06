@@ -1,5 +1,6 @@
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
+import { publicOrigin } from '../../lib/helpers/public_origin';
 import { type FinishLogin } from '../login/finish_login';
 import {
   clearFlowCookie,
@@ -8,7 +9,6 @@ import {
   SSO_FLOW_MISMATCH_KEY,
 } from '../login/flow_cookie';
 import { recordSsoLoginFailure } from '../login/login_audit';
-import { publicOrigin } from '../login/public_origin';
 import { mapSamlIdentity } from './attributes';
 import { samlEndpoints } from './metadata_handler';
 import { parseRelayState } from './relay_state';
@@ -36,11 +36,12 @@ export async function samlAcsHandler(
   req: Request,
   deps: { finishLogin: FinishLogin },
 ): Promise<Response> {
-  // The PUBLIC origin, never the internal request origin: it decides the
-  // session cookie's __Secure- shape and where every redirect lands (the
-  // OIDC handlers' posture — behind the proxy `req.url` is the unreachable
+  // The PUBLIC origin the browser is on, never the internal request origin:
+  // it decides the session cookie's __Secure- shape, which ACS URL the
+  // assertion is validated against and where every redirect lands (the OIDC
+  // handlers' posture — behind the proxy `req.url` is the unreachable
   // internal upstream, and `http` even on TLS deployments).
-  const origin = publicOrigin(req.url);
+  const origin = publicOrigin(req);
   const response = await consumeAssertion(ctx, req, deps, origin);
   // The flow cookie is single-use, whatever the verdict.
   if (hasFlowCookie(req.headers.get('cookie'), origin)) {
@@ -102,7 +103,10 @@ async function consumeAssertion(
     }
 
     resolvedOrganizationId = config.organizationId;
-    const { spEntityId, acsUrl } = samlEndpoints();
+    // Validated against the ACS on the origin the IdP actually posted to —
+    // the one the login door asked for (SP-initiated) or the one the IdP has
+    // registered (IdP-initiated); each configured site origin has its own.
+    const { spEntityId, acsUrl } = samlEndpoints(origin);
     const secrets = await ctx.runAction(
       internal.enterprise_sso.config.file_actions.getConnectionSecrets,
       { organizationId: config.organizationId },

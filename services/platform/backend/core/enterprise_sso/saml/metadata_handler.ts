@@ -1,14 +1,40 @@
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
+import {
+  publicHttpApiUrlFor,
+  siteOrigins,
+} from '../../lib/helpers/public_origin';
 import { getPublicHttpApiUrl } from '../../lib/helpers/public_storage_url';
 
-/** Public SP entityID + ACS URL, derived from SITE_URL (stable, paste into IdP). */
-export function samlEndpoints(): { spEntityId: string; acsUrl: string } {
-  const base = getPublicHttpApiUrl();
+/**
+ * Public SP entityID + ACS URL to paste into the IdP. The entityID is ONE
+ * stable value derived from the canonical SITE_URL — an IdP knows the SP by
+ * it. The ACS URL is per site origin: a multi-domain deployment posts the
+ * assertion back to the domain the browser started on (its flow cookie lives
+ * there), so `origin` selects that domain's ACS; without it the canonical
+ * one is returned.
+ */
+export function samlEndpoints(origin?: string): {
+  spEntityId: string;
+  acsUrl: string;
+} {
+  const canonicalBase = getPublicHttpApiUrl();
+  const acsBase = origin ? publicHttpApiUrlFor(origin) : canonicalBase;
   return {
-    spEntityId: `${base}/api/sso/saml/metadata`,
-    acsUrl: `${base}/api/sso/saml/acs`,
+    spEntityId: `${canonicalBase}/api/sso/saml/metadata`,
+    acsUrl: `${acsBase}/api/sso/saml/acs`,
   };
+}
+
+/**
+ * Every ACS URL this deployment answers on, canonical first — one per
+ * configured site origin, so the metadata registers each domain's reply URL
+ * with the IdP in one import.
+ */
+export function samlAcsUrls(): string[] {
+  const origins = siteOrigins();
+  if (origins.length === 0) return [samlEndpoints().acsUrl];
+  return origins.map((origin) => samlEndpoints(origin).acsUrl);
 }
 
 function pemToBase64(pem: string): string {
@@ -38,7 +64,15 @@ export async function samlMetadataHandler(
     // ambiguous (multi-org, no `org` param) lookup serves the generic defaults,
     // same as no connection at all.
     const config = resolved === 'ambiguous' ? null : resolved;
-    const { spEntityId, acsUrl } = samlEndpoints();
+    const { spEntityId } = samlEndpoints();
+    // One ACS per configured site origin; the canonical one is index 0 and
+    // the default an IdP-initiated flow posts to.
+    const acsServices = samlAcsUrls()
+      .map(
+        (acsUrl, index) =>
+          `<AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${acsUrl}" index="${index}"${index === 0 ? ' isDefault="true"' : ''}/>`,
+      )
+      .join('\n    ');
     const wantSigned = config?.wantAssertionsSigned ?? true;
 
     // The one SP certificate serves both purposes — node-saml signs the
@@ -63,7 +97,7 @@ export async function samlMetadataHandler(
   <SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="${wantSigned}" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
     ${keyDescriptor}
     <NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</NameIDFormat>
-    <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${acsUrl}" index="0" isDefault="true"/>
+    ${acsServices}
   </SPSSODescriptor>
 </EntityDescriptor>`;
 

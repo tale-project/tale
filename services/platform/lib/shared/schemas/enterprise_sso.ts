@@ -188,6 +188,11 @@ export const ssoConnectionViewSchema = z.object({
   samlSpMetadataUrl: z.string().nullable(),
   samlAcsUrl: z.string().nullable(),
   oidcCallbackUrl: z.string().nullable(),
+  /** The same endpoints on the deployment's ADDITIONAL_SITE_URLS domains —
+   * each must be registered on the IdP too, since a browser is returned to
+   * the domain it signed in on. Empty on a single-domain deployment. */
+  additionalCallbackUrls: z.array(z.string()).optional(),
+  additionalSamlAcsUrls: z.array(z.string()).optional(),
   /** Deployment env prerequisites the admin form warns on (server-read). */
   deployment: z
     .object({

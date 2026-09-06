@@ -8,6 +8,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { resolveCloudImportOauthRedirectUri } from '../../core/cloud_import/deployment_config.ts';
 import { MICROSOFT_CLOUD_IMPORT_SCOPES } from '../../core/cloud_import/providers.ts';
+import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import {
   CLOUD_IMPORT_APP_SLUGS,
   deleteOauthApp,
@@ -83,7 +84,9 @@ export function createConnectorOauthAppRoutes(deps: {
       available: true,
       clientId: source.clientId,
       tenantId: source.tenantId,
-      redirectUri: resolveCloudImportOauthRedirectUri(),
+      // The admin is looking at this from one of the deployment's domains;
+      // serve THAT domain's callback, the one an import started here uses.
+      redirectUri: resolveCloudImportOauthRedirectUri(publicOrigin(c.req.raw)),
       scopes: [...MICROSOFT_CLOUD_IMPORT_SCOPES],
     });
   });

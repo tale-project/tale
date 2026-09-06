@@ -7,6 +7,7 @@ const REQUEST = 'http://127.0.0.1:3211/api/sso/authorize';
 describe('allowedRedirectOrigin', () => {
   afterEach(() => {
     delete process.env.SITE_URL;
+    delete process.env.ADDITIONAL_SITE_URLS;
   });
 
   it('accepts the SITE_URL origin (trailing slash and path ignored)', () => {
@@ -26,6 +27,36 @@ describe('allowedRedirectOrigin', () => {
     expect(
       allowedRedirectOrigin('http://127.0.0.1:3211/api/sso/callback', REQUEST),
     ).toBe('http://127.0.0.1:3211');
+  });
+
+  it('accepts an ADDITIONAL_SITE_URLS origin — the login page passes the one the browser is on', () => {
+    process.env.SITE_URL = 'https://app.example.com';
+    process.env.ADDITIONAL_SITE_URLS =
+      'https://tale.partner.example, https://app.other.example';
+    expect(
+      allowedRedirectOrigin(
+        'https://tale.partner.example/http_api/api/sso/callback',
+        REQUEST,
+      ),
+    ).toBe('https://tale.partner.example');
+    expect(allowedRedirectOrigin('https://app.other.example/x', REQUEST)).toBe(
+      'https://app.other.example',
+    );
+  });
+
+  it('still refuses a domain that is not configured, with extras set', () => {
+    process.env.SITE_URL = 'https://app.example.com';
+    process.env.ADDITIONAL_SITE_URLS = 'https://tale.partner.example';
+    expect(
+      allowedRedirectOrigin('https://evil.example/x', REQUEST),
+    ).toBeUndefined();
+    // A look-alike of a configured extra is not the extra.
+    expect(
+      allowedRedirectOrigin(
+        'https://tale.partner.example.evil.example/x',
+        REQUEST,
+      ),
+    ).toBeUndefined();
   });
 
   it('refuses every other origin, a different port or scheme included', () => {

@@ -5,12 +5,16 @@
  *
  * Two rules shape this module.
  *
- * The redirect target is FIXED BY THE DEPLOYMENT. It is derived from `SITE_URL`
- * (plus `BASE_PATH`) and never from a request parameter, a `Host` header, or
- * anything else a caller controls — an OAuth callback that can be pointed
- * elsewhere is an open redirect that leaks authorization codes. An unset
- * `SITE_URL` is refused rather than guessed from the request: guessing is what
- * makes `Host`-header injection work.
+ * The redirect target is FIXED BY THE DEPLOYMENT. It is one of the configured
+ * site origins — `SITE_URL` or an `ADDITIONAL_SITE_URLS` entry — plus
+ * `BASE_PATH`, and never a request parameter, a raw `Host` header, or anything
+ * else a caller controls: an OAuth callback that can be pointed elsewhere is an
+ * open redirect that leaks authorization codes. On a multi-domain deployment
+ * the door picks the configured origin the browser is on (its session cookie
+ * lives there, and the callback must land where the session is), so the
+ * request decides WHICH of the deployment's own origins — never a new one. An
+ * unset `SITE_URL` is refused rather than guessed from the request: guessing
+ * is what makes `Host`-header injection work.
  *
  * App credentials live ONLY in environment variables. The connector file
  * declares the vendor's endpoints and scopes; the client id/secret identify
@@ -28,35 +32,64 @@
  *   CONNECTOR_SLACK_SIGNING_SECRET
  */
 
+import {
+  canonicalOrigin,
+  publicBaseUrlFor,
+  siteOrigins,
+} from '../lib/helpers/public_origin';
+
 /** Path of the OAuth2 callback, as registered with every vendor. */
 export const OAUTH_CALLBACK_PATH = '/api/connectors/oauth2/callback';
 
 /** Env var carrying the Slack app's request-signing secret. */
 export const SLACK_SIGNING_SECRET_ENV = 'CONNECTOR_SLACK_SIGNING_SECRET';
 
-/** `<SITE_URL><BASE_PATH>`, trailing slash trimmed, or null when unconfigured. */
-export function resolvePublicBaseUrl(): string | null {
-  const siteUrl = (process.env.SITE_URL ?? '').trim().replace(/\/$/, '');
-  if (!siteUrl) return null;
-  const basePath = (process.env.BASE_PATH ?? '').replace(/\/$/, '');
-  return `${siteUrl}${basePath}`;
+/**
+ * `<origin><BASE_PATH>`, or null when `SITE_URL` is unconfigured. `origin`
+ * is the public origin the browser is on (`publicOrigin(req)`); it is used
+ * only when it is one of the configured site origins, otherwise — and when
+ * omitted — the canonical `SITE_URL` origin stands.
+ */
+export function resolvePublicBaseUrl(origin?: string | null): string | null {
+  const canonical = canonicalOrigin();
+  if (canonical === null) return null;
+  const chosen =
+    origin !== undefined && origin !== null && siteOrigins().includes(origin)
+      ? origin
+      : canonical;
+  return publicBaseUrlFor(chosen);
 }
 
 /**
  * The absolute `redirect_uri` handed to the vendor and replayed at the token
- * exchange. Null when `SITE_URL` is unset — the caller refuses the flow, since
- * every alternative source for this value is attacker-influenceable.
+ * exchange, on the browser's own site origin. Null when `SITE_URL` is unset —
+ * the caller refuses the flow, since every alternative source for this value
+ * is attacker-influenceable.
  */
-export function resolveOauthRedirectUri(): string | null {
-  const base = resolvePublicBaseUrl();
+export function resolveOauthRedirectUri(origin?: string | null): string | null {
+  const base = resolvePublicBaseUrl(origin);
   return base === null ? null : `${base}${OAUTH_CALLBACK_PATH}`;
 }
 
-/** Where the browser lands after a completed (or refused) connection attempt. */
+/**
+ * The `<origin><BASE_PATH>` a redirect URI we minted was built on — the
+ * start door's site origin, recovered from the state row at callback time so
+ * the browser returns to the domain it started on.
+ */
+export function publicBaseFromRedirectUri(redirectUri: string): string | null {
+  if (!redirectUri.endsWith(OAUTH_CALLBACK_PATH)) return null;
+  return redirectUri.slice(0, -OAUTH_CALLBACK_PATH.length);
+}
+
+/**
+ * Where the browser lands after a completed (or refused) connection attempt.
+ * `base` is the `<origin><BASE_PATH>` of the flow (from its redirect URI or
+ * the request's public origin); omitted, the canonical one.
+ */
 export function resolveConnectorSettingsUrl(
   organizationId: string,
+  base: string | null = resolvePublicBaseUrl(),
 ): string | null {
-  const base = resolvePublicBaseUrl();
   return base === null
     ? null
     : `${base}/dashboard/${encodeURIComponent(organizationId)}/settings/connectors`;

@@ -11,8 +11,8 @@ import {
   buildSessionCookie,
   sessionCookieName,
 } from '../../core/enterprise_sso/login/finish_login.ts';
-import { publicOrigin } from '../../core/enterprise_sso/login/public_origin.ts';
 import { verifySignedValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
+import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
@@ -316,7 +316,7 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
     // Public origin, not the internal request origin — this door lives
     // behind a reverse-proxy chain by definition, and the origin decides the
     // __Secure-/Secure cookie shape Better Auth will read back.
-    const frontendOrigin = publicOrigin(c.req.url);
+    const frontendOrigin = publicOrigin(c.req.raw);
     const basePath = process.env.BASE_PATH || '';
     const redirectTo = sanitizeInternalRedirect(
       url.searchParams.get('redirect'),

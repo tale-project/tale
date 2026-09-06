@@ -172,6 +172,10 @@ export interface EnterpriseSsoContract {
       samlSpMetadataUrl: null | string;
       samlAcsUrl: null | string;
       oidcCallbackUrl: null | string;
+      /** The same endpoints on each additional site domain (empty when the
+       * deployment serves one domain). */
+      additionalCallbackUrls?: string[];
+      additionalSamlAcsUrls?: string[];
       deployment?: {
         siteUrlSet: boolean;
         basePathSet: boolean;
