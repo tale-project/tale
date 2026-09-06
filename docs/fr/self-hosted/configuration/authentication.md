@@ -38,7 +38,7 @@ C'est le mode pour les équipes qui font déjà tourner un IdP et veulent leur s
 
 ## Trusted headers
 
-Trusted headers est le mode pour les sites qui terminent SSO sur un reverse proxy en amont — oauth2-proxy, Pomerium, Authelia. Le proxy authentifie l'utilisateur et transmet les en-têtes d'identification (`X-Auth-Request-Email`, `X-Auth-Request-Preferred-Username`) ; Tale fait confiance à ces en-têtes et crée ou met à jour l'enregistrement utilisateur à la volée.
+Trusted headers est le mode pour les sites qui terminent SSO sur un reverse proxy en amont — oauth2-proxy, Pomerium, Authelia. Le proxy authentifie l'utilisateur et transmet des en-têtes d'identité ; Tale lit par défaut `Remote-Email`, `Remote-Name`, `Remote-Role` et `Remote-Teams`, leur fait confiance et crée ou met à jour l'enregistrement utilisateur à la volée. Si ton proxy nomme ses en-têtes autrement (oauth2-proxy envoie `X-Auth-Request-Email`), fais correspondre les noms avec les variables `TRUSTED_*_HEADER` de la [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference).
 
 ```bash
 # .env
@@ -47,6 +47,8 @@ TRUSTED_HEADERS_INTERNAL_SECRET=<longue valeur aléatoire>
 ```
 
 Le secret n'est pas optionnel : n'importe qui capable de joindre le backend peut forger les en-têtes d'identité, donc l'endpoint refuse de fonctionner tant que `TRUSTED_HEADERS_INTERNAL_SECRET` n'est pas défini. Configure le proxy authentifiant pour qu'il envoie la même valeur dans l'en-tête `Remote-Internal-Secret` sur chaque requête transmise à Tale (renomme l'en-tête via `TRUSTED_SECRET_HEADER` si ton proxy impose ses propres noms) — une requête qui arrive sans la valeur attendue est refusée avant toute recherche d'utilisateur.
+
+`Remote-Teams` porte les appartenances aux équipes sous forme d'entrées `id:name` séparées par des virgules — `t-fin:Finance, t-ops:Operations`. À chaque connexion, Tale crée dans l'organisation chaque équipe nommée qui n'existe pas encore et y ajoute l'utilisateur ; une équipe que l'en-tête ne nomme plus, il la quitte. La synchronisation ne touche qu'aux appartenances qu'elle a elle-même accordées — celle qu'un admin a attribuée à la main reste. Omets l'en-tête pour que Tale ne gère pas les équipes ; envoie-le présent mais vide pour révoquer toutes les appartenances accordées par le proxy. Une valeur présente sans aucune entrée `id:name` (des noms seuls, par exemple) compte comme vide et laisse un avertissement dans les logs du conteneur plateforme — regarde-les si des utilisateurs perdent leurs équipes après un changement de proxy.
 
 Le modèle de menace reste délicat. Tout ce qui peut joindre le conteneur plateforme avec ces en-têtes **et** le secret devient l'utilisateur qu'ils nomment. Restreins le port plateforme pour que seul le proxy puisse lui parler (un réseau Docker ou une règle firewall hôte), et n'expose jamais le conteneur plateforme directement à Internet quand ce mode est actif.
 

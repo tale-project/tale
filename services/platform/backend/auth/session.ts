@@ -1,4 +1,4 @@
-import type { Context, MiddlewareHandler } from 'hono';
+import type { MiddlewareHandler } from 'hono';
 
 import type { Auth } from './auth.ts';
 
@@ -34,8 +34,4 @@ export function requireSession<E extends AuthEnv>(
     c.set('sessionBundle', bundle);
     return next();
   };
-}
-
-export function getSessionBundle(c: Context<AuthEnv>): SessionBundle {
-  return c.get('sessionBundle');
 }

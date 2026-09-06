@@ -18,6 +18,12 @@ export const RUNNERD_RING_BUFFER_BYTES = 256 * 1024;
  * are unaffected); it reconnects via /attach?sinceSeq= and replays from the
  * bounded ring. Not a stream cap — it bounds memory, never truncates output. */
 export const RUNNERD_CONSUMER_BUFFER_MAX_BYTES = 8 * 1024 * 1024;
+/** Cap on ONE request body runnerd accepts, on every route. The spawner's own
+ * SANDBOX_MAX_REQUEST_BODY_BYTES is clamped to this at boot, so a stage batch
+ * the spawner accepted (inline base64 content for a skill bundle chunk) can
+ * never be refused here as oversize; over it runnerd answers 413
+ * payload_too_large, never a misleading 400 bad_request. */
+export const RUNNERD_MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024;
 export const RUNNERD_ENV_MAX_ENTRIES = 128;
 export const RUNNERD_ENV_MAX_VALUE_BYTES = 32 * 1024;
 

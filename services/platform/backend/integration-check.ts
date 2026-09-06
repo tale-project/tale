@@ -13339,18 +13339,36 @@ async function checkScim(
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
-  const before = z
-    .object({ enabled: z.boolean() })
-    .loose()
-    .safeParse(await (await admin('')).json());
+  // SCIM status rides the SSO settings view — the only reader the admin UI
+  // has; the token surface itself is regenerate / disable.
+  const scimStatus = async (): Promise<
+    | { success: true; data: { enabled: boolean; tokenPrefix: string | null } }
+    | { success: false }
+  > => {
+    const parsed = z
+      .object({
+        scim: z
+          .object({ enabled: z.boolean(), tokenPrefix: z.string().nullable() })
+          .loose(),
+      })
+      .loose()
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/sso/config?orgId=${orgId}`, {
+            headers: { cookie, origin: base },
+          })
+        ).json(),
+      );
+    return parsed.success
+      ? { success: true, data: parsed.data.scim }
+      : { success: false };
+  };
+  const before = await scimStatus();
   const minted = z
     .object({ token: z.string(), tokenPrefix: z.string() })
     .safeParse(await (await admin('/regenerate-token', {})).json());
   const token = minted.success ? minted.data.token : '';
-  const after = z
-    .object({ enabled: z.boolean(), tokenPrefix: z.string() })
-    .loose()
-    .safeParse(await (await admin('')).json());
+  const after = await scimStatus();
 
   const scim = (
     route: string,
@@ -13596,8 +13614,38 @@ async function checkScim(
   );
 
   // ---- hard DELETE (RFC 7644 §3.6) ---------------------------------------
+  // The user sits in an admin-built team (with SSO-sync provenance, as a
+  // group claim would leave it): DELETE must take the membership's whole
+  // per-org footprint with it, or the IdP's next POST — which re-attaches
+  // the existing user — puts them straight back into the team.
+  const cascadeTeamId = randomUUID();
+  await sql`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (${cascadeTeamId}, 'Cascade Crew', ${orgId}, now(), now())
+  `;
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (${randomUUID()}, ${cascadeTeamId}, ${scimUserId || '-'}, now())
+  `;
+  await sql`
+    INSERT INTO app.sso_synced_team_members (
+      org_id, team_id, user_id, created_at_ms
+    ) VALUES (${orgId}, ${cascadeTeamId}, ${scimUserId || '-'}, ${Date.now()})
+    ON CONFLICT DO NOTHING
+  `;
   const userDeleted = await scim(`/Users/${scimUserId}`, { method: 'DELETE' });
   const userGone = await scim(`/Users/${scimUserId}`);
+  const strandedTeamRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count
+    FROM "teamMember" tm JOIN "team" t ON t."id" = tm."teamId"
+    WHERE t."organizationId" = ${orgId} AND tm."userId" = ${scimUserId || '-'}
+  `;
+  const strandedProvenance = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.sso_synced_team_members
+    WHERE org_id = ${orgId} AND user_id = ${scimUserId || '-'}
+  `;
+  await sql`DELETE FROM "team" WHERE "id" = ${cascadeTeamId}`;
   const scimAudits = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.audit_logs
     WHERE org_id = ${orgId} AND actor_id = 'scim'
@@ -13635,15 +13683,18 @@ async function checkScim(
       teamGone.length === 0 &&
       userDeleted.status === 204 &&
       userGone.status === 404 &&
+      strandedTeamRows[0]?.count === '0' &&
+      strandedProvenance[0]?.count === '0' &&
       Number(scimAudits[0]?.count ?? '0') >= 7,
-    `admin=${before.success ? before.data.enabled : 'ERR'}→${after.success ? `${after.data.enabled}/${after.data.tokenPrefix}` : 'ERR'}, discovery=${discovery.status} bad=${badToken.status} alias=${alias.status} (want 200/401/200), user=${created.success}/${filtered.success ? filtered.data.totalResults : 'ERR'} role=${roleAfterCreate[0]?.role}→${roleDisabled[0]?.role}→${roleRestored[0]?.role} (want member→disabled→member), group=${group.success} patched=${patchedGroup.success ? `${patchedGroup.data.displayName}/${patchedGroup.data.members.length}` : 'ERR'} del=${groupDeleted.status} gone=${teamGone.length === 0}, userDel=${userDeleted.status}→${userGone.status} (want 204→404), audits=${scimAudits[0]?.count} (want ≥7)`,
+    `admin=${before.success ? before.data.enabled : 'ERR'}→${after.success ? `${after.data.enabled}/${after.data.tokenPrefix}` : 'ERR'}, discovery=${discovery.status} bad=${badToken.status} alias=${alias.status} (want 200/401/200), user=${created.success}/${filtered.success ? filtered.data.totalResults : 'ERR'} role=${roleAfterCreate[0]?.role}→${roleDisabled[0]?.role}→${roleRestored[0]?.role} (want member→disabled→member), group=${group.success} patched=${patchedGroup.success ? `${patchedGroup.data.displayName}/${patchedGroup.data.members.length}` : 'ERR'} del=${groupDeleted.status} gone=${teamGone.length === 0}, userDel=${userDeleted.status}→${userGone.status} (want 204→404) stranded teams/provenance=${strandedTeamRows[0]?.count}/${strandedProvenance[0]?.count} (want 0/0), audits=${scimAudits[0]?.count} (want ≥7)`,
   );
 }
 
 /**
  * Trusted-headers auth — the reverse-proxy hand-off door: identity headers
  * → user + placeholder membership provisioned, session minted with the
- * header-borne role/teams stamped on the SESSION row, cookie accepted by
+ * header-borne role stamped on the SESSION row, the teams header mirrored
+ * onto REAL team memberships (the SSO group→team sync), cookie accepted by
  * Better Auth, and the org middleware applying the session role override
  * at read time (proxy says admin ⇒ admin surface opens; proxy says member
  * ⇒ it refuses — same user, same member row).
@@ -13711,14 +13762,8 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
           })
         ).json(),
       );
-    const rows = await sql<
-      {
-        role: string;
-        trustedRole: string | null;
-        trustedTeams: string | null;
-      }[]
-    >`
-      SELECT m."role", s."trustedRole", s."trustedTeams"
+    const rows = await sql<{ role: string; trustedRole: string | null }[]>`
+      SELECT m."role", s."trustedRole"
       FROM "user" u
       JOIN "member" m ON m."userId" = u."id"
       JOIN "session" s ON s."userId" = u."id"
@@ -13732,14 +13777,33 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
       WHERE u."email" = 'proxy.user@door.test' LIMIT 1
     `;
     const landedOrg = memberOrg[0]?.organizationId ?? '';
-    const refused = await fetch(`${base}/api/app/scim?orgId=${landedOrg}`, {
+    // The teams header is not a session annotation: it is mirrored onto
+    // teamMember rows in the org the user landed in, with the sync's
+    // provenance so a later header can revoke exactly what it granted.
+    const teamNames = (
+      await sql<{ name: string }[]>`
+        SELECT t."name" FROM "teamMember" tm
+        JOIN "team" t ON t."id" = tm."teamId"
+        JOIN "user" u ON u."id" = tm."userId"
+        JOIN app.sso_synced_team_members p
+          ON p.team_id = t."id" AND p.user_id = u."id"
+          AND p.org_id = t."organizationId"
+        WHERE u."email" = 'proxy.user@door.test'
+          AND t."organizationId" = ${landedOrg}
+        ORDER BY t."name"
+      `
+    ).map((row) => row.name);
+    // An admin-gated read (the security page's block counters) refuses the
+    // proxy-role member and opens for the proxy-role admin below.
+    const adminSurface = `${base}/api/app/audit-logs/block-counters`;
+    const refused = await fetch(`${adminSurface}?orgId=${landedOrg}`, {
       headers: { cookie: first.cookie, origin: base },
     });
 
     // Re-auth as proxy-role ADMIN: the SAME session is reused (token equal),
     // its trustedRole updated, and the admin surface opens.
     const second = await authWith('admin', first.cookie);
-    const allowed = await fetch(`${base}/api/app/scim?orgId=${landedOrg}`, {
+    const allowed = await fetch(`${adminSurface}?orgId=${landedOrg}`, {
       headers: { cookie: second.cookie, origin: base },
     });
     const sessionsAfter = await sql<{ trustedRole: string | null }[]>`
@@ -13762,13 +13826,13 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
         session1.success &&
         session1.data.user?.email === 'proxy.user@door.test' &&
         rows[0]?.trustedRole === 'member' &&
-        (rows[0]?.trustedTeams ?? '').includes('Finance') &&
+        teamNames.join(',') === 'Finance,Operations' &&
         refused.status === 403 &&
         second.cookie === first.cookie &&
         allowed.status === 200 &&
         sessionsAfter.length === 1 &&
         sessionsAfter[0]?.trustedRole === 'admin',
-      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
+      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${teamNames.join('|')} (want Finance|Operations), member→admin surface=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→admin surface=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
     );
 
     // Session reuse is bound to the browser's OWN cookie: a second device
@@ -17478,9 +17542,9 @@ async function checkRecoverySweeps(
 async function checkSlackInbound(
   sql: Sql,
   base: string,
-  ctx: { orgId: string; userId: string },
+  ctx: { orgId: string },
 ): Promise<void> {
-  const { orgId, userId } = ctx;
+  const { orgId } = ctx;
   const SIGNING_SECRET = 'itest-slack-signing-secret';
   const saved = process.env.CONNECTOR_SLACK_SIGNING_SECRET;
 
@@ -17633,49 +17697,6 @@ async function checkSlackInbound(
         enqueued === 0 &&
         routedToOrg,
       `handshake=${handshake.status}/${handshakeBody.success ? handshakeBody.data.challenge : 'ERR'}, unmapped=${unmapped.status} (want 404), delivered=${delivered.status}/${redelivered.status}, enqueued=${enqueued} (want 0), routedToOrg=${routedToOrg}`,
-    );
-
-    // ---- external identities --------------------------------------------
-    const identities = await import('./domains/identities/service.ts');
-    const ownerId = await identities.upsertExternalIdentity(sql, {
-      source: 'slack',
-      organizationId: orgId,
-      externalUserId: 'U-ITEST',
-      displayName: 'Slack Person',
-      handle: 'slackperson',
-    });
-    const firstRow = await sql<{ updatedAt: number }[]>`
-      SELECT updated_at_ms::float8 AS "updatedAt"
-      FROM app.external_identities WHERE owner_id = ${ownerId}
-    `;
-    // A refresh that fetched NOTHING must not touch updatedAt, or the next
-    // message would be suppressed for the whole freshness window.
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    await identities.upsertExternalIdentity(sql, {
-      source: 'slack',
-      organizationId: orgId,
-      externalUserId: 'U-ITEST',
-    });
-    const afterEmpty = await sql<{ updatedAt: number; displayName: string }[]>`
-      SELECT updated_at_ms::float8 AS "updatedAt",
-             display_name AS "displayName"
-      FROM app.external_identities WHERE owner_id = ${ownerId}
-    `;
-    const names = await identities.resolveExternalDisplayNames(sql, [
-      ownerId,
-      userId,
-      'slack:other-org:U-ELSEWHERE',
-    ]);
-    const detail = await identities.getExternalIdentity(sql, ownerId);
-    record(
-      'external identities: org-scoped owner id, empty refresh keeps freshness',
-      ownerId === `slack:${orgId}:U-ITEST` &&
-        afterEmpty[0]?.updatedAt === firstRow[0]?.updatedAt &&
-        afterEmpty[0]?.displayName === 'Slack Person' &&
-        names.get(ownerId) === 'Slack Person' &&
-        !names.has(userId) &&
-        detail?.handle === 'slackperson',
-      `ownerId=${ownerId}, freshnessKept=${afterEmpty[0]?.updatedAt === firstRow[0]?.updatedAt}, name=${afterEmpty[0]?.displayName}, resolved=${names.get(ownerId) ?? 'none'} internalIgnored=${!names.has(userId)}, handle=${detail?.handle ?? 'none'}`,
     );
   } finally {
     if (saved === undefined) delete process.env.CONNECTOR_SLACK_SIGNING_SECRET;
@@ -19643,7 +19664,9 @@ async function checkMailboxSyncLane(
     `;
     // The #3220 decision on the row the bind produced: retrievable inside
     // the scope of the conversation it arrived on — the admin reaches Bob's
-    // unassigned thread, the plain inbox member does not.
+    // unassigned thread, the plain inbox member does not. Dispatched the way
+    // the reused search/fetch modules dispatch it: the identity travels as a
+    // top-level `userId`, and the shim resolves the member role behind it.
     const filterRetrievable =
       knowledgeShimHandlers(sql)[
         'documents/internal_queries:filterRetrievableRagFileIds'
@@ -19652,23 +19675,20 @@ async function checkMailboxSyncLane(
     const memberRows = await sql<{ id: string }[]>`
       SELECT "id" FROM "user" WHERE "email" = 'inbox.member@door.test' LIMIT 1
     `;
-    const retrievableFor = async (caller: {
-      userId: string;
-      isAdmin: boolean;
-    }) =>
+    const retrievableFor = async (callerUserId: string | undefined) =>
       z.array(z.string()).parse(
         await filterRetrievable({
           organizationId: orgId,
           fileIds: [attachment?.storageRef ?? ''],
-          access: { teamIds: [] },
-          caller,
+          access: { teamIds: [], includeConversationScoped: true },
+          ...(callerUserId !== undefined ? { userId: callerUserId } : {}),
         }),
       );
-    const adminSees = await retrievableFor({ userId, isAdmin: true });
-    const memberSees = await retrievableFor({
-      userId: memberRows[0]?.id ?? 'no-such-user',
-      isAdmin: false,
-    });
+    const adminSees = await retrievableFor(userId);
+    const memberSees = await retrievableFor(
+      memberRows[0]?.id ?? 'no-such-user',
+    );
+    const nobodySees = await retrievableFor(undefined);
     record(
       'emailed attachment: the bind un-skips, queues and dispatches indexing inside the conversation scope',
       attachmentRows.length === 1 &&
@@ -19679,8 +19699,9 @@ async function checkMailboxSyncLane(
         indexJobs[0]?.count === '1' &&
         adminSees.length === 1 &&
         adminSees[0] === attachment.storageRef &&
-        memberSees.length === 0,
-      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0)`,
+        memberSees.length === 0 &&
+        nobodySees.length === 0,
+      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0) anonymous=${nobodySees.length} (want 0)`,
     );
 
     // Outbound send through the same door (system caller: runs + audited).
@@ -22226,6 +22247,57 @@ async function checkWebdav(
     headers: { depth: '1' },
   });
   const trashXml = trashList.ok ? await trashList.text() : '';
+
+  // A knowledge entry's backing document is an ordinary hub row on this
+  // tree, so a WebDAV DELETE trashes it — and must retire the entry chain
+  // with it (0.4's `deleteDocument → markEntryChainDeleted`): otherwise the
+  // entry stays listed and served while its corpus rows are dark. Its own
+  // record, independent of the protocol verdict above.
+  const davEntry = z.object({ id: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/knowledge-entries?orgId=${orgId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({
+          topic: 'itest-webdav-entry',
+          content: 'An entry whose document a WebDAV client deletes.',
+        }),
+      })
+    ).json(),
+  );
+  const davEntryId = davEntry.success ? davEntry.data.id : '';
+  const davEntryDelete = await dav('/documents/itest-webdav-entry.md', {
+    method: 'DELETE',
+  });
+  const davEntryChain = await sql<
+    { deleted: boolean; lifecycleStatus: string | null }[]
+  >`
+    SELECT ke.deleted_at_ms IS NOT NULL AS deleted,
+           d.lifecycle_status AS "lifecycleStatus"
+    FROM app.knowledge_entries ke
+    LEFT JOIN app.documents d ON d.id = ke.document_id
+    WHERE ke.id = ${davEntryId}
+  `;
+  const davEntryUpdate = await fetch(
+    `${base}/api/app/knowledge-entries/${davEntryId}?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        topic: 'itest-webdav-entry',
+        content: 'A version onto a trashed document.',
+      }),
+    },
+  );
+  record(
+    'knowledge entries: a WebDAV DELETE of the backing document retires the chain',
+    davEntry.success &&
+      davEntryDelete.status === 204 &&
+      davEntryChain[0]?.lifecycleStatus === 'trashed' &&
+      davEntryChain[0].deleted &&
+      davEntryUpdate.status === 404,
+    `created=${davEntry.success}, delete=${davEntryDelete.status} (want 204), doc=${davEntryChain[0]?.lifecycleStatus ?? 'missing'} (want trashed), chainDeleted=${davEntryChain[0]?.deleted ?? 'missing'} (want true), update=${davEntryUpdate.status} (want 404)`,
+  );
 
   // Chunked PUT (no Content-Length) refuses loudly — S3 needs a length.
   // The shim's CHUNKED_PUT_UNSUPPORTED throw escapes to the adapter's 500
@@ -26751,7 +26823,6 @@ async function checkTaskAgentTurnDrive(
           state: 'ready',
           backend: 'itest',
           createdAtMs: Date.now(),
-          lastActivityAtMs: Date.now(),
           expiresAtMs: Date.now() + 3_600_000,
           idleTimeoutMs: 600_000,
         },
@@ -27577,7 +27648,6 @@ async function checkAutomationAgentNode(
               state: 'ready',
               backend: 'itest',
               createdAtMs: Date.now(),
-              lastActivityAtMs: Date.now(),
               expiresAtMs: Date.now() + 3_600_000,
               idleTimeoutMs: 600_000,
             },
@@ -28951,7 +29021,6 @@ async function checkSandboxSpawner(
           state: 'ready',
           backend: 'itest',
           createdAtMs: Date.now(),
-          lastActivityAtMs: Date.now(),
           expiresAtMs: Date.now() + 3_600_000,
           idleTimeoutMs: 600_000,
         },
@@ -29535,12 +29604,43 @@ async function checkLoginThrottleAndAuditChain(
   email: string,
 ): Promise<void> {
   const { cookie, orgId } = ctx;
-  const signIn = (password: string): Promise<Response> =>
+  const signIn = (password: string, asEmail = email): Promise<Response> =>
     fetch(`${base}/api/auth/sign-in/email`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: base },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: asEmail, password }),
     });
+
+  // A whitespace-padded address is refused by Better Auth's email check
+  // BEFORE any password check (400). That is not a failed attempt: it must
+  // neither open a counter for the real account nor — past the threshold —
+  // raise a lockout audit row and admin bell for a lock that does not exist.
+  const securityAudits = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.audit_logs
+          WHERE org_id = ${orgId}
+            AND action IN ('login_attempt', 'login_lockout')
+        `
+      )[0]?.count ?? '0',
+    );
+  const auditsBeforePadded = await securityAudits();
+  const padded: number[] = [];
+  for (let i = 0; i < 6; i += 1) {
+    padded.push((await signIn('wrong-password-1', `  ${email}  `)).status);
+  }
+  const counterAfterPadded = await sql<{ failures: number }[]>`
+    SELECT consecutive_failures AS failures FROM app.login_attempts
+    WHERE email = ${email.toLowerCase()}
+  `;
+  record(
+    'padded sign-in email is refused without failure accounting',
+    padded.every((s) => s === 400) &&
+      counterAfterPadded.length === 0 &&
+      (await securityAudits()) === auditsBeforePadded,
+    `padded attempts → ${padded.join(',')} (want 400s), counter rows=${counterAfterPadded.length} (want 0), audit delta=${(await securityAudits()) - auditsBeforePadded} (want 0)`,
+  );
 
   // Default policy: 5 failures lock the account (first backoff 1s).
   const statuses: number[] = [];
@@ -31635,10 +31735,31 @@ async function checkBrandingAndTeams(
   await post(`/api/app/members/${hintMemberId}/role?orgId=${orgId}`, {
     role: 'developer',
   });
+  // Put the member on the team first: removing the ORG membership cascades
+  // the teamMember row away, and that cascade must land the same 'team' hint
+  // a direct team removal does (an open Teams page refreshes its counts).
+  await post(`/api/app/teams/${teamId}/members?orgId=${orgId}`, {
+    userId: hintUserId,
+  });
+  const teamHintsBeforeCascade = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'team' AND entity_id = ${teamId}
+  `;
   await fetch(`${base}/api/app/members/${hintMemberId}?orgId=${orgId}`, {
     method: 'DELETE',
     headers: { cookie, origin: base },
   });
+  const teamHintsAfterCascade = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'team' AND entity_id = ${teamId}
+  `;
+  const cascadeHint =
+    Number(teamHintsAfterCascade[0]?.count) -
+    Number(teamHintsBeforeCascade[0]?.count);
+  const cascadeLeftTeam = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "teamMember"
+    WHERE "teamId" = ${teamId} AND "userId" = ${hintUserId}
+  `;
   const memberHints = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app_realtime.outbox
     WHERE org_id = ${orgId} AND entity = 'member'
@@ -31691,11 +31812,14 @@ async function checkBrandingAndTeams(
       removed.success &&
       removed.data.removed &&
       mineHit &&
-      hintsAfterAdd[0]?.count === '1' &&
-      hintsAfterRemove[0]?.count === '2' &&
+      // caller add (1) + hint member add (2) + cascade (3) → direct remove (4)
+      hintsAfterAdd[0]?.count === '3' &&
+      hintsAfterRemove[0]?.count === '4' &&
       memberAdded.success &&
-      memberHints[0]?.count === '3',
-    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, mine=${mineHit}, hints=${hintsAfterAdd[0]?.count}→${hintsAfterRemove[0]?.count} (want 1→2), memberHints=${memberHints[0]?.count} (want 3), removed=${removed.success ? removed.data.removed : 'ERR'}`,
+      memberHints[0]?.count === '3' &&
+      cascadeHint === 1 &&
+      cascadeLeftTeam[0]?.count === '0',
+    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, mine=${mineHit}, hints=${hintsAfterAdd[0]?.count}→${hintsAfterRemove[0]?.count} (want 3→4), memberHints=${memberHints[0]?.count} (want 3), cascadeTeamHint=${cascadeHint} (want 1) cascadeLeftTeam=${cascadeLeftTeam[0]?.count} (want 0), removed=${removed.success ? removed.data.removed : 'ERR'}`,
   );
 
   // --- Org/Teams settings tail (inc 87) ------------------------------------
@@ -32190,6 +32314,219 @@ async function checkKnowledgeEntries(
       afterDelete.data.rows.length === 0 &&
       docTrashed[0]?.lifecycleStatus === 'trashed',
     `dup=${dup.status} (want 409), sameFile=${afterUpdate[0]?.fileId === firstFile[0]?.fileId}, rotatedRef=${afterUpdate[0]?.storageRef !== firstFile[0]?.storageRef}, versions=${versions.success ? versions.data.versions.length : 'ERR'}, agent=${agentListing.success ? agentListing.data.page.length : 'ERR'}, deleted=${afterDelete.success ? afterDelete.data.rows.length : 'ERR'}, doc=${docTrashed[0]?.lifecycleStatus}`,
+  );
+
+  // The reverse door: the backing document removed from the Documents tab
+  // (the purge) retires the entry chain — the entry is not listed, and a
+  // new version is refused as not found rather than materialized onto a
+  // document nobody can retrieve. Two versions first, so the chain has more
+  // than the row that points at the document.
+  const purgedEntry = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Payroll cutoff',
+        content: 'Payroll closes on the 25th.',
+      })
+    ).json(),
+  );
+  const purgedEntryId = purgedEntry.success ? purgedEntry.data.id : '';
+  const purgedV2 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries/${purgedEntryId}?orgId=${orgId}`, {
+        topic: 'Payroll cutoff',
+        content: 'Payroll closes on the 25th of each month.',
+      })
+    ).json(),
+  );
+  const purgedV2Id = purgedV2.success ? purgedV2.data.id : '';
+  const backing = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${purgedV2Id}
+  `;
+  const backingId = backing[0]?.documentId ?? '';
+  const purge = await post(
+    `/api/app/documents/${backingId}/delete?orgId=${orgId}`,
+  );
+  const chainAfterPurge = await sql<{ deleted: boolean }[]>`
+    SELECT deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'payroll cutoff'
+  `;
+  const listAfterPurge = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateAfterPurge = await post(
+    `/api/app/knowledge-entries/${purgedV2Id}?orgId=${orgId}`,
+    { topic: 'Payroll cutoff', content: 'A version onto a purged document.' },
+  );
+  const updateAfterPurgeBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await updateAfterPurge.json());
+  record(
+    'knowledge entries: purging the backing document retires the chain',
+    purgedEntry.success &&
+      purgedV2.success &&
+      backingId !== '' &&
+      purge.status === 200 &&
+      chainAfterPurge.length === 2 &&
+      chainAfterPurge.every((row) => row.deleted) &&
+      listAfterPurge.success &&
+      !listAfterPurge.data.rows.some((row) => row.id === purgedV2Id) &&
+      updateAfterPurge.status === 404 &&
+      updateAfterPurgeBody.success &&
+      updateAfterPurgeBody.data.error === 'KNOWLEDGE_ENTRY_NOT_FOUND',
+    `purge=${purge.status} (want 200), chain=${chainAfterPurge.map((row) => row.deleted).join(',')} (want 2× true), listed=${listAfterPurge.success ? listAfterPurge.data.rows.some((row) => row.id === purgedV2Id) : 'ERR'} (want false), update=${updateAfterPurge.status} ${updateAfterPurgeBody.success ? updateAfterPurgeBody.data.error : 'ERR'} (want 404 KNOWLEDGE_ENTRY_NOT_FOUND)`,
+  );
+
+  // A deleted chain frees its topic key: deleting the entry trashes doc A
+  // and a re-created entry with the same topic gets a NEW doc B. The purge
+  // of the still-trashed doc A (Documents-tab Trash, or the retention
+  // sweep days later) must retire only doc A's chain — never the live chain
+  // that reused the key. The hook is keyed by document, not topic key.
+  const reusedV1 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Vacation carryover',
+        content: 'Up to five days carry over.',
+      })
+    ).json(),
+  );
+  const reusedV1Id = reusedV1.success ? reusedV1.data.id : '';
+  const oldBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${reusedV1Id}
+  `;
+  const oldBackingId = oldBacking[0]?.documentId ?? '';
+  const deleteReused = await fetch(
+    `${base}/api/app/knowledge-entries/${reusedV1Id}?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  const reusedV2 = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Vacation carryover',
+        content: 'Up to ten days carry over.',
+      })
+    ).json(),
+  );
+  const reusedV2Id = reusedV2.success ? reusedV2.data.id : '';
+  const newBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${reusedV2Id}
+  `;
+  const newBackingId = newBacking[0]?.documentId ?? '';
+  const purgeOld = await post(
+    `/api/app/documents/${oldBackingId}/delete?orgId=${orgId}`,
+  );
+  const chainsAfterOldPurge = await sql<{ id: string; deleted: boolean }[]>`
+    SELECT id, deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'vacation carryover'
+  `;
+  const newStillLive =
+    chainsAfterOldPurge.find((row) => row.id === reusedV2Id)?.deleted === false;
+  const oldStillDeleted =
+    chainsAfterOldPurge.find((row) => row.id === reusedV1Id)?.deleted === true;
+  const listAfterOldPurge = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateReused = await post(
+    `/api/app/knowledge-entries/${reusedV2Id}?orgId=${orgId}`,
+    { topic: 'Vacation carryover', content: 'Up to ten days, use by March.' },
+  );
+  record(
+    "knowledge entries: purging a deleted chain's old document spares the chain that reused its topic",
+    reusedV1.success &&
+      oldBackingId !== '' &&
+      deleteReused.status === 200 &&
+      reusedV2.success &&
+      newBackingId !== '' &&
+      newBackingId !== oldBackingId &&
+      purgeOld.status === 200 &&
+      newStillLive &&
+      oldStillDeleted &&
+      listAfterOldPurge.success &&
+      listAfterOldPurge.data.rows.some((row) => row.id === reusedV2Id) &&
+      updateReused.status === 200,
+    `delete=${deleteReused.status} (want 200), recreate=${reusedV2.success} newDoc≠old=${newBackingId !== oldBackingId}, purgeOld=${purgeOld.status} (want 200), newLive=${newStillLive} (want true), oldDeleted=${oldStillDeleted} (want true), listed=${listAfterOldPurge.success ? listAfterOldPurge.data.rows.some((row) => row.id === reusedV2Id) : 'ERR'} (want true), update=${updateReused.status} (want 200)`,
+  );
+
+  // The retention sweep's expiry flip (grace > 0) has no source filter: an
+  // entry's backing document ages out like any other and lands in the admin
+  // Trash as 'expired'. That flip must retire the chain in the same
+  // transaction — otherwise the entry stays listed and served for the whole
+  // grace window while the retrievability filter keeps its corpus rows dark,
+  // and an update onto it answers 404 for a row the list still shows. The
+  // policy is ~55 years and the document is aged just past it, so no other
+  // document of the org can be a candidate of this sweep — while both the
+  // cutoff and the aged stamp stay positive epochs (the sweep floors a
+  // document's age at `coalesce(status_changed_at_ms, 0)`, so a negative
+  // stamp would never age out).
+  const expiring = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'Expense cap',
+        content: 'Single expenses above 500 EUR need approval.',
+      })
+    ).json(),
+  );
+  const expiringId = expiring.success ? expiring.data.id : '';
+  const expiringBacking = await sql<{ documentId: string | null }[]>`
+    SELECT document_id AS "documentId" FROM app.knowledge_entries
+    WHERE id = ${expiringId}
+  `;
+  const expiringDocId = expiringBacking[0]?.documentId ?? '';
+  const retentionDays = 20_000;
+  await sql`
+    UPDATE app.documents
+    SET created_at_ms = ${Date.now() - (retentionDays + 1) * 86_400_000}
+    WHERE id = ${expiringDocId} AND org_id = ${orgId}
+  `;
+  const { sweepOrgPhase2: sweepExpiring } =
+    await import('./domains/retention/service.ts');
+  const { loadActiveHolds: holdsForExpiring } =
+    await import('./domains/legal_holds/service.ts');
+  const expiringStats = await sweepExpiring(
+    sql,
+    {
+      organizationId: orgId,
+      config: {
+        documentsEnabled: true,
+        documentsRetentionDays: retentionDays,
+        deletionGraceDays: 7,
+      },
+    },
+    await holdsForExpiring(sql, orgId),
+  );
+  const expiredDoc = await sql<{ lifecycleStatus: string | null }[]>`
+    SELECT lifecycle_status AS "lifecycleStatus" FROM app.documents
+    WHERE id = ${expiringDocId}
+  `;
+  const chainAfterExpiry = await sql<{ deleted: boolean }[]>`
+    SELECT deleted_at_ms IS NOT NULL AS deleted FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = 'expense cap'
+  `;
+  const listAfterExpiry = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const updateAfterExpiry = await post(
+    `/api/app/knowledge-entries/${expiringId}?orgId=${orgId}`,
+    { topic: 'Expense cap', content: 'A version onto an expired document.' },
+  );
+  record(
+    "knowledge entries: the retention sweep's expiry flip retires the chain with the document",
+    expiring.success &&
+      expiringDocId !== '' &&
+      expiringStats.documents >= 1 &&
+      expiredDoc[0]?.lifecycleStatus === 'expired' &&
+      chainAfterExpiry.length === 1 &&
+      chainAfterExpiry.every((row) => row.deleted) &&
+      listAfterExpiry.success &&
+      !listAfterExpiry.data.rows.some((row) => row.id === expiringId) &&
+      updateAfterExpiry.status === 404,
+    `swept=${expiringStats.documents} (want ≥1), doc=${expiredDoc.length === 0 ? 'missing' : String(expiredDoc[0]?.lifecycleStatus)} (want expired), chain=${chainAfterExpiry.map((row) => row.deleted).join(',')} (want true), listed=${listAfterExpiry.success ? listAfterExpiry.data.rows.some((row) => row.id === expiringId) : 'ERR'} (want false), update=${updateAfterExpiry.status} (want 404)`,
   );
 }
 

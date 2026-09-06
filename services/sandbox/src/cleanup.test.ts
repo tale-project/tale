@@ -11,7 +11,7 @@ import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { sweepHostSessionDirs } from './cleanup.ts';
+import { makeSweepTick, sweepHostSessionDirs } from './cleanup.ts';
 
 const OLD = new Date('2020-01-01T00:00:00Z');
 // Everything older than "now minus one hour" counts as stale.
@@ -124,5 +124,51 @@ describe('sweepHostSessionDirs', () => {
 
   test('a missing root is not an error', async () => {
     expect(await sweepHostSessionDirs(join(root, 'nope'), threshold())).toBe(0);
+  });
+});
+
+// REGRESSION: the 5-min periodic sweep had no overlap guard — against a
+// wedged daemon every tick stacked another sweep (and its docker children)
+// on top of the still-running one.
+describe('makeSweepTick', () => {
+  test('a tick that overlaps a running sweep skips; the next one after it runs', async () => {
+    let calls = 0;
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tick = makeSweepTick(
+      {
+        async sweepOrphans() {
+          calls += 1;
+          if (calls === 1) await gate;
+          return 0;
+        },
+      },
+      { maxTimeoutMs: 1_000 },
+    );
+    const first = tick();
+    await tick(); // overlaps → skipped
+    expect(calls).toBe(1);
+    release();
+    await first;
+    await tick();
+    expect(calls).toBe(2);
+  });
+
+  test('a throwing sweep is logged and releases the guard', async () => {
+    let calls = 0;
+    const tick = makeSweepTick(
+      {
+        async sweepOrphans() {
+          calls += 1;
+          throw new Error('docker ps failed');
+        },
+      },
+      { maxTimeoutMs: 1_000 },
+    );
+    await tick();
+    await tick();
+    expect(calls).toBe(2);
   });
 });

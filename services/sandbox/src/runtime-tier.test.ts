@@ -8,7 +8,6 @@ import {
   dockerRuntimeFor,
   isRuntimeTier,
   k8sRuntimeClassFor,
-  resolveTier,
   RUNTIME_TIERS,
 } from './runtime-tier.ts';
 
@@ -71,11 +70,9 @@ describe('runtime-tier', () => {
     expect(dindDefaultEnabled('gvisor')).toBe(false);
   });
 
-  test('resolveTier returns the full resolution', () => {
-    expect(resolveTier('sysbox')).toEqual({
-      dockerRuntime: 'sysbox-runc',
-      k8sRuntimeClass: 'sysbox-runc',
-      dind: 'native',
-    });
+  test('the sysbox row resolves through the accessors', () => {
+    expect(dockerRuntimeFor('sysbox')).toBe('sysbox-runc');
+    expect(k8sRuntimeClassFor('sysbox')).toBe('sysbox-runc');
+    expect(dindCapabilityOf('sysbox')).toBe('native');
   });
 });

@@ -150,13 +150,17 @@ Register the same cloud-import callback URI on the Google OAuth client. Consent 
 
 Optional toggles for features not enabled by default. Each flag turns one feature on or off at boot; toggling requires a restart of the platform container.
 
-| Name                              | Default                  | Description                                                                                                                                                      |
-| --------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TRUSTED_HEADERS_ENABLED`         | `false`                  | Enables the trusted-headers auth mode (identity supplied by the reverse proxy).                                                                                  |
-| `TRUSTED_HEADERS_INTERNAL_SECRET` | unset                    | Shared secret the authenticating proxy must send with every trusted-headers request. Required when the mode is enabled — the endpoint refuses to run without it. |
-| `TRUSTED_SECRET_HEADER`           | `Remote-Internal-Secret` | Name of the request header carrying the internal secret.                                                                                                         |
-| `FILE_EVENTS_ENABLED`             | `false`                  | Enables file-watching events for the OneDrive-sync connector.                                                                                                    |
-| `TALE_DEPLOYMENT_CONFIG_ADMINS`   | unset                    | Comma-separated email allowlist of operators allowed to edit deployment data residency. Empty/unset = read-only for all admins.                                  |
+| Name                              | Default                  | Description                                                                                                                                                                                                           |
+| --------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TRUSTED_HEADERS_ENABLED`         | `false`                  | Enables the trusted-headers auth mode (identity supplied by the reverse proxy).                                                                                                                                       |
+| `TRUSTED_HEADERS_INTERNAL_SECRET` | unset                    | Shared secret the authenticating proxy must send with every trusted-headers request. Required when the mode is enabled — the endpoint refuses to run without it.                                                      |
+| `TRUSTED_SECRET_HEADER`           | `Remote-Internal-Secret` | Name of the request header carrying the internal secret.                                                                                                                                                              |
+| `TRUSTED_EMAIL_HEADER`            | `Remote-Email`           | Name of the request header carrying the user's email — the identity the session is minted for.                                                                                                                        |
+| `TRUSTED_NAME_HEADER`             | `Remote-Name`            | Name of the request header carrying the display name. Falls back to the local part of the email.                                                                                                                      |
+| `TRUSTED_ROLE_HEADER`             | `Remote-Role`            | Name of the request header carrying the organization role the session acts with (`member` when the header is absent).                                                                                                 |
+| `TRUSTED_TEAMS_HEADER`            | `Remote-Teams`           | Name of the request header carrying team memberships as comma-separated `id:name` entries. Absent = teams untouched; present = the proxy's list is authoritative for the memberships it granted (empty revokes them). |
+| `FILE_EVENTS_ENABLED`             | `false`                  | Enables file-watching events for the OneDrive-sync connector.                                                                                                                                                         |
+| `TALE_DEPLOYMENT_CONFIG_ADMINS`   | unset                    | Comma-separated email allowlist of operators allowed to edit deployment data residency. Empty/unset = read-only for all admins.                                                                                       |
 
 ## RAG retrieval tuning
 

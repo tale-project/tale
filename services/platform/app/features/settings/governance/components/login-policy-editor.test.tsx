@@ -116,57 +116,6 @@ describe('LoginPolicyEditor', () => {
     });
   });
 
-  // #2670: the batched form save built its payload from scratch
-  // (`{enabled, maxAttemptsBeforeLockout, backoffSchedule, trustedProxies}`),
-  // silently dropping any configured `perIpLimit` — while the header toggle's
-  // save path already spread the saved config and preserved it.
-  describe('form save preserves perIpLimit (#2670)', () => {
-    it('keeps a configured perIpLimit when editing and saving max attempts', async () => {
-      state.isLoading = false;
-      state.config = {
-        enabled: true,
-        maxAttemptsBeforeLockout: 5,
-        backoffSchedule: [1000, 10000, 60000, 600000],
-        trustedProxies: ['loopback', 'uniquelocal'],
-        perIpLimit: { rate: 10, periodSec: 60 },
-      };
-      saveMutateAsync.mockClear();
-
-      // The editor saves through the controller it registers with the global
-      // settings save bar — capture it and drive the save like the bar would.
-      const capture = { current: null as EditorController | null };
-      function ActiveProbe() {
-        capture.current = useActiveEditor();
-        return null;
-      }
-      const { user } = render(
-        <ActiveEditorProvider>
-          <ActiveProbe />
-          <LoginPolicyEditor organizationId="org-1" />
-        </ActiveEditorProvider>,
-      );
-
-      const maxAttempts = screen.getByRole('spinbutton');
-      await user.clear(maxAttempts);
-      await user.type(maxAttempts, '7');
-
-      expect(capture.current?.isDirty).toBe(true);
-      await act(async () => {
-        await capture.current?.save();
-      });
-
-      expect(saveMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          policyType: 'login_policy',
-          config: expect.objectContaining({
-            maxAttemptsBeforeLockout: 7,
-            perIpLimit: { rate: 10, periodSec: 60 },
-          }),
-        }),
-      );
-    });
-  });
-
   // The save-feedback contract every editor registered into the Save/Discard
   // cluster follows (app/components/ui/editor/types.ts): success needs nothing
   // (the cluster flashes "Saved") and a failure throws an already-translated

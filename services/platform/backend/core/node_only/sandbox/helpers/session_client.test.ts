@@ -35,7 +35,6 @@ function createdResponse(sessionId: string): Response {
     state: 'ready',
     backend: 'docker',
     createdAtMs: 1,
-    lastActivityAtMs: 1,
     expiresAtMs: 2,
     idleTimeoutMs: 1,
   };

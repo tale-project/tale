@@ -5,8 +5,8 @@
  * client as structured `{ code, message }` data it can dispatch on (the
  * stale-org recovery keys off `code === 'ORG_NOT_FOUND'`) instead of an
  * opaque redacted "Server Error" that clients blindly retry — part of the
- * codebase-wide "throw AppError codes" migration
- * (`lib/auth/require_org_membership.ts` is the reference).
+ * codebase-wide "throw AppError codes" migration (`auth/membership.ts` and
+ * `auth/org.ts` are the reference).
  *
  * Server-side semantics are unchanged: class identity is preserved, so the
  * many `error instanceof UnauthorizedError` degrade-gracefully catch sites

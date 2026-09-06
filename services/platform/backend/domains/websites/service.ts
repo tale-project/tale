@@ -512,10 +512,43 @@ function toSchedulingSite(
 
 // ------------------------------------------------------------ crawl host
 
+/** A website's scan interval, as the corpus stores it. */
+function scanIntervalToSeconds(interval: string): number {
+  switch (interval) {
+    case '60m':
+      return 3600;
+    case '6h':
+      return 21600;
+    case '12h':
+      return 43200;
+    case '1d':
+      return 86400;
+    case '5d':
+      return 432000;
+    case '7d':
+      return 604800;
+    case '30d':
+      return 2592000;
+    default:
+      return 21600;
+  }
+}
+
+/** The refs the reused engine SCHEDULES rather than dispatches — mapped
+ * onto pg-boss jobs by `crawlScheduler`, so the reachability gate counts
+ * them as answered. Exported for tests only (`shim.test.ts`). */
+export const SCHEDULED_CRAWL_REFS = {
+  scanWebsite: 'knowledge/crawl_action:scanWebsite',
+  syncWebsiteRow: 'websites/internal_actions:syncWebsiteRowForDomain',
+} as const;
+
 /** The ctx shim the REUSED crawl engine runs on: knowledge handlers (org
  * lookups + embedder legs), the sandbox session verbs behind the render
- * lane, and this service's websites handlers. */
-function crawlHandlers(sql: Sql): ShimHandlers {
+ * lane, and this service's websites handlers. Exported for tests only —
+ * the reachability gate (`shim.test.ts`), which requires a handler for
+ * every `internal.*` ref the engine can reach; production reaches it
+ * through `crawlCtx` below. */
+export function crawlHandlers(sql: Sql): ShimHandlers {
   return {
     ...knowledgeShimHandlers(sql),
     'websites/internal_mutations:recordScanFailure': async (raw) => {
@@ -574,7 +607,7 @@ function crawlHandlers(sql: Sql): ShimHandlers {
 /** The engine's scheduled refs, mapped onto pg-boss jobs. */
 function crawlScheduler(sql: Sql): ShimScheduler {
   return async (name, delayMs, args) => {
-    if (name === 'knowledge/crawl_action:scanWebsite') {
+    if (name === SCHEDULED_CRAWL_REFS.scanWebsite) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine self-chains with exactly this shape
       const payload = args as {
         domain: string;
@@ -591,7 +624,7 @@ function crawlScheduler(sql: Sql): ShimScheduler {
       );
       return;
     }
-    if (name === 'websites/internal_actions:syncWebsiteRowForDomain') {
+    if (name === SCHEDULED_CRAWL_REFS.syncWebsiteRow) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine fans out with exactly this shape
       const payload = args as { orgSlug: string; domain: string };
       await addJobInTx(sql, 'websites.row_sync', payload, {

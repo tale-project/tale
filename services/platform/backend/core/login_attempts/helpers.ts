@@ -2,7 +2,6 @@ import {
   DEFAULT_LOGIN_BACKOFF_MS,
   DEFAULT_LOGIN_MAX_ATTEMPTS,
   DEFAULT_TRUSTED_PROXIES,
-  loginPolicyConfigSchema,
   type LoginPolicyConfig,
 } from '../../../lib/shared/schemas/governance';
 
@@ -50,14 +49,4 @@ export function selectStrictestPolicy(
         pFirst > accFirst);
     return stricter ? p : acc;
   });
-}
-
-/**
- * Parse a stored governancePolicies.config payload as a login policy.
- * Returns the defaults on parse failure (defensive — bad rows shouldn't
- * brick sign-in).
- */
-export function parseLoginPolicy(raw: unknown): LoginPolicyConfig {
-  const parsed = loginPolicyConfigSchema.safeParse(raw ?? {});
-  return parsed.success ? parsed.data : DEFAULT_LOGIN_POLICY;
 }

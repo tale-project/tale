@@ -6,7 +6,6 @@ import type { Sql } from 'postgres';
 import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
 import { ADMIN_ROLES } from '../../auth/membership.ts';
-import { resolveTeams } from '../../core/betterAuth/trusted_headers/resolve_team_names.ts';
 import { readCookie } from '../../core/enterprise_sso/login/cookies.ts';
 import {
   buildSessionCookie,
@@ -17,6 +16,7 @@ import { verifySignedValue } from '../../core/enterprise_sso/sign_cookie_value.t
 import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
+import { syncTeamsFromGroupNames } from './service.ts';
 
 /**
  * Trusted-headers authentication — the 0.5 twin of
@@ -24,10 +24,12 @@ import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
  * `betterAuth/trusted_headers/*`: an authenticating reverse proxy
  * (Authelia, Authentik, oauth2-proxy) has already verified the user and set
  * identity headers; this door finds-or-creates the user + membership and
- * mints/reuses the session, stamping the header-borne role and teams onto
- * the SESSION row (`trustedRole`/`trustedTeams` — the proxy is the source
- * of truth; the member row keeps a placeholder role, and the org middleware
- * applies the override at read time, the 0.4 JWT-claim semantic).
+ * mints/reuses the session, stamping the header-borne role onto the SESSION
+ * row (`trustedRole` — the proxy is the source of truth; the member row
+ * keeps a placeholder role, and the org middleware applies the override at
+ * read time, the 0.4 JWT-claim semantic). The header-borne TEAMS become real
+ * memberships: they feed the same provenance-scoped group→team sync the SSO
+ * sign-in uses, so team-scoped access reads them like any other membership.
  */
 
 export interface TrustedHeadersAuthResult {
@@ -48,6 +50,13 @@ export async function trustedHeadersAuthenticate(
     email: string;
     name: string;
     role: string;
+    /**
+     * The proxy's team assertion — `null` when the teams header is absent
+     * (teams stay whatever an admin manages), an array (possibly empty) when
+     * it is present. Present means authoritative: the names are mirrored
+     * onto org teams through `syncTeamsFromGroupNames`, which grants what
+     * the header carries and revokes only what an earlier sync granted.
+     */
     teams: { id: string; name: string }[] | null;
     /**
      * The CALLER-SUPPLIED internal secret (the request header the trusted
@@ -85,12 +94,8 @@ export async function trustedHeadersAuthenticate(
   }
   const email = args.email.toLowerCase().trim();
   const name = args.name.trim();
-  const trustedTeams =
-    args.teams !== null
-      ? JSON.stringify(resolveTeams({ teams: args.teams }).teams)
-      : undefined;
 
-  return sql.begin(async (tx) => {
+  const result = await sql.begin<TrustedHeadersAuthResult>(async (tx) => {
     const now = new Date();
 
     // ---- find-or-create the user + org linkage -------------------------
@@ -187,11 +192,9 @@ export async function trustedHeadersAuthenticate(
           token: string;
           expiresAt: Date;
           trustedRole: string | null;
-          trustedTeams: string | null;
         }[]
       >`
-        SELECT "id", "userId", "token", "expiresAt", "trustedRole",
-               "trustedTeams"
+        SELECT "id", "userId", "token", "expiresAt", "trustedRole"
         FROM "session" WHERE "token" = ${args.existingSessionToken} LIMIT 1
       `;
       const row = existing[0];
@@ -204,8 +207,7 @@ export async function trustedHeadersAuthenticate(
           await tx`
             UPDATE "session" SET
               "expiresAt" = ${expiresAt}, "updatedAt" = ${now},
-              "trustedRole" = ${args.role ?? null},
-              "trustedTeams" = ${trustedTeams ?? null}
+              "trustedRole" = ${args.role ?? null}
             WHERE "id" = ${row.id}
           `;
           return { userId, organizationId, sessionToken: row.token };
@@ -218,17 +220,38 @@ export async function trustedHeadersAuthenticate(
     await tx`
       INSERT INTO "session" (
         "id", "token", "userId", "expiresAt", "createdAt", "updatedAt",
-        "ipAddress", "userAgent", "trustedRole", "trustedTeams",
-        "activeOrganizationId"
+        "ipAddress", "userAgent", "trustedRole", "activeOrganizationId"
       ) VALUES (
         gen_random_uuid(), ${sessionToken}, ${userId}, ${expiresAt}, ${now},
         ${now}, ${args.ipAddress ?? null}, ${args.userAgent ?? null},
-        ${args.role ?? null}, ${trustedTeams ?? null},
-        ${organizationId}
+        ${args.role ?? null}, ${organizationId}
       )
     `;
     return { userId, organizationId, sessionToken };
   });
+
+  // The proxy's team assertion, mirrored onto real team memberships AFTER
+  // the session committed — the sync tolerates a failed group by design
+  // (a poisoned transaction would not), and a sync problem must not cost
+  // the sign-in, exactly as on the SSO door. The 0.4 port stamped the
+  // header onto the session row instead, which no 0.5 reader consulted:
+  // proxy-asserted teams silently granted nothing.
+  if (args.teams !== null && result.organizationId !== null) {
+    try {
+      const syncResult = await syncTeamsFromGroupNames(sql, {
+        userId: result.userId,
+        organizationId: result.organizationId,
+        groupNames: args.teams.map((team) => team.name),
+        excludeGroups: [],
+      });
+      if (syncResult.errors.length > 0) {
+        console.warn('[trusted_headers] team sync errors:', syncResult.errors);
+      }
+    } catch (error) {
+      console.error('[trusted_headers] team sync failed:', error);
+    }
+  }
+  return result;
 }
 
 async function joinedAudit(
@@ -348,7 +371,18 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
     const teamsRaw = c.req.header(
       headerName('TRUSTED_TEAMS_HEADER', 'Remote-Teams'),
     );
-    const teams = teamsRaw !== undefined ? parseTeamsHeader(teamsRaw) : null;
+    // Absent header: the proxy makes no claim about teams. Present but
+    // empty: the proxy asserts NO teams, which revokes what it granted.
+    // A present header that parses to nothing (bare names, no `id:name`)
+    // revokes too — say so, or a misconfigured proxy strips teams silently.
+    const parsedTeams =
+      teamsRaw !== undefined ? parseTeamsHeader(teamsRaw) : undefined;
+    if (teamsRaw !== undefined && teamsRaw.trim() !== '' && !parsedTeams) {
+      console.warn(
+        `[Trusted Headers] ${headerName('TRUSTED_TEAMS_HEADER', 'Remote-Teams')} carries no "id:name" entry; treating it as an empty team assertion`,
+      );
+    }
+    const teams = teamsRaw !== undefined ? (parsedTeams ?? []) : null;
 
     const secret = process.env.BETTER_AUTH_SECRET;
     if (!secret) {

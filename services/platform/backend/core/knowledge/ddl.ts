@@ -54,6 +54,20 @@ import {
 /** The corpora whose migrations are applied, in the order they must run. */
 const CORPUS_SCHEMAS = [PRIVATE_KNOWLEDGE_SCHEMA, PUBLIC_WEB_SCHEMA] as const;
 
+/**
+ * Advisory lock key, on the KNOWLEDGE database, serializing the bootstrap
+ * across processes: the api and the worker both lazily bootstrap a fresh
+ * bring-your-own database on first use, and concurrent `CREATE … IF NOT
+ * EXISTS` on the same objects is not atomic in PostgreSQL — the loser dies
+ * on a catalog unique violation the first search or index request then
+ * surfaces. Distinct from the index-repair lock (`INDEX_REPAIR_LOCK_KEY`)
+ * and from the app database's migration lock. Session-level rather than
+ * transaction-level because the baseline files carry their own
+ * BEGIN/COMMIT, which would end an enclosing transaction (and its lock)
+ * halfway through.
+ */
+export const CORPUS_BOOTSTRAP_LOCK_KEY = 72_085_011;
+
 const UP_MARKER = '-- migrate:up';
 const DOWN_MARKER = '-- migrate:down';
 
@@ -204,22 +218,51 @@ export async function applyCorpusSchema(sql: Sql): Promise<void> {
 
   const migrations = corpusMigrations();
   let appliedCount = 0;
-  for (const schema of CORPUS_SCHEMAS) {
-    const applied = await appliedVersions(sql, schema);
-    for (const migration of migrations) {
-      if (migration.schema !== schema) continue;
-      if (applied.has(migration.version)) continue;
-      logger.info(
-        `applying knowledge corpus migration ${schema}/${migration.name}`,
-      );
-      await sql.unsafe(migration.sql);
-      await sql.unsafe(
-        `INSERT INTO ${schema}.schema_migrations (version) VALUES ($1)
-         ON CONFLICT (version) DO NOTHING`,
-        [migration.version],
-      );
-      appliedCount += 1;
+  // One connection for the whole apply, holding the bootstrap lock: the
+  // ledger is read only once the lock is held, so a process that waited on
+  // another's bootstrap sees that ledger and applies nothing.
+  const session = await sql.reserve();
+  try {
+    await session.unsafe(`SELECT pg_advisory_lock($1)`, [
+      CORPUS_BOOTSTRAP_LOCK_KEY,
+    ]);
+    try {
+      for (const schema of CORPUS_SCHEMAS) {
+        const applied = await appliedVersions(session, schema);
+        for (const migration of migrations) {
+          if (migration.schema !== schema) continue;
+          if (applied.has(migration.version)) continue;
+          logger.info(
+            `applying knowledge corpus migration ${schema}/${migration.name}`,
+          );
+          try {
+            await session.unsafe(migration.sql);
+          } catch (error) {
+            // A file carries its own BEGIN … COMMIT; a statement failing
+            // midway leaves the reserved session in an aborted transaction,
+            // where the `pg_advisory_unlock` below would itself fail and the
+            // session-level lock would go back to the pool still held —
+            // every later bootstrap on this database then waits forever.
+            // Roll back first, so the unlock runs and the failure is the
+            // migration's own error.
+            await session.unsafe('ROLLBACK');
+            throw error;
+          }
+          await session.unsafe(
+            `INSERT INTO ${schema}.schema_migrations (version) VALUES ($1)
+             ON CONFLICT (version) DO NOTHING`,
+            [migration.version],
+          );
+          appliedCount += 1;
+        }
+      }
+    } finally {
+      await session.unsafe(`SELECT pg_advisory_unlock($1)`, [
+        CORPUS_BOOTSTRAP_LOCK_KEY,
+      ]);
     }
+  } finally {
+    session.release();
   }
   if (appliedCount > 0) {
     logger.info(

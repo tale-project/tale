@@ -4,6 +4,9 @@ import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
+  deprovisionUser,
+  listGroupRecords,
+  listUserRecords,
   patchGroup,
   patchUser,
   provisionGroup,
@@ -320,5 +323,140 @@ describe('group writes — every member must belong to the org', () => {
       q.text.startsWith('INSERT INTO "teamMember"'),
     );
     expect(added?.values).toEqual(expect.arrayContaining(['t-1', 'u-in']));
+  });
+});
+
+/**
+ * SCIM DELETE removes the whole per-org footprint, not just the member row:
+ * Better Auth's own deleteMember drops the user's teamMember rows when
+ * teams are enabled, and a later POST re-attaches the existing user, so a
+ * stranded team membership would come straight back into force.
+ */
+describe('deprovisionUser — the membership cascade', () => {
+  it('removes team memberships, sync provenance and preferences with the member row', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(MEMBER)) return [{ id: 'm-1', role: 'member' }];
+      if (text.startsWith(USER_BY_ID)) return [userRow('u-1', 'u1@x.test')];
+      return [];
+    });
+
+    const verdict = await deprovisionUser(sql, 'org-1', 'u-1');
+
+    expect(verdict).toBe('deprovisioned');
+    const deleted = writes(queries).filter((q) => q.text.startsWith('DELETE'));
+    const memberAt = deleted.findIndex((q) =>
+      q.text.startsWith('DELETE FROM "member"'),
+    );
+    const teamsAt = deleted.findIndex((q) =>
+      q.text.startsWith('DELETE FROM "teamMember"'),
+    );
+    const teams = deleted[teamsAt];
+    expect(teams?.text).toContain('WHERE "organizationId" = $?');
+    expect(teams?.values).toEqual(['u-1', 'org-1']);
+    // The cascade reports the teams it left, for the callers that emit hints.
+    expect(teams?.text).toContain('RETURNING "teamId"');
+    expect(
+      deleted.find((q) =>
+        q.text.startsWith('DELETE FROM app.sso_synced_team_members'),
+      )?.values,
+    ).toEqual(['org-1', 'u-1']);
+    expect(
+      deleted.find((q) => q.text.startsWith('DELETE FROM app.user_preferences'))
+        ?.values,
+    ).toEqual(['org-1', 'u-1']);
+    // The cascade rides the same transaction, after the member row.
+    expect(memberAt).toBeGreaterThanOrEqual(0);
+    expect(teamsAt).toBeGreaterThan(memberAt);
+  });
+
+  it('cascades nothing for a member it refuses to remove', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(MEMBER)) return [{ id: 'm-owner', role: 'owner' }];
+      return [];
+    });
+
+    const verdict = await deprovisionUser(sql, 'org-1', 'u-owner');
+
+    expect(verdict).toBe('owner-protected');
+    expect(writes(queries)).toEqual([]);
+  });
+});
+
+/**
+ * The listings an IdP polls are paged IN SQL: one ordered page plus the
+ * collection total, never the whole org sorted and sliced in memory — and
+ * the groups page aggregates members in the same query instead of two
+ * queries per team.
+ */
+describe('listings page in SQL', () => {
+  it('listUserRecords asks for one ordered page and the collection total', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith('SELECT count(*)::int AS total FROM "member"')) {
+        return [{ total: 7 }];
+      }
+      if (text.startsWith('SELECT u."id"')) {
+        return [
+          {
+            ...userRow('u-3', 'c@x.test'),
+            memberId: 'm-3',
+            role: 'member',
+            externalId: 'ext-3',
+          },
+        ];
+      }
+      return [];
+    });
+
+    const page = await listUserRecords(sql, 'org-1', { offset: 2, limit: 2 });
+
+    expect(page.total).toBe(7);
+    expect(page.records.map((r) => r.userId)).toEqual(['u-3']);
+    expect(page.records[0]?.externalId).toBe('ext-3');
+    const listing = queries.find((q) => q.text.startsWith('SELECT u."id"'));
+    expect(listing?.text).toContain('ORDER BY u."id" LIMIT $? OFFSET $?');
+    expect(listing?.values).toEqual(['org-1', 2, 2]);
+    // The total counts exactly the rows the page walks — same user join.
+    const total = queries.find((q) =>
+      q.text.startsWith('SELECT count(*)::int AS total FROM "member"'),
+    );
+    expect(total?.text).toContain('JOIN "user" u ON u."id" = m."userId"');
+    expect(total?.values).toEqual(['org-1']);
+  });
+
+  it('listGroupRecords aggregates members in the page query', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith('SELECT count(*)::int AS total FROM "team"')) {
+        return [{ total: 1 }];
+      }
+      if (text.startsWith('SELECT t."id"')) {
+        return [
+          {
+            id: 't-1',
+            name: 'Crew',
+            organizationId: 'org-1',
+            createdAt: new Date(0),
+            updatedAt: null,
+            memberUserIds: ['u-1', 'u-2'],
+            externalId: null,
+          },
+        ];
+      }
+      return [];
+    });
+
+    const page = await listGroupRecords(sql, 'org-1', { offset: 0, limit: 5 });
+
+    expect(page.total).toBe(1);
+    expect(page.records[0]?.memberUserIds).toEqual(['u-1', 'u-2']);
+    const listing = queries.find((q) => q.text.startsWith('SELECT t."id"'));
+    expect(listing?.text).toContain('array_agg(tm."userId"');
+    expect(listing?.text).toContain('ORDER BY t."id" LIMIT $? OFFSET $?');
+    expect(listing?.values).toEqual(['org-1', 5, 0]);
+    // No per-team member or link lookups ride the page.
+    expect(
+      queries.some((q) =>
+        q.text.startsWith('SELECT "id", "userId" FROM "teamMember"'),
+      ),
+    ).toBe(false);
   });
 });
