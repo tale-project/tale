@@ -182,7 +182,10 @@ function transactionOver(reserved: ReservedSql): TransactionSql {
 /**
  * One serializable attempt queued on `keys`: session advisory locks in that
  * order → BEGIN → callback → COMMIT → unlocks in reverse, all on one
- * reserved connection.
+ * reserved connection. A key that cannot be locked releases the ones
+ * already held before the connection goes back to the pool — a session
+ * lock outlives the reservation, and a pooled connection still holding one
+ * would block that key for everyone until the connection dies.
  */
 async function beginQueued<T>(
   reserve: () => Promise<ReservedSql>,
@@ -192,13 +195,13 @@ async function beginQueued<T>(
   const reserved = await reserve();
   try {
     const locked: string[] = [];
-    for (const key of keys) {
-      await reserved`
-        SELECT pg_advisory_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${key}))
-      `;
-      locked.push(key);
-    }
     try {
+      for (const key of keys) {
+        await reserved`
+          SELECT pg_advisory_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${key}))
+        `;
+        locked.push(key);
+      }
       await reserved.unsafe('BEGIN ISOLATION LEVEL SERIALIZABLE');
       let result: T;
       try {
@@ -243,6 +246,13 @@ async function beginQueued<T>(
  * connection faults. Each retry runs in a fresh transaction; a retry after a
  * failure marked with queue keys runs queued on those keys (see above).
  */
+function isSubsetOf(
+  keys: readonly string[],
+  of: readonly string[] | undefined,
+): boolean {
+  return of !== undefined && keys.every((key) => of.includes(key));
+}
+
 export function transactSerializable<T>(
   sql: SerializableTransactionRunner,
   callback: (tx: TransactionSql) => Promise<T>,
@@ -265,8 +275,12 @@ export function transactSerializable<T>(
     sleep: jitteredSleep,
     ...options,
     isTransient: (error) => {
+      // A queued attempt that loses to a writer outside its inner queues is
+      // re-marked with fewer keys than it held; the held list is a superset
+      // in the same acquisition order, so keep it — dropping a key is how a
+      // retry loses at that resource again.
       const keys = retryQueueKeysOf(error);
-      if (keys.length > 0) {
+      if (keys.length > 0 && !isSubsetOf(keys, queueKeys)) {
         queueKeys = keys;
       }
       return isTransient(error);

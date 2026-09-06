@@ -139,7 +139,10 @@ interface Statement {
  * `unsafe` both log the statement; `unsafe` answers with the command tag a
  * server would (overridable for COMMIT), `release` counts.
  */
-function createReserved(commitAnswer = 'COMMIT'): {
+function createReserved(
+  commitAnswer = 'COMMIT',
+  failOn?: (text: string, values: unknown[]) => Error | undefined,
+): {
   reserved: ReservedSql;
   statements: Statement[];
   released: () => number;
@@ -156,7 +159,10 @@ function createReserved(commitAnswer = 'COMMIT'): {
       .replace(/\s+/g, ' ')
       .trim();
     statements.push({ text, values });
-    return Promise.resolve([]);
+    const failure = failOn?.(text, values);
+    return failure === undefined
+      ? Promise.resolve([])
+      : Promise.reject(failure);
   };
   tag.unsafe = (text: string) => {
     statements.push({ text, values: [] });
@@ -182,7 +188,10 @@ function createReserved(commitAnswer = 'COMMIT'): {
  */
 function createQueueRunner(
   failures: Error[],
-  options: { commitAnswer?: string } = {},
+  options: {
+    commitAnswer?: string;
+    failOn?: (text: string, values: unknown[]) => Error | undefined;
+  } = {},
 ): {
   runner: SerializableTransactionRunner;
   beginAttempts: () => number;
@@ -196,7 +205,7 @@ function createQueueRunner(
       callback: (tx: TransactionSql) => Promise<T>,
     ): Promise<T> => runner.begin(isolation, callback),
     reserve: () => {
-      const reservation = createReserved(options.commitAnswer);
+      const reservation = createReserved(options.commitAnswer, options.failOn);
       reservations.push(reservation);
       return Promise.resolve(reservation.reserved);
     },
@@ -447,5 +456,66 @@ describe('transactSerializable — nested retry queues', () => {
       'task-comment:t_1',
     ]);
     expect(reservations[0]?.released()).toBe(1);
+  });
+});
+
+describe('transactSerializable — nested retry queues, failure paths', () => {
+  const nested = (): Error =>
+    markRetryQueueKey(
+      markRetryQueueKey(sqlstateError('40001'), 'audit-chain:org_1'),
+      'task-comment:t_1',
+    );
+
+  it('releases the keys it already holds when a later key cannot be locked', async () => {
+    const cancelled = sqlstateError('57014');
+    const { runner, beginAttempts, reservations } = createQueueRunner(
+      [nested()],
+      {
+        failOn: (text, values) =>
+          text.startsWith('SELECT pg_advisory_lock') &&
+          values[1] === 'audit-chain:org_1'
+            ? cancelled
+            : undefined,
+      },
+    );
+    await expect(
+      transactSerializable(runner, () => Promise.resolve('never'), {
+        sleep: noSleep,
+      }),
+    ).rejects.toBe(cancelled);
+    expect(beginAttempts()).toBe(1);
+    const statements = reservations[0]?.statements ?? [];
+    expect(texts(statements)).toEqual([
+      'SELECT pg_advisory_lock(?, hashtext(?))',
+      'SELECT pg_advisory_lock(?, hashtext(?))',
+      'SELECT pg_advisory_unlock(?, hashtext(?))',
+    ]);
+    expect(statements[2]?.values[1]).toBe('task-comment:t_1');
+    expect(reservations[0]?.released()).toBe(1);
+  });
+
+  it('keeps the fuller key list when a queued attempt is re-marked with a subset', async () => {
+    const { runner, reservations } = createQueueRunner([nested()]);
+    let queuedCalls = 0;
+    const result = await transactSerializable(
+      runner,
+      () => {
+        queuedCalls += 1;
+        // The first queued attempt loses to a writer outside the inner
+        // queue and is marked with the outer key alone.
+        return queuedCalls === 1
+          ? Promise.reject(
+              markRetryQueueKey(sqlstateError('40001'), 'task-comment:t_1'),
+            )
+          : Promise.resolve('ok');
+      },
+      { sleep: noSleep },
+    );
+    expect(result).toBe('ok');
+    expect(reservations).toHaveLength(2);
+    const locks = (reservations[1]?.statements ?? [])
+      .filter((s) => s.text.startsWith('SELECT pg_advisory_lock'))
+      .map((s) => s.values[1]);
+    expect(locks).toEqual(['task-comment:t_1', 'audit-chain:org_1']);
   });
 });
