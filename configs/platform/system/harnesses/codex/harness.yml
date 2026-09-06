@@ -118,4 +118,3 @@ exec:
       CODEX_HOME: /agent/.runtime/home/.codex
     managed:
       TALE_GATEWAY_TOKEN: '${gateway.token}'
-pinnedVersion: 0.142.5

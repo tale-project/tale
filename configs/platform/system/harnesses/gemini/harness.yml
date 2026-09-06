@@ -107,4 +107,3 @@ exec:
 subscription:
   kind: staged-file
   path: .runtime/home/.gemini/oauth_creds.json
-pinnedVersion: 0.49.0
