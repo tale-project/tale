@@ -7257,6 +7257,12 @@ async function checkCorpusPurgeConsistency(
       return;
     }
     // Point the org's corpus at a dead endpoint — fail-closed by contract.
+    // The purge routes through the same per-org pool as the indexer, whose
+    // resolution is cached, so forget it the way the admin door does when a
+    // connection is saved (domains/knowledge/admin.ts → invalidateOrgUrl);
+    // `corpusPool` above was captured before and keeps reading the real
+    // corpus.
+    const { invalidateOrgUrl } = await import('./core/knowledge/pool.ts');
     const badConnectionPath = path.join(knowledgeDir, 'connection.json');
     await writeFile(
       badConnectionPath,
@@ -7268,6 +7274,7 @@ async function checkCorpusPurgeConsistency(
         sslmode: 'disable',
       }),
     );
+    invalidateOrgUrl(orgSlug);
     const failedDelete = await send(
       'POST',
       `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
@@ -7279,6 +7286,7 @@ async function checkCorpusPurgeConsistency(
     const corpusKept = (await corpusCount(honest.ref)) === 1;
     const blobKept = await blobExists(honest.ref);
     await rm(badConnectionPath, { force: true });
+    invalidateOrgUrl(orgSlug);
     const retryDelete = await send(
       'POST',
       `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
@@ -27221,8 +27229,9 @@ async function checkSandboxGatewayKeyReclaim(
   // management API is reachable from every sandbox session. The fake gateway
   // below does not check the value, but without one set every revoke fails
   // authentication and the check would pass its fail-open lane while proving
-  // nothing about the revoke itself.
-  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD ??= 'itest-gateway-admin';
+  // nothing about the revoke itself. main() defaults the variable before any
+  // lane runs (two earlier lanes mint too); this lane only restores whatever
+  // it found.
   const now = Date.now();
   const seedSession = async (
     sessionId: string,
@@ -37490,35 +37499,34 @@ async function checkReviewArc(
       headers: { 'content-type': 'application/json', cookie, origin: base },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
+  const postJson = async (route: string, body?: unknown): Promise<unknown> =>
+    readJson(await post(route, body), `POST ${route}`);
   const get = async (route: string): Promise<unknown> =>
-    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
-  const project = z
-    .object({ projectId: z.string() })
-    .safeParse(
-      await (
-        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Review Arc' })
-      ).json(),
+    readJson(
+      await fetch(`${base}${route}`, { headers: { cookie } }),
+      `GET ${route}`,
     );
+  const project = z.object({ projectId: z.string() }).safeParse(
+    await postJson(`/api/app/projects?orgId=${orgId}`, {
+      name: 'Review Arc',
+    }),
+  );
   const projectId = project.success ? project.data.projectId : '';
   const agent = z.object({ agentId: z.string() }).safeParse(
-    await (
-      await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
-        name: 'Review Bot',
-        harness: 'claude-code',
-        model: 'itest-model',
-        skills: [],
-        connectors: [],
-      })
-    ).json(),
+    await postJson(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+      name: 'Review Bot',
+      harness: 'claude-code',
+      model: 'itest-model',
+      skills: [],
+      connectors: [],
+    }),
   );
   const agentId = agent.success ? agent.data.agentId : '';
   const task = z.object({ taskId: z.string() }).safeParse(
-    await (
-      await post(`/api/app/tasks?orgId=${orgId}`, {
-        projectId,
-        title: 'Reviewed work',
-      })
-    ).json(),
+    await postJson(`/api/app/tasks?orgId=${orgId}`, {
+      projectId,
+      title: 'Reviewed work',
+    }),
   );
   const taskId = task.success ? task.data.taskId : '';
   await post(`/api/app/tasks/${taskId}/assign?orgId=${orgId}`, {
@@ -37597,12 +37605,10 @@ async function checkReviewArc(
       taskReopened: z.boolean(),
     })
     .safeParse(
-      await (
-        await post(
-          `/api/app/tasks/reviews/${minted[0]?.id ?? ''}/respond?orgId=${orgId}`,
-          { decision: 'request_changes', feedback: 'Tighten the summary.' },
-        )
-      ).json(),
+      await postJson(
+        `/api/app/tasks/reviews/${minted[0]?.id ?? ''}/respond?orgId=${orgId}`,
+        { decision: 'request_changes', feedback: 'Tighten the summary.' },
+      ),
     );
   const afterChanges = await sql<{ status: string; commentCount: number }[]>`
     SELECT status, comment_count AS "commentCount" FROM app.tasks
@@ -37653,12 +37659,10 @@ async function checkReviewArc(
     .object({ taskCompleted: z.boolean() })
     .loose()
     .safeParse(
-      await (
-        await post(
-          `/api/app/tasks/reviews/${roundTwo[0]?.id ?? ''}/respond?orgId=${orgId}`,
-          { decision: 'approve' },
-        )
-      ).json(),
+      await postJson(
+        `/api/app/tasks/reviews/${roundTwo[0]?.id ?? ''}/respond?orgId=${orgId}`,
+        { decision: 'approve' },
+      ),
     );
   const afterApprove = await sql<
     { status: string; completedAt: number | null }[]
@@ -39907,6 +39911,29 @@ async function sharedSessionAlive(
 }
 
 /**
+ * Reads a JSON response body, naming the request when it cannot. `.json()`
+ * on a non-JSON error body throws a bare SyntaxError, so a 401/404/500 with
+ * a text body used to truncate the run as "Unexpected token …" and hide the
+ * status and body that explain it. Throws `<label>: HTTP <status> <body>`
+ * for a non-2xx status, and a parse failure carries the same context.
+ */
+async function readJson(res: Response, label: string): Promise<unknown> {
+  const text = await res.text();
+  const excerpt = text.slice(0, 300);
+  if (!res.ok) {
+    throw new Error(`${label}: HTTP ${res.status} ${excerpt}`);
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    throw new Error(
+      `${label}: HTTP ${res.status} body is not JSON (${errorText(error)}): ${excerpt}`,
+      { cause: error },
+    );
+  }
+}
+
+/**
  * Runs the session-bearing lanes in order and makes a TRUNCATION loud. A run
  * that stops early must never read as green, so: a lane that throws is
  * recorded as a failed check naming the lane and how many never ran; and
@@ -39978,6 +40005,14 @@ async function main(): Promise<void> {
     // Secret-box key for the credential round-trip (64 hex chars = 32 bytes).
     process.env.ENCRYPTION_SECRET_HEX = 'ab'.repeat(32);
   }
+  // The sandbox gateway admin client refuses to run anonymous
+  // (requireGatewayAdminPassword throws before any network call), and three
+  // lanes mint keys against a fake gateway in this order:
+  // checkAutomationAgentNode, checkAutomationRunToolLane,
+  // checkSandboxGatewayKeyReclaim. Default it here, before any lane runs — the
+  // reclaim lane used to be the only setter, so on a machine without the
+  // variable the two earlier lanes failed their `minted === 1` assertions.
+  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD ??= 'itest-gateway-admin';
 
   // Better Auth validates the request Host against baseURL, so the server
   // port must be known BEFORE the auth instance is created — pick one
