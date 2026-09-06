@@ -10,7 +10,7 @@
 import type { TransactionSql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { MESSAGE_SLOT_ATTEMPTS, saveMessage } from './store.ts';
+import { MESSAGE_SLOT_CLAIM_DEADLINE_MS, saveMessage } from './store.ts';
 
 /** A `tx` whose INSERTs answer from `outcomes` in order (an empty array is a
  * lost race), recording every statement so the retry count is observable. */
@@ -74,10 +74,31 @@ describe('saveMessage — claiming a unique slot', () => {
     expect(insertsOf(statements)).toBe(2);
   });
 
-  it('gives up only after the bounded number of lost races', async () => {
+  it('outlasts a burst larger than any fixed count of lost races', async () => {
+    const lostRaces = Array.from({ length: 40 }, () => []);
+    const { tx, statements } = fakeTx([
+      ...lostRaces,
+      [{ id: 'm-41', order: 40 }],
+    ]);
+    await expect(
+      saveMessage(tx, ARGS, { sleep: () => Promise.resolve() }),
+    ).resolves.toEqual({ messageId: 'm-41', order: 40 });
+    expect(insertsOf(statements)).toBe(41);
+  });
+
+  it('gives up only when the deadline is spent', async () => {
     const { tx, statements } = fakeTx([]);
-    await expect(saveMessage(tx, ARGS)).rejects.toThrow(/no free slot/);
-    expect(insertsOf(statements)).toBe(MESSAGE_SLOT_ATTEMPTS);
+    // Each clock read advances 4 s: the 10 s budget is gone at the third claim.
+    let clock = 0;
+    await expect(
+      saveMessage(tx, ARGS, {
+        now: () => (clock += 4_000),
+        sleep: () => Promise.resolve(),
+      }),
+    ).rejects.toThrow(
+      `no free slot within ${MESSAGE_SLOT_CLAIM_DEADLINE_MS} ms (3 attempts)`,
+    );
+    expect(insertsOf(statements)).toBe(3);
     expect(statements.some((text) => text.includes('UPDATE app.threads'))).toBe(
       false,
     );

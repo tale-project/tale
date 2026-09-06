@@ -13,7 +13,7 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
-import { MESSAGE_SLOT_ATTEMPTS } from '../threads/store.ts';
+import { claimMessageSlot, type SlotClaimOptions } from '../threads/store.ts';
 
 /**
  * The Postgres-backed ports the turn pipeline writes through — the 0.5 twin
@@ -47,16 +47,12 @@ export async function appendMessageRow(
     truncation?: { droppedMessages: number };
     status?: string;
   },
+  claim: SlotClaimOptions = {},
 ): Promise<{ id: string; sequence: number }> {
   // The slot is UNIQUE: two turns appending to one thread at once both read
   // the same max, and the one the index refuses re-claims the next slot on
   // a fresh statement instead of tying the winner's ordering.
-  let row: { id: string; order: number } | undefined;
-  for (
-    let attempt = 0;
-    row === undefined && attempt < MESSAGE_SLOT_ATTEMPTS;
-    attempt += 1
-  ) {
+  const row = await claimMessageSlot(async () => {
     const rows = await sql<{ id: string; order: number }[]>`
       INSERT INTO app.messages (
         thread_id, org_id, "order", step_order, role, parts, text, model,
@@ -77,13 +73,8 @@ export async function appendMessageRow(
       ON CONFLICT (thread_id, "order", step_order) DO NOTHING
       RETURNING id, "order"
     `;
-    row = rows[0];
-  }
-  if (!row) {
-    throw new Error(
-      `message insert failed: no free slot after ${MESSAGE_SLOT_ATTEMPTS} attempts`,
-    );
-  }
+    return rows[0]; // undefined: the slot went to a concurrent append
+  }, claim);
   // A turn just wrote to the thread; keep its list ordering fresh. An
   // assistant row also stamps the unread watermark; activity on a hidden
   // branch surfaces on its ROOT — the row the sidebar shows for the lineage.

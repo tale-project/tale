@@ -64,16 +64,72 @@ export interface SaveMessageArgs {
 }
 
 /**
- * How many times an appender re-claims the next (order, step) slot after
- * another appender took the one it computed. The slot is UNIQUE
+ * How long an appender keeps re-claiming the next (order, step) slot while
+ * concurrent appends take the ones it computes. The slot is UNIQUE
  * (`messages_thread_slot`), so a lost race is refused at the index rather
- * than landing two rows on one slot; under READ COMMITTED each attempt is a
- * fresh statement that sees the winner's row, so one retry is the norm and a
- * handful is generous. Under SERIALIZABLE the same conflict surfaces as a
- * serialization failure and `transactSerializable` reruns the whole
- * transaction instead, so this loop never spins there.
+ * than landing two rows on one slot; under READ COMMITTED each claim is a
+ * fresh statement that sees the winner's row. Every round has exactly one
+ * winner among the appenders racing for a thread, so a burst of N appenders
+ * lands within N rounds — which is why the budget is wall-clock and never a
+ * count: a count is defeated by any burst larger than itself. Under
+ * SERIALIZABLE the same conflict surfaces as a serialization failure and
+ * `transactSerializable` reruns the whole transaction instead, so the loop
+ * never spins there.
  */
-export const MESSAGE_SLOT_ATTEMPTS = 8;
+export const MESSAGE_SLOT_CLAIM_DEADLINE_MS = 10_000;
+
+/** The longest pause between two claims of one appender. */
+const MESSAGE_SLOT_BACKOFF_CAP_MS = 50;
+
+export interface SlotClaimOptions {
+  /** Wall-clock budget for the whole claim; the default is the constant above. */
+  deadlineMs?: number;
+  /** Clock and sleep, injectable so tests exhaust the budget deterministically. */
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Jittered exponential pause after the `attempt`-th lost race (1 ms, 2 ms,
+ * 4 ms … capped at {@link MESSAGE_SLOT_BACKOFF_CAP_MS}): the losers of one
+ * round must not re-collide in lockstep.
+ */
+function slotBackoffMs(attempt: number): number {
+  const base = Math.min(MESSAGE_SLOT_BACKOFF_CAP_MS, 2 ** (attempt - 1));
+  return base * (0.5 + Math.random());
+}
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Run `claim` — one `INSERT … ON CONFLICT DO NOTHING RETURNING` — until it
+ * lands a row (`undefined` = the computed slot went to a concurrent append).
+ * Gives up only when {@link SlotClaimOptions.deadlineMs} is spent, naming the
+ * budget and the rounds it took; nothing else is written meanwhile.
+ */
+export async function claimMessageSlot<T>(
+  claim: () => Promise<T | undefined>,
+  options: SlotClaimOptions = {},
+): Promise<T> {
+  const deadlineMs = options.deadlineMs ?? MESSAGE_SLOT_CLAIM_DEADLINE_MS;
+  const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? defaultSleep;
+  const deadline = now() + deadlineMs;
+  for (let attempt = 1; ; attempt += 1) {
+    const row = await claim();
+    if (row !== undefined) {
+      return row;
+    }
+    if (now() >= deadline) {
+      throw new Error(
+        `message insert failed: no free slot within ${deadlineMs} ms (${attempt} attempts)`,
+      );
+    }
+    await sleep(slotBackoffMs(attempt));
+  }
+}
 
 /**
  * Append a message as the next turn: claims `max(order)+1` with
@@ -85,8 +141,9 @@ export const MESSAGE_SLOT_ATTEMPTS = 8;
 export async function saveMessage(
   tx: TransactionSql,
   args: SaveMessageArgs,
+  claim: SlotClaimOptions = {},
 ): Promise<{ messageId: string; order: number }> {
-  for (let attempt = 0; attempt < MESSAGE_SLOT_ATTEMPTS; attempt += 1) {
+  const row = await claimMessageSlot(async () => {
     const rows = await tx<{ id: string; order: number }[]>`
       INSERT INTO app.messages (
         thread_id, org_id, "order", step_order, role, parts, text, author_id,
@@ -101,17 +158,13 @@ export async function saveMessage(
       ON CONFLICT (thread_id, "order", step_order) DO NOTHING
       RETURNING id, "order"
     `;
-    const row = rows[0];
-    if (row === undefined) continue; // the slot went to a concurrent append
-    await tx`
-      UPDATE app.threads SET updated_at_ms = ${Date.now()}
-      WHERE id = ${args.threadId}
-    `;
-    return { messageId: row.id, order: row.order };
-  }
-  throw new Error(
-    `message insert failed: no free slot after ${MESSAGE_SLOT_ATTEMPTS} attempts`,
-  );
+    return rows[0]; // undefined: the slot went to a concurrent append
+  }, claim);
+  await tx`
+    UPDATE app.threads SET updated_at_ms = ${Date.now()}
+    WHERE id = ${args.threadId}
+  `;
+  return { messageId: row.id, order: row.order };
 }
 
 /** The most messages one read may ask for, on either lane below. */
