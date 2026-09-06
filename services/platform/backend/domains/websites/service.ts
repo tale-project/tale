@@ -512,28 +512,6 @@ function toSchedulingSite(
 
 // ------------------------------------------------------------ crawl host
 
-/** A website's scan interval, as the corpus stores it. */
-function scanIntervalToSeconds(interval: string): number {
-  switch (interval) {
-    case '60m':
-      return 3600;
-    case '6h':
-      return 21600;
-    case '12h':
-      return 43200;
-    case '1d':
-      return 86400;
-    case '5d':
-      return 432000;
-    case '7d':
-      return 604800;
-    case '30d':
-      return 2592000;
-    default:
-      return 21600;
-  }
-}
-
 /** The refs the reused engine SCHEDULES rather than dispatches — mapped
  * onto pg-boss jobs by `crawlScheduler`, so the reachability gate counts
  * them as answered. Exported for tests only (`shim.test.ts`). */
