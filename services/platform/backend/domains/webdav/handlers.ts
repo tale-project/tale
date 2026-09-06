@@ -694,8 +694,6 @@ async function fixupMovedFolderDescendants(
 
 // -------------------------------------------------------------- handlers
 
-export type WebdavHandler = (args: never) => Promise<unknown>;
-
 export function webdavHandlers(
   sql: Sql,
 ): Record<string, (raw: unknown) => Promise<unknown>> {
