@@ -5029,8 +5029,8 @@ settings:
       description: Authentification unique et synchronisation d’annuaire pour ton personnel.
     dataResidency:
       description:
-        Où vivent les données de cette organisation, et les stockages de
-        déploiement qui les sous-tendent.
+        Où vivent la base de connaissances et les fichiers téléversés de cette
+        organisation, et quel modèle d'embedding les traite.
   mcpEndpoint:
     title: Endpoint MCP
     description: Branche n'importe quel client MCP sur ce déploiement pour

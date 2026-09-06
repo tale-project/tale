@@ -5085,8 +5085,8 @@ settings:
       description: Single sign-on and directory sync for your organization.
     dataResidency:
       description:
-        Where this organization's data lives, and the deployment-level stores
-        behind it.
+        Where this organization's knowledge base and uploaded files live, and
+        which model embeds them.
   mcpEndpoint:
     title: MCP endpoint
     description: Point any MCP client at this deployment to author, run and

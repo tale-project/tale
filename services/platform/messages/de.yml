@@ -4943,8 +4943,8 @@ settings:
     enterpriseSso:
       description: Single Sign-on und Verzeichnissynchronisation für deine Belegschaft.
     dataResidency:
-      description: Wo die Daten dieser Organisation liegen und welche
-        Deployment-Speicher dahinterstehen.
+      description: Wo die Wissensdatenbank und die hochgeladenen Dateien dieser
+        Organisation liegen und welches Embedding-Modell sie verarbeitet.
   mcpEndpoint:
     title: MCP-Endpunkt
     description: Verbinde einen MCP-Client mit diesem Deployment, um
