@@ -26,6 +26,10 @@
       "description": "Crawled website sources."
     },
     {
+      "name": "Browser sessions",
+      "description": "The warmed browser-session pool behind video-link ingestion."
+    },
+    {
       "name": "Products",
       "description": "Product catalog entries."
     },
@@ -1259,6 +1263,151 @@
           },
           "404": {
             "description": "Website not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/browser-sessions": {
+      "get": {
+        "tags": ["Browser sessions"],
+        "summary": "List browser sessions",
+        "description": "The organization’s warmed browser-session pool — the cookie jars the video-link ingest presents to get past a platform’s bot wall, with each session’s status, expiry and strike count. Masked: the jar itself is never returned.",
+        "operationId": "listBrowserSessions",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pool",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["sessions"],
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BrowserSession"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/browser-sessions/import": {
+      "post": {
+        "tags": ["Browser sessions"],
+        "summary": "Import a browser session",
+        "description": "Adds a warmed cookie jar to the pool for one domain; the jar is encrypted before it is stored. Restricted to organization administrators whose e-mail is on the deployment editor allowlist (`TALE_DEPLOYMENT_CONFIG_ADMINS`) — anyone else answers 403 with a `code` naming the gate that refused.",
+        "operationId": "importBrowserSession",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrowserSessionImport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Imported — the session’s id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["sessionId"],
+                  "properties": {
+                    "sessionId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder may not seed the pool (FORBIDDEN_INSTANCE_ADMIN or FORBIDDEN_DEPLOYMENT_EDITOR)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7088,6 +7237,77 @@
           },
           "total": {
             "type": "integer"
+          }
+        }
+      },
+      "BrowserSession": {
+        "type": "object",
+        "required": [
+          "id",
+          "domain",
+          "label",
+          "status",
+          "expiresAt",
+          "lastUsedAt",
+          "failureCount"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "cooling", "expired"],
+            "description": "healthy = claimable; cooling = blocked once, recovers after a quiet period; expired = three strikes or past its TTL"
+          },
+          "expiresAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          },
+          "lastUsedAt": {
+            "type": "number",
+            "description": "Epoch ms of the last claim",
+            "nullable": true
+          },
+          "failureCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "BrowserSessionImport": {
+        "type": "object",
+        "required": ["domain", "cookiesJar"],
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "The hostname the jar was warmed for (lower-cased on import)"
+          },
+          "cookiesJar": {
+            "type": "string",
+            "description": "A Netscape-format cookie jar, at most 1 MB"
+          },
+          "userAgent": {
+            "type": "string"
+          },
+          "visitorData": {
+            "type": "string"
+          },
+          "poToken": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "ttlMs": {
+            "type": "integer",
+            "description": "Lifetime in milliseconds (default 14 days)"
           }
         }
       },

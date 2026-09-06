@@ -133,7 +133,7 @@ describe('computeAuditHash', () => {
   it('produces the same hash for writer-shape (undefined fields) and verifier-shape (omitted)', async () => {
     // Regression: prior canonicalize emitted `"key":undefined` for
     // undefined-valued keys, so a writer that listed every optional field
-    // (audit_logs/helpers.ts:165) signed a hash that the verifier — which
+    // (the retired Convex-era audit writer) signed a hash that the verifier — which
     // rebuilds canonical from the stored row where Convex has dropped
     // those keys — could never reproduce.
     const writer = {

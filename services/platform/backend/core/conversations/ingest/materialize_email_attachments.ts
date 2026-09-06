@@ -10,9 +10,9 @@
  * serve layer answers 404 — every materialized attachment chip's download died
  * on it. The storageId is stable; the URL must be fresh, so it is read-time.
  *
- * Connector `ctx.files` is deliberately unwired, so Gmail/Outlook's
- * `downloadAttachments` flag cannot store during `get_message`. IMAP returns
- * `contentBase64` on each part; this helper is the sync-path sink.
+ * Gmail/Outlook store attachments during `get_message` through the
+ * connector's own `ctx.files` sink; IMAP returns `contentBase64` on each part
+ * instead, and this helper is that sync path's sink.
  *
  * `'use node'` because the base64 decode goes through `Buffer` — every other
  * `Buffer` user under `convex/` declares the same, and only the `'use node'`
@@ -32,6 +32,8 @@ type WireAttachment = {
   storageId?: string;
   url?: string;
   contentBase64?: string;
+  /** The connector fetched the part but it was over its inline cap. */
+  truncated?: boolean;
 };
 
 function asWireAttachment(value: unknown): WireAttachment | null {
@@ -53,6 +55,7 @@ function asWireAttachment(value: unknown): WireAttachment | null {
     ...(typeof value.contentBase64 === 'string' && {
       contentBase64: value.contentBase64,
     }),
+    ...(value.truncated === true && { truncated: true }),
   };
 }
 
@@ -132,8 +135,9 @@ async function storeAttachment(
 
 /**
  * Walk fetched email objects and materialize any `contentBase64` attachments.
- * Emails without wire bytes pass through unchanged (metadata-only attachments
- * stay as chips the user can see but not open until a download path lands).
+ * Emails without wire bytes pass through unchanged (a metadata-only
+ * attachment stays a chip the user can see but not open; one the connector
+ * marked `truncated` keeps that flag so the reason is on record).
  */
 export async function materializeEmailAttachments(
   ctx: ActionCtx,

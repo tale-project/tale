@@ -2,7 +2,11 @@ import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { parseTaskSubjectContract } from '../../../lib/shared/schemas/task_contract.ts';
-import { TASK_AUDIT_ACTIONS } from '../../core/tasks/audit_actions.ts';
+import {
+  TASK_AUDIT_ACTIONS,
+  TASK_COMMENT_RESOURCE_TYPE,
+} from '../../core/tasks/audit_actions.ts';
+import { TASK_COMMENT_MAX } from '../../core/tasks/helpers.ts';
 import {
   addedMentions,
   type ResolvedMention,
@@ -57,7 +61,7 @@ import {
  * agent run stay with the automations/agents lanes.
  */
 
-export const TASK_COMMENT_MAX = 10_000;
+export { TASK_COMMENT_MAX };
 
 interface CommentAuthor {
   actorType: 'user' | 'agent';
@@ -88,11 +92,19 @@ async function ensureTaskDiscussionThread(
   return rows[0]?.discussionThreadId ?? threadId;
 }
 
-/** Append one comment (message + lockstep meta + count + activity + audit). */
+/** Append one comment (message + lockstep meta + count + activity + audit).
+ * `bodyByLocale` is the same text written natively per language (the
+ * workflow `task.comment` native and the automated date nudge carry it); the
+ * reader picks their locale and falls back to `body`. */
 export async function addTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
-  args: { taskId: string; body: string; author?: CommentAuthor },
+  args: {
+    taskId: string;
+    body: string;
+    bodyByLocale?: Record<string, string>;
+    author?: CommentAuthor;
+  },
 ): Promise<{
   messageId: string;
   threadId: string;
@@ -132,11 +144,13 @@ export async function addTaskComment(
   await tx`
     INSERT INTO app.task_discussion_message_meta (
       message_id, org_id, thread_id, task_id, author_type, author_id,
-      mentions, created_at_ms
+      mentions, body_by_locale, created_at_ms
     ) VALUES (
       ${messageId}, ${auth.organizationId}, ${threadId}, ${args.taskId},
       ${author.actorType}, ${author.actorId},
-      ${mentions.length > 0 ? tx.json(toJson(mentions)) : null}, ${Date.now()}
+      ${mentions.length > 0 ? tx.json(toJson(mentions)) : null},
+      ${args.bodyByLocale !== undefined ? tx.json(args.bodyByLocale) : null},
+      ${Date.now()}
     )
   `;
   await tx`
@@ -193,7 +207,7 @@ export async function addTaskComment(
     actorType: author.actorType === 'user' ? 'user' : 'system',
     action: TASK_AUDIT_ACTIONS.commentCreated,
     category: 'data',
-    resourceType: 'task_comment',
+    resourceType: TASK_COMMENT_RESOURCE_TYPE,
     resourceId: messageId,
     resourceName: task.title,
     metadata: { taskId: args.taskId },
@@ -469,7 +483,7 @@ export async function editTaskComment(
     actorType: 'user',
     action: TASK_AUDIT_ACTIONS.commentUpdated,
     category: 'data',
-    resourceType: 'task_comment',
+    resourceType: TASK_COMMENT_RESOURCE_TYPE,
     resourceId: args.messageId,
     resourceName: task.title,
     metadata: { taskId: meta.taskId, addedMentionCount: added.length },
@@ -507,7 +521,7 @@ export async function deleteTaskComment(
     actorType: 'user',
     action: TASK_AUDIT_ACTIONS.commentDeleted,
     category: 'data',
-    resourceType: 'task_comment',
+    resourceType: TASK_COMMENT_RESOURCE_TYPE,
     resourceId: messageId,
     resourceName: task.title,
     metadata: { taskId: meta.taskId },
@@ -814,12 +828,22 @@ async function maybeTriggerOwningAutomation(
   // ENQUEUED, not started inline: the comment must commit first (the
   // workflow re-reads the timeline including it), and the start needs a
   // pool connection of its own — 0.4 scheduled it for exactly this reason.
-  await addJobInTx(tx, 'task.start_workflow', {
-    organizationId: args.auth.organizationId,
-    taskId: args.task.id,
-    workflowSlug: mentioned.id,
-    startedByUserId: args.auth.userId,
-  });
+  // One queued start per (task, automation): two @mentions landing before
+  // the worker runs collapse into one job; the start itself is guarded
+  // again under a lock, so a job that does run beside a live run reuses it.
+  await addJobInTx(
+    tx,
+    'task.start_workflow',
+    {
+      organizationId: args.auth.organizationId,
+      taskId: args.task.id,
+      workflowSlug: mentioned.id,
+      startedByUserId: args.auth.userId,
+    },
+    {
+      singletonKey: `task.start_workflow:${args.auth.organizationId}:${args.task.id}:${mentioned.id}`,
+    },
+  );
   return true;
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { initialRank, rankBetween, rebalanceRanks } from './rank';
+import { initialRank, rankBetween } from './rank';
 
 describe('initialRank', () => {
   it('returns a stable mid-alphabet key', () => {
@@ -91,21 +91,5 @@ describe('rankBetween', () => {
     ] as const) {
       expect(() => rankBetween(a, b)).toThrow();
     }
-  });
-});
-
-describe('rebalanceRanks', () => {
-  it('returns an empty array for non-positive counts', () => {
-    expect(rebalanceRanks(0)).toEqual([]);
-    expect(rebalanceRanks(-3)).toEqual([]);
-  });
-
-  it('produces strictly increasing keys', () => {
-    const ranks = rebalanceRanks(20);
-    expect(ranks).toHaveLength(20);
-    for (let i = 1; i < ranks.length; i += 1) {
-      expect(ranks[i] > ranks[i - 1]).toBe(true);
-    }
-    expect([...ranks].sort()).toEqual(ranks);
   });
 });

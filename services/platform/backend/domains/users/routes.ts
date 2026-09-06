@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
+import { MemberServiceError } from '../members/service.ts';
 import {
   computePasswordExpiry,
   createMember,
@@ -54,7 +55,12 @@ const setMemberPasswordSchema = z.object({
 function toResponse(
   error: unknown,
 ): { code: string; status: 400 | 401 | 403 | 404 } | null {
-  if (error instanceof UserServiceError) {
+  if (
+    error instanceof UserServiceError ||
+    // createMember writes through the members domain (add_member audit +
+    // hint); its refusals (DUPLICATE_MEMBER, …) answer with their own codes.
+    error instanceof MemberServiceError
+  ) {
     return { code: error.code, status: error.status };
   }
   return null;
@@ -189,7 +195,7 @@ export function createUserRoutes(deps: {
     try {
       const result = await createMember(
         deps,
-        { userId: session.user.id },
+        { userId: session.user.id, email: session.user.email },
         body.data,
       );
       return c.json(result);

@@ -958,8 +958,10 @@ export async function auditLogRetentionCutoff(
  * Audit logs are PREFIX-ONLY: the hash chain anchors on the oldest
  * remaining row's stored `previous_hash`, so a mid-chain hole would break
  * verification. The walk deletes oldest-first and STOPS at the first row
- * inside the window that must be preserved (a custodian-held actor) — the
- * spoliation duty wins over the retention window.
+ * inside the window that must be preserved — a custodian-held user's row,
+ * whether they ACTED (actor) or were acted UPON (`resource_type = 'user'`,
+ * the same two-sided definition the erasure scrub uses for a subject's
+ * rows) — the spoliation duty wins over the retention window.
  */
 async function sweepAuditLogs(
   sql: Sql,
@@ -971,9 +973,16 @@ async function sweepAuditLogs(
   // Refuse to delete the very table that records why the hold exists.
   if (holds.orgHeld) return 0;
   const candidates = await sql<
-    { id: string; actorId: string | null; ts: number }[]
+    {
+      id: string;
+      actorId: string | null;
+      resourceType: string;
+      resourceId: string | null;
+      ts: number;
+    }[]
   >`
-    SELECT id, actor_id AS "actorId", ts::float8 AS ts
+    SELECT id, actor_id AS "actorId", resource_type AS "resourceType",
+           resource_id AS "resourceId", ts::float8 AS ts
     FROM app.audit_logs
     WHERE org_id = ${org.organizationId} AND ts < ${cutoff}
     ORDER BY ts ASC, id ASC
@@ -981,7 +990,13 @@ async function sweepAuditLogs(
   `;
   const prefix: string[] = [];
   for (const row of candidates) {
-    if (row.actorId !== null && holds.userMembershipIds.has(row.actorId)) {
+    const heldActor =
+      row.actorId !== null && holds.userMembershipIds.has(row.actorId);
+    const heldSubject =
+      row.resourceType === 'user' &&
+      row.resourceId !== null &&
+      holds.userMembershipIds.has(row.resourceId);
+    if (heldActor || heldSubject) {
       break; // preserve from here on — no mid-chain holes
     }
     prefix.push(row.id);

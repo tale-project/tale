@@ -1595,9 +1595,9 @@ platformGovernance:
         docsLabel: Journaux d’audit
       - title: Guardrails et politiques
         body:
-          Les guardrails de l’organisation et la politique d’exécution de code
-          fixent les limites de ce que les agents peuvent tenter — avant même
-          qu’une carte apparaisse.
+          Les guardrails et les politiques de l’organisation fixent les limites
+          de ce que les agents peuvent tenter — avant même qu’une carte
+          apparaisse.
         docsLabel: Guardrails
       - title: PII filtrées dans les deux sens
         body:

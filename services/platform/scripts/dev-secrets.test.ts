@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
   DEV_SANDBOX_TOKEN,
+  ensureKnowledgeDatabaseUrl,
   ensureSandboxLlmGatewayAdminPassword,
   ensureSandboxToken,
 } from './dev-secrets';
@@ -82,6 +83,41 @@ describe('ensureSandboxLlmGatewayAdminPassword', () => {
     ensureSandboxLlmGatewayAdminPassword(env);
     expect(env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD).toBe(
       DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
+    );
+  });
+});
+
+describe('ensureKnowledgeDatabaseUrl', () => {
+  it('fills only the gap — an explicit KNOWLEDGE_DATABASE_URL is never overwritten', () => {
+    const env: NodeJS.ProcessEnv = {
+      DB_PASSWORD: 'pw',
+      KNOWLEDGE_DATABASE_URL:
+        'postgresql://tale:pw@elsewhere:5432/tale_knowledge',
+    };
+    ensureKnowledgeDatabaseUrl(env);
+    expect(env.KNOWLEDGE_DATABASE_URL).toBe(
+      'postgresql://tale:pw@elsewhere:5432/tale_knowledge',
+    );
+  });
+
+  it('derives the host-side knowledge-db URL from DB_PASSWORD', () => {
+    const env: NodeJS.ProcessEnv = { DB_PASSWORD: 'p w' };
+    ensureKnowledgeDatabaseUrl(env);
+    expect(env.KNOWLEDGE_DATABASE_URL).toBe(
+      'postgresql://tale:p%20w@localhost:5433/tale_knowledge',
+    );
+  });
+
+  // The alias was read only by the retired purge resolver; the live pool never
+  // honoured it, so leaving it set must not suppress the derivation.
+  it('ignores the retired RAG_DATABASE_URL alias', () => {
+    const env: NodeJS.ProcessEnv = {
+      DB_PASSWORD: 'pw',
+      RAG_DATABASE_URL: 'postgresql://tale:pw@db:5432/tale_knowledge',
+    };
+    ensureKnowledgeDatabaseUrl(env);
+    expect(env.KNOWLEDGE_DATABASE_URL).toBe(
+      'postgresql://tale:pw@localhost:5433/tale_knowledge',
     );
   });
 });

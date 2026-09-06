@@ -31,7 +31,6 @@ vi.mock('../tasks/agent-runs.ts', () => ({
 vi.mock('./service.ts', () => ({ reconcileSession: vi.fn() }));
 vi.mock('./sessions.ts', () => ({
   markSessionDestroyed: vi.fn(() => Promise.resolve(true)),
-  reapStaleAdmissionTickets: vi.fn(() => Promise.resolve(0)),
 }));
 
 interface Statement {
@@ -259,7 +258,7 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
       spawner,
     });
 
-    expect(result).toEqual({ expired: 0, healed: 0, reclaimed: 0, reaped: 0 });
+    expect(result).toEqual({ expired: 0, healed: 0, reclaimed: 0 });
     expect(reconcileSession).not.toHaveBeenCalled();
     expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
     expect(

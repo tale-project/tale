@@ -8,8 +8,7 @@
  * Lives in `lib/shared/` as the runtime-agnostic boundary helper; the
  * backend reaches it through `lib/chat/untrusted-content` (the video-link
  * ingest's metadata trust boundary, the assistant tools' titles), which
- * remains the home for `wrapUntrusted` / `UNTRUSTED_CONTENT_SYSTEM_PROMPT` /
- * `containsSuspiciousInjection`.
+ * remains the home for `wrapUntrusted` / `UNTRUSTED_CONTENT_SYSTEM_PROMPT`.
  */
 export function sanitizeUntrustedField(value: string, maxLen = 200): string {
   // eslint-disable-next-line no-control-regex

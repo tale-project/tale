@@ -449,6 +449,12 @@ export type CallbackOutcome =
  * The vendor's front-channel return. Everything trusted comes from the
  * consumed state row; the request supplies only the authorization code, which
  * is worthless without the PKCE verifier held server-side.
+ *
+ * The state binds the INITIATOR; `requesterUserId` is who is completing —
+ * the session on the browser the vendor redirected back to. The two must be
+ * the same person: a consent link forwarded to someone else would otherwise
+ * store THEIR vendor grant under the initiator's organization. The state is
+ * consumed before the comparison, so a mismatched completion still burns it.
  */
 export async function completeOauth2(
   sql: Sql,
@@ -456,6 +462,9 @@ export async function completeOauth2(
     state: string | null;
     code: string | null;
     vendorError: string | null;
+    /** The signed-in user completing the flow, or null when the browser
+     * carries no session. */
+    requesterUserId: string | null;
   },
   /** The reused exchange's own documented seam — injected only by tests, so
    * the whole flow is exercisable without a network. */
@@ -484,6 +493,17 @@ export async function completeOauth2(
   }
   const { organizationId, userId, connectorSlug, codeVerifier, redirectUri } =
     pending;
+
+  if (args.requesterUserId === null || args.requesterUserId !== userId) {
+    // Same page as a forged state: the completer learns nothing about whose
+    // flow this was, and the state is already gone.
+    console.warn(
+      `[connectors:oauth2] refused a "${connectorSlug}" callback completed by ${
+        args.requesterUserId === null ? 'no session' : 'a different user'
+      } than the one who started it (organization ${organizationId})`,
+    );
+    return { kind: 'error', error: 'invalid_state' };
+  }
 
   // A user who declines consent comes back with `error`, not `code`.
   if (args.vendorError !== null || args.code === null || args.code === '') {

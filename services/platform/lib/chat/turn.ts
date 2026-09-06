@@ -26,7 +26,11 @@
  * pair or refuses; it never reaches in.
  */
 
-import { classifyChatErrorCode, encodeChatError } from '../shared/chat-errors';
+import {
+  classifyChatErrorCode,
+  describeChatError,
+  encodeChatError,
+} from '../shared/chat-errors';
 import {
   resolveExecution,
   type CredentialAuth,
@@ -82,6 +86,9 @@ export const TURN_STEPS = [
 ] as const;
 
 export type TurnStep = (typeof TURN_STEPS)[number];
+
+/** The empty harness table a direct-only host resolves against. */
+const NO_HARNESSES: HarnessTable = new Map();
 
 /**
  * How many rounds of a turn may end in tool calls before the loop stops
@@ -386,7 +393,9 @@ export interface TurnRequest {
 }
 
 export interface TurnDeps {
-  readonly harnesses: HarnessTable;
+  /** The harness catalog a SANDBOX host resolves execution against. A
+   * direct-only host (chat) omits it — the direct arm never consults it. */
+  readonly harnesses?: HarnessTable;
   readonly inputFilters?: readonly GuardrailFilter[];
   readonly outputFilters?: readonly GuardrailFilter[];
   readonly guardrailOptions?: GuardrailChainOptions;
@@ -424,6 +433,14 @@ export type TurnOutcome =
       readonly step: TurnStep;
       readonly reason: string;
       readonly refusal?: GuardrailRefusal;
+      /**
+       * Whether the transcript recorded the exchange — the user's message
+       * and a blocked (or failed) assistant row. Every refusal the pipeline
+       * itself makes is on the record; a host that refuses BEFORE the
+       * pipeline (model resolution, access policy) writes nothing, and its
+       * caller still holds the only copy of the text.
+       */
+      readonly persisted: boolean;
     };
 
 // -------------------------------------------------------------------- steps
@@ -433,7 +450,7 @@ export type TurnOutcome =
  * any tool sees it; the chain may rewrite the text (a PII mask), and a refusal
  * ends the turn here.
  */
-export async function runInputGuardrails(
+async function runInputGuardrails(
   text: string,
   deps: TurnDeps,
 ): Promise<{ text: string; refusal?: GuardrailRefusal }> {
@@ -452,7 +469,7 @@ export async function runInputGuardrails(
  * pair runs directly or in a sandbox harness, per the one case split every
  * caller shares.
  */
-export function resolveAgentAndExecution(
+function resolveAgentAndExecution(
   request: TurnRequest,
   deps: TurnDeps,
 ): { agent?: ResolvedAgent; execution: ExecutionResolution } {
@@ -463,7 +480,7 @@ export function resolveAgentAndExecution(
       mode: request.executionMode,
       harness: request.harness,
     },
-    deps.harnesses,
+    deps.harnesses ?? NO_HARNESSES,
   );
   return { agent: request.agent, execution };
 }
@@ -492,7 +509,7 @@ export function userTurnParts(
   ];
 }
 
-export function assembleTurnContext(
+function assembleTurnContext(
   request: TurnRequest,
   filteredUserText: string,
   now: Date,
@@ -551,7 +568,7 @@ interface StreamRoundOptions {
  * Longer than the store's write throttle, so nearly every poll is a real
  * read; short enough that Stop answers within a second even when the
  * provider is between bytes. */
-export const CANCEL_POLL_INTERVAL_MS = 750;
+const CANCEL_POLL_INTERVAL_MS = 750;
 
 const CANCEL_POLL_TICK = Symbol('cancel-poll-tick');
 
@@ -581,7 +598,7 @@ function raceCancelPoll<T>(
  * One call is ONE model round. The tool loop in `runTurn` calls it again with
  * an extended transcript after executing the round's tool calls.
  */
-export async function streamWithOutputGuardrails(
+async function streamWithOutputGuardrails(
   request: TurnRequest,
   context: AssembledContext,
   execution: ExecutionResolution,
@@ -791,18 +808,33 @@ export async function streamWithOutputGuardrails(
   }
   // Flush may have just cleared a short tail that never hit minFlushChars.
   // Persist the accumulated text so the UI sees it before finalize, and
-  // so a throw after this point still has streamText for rescue.
+  // so a throw after this point still has streamText for rescue. The write
+  // is also a cancel read: a Stop it reports ends the round here, so the
+  // tool loop never settles calls for a turn the user already stopped.
   await persistProgress({ flush: true });
   return {
     text: cleared,
     ...(reasoning.length > 0 ? { reasoning } : {}),
     ...(toolCalls !== undefined && toolCalls.length > 0 ? { toolCalls } : {}),
+    ...(cancelled ? { cancelled: true } : {}),
     reportedUsage,
     firstChunkAtMs,
     firstReasoningAtMs,
     roundStartedAtMs,
   };
 }
+
+/**
+ * The result a tool call gets when the user stopped the reply before it
+ * ran. Every call the model made MUST be answered on the record: both wire
+ * dialects reject a transcript whose tool call has no result, so one
+ * unanswered call would fail every later send and regenerate on the
+ * thread with a provider 400 the user cannot repair.
+ */
+export const TOOL_CALL_STOPPED_OUTPUT = {
+  status: 'cancelled',
+  message: 'The user stopped the reply before this tool ran.',
+} as const;
 
 /** Cost of a turn in cents from the model's catalog pricing — fractional
  * cents, so a sub-cent turn keeps its precision. Absent pricing yields zero
@@ -826,7 +858,7 @@ export function estimateCostCents(
  * output included: the tokens were spent either way, and a ledger that only
  * counts good answers under-reports what the org is paying for.
  */
-export async function recordUsage(
+async function recordUsage(
   request: TurnRequest,
   usage: TurnUsage,
   deps: TurnDeps,
@@ -889,11 +921,28 @@ export async function runTurn(
   const turnStartedAtMs = now().getTime();
   const steps: TurnStep[] = [];
 
+  /**
+   * A pre-model refusal. The transcript still records the exchange: the
+   * user's message lands first (as the chain left it — a mask applied by an
+   * earlier step stays applied), then the refusal as a blocked assistant
+   * row — so what was refused is visible, not silently dropped. A
+   * regenerate (`appendUserMessage: false`) re-runs a message that is
+   * already the thread's tail and appends only the refusal.
+   */
   const refuse = async (
     step: TurnStep,
     reason: string,
+    userText: string,
     refusal?: GuardrailRefusal,
   ): Promise<TurnOutcome> => {
+    if (request.appendUserMessage !== false) {
+      await deps.store.appendMessage({
+        organizationId: request.organizationId,
+        threadId: request.threadId,
+        role: 'user',
+        parts: userTurnParts(userText, request.attachments),
+      });
+    }
     await deps.store.appendMessage({
       organizationId: request.organizationId,
       threadId: request.threadId,
@@ -901,7 +950,7 @@ export async function runTurn(
       parts: [],
       blockedReason: reason,
     });
-    return { status: 'refused', steps, step, reason, refusal };
+    return { status: 'refused', steps, step, reason, refusal, persisted: true };
   };
 
   steps.push('input-guardrails');
@@ -910,6 +959,7 @@ export async function runTurn(
     return refuse(
       'input-guardrails',
       refusalReason(input.refusal),
+      input.text,
       input.refusal,
     );
   }
@@ -917,7 +967,7 @@ export async function runTurn(
   steps.push('resolve-execution');
   const { execution } = resolveAgentAndExecution(request, deps);
   if (execution.mode === 'refused') {
-    return refuse('resolve-execution', execution.reason);
+    return refuse('resolve-execution', execution.reason, input.text);
   }
 
   steps.push('assemble-context');
@@ -1145,8 +1195,20 @@ export async function runTurn(
       });
       await persistSettledParts();
       // The boundary flush is also a cancel read: a Stop that landed while
-      // the round streamed its tool calls must not start the tools.
+      // the round streamed its tool calls must not start the tools — but
+      // the calls are already on the record, so each gets its stopped
+      // result before the turn settles (see TOOL_CALL_STOPPED_OUTPUT).
       if (boundary?.cancelRequested === true) {
+        for (const call of calls) {
+          settledParts.push({
+            type: 'tool-result',
+            callId: call.id,
+            capabilityId: call.name,
+            output: TOOL_CALL_STOPPED_OUTPUT,
+            structured: true,
+          });
+        }
+        await persistSettledParts();
         streamed = { ...streamed, cancelled: true };
         break;
       }
@@ -1298,6 +1360,7 @@ export async function runTurn(
         step: 'output-guardrails',
         reason,
         refusal: streamed.refusal,
+        persisted: true,
       };
     }
 
@@ -1335,8 +1398,7 @@ export async function runTurn(
     // whatever partial text the streaming writes persisted survives. The
     // `finally` still settles the generation; returning `refused` surfaces
     // the reason on the seam.
-    const reason =
-      err instanceof Error ? err.message : 'The model response failed.';
+    const reason = describeChatError(err, 'The model response failed.');
     // The message row is the only durable record of this failure — the log
     // line is the operator's copy of it (the reason text was already
     // secret-redacted and truncated where it was thrown).
@@ -1358,7 +1420,13 @@ export async function runTurn(
         raw: reason,
       }),
     });
-    return { status: 'refused', steps, step: 'stream', reason };
+    return {
+      status: 'refused',
+      steps,
+      step: 'stream',
+      reason,
+      persisted: true,
+    };
   } finally {
     await deps.store.endGeneration({
       organizationId: request.organizationId,

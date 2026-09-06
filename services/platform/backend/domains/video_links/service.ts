@@ -1108,9 +1108,12 @@ export async function ingestVideoUrl(
 /** Enqueue-time claim for a deferred send (the 0.4 `bindJobsForDeferredSend`):
  * stamp `message_bound_at_ms` (+ thread for welcome-page rows) on every
  * claimable job — the stamp releases the chips from the composer and keeps
- * the direct-send bind from double-taking them. Returns the ids claimed. */
+ * the direct-send bind from double-taking them. Returns the ids claimed.
+ * Runs on the CALLER's transaction: the park inserts the row with the
+ * claimed set and enqueues its readiness poll behind this claim, so the
+ * first poll can never observe the row before it knows its videos. */
 export async function bindJobsForDeferredSend(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   args: {
     jobIds: readonly string[];
     userId: string;
@@ -1119,25 +1122,23 @@ export async function bindJobsForDeferredSend(
   },
 ): Promise<string[]> {
   if (args.jobIds.length === 0) return [];
-  return sql.begin(async (tx) => {
-    const now = Date.now();
-    const claimed: string[] = [];
-    for (const jobId of args.jobIds) {
-      const rows = await tx<{ id: string }[]>`
-        UPDATE app.video_link_jobs
-        SET message_bound_at_ms = ${now},
-            thread_id = coalesce(thread_id, ${args.threadId})
-        WHERE id = ${jobId} AND org_id = ${args.organizationId}
-          AND uploaded_by = ${args.userId}
-          AND message_bound_at_ms IS NULL
-          AND status <> 'skipped'
-          AND lifecycle_status IS DISTINCT FROM 'trashed'
-        RETURNING id
-      `;
-      if (rows[0]) claimed.push(rows[0].id);
-    }
-    return claimed;
-  });
+  const now = Date.now();
+  const claimed: string[] = [];
+  for (const jobId of args.jobIds) {
+    const rows = await sql<{ id: string }[]>`
+      UPDATE app.video_link_jobs
+      SET message_bound_at_ms = ${now},
+          thread_id = coalesce(thread_id, ${args.threadId})
+      WHERE id = ${jobId} AND org_id = ${args.organizationId}
+        AND uploaded_by = ${args.userId}
+        AND message_bound_at_ms IS NULL
+        AND status <> 'skipped'
+        AND lifecycle_status IS DISTINCT FROM 'trashed'
+      RETURNING id
+    `;
+    if (rows[0]) claimed.push(rows[0].id);
+  }
+  return claimed;
 }
 
 /** Fire-time payloads for a deferred send's claimed jobs (the 0.4
@@ -1631,18 +1632,46 @@ export async function bindCompletedJobsToMessage(
 }
 
 /**
+ * Drop the message bind from jobs no SENT message carries — the shared
+ * predicate of every unbind: a job whose transcript rides a user row of its
+ * thread (the row carries the attachment part) stays bound, because
+ * unbinding it would hand the transcript to the unbound-GC a week later and
+ * strand the sent message's attachment. Everything else in `jobIds` goes
+ * back to unbound: visible in the composer again, and reapable once
+ * terminal. `userId` narrows to the uploader's own rows (the composer
+ * door); the deferred-send lane, whose rows were claimed under the row's
+ * stored identity, passes none.
+ */
+export async function unbindJobsWithoutMessage(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; jobIds: readonly string[]; userId?: string },
+): Promise<void> {
+  const jobIds = [...new Set(args.jobIds)];
+  if (jobIds.length === 0) return;
+  await sql`
+    UPDATE app.video_link_jobs j SET message_bound_at_ms = NULL
+    WHERE j.id = ANY(${jobIds}) AND j.org_id = ${args.organizationId}
+      AND (${args.userId ?? null}::text IS NULL
+           OR j.uploaded_by = ${args.userId ?? null})
+      AND j.message_bound_at_ms IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM app.messages m
+        WHERE m.thread_id = j.thread_id AND m.role = 'user'
+          AND m.parts @> jsonb_build_array(jsonb_build_object(
+            'type', 'attachment', 'fileId', j.storage_ref
+          ))
+      )
+  `;
+}
+
+/**
  * Reverse a bind after a failed send (the 0.4 twin) — idempotent for the
  * caller's OWN rows in THIS organization. Every supplied id must resolve to
  * such a row or the whole batch is refused before anything changes: a job
  * the caller holds in another organization is not theirs here (the org is
  * the scope, like every other video-links verb), and an id the composer
- * never held is a probe, not a chip.
- *
- * A job whose transcript already rides a SENT message in its thread stays
- * bound. The server can tell — the user row carries the attachment part —
- * and unbinding it would hand the transcript to the unbound-GC a week later
- * and strand the sent message's attachment; the legitimate caller (a send
- * that failed) never has such a message.
+ * never held is a probe, not a chip. The sent-message guard is
+ * {@link unbindJobsWithoutMessage}'s.
  */
 export async function unbindJobsFromMessage(
   sql: Sql,
@@ -1660,19 +1689,11 @@ export async function unbindJobsFromMessage(
     if (owned.length !== jobIds.length) {
       throw new VideoLinkError('notFound', 'Video link not found', 404);
     }
-    await tx`
-      UPDATE app.video_link_jobs j SET message_bound_at_ms = NULL
-      WHERE j.id = ANY(${jobIds}) AND j.org_id = ${args.organizationId}
-        AND j.uploaded_by = ${args.userId}
-        AND j.message_bound_at_ms IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM app.messages m
-          WHERE m.thread_id = j.thread_id AND m.role = 'user'
-            AND m.parts @> jsonb_build_array(jsonb_build_object(
-              'type', 'attachment', 'fileId', j.storage_ref
-            ))
-        )
-    `;
+    await unbindJobsWithoutMessage(tx, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      jobIds,
+    });
   });
 }
 

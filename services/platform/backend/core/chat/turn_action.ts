@@ -43,10 +43,7 @@ import {
   isImage,
 } from '../../../lib/shared/file-types';
 import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
-import {
-  buildHarnessTable,
-  type CredentialAuth,
-} from '../../../lib/shared/providers/resolve_execution';
+import type { CredentialAuth } from '../../../lib/shared/providers/resolve_execution';
 import type {
   ApiFormat,
   ModelCatalogEntry,
@@ -60,7 +57,6 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { directActiveCredential } from '../lib/providers/direct_credential';
-import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import {
   resolveChatModel,
@@ -71,9 +67,13 @@ import { readBlobBytes } from '../lib/storage/blob_access';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { createChatToolExecutor } from './assistant_tools';
+import {
+  buildTurnGuardrails,
+  mandatoryInstructionsFor,
+  readTurnPolicies,
+} from './guardrails';
 import { resolveProjectContext } from './project_context';
 import { createStallGuard, type StallGuard } from './stream_stall';
-import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
 
 /** The stored excerpt of an upstream error body. This is the ONLY record of
  * the provider's answer anywhere (nothing logs the full body), so it must fit
@@ -601,14 +601,15 @@ export async function settleWireAttachments(
   }
 }
 
-/** Build the real streaming model call for direct execution. The wire target
- * is resolved once and reused across the turn's chunks. */
+/** Build the real streaming model call for direct execution over a wire
+ * the host resolved UP FRONT (`resolveDirectWire`) — so a credential fault
+ * is a pre-turn refusal, never a failed bubble inside the stream. */
 export function createDirectModelCall(
   ctx: ActionCtx,
   organizationId: string,
   connector: ProviderDefinition,
+  wire: DirectWire,
 ): ModelCall {
-  let wire: DirectWire | null = null;
   /** Whether the model declares reasoning, per its catalog entry — resolved
    * once per turn, only when the connector's dialect needs the fact. */
   let reasoningModel: boolean | undefined;
@@ -619,14 +620,6 @@ export function createDirectModelCall(
   return async function* directModelCall(
     request,
   ): AsyncGenerator<ModelStreamChunk> {
-    if (request.execution.mode !== 'direct') {
-      throw new AppError({
-        code: 'CHAT_EXECUTION_UNAVAILABLE',
-        message:
-          'Sandbox execution is not available for chat turns yet — only direct model calls run here.',
-      });
-    }
-    wire ??= await resolveDirectWire(ctx, organizationId, connector);
     // Provider files may name a private-http endpoint (self-hosted model
     // server, e2e mock gateway) — the schema admits the shape, and THIS is
     // the request boundary that decides reachability: metadata endpoints are
@@ -763,7 +756,6 @@ export interface ExecuteTurnArgs {
   readonly modelSelection?: 'auto';
   /** The user's reasoning-effort pick; absent samples the default. */
   readonly reasoningEffort?: ReasoningEffort;
-  readonly sandbox: boolean;
   readonly locale: string;
   /** Re-run the thread's trailing user message (a regenerate): `userText` is
    * that message's text and the pipeline must not append it again. */
@@ -776,7 +768,10 @@ export interface ExecuteTurnArgs {
  * connector dispatcher. */
 export interface ExecuteTurnOverrides {
   readonly model?: ModelCall;
-  readonly deps?: Partial<TurnDeps>;
+  /** The host's write ports — the Postgres turn store and usage ledger —
+   * plus any pipeline dep a test wants to swap. Required: this host has no
+   * store of its own. */
+  readonly deps: Partial<TurnDeps> & Pick<TurnDeps, 'store' | 'usage'>;
 }
 
 /** Auto-resolution refusals, verbatim in the user's face — same voice as
@@ -1030,13 +1025,16 @@ export function unwrap<T>(result: PromiseSettledResult<T>): T {
 export async function executeTurn(
   ctx: ActionCtx,
   args: ExecuteTurnArgs,
-  overrides: ExecuteTurnOverrides = {},
+  overrides: ExecuteTurnOverrides,
 ): Promise<TurnOutcome> {
+  // Nothing has been written yet at any of these refusals — the caller
+  // still holds the only copy of the message.
   const refuse = (reason: string): TurnOutcome => ({
     status: 'refused',
     steps: [],
     step: 'input-guardrails',
     reason,
+    persisted: false,
   });
 
   // Auto resolves FIRST, into a concrete (provider, model) pair — so every
@@ -1068,11 +1066,11 @@ export async function executeTurn(
     modelId = args.modelId;
   }
 
-  // Five independent reads, one wall-clock slot — every syscall from this
+  // Six independent reads, one wall-clock slot — every syscall from this
   // action is an authenticated round-trip, so their SUM is the caller's
   // wait. All are pure reads (policy, lineage, blob ownership, catalog,
-  // context cap); the one side effect (the retroactive attachment bind)
-  // stays behind the verdicts below.
+  // context cap, guardrail policies); the one side effect (the retroactive
+  // attachment bind) stays behind the verdicts below.
   const sentAttachments = args.attachments ?? [];
   const pendingAccess = settled(
     ctx.runQuery(internal.governance.queries.checkModelAccessInternal, {
@@ -1116,6 +1114,11 @@ export async function executeTurn(
       userId: args.userId,
     }),
   );
+  // The org's guardrail and mandatory-instruction policies: the chain the
+  // user's text and the model's reply pass through, and the first block of
+  // the system prompt. Read here so a policy file is one wall-clock slot,
+  // not four serial ones.
+  const pendingPolicies = settled(readTurnPolicies(ctx, args.organizationId));
 
   // Verdicts in the serial order the reads used to run, so refusal
   // precedence is unchanged. The model-access policy holds at the boundary,
@@ -1164,6 +1167,31 @@ export async function executeTurn(
   }
 
   const resolved = unwrap(await pendingResolved);
+  const policies = unwrap(await pendingPolicies);
+  const mandatoryInstructions = mandatoryInstructionsFor(policies);
+
+  // The credential and endpoint are resolved HERE, ahead of the history
+  // read and of any row being written: a disabled, deleted, rotated or
+  // unsupported default credential throws its own code, which the send
+  // route answers as a composer-visible refusal — never a persisted user
+  // message with a generic failed bubble under it. A test's model override
+  // brings its own wire.
+  let model: ModelCall;
+  if (overrides.model !== undefined) {
+    model = overrides.model;
+  } else {
+    const wire = await resolveDirectWire(
+      ctx,
+      args.organizationId,
+      resolved.connector,
+    );
+    model = createDirectModelCall(
+      ctx,
+      args.organizationId,
+      resolved.connector,
+      wire,
+    );
+  }
 
   // The effort → sampling and the effective window come FIRST: the history
   // read is bounded by the same budget the context assembly fits into, so a
@@ -1203,6 +1231,7 @@ export async function executeTurn(
       step: 'input-guardrails',
       reason:
         'Nothing to regenerate — the conversation does not end with your message.',
+      persisted: false,
     };
   }
   // A resend rebuilds the trailing message from its parts: the TYPED text
@@ -1254,15 +1283,15 @@ export async function executeTurn(
     }),
   );
 
-  const model =
-    overrides.model ??
-    createDirectModelCall(ctx, args.organizationId, resolved.connector);
-
   const deps: TurnDeps = {
-    harnesses: buildHarnessTable(loadHarnesses()),
     model,
-    store: createConvexTurnStore(ctx),
-    usage: createConvexUsageLedger(ctx, { pricing: resolved.entry.pricing }),
+    // The org's guardrail chain, both directions, with its event log.
+    ...buildTurnGuardrails(ctx, {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      agentSlug: CHAT_ASSISTANT.slug,
+      policies,
+    }),
     // The chat assistant's fixed three-tool loadout. A test that wants a
     // tool-free turn overrides `tools` with undefined.
     tools: createChatToolExecutor(ctx, {
@@ -1283,8 +1312,10 @@ export async function executeTurn(
     ...(attachments.length > 0 ? { attachments } : {}),
     history,
     // The one persona the chat page talks to — hardcoded, never a config
-    // file — and the docs block for its fixed tool loadout.
+    // file — and the docs block for its fixed tool loadout. The org's
+    // mandatory instructions, when the policy carries any, come first.
     agent: CHAT_ASSISTANT,
+    ...(mandatoryInstructions !== undefined ? { mandatoryInstructions } : {}),
     toolDocs: CHAT_TOOL_DOCS,
     ...(projectContext !== undefined ? { project: projectContext } : {}),
     locale: args.locale,
@@ -1297,10 +1328,12 @@ export async function executeTurn(
       reserveOutputTokens: sampling.maxTokens,
     },
     ...(omittedCount > 0 ? { historyOmittedCount: omittedCount } : {}),
-    // Direct chat only serves platform-managed credentials; a subscription
-    // credential is refused earlier, before the wire is built.
+    // Chat is the DIRECT lane: it serves platform-managed credentials over
+    // the provider wire, and `resolveDirectWire` refuses a subscription
+    // credential before any model call. The pipeline's sandbox arm belongs
+    // to the task-agent hosts, which bring their own harness table.
     credential: { authMethod: 'api-key' } satisfies CredentialAuth,
-    executionMode: args.sandbox ? 'sandbox' : 'direct',
+    executionMode: 'direct',
     ...(args.resend === true ? { appendUserMessage: false } : {}),
   };
 

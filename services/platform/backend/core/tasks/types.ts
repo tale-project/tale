@@ -1,12 +1,4 @@
 /**
- * The WORKER a task belongs to — exactly one of three classes: a human
- * (`user`), an AI agent (`agent`), or an automation (`app` — `assigneeId`
- * then holds the automation's store name, and the board's status verbs run
- * its workflow).
- */
-export type TaskAssigneeType = 'user' | 'agent' | 'app';
-
-/**
  * The `comment` object embedded in `comment.created` / `comment.mentioned`
  * automation events. Task comments live in the message store (no comment doc
  * to attach), so this object is RECONSTRUCTED at emit time. Its shape is

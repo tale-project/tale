@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { nodeVmRunner } from './node-vm';
 
@@ -114,5 +114,68 @@ describe('nodeVmRunner — the data-only calling convention', () => {
         }),
       ).rejects.toThrow(/boom/);
     });
+  });
+});
+
+describe('nodeVmRunner — the fault boundary (a supervised child process)', () => {
+  // A small heap so the runaway body dies fast; a short grace so a parked
+  // await is killed promptly after vm's own timeout would have fired.
+  const runner = nodeVmRunner({ maxHeapMb: 64, killGraceMs: 100 });
+  const ALLOCATE_FOREVER =
+    'const a = []; for (;;) a.push(new Array(1e6).fill(1)); return a.length;';
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('a body that allocates past the heap cap fails alone and the runner keeps serving', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await expect(
+      runner.runBody(ALLOCATE_FOREVER, {}, { timeoutMs: 10_000 }),
+    ).rejects.toThrow(/heap|out of memory|process died/i);
+    // The process that hosts this test is still here, and so is the runner:
+    // the death was contained to the evaluation and its child process.
+    await expect(runner.evalExpr('2 * 21', {}, LIMITS)).resolves.toBe(42);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/node-vm runner process died .*restarting/),
+    );
+  });
+
+  it('a body parked inside await is killed at the deadline', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const started = Date.now();
+    await expect(
+      runner.runBody(
+        'await new Promise(() => {}); return 1;',
+        {},
+        { timeoutMs: 200 },
+        { async: true },
+      ),
+    ).rejects.toThrow(/timed out after 200ms.*killed/);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    await expect(runner.evalExpr('"alive"', {}, LIMITS)).resolves.toBe('alive');
+  });
+
+  it('an evaluation queued behind a runaway body is served, not failed', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const runaway = runner.runBody(ALLOCATE_FOREVER, {}, { timeoutMs: 10_000 });
+    const queued = runner.evalExpr('40 + 2', {}, LIMITS);
+    await expect(runaway).rejects.toThrow();
+    await expect(queued).resolves.toBe(42);
+  });
+
+  it("dates evaluate in the host's zone: the runner process inherits TZ, not the rest of the environment", async () => {
+    await expect(
+      runner.evalExpr('new Date(0).getTimezoneOffset()', {}, LIMITS),
+    ).resolves.toBe(new Date(0).getTimezoneOffset());
+  });
+
+  it("a busy loop hits vm's own timeout without costing the process", async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await expect(
+      runner.evalExpr('(() => { for (;;) {} })()', {}, { timeoutMs: 50 }),
+    ).rejects.toThrow(/timed out/i);
+    await expect(runner.evalExpr('1', {}, LIMITS)).resolves.toBe(1);
+    expect(warn).not.toHaveBeenCalled();
   });
 });

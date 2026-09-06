@@ -1,8 +1,11 @@
-import type { TransactionSql } from 'postgres';
+import type { ReservedSql, TransactionSql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
   isSerializationFailure,
+  markRetryQueueKey,
+  RETRY_QUEUE_LOCK_CLASS,
+  retryQueueKeyOf,
   transactSerializable,
   type SerializableTransactionRunner,
 } from './serializable.ts';
@@ -122,5 +125,261 @@ describe('transactSerializable', () => {
     );
     expect(result).toBe('ok');
     expect(attempts()).toBe(2);
+  });
+});
+
+interface Statement {
+  text: string;
+  values: unknown[];
+}
+
+/**
+ * Recording fake of one reserved connection: the tagged template and
+ * `unsafe` both log the statement; `unsafe` answers with the command tag a
+ * server would (overridable for COMMIT), `release` counts.
+ */
+function createReserved(commitAnswer = 'COMMIT'): {
+  reserved: ReservedSql;
+  statements: Statement[];
+  released: () => number;
+} {
+  const statements: Statement[] = [];
+  let released = 0;
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings
+      .reduce(
+        (acc, part, index) =>
+          `${acc}${part}${index < values.length ? '?' : ''}`,
+        '',
+      )
+      .replace(/\s+/g, ' ')
+      .trim();
+    statements.push({ text, values });
+    return Promise.resolve([]);
+  };
+  tag.unsafe = (text: string) => {
+    statements.push({ text, values: [] });
+    const command = text.split(' ')[0] ?? '';
+    return Promise.resolve({
+      command: command === 'COMMIT' ? commitAnswer : command,
+    });
+  };
+  tag.release = () => {
+    released += 1;
+  };
+  return {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- unconstructable third-party branded type; only the members the runner uses exist
+    reserved: tag as unknown as ReservedSql,
+    statements,
+    released: () => released,
+  };
+}
+
+/**
+ * Runner whose `begin` fails with the queued errors; `reserve` hands out a
+ * fresh recording connection per call.
+ */
+function createQueueRunner(
+  failures: Error[],
+  options: { commitAnswer?: string } = {},
+): {
+  runner: SerializableTransactionRunner;
+  beginAttempts: () => number;
+  reservations: ReturnType<typeof createReserved>[];
+} {
+  const { runner, attempts } = createRunner(failures);
+  const reservations: ReturnType<typeof createReserved>[] = [];
+  const queued: SerializableTransactionRunner = {
+    begin: <T>(
+      isolation: string,
+      callback: (tx: TransactionSql) => Promise<T>,
+    ): Promise<T> => runner.begin(isolation, callback),
+    reserve: () => {
+      const reservation = createReserved(options.commitAnswer);
+      reservations.push(reservation);
+      return Promise.resolve(reservation.reserved);
+    },
+  };
+  return { runner: queued, beginAttempts: attempts, reservations };
+}
+
+const texts = (statements: Statement[]): string[] =>
+  statements.map((s) => s.text);
+
+const queueKey = 'audit-chain:org_1';
+
+describe('markRetryQueueKey', () => {
+  it('marks serialization failures only', () => {
+    expect(
+      retryQueueKeyOf(markRetryQueueKey(sqlstateError('40001'), 'k')),
+    ).toBe('k');
+    expect(
+      retryQueueKeyOf(markRetryQueueKey(sqlstateError('40P01'), 'k')),
+    ).toBe('k');
+    expect(
+      retryQueueKeyOf(markRetryQueueKey(sqlstateError('23505'), 'k')),
+    ).toBeUndefined();
+    expect(retryQueueKeyOf('40001')).toBeUndefined();
+    expect(retryQueueKeyOf(null)).toBeUndefined();
+  });
+
+  it('returns the same error object', () => {
+    const error = sqlstateError('40001');
+    expect(markRetryQueueKey(error, 'k')).toBe(error);
+  });
+});
+
+describe('transactSerializable — retry queues', () => {
+  it('runs the retry after a marked failure queued on the key', async () => {
+    const { runner, beginAttempts, reservations } = createQueueRunner([
+      markRetryQueueKey(sqlstateError('40001'), queueKey),
+    ]);
+    const result = await transactSerializable(
+      runner,
+      async (tx) => {
+        await tx`SELECT 1`;
+        return 'ok';
+      },
+      { sleep: noSleep },
+    );
+    expect(result).toBe('ok');
+    expect(beginAttempts()).toBe(1);
+    expect(reservations).toHaveLength(1);
+    const [reservation] = reservations;
+    expect(texts(reservation?.statements ?? [])).toEqual([
+      'SELECT pg_advisory_lock(?, hashtext(?))',
+      'BEGIN ISOLATION LEVEL SERIALIZABLE',
+      'SELECT 1',
+      'COMMIT',
+      'SELECT pg_advisory_unlock(?, hashtext(?))',
+    ]);
+    expect(reservation?.statements[0]?.values).toEqual([
+      RETRY_QUEUE_LOCK_CLASS,
+      queueKey,
+    ]);
+    expect(reservation?.statements[4]?.values).toEqual([
+      RETRY_QUEUE_LOCK_CLASS,
+      queueKey,
+    ]);
+    expect(reservation?.released()).toBe(1);
+  });
+
+  it('retries an unmarked failure plainly, never reserving', async () => {
+    const { runner, beginAttempts, reservations } = createQueueRunner([
+      sqlstateError('40001'),
+    ]);
+    await transactSerializable(runner, () => Promise.resolve('ok'), {
+      sleep: noSleep,
+    });
+    expect(beginAttempts()).toBe(2);
+    expect(reservations).toHaveLength(0);
+  });
+
+  it('retries plainly when the runner cannot reserve', async () => {
+    const { runner, attempts } = createRunner([
+      markRetryQueueKey(sqlstateError('40001'), queueKey),
+    ]);
+    await transactSerializable(runner, () => Promise.resolve('ok'), {
+      sleep: noSleep,
+    });
+    expect(attempts()).toBe(2);
+  });
+
+  it('stays queued once queued, rolling back a failed queued attempt', async () => {
+    const { runner, beginAttempts, reservations } = createQueueRunner([
+      markRetryQueueKey(sqlstateError('40001'), queueKey),
+    ]);
+    let calls = 0;
+    const result = await transactSerializable(
+      runner,
+      () => {
+        calls += 1;
+        // The first queued attempt loses on something else entirely.
+        return calls === 1
+          ? Promise.reject(sqlstateError('40001'))
+          : Promise.resolve('ok');
+      },
+      { sleep: noSleep },
+    );
+    expect(result).toBe('ok');
+    expect(beginAttempts()).toBe(1);
+    expect(reservations).toHaveLength(2);
+    expect(texts(reservations[0]?.statements ?? [])).toEqual([
+      'SELECT pg_advisory_lock(?, hashtext(?))',
+      'BEGIN ISOLATION LEVEL SERIALIZABLE',
+      'ROLLBACK',
+      'SELECT pg_advisory_unlock(?, hashtext(?))',
+    ]);
+    expect(reservations[0]?.released()).toBe(1);
+    expect(texts(reservations[1]?.statements ?? [])).toContain('COMMIT');
+    expect(reservations[1]?.released()).toBe(1);
+  });
+
+  it('rolls back, unlocks and releases when the queued callback fails for good', async () => {
+    const { runner, reservations } = createQueueRunner([
+      markRetryQueueKey(sqlstateError('40001'), queueKey),
+    ]);
+    await expect(
+      transactSerializable(runner, () => Promise.reject(new Error('boom')), {
+        sleep: noSleep,
+      }),
+    ).rejects.toThrow('boom');
+    expect(reservations).toHaveLength(1);
+    expect(texts(reservations[0]?.statements ?? [])).toEqual([
+      'SELECT pg_advisory_lock(?, hashtext(?))',
+      'BEGIN ISOLATION LEVEL SERIALIZABLE',
+      'ROLLBACK',
+      'SELECT pg_advisory_unlock(?, hashtext(?))',
+    ]);
+    expect(reservations[0]?.released()).toBe(1);
+  });
+
+  it('never reports success when the server answers COMMIT with ROLLBACK', async () => {
+    const { runner, reservations } = createQueueRunner(
+      [markRetryQueueKey(sqlstateError('40001'), queueKey)],
+      { commitAnswer: 'ROLLBACK' },
+    );
+    await expect(
+      transactSerializable(runner, () => Promise.resolve('unreached'), {
+        sleep: noSleep,
+      }),
+    ).rejects.toThrow('did not commit');
+    expect(texts(reservations[0]?.statements ?? []).at(-1)).toBe(
+      'SELECT pg_advisory_unlock(?, hashtext(?))',
+    );
+    expect(reservations[0]?.released()).toBe(1);
+  });
+
+  it('gives a queued transaction postgres.js-shaped savepoints', async () => {
+    const { runner, reservations } = createQueueRunner([
+      markRetryQueueKey(sqlstateError('40001'), queueKey),
+    ]);
+    await transactSerializable(
+      runner,
+      async (tx) => {
+        await tx.savepoint(async (sp) => {
+          await sp`SELECT 2`;
+        });
+        await expect(
+          tx.savepoint('inner', () => Promise.reject(new Error('undo'))),
+        ).rejects.toThrow('undo');
+        await expect(
+          tx.savepoint('not valid', () => Promise.resolve()),
+        ).rejects.toThrow('invalid savepoint name');
+        return 'ok';
+      },
+      { sleep: noSleep },
+    );
+    expect(texts(reservations[0]?.statements ?? [])).toEqual([
+      'SELECT pg_advisory_lock(?, hashtext(?))',
+      'BEGIN ISOLATION LEVEL SERIALIZABLE',
+      'SAVEPOINT s0',
+      'SELECT 2',
+      'RELEASE SAVEPOINT s0',
+      'SAVEPOINT s1_inner',
+      'ROLLBACK TO SAVEPOINT s1_inner',
+      'COMMIT',
+      'SELECT pg_advisory_unlock(?, hashtext(?))',
+    ]);
   });
 });

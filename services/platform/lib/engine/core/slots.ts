@@ -3,11 +3,13 @@
  *
  * Core validates and executes against a node-type table, an automation store
  * (for subautomation nodes), and a language-model service — but core must not
- * import the layers that provide them. Providers register here at assembly
- * time; the host's entry module wires everything, so importing the public
- * API yields a fully assembled engine while the dependency graph stays
+ * import the layers that provide them. Process-wide providers register here at
+ * assembly time; the host's entry module wires everything, so importing the
+ * public API yields a fully assembled engine while the dependency graph stays
  * acyclic. The CodeRunner seam lives in `runner.ts`, re-exported here so
- * hosts assemble against one module.
+ * hosts assemble against one module. The store is the exception: it is
+ * org-scoped, so hosts pass it per call (`ExecuteOptions.store`,
+ * `ValidateOptions.store`) rather than installing it process-wide.
  */
 
 export { setCodeRunner } from './runner';
@@ -265,7 +267,9 @@ export function typeNames(): string[] {
 /**
  * Where saved automations live. Async by contract: production stores sit
  * behind a database. Versions are immutable; `deployedVersion` names the one
- * version triggers run.
+ * version triggers run. A store is scoped to ONE organization, which is why
+ * there is no process-global slot for it: `validate()` and `execute()` take
+ * the caller's store as an option, and `dispatch()` threads its own.
  */
 export interface StoreAdapter {
   list(): Promise<Array<{ name: string; latest: number }>>;
@@ -274,16 +278,6 @@ export interface StoreAdapter {
     version?: number,
   ): Promise<{ meta: { version: number }; automation: unknown } | null>;
   deployedVersion(name: string): Promise<number | null>;
-}
-
-let store: StoreAdapter | null = null;
-
-export function setStoreAdapter(adapter: StoreAdapter): void {
-  store = adapter;
-}
-
-export function storeAdapter(): StoreAdapter | null {
-  return store;
 }
 
 // ---------------------------------------------------------------------- llm

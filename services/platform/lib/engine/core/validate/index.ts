@@ -11,12 +11,13 @@
  * Order: document shape → per-node structure → references and templates →
  * connector/store contracts and document quality. Validation is async end
  * to end: syntax checks ride the CodeRunner and subautomation resolution rides
- * the async store; with no runner installed, syntax checks are skipped
- * silently and re-run once a backend is wired.
+ * the caller-supplied async store; with no runner installed, syntax checks
+ * are skipped silently and re-run once a backend is wired.
  */
 
 import { isRecord } from '../../../utils/type-utils';
 import { err } from '../errors';
+import type { StoreAdapter } from '../slots';
 import type { Issue } from '../types';
 import { validateContracts } from './contracts';
 import { validateDocument } from './document';
@@ -25,8 +26,18 @@ import { validateReferences } from './references';
 
 const MAX_NODES = 40;
 
+export interface ValidateOptions {
+  /**
+   * Where subautomation references resolve. Threaded per call because a store
+   * is org-scoped; without one the reference SYNTAX is still checked but its
+   * existence is not (a bare harness has no store to ask).
+   */
+  store?: StoreAdapter;
+}
+
 export async function validate(
   doc: unknown,
+  opts: ValidateOptions = {},
 ): Promise<{ errors: Issue[]; warnings: Issue[] }> {
   if (!isRecord(doc)) {
     return {
@@ -70,7 +81,7 @@ export async function validate(
 
   const { validNodes, ids } = await validateNodes(doc.nodes, issues);
   await validateReferences(doc, validNodes, ids, issues);
-  await validateContracts(doc, validNodes, issues);
+  await validateContracts(doc, validNodes, issues, opts.store);
   return split(issues);
 }
 

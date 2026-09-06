@@ -1,7 +1,7 @@
 /**
  * Single source of truth for chat-generation error classification, shared by
- * the Convex backend (which classifies the real provider/SDK error object) and
- * the React chat UI (which renders a localized, actionable message).
+ * the backend (which classifies the real provider/SDK error object) and the
+ * React chat UI (which renders a localized, actionable message).
  *
  * The backend stamps a structured, machine-readable code onto the failed
  * message via {@link encodeChatError}; the client reads it back authoritatively
@@ -10,8 +10,8 @@
  * `{ raw }`, and the client falls back to {@link classifyChatErrorCode} over
  * the raw string — so the contract degrades gracefully.
  *
- * Pure module: no Node, no Convex, no React imports — safe in both the V8
- * Convex runtime and the browser bundle.
+ * Pure module: no Node, no React imports — safe in the backend and the
+ * browser bundle alike.
  */
 
 /**
@@ -55,22 +55,6 @@ export function isChatErrorCode(value: unknown): value is ChatErrorCode {
     (CHAT_ERROR_CODES as readonly string[]).includes(value)
   );
 }
-
-/**
- * Codes that are a property of the PROVIDER/account, not the specific model:
- * every model on the same provider would fail the same way deterministically.
- * The failover loop skips the rest of the provider's models when one of these
- * occurs (see `classifyFailureScope` below).
- *
- * Transient failures (5xx, overload, timeout, ECONNRESET, 429) are deliberately
- * NOT here: on an aggregator a sibling model may route to a healthy upstream,
- * and the circuit breaker already de-prioritizes repeat offenders.
- */
-export const PROVIDER_SCOPED_ERROR_CODES: ReadonlySet<ChatErrorCode> = new Set([
-  'credit_exhausted',
-  'auth_error',
-  'provider_unreachable',
-]);
 
 /** Code → base chat i18n key (in the `chat` namespace). */
 export const CHAT_ERROR_I18N_KEY: Readonly<Record<ChatErrorCode, string>> = {
@@ -122,9 +106,42 @@ function extractErrorFacts(error: unknown): ErrorFacts {
       : typeof err.statusCode === 'number'
         ? err.statusCode
         : undefined;
-  const code = typeof err.code === 'string' ? err.code : undefined;
-  const message = typeof err.message === 'string' ? err.message : '';
+  // A platform refusal (`AppError`) carries its code and sentence in `data`;
+  // its `message` is the serialized payload, useless to the regexes below.
+  const data =
+    err.data !== null && typeof err.data === 'object'
+      ? (err.data as Record<string, unknown>)
+      : undefined;
+  const code =
+    typeof err.code === 'string'
+      ? err.code
+      : typeof data?.code === 'string'
+        ? data.code
+        : undefined;
+  const message =
+    typeof data?.message === 'string'
+      ? data.message
+      : typeof err.message === 'string'
+        ? err.message
+        : '';
   return { status, code, message: message.toLowerCase() };
+}
+
+/**
+ * The human sentence of a failure for the stored envelope: a platform
+ * refusal's `data.message`, else the Error's own message, else `fallback`.
+ */
+export function describeChatError(error: unknown, fallback: string): string {
+  if (error !== null && typeof error === 'object') {
+    const data = (error as { data?: unknown }).data;
+    if (data !== null && typeof data === 'object') {
+      const message = (data as { message?: unknown }).message;
+      if (typeof message === 'string' && message.length > 0) return message;
+    }
+  }
+  return error instanceof Error && error.message.length > 0
+    ? error.message
+    : fallback;
 }
 
 /**
@@ -136,6 +153,22 @@ function extractErrorFacts(error: unknown): ErrorFacts {
  */
 export function classifyChatErrorCode(error: unknown): ChatErrorCode {
   const { status, code, message } = extractErrorFacts(error);
+
+  // The platform's own credential refusals, by code: no usable key at all
+  // is a setup error; a key that exists but cannot serve is an auth error.
+  if (
+    code === 'CREDENTIAL_NONE_CONFIGURED' ||
+    code === 'CREDENTIAL_ENV_UNSET'
+  ) {
+    return 'missing_api_key';
+  }
+  if (
+    code === 'CREDENTIAL_DISABLED' ||
+    code === 'CREDENTIAL_KEY_ROTATED' ||
+    code === 'CHAT_CREDENTIAL_UNSUPPORTED'
+  ) {
+    return 'auth_error';
+  }
 
   // Org has no usable provider / no API key at all — actionable setup error.
   if (
@@ -255,54 +288,6 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
   }
 
   return 'generic';
-}
-
-/**
- * Build a concise, human-readable English sentence for a failed turn. Used as
- * the saved message CONTENT, which non-chat surfaces (Slack, notifications)
- * read verbatim. The chat UI ignores this and renders the localized hint from
- * the structured code instead.
- */
-export function buildHumanErrorSentence(
-  code: ChatErrorCode,
-  ctx: { provider?: string; model?: string } = {},
-): string {
-  const provider = ctx.provider;
-  const model = ctx.model;
-  switch (code) {
-    case 'missing_api_key':
-      return 'No AI provider API key is configured. Add one in Settings → AI providers.';
-    case 'credit_exhausted':
-      return `${provider ? `${provider} is` : 'The AI provider is'} out of credits. Ask an administrator to add credits or switch providers.`;
-    case 'auth_error':
-      return `The API key for ${provider ?? 'the AI provider'} is invalid or expired. Ask an administrator to update it.`;
-    case 'provider_unreachable':
-      return `Could not reach ${provider ?? 'the AI provider'}. It may be down or misconfigured.`;
-    case 'model_not_found':
-      return `The model ${model ? `"${model}" ` : ''}was not found on ${provider ?? 'the provider'}. It may have been renamed or removed.`;
-    case 'rate_limited':
-      return `Rate limit reached${provider ? ` on ${provider}` : ''}. Please wait a moment and try again.`;
-    case 'content_filter':
-      return 'The request was blocked by a content filter. Try rephrasing your message.';
-    case 'context_length':
-      return 'The conversation is too long for the model’s context window. Start a new chat.';
-    case 'token_limit':
-      return 'The model’s output token limit was exceeded. Try a shorter request.';
-    case 'unsupported_parameter':
-      return 'The model rejected a request parameter — likely a provider or model configuration mismatch.';
-    case 'output_cap_too_high':
-      return "This model's max output tokens leave no room for the prompt (or exceed what it supports). Try again — a bad cached cap is cleared automatically — or ask an administrator to lower it.";
-    case 'tool_failure':
-      return 'The agent hit an error while accessing data. Try rephrasing your request.';
-    case 'provider_error':
-      return `${provider ?? 'The AI provider'} is temporarily experiencing issues. Please try again shortly.`;
-    case 'generic':
-      return 'An unexpected error occurred. Try again or switch to a different model.';
-    default: {
-      const _exhaustive: never = code;
-      return _exhaustive;
-    }
-  }
 }
 
 /** Structured fields carried alongside a failed chat turn's error string. */

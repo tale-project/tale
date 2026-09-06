@@ -27,7 +27,15 @@ vi.mock('../connector_credentials/service.ts', () => ({
   updateCredential,
 }));
 
-import { storeOauth2Grant, uniqueCredentialName } from './oauth.ts';
+import {
+  hashStateToken,
+  mintStateToken,
+} from '../../core/http_connectors/oauth_state.ts';
+import {
+  completeOauth2,
+  storeOauth2Grant,
+  uniqueCredentialName,
+} from './oauth.ts';
 
 interface Route {
   organizationId: string;
@@ -223,5 +231,93 @@ describe('storeOauth2Grant', () => {
     });
     expect(outcome).toEqual({ credentialId: 'cred-default', renewed: true });
     expect(createCredentialInTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('completeOauth2 — the completer must be the initiator', () => {
+  /** A `sql` whose state consume answers the pending row for `stateHash`
+   * (once — a second consume finds nothing, like `DELETE … RETURNING`). */
+  function sqlWithPending(stateHash: string, userId: string): Sql {
+    let consumed = false;
+    const tag = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<unknown[]> => {
+      const text = strings.join('?');
+      if (text.includes('DELETE FROM app.connector_oauth_states')) {
+        if (consumed || values[0] !== stateHash) return Promise.resolve([]);
+        consumed = true;
+        return Promise.resolve([
+          {
+            organizationId: 'org-1',
+            userId,
+            connectorSlug: 'slack',
+            codeVerifier: 'verifier',
+            redirectUri: 'https://tale.example/api/connectors/oauth2/callback',
+            expiresAt: Date.now() + 60_000,
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call is exercised
+    return Object.assign(tag, { unsafe: (t: string) => t }) as unknown as Sql;
+  }
+
+  it('refuses a valid state completed by another user, burning it, before any exchange', async () => {
+    const state = mintStateToken();
+    const sql = sqlWithPending(await hashStateToken(state), 'user-1');
+    const fetchImpl = vi.fn();
+
+    const outcome = await completeOauth2(
+      sql,
+      { state, code: 'code-1', vendorError: null, requesterUserId: 'user-2' },
+      { fetchImpl },
+    );
+
+    expect(outcome).toEqual({ kind: 'error', error: 'invalid_state' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(createCredentialInTransaction).not.toHaveBeenCalled();
+    expect(updateCredential).not.toHaveBeenCalled();
+    // The state is gone: the rightful user cannot finish it either.
+    await expect(
+      completeOauth2(
+        sql,
+        { state, code: 'code-1', vendorError: null, requesterUserId: 'user-1' },
+        { fetchImpl },
+      ),
+    ).resolves.toEqual({ kind: 'error', error: 'invalid_state' });
+  });
+
+  it('refuses a completion with no session at all', async () => {
+    const state = mintStateToken();
+    const sql = sqlWithPending(await hashStateToken(state), 'user-1');
+    await expect(
+      completeOauth2(sql, {
+        state,
+        code: 'code-1',
+        vendorError: null,
+        requesterUserId: null,
+      }),
+    ).resolves.toEqual({ kind: 'error', error: 'invalid_state' });
+  });
+
+  it('lets the initiator through to the exchange step', async () => {
+    const state = mintStateToken();
+    const sql = sqlWithPending(await hashStateToken(state), 'user-1');
+    // Past the binding check the flow looks for the vendor app; none is
+    // configured here, which is the NEXT refusal — proof the check passed.
+    await expect(
+      completeOauth2(sql, {
+        state,
+        code: 'code-1',
+        vendorError: null,
+        requesterUserId: 'user-1',
+      }),
+    ).resolves.toEqual({
+      kind: 'error',
+      error: 'not_configured',
+      organizationId: 'org-1',
+    });
   });
 });

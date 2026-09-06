@@ -1,8 +1,8 @@
 /**
- * Type definitions for Better Auth adapter responses
- *
- * These types match the structure returned by Better Auth's Convex adapter.
- * The adapter queries return records with `_id` as a string identifier.
+ * Record shapes for the Better Auth `user` and `member` rows as the SCIM
+ * data layer and the normalized-email lookup read them. The `_id` field is
+ * the 0.4 adapter's identifier name, kept because those readers still
+ * address rows by it.
  */
 
 /**
@@ -34,44 +34,10 @@ export interface BetterAuthMember {
 }
 
 /**
- * Better Auth Organization record from the adapter
- */
-export interface BetterAuthOrganization {
-  _id: string;
-  name: string;
-  slug: string;
-  logo?: string | null;
-  createdAt: number;
-  metadata?: string | null;
-}
-
-/**
- * Better Auth Session record from the adapter
- */
-export interface BetterAuthSession {
-  _id: string;
-  userId: string;
-  token: string;
-  expiresAt: number;
-  createdAt: number;
-  updatedAt: number;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-}
-
-/**
  * Better Auth adapter findMany result
  */
 export interface BetterAuthFindManyResult<T> {
   page: T[];
   continueCursor?: string;
   isDone?: boolean;
-}
-
-/**
- * Better Auth adapter create result
- */
-export interface BetterAuthCreateResult {
-  _id: string;
-  id?: string;
 }
