@@ -7,7 +7,6 @@ import {
   type UsageLedger,
   type UsageLedgerEntry,
 } from '../../../lib/chat/turn.ts';
-import { settleDeferredSendOnUserAppend } from '../../core/chat/turn_store.ts';
 import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
 import { toJson } from '../../db/sql.ts';
@@ -206,6 +205,37 @@ async function finalizeWithStreamedTail(
   });
 }
 
+/**
+ * Decorate a turn store so a deferred send's row dies the moment the turn
+ * persists the user message — the turn-open write, when it carries the user
+ * parts. Until that write the row is the parked message's only
+ * representation (the tray above the composer); from it on the thread shows
+ * the bubble, and a row that survived to the action's terminal settle would
+ * double-display the message for the whole generation. A settle failure is
+ * logged, never fatal — the terminal settle in the action retries it.
+ * (Re-homed from the retired `core/chat/turn_store.ts`: the PG store is its
+ * only consumer.)
+ */
+function settleDeferredSendOnUserAppend(
+  store: TurnStore,
+  settle: () => Promise<void>,
+): TurnStore {
+  return {
+    ...store,
+    async beginTurn(setup) {
+      const opened = await store.beginTurn(setup);
+      if (setup.userParts !== undefined) {
+        try {
+          await settle();
+        } catch (error) {
+          console.warn('Deferred send settle at user append failed:', error);
+        }
+      }
+      return opened;
+    },
+  };
+}
+
 /** A turn store over app.messages + app.generations. With
  * `onUserMessageAppended` the store is decorated to run it the moment
  * `beginTurn` persisted the user row — the deferred-send lane settles its
@@ -231,10 +261,6 @@ function pgTurnStore(sql: Sql): TurnStore {
           .map((part) => (part.type === 'text' ? part.text : ''))
           .join(''),
       });
-      // A pre-model refusal lands its two rows through this write alone (no
-      // generation row ever opens), so this is the only signal the thread's
-      // other viewers get that the transcript moved.
-      await notifyThread(sql, message.threadId);
       return appended;
     },
 

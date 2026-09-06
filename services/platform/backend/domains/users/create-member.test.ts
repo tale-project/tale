@@ -77,7 +77,10 @@ function createRecordingSql(scenario: Scenario): {
     if (text.startsWith('INSERT INTO "member"')) {
       return [{ id: 'member-new' }];
     }
-    if (text.startsWith('INSERT INTO app.audit_chain_heads')) {
+    if (
+      text.startsWith('SELECT pg_advisory_xact_lock(') ||
+      text.startsWith('INSERT INTO app.audit_chain_heads')
+    ) {
       return [];
     }
     if (text.includes('FROM app.audit_chain_heads')) {
