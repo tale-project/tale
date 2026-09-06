@@ -67,6 +67,10 @@ export default {
         // launched by playwright's webServer (`bun lib/mocks/start.ts`), not
         // imported, so knip can't auto-detect it. It anchors gateway/registry.
         'lib/mocks/start.ts',
+        // The node-vm CodeRunner's evaluation loop: `runners/node-vm.ts` forks
+        // it as a child process (a heap-capped fault boundary), so nothing
+        // imports it.
+        'lib/engine/runners/node-vm-child.ts',
         // Playwright specs. The config now builds via the shared
         // `createPlaywrightConfig` factory (@tale/e2e), so knip's playwright
         // plugin can't statically read testDir/testMatch — declare them here.

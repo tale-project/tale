@@ -653,7 +653,7 @@ export async function executeConnectorAction(
   if (backend.kind === 'yaml-js' && liveRunner.kind() === 'node-vm') {
     throw new ConnectorError(
       'LIVE_RUNNER_UNAVAILABLE',
-      `${nodeType} has a live body, but this deployment's code runner is the data-only in-process one, which cannot reach credentials or the network`,
+      `${nodeType} has a live body, but this deployment's code runner is the data-only node-vm one, which cannot reach credentials or the network`,
       {
         ...where,
         hint: 'pass a host-capable runner as ctx.codeRunner: inProcessLiveRunner() for the shipped catalog, or the session-bound sandbox-exec runner (with ctx.portableHost) when the caller owns a sandbox session',

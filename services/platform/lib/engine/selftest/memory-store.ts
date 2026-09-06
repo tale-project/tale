@@ -1,5 +1,7 @@
 /**
- * In-memory automation store — the StoreAdapter for tests and the selftest.
+ * In-memory automation store — the StoreAdapter for tests and the selftest,
+ * and nothing else: it lives under `selftest/` because no host imports it (the
+ * production store is `backend/domains/automations/dispatch-store.ts`).
  * Versions are immutable and monotonically numbered per name; `deploy` marks
  * the one version triggers would run. Async interface over sync internals so
  * consumers exercise the exact contract a database-backed store serves.
