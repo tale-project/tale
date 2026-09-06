@@ -23,9 +23,10 @@ Die `.env.example`-Datei bringt Inline-Kommentare mit, die jede Variable im Kont
 | ----------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `HOST`      | `localhost`         | **Pflicht.** Hostname ohne Protokoll. Wird für Docker-Networking und ausgehende Mails verwendet.                               |
 | `SITE_URL`  | `https://localhost` | **Pflicht.** Vollständige kanonische URL inklusive Schema und Port. Auth-Callbacks und externe Links nutzen das.               |
+| `ADDITIONAL_SITE_URLS` | unset    | **Optional.** Weitere Origins, auf denen dasselbe Deployment antwortet, per Komma oder Leerzeichen getrennt (z. B. `https://a.example,https://b.example`). Jeder ist ein vollwertiger Eingang. Siehe [TLS und Domains](/de/self-hosted/configuration/tls-and-domains#mehrere-domains-gleichzeitig). |
 | `BASE_PATH` | unset               | **Optional.** Pfad-Präfix für Subpath-Deployments hinter einem Reverse-Proxy (z. B. `/app`). Bei Root-Deployment unset lassen. |
 
-Die `SITE_URL` muss exakt mit dem übereinstimmen, was der Benutzer im Browser eingibt. Ein nachgestellter Slash, ein fehlender Port oder `http` statt `https` brechen den Auth-Callback und produzieren Sign-in-Schleifen.
+Die `SITE_URL` muss exakt mit dem übereinstimmen, was der Benutzer im Browser eingibt. Ein nachgestellter Slash, ein fehlender Port oder `http` statt `https` brechen den Auth-Callback und produzieren Sign-in-Schleifen. Bedient ein Deployment mehrere Domains, bleibt `SITE_URL` die kanonische und der Rest kommt in `ADDITIONAL_SITE_URLS`; ein Eintrag dort muss ein blanker Origin sein, und ein fehlerhafter stoppt das Backend beim Boot, statt eine Domain zu hinterlassen, auf der sich niemand anmelden kann.
 
 ## TLS
 
