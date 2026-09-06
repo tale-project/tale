@@ -182,7 +182,7 @@ describe('restore', () => {
     });
 
     expect(stopContainerMock).toHaveBeenCalledWith('tale-db');
-    expect(verifySnapshotMock).toHaveBeenCalledWith('tale_', MANIFEST.id);
+    expect(verifySnapshotMock).toHaveBeenCalledWith('tale_', MANIFEST);
     // One wipe+extract per volume in the manifest.
     expect(execMock).toHaveBeenCalledTimes(2);
     const scripts = execMock.mock.calls.map(
