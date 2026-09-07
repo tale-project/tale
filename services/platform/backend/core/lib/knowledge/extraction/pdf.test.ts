@@ -45,6 +45,7 @@ describe('extractTextFromPdfBytes', () => {
     expect(result.visionUsed).toBe(false);
     expect(result.scannedPagesDetected).toBe(0);
     expect(result.ocrApplied).toBe(false);
+    expect(result.pageCount).toBe(1);
   });
 
   it('prefixes each page with a page marker', async () => {
@@ -63,6 +64,7 @@ describe('extractTextFromPdfBytes', () => {
     expect(typeof result.visionUsed).toBe('boolean');
     expect(typeof result.scannedPagesDetected).toBe('number');
     expect(typeof result.ocrApplied).toBe('boolean');
+    expect(typeof result.pageCount).toBe('number');
   });
 
   it('invokes the progress callback per page', async () => {

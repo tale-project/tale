@@ -2840,6 +2840,150 @@ async function checkFiles(
       blobGone,
     `put → ${put.status}, size=${registered.success ? registered.data.size : 'ERR'}, roundtrip=${roundTrip === payload}, refRoundtrip=${refRoundTrip === payload}, delete → ${deleted.status}, blobGone=${blobGone}`,
   );
+
+  // Registration is where an attachment's indexing starts. The 0.4 mutation
+  // queued it here (`shouldIndex`); the cutover kept only the audio branch,
+  // so a document attached in chat kept a NULL `rag_status` forever — the
+  // composer waited on a toast that never fired and every turn told the
+  // model the file was "not machine-readable". Three shapes, one door: a
+  // document queues exactly one job, an image queues none and gets its page
+  // shape stamped instead (nothing downstream would ever fill those in), and
+  // the caller's opt-out is honoured.
+  const registerStaged = async (
+    fileName: string,
+    contentType: string,
+    body: string,
+    extra: Record<string, unknown> = {},
+  ): Promise<{ fileId: string; ref: string }> => {
+    const staged = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+          contentType,
+        })
+      ).json(),
+    );
+    if (!staged.success) return { fileId: '', ref: '' };
+    await fetch(staged.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    const row = z.object({ fileId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+          storageRef: staged.data.s3Ref,
+          fileName,
+          contentType,
+          ...extra,
+        })
+      ).json(),
+    );
+    return {
+      fileId: row.success ? row.data.fileId : '',
+      ref: staged.data.s3Ref,
+    };
+  };
+  const attached = await registerStaged(
+    'attached.md',
+    'text/markdown',
+    '# attached\n\nchat attachment body',
+    { threadId: 'itest-attachment-thread' },
+  );
+  const image = await registerStaged(
+    'shot.png',
+    'image/png',
+    'not really a png',
+  );
+  const skipped = await registerStaged(
+    'skipped.md',
+    'text/markdown',
+    '# skipped',
+    { skipRagIndexing: true },
+  );
+  const docFileId = attached.fileId;
+  const imageFileId = image.fileId;
+  const skippedFileId = skipped.fileId;
+  const indexJobsFor = async (fileIdToCount: string): Promise<number> => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'rag.index_file' AND data ->> 'fileId' = ${fileIdToCount}
+    `;
+    return Number(rows[0]?.count ?? '0');
+  };
+  const attachmentRow = (
+    await sql<{ ragStatus: string | null; skip: boolean | null }[]>`
+      SELECT rag_status AS "ragStatus", skip_rag_indexing AS skip
+      FROM app.file_metadata WHERE id = ${docFileId} LIMIT 1
+    `
+  )[0];
+  const imageRow = (
+    await sql<
+      {
+        ragStatus: string | null;
+        pageCount: number | null;
+        visionRequired: boolean | null;
+      }[]
+    >`
+      SELECT rag_status AS "ragStatus", page_count AS "pageCount",
+             vision_required AS "visionRequired"
+      FROM app.file_metadata WHERE id = ${imageFileId} LIMIT 1
+    `
+  )[0];
+  const skippedRow = (
+    await sql<{ ragStatus: string | null; skip: boolean | null }[]>`
+      SELECT rag_status AS "ragStatus", skip_rag_indexing AS skip
+      FROM app.file_metadata WHERE id = ${skippedFileId} LIMIT 1
+    `
+  )[0];
+  const docJobs = await indexJobsFor(docFileId);
+  const imageJobs = await indexJobsFor(imageFileId);
+  const skippedJobs = await indexJobsFor(skippedFileId);
+  record(
+    'register queues indexing for a document, never for an image or an opt-out',
+    docFileId !== '' &&
+      attachmentRow?.ragStatus !== null &&
+      attachmentRow?.ragStatus !== undefined &&
+      docJobs === 1 &&
+      imageJobs === 0 &&
+      imageRow?.ragStatus === null &&
+      imageRow?.pageCount === 1 &&
+      imageRow?.visionRequired === true &&
+      skippedJobs === 0 &&
+      skippedRow?.skip === true &&
+      skippedRow?.ragStatus === null,
+    `document: status=${attachmentRow?.ragStatus ?? 'null'} (want any status — the pipeline started) jobs=${docJobs} (want 1); image: jobs=${imageJobs} (want 0) status=${imageRow?.ragStatus ?? 'null'} (want null) pages=${imageRow?.pageCount ?? 'null'} (want 1) vision=${imageRow?.visionRequired ?? 'null'} (want true); opt-out: jobs=${skippedJobs} (want 0) skip=${skippedRow?.skip ?? 'null'} (want true) status=${skippedRow?.ragStatus ?? 'null'} (want null)`,
+  );
+
+  // The rows an instance carries from before registration queued indexing
+  // have no status at all, and chat offers no retry — so the turn that
+  // reaches for one starts the run instead of telling the model the file is
+  // unreadable. Idempotent (a second turn claims nothing), and an opt-out
+  // stays opted out.
+  const { chatShimHandlers: chatShimForHeal } =
+    await import('./domains/chat/shim.ts');
+  const healHandler =
+    chatShimForHeal(sql)[
+      'file_metadata/internal_mutations:queueRagIndexIfUnstarted'
+    ];
+  await sql`
+    UPDATE app.file_metadata SET rag_status = NULL, rag_error = NULL,
+                                 rag_error_code = NULL
+    WHERE id = ${docFileId}
+  `;
+  const restarted = await healHandler?.({ storageId: attached.ref });
+  const restartedAgain = await healHandler?.({ storageId: attached.ref });
+  const optOutRestart = await healHandler?.({ storageId: skipped.ref });
+  const restartedJobs = await indexJobsFor(docFileId);
+  const optOutJobs = await indexJobsFor(skippedFileId);
+  record(
+    'a turn starts indexing for an attachment whose upload never did, once',
+    restarted === 'queued' &&
+      restartedAgain === null &&
+      optOutRestart === null &&
+      restartedJobs === 2 &&
+      optOutJobs === 0,
+    `heal=${String(restarted)} (want queued), second=${String(restartedAgain)} (want null), optOut=${String(optOutRestart)} (want null), jobs=${restartedJobs} (want 2: the register one plus this) optOutJobs=${optOutJobs} (want 0)`,
+  );
 }
 
 /**

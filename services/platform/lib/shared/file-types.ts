@@ -1020,3 +1020,36 @@ export function isRagIndexableFile(
   const ext = extractExtension(fileName) ?? mimeToExtension(contentType);
   return ext !== undefined && RAG_INDEXABLE_EXTENSIONS.has(ext);
 }
+
+/** The image extensions inside {@link RAG_INDEXABLE_EXTENSIONS}. */
+const IMAGE_EXTENSIONS: ReadonlySet<string> = new Set([
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'bmp',
+  'tiff',
+  'tif',
+  'webp',
+]);
+
+/**
+ * Does an upload of this file start a RAG indexing run?
+ *
+ * The gate every lane shares: the composer defers its "uploaded" toast for
+ * these files and waits on the indexing status before it lets the turn
+ * start, and `POST /files/register` queues exactly this set. Audio and video
+ * take the transcription lane instead (their transcript is indexed after it
+ * lands), and an image can only be read by a vision model — a lane the 0.5
+ * ingest refuses up front — so queueing one buys an `unsupported` badge and
+ * nothing else.
+ */
+export function shouldRagIndexOnUpload(
+  fileName: string,
+  contentType: string,
+): boolean {
+  if (isAudioOrVideo(contentType) || isImage(contentType)) return false;
+  const ext = extractExtension(fileName) ?? mimeToExtension(contentType);
+  if (ext === undefined || IMAGE_EXTENSIONS.has(ext)) return false;
+  return RAG_INDEXABLE_EXTENSIONS.has(ext);
+}

@@ -19,7 +19,10 @@ import {
   recordConnectorUsage,
 } from '../governance/service.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
-import { knowledgeShimHandlers } from '../knowledge/service.ts';
+import {
+  knowledgeShimHandlers,
+  queueRagIndexIfUnstarted,
+} from '../knowledge/service.ts';
 import { listEntriesForAgent } from '../knowledge_entries/service.ts';
 import {
   getProjectAuthContext,
@@ -552,6 +555,18 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       return Object.fromEntries(
         Object.entries(row).map(([key, value]) => [key, value ?? undefined]),
       );
+    },
+
+    // Self-heal for an attachment whose upload never started indexing (rows
+    // from before registration queued it, and the backstop for any lane that
+    // binds a file without queueing). Called by the turn that is about to
+    // tell the model where the file's content lives.
+    'file_metadata/internal_mutations:queueRagIndexIfUnstarted': async (
+      raw,
+    ) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
+      const args = raw as { storageId: string };
+      return await queueRagIndexIfUnstarted(sql, args.storageId);
     },
 
     // Bind the sender's OWN still-unbound staging uploads to the thread they

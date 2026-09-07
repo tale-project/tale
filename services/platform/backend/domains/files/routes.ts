@@ -3,15 +3,21 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { isAudioOrVideo } from '../../../lib/shared/file-types.ts';
+import {
+  isAudioOrVideo,
+  isImage,
+  shouldRagIndexOnUpload,
+} from '../../../lib/shared/file-types.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import { markRagQueued } from '../knowledge/service.ts';
 import type { ProjectAuthContext } from '../projects/service.ts';
 import {
   assertFileReadable,
@@ -29,6 +35,7 @@ import {
   getFileUrl,
   putOrgBlobBytes,
   registerUpload,
+  stampImageVisionMetadata,
 } from './service.ts';
 import {
   queueTranscription,
@@ -44,6 +51,9 @@ const registerSchema = z.object({
   contentType: z.string().min(1).max(255),
   threadId: z.string().max(200).optional(),
   source: z.string().max(100).optional(),
+  /** Opt out of indexing for a surface that only needs the bytes (the 0.4
+   * `skipRagIndexing`). Write-once true — a later save never clears it. */
+  skipRagIndexing: z.boolean().optional(),
 });
 
 function handleError<E extends OrgEnv>(
@@ -192,12 +202,38 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         organizationId: c.get('orgId'),
         userId: c.get('sessionBundle').user.id,
       };
-      const result = await transactSerializable(deps.sql, (tx) =>
-        registerUpload(deps.sql, tx, scope, body.data, {
-          kind: 'app',
-          purpose: 'file',
-        }),
-      );
+      const result = await transactSerializable(deps.sql, async (tx) => {
+        const registered = await registerUpload(
+          deps.sql,
+          tx,
+          scope,
+          body.data,
+          {
+            kind: 'app',
+            purpose: 'file',
+          },
+        );
+        // Documents index server-side (the 0.4 saveFileMetadata `shouldIndex`
+        // branch): stamp queued + enqueue in the SAME transaction, so a
+        // crash between them can never leave a row `queued` with no job —
+        // the state the watchdog would have to guess about. Without this the
+        // row keeps a NULL status forever, the composer waits on a toast
+        // that never fires, and every chat turn tells the model the file is
+        // "not machine-readable".
+        if (
+          body.data.skipRagIndexing !== true &&
+          shouldRagIndexOnUpload(body.data.fileName, body.data.contentType)
+        ) {
+          await markRagQueued(tx, registered.fileId);
+          await addJobInTx(tx, 'rag.index_file', { fileId: registered.fileId });
+        } else if (isImage(body.data.contentType)) {
+          // An image needs a vision model to be read at all, and the ingest
+          // lane refuses it before any byte is fetched — so the honest page
+          // shape is stamped here instead (0.4 parity).
+          await stampImageVisionMetadata(tx, registered.fileId);
+        }
+        return registered;
+      });
       // Audio/video uploads transcribe server-side (the 0.4 saveFileMetadata
       // audio branch): stamp queued + enqueue the pipeline job.
       if (isAudioOrVideo(body.data.contentType)) {

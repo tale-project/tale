@@ -149,6 +149,10 @@ export interface RegisterUploadArgs {
   contentType: string;
   threadId?: string;
   source?: string;
+  /** The caller's opt-out from RAG indexing (0.4 `skipRagIndexing`). Every
+   * enqueue gate reads the column, so a row that carries it never indexes,
+   * however it is later re-bound. */
+  skipRagIndexing?: boolean;
 }
 
 /**
@@ -215,11 +219,12 @@ export async function registerUpload(
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.file_metadata (
       org_id, storage_ref, file_name, content_type, size, source,
-      uploaded_by, thread_id, created_at_ms
+      uploaded_by, thread_id, skip_rag_indexing, created_at_ms
     ) VALUES (
       ${scope.organizationId}, ${args.storageRef}, ${args.fileName},
       ${args.contentType}, ${head.size}, ${args.source ?? null},
-      ${scope.userId}, ${args.threadId ?? null}, ${Date.now()}
+      ${scope.userId}, ${args.threadId ?? null},
+      ${args.skipRagIndexing === true ? true : null}, ${Date.now()}
     )
     RETURNING id
   `;
@@ -228,6 +233,23 @@ export async function registerUpload(
     throw new FileError('FILE_REGISTER_FAILED', 'Insert failed');
   }
   return { fileId, size: head.size };
+}
+
+/**
+ * The page shape of an uploaded image: one page, nothing scanned to detect,
+ * and vision needed to read it at all (the 0.4 `extractFileMetadata` image
+ * branch). Stamped at registration because the ingest lane refuses images
+ * before it fetches a byte, so nothing downstream would ever fill these in.
+ */
+export async function stampImageVisionMetadata(
+  db: Sql | TransactionSql,
+  fileId: string,
+): Promise<void> {
+  await db`
+    UPDATE app.file_metadata
+    SET page_count = 1, scanned_pages_detected = 0, vision_required = true
+    WHERE id = ${fileId}
+  `;
 }
 
 export interface FileMetadataRow {

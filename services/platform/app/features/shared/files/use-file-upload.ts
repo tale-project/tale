@@ -16,8 +16,8 @@ import {
   detectMediaMime,
   getMaxFileSizeForType,
   isAudioOrVideo,
-  isRagIndexableFile,
   resolveFileType,
+  shouldRagIndexOnUpload,
 } from '@/lib/shared/file-types';
 import { compressImage } from '@/lib/utils/compress-image';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
@@ -506,20 +506,21 @@ export function useFileUpload(config: FileUploadConfig) {
             pendingUploadsRef.current.delete(fileId);
             setAttachments((prev) => [...prev, attachment]);
 
-            // Files that get RAG-indexed (PDFs, docs, text — anything the
-            // backend queues; mirrors `shouldIndex` in saveFileMetadata) are
-            // not "done" once the bytes land: indexing runs asynchronously and
-            // can still fail with an "Index failed" badge. Showing
-            // "uploaded successfully" here would contradict that outcome
-            // (#1457). For those files we defer the success toast until
-            // indexing reaches a terminal state — `useFileIndexingStatus`
-            // fires success on `completed` and an error toast on `failed`.
-            // Non-indexed files (images, audio/video, unsupported types) have
-            // no further processing gate, so they keep the immediate toast.
+            // Files that get RAG-indexed (PDFs, docs, text — the set
+            // `shouldRagIndexOnUpload` names, which is exactly what
+            // `POST /files/register` queues) are not "done" once the bytes
+            // land: indexing runs asynchronously and can still fail with an
+            // "Index failed" badge. Showing "uploaded successfully" here
+            // would contradict that outcome (#1457). For those files we
+            // defer the success toast until indexing reaches a terminal
+            // state — `useFileIndexingStatus` fires success on `completed`
+            // and an error toast on `failed`. Non-indexed files (images,
+            // audio/video, unsupported types) have no further processing
+            // gate, so they keep the immediate toast — an image deferred to
+            // an index that never runs simply never gets one.
             const willIndex =
               !config.disableIndexing &&
-              !isAudioOrVideo(resolvedType) &&
-              isRagIndexableFile(
+              shouldRagIndexOnUpload(
                 fileToUpload.name,
                 resolvedType || 'application/octet-stream',
               );

@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { isMessageRef } from '../../../lib/knowledge/message-ref.ts';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
+import { shouldRagIndexOnUpload } from '../../../lib/shared/file-types.ts';
 import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
 import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import { applyCorpusSchema } from '../../core/knowledge/ddl.ts';
@@ -29,7 +30,8 @@ import {
   type SearchKnowledgeArgs,
 } from '../../core/knowledge/search.ts';
 import {
-  extractText,
+  extractDocument,
+  type ExtractedDocument,
   isImageFile,
   isSupported,
 } from '../../core/lib/knowledge/extraction/router.ts';
@@ -485,6 +487,37 @@ async function writeRagStatus(
 }
 
 /**
+ * Persist what extraction learned about the file: how many pages it has, how
+ * many of them are scans, and whether OCR actually ran on them. Only the PDF
+ * leg answers these today, so a format that reports nothing leaves the
+ * columns as they are rather than stamping a zero that reads like a measured
+ * one. `vision_required` is the operator's version of the same finding: the
+ * file holds pages no text extractor can read.
+ */
+async function stampExtractionMetadata(
+  sql: Sql,
+  fileId: string,
+  extracted: ExtractedDocument,
+): Promise<void> {
+  if (
+    extracted.pageCount === undefined &&
+    extracted.scannedPagesDetected === undefined
+  ) {
+    return;
+  }
+  const scanned = extracted.scannedPagesDetected;
+  await sql`
+    UPDATE app.file_metadata SET
+      page_count = coalesce(${extracted.pageCount ?? null}, page_count),
+      scanned_pages_detected = coalesce(${scanned ?? null}, scanned_pages_detected),
+      ocr_applied = coalesce(${extracted.ocrApplied ?? null}, ocr_applied),
+      vision_required = coalesce(
+        ${scanned !== undefined ? scanned > 0 : null}, vision_required)
+    WHERE id = ${fileId}
+  `;
+}
+
+/**
  * Index one uploaded file into the org's corpus: extract → PII gate →
  * embed → upsert chunks. Idempotent (re-running replaces the document's
  * chunks); the `rag.index_file` job drives it with retries.
@@ -550,7 +583,14 @@ export async function indexUploadedFile(
     }
     const store = await locateOrgObjectStore(orgSlug, parsed.key);
     const bytes = await s3GetObjectBytes(store, parsed.key);
-    const [text] = await extractText(bytes, file.fileName);
+    const extracted = await extractDocument(bytes, file.fileName);
+    const text = extracted.text;
+    // What the extraction learned about the file itself — the operator reads
+    // it on the document row ("Image pages: 3", the OCR badge). Stamped here,
+    // not on completion: a PDF whose embedding step later fails is still a
+    // scanned PDF, and the answer to "why is this document empty?" is
+    // exactly this pair of numbers.
+    await stampExtractionMetadata(sql, fileId, extracted);
 
     const config = await readOrgEmbeddingConfig(orgSlug);
     const shim = knowledgeShim(sql);
@@ -752,6 +792,44 @@ export async function requeueEmbeddingBlockedDocuments(
       });
     }
     return { requeued: rows.length };
+  });
+}
+
+/**
+ * Start indexing a chat attachment whose upload never queued one, when a turn
+ * reaches for it. Two callers-in-one: the rows an instance carries from
+ * before registration queued indexing itself (they would otherwise stay
+ * unreadable forever, with no retry anywhere in the chat UI), and the safety
+ * net for any future lane that binds a file without queueing it.
+ *
+ * The claim is the UPDATE: one row, `FOR UPDATE`, status still NULL. Two
+ * turns racing the same attachment produce one job, not two embeddings of
+ * one file. A row that is queued, running, done, failed, opted out, or bound
+ * to a document (that lane owns its own retry) is left exactly as it is.
+ */
+export async function queueRagIndexIfUnstarted(
+  sql: Sql,
+  storageRef: string,
+): Promise<'queued' | null> {
+  return await sql.begin(async (tx) => {
+    const rows = await tx<
+      { id: string; fileName: string; contentType: string }[]
+    >`
+      SELECT id, file_name AS "fileName", content_type AS "contentType"
+      FROM app.file_metadata
+      WHERE storage_ref = ${storageRef}
+        AND rag_status IS NULL
+        AND skip_rag_indexing IS DISTINCT FROM true
+        AND document_id IS NULL
+      LIMIT 1
+      FOR UPDATE
+    `;
+    const row = rows[0];
+    if (!row) return null;
+    if (!shouldRagIndexOnUpload(row.fileName, row.contentType)) return null;
+    await markRagQueued(tx, row.id);
+    await addJobInTx(tx, 'rag.index_file', { fileId: row.id });
+    return 'queued';
   });
 }
 
