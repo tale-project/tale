@@ -1,8 +1,9 @@
 'use node';
 
-// Platform → spawner client for the persistent-session API. Mirrors
-// spawner_client.ts (same HMAC signing contract + SANDBOX_URL/SANDBOX_TOKEN
-// env), adds the session verbs. Lives in node_only because it streams SSE.
+// Platform → spawner client for the persistent-session API: the HMAC signing
+// contract (SANDBOX_URL / SANDBOX_TOKEN env) plus the session verbs — the
+// one-shot `spawner_client.ts` it used to mirror is retired. Lives in
+// node_only because it streams SSE. Every call goes through `spawnerFetch`.
 //
 // Signature contract (services/sandbox/src/auth.ts):
 //   signedString = `${METHOD}\n${path}\n${timestamp}\n${nonce}\n${sha256Hex(body)}`
@@ -78,6 +79,49 @@ export class SpawnerBusyError extends Error {
   }
 }
 
+/**
+ * The spawner did not answer at all: DNS, connect or socket failure — no
+ * status, no body. Wrapped because the bare `TypeError: fetch failed` names
+ * nothing it was doing: a spawner that refuses to boot (2026-09: an unset
+ * `SANDBOX_TOKEN` crash-looped it) takes every agent turn on the deployment
+ * down, and the runs could only report "the agent turn could not start: fetch
+ * failed". Carries WHAT was called, WHERE it was called, and the syscall the
+ * runtime reported — and keeps the original as `cause`.
+ */
+export class SpawnerUnreachableError extends Error {
+  constructor(method: string, path: string, target: string, cause: unknown) {
+    const where = spawnerTargetLabel(target);
+    // fetch reports the syscall on its own `cause` (getaddrinfo EAI_AGAIN,
+    // ECONNREFUSED, ...) — that inner line is the whole diagnosis, so lift it
+    // into the message instead of leaving it two `cause` hops deep.
+    const outer = cause instanceof Error ? cause.message : String(cause);
+    const inner =
+      cause instanceof Error && cause.cause instanceof Error
+        ? `: ${cause.cause.message}`
+        : '';
+    super(
+      `sandbox spawner unreachable at ${where} (${method} ${path}): ${outer}${inner} — is the sandbox service running, and does SANDBOX_URL point at it?`,
+      { cause },
+    );
+    this.name = 'SpawnerUnreachableError';
+  }
+}
+
+/** The spawner URL as it may be printed. This message reaches the error
+ * tracker, so credentials an operator embedded in SANDBOX_URL are dropped
+ * rather than reported; an unparseable value is echoed as given (it is the
+ * misconfiguration the reader needs to see). */
+function spawnerTargetLabel(target: string): string {
+  try {
+    const parsed = new URL(target);
+    parsed.username = '';
+    parsed.password = '';
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return target;
+  }
+}
+
 /** Parse an HTTP `retry-after` header (delta-seconds) into ms, if present. */
 export function parseRetryAfterMs(res: Response): number | undefined {
   const raw = res.headers.get('retry-after');
@@ -101,8 +145,9 @@ export class ExecStreamIdleError extends Error {
 
 function getSpawnerUrl(): string {
   // Host bun-dev default. Container api/worker MUST set SANDBOX_URL
-  // (compose / entrypoint default http://sandbox:8003) or every session
-  // call dies with TypeError: fetch failed against localhost.
+  // (compose / entrypoint default http://sandbox:8003) or every session call
+  // goes to localhost inside the container and fails — as
+  // SpawnerUnreachableError, which names this URL so the mistake is readable.
   return process.env.SANDBOX_URL ?? 'http://localhost:8003';
 }
 
@@ -111,12 +156,28 @@ export interface SessionCreateResult {
   session: SessionInfo;
 }
 
-function getSpawnerToken(): string | null {
-  // Trim so a whitespace-only token is treated as unset — must match the
-  // server (sandbox config.ts) and spawner_client trim or a padded token would
-  // derive a different HMAC key on each side.
+/**
+ * The shared HMAC secret every spawner call is signed with. REQUIRED — fail
+ * closed: the spawner refuses to start without it and answers 401 to anything
+ * unsigned (services/sandbox/src/{config,request-auth}.ts), so sending
+ * unsigned requests is not a mode, it is a misconfiguration this process can
+ * see in its own env. Surfaced before any network call, the same way
+ * `requireGatewayAdminPassword` guards the gateway's management plane.
+ *
+ * Trimmed so a whitespace-only value counts as unset — must match the server's
+ * trim, or a padded token would derive a different HMAC key on each side.
+ */
+function requireSpawnerToken(): string {
   const token = process.env.SANDBOX_TOKEN?.trim();
-  return token && token.length > 0 ? token : null;
+  if (!token) {
+    throw new Error(
+      'SANDBOX_TOKEN is not set — the sandbox spawner signs every request with it and rejects ' +
+        'unsigned ones. `tale deploy` and `bun run dev` mint it into .env; for a hand-rolled ' +
+        'compose stack set SANDBOX_TOKEN=$(openssl rand -hex 32) there. The SAME value must reach ' +
+        'the backend, the platform and the sandbox service.',
+    );
+  }
+  return token;
 }
 
 /** Build signed headers for a request to the spawner (method + path + body). */
@@ -126,26 +187,52 @@ function signedHeaders(
   body: string,
   accept?: string,
 ): Record<string, string> {
+  const token = requireSpawnerToken();
+  const timestamp = String(Date.now());
+  const nonce = randomUUID();
   const headers: Record<string, string> = {
     'content-type': 'application/json',
-  };
-  if (accept) headers.accept = accept;
-  const token = getSpawnerToken();
-  if (token !== null) {
-    const timestamp = String(Date.now());
-    const nonce = randomUUID();
-    headers[SIGNATURE_HEADER] = signRequest(
+    [SIGNATURE_HEADER]: signRequest(
       method,
       path,
       timestamp,
       nonce,
       body,
       token,
-    );
-    headers[TIMESTAMP_HEADER] = timestamp;
-    headers[NONCE_HEADER] = nonce;
-  }
+    ),
+    [TIMESTAMP_HEADER]: timestamp,
+    [NONCE_HEADER]: nonce,
+  };
+  if (accept) headers.accept = accept;
   return headers;
+}
+
+/**
+ * The one door for every spawner call: composes the URL, signs the request,
+ * and attributes a transport failure to the call that suffered it.
+ *
+ * ONLY a `TypeError` (what fetch throws when the request never completed) is
+ * wrapped. An abort — the caller's signal, the turn-ended cut — and a timeout
+ * are control flow the callers branch on (the resilient drain re-attaches on
+ * them), so they pass through untouched.
+ */
+async function spawnerFetch(
+  method: string,
+  path: string,
+  opts: { body?: string; accept?: string; signal?: AbortSignal } = {},
+): Promise<Response> {
+  const target = getSpawnerUrl();
+  try {
+    return await fetch(`${target}${path}`, {
+      method,
+      headers: signedHeaders(method, path, opts.body ?? '', opts.accept),
+      ...(opts.body !== undefined ? { body: opts.body } : {}),
+      ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
+    });
+  } catch (err) {
+    if (!(err instanceof TypeError)) throw err;
+    throw new SpawnerUnreachableError(method, path, target, err);
+  }
 }
 
 export interface SessionCreateBody {
@@ -212,9 +299,7 @@ export async function sessionCreate(
   // Re-sign per attempt: each retry needs a fresh timestamp (clock-skew window)
   // and a fresh nonce (spawner replay cache) — see signedHeaders.
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(`${getSpawnerUrl()}${path}`, {
-      method: 'POST',
-      headers: signedHeaders('POST', path, bodyJson),
+    const res = await spawnerFetch('POST', path, {
       body: bodyJson,
       signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
     });
@@ -250,9 +335,7 @@ export async function sessionCreate(
  * spawner blip is never misread as "session gone". */
 export async function sessionIsAlive(sessionId: string): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'GET',
-    headers: signedHeaders('GET', path, ''),
+  const res = await spawnerFetch('GET', path, {
     signal: AbortSignal.timeout(15_000),
   });
   if (res.status === 404) return false;
@@ -269,10 +352,7 @@ export async function sessionIsAlive(sessionId: string): Promise<boolean> {
  * 409ing on every future create. */
 export async function sessionDestroy(sessionId: string): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
-  const headers = signedHeaders('DELETE', path, '');
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'DELETE',
-    headers,
+  const res = await spawnerFetch('DELETE', path, {
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
@@ -292,10 +372,7 @@ export async function sessionDestroyIfIdle(
   sessionId: string,
 ): Promise<{ destroyed: boolean; busy: boolean }> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1`;
-  const headers = signedHeaders('DELETE', path, '');
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'DELETE',
-    headers,
+  const res = await spawnerFetch('DELETE', path, {
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
@@ -315,9 +392,7 @@ export async function sessionSetPinned(
 ): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/pin`;
   const bodyJson = JSON.stringify({ pinned });
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'PATCH',
-    headers: signedHeaders('PATCH', path, bodyJson),
+  const res = await spawnerFetch('PATCH', path, {
     body: bodyJson,
     signal: AbortSignal.timeout(30_000),
   });
@@ -336,9 +411,7 @@ export async function sessionCancelExec(
   execId: string,
 ): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel`;
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'POST',
-    headers: signedHeaders('POST', path, ''),
+  const res = await spawnerFetch('POST', path, {
     body: '',
     signal: AbortSignal.timeout(30_000),
   });
@@ -366,9 +439,7 @@ export async function sessionExecStatus(
   execId: string,
 ): Promise<ExecLiveness> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}`;
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'GET',
-    headers: signedHeaders('GET', path, ''),
+  const res = await spawnerFetch('GET', path, {
     signal: AbortSignal.timeout(30_000),
   });
   if (res.status === 404) return { state: 'gone' };
@@ -464,9 +535,7 @@ async function postStageFiles(
 ): Promise<SessionStageResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/stage`;
   const bodyJson = JSON.stringify({ files });
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'POST',
-    headers: signedHeaders('POST', path, bodyJson),
+  const res = await spawnerFetch('POST', path, {
     body: bodyJson,
     signal: AbortSignal.timeout(30_000),
   });
@@ -511,9 +580,7 @@ export async function sessionDeleteFiles(
 ): Promise<SessionDeleteResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/delete`;
   const bodyJson = JSON.stringify({ paths });
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'POST',
-    headers: signedHeaders('POST', path, bodyJson),
+  const res = await spawnerFetch('POST', path, {
     body: bodyJson,
     signal: AbortSignal.timeout(30_000),
   });
@@ -540,9 +607,7 @@ export async function sessionListFiles(
   dirPath: string,
 ): Promise<SessionFsEntry[] | null> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files?path=${encodeURIComponent(dirPath)}`;
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'GET',
-    headers: signedHeaders('GET', path, ''),
+  const res = await spawnerFetch('GET', path, {
     signal: AbortSignal.timeout(30_000),
   });
   if (res.status === 404) return null;
@@ -588,9 +653,7 @@ export async function sessionReadFile(
   filePath: string,
 ): Promise<{ bytes: ArrayBuffer; contentType: string } | null> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/content?path=${encodeURIComponent(filePath)}`;
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'GET',
-    headers: signedHeaders('GET', path, ''),
+  const res = await spawnerFetch('GET', path, {
     signal: AbortSignal.timeout(30_000),
   });
   if (res.status === 404) return null;
@@ -644,9 +707,7 @@ export async function sessionWriteExecStdin(
     ...(write.dataBase64 !== undefined ? { b64: write.dataBase64 } : {}),
     ...(write.eof === true ? { eof: true } : {}),
   });
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'POST',
-    headers: signedHeaders('POST', path, bodyJson),
+  const res = await spawnerFetch('POST', path, {
     body: bodyJson,
     signal: AbortSignal.timeout(30_000),
   });
@@ -698,10 +759,9 @@ export async function sessionExec(
       (body.timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'POST',
-    headers: signedHeaders('POST', path, bodyJson, 'text/event-stream'),
+  const res = await spawnerFetch('POST', path, {
     body: bodyJson,
+    accept: 'text/event-stream',
     signal: fetchAbort,
   });
   if (res.status === 404) throw new SessionNotFoundError(sessionId);
@@ -739,9 +799,8 @@ export async function sessionAttachExec(
       (timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await fetch(`${getSpawnerUrl()}${signedPath}`, {
-    method: 'GET',
-    headers: signedHeaders('GET', signedPath, '', 'text/event-stream'),
+  const res = await spawnerFetch('GET', signedPath, {
+    accept: 'text/event-stream',
     signal: fetchAbort,
   });
   if (res.status === 404) throw new SessionNotFoundError(sessionId);
