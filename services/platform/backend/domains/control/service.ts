@@ -16,13 +16,20 @@ import {
 
 /**
  * Deploy DRAIN control plane — the 0.5 twin of `convex/control/drain.ts`.
- * `tale deploy` restarts the backend on a version change, killing every
- * in-flight chat generation. Before the restart the CLI begins a drain
- * (the chat doors then refuse NEW turns so clients retry onto the restarted
- * backend), polls until `inFlight` reaches 0, recreates, and ends the
- * drain. Best-effort by design on the CLI side; on this side the flag is a
- * singleton row with a hard expiry so a deploy that dies mid-drain cannot
- * refuse chats forever.
+ * `tale deploy` replaces the backend on a version change, killing every
+ * in-flight chat generation. Before that the CLI begins a drain (the chat
+ * doors then refuse NEW turns so clients retry onto the replacement), polls
+ * until `inFlight` reaches 0, replaces, and ends the drain. Best-effort by
+ * design on the CLI side; on this side the flag is a singleton row with a
+ * hard expiry so a deploy that dies mid-drain cannot refuse chats forever.
+ *
+ * The drain is aimed at ONE deployment colour. A blue-green flip runs both
+ * colours of the api at once — the new one is already serving while the old
+ * one drains — so a deployment-wide flag would refuse chats on the colour
+ * the flip just brought up, for the whole drain window. Each replica knows
+ * its own colour from `TALE_COLOR` and only drains when the flag names it.
+ * A drain with NO colour still means every replica: that is what an older
+ * CLI writes, and what the tiers that are not colour-rolled want.
  *
  * Where 0.4's `countActiveGenerations` had become a constant 0 (its chat
  * pipeline had moved off Convex), 0.5 counts the REAL in-flight rows —
@@ -41,18 +48,41 @@ const GENERATION_FRESH_MS = 10 * 60_000;
 
 const SINGLETON = 'singleton';
 
-/** Whether new chat turns should currently be refused. */
+/**
+ * This replica's deployment colour, or `null` when it runs outside a colour
+ * (dev, the pre-blue-green stateful tier, a bare `docker compose up`). An
+ * uncoloured replica obeys every drain, coloured or not: it is the only api
+ * there is, so "drain the blue one" can only have meant it.
+ */
+export function replicaColour(): string | null {
+  const colour = process.env.TALE_COLOR?.trim();
+  return colour !== undefined && colour !== '' ? colour : null;
+}
+
+/** Whether THIS replica should currently refuse new chat turns. */
 export async function isBackendDraining(sql: Sql): Promise<boolean> {
   const rows = await sql<
-    { draining: boolean; drainExpiresAt: number | null }[]
+    {
+      draining: boolean;
+      drainExpiresAt: number | null;
+      drainingColour: string | null;
+    }[]
   >`
-    SELECT draining, drain_expires_at_ms::float8 AS "drainExpiresAt"
+    SELECT draining, drain_expires_at_ms::float8 AS "drainExpiresAt",
+           draining_colour AS "drainingColour"
     FROM app.backend_control WHERE key = ${SINGLETON} LIMIT 1
   `;
   const row = rows[0];
   if (!row || !row.draining) return false;
   // Unexpired drain only — a stale flag (crashed deploy) reads as off.
-  return row.drainExpiresAt === null || Date.now() < row.drainExpiresAt;
+  if (row.drainExpiresAt !== null && Date.now() >= row.drainExpiresAt) {
+    return false;
+  }
+  // A drain aimed at another colour is not ours. An unaimed drain is.
+  const own = replicaColour();
+  return (
+    row.drainingColour === null || own === null || row.drainingColour === own
+  );
 }
 
 /** Generations genuinely in flight: present AND heartbeat-fresh (a stale
@@ -65,34 +95,55 @@ export async function countActiveGenerations(sql: Sql): Promise<number> {
   return Number(rows[0]?.count ?? '0');
 }
 
-export async function beginDrain(sql: Sql): Promise<{ inFlight: number }> {
+/**
+ * Begin a drain. `colour` aims it at one deployment colour; omitted, it
+ * drains every replica (an older CLI, and the tiers that roll in place).
+ */
+export async function beginDrain(
+  sql: Sql,
+  colour?: string | null,
+): Promise<{ inFlight: number; drainingColour: string | null }> {
   const now = Date.now();
+  const target = colour ?? null;
   await sql`
     INSERT INTO app.backend_control (
-      key, draining, drain_started_at_ms, drain_expires_at_ms, updated_at_ms
-    ) VALUES (${SINGLETON}, true, ${now}, ${now + DRAIN_MAX_MS}, ${now})
+      key, draining, drain_started_at_ms, drain_expires_at_ms,
+      draining_colour, updated_at_ms
+    ) VALUES (
+      ${SINGLETON}, true, ${now}, ${now + DRAIN_MAX_MS}, ${target}, ${now}
+    )
     ON CONFLICT (key) DO UPDATE SET
       draining = true, drain_started_at_ms = ${now},
-      drain_expires_at_ms = ${now + DRAIN_MAX_MS}, updated_at_ms = ${now}
+      drain_expires_at_ms = ${now + DRAIN_MAX_MS},
+      draining_colour = ${target}, updated_at_ms = ${now}
   `;
-  return { inFlight: await countActiveGenerations(sql) };
+  return {
+    inFlight: await countActiveGenerations(sql),
+    drainingColour: target,
+  };
 }
 
 export async function endDrain(sql: Sql): Promise<void> {
   await sql`
     UPDATE app.backend_control SET
       draining = false, drain_started_at_ms = NULL,
-      drain_expires_at_ms = NULL, updated_at_ms = ${Date.now()}
+      drain_expires_at_ms = NULL, draining_colour = NULL,
+      updated_at_ms = ${Date.now()}
     WHERE key = ${SINGLETON}
   `;
 }
 
-export async function drainStatus(
-  sql: Sql,
-): Promise<{ draining: boolean; inFlight: number }> {
+export async function drainStatus(sql: Sql): Promise<{
+  draining: boolean;
+  inFlight: number;
+  colour: string | null;
+}> {
   return {
+    // What THIS replica reports about itself: the CLI polls the container it
+    // is draining, so "am I draining" is the honest answer to give it.
     draining: await isBackendDraining(sql),
     inFlight: await countActiveGenerations(sql),
+    colour: replicaColour(),
   };
 }
 

@@ -22248,14 +22248,19 @@ async function checkControlDrain(
   const token = process.env.TALE_CONTROL_TOKEN ?? '';
   const control = (
     route: string,
-    init: { method?: string; bearer?: string } = {},
+    init: { method?: string; bearer?: string; body?: unknown } = {},
   ): Promise<Response> =>
     fetch(`${base}/api/control${route}`, {
       method: init.method ?? 'GET',
-      headers:
-        init.bearer !== undefined
+      headers: {
+        ...(init.bearer !== undefined
           ? { authorization: `Bearer ${init.bearer}` }
-          : {},
+          : {}),
+        ...(init.body === undefined
+          ? {}
+          : { 'content-type': 'application/json' }),
+      },
+      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     });
 
   // Door auth: no bearer / wrong bearer → 401; unset env → 404.
@@ -22356,6 +22361,83 @@ async function checkControlDrain(
   await sql`
     UPDATE app.backend_control SET draining = false WHERE key = 'singleton'
   `;
+
+  // COLOUR SCOPE (0085). A blue-green flip runs both colours of the api at
+  // once and drains only the one it is retiring, so a drain aimed elsewhere
+  // must leave this replica serving — otherwise the flip silences the colour
+  // it just promoted. `/ready` is the readiness the deploy watches; `/ping`
+  // stays liveness so Docker does not kill a container mid-drain.
+  const savedColour = process.env.TALE_COLOR;
+  process.env.TALE_COLOR = 'blue';
+  const readyBefore = await fetch(`${base}/ready`);
+  await control('/drain', {
+    method: 'POST',
+    bearer: token,
+    body: { colour: 'green' },
+  });
+  const otherColour = z
+    .object({ draining: z.boolean() })
+    .loose()
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+  const readyOtherColour = await fetch(`${base}/ready`);
+  const pingOtherColour = await fetch(`${base}/ping`);
+
+  await control('/drain', {
+    method: 'POST',
+    bearer: token,
+    body: { colour: 'blue' },
+  });
+  const ownColour = z
+    .object({ draining: z.boolean() })
+    .loose()
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+  const readyOwnColour = await fetch(`${base}/ready`);
+  // A draining replica is still ALIVE — Docker must not kill it while it is
+  // finishing the in-flight work the drain is waiting for.
+  const pingOwnColour = await fetch(`${base}/ping`);
+
+  // An unaimed drain (an older CLI, or a tier that rolls in place) still
+  // means every replica.
+  await control('/drain', { method: 'POST', bearer: token });
+  const unaimed = z
+    .object({ draining: z.boolean() })
+    .loose()
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+
+  await control('/end-drain', { method: 'POST', bearer: token });
+  const readyAfterEnd = await fetch(`${base}/ready`);
+  if (savedColour === undefined) {
+    delete process.env.TALE_COLOR;
+  } else {
+    process.env.TALE_COLOR = savedColour;
+  }
+
+  record(
+    'drain is scoped to one colour, and /ready is separate from /ping',
+    readyBefore.status === 200 &&
+      otherColour.success &&
+      !otherColour.data.draining &&
+      readyOtherColour.status === 200 &&
+      pingOtherColour.status === 200 &&
+      ownColour.success &&
+      ownColour.data.draining &&
+      readyOwnColour.status === 503 &&
+      pingOwnColour.status === 200 &&
+      unaimed.success &&
+      unaimed.data.draining &&
+      readyAfterEnd.status === 200,
+    `ready before=${readyBefore.status} (want 200), ` +
+      `other-colour draining=${otherColour.success ? otherColour.data.draining : 'ERR'} ready=${readyOtherColour.status} ping=${pingOtherColour.status} (want false/200/200), ` +
+      `own-colour draining=${ownColour.success ? ownColour.data.draining : 'ERR'} ready=${readyOwnColour.status} ping=${pingOwnColour.status} (want true/503/200), ` +
+      `unaimed draining=${unaimed.success ? unaimed.data.draining : 'ERR'} (want true), ` +
+      `ready after end=${readyAfterEnd.status} (want 200)`,
+  );
 
   // `tale migrate` on a cut-over stack: the provision door queues one
   // idempotent `org.scaffold` job per organization (schema migrations run at
