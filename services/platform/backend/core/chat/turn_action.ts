@@ -938,10 +938,21 @@ async function loadDocumentAppendix(
         internal.file_metadata.internal_queries.getByStorageId,
         { storageId: attachment.fileId },
       );
+      // No status at all means nothing ever started indexing this file —
+      // rows an instance carries from before registration queued it. Telling
+      // the model the content is unreadable would make that permanent, since
+      // chat offers no retry: start the run instead, and say so.
+      const ragStatus =
+        meta?.ragStatus ??
+        (await ctx.runMutation(
+          internal.file_metadata.internal_mutations.queueRagIndexIfUnstarted,
+          { storageId: attachment.fileId },
+        )) ??
+        undefined;
       return {
         fileName: attachment.fileName,
         fileId: attachment.fileId,
-        ragStatus: meta?.ragStatus,
+        ragStatus,
       };
     }),
   );

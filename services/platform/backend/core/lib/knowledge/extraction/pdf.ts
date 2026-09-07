@@ -33,6 +33,9 @@ export interface PdfExtractionResult {
   visionUsed: boolean;
   scannedPagesDetected: number;
   ocrApplied: boolean;
+  /** Pages the document HAS — not the number processed, which {@link
+   * MAX_PAGES} can cap. What the operator sees on the document row. */
+  pageCount: number;
 }
 
 export interface PdfExtractionOptions {
@@ -250,5 +253,6 @@ export async function extractTextFromPdfBytes(
     visionUsed,
     scannedPagesDetected,
     ocrApplied,
+    pageCount: totalPages,
   };
 }

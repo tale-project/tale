@@ -180,6 +180,7 @@ interface HandlerNames {
       bindFileToConversation: FunctionRef;
       bindStorageIdsToThread: FunctionRef;
       linkDocumentToFile: FunctionRef;
+      queueRagIndexIfUnstarted: FunctionRef;
       releaseTranscriptionLock: FunctionRef;
       saveFileMetadata: FunctionRef;
       updateFileTranscription: FunctionRef;

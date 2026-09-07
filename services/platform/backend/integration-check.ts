@@ -2840,6 +2840,150 @@ async function checkFiles(
       blobGone,
     `put → ${put.status}, size=${registered.success ? registered.data.size : 'ERR'}, roundtrip=${roundTrip === payload}, refRoundtrip=${refRoundTrip === payload}, delete → ${deleted.status}, blobGone=${blobGone}`,
   );
+
+  // Registration is where an attachment's indexing starts. The 0.4 mutation
+  // queued it here (`shouldIndex`); the cutover kept only the audio branch,
+  // so a document attached in chat kept a NULL `rag_status` forever — the
+  // composer waited on a toast that never fired and every turn told the
+  // model the file was "not machine-readable". Three shapes, one door: a
+  // document queues exactly one job, an image queues none and gets its page
+  // shape stamped instead (nothing downstream would ever fill those in), and
+  // the caller's opt-out is honoured.
+  const registerStaged = async (
+    fileName: string,
+    contentType: string,
+    body: string,
+    extra: Record<string, unknown> = {},
+  ): Promise<{ fileId: string; ref: string }> => {
+    const staged = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+          contentType,
+        })
+      ).json(),
+    );
+    if (!staged.success) return { fileId: '', ref: '' };
+    await fetch(staged.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    const row = z.object({ fileId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+          storageRef: staged.data.s3Ref,
+          fileName,
+          contentType,
+          ...extra,
+        })
+      ).json(),
+    );
+    return {
+      fileId: row.success ? row.data.fileId : '',
+      ref: staged.data.s3Ref,
+    };
+  };
+  const attached = await registerStaged(
+    'attached.md',
+    'text/markdown',
+    '# attached\n\nchat attachment body',
+    { threadId: 'itest-attachment-thread' },
+  );
+  const image = await registerStaged(
+    'shot.png',
+    'image/png',
+    'not really a png',
+  );
+  const skipped = await registerStaged(
+    'skipped.md',
+    'text/markdown',
+    '# skipped',
+    { skipRagIndexing: true },
+  );
+  const docFileId = attached.fileId;
+  const imageFileId = image.fileId;
+  const skippedFileId = skipped.fileId;
+  const indexJobsFor = async (fileIdToCount: string): Promise<number> => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'rag.index_file' AND data ->> 'fileId' = ${fileIdToCount}
+    `;
+    return Number(rows[0]?.count ?? '0');
+  };
+  const attachmentRow = (
+    await sql<{ ragStatus: string | null; skip: boolean | null }[]>`
+      SELECT rag_status AS "ragStatus", skip_rag_indexing AS skip
+      FROM app.file_metadata WHERE id = ${docFileId} LIMIT 1
+    `
+  )[0];
+  const imageRow = (
+    await sql<
+      {
+        ragStatus: string | null;
+        pageCount: number | null;
+        visionRequired: boolean | null;
+      }[]
+    >`
+      SELECT rag_status AS "ragStatus", page_count AS "pageCount",
+             vision_required AS "visionRequired"
+      FROM app.file_metadata WHERE id = ${imageFileId} LIMIT 1
+    `
+  )[0];
+  const skippedRow = (
+    await sql<{ ragStatus: string | null; skip: boolean | null }[]>`
+      SELECT rag_status AS "ragStatus", skip_rag_indexing AS skip
+      FROM app.file_metadata WHERE id = ${skippedFileId} LIMIT 1
+    `
+  )[0];
+  const docJobs = await indexJobsFor(docFileId);
+  const imageJobs = await indexJobsFor(imageFileId);
+  const skippedJobs = await indexJobsFor(skippedFileId);
+  record(
+    'register queues indexing for a document, never for an image or an opt-out',
+    docFileId !== '' &&
+      attachmentRow?.ragStatus !== null &&
+      attachmentRow?.ragStatus !== undefined &&
+      docJobs === 1 &&
+      imageJobs === 0 &&
+      imageRow?.ragStatus === null &&
+      imageRow?.pageCount === 1 &&
+      imageRow?.visionRequired === true &&
+      skippedJobs === 0 &&
+      skippedRow?.skip === true &&
+      skippedRow?.ragStatus === null,
+    `document: status=${attachmentRow?.ragStatus ?? 'null'} (want any status — the pipeline started) jobs=${docJobs} (want 1); image: jobs=${imageJobs} (want 0) status=${imageRow?.ragStatus ?? 'null'} (want null) pages=${imageRow?.pageCount ?? 'null'} (want 1) vision=${imageRow?.visionRequired ?? 'null'} (want true); opt-out: jobs=${skippedJobs} (want 0) skip=${skippedRow?.skip ?? 'null'} (want true) status=${skippedRow?.ragStatus ?? 'null'} (want null)`,
+  );
+
+  // The rows an instance carries from before registration queued indexing
+  // have no status at all, and chat offers no retry — so the turn that
+  // reaches for one starts the run instead of telling the model the file is
+  // unreadable. Idempotent (a second turn claims nothing), and an opt-out
+  // stays opted out.
+  const { chatShimHandlers: chatShimForHeal } =
+    await import('./domains/chat/shim.ts');
+  const healHandler =
+    chatShimForHeal(sql)[
+      'file_metadata/internal_mutations:queueRagIndexIfUnstarted'
+    ];
+  await sql`
+    UPDATE app.file_metadata SET rag_status = NULL, rag_error = NULL,
+                                 rag_error_code = NULL
+    WHERE id = ${docFileId}
+  `;
+  const restarted = await healHandler?.({ storageId: attached.ref });
+  const restartedAgain = await healHandler?.({ storageId: attached.ref });
+  const optOutRestart = await healHandler?.({ storageId: skipped.ref });
+  const restartedJobs = await indexJobsFor(docFileId);
+  const optOutJobs = await indexJobsFor(skippedFileId);
+  record(
+    'a turn starts indexing for an attachment whose upload never did, once',
+    restarted === 'queued' &&
+      restartedAgain === null &&
+      optOutRestart === null &&
+      restartedJobs === 2 &&
+      optOutJobs === 0,
+    `heal=${String(restarted)} (want queued), second=${String(restartedAgain)} (want null), optOut=${String(optOutRestart)} (want null), jobs=${restartedJobs} (want 2: the register one plus this) optOutJobs=${optOutJobs} (want 0)`,
+  );
 }
 
 /**
@@ -22337,30 +22481,51 @@ async function checkControlDrain(
     WHERE thread_id = ${threadId}
   `;
 
-  // In-flight counting: a fresh fake generation counts, a stale one not.
+  // In-flight counting, by the rule the drain window sets: a generation that
+  // was already running when the drain began counts (the deploy waits for
+  // it), a heartbeat-stale one does not (that turn is already dead), and one
+  // that STARTED after the drain began does not either — after a colour flip
+  // those rows are the live colour's traffic, and waiting on them would burn
+  // the whole drain budget on a busy deployment. The probe rows are placed
+  // relative to the drain's own clock, never to `Date.now()`: a row stamped
+  // "now" starts AFTER the drain that began a moment earlier, which is the
+  // one shape that must not count.
   const now = Date.now();
-  await sql`
-    INSERT INTO app.generations (thread_id, org_id, message_id,
-                                 started_at_ms, heartbeat_at_ms,
-                                 updated_at_ms)
-    VALUES (${threadId}, ${orgId}, 'itest-drain-msg', ${now}, ${now}, ${now})
-  `;
-  const withFresh = z
-    .object({ inFlight: z.number() })
-    .loose()
-    .safeParse(
-      await (await control('/drain-status', { bearer: token })).json(),
-    );
-  await sql`
-    UPDATE app.generations SET heartbeat_at_ms = ${now - 11 * 60_000}
-    WHERE thread_id = ${threadId}
-  `;
-  const withStale = z
-    .object({ inFlight: z.number() })
-    .loose()
-    .safeParse(
-      await (await control('/drain-status', { bearer: token })).json(),
-    );
+  const drainStartedAt = Number(
+    (
+      await sql<{ startedAt: string | null }[]>`
+        SELECT drain_started_at_ms::text AS "startedAt"
+        FROM app.backend_control WHERE key = 'singleton' LIMIT 1
+      `
+    )[0]?.startedAt ?? now,
+  );
+  const inFlightWith = async (
+    startedAt: number,
+    heartbeatAt: number,
+  ): Promise<z.ZodSafeParseResult<{ inFlight: number }>> => {
+    await sql`
+      INSERT INTO app.generations (thread_id, org_id, message_id,
+                                   started_at_ms, heartbeat_at_ms,
+                                   updated_at_ms)
+      VALUES (${threadId}, ${orgId}, 'itest-drain-msg', ${startedAt},
+              ${heartbeatAt}, ${heartbeatAt})
+      ON CONFLICT (thread_id) DO UPDATE SET
+        started_at_ms = ${startedAt}, heartbeat_at_ms = ${heartbeatAt},
+        updated_at_ms = ${heartbeatAt}
+    `;
+    return z
+      .object({ inFlight: z.number() })
+      .loose()
+      .safeParse(
+        await (await control('/drain-status', { bearer: token })).json(),
+      );
+  };
+  const withFresh = await inFlightWith(drainStartedAt - 1000, now);
+  const withStale = await inFlightWith(
+    drainStartedAt - 1000,
+    now - 11 * 60_000,
+  );
+  const withPostDrain = await inFlightWith(drainStartedAt + 1000, now);
   await sql`DELETE FROM app.generations WHERE thread_id = ${threadId}`;
 
   // End → the send door opens again (the busy gate now decides, not the
@@ -22550,12 +22715,14 @@ async function checkControlDrain(
       withFresh.data.inFlight === 1 &&
       withStale.success &&
       withStale.data.inFlight === 0 &&
+      withPostDrain.success &&
+      withPostDrain.data.inFlight === 0 &&
       ended.status === 200 &&
       statusEnded.success &&
       !statusEnded.data.draining &&
       statusExpired.success &&
       !statusExpired.data.draining,
-    `auth=${noBearer.status}/${wrongBearer.status}/gone=${doorGone.status} (want 401/401/404), begin=${began.success} draining=${statusDraining.success ? statusDraining.data.draining : 'ERR'}, send=${refusedSend.status} (want 503) body=${refusedBody.success ? refusedBody.data.status : 'ERR'} appended=${appended[0]?.count} (want 0), inFlight fresh=${withFresh.success ? withFresh.data.inFlight : 'ERR'}/stale=${withStale.success ? withStale.data.inFlight : 'ERR'} (want 1/0), end=${ended.status} → draining=${statusEnded.success ? statusEnded.data.draining : 'ERR'}, expired=${statusExpired.success ? statusExpired.data.draining : 'ERR'} (want false)`,
+    `auth=${noBearer.status}/${wrongBearer.status}/gone=${doorGone.status} (want 401/401/404), begin=${began.success} draining=${statusDraining.success ? statusDraining.data.draining : 'ERR'}, send=${refusedSend.status} (want 503) body=${refusedBody.success ? refusedBody.data.status : 'ERR'} appended=${appended[0]?.count} (want 0), inFlight fresh=${withFresh.success ? withFresh.data.inFlight : 'ERR'}/stale=${withStale.success ? withStale.data.inFlight : 'ERR'}/started-after-drain=${withPostDrain.success ? withPostDrain.data.inFlight : 'ERR'} (want 1/0/0), end=${ended.status} → draining=${statusEnded.success ? statusEnded.data.draining : 'ERR'}, expired=${statusExpired.success ? statusExpired.data.draining : 'ERR'} (want false)`,
   );
 }
 

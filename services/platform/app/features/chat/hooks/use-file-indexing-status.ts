@@ -8,11 +8,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { fileStatusesQuery } from '@/app/lib/backend/chat';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
-import {
-  isAudioOrVideo,
-  isImage,
-  isRagIndexableFile,
-} from '@/lib/shared/file-types';
+import { shouldRagIndexOnUpload } from '@/lib/shared/file-types';
 
 import { useChatQueryClient } from '../data/chat-backend';
 
@@ -52,12 +48,7 @@ export function useFileIndexingStatus(
   const fileIds = useMemo(
     () =>
       attachments
-        .filter(
-          (a) =>
-            !isImage(a.fileType) &&
-            !isAudioOrVideo(a.fileType) &&
-            isRagIndexableFile(a.fileName, a.fileType),
-        )
+        .filter((a) => shouldRagIndexOnUpload(a.fileName, a.fileType))
         .map((a) => a.fileId),
     [attachments],
   );

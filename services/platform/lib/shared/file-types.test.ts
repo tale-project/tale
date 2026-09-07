@@ -13,6 +13,7 @@ import {
   mimeToExtension,
   RAG_INDEXABLE_EXTENSIONS,
   resolveFileType,
+  shouldRagIndexOnUpload,
 } from './file-types';
 
 describe('extractExtension', () => {
@@ -389,6 +390,42 @@ describe('mimeToExtension', () => {
   it('handles uppercase MIME types', () => {
     expect(mimeToExtension('IMAGE/JPEG')).toBe('jpg');
     expect(mimeToExtension('Application/PDF')).toBe('pdf');
+  });
+});
+
+describe('shouldRagIndexOnUpload', () => {
+  it.each([
+    ['report.pdf', 'application/pdf'],
+    ['notes.md', 'text/markdown'],
+    ['data.csv', 'text/csv'],
+    [
+      'report.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    ['README', 'text/plain'],
+  ])('queues indexing for %s', (fileName, contentType) => {
+    expect(shouldRagIndexOnUpload(fileName, contentType)).toBe(true);
+  });
+
+  it.each([
+    // Vision-only: the ingest lane refuses an image before it fetches bytes.
+    ['photo.png', 'image/png'],
+    ['scan.tiff', 'image/tiff'],
+    // The name alone is enough — a picture uploaded as a generic blob.
+    ['photo.jpg', 'application/octet-stream'],
+    // Transcription lane; the transcript is indexed after it lands.
+    ['memo.m4a', 'audio/mp4'],
+    ['clip.mp4', 'video/mp4'],
+    // No extractor exists for these at all.
+    ['archive.zip', 'application/zip'],
+    ['legacy.doc', 'application/msword'],
+  ])('leaves %s out of the corpus queue', (fileName, contentType) => {
+    expect(shouldRagIndexOnUpload(fileName, contentType)).toBe(false);
+  });
+
+  it('is the subset of isRagIndexableFile that is not an image', () => {
+    expect(isRagIndexableFile('photo.png', 'image/png')).toBe(true);
+    expect(shouldRagIndexOnUpload('photo.png', 'image/png')).toBe(false);
   });
 });
 

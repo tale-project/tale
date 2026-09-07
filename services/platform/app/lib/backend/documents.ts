@@ -742,6 +742,7 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
             ? { threadId: args.threadId }
             : {}),
           ...(typeof args.source === 'string' ? { source: args.source } : {}),
+          ...(args.skipRagIndexing === true ? { skipRagIndexing: true } : {}),
         },
       }).then((body) => body.fileId),
   },

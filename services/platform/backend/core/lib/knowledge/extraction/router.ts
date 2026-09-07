@@ -54,14 +54,46 @@ export interface ExtractTextOptions {
 }
 
 /**
+ * What the extraction learned about the file on the way past. Only the PDF
+ * extractor counts pages and spots scanned ones today; every other format
+ * answers with the text alone, and the caller leaves those columns untouched
+ * rather than stamping a guess.
+ */
+export interface ExtractedDocument {
+  text: string;
+  visionUsed: boolean;
+  pageCount?: number;
+  scannedPagesDetected?: number;
+  ocrApplied?: boolean;
+}
+
+/**
  * Extract text from file bytes, routing to the correct extractor. Returns
  * `[extractedText, visionWasUsed]`. Throws when the file type is unsupported.
+ *
+ * Prefer {@link extractDocument} when the caller records what the file is —
+ * page count, scanned pages, whether OCR ran; this pair form drops them.
  */
 export async function extractText(
   fileBytes: Uint8Array,
   filename: string,
   options: ExtractTextOptions = {},
 ): Promise<[string, boolean]> {
+  const extracted = await extractDocument(fileBytes, filename, options);
+  return [extracted.text, extracted.visionUsed];
+}
+
+/**
+ * The same routing, keeping what the extractor learned. The PDF leg carries
+ * the page count and the scanned-page tally the operator sees on the
+ * document row ("Image pages: 3 — OCR unavailable"); before this the ingest
+ * lane read them and threw them away, so those rows never appeared.
+ */
+export async function extractDocument(
+  fileBytes: Uint8Array,
+  filename: string,
+  options: ExtractTextOptions = {},
+): Promise<ExtractedDocument> {
   const visionClient = options.visionClient ?? null;
   const processImages = options.processImages ?? true;
   const suffix = extname(filename).toLowerCase();
@@ -72,44 +104,64 @@ export async function extractText(
       processImages,
       onProgress: options.onProgress,
     });
-    return [result.text, result.visionUsed];
+    return {
+      text: result.text,
+      visionUsed: result.visionUsed,
+      pageCount: result.pageCount,
+      scannedPagesDetected: result.scannedPagesDetected,
+      ocrApplied: result.ocrApplied,
+    };
   }
 
   if (DOCX_EXTENSIONS.has(suffix)) {
-    const [text, visionUsed] = await extractTextFromDocxBytes(
-      fileBytes,
-      filename,
-      {
+    return pair(
+      await extractTextFromDocxBytes(fileBytes, filename, {
         visionClient,
         processImages,
-      },
+      }),
     );
-    return [text, visionUsed];
   }
 
   if (PPTX_EXTENSIONS.has(suffix)) {
-    return extractTextFromPptxBytes(fileBytes, filename, {
-      visionClient,
-      processImages,
-    });
+    return pair(
+      await extractTextFromPptxBytes(fileBytes, filename, {
+        visionClient,
+        processImages,
+      }),
+    );
   }
 
   if (XLSX_EXTENSIONS.has(suffix)) {
-    return extractTextFromXlsxBytes(fileBytes, filename);
+    return pair(await extractTextFromXlsxBytes(fileBytes, filename));
   }
 
   if (ODT_EXTENSIONS.has(suffix)) {
-    return extractTextFromOdtBytes(fileBytes, filename, { processImages });
+    return pair(
+      await extractTextFromOdtBytes(fileBytes, filename, { processImages }),
+    );
   }
 
   if (SUPPORTED_IMAGE_EXTENSIONS.has(suffix)) {
-    return extractTextFromImageBytes(fileBytes, filename, { visionClient });
+    return pair(
+      await extractTextFromImageBytes(fileBytes, filename, { visionClient }),
+    );
   }
 
   if (SUPPORTED_TEXT_EXTENSIONS.has(suffix)) {
-    return extractTextFromTextBytes(fileBytes, filename);
+    return pair(await extractTextFromTextBytes(fileBytes, filename));
   }
 
   console.warn(`Unsupported file type: ${suffix}`);
   throw new Error(`Unsupported file type: ${suffix}`);
+}
+
+/** The `[text, visionUsed, …]` extractors, in the richer shape. The docx leg
+ * carries a third element (its per-image page indices) that no caller of this
+ * router reads. */
+function pair([text, visionUsed]: readonly [
+  string,
+  boolean,
+  ...unknown[],
+]): ExtractedDocument {
+  return { text, visionUsed };
 }
