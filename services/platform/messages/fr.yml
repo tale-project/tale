@@ -4101,6 +4101,11 @@ governance:
     noAssignees: Aucune personne ou équipe trouvée
     removePerson: Retirer la personne
     removeTeam: Retirer l'équipe
+    handoffAddRuleDescription:
+      Les nouveaux courriers envoyés à cette adresse seront assignés
+      automatiquement. Ces règles vivent ici sous Routage des conversations —
+      tu ouvres cette page à tout moment depuis Paramètres.
+    backToConversation: Retour à la conversation
 metrics:
   title: Métriques
   groups:

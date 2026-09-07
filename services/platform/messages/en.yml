@@ -3882,6 +3882,11 @@ governance:
     noAssignees: No people or teams found
     removePerson: Remove person
     removeTeam: Remove team
+    handoffAddRuleDescription:
+      New mail sent to this address will be assigned automatically. These rules
+      live here under Conversation routing — open this page anytime from
+      Settings.
+    backToConversation: Back to conversation
 metrics:
   title: Metrics
   groups:

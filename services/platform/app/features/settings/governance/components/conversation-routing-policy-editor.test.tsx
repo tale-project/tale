@@ -11,6 +11,33 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   return {
     ...actual,
     useNavigate: () => navigate,
+    Link: ({
+      children,
+      to,
+      params,
+      search,
+      className,
+    }: {
+      children: React.ReactNode;
+      to: string;
+      params?: { id: string; status?: string };
+      search?: { conversation?: string };
+      className?: string;
+    }) => {
+      const qs = search?.conversation
+        ? `?conversation=${search.conversation}`
+        : '';
+      const status = params?.status ? `/${params.status}` : '';
+      return (
+        <a
+          href={`${to}${status}${qs}`}
+          data-org={params?.id}
+          className={className}
+        >
+          {children}
+        </a>
+      );
+    },
   };
 });
 
@@ -90,7 +117,7 @@ describe('ConversationRoutingPolicyEditor', () => {
     ability.cannot = () => false;
   });
 
-  it('opens Add rule prefilled from location state and clears that state', async () => {
+  it('opens Add rule prefilled from a handoff and keeps the return target', async () => {
     navigate.mockClear();
     state.isLoading = false;
     state.config = { enabled: true, rules: [] };
@@ -99,6 +126,7 @@ describe('ConversationRoutingPolicyEditor', () => {
         organizationId="org-1"
         openAddRule
         initialAddress="billing@acme.test"
+        returnToConversation={{ id: 'conv-1', status: 'open' }}
       />,
     );
 
@@ -106,25 +134,43 @@ describe('ConversationRoutingPolicyEditor', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
     expect(screen.getByDisplayValue('billing@acme.test')).toBeInTheDocument();
-    expect(navigate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: '/dashboard/$id/settings/governance/policies-limits',
-        params: { id: 'org-1' },
-        hash: 'conversation-routing',
-        replace: true,
-      }),
-    );
+    expect(
+      screen.getByText(/these rules live here under conversation routing/i),
+    ).toBeInTheDocument();
+    // Back link sits under the dialog (aria-hidden while modal is open).
+    expect(
+      screen.getByText('Back to conversation', { selector: 'a' }),
+    ).toBeInTheDocument();
+
     const call = navigate.mock.calls[0]?.[0] as {
       state: (prev: {
         openRoutingRule?: boolean;
         routingAddress?: string;
+        returnToConversation?: { id: string; status: string };
       }) => Record<string, unknown>;
     };
     expect(
       call.state({
         openRoutingRule: true,
         routingAddress: 'billing@acme.test',
+        returnToConversation: { id: 'conv-1', status: 'open' },
       }),
-    ).toEqual({});
+    ).toEqual({
+      returnToConversation: { id: 'conv-1', status: 'open' },
+    });
+  });
+
+  it('shows Back to conversation when a return target is present', () => {
+    state.isLoading = false;
+    state.config = { enabled: true, rules: [] };
+    render(
+      <ConversationRoutingPolicyEditor
+        organizationId="org-1"
+        returnToConversation={{ id: 'conv-9', status: 'closed' }}
+      />,
+    );
+
+    const back = screen.getByRole('link', { name: /back to conversation/i });
+    expect(back).toBeInTheDocument();
   });
 });

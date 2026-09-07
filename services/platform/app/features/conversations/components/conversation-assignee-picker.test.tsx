@@ -61,7 +61,11 @@ vi.mock('@tanstack/react-router', () => ({
     to: string;
     hash?: string;
     params?: { id: string };
-    state?: { openRoutingRule?: boolean; routingAddress?: string };
+    state?: {
+      openRoutingRule?: boolean;
+      routingAddress?: string;
+      returnToConversation?: { id: string; status: string };
+    };
     onClick?: () => void;
     className?: string;
   }) => (
@@ -177,7 +181,10 @@ describe('ConversationAssigneePicker', () => {
     expect(link).toHaveAttribute('data-org', 'org-1');
     expect(link).toHaveAttribute(
       'data-state',
-      JSON.stringify({ openRoutingRule: true }),
+      JSON.stringify({
+        openRoutingRule: true,
+        returnToConversation: { id: 'conv-1', status: 'open' },
+      }),
     );
   });
 
@@ -203,6 +210,7 @@ describe('ConversationAssigneePicker', () => {
       JSON.stringify({
         openRoutingRule: true,
         routingAddress: 'billing@acme.test',
+        returnToConversation: { id: 'conv-1', status: 'open' },
       }),
     );
   });
