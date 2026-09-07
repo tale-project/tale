@@ -165,12 +165,6 @@ export const ALWAYS_ROLL_SERVICES = [
 ] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
-/** The backend roles, which share the platform image and take a colour. */
-export type BackendTierService = (typeof BACKEND_TIER_SERVICES)[number];
-
-export function isBackendTierService(name: string): name is BackendTierService {
-  return (BACKEND_TIER_SERVICES as readonly string[]).includes(name);
-}
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];
 export type StopGatedService = (typeof STOP_GATED_SERVICES)[number];
 export type ServiceName = RotatableService | StatefulService;

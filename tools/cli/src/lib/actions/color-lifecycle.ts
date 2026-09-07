@@ -1,7 +1,6 @@
 import { getProjectId, type ReplicaCounts } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import type { DeploymentColor, RotatableService } from '../compose/types';
-import { ROTATABLE_SERVICES } from '../compose/types';
 import { detachColorFromNetworks } from '../docker/detach-color';
 import { dockerCompose } from '../docker/docker-compose';
 import { exec } from '../docker/exec';
@@ -235,9 +234,4 @@ export async function retireColor(args: RetireColorArgs): Promise<void> {
   // and a flag still naming it would make the freshly started colour refuse
   // chats. Best-effort: the flag's own expiry is the backstop.
   await endDrainBackend();
-}
-
-/** Every colour-rolled service, for callers that deploy the whole tier. */
-export function allRotatableServices(): RotatableService[] {
-  return [...ROTATABLE_SERVICES];
 }

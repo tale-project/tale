@@ -11,7 +11,7 @@ import { docker } from './docker';
  * unpause is guaranteed via `finally`, and a failure to unpause shouts,
  * because a container left paused is an outage.
  */
-export async function listContainersUsingVolume(
+async function listContainersUsingVolume(
   volumeName: string,
 ): Promise<string[]> {
   const result = await docker('ps', '-q', '--filter', `volume=${volumeName}`);

@@ -30,12 +30,7 @@ import {
   isBackendTierRunning,
 } from '../docker/control-call';
 
-export {
-  BACKEND_API_LABEL,
-  backendApiContainer,
-  backendApiContainers,
-  isBackendTierRunning,
-};
+export { BACKEND_API_LABEL, backendApiContainer, isBackendTierRunning };
 
 // Plain chat turns are short (seconds–~2 min); 3 min covers the tail without
 // stalling the deploy.
