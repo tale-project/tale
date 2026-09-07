@@ -63,4 +63,4 @@ Limites par clé, par IP, par organisation, et comment lire un 429.
 
 ## Où cela s’inscrit
 
-Développement est la section la plus petite, parce que la plupart des utilisateurs n’en ont jamais besoin ; le public se concentre sur deux rôles (Développeur dans le produit, contributeur en dehors), mais elle est porteuse pour les deux. Si tu branches quelque chose d’externe sur Tale, [Référence API](/fr/develop/api-reference) est la première lecture ; si tu contribues au code source, [Contribuer](/fr/self-hosted/contributing-docker) — sous l’onglet Auto-hébergé — est la bonne.
+Développement est la section la plus petite, parce que la plupart des utilisateurs n’en ont jamais besoin ; le public se concentre sur deux rôles (Développeur dans le produit, contributeur en dehors), mais elle est porteuse pour les deux. Si tu branches quelque chose d’externe sur Tale, [Référence API](/fr/develop/api-reference) est la première lecture ; si tu contribues au code source, [Setup contributeur](/fr/develop/contributor-setup) et [Contribuer aux images Docker](/fr/develop/contributing-docker) sont la bonne lecture.

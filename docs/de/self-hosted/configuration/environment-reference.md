@@ -49,7 +49,7 @@ Ersetze die Werte, die in `.env.example` mitkommen, bevor du die Instanz exponie
 
 ## Datenbank
 
-Tale hält zwei Datenbanken: den operativen Speicher (`tale_app` — Agents, Runs, das Audit-Log) und den Wissens-Korpus (`tale_knowledge` — Dokument-Chunks, Embeddings, gecrawlte Seiten). Ein `tale deploy`-Produktions-Stack faltet beide in einen ParadeDB-Service (`db`, Port 5432, aliasiert `knowledge-db`); die Entwicklungs-`compose.yml` trennt den Korpus in einen eigenen `knowledge-db`-Service auf Port 5433 ab. Beide teilen sich `DB_PASSWORD`, und der Korpus lässt sich für sich auf externe Infrastruktur zeigen.
+Tale hält zwei Datenbanken: den operativen Speicher (`tale_app` — Agents, Runs, das Audit-Log) und den Wissens-Korpus (`tale_knowledge` — Dokument-Chunks, Embeddings, gecrawlte Seiten). Ein Produktions-Stack faltet beide in einen ParadeDB-Service (`db`, Port 5432, aliasiert `knowledge-db`). Beide teilen sich `DB_PASSWORD`, und der Korpus lässt sich für sich auf externe Infrastruktur zeigen.
 
 | Name                                      | Default                                                             | Beschreibung                                                                                                                                                                                                                                                                                                                    |
 | ----------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -190,7 +190,7 @@ Wie viele Replicas jeder zustandslosen Rolle eine Farbe fährt. `tale deploy` li
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas der API — jede Anwendungstür, Auth und der Hint-Stream. Bereich `1`–`16`.                         |
 | `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas des Job-Runners: Ingest, Crawls, Automations, Agent-Turns. Bereich `1`–`16`.                      |
 
-Ein Deploy fährt beide Farben gleichzeitig, jede Zahl verdoppelt sich also für die Dauer des Kipps. [Compose anpassen](/de/self-hosted/install/customize-compose) sagt, welche Rolle du bei welchem Symptom hochsetzt — und was Hochsetzen nicht behebt.
+Ein Deploy fährt beide Farben gleichzeitig, jede Zahl verdoppelt sich also für die Dauer des Kipps. Setz den Worker zuerst hoch — das ist am günstigsten. [Upgrades](/de/self-hosted/operate/upgrades) ist, wann diese Zahlen greifen.
 
 ## Sitzungen
 

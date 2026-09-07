@@ -137,4 +137,4 @@ Dann bau entweder ein `tale-proxy`-Image mit Custom-Caddyfile vor, oder stell de
 
 ## Wo das hingehört
 
-Die drei Modi decken die drei Deployment-Formen ab, die die meisten Teams treffen; die Env-Var-Zeilen leben in [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference#tls). Stellst du gerade einen frischen Produktions-Host auf, walkt [Produktions-Linux-Server-Install](/de/self-hosted/install/linux-server) Let's Encrypt End-to-End mit den Firewall- und DNS-Schritten in der richtigen Reihenfolge.
+Die drei Modi decken die drei Deployment-Formen ab, die die meisten Teams treffen; die Env-Var-Zeilen leben in [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference#tls). Stellst du gerade einen frischen Produktions-Host auf, ist der [Quickstart](/de/self-hosted/install/quickstart) `tale deploy`; diese Seite sind die Zertifikat-Modi.

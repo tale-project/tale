@@ -45,7 +45,7 @@ tale update --dry-run
 
 `tale deploy` macht den eigentlichen Rolling-Restart und deployt immer die eigene Version des CLI — die dank der Angleichung die Version ist, die dein Workspace aufzeichnet. Es sortiert die Services in drei Tiers:
 
-- **App-Tier** — `platform`, `backend-api`, `backend-worker` — rollt bei **jedem** Deploy ohne Downtime, als eine Farbe. Die drei teilen sich ein Image und dieselben Wire-Contracts, also bewegen sie sich gemeinsam und können nie gegeneinander versions-skewen. Jeder davon ist replizierbar; die Replica-Zahlen stehen in [Compose anpassen](/de/self-hosted/install/customize-compose).
+- **App-Tier** — `platform`, `backend-api`, `backend-worker` — rollt bei **jedem** Deploy ohne Downtime, als eine Farbe. Die drei teilen sich ein Image und dieselben Wire-Contracts, also bewegen sie sich gemeinsam und können nie gegeneinander versions-skewen. Jeder davon ist replizierbar über `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS` und `TALE_PLATFORM_REPLICAS` in `.env` (Bereich `1`–`16`). Setz den Worker zuerst hoch. Ein Deploy verdoppelt jede Zahl für die Dauer des Drains. Stores und die Sandbox-Ebene bleiben Singletons.
 - **Compute** — `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — rollt ebenfalls bei jedem Deploy, aber **in-place**: Der Spawner hält den Docker-Socket, das Session-Verzeichnis und das Gateway-Volume, ist also von Bauart her ein Singleton. Der Deploy drainet vorher seine laufenden Agent-Runs, damit der kurze Neustart keinen lebenden abschneidet.
 - **Stop-gegateter Tier** — `db`, `object-store`, `proxy` — bleibt standardmäßig **laufend und unangetastet** (Postgres, den Blob-Store oder den Proxy neu zu erstellen ist eine kurze Ausfallzeit, die du bei einem Routine-Roll nicht willst). Mit `--stop` aktualisierst du sie; der Deploy warnt und nennt sie, wenn er sie überspringt.
 
@@ -121,7 +121,7 @@ abgeräumt, sobald die neue Farbe serviert. Spätere Deploys finden nichts mehr.
 
 <Warning>
 
-Während der Überlappung laufen auf dem Host **zwei** App-Tiers. Auf einer einzelnen Maschine mit dem Default von einer Replica pro Rolle sind das für die Dauer des Drains zwei `platform`-, zwei `backend-api`- und zwei `backend-worker`-Container. Dimensioniere den Host auf die Spitze, nicht auf den Normalbetrieb — und lies [Compose anpassen](/de/self-hosted/install/customize-compose), bevor du auf einer ohnehin knappen Maschine eine Replica-Zahl hochsetzt.
+Während der Überlappung laufen auf dem Host **zwei** App-Tiers. Auf einer einzelnen Maschine mit dem Default von einer Replica pro Rolle sind das für die Dauer des Drains zwei `platform`-, zwei `backend-api`- und zwei `backend-worker`-Container. Dimensioniere den Host auf die Spitze, nicht auf den Normalbetrieb — und auf die verdoppelte Zahl, bevor du auf einer ohnehin knappen Maschine eine Replica-Zahl hochsetzt.
 
 </Warning>
 

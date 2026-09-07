@@ -3,7 +3,7 @@ title: Selbst gehosteter Quickstart
 description: Bring eine funktionierende Tale-Instanz auf deine Maschine — installier die tale-CLI, dann zwei Befehle, und der Setup-Wizard macht dich zum Inhaber.
 ---
 
-Das ist der schnellste Weg zu einem laufenden Tale: installiere die `tale`-CLI, dann zwei Befehle. Das Ergebnis ist deine eigene Org auf deiner eigenen Maschine, erreichbar im Browser. Gedacht ist das für einen Laptop oder einen einzelnen Host, auf dem du Tale ausprobieren willst; sobald du es ernsthaft betreiben willst, deckt die [Linux-Server-Strecke](/de/self-hosted/install/linux-server) eine gehärtete Produktions-Installation ab.
+Das ist der schnellste Weg zu einem laufenden Tale: installiere die `tale`-CLI, dann zwei Befehle. Das Ergebnis ist deine eigene Org auf deiner eigenen Maschine, erreichbar im Browser. Dasselbe Projektverzeichnis ist die Einheit — `tale dev` auf einem Laptop, `tale deploy` wenn der Host einen öffentlichen Namen hat.
 
 ## Bevor du beginnst
 
@@ -103,9 +103,18 @@ Ein neuer Chat, der eine Nachricht beantwortet, ist der Beweis von Anfang bis En
 
 </Steps>
 
-## Lieber pures Docker Compose?
+## Dasselbe Projekt, echter Verkehr
 
-Die CLI umhüllt `docker compose`, damit du das nicht musst. Willst du den Stack lieber aus einem Klon des Repositorys fahren und Compose selbst verwalten — für Transparenz, Air-gapped-Builds oder deine eigene Automation — klon das Repo, kopier `.env.example` nach `.env`, setz `HOST` und `SITE_URL`, generier die Secrets und starte `docker compose up -d`. Die [Linux-Server-Strecke](/de/self-hosted/install/linux-server) und die [Docker-Compose-Referenz](/de/self-hosted/install/docker-compose-reference) decken diesen Weg von Anfang bis Ende ab.
+Dasselbe Verzeichnis wird mit `tale deploy` zur Produktion. Der erste Deploy fragt nach dem öffentlichen Hostnamen und einem Let's-Encrypt-Postfach. Der Host braucht [Docker Engine](https://docs.docker.com/engine/install/), einen DNS-A-Eintrag und die Ports 80/443 aus dem Internet. Die Zertifikat-Modi stehen in [TLS und Domains](/de/self-hosted/configuration/tls-and-domains). Sobald die URL steht, gehören [Backups und Restore](/de/self-hosted/operate/backups-and-restore) und [Hardening](/de/self-hosted/operate/security/hardening) in den Kalender.
+
+```bash
+tale deploy
+tale status
+```
+
+## Compose selbst schreiben?
+
+Die CLI umhüllt Docker Compose, damit du das nicht musst. Wenn du die CLI nicht fahren kannst, ist [Compose selbst fahren](/de/self-hosted/install/own-compose) der Vertrag — inklusive dessen, was Kubernetes trotzdem tun muss.
 
 ## Fehlersuche
 
@@ -116,4 +125,4 @@ Die CLI umhüllt `docker compose`, damit du das nicht musst. Willst du den Stack
 
 ## Wo das eingesetzt wird
 
-Du hast jetzt eine funktionierende Tale-Instanz auf deiner Maschine. Um sie ernsthaft zu betreiben, deckt die [Linux-Server-Strecke](/de/self-hosted/install/linux-server) TLS, Firewall, einen Non-root-Benutzer und die operativen Haken ab, die du vor echtem Traffic willst; [Die tale-CLI installieren](/de/self-hosted/install/cli-install) richtet die CLI so ein, dass du eine entfernte Instanz von deiner Workstation aus deployst und aktualisierst.
+Du hast jetzt eine funktionierende Tale-Instanz. [Die tale-CLI installieren](/de/self-hosted/install/cli-install) richtet die CLI so ein, dass du eine entfernte Instanz von deiner Workstation aus deployst und aktualisierst.

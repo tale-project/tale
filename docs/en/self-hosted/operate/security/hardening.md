@@ -17,7 +17,7 @@ The reference detail for each row lives elsewhere — TLS in [TLS and domains](/
 | Host firewall (ufw / nftables) | Closes everything that is not 22, 80, 443               |
 | Disk encryption at rest        | Required if you run SOPS in plaintext mode              |
 
-The non-root user is the one most teams skip. Tale's containers run their own non-root processes inside, but the docker daemon itself runs as root — operating that daemon as the operator user (member of the `docker` group, not as root) is the cheapest tightening on this page. The full walk lives in [Production Linux server install](/self-hosted/install/linux-server).
+The non-root user is the one most teams skip. Tale's containers run their own non-root processes inside, but the docker daemon itself runs as root — operating that daemon as the operator user (member of the `docker` group, not as root) is the cheapest tightening on this page.
 
 ## Network
 

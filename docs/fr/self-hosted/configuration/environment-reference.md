@@ -49,7 +49,7 @@ Remplace les valeurs livrées dans `.env.example` avant d'exposer l'instance —
 
 ## Base de données
 
-Tale garde deux bases : le magasin opérationnel (`tale_app` — agents, runs, le log d'audit) et le corpus de connaissances (`tale_knowledge` — fragments de documents, embeddings, pages crawlées). Un stack de production `tale deploy` replie les deux dans un seul service ParadeDB (`db`, port 5432, alias `knowledge-db`) ; le `compose.yml` de développement sépare le corpus dans un service `knowledge-db` dédié sur le port 5433. Les deux partagent `DB_PASSWORD`, et le corpus peut être pointé vers une infrastructure externe tout seul.
+Tale garde deux bases : le magasin opérationnel (`tale_app` — agents, runs, le log d'audit) et le corpus de connaissances (`tale_knowledge` — fragments de documents, embeddings, pages crawlées). Un stack de production replie les deux dans un seul service ParadeDB (`db`, port 5432, alias `knowledge-db`). Les deux partagent `DB_PASSWORD`, et le corpus peut être pointé vers une infrastructure externe tout seul.
 
 | Nom                                       | Défaut                                                              | Description                                                                                                                                                                                                                                                                                                                                                |
 | ----------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -190,7 +190,7 @@ Combien de replicas de chaque rôle sans état une couleur fait tourner. `tale d
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas de l'API — chaque porte applicative, l'auth et le flux de hints. Plage `1`–`16`.                  |
 | `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas du runner de jobs : ingestion, crawls, automations, tours d'agent. Plage `1`–`16`.                |
 
-Un déploiement fait tourner les deux couleurs en même temps : chaque nombre est doublé pendant le chevauchement. [Personnaliser Compose](/fr/self-hosted/install/customize-compose) dit quel rôle monter pour quel symptôme, et ce que monter ne répare pas.
+Un déploiement fait tourner les deux couleurs en même temps : chaque nombre est doublé pendant le chevauchement. Monte le worker d’abord — c’est le moins cher. [Montées de version](/fr/self-hosted/operate/upgrades) est quand ces nombres s’appliquent.
 
 ## Sessions
 

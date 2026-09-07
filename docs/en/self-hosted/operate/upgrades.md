@@ -45,7 +45,7 @@ tale update --dry-run
 
 `tale deploy` does the actual rolling restart, and it always deploys the CLI's own version — which, thanks to alignment, is the version your workspace records. It sorts the services into three tiers:
 
-- **Application tier** — `platform`, `backend-api`, `backend-worker` — rolls on **every** deploy with zero downtime, as one colour. The three share an image and a set of wire contracts, so they move together and can never version-skew from each other. Each is replicable; see [Customize Compose](/self-hosted/install/customize-compose) for the replica counts.
+- **Application tier** — `platform`, `backend-api`, `backend-worker` — rolls on **every** deploy with zero downtime, as one colour. The three share an image and a set of wire contracts, so they move together and can never version-skew from each other. Each is replicable via `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS`, and `TALE_PLATFORM_REPLICAS` in `.env` (range `1`–`16`). Raise the worker first. A deploy doubles every count for the drain. Stores and the sandbox plane stay singletons.
 - **Compute** — `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — rolls on every deploy too, but **in place**: the spawner holds the Docker socket, the session directory and the gateway volume, so it is a singleton by construction. The deploy drains its in-flight agent runs first, so the brief restart doesn't cut a live one.
 - **Stop-gated tier** — `db`, `object-store`, `proxy` — left **running and untouched** by default (recreating Postgres, the blob store, or the proxy is a brief outage you don't want on a routine roll). Pass `--stop` to update them; the deploy warns and names them when it skips.
 
@@ -121,7 +121,7 @@ once the new colour is serving. Later deploys find nothing to sweep.
 
 <Warning>
 
-During the overlap the host runs **two** application tiers. On a single box with the default one replica per role, that is two `platform`, two `backend-api` and two `backend-worker` containers for the length of the drain. Size the host for the peak, not the steady state — and read [Customize Compose](/self-hosted/install/customize-compose) before raising a replica count on a machine that is already tight.
+During the overlap the host runs **two** application tiers. On a single box with the default one replica per role, that is two `platform`, two `backend-api` and two `backend-worker` containers for the length of the drain. Size the host for the peak, not the steady state — and for the doubled count before you raise a replica number on a machine that is already tight.
 
 </Warning>
 

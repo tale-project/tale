@@ -45,7 +45,7 @@ tale update --dry-run
 
 `tale deploy` fait le vrai redémarrage rolling, et il déploie toujours la version propre à la CLI — qui, grâce à l'alignement, est la version qu'enregistre ton workspace. Il trie les services en trois étages :
 
-- **Étage app** — `platform`, `backend-api`, `backend-worker` — roule à **chaque** déploiement, sans downtime, comme une seule couleur. Les trois partagent une image et les mêmes contrats de wire : ils bougent ensemble et ne peuvent jamais dériver en version l'un d'avec l'autre. Chacun est réplicable ; les nombres de replicas sont dans [Personnaliser Compose](/fr/self-hosted/install/customize-compose).
+- **Étage app** — `platform`, `backend-api`, `backend-worker` — roule à **chaque** déploiement, sans downtime, comme une seule couleur. Les trois partagent une image et les mêmes contrats de wire : ils bougent ensemble et ne peuvent jamais dériver en version l'un d'avec l'autre. Chacun est réplicable via `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS` et `TALE_PLATFORM_REPLICAS` dans `.env` (plage `1`–`16`). Monte le worker d’abord. Un déploiement double chaque nombre le temps du drain. Les stores et le plan sandbox restent des singletons.
 - **Compute** — `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — roule à chaque déploiement lui aussi, mais **en place** : le spawner tient le socket Docker, le répertoire de sessions et le volume du gateway, c'est donc un singleton par construction. Le déploiement draine d'abord ses runs d'agent en cours pour que le bref redémarrage n'en coupe pas un vivant.
 - **Étage à arrêt requis** — `db`, `object-store`, `proxy` — laissés **en marche et intacts** par défaut (recréer Postgres, le store de blobs ou le proxy est une brève coupure que tu ne veux pas sur un roll de routine). Passe `--stop` pour les mettre à jour ; le déploiement prévient et les nomme quand il les saute.
 
@@ -122,7 +122,7 @@ déploiements suivants ne trouvent plus rien.
 
 <Warning>
 
-Pendant le recouvrement, l'hôte fait tourner **deux** étages app. Sur une seule machine avec le défaut d'une replica par rôle, cela fait deux conteneurs `platform`, deux `backend-api` et deux `backend-worker` le temps du drain. Dimensionne l'hôte sur le pic, pas sur le régime normal — et lis [Personnaliser Compose](/fr/self-hosted/install/customize-compose) avant de monter un nombre de replicas sur une machine déjà juste.
+Pendant le recouvrement, l'hôte fait tourner **deux** étages app. Sur une seule machine avec le défaut d'une replica par rôle, cela fait deux conteneurs `platform`, deux `backend-api` et deux `backend-worker` le temps du drain. Dimensionne l'hôte sur le pic, pas sur le régime normal — et sur le nombre doublé avant de monter un nombre de replicas sur une machine déjà juste.
 
 </Warning>
 

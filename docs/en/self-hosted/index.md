@@ -12,13 +12,11 @@ This section is for operators: the people who decide where Tale runs, install it
 
 **[Architecture overview](/self-hosted/overview)** — what each container does, where data lives on disk, what talks to what.
 
-**[Install](/self-hosted/install/quickstart)** — quickstart on a laptop, production install on a Linux host, the docker compose reference, first admin setup, the CLI installer.
+**[Install](/self-hosted/install)** — the CLI (`tale init` / `tale dev` / `tale deploy`), or a stack you write yourself.
 
 **[Configuration](/self-hosted/configuration/environment-reference)** — every environment variable, provider files, authentication modes, TLS, storage, retention, SOPS-encrypted secrets, observability.
 
 **[Operate](/self-hosted/operate/container-architecture)** — upgrades, backups and restore, observability and troubleshooting, security advisories, hardening, release notes format.
-
-**[Contributing](/self-hosted/contributing-docker)** — how to build and test a local container change.
 
 ## Where this fits
 

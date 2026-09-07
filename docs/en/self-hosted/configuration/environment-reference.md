@@ -49,7 +49,7 @@ Replace the values that ship in `.env.example` before exposing the instance — 
 
 ## Database
 
-Tale keeps two databases: the operational store (`tale_app` — agents, runs, the audit log) and the knowledge corpus (`tale_knowledge` — document chunks, embeddings, crawled pages). A `tale deploy` production stack folds both into one ParadeDB service (`db`, port 5432, aliased `knowledge-db`); the development `compose.yml` splits the corpus into a separate `knowledge-db` service on port 5433. Both share `DB_PASSWORD`, and the corpus can be pointed at external infrastructure on its own.
+Tale keeps two databases: the operational store (`tale_app` — agents, runs, the audit log) and the knowledge corpus (`tale_knowledge` — document chunks, embeddings, crawled pages). A production stack folds both into one ParadeDB service (`db`, port 5432, aliased `knowledge-db`). Both share `DB_PASSWORD`, and the corpus can be pointed at external infrastructure on its own.
 
 | Name                                      | Default                                                             | Description                                                                                                                                                                                                                                                                               |
 | ----------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -190,7 +190,7 @@ How many replicas of each stateless role a colour runs. Read by `tale deploy` fr
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas of the API — every application door, auth, and the hint stream. Range `1`–`16`.                  |
 | `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas of the job runner: ingestion, crawls, automations, agent turns. Range `1`–`16`.                  |
 
-A deploy runs both colours at once, so each count is doubled for the length of the flip. [Customize Compose](/self-hosted/install/customize-compose) is which role to raise for which symptom, and what raising one does not fix.
+A deploy runs both colours at once, so each count is doubled for the length of the flip. Raise the worker first — it is the cheapest. [Upgrades](/self-hosted/operate/upgrades) is when those counts apply.
 
 ## Sessions
 

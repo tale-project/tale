@@ -345,7 +345,7 @@ services:
   # (no `container_name` on these two services precisely so --scale works).
   # `tale deploy` runs the same two roles inside a deployment COLOUR and sizes
   # them with TALE_BACKEND_API_REPLICAS / TALE_BACKEND_WORKER_REPLICAS —
-  # see docs/en/self-hosted/install/customize-compose.md.
+  # see docs/en/self-hosted/operate/upgrades.md.
   # State lives in the `tale_app` database on the `db` service (created
   # idempotently by services/db/init-scripts/04-create-app-database.sql).
   # ============================================================================

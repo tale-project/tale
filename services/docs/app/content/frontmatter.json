@@ -754,14 +754,6 @@
       "kind": "index"
     }
   },
-  "fr:self-hosted/install/docker-compose-reference": {
-    "slug": "self-hosted/install/docker-compose-reference",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Référence Docker Compose",
-      "description": "Quel fichier compose est livré avec Tale, à quoi sert chacun, et comment fonctionne la superposition quand tu démarres des combinaisons dev, docs ou test."
-    }
-  },
   "fr:self-hosted/install/cli-install": {
     "slug": "self-hosted/install/cli-install",
     "locale": "fr",
@@ -775,15 +767,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Installation",
-      "description": "Choisis le bon chemin d'installation de Tale — un essai sur laptop avec la CLI, une installation de production durcie sur un hôte Linux, ou la référence Docker Compose brute pour un contrôle total."
-    }
-  },
-  "fr:self-hosted/install/customize-compose": {
-    "slug": "self-hosted/install/customize-compose",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Personnaliser Compose",
-      "description": "Scaler l'étage app, superposer le fichier compose livré, et savoir quels conteneurs restent des singletons."
+      "description": "Deux façons de faire tourner Tale — la CLI, ou une stack que tu écris toi-même (Compose ou Kubernetes)."
     }
   },
   "fr:self-hosted/install/quickstart": {
@@ -794,20 +778,20 @@
       "description": "Fais tourner une instance Tale sur ta machine — installe la CLI tale, puis deux commandes, et l’assistant de configuration fait de toi le Propriétaire."
     }
   },
+  "fr:self-hosted/install/own-compose": {
+    "slug": "self-hosted/install/own-compose",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Écrire Compose toi-même",
+      "description": "Le contrat compose de production — réseaux, alias, sondes, volumes — pour écrire la stack sans la CLI."
+    }
+  },
   "fr:self-hosted/install/first-admin": {
     "slug": "self-hosted/install/first-admin",
     "locale": "fr",
     "frontmatter": {
       "title": "Créer le premier admin",
       "description": "Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique."
-    }
-  },
-  "fr:self-hosted/install/linux-server": {
-    "slug": "self-hosted/install/linux-server",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Installation Linux serveur de production",
-      "description": "Une installation Linux durcie sur un seul hôte — TLS via Let's Encrypt, pare-feu, utilisateur non-root, et les crochets opérationnels pour y mettre du vrai trafic."
     }
   },
   "fr:self-hosted/configuration/observability-config": {
@@ -881,14 +865,6 @@
     "frontmatter": {
       "title": "TLS et domaines",
       "description": "Comment le proxy Caddy termine TLS — auto-signé pour développement, Let's Encrypt pour production, externe pour un proxy amont — plus les setups domaine personnalisé et certificat personnalisé."
-    }
-  },
-  "fr:self-hosted/contributing-docker": {
-    "slug": "self-hosted/contributing-docker",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Contribuer aux images Docker",
-      "description": "Comment construire et étendre les images Docker de Tale pour des forks, des builds vendorisés ou des distributions air-gapped."
     }
   },
   "fr:cloud/trust-and-compliance": {
@@ -1007,6 +983,14 @@
       "i18nLintExclude": ""
     }
   },
+  "fr:develop/compose-files": {
+    "slug": "develop/compose-files",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Fichiers compose contributeur",
+      "description": "Quels overlays compose vivent dans l’arbre source — pour le développement local, les docs et les tests. Pas un chemin d’installation de production."
+    }
+  },
   "fr:develop/api-reference": {
     "slug": "develop/api-reference",
     "locale": "fr",
@@ -1046,6 +1030,14 @@
     "frontmatter": {
       "title": "API WebDAV",
       "description": "Référence de protocole pour le serveur WebDAV de Tale — schéma d’URL, authentification, méthodes supportées, liste de propriétés, sémantique des verrous et limites."
+    }
+  },
+  "fr:develop/contributing-docker": {
+    "slug": "develop/contributing-docker",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Contribuer aux images Docker",
+      "description": "Comment construire et étendre les images Docker de Tale pour des forks, des builds vendorisés ou des distributions air-gapped."
     }
   },
   "fr:develop/ai-assisted-development": {
@@ -1835,14 +1827,6 @@
       "kind": "index"
     }
   },
-  "en:self-hosted/install/docker-compose-reference": {
-    "slug": "self-hosted/install/docker-compose-reference",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Docker Compose reference",
-      "description": "Which compose file ships with Tale, what each is for, and how the layering works when you bring up dev, docs, or test combinations."
-    }
-  },
   "en:self-hosted/install/cli-install": {
     "slug": "self-hosted/install/cli-install",
     "locale": "en",
@@ -1856,15 +1840,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Install",
-      "description": "Pick the right Tale install path — a laptop trial with the CLI, a hardened production install on a Linux host, or the raw Docker Compose reference for full control."
-    }
-  },
-  "en:self-hosted/install/customize-compose": {
-    "slug": "self-hosted/install/customize-compose",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Customize Compose",
-      "description": "Scale the application tier, overlay the shipped compose file, and know which containers stay a singleton."
+      "description": "Two ways to run Tale — the CLI, or a stack you write yourself (Compose or Kubernetes)."
     }
   },
   "en:self-hosted/install/quickstart": {
@@ -1875,20 +1851,20 @@
       "description": "Get a working Tale instance running on your machine — install the tale CLI, then two commands, and the setup wizard makes you the Owner."
     }
   },
+  "en:self-hosted/install/own-compose": {
+    "slug": "self-hosted/install/own-compose",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Run Compose yourself",
+      "description": "The production compose contract — networks, aliases, probes, volumes — so you can write the stack without the CLI."
+    }
+  },
   "en:self-hosted/install/first-admin": {
     "slug": "self-hosted/install/first-admin",
     "locale": "en",
     "frontmatter": {
       "title": "Create the first admin",
       "description": "Walk a brand-new self-hosted instance through its one-time setup wizard — the first account becomes Owner with no key, and new people join by invite."
-    }
-  },
-  "en:self-hosted/install/linux-server": {
-    "slug": "self-hosted/install/linux-server",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Production Linux server install",
-      "description": "A hardened Linux install on a single host — TLS via Let's Encrypt, firewall, non-root user, and the operational hooks to put real traffic on."
     }
   },
   "en:self-hosted/configuration/observability-config": {
@@ -1962,14 +1938,6 @@
     "frontmatter": {
       "title": "TLS and domains",
       "description": "How the Caddy proxy terminates TLS — self-signed for development, Let's Encrypt for production, external for an upstream proxy — plus custom domain and custom certificate setups."
-    }
-  },
-  "en:self-hosted/contributing-docker": {
-    "slug": "self-hosted/contributing-docker",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Contributing to Docker images",
-      "description": "How to build and extend Tale's Docker images for forks, vendored builds, or air-gapped distributions."
     }
   },
   "en:cloud/trust-and-compliance": {
@@ -2088,6 +2056,14 @@
       "i18nLintExclude": ""
     }
   },
+  "en:develop/compose-files": {
+    "slug": "develop/compose-files",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Contributor compose files",
+      "description": "Which compose overlays ship in the source tree — for local development, docs, and tests. Not a production install path."
+    }
+  },
   "en:develop/api-reference": {
     "slug": "develop/api-reference",
     "locale": "en",
@@ -2127,6 +2103,14 @@
     "frontmatter": {
       "title": "WebDAV API",
       "description": "Protocol reference for Tale's WebDAV server — URL scheme, authentication, supported methods, property list, lock semantics, and limits."
+    }
+  },
+  "en:develop/contributing-docker": {
+    "slug": "develop/contributing-docker",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Contributing to Docker images",
+      "description": "How to build and extend Tale's Docker images for forks, vendored builds, or air-gapped distributions."
     }
   },
   "en:develop/ai-assisted-development": {
@@ -2916,14 +2900,6 @@
       "kind": "index"
     }
   },
-  "de:self-hosted/install/docker-compose-reference": {
-    "slug": "self-hosted/install/docker-compose-reference",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Docker-Compose-Referenz",
-      "description": "Welche Compose-Datei mit Tale ausgeliefert wird, wofür jede gut ist, und wie die Schichtung funktioniert, wenn du Dev-, Docs- oder Test-Kombinationen hochfährst."
-    }
-  },
   "de:self-hosted/install/cli-install": {
     "slug": "self-hosted/install/cli-install",
     "locale": "de",
@@ -2937,15 +2913,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Installation",
-      "description": "Wähl den richtigen Tale-Installationsweg — einen Laptop-Trial mit der CLI, eine gehärtete Produktions-Installation auf einem Linux-Host oder die rohe Docker-Compose-Referenz für volle Kontrolle."
-    }
-  },
-  "de:self-hosted/install/customize-compose": {
-    "slug": "self-hosted/install/customize-compose",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Compose anpassen",
-      "description": "Den App-Tier skalieren, die ausgelieferte Compose-Datei überlagern und wissen, welche Container Singletons bleiben."
+      "description": "Zwei Wege, Tale zu betreiben — die CLI, oder ein Stack, den du selbst schreibst (Compose oder Kubernetes)."
     }
   },
   "de:self-hosted/install/quickstart": {
@@ -2956,20 +2924,20 @@
       "description": "Bring eine funktionierende Tale-Instanz auf deine Maschine — installier die tale-CLI, dann zwei Befehle, und der Setup-Wizard macht dich zum Inhaber."
     }
   },
+  "de:self-hosted/install/own-compose": {
+    "slug": "self-hosted/install/own-compose",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Compose selbst fahren",
+      "description": "Der Produktions-Compose-Vertrag — Netze, Aliase, Probes, Volumes — damit du den Stack ohne CLI selbst schreibst."
+    }
+  },
   "de:self-hosted/install/first-admin": {
     "slug": "self-hosted/install/first-admin",
     "locale": "de",
     "frontmatter": {
       "title": "Den ersten Admin erstellen",
       "description": "Eine brandneue self-hosted Instanz durch ihren einmaligen Setup-Wizard führen — das erste Konto wird ohne Key zum Owner, neue Leute kommen per Einladung dazu."
-    }
-  },
-  "de:self-hosted/install/linux-server": {
-    "slug": "self-hosted/install/linux-server",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Produktions-Linux-Server-Installation",
-      "description": "Eine gehärtete Linux-Installation auf einem einzelnen Host — TLS via Let's Encrypt, Firewall, Non-root-User und die operativen Haken, um echten Verkehr darauf zu legen."
     }
   },
   "de:self-hosted/configuration/observability-config": {
@@ -3043,14 +3011,6 @@
     "frontmatter": {
       "title": "TLS und Domains",
       "description": "Wie der Caddy-Proxy TLS terminiert — selbst signiert für Development, Let's Encrypt für Produktion, external für einen vorgelagerten Proxy — plus Custom-Domain- und Custom-Cert-Setups."
-    }
-  },
-  "de:self-hosted/contributing-docker": {
-    "slug": "self-hosted/contributing-docker",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Zu Docker-Images beitragen",
-      "description": "Wie du die Docker-Images von Tale für Forks, vendored Builds oder Air-gapped-Distributionen baust und erweiterst."
     }
   },
   "de:cloud/trust-and-compliance": {
@@ -3169,6 +3129,14 @@
       "i18nLintExclude": ""
     }
   },
+  "de:develop/compose-files": {
+    "slug": "develop/compose-files",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Contributor-Compose-Dateien",
+      "description": "Welche Compose-Overlays im Quellbaum liegen — für lokale Entwicklung, Docs und Tests. Kein Produktions-Installationsweg."
+    }
+  },
   "de:develop/api-reference": {
     "slug": "develop/api-reference",
     "locale": "de",
@@ -3208,6 +3176,14 @@
     "frontmatter": {
       "title": "WebDAV-API",
       "description": "Protokoll-Referenz für Tales WebDAV-Server — URL-Schema, Authentifizierung, unterstützte Methoden, Eigenschaftsliste, Sperrsemantik und Limits."
+    }
+  },
+  "de:develop/contributing-docker": {
+    "slug": "develop/contributing-docker",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Zu Docker-Images beitragen",
+      "description": "Wie du die Docker-Images von Tale für Forks, vendored Builds oder Air-gapped-Distributionen baust und erweiterst."
     }
   },
   "de:develop/ai-assisted-development": {

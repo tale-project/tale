@@ -92,7 +92,7 @@ const DEV_DOCKER_SERVICES = [
   // (the `--internal` sandbox net can't otherwise reach the host).
   'backend-relay',
 ];
-// Overlay chain for local dev (matches docs/.../docker-compose-reference): base
+// Overlay chain for local dev (matches docs/.../develop/compose-files): base
 // + source-mounts/debug/extra_hosts (dev) + the loopback gateway port publish
 // (sandbox-llm-gateway.dev). compose.docs.yml is required because compose.dev.yml
 // carries a `docs` override whose base service lives only in compose.docs.yml —
