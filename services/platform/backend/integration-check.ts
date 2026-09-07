@@ -22481,30 +22481,51 @@ async function checkControlDrain(
     WHERE thread_id = ${threadId}
   `;
 
-  // In-flight counting: a fresh fake generation counts, a stale one not.
+  // In-flight counting, by the rule the drain window sets: a generation that
+  // was already running when the drain began counts (the deploy waits for
+  // it), a heartbeat-stale one does not (that turn is already dead), and one
+  // that STARTED after the drain began does not either — after a colour flip
+  // those rows are the live colour's traffic, and waiting on them would burn
+  // the whole drain budget on a busy deployment. The probe rows are placed
+  // relative to the drain's own clock, never to `Date.now()`: a row stamped
+  // "now" starts AFTER the drain that began a moment earlier, which is the
+  // one shape that must not count.
   const now = Date.now();
-  await sql`
-    INSERT INTO app.generations (thread_id, org_id, message_id,
-                                 started_at_ms, heartbeat_at_ms,
-                                 updated_at_ms)
-    VALUES (${threadId}, ${orgId}, 'itest-drain-msg', ${now}, ${now}, ${now})
-  `;
-  const withFresh = z
-    .object({ inFlight: z.number() })
-    .loose()
-    .safeParse(
-      await (await control('/drain-status', { bearer: token })).json(),
-    );
-  await sql`
-    UPDATE app.generations SET heartbeat_at_ms = ${now - 11 * 60_000}
-    WHERE thread_id = ${threadId}
-  `;
-  const withStale = z
-    .object({ inFlight: z.number() })
-    .loose()
-    .safeParse(
-      await (await control('/drain-status', { bearer: token })).json(),
-    );
+  const drainStartedAt = Number(
+    (
+      await sql<{ startedAt: string | null }[]>`
+        SELECT drain_started_at_ms::text AS "startedAt"
+        FROM app.backend_control WHERE key = 'singleton' LIMIT 1
+      `
+    )[0]?.startedAt ?? now,
+  );
+  const inFlightWith = async (
+    startedAt: number,
+    heartbeatAt: number,
+  ): Promise<z.ZodSafeParseResult<{ inFlight: number }>> => {
+    await sql`
+      INSERT INTO app.generations (thread_id, org_id, message_id,
+                                   started_at_ms, heartbeat_at_ms,
+                                   updated_at_ms)
+      VALUES (${threadId}, ${orgId}, 'itest-drain-msg', ${startedAt},
+              ${heartbeatAt}, ${heartbeatAt})
+      ON CONFLICT (thread_id) DO UPDATE SET
+        started_at_ms = ${startedAt}, heartbeat_at_ms = ${heartbeatAt},
+        updated_at_ms = ${heartbeatAt}
+    `;
+    return z
+      .object({ inFlight: z.number() })
+      .loose()
+      .safeParse(
+        await (await control('/drain-status', { bearer: token })).json(),
+      );
+  };
+  const withFresh = await inFlightWith(drainStartedAt - 1000, now);
+  const withStale = await inFlightWith(
+    drainStartedAt - 1000,
+    now - 11 * 60_000,
+  );
+  const withPostDrain = await inFlightWith(drainStartedAt + 1000, now);
   await sql`DELETE FROM app.generations WHERE thread_id = ${threadId}`;
 
   // End → the send door opens again (the busy gate now decides, not the
@@ -22694,12 +22715,14 @@ async function checkControlDrain(
       withFresh.data.inFlight === 1 &&
       withStale.success &&
       withStale.data.inFlight === 0 &&
+      withPostDrain.success &&
+      withPostDrain.data.inFlight === 0 &&
       ended.status === 200 &&
       statusEnded.success &&
       !statusEnded.data.draining &&
       statusExpired.success &&
       !statusExpired.data.draining,
-    `auth=${noBearer.status}/${wrongBearer.status}/gone=${doorGone.status} (want 401/401/404), begin=${began.success} draining=${statusDraining.success ? statusDraining.data.draining : 'ERR'}, send=${refusedSend.status} (want 503) body=${refusedBody.success ? refusedBody.data.status : 'ERR'} appended=${appended[0]?.count} (want 0), inFlight fresh=${withFresh.success ? withFresh.data.inFlight : 'ERR'}/stale=${withStale.success ? withStale.data.inFlight : 'ERR'} (want 1/0), end=${ended.status} → draining=${statusEnded.success ? statusEnded.data.draining : 'ERR'}, expired=${statusExpired.success ? statusExpired.data.draining : 'ERR'} (want false)`,
+    `auth=${noBearer.status}/${wrongBearer.status}/gone=${doorGone.status} (want 401/401/404), begin=${began.success} draining=${statusDraining.success ? statusDraining.data.draining : 'ERR'}, send=${refusedSend.status} (want 503) body=${refusedBody.success ? refusedBody.data.status : 'ERR'} appended=${appended[0]?.count} (want 0), inFlight fresh=${withFresh.success ? withFresh.data.inFlight : 'ERR'}/stale=${withStale.success ? withStale.data.inFlight : 'ERR'}/started-after-drain=${withPostDrain.success ? withPostDrain.data.inFlight : 'ERR'} (want 1/0/0), end=${ended.status} → draining=${statusEnded.success ? statusEnded.data.draining : 'ERR'}, expired=${statusExpired.success ? statusExpired.data.draining : 'ERR'} (want false)`,
   );
 }
 
