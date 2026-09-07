@@ -403,7 +403,7 @@ auth:
         eine App läuft.
       step1: Tippe in der Symbolleiste deines Browsers auf „Teilen“.
       step2: Wähle „Zum Home-Bildschirm“ und tippe dann auf „Hinzufügen“.
-      done: Verstanden
+      done: OK
     documentation: Dokumentation
     currentVersion: 'Aktuelle Version: v{version}'
     whatsNew: Neuigkeiten
@@ -1080,7 +1080,7 @@ chat:
   invalidFiles: Ungültige Dateien
   fileSizeExceededMultiple: '{names} überschreitet das Dateigrößenlimit von {maxSize} MB.'
   audioDurationExceeded: '{names}: Audio länger als das Limit von {maxHours}
-    Stunden. Bitte in kürzere Segmente aufteilen.'
+    Stunden. Teile es in kürzere Segmente auf.'
   fileTypeNotAllowed: '{names}: Dateityp nicht erlaubt laut Upload-Richtlinie.'
   fileTypeUnsupported: '{names}: Dateityp nicht unterstützt.'
   fileUploaded: Datei hochgeladen
@@ -1525,7 +1525,7 @@ common:
     viewSource: Quelle anzeigen
     source: Quelle
     copy: Kopieren
-    copied: Kopiert!
+    copied: Kopiert
     showInfo: Info anzeigen
     clearAll: Alle löschen
     reset: Zurücksetzen
@@ -1714,7 +1714,7 @@ connectivity:
     automatisch wieder, sobald du online bist.
   backendTitle: Tale ist nicht erreichbar
   backendDescription: Der Tale-Server antwortet nicht. Wir versuchen, die
-    Verbindung wiederherzustellen — einen Moment Geduld.
+    Verbindung wiederherzustellen.
   retry: Erneut versuchen
   getApp: App herunterladen
   reachingServer: Verbindung zum Server wird hergestellt
@@ -2223,7 +2223,7 @@ documents:
     notAvailable: Vorschau nicht verfügbar
     notAvailableDescription:
       Dieser Dateityp kann nicht in der Vorschau angezeigt
-      werden. Bitte lade die Datei herunter, um den Inhalt anzuzeigen.
+      werden. Lade die Datei herunter, um den Inhalt anzuzeigen.
     truncatedNotice: Diese Datei ist zu groß für eine vollständige Vorschau —
       angezeigt wird der Anfang. Lade die Datei herunter, um alles zu sehen.
     download: Herunterladen
@@ -2510,7 +2510,7 @@ documents:
     notFound: Für diese Datei gibt es noch keinen Versionsverlauf.
 onboarding:
   title: Richte deinen Arbeitsbereich ein
-  subtitle: Nur ein paar schnelle Schritte, bis dein Arbeitsbereich einsatzbereit ist.
+  subtitle: Ein paar schnelle Schritte, bis dein Arbeitsbereich einsatzbereit ist.
   backToApp: Zurück zur App
   stepsAriaLabel: Onboarding-Schritte
   progress: 'Schritt {current} von {total}: {label}'
@@ -2533,7 +2533,7 @@ onboarding:
       frei – wir konfigurieren eine empfohlene Auswahl vor, damit du sofort
       loslegen kannst.
   finish:
-    heading: Alles bereit
+    heading: Bereit
     subtitle: 'Das kannst du als Nächstes tun:'
     providerItem: Verbinde einen KI-Anbieter für Agenten und Chat.
     providerConnected: KI-Anbieter verbunden.
@@ -5687,7 +5687,7 @@ settings:
       statusOk: Verifiziert
       statusAlert: Integritätswarnung aktiv
       verifyNow: Jetzt prüfen
-      verifyError: Die Prüfung konnte nicht abgeschlossen werden. Bitte versuche es erneut.
+      verifyError: Die Prüfung konnte nicht abgeschlossen werden. Versuche es erneut.
       resultValidTitle: Kette verifiziert
       resultValidBody:
         '{count, plural, one {# Eintrag geprüft} other {# Einträge
@@ -6116,7 +6116,6 @@ settings:
         oder einen neuen eingeben, um ihn zu ersetzen.
       writeOnlyHint: Nur Schreiben; leer lassen, um den gespeicherten Wert zu behalten
     testConnection: Verbindung testen
-    testing: Teste…
     result:
       ok: OK
       failed: Fehlgeschlagen

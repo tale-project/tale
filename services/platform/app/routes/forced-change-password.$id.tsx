@@ -44,7 +44,6 @@ function ForcedChangePasswordPage() {
   const { id: organizationId } = Route.useParams();
   const navigate = useNavigate();
   const { t: tAuth } = useT('auth');
-  const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
   const { toast } = useToast();
   const { mutateAsync: updatePassword } = useUpdatePassword();
@@ -209,11 +208,10 @@ function ForcedChangePasswordPage() {
                   <Button
                     type="submit"
                     fullWidth
-                    disabled={isSubmitting || !isValid}
+                    disabled={!isValid}
+                    isLoading={isSubmitting}
                   >
-                    {isSubmitting
-                      ? tCommon('actions.saving')
-                      : tAuth('forcedChange.submit')}
+                    {tAuth('forcedChange.submit')}
                   </Button>
                 </Form>
               </FormSection>

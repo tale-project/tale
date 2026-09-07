@@ -2,7 +2,7 @@
 
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { TrendIndicator } from '@tale/ui/trend-indicator';
-import { Info } from 'lucide-react';
+import { CircleHelp } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
@@ -84,7 +84,7 @@ export function UsageSummaryCards({
               className="align-text-bottom"
               aria-label={t('usage.activeUsersTooltip')}
             >
-              <Info className="ml-1 inline-block size-3" />
+              <CircleHelp className="ml-1 inline-block size-3" />
             </button>
           </Tooltip>
         }

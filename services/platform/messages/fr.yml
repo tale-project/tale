@@ -403,7 +403,7 @@ auth:
         comme une app.
       step1: Appuie sur « Partager » dans la barre d'outils de ton navigateur.
       step2: Choisis « Sur l'écran d'accueil », puis appuie sur « Ajouter ».
-      done: Compris
+      done: OK
     documentation: Documentation
     currentVersion: 'Version actuelle : v{version}'
     whatsNew: Nouveautés
@@ -1533,7 +1533,7 @@ common:
     viewSource: Voir la source
     source: Source
     copy: Copier
-    copied: Copié !
+    copied: Copié
     showInfo: Afficher les informations
     clearAll: Tout effacer
     reset: Réinitialiser
@@ -1726,8 +1726,7 @@ connectivity:
     automatiquement dès que tu seras en ligne.
   backendTitle: Impossible de joindre Tale
   backendDescription:
-    Le serveur Tale ne répond pas. On essaie de se reconnecter —
-    patiente un instant.
+    Le serveur Tale ne répond pas. On essaie de se reconnecter.
   retry: Réessayer
   getApp: Obtenir l'application
   reachingServer: Connexion au serveur en cours
@@ -2238,8 +2237,8 @@ documents:
     downloadFailed: Échec du téléchargement du fichier
     notAvailable: Aperçu non disponible
     notAvailableDescription:
-      Ce type de fichier ne peut pas être prévisualisé. Merci
-      de télécharger le fichier pour consulter son contenu.
+      Ce type de fichier ne peut pas être prévisualisé.
+      Télécharge le fichier pour consulter son contenu.
     truncatedNotice:
       Ce fichier est trop volumineux pour un aperçu complet — seul le
       début est affiché. Merci de télécharger le fichier pour tout consulter.
@@ -2567,7 +2566,7 @@ onboarding:
       la voix et plus encore — nous préconfigurons une sélection recommandée
       pour que tu sois prêt tout de suite.
   finish:
-    heading: Tout est prêt
+    heading: "C'est prêt"
     subtitle: 'Voici ce que tu peux faire ensuite :'
     providerItem: Connecte un fournisseur d'IA pour alimenter les agents et le chat.
     providerConnected: Fournisseur d'IA connecté.
@@ -6233,7 +6232,6 @@ settings:
         saisis-en une nouvelle pour la remplacer.
       writeOnlyHint: Écriture seule ; laisse vide pour conserver la valeur stockée
     testConnection: Tester la connexion
-    testing: Test…
     result:
       ok: OK
       failed: Échec
@@ -6930,7 +6928,7 @@ toast:
       title: Impossible de mettre à jour le profil
     passwordChangeFailed:
       title: Impossible de changer le mot de passe
-      description: Merci de vérifier ton mot de passe actuel et de réessayer.
+      description: Vérifie ton mot de passe actuel et réessaie.
     organizationUpdateFailed:
       title: Impossible de mettre à jour l'organisation
     brandingUpdateFailed:

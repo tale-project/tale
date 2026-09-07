@@ -1,7 +1,7 @@
 'use client';
 
 import * as LabelPrimitive from '@radix-ui/react-label';
-import { Info } from 'lucide-react';
+import { CircleHelp } from 'lucide-react';
 import type { ComponentRef, ComponentPropsWithoutRef } from 'react';
 import { forwardRef, type ReactNode } from 'react';
 
@@ -74,7 +74,7 @@ export const Label = forwardRef<
           aria-label={t('aria.moreInfo')}
           className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex rounded align-middle focus-visible:ring-1 focus-visible:outline-none"
         >
-          <Info className="size-3.5" aria-hidden="true" />
+          <CircleHelp className="size-3.5" aria-hidden="true" />
         </button>
       </Tooltip>
     </span>

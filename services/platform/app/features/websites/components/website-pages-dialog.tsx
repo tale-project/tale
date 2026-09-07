@@ -357,9 +357,9 @@ export function WebsitePagesDialog({
                 <Button
                   variant="secondary"
                   onClick={loadMore}
-                  disabled={isPending}
+                  isLoading={isPending}
                 >
-                  {isPending ? '...' : t('pagesDialog.loadMore')}
+                  {t('pagesDialog.loadMore')}
                 </Button>
               </Row>
             )}

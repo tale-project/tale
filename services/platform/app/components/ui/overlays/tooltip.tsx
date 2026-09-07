@@ -1,13 +1,12 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { tooltipContentClassName } from '@tale/ui/tooltip';
 import { type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
-/** Shared surface for every platform tooltip — one place for width/wrap rules. */
-export const tooltipContentClassName =
-  'bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] max-w-xs overflow-hidden rounded-lg border p-2 py-1 text-xs text-wrap shadow-md duration-[var(--duration-short)] motion-reduce:animate-none';
+export { tooltipContentClassName };
 
 interface TooltipProps {
   content: ReactNode;
@@ -34,7 +33,8 @@ interface TooltipProps {
 
 /**
  * Platform tooltip. Relies on the AppShell TooltipProvider for delay and
- * skip-delay — do not wrap each instance in its own Provider.
+ * skip-delay — do not wrap each instance in its own Provider. Surface classes
+ * come from `@tale/ui` so Button tips and feature tips share one skin.
  */
 export function Tooltip({
   content,

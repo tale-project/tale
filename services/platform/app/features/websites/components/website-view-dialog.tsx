@@ -497,13 +497,9 @@ export function ViewWebsiteDialog({
                 <Button
                   variant="secondary"
                   onClick={loadMore}
-                  disabled={isPending}
+                  isLoading={isPending}
                 >
-                  {isPending ? (
-                    <Spinner size="sm" />
-                  ) : (
-                    t('pagesDialog.loadMore')
-                  )}
+                  {t('pagesDialog.loadMore')}
                 </Button>
               </Row>
             )}
