@@ -368,8 +368,8 @@ export function buildDockerSessionRunArgs(
     // ~/.config/opencode, ~/.gitconfig) survives every exec + restart.
     '--env',
     `HOME=/agent/.runtime/home`,
-    // Per-session runnerd auth. Empty in unsigned dev mode (runnerd skips the
-    // check); a real hex token otherwise.
+    // Per-session runnerd auth: always a real hex token — SANDBOX_TOKEN is
+    // required, so deriveRunnerdToken has something to derive from.
     '--env',
     `TALE_RUNNERD_TOKEN=${inp.runnerdToken}`,
     // DinD signal + tier for the entrypoint (empty when DinD is off).
@@ -382,11 +382,20 @@ export function buildDockerSessionRunArgs(
     `--memory=${profile.memory}`,
     `--memory-swap=${profile.memory}`,
     `--pids-limit=${pidsLimitValue}`,
+    // The WHOLE logging posture, compression included: any option left unset
+    // falls through to the host daemon's `log-opts` defaults, and the
+    // json-file driver refuses compress=true together with max-file<2. A host
+    // that defaults compression on (a common log-disk policy) would make every
+    // session container unstartable — `docker run` fails with "failed to
+    // initialize logging driver", which surfaces as a 502 on session create
+    // and takes down every agent turn on the box.
     '--log-driver=json-file',
     '--log-opt',
     'max-size=10m',
     '--log-opt',
     'max-file=1',
+    '--log-opt',
+    'compress=false',
     ...ulimitFlags,
     '--oom-score-adj=500',
     // Read-only root unless DinD (dockerd needs a writable rootfs; its store is

@@ -49,6 +49,19 @@ const goodInput = {
 };
 
 describe('buildDockerSessionRunArgs', () => {
+  test('logging is fully stated so a host default cannot break the run', () => {
+    const args = buildDockerSessionRunArgs(cfg, goodInput);
+    // Any log-opt left unset falls through to the host daemon's `log-opts`,
+    // and the json-file driver refuses compress=true with max-file<2: a host
+    // that defaults compression on made `docker run` fail with "failed to
+    // initialize logging driver" — a 502 on every session create.
+    const opts = args
+      .map((a, i) => (args[i - 1] === '--log-opt' ? a : null))
+      .filter((a): a is string => a !== null);
+    expect(args).toContain('--log-driver=json-file');
+    expect(opts).toEqual(['max-size=10m', 'max-file=1', 'compress=false']);
+  });
+
   test('agent profile: detached, daemon entrypoint, distinct label, no cpu ulimit', () => {
     const args = buildDockerSessionRunArgs(cfg, goodInput);
     // Detached — the container outlives the create request.

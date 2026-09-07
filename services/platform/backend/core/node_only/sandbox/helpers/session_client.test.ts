@@ -8,7 +8,9 @@ import {
   chunkStageFiles,
   drainSessionExecResilient,
   STAGE_BODY_BUDGET_BYTES,
+  SpawnerUnreachableError,
   sessionCreate,
+  sessionIsAlive,
   sessionStageFiles,
   type SessionStageFile,
 } from './session_client';
@@ -68,12 +70,23 @@ const RESULT_OK = `event: result\ndata: ${JSON.stringify({
 })}\n\n`;
 
 const origFetch = globalThis.fetch;
+const origToken = process.env.SANDBOX_TOKEN;
+const origUrl = process.env.SANDBOX_URL;
 afterEach(() => {
   globalThis.fetch = origFetch;
+  restoreEnv('SANDBOX_TOKEN', origToken);
+  restoreEnv('SANDBOX_URL', origUrl);
 });
 beforeEach(() => {
-  delete process.env.SANDBOX_TOKEN; // unsigned dev mode → no HMAC needed
+  // Every spawner request is signed and the client refuses to send an
+  // unsigned one, so the suite carries a secret like a real deployment.
+  process.env.SANDBOX_TOKEN = 'test-sandbox-token';
 });
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
 
 describe('drainSessionExecResilient', () => {
   test('re-attaches after a mid-turn drop and feeds each delta once', async () => {
@@ -340,4 +353,77 @@ describe('sessionCreate drain-retry', () => {
     expect(n).toBe(6);
     // The give-up path sleeps 5 × 400ms ≈ 2s across the retries.
   }, 10_000);
+});
+
+describe('spawner call preconditions', () => {
+  test('an unreachable spawner names the target, the call and the syscall', async () => {
+    process.env.SANDBOX_URL = 'http://sandbox:8003';
+    // What Bun/undici throws when the request never completed: a TypeError
+    // whose own cause carries the syscall — the whole diagnosis.
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      throw new TypeError('fetch failed', {
+        cause: new Error('getaddrinfo EAI_AGAIN sandbox'),
+      });
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    const err = await sessionIsAlive('ses-dead').catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(SpawnerUnreachableError);
+    const message = err instanceof Error ? err.message : String(err);
+    expect(message).toContain('http://sandbox:8003');
+    expect(message).toContain('GET /v1/sessions/ses-dead');
+    expect(message).toContain('getaddrinfo EAI_AGAIN sandbox');
+    expect(message).toContain('SANDBOX_URL');
+  });
+
+  test('a deliberate abort passes through, unwrapped', async () => {
+    // The turn-ended cut and every caller signal abort in-flight requests,
+    // and the resilient drain branches on the rejection — reporting one as an
+    // unreachable spawner would read as a dead sandbox and fail the turn.
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      throw new DOMException('The operation was aborted', 'AbortError');
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    const err = await sessionIsAlive('ses-cut').catch((e: unknown) => e);
+
+    expect(err).not.toBeInstanceOf(SpawnerUnreachableError);
+    expect(err instanceof Error ? err.name : '').toBe('AbortError');
+  });
+
+  test('credentials in SANDBOX_URL never reach the error message', async () => {
+    // The message is what lands in the error tracker.
+    process.env.SANDBOX_URL = 'http://ops:s3cret@sandbox:8003';
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      throw new TypeError('fetch failed');
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    const err = await sessionIsAlive('ses-secret').catch((e: unknown) => e);
+
+    const message = err instanceof Error ? err.message : String(err);
+    expect(message).toContain('sandbox:8003');
+    expect(message).not.toContain('s3cret');
+    expect(message).not.toContain('ops:');
+  });
+
+  test('a missing SANDBOX_TOKEN fails before any request goes out', async () => {
+    delete process.env.SANDBOX_TOKEN;
+    let calls = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return createdResponse('ses-unsigned');
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    await expect(sessionIsAlive('ses-unsigned')).rejects.toThrow(
+      /SANDBOX_TOKEN is not set/,
+    );
+    expect(calls).toBe(0);
+  });
 });
