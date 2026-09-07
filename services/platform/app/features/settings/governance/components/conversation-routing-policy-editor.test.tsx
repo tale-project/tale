@@ -1,8 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { ConversationRoutingPolicyEditor } from './conversation-routing-policy-editor';
+
+const navigate = vi.fn();
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@tanstack/react-router')>();
+  return {
+    ...actual,
+    useNavigate: () => navigate,
+  };
+});
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
@@ -78,5 +88,43 @@ describe('ConversationRoutingPolicyEditor', () => {
     render(<ConversationRoutingPolicyEditor organizationId="org-1" />);
     expect(screen.getByRole('button', { name: /add rule/i })).toBeDisabled();
     ability.cannot = () => false;
+  });
+
+  it('opens Add rule prefilled from a deep-link and clears the search params', async () => {
+    navigate.mockClear();
+    state.isLoading = false;
+    state.config = { enabled: true, rules: [] };
+    render(
+      <ConversationRoutingPolicyEditor
+        organizationId="org-1"
+        openAddRule
+        initialAddress="billing@acme.test"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+    expect(screen.getByDisplayValue('billing@acme.test')).toBeInTheDocument();
+    expect(navigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: '/dashboard/$id/settings/governance/policies-limits',
+        params: { id: 'org-1' },
+        hash: 'conversation-routing',
+        replace: true,
+      }),
+    );
+    const call = navigate.mock.calls[0]?.[0] as {
+      search: (prev: Record<string, unknown>) => Record<string, unknown>;
+    };
+    expect(
+      call.search({
+        openRoutingRule: '1',
+        routingAddress: 'billing@acme.test',
+      }),
+    ).toEqual({
+      openRoutingRule: undefined,
+      routingAddress: undefined,
+    });
   });
 });

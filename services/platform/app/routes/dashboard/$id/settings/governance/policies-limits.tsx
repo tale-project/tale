@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { z } from 'zod';
 
 import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
@@ -12,9 +13,16 @@ import { UploadPolicyEditor } from '@/app/features/settings/governance/component
 import { VoiceOutputPolicyEditor } from '@/app/features/settings/governance/components/voice-output-policy-editor';
 import { ensureGovernancePolicies } from '@/app/lib/loader-preload';
 
+/** Deep-link from the inbox Auto assign control: open Add rule + optional address. */
+const searchSchema = z.object({
+  openRoutingRule: z.string().optional(),
+  routingAddress: z.string().optional(),
+});
+
 export const Route = createFileRoute(
   '/dashboard/$id/settings/governance/policies-limits',
 )({
+  validateSearch: searchSchema,
   // Warm every policy the editors on this page read, so they paint real
   // content on first render (no skeleton flash, no staggered reveal).
   loader: ({ context, params }) =>
@@ -36,6 +44,7 @@ export const Route = createFileRoute(
 
 function PoliciesLimitsRoute() {
   const { id: organizationId } = Route.useParams();
+  const { openRoutingRule, routingAddress } = Route.useSearch();
 
   return (
     <SettingsPage>
@@ -47,7 +56,11 @@ function PoliciesLimitsRoute() {
         <PersonalizationPolicyEditor organizationId={organizationId} />
         <VoiceOutputPolicyEditor organizationId={organizationId} />
         <SandboxQuotaEditor organizationId={organizationId} />
-        <ConversationRoutingPolicyEditor organizationId={organizationId} />
+        <ConversationRoutingPolicyEditor
+          organizationId={organizationId}
+          openAddRule={Boolean(openRoutingRule)}
+          initialAddress={routingAddress}
+        />
       </EditorGroup>
     </SettingsPage>
   );
