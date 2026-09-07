@@ -27,14 +27,14 @@
   },
   "dependencies": {
     "@tale/ui": "workspace:*",
-    "framer-motion": "12.38.0",
+    "framer-motion": "12.42.2",
     "minisearch": "7.2.0",
     "vite-plugin-pwa": "1.3.0"
   },
   "devDependencies": {
-    "@playwright/test": "1.58.2",
+    "@playwright/test": "1.61.1",
     "@tale/e2e": "workspace:*",
     "@types/bun": "1.3.11",
-    "yaml": "2.8.3"
+    "yaml": "2.9.0"
   }
 }

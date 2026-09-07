@@ -14,7 +14,7 @@ ARG VERSION=dev
 
 # Upstream gateway core (vendor image — NOT renamed; this is the literal
 # upstream artifact). Pinned because the project has had VK auth regressions.
-FROM maximhq/bifrost:v1.5.13
+FROM maximhq/bifrost:v1.6.3
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
