@@ -13,11 +13,15 @@ import { reset } from './reset';
 setProjectId('tale');
 
 const dockerMock = mock();
+const stopContainerMock = mock();
 const removeContainerMock = mock();
 const confirmMock = mock();
 const loggerWarnMock = mock();
 
 mock.module('../docker/docker', () => ({ docker: dockerMock }));
+mock.module('../docker/stop-container', () => ({
+  stopContainer: stopContainerMock,
+}));
 mock.module('../docker/remove-container', () => ({
   removeContainer: removeContainerMock,
 }));
@@ -54,14 +58,39 @@ function removedContainers(): string[] {
   return removeContainerMock.mock.calls.map((call) => String(call[0]));
 }
 
+/** Docker calls that CHANGE something — `ps` is discovery, not an action. */
+function mutatingDockerCalls(): unknown[][] {
+  return dockerMock.mock.calls.filter((call) => call[0] !== 'ps');
+}
+
 beforeEach(() => {
   dockerMock.mockResolvedValue(PRUNED);
+  // Colour containers are discovered by compose LABEL, so the sweep runs
+  // `docker ps` per colour project. One platform replica each — enough to
+  // prove it removes what compose actually created rather than a guessed
+  // name. Routed through the docker mock rather than module-mocking the
+  // lister: `mock.module` is process-global in Bun and leaks across files.
+  dockerMock.mockImplementation((...args: string[]) => {
+    if (args[0] !== 'ps') return Promise.resolve(PRUNED);
+    const argv = args.join(' ');
+    for (const colour of ['blue', 'green']) {
+      if (argv.includes(`project=tale-${colour}`)) {
+        return Promise.resolve({
+          ...PRUNED,
+          stdout: `tale-platform-${colour}\tplatform\t1\trunning`,
+        });
+      }
+    }
+    return Promise.resolve(PRUNED);
+  });
+  stopContainerMock.mockResolvedValue(true);
   removeContainerMock.mockResolvedValue(true);
   confirmMock.mockResolvedValue(true);
 });
 
 afterEach(() => {
   dockerMock.mockReset();
+  stopContainerMock.mockReset();
   removeContainerMock.mockReset();
   confirmMock.mockReset();
   loggerWarnMock.mockReset();
@@ -76,7 +105,7 @@ describe('reset', () => {
 
     expect(confirmMock).toHaveBeenCalledTimes(1);
     expect(removeContainerMock).not.toHaveBeenCalled();
-    expect(dockerMock).not.toHaveBeenCalled();
+    expect(mutatingDockerCalls()).toHaveLength(0);
   });
 
   test('treats the global `tale -y` as consent when --force is absent', async () => {
@@ -135,7 +164,7 @@ describe('reset', () => {
     // Dry-run still passes the consent gate (it changes nothing) but then
     // only reports what it would do.
     expect(removeContainerMock).not.toHaveBeenCalled();
-    expect(dockerMock).not.toHaveBeenCalled();
+    expect(mutatingDockerCalls()).toHaveLength(0);
   });
 
   test('warns when the project network prune fails instead of hiding it', async () => {

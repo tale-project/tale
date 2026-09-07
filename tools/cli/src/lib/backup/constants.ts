@@ -1,11 +1,20 @@
 /**
- * The org config store. The name predates the Convex retirement and is kept
- * so no operator has to migrate a volume for a rename. Mounted at
- * `TALE_CONFIG_DIR` (`/app/data`) in the backend tier, it holds every
- * `<org>/<domain>/*.json` config file — including the object-storage
- * connections the backup inspects to learn where the blobs live.
+ * The org config store. Mounted at `TALE_CONFIG_DIR` (`/app/data`) in the
+ * backend tier, it holds every `<org>/<domain>/*.json` config file —
+ * including the object-storage connections the backup inspects to learn
+ * where the blobs live.
  */
-export const CONFIG_VOLUME = 'convex-data';
+export const CONFIG_VOLUME = 'config-data';
+
+/**
+ * What the config store was called while Convex owned it. Docker cannot
+ * rename a volume, so the CLI copies the contents across on the first
+ * deploy / start / dev after the upgrade (`migrate-config-volume.ts`) and
+ * leaves the old volume in place as an unused stub. The name survives here
+ * for two reasons: teardown and detection still have to see the stub, and a
+ * snapshot taken before the migration files its config archive under it.
+ */
+export const LEGACY_CONFIG_VOLUME = 'convex-data';
 
 /**
  * The blob store's data: uploaded files, chat attachments, audio, generated
@@ -28,6 +37,24 @@ export const SNAPSHOT_VOLUMES = [
   'caddy-data',
   'caddy-config',
 ] as const;
+
+/**
+ * Archive names a RESTORE accepts, which is a superset of what a snapshot
+ * writes: a snapshot taken before the config-volume rename filed the config
+ * tree as `convex-data.tar.gz`, and dropping it would restore a deployment
+ * with an empty config store — silently, since the manifest filter is what
+ * decides. {@link restoreTargetVolume} maps each name onto the LIVE volume
+ * it belongs in.
+ */
+export const RESTORABLE_ARCHIVES = [
+  ...SNAPSHOT_VOLUMES,
+  LEGACY_CONFIG_VOLUME,
+] as const;
+
+/** The live volume an archive of this name restores into. */
+export function restoreTargetVolume(archive: string): string {
+  return archive === LEGACY_CONFIG_VOLUME ? CONFIG_VOLUME : archive;
+}
 
 /**
  * Logical name of the project-scoped volume snapshots are written into

@@ -271,11 +271,9 @@ services:
 
     # The org CONFIG STORE, read-only here: `server.ts` watches it for config
     # changes (the SSE lane) and serves branding images out of it. The backend
-    # tier mounts the same volume read-write — it owns every write. (The name
-    # predates the Convex retirement; kept so no operator has to migrate a
-    # volume for a rename.)
+    # tier mounts the same volume read-write — it owns every write.
     volumes:
-      - convex-data:/app/data:ro
+      - config-data:/app/data:ro
 
     # Environment file (optional — see env_file note below)
     # Provide real secrets via .env; dev defaults live in compose.dev.yml.
@@ -340,13 +338,14 @@ services:
       - internal
 
   # ============================================================================
-  # Tale 0.5 backend (parallel build) — OPT-IN under the `backend` profile
-  # ----------------------------------------------------------------------------
-  # The SAME platform image, started in a different role via TALE_ROLE
-  # (docker-entrypoint.sh dispatches on it). Default topology
-  # is one `api` + one `worker` container; either scales independently:
-  #   docker compose --profile backend up -d --scale backend-worker=3
+  # Tale 0.5 backend — same platform image, role via TALE_ROLE
+  # (docker-entrypoint.sh dispatches on it). Default topology is one `api` +
+  # one `worker`, and either scales on this file:
+  #   docker compose up -d --scale backend-worker=3
   # (no `container_name` on these two services precisely so --scale works).
+  # `tale deploy` runs the same two roles inside a deployment COLOUR and sizes
+  # them with TALE_BACKEND_API_REPLICAS / TALE_BACKEND_WORKER_REPLICAS —
+  # see docs/en/self-hosted/install/customize-compose.md.
   # State lives in the `tale_app` database on the `db` service (created
   # idempotently by services/db/init-scripts/04-create-app-database.sql).
   # ============================================================================
@@ -464,7 +463,7 @@ services:
     # connection files, provider + agent + skill trees). The web tier mounts
     # the same volume read-only.
     volumes:
-      - convex-data:/app/data
+      - config-data:/app/data
     logging:
       driver: 'json-file'
       options:
@@ -521,7 +520,7 @@ services:
     cap_add:
       - NET_ADMIN
     volumes:
-      - convex-data:/app/data
+      - config-data:/app/data
     logging:
       driver: 'json-file'
       options:
@@ -796,7 +795,7 @@ services:
       # Read-only deployment config so loadConfig can read the sandboxRuntime
       # tier from deployment.json (same config volume the backend/platform
       # services share).
-      - ${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro
+      - ${PLATFORM_SHARED_CONFIG:-config-data}:/app/platform-config:ro
     # Graceful shutdown: let the spawner drain in-flight executions before
     # SIGKILL. Mirrors the CLI generator (create-sandbox-service.ts: 30s);
     # without it `docker compose up` gets Docker's 10s default.
@@ -939,19 +938,41 @@ volumes:
     driver: local
 
   # LEGACY (pre-0.3.0): platform data used to live here before the
-  # split-convex transition. Today everything lives in `convex-data`; the
-  # volume is retained as an unused stub so detect() in start.ts can
-  # identify pre-0.3.0 deployments and produce a coherent diff. Operators
-  # can delete it by hand once they're past the upgrade window.
+  # split-convex transition. Retained as an unused stub so upgrade
+  # diagnostics can identify pre-0.3.0 deployments and produce a coherent
+  # diff. Operators can delete it by hand once they're past the upgrade
+  # window.
   platform-data:
+    driver: local
+
+  # LEGACY: the org config store was called `convex-data` while Convex owned
+  # it. Retained as an unused stub for the same reason as `platform-data`.
+  #
+  # ┌─ UPGRADING A STACK YOU RUN FROM THIS REPOSITORY ────────────────────────┐
+  # │ Docker cannot rename a volume, and the services above now mount        │
+  # │ `config-data`. Bringing the stack up without copying first starts it   │
+  # │ on an EMPTY config store — every organization loses its agents,        │
+  # │ skills, governance policies and SSO connection.                        │
+  # │                                                                        │
+  # │ Copy once, with the stack DOWN (substitute your compose project name,  │
+  # │ which is the directory name unless you set COMPOSE_PROJECT_NAME):      │
+  # │                                                                        │
+  # │   docker compose down                                                  │
+  # │   docker volume create tale_config-data                                │
+  # │   docker run --rm -v tale_convex-data:/from:ro -v tale_config-data:/to \
+  # │     alpine:3.22 cp -a /from/. /to/                                     │
+  # │                                                                        │
+  # │ Nothing deletes `tale_convex-data`; remove it by hand once you are     │
+  # │ satisfied. `tale deploy` / `tale dev` do this copy automatically —     │
+  # │ only the plain `docker compose` path needs the commands above.         │
+  # └────────────────────────────────────────────────────────────────────────┘
+  convex-data:
     driver: local
 
   # The org CONFIG STORE: the file-based configs every org owns (agents,
   # automations, connectors, providers, skills, governance policies, SSO
   # connections, branding). The backend tier writes it; the web tier reads it.
-  # The name predates the Convex retirement and is KEPT so no operator has to
-  # migrate a volume for a rename.
-  convex-data:
+  config-data:
     driver: local
 
   # The deployment's BLOB store (uploaded documents, chat attachments, audio,

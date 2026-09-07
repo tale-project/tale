@@ -8,8 +8,11 @@ import {
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
   BLOB_VOLUME,
-  SNAPSHOT_VOLUMES,
+  CONFIG_VOLUME,
+  LEGACY_CONFIG_VOLUME,
+  RESTORABLE_ARCHIVES,
   isValidSnapshotId,
+  restoreTargetVolume,
 } from '../backup/constants';
 import type { SnapshotManifest } from '../backup/create-snapshot';
 import { listSnapshots } from '../backup/list-snapshots';
@@ -23,6 +26,7 @@ import {
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { isContainerRunning } from '../docker/is-container-running';
+import { listComposeContainers } from '../docker/list-service-containers';
 import { stopContainer } from '../docker/stop-container';
 import { withLock } from '../state/with-lock';
 
@@ -48,6 +52,7 @@ export interface RestoreDeps {
   resolveSnapshotPrefix: typeof resolveSnapshotPrefix;
   verifySnapshot: typeof verifySnapshot;
   isContainerRunning: typeof isContainerRunning;
+  listComposeContainers: typeof listComposeContainers;
   stopContainer: typeof stopContainer;
 }
 
@@ -56,30 +61,40 @@ const DEFAULT_DEPS: RestoreDeps = {
   resolveSnapshotPrefix,
   verifySnapshot,
   isContainerRunning,
+  listComposeContainers,
   stopContainer,
 };
 
 /**
- * Every container name this project can run: stateful (one instance each),
- * rotatable both uncolored (dev stack) and per blue/green color (prod stack).
+ * Every container this project can be running: the stateful tier and the dev
+ * stack by their pinned names, and both colours by their compose project —
+ * a colour is a replica set with compose-numbered names, so the project
+ * label is the only handle that finds all of them.
  */
 async function findRunningProjectContainers(
   deps: RestoreDeps,
 ): Promise<string[]> {
   const projectId = getProjectId();
-  const candidates: string[] = [];
-  for (const service of [...STATEFUL_SERVICES, ...SIDECAR_SERVICES]) {
-    candidates.push(`${projectId}-${service}`);
-  }
-  for (const service of ROTATABLE_SERVICES) {
-    candidates.push(`${projectId}-${service}`);
-    candidates.push(`${projectId}-${service}-blue`);
-    candidates.push(`${projectId}-${service}-green`);
-  }
   const running: string[] = [];
-  for (const name of candidates) {
+  const named: string[] = [];
+  for (const service of [...STATEFUL_SERVICES, ...SIDECAR_SERVICES]) {
+    named.push(`${projectId}-${service}`);
+  }
+  // The dev stack pins its names; production runs the same services inside a
+  // colour, found by label below.
+  for (const service of ROTATABLE_SERVICES) {
+    named.push(`${projectId}-${service}`);
+  }
+  for (const name of named) {
     if (await deps.isContainerRunning(name)) {
       running.push(name);
+    }
+  }
+  for (const color of ['blue', 'green'] as const) {
+    for (const container of await deps.listComposeContainers(
+      `${projectId}-${color}`,
+    )) {
+      if (container.running) running.push(container.name);
     }
   }
   return running;
@@ -171,20 +186,46 @@ export async function restore(
       }
     }
 
-    // Restore only volume names the CLI itself snapshots — a tampered
-    // manifest must not be able to address arbitrary volumes.
-    const volumes = Object.keys(manifest.volumes).filter((volume) =>
-      (SNAPSHOT_VOLUMES as readonly string[]).includes(volume),
-    );
-    if (volumes.length === 0) {
+    // Restore only archive names the CLI itself writes — a tampered manifest
+    // must not be able to address arbitrary volumes. Each is paired with the
+    // LIVE volume it belongs in: a snapshot from before the config-volume
+    // rename filed the config tree as `convex-data.tar.gz`, and it restores
+    // into today's `config-data`.
+    const archives = Object.keys(manifest.volumes)
+      .filter((archive) =>
+        (RESTORABLE_ARCHIVES as readonly string[]).includes(archive),
+      )
+      .map((archive) => ({ archive, volume: restoreTargetVolume(archive) }))
+      // A manifest carrying BOTH config archive names would restore one over
+      // the other; keep the current name and say the older one is ignored.
+      .filter((entry, _index, all) => {
+        if (entry.archive !== LEGACY_CONFIG_VOLUME) return true;
+        const superseded = all.some((other) => other.archive === CONFIG_VOLUME);
+        if (superseded) {
+          logger.warn(
+            `Snapshot ${snapshotId} carries both ${LEGACY_CONFIG_VOLUME} and ${CONFIG_VOLUME} archives — restoring ${CONFIG_VOLUME} and ignoring the older one.`,
+          );
+        }
+        return !superseded;
+      });
+    if (archives.length === 0) {
       throw new Error(`Snapshot ${snapshotId} contains no restorable volumes`);
     }
+    const volumes = archives.map((entry) => entry.volume);
     // Snapshots from before blobs were captured — and snapshots of a
     // deployment whose blobs live in external S3 — carry no blob archive.
     // Restore what the snapshot has; say what it does not touch.
     if (!volumes.includes(BLOB_VOLUME)) {
       logger.notice(
         `Snapshot ${snapshotId} has no ${BLOB_VOLUME} archive (taken before blobs were captured, or with an external blob store) — the blob volume is left untouched.`,
+      );
+    }
+    // The config store has no such excuse: every snapshot the CLI has ever
+    // written captured it, so a manifest without one is a torn snapshot and
+    // restoring it would leave the deployment with no organization config.
+    if (!volumes.includes(CONFIG_VOLUME)) {
+      logger.warn(
+        `Snapshot ${snapshotId} has no ${CONFIG_VOLUME} (or ${LEGACY_CONFIG_VOLUME}) archive — the org config store is left untouched. This snapshot is incomplete.`,
       );
     }
 
@@ -210,8 +251,10 @@ export async function restore(
       throw new Error('Failed to create target volumes');
     }
 
-    for (const volume of volumes) {
-      logger.step(`Restoring ${prefix}${volume}...`);
+    for (const { archive, volume } of archives) {
+      logger.step(
+        `Restoring ${prefix}${volume}${archive === volume ? '' : ` (from ${archive}.tar.gz)`}...`,
+      );
       const result = await exec(
         'docker',
         [
@@ -227,7 +270,7 @@ export async function restore(
           // Never wipe the live volume for an archive that is not there:
           // the existence check runs BEFORE the delete, inside the same
           // helper container that will extract.
-          `test -f /backup/${snapshotId}/${volume}.tar.gz && find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${volume}.tar.gz -C /data`,
+          `test -f /backup/${snapshotId}/${archive}.tar.gz && find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${archive}.tar.gz -C /data`,
         ],
         { timeout: archiveTimeoutSeconds(volume) },
       );

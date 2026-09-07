@@ -1,10 +1,9 @@
 import { compareVersions } from '../../utils/compare-versions';
 import { preconditionError } from '../../utils/fail';
-import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
-import { getContainerVersion } from '../docker/get-container-version';
 import { getCurrentColor } from '../state/get-current-color';
 import { getPreviousVersion } from '../state/get-previous-version';
+import { colorPlatformVersion } from './color-lifecycle';
 
 /**
  * The migration-baseline version. 0.5.0 replaced the Convex runtime with
@@ -65,16 +64,14 @@ function refusalMessage(runningVersion: string | null): string {
  */
 interface GuardDeps {
   getCurrentColor: typeof getCurrentColor;
-  getContainerVersion: typeof getContainerVersion;
+  colorPlatformVersion: typeof colorPlatformVersion;
   getPreviousVersion: typeof getPreviousVersion;
-  getProjectId: typeof getProjectId;
 }
 
 const defaultDeps: GuardDeps = {
   getCurrentColor,
-  getContainerVersion,
+  colorPlatformVersion,
   getPreviousVersion,
-  getProjectId,
 };
 
 export async function checkBreakingCutover(
@@ -93,9 +90,8 @@ export async function checkBreakingCutover(
   if (currentColor === null) return; // first deploy — nothing to cut over
 
   const runningVersion =
-    (await deps.getContainerVersion(
-      `${deps.getProjectId()}-platform-${currentColor}`,
-    )) ?? (await deps.getPreviousVersion(deployDir));
+    (await deps.colorPlatformVersion(currentColor)) ??
+    (await deps.getPreviousVersion(deployDir));
 
   const preBaseline =
     runningVersion === null // deployment state exists but version unknowable

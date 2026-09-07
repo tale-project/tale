@@ -105,7 +105,7 @@ export function generateDevCompose(
   // tale-init-populated dirs so host edits are visible to the routes and
   // jobs that read them. Only emitted when the directory exists on disk.
   const devConfigMounts = [
-    'convex-data:/app/data',
+    'config-data:/app/data',
     ...existingHostMounts(orgSources, projectDir, '/app/data'),
   ];
   const backendApi = createBackendApiService(config);
@@ -127,7 +127,7 @@ export function generateDevCompose(
   const platform = createPlatformService(config, DEV_COLOR);
   platform.container_name = `${getProjectId()}-platform`;
   platform.volumes = [
-    'convex-data:/app/data:ro',
+    'config-data:/app/data:ro',
     ...existingHostMounts(orgSources, projectDir, '/app/data', ':ro'),
   ];
   // server.ts needs the config root locally (chokidar root + branding image

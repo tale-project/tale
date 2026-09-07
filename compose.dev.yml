@@ -148,9 +148,9 @@ services:
       # refresh shows the change (hard reload, no HMR).
       - ./services/platform/app:/app/services/platform/app
       - ./services/platform/lib:/app/services/platform/lib
-      # The org config store. The volume name predates the Convex retirement
-      # and is kept so no operator has to migrate one (see compose.yml).
-      - convex-data:/app/data:ro
+      # The org config store — see the volume note in compose.yml for the
+      # one-time copy out of the retired `convex-data` volume.
+      - config-data:/app/data:ro
     environment:
       <<: *dev-secrets
       NODE_ENV: development

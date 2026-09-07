@@ -150,7 +150,8 @@ View logs from a service.
 
 ### `tale backup`
 
-Snapshot all data volumes (db-data, convex-data, caddy-data, caddy-config)
+Snapshot all data volumes (db-data, config-data, object-store-data,
+caddy-data, caddy-config)
 into the project-scoped `backups` volume. The same
 snapshot is taken automatically before any deploy step that can migrate
 data. Containers using a volume are paused for the seconds the tar takes so
@@ -224,6 +225,9 @@ Config lives at `~/.tale-daemon/config.json` (chmod 600). Set
 | `GHCR_REGISTRY`        | Container registry                                      | `ghcr.io/tale-project/tale` |
 | `HEALTH_CHECK_TIMEOUT` | Health check timeout (seconds)                          | `300`                       |
 | `DRAIN_TIMEOUT`        | Connection drain timeout (seconds)                      | `30`                        |
+| `TALE_PLATFORM_REPLICAS`       | Replicas of the web tier in a colour (1-16)     | `1`                         |
+| `TALE_BACKEND_API_REPLICAS`    | Replicas of the api in a colour (1-16)          | `1`                         |
+| `TALE_BACKEND_WORKER_REPLICAS` | Replicas of the job runner in a colour (1-16)   | `1`                         |
 | `BACKUP_KEEP_COUNT`    | Snapshots kept regardless of age                        | `5`                         |
 | `BACKUP_KEEP_DAYS`     | Days a snapshot is kept regardless of count             | `14`                        |
 | `HOST`                 | Host alias for proxy                                    | `localhost`                 |
@@ -237,25 +241,40 @@ Config lives at `~/.tale-daemon/config.json` (chmod 600). Set
 **Stop-gated (only updated with `tale deploy --stop`):**
 
 - `db` - TimescaleDB (PostgreSQL)
+- `object-store` - MinIO, the bundled blob store
 - `proxy` - Caddy reverse proxy
 
 **Rolled in place on every deploy:**
 
-- `convex` - Convex backend (owns the single `convex-data` volume)
-- `sandbox` / `sandbox-egress` - sandbox tier (drained before rolling)
-- `sandbox-llm-gateway` - LLM gateway for sandbox harnesses
+- `sandbox` / `sandbox-egress` - sandbox tier (drained before rolling); a
+  singleton because the spawner holds docker.sock and the session directory
+- `sandbox-llm-gateway` - LLM gateway for sandbox harnesses (owns
+  `llm-gateway-data`)
 
-**Rotatable (blue-green):**
+**Rotatable — the stateless application tier, deployed as ONE colour:**
 
-- `platform` - the Tale app (TanStack Start)
+- `platform` - the Tale app shell
+- `backend-api` - every application door, auth, the hint stream
+- `backend-worker` - the job runner
+
+All three share the platform image, so they can never version-skew from each
+other, and each is replicable (`TALE_*_REPLICAS`, default 1). A colour's
+containers carry no pinned `container_name` — that is what lets compose
+replicate them — so every lookup goes through the compose project/service
+labels.
 
 ### Deployment Flow
 
-1. Pull images for new version
-2. Deploy new color (blue/green)
-3. Wait for health checks
-4. Switch traffic (update state file)
-5. Drain old color
-6. Remove old containers
+1. Pull images for the new version
+2. Migrate the config volume if it still lives under its retired name
+3. Roll the stateful tier in place (drained first where it has a drain door)
+4. Bring the idle colour up at the configured replica counts, and wait for
+   EVERY replica to be healthy
+5. Switch traffic (update the state file)
+6. Drain the old colour: refuse new chat turns on that colour only, wait for
+   its in-flight generations, then let the web tier's drain window elapse
+7. `docker network disconnect` the old colour from the serving networks —
+   after the drains, because it severs live connections
+8. Stop and remove the old colour, and clear the drain flag
 
 After successful deployment, the new version is live and the previous color's containers are cleaned up.

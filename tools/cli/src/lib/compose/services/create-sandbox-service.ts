@@ -102,7 +102,7 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       // Read-only deployment config so loadConfig reads the sandboxRuntime tier
       // from deployment.json (same shared volume as rag/platform; R2-B11 lockstep
       // with compose.yml).
-      '${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro',
+      '${PLATFORM_SHARED_CONFIG:-config-data}:/app/platform-config:ro',
     ],
     restart: 'unless-stopped',
     healthcheck: {

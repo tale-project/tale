@@ -18,21 +18,68 @@
  */
 
 import { getProjectId } from '../../utils/load-env';
+import type { DeploymentColor } from '../compose/types';
 import { docker } from './docker';
 import { exec } from './exec';
-import { isContainerRunning } from './is-container-running';
+import { listRunningServiceContainers } from './list-service-containers';
 
 /** The api container's in-container port (compose sets PORT=3005). */
 const BACKEND_CONTROL_PORT = '3005';
 
-export function backendApiContainer(): string {
-  return `${getProjectId()}-backend-api`;
+/** The compose service the api role runs as, in every project shape. */
+const BACKEND_API_SERVICE = 'backend-api';
+
+/**
+ * Compose projects an api replica can live in, most-specific first:
+ * each colour's own project, then the stateful project the tier lived in
+ * before it joined the colours. Listing all three is what lets one CLI drive
+ * a deployment mid-upgrade, where the running api is still the stateful
+ * singleton but the colour projects already exist.
+ */
+function backendProjects(colour?: DeploymentColor | null): string[] {
+  const id = getProjectId();
+  if (colour) return [`${id}-${colour}`, id];
+  return [`${id}-blue`, `${id}-green`, id];
 }
 
-/** Is the backend api container up? Every control call degrades on `false`
+/**
+ * Every RUNNING api replica, in replica order. Scoped to one colour when
+ * given — a drain aims at the colour it is retiring, not at the one that
+ * just took over.
+ */
+export async function backendApiContainers(
+  colour?: DeploymentColor | null,
+): Promise<string[]> {
+  const found: string[] = [];
+  for (const project of backendProjects(colour)) {
+    found.push(
+      ...(await listRunningServiceContainers(project, BACKEND_API_SERVICE)),
+    );
+  }
+  return found;
+}
+
+/**
+ * One running api replica to address a control call to, or `null` when the
+ * tier is down. Any replica will do: every control door acts on shared
+ * state (a database row, the config volume), not on the container it
+ * happens to reach.
+ */
+export async function backendApiContainer(
+  colour?: DeploymentColor | null,
+): Promise<string | null> {
+  return (await backendApiContainers(colour))[0] ?? null;
+}
+
+/** How to NAME the api tier in a message when no replica is up to name.
+ *  The containers are compose-numbered, so there is no single name to
+ *  print — the service is the honest handle. */
+export const BACKEND_API_LABEL = 'backend-api';
+
+/** Is any backend api replica up? Every control call degrades on `false`
  *  rather than failing the command that wraps it. */
 export async function isBackendTierRunning(): Promise<boolean> {
-  return isContainerRunning(backendApiContainer());
+  return (await backendApiContainers()).length > 0;
 }
 
 export interface ControlCallResult {
@@ -61,7 +108,14 @@ export async function controlCall(
   path: string,
   options: { container?: string; body?: unknown; timeoutS?: number } = {},
 ): Promise<ControlCallResult> {
-  const container = options.container ?? backendApiContainer();
+  const container = options.container ?? (await backendApiContainer());
+  if (container === null) {
+    return {
+      success: false,
+      stdout: '',
+      stderr: 'no running backend-api container to address the control door',
+    };
+  }
   const auth = '-H "Authorization: Bearer $TALE_CONTROL_TOKEN"';
   const url = `http://localhost:${BACKEND_CONTROL_PORT}${path}`;
   const prefix = `timeout ${options.timeoutS ?? DEFAULT_CONTROL_TIMEOUT_S} `;

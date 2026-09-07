@@ -238,7 +238,7 @@ describe('createSnapshot', () => {
       expect(Object.keys(manifest?.volumes ?? {}).sort()).toEqual([
         'caddy-config',
         'caddy-data',
-        'convex-data',
+        'config-data',
         'db-data',
         'object-store-data',
       ]);
@@ -254,7 +254,7 @@ describe('createSnapshot', () => {
           'object-storage/connection.json',
         ),
       );
-      expect(inspection?.[1]).toContain('p_convex-data:/data:ro');
+      expect(inspection?.[1]).toContain('p_config-data:/data:ro');
       // Blobs are proportional to the store: the tar gets the wider bound.
       const blobTar = execMock.mock.calls.find((call) =>
         String(call[1][call[1].length - 1]).includes(

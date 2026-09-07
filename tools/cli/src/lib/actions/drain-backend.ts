@@ -1,29 +1,41 @@
 /**
  * Deploy DRAIN orchestration for the 0.5 Postgres backend tier.
  *
- * The pg backend (`backend-api` / `backend-worker`) rolls in place on every
- * deploy, and the recreate would cut in-flight chat generations. `drainBackend` tells the api container to refuse NEW turns
- * (the client retries onto the restart — see the chat send route's 503) and
- * waits for in-flight generations to finish; `endDrainBackend` clears the
- * flag once the tier is healthy again.
+ * Replacing the api cuts its in-flight chat generations. `drainBackend` tells
+ * the api to refuse NEW turns (the client retries — see the chat send route's
+ * 503) and waits for the in-flight ones to finish; `endDrainBackend` clears
+ * the flag once the tier is serving again.
+ *
+ * The drain is AIMED AT ONE COLOUR. On a blue-green flip both colours of the
+ * api are up: the new one is already taking traffic while the old one drains,
+ * so an unaimed drain would refuse chats on the colour that just took over.
+ * Omit the colour and every replica drains, which is what a tier rolled in
+ * place wants (and what an older backend does regardless).
  *
  * The control channel is the shared `controlCall` (docker/control-call.ts) —
  * the same shape as the sandbox tier's drain (drain-sandbox.ts).
  *
  * Best-effort by design: an older backend without the door, a tier that isn't
  * running, or any transient error skips the drain and proceeds — the recovery
- * watchdog finalizes whatever the recreate cuts.
+ * watchdog finalizes whatever the replacement cuts.
  */
 
 import * as logger from '../../utils/logger';
+import type { DeploymentColor } from '../compose/types';
 import {
+  BACKEND_API_LABEL,
   backendApiContainer,
+  backendApiContainers,
   controlCall,
   isBackendTierRunning,
 } from '../docker/control-call';
-import { isContainerRunning } from '../docker/is-container-running';
 
-export { backendApiContainer, isBackendTierRunning };
+export {
+  BACKEND_API_LABEL,
+  backendApiContainer,
+  backendApiContainers,
+  isBackendTierRunning,
+};
 
 // Plain chat turns are short (seconds–~2 min); 3 min covers the tail without
 // stalling the deploy.
@@ -63,27 +75,37 @@ async function readDrainStatus(container: string): Promise<DrainStatus | null> {
  */
 export async function drainBackend(opts: {
   dryRun: boolean;
+  /** Aim the drain at one colour's replicas; omitted, it drains every one. */
+  colour?: DeploymentColor | null;
   pollMs?: number;
   timeoutMs?: number;
 }): Promise<void> {
+  const colour = opts.colour ?? null;
   if (opts.dryRun) {
     logger.info(
-      '[DRY-RUN] Would drain in-flight chat generations before recreating the backend tier',
+      `[DRY-RUN] Would drain in-flight chat generations on ${colour ? `the ${colour} api` : 'the backend tier'}`,
     );
     return;
   }
 
   const pollMs = opts.pollMs ?? DRAIN_POLL_MS;
   const timeoutMs = opts.timeoutMs ?? DRAIN_TIMEOUT_MS;
-  const container = backendApiContainer();
+  const container = (await backendApiContainers(colour))[0];
 
-  if (!(await isContainerRunning(container))) {
+  if (container === undefined) {
     logger.debug('No backend-api container running; skipping backend drain.');
     return;
   }
 
-  logger.step('Draining in-flight chat generations before backend recreate...');
-  const begin = await controlCall('POST', '/api/control/drain', { container });
+  logger.step(
+    `Draining in-flight chat generations on the ${colour ?? 'backend'} api...`,
+  );
+  const begin = await controlCall('POST', '/api/control/drain', {
+    container,
+    // An older backend ignores the body and drains everything, which is the
+    // pre-colour behaviour and still correct for an in-place roll.
+    body: colour === null ? {} : { colour },
+  });
   if (!begin.success) {
     logger.warn(
       `Backend drain unavailable — proceeding (cut turns will be recovered by the watchdog): ${begin.stderr.trim().slice(0, 200)}`,
@@ -114,8 +136,8 @@ export async function drainBackend(opts: {
  * refused forever.
  */
 export async function endDrainBackend(): Promise<void> {
-  const container = backendApiContainer();
-  if (!(await isContainerRunning(container))) return;
+  const container = await backendApiContainer();
+  if (container === null) return;
   const res = await controlCall('POST', '/api/control/end-drain', {
     container,
   });

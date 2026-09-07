@@ -5,7 +5,6 @@ import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import {
   type DeploymentColor,
-  ROTATABLE_SERVICES,
   SIDECAR_SERVICES,
   STATEFUL_SERVICES,
 } from '../compose/types';
@@ -14,6 +13,7 @@ import { getContainerHealth } from '../docker/get-container-health';
 import { getContainerVersion } from '../docker/get-container-version';
 import { isContainerRunning } from '../docker/is-container-running';
 import { listContainers } from '../docker/list-containers';
+import { listComposeContainers } from '../docker/list-service-containers';
 import { getDeploymentState } from '../state/get-deployment-state';
 import { getLockInfo } from '../state/get-lock-info';
 
@@ -81,6 +81,33 @@ async function rowsFor(
   );
 }
 
+/**
+ * One row per REPLICA of one colour, named by role and index. A colour-rolled
+ * service is a replica set, so `platform` alone would answer for whichever
+ * container happened to be first — the operator needs to see that two of
+ * three api replicas are healthy, not an average.
+ */
+async function colorRows(projectName: string): Promise<ServiceRow[]> {
+  const containers = await listComposeContainers(projectName);
+  const rows = await Promise.all(
+    containers.map(async (container) => {
+      const info = await getContainerStatus(container.name);
+      const total = containers.filter(
+        (peer) => peer.service === container.service,
+      ).length;
+      return {
+        service:
+          total > 1
+            ? `${container.service} #${container.index}`
+            : container.service,
+        status: getServiceStatus(info.exists, info.running, info.health),
+        version: info.version ?? null,
+      };
+    }),
+  );
+  return rows;
+}
+
 /** Gather the full status struct (no I/O ordering assumptions in the renderer). */
 async function gatherStatus(deployDir: string): Promise<StatusReport> {
   const project = getProjectId();
@@ -91,8 +118,8 @@ async function gatherStatus(deployDir: string): Promise<StatusReport> {
       [...STATEFUL_SERVICES, ...SIDECAR_SERVICES],
       (s) => `${project}-${s}`,
     ),
-    rowsFor(ROTATABLE_SERVICES, (s) => `${project}-${s}-blue`),
-    rowsFor(ROTATABLE_SERVICES, (s) => `${project}-${s}-green`),
+    colorRows(`${project}-blue`),
+    colorRows(`${project}-green`),
     listContainers(`name=${project}`),
   ]);
   return {

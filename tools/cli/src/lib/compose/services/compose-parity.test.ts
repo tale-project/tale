@@ -70,17 +70,50 @@ function graceSeconds(value: string | undefined): number {
   return match ? Number(match[1]) : 0;
 }
 
+function apiNetworks(colour?: 'blue'): Record<string, { aliases?: string[] }> {
+  const networks = createBackendApiService(
+    config,
+    colour === undefined ? {} : { colour },
+  ).networks;
+  if (Array.isArray(networks) || networks === undefined) {
+    throw new Error('api networks should be the object form with aliases');
+  }
+  return networks;
+}
+
 describe('sandbox→backend reachability parity', () => {
   test('CLI generator dual-homes the api onto the sandbox net with its alias', () => {
-    const networks = createBackendApiService(config).networks;
-    if (Array.isArray(networks) || networks === undefined) {
-      throw new Error('api networks should be the object form with aliases');
-    }
+    const networks = apiNetworks();
     expect(networks.internal).toBeDefined();
     expect(networks.sandbox).toBeDefined();
-    // container_name is `<project>-backend-api`, so the explicit alias is what
-    // makes http://backend-api:3005 resolve from a session container.
+    // The dev variant pins `<project>-backend-api`, so the explicit alias is
+    // what makes http://backend-api:3005 resolve from a session container.
     expect(networks.sandbox?.aliases).toContain('backend-api');
+  });
+
+  // Production runs the COLOUR variant, which has no pinned name at all —
+  // its replicas are `<project>-<colour>-backend-api-<n>`. Without the
+  // explicit alias on BOTH networks, every in-sandbox host call and every
+  // proxied `/api` lane would fail to resolve the moment the tier moved into
+  // the colours.
+  test('the colour variant keeps both aliases on both networks', () => {
+    const networks = apiNetworks('blue');
+    expect(networks.internal?.aliases).toContain('backend-api');
+    expect(networks.sandbox?.aliases).toContain('backend-api');
+    expect(networks.internal?.aliases).toContain('backend-api-blue');
+  });
+
+  // A colour is its own compose PROJECT, and compose has no cross-project
+  // dependencies: a `depends_on` naming `db` would make the whole colour file
+  // invalid. The dev variant, whose db IS in the same file, keeps its.
+  test('the colour variant carries no depends_on, the dev variant does', () => {
+    expect(
+      createBackendApiService(config, { colour: 'blue' }).depends_on,
+    ).toBeUndefined();
+    expect(
+      createBackendWorkerService(config, { colour: 'blue' }).depends_on,
+    ).toBeUndefined();
+    expect(createBackendApiService(config).depends_on).toBeDefined();
   });
 
   test('compose.yml keeps the api on the sandbox network', () => {

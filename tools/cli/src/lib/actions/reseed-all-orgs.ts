@@ -23,9 +23,9 @@ import * as logger from '../../utils/logger';
 import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
 import {
+  BACKEND_API_LABEL,
   backendApiContainer,
   controlCall,
-  isBackendTierRunning,
 } from '../docker/control-call';
 
 interface ReseedAllOrgsOptions {
@@ -39,11 +39,12 @@ interface ReseedAllOrgsOptions {
  * process-wide and would leak into that module's own test file.
  */
 export interface ReseedDeps {
-  isBackendTierRunning: typeof isBackendTierRunning;
+  /** The api replica to address, or null when the tier is down. */
+  backendApiContainer: typeof backendApiContainer;
   controlCall: typeof controlCall;
 }
 
-const DEFAULT_DEPS: ReseedDeps = { isBackendTierRunning, controlCall };
+const DEFAULT_DEPS: ReseedDeps = { backendApiContainer, controlCall };
 
 const RESEED_TIMEOUT_S = 1800;
 const RESEED_TIMEOUT_EXIT = 124;
@@ -94,17 +95,16 @@ export async function reseedAllOrgsFromBuiltin(
   deps: ReseedDeps = DEFAULT_DEPS,
 ): Promise<void> {
   const { dryRun, assumeYes } = options;
-  const container = backendApiContainer();
 
-  // Dry-run gate sits BEFORE the destructive confirm prompt + the container
-  // check. Otherwise `tale deploy --override-all --dry-run` would (a) still
-  // ask the operator to confirm a destructive-shape operation that won't run,
-  // and (b) hard-throw on hosts where no backend is up yet — defeating the
-  // point of a dry-run preview.
+  // Dry-run gate sits BEFORE the destructive confirm prompt AND before the
+  // api is looked up at all. Otherwise `tale deploy --override-all --dry-run`
+  // would (a) still ask the operator to confirm a destructive-shape operation
+  // that won't run, and (b) touch docker on hosts where no backend is up yet
+  // — defeating the point of a dry-run preview.
   if (dryRun) {
     logger.blank();
     logger.info(
-      `[DRY-RUN] Would factory-reseed every registered org via POST /api/control/reseed in ${container}.`,
+      `[DRY-RUN] Would factory-reseed every registered org via POST /api/control/reseed in ${BACKEND_API_LABEL}.`,
     );
     return;
   }
@@ -125,9 +125,12 @@ export async function reseedAllOrgsFromBuiltin(
     }
   }
 
-  if (!(await deps.isBackendTierRunning())) {
+  // The api is a replica set, so the container to address is discovered now
+  // — after the gates, so a refusal never depends on docker being reachable.
+  const container = await deps.backendApiContainer();
+  if (container === null) {
     throw new Error(
-      `--override-all needs the backend tier: no ${container} container is running. ` +
+      `--override-all needs the backend tier: no ${BACKEND_API_LABEL} replica is running. ` +
         'Start the deployment (`tale deploy`, or `tale dev` for a local stack), then re-run.',
     );
   }

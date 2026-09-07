@@ -20,12 +20,13 @@ interface DefaultServiceSelection {
  * Decide which services a default `tale deploy` (no explicit `--services`)
  * touches, per the three-tier policy:
  *
- *  - rotatable (`platform`) → always, blue-green.
- *  - always-roll (`sandbox-llm-gateway`, `sandbox`, `sandbox-egress`,
- *    `backend-api`, `backend-worker`) → always, in-place via the stateful
- *    compose. The sandbox tier is a single container (blue-green dropped) and
- *    is drained via /v1/drain before its recreate (deploy.ts), like the
- *    backend tier.
+ *  - rotatable (`platform`, `backend-api`, `backend-worker`) → always, as one
+ *    blue-green colour. The three are the stateless application tier: they
+ *    share an image and their wire contracts, so they move together.
+ *  - always-roll (`sandbox-llm-gateway`, `sandbox`, `sandbox-egress`) →
+ *    always, in-place via the stateful compose. The sandbox tier is a
+ *    singleton by construction (it holds docker.sock and the session
+ *    directory) and is drained via /v1/drain before its recreate (deploy.ts).
  *  - stop-gated (`db`, `proxy`) → only when already stopped, on a first deploy,
  *    or when the operator opts into the downtime with `--stop`; otherwise left
  *    running and surfaced in `leftRunning` so the caller can warn.

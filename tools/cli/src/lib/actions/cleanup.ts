@@ -1,17 +1,22 @@
-import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
+import { type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
-import { ROTATABLE_SERVICES } from '../compose/types';
-import { containerExists } from '../docker/container-exists';
-import { removeContainer } from '../docker/remove-container';
-import { stopContainer } from '../docker/stop-container';
 import { getCurrentColor } from '../state/get-current-color';
 import { getOppositeColor } from '../state/get-opposite-color';
 import { withLock } from '../state/with-lock';
+import { colorProject, removeColorContainers } from './color-lifecycle';
 
 interface CleanupOptions {
   env: DeploymentEnv;
 }
 
+/**
+ * Remove the idle colour's containers.
+ *
+ * Addressed by compose PROJECT, not by reconstructed names: a colour is a
+ * replica set, so what has to go is "everything compose created for that
+ * colour" — however many replicas of however many roles that turned out to
+ * be, including anything a half-finished deploy left behind.
+ */
 export async function cleanup(options: CleanupOptions): Promise<void> {
   const { env } = options;
 
@@ -28,21 +33,7 @@ export async function cleanup(options: CleanupOptions): Promise<void> {
     logger.info(`Active color: ${currentColor}`);
     logger.info(`Cleaning up: ${inactiveColor}`);
 
-    let cleaned = 0;
-    for (const service of ROTATABLE_SERVICES) {
-      const containerName = `${getProjectId()}-${service}-${inactiveColor}`;
-      const exists = await containerExists(containerName);
-
-      if (exists) {
-        await stopContainer(containerName);
-        const removed = await removeContainer(containerName);
-        if (removed) {
-          cleaned++;
-        } else {
-          logger.warn(`Failed to remove ${containerName}`);
-        }
-      }
-    }
+    const cleaned = await removeColorContainers(colorProject(inactiveColor));
 
     if (cleaned > 0) {
       logger.success(`Cleaned up ${cleaned} inactive container(s)`);

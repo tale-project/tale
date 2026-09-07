@@ -30,11 +30,12 @@ const OK_RESULT = {
 };
 
 function makeDeps(): ReseedDeps & {
-  isBackendTierRunning: ReturnType<typeof mock>;
+  backendApiContainer: ReturnType<typeof mock>;
   controlCall: ReturnType<typeof mock>;
 } {
   return {
-    isBackendTierRunning: mock(async () => true),
+    // The api is a replica set; the door is addressed to a discovered one.
+    backendApiContainer: mock(async () => 'tale-blue-backend-api-1'),
     controlCall: mock(async () => OK_RESULT),
   };
 }
@@ -67,7 +68,7 @@ describe('reseedAllOrgsFromBuiltin', () => {
     await expect(
       reseedAllOrgsFromBuiltin({ dryRun: false, assumeYes: false }, deps),
     ).rejects.toThrow('requires --yes');
-    expect(deps.isBackendTierRunning).not.toHaveBeenCalled();
+    expect(deps.backendApiContainer).not.toHaveBeenCalled();
     expect(deps.controlCall).not.toHaveBeenCalled();
   });
 

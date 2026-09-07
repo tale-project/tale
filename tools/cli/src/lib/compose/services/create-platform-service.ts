@@ -1,19 +1,26 @@
-import { getProjectId } from '../../../utils/load-env';
 import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
 
+/**
+ * The web tier, as one colour's replica template.
+ *
+ * NO `container_name`: `docker compose --scale` cannot replicate a service
+ * whose name is pinned, and the colour's compose project already carries the
+ * colour, so every replica is `<project>-<colour>-platform-<n>`. Callers
+ * address them by compose label (`list-service-containers.ts`), never by a
+ * reconstructed name.
+ */
 export function createPlatformService(
   config: ServiceConfig,
   color: DeploymentColor,
 ): ComposeService {
   return {
     image: imageRef(config, 'platform'),
-    container_name: `${getProjectId()}-platform-${color}`,
-    // Phase 2 (split): /app/data lives in convex-data, mounted read-only so
-    // server.ts can watch config files and serve branding images. Platform
-    // does not mount caddy-data any more (zero outbound HTTPS).
-    volumes: ['convex-data:/app/data:ro'],
+    // /app/data is the org config store, mounted read-only so server.ts can
+    // watch config files and serve branding images. Platform does not mount
+    // caddy-data any more (zero outbound HTTPS).
+    volumes: ['config-data:/app/data:ro'],
     env_file: ['.env'],
     restart: 'unless-stopped',
     // Graceful shutdown budget. The entrypoint's SIGTERM trap
@@ -37,11 +44,10 @@ export function createPlatformService(
       retries: 3,
       start_period: '180s',
     },
-    // Cross-compose dependencies (db, convex, proxy) are handled by the
-    // CLI's deploy ordering: stateful services are deployed and health-checked
-    // before color services start. Platform now has no intra-compose
-    // dependencies (rag/crawler ran in-process inside the Convex backend),
-    // so no `depends_on` is emitted.
+    // Cross-compose dependencies (db, proxy) are handled by the CLI's deploy
+    // ordering: stateful services are deployed and health-checked before any
+    // colour starts. `depends_on` could not express them anyway — the colour
+    // is its own compose project, and compose has no cross-project deps.
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {

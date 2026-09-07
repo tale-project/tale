@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DeploymentEnv } from '../../utils/load-env';
 import {
@@ -17,11 +17,17 @@ setProjectId('tale');
 const getCurrentColorMock = mock();
 const getPreviousVersionMock = mock();
 const getContainerVersionMock = mock();
+// A colour is a replica set: its containers are discovered by compose label
+// (a `docker ps` filtered on the project), and the version is read off any
+// one of them. Driven through the docker mock rather than module-mocking the
+// lister — `mock.module` is process-global in Bun and leaks across files.
+const dockerMock = mock();
 const pullImageMock = mock();
 const dockerComposeMock = mock();
 const ensureVolumesMock = mock();
 const ensureNetworkMock = mock();
 const waitForHealthyMock = mock();
+const waitForServiceHealthyMock = mock();
 const stopContainerMock = mock();
 const removeContainerMock = mock();
 const setCurrentColorMock = mock();
@@ -54,6 +60,9 @@ mock.module('../state/set-previous-version', () => ({
 mock.module('../docker/get-container-version', () => ({
   getContainerVersion: getContainerVersionMock,
 }));
+// The retire step drains through the control door and detaches the colour
+// from the serving networks; both go through the raw `docker` helper.
+mock.module('../docker/docker', () => ({ docker: dockerMock }));
 // pullImage is injected via rollback's `deps` arg (below), not mock.module:
 // it's a shared module imported for real by pull-image.test.ts, and Bun's
 // process-global module mock leaked into that suite and broke it on Windows.
@@ -68,6 +77,9 @@ mock.module('../docker/ensure-network', () => ({
 }));
 mock.module('../docker/wait-for-healthy', () => ({
   waitForHealthy: waitForHealthyMock,
+}));
+mock.module('../docker/wait-for-service-healthy', () => ({
+  waitForServiceHealthy: waitForServiceHealthyMock,
 }));
 mock.module('../docker/stop-container', () => ({
   stopContainer: stopContainerMock,
@@ -121,15 +133,45 @@ function expectRunbookPrinted(): void {
   expect(infoLines.some((line) => line.includes('migrate down'))).toBe(false);
 }
 
+beforeEach(() => {
+  // One platform replica in the live colour, so the version probe has
+  // something to read.
+  dockerMock.mockImplementation((...args: string[]) => {
+    const argv = args.join(' ');
+    let stdout = '';
+    if (args[0] === 'ps' && argv.includes('project=tale-blue')) {
+      // The live colour: one platform replica (the version probe reads it)
+      // and one api replica (the retire step drains through it).
+      stdout = argv.includes('service=backend-api')
+        ? 'tale-blue-backend-api-1\tbackend-api\t1\trunning'
+        : 'tale-blue-platform-1\tplatform\t1\trunning';
+    } else if (argv.includes('/api/control/drain-status')) {
+      // Nothing in flight, so the retire step's drain returns immediately
+      // instead of polling out its whole budget.
+      stdout = '{"draining":true,"inFlight":0}';
+    }
+    return Promise.resolve({ success: true, stdout, stderr: '', exitCode: 0 });
+  });
+  waitForServiceHealthyMock.mockResolvedValue(true);
+  dockerComposeMock.mockResolvedValue({
+    success: true,
+    stdout: '',
+    stderr: '',
+    exitCode: 0,
+  });
+});
+
 afterEach(() => {
   getCurrentColorMock.mockReset();
   getPreviousVersionMock.mockReset();
   getContainerVersionMock.mockReset();
+  dockerMock.mockReset();
   pullImageMock.mockReset();
   dockerComposeMock.mockReset();
   ensureVolumesMock.mockReset();
   ensureNetworkMock.mockReset();
   waitForHealthyMock.mockReset();
+  waitForServiceHealthyMock.mockReset();
   stopContainerMock.mockReset();
   removeContainerMock.mockReset();
   setCurrentColorMock.mockReset();

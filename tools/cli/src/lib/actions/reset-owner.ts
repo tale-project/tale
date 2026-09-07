@@ -1,5 +1,9 @@
 import * as logger from '../../utils/logger';
-import { backendApiContainer, controlCall } from '../docker/control-call';
+import {
+  BACKEND_API_LABEL,
+  backendApiContainer,
+  controlCall,
+} from '../docker/control-call';
 
 interface ResetOwnerOptions {
   email?: string;
@@ -22,11 +26,13 @@ export async function resetOwner(options: ResetOwnerOptions): Promise<void> {
     throw new Error('At least one of --email or --password is required');
   }
 
-  const container = backendApiContainer();
-  logger.step(`Resetting owner credentials via ${container}...`);
+  const container = await backendApiContainer();
+  logger.step(
+    `Resetting owner credentials via ${container ?? BACKEND_API_LABEL}...`,
+  );
 
   const result = await controlCall('POST', '/api/control/reset-owner', {
-    container,
+    ...(container === null ? {} : { container }),
     body: {
       ...(email ? { newEmail: email } : {}),
       ...(password ? { newPassword: password } : {}),

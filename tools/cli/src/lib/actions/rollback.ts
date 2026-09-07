@@ -1,28 +1,32 @@
 import { sameMinor } from '../../utils/compare-versions';
 import { externalDepError } from '../../utils/fail';
-import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
+import {
+  getProjectId,
+  getReplicaCounts,
+  type DeploymentEnv,
+} from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { resolveConsent } from '../../utils/output-mode';
 import { runStepsInParallel } from '../../utils/progress';
 import { confirm } from '../../utils/prompt';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
-import { ROTATABLE_SERVICES } from '../compose/types';
-import { dockerCompose } from '../docker/docker-compose';
+import { ROTATABLE_SERVICES, imageRef } from '../compose/types';
 import { ensureNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
-import { exec } from '../docker/exec';
-import { getContainerVersion } from '../docker/get-container-version';
+import { migrateConfigVolume } from '../docker/migrate-config-volume';
 import { pullImage } from '../docker/pull-image';
-import { removeContainer } from '../docker/remove-container';
-import { stopContainer } from '../docker/stop-container';
-import { waitForHealthy } from '../docker/wait-for-healthy';
 import { getCurrentColor } from '../state/get-current-color';
 import { getOppositeColor } from '../state/get-opposite-color';
 import { getPreviousVersion } from '../state/get-previous-version';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
+import {
+  colorPlatformVersion,
+  retireColor,
+  startColor,
+} from './color-lifecycle';
 
 interface RollbackOptions {
   env: DeploymentEnv;
@@ -104,9 +108,7 @@ export async function rollback(
       throw new Error('No previous version');
     }
 
-    const currentVersion = await getContainerVersion(
-      `${getProjectId()}-platform-${currentColor}`,
-    );
+    const currentVersion = await colorPlatformVersion(currentColor);
     if (!currentVersion) {
       logger.error(
         'Cannot determine the running platform version — refusing to roll back blind.',
@@ -171,17 +173,22 @@ export async function rollback(
 
     // Pull previous-version images CONCURRENTLY, reporting each as a step so
     // progress + failure attribution stay clear. A single failure doesn't
-    // cancel the others; collect them and report together.
+    // cancel the others; collect them and report together. Service → image
+    // goes through `imageRef` and is de-duplicated: the backend roles run the
+    // PLATFORM image, so a mechanical `tale-${service}` would try to pull
+    // images that were never built.
+    const rollbackImages = [
+      ...new Set(
+        ROTATABLE_SERVICES.map((service) => imageRef(serviceConfig, service)),
+      ),
+    ];
     const pullResults = await runStepsInParallel(
-      ROTATABLE_SERVICES.map((service) => {
-        const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
-        return {
-          label: image,
-          run: async () => {
-            if (!(await pull(image))) throw new Error(`pull failed: ${image}`);
-          },
-        };
-      }),
+      rollbackImages.map((image) => ({
+        label: image,
+        run: async () => {
+          if (!(await pull(image))) throw new Error(`pull failed: ${image}`);
+        },
+      })),
       { title: 'Pulling previous version images' },
     );
     const failedPulls = pullResults.filter((r) => !r.ok).map((r) => r.label);
@@ -192,51 +199,29 @@ export async function rollback(
       );
     }
 
-    // Clean up any stale containers from a previous failed rollback on this
-    // color. Without this, `docker compose up -d` will silently restart the
-    // existing container (possibly with different/old config) and report
-    // success. Deploy does the same cleanup; mirror it here.
-    logger.step(`Cleaning up any stale ${rollbackColor} containers...`);
-    for (const service of ROTATABLE_SERVICES) {
-      const containerName = `${getProjectId()}-${service}-${rollbackColor}`;
-      await stopContainer(containerName);
-      await removeContainer(containerName);
-    }
-
-    // Ensure infrastructure exists before compose up
+    // Ensure infrastructure exists before compose up. The config-store
+    // rename runs first for the same reason it does on deploy: the generated
+    // compose names `config-data`, and mounting it while the configuration
+    // still sits in `convex-data` would roll back onto an empty config tree.
+    await migrateConfigVolume(`${getProjectId()}_`);
     await ensureVolumes([...REQUIRED_VOLUMES]);
     await ensureNetwork('internal');
 
-    // Deploy rollback color
+    // Bring the rollback colour up beside the live one, at the same replica
+    // counts, and wait for every replica. `startColor` also clears anything a
+    // previous failed rollback left in that project — without which
+    // `up -d` silently restarts a stale container and reports success.
     logger.step(
       `Deploying ${rollbackColor} services with version ${rollbackVersion}...`,
     );
-    const colorCompose = generateColorCompose(serviceConfig, rollbackColor);
-
-    const deployResult = await dockerCompose(colorCompose, ['up', '-d'], {
-      projectName: `${getProjectId()}-${rollbackColor}`,
+    await startColor({
+      color: rollbackColor,
+      services: [...ROTATABLE_SERVICES],
+      compose: generateColorCompose(serviceConfig, rollbackColor),
+      replicas: getReplicaCounts(),
       cwd: env.DEPLOY_DIR,
+      healthTimeout: env.HEALTH_CHECK_TIMEOUT,
     });
-
-    if (!deployResult.success) {
-      logger.error(`Failed to deploy ${rollbackColor} services`);
-      logger.error(deployResult.stderr);
-      throw new Error('Rollback deployment failed');
-    }
-
-    // Wait for services to be healthy
-    logger.step('Waiting for services to be healthy...');
-    for (const service of ROTATABLE_SERVICES) {
-      const containerName = `${getProjectId()}-${service}-${rollbackColor}`;
-      const healthy = await waitForHealthy(containerName, {
-        timeout: env.HEALTH_CHECK_TIMEOUT,
-      });
-      if (!healthy) {
-        throw new Error(
-          `Service ${service}-${rollbackColor} failed health check`,
-        );
-      }
-    }
 
     // Switch traffic and update version history
     logger.step(`Switching traffic to ${rollbackColor}...`);
@@ -244,43 +229,12 @@ export async function rollback(
     await setPreviousVersion(env.DEPLOY_DIR, currentVersion);
     logger.info(`Version history updated: previous=${currentVersion}`);
 
-    // Pre-mark the old platform colour as shutting down BEFORE the drain sleep
-    // so its /api/health 503s and the proxy stops routing new requests to it
-    // while in-flight ones finish (mirrors deploy.ts). Best-effort + platform-
-    // specific; a failure just falls back to the graceful stop below.
-    for (const service of ROTATABLE_SERVICES) {
-      if (service !== 'platform') continue;
-      const oldName = `${getProjectId()}-${service}-${currentColor}`;
-      const marked = await exec('docker', [
-        'exec',
-        oldName,
-        'touch',
-        '/tmp/platform-shutting-down',
-      ]);
-      if (!marked.success) {
-        logger.debug(
-          `Could not pre-mark ${oldName} for shutdown (continuing): ${marked.stderr.trim()}`,
-        );
-      }
-    }
-
-    // Drain current color
-    logger.step(`Draining ${currentColor} services (${env.DRAIN_TIMEOUT}s)...`);
-    await Bun.sleep(env.DRAIN_TIMEOUT * 1000);
-
-    // Stop and remove current color containers
-    logger.step(`Stopping ${currentColor} services...`);
-    for (const service of ROTATABLE_SERVICES) {
-      const containerName = `${getProjectId()}-${service}-${currentColor}`;
-      const stopped = await stopContainer(containerName);
-      if (!stopped) {
-        logger.warn(`Failed to stop ${containerName}`);
-      }
-      const removed = await removeContainer(containerName);
-      if (!removed) {
-        logger.warn(`Failed to remove ${containerName}`);
-      }
-    }
+    // Retire the colour that was live: drain it, wait, cut it out of DNS,
+    // stop it — the same sequence a deploy uses, from the same module.
+    await retireColor({
+      color: currentColor,
+      drainTimeout: env.DRAIN_TIMEOUT,
+    });
 
     logger.success(
       `Rollback complete! Version ${rollbackVersion} is now live on ${rollbackColor}`,
