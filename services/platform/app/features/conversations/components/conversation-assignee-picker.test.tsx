@@ -53,7 +53,7 @@ vi.mock('@tanstack/react-router', () => ({
     to,
     hash,
     params,
-    search,
+    state,
     onClick,
     className,
   }: {
@@ -61,29 +61,20 @@ vi.mock('@tanstack/react-router', () => ({
     to: string;
     hash?: string;
     params?: { id: string };
-    search?: { openRoutingRule?: string; routingAddress?: string };
+    state?: { openRoutingRule?: boolean; routingAddress?: string };
     onClick?: () => void;
     className?: string;
-  }) => {
-    const qs = new URLSearchParams();
-    if (search?.openRoutingRule) {
-      qs.set('openRoutingRule', search.openRoutingRule);
-    }
-    if (search?.routingAddress) {
-      qs.set('routingAddress', search.routingAddress);
-    }
-    const query = qs.toString();
-    return (
-      <a
-        href={`${to}${query ? `?${query}` : ''}${hash ? `#${hash}` : ''}`}
-        data-org={params?.id}
-        className={className}
-        onClick={onClick}
-      >
-        {children}
-      </a>
-    );
-  },
+  }) => (
+    <a
+      href={`${to}${hash ? `#${hash}` : ''}`}
+      data-org={params?.id}
+      data-state={state ? JSON.stringify(state) : undefined}
+      className={className}
+      onClick={onClick}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock('@/app/components/ui/forms/searchable-select', () => ({
@@ -181,12 +172,16 @@ describe('ConversationAssigneePicker', () => {
     const link = screen.getByRole('link', { name: /auto assign/i });
     expect(link).toHaveAttribute(
       'href',
-      '/dashboard/$id/settings/governance/policies-limits?openRoutingRule=1#conversation-routing',
+      '/dashboard/$id/settings/governance/policies-limits#conversation-routing',
     );
     expect(link).toHaveAttribute('data-org', 'org-1');
+    expect(link).toHaveAttribute(
+      'data-state',
+      JSON.stringify({ openRoutingRule: true }),
+    );
   });
 
-  it('prefills Auto assign with the inbound mailbox address', () => {
+  it('passes the inbound mailbox address via location state, not the URL', () => {
     render(
       <ConversationAssigneePicker
         conversation={makeConversation({
@@ -200,7 +195,15 @@ describe('ConversationAssigneePicker', () => {
     const link = screen.getByRole('link', { name: /auto assign/i });
     expect(link).toHaveAttribute(
       'href',
-      '/dashboard/$id/settings/governance/policies-limits?openRoutingRule=1&routingAddress=billing%40acme.test#conversation-routing',
+      '/dashboard/$id/settings/governance/policies-limits#conversation-routing',
+    );
+    expect(link.getAttribute('href')).not.toContain('routingAddress');
+    expect(link).toHaveAttribute(
+      'data-state',
+      JSON.stringify({
+        openRoutingRule: true,
+        routingAddress: 'billing@acme.test',
+      }),
     );
   });
 

@@ -90,7 +90,7 @@ describe('ConversationRoutingPolicyEditor', () => {
     ability.cannot = () => false;
   });
 
-  it('opens Add rule prefilled from a deep-link and clears the search params', async () => {
+  it('opens Add rule prefilled from location state and clears that state', async () => {
     navigate.mockClear();
     state.isLoading = false;
     state.config = { enabled: true, rules: [] };
@@ -115,16 +115,16 @@ describe('ConversationRoutingPolicyEditor', () => {
       }),
     );
     const call = navigate.mock.calls[0]?.[0] as {
-      search: (prev: Record<string, unknown>) => Record<string, unknown>;
+      state: (prev: {
+        openRoutingRule?: boolean;
+        routingAddress?: string;
+      }) => Record<string, unknown>;
     };
     expect(
-      call.search({
-        openRoutingRule: '1',
+      call.state({
+        openRoutingRule: true,
         routingAddress: 'billing@acme.test',
       }),
-    ).toEqual({
-      openRoutingRule: undefined,
-      routingAddress: undefined,
-    });
+    ).toEqual({});
   });
 });

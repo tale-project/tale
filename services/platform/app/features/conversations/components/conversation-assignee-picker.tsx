@@ -14,8 +14,8 @@ import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { toast } from '@/app/hooks/use-toast';
-import { mailboxSideAddress } from '@/backend/core/conversations/reply_from';
 import { useT } from '@/lib/i18n/client';
+import { mailboxSideAddress } from '@/lib/shared/conversations/reply-from';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {
@@ -314,11 +314,11 @@ export function ConversationAssigneePicker({
           <Link
             to="/dashboard/$id/settings/governance/policies-limits"
             params={{ id: organizationId }}
-            search={{
-              openRoutingRule: '1',
+            hash="conversation-routing"
+            state={{
+              openRoutingRule: true,
               ...(routingAddress ? { routingAddress } : {}),
             }}
-            hash="conversation-routing"
             className="hover:bg-muted flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-sm"
             onClick={() => setOpen(false)}
           >

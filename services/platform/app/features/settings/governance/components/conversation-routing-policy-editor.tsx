@@ -413,8 +413,8 @@ export function ConversationRoutingPolicyEditor({
     setDialogOpen(true);
   }, []);
 
-  // Inbox Auto assign deep link: open Add rule once with the thread address,
-  // then strip the search params so refresh/back does not reopen the dialog.
+  // Inbox Auto assign handoff: open Add rule once with the thread address from
+  // history state, then clear that state so refresh/back does not reopen.
   useEffect(() => {
     if (!openAddRule) return;
     setEditingIndex(null);
@@ -423,12 +423,13 @@ export function ConversationRoutingPolicyEditor({
     void navigate({
       to: '/dashboard/$id/settings/governance/policies-limits',
       params: { id: organizationId },
-      search: (prev) => ({
-        ...prev,
-        openRoutingRule: undefined,
-        routingAddress: undefined,
-      }),
       hash: 'conversation-routing',
+      state: (prev) => {
+        const next = { ...prev };
+        delete next.openRoutingRule;
+        delete next.routingAddress;
+        return next;
+      },
       replace: true,
     });
   }, [openAddRule, initialAddress, navigate, organizationId]);
