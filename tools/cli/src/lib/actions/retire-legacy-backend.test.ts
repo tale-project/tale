@@ -81,9 +81,31 @@ describe('retireLegacyBackendTier', () => {
   });
 
   test('removes the pre-upgrade singletons from the stateful project', async () => {
-    legacyPs({
-      'backend-api': ['tale-backend-api'],
-      'backend-worker': ['tale-backend-worker'],
+    const order: string[] = [];
+    dockerMock.mockImplementation((...args: string[]) => {
+      if (args[0] === 'network') {
+        order.push(`disconnect ${String(args[3])} ${String(args[2])}`);
+        return Promise.resolve(ok);
+      }
+      if (args[0] !== 'ps') return Promise.resolve(ok);
+      const argv = args.join(' ');
+      if (argv.includes('service=backend-api')) {
+        return Promise.resolve({
+          ...ok,
+          stdout: 'tale-backend-api\tbackend-api\t1\trunning',
+        });
+      }
+      if (argv.includes('service=backend-worker')) {
+        return Promise.resolve({
+          ...ok,
+          stdout: 'tale-backend-worker\tbackend-worker\t1\trunning',
+        });
+      }
+      return Promise.resolve(ok);
+    });
+    stopContainerMock.mockImplementation((name: string) => {
+      order.push(`stop ${name}`);
+      return Promise.resolve(true);
     });
 
     expect(await retireLegacyBackendTier()).toBe(2);
@@ -91,8 +113,13 @@ describe('retireLegacyBackendTier', () => {
       String(call[0]),
     );
     expect(removed).toEqual(['tale-backend-api', 'tale-backend-worker']);
-    // Stopped before removed — a `docker rm` on a live container fails.
-    expect(stopContainerMock).toHaveBeenCalledWith('tale-backend-api');
+    expect(order.indexOf('disconnect tale-backend-api tale_internal')).toBe(0);
+    expect(order.indexOf('disconnect tale-backend-api tale-sandbox-net')).toBe(
+      1,
+    );
+    expect(order.indexOf('stop tale-backend-api')).toBeGreaterThan(
+      order.indexOf('disconnect tale-backend-api tale-sandbox-net'),
+    );
   });
 
   // It looks in the deployment's OWN project, never in a colour's — the

@@ -9,6 +9,8 @@ import {
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
   BLOB_VOLUME,
+  CONFIG_VOLUME,
+  LEGACY_CONFIG_VOLUME,
   SNAPSHOT_VOLUMES,
 } from './constants';
 import { type BlobStoreLayout, inspectBlobStore } from './inspect-blob-store';
@@ -174,6 +176,17 @@ export async function createSnapshot(
 
   const present: string[] = [];
   for (const volume of candidates) {
+    if (volume === CONFIG_VOLUME) {
+      // First upgrade: snapshot runs BEFORE the volume rename. Live org
+      // config is still in `convex-data`. Snapshotting only `config-data`
+      // would omit agents/SSO/governance from the recovery point.
+      if (await volumeExists(`${prefix}${CONFIG_VOLUME}`)) {
+        present.push(CONFIG_VOLUME);
+      } else if (await volumeExists(`${prefix}${LEGACY_CONFIG_VOLUME}`)) {
+        present.push(LEGACY_CONFIG_VOLUME);
+      }
+      continue;
+    }
     if (await volumeExists(`${prefix}${volume}`)) {
       present.push(volume);
     }

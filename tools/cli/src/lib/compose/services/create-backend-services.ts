@@ -132,7 +132,8 @@ export function createBackendApiService(
     },
     // LIVENESS, not readiness: `/ping` stays 200 while a replica drains, so
     // Docker does not kill a container that is deliberately finishing its
-    // in-flight work. The deploy asks `/ready` instead.
+    // in-flight work. `/ready` is the deploy's question (503 once this
+    // replica is draining) and is not what Docker or Caddy probe.
     healthcheck: {
       test: ['CMD-SHELL', `curl -sf http://localhost:${BACKEND_API_PORT}/ping`],
       interval: '10s',
@@ -178,8 +179,9 @@ export function createBackendWorkerService(
     environment: roleEnvironment('worker', options),
     healthcheck: { disable: true },
     // No shared alias: nothing addresses a worker by name — it is reached
-    // only through the job queue, which is why it can be scaled freely and
-    // stopped the moment a flip happens (jobs are at-least-once).
+    // only through the job queue. Old workers stay up through the api drain
+    // so already-claimed jobs can finish; they refuse NEW claims once their
+    // colour is draining.
     networks: {
       internal: {
         aliases: options.colour

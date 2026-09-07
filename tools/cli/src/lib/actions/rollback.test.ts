@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { rmSync } from 'node:fs';
 
 import type { DeploymentEnv } from '../../utils/load-env';
 import {
@@ -71,6 +72,7 @@ mock.module('../docker/docker-compose', () => ({
 }));
 mock.module('../docker/ensure-volumes', () => ({
   ensureVolumes: ensureVolumesMock,
+  volumeExists: mock(async () => false),
 }));
 mock.module('../docker/ensure-network', () => ({
   ensureNetwork: ensureNetworkMock,
@@ -180,6 +182,7 @@ afterEach(() => {
   loggerInfoMock.mockReset();
   loggerErrorMock.mockReset();
   execMock.mockClear();
+  rmSync(env.DEPLOY_DIR, { recursive: true, force: true });
 });
 
 describe('rollback gate', () => {

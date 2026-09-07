@@ -43,6 +43,21 @@ const NUMBER_LABEL = 'com.docker.compose.container-number';
 const ONEOFF_LABEL = 'com.docker.compose.oneoff';
 
 /**
+ * `docker ps` filters that match only containers Compose created for a
+ * project — project label AND a container-number. The number is never an
+ * image label, so a `docker run` from a compose-built image is excluded.
+ * Signal handlers use this argv shape because they cannot await the lister.
+ */
+export function composeCreatedContainerFilters(projectName: string): string[] {
+  return [
+    '--filter',
+    `label=${PROJECT_LABEL}=${projectName}`,
+    '--filter',
+    `label=${NUMBER_LABEL}`,
+  ];
+}
+
+/**
  * Every container Compose created for `projectName`, optionally narrowed to
  * one service, ordered by service then replica index so callers get a stable
  * sequence (`…-1` before `…-2`) rather than Docker's creation order.

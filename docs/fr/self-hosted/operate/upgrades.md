@@ -93,7 +93,7 @@ Dès que la nouvelle couleur écoute, les requêtes atteignent les deux. C'est l
 
 <Step title="L'ancienne couleur cesse de prendre du nouveau travail">
 
-On dit à son API de refuser les **nouveaux** tours de chat (les clients réessaient et atterrissent sur la nouvelle couleur), et le déploiement attend ceux qui sont en cours, jusqu'à 3 minutes. L'étage web laisse tomber son propre healthcheck pour que le proxy l'éjecte, et le HTTP en vol s'écoule pendant la fenêtre de drain (`DRAIN_TIMEOUT`, défaut 30 s).
+On dit à son API de refuser les **nouveaux** tours de chat. L'UI ne renvoie pas un 503 de drain — ce tour est refusé. Le déploiement attend ceux qui sont en cours, jusqu'à 3 minutes. L'étage web reste sain sur `/api/health` tant qu'il partage encore l'alias `platform` : Caddy sonde ce nom d'hôte comme un seul upstream, donc une sonde en échec marquerait tout le site down. Le trafic quitte l'ancienne couleur quand `docker network disconnect` la coupe du DNS, et le HTTP en vol s'écoule pendant la fenêtre de drain (`DRAIN_TIMEOUT`, défaut 30 s).
 
 </Step>
 

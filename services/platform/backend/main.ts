@@ -7,6 +7,7 @@ import { createAuth, type Auth } from './auth/auth.ts';
 import { closeKnowledgePools } from './core/knowledge/pool.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { isBackendDraining } from './domains/control/service.ts';
 import {
   installCorpusHealthHook,
   verifyDefaultKnowledgeIndexes,
@@ -21,7 +22,7 @@ import {
   reportError,
 } from './error-reporting.ts';
 import { closeServerGracefully } from './http-shutdown.ts';
-import { createBoss, ensureQueues } from './jobs/boss.ts';
+import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
   const boss = createBoss(env.DATABASE_URL, { supervise: env.ROLE !== 'api' });
   await boss.start();
   await ensureQueues(boss);
+  await alignQueuePolicies(sql);
   setEnqueueBoss(boss);
 
   // Per-org BYO corpora bootstrap on first use inside the pool router; the
@@ -111,6 +113,7 @@ async function main(): Promise<void> {
       boss,
       taskList: createTaskList({ sql }),
       concurrency: env.WORKER_CONCURRENCY,
+      shouldDefer: () => isBackendDraining(sql),
     });
     await registerSchedules(boss);
   }

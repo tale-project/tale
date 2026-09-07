@@ -3,12 +3,13 @@ import * as logger from '../../utils/logger';
 import type { DeploymentColor, RotatableService } from '../compose/types';
 import { detachColorFromNetworks } from '../docker/detach-color';
 import { dockerCompose } from '../docker/docker-compose';
-import { exec } from '../docker/exec';
 import { getContainerVersion } from '../docker/get-container-version';
 import { listComposeContainers } from '../docker/list-service-containers';
 import { removeContainer } from '../docker/remove-container';
 import { stopContainer } from '../docker/stop-container';
 import { waitForServiceHealthy } from '../docker/wait-for-service-healthy';
+import type { FlipPending } from '../state/flip-pending';
+import { getCurrentColor } from '../state/get-current-color';
 import { drainBackend, endDrainBackend } from './drain-backend';
 
 /**
@@ -46,12 +47,59 @@ export function colorProject(color: DeploymentColor): string {
 export async function colorPlatformVersion(
   color: DeploymentColor,
 ): Promise<string | null> {
-  const platforms = await listComposeContainers(
-    colorProject(color),
-    'platform',
+  const project = colorProject(color);
+  // Current colour compose uses service `platform`. Pre-replica-set colour
+  // compose used `platform-${color}` and `container_name: tale-platform-blue`.
+  const platforms =
+    (await listComposeContainers(project, 'platform'))[0] ??
+    (await listComposeContainers(project, `platform-${color}`))[0];
+  if (platforms !== undefined) {
+    return getContainerVersion(platforms.name);
+  }
+  const pinned = await getContainerVersion(
+    `${getProjectId()}-platform-${color}`,
   );
-  const first = platforms[0];
-  return first === undefined ? null : await getContainerVersion(first.name);
+  return pinned;
+}
+
+/** True when every requested role has at least `replicas[role]` running. */
+export async function colorLooksUp(
+  color: DeploymentColor,
+  services: readonly RotatableService[],
+  replicas: ReplicaCounts,
+): Promise<boolean> {
+  const project = colorProject(color);
+  for (const service of services) {
+    const running = (await listComposeContainers(project, service)).filter(
+      (container) => container.running,
+    );
+    if (running.length < replicas[service]) return false;
+  }
+  return true;
+}
+
+/**
+ * A crash mid-flip left both colours up (or the new one up and the switch
+ * not recorded). Resume that flip instead of `startColor` wiping the colour
+ * that is already answering the alias.
+ */
+export async function isUnfinishedColorFlip(
+  deployDir: string,
+  pending: FlipPending,
+  services: readonly RotatableService[],
+  replicas: ReplicaCounts,
+): Promise<boolean> {
+  const current = await getCurrentColor(deployDir);
+  const promotingUp = await colorLooksUp(pending.promoting, services, replicas);
+  const retiringUp =
+    pending.retiring !== null &&
+    (await listComposeContainers(colorProject(pending.retiring))).some(
+      (container) => container.running,
+    );
+
+  if (current === pending.promoting && retiringUp) return true;
+  if (current !== pending.promoting && promotingUp) return true;
+  return false;
 }
 
 /** The colour-rolled services that carry a serving DNS alias. The worker has
@@ -170,13 +218,11 @@ export interface RetireColorArgs {
  * Retire the colour that was serving: stop it taking new work, wait for what
  * it already has, cut it out of DNS, stop it.
  *
- * The worker replicas come down WITH the rest rather than first. Jobs are
- * at-least-once and a killed one retries, but an agent turn's job is what
- * heartbeats the `app.generations` row the api's drain is waiting on — kill
- * the worker first and the drain waits out its whole budget for a generation
- * nothing is advancing any more. The old worker therefore keeps consuming
- * for the drain window, which is bounded and governed by the same
- * forward-compatibility rule that lets the old api keep serving.
+ * The worker replicas come down WITH the rest rather than first. Already-
+ * claimed long jobs (`retryLimit: 0`) finish on the old image; new claims
+ * are deferred by the worker when its colour is draining. Web chat runs
+ * in-process on the API and does not need the worker to heartbeat
+ * `app.generations`.
  */
 export async function retireColor(args: RetireColorArgs): Promise<void> {
   const project = colorProject(args.color);
@@ -188,24 +234,10 @@ export async function retireColor(args: RetireColorArgs): Promise<void> {
     return;
   }
 
-  // The web tier has no drain door: its entrypoint watches for this marker
-  // and starts failing `/api/health`, so the proxy ejects it while in-flight
-  // requests finish. Best-effort — a failure just falls back to the graceful
-  // stop below.
-  for (const container of await listComposeContainers(project, 'platform')) {
-    if (!container.running) continue;
-    const marked = await exec('docker', [
-      'exec',
-      container.name,
-      'touch',
-      '/tmp/platform-shutting-down',
-    ]);
-    if (!marked.success) {
-      logger.debug(
-        `Could not pre-mark ${container.name} for shutdown (continuing): ${marked.stderr.trim()}`,
-      );
-    }
-  }
+  // Do NOT fail `/api/health` on the old platform while it still shares the
+  // `platform` alias. Caddy health-checks that hostname as ONE upstream — a
+  // 503 from the old colour marks the whole site down. Traffic leaves this
+  // colour at `docker network disconnect` below, not via a health probe.
 
   // Refuse new chat turns on THIS colour only, and wait for the ones already
   // running. The new colour is serving throughout and is not affected.

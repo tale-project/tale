@@ -1,5 +1,6 @@
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { detachColorFromNetworks } from '../docker/detach-color';
 import { listComposeContainers } from '../docker/list-service-containers';
 import { removeContainer } from '../docker/remove-container';
 import { stopContainer } from '../docker/stop-container';
@@ -21,7 +22,10 @@ import { stopContainer } from '../docker/stop-container';
  *
  * So the flip sweeps them explicitly, and only once: on an already-migrated
  * deployment there is nothing under those labels and this is a no-op. It runs
- * AFTER the new colour is live, so the deployment is never without an api.
+ * as soon as the new colour is healthy — before the long colour drain —
+ * so the leftover cannot keep writing `convex-data` or answering
+ * `backend-api` beside the new replicas. The deployment is never without
+ * an api: the new colour is already up.
  *
  * Best-effort, like the rest of the teardown: traffic has already moved, and
  * failing the deploy here would report a broken upgrade that isn't one.
@@ -29,6 +33,16 @@ import { stopContainer } from '../docker/stop-container';
 export async function retireLegacyBackendTier(): Promise<number> {
   const project = getProjectId();
   let removed = 0;
+  const leftoverApi = await listComposeContainers(project, 'backend-api');
+  if (leftoverApi.some((container) => container.running)) {
+    // Cut the leftover off the aliases BEFORE stop, same reason a colour
+    // is detached: a SIGTERM mid-request is a request the user sees fail.
+    await detachColorFromNetworks(
+      project,
+      ['backend-api'],
+      [`${project}_internal`, 'tale-sandbox-net'],
+    );
+  }
 
   for (const service of ['backend-api', 'backend-worker'] as const) {
     for (const container of await listComposeContainers(project, service)) {

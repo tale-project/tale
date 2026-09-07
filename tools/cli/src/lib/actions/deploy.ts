@@ -33,23 +33,36 @@ import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { getContainerVersion } from '../docker/get-container-version';
 import { isContainerRunning } from '../docker/is-container-running';
+import { composeCreatedContainerFilters } from '../docker/list-service-containers';
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
 import { pullImage } from '../docker/pull-image';
 import { waitForHealthy } from '../docker/wait-for-healthy';
 import { waitForServiceHealthy } from '../docker/wait-for-service-healthy';
 import { discoverOrgs } from '../project/org-dirs';
+import {
+  clearFlipPending,
+  getFlipPending,
+  setFlipPending,
+} from '../state/flip-pending';
 import { getCurrentColor } from '../state/get-current-color';
 import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 import {
+  colorLooksUp,
   colorPlatformVersion,
   colorProject,
+  isUnfinishedColorFlip,
   retireColor,
   startColor,
 } from './color-lifecycle';
-import { BACKEND_API_LABEL, backendApiContainer } from './drain-backend';
+import {
+  BACKEND_API_LABEL,
+  backendApiContainer,
+  drainBackend,
+  endDrainBackend,
+} from './drain-backend';
 import { drainSandbox } from './drain-sandbox';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 import { retireLegacyBackendTier } from './retire-legacy-backend';
@@ -158,8 +171,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           'docker',
           'ps',
           '-aq',
-          '--filter',
-          `label=com.docker.compose.project=${project}`,
+          ...composeCreatedContainerFilters(project),
         ]);
         for (const id of listed.stdout
           .toString()
@@ -571,57 +583,74 @@ export async function deploy(options: DeployOptions): Promise<void> {
             logger.warn(
               `In-place update of the live ${currentColor} colour: these replicas are replaced while they serve. A default deploy (no --services) rolls a whole colour instead.`,
             );
-            const deployResult = await dockerCompose(
-              colorCompose,
-              [
-                'up',
-                '-d',
-                ...(options.forceRecreate ? ['--force-recreate'] : []),
-                ...rotatableToUpdate.flatMap((service) => [
-                  '--scale',
-                  `${service}=${replicas[service]}`,
-                ]),
-                ...rotatableToUpdate,
-              ],
-              {
-                projectName: colorProject(currentColor),
-                cwd: env.DEPLOY_DIR,
-              },
-            );
-
-            if (!deployResult.success) {
-              logger.error(`Failed to update ${currentColor} services`);
-              logger.error(deployResult.stderr);
-              throw new Error('In-place update failed');
+            const drainLiveApi = rotatableToUpdate.includes('backend-api');
+            if (drainLiveApi) {
+              await drainBackend({
+                dryRun: false,
+                colour: currentColor,
+              });
             }
-
-            // Wait for services to be healthy
-            logger.step('Waiting for services to be healthy...');
-            for (const service of rotatableToUpdate) {
-              const healthy = await waitForServiceHealthy(
-                colorProject(currentColor),
-                service,
+            try {
+              const deployResult = await dockerCompose(
+                colorCompose,
+                [
+                  'up',
+                  '-d',
+                  ...(options.forceRecreate ? ['--force-recreate'] : []),
+                  ...rotatableToUpdate.flatMap((service) => [
+                    '--scale',
+                    `${service}=${replicas[service]}`,
+                  ]),
+                  ...rotatableToUpdate,
+                ],
                 {
-                  timeout: env.HEALTH_CHECK_TIMEOUT,
-                  expectedReplicas: replicas[service],
-                  streamLogs,
+                  projectName: colorProject(currentColor),
+                  cwd: env.DEPLOY_DIR,
                 },
               );
-              if (!healthy) {
-                throw new Error(
-                  `Service ${service} (${currentColor}) failed health check`,
+
+              if (!deployResult.success) {
+                logger.error(`Failed to update ${currentColor} services`);
+                logger.error(deployResult.stderr);
+                throw new Error('In-place update failed');
+              }
+
+              // Wait for services to be healthy
+              logger.step('Waiting for services to be healthy...');
+              for (const service of rotatableToUpdate) {
+                const healthy = await waitForServiceHealthy(
+                  colorProject(currentColor),
+                  service,
+                  {
+                    timeout: env.HEALTH_CHECK_TIMEOUT,
+                    expectedReplicas: replicas[service],
+                    streamLogs,
+                  },
+                );
+                if (!healthy) {
+                  throw new Error(
+                    `Service ${service} (${currentColor}) failed health check`,
+                  );
+                }
+              }
+
+              // Only now record the replaced version as the rollback target. A
+              // deploy that failed its health check above leaves the old
+              // version live, and writing early would have overwritten the
+              // genuine fallback with the version that is still running
+              // (rollback.ts writes previous-version after the flip, too).
+              if (currentPlatformVersion) {
+                await setPreviousVersion(
+                  env.DEPLOY_DIR,
+                  currentPlatformVersion,
+                );
+                logger.info(
+                  `Previous version saved: ${currentPlatformVersion}`,
                 );
               }
-            }
-
-            // Only now record the replaced version as the rollback target. A
-            // deploy that failed its health check above leaves the old
-            // version live, and writing early would have overwritten the
-            // genuine fallback with the version that is still running
-            // (rollback.ts writes previous-version after the flip, too).
-            if (currentPlatformVersion) {
-              await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
-              logger.info(`Previous version saved: ${currentPlatformVersion}`);
+            } finally {
+              // Same-colour replacements 503 new turns until this clears.
+              if (drainLiveApi) await endDrainBackend();
             }
           }
         } else {
@@ -646,7 +675,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
           // Deploy new color
           logger.step(`${prefix}Deploying ${nextColor} services...`);
-          const colorCompose = generateColorCompose(serviceConfig, nextColor);
 
           if (dryRun) {
             for (const service of rotatableToUpdate) {
@@ -661,46 +689,79 @@ export async function deploy(options: DeployOptions): Promise<void> {
               );
             }
           } else {
-            // Registered BEFORE the bring-up, not after: the health wait is
-            // the longest part of a deploy and the likeliest moment for a
-            // Ctrl-C, and a colour interrupted mid-start has taken no traffic
-            // — it must be torn down rather than left half-running.
-            startedColorProjects.push(colorProject(nextColor));
-            await startColor({
-              color: nextColor,
-              services: rotatableToUpdate,
-              compose: colorCompose,
-              replicas,
-              cwd: env.DEPLOY_DIR,
-              healthTimeout: env.HEALTH_CHECK_TIMEOUT,
-              forceRecreate: options.forceRecreate ?? false,
-              streamLogs,
-            });
+            const pending = await getFlipPending(env.DEPLOY_DIR);
+            const resume =
+              pending !== null &&
+              (await isUnfinishedColorFlip(
+                env.DEPLOY_DIR,
+                pending,
+                rotatableToUpdate,
+                replicas,
+              ));
+            const promoting =
+              resume && pending !== null ? pending.promoting : nextColor;
+            const retiring =
+              resume && pending !== null ? pending.retiring : currentColor;
 
-            // Switch traffic to new color — clear tracking first so an
-            // interrupt during the async write won't kill live containers.
+            if (!resume) {
+              if (pending !== null) await clearFlipPending(env.DEPLOY_DIR);
+              await setFlipPending(env.DEPLOY_DIR, {
+                promoting,
+                retiring,
+              });
+            } else {
+              logger.info(
+                `Resuming the interrupted flip onto ${promoting} (will not recreate a colour that is already up).`,
+              );
+            }
+
+            const alreadyUp = await colorLooksUp(
+              promoting,
+              rotatableToUpdate,
+              replicas,
+            );
+            if (!alreadyUp) {
+              // Registered BEFORE the bring-up, not after: the health wait is
+              // the longest part of a deploy and the likeliest moment for a
+              // Ctrl-C, and a colour interrupted mid-start has taken no
+              // traffic — it must be torn down rather than left half-running.
+              startedColorProjects.push(colorProject(promoting));
+              await startColor({
+                color: promoting,
+                services: rotatableToUpdate,
+                compose: generateColorCompose(serviceConfig, promoting),
+                replicas,
+                cwd: env.DEPLOY_DIR,
+                healthTimeout: env.HEALTH_CHECK_TIMEOUT,
+                forceRecreate: options.forceRecreate ?? false,
+                streamLogs,
+              });
+            }
+
+            // Switch traffic — clear tracking first so an interrupt during
+            // the async write won't kill live containers.
             startedColorProjects.length = 0;
-            logger.step(`Switching traffic to ${nextColor}...`);
-            await setCurrentColor(env.DEPLOY_DIR, nextColor);
+
+            // Sweep the pre-upgrade singleton BEFORE the long colour drain.
+            // Left running it writes `convex-data` while the new colour
+            // writes `config-data`, and it is the wrong door for beginDrain.
+            await retireLegacyBackendTier();
+
+            logger.step(`Switching traffic to ${promoting}...`);
+            await setCurrentColor(env.DEPLOY_DIR, promoting);
             if (currentPlatformVersion) {
               await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
               logger.info(`Previous version saved: ${currentPlatformVersion}`);
             }
 
-            if (currentColor) {
+            if (retiring) {
               await retireColor({
-                color: currentColor,
+                color: retiring,
                 drainTimeout: env.DRAIN_TIMEOUT,
               });
             }
 
-            // The backend tier used to be a stateful singleton outside both
-            // colours. On the first deploy across that change the new colour
-            // is serving but those containers belong to neither colour, so
-            // nothing above has looked at them — and left running they answer
-            // the same `backend-api` alias on the old image. No-op once the
-            // deployment has crossed over.
-            await retireLegacyBackendTier();
+            await clearFlipPending(env.DEPLOY_DIR);
           }
         }
       }

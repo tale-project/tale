@@ -10,8 +10,12 @@ const execMock = mock();
 mock.module('./docker', () => ({ docker: dockerMock }));
 mock.module('./exec', () => ({ exec: execMock }));
 
-const { backendApiContainer, controlCall, DEFAULT_CONTROL_TIMEOUT_S } =
-  await import('./control-call');
+const {
+  backendApiContainer,
+  backendApiDrainWriter,
+  controlCall,
+  DEFAULT_CONTROL_TIMEOUT_S,
+} = await import('./control-call');
 
 function ok(stdout = '{}') {
   return { success: true, stdout, stderr: '', exitCode: 0 };
@@ -68,6 +72,28 @@ describe('controlCall', () => {
   test('finds a replica in the stateful project too (pre-colour stacks)', async () => {
     routeDocker('tale-backend-api\tbackend-api\t1\trunning');
     expect(await backendApiContainer()).toBe('tale-backend-api');
+  });
+
+  test('prefers the opposite colour as the drain writer', async () => {
+    dockerMock.mockReset();
+    dockerMock.mockImplementation((...args: string[]) => {
+      if (args[0] !== 'ps') return Promise.resolve(ok());
+      const argv = args.join(' ');
+      if (argv.includes('project=tale-green')) {
+        return Promise.resolve(
+          ok('tale-green-backend-api-1\tbackend-api\t1\trunning'),
+        );
+      }
+      if (argv.includes('project=tale-blue')) {
+        return Promise.resolve(
+          ok('tale-blue-backend-api-1\tbackend-api\t1\trunning'),
+        );
+      }
+      return Promise.resolve(ok(''));
+    });
+    expect(await backendApiDrainWriter('blue')).toBe(
+      'tale-green-backend-api-1',
+    );
   });
 
   test('expands the control token INSIDE the container, never in the CLI', async () => {

@@ -16,6 +16,11 @@ import { ensureNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
 import { pullImage } from '../docker/pull-image';
+import {
+  clearFlipPending,
+  getFlipPending,
+  setFlipPending,
+} from '../state/flip-pending';
 import { getCurrentColor } from '../state/get-current-color';
 import { getOppositeColor } from '../state/get-opposite-color';
 import { getPreviousVersion } from '../state/get-previous-version';
@@ -23,10 +28,13 @@ import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 import {
+  colorLooksUp,
   colorPlatformVersion,
+  isUnfinishedColorFlip,
   retireColor,
   startColor,
 } from './color-lifecycle';
+import { retireLegacyBackendTier } from './retire-legacy-backend';
 
 interface RollbackOptions {
   env: DeploymentEnv;
@@ -207,34 +215,68 @@ export async function rollback(
     await ensureVolumes([...REQUIRED_VOLUMES]);
     await ensureNetwork('internal');
 
+    const services = [...ROTATABLE_SERVICES];
+    const replicas = getReplicaCounts();
+    const pending = await getFlipPending(env.DEPLOY_DIR);
+    const resume =
+      pending !== null &&
+      (await isUnfinishedColorFlip(
+        env.DEPLOY_DIR,
+        pending,
+        services,
+        replicas,
+      ));
+    const promoting =
+      resume && pending !== null ? pending.promoting : rollbackColor;
+    const retiring =
+      resume && pending !== null ? pending.retiring : currentColor;
+
+    if (!resume) {
+      if (pending !== null) await clearFlipPending(env.DEPLOY_DIR);
+      await setFlipPending(env.DEPLOY_DIR, { promoting, retiring });
+    } else {
+      logger.info(
+        `Resuming the interrupted rollback onto ${promoting} (will not recreate a colour that is already up).`,
+      );
+    }
+
     // Bring the rollback colour up beside the live one, at the same replica
-    // counts, and wait for every replica. `startColor` also clears anything a
-    // previous failed rollback left in that project — without which
-    // `up -d` silently restarts a stale container and reports success.
-    logger.step(
-      `Deploying ${rollbackColor} services with version ${rollbackVersion}...`,
-    );
-    await startColor({
-      color: rollbackColor,
-      services: [...ROTATABLE_SERVICES],
-      compose: generateColorCompose(serviceConfig, rollbackColor),
-      replicas: getReplicaCounts(),
-      cwd: env.DEPLOY_DIR,
-      healthTimeout: env.HEALTH_CHECK_TIMEOUT,
-    });
+    // counts, and wait for every replica. Skip when resuming a colour that
+    // is already answering — `startColor` would wipe it first.
+    if (!(await colorLooksUp(promoting, services, replicas))) {
+      logger.step(
+        `Deploying ${promoting} services with version ${rollbackVersion}...`,
+      );
+      await startColor({
+        color: promoting,
+        services,
+        compose: generateColorCompose(serviceConfig, promoting),
+        replicas,
+        cwd: env.DEPLOY_DIR,
+        healthTimeout: env.HEALTH_CHECK_TIMEOUT,
+      });
+    }
+
+    // Sweep a leftover pre-colour singleton before the long drain so it
+    // cannot keep answering `backend-api` on the old image.
+    await retireLegacyBackendTier();
 
     // Switch traffic and update version history
-    logger.step(`Switching traffic to ${rollbackColor}...`);
-    await setCurrentColor(env.DEPLOY_DIR, rollbackColor);
+    logger.step(`Switching traffic to ${promoting}...`);
+    await setCurrentColor(env.DEPLOY_DIR, promoting);
     await setPreviousVersion(env.DEPLOY_DIR, currentVersion);
     logger.info(`Version history updated: previous=${currentVersion}`);
 
     // Retire the colour that was live: drain it, wait, cut it out of DNS,
     // stop it — the same sequence a deploy uses, from the same module.
-    await retireColor({
-      color: currentColor,
-      drainTimeout: env.DRAIN_TIMEOUT,
-    });
+    if (retiring) {
+      await retireColor({
+        color: retiring,
+        drainTimeout: env.DRAIN_TIMEOUT,
+      });
+    }
+
+    await clearFlipPending(env.DEPLOY_DIR);
 
     logger.success(
       `Rollback complete! Version ${rollbackVersion} is now live on ${rollbackColor}`,

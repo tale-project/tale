@@ -68,7 +68,18 @@ function realDeps(): MigrateConfigVolumeDeps {
  *  hung docker cannot hold the deploy lock forever. */
 const COPY_TIMEOUT_SECONDS = 600;
 
-/** Is the volume present AND holding at least one entry? */
+/** Find probe: any top-level name except `lost+found` (ext filesystems). */
+const CONTENT_PROBE =
+  'find /data -mindepth 1 -maxdepth 1 ! -name lost+found -print -quit';
+
+/** Wipe a half-copied target so the next run actually starts over. */
+const WIPE_TARGET = 'find /to -mindepth 1 -delete';
+
+/**
+ * Is the volume present AND holding at least one real entry?
+ * A failed probe throws — treating "could not inspect" as empty would
+ * skip a live `convex-data` tree and boot an empty store.
+ */
 async function hasContent(
   deps: MigrateConfigVolumeDeps,
   volumeName: string,
@@ -82,10 +93,37 @@ async function hasContent(
     BACKUP_HELPER_IMAGE,
     'sh',
     '-c',
-    // `-mindepth 1` so the mount point itself does not count as content.
-    'test -n "$(find /data -mindepth 1 -maxdepth 1 -print -quit)"',
+    CONTENT_PROBE,
   ]);
-  return result.success;
+  if (!result.success) {
+    throw new Error(
+      `Could not inspect ${volumeName} for existing content: ${
+        result.stderr.trim() || result.stdout.trim() || 'docker run failed'
+      }. The copy was not started.`,
+    );
+  }
+  return result.stdout.trim().length > 0;
+}
+
+async function wipeVolume(
+  deps: MigrateConfigVolumeDeps,
+  volumeName: string,
+): Promise<void> {
+  const wiped = await deps.exec('docker', [
+    'run',
+    '--rm',
+    '-v',
+    `${volumeName}:/to`,
+    BACKUP_HELPER_IMAGE,
+    'sh',
+    '-c',
+    WIPE_TARGET,
+  ]);
+  if (!wiped.success) {
+    deps.logger.info(
+      `  Could not empty the half-copied ${volumeName} (${wiped.stderr.trim()}); empty it by hand before re-running.`,
+    );
+  }
 }
 
 /**
@@ -149,6 +187,7 @@ export async function migrateConfigVolume(
         { timeout: COPY_TIMEOUT_SECONDS },
       );
       if (!copied.success) {
+        await wipeVolume(deps, target);
         throw new Error(
           `Copying the org config store from ${legacy} to ${target} failed: ` +
             `${copied.stderr.trim() || copied.stdout.trim()}. ` +

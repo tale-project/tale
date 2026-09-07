@@ -3,8 +3,11 @@ import { describe, expect, mock, test } from 'bun:test';
 const dockerMock = mock();
 mock.module('./docker', () => ({ docker: dockerMock }));
 
-const { listComposeContainers, listRunningServiceContainers } =
-  await import('./list-service-containers');
+const {
+  composeCreatedContainerFilters,
+  listComposeContainers,
+  listRunningServiceContainers,
+} = await import('./list-service-containers');
 
 /**
  * The regression this guards is a false POSITIVE, which is the dangerous
@@ -128,6 +131,17 @@ describe('listComposeContainers', () => {
       exitCode: 1,
     });
     expect(await listComposeContainers('tale-blue')).toEqual([]);
+  });
+});
+
+describe('composeCreatedContainerFilters', () => {
+  test('requires a container-number so an image-label docker run is excluded', () => {
+    expect(composeCreatedContainerFilters('tale-blue')).toEqual([
+      '--filter',
+      'label=com.docker.compose.project=tale-blue',
+      '--filter',
+      'label=com.docker.compose.container-number',
+    ]);
   });
 });
 

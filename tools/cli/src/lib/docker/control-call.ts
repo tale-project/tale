@@ -19,6 +19,7 @@
 
 import { getProjectId } from '../../utils/load-env';
 import type { DeploymentColor } from '../compose/types';
+import { getOppositeColor } from '../state/get-opposite-color';
 import { docker } from './docker';
 import { exec } from './exec';
 import { listRunningServiceContainers } from './list-service-containers';
@@ -40,6 +41,22 @@ function backendProjects(colour?: DeploymentColor | null): string[] {
   const id = getProjectId();
   if (colour) return [`${id}-${colour}`, id];
   return [`${id}-blue`, `${id}-green`, id];
+}
+
+/**
+ * Projects to search for a replica that can WRITE `draining_colour`.
+ *
+ * `beginDrain` must run on an image that knows the column. On the first
+ * deploy across this change the retiring colour has no api (it was
+ * platform-only) and the leftover singleton is the pre-0085 image — posting
+ * `{ colour }` there leaves the column NULL and the newly promoted colour
+ * refuses chats. The colour that is NOT being retired just came up on the
+ * new image, so it is the writer. Fall back to the retiring colour, then
+ * the leftover singleton, only if nothing newer is up.
+ */
+function drainWriterProjects(retiring: DeploymentColor): string[] {
+  const id = getProjectId();
+  return [`${id}-${getOppositeColor(retiring)}`, `${id}-${retiring}`, id];
 }
 
 /**
@@ -69,6 +86,35 @@ export async function backendApiContainer(
   colour?: DeploymentColor | null,
 ): Promise<string | null> {
   return (await backendApiContainers(colour))[0] ?? null;
+}
+
+/**
+ * Replica that should receive `POST /drain` when the drain is aimed at
+ * `retiring`. Prefers a new-image colour replica over the leftover
+ * singleton — see {@link drainWriterProjects}.
+ */
+export async function backendApiDrainWriter(
+  retiring: DeploymentColor,
+): Promise<string | null> {
+  for (const project of drainWriterProjects(retiring)) {
+    const found = await listRunningServiceContainers(
+      project,
+      BACKEND_API_SERVICE,
+    );
+    const first = found[0];
+    if (first !== undefined) return first;
+  }
+  return null;
+}
+
+/** Running api replicas in ONE colour's project — not the leftover singleton. */
+export async function backendApiContainersInColor(
+  colour: DeploymentColor,
+): Promise<string[]> {
+  return listRunningServiceContainers(
+    `${getProjectId()}-${colour}`,
+    BACKEND_API_SERVICE,
+  );
 }
 
 /** How to NAME the api tier in a message when no replica is up to name.

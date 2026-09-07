@@ -93,10 +93,14 @@ export async function checkBreakingCutover(
     (await deps.colorPlatformVersion(currentColor)) ??
     (await deps.getPreviousVersion(deployDir));
 
-  const preBaseline =
-    runningVersion === null // deployment state exists but version unknowable
-      ? true
-      : compareVersions(runningVersion, BREAKING_BASELINE) < 0;
+  // Colour state is 0.5+. A first 0.5 install never writes
+  // `deployment-previous-version`, and the live probe can still miss until
+  // it looks at the pre-replica-set service name. Treating that as 0.4
+  // would refuse the upgrade of a live 0.5 host. A real 0.4 instance
+  // still refuses: its containers carry a pre-baseline version label.
+  if (runningVersion === null) return;
+
+  const preBaseline = compareVersions(runningVersion, BREAKING_BASELINE) < 0;
   if (!preBaseline) return;
 
   if (acceptDataLoss) {

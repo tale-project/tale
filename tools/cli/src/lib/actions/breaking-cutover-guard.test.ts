@@ -46,14 +46,14 @@ describe('checkBreakingCutover', () => {
     expect(deps.getPreviousVersion).toHaveBeenCalledWith('/project');
   });
 
-  test('refuses conservatively when deployment state exists but no version is determinable', async () => {
+  test('passes when colour state exists but no version is readable', async () => {
+    // A first 0.5 install has currentColor and never wrote previous-version.
+    // Treating that as 0.4 would refuse the upgrade of a live 0.5 host.
     const deps = makeDeps({
       colorPlatformVersion: mock(async () => null),
       getPreviousVersion: mock(async () => null),
     });
-    await expect(checkBreakingCutover(BASE, deps)).rejects.toThrow(
-      /cannot be determined/,
-    );
+    await expect(checkBreakingCutover(BASE, deps)).resolves.toBeUndefined();
   });
 
   test('--accept-data-loss proceeds with a warning instead of refusing', async () => {

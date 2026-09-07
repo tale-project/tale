@@ -108,7 +108,8 @@ describe('drainBackend', () => {
   test('aims the drain at one colour when given one', async () => {
     dockerMock.mockImplementation((...args: string[]) => {
       if (args[0] === 'ps') {
-        // Only the blue project has replicas — the lister asks per project.
+        // Only the blue project has replicas — the writer falls through
+        // to blue when the other colour has no api yet.
         return Promise.resolve(
           args.join(' ').includes('project=tale-blue') ? ok(BLUE_API) : ok(''),
         );
@@ -126,14 +127,46 @@ describe('drainBackend', () => {
       timeoutMs: 5_000,
     });
 
-    const psProjects = dockerMock.mock.calls
-      .map((call) => call.map(String))
-      .filter((call) => call[0] === 'ps')
-      .map((call) => call.join(' '));
-    expect(
-      psProjects.every((argv) => !argv.includes('project=tale-green')),
-    ).toBe(true);
-    // The colour rides the request body, which goes over stdin.
+    const body = execMock.mock.calls.at(-1)?.[2] as
+      | { stdin?: string }
+      | undefined;
+    expect(body?.stdin).toBe(JSON.stringify({ colour: 'blue' }));
+  });
+
+  // First-upgrade / colour flip: the retiring colour's leftover singleton
+  // is a pre-0085 image that ignores `{ colour }`. POST through the other
+  // colour — the one that just came up on the new image.
+  test('writes an aimed drain through the other colour when it has an api', async () => {
+    const GREEN_API = 'tale-green-backend-api-1\tbackend-api\t1\trunning';
+    dockerMock.mockImplementation((...args: string[]) => {
+      if (args[0] === 'ps') {
+        const argv = args.join(' ');
+        if (argv.includes('project=tale-green')) {
+          return Promise.resolve(ok(GREEN_API));
+        }
+        if (argv.includes('project=tale-blue')) {
+          return Promise.resolve(ok(BLUE_API));
+        }
+        return Promise.resolve(ok(''));
+      }
+      if (args.join(' ').includes('drain-status')) {
+        return Promise.resolve(ok('{"draining":true,"inFlight":0}'));
+      }
+      return Promise.resolve(ok());
+    });
+
+    await drainBackend({
+      dryRun: false,
+      colour: 'blue',
+      pollMs: 1,
+      timeoutMs: 5_000,
+    });
+
+    const execArgv = String(
+      (execMock.mock.calls.at(-1)?.[1] as string[] | undefined)?.join(' '),
+    );
+    expect(execArgv).toContain('tale-green-backend-api-1');
+    expect(execArgv).not.toContain('tale-blue-backend-api-1');
     const body = execMock.mock.calls.at(-1)?.[2] as
       | { stdin?: string }
       | undefined;

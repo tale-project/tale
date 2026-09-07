@@ -25,9 +25,13 @@ function fakeDeps(options: {
   content: Record<string, boolean>;
   copyFails?: boolean;
   createFails?: boolean;
+  probeFails?: Record<string, boolean>;
 }): MigrateConfigVolumeDeps & { calls: string[][] } {
   const calls: string[][] = [];
-  const exec = mock((_cmd: string, args: string[]) => {
+  // Plain functions, not `mock()`: bun's mock.module from sibling files
+  // rebinds the shared mock implementation and would make a volume that
+  // should be empty look full.
+  const exec = (_cmd: string, args: string[]) => {
     calls.push(args);
     if (args[0] === 'volume' && args[1] === 'create') {
       return Promise.resolve(options.createFails ? FAIL : OK);
@@ -36,18 +40,26 @@ function fakeDeps(options: {
     if (script.startsWith('cp -a')) {
       return Promise.resolve(options.copyFails ? FAIL : OK);
     }
-    // The content probe: the volume it mounts is the one being asked about.
+    if (script.startsWith('find /to')) {
+      return Promise.resolve(OK);
+    }
+    // Content probe: success + nonempty stdout means the volume has files.
+    // Success + empty stdout is an empty volume. Failure throws — it is
+    // not treated as empty.
     const mounted = args.find((arg) => arg.includes(':/data:ro')) ?? '';
     const volume = mounted.split(':')[0] ?? '';
-    return Promise.resolve(options.content[volume] === true ? OK : FAIL);
-  });
+    if (options.probeFails?.[volume] === true) {
+      return Promise.resolve(FAIL);
+    }
+    return Promise.resolve(
+      options.content[volume] === true ? { ...OK, stdout: '/data/org\n' } : OK,
+    );
+  };
   return {
     calls,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
     exec: exec as unknown as MigrateConfigVolumeDeps['exec'],
-    volumeExists: mock((name: string) =>
-      Promise.resolve(name in options.content),
-    ),
+    volumeExists: (name: string) => Promise.resolve(name in options.content),
     withVolumeContainersPaused: mock(
       (_volumes: readonly string[], work: (paused: number) => Promise<void>) =>
         work(2),
@@ -150,6 +162,23 @@ describe('migrateConfigVolume', () => {
     await expect(migrateConfigVolume('tale_', deps)).rejects.toThrow(
       /still intact in tale_convex-data/,
     );
+    expect(
+      deps.calls.some((args) =>
+        String(args[args.length - 1]).startsWith('find /to'),
+      ),
+    ).toBe(true);
+  });
+
+  test('throws when the content probe fails instead of treating it as empty', async () => {
+    const deps = fakeDeps({
+      content: { 'tale_convex-data': true },
+      probeFails: { 'tale_convex-data': true },
+    });
+
+    await expect(migrateConfigVolume('tale_', deps)).rejects.toThrow(
+      /Could not inspect tale_convex-data/,
+    );
+    expect(copyScripts(deps.calls)).toHaveLength(0);
   });
 
   test('throws without copying when the target volume cannot be created', async () => {

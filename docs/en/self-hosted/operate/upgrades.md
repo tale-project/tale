@@ -93,7 +93,7 @@ Once the new colour is listening, requests reach both. This is the same forward-
 
 <Step title="The old colour stops taking new work">
 
-Its API is told to refuse **new** chat turns (clients retry and land on the new colour) and the deploy waits for the in-flight ones to finish, up to 3 minutes. The web tier starts failing its own healthcheck so the proxy ejects it, and in-flight HTTP finishes during the drain window (`DRAIN_TIMEOUT`, default 30 s).
+Its API is told to refuse **new** chat turns. The UI does not resend a drain 503 — that turn is refused. The deploy waits for in-flight turns to finish, up to 3 minutes. The web tier stays healthy on `/api/health` while it still shares the `platform` alias: Caddy health-checks that hostname as one upstream, so failing the probe would mark the whole site down. Traffic leaves the old colour when `docker network disconnect` cuts it out of DNS, and in-flight HTTP finishes during the drain window (`DRAIN_TIMEOUT`, default 30 s).
 
 </Step>
 

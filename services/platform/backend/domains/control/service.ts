@@ -18,8 +18,9 @@ import {
  * Deploy DRAIN control plane — the 0.5 twin of `convex/control/drain.ts`.
  * `tale deploy` replaces the backend on a version change, killing every
  * in-flight chat generation. Before that the CLI begins a drain (the chat
- * doors then refuse NEW turns so clients retry onto the replacement), polls
- * until `inFlight` reaches 0, replaces, and ends the drain. Best-effort by
+ * doors then refuse NEW turns), polls until `inFlight` reaches 0, replaces,
+ * and ends the drain. A drain 503 is refused in the UI — the client does
+ * not retry. Best-effort by
  * design on the CLI side; on this side the flag is a singleton row with a
  * hard expiry so a deploy that dies mid-drain cannot refuse chats forever.
  *
@@ -86,11 +87,30 @@ export async function isBackendDraining(sql: Sql): Promise<boolean> {
 }
 
 /** Generations genuinely in flight: present AND heartbeat-fresh (a stale
- * lock means the turn is already dead — not something to wait on). */
+ * lock means the turn is already dead — not something to wait on).
+ *
+ * While a drain is active, only generations that STARTED at or before
+ * `drain_started_at_ms` count. After a colour flip the live colour keeps
+ * accepting turns; those new rows must not keep `inFlight > 0` for the
+ * whole drain window or every busy deploy burns the 3-minute budget. */
 export async function countActiveGenerations(sql: Sql): Promise<number> {
+  const now = Date.now();
   const rows = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.generations
-    WHERE heartbeat_at_ms >= ${Date.now() - GENERATION_FRESH_MS}
+    WHERE heartbeat_at_ms >= ${now - GENERATION_FRESH_MS}
+      AND started_at_ms <= COALESCE(
+        (
+          SELECT drain_started_at_ms
+          FROM app.backend_control
+          WHERE key = ${SINGLETON}
+            AND draining
+            AND (
+              drain_expires_at_ms IS NULL
+              OR drain_expires_at_ms > ${now}
+            )
+        ),
+        ${now}
+      )
   `;
   return Number(rows[0]?.count ?? '0');
 }

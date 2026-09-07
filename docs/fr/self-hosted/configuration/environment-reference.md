@@ -190,7 +190,7 @@ Combien de replicas de chaque rôle sans état une couleur fait tourner. `tale d
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas de l'API — chaque porte applicative, l'auth et le flux de hints. Plage `1`–`16`.                  |
 | `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas du runner de jobs : ingestion, crawls, automations, tours d'agent. Plage `1`–`16`.                |
 
-Un déploiement fait tourner les deux couleurs en même temps : chaque nombre double le temps de la bascule. [Personnaliser Compose](/fr/self-hosted/install/customize-compose) dit quel rôle monter pour quel symptôme, et ce que monter ne répare pas.
+Un déploiement fait tourner les deux couleurs en même temps : chaque nombre est doublé pendant le chevauchement. [Personnaliser Compose](/fr/self-hosted/install/customize-compose) dit quel rôle monter pour quel symptôme, et ce que monter ne répare pas.
 
 ## Sessions
 

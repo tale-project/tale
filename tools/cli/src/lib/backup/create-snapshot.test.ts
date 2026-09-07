@@ -179,6 +179,41 @@ describe('createSnapshot', () => {
     expect(execMock).toHaveBeenCalledTimes(1);
   });
 
+  test('snapshots convex-data when that is still the live config store', async () => {
+    volumeExistsMock.mockImplementation((name: string) =>
+      Promise.resolve(name === 'p_convex-data' || name === 'p_db-data'),
+    );
+    ensureVolumesMock.mockResolvedValue(true);
+    dockerMock.mockImplementation((...args: string[]) => {
+      if (args[0] === 'ps') return Promise.resolve(ok(''));
+      return Promise.resolve(ok());
+    });
+    execMock.mockImplementation((_cmd: string, args: string[]) => {
+      const script = args[args.length - 1];
+      if (script.includes('object-storage/connection.json')) {
+        return Promise.resolve(ok(''));
+      }
+      const tar = /tar czf \/backup\/[^/]+\/([a-z-]+)\.tar\.gz/.exec(script);
+      if (tar) {
+        return Promise.resolve(ok(`${SHA}  ${tar[1]}.tar.gz\n4096`));
+      }
+      return Promise.resolve(ok());
+    });
+
+    const manifest = await createSnapshot({
+      prefix: 'p_',
+      trigger: 'deploy',
+      platformVersion: '0.5.10',
+    });
+
+    expect(Object.keys(manifest?.volumes ?? {}).sort()).toEqual([
+      'convex-data',
+      'db-data',
+    ]);
+    expect(tarredVolumes()).toContain('convex-data');
+    expect(tarredVolumes()).not.toContain('config-data');
+  });
+
   test('throws when no data volumes exist', async () => {
     volumeExistsMock.mockResolvedValue(false);
 

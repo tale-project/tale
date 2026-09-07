@@ -2,9 +2,9 @@
  * Deploy DRAIN orchestration for the 0.5 Postgres backend tier.
  *
  * Replacing the api cuts its in-flight chat generations. `drainBackend` tells
- * the api to refuse NEW turns (the client retries — see the chat send route's
- * 503) and waits for the in-flight ones to finish; `endDrainBackend` clears
- * the flag once the tier is serving again.
+ * the api to refuse NEW turns and waits for the in-flight ones to finish;
+ * `endDrainBackend` clears the flag once the tier is serving again. A drain
+ * 503 is refused in the UI — the client does not retry.
  *
  * The drain is AIMED AT ONE COLOUR. On a blue-green flip both colours of the
  * api are up: the new one is already taking traffic while the old one drains,
@@ -26,6 +26,8 @@ import {
   BACKEND_API_LABEL,
   backendApiContainer,
   backendApiContainers,
+  backendApiContainersInColor,
+  backendApiDrainWriter,
   controlCall,
   isBackendTierRunning,
 } from '../docker/control-call';
@@ -85,9 +87,14 @@ export async function drainBackend(opts: {
 
   const pollMs = opts.pollMs ?? DRAIN_POLL_MS;
   const timeoutMs = opts.timeoutMs ?? DRAIN_TIMEOUT_MS;
-  const container = (await backendApiContainers(colour))[0];
+  // An aimed drain must be written by an image that knows `draining_colour`.
+  // The retiring colour's leftover singleton (pre-0085) ignores the body.
+  const container =
+    colour === null
+      ? ((await backendApiContainers())[0] ?? null)
+      : await backendApiDrainWriter(colour);
 
-  if (container === undefined) {
+  if (container === null) {
     logger.debug('No backend-api container running; skipping backend drain.');
     return;
   }
@@ -98,12 +105,25 @@ export async function drainBackend(opts: {
   const begin = await controlCall('POST', '/api/control/drain', {
     container,
     // An older backend ignores the body and drains everything, which is the
-    // pre-colour behaviour and still correct for an in-place roll.
+    // pre-colour behaviour and still correct for an in-place roll. An aimed
+    // colour flip posts through a new-image replica so the column is written.
     body: colour === null ? {} : { colour },
   });
   if (!begin.success) {
     logger.warn(
       `Backend drain unavailable — proceeding (cut turns will be recovered by the watchdog): ${begin.stderr.trim().slice(0, 200)}`,
+    );
+    return;
+  }
+
+  // First-upgrade leftover: the retiring colour project has no api, and the
+  // singleton has already been swept. Nothing left to wait for on that colour.
+  if (
+    colour !== null &&
+    (await backendApiContainersInColor(colour)).length === 0
+  ) {
+    logger.info(
+      `No ${colour} api replicas left to wait out — drain flag is set.`,
     );
     return;
   }

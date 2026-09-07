@@ -51,7 +51,7 @@ import { appendMessageRow } from './domains/chat/store.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
-import { createBoss, ensureQueues } from './jobs/boss.ts';
+import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
@@ -44520,6 +44520,7 @@ async function main(): Promise<void> {
   const boss = createBoss(databaseUrl, { supervise: true });
   await boss.start();
   await ensureQueues(boss);
+  await alignQueuePolicies(sql);
   await registerSchedules(boss);
   setEnqueueBoss(boss);
   // No itest job may ever open a real IMAP/SMTP connection.

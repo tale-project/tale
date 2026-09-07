@@ -93,7 +93,7 @@ Sobald die neue Farbe lauscht, erreichen Anfragen beide. Das ist dasselbe vorwä
 
 <Step title="Die alte Farbe nimmt keine neue Arbeit mehr an">
 
-Ihre API bekommt gesagt, **neue** Chat-Turns abzulehnen (Clients versuchen es erneut und landen auf der neuen Farbe), und der Deploy wartet auf die laufenden — bis zu 3 Minuten. Der Web-Tier lässt seinen eigenen Healthcheck fallen, damit der Proxy ihn auswirft, und in-flight-HTTP läuft im Drain-Fenster aus (`DRAIN_TIMEOUT`, Default 30 s).
+Ihre API lehnt **neue** Chat-Turns ab. Die UI sendet einen Drain-503 nicht erneut — der Turn ist abgelehnt. Der Deploy wartet auf die laufenden — bis zu 3 Minuten. Der Web-Tier bleibt auf `/api/health` gesund, solange er den `platform`-Alias noch teilt: Caddy prüft diesen Hostnamen als einen Upstream, eine fehlgeschlagene Prüfung würde die ganze Site als down markieren. Der Traffic verlässt die alte Farbe, wenn `docker network disconnect` sie aus dem DNS schneidet, und in-flight-HTTP läuft im Drain-Fenster aus (`DRAIN_TIMEOUT`, Default 30 s).
 
 </Step>
 
