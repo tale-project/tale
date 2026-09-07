@@ -120,6 +120,12 @@ and the `/events` hint → `invalidateQueries` hook).
   Credentials default to `minioadmin` / `minioadmin`; override with
   `ITEST_S3_ACCESS_KEY` / `ITEST_S3_SECRET_KEY`.
 
+  **Both** services must be THROWAWAY, recreated per run. Reusing the
+  database truncates the run at the first lane that re-creates a fixture
+  user (`duplicate key … user_email_key`); reusing the object store fails
+  the bootstrap probe, which deletes the bucket to simulate a vanished
+  store and cannot delete one a previous run left objects in.
+
 ## Auth & migrations
 
 - **Better Auth on Postgres** (`auth/`): email+password with the 0.4

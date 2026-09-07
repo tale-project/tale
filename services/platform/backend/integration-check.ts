@@ -2631,6 +2631,31 @@ async function checkTasksOrgIsolation(
  * GET round-trip → delete. Gated on ITEST_S3_ENDPOINT — recorded as skipped
  * (visibly, never silently) when no store is provided.
  */
+/**
+ * Override process env for one lane and put it back exactly as it was.
+ *
+ * A lane that `delete`s a variable it merely OVERRODE silently disarms every
+ * later lane that relies on the runner's value. Three sandbox lanes used to
+ * delete `SANDBOX_TOKEN` in their `finally`, so the task-agent watchdog lane
+ * — hundreds of checks later — reported "SANDBOX_TOKEN is not set" no matter
+ * what the runner exported, and its exec-cancel probe could not pass on any
+ * invocation. Restoring the previous value (including "it was absent") keeps
+ * a lane's environment its own.
+ */
+function overrideEnv(vars: Record<string, string>): () => void {
+  const previous = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(vars)) {
+    previous.set(key, process.env[key]);
+    process.env[key] = value;
+  }
+  return () => {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
+}
+
 async function checkFiles(
   sql: Sql,
   base: string,
@@ -28243,10 +28268,12 @@ async function checkTaskAgentTurnDrive(
       ? modelsAddress.port
       : 0;
 
-  process.env.SANDBOX_URL = `http://127.0.0.1:${spawnerPort}`;
-  process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
-  process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${gatewayPort}`;
-  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
+    SANDBOX_TOKEN: SPAWNER_TOKEN,
+    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
+    TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+  });
 
   try {
     const configRoot = process.env.TALE_CONFIG_DIR ?? '';
@@ -28728,9 +28755,7 @@ async function checkTaskAgentTurnDrive(
       `threw="${cancelled.threw}" spawned=${JSON.stringify(cancelledSpawned)} (want none), op=${cancelledOp?.status}/finalized=${cancelledOp?.finalizedAt !== null} (want cancelled), run=${cancelledRun?.status}/${cancelledRun?.execId} (want cancelled, exec kept), session=${cancelledSession} (want stopped), vk mint/revoke=${cancelled.minted}/${cancelled.revoked} (want 1/1)`,
     );
   } finally {
-    delete process.env.SANDBOX_URL;
-    delete process.env.SANDBOX_TOKEN;
-    delete process.env.SANDBOX_LLM_GATEWAY_URL;
+    restoreEnv();
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
@@ -29041,10 +29066,12 @@ async function checkAutomationAgentNode(
       ? gatewayAddress.port
       : 0;
 
-  process.env.SANDBOX_URL = `http://127.0.0.1:${spawnerPort}`;
-  process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
-  process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${gatewayPort}`;
-  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
+    SANDBOX_TOKEN: SPAWNER_TOKEN,
+    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
+    TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+  });
 
   try {
     // The itestagent provider + credential from the drive check are already
@@ -29457,9 +29484,7 @@ async function checkAutomationAgentNode(
       `deploy(sub=${subSendDeploy}, parent=${parentSendDeploy}), run=${subSendRun.status} (${(subSendRun.detail ?? '').slice(0, 160)}), cards=${subSendCards[0]?.count} (want 0)`,
     );
   } finally {
-    delete process.env.SANDBOX_URL;
-    delete process.env.SANDBOX_TOKEN;
-    delete process.env.SANDBOX_LLM_GATEWAY_URL;
+    restoreEnv();
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
@@ -30578,8 +30603,10 @@ async function checkSandboxSpawner(
   const address = spawner.address();
   const port =
     address !== null && typeof address === 'object' ? address.port : 0;
-  process.env.SANDBOX_URL = `http://127.0.0.1:${port}`;
-  process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${port}`,
+    SANDBOX_TOKEN: SPAWNER_TOKEN,
+  });
 
   try {
     const sessions = await import('./domains/sandbox/sessions.ts');
@@ -30785,8 +30812,7 @@ async function checkSandboxSpawner(
       `status=${statusListing.success ? statusListing.data.tools.length : 'ERR'} tools, product_find=${productFind.success ? productFind.data.status : 'ERR'} (hit=${productRaw.includes('Widget')}), ungranted=${ungranted.success ? ungranted.data.status : 'ERR'}, badToken → ${badToken.status} (want 401), ledger=${ledger.map((r) => `${r.tool}:${r.outcome}`).join('/')}`,
     );
   } finally {
-    delete process.env.SANDBOX_URL;
-    delete process.env.SANDBOX_TOKEN;
+    restoreEnv();
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
@@ -42776,14 +42802,19 @@ async function checkWatchdogs(
     spawnerAddress !== null && typeof spawnerAddress === 'object'
       ? spawnerAddress.port
       : 0;
-  const previousSandboxUrl = process.env.SANDBOX_URL;
-  process.env.SANDBOX_URL = `http://127.0.0.1:${spawnerPort}`;
+  // The lane runs its OWN stub spawner, so it owns the token that signs the
+  // calls to it too: the cancel client refuses to send an unsigned request,
+  // and depending on the runner's `SANDBOX_TOKEN` made this probe fail on the
+  // documented invocation, which does not set one.
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
+    SANDBOX_TOKEN: 'itest-watchdog-spawner',
+  });
   const taskWatchdogs = await import('./domains/tasks/watchdogs.ts');
   try {
     await taskWatchdogs.runTaskAgentWatchdog(sql);
   } finally {
-    if (previousSandboxUrl === undefined) delete process.env.SANDBOX_URL;
-    else process.env.SANDBOX_URL = previousSandboxUrl;
+    restoreEnv();
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
@@ -44347,6 +44378,30 @@ async function readJson(res: Response, label: string): Promise<unknown> {
  * leaves every later lane 401-ing, which used to surface only as a JSON
  * parse error deep inside an unrelated lane, with no tally at all.
  */
+/**
+ * What a lane changed about `process.env` and did not put back.
+ *
+ * Lanes legitimately override variables to point the code under test at their
+ * own stubs. What breaks the suite is not restoring them: three sandbox lanes
+ * used to `delete process.env.SANDBOX_TOKEN` in their `finally`, so the
+ * task-agent watchdog lane — 40 lanes later — read no token, its cancel
+ * client refused to send an unsigned request, and its probe could not pass on
+ * any invocation. The failure named the watchdog; the cause was elsewhere
+ * entirely.
+ *
+ * Only variables that existed BEFORE the lane are reported: a lane that
+ * introduces one for its own use and tidies it away again harms nobody.
+ */
+function envLeaks(before: ReadonlyMap<string, string | undefined>): string[] {
+  const leaked: string[] = [];
+  for (const [key, value] of before) {
+    const after = process.env[key];
+    if (after === value) continue;
+    leaked.push(after === undefined ? `${key} (deleted)` : `${key} (changed)`);
+  }
+  return leaked;
+}
+
 async function runLanes(
   base: string,
   ctx: { cookie: string; userId: string },
@@ -44355,6 +44410,7 @@ async function runLanes(
   for (const [index, [name, run]] of lanes.entries()) {
     const position = `lane ${index + 1} of ${lanes.length} (${name})`;
     const notRun = lanes.length - index - 1;
+    const envBefore = new Map(Object.entries(process.env));
     try {
       await run();
     } catch (error) {
@@ -44364,6 +44420,16 @@ async function runLanes(
         `RUN TRUNCATED at ${position} — ${notRun} later lane(s) never ran; threw ${errorText(error)}`,
       );
       return { ran: index + 1, total: lanes.length, truncatedAt: name };
+    }
+    const leaked = envLeaks(envBefore);
+    if (leaked.length > 0) {
+      record(
+        `harness: ${name} leaves the environment as it found it`,
+        false,
+        `${leaked.join(', ')} — the lane overrode these and did not restore ` +
+          `them, so every later lane reads the lane's value (or nothing) ` +
+          `instead. Wrap the override in overrideEnv().`,
+      );
     }
     if (!(await sharedSessionAlive(base, ctx))) {
       record(
