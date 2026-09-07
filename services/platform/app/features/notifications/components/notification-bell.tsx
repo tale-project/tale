@@ -27,7 +27,7 @@ interface NotificationBellProps {
  * asChild>` from reaching the button and quietly dropped the click handler.
  */
 const POPOVER_CONTENT_CLASSES =
-  'z-50 min-w-[14.5rem] max-w-64 w-auto p-4 rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none';
+  'z-50 min-w-[14.5rem] max-w-64 w-auto p-4 rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[var(--radix-popover-content-transform-origin)] duration-[var(--duration-short)] motion-reduce:animate-none';
 
 export function NotificationBell({ organizationId }: NotificationBellProps) {
   const { t: tNav } = useT('navigation');
@@ -67,33 +67,32 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
   // to land both `asChild` triggers on the same `<button>`. Going through the
   // `@tale/ui` `Popover` wrapper buries its `<PopoverPrimitive.Trigger
   // asChild>` one level deep — passing a Tooltip-wrapped trigger then meets
-  // a non-DOM intermediary (`TooltipPrimitive.Provider`/`Root`), Radix's
-  // `Slot` can't merge the `onClick` through, and the panel never opens.
-  // Nested `asChild` Triggers via Slot, in contrast, merge cleanly: each
-  // wraps the next, and the innermost child (the button) ends up with both
-  // sets of event listeners + refs.
+  // a non-DOM intermediary (`TooltipPrimitive.Root`), Radix's `Slot` can't
+  // merge the `onClick` through, and the panel never opens. Nested `asChild`
+  // Triggers via Slot, in contrast, merge cleanly: each wraps the next, and
+  // the innermost child (the button) ends up with both sets of event
+  // listeners + refs. Delay/skip-delay come from AppShell's TooltipProvider —
+  // do not wrap a per-tip Provider here.
   return (
     <>
       <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-        <TooltipPrimitive.Provider delayDuration={300}>
-          <TooltipPrimitive.Root>
-            <PopoverPrimitive.Trigger asChild>
-              <TooltipPrimitive.Trigger asChild>
-                {buttonNode}
-              </TooltipPrimitive.Trigger>
-            </PopoverPrimitive.Trigger>
-            <TooltipPrimitive.Portal>
-              <TooltipPrimitive.Content
-                side="right"
-                sideOffset={8}
-                collisionPadding={8}
-                className={tooltipContentClassName}
-              >
-                {tNav('notifications')}
-              </TooltipPrimitive.Content>
-            </TooltipPrimitive.Portal>
-          </TooltipPrimitive.Root>
-        </TooltipPrimitive.Provider>
+        <TooltipPrimitive.Root>
+          <PopoverPrimitive.Trigger asChild>
+            <TooltipPrimitive.Trigger asChild>
+              {buttonNode}
+            </TooltipPrimitive.Trigger>
+          </PopoverPrimitive.Trigger>
+          <TooltipPrimitive.Portal>
+            <TooltipPrimitive.Content
+              side="right"
+              sideOffset={8}
+              collisionPadding={8}
+              className={tooltipContentClassName}
+            >
+              {tNav('notifications')}
+            </TooltipPrimitive.Content>
+          </TooltipPrimitive.Portal>
+        </TooltipPrimitive.Root>
         <PopoverPrimitive.Portal>
           <PopoverPrimitive.Content
             align="end"

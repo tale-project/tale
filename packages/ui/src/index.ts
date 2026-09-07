@@ -64,6 +64,8 @@ export {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  TOOLTIP_DELAY_MS,
+  TOOLTIP_SKIP_DELAY_MS,
 } from './components/overlays/tooltip';
 
 export { TaleLogo, type TaleLogoProps } from './logo/tale-logo';

@@ -63,13 +63,11 @@ export function DisabledReasonTooltip({
 }: DisabledReasonTooltipProps): ReactElement {
   if (!active || !hasDisabledReason(reason)) return children;
   return (
-    <TooltipPrimitive.Provider delayDuration={300}>
-      <TooltipPrimitive.Root>
-        <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
-        <TooltipPrimitive.Portal>
-          <TooltipContent side={side}>{reason}</TooltipContent>
-        </TooltipPrimitive.Portal>
-      </TooltipPrimitive.Root>
-    </TooltipPrimitive.Provider>
+    <TooltipPrimitive.Root>
+      <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
+      <TooltipPrimitive.Portal>
+        <TooltipContent side={side}>{reason}</TooltipContent>
+      </TooltipPrimitive.Portal>
+    </TooltipPrimitive.Root>
   );
 }

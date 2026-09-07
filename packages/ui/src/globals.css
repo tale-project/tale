@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
 /* Inter webfont bundled locally (GDPR + air-gapped: no Google Fonts CDN). The
    @fontsource `@font-face` rules + woff2 files are loaded from `./fonts.ts` as a

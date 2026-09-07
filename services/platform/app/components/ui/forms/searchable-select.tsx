@@ -439,31 +439,29 @@ function SearchableSelectBase({
         // Radix's documented "tooltip on a popover trigger" composition: both
         // `asChild` triggers collapse onto the same node, so the popover opens
         // on click while the tooltip shows on hover/focus.
-        <TooltipPrimitive.Provider delayDuration={300}>
-          <TooltipPrimitive.Root
-            // Controlled so the tooltip is forced shut while the popover is
-            // open and during the focus-restore that follows its close.
-            open={tooltipOpen && !isOpen}
-            onOpenChange={(next) => {
-              if (next && suppressTooltipRef.current) {
-                suppressTooltipRef.current = false;
-                return;
-              }
-              setTooltipOpen(next);
-            }}
-          >
-            <TooltipPrimitive.Trigger asChild>
-              {popoverTrigger}
-            </TooltipPrimitive.Trigger>
-            <TooltipPrimitive.Portal>
-              {/* collisionPadding keeps the tooltip off the viewport edge so it
-                  can't visually overlap adjacent controls in dense toolbars. */}
-              <TooltipContent side={tooltipSide} collisionPadding={8}>
-                {tooltip}
-              </TooltipContent>
-            </TooltipPrimitive.Portal>
-          </TooltipPrimitive.Root>
-        </TooltipPrimitive.Provider>
+        <TooltipPrimitive.Root
+          // Controlled so the tooltip is forced shut while the popover is
+          // open and during the focus-restore that follows its close.
+          open={tooltipOpen && !isOpen}
+          onOpenChange={(next) => {
+            if (next && suppressTooltipRef.current) {
+              suppressTooltipRef.current = false;
+              return;
+            }
+            setTooltipOpen(next);
+          }}
+        >
+          <TooltipPrimitive.Trigger asChild>
+            {popoverTrigger}
+          </TooltipPrimitive.Trigger>
+          <TooltipPrimitive.Portal>
+            {/* collisionPadding keeps the tooltip off the viewport edge so it
+                can't visually overlap adjacent controls in dense toolbars. */}
+            <TooltipContent side={tooltipSide} collisionPadding={8}>
+              {tooltip}
+            </TooltipContent>
+          </TooltipPrimitive.Portal>
+        </TooltipPrimitive.Root>
       ) : (
         popoverTrigger
       )}
@@ -710,7 +708,7 @@ function SearchableSelectOptionItem({
       onClick={() => !option.disabled && onSelect(option.value)}
       onMouseEnter={() => onMouseEnter(index)}
       className={cn(
-        'group/option relative flex w-full cursor-default gap-2 text-left text-sm transition-colors',
+        'group/option relative flex w-full cursor-default gap-2 text-left text-sm',
         isSwitcher
           ? 'border-border rounded-none border-b px-3 py-2 last:border-b-0'
           : 'rounded-md p-2',
@@ -738,7 +736,7 @@ function SearchableSelectOptionItem({
         >
           <span
             className={cn(
-              'border-border bg-background flex size-4 items-center justify-center rounded-full border transition-colors duration-150',
+              'border-border bg-background flex size-4 items-center justify-center rounded-full border',
               isSelected && 'border-blue-600',
             )}
           >
@@ -797,20 +795,18 @@ function SearchableSelectOptionItem({
   // `align="start"` anchors it to the row top so long descriptions don't
   // float into the row above.
   return (
-    <TooltipPrimitive.Provider delayDuration={250}>
-      <TooltipPrimitive.Root>
-        <TooltipPrimitive.Trigger asChild>{row}</TooltipPrimitive.Trigger>
-        <TooltipPrimitive.Portal>
-          <TooltipContent
-            side="right"
-            align="start"
-            collisionPadding={8}
-            className="max-w-xs text-xs leading-relaxed"
-          >
-            {tooltipContent}
-          </TooltipContent>
-        </TooltipPrimitive.Portal>
-      </TooltipPrimitive.Root>
-    </TooltipPrimitive.Provider>
+    <TooltipPrimitive.Root delayDuration={250}>
+      <TooltipPrimitive.Trigger asChild>{row}</TooltipPrimitive.Trigger>
+      <TooltipPrimitive.Portal>
+        <TooltipContent
+          side="right"
+          align="start"
+          collisionPadding={8}
+          className="max-w-xs text-xs leading-relaxed"
+        >
+          {tooltipContent}
+        </TooltipContent>
+      </TooltipPrimitive.Portal>
+    </TooltipPrimitive.Root>
   );
 }

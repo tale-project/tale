@@ -80,7 +80,9 @@ const CopyableFieldBase = React.memo(function CopyableFieldBase({
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
       {label && <Label id={labelId}>{label}</Label>}
-      <TooltipPrimitive.Provider delayDuration={300} disableHoverableContent>
+      {/* Nested Provider only for disableHoverableContent — a single tip, so
+          skip-delay across the app is unaffected. */}
+      <TooltipPrimitive.Provider delayDuration={200} disableHoverableContent>
         {/* Uncontrolled on purpose: gating happens by withholding the CONTENT
           below — flipping Radix between controlled and uncontrolled on the
           first hover leaves it stuck closed. */}

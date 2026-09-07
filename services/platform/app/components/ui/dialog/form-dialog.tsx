@@ -172,7 +172,11 @@ export function FormDialog({
       >
         {cancelText ?? tCommon('actions.cancel')}
       </Button>
-      <Button type="submit" disabled={isSubmitting || !isDirty || !isValid}>
+      <Button
+        type="submit"
+        disabled={isSubmitting || !isDirty || !isValid}
+        isLoading={isSubmitting}
+      >
         {isSubmitting
           ? (submittingText ?? tCommon('actions.saving'))
           : (submitText ?? tCommon('actions.save'))}

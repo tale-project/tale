@@ -137,6 +137,7 @@ export function ConfirmDialog({
           onConfirm();
         }}
         disabled={isLoading || disableConfirm || !phraseSatisfied}
+        isLoading={isLoading}
         className={cn(confirmButtonVariants({ variant }))}
       >
         {isLoading

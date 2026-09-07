@@ -11,7 +11,7 @@ import { hasDisabledReason } from '../overlays/disabled-reason';
 import { TooltipContent } from '../overlays/tooltip';
 
 export const buttonVariants = cva(
-  'focus-visible:ring-ring ring-offset-background inline-flex cursor-pointer items-center justify-center rounded-lg text-sm leading-none font-medium whitespace-nowrap transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none active:scale-[0.97] active:duration-75 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:opacity-50 disabled:active:scale-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:opacity-50 aria-disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100',
+  'focus-visible:ring-ring ring-offset-background inline-flex cursor-pointer items-center justify-center rounded-lg text-sm leading-none font-medium whitespace-nowrap transition-all duration-[var(--duration-short)] focus-visible:ring-1 focus-visible:outline-none active:scale-[var(--scale-pressed)] active:duration-[var(--duration-micro)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:opacity-50 disabled:active:scale-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:opacity-50 aria-disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100',
   {
     variants: {
       // One height fits all (`h-9`), with a single smaller variant (`h-8`) for
@@ -312,17 +312,15 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       tip == null || props.asChild ? (
         base
       ) : (
-        <TooltipPrimitive.Provider delayDuration={300}>
-          <TooltipPrimitive.Root
-            open={tooltipOpen}
-            onOpenChange={onTooltipOpenChange}
-          >
-            <TooltipPrimitive.Trigger asChild>{base}</TooltipPrimitive.Trigger>
-            <TooltipPrimitive.Portal>
-              <TooltipContent side={tooltipSide}>{tip}</TooltipContent>
-            </TooltipPrimitive.Portal>
-          </TooltipPrimitive.Root>
-        </TooltipPrimitive.Provider>
+        <TooltipPrimitive.Root
+          open={tooltipOpen}
+          onOpenChange={onTooltipOpenChange}
+        >
+          <TooltipPrimitive.Trigger asChild>{base}</TooltipPrimitive.Trigger>
+          <TooltipPrimitive.Portal>
+            <TooltipContent side={tooltipSide}>{tip}</TooltipContent>
+          </TooltipPrimitive.Portal>
+        </TooltipPrimitive.Root>
       );
     return <SkeletonBox fullWidth={props.fullWidth}>{withTooltip}</SkeletonBox>;
   },

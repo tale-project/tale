@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { TooltipProvider } from '@tale/ui/tooltip';
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
@@ -34,9 +35,11 @@ describe('Tooltip', () => {
       'Runs in a sandbox on the harness chosen when the agent was created, pre-equipped with its skills, connectors, and instructions.';
 
     render(
-      <Tooltip content={longCopy} open onOpenChange={() => {}}>
-        <button type="button">Info</button>
-      </Tooltip>,
+      <TooltipProvider>
+        <Tooltip content={longCopy} open onOpenChange={() => {}}>
+          <button type="button">Info</button>
+        </Tooltip>
+      </TooltipProvider>,
     );
 
     const content = document.querySelector(

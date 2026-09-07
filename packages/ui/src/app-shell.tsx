@@ -7,6 +7,11 @@ import type { ReactNode } from 'react';
 import { I18nextProvider } from 'react-i18next';
 
 import './fonts';
+import {
+  TooltipProvider,
+  TOOLTIP_DELAY_MS,
+  TOOLTIP_SKIP_DELAY_MS,
+} from './components/overlays/tooltip';
 import { type Theme, ThemeProvider } from './theme';
 
 interface ClientLocaleConfig {
@@ -70,8 +75,8 @@ function ClientLocaleBridge() {
  * Standardized provider shell every Tale frontend service uses. Owns the
  * cross-cutting theme + locale + i18n stack in the order that matters:
  *
- *   `<ThemeProvider>` → `<LocaleProvider>` → `<I18nextProvider>`
- *     → `<LocaleSync>` → children
+ *   `<ThemeProvider>` → `<TooltipProvider>` → `<LocaleProvider>` →
+ *     `<I18nextProvider>` → `<LocaleSync>` → children
  *
  * The ordering inside the i18n+locale block is load-bearing:
  * `<I18nextProvider>` contains a bridge that reads `useLocale()`, so
@@ -114,6 +119,17 @@ export function AppShell({ i18n, locale, theme, children }: AppShellProps) {
       </LocaleProvider>
     );
   }
+
+  // One provider for the whole tree so skip-delay works across toolbars.
+  // Nested per-tip Providers reset the skip timer — do not reintroduce them.
+  tree = (
+    <TooltipProvider
+      delayDuration={TOOLTIP_DELAY_MS}
+      skipDelayDuration={TOOLTIP_SKIP_DELAY_MS}
+    >
+      {tree}
+    </TooltipProvider>
+  );
 
   if (theme) {
     const themeConfig = theme === true ? undefined : theme;
