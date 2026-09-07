@@ -620,7 +620,7 @@ function TemplateCreateBody({
                 attribute — one action row beside Cancel. (In the auto-height
                 create dialog this row scrolls with the page; only the
                 fixed-height edit dialog truly pins its footer.) */}
-            <Button type="submit" form={SETUP_FORM_ID} disabled={setupSaving}>
+            <Button type="submit" form={SETUP_FORM_ID} isLoading={setupSaving}>
               {tAutomations('settings.saveAndContinue')}
             </Button>
           </Row>
@@ -667,7 +667,8 @@ function TemplateCreateBody({
             {cancelButton}
             <Button
               onClick={() => void submit()}
-              disabled={submitting || !nameOk}
+              disabled={!nameOk}
+              isLoading={submitting}
             >
               {t('actions.create')}
             </Button>
@@ -945,7 +946,8 @@ function CreateTaskBody({
             </Button>
             <Button
               onClick={() => void submit()}
-              disabled={submitting || title.trim().length === 0}
+              disabled={title.trim().length === 0}
+              isLoading={submitting}
             >
               {t('actions.create')}
             </Button>

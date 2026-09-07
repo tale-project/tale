@@ -128,7 +128,7 @@ export interface MultiSelectProps {
 }
 
 const CONTENT_CLASSES =
-  'z-50 min-w-[14.5rem] rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none p-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2';
+  'z-50 min-w-[14.5rem] rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none p-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[var(--radix-popover-content-transform-origin)] duration-[var(--duration-short)] motion-reduce:animate-none';
 
 function defaultFilterFn(option: MultiSelectOption, query: string) {
   const lower = query.toLowerCase();
@@ -621,7 +621,7 @@ function MultiSelectOptionItem({
       onClick={() => !option.disabled && onToggle(option.value)}
       onMouseEnter={() => onMouseEnter(index)}
       className={cn(
-        'group/option flex w-full cursor-default gap-2 rounded-md p-2 text-left text-sm transition-colors',
+        'group/option flex w-full cursor-default gap-2 rounded-md p-2 text-left text-sm',
         showDescription ? 'items-start' : 'items-center',
         isHighlighted && 'bg-accent',
         option.disabled && 'pointer-events-none opacity-50',

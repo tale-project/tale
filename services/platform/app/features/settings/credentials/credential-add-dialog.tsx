@@ -208,7 +208,8 @@ export function CredentialAddDialog<
             <Button
               type="submit"
               form={formId}
-              disabled={create.isPending || !isValid}
+              disabled={!isValid}
+              isLoading={create.isPending}
             >
               {create.isPending
                 ? tCommon('actions.saving')

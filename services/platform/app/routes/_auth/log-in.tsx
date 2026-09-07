@@ -540,7 +540,12 @@ export function LogInPage() {
               </div>
             )}
 
-            <Button type="submit" fullWidth disabled={isSubmitting || !isValid}>
+            <Button
+              type="submit"
+              fullWidth
+              disabled={!isValid}
+              isLoading={isSubmitting}
+            >
               {isSubmitting ? t('login.signingIn') : t('login.loginButton')}
             </Button>
           </Form>

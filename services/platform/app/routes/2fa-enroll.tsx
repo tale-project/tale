@@ -195,7 +195,11 @@ export function TwoFactorEnrollPage() {
                     errorMessage={error ?? undefined}
                     disabled={submitting}
                   />
-                  <Button type="submit" disabled={!password || submitting}>
+                  <Button
+                    type="submit"
+                    disabled={!password}
+                    isLoading={submitting}
+                  >
                     {t('enrollment.enableButton')}
                   </Button>
                 </Stack>
@@ -255,7 +259,8 @@ export function TwoFactorEnrollPage() {
                 />
                 <Button
                   type="submit"
-                  disabled={!/^\d{6}$/.test(code) || submitting}
+                  disabled={!/^\d{6}$/.test(code)}
+                  isLoading={submitting}
                 >
                   {t('setup.verifyButton')}
                 </Button>

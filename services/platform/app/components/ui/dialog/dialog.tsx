@@ -29,7 +29,7 @@ const dialogContentVariants = cva(
   // while the middle section scrolls. `overflow-hidden` + `min-h-0` make
   // `max-h` win: without them a flex item's `min-height: auto` grows the
   // shell past the viewport, and `top-1/2 -translate-y-1/2` clips both ends.
-  'ring-border bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed z-50 flex min-h-0 flex-col gap-4 overflow-hidden border-none shadow-lg ring-1 duration-200 motion-reduce:animate-none ' +
+  'ring-border bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed z-50 flex min-h-0 flex-col gap-4 overflow-hidden border-none shadow-lg ring-1 duration-[var(--duration-standard)] motion-reduce:animate-none ' +
     // Mobile: bottom sheet
     'data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 inset-x-0 top-auto right-0 bottom-0 left-0 max-h-[88dvh] w-full max-w-full rounded-t-2xl rounded-b-none p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] ' +
     // md+: centered dialog. `md:left-1/2 md:right-auto` is the correct
@@ -199,7 +199,7 @@ export function Dialog({
         <DialogDepthContext.Provider value={parentDepth + 1}>
           {!isNested && (
             <DialogPrimitive.Overlay
-              className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80"
+              className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80 duration-[var(--duration-short)] motion-reduce:animate-none"
               onClick={(e) => e.stopPropagation()}
             />
           )}

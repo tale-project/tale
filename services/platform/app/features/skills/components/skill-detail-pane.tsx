@@ -235,7 +235,8 @@ export function SkillDetailPane({
           {canEdit && (
             <Button
               onClick={() => void save()}
-              disabled={!dirty || teamsMissing || saveSkill.isPending}
+              disabled={!dirty || teamsMissing}
+              isLoading={saveSkill.isPending}
             >
               {saveSkill.isPending
                 ? tCommon('actions.saving')
