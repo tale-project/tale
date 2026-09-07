@@ -51,12 +51,12 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
                 // Requeue first: completing a `retryLimit: 0` job without a
                 // successor would drop it. `startAfter` lets the live colour
                 // take it once this worker is gone.
-                await options.boss.send(
-                  name,
-                  // pg-boss send rejects `unknown`; every task payload is a JSON object.
-                  job.data as Record<string, unknown>,
-                  { startAfter: 5 },
-                );
+                if (typeof job.data !== 'object') {
+                  throw new Error(
+                    `task ${name} (job ${job.id}) payload is not an object`,
+                  );
+                }
+                await options.boss.send(name, job.data, { startAfter: 5 });
                 return { id: job.id, status: 'completed' };
               }
               await handler(job.data);
