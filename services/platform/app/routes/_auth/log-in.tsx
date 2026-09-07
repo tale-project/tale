@@ -546,7 +546,7 @@ export function LogInPage() {
               disabled={!isValid}
               isLoading={isSubmitting}
             >
-              {isSubmitting ? t('login.signingIn') : t('login.loginButton')}
+              {t('login.loginButton')}
             </Button>
           </Form>
         </FormSection>

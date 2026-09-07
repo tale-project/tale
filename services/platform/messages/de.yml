@@ -345,7 +345,6 @@ auth:
   passwordPlaceholder: Gib Dein Passwort ein
   login:
     loginTitle: Anmelden
-    signingIn: Anmeldung läuft...
     loginButton: Anmelden
     continueWithSso: Weiter mit SSO
     ssoTitle: Mit SSO anmelden
@@ -885,7 +884,7 @@ automations:
       newFolderFailed: Der Ordner konnte nicht erstellt werden — versuch es nochmal.
       uploading: Lädt hoch…
       uploaded: '{count} Datei(en) hochgeladen.'
-      uploadFailed: Hochladen fehlgeschlagen — versuch es nochmal.
+      uploadFailed: Datei konnte nicht hochgeladen werden — versuch es nochmal.
       wrongType: 'Nur diese Dateitypen sind erlaubt: {types}'
       wrongName: Der Dateiname passt nicht zum erwarteten Muster dieses Formulars.
       tooLarge: Die Datei überschreitet das Limit von {max} MB.
@@ -1085,7 +1084,7 @@ chat:
   fileTypeUnsupported: '{names}: Dateityp nicht unterstützt.'
   fileUploaded: Datei hochgeladen
   uploadedSuccessfully: '{filename} hochgeladen'
-  uploadFailed: Upload fehlgeschlagen
+  uploadFailed: Datei konnte nicht hochgeladen werden
   failedToUpload: '{filename} konnte nicht hochgeladen werden'
   tooManyFiles: Zu viele Dateien
   tooManyFilesDescription:
@@ -1414,7 +1413,7 @@ chat:
     gefunden. Es wurde möglicherweise umbenannt oder entfernt.
   errorHintRateLimitedNamed: Ratenlimit bei {provider} erreicht. Warte einen Moment und versuch es erneut.
 
-  errorGenerating: Etwas ist schiefgelaufen
+  errorGenerating: Antwort konnte nicht erzeugt werden. Versuch es erneut.
   errorTriedModels: '{count} Modelle wurden vor dem Abbruch versucht.'
   errorDetailsSummary: Technische Details
   retryGeneration: Erneut versuchen
@@ -1659,7 +1658,7 @@ common:
   errors:
     generic: Etwas ist schiefgelaufen — versuch es erneut, oder lade die Seite neu, wenn das Problem bleibt.
     failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
-    somethingWentWrong: Etwas ist schiefgelaufen
+    somethingWentWrong: Etwas ist schiefgelaufen. Versuch es erneut.
     errorLoadingPage: Beim Laden dieser Seite ist etwas schiefgelaufen. Versuch es erneut oder wechsle zu einem anderen Bereich.
     persistsProblem: Wenn das immer wieder passiert,
     contactSupport: kontaktiere den Support
@@ -2269,7 +2268,7 @@ documents:
     fileSizeExceeded: 'Datei {name} überschreitet das Limit von {maxSize} MB.
       Aktuelle Größe: {currentSize} MB'
     uploadCancelled: Upload abgebrochen
-    uploadFailed: Upload fehlgeschlagen
+    uploadFailed: Datei konnte nicht hochgeladen werden
     uploadFailedRetry: Upload fehlgeschlagen. Prüfe deine Verbindung und versuch es erneut.
     quotaExceeded: Speicherkontingent voll — {used} von {limit} belegt. Lösche
       Dateien, um Platz zu schaffen (fehlgeschlagene Uploads zählen mit).
@@ -7023,12 +7022,14 @@ websites:
   pagesDialog:
     title: Website-Seiten
     noPages: Noch keine Seiten gecrawlt
+    noPagesDescription: Starte einen Scan für diese Website — gecrawlte Seiten erscheinen hier.
     loadMore: Mehr laden
     wordCount: '{count} Wörter'
     chunks: '{count} Chunks'
     lastCrawled: Gecrawlt am {date}
     searchPlaceholder: Website-Inhalt durchsuchen
     noSearchResults: Keine Ergebnisse gefunden
+    noSearchResultsDescription: Versuch einen anderen Begriff, oder leere die Suche, um alle Seiten zu sehen.
     noChunks: Keine Chunks für diese Seite indexiert
     chunkIndex: Chunk {index}
   filter:
@@ -7414,6 +7415,7 @@ webdav:
   list:
     title: App-Passwörter
     empty: Noch keine App-Passwörter.
+    emptyDescription: Erzeuge unten ein App-Passwort, um Tale-Dokumente als Netzlaufwerk einzubinden.
     label: Label
     prefix: Präfix
     lastUsed: Zuletzt genutzt

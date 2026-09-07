@@ -211,9 +211,7 @@ export function CredentialAddDialog<
               disabled={!isValid}
               isLoading={create.isPending}
             >
-              {create.isPending
-                ? tCommon('actions.saving')
-                : t('credentials.create')}
+              {t('credentials.create')}
             </Button>
           </>
         ) : undefined

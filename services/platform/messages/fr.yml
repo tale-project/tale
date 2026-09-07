@@ -347,7 +347,6 @@ auth:
   passwordPlaceholder: Entre ton mot de passe
   login:
     loginTitle: Connexion
-    signingIn: Connexion en cours...
     loginButton: Se connecter
     continueWithSso: Continuer avec SSO
     ssoTitle: Se connecter avec SSO
@@ -1422,7 +1421,7 @@ chat:
     {provider}. Il a peut-être été renommé ou supprimé.
   errorHintRateLimitedNamed: Limite de débit atteinte chez {provider}. Patiente un moment, puis réessaie.
 
-  errorGenerating: "Une erreur s'est produite"
+  errorGenerating: Impossible de générer une réponse. Réessaie.
   errorTriedModels: "{count} modèles ont été essayés avant d'abandonner."
   errorDetailsSummary: Détails techniques
   retryGeneration: Réessayer
@@ -1668,7 +1667,7 @@ common:
   errors:
     generic: Une erreur s'est produite — réessaie, ou recharge la page si le problème persiste.
     failedToCopy: Échec de la copie dans le presse-papiers
-    somethingWentWrong: Une erreur s'est produite
+    somethingWentWrong: Une erreur s'est produite. Réessaie.
     errorLoadingPage:
       Une erreur s'est produite lors du chargement de cette page. Tu
       peux réessayer ou naviguer vers une autre section.
@@ -1861,8 +1860,8 @@ conversations:
     autoAssignSettings: Assignation auto
   editor:
     noContent: Aucun contenu à améliorer
-    improveFailed: Échec de l'amélioration du contenu. Merci de réessayer.
-    sendFailed: Échec de l'envoi du message. Merci de réessayer.
+    improveFailed: Impossible d'améliorer le contenu. Réessaie.
+    sendFailed: Impossible d'envoyer le message. Réessaie.
     backToEditor: Retour à l'éditeur
     improving: Amélioration...
     improveWithAi: Améliorer avec l'IA
@@ -1875,7 +1874,7 @@ conversations:
     unavailable: Plus disponible
     attachments: '{count, plural, one {# pièce jointe} other {# pièces jointes}}'
   panel:
-    uploadFailed: Échec du téléversement des pièces jointes. Merci de réessayer.
+    uploadFailed: Impossible de téléverser les pièces jointes. Réessaie.
     noSelected: Aucune conversation sélectionnée
     selectToView: Sélectionne une conversation pour voir les détails
     notFound: Conversation introuvable
@@ -2241,7 +2240,7 @@ documents:
       Télécharge le fichier pour consulter son contenu.
     truncatedNotice:
       Ce fichier est trop volumineux pour un aperçu complet — seul le
-      début est affiché. Merci de télécharger le fichier pour tout consulter.
+      début est affiché. Télécharge le fichier pour tout consulter.
     download: Télécharger
     document: Document
     title: Aperçu du document
@@ -6941,10 +6940,10 @@ toast:
     imageTypeInvalid: Type d'image invalide
     addMemberFailed:
       title: Impossible d'ajouter le membre
-      description: Une erreur s'est produite. Merci de réessayer.
+      description: Une erreur s'est produite. Réessaie.
     generic:
       title: Une erreur s'est produite
-      description: Merci de réessayer.
+      description: Réessaie.
 twoFactor:
   enrollment:
     title: Authentification à double facteur
@@ -7025,8 +7024,8 @@ twoFactor:
     useAuthenticatorToggle: Utiliser l'application d'authentification à la place
     backupCodeLabel: Code de secours
     submitButton: Vérifier
-    invalid: Code invalide ou expiré. Merci de réessayer.
-    tooManyAttempts: Trop de tentatives échouées. Merci de réessayer plus tard.
+    invalid: Code invalide ou expiré. Réessaie.
+    tooManyAttempts: Trop de tentatives échouées. Réessaie plus tard.
     success: Connecté avec succès
     backupCodeSuccess: Code de secours utilisé. Pense à régénérer tes codes de
       secours dans les Paramètres.
@@ -7068,11 +7067,10 @@ twoFactor:
         multiDevice: Passkey synchronisé
   errors:
     enableFailed:
-      Échec du démarrage de la configuration du double facteur. Merci de
-      réessayer.
+      Impossible de démarrer la configuration du double facteur. Réessaie.
     disableFailed: Échec de la désactivation de l'authentification à double facteur.
     regenerateFailed: Échec de la génération de nouveaux codes de secours.
-    invalidCode: Code invalide ou expiré. Merci de réessayer.
+    invalidCode: Code invalide ou expiré. Réessaie.
 websites:
   title: Sites web
   entityLabelOne: site web
@@ -7142,12 +7140,14 @@ websites:
   pagesDialog:
     title: Pages du site web
     noPages: Aucune page explorée pour le moment
+    noPagesDescription: Lance un scan de ce site — les pages explorées apparaissent ici.
     loadMore: Charger plus
     wordCount: '{count} mots'
     chunks: '{count} fragments'
     lastCrawled: Exploré le {date}
     searchPlaceholder: Rechercher dans le contenu du site web
     noSearchResults: Aucun résultat trouvé
+    noSearchResultsDescription: Essaie un autre terme, ou efface la recherche pour parcourir toutes les pages.
     noChunks: Aucun fragment indexé pour cette page
     chunkIndex: Fragment {index}
   filter:
@@ -7524,6 +7524,7 @@ webdav:
   list:
     title: Mots de passe applicatifs
     empty: Aucun mot de passe applicatif pour l'instant.
+    emptyDescription: Génère un mot de passe applicatif ci-dessous pour monter les documents Tale comme lecteur réseau.
     label: Libellé
     prefix: Préfixe
     lastUsed: Dernière utilisation

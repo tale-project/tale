@@ -332,7 +332,6 @@ auth:
   passwordPlaceholder: Enter your password
   login:
     loginTitle: Log in
-    signingIn: Signing in...
     loginButton: Log in
     continueWithSso: Continue with SSO
     ssoTitle: Sign in with SSO
@@ -851,7 +850,7 @@ automations:
       newFolderFailed: Couldn't create the folder — try again.
       uploading: Uploading…
       uploaded: '{count} file(s) uploaded.'
-      uploadFailed: Upload failed — try again.
+      uploadFailed: Couldn't upload the file — try again.
       wrongType: 'Only these file types are accepted: {types}'
       wrongName: The file name doesn't match the expected pattern for this form.
       tooLarge: File exceeds the {max} MB limit.
@@ -1050,7 +1049,7 @@ chat:
   fileTypeUnsupported: '{names}: file type not supported.'
   fileUploaded: File uploaded
   uploadedSuccessfully: '{filename} uploaded'
-  uploadFailed: Upload failed
+  uploadFailed: Couldn't upload the file
   failedToUpload: Couldn't upload {filename}
   tooManyFiles: Too many files
   tooManyFilesDescription: You can attach up to {max} files per message.
@@ -1122,7 +1121,7 @@ chat:
       memberOnly: Members-only video
       jsRuntimeMissing: Video processing isn't fully configured — contact your administrator
       binaryNotInstalled: Video processing is not enabled yet — contact your administrator
-      retryCooldown: This video was just rate-limited — please wait a few minutes before retrying
+      retryCooldown: This video was just rate-limited — wait a few minutes before retrying
       timeout: Took too long to fetch — try again
       outputValidationFailed: Couldn't validate the downloaded video file
       videoTooLong: Video exceeds the 4h length limit
@@ -1371,7 +1370,7 @@ chat:
     may have been renamed or removed.
   errorHintRateLimitedNamed: Rate limit reached on {provider}. Wait a moment and try again.
 
-  errorGenerating: Something went wrong
+  errorGenerating: Couldn't generate a reply. Try again.
   errorTriedModels: 'Tried {count} models before giving up.'
   errorDetailsSummary: Technical details
   retryGeneration: Try again
@@ -1614,7 +1613,7 @@ common:
   errors:
     generic: Something went wrong — try again, or reload the page if it keeps happening.
     failedToCopy: Couldn't copy to clipboard
-    somethingWentWrong: Something went wrong
+    somethingWentWrong: Something went wrong. Try again.
     errorLoadingPage: Something went wrong while loading this page. Try again or go to another section.
     persistsProblem: If this keeps happening,
     contactSupport: contact support
@@ -1910,7 +1909,7 @@ contacts:
     errorCodes:
       duplicate_email: A contact with this email already exists
       duplicate_external_id: A contact with this external ID already exists
-      unknown: Something went wrong
+      unknown: Couldn't finish that import. Try again.
   deleteConfirmation: Delete {name}?
   deleteError: Couldn't delete contact
   deleteWarning: This can't be undone.
@@ -2195,7 +2194,7 @@ documents:
     fileTooLarge: File too large
     fileSizeExceeded: 'File {name} exceeds {maxSize}MB limit. Current size: {currentSize}MB'
     uploadCancelled: Upload cancelled
-    uploadFailed: Upload failed
+    uploadFailed: Couldn't upload the file
     uploadFailedRetry: Upload failed. Check your connection and try again.
     quotaExceeded:
       Storage quota full — {used} of {limit} used. Delete files to free
@@ -2345,7 +2344,7 @@ documents:
       indexingQueued: Indexing queued
       retryFailed: Retry failed
       retryFailedDescription: Couldn't retry RAG indexing
-      unexpectedError: Something went wrong
+      unexpectedError: Couldn't finish that action. Try again.
     dialog:
       indexed:
         title: Document indexed
@@ -3524,7 +3523,7 @@ governance:
       daysHours: '{days}d {hours}h'
     errors:
       generic:
-        title: Something went wrong
+        title: Couldn't finish that action
         description: Try again. If it keeps happening, contact your administrator.
       unauthenticated: Sign in required.
       forbidden: You don't have permission to do this.
@@ -3781,7 +3780,7 @@ governance:
         for the audit trail.
     errors:
       generic:
-        title: Something went wrong
+        title: Couldn't finish that action
         description: Try again. If it keeps happening, contact your administrator.
       unauthenticated: Sign in required.
       forbidden: You don't have permission to do this.
@@ -4516,7 +4515,7 @@ products:
       currency, category, status'
     draftStatusNote: Imported products are created with 'draft' status by default.
     errorCodes:
-      unknown: Something went wrong
+      unknown: Couldn't finish that import. Try again.
   actions:
     deleteFailed: Couldn't delete product
     deleteSuccess: Product deleted successfully
@@ -6556,7 +6555,7 @@ tasks:
     untitled: Untitled
     uploading: Uploading…
     dropHint: Drop files here, or click to browse
-    uploadFailed: The upload failed — try again.
+    uploadFailed: Couldn't finish the upload — try again.
     remove: 'Delete {name}'
     removeTitle: Delete this file?
     removeDescription: This deletes "{name}" from the project permanently — it can't be undone.
@@ -6896,9 +6895,9 @@ toast:
     imageTypeInvalid: Invalid image type
     addMemberFailed:
       title: Couldn't add member
-      description: Something went wrong. Try again.
+      description: Couldn't finish that action. Try again.
     generic:
-      title: Something went wrong
+      title: Couldn't finish that action
       description: Try again.
 twoFactor:
   enrollment:
@@ -7084,12 +7083,14 @@ websites:
   pagesDialog:
     title: Website pages
     noPages: No pages crawled yet
+    noPagesDescription: Start a scan on this website, then come back — crawled pages show up here.
     loadMore: Load more
     wordCount: '{count} words'
     chunks: '{count} chunks'
     lastCrawled: Crawled {date}
     searchPlaceholder: Search website content
     noSearchResults: No results found
+    noSearchResultsDescription: Try another term, or clear the search to browse all pages.
     noChunks: No chunks indexed for this page
     chunkIndex: Chunk {index}
   filter:
@@ -7138,6 +7139,7 @@ webdav:
   list:
     title: App-passwords
     empty: No app-passwords yet.
+    emptyDescription: Generate an app-password below to mount Tale documents as a network drive.
     label: Label
     prefix: Prefix
     lastUsed: Last used

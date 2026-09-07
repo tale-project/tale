@@ -238,9 +238,7 @@ export function SkillDetailPane({
               disabled={!dirty || teamsMissing}
               isLoading={saveSkill.isPending}
             >
-              {saveSkill.isPending
-                ? tCommon('actions.saving')
-                : tCommon('actions.save')}
+              {tCommon('actions.save')}
             </Button>
           )}
         </Row>

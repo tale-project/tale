@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Description } from '@tale/ui/description';
-import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
+import { EmptyState } from '@tale/ui/empty-state';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { SelectableRow } from '@tale/ui/selectable-row';
@@ -177,9 +177,11 @@ export function OneDriveSettingsStage({
               <Spinner size="sm" label={tCommon('actions.loading')} />
             </Row>
           ) : !teams || teams.length === 0 ? (
-            <EmptyPlaceholder icon={Users}>
-              {t('upload.noTeamsAvailable')}
-            </EmptyPlaceholder>
+            <EmptyState
+              icon={Users}
+              title={t('upload.noTeamsAvailable')}
+              className="rounded-lg border border-dashed py-8"
+            />
           ) : (
             <Select
               value={selectedTeamId ?? ORG_WIDE_TEAM}

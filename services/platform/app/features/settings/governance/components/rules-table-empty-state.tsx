@@ -1,3 +1,4 @@
+import { EmptyState } from '@tale/ui/empty-state';
 import type { LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils/cn';
@@ -11,31 +12,21 @@ interface RulesTableEmptyStateProps {
 
 /**
  * Centred empty-state rendered inside a rules table's bordered container.
- * Mirrors the `a7Q0S` frame in the Pencil governance designs: icon, title,
- * and optional description stacked vertically with ~40px vertical padding.
+ * Same EmptyState vocabulary as the rest of the product, with tighter padding
+ * for table chrome (matches governance Pencil frames).
  */
 export function RulesTableEmptyState({
-  icon: Icon,
+  icon,
   title,
   description,
   className,
 }: RulesTableEmptyStateProps) {
   return (
-    <div
-      className={cn(
-        'flex flex-col items-center justify-center px-5 py-10 text-center',
-        className,
-      )}
-    >
-      {Icon && <Icon className="text-muted-foreground mb-4 size-8" />}
-      <p className="text-foreground text-sm font-medium">{title}</p>
-      {description && (
-        // `min-h-10` reserves two text-sm lines, matching the shared
-        // `EmptyState` so short and long descriptions align in height.
-        <p className="text-muted-foreground mt-1 min-h-10 text-sm">
-          {description}
-        </p>
-      )}
-    </div>
+    <EmptyState
+      icon={icon}
+      title={title}
+      description={description}
+      className={cn('px-5 py-10', className)}
+    />
   );
 }

@@ -169,9 +169,7 @@ function TwoFactorVerifyPage() {
 
           <Stack gap={3} className="pt-2">
             <Button type="submit" disabled={!canSubmit} isLoading={submitting}>
-              {submitting
-                ? t('verify.submitButton') + '…'
-                : t('verify.submitButton')}
+              {t('verify.submitButton')}
             </Button>
             <Button
               type="button"

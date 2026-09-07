@@ -194,11 +194,7 @@ export function EditorActions({
         isLoading={controller.isSaving}
         aria-busy={controller.isSaving ? 'true' : undefined}
       >
-        {controller.isSaving
-          ? t('actions.saving')
-          : flashSaved
-            ? t('actions.saved')
-            : t('actions.save')}
+        {flashSaved ? t('actions.saved') : t('actions.save')}
       </Button>
     </div>
   );

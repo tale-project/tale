@@ -26,7 +26,7 @@ export interface FormDialogProps {
   cancelText?: string;
   /** Text for the submit button (defaults to common.actions.save) */
   submitText?: string;
-  /** Text shown when submitting (defaults to common.actions.saving) */
+  /** @deprecated Ignored — `isLoading` spinner carries submit state; label stays `submitText`. */
   submittingText?: string;
   /** Whether the form is being submitted */
   isSubmitting?: boolean;
@@ -73,7 +73,7 @@ export function FormDialog({
   children,
   cancelText,
   submitText,
-  submittingText,
+  submittingText: _submittingText,
   isSubmitting = false,
   isDirty = true,
   isValid = true,
@@ -177,9 +177,7 @@ export function FormDialog({
         disabled={isSubmitting || !isDirty || !isValid}
         isLoading={isSubmitting}
       >
-        {isSubmitting
-          ? (submittingText ?? tCommon('actions.saving'))
-          : (submitText ?? tCommon('actions.save'))}
+        {submitText ?? tCommon('actions.save')}
       </Button>
     </>
   );

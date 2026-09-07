@@ -461,6 +461,7 @@ export function ViewWebsiteDialog({
               <EmptyState
                 icon={SearchIcon}
                 title={t('pagesDialog.noSearchResults')}
+                description={t('pagesDialog.noSearchResultsDescription')}
               />
             )}
 
@@ -474,7 +475,11 @@ export function ViewWebsiteDialog({
         ) : (
           <>
             {!isFirstLoad && pages.length === 0 && (
-              <EmptyState icon={FileText} title={t('pagesDialog.noPages')} />
+              <EmptyState
+                icon={FileText}
+                title={t('pagesDialog.noPages')}
+                description={t('pagesDialog.noPagesDescription')}
+              />
             )}
 
             <Skeletonize loading={isFirstLoad && isPending}>

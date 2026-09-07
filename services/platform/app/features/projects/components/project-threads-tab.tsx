@@ -8,7 +8,7 @@
  */
 
 import { Button } from '@tale/ui/button';
-import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
+import { EmptyState } from '@tale/ui/empty-state';
 import { HStack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
@@ -87,9 +87,11 @@ export function ProjectThreadsTab({
 
       <FormSection>
         {mine.length === 0 ? (
-          <EmptyPlaceholder icon={MessageSquare}>
-            {t('threads.emptyYours')}
-          </EmptyPlaceholder>
+          <EmptyState
+            icon={MessageSquare}
+            title={t('threads.emptyYours')}
+            className="rounded-lg border border-dashed py-8"
+          />
         ) : (
           <div className="flex flex-col gap-3">
             <Text variant="muted" className="text-sm">
@@ -137,9 +139,11 @@ export function ProjectThreadsTab({
         className="mt-8 border-t pt-8"
       >
         {sharedThreads.length === 0 ? (
-          <EmptyPlaceholder icon={MessageSquare}>
-            {t('threads.emptyShared')}
-          </EmptyPlaceholder>
+          <EmptyState
+            icon={MessageSquare}
+            title={t('threads.emptyShared')}
+            className="rounded-lg border border-dashed py-8"
+          />
         ) : (
           <div className="divide-y rounded-lg border">
             {sharedThreads.map((thread) => (
