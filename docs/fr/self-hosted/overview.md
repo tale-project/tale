@@ -32,7 +32,7 @@ Un dixième conteneur, **tale-bgutil-provider**, est un sidecar tiers best-effor
 Ces volumes survivent à un `docker compose down` :
 
 - `db-data` — le répertoire de données du Postgres opérationnel : le magasin applicatif _et_ le corpus de connaissances (fragments de documents, embeddings, index de recherche, pages crawlées), puisque le stack single-host replie les deux dans une seule base.
-- `convex-data` — le magasin de config de l'org : agents, skills, fournisseurs, politiques de gouvernance, fichiers de connexion SSO et branding téléversé. Le nom précède le retrait de Convex et est conservé pour qu'aucun opérateur n'ait à migrer un volume pour un renommage ; le backend possède chaque écriture, et la plateforme le monte en lecture seule.
+- `config-data` — le magasin de config de l'org : agents, skills, fournisseurs, politiques de gouvernance, fichiers de connexion SSO et branding téléversé. Le backend possède chaque écriture, la plateforme le monte en lecture seule. Les instances mises à niveau depuis une version antérieure à 0.5.11 gardent à côté un volume `convex-data` vide — l'ancien nom du magasin ; `tale deploy` en recopie le contenu une fois et ne supprime jamais l'ancien volume, tu peux donc le retirer à la main une fois la mise à niveau derrière toi.
 - `object-store-data` — le store de blobs : fichiers téléversés, pièces jointes de chat, documents générés, bundles exportés.
 - `caddy-data`, `caddy-config` — certificats TLS et état du proxy.
 - `backups` — snapshots de volumes vérifiés par somme de contrôle, écrits par `tale backup` et automatiquement avant les déploiements qui migrent ; [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) est l'exercice.

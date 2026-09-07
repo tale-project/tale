@@ -12,7 +12,7 @@ The architecture context lives in [Container architecture](/self-hosted/operate/
 | Volume                       | Holds                                                                                                                                   |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `db-data`                    | Postgres — the application store (agents, runs, the audit log) and the knowledge corpus (document chunks, embeddings, crawled pages)    |
-| `convex-data`                | Org config, provider secrets, uploaded branding                                                                                         |
+| `config-data`                | Org config, provider secrets, uploaded branding                                                                                         |
 | `object-store-data`          | The blob store — uploaded files, chat attachments, audio, generated media — whenever the deployment default is the bundled object store |
 | `caddy-data`, `caddy-config` | TLS certificates and proxy state                                                                                                        |
 

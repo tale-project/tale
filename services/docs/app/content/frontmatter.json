@@ -778,6 +778,14 @@
       "description": "Choisis le bon chemin d'installation de Tale — un essai sur laptop avec la CLI, une installation de production durcie sur un hôte Linux, ou la référence Docker Compose brute pour un contrôle total."
     }
   },
+  "fr:self-hosted/install/customize-compose": {
+    "slug": "self-hosted/install/customize-compose",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Personnaliser Compose",
+      "description": "Scaler l'étage app, superposer le fichier compose livré, et savoir quels conteneurs restent des singletons."
+    }
+  },
   "fr:self-hosted/install/quickstart": {
     "slug": "self-hosted/install/quickstart",
     "locale": "fr",
@@ -1851,6 +1859,14 @@
       "description": "Pick the right Tale install path — a laptop trial with the CLI, a hardened production install on a Linux host, or the raw Docker Compose reference for full control."
     }
   },
+  "en:self-hosted/install/customize-compose": {
+    "slug": "self-hosted/install/customize-compose",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Customize Compose",
+      "description": "Scale the application tier, overlay the shipped compose file, and know which containers stay a singleton."
+    }
+  },
   "en:self-hosted/install/quickstart": {
     "slug": "self-hosted/install/quickstart",
     "locale": "en",
@@ -2922,6 +2938,14 @@
     "frontmatter": {
       "title": "Installation",
       "description": "Wähl den richtigen Tale-Installationsweg — einen Laptop-Trial mit der CLI, eine gehärtete Produktions-Installation auf einem Linux-Host oder die rohe Docker-Compose-Referenz für volle Kontrolle."
+    }
+  },
+  "de:self-hosted/install/customize-compose": {
+    "slug": "self-hosted/install/customize-compose",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Compose anpassen",
+      "description": "Den App-Tier skalieren, die ausgelieferte Compose-Datei überlagern und wissen, welche Container Singletons bleiben."
     }
   },
   "de:self-hosted/install/quickstart": {

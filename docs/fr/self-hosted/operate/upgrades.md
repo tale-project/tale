@@ -45,8 +45,8 @@ tale update --dry-run
 
 `tale deploy` fait le vrai redémarrage rolling, et il déploie toujours la version propre à la CLI — qui, grâce à l'alignement, est la version qu'enregistre ton workspace. Il trie les services en trois étages :
 
-- **Étage app** — `platform` — roule à **chaque** déploiement, sans downtime (blue-green : la nouvelle couleur démarre à côté de l'ancienne, les healthchecks passent, le trafic bascule, l'ancienne couleur draine).
-- **Backend et compute** — `backend-api`, `backend-worker`, `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — roulent à chaque déploiement eux aussi, pour ne jamais dériver en version d'avec `platform`. Chacun se recrée **en place** quand son image a réellement changé ; le déploiement draine d'abord le travail en cours (tours de chat pour le backend, runs d'agent pour `sandbox`) pour que le bref redémarrage ne coupe pas une requête en vol.
+- **Étage app** — `platform`, `backend-api`, `backend-worker` — roule à **chaque** déploiement, sans downtime, comme une seule couleur. Les trois partagent une image et les mêmes contrats de wire : ils bougent ensemble et ne peuvent jamais dériver en version l'un d'avec l'autre. Chacun est réplicable ; les nombres de replicas sont dans [Personnaliser Compose](/fr/self-hosted/install/customize-compose).
+- **Compute** — `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — roule à chaque déploiement lui aussi, mais **en place** : le spawner tient le socket Docker, le répertoire de sessions et le volume du gateway, c'est donc un singleton par construction. Le déploiement draine d'abord ses runs d'agent en cours pour que le bref redémarrage n'en coupe pas un vivant.
 - **Étage à arrêt requis** — `db`, `object-store`, `proxy` — laissés **en marche et intacts** par défaut (recréer Postgres, le store de blobs ou le proxy est une brève coupure que tu ne veux pas sur un roll de routine). Passe `--stop` pour les mettre à jour ; le déploiement prévient et les nomme quand il les saute.
 
 ```bash
@@ -67,13 +67,64 @@ tale deploy --dry-run
 
 ## Le pattern blue-green
 
-Une instance en marche est l'une des deux couleurs (blue ou green) à un instant donné. La phase de déploiement monte l'autre couleur, attend qu'elle passe les healthchecks, puis bascule l'upstream de Caddy sur la nouvelle couleur. L'ancienne couleur draine ses requêtes en vol (défaut 30 s), puis sort.
+Une instance en marche est l'une de deux couleurs (blue ou green) à un instant donné. Une couleur, c'est tout l'étage app sur une même version — chaque replica de `platform`, `backend-api` et `backend-worker`. Le déploiement monte l'autre couleur à côté de celle qui sert, attend que **chaque** replica passe son healthcheck, enregistre la bascule, puis démonte l'ancienne.
 
-Trois garanties que le pattern te donne :
+Les deux couleurs tournent pendant tout ce recouvrement, et c'est l'ordre du démontage qui empêche d'y perdre des requêtes :
 
-- **Aucune fenêtre où les deux couleurs servent du trafic.** Un constraint de base impose single-active — Caddy route vers la saine.
-- **Le rollback de patch est une commande.** `tale rollback` redéploie la release patch précédente sur la couleur inactive et rebascule le trafic. Il refuse les downgrades minor et major — ceux-là peuvent laisser la base en avance sur le binaire, et leur chemin de récupération est une restauration de snapshot.
-- **Les healthchecks échoués bloquent la bascule.** Si la nouvelle couleur ne passe pas dans le timeout, le déploiement abandonne et l'ancienne couleur continue à servir.
+<Steps>
+
+<Step title="La couleur inactive démarre">
+
+Ses conteneurs portent les mêmes alias réseau `platform` et `backend-api` que la couleur vivante — mais une replica encore en train de booter n'écoute pas sur son port, donc le resolver retombe sur celle qui écoute. Une couleur à moitié démarrée ne prend aucun trafic.
+
+</Step>
+
+<Step title="Chaque replica se déclare saine">
+
+Pas la première qui répond : toutes, rôle par rôle. Une couleur montée à moitié ne devient jamais vivante, et le déploiement abandonne pendant que l'ancienne continue de servir.
+
+</Step>
+
+<Step title="Le trafic se partage, brièvement">
+
+Dès que la nouvelle couleur écoute, les requêtes atteignent les deux. C'est la même fenêtre de compatibilité ascendante qu'un déploiement roulant suppose déjà : l'image précédente continue de servir pendant que la nouvelle migre, donc une release n'embarque jamais un changement qui casse la version qu'elle remplace.
+
+</Step>
+
+<Step title="L'ancienne couleur cesse de prendre du nouveau travail">
+
+On dit à son API de refuser les **nouveaux** tours de chat (les clients réessaient et atterrissent sur la nouvelle couleur), et le déploiement attend ceux qui sont en cours, jusqu'à 3 minutes. L'étage web laisse tomber son propre healthcheck pour que le proxy l'éjecte, et le HTTP en vol s'écoule pendant la fenêtre de drain (`DRAIN_TIMEOUT`, défaut 30 s).
+
+</Step>
+
+<Step title="Alors seulement elle sort du DNS">
+
+`docker network disconnect` retire les conteneurs de l'ancienne couleur des réseaux de service. Cela coupe les connexions vivantes sur ces réseaux — c'est précisément pour ça que ça vient après les deux drains, et pas avant.
+
+</Step>
+
+</Steps>
+
+Deux autres garanties que le pattern te donne :
+
+- **Le rollback de patch est une commande.** `tale rollback` redéploie la release patch précédente sur la couleur inactive et rebascule le trafic, par les mêmes étapes. Il refuse les downgrades minor et major — ceux-là peuvent laisser la base en avance sur le binaire, et leur chemin de récupération est une restauration de snapshot.
+- **Les healthchecks échoués bloquent la bascule.** Si la nouvelle couleur ne passe pas dans `HEALTH_CHECK_TIMEOUT`, le déploiement abandonne et l'ancienne couleur continue à servir.
+
+<Note>
+
+Le premier déploiement après la montée en 0.5.11 retire aussi les anciens
+conteneurs `tale-backend-api` et `tale-backend-worker`. C'étaient des
+singletons hors des deux couleurs ; l'étage tourne maintenant dans chaque
+couleur, ils sont donc balayés une fois la nouvelle couleur en service. Les
+déploiements suivants ne trouvent plus rien.
+
+</Note>
+
+<Warning>
+
+Pendant le recouvrement, l'hôte fait tourner **deux** étages app. Sur une seule machine avec le défaut d'une replica par rôle, cela fait deux conteneurs `platform`, deux `backend-api` et deux `backend-worker` le temps du drain. Dimensionne l'hôte sur le pic, pas sur le régime normal — et lis [Personnaliser Compose](/fr/self-hosted/install/customize-compose) avant de monter un nombre de replicas sur une machine déjà juste.
+
+</Warning>
 
 La procédure complète de déploiement, y compris la phase de cleanup, vit dans `tale --help` ; la recette côté opérateur est `tale update && tale deploy && tale status` et confirmation visuelle dans le navigateur.
 

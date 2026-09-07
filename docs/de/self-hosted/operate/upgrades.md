@@ -45,8 +45,8 @@ tale update --dry-run
 
 `tale deploy` macht den eigentlichen Rolling-Restart und deployt immer die eigene Version des CLI — die dank der Angleichung die Version ist, die dein Workspace aufzeichnet. Es sortiert die Services in drei Tiers:
 
-- **App-Tier** — `platform` — rollt bei **jedem** Deploy ohne Downtime (Blue-Green: die neue Farbe startet neben der alten, Healthchecks bestehen, der Traffic kippt, die alte Farbe drainet).
-- **Backend und Compute** — `backend-api`, `backend-worker`, `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — rollen ebenfalls bei jedem Deploy, sodass sie nie gegenüber `platform` versions-skewen. Jeder erstellt sich **in-place** neu, wenn sich sein Image tatsächlich geändert hat; der Deploy drainet zuerst die laufende Arbeit (Chat-Turns beim Backend, Agent-Runs bei `sandbox`), damit der kurze Neustart keine lebende Anfrage abschneidet.
+- **App-Tier** — `platform`, `backend-api`, `backend-worker` — rollt bei **jedem** Deploy ohne Downtime, als eine Farbe. Die drei teilen sich ein Image und dieselben Wire-Contracts, also bewegen sie sich gemeinsam und können nie gegeneinander versions-skewen. Jeder davon ist replizierbar; die Replica-Zahlen stehen in [Compose anpassen](/de/self-hosted/install/customize-compose).
+- **Compute** — `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — rollt ebenfalls bei jedem Deploy, aber **in-place**: Der Spawner hält den Docker-Socket, das Session-Verzeichnis und das Gateway-Volume, ist also von Bauart her ein Singleton. Der Deploy drainet vorher seine laufenden Agent-Runs, damit der kurze Neustart keinen lebenden abschneidet.
 - **Stop-gegateter Tier** — `db`, `object-store`, `proxy` — bleibt standardmäßig **laufend und unangetastet** (Postgres, den Blob-Store oder den Proxy neu zu erstellen ist eine kurze Ausfallzeit, die du bei einem Routine-Roll nicht willst). Mit `--stop` aktualisierst du sie; der Deploy warnt und nennt sie, wenn er sie überspringt.
 
 ```bash
@@ -67,13 +67,63 @@ tale deploy --dry-run
 
 ## Das Blue-Green-Pattern
 
-Eine laufende Instanz ist zu jeder Zeit eine der zwei Farben (Blue oder Green). Die Deploy-Phase bringt die andere Farbe hoch, wartet, bis sie Healthchecks besteht, und kippt dann Caddys Upstream auf die neue Farbe. Die alte Farbe drainet ihre in-flight-Anfragen (Default 30 s), dann beendet sie sich.
+Eine laufende Instanz ist zu jeder Zeit eine von zwei Farben (Blue oder Green). Eine Farbe ist der komplette App-Tier auf einer Version — jede Replica von `platform`, `backend-api` und `backend-worker`. Der Deploy bringt die andere Farbe neben der laufenden hoch, wartet, bis **jede** Replica ihren Healthcheck besteht, hält den Kipp fest und räumt danach die alte Farbe ab.
 
-Drei Garantien, die das Pattern dir gibt:
+Für die Dauer dieser Überlappung laufen beide Farben, und die Reihenfolge des Abräumens ist das, was verhindert, dass dabei Anfragen verloren gehen:
 
-- **Kein Fenster, in dem beide Farben Traffic servieren.** Ein Datenbank-Constraint setzt single-active durch — Caddy routet zur gesunden.
-- **Patch-Rollback ist ein Kommando.** `tale rollback` deployt das vorherige Patch-Release auf der inaktiven Farbe neu und kippt den Traffic zurück. Minor- und Major-Downgrades verweigert es — die können die Datenbank vor dem Binary zurücklassen, und ihr Recovery-Pfad ist ein Snapshot-Restore.
-- **Gescheiterte Healthchecks blockieren den Kipp.** Besteht die neue Farbe nicht innerhalb des Timeouts, bricht der Deploy ab und die alte Farbe serviert weiter.
+<Steps>
+
+<Step title="Die inaktive Farbe startet">
+
+Ihre Container tragen dieselben Netzwerk-Aliase `platform` und `backend-api` wie die laufende Farbe — aber eine Replica, die noch bootet, lauscht noch nicht auf ihrem Port, also fällt der Resolver auf die Farbe zurück, die es tut. Eine halb gestartete Farbe bekommt keinen Traffic.
+
+</Step>
+
+<Step title="Jede Replica meldet healthy">
+
+Nicht die erste, die antwortet, sondern alle, pro Rolle. Eine Farbe, die nur teilweise hochkam, wird nie live; der Deploy bricht ab, während die alte weiter serviert.
+
+</Step>
+
+<Step title="Der Traffic teilt sich, kurz">
+
+Sobald die neue Farbe lauscht, erreichen Anfragen beide. Das ist dasselbe vorwärtskompatible Fenster, das ein Rolling-Deploy ohnehin voraussetzt: Das vorherige Image serviert weiter, während das neue migriert, also bringt ein Release nie eine Änderung, die die Version bricht, die es ablöst.
+
+</Step>
+
+<Step title="Die alte Farbe nimmt keine neue Arbeit mehr an">
+
+Ihre API bekommt gesagt, **neue** Chat-Turns abzulehnen (Clients versuchen es erneut und landen auf der neuen Farbe), und der Deploy wartet auf die laufenden — bis zu 3 Minuten. Der Web-Tier lässt seinen eigenen Healthcheck fallen, damit der Proxy ihn auswirft, und in-flight-HTTP läuft im Drain-Fenster aus (`DRAIN_TIMEOUT`, Default 30 s).
+
+</Step>
+
+<Step title="Erst dann fliegt sie aus dem DNS">
+
+`docker network disconnect` nimmt die Container der alten Farbe aus den Service-Netzwerken. Das kappt bestehende Verbindungen auf diesen Netzwerken — genau deshalb kommt es nach beiden Drains und nicht davor.
+
+</Step>
+
+</Steps>
+
+Zwei weitere Garantien, die das Pattern dir gibt:
+
+- **Patch-Rollback ist ein Kommando.** `tale rollback` deployt das vorherige Patch-Release auf der inaktiven Farbe neu und kippt den Traffic zurück, über dieselben Schritte. Minor- und Major-Downgrades verweigert es — die können die Datenbank vor dem Binary zurücklassen, und ihr Recovery-Pfad ist ein Snapshot-Restore.
+- **Gescheiterte Healthchecks blockieren den Kipp.** Besteht die neue Farbe nicht innerhalb von `HEALTH_CHECK_TIMEOUT`, bricht der Deploy ab und die alte Farbe serviert weiter.
+
+<Note>
+
+Der erste Deploy nach dem Upgrade auf 0.5.11 entfernt außerdem die bisherigen
+Container `tale-backend-api` und `tale-backend-worker`. Sie waren Singletons
+außerhalb beider Farben; der Tier läuft jetzt in jeder Farbe, sie werden also
+abgeräumt, sobald die neue Farbe serviert. Spätere Deploys finden nichts mehr.
+
+</Note>
+
+<Warning>
+
+Während der Überlappung laufen auf dem Host **zwei** App-Tiers. Auf einer einzelnen Maschine mit dem Default von einer Replica pro Rolle sind das für die Dauer des Drains zwei `platform`-, zwei `backend-api`- und zwei `backend-worker`-Container. Dimensioniere den Host auf die Spitze, nicht auf den Normalbetrieb — und lies [Compose anpassen](/de/self-hosted/install/customize-compose), bevor du auf einer ohnehin knappen Maschine eine Replica-Zahl hochsetzt.
+
+</Warning>
 
 Die vollständige Deploy-Prozedur inklusive der Cleanup-Phase lebt in `tale --help`; das operatorseitige Rezept ist `tale update && tale deploy && tale status` und visuelle Bestätigung im Browser.
 

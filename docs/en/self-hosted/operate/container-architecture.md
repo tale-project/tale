@@ -48,9 +48,9 @@ The sandbox runtime carries Chromium and Playwright, so the backend reuses it fo
 
 **`tale-platform` down.** The browser gets the proxy's loading page instead of the app shell; the API keeps working. Existing tabs with cached assets keep talking to the backend and may not notice until they reload.
 
-**`tale-backend-api` down.** The browser loads the UI shell but nothing populates, and sign-in, chat, and uploads all fail — this is the container every application request depends on. Both platform colours point at the same api, so this is a single point of failure by design; restarting it is safe (sessions are server-side, clients reconnect the SSE stream).
+**`tale-backend-api` down.** The browser loads the UI shell but nothing populates, and sign-in, chat, and uploads all fail — this is the container every application request depends on. Restarting it is safe: sessions are server-side and clients reconnect the SSE stream. It is only a single point of failure at the default one replica; the api runs as a replica set, and raising `TALE_BACKEND_API_REPLICAS` puts more than one behind the same DNS alias ([Customize Compose](/self-hosted/install/customize-compose)).
 
-**`tale-backend-worker` down.** Chat still answers — the api serves it — but scheduled automations, agent task runs, document ingestion, and RAG indexing stall until the worker is back. Jobs are at-least-once, so in-flight work resumes on the next pass rather than being lost. Scale the worker (`--scale backend-worker=N`) when the job queue is the bottleneck.
+**`tale-backend-worker` down.** Chat still answers — the api serves it — but scheduled automations, agent task runs, document ingestion, and RAG indexing stall until the worker is back. Jobs are at-least-once, so in-flight work resumes on the next pass rather than being lost. Raise `TALE_BACKEND_WORKER_REPLICAS` when the job queue is the bottleneck ([Customize Compose](/self-hosted/install/customize-compose)).
 
 **`tale-db` down.** Writes block and knowledge search returns empty; the app surfaces "saving failed" toasts on any mutation. This is the one container whose data is not rederivable — restart it first and confirm it comes back healthy before worrying about the rest.
 

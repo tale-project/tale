@@ -180,6 +180,18 @@ Optional knobs for knowledge-base search. The RAG path re-scores results with a 
 
 Re-ranking ships disabled because it adds per-query latency and depends on an external endpoint. Enable it — by setting `RAG_RERANKING_PROVIDER=api` and pointing `RAG_RERANKING_API_BASE_URL` at a hosted rerank service — when retrieval precision matters more than response time. There is no in-process model to download or cache; with re-ranking off, search returns the plain merged BM25 + vector ranking.
 
+## Deployment topology
+
+How many replicas of each stateless role a colour runs. Read by `tale deploy` from the project `.env`; a value outside the range is clamped with a warning rather than refused, because zero replicas of the API is an outage nobody configures on purpose.
+
+| Name                           | Default | Description                                                                                              |
+| ------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `TALE_PLATFORM_REPLICAS`       | `1`     | Replicas of the web tier that serves the app shell. Range `1`–`16`.                                       |
+| `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas of the API — every application door, auth, and the hint stream. Range `1`–`16`.                  |
+| `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas of the job runner: ingestion, crawls, automations, agent turns. Range `1`–`16`.                  |
+
+A deploy runs both colours at once, so each count is doubled for the length of the flip. [Customize Compose](/self-hosted/install/customize-compose) is which role to raise for which symptom, and what raising one does not fix.
+
 ## Sessions
 
 | Name                           | Default | Description                                                                                                                                                                                              |

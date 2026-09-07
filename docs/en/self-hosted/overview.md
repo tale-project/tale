@@ -32,7 +32,7 @@ A tenth container, **tale-bgutil-provider**, is a best-effort third-party sideca
 These volumes survive a `docker compose down`:
 
 - `db-data` — the operational Postgres data directory: the application store _and_ the knowledge corpus (document chunks, embeddings, search indexes, crawled pages), since the single-host stack folds both into one database.
-- `convex-data` — the org config store: agents, skills, providers, governance policies, SSO connection files, and uploaded branding. The name predates the Convex retirement and is kept so no operator has to migrate a volume for a rename; the backend owns every write, and the platform mounts it read-only.
+- `config-data` — the org config store: agents, skills, providers, governance policies, SSO connection files, and uploaded branding. The backend owns every write, and the platform mounts it read-only. Instances upgraded from a release before 0.5.11 carry an empty `convex-data` volume beside it — the store's former name; `tale deploy` copies the contents across once and never deletes the old volume, so you can remove it by hand when you are past the upgrade.
 - `object-store-data` — the blob store: uploaded files, chat attachments, generated documents, exported bundles.
 - `caddy-data`, `caddy-config` — TLS certificates and proxy state.
 - `backups` — checksummed volume snapshots written by `tale backup` and automatically before migrating deploys; [Backups and restore](/self-hosted/operate/backups-and-restore) is the drill.
