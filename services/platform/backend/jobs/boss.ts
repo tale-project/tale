@@ -1,4 +1,5 @@
 import { PgBoss } from 'pg-boss';
+import type { Sql } from 'postgres';
 
 import { TASK_QUEUE_OPTIONS } from './tasks.ts';
 
@@ -48,5 +49,25 @@ export async function ensureQueues(boss: PgBoss): Promise<void> {
         throw error;
       }
     }
+  }
+}
+
+/**
+ * `createQueue` inserts a missing queue; it does not change `policy` on
+ * one that already exists, and `updateQueue` refuses a policy change.
+ * Existing deployments therefore keep `standard` on `org.scaffold` even
+ * though `TASK_QUEUE_OPTIONS` says `short`. Align the row pg-boss owns —
+ * do not add an app migration for its schema.
+ */
+export async function alignQueuePolicies(sql: Sql): Promise<void> {
+  try {
+    await sql`
+      UPDATE pgboss.queue
+      SET policy = 'short'
+      WHERE name = 'org.scaffold'
+        AND policy IS DISTINCT FROM 'short'
+    `;
+  } catch (error) {
+    console.warn('[backend] could not align org.scaffold queue policy:', error);
   }
 }

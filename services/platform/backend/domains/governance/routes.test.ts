@@ -100,6 +100,7 @@ describe('POST /policies/:policyType — write order', () => {
 
     expect(res.status).toBe(200);
     expect(writeGovernancePolicyFile).toHaveBeenCalledWith(
+      expect.anything(),
       'acme',
       'feature_flags',
       NEXT,

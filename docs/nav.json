@@ -34,8 +34,7 @@
           "pages": [
             "self-hosted/install/index",
             "self-hosted/install/quickstart",
-            "self-hosted/install/linux-server",
-            "self-hosted/install/docker-compose-reference",
+            "self-hosted/install/own-compose",
             "self-hosted/install/first-admin",
             "self-hosted/install/cli-install"
           ]
@@ -82,8 +81,7 @@
               "pages": ["self-hosted/operate/release-notes/format"]
             }
           ]
-        },
-        "self-hosted/contributing-docker"
+        }
       ]
     },
     {
@@ -265,6 +263,8 @@
       "pages": [
         "develop/overview",
         "develop/contributor-setup",
+        "develop/compose-files",
+        "develop/contributing-docker",
         "develop/api-reference",
         "develop/mcp-endpoint",
         "develop/webhooks",

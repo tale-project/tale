@@ -14,6 +14,7 @@
 
 import * as logger from '../../utils/logger';
 import {
+  BACKEND_API_LABEL,
   backendApiContainer,
   controlCall,
   isBackendTierRunning,
@@ -26,12 +27,13 @@ interface RunMigrationsOptions {
 export async function runMigrations(
   options: RunMigrationsOptions,
 ): Promise<void> {
-  const container = backendApiContainer();
+  const container = await backendApiContainer();
+  const label = container ?? BACKEND_API_LABEL;
 
   if (options.dryRun) {
     logger.blank();
     logger.info(
-      `[DRY-RUN] Would re-provision every organization via POST /api/control/provision in ${container} ` +
+      `[DRY-RUN] Would re-provision every organization via POST /api/control/provision in ${label} ` +
         '(schema migrations run at backend boot).',
     );
     return;
@@ -39,19 +41,21 @@ export async function runMigrations(
 
   if (!(await isBackendTierRunning())) {
     throw new Error(
-      `tale migrate needs the backend tier: no ${container} container is running. ` +
+      `tale migrate needs the backend tier: no ${label} container is running. ` +
         'Start the deployment (`tale deploy`, or `tale dev` for a local stack), then re-run.',
     );
   }
 
   logger.blank();
   logger.step('Re-provisioning built-in defaults for every organization...');
-  const res = await controlCall('POST', '/api/control/provision', {
-    container,
-  });
+  const res = await controlCall(
+    'POST',
+    '/api/control/provision',
+    container === null ? {} : { container },
+  );
   if (!res.success) {
     throw new Error(
-      `tale migrate failed: the control door refused in ${container}. ` +
+      `tale migrate failed: the control door refused in ${label}. ` +
         `${res.stderr.trim().slice(0, 200)} — the step is idempotent, so ` +
         're-run after addressing the failure.',
     );

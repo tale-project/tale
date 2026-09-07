@@ -49,7 +49,7 @@ Remplace les valeurs livrées dans `.env.example` avant d'exposer l'instance —
 
 ## Base de données
 
-Tale garde deux bases : le magasin opérationnel (`tale_app` — agents, runs, le log d'audit) et le corpus de connaissances (`tale_knowledge` — fragments de documents, embeddings, pages crawlées). Un stack de production `tale deploy` replie les deux dans un seul service ParadeDB (`db`, port 5432, alias `knowledge-db`) ; le `compose.yml` de développement sépare le corpus dans un service `knowledge-db` dédié sur le port 5433. Les deux partagent `DB_PASSWORD`, et le corpus peut être pointé vers une infrastructure externe tout seul.
+Tale garde deux bases : le magasin opérationnel (`tale_app` — agents, runs, le log d'audit) et le corpus de connaissances (`tale_knowledge` — fragments de documents, embeddings, pages crawlées). Un stack de production replie les deux dans un seul service ParadeDB (`db`, port 5432, alias `knowledge-db`). Les deux partagent `DB_PASSWORD`, et le corpus peut être pointé vers une infrastructure externe tout seul.
 
 | Nom                                       | Défaut                                                              | Description                                                                                                                                                                                                                                                                                                                                                |
 | ----------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -179,6 +179,18 @@ Réglages optionnels pour la recherche dans la base de connaissances. Le chemin 
 | `RAG_RERANKING_API_KEY`      | non défini                             | Token Bearer envoyé à l'endpoint de rerank externe. Laisse-le non défini pour les endpoints sans authentification.                                                                           |
 
 Le re-ranking est livré désactivé parce qu'il ajoute de la latence par requête et dépend d'un endpoint externe. Active-le — en réglant `RAG_RERANKING_PROVIDER=api` et en pointant `RAG_RERANKING_API_BASE_URL` vers un service de rerank hébergé — quand la précision du retrieval compte plus que le temps de réponse. Il n'y a aucun modèle en in-process à télécharger ou à mettre en cache ; le re-ranking désactivé, la recherche renvoie le classement hybride BM25 + vecteur simple.
+
+## Topologie du déploiement
+
+Combien de replicas de chaque rôle sans état une couleur fait tourner. `tale deploy` les lit dans le `.env` du projet ; une valeur hors plage est ramenée dans la plage avec un avertissement plutôt que refusée — zéro replica d'API, c'est une panne que personne ne configure exprès.
+
+| Nom                            | Défaut  | Description                                                                                              |
+| ------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `TALE_PLATFORM_REPLICAS`       | `1`     | Replicas de l'étage web qui sert la coquille de l'app. Plage `1`–`16`.                                     |
+| `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas de l'API — chaque porte applicative, l'auth et le flux de hints. Plage `1`–`16`.                  |
+| `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas du runner de jobs : ingestion, crawls, automations, tours d'agent. Plage `1`–`16`.                |
+
+Un déploiement fait tourner les deux couleurs en même temps : chaque nombre est doublé pendant le chevauchement. Monte le worker d’abord — c’est le moins cher. [Montées de version](/fr/self-hosted/operate/upgrades) est quand ces nombres s’appliquent.
 
 ## Sessions
 

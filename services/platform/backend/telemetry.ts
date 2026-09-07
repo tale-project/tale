@@ -84,7 +84,9 @@ export function routeClass(path: string): string {
   }
   if (path.startsWith('/dav')) return '/dav';
   if (path === '/events') return '/events';
-  if (path === '/ping' || path === '/metrics') return path;
+  if (path === '/ping' || path === '/ready' || path === '/metrics') {
+    return path;
+  }
   return 'other';
 }
 

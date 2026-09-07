@@ -1,3 +1,6 @@
+import type { Sql } from 'postgres';
+
+import { withConfigWriteLock } from '../../core/lib/config_store/write_lock.ts';
 import { scaffoldOrgFromCatalog } from '../../core/organizations/scaffold.ts';
 
 /**
@@ -8,8 +11,14 @@ import { scaffoldOrgFromCatalog } from '../../core/organizations/scaffold.ts';
  * `org.scaffold` pg-boss job from `afterCreateOrganization` — per-domain
  * copies are idempotent, so at-least-once delivery is safe and a retry heals
  * a partial seed.
+ *
+ * The run holds the org's whole-subtree write lock. Idempotent per domain is
+ * not the same as safe to run twice at once: `cleanFirst` renames the subtree
+ * out from under a concurrent seed, and a reseed racing itself across two
+ * workers copies into a directory the other is replacing.
  */
 export async function scaffoldNewOrganization(args: {
+  sql: Sql;
   orgSlug: string;
   cleanFirst?: boolean;
   /** Reseed: overwrite each domain's files from the builtin catalog instead
@@ -20,12 +29,14 @@ export async function scaffoldNewOrganization(args: {
    *  an operator running a factory reseed must not get a silent no-op. */
   strict?: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
-  const result = await scaffoldOrgFromCatalog({
-    orgSlug: args.orgSlug,
-    ...(args.cleanFirst !== undefined ? { cleanFirst: args.cleanFirst } : {}),
-    ...(args.override !== undefined ? { override: args.override } : {}),
-    ...(args.strict !== undefined ? { strict: args.strict } : {}),
-  });
+  const result = await withConfigWriteLock(args.sql, args.orgSlug, 'org', () =>
+    scaffoldOrgFromCatalog({
+      orgSlug: args.orgSlug,
+      ...(args.cleanFirst !== undefined ? { cleanFirst: args.cleanFirst } : {}),
+      ...(args.override !== undefined ? { override: args.override } : {}),
+      ...(args.strict !== undefined ? { strict: args.strict } : {}),
+    }),
+  );
   if (result.ok) {
     return { ok: true };
   }

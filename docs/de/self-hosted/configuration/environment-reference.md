@@ -49,7 +49,7 @@ Ersetze die Werte, die in `.env.example` mitkommen, bevor du die Instanz exponie
 
 ## Datenbank
 
-Tale hält zwei Datenbanken: den operativen Speicher (`tale_app` — Agents, Runs, das Audit-Log) und den Wissens-Korpus (`tale_knowledge` — Dokument-Chunks, Embeddings, gecrawlte Seiten). Ein `tale deploy`-Produktions-Stack faltet beide in einen ParadeDB-Service (`db`, Port 5432, aliasiert `knowledge-db`); die Entwicklungs-`compose.yml` trennt den Korpus in einen eigenen `knowledge-db`-Service auf Port 5433 ab. Beide teilen sich `DB_PASSWORD`, und der Korpus lässt sich für sich auf externe Infrastruktur zeigen.
+Tale hält zwei Datenbanken: den operativen Speicher (`tale_app` — Agents, Runs, das Audit-Log) und den Wissens-Korpus (`tale_knowledge` — Dokument-Chunks, Embeddings, gecrawlte Seiten). Ein Produktions-Stack faltet beide in einen ParadeDB-Service (`db`, Port 5432, aliasiert `knowledge-db`). Beide teilen sich `DB_PASSWORD`, und der Korpus lässt sich für sich auf externe Infrastruktur zeigen.
 
 | Name                                      | Default                                                             | Beschreibung                                                                                                                                                                                                                                                                                                                    |
 | ----------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -179,6 +179,18 @@ Optionale Stellschrauben für die Wissensdatenbank-Suche. Der RAG-Pfad bewertet 
 | `RAG_RERANKING_API_KEY`      | unset                                  | Bearer-Token für den externen Rerank-Endpoint. Unset lassen für unauthentifizierte Endpoints.                                                                                                                 |
 
 Re-Ranking ist standardmässig deaktiviert, weil es Latenz pro Query addiert und von einem externen Endpoint abhängt. Aktiviere es — indem du `RAG_RERANKING_PROVIDER=api` setzt und `RAG_RERANKING_API_BASE_URL` auf einen gehosteten Rerank-Service zeigst — wenn Retrieval-Präzision wichtiger ist als Antwortzeit. Es gibt kein In-Process-Modell zum Herunterladen oder Cachen; mit ausgeschaltetem Re-Ranking gibt die Suche das einfache zusammengeführte BM25-+-Vektor-Ranking zurück.
+
+## Deployment-Topologie
+
+Wie viele Replicas jeder zustandslosen Rolle eine Farbe fährt. `tale deploy` liest sie aus der `.env` des Projekts; ein Wert außerhalb des Bereichs wird mit einer Warnung geklemmt statt abgelehnt — null Replicas der API ist ein Ausfall, den niemand absichtlich konfiguriert.
+
+| Name                           | Default | Beschreibung                                                                                             |
+| ------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `TALE_PLATFORM_REPLICAS`       | `1`     | Replicas des Web-Tiers, der die App-Shell ausliefert. Bereich `1`–`16`.                                    |
+| `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas der API — jede Anwendungstür, Auth und der Hint-Stream. Bereich `1`–`16`.                         |
+| `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas des Job-Runners: Ingest, Crawls, Automations, Agent-Turns. Bereich `1`–`16`.                      |
+
+Ein Deploy fährt beide Farben gleichzeitig, jede Zahl verdoppelt sich also für die Dauer des Kipps. Setz den Worker zuerst hoch — das ist am günstigsten. [Upgrades](/de/self-hosted/operate/upgrades) ist, wann diese Zahlen greifen.
 
 ## Sitzungen
 

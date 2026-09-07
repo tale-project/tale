@@ -137,4 +137,4 @@ Ensuite, soit pré-construis une image `tale-proxy` avec un Caddyfile personnali
 
 ## Où cela s'inscrit
 
-Les trois modes couvrent les trois formes de déploiement que la plupart des équipes touchent ; les lignes de variables d'env vivent dans [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference#tls). Si tu mets en place un hôte de production frais maintenant, [Installation serveur Linux de production](/fr/self-hosted/install/linux-server) walk Let's Encrypt de bout en bout avec les étapes firewall et DNS dans l'ordre.
+Les trois modes couvrent les trois formes de déploiement que la plupart des équipes touchent ; les lignes de variables d'env vivent dans [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference#tls). Si tu mets en place un hôte de production frais maintenant, le [démarrage rapide](/fr/self-hosted/install/quickstart) est `tale deploy` ; cette page, ce sont les modes de certificat.

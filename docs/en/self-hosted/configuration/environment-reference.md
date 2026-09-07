@@ -49,7 +49,7 @@ Replace the values that ship in `.env.example` before exposing the instance — 
 
 ## Database
 
-Tale keeps two databases: the operational store (`tale_app` — agents, runs, the audit log) and the knowledge corpus (`tale_knowledge` — document chunks, embeddings, crawled pages). A `tale deploy` production stack folds both into one ParadeDB service (`db`, port 5432, aliased `knowledge-db`); the development `compose.yml` splits the corpus into a separate `knowledge-db` service on port 5433. Both share `DB_PASSWORD`, and the corpus can be pointed at external infrastructure on its own.
+Tale keeps two databases: the operational store (`tale_app` — agents, runs, the audit log) and the knowledge corpus (`tale_knowledge` — document chunks, embeddings, crawled pages). A production stack folds both into one ParadeDB service (`db`, port 5432, aliased `knowledge-db`). Both share `DB_PASSWORD`, and the corpus can be pointed at external infrastructure on its own.
 
 | Name                                      | Default                                                             | Description                                                                                                                                                                                                                                                                               |
 | ----------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -179,6 +179,18 @@ Optional knobs for knowledge-base search. The RAG path re-scores results with a 
 | `RAG_RERANKING_API_KEY`      | unset                                  | Bearer token sent to the external rerank endpoint. Leave unset for unauthenticated endpoints.                                                                                  |
 
 Re-ranking ships disabled because it adds per-query latency and depends on an external endpoint. Enable it — by setting `RAG_RERANKING_PROVIDER=api` and pointing `RAG_RERANKING_API_BASE_URL` at a hosted rerank service — when retrieval precision matters more than response time. There is no in-process model to download or cache; with re-ranking off, search returns the plain merged BM25 + vector ranking.
+
+## Deployment topology
+
+How many replicas of each stateless role a colour runs. Read by `tale deploy` from the project `.env`; a value outside the range is clamped with a warning rather than refused, because zero replicas of the API is an outage nobody configures on purpose.
+
+| Name                           | Default | Description                                                                                              |
+| ------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `TALE_PLATFORM_REPLICAS`       | `1`     | Replicas of the web tier that serves the app shell. Range `1`–`16`.                                       |
+| `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas of the API — every application door, auth, and the hint stream. Range `1`–`16`.                  |
+| `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas of the job runner: ingestion, crawls, automations, agent turns. Range `1`–`16`.                  |
+
+A deploy runs both colours at once, so each count is doubled for the length of the flip. Raise the worker first — it is the cheapest. [Upgrades](/self-hosted/operate/upgrades) is when those counts apply.
 
 ## Sessions
 

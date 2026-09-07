@@ -12,13 +12,11 @@ Cette section s'adresse aux opérateurs : les personnes qui décident où Tale t
 
 **[Vue d'ensemble de l'architecture](/fr/self-hosted/overview)** — ce que fait chaque conteneur, où vivent les données sur le stockage, qui parle à qui.
 
-**[Installation](/fr/self-hosted/install/quickstart)** — quickstart sur portable, installation de production sur un hôte Linux, la référence docker compose, premier admin, l'installateur du CLI.
+**[Installation](/fr/self-hosted/install)** — la CLI (`tale init` / `tale dev` / `tale deploy`), ou une stack que tu écris toi-même.
 
 **[Configuration](/fr/self-hosted/configuration/environment-reference)** — chaque variable d'environnement, fichiers de fournisseur, modes d'authentification, TLS, stockage, rétention, secrets chiffrés par SOPS, observabilité.
 
 **[Exploitation](/fr/self-hosted/operate/container-architecture)** — montées de version, sauvegardes et restauration, observabilité et dépannage, avis de sécurité, durcissement, format des notes de version.
-
-**[Contribuer](/fr/self-hosted/contributing-docker)** — comment construire et tester une modification locale de conteneur.
 
 ## Où cela s'inscrit
 

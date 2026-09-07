@@ -1,6 +1,8 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { Sql } from 'postgres';
+
 import type { FilePolicyType } from '../../lib/shared/schemas/governance.ts';
 import {
   MAX_HISTORY_ENTRIES,
@@ -9,6 +11,7 @@ import {
   resolvePolicyYamlFilePath,
   serializePolicyYaml,
 } from '../core/governance/file_utils.ts';
+import { withConfigWriteLock } from '../core/lib/config_store/write_lock.ts';
 import {
   atomicWrite,
   generateHistoryTimestamp,
@@ -31,36 +34,45 @@ import { clearOrgConfigCaches } from './org-config.ts';
  * A serializable transaction may re-run its callback, so the write is
  * idempotent: content already on disk is neither snapshotted into history
  * again nor rewritten.
+ *
+ * `sql` is the caller's transaction: the governance domain's write lock is
+ * taken on it and held to that transaction's end, so no other replica can
+ * snapshot the same file into history or prune the trail underneath this
+ * write. The applier that runs outside a transaction passes the root handle
+ * and gets one of its own.
  */
 export async function writeGovernancePolicyFile(
+  sql: Sql,
   orgSlug: string,
   policyType: FilePolicyType,
   config: unknown,
 ): Promise<void> {
-  const yamlPath = resolvePolicyYamlFilePath(orgSlug, policyType);
-  const jsonPath = resolvePolicyFilePath(orgSlug, policyType);
-  const next = serializePolicyYaml(policyType, config);
-  const currentYaml = await readFileSafe(yamlPath);
-  if (currentYaml === next) {
+  await withConfigWriteLock(sql, orgSlug, 'governance', async () => {
+    const yamlPath = resolvePolicyYamlFilePath(orgSlug, policyType);
+    const jsonPath = resolvePolicyFilePath(orgSlug, policyType);
+    const next = serializePolicyYaml(policyType, config);
+    const currentYaml = await readFileSafe(yamlPath);
+    if (currentYaml === next) {
+      await removeFileSafe(jsonPath);
+      clearOrgConfigCaches();
+      return;
+    }
+    const currentContent = currentYaml ?? (await readFileSafe(jsonPath));
+    if (currentContent !== null) {
+      const historyDir = resolveHistoryDir(orgSlug, policyType);
+      await mkdir(historyDir, { recursive: true });
+      await atomicWrite(
+        path.join(
+          historyDir,
+          `${generateHistoryTimestamp()}.${currentYaml !== null ? 'yml' : 'json'}`,
+        ),
+        currentContent,
+      );
+      await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
+    }
+    await atomicWrite(yamlPath, next);
     await removeFileSafe(jsonPath);
+    // Coarse but correct: the TTL cache is small and per-process (15s).
     clearOrgConfigCaches();
-    return;
-  }
-  const currentContent = currentYaml ?? (await readFileSafe(jsonPath));
-  if (currentContent !== null) {
-    const historyDir = resolveHistoryDir(orgSlug, policyType);
-    await mkdir(historyDir, { recursive: true });
-    await atomicWrite(
-      path.join(
-        historyDir,
-        `${generateHistoryTimestamp()}.${currentYaml !== null ? 'yml' : 'json'}`,
-      ),
-      currentContent,
-    );
-    await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
-  }
-  await atomicWrite(yamlPath, next);
-  await removeFileSafe(jsonPath);
-  // Coarse but correct: the TTL cache is small and per-process (15s).
-  clearOrgConfigCaches();
+  });
 }

@@ -79,7 +79,7 @@ export function createObjectStorageRoutes(deps: {
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     const { accessKeyId, secretAccessKey, ...connection } = body.data;
     try {
-      await writeConnection(orgSlug, {
+      await writeConnection(deps.sql, orgSlug, {
         connection,
         ...(accessKeyId !== undefined ? { accessKeyId } : {}),
         ...(secretAccessKey !== undefined ? { secretAccessKey } : {}),
@@ -93,7 +93,7 @@ export function createObjectStorageRoutes(deps: {
   app.delete('/connection', async (c) => {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    await deleteConnection(orgSlug);
+    await deleteConnection(deps.sql, orgSlug);
     return c.json({ ok: true });
   });
 

@@ -2,7 +2,11 @@ import * as logger from '../../utils/logger';
 import { BUNDLED_OBJECT_STORE_ENDPOINT } from '../compose/generators/constants';
 import { volumeExists } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
-import { BACKUP_HELPER_IMAGE, CONFIG_VOLUME } from './constants';
+import {
+  BACKUP_HELPER_IMAGE,
+  CONFIG_VOLUME,
+  LEGACY_CONFIG_VOLUME,
+} from './constants';
 
 /**
  * Where the deployment default blob store points — the `default` config
@@ -84,12 +88,16 @@ function normalizeEndpoint(endpoint: string): string {
 export async function inspectBlobStore(
   prefix: string,
 ): Promise<BlobStoreLayout> {
-  const configVolume = `${prefix}${CONFIG_VOLUME}`;
-  if (!(await volumeExists(configVolume))) {
+  const configVolume = (await volumeExists(`${prefix}${CONFIG_VOLUME}`))
+    ? `${prefix}${CONFIG_VOLUME}`
+    : (await volumeExists(`${prefix}${LEGACY_CONFIG_VOLUME}`))
+      ? `${prefix}${LEGACY_CONFIG_VOLUME}`
+      : null;
+  if (configVolume === null) {
     return {
       default: {
         kind: 'unknown',
-        reason: `config volume ${configVolume} does not exist`,
+        reason: `config volume ${prefix}${CONFIG_VOLUME} does not exist`,
       },
       ownBucketOrgs: [],
     };

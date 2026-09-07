@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { readOrgAgent, readOrgAgents } from '../../../lib/agents/listing';
@@ -26,6 +27,18 @@ import {
   resolveAgentsDir,
   writeAgentFileText,
 } from './file_utils';
+
+/**
+ * The writes take the agents domain's config-store write lock, which needs a
+ * database handle. These tests are about the files, so the double just runs
+ * the callback.
+ */
+function fakeSql(): Sql {
+  const tag = () => Promise.resolve([]);
+  const begin = (callback: (tx: unknown) => Promise<unknown>) => callback(tag);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return { begin } as unknown as Sql;
+}
 
 let configRoot: string;
 let savedConfigDir: string | undefined;
@@ -136,7 +149,7 @@ describe('reading a file', () => {
 
 describe('writing an agent', () => {
   it('creates the file, then keeps the superseded version in the trail', async () => {
-    await writeAgentFileText('acme', 'assistant', assistant);
+    await writeAgentFileText(fakeSql(), 'acme', 'assistant', assistant);
     expect(await readAgentFileText('acme', 'assistant')).toBe(assistant);
     // Nothing to supersede yet, so no history is written for a first write.
     await expect(
@@ -147,7 +160,7 @@ describe('writing an agent', () => {
       name: 'assistant',
       'display-name': 'Assistant (edited)',
     });
-    await writeAgentFileText('acme', 'assistant', edited);
+    await writeAgentFileText(fakeSql(), 'acme', 'assistant', edited);
 
     expect(await readAgentFileText('acme', 'assistant')).toBe(edited);
     const history = await readdir(resolveAgentHistoryDir('acme', 'assistant'));
@@ -161,15 +174,20 @@ describe('writing an agent', () => {
   });
 
   it('removes an agent with its trail, and reports a no-op delete', async () => {
-    await writeAgentFileText('acme', 'assistant', assistant);
-    await writeAgentFileText('acme', 'assistant', agentYaml({ name: 'x' }));
+    await writeAgentFileText(fakeSql(), 'acme', 'assistant', assistant);
+    await writeAgentFileText(
+      fakeSql(),
+      'acme',
+      'assistant',
+      agentYaml({ name: 'x' }),
+    );
 
-    expect(await removeAgentFile('acme', 'assistant')).toBe(true);
+    expect(await removeAgentFile(fakeSql(), 'acme', 'assistant')).toBe(true);
     expect(await readAgentFileText('acme', 'assistant')).toBeNull();
     await expect(
       readdir(resolveAgentHistoryDir('acme', 'assistant')),
     ).rejects.toThrow();
-    expect(await removeAgentFile('acme', 'assistant')).toBe(false);
+    expect(await removeAgentFile(fakeSql(), 'acme', 'assistant')).toBe(false);
   });
 });
 
@@ -205,7 +223,7 @@ describe('a reader is bound to one organization', () => {
   });
 
   it('writes into its own tree only', async () => {
-    await writeAgentFileText('acme', 'assistant', assistant);
+    await writeAgentFileText(fakeSql(), 'acme', 'assistant', assistant);
     expect(await listAgentSlugs('globex')).toEqual(['globex-only']);
     expect(
       (await readdir(path.join(configRoot, 'acme', 'agents'))).sort(),

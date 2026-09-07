@@ -205,7 +205,7 @@ export function createKnowledgeRoutes(deps: {
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     const { password, ...connection } = body.data;
     try {
-      await writeKnowledgeConnection(orgSlug, {
+      await writeKnowledgeConnection(deps.sql, orgSlug, {
         connection,
         ...(password !== undefined ? { password } : {}),
       });
@@ -220,7 +220,7 @@ export function createKnowledgeRoutes(deps: {
     if (denied) return denied;
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    await deleteKnowledgeConnection(orgSlug);
+    await deleteKnowledgeConnection(deps.sql, orgSlug);
     return c.json({ ok: true });
   });
 
@@ -263,7 +263,7 @@ export function createKnowledgeRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      await writeKnowledgeEmbedding(orgSlug, body);
+      await writeKnowledgeEmbedding(deps.sql, orgSlug, body);
       // Configuring a model is only half the fix: every document that failed
       // while there was none stays `failed` until something re-queues it, and
       // the failure text tells the operator to configure one "then retry
@@ -289,7 +289,7 @@ export function createKnowledgeRoutes(deps: {
     if (denied) return denied;
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    await deleteKnowledgeEmbedding(orgSlug);
+    await deleteKnowledgeEmbedding(deps.sql, orgSlug);
     return c.json({ ok: true });
   });
 

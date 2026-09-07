@@ -4,14 +4,19 @@
 export const DEV_VOLUME_NAMES = [
   'db-data',
   'db-backup',
-  // Legacy: pre-0.3.0 deployments split platform and convex data; today
-  // everything lives in `convex-data`. The volume is retained as an
-  // unused stub so the detect() probe in start.ts can identify pre-0.3.0
-  // deployments and produce a coherent diff. Operators can delete it
-  // by hand once they're past the upgrade window. Do not remove this
-  // entry without coordinating with that detect() heuristic.
+  // Retired names, kept as unused stubs so teardown (`tale reset --all`,
+  // `tale uninstall --purge`) and upgrade diagnostics still see them, and so
+  // an operator past the upgrade window can delete them deliberately rather
+  // than find them orphaned:
+  //   platform-data — pre-0.3.0 split of platform and convex data.
+  //   convex-data   — the org config store before it became `config-data`;
+  //                   `migrate-config-volume.ts` copies it across on the
+  //                   first bring-up and never deletes it.
   'platform-data',
   'convex-data',
+  // The org CONFIG store: every `<org>/<domain>/*` file the backend tier
+  // writes and the web tier reads.
+  'config-data',
   // The BLOB store's data. Separate from the config store on purpose:
   // config is small, text and diffable; blobs are large and opaque.
   'object-store-data',
@@ -24,9 +29,10 @@ export const DEV_VOLUME_NAMES = [
 // Every volume declared as `external: true` in the stateful or color compose
 // must appear here so `ensureVolumes` pre-creates it.
 export const REQUIRED_VOLUMES = [
-  // See DEV_VOLUME_NAMES for the `platform-data` rationale.
+  // See DEV_VOLUME_NAMES for the retired-stub rationale.
   'platform-data',
   'convex-data',
+  'config-data',
   'caddy-data',
   'caddy-config',
   'db-data',

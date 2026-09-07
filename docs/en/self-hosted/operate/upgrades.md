@@ -45,8 +45,8 @@ tale update --dry-run
 
 `tale deploy` does the actual rolling restart, and it always deploys the CLI's own version — which, thanks to alignment, is the version your workspace records. It sorts the services into three tiers:
 
-- **App tier** — `platform` — rolls on **every** deploy with zero downtime (blue-green: the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains).
-- **Backend & compute** — `backend-api`, `backend-worker`, `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — roll on every deploy too, so they never version-skew from `platform`. Each recreates **in place** when its image actually changed; the deploy first drains its in-flight work (chat turns for the backend, agent runs for `sandbox`) so the brief restart doesn't cut a live request.
+- **Application tier** — `platform`, `backend-api`, `backend-worker` — rolls on **every** deploy with zero downtime, as one colour. The three share an image and a set of wire contracts, so they move together and can never version-skew from each other. Each is replicable via `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS`, and `TALE_PLATFORM_REPLICAS` in `.env` (range `1`–`16`). Raise the worker first. A deploy doubles every count for the drain. Stores and the sandbox plane stay singletons.
+- **Compute** — `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — rolls on every deploy too, but **in place**: the spawner holds the Docker socket, the session directory and the gateway volume, so it is a singleton by construction. The deploy drains its in-flight agent runs first, so the brief restart doesn't cut a live one.
 - **Stop-gated tier** — `db`, `object-store`, `proxy` — left **running and untouched** by default (recreating Postgres, the blob store, or the proxy is a brief outage you don't want on a routine roll). Pass `--stop` to update them; the deploy warns and names them when it skips.
 
 ```bash
@@ -67,13 +67,63 @@ tale deploy --dry-run
 
 ## The blue-green pattern
 
-A running instance is one of the two colours (blue or green) at any given time. The deploy phase brings up the other colour, waits for it to pass healthchecks, then flips Caddy's upstream to the new colour. The old colour drains its in-flight requests (default 30 s), then exits.
+A running instance is one of two colours (blue or green) at any given time. A colour is the whole application tier at one version — every replica of `platform`, `backend-api` and `backend-worker`. The deploy brings up the other colour beside the live one, waits for every replica to pass its healthcheck, records the flip, then retires the old colour.
 
-Three guarantees the pattern gives you:
+Both colours are up at once for the length of that overlap, and the order of the retirement is what keeps it from dropping requests:
 
-- **No window where both colours serve traffic.** A database constraint enforces single-active — Caddy routes to the healthy one.
-- **Patch rollback is one command.** `tale rollback` redeploys the previous patch release on the idle colour and flips traffic back. It refuses minor and major downgrades — those can leave the database ahead of the binary, and their recovery path is a snapshot restore.
-- **Failed healthchecks block the flip.** If the new colour does not pass within the timeout, the deploy aborts and the old colour continues serving.
+<Steps>
+
+<Step title="The idle colour starts">
+
+Its containers hold the same `platform` and `backend-api` network aliases as the live colour, but a replica that is still booting is not listening on its port — so the resolver falls through to the colour that is. A half-started colour takes no traffic.
+
+</Step>
+
+<Step title="Every replica reports healthy">
+
+Not the first one to answer: all of them, per role. A colour that only partly came up never becomes live, and the deploy aborts with the old one still serving.
+
+</Step>
+
+<Step title="Traffic splits, briefly">
+
+Once the new colour is listening, requests reach both. This is the same forward-compatible window a rolling migration already assumes — the previous image keeps serving while the new one migrates, so a release never ships a change that breaks the version it replaces.
+
+</Step>
+
+<Step title="The old colour stops taking new work">
+
+Its API is told to refuse **new** chat turns. The UI does not resend a drain 503 — that turn is refused. The deploy waits for in-flight turns to finish, up to 3 minutes. The web tier stays healthy on `/api/health` while it still shares the `platform` alias: Caddy health-checks that hostname as one upstream, so failing the probe would mark the whole site down. Traffic leaves the old colour when `docker network disconnect` cuts it out of DNS, and in-flight HTTP finishes during the drain window (`DRAIN_TIMEOUT`, default 30 s).
+
+</Step>
+
+<Step title="Only then is it cut out of DNS">
+
+`docker network disconnect` removes the old colour's containers from the serving networks. It severs live connections on those networks, which is exactly why it comes after both drains and not before them.
+
+</Step>
+
+</Steps>
+
+Two more guarantees the pattern gives you:
+
+- **Patch rollback is one command.** `tale rollback` redeploys the previous patch release on the idle colour and flips traffic back, by the same steps. It refuses minor and major downgrades — those can leave the database ahead of the binary, and their recovery path is a snapshot restore.
+- **Failed healthchecks block the flip.** If the new colour does not pass within `HEALTH_CHECK_TIMEOUT`, the deploy aborts and the old colour continues serving.
+
+<Note>
+
+The first deploy after upgrading to 0.5.11 also removes the previous
+`tale-backend-api` and `tale-backend-worker` containers. They were singletons
+outside both colours; the tier now runs inside each colour, so they are swept
+once the new colour is serving. Later deploys find nothing to sweep.
+
+</Note>
+
+<Warning>
+
+During the overlap the host runs **two** application tiers. On a single box with the default one replica per role, that is two `platform`, two `backend-api` and two `backend-worker` containers for the length of the drain. Size the host for the peak, not the steady state — and for the doubled count before you raise a replica number on a machine that is already tight.
+
+</Warning>
 
 The full deploy procedure including the cleanup phase lives in `tale --help`; the operator-facing recipe is `tale update && tale deploy && tale status` and visual confirmation in the browser.
 

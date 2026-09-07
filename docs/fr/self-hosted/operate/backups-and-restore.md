@@ -12,7 +12,7 @@ Le contexte d'architecture vit dans [Architecture des conteneurs](/fr/self-hoste
 | Volume                       | Contient                                                                                                                                                 |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `db-data`                    | Postgres — le magasin applicatif (agents, runs, l'audit log) et le corpus de connaissances (fragments de documents, embeddings, pages crawlées)          |
-| `convex-data`                | Config d'org, secrets de fournisseurs, branding téléversé                                                                                                |
+| `config-data`                | Config d'org, secrets de fournisseurs, branding téléversé                                                                                                |
 | `object-store-data`          | Le store de blobs — fichiers téléversés, pièces jointes de chat, audio, médias générés — dès que le défaut du déploiement est le magasin d'objets fourni |
 | `caddy-data`, `caddy-config` | Certificats TLS et état du proxy                                                                                                                         |
 

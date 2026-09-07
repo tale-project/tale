@@ -96,8 +96,7 @@ export function shouldDeliverSseEvent(
 
 const fileEventsEnabled = process.env.TALE_FILE_EVENTS === 'true';
 const configDir = process.env.TALE_CONFIG_DIR;
-// TALE_CONFIG_DIR points at the org config-store volume (still named
-// `convex-data` so no operator has to migrate a volume for a rename)
+// TALE_CONFIG_DIR points at the org config-store volume (`config-data`)
 // mounted read-only on the platform container (for config-file SSE + branding
 // image serving). Skip watcher setup gracefully if the directory is absent.
 if (fileEventsEnabled && configDir && existsSync(configDir)) {

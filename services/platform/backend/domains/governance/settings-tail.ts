@@ -428,6 +428,7 @@ export async function cancelPendingRetentionChange(
     // not leave the cancel visible on disk while the pending shortening row
     // survives to be applied anyway.
     await writeGovernancePolicyFile(
+      tx,
       orgSlug,
       'retention_policy',
       pending.oldConfig,
@@ -543,7 +544,12 @@ export async function applyMaturedDsarPolicyChange(
   const orgSlug = await resolveOrgSlug(db, organizationId);
   let applied: DsarGovernanceConfig | null = null;
   if (parsed.success && orgSlug !== null) {
-    await writeGovernancePolicyFile(orgSlug, 'dsar_governance', parsed.data);
+    await writeGovernancePolicyFile(
+      db,
+      orgSlug,
+      'dsar_governance',
+      parsed.data,
+    );
     applied = parsed.data;
   } else {
     console.warn(
@@ -671,7 +677,7 @@ export async function proposeDsarPolicy(
         entity: 'governance_policy',
         entityId: 'dsar_governance',
       });
-      await writeGovernancePolicyFile(orgSlug, 'dsar_governance', config);
+      await writeGovernancePolicyFile(tx, orgSlug, 'dsar_governance', config);
     });
     return { staged: false };
   }

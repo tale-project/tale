@@ -5,16 +5,15 @@ import * as logger from '../../utils/logger';
 import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
 import type { DeploymentColor } from '../compose/types';
-import {
-  ROTATABLE_SERVICES,
-  SIDECAR_SERVICES,
-  STATEFUL_SERVICES,
-} from '../compose/types';
+import { SIDECAR_SERVICES, STATEFUL_SERVICES } from '../compose/types';
 import { docker } from '../docker/docker';
+import { listComposeContainers } from '../docker/list-service-containers';
 import { removeContainer } from '../docker/remove-container';
 import { getPreviousVersionFilePath } from '../state/get-previous-version-file-path';
 import { getStateFilePath } from '../state/get-state-file-path';
 import { withLock } from '../state/with-lock';
+import { removeColorContainers } from './color-lifecycle';
+import { retireLegacyBackendTier } from './retire-legacy-backend';
 
 interface ResetOptions {
   env: DeploymentEnv;
@@ -50,17 +49,34 @@ export async function reset(options: ResetOptions): Promise<void> {
     const prefix = dryRun ? '[DRY-RUN] ' : '';
     logger.header(`${prefix}Resetting Deployment`);
 
-    // Remove all blue-green containers
+    // Remove all blue-green containers. Listed by compose project, not by
+    // reconstructed name: a colour is a replica set, so what has to go is
+    // every container compose created for it.
     for (const color of ['blue', 'green'] as DeploymentColor[]) {
       logger.step(`${prefix}Removing ${color} containers...`);
-      for (const service of ROTATABLE_SERVICES) {
-        const containerName = `${getProjectId()}-${service}-${color}`;
-        if (dryRun) {
-          logger.info(`${prefix}Would remove: ${containerName}`);
-        } else {
-          await removeContainer(containerName);
+      const project = `${getProjectId()}-${color}`;
+      if (dryRun) {
+        for (const container of await listComposeContainers(project)) {
+          logger.info(`${prefix}Would remove: ${container.name}`);
+        }
+      } else {
+        await removeColorContainers(project);
+      }
+    }
+
+    // Pre-upgrade leftovers: the backend tier used to be a stateful singleton
+    // outside both colours, so neither sweep above sees it.
+    if (dryRun) {
+      for (const service of ['backend-api', 'backend-worker'] as const) {
+        for (const container of await listComposeContainers(
+          getProjectId(),
+          service,
+        )) {
+          logger.info(`${prefix}Would remove: ${container.name}`);
         }
       }
+    } else {
+      await retireLegacyBackendTier();
     }
 
     // Optionally remove stateful containers

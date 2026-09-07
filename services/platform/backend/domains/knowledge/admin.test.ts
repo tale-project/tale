@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -14,8 +15,17 @@ import {
  * check refuses with a coded `AppError`; the knowledge routes map only
  * `KnowledgeAdminError`, so left untranslated a refusal reached the admin as
  * a bare 500. Every refusal here happens BEFORE any file or network I/O, so
- * no config directory and no database are involved.
+ * no config directory and no database are involved — the handle below fails
+ * the test if a refusal ever reaches the config-store write lock.
  */
+
+function unreachableSql(): Sql {
+  const begin = () => {
+    throw new Error('a refused connection must not open a transaction');
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return { begin } as unknown as Sql;
+}
 
 const metadataHost = {
   host: '169.254.169.254',
@@ -44,7 +54,9 @@ afterEach(() => {
 describe('host policy on the knowledge admin doors', () => {
   it('refuses a cloud-metadata database host as a coded 400, not a 500', async () => {
     const error = await refusal(() =>
-      writeKnowledgeConnection('acme', { connection: metadataHost }),
+      writeKnowledgeConnection(unreachableSql(), 'acme', {
+        connection: metadataHost,
+      }),
     );
     expect(error.status).toBe(400);
     expect(error.code).toBe('BLOCKED_HOST');
@@ -54,7 +66,7 @@ describe('host policy on the knowledge admin doors', () => {
   it('names the env opt-in when a private host is refused', async () => {
     vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '');
     const error = await refusal(() =>
-      writeKnowledgeConnection('acme', {
+      writeKnowledgeConnection(unreachableSql(), 'acme', {
         connection: { ...metadataHost, host: '10.0.0.5' },
       }),
     );
@@ -65,7 +77,7 @@ describe('host policy on the knowledge admin doors', () => {
 
   it('refuses a blocked embedding base URL the same way', async () => {
     const error = await refusal(() =>
-      writeKnowledgeEmbedding('acme', {
+      writeKnowledgeEmbedding(unreachableSql(), 'acme', {
         providerSlug: 'openai',
         model: 'text-embedding-3-small',
         dimensions: 1536,

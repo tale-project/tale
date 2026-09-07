@@ -1,14 +1,16 @@
 import pkg from '../../../package.json';
 import { formatBytes } from '../../utils/format-bytes';
 import * as logger from '../../utils/logger';
-import { docker } from '../docker/docker';
 import { ensureVolumes, volumeExists } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
+import { withVolumeContainersPaused } from '../docker/with-volume-paused';
 import {
   archiveTimeoutSeconds,
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
   BLOB_VOLUME,
+  CONFIG_VOLUME,
+  LEGACY_CONFIG_VOLUME,
   SNAPSHOT_VOLUMES,
 } from './constants';
 import { type BlobStoreLayout, inspectBlobStore } from './inspect-blob-store';
@@ -56,21 +58,6 @@ function newSnapshotId(trigger: SnapshotTrigger, now = new Date()): string {
   return `${date}-${time}-${trigger}`;
 }
 
-async function listContainersUsingVolume(
-  volumeName: string,
-): Promise<string[]> {
-  const result = await docker('ps', '-q', '--filter', `volume=${volumeName}`);
-  if (!result.success) {
-    throw new Error(
-      `Failed to list containers using volume ${volumeName}: ${result.stderr}`,
-    );
-  }
-  return result.stdout
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
 /**
  * Tar one volume into the backups volume and return its integrity info.
  * Every running container that has the volume mounted is paused for the
@@ -85,20 +72,8 @@ async function snapshotVolume(
   volume: string,
 ): Promise<SnapshotVolumeInfo> {
   const volumeName = `${prefix}${volume}`;
-  const users = await listContainersUsingVolume(volumeName);
 
-  const paused: string[] = [];
-  try {
-    for (const containerId of users) {
-      const result = await docker('pause', containerId);
-      if (!result.success) {
-        throw new Error(
-          `Failed to pause container ${containerId} before snapshotting ${volumeName}: ${result.stderr}`,
-        );
-      }
-      paused.push(containerId);
-    }
-
+  return withVolumeContainersPaused([volumeName], async (pausedCount) => {
     const tarResult = await exec(
       'docker',
       [
@@ -138,22 +113,10 @@ async function snapshotVolume(
     }
 
     logger.info(
-      `  ${volume}: ${formatBytes(sizeBytes)}${users.length > 0 ? ` (${users.length} container(s) paused during tar)` : ''}`,
+      `  ${volume}: ${formatBytes(sizeBytes)}${pausedCount > 0 ? ` (${pausedCount} container(s) paused during tar)` : ''}`,
     );
     return { sha256, sizeBytes };
-  } finally {
-    for (const containerId of paused) {
-      const result = await docker('unpause', containerId);
-      if (!result.success) {
-        // Never throw from this cleanup path (it would mask the original
-        // error) — but a still-paused container is an outage, so shout.
-        logger.error(
-          `Failed to unpause container ${containerId} after snapshotting ${volumeName}: ${result.stderr}`,
-        );
-        logger.error(`  Run manually: docker unpause ${containerId}`);
-      }
-    }
-  }
+  });
 }
 
 /**
@@ -213,6 +176,17 @@ export async function createSnapshot(
 
   const present: string[] = [];
   for (const volume of candidates) {
+    if (volume === CONFIG_VOLUME) {
+      // First upgrade: snapshot runs BEFORE the volume rename. Live org
+      // config is still in `convex-data`. Snapshotting only `config-data`
+      // would omit agents/SSO/governance from the recovery point.
+      if (await volumeExists(`${prefix}${CONFIG_VOLUME}`)) {
+        present.push(CONFIG_VOLUME);
+      } else if (await volumeExists(`${prefix}${LEGACY_CONFIG_VOLUME}`)) {
+        present.push(LEGACY_CONFIG_VOLUME);
+      }
+      continue;
+    }
     if (await volumeExists(`${prefix}${volume}`)) {
       present.push(volume);
     }

@@ -62,7 +62,7 @@ docker tag ghcr.io/tale-project/tale/tale-platform:latest \
 docker push $REGISTRY/tale-platform:vendored-1.0
 ```
 
-Le déploiement de la CLI génère un fichier compose avec le chemin de registre ; soit patche le fichier généré après génération, soit saute la CLI et lance `docker compose` directement contre un fichier compose que tu maintiens toi-même.
+Le déploiement de la CLI génère un fichier compose avec le chemin de registre et l'efface après `docker compose up`. Pour un registre air-gapped, retaggue comme ci-dessus et pointe `GHCR_REGISTRY` vers le tien avant `tale deploy`, ou écris le fichier de production toi-même contre [Écrire Compose toi-même](/fr/self-hosted/install/own-compose).
 
 ## Rester en sync avec l'amont
 

@@ -7,9 +7,8 @@ function makeDeps(
 ) {
   return {
     getCurrentColor: mock(async () => 'blue' as const),
-    getContainerVersion: mock(async () => '0.4.2'),
+    colorPlatformVersion: mock(async () => '0.4.2'),
     getPreviousVersion: mock(async () => null),
-    getProjectId: mock(() => 'tale'),
     ...overrides,
   };
 }
@@ -22,17 +21,17 @@ describe('checkBreakingCutover', () => {
     await expect(checkBreakingCutover(BASE, deps)).rejects.toThrow(
       /breaking release with no upgrade path/,
     );
-    expect(deps.getContainerVersion).toHaveBeenCalledWith('tale-platform-blue');
+    expect(deps.colorPlatformVersion).toHaveBeenCalledWith('blue');
   });
 
   test('passes on a first deploy (no color state)', async () => {
     const deps = makeDeps({ getCurrentColor: mock(async () => null) });
     await expect(checkBreakingCutover(BASE, deps)).resolves.toBeUndefined();
-    expect(deps.getContainerVersion).not.toHaveBeenCalled();
+    expect(deps.colorPlatformVersion).not.toHaveBeenCalled();
   });
 
   test('passes when the running instance is already post-baseline', async () => {
-    const deps = makeDeps({ getContainerVersion: mock(async () => '0.5.0') });
+    const deps = makeDeps({ colorPlatformVersion: mock(async () => '0.5.0') });
     await expect(
       checkBreakingCutover({ ...BASE, targetVersion: '0.5.1' }, deps),
     ).resolves.toBeUndefined();
@@ -40,21 +39,21 @@ describe('checkBreakingCutover', () => {
 
   test('falls back to the previous-version state file when the container label is unreadable', async () => {
     const deps = makeDeps({
-      getContainerVersion: mock(async () => null),
+      colorPlatformVersion: mock(async () => null),
       getPreviousVersion: mock(async () => '0.5.1'),
     });
     await expect(checkBreakingCutover(BASE, deps)).resolves.toBeUndefined();
     expect(deps.getPreviousVersion).toHaveBeenCalledWith('/project');
   });
 
-  test('refuses conservatively when deployment state exists but no version is determinable', async () => {
+  test('passes when colour state exists but no version is readable', async () => {
+    // A first 0.5 install has currentColor and never wrote previous-version.
+    // Treating that as 0.4 would refuse the upgrade of a live 0.5 host.
     const deps = makeDeps({
-      getContainerVersion: mock(async () => null),
+      colorPlatformVersion: mock(async () => null),
       getPreviousVersion: mock(async () => null),
     });
-    await expect(checkBreakingCutover(BASE, deps)).rejects.toThrow(
-      /cannot be determined/,
-    );
+    await expect(checkBreakingCutover(BASE, deps)).resolves.toBeUndefined();
   });
 
   test('--accept-data-loss proceeds with a warning instead of refusing', async () => {

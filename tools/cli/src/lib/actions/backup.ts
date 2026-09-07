@@ -6,6 +6,7 @@ import { rotateSnapshots } from '../backup/rotate-snapshots';
 import { getContainerVersion } from '../docker/get-container-version';
 import { getCurrentColor } from '../state/get-current-color';
 import { withLock } from '../state/with-lock';
+import { colorPlatformVersion } from './color-lifecycle';
 
 interface BackupOptions {
   env: DeploymentEnv;
@@ -31,12 +32,12 @@ export async function backup(options: BackupOptions): Promise<void> {
     }
     logger.info(`Volume namespace: ${prefix}*`);
 
-    // Best-effort platform version for the manifest: the prod color
-    // container first, then the dev container name (`tale dev` stacks
-    // run an uncolored platform container).
+    // Best-effort platform version for the manifest: the live colour's
+    // replicas first, then the dev container name (`tale dev` stacks run an
+    // uncoloured platform container under a pinned name).
     const currentColor = await getCurrentColor(env.DEPLOY_DIR);
     const platformVersion = currentColor
-      ? await getContainerVersion(`${getProjectId()}-platform-${currentColor}`)
+      ? await colorPlatformVersion(currentColor)
       : await getContainerVersion(`${getProjectId()}-platform`);
 
     await createSnapshot({ prefix, trigger: 'manual', platformVersion });

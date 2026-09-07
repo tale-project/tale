@@ -1,10 +1,6 @@
 import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
-import {
-  createBackendApiService,
-  createBackendWorkerService,
-} from '../services/create-backend-services';
 import { createBgutilProviderService } from '../services/create-bgutil-provider-service';
 import { createDbService } from '../services/create-db-service';
 import { createObjectStorageService } from '../services/create-object-storage-service';
@@ -25,8 +21,11 @@ export function generateStatefulCompose(
     // one cannot accept a single upload.
     'object-store': createObjectStorageService(config),
     proxy: createProxyService(config, hostAlias),
-    'backend-api': createBackendApiService(config),
-    'backend-worker': createBackendWorkerService(config),
+    // The application tier is NOT here: platform, backend-api and
+    // backend-worker are stateless and deploy as one colour
+    // (generate-color-compose.ts). What remains is what holds durable state
+    // or a fixed identity — the stores, the entry point, and the sandbox
+    // singleton that owns docker.sock.
     'sandbox-llm-gateway': createSandboxLlmGatewayService(config),
     'sandbox-egress': createSandboxEgressService(config),
     sandbox: createSandboxService(config),
@@ -41,7 +40,7 @@ export function generateStatefulCompose(
       'db-backup': { external: true, name: `${prefix}db-backup` },
       'caddy-data': { external: true, name: `${prefix}caddy-data` },
       'caddy-config': { external: true, name: `${prefix}caddy-config` },
-      'convex-data': { external: true, name: `${prefix}convex-data` },
+      'config-data': { external: true, name: `${prefix}config-data` },
       'object-store-data': {
         external: true,
         name: `${prefix}object-store-data`,

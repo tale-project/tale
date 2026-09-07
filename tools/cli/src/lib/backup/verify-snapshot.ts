@@ -2,7 +2,7 @@ import { exec } from '../docker/exec';
 import {
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
-  SNAPSHOT_VOLUMES,
+  RESTORABLE_ARCHIVES,
   isValidSnapshotId,
 } from './constants';
 import type { SnapshotManifest } from './create-snapshot';
@@ -29,9 +29,12 @@ export async function verifySnapshot(
   }
   const checks: string[] = [];
   for (const [volume, info] of Object.entries(manifest.volumes)) {
-    // Only the volumes the CLI itself snapshots, and only well-formed
-    // hashes, reach the shell (a hand-edited manifest is untrusted input).
-    if (!(SNAPSHOT_VOLUMES as readonly string[]).includes(volume)) continue;
+    // Only archive names a restore would actually extract, and only
+    // well-formed hashes, reach the shell (a hand-edited manifest is
+    // untrusted input). The list is the RESTORE's, not the snapshot's: a
+    // pre-rename snapshot's `convex-data.tar.gz` gets verified, because it
+    // is about to be extracted into `config-data`.
+    if (!(RESTORABLE_ARCHIVES as readonly string[]).includes(volume)) continue;
     if (!SHA256_RE.test(info.sha256)) {
       throw new Error(
         `Snapshot ${id} failed integrity verification: ${volume}.tar.gz has a malformed sha256 in manifest.json`,

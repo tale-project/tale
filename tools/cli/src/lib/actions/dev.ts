@@ -34,6 +34,7 @@ import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { getContainerHealth } from '../docker/get-container-health';
+import { migrateConfigVolume } from '../docker/migrate-config-volume';
 import { findChildProject, findProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
 import { withLock } from '../state/with-lock';
@@ -163,6 +164,11 @@ export async function runDev(options: DevOptions): Promise<void> {
       // Project-scoped lock so parallel `tale dev` / `tale deploy` shells can't
       // race on docker volumes. Released before compose starts.
       withLock(projectDir, 'dev', async () => {
+        // One-time config-store rename before anything mounts a volume —
+        // the dev compose names `config-data` too, and a dev stack that
+        // came up on an empty one would look like every org config had
+        // vanished. Throws on a failed copy, leaving `convex-data` intact.
+        await migrateConfigVolume(devPrefix);
         if (!(await ensureVolumes([...DEV_VOLUME_NAMES], devPrefix))) {
           throw new Error('Failed to create dev volumes');
         }

@@ -24,6 +24,7 @@ import { createConnectorOauthRoutes } from './domains/connectors/oauth-routes.ts
 import { createSlackEventRoutes } from './domains/connectors/slack-events.ts';
 import { createContactRoutes } from './domains/contacts/routes.ts';
 import { createControlRoutes } from './domains/control/routes.ts';
+import { isBackendDraining, replicaColour } from './domains/control/service.ts';
 import { createConversationRoutes } from './domains/conversations/routes.ts';
 import { createDeploymentRoutes } from './domains/deployment/routes.ts';
 import { createDocumentRoutes } from './domains/documents/routes.ts';
@@ -96,7 +97,28 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // Hono's default 500 behavior plus Sentry capture (no-op without a DSN);
   // sub-app errors bubble up here unless a sub-app registers its own.
   app.onError(appErrorHandler);
+  // LIVENESS: the process is up. Docker's HEALTHCHECK reads this, so it must
+  // stay 200 while a replica drains — a draining container is doing exactly
+  // what it was asked to; killing it mid-drain cuts the generations the drain
+  // is waiting for.
   app.get('/ping', (c) => c.json({ ok: true, service: 'backend' }));
+  // READINESS: this replica accepts NEW work. 503 once the deploy has aimed
+  // a drain at it, which is what lets `tale deploy` watch a colour stop
+  // taking turns before it cuts that colour out of DNS. Deliberately
+  // separate from `/ping` and deliberately not proxied: it is the deploy's
+  // question, not the internet's.
+  app.get('/ready', async (c) => {
+    const draining = await isBackendDraining(deps.sql);
+    return c.json(
+      {
+        ok: !draining,
+        service: 'backend',
+        colour: replicaColour(),
+        ...(draining ? { reason: 'draining' } : {}),
+      },
+      draining ? 503 : 200,
+    );
+  });
   // Prometheus scrape. Reachable publicly only through the proxy's
   // token-gated `/metrics/backend` lane; inside the network it is the plain
   // pull endpoint every sidecar expects.

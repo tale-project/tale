@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
@@ -56,9 +57,29 @@ async function seedAgent(
   await writeFile(path.join(dir, `${slug}.yml`), content, 'utf-8');
 }
 
-const alice = { viewerUserId: 'user_alice', isOrgAdmin: false };
-const bob = { viewerUserId: 'user_bob', isOrgAdmin: false };
-const admin = { viewerUserId: 'user_admin', isOrgAdmin: true };
+/**
+ * The writes take the agents domain's config-store write lock, which needs a
+ * database handle. These tests are about the files and the visibility rules,
+ * so the double just runs the callback.
+ */
+function fakeSql(): Sql {
+  const tag = () => Promise.resolve([]);
+  const begin = (callback: (tx: unknown) => Promise<unknown>) => callback(tag);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return { begin } as unknown as Sql;
+}
+
+const alice = {
+  sql: fakeSql(),
+  viewerUserId: 'user_alice',
+  isOrgAdmin: false,
+};
+const bob = { sql: fakeSql(), viewerUserId: 'user_bob', isOrgAdmin: false };
+const admin = {
+  sql: fakeSql(),
+  viewerUserId: 'user_admin',
+  isOrgAdmin: true,
+};
 
 function errorCode(err: unknown): string | undefined {
   if (err instanceof AppError) {

@@ -136,4 +136,4 @@ Then either pre-build a `tale-proxy` image with the custom Caddyfile, or front T
 
 ## Where this fits
 
-The three modes cover the three deployment shapes most teams hit; the env-var rows live in [Environment reference](/self-hosted/configuration/environment-reference#tls). If you are setting up a fresh production host right now, [Production Linux server install](/self-hosted/install/linux-server) walks Let's Encrypt end-to-end with the firewall and DNS steps in order.
+The three modes cover the three deployment shapes most teams hit; the env-var rows live in [Environment reference](/self-hosted/configuration/environment-reference#tls). If you are setting up a fresh production host right now, the [quickstart](/self-hosted/install/quickstart) is `tale deploy`; this page is the cert modes.

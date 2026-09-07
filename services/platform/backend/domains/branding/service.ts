@@ -21,6 +21,7 @@ import {
   type BrandingJsonConfig,
   type BrandingReadResult,
 } from '../../core/branding/file_utils.ts';
+import { withConfigWriteLock } from '../../core/lib/config_store/write_lock.ts';
 import {
   atomicWrite,
   atomicWriteBuffer,
@@ -154,16 +155,20 @@ export async function readBranding(
 }
 
 export async function saveBranding(
+  sql: Sql,
   orgSlug: string,
   config: unknown,
 ): Promise<{ hash: string }> {
   const parsed = brandingJsonSchema.parse(config);
   const content = serializeBrandingJson(parsed);
-  await atomicWrite(resolveBrandingFilePath(orgSlug), content);
+  await withConfigWriteLock(sql, orgSlug, 'branding', () =>
+    atomicWrite(resolveBrandingFilePath(orgSlug), content),
+  );
   return { hash: sha256(content) };
 }
 
 export async function saveBrandingImage(
+  sql: Sql,
   orgSlug: string,
   args: { type: string; base64: string; mimeType: string },
 ): Promise<{ filename: string }> {
@@ -199,9 +204,14 @@ export async function saveBrandingImage(
   }
   const filename = `${args.type}.${ext}`;
   const imagesDir = resolveImagesDir(orgSlug);
-  await mkdir(imagesDir, { recursive: true });
-  await removeImageVariants(imagesDir, args.type, 'saveBrandingImage');
-  await atomicWriteBuffer(resolveImagePath(orgSlug, filename), buffer);
+  // Replacing an image is a delete-then-write across extensions: two saves
+  // of the same type interleaving there leave the loser's file beside the
+  // winner's, and the reader picks by prefix.
+  await withConfigWriteLock(sql, orgSlug, 'branding', async () => {
+    await mkdir(imagesDir, { recursive: true });
+    await removeImageVariants(imagesDir, args.type, 'saveBrandingImage');
+    await atomicWriteBuffer(resolveImagePath(orgSlug, filename), buffer);
+  });
   return { filename };
 }
 
@@ -227,6 +237,7 @@ async function removeImageVariants(
 }
 
 export async function deleteBrandingImage(
+  sql: Sql,
   orgSlug: string,
   type: string,
 ): Promise<void> {
@@ -236,22 +247,28 @@ export async function deleteBrandingImage(
       `Invalid image type: ${type}`,
     );
   }
-  await removeImageVariants(
-    resolveImagesDir(orgSlug),
-    type,
-    'deleteBrandingImage',
+  await withConfigWriteLock(sql, orgSlug, 'branding', () =>
+    removeImageVariants(resolveImagesDir(orgSlug), type, 'deleteBrandingImage'),
   );
 }
 
 export async function snapshotBrandingToHistory(
+  sql: Sql,
   orgSlug: string,
 ): Promise<{ timestamp: string } | null> {
-  const currentContent = await readFileSafe(resolveBrandingFilePath(orgSlug));
-  if (!currentContent) return null;
-  const historyDir = resolveHistoryDir(orgSlug);
-  await mkdir(historyDir, { recursive: true });
-  const timestamp = generateHistoryTimestamp();
-  await atomicWrite(path.join(historyDir, `${timestamp}.json`), currentContent);
-  await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
-  return { timestamp };
+  // Read → write → prune: without the lock two snapshots can share a
+  // timestamp, and a prune can drop an entry another is still writing.
+  return withConfigWriteLock(sql, orgSlug, 'branding', async () => {
+    const currentContent = await readFileSafe(resolveBrandingFilePath(orgSlug));
+    if (!currentContent) return null;
+    const historyDir = resolveHistoryDir(orgSlug);
+    await mkdir(historyDir, { recursive: true });
+    const timestamp = generateHistoryTimestamp();
+    await atomicWrite(
+      path.join(historyDir, `${timestamp}.json`),
+      currentContent,
+    );
+    await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
+    return { timestamp };
+  });
 }

@@ -22,6 +22,7 @@ import {
 } from '../compose/types';
 import { containerExists } from '../docker/container-exists';
 import { pipeLines } from '../docker/docker-compose';
+import { listComposeContainers } from '../docker/list-service-containers';
 import { getCurrentColor } from '../state/get-current-color';
 
 interface LogsOptions {
@@ -50,29 +51,46 @@ export async function logs(options: LogsOptions): Promise<void> {
     throw new Error('Invalid service name');
   }
 
-  // Determine container name
+  // Determine which container to tail
   let containerName: string;
 
   if (isRotatableService(service)) {
-    // Rotatable services carry a color once deployed; `tale dev` runs them
-    // colour-less. Resolve in that order so the quickstart's
-    // `tale logs platform` works before any deployment exists.
-    if (color) {
-      containerName = `${getProjectId()}-${service}-${color}`;
+    // A colour-rolled service is a REPLICA SET: compose names its containers
+    // and there may be several. Resolve the colour first (explicit, then the
+    // active one, then the colour-less dev stack), then take that colour's
+    // first replica — `docker logs` follows one container, and replica 1 is
+    // the stable choice. `--color` plus a scaled role is the case where an
+    // operator wants `docker logs` on a specific replica by name.
+    const resolvedColor = color ?? (await getCurrentColor(deployDir));
+    if (color === undefined && resolvedColor) {
+      logger.info(`Auto-detected active color: ${resolvedColor}`);
+    }
+    const replicas = resolvedColor
+      ? await listComposeContainers(
+          `${getProjectId()}-${resolvedColor}`,
+          service,
+        )
+      : [];
+    const first = replicas[0];
+    if (first !== undefined) {
+      if (replicas.length > 1) {
+        logger.info(
+          `${service} runs ${replicas.length} replicas in ${resolvedColor ?? 'this colour'}; showing ${first.name}. Others: ${replicas
+            .slice(1)
+            .map((replica) => replica.name)
+            .join(', ')}`,
+        );
+      }
+      containerName = first.name;
     } else {
-      const currentColor = await getCurrentColor(deployDir);
-      if (currentColor) {
-        logger.info(`Auto-detected active color: ${currentColor}`);
-        containerName = `${getProjectId()}-${service}-${currentColor}`;
+      // `tale dev` runs these colour-less under a pinned name.
+      const devContainer = `${getProjectId()}-${service}`;
+      if (await containerExists(devContainer)) {
+        containerName = devContainer;
       } else {
-        const devContainer = `${getProjectId()}-${service}`;
-        if (await containerExists(devContainer)) {
-          containerName = devContainer;
-        } else {
-          logger.error('No active deployment found');
-          logger.info('Use --color to specify blue or green explicitly');
-          throw new Error('No active deployment');
-        }
+        logger.error(`No ${service} container found`);
+        logger.info('Use --color to specify blue or green explicitly');
+        throw new Error('No active deployment');
       }
     }
   } else {
@@ -83,13 +101,12 @@ export async function logs(options: LogsOptions): Promise<void> {
       );
     }
     containerName = `${getProjectId()}-${service}`;
-  }
-
-  // Check if container exists (docker logs works for both running and stopped containers)
-  const exists = await containerExists(containerName);
-  if (!exists) {
-    logger.error(`Container ${containerName} does not exist`);
-    throw new Error('Container not found');
+    // docker logs works for both running and stopped containers.
+    const exists = await containerExists(containerName);
+    if (!exists) {
+      logger.error(`Container ${containerName} does not exist`);
+      throw new Error('Container not found');
+    }
   }
 
   // Build docker logs command

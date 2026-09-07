@@ -79,7 +79,7 @@ export function createBrandingRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      return c.json(await saveBranding(orgSlug, body.data));
+      return c.json(await saveBranding(deps.sql, orgSlug, body.data));
     } catch (error) {
       return handleError(c, error);
     }
@@ -97,7 +97,7 @@ export function createBrandingRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      return c.json(await saveBrandingImage(orgSlug, body.data));
+      return c.json(await saveBrandingImage(deps.sql, orgSlug, body.data));
     } catch (error) {
       return handleError(c, error);
     }
@@ -107,7 +107,7 @@ export function createBrandingRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      await deleteBrandingImage(orgSlug, c.req.param('type'));
+      await deleteBrandingImage(deps.sql, orgSlug, c.req.param('type'));
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
@@ -117,7 +117,9 @@ export function createBrandingRoutes(deps: {
   admin.post('/snapshot', async (c) => {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    return c.json({ snapshot: await snapshotBrandingToHistory(orgSlug) });
+    return c.json({
+      snapshot: await snapshotBrandingToHistory(deps.sql, orgSlug),
+    });
   });
 
   app.route('/', admin);

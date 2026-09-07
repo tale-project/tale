@@ -1,11 +1,17 @@
 ---
-title: Docker-Compose-Referenz
-description: Welche Compose-Datei mit Tale ausgeliefert wird, wofür jede gut ist, und wie die Schichtung funktioniert, wenn du Dev-, Docs- oder Test-Kombinationen hochfährst.
+title: Contributor-Compose-Dateien
+description: Welche Compose-Overlays im Quellbaum liegen — für lokale Entwicklung, Docs und Tests. Kein Produktions-Installationsweg.
 ---
 
-Tale liefert eine Handvoll Docker-Compose-Dateien aus. Die Basis ist `compose.yml`; der Rest sind Overlays, die Services für spezifische Szenarien hinzufügen oder ersetzen — Entwicklung, Docs, Test. Diese Seite benennt jede Datei, sagt, wann du sie wählst, und gibt die Schichtungs-Regel, der alles andere folgt.
+Diese Seite ist für Leute, die am Quellbaum arbeiten. Die Basis ist `compose.yml`; der Rest sind Overlays für Entwicklung, Docs und Tests. Operator, die Tale fahren, starten hier nicht — der CLI-Weg ist [Quickstart](/de/self-hosted/install/quickstart), und ein Stack, den du selbst schreibst, ist [Compose selbst fahren](/de/self-hosted/install/own-compose).
 
-Die Form ist absichtlich konservativ. Die Basis-Datei ist ein Build-from-Source-Stack für lokale Entwicklung und Smoke-Tests — **nicht** Produktion; jedes Overlay ist per `-f` opt-in und fügt nur hinzu, was es muss. Eine produktive Instanz wird von der [`tale`-CLI](/de/self-hosted/install/cli-install) (`tale deploy`) generiert und gerollt, die ihr eigenes sicheres compose inline schreibt — nur `80`/`443` exponiert — und diese Dateien nie verwendet. Merk dir die Basis und ein einzelnes Overlay, nicht das ganze Raster.
+Die Basis-Datei ist ein Build-from-Source-Stack für lokale Smoke-Tests. Jedes Overlay ist per `-f` opt-in. Eine produktive Instanz erzeugt `tale deploy` und nutzt diese Dateien nie.
+
+<Note>
+
+Der Produktionsvertrag — Netze, Aliase, Probes, Volumes — lebt in [Compose selbst fahren](/de/self-hosted/install/own-compose).
+
+</Note>
 
 ## Ein durchgespieltes compose-up
 

@@ -742,6 +742,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   // ---- agents (the file layer, reused) ------------------------------------
   const agentCaller = async (c: Context<RestEnv>) => ({
+    sql: deps.sql,
     orgSlug:
       (await resolveOrgSlug(deps.sql, c.get('organizationId'))) ??
       c.get('orgSlug'),

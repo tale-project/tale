@@ -63,4 +63,4 @@ Limits pro Key, pro IP, pro Organisation und wie ein 429 zu lesen ist.
 
 ## Wo das hingehört
 
-Entwicklung ist der kleinste Abschnitt, weil die meisten Nutzer ihn nie brauchen; das Publikum konzentriert sich auf zwei Rollen (Entwickler im Produkt, Contributor außerhalb), ist aber für beide tragend. Wenn du etwas Externes an Tale anbindest, ist [API-Referenz](/de/develop/api-reference) die erste Lektüre; wenn du am Quellcode beiträgst, ist [Mitwirken](/de/self-hosted/contributing-docker) — unter dem Reiter Selbst gehostet — die richtige.
+Entwicklung ist der kleinste Abschnitt, weil die meisten Nutzer ihn nie brauchen; das Publikum konzentriert sich auf zwei Rollen (Entwickler im Produkt, Contributor außerhalb), ist aber für beide tragend. Wenn du etwas Externes an Tale anbindest, ist [API-Referenz](/de/develop/api-reference) die erste Lektüre; wenn du am Quellcode beiträgst, sind [Contributor-Setup](/de/develop/contributor-setup) und [Zu Docker-Images beitragen](/de/develop/contributing-docker) die richtige Lektüre.

@@ -16,12 +16,14 @@ const listSnapshotsMock = mock();
 const resolveSnapshotPrefixMock = mock();
 const verifySnapshotMock = mock();
 const isContainerRunningMock = mock();
+const listComposeContainersMock = mock();
 const stopContainerMock = mock();
 const ensureVolumesMock = mock();
 const execMock = mock();
 const confirmMock = mock();
 const loggerInfoMock = mock();
 const loggerNoticeMock = mock();
+const loggerWarnMock = mock();
 const loggerTableMock = mock();
 
 mock.module('../docker/ensure-volumes', () => ({
@@ -36,7 +38,7 @@ mock.module('../state/with-lock', () => ({
 mock.module('../../utils/logger', () => ({
   info: loggerInfoMock,
   error: mock(),
-  warn: mock(),
+  warn: loggerWarnMock,
   step: mock(),
   success: mock(),
   header: mock(),
@@ -56,6 +58,9 @@ const deps: RestoreDeps = {
   resolveSnapshotPrefix: resolveSnapshotPrefixMock,
   verifySnapshot: verifySnapshotMock,
   isContainerRunning: isContainerRunningMock,
+  // A colour's replicas are compose-numbered, so the running-stack probe
+  // finds them by project label rather than by name.
+  listComposeContainers: listComposeContainersMock,
   stopContainer: stopContainerMock,
 };
 const run = (options: Parameters<typeof restore>[0]) => restore(options, deps);
@@ -69,7 +74,12 @@ const env: DeploymentEnv = {
   DEPLOY_DIR: '/tmp/tale-restore-test',
 };
 
-/** A snapshot from before blobs were captured: no `object-store-data` archive. */
+/**
+ * A snapshot from before blobs were captured: no `object-store-data`
+ * archive. It also predates the config-volume rename, so its config tree is
+ * filed as `convex-data.tar.gz` — the alias every restore has to keep
+ * honouring, or an upgraded deployment silently restores with no org config.
+ */
 const MANIFEST = {
   id: '20260611-120000-deploy',
   createdAt: '2026-06-11T12:00:00.000Z',
@@ -79,6 +89,28 @@ const MANIFEST = {
   volumes: {
     'db-data': { sha256: 'a'.repeat(64), sizeBytes: 1024 },
     'convex-data': { sha256: 'b'.repeat(64), sizeBytes: 2048 },
+  },
+};
+
+/** A snapshot taken after the rename: the config tree is `config-data`. */
+const MANIFEST_RENAMED = {
+  ...MANIFEST,
+  id: '20260907-100000-deploy',
+  createdAt: '2026-09-07T10:00:00.000Z',
+  volumes: {
+    'db-data': { sha256: 'a'.repeat(64), sizeBytes: 1024 },
+    'config-data': { sha256: 'b'.repeat(64), sizeBytes: 2048 },
+  },
+};
+
+/** A torn snapshot: no config archive under either name. */
+const MANIFEST_NO_CONFIG = {
+  ...MANIFEST,
+  id: '20260907-110000-manual',
+  createdAt: '2026-09-07T11:00:00.000Z',
+  trigger: 'manual',
+  volumes: {
+    'db-data': { sha256: 'a'.repeat(64), sizeBytes: 1024 },
   },
 };
 
@@ -102,12 +134,15 @@ afterEach(() => {
   resolveSnapshotPrefixMock.mockReset();
   verifySnapshotMock.mockReset();
   isContainerRunningMock.mockReset();
+  listComposeContainersMock.mockReset();
+  listComposeContainersMock.mockResolvedValue([]);
   stopContainerMock.mockReset();
   ensureVolumesMock.mockReset();
   execMock.mockReset();
   confirmMock.mockReset();
   loggerInfoMock.mockReset();
   loggerNoticeMock.mockReset();
+  loggerWarnMock.mockReset();
   loggerTableMock.mockReset();
 });
 
@@ -312,6 +347,76 @@ describe('restore', () => {
       const byId = new Map(rows);
       expect(byId.get(MANIFEST_WITH_BLOBS.id)).not.toContain('without blobs');
       expect(byId.get(MANIFEST.id)).toContain('without blobs');
+    });
+  });
+
+  describe('the config archive', () => {
+    const restoreReady = () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      isContainerRunningMock.mockResolvedValue(false);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+    };
+
+    // The rename is a copy, not a Docker rename: every snapshot taken before
+    // it filed the config tree under the old name. Dropping that archive
+    // would restore a deployment whose organizations have no configuration —
+    // silently, because the manifest filter is what decides.
+    test('extracts a pre-rename convex-data archive into config-data', async () => {
+      listSnapshotsMock.mockResolvedValue([MANIFEST]);
+      restoreReady();
+
+      await run({ env, snapshotId: MANIFEST.id, assumeYes: true });
+
+      const configRestore = execMock.mock.calls.find((call) =>
+        String(call[1][call[1].length - 1]).includes('convex-data.tar.gz'),
+      );
+      expect(configRestore).toBeDefined();
+      // Read from the OLD archive name, written into the LIVE volume.
+      expect(configRestore?.[1]).toContain('tale_config-data:/data');
+      expect(ensureVolumesMock).toHaveBeenCalledWith(
+        expect.arrayContaining(['config-data']),
+        'tale_',
+      );
+    });
+
+    test('extracts a post-rename config-data archive unchanged', async () => {
+      listSnapshotsMock.mockResolvedValue([MANIFEST_RENAMED]);
+      restoreReady();
+
+      await run({ env, snapshotId: MANIFEST_RENAMED.id, assumeYes: true });
+
+      const configRestore = execMock.mock.calls.find((call) =>
+        String(call[1][call[1].length - 1]).includes('config-data.tar.gz'),
+      );
+      expect(configRestore?.[1]).toContain('tale_config-data:/data');
+      expect(
+        restoreScripts().some((script) => script.includes('convex-data')),
+      ).toBe(false);
+    });
+
+    // A missing blob archive is normal (external S3, or an old snapshot); a
+    // missing CONFIG archive never is, so it must not pass in silence.
+    test('warns loudly when a snapshot carries no config archive at all', async () => {
+      listSnapshotsMock.mockResolvedValue([MANIFEST_NO_CONFIG]);
+      restoreReady();
+
+      await run({ env, snapshotId: MANIFEST_NO_CONFIG.id, assumeYes: true });
+
+      const warnings = loggerWarnMock.mock.calls.map((call) => String(call[0]));
+      expect(
+        warnings.some(
+          (line) =>
+            line.includes('no config-data') && line.includes('incomplete'),
+        ),
+      ).toBe(true);
+      expect(execMock).toHaveBeenCalledTimes(1);
     });
   });
 });

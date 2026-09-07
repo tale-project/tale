@@ -248,7 +248,7 @@ export function createRetentionRoutes(deps: {
         // The file LAST, inside the transaction: a write failure rolls the
         // audit row and the staged shortening back, and a transaction
         // failure never leaves an unaudited policy in force.
-        await writeGovernancePolicyFile(orgSlug, 'retention_policy', cfg);
+        await writeGovernancePolicyFile(tx, orgSlug, 'retention_policy', cfg);
       });
       // First-enable seed: an org saving its first policy applies the
       // current operator bounds implicitly (the 0.4 idempotent seed).

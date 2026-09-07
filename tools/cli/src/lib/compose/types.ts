@@ -80,7 +80,21 @@ export interface ServiceConfig {
   registry: string;
 }
 
-export const ROTATABLE_SERVICES = ['platform'] as const;
+/**
+ * The application tier — every process that holds no durable state of its
+ * own and can therefore be replicated and replaced freely. All three are
+ * deployed as ONE colour: a whole `{platform × N, api × N, worker × M}` at a
+ * single version, brought up beside the live colour and flipped to.
+ *
+ * `platform` and `backend-api` are the only two the proxy and the sandbox
+ * address; they carry the DNS aliases. The worker holds no alias — it is
+ * addressed only by the job queue.
+ */
+export const ROTATABLE_SERVICES = [
+  'platform',
+  'backend-api',
+  'backend-worker',
+] as const;
 
 /** The application backend tier — named once and spread into every list
  *  below, so the deploy flow and the drain lane cannot drift apart. */
@@ -97,11 +111,10 @@ export const STATEFUL_SERVICES = [
   // Sandbox tier — the single spawner and its egress proxy. Rolled in place
   // through the stateful compose on every default deploy (see
   // ALWAYS_ROLL_SERVICES); a serialized /v1/drain (drainSandbox) runs first.
+  // NOT colour-rolled: the spawner holds docker.sock, the session directory
+  // and the gateway volume, so it is a singleton by construction.
   'sandbox',
   'sandbox-egress',
-  // The application backend tier: the api that serves every door and the
-  // worker that runs the jobs.
-  ...BACKEND_TIER_SERVICES,
 ] as const;
 export const ALL_SERVICES = [
   ...ROTATABLE_SERVICES,
@@ -136,18 +149,19 @@ export const STOP_GATED_SERVICES = ['db', 'object-store', 'proxy'] as const;
  * default deploy. `sandbox-llm-gateway` is a singleton that owns the single
  * `llm-gateway-data` volume, so it is recreated in place and only when its
  * image actually changed. `sandbox` / `sandbox-egress` are the
- * single-container sandbox tier (blue-green dropped): they roll in place too,
- * drained first via /v1/drain (drainSandbox, deploy.ts). The wire protocol
- * versions with platform, so they must roll on every deploy.
+ * single-container sandbox tier: they roll in place too, drained first via
+ * /v1/drain (drainSandbox, deploy.ts). The wire protocol versions with
+ * platform, so they must roll on every deploy.
+ *
+ * The application tier is NOT here — `platform`, `backend-api` and
+ * `backend-worker` are stateless and deploy as one colour
+ * (ROTATABLE_SERVICES). A copy in this list would roll them in place beside
+ * the colour that already owns them.
  */
 export const ALWAYS_ROLL_SERVICES = [
   'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
-  // The backend ships the SAME image as platform and shares its wire
-  // contracts, so it must never version-skew from it: rolled in place on
-  // every deploy, drained first (drain-backend.ts).
-  ...BACKEND_TIER_SERVICES,
 ] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];

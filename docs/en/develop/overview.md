@@ -63,4 +63,4 @@ Per-key, per-IP, per-org limits and how to interpret 429s.
 
 ## Where this fits
 
-Develop is the smallest section because most users never need it; the audience is concentrated in two roles (in-product Developer, out-of-product contributor) but it is load-bearing for both. If you are wiring something external to Tale, [API reference](/develop/api-reference) is the first read; if you are contributing to the source, [Contributing](/self-hosted/contributing-docker) — under the Self-hosted tab — is.
+Develop is the smallest section because most users never need it; the audience is concentrated in two roles (in-product Developer, out-of-product contributor) but it is load-bearing for both. If you are wiring something external to Tale, [API reference](/develop/api-reference) is the first read; if you are contributing to the source, [Contributor setup](/develop/contributor-setup) and [Contributing to Docker images](/develop/contributing-docker) are.

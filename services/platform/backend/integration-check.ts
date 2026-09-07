@@ -51,7 +51,7 @@ import { appendMessageRow } from './domains/chat/store.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
-import { createBoss, ensureQueues } from './jobs/boss.ts';
+import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
@@ -2631,7 +2631,33 @@ async function checkTasksOrgIsolation(
  * GET round-trip → delete. Gated on ITEST_S3_ENDPOINT — recorded as skipped
  * (visibly, never silently) when no store is provided.
  */
+/**
+ * Override process env for one lane and put it back exactly as it was.
+ *
+ * A lane that `delete`s a variable it merely OVERRODE silently disarms every
+ * later lane that relies on the runner's value. Three sandbox lanes used to
+ * delete `SANDBOX_TOKEN` in their `finally`, so the task-agent watchdog lane
+ * — hundreds of checks later — reported "SANDBOX_TOKEN is not set" no matter
+ * what the runner exported, and its exec-cancel probe could not pass on any
+ * invocation. Restoring the previous value (including "it was absent") keeps
+ * a lane's environment its own.
+ */
+function overrideEnv(vars: Record<string, string>): () => void {
+  const previous = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(vars)) {
+    previous.set(key, process.env[key]);
+    process.env[key] = value;
+  }
+  return () => {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
+}
+
 async function checkFiles(
+  sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
@@ -2665,11 +2691,11 @@ async function checkFiles(
     OBJECT_STORE_ACCESS_KEY: accessKeyId,
     OBJECT_STORE_SECRET_KEY: secretAccessKey,
   };
-  const seeded = await ensureDefaultObjectStore(storeEnv);
+  const seeded = await ensureDefaultObjectStore(sql, storeEnv);
   // Second call must be a no-op: boot runs on every restart, and a seeder
   // that rewrote the connection each time would repoint a deployment whose
   // operator had since edited it.
-  const reseeded = await ensureDefaultObjectStore(storeEnv);
+  const reseeded = await ensureDefaultObjectStore(sql, storeEnv);
   // A surviving config file with a VANISHED bucket (store volume recreated
   // under a surviving config dir) must heal on the next boot: delete the
   // bucket and re-run the seeder — the 'present' path re-ensures the bucket
@@ -2680,10 +2706,23 @@ async function checkFiles(
     { region: 'us-east-1', endpoint, forcePathStyle: true, bucket },
     { accessKeyId, secretAccessKey },
   );
-  const bucketDropped = (
-    await probeS3.client.fetch(`${endpoint}/${bucket}`, { method: 'DELETE' })
-  ).ok;
-  const healed = await ensureDefaultObjectStore(storeEnv);
+  // Deleting the bucket is how this probe simulates a vanished store. S3
+  // refuses to delete a non-empty one, which is what a REUSED object store
+  // looks like — a previous run's uploads are still in it. Say so in the
+  // message rather than reporting a bare `dropped=false`, which reads like a
+  // product bug and cost a full investigation once.
+  const dropResponse = await probeS3.client.fetch(`${endpoint}/${bucket}`, {
+    method: 'DELETE',
+  });
+  const bucketDropped = dropResponse.ok;
+  const dropDetail = bucketDropped
+    ? ''
+    : ` (DELETE ${dropResponse.status}${
+        dropResponse.status === 409
+          ? ' BucketNotEmpty — the object store is not throwaway; this suite needs a FRESH one, see backend/README.md'
+          : ''
+      })`;
+  const healed = await ensureDefaultObjectStore(sql, storeEnv);
   const bucketBack = (
     await probeS3.client.fetch(`${endpoint}/${bucket}`, { method: 'HEAD' })
   ).ok;
@@ -2709,7 +2748,7 @@ async function checkFiles(
       written.data.bucket === bucket &&
       // Self-hosted S3 has no per-bucket DNS; virtual-host style would 404.
       written.data.forcePathStyle,
-    `seed=${seeded.status} (want seeded), reseed=${reseeded.status} (want present), dropped=${bucketDropped}→healed=${healed.status}/back=${bucketBack} (want present/true), bucket=${written.success ? written.data.bucket : 'ERR'}, pathStyle=${written.success ? String(written.data.forcePathStyle) : 'ERR'}`,
+    `seed=${seeded.status} (want seeded), reseed=${reseeded.status} (want present), dropped=${bucketDropped}${dropDetail}→healed=${healed.status}/back=${bucketBack} (want present/true), bucket=${written.success ? written.data.bucket : 'ERR'}, pathStyle=${written.success ? String(written.data.forcePathStyle) : 'ERR'}`,
   );
 
   const { cookie, orgId } = ctx;
@@ -22234,14 +22273,19 @@ async function checkControlDrain(
   const token = process.env.TALE_CONTROL_TOKEN ?? '';
   const control = (
     route: string,
-    init: { method?: string; bearer?: string } = {},
+    init: { method?: string; bearer?: string; body?: unknown } = {},
   ): Promise<Response> =>
     fetch(`${base}/api/control${route}`, {
       method: init.method ?? 'GET',
-      headers:
-        init.bearer !== undefined
+      headers: {
+        ...(init.bearer !== undefined
           ? { authorization: `Bearer ${init.bearer}` }
-          : {},
+          : {}),
+        ...(init.body === undefined
+          ? {}
+          : { 'content-type': 'application/json' }),
+      },
+      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     });
 
   // Door auth: no bearer / wrong bearer → 401; unset env → 404.
@@ -22342,6 +22386,83 @@ async function checkControlDrain(
   await sql`
     UPDATE app.backend_control SET draining = false WHERE key = 'singleton'
   `;
+
+  // COLOUR SCOPE (0085). A blue-green flip runs both colours of the api at
+  // once and drains only the one it is retiring, so a drain aimed elsewhere
+  // must leave this replica serving — otherwise the flip silences the colour
+  // it just promoted. `/ready` is the readiness the deploy watches; `/ping`
+  // stays liveness so Docker does not kill a container mid-drain.
+  const savedColour = process.env.TALE_COLOR;
+  process.env.TALE_COLOR = 'blue';
+  const readyBefore = await fetch(`${base}/ready`);
+  await control('/drain', {
+    method: 'POST',
+    bearer: token,
+    body: { colour: 'green' },
+  });
+  const otherColour = z
+    .object({ draining: z.boolean() })
+    .loose()
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+  const readyOtherColour = await fetch(`${base}/ready`);
+  const pingOtherColour = await fetch(`${base}/ping`);
+
+  await control('/drain', {
+    method: 'POST',
+    bearer: token,
+    body: { colour: 'blue' },
+  });
+  const ownColour = z
+    .object({ draining: z.boolean() })
+    .loose()
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+  const readyOwnColour = await fetch(`${base}/ready`);
+  // A draining replica is still ALIVE — Docker must not kill it while it is
+  // finishing the in-flight work the drain is waiting for.
+  const pingOwnColour = await fetch(`${base}/ping`);
+
+  // An unaimed drain (an older CLI, or a tier that rolls in place) still
+  // means every replica.
+  await control('/drain', { method: 'POST', bearer: token });
+  const unaimed = z
+    .object({ draining: z.boolean() })
+    .loose()
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+
+  await control('/end-drain', { method: 'POST', bearer: token });
+  const readyAfterEnd = await fetch(`${base}/ready`);
+  if (savedColour === undefined) {
+    delete process.env.TALE_COLOR;
+  } else {
+    process.env.TALE_COLOR = savedColour;
+  }
+
+  record(
+    'drain is scoped to one colour, and /ready is separate from /ping',
+    readyBefore.status === 200 &&
+      otherColour.success &&
+      !otherColour.data.draining &&
+      readyOtherColour.status === 200 &&
+      pingOtherColour.status === 200 &&
+      ownColour.success &&
+      ownColour.data.draining &&
+      readyOwnColour.status === 503 &&
+      pingOwnColour.status === 200 &&
+      unaimed.success &&
+      unaimed.data.draining &&
+      readyAfterEnd.status === 200,
+    `ready before=${readyBefore.status} (want 200), ` +
+      `other-colour draining=${otherColour.success ? otherColour.data.draining : 'ERR'} ready=${readyOtherColour.status} ping=${pingOtherColour.status} (want false/200/200), ` +
+      `own-colour draining=${ownColour.success ? ownColour.data.draining : 'ERR'} ready=${readyOwnColour.status} ping=${pingOwnColour.status} (want true/503/200), ` +
+      `unaimed draining=${unaimed.success ? unaimed.data.draining : 'ERR'} (want true), ` +
+      `ready after end=${readyAfterEnd.status} (want 200)`,
+  );
 
   // `tale migrate` on a cut-over stack: the provision door queues one
   // idempotent `org.scaffold` job per organization (schema migrations run at
@@ -28147,10 +28268,12 @@ async function checkTaskAgentTurnDrive(
       ? modelsAddress.port
       : 0;
 
-  process.env.SANDBOX_URL = `http://127.0.0.1:${spawnerPort}`;
-  process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
-  process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${gatewayPort}`;
-  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
+    SANDBOX_TOKEN: SPAWNER_TOKEN,
+    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
+    TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+  });
 
   try {
     const configRoot = process.env.TALE_CONFIG_DIR ?? '';
@@ -28632,9 +28755,7 @@ async function checkTaskAgentTurnDrive(
       `threw="${cancelled.threw}" spawned=${JSON.stringify(cancelledSpawned)} (want none), op=${cancelledOp?.status}/finalized=${cancelledOp?.finalizedAt !== null} (want cancelled), run=${cancelledRun?.status}/${cancelledRun?.execId} (want cancelled, exec kept), session=${cancelledSession} (want stopped), vk mint/revoke=${cancelled.minted}/${cancelled.revoked} (want 1/1)`,
     );
   } finally {
-    delete process.env.SANDBOX_URL;
-    delete process.env.SANDBOX_TOKEN;
-    delete process.env.SANDBOX_LLM_GATEWAY_URL;
+    restoreEnv();
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
@@ -28945,10 +29066,12 @@ async function checkAutomationAgentNode(
       ? gatewayAddress.port
       : 0;
 
-  process.env.SANDBOX_URL = `http://127.0.0.1:${spawnerPort}`;
-  process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
-  process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${gatewayPort}`;
-  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
+    SANDBOX_TOKEN: SPAWNER_TOKEN,
+    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
+    TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+  });
 
   try {
     // The itestagent provider + credential from the drive check are already
@@ -29361,9 +29484,7 @@ async function checkAutomationAgentNode(
       `deploy(sub=${subSendDeploy}, parent=${parentSendDeploy}), run=${subSendRun.status} (${(subSendRun.detail ?? '').slice(0, 160)}), cards=${subSendCards[0]?.count} (want 0)`,
     );
   } finally {
-    delete process.env.SANDBOX_URL;
-    delete process.env.SANDBOX_TOKEN;
-    delete process.env.SANDBOX_LLM_GATEWAY_URL;
+    restoreEnv();
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
@@ -30482,8 +30603,10 @@ async function checkSandboxSpawner(
   const address = spawner.address();
   const port =
     address !== null && typeof address === 'object' ? address.port : 0;
-  process.env.SANDBOX_URL = `http://127.0.0.1:${port}`;
-  process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${port}`,
+    SANDBOX_TOKEN: SPAWNER_TOKEN,
+  });
 
   try {
     const sessions = await import('./domains/sandbox/sessions.ts');
@@ -30689,8 +30812,7 @@ async function checkSandboxSpawner(
       `status=${statusListing.success ? statusListing.data.tools.length : 'ERR'} tools, product_find=${productFind.success ? productFind.data.status : 'ERR'} (hit=${productRaw.includes('Widget')}), ungranted=${ungranted.success ? ungranted.data.status : 'ERR'}, badToken → ${badToken.status} (want 401), ledger=${ledger.map((r) => `${r.tool}:${r.outcome}`).join('/')}`,
     );
   } finally {
-    delete process.env.SANDBOX_URL;
-    delete process.env.SANDBOX_TOKEN;
+    restoreEnv();
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
@@ -42680,14 +42802,19 @@ async function checkWatchdogs(
     spawnerAddress !== null && typeof spawnerAddress === 'object'
       ? spawnerAddress.port
       : 0;
-  const previousSandboxUrl = process.env.SANDBOX_URL;
-  process.env.SANDBOX_URL = `http://127.0.0.1:${spawnerPort}`;
+  // The lane runs its OWN stub spawner, so it owns the token that signs the
+  // calls to it too: the cancel client refuses to send an unsigned request,
+  // and depending on the runner's `SANDBOX_TOKEN` made this probe fail on the
+  // documented invocation, which does not set one.
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
+    SANDBOX_TOKEN: 'itest-watchdog-spawner',
+  });
   const taskWatchdogs = await import('./domains/tasks/watchdogs.ts');
   try {
     await taskWatchdogs.runTaskAgentWatchdog(sql);
   } finally {
-    if (previousSandboxUrl === undefined) delete process.env.SANDBOX_URL;
-    else process.env.SANDBOX_URL = previousSandboxUrl;
+    restoreEnv();
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
@@ -44251,6 +44378,30 @@ async function readJson(res: Response, label: string): Promise<unknown> {
  * leaves every later lane 401-ing, which used to surface only as a JSON
  * parse error deep inside an unrelated lane, with no tally at all.
  */
+/**
+ * What a lane changed about `process.env` and did not put back.
+ *
+ * Lanes legitimately override variables to point the code under test at their
+ * own stubs. What breaks the suite is not restoring them: three sandbox lanes
+ * used to `delete process.env.SANDBOX_TOKEN` in their `finally`, so the
+ * task-agent watchdog lane — 40 lanes later — read no token, its cancel
+ * client refused to send an unsigned request, and its probe could not pass on
+ * any invocation. The failure named the watchdog; the cause was elsewhere
+ * entirely.
+ *
+ * Only variables that existed BEFORE the lane are reported: a lane that
+ * introduces one for its own use and tidies it away again harms nobody.
+ */
+function envLeaks(before: ReadonlyMap<string, string | undefined>): string[] {
+  const leaked: string[] = [];
+  for (const [key, value] of before) {
+    const after = process.env[key];
+    if (after === value) continue;
+    leaked.push(after === undefined ? `${key} (deleted)` : `${key} (changed)`);
+  }
+  return leaked;
+}
+
 async function runLanes(
   base: string,
   ctx: { cookie: string; userId: string },
@@ -44259,6 +44410,7 @@ async function runLanes(
   for (const [index, [name, run]] of lanes.entries()) {
     const position = `lane ${index + 1} of ${lanes.length} (${name})`;
     const notRun = lanes.length - index - 1;
+    const envBefore = new Map(Object.entries(process.env));
     try {
       await run();
     } catch (error) {
@@ -44268,6 +44420,16 @@ async function runLanes(
         `RUN TRUNCATED at ${position} — ${notRun} later lane(s) never ran; threw ${errorText(error)}`,
       );
       return { ran: index + 1, total: lanes.length, truncatedAt: name };
+    }
+    const leaked = envLeaks(envBefore);
+    if (leaked.length > 0) {
+      record(
+        `harness: ${name} leaves the environment as it found it`,
+        false,
+        `${leaked.join(', ')} — the lane overrode these and did not restore ` +
+          `them, so every later lane reads the lane's value (or nothing) ` +
+          `instead. Wrap the override in overrideEnv().`,
+      );
     }
     if (!(await sharedSessionAlive(base, ctx))) {
       record(
@@ -44358,6 +44520,7 @@ async function main(): Promise<void> {
   const boss = createBoss(databaseUrl, { supervise: true });
   await boss.start();
   await ensureQueues(boss);
+  await alignQueuePolicies(sql);
   await registerSchedules(boss);
   setEnqueueBoss(boss);
   // No itest job may ever open a real IMAP/SMTP connection.
@@ -44499,7 +44662,7 @@ async function main(): Promise<void> {
             `itest-${orgSuffix}`,
           ),
       ],
-      ['checkFiles', () => checkFiles(baseUrl, authCtx)],
+      ['checkFiles', () => checkFiles(sql, baseUrl, authCtx)],
       ['checkDocuments', () => checkDocuments(sql, baseUrl, authCtx)],
       [
         'checkFolderBoundTaskFacts',

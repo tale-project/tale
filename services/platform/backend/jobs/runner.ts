@@ -8,6 +8,13 @@ export interface WorkerOptions {
   taskList: BackendTaskList;
   /** Max jobs fetched (and processed concurrently) per queue per fetch. */
   concurrency?: number;
+  /**
+   * When true, this worker must not start NEW work (its colour is
+   * draining). Already-claimed `retryLimit: 0` jobs finish in this
+   * process; a new claim is requeued and this fetch is completed so the
+   * job is not lost.
+   */
+  shouldDefer?: () => Promise<boolean>;
 }
 
 /**
@@ -37,6 +44,21 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
         Promise.all(
           jobs.map(async (job): Promise<JobResult> => {
             try {
+              if (
+                options.shouldDefer !== undefined &&
+                (await options.shouldDefer())
+              ) {
+                // Requeue first: completing a `retryLimit: 0` job without a
+                // successor would drop it. `startAfter` lets the live colour
+                // take it once this worker is gone.
+                if (typeof job.data !== 'object') {
+                  throw new Error(
+                    `task ${name} (job ${job.id}) payload is not an object`,
+                  );
+                }
+                await options.boss.send(name, job.data, { startAfter: 5 });
+                return { id: job.id, status: 'completed' };
+              }
               await handler(job.data);
               return { id: job.id, status: 'completed' };
             } catch (error) {

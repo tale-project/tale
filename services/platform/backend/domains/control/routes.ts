@@ -50,7 +50,14 @@ export function createControlRoutes(deps: { sql: Sql }): Hono {
   });
 
   app.post('/drain', async (c) => {
-    return c.json(await beginDrain(deps.sql));
+    // `colour` aims the drain at one deployment colour, so a blue-green flip
+    // can stop the OLD api taking new turns while the new one keeps serving.
+    // Absent (an older CLI, or a tier that rolls in place) drains everything.
+    const body = z
+      .object({ colour: z.string().min(1).max(32).optional() })
+      .safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    return c.json(await beginDrain(deps.sql, body.data.colour ?? null));
   });
 
   app.post('/end-drain', async (c) => {

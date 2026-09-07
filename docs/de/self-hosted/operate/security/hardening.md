@@ -17,7 +17,7 @@ Die Referenz-Details für jede Zeile leben anderswo — TLS in [TLS und Domains]
 | Host-Firewall (ufw / nftables)       | Schliesst alles, was nicht 22, 80, 443 ist                                |
 | Platten-Verschlüsselung at-rest      | Pflicht, wenn du SOPS im Klartext-Modus betreibst                         |
 
-Der Non-Root-Benutzer ist der, den die meisten Teams überspringen. Die Container von Tale laufen ihre eigenen Non-Root-Prozesse innen, aber der Docker-Daemon selbst läuft als Root — diesen Daemon als Operator-Benutzer zu betreiben (Mitglied der `docker`-Gruppe, nicht als Root) ist das günstigste Anziehen auf dieser Seite. Der vollständige Walk lebt in [Produktions-Linux-Server-Install](/de/self-hosted/install/linux-server).
+Der Non-Root-Benutzer ist der, den die meisten Teams überspringen. Die Container von Tale laufen ihre eigenen Non-Root-Prozesse innen, aber der Docker-Daemon selbst läuft als Root — diesen Daemon als Operator-Benutzer zu betreiben (Mitglied der `docker`-Gruppe, nicht als Root) ist das günstigste Anziehen auf dieser Seite.
 
 ## Netzwerk
 

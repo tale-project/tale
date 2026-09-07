@@ -185,7 +185,7 @@ export function createGovernanceRoutes(deps: {
       // The file LAST, inside the transaction: a write failure rolls the
       // audit row back, and a transaction failure never leaves a policy in
       // force that the tamper-evident chain knows nothing about.
-      await writeGovernancePolicyFile(orgSlug, policyType, parsed.data);
+      await writeGovernancePolicyFile(tx, orgSlug, policyType, parsed.data);
     });
     return c.json({ ok: true });
   });

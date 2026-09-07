@@ -6,6 +6,7 @@ import type { Sql } from 'postgres';
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { zodErrorMessage } from '../../../lib/shared/schemas/format-error.ts';
 import { objectStorageConnectionFileSchema } from '../../../lib/shared/schemas/object_storage.ts';
+import { withConfigWriteLock } from '../../core/lib/config_store/write_lock.ts';
 import {
   atomicWrite,
   atomicWriteSecret,
@@ -146,7 +147,15 @@ function parseConnectionInput(input: unknown): ObjectStorageConnectionFile {
   return parsed.data;
 }
 
+/**
+ * Write the org's blob-store connection. The connection and its credential
+ * sidecar are two files that must move together — an interleaved pair signs
+ * requests for one endpoint with another's keys — so the whole sequence,
+ * including the credentials-present check it branches on and the history
+ * snapshot, runs under the domain's write lock.
+ */
 export async function writeConnection(
+  sql: Sql,
   orgSlug: string,
   args: {
     connection: unknown;
@@ -165,46 +174,55 @@ export async function writeConnection(
       'Both accessKeyId and secretAccessKey must be provided together.',
     );
   }
-  if (!hasKey && !(await credentialsConfigured(orgSlug))) {
-    throw new ObjectStorageError(
-      'CREDENTIALS_REQUIRED',
-      'accessKeyId and secretAccessKey are required to configure object storage.',
-    );
-  }
 
-  const filePath = resolveObjectStorageConnectionFilePath(orgSlug);
-  const serialized = serializeObjectStorageConnectionJson(connection);
-  const currentContent = await readFileSafe(filePath);
-  if (currentContent) {
-    await snapshotHistory(orgSlug, currentContent);
-  }
-  await atomicWrite(filePath, serialized);
+  await withConfigWriteLock(sql, orgSlug, 'object-storage', async () => {
+    if (!hasKey && !(await credentialsConfigured(orgSlug))) {
+      throw new ObjectStorageError(
+        'CREDENTIALS_REQUIRED',
+        'accessKeyId and secretAccessKey are required to configure object storage.',
+      );
+    }
 
-  if (hasKey && hasSecret && args.accessKeyId && args.secretAccessKey) {
-    const secretsPath = resolveObjectStorageConnectionSecretsFilePath(orgSlug);
-    const plaintext = serializeObjectStorageSecretsJson({
-      accessKeyId: args.accessKeyId,
-      secretAccessKey: args.secretAccessKey,
-    });
-    const content = hasSopsKey()
-      ? await encryptJsonWithSops(plaintext)
-      : plaintext;
-    await atomicWriteSecret(secretsPath, content);
-    invalidateSecretsCache(secretsPath);
-  }
+    const filePath = resolveObjectStorageConnectionFilePath(orgSlug);
+    const serialized = serializeObjectStorageConnectionJson(connection);
+    const currentContent = await readFileSafe(filePath);
+    if (currentContent) {
+      await snapshotHistory(orgSlug, currentContent);
+    }
+    await atomicWrite(filePath, serialized);
 
-  invalidateOrgObjectStore(orgSlug);
-  clearObjectStoreCache();
+    if (hasKey && hasSecret && args.accessKeyId && args.secretAccessKey) {
+      const secretsPath =
+        resolveObjectStorageConnectionSecretsFilePath(orgSlug);
+      const plaintext = serializeObjectStorageSecretsJson({
+        accessKeyId: args.accessKeyId,
+        secretAccessKey: args.secretAccessKey,
+      });
+      const content = hasSopsKey()
+        ? await encryptJsonWithSops(plaintext)
+        : plaintext;
+      await atomicWriteSecret(secretsPath, content);
+      invalidateSecretsCache(secretsPath);
+    }
+
+    invalidateOrgObjectStore(orgSlug);
+    clearObjectStoreCache();
+  });
 }
 
-export async function deleteConnection(orgSlug: string): Promise<void> {
-  const secretsPath = resolveObjectStorageConnectionSecretsFilePath(orgSlug);
-  await removeFileSafe(resolveObjectStorageConnectionFilePath(orgSlug));
-  await removeFileSafe(secretsPath);
-  await removeDirSafe(resolveObjectStorageHistoryDir(orgSlug));
-  invalidateSecretsCache(secretsPath);
-  invalidateOrgObjectStore(orgSlug);
-  clearObjectStoreCache();
+export async function deleteConnection(
+  sql: Sql,
+  orgSlug: string,
+): Promise<void> {
+  await withConfigWriteLock(sql, orgSlug, 'object-storage', async () => {
+    const secretsPath = resolveObjectStorageConnectionSecretsFilePath(orgSlug);
+    await removeFileSafe(resolveObjectStorageConnectionFilePath(orgSlug));
+    await removeFileSafe(secretsPath);
+    await removeDirSafe(resolveObjectStorageHistoryDir(orgSlug));
+    invalidateSecretsCache(secretsPath);
+    invalidateOrgObjectStore(orgSlug);
+    clearObjectStoreCache();
+  });
 }
 
 export interface ObjectStorageProbeResult {

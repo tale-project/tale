@@ -144,10 +144,14 @@ describe('knowledge routes — BYO connection wire contract', () => {
   it('saves a connection with sslmode verify-ca (the picker offers it)', async () => {
     const res = await post('/connection?orgId=o1', verifyCaConnection);
     expect(res.status).toBe(200);
-    expect(writeKnowledgeConnection).toHaveBeenCalledWith('acme', {
-      connection: expect.objectContaining({ sslmode: 'verify-ca' }),
-      password: 'secret',
-    });
+    expect(writeKnowledgeConnection).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme',
+      {
+        connection: expect.objectContaining({ sslmode: 'verify-ca' }),
+        password: 'secret',
+      },
+    );
   });
 
   it('probes a connection with sslmode verify-ca', async () => {

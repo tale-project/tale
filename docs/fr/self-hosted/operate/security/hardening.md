@@ -17,7 +17,7 @@ Le détail de référence pour chaque ligne vit ailleurs — TLS dans [TLS et do
 | Firewall hôte (ufw / nftables)           | Ferme tout ce qui n'est pas 22, 80, 443                            |
 | Chiffrement du disque au repos           | Requis si tu fais tourner SOPS en mode clair                       |
 
-L'utilisateur non-root est celui que la plupart des équipes sautent. Les conteneurs de Tale font tourner leurs propres processus non-root à l'intérieur, mais le démon Docker lui-même tourne en root — opérer ce démon en tant qu'utilisateur opérateur (membre du groupe `docker`, pas en tant que root) est le resserrement le moins cher de cette page. Le walk complet vit dans [Installation serveur Linux de production](/fr/self-hosted/install/linux-server).
+L'utilisateur non-root est celui que la plupart des équipes sautent. Les conteneurs de Tale font tourner leurs propres processus non-root à l'intérieur, mais le démon Docker lui-même tourne en root — opérer ce démon en tant qu'utilisateur opérateur (membre du groupe `docker`, pas en tant que root) est le resserrement le moins cher de cette page.
 
 ## Réseau
 

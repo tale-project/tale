@@ -1,11 +1,17 @@
 ---
-title: Référence Docker Compose
-description: Quel fichier compose est livré avec Tale, à quoi sert chacun, et comment fonctionne la superposition quand tu démarres des combinaisons dev, docs ou test.
+title: Fichiers compose contributeur
+description: Quels overlays compose vivent dans l’arbre source — pour le développement local, les docs et les tests. Pas un chemin d’installation de production.
 ---
 
-Tale livre une poignée de fichiers Docker Compose. La base est `compose.yml` ; le reste, ce sont des overlays qui ajoutent ou remplacent des services pour des scénarios précis — développement, docs, test. Cette page nomme chaque fichier, dit quand le choisir, et donne la règle de superposition à laquelle tout le reste obéit.
+Cette page est pour les gens qui travaillent sur l’arbre source. La base est `compose.yml` ; le reste, ce sont des overlays pour le développement, les docs et les tests. Les opérateurs qui font tourner Tale ne commencent pas ici — le chemin CLI est [Démarrage rapide](/fr/self-hosted/install/quickstart), et une stack que tu écris toi-même est [Écrire Compose toi-même](/fr/self-hosted/install/own-compose).
 
-La forme est volontairement conservatrice. Le fichier de base est un stack build-depuis-les-sources pour le développement local et les tests de fumée — **pas** la production ; chaque overlay est opt-in via `-f` et n'ajoute que ce qu'il doit. Une instance de production est générée et roulée par la [CLI `tale`](/fr/self-hosted/install/cli-install) (`tale deploy`), qui écrit son propre compose sécurisé en ligne — seuls `80`/`443` exposés — et n'utilise jamais ces fichiers. Mémorise la base et un seul overlay, pas toute la grille.
+Le fichier de base est un stack build-depuis-les-sources pour les tests de fumée locaux. Chaque overlay est opt-in via `-f`. Une instance de production est générée par `tale deploy` et n’utilise jamais ces fichiers.
+
+<Note>
+
+Le contrat de production — réseaux, alias, sondes, volumes — vit dans [Écrire Compose toi-même](/fr/self-hosted/install/own-compose).
+
+</Note>
 
 ## Un compose-up déroulé
 
