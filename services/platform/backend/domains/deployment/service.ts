@@ -17,6 +17,10 @@ import {
   serializeDeploymentConfig,
 } from '../../core/deployment/file_utils.ts';
 import {
+  DEPLOYMENT_CONFIG_SCOPE,
+  withConfigWriteLock,
+} from '../../core/lib/config_store/write_lock.ts';
+import {
   atomicWrite,
   errnoCode,
   readJsonFile,
@@ -195,30 +199,40 @@ export async function saveDeploymentConfig(
   const config = parsed.data;
 
   const configPath = resolveDeploymentConfigPath();
-  if (args.expectedHash !== undefined) {
-    const existing = await readDeploymentConfigFile();
-    const currentHash = existing.ok ? existing.hash : null;
-    if (currentHash !== args.expectedHash) {
-      throw new DeploymentError(
-        'DEPLOYMENT_VERSION_CONFLICT',
-        'Deployment config was modified by another operator. Reload to see the latest state, then re-apply your changes.',
-        409,
-      );
-    }
-  }
-
   const content = serializeDeploymentConfig(config);
-  await atomicWrite(configPath, content);
-  try {
-    await unlink(resolveLegacyDeploymentConfigPath());
-  } catch (err) {
-    if (errnoCode(err) !== 'ENOENT') {
-      console.warn(
-        '[deployment] could not remove the retired deployment.json:',
-        err,
-      );
-    }
-  }
-  await auditBestEffort(sql, auth, 'deployment_config_saved');
-  return { hash: sha256(content) };
+  return withConfigWriteLock(
+    sql,
+    DEPLOYMENT_CONFIG_SCOPE,
+    'deployment',
+    async () => {
+      // The compare-and-set reads the hash it is about to overwrite, so it
+      // is only a CAS while one writer holds the lock: unlocked, two
+      // operators both read the hash they expect and the second silently
+      // wins.
+      if (args.expectedHash !== undefined) {
+        const existing = await readDeploymentConfigFile();
+        const currentHash = existing.ok ? existing.hash : null;
+        if (currentHash !== args.expectedHash) {
+          throw new DeploymentError(
+            'DEPLOYMENT_VERSION_CONFLICT',
+            'Deployment config was modified by another operator. Reload to see the latest state, then re-apply your changes.',
+            409,
+          );
+        }
+      }
+      await atomicWrite(configPath, content);
+      try {
+        await unlink(resolveLegacyDeploymentConfigPath());
+      } catch (err) {
+        if (errnoCode(err) !== 'ENOENT') {
+          console.warn(
+            '[deployment] could not remove the retired deployment.json:',
+            err,
+          );
+        }
+      }
+      await auditBestEffort(sql, auth, 'deployment_config_saved');
+      return { hash: sha256(content) };
+    },
+  );
 }

@@ -208,7 +208,7 @@ export async function upsertOidcConnection(
     clientSecret,
   };
 
-  await persistFiles(orgSlug, config, secrets);
+  await persistFiles(sql, orgSlug, config, secrets);
   await audit(sql, organizationId, actor, 'sso_configure', {
     protocol,
     providerId: args.providerId,
@@ -281,7 +281,7 @@ export async function upsertSamlConnection(
     ...(spPrivateKey ? { spPrivateKey } : {}),
   };
 
-  await persistFiles(orgSlug, config, secrets);
+  await persistFiles(sql, orgSlug, config, secrets);
   await audit(sql, organizationId, actor, 'sso_configure', {
     protocol: 'saml',
   });
@@ -305,7 +305,7 @@ export async function setSsoProvisioning(
     ...base,
     provisioning: provisioningFrom(args),
   };
-  await persistFiles(orgSlug, config, existing.secrets);
+  await persistFiles(sql, orgSlug, config, existing.secrets);
   await audit(sql, organizationId, actor, 'sso_configure', {
     provisioning: true,
   });
@@ -322,7 +322,7 @@ export async function setSsoEnabled(
   const existing = await readExistingReadably(orgSlug);
   if (!existing.config) return;
   const config: SsoConnectionFile = { ...existing.config, enabled };
-  await persistFiles(orgSlug, config, existing.secrets);
+  await persistFiles(sql, orgSlug, config, existing.secrets);
   await audit(
     sql,
     organizationId,
@@ -338,7 +338,7 @@ export async function removeSsoConnection(
   actor: SsoActor,
 ): Promise<void> {
   const orgSlug = await requireOrgSlug(sql, organizationId);
-  await removeConnectionFiles(orgSlug);
+  await removeConnectionFiles(sql, orgSlug);
   await audit(sql, organizationId, actor, 'sso_removed');
 }
 

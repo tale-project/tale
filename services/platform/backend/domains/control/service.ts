@@ -113,7 +113,16 @@ export async function provisionAllOrganizations(
     SELECT "slug" FROM "organization" ORDER BY "slug"
   `;
   for (const org of orgs) {
-    await addJobInTx(sql, 'org.scaffold', { orgSlug: org.slug });
+    // Keyed like the org-create path: the queue's `short` policy dedupes by
+    // key, and a keyless job on a keyed queue shares the default key with
+    // every other one — which would collapse a whole-deployment reprovision
+    // into a single org.
+    await addJobInTx(
+      sql,
+      'org.scaffold',
+      { orgSlug: org.slug },
+      { singletonKey: `org-scaffold:${org.slug}` },
+    );
   }
   return { organizations: orgs.length };
 }
@@ -157,6 +166,7 @@ export async function reseedAllOrganizations(sql: Sql): Promise<ReseedResult> {
   for (const org of orgs) {
     try {
       const outcome = await scaffoldNewOrganization({
+        sql,
         orgSlug: org.slug,
         override: true,
         strict: true,

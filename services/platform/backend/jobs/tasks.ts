@@ -314,6 +314,11 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryDelay: 1,
     retryBackoff: true,
     expireInSeconds: 300,
+    // Dedup by key: both enqueue sites (org-create and the reprovision
+    // sweep) pass `org-scaffold:<slug>`, and under the default `standard`
+    // policy their keys were a throttling label only — a burst of creates
+    // for one org queued a scaffold each.
+    policy: 'short',
   },
   'org.cleanup_files': {
     retryLimit: 10,

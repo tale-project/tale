@@ -2,12 +2,25 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BrandingError, saveBrandingImage } from './service';
 
 function toBase64(text: string): string {
   return Buffer.from(text, 'utf8').toString('base64');
+}
+
+/**
+ * The branding writes take the config-store write lock, so they need a
+ * database handle. These tests are about the intake gate and the bytes on
+ * disk, not the lock, so the double just runs the callback.
+ */
+function fakeSql(): Sql {
+  const tag = () => Promise.resolve([]);
+  const begin = (callback: (tx: unknown) => Promise<unknown>) => callback(tag);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return { begin } as unknown as Sql;
 }
 
 describe('saveBrandingImage — SVG active-content intake gate', () => {
@@ -20,7 +33,7 @@ describe('saveBrandingImage — SVG active-content intake gate', () => {
   // sandboxes whatever is on disk — this gate is the UX layer).
   it('rejects an SVG containing a script element before touching disk', async () => {
     await expect(
-      saveBrandingImage('acme', {
+      saveBrandingImage(fakeSql(), 'acme', {
         type: 'logo',
         base64: toBase64(
           '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(document.domain)</script></svg>',
@@ -35,7 +48,7 @@ describe('saveBrandingImage — SVG active-content intake gate', () => {
 
   it('rejects an SVG with an event-handler attribute', async () => {
     await expect(
-      saveBrandingImage('acme', {
+      saveBrandingImage(fakeSql(), 'acme', {
         type: 'logo',
         base64: toBase64('<svg onload="fetch(`/api/x`)"><rect/></svg>'),
         mimeType: 'image/svg+xml',
@@ -49,7 +62,7 @@ describe('saveBrandingImage — SVG active-content intake gate', () => {
       vi.stubEnv('TALE_CONFIG_DIR', configDir);
       const svg =
         '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1" fill="#123"/></svg>';
-      const result = await saveBrandingImage('acme', {
+      const result = await saveBrandingImage(fakeSql(), 'acme', {
         type: 'logo',
         base64: toBase64(svg),
         mimeType: 'image/svg+xml',
@@ -72,7 +85,7 @@ describe('saveBrandingImage — SVG active-content intake gate', () => {
       // A raster payload whose bytes happen to contain handler-shaped text
       // must pass — the gate is specific to the scriptable SVG document
       // format.
-      const result = await saveBrandingImage('acme', {
+      const result = await saveBrandingImage(fakeSql(), 'acme', {
         type: 'favicon-light',
         base64: toBase64('PNGDATA onload="x" <script>'),
         mimeType: 'image/png',

@@ -2632,6 +2632,7 @@ async function checkTasksOrgIsolation(
  * (visibly, never silently) when no store is provided.
  */
 async function checkFiles(
+  sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
@@ -2665,11 +2666,11 @@ async function checkFiles(
     OBJECT_STORE_ACCESS_KEY: accessKeyId,
     OBJECT_STORE_SECRET_KEY: secretAccessKey,
   };
-  const seeded = await ensureDefaultObjectStore(storeEnv);
+  const seeded = await ensureDefaultObjectStore(sql, storeEnv);
   // Second call must be a no-op: boot runs on every restart, and a seeder
   // that rewrote the connection each time would repoint a deployment whose
   // operator had since edited it.
-  const reseeded = await ensureDefaultObjectStore(storeEnv);
+  const reseeded = await ensureDefaultObjectStore(sql, storeEnv);
   // A surviving config file with a VANISHED bucket (store volume recreated
   // under a surviving config dir) must heal on the next boot: delete the
   // bucket and re-run the seeder — the 'present' path re-ensures the bucket
@@ -2680,10 +2681,23 @@ async function checkFiles(
     { region: 'us-east-1', endpoint, forcePathStyle: true, bucket },
     { accessKeyId, secretAccessKey },
   );
-  const bucketDropped = (
-    await probeS3.client.fetch(`${endpoint}/${bucket}`, { method: 'DELETE' })
-  ).ok;
-  const healed = await ensureDefaultObjectStore(storeEnv);
+  // Deleting the bucket is how this probe simulates a vanished store. S3
+  // refuses to delete a non-empty one, which is what a REUSED object store
+  // looks like — a previous run's uploads are still in it. Say so in the
+  // message rather than reporting a bare `dropped=false`, which reads like a
+  // product bug and cost a full investigation once.
+  const dropResponse = await probeS3.client.fetch(`${endpoint}/${bucket}`, {
+    method: 'DELETE',
+  });
+  const bucketDropped = dropResponse.ok;
+  const dropDetail = bucketDropped
+    ? ''
+    : ` (DELETE ${dropResponse.status}${
+        dropResponse.status === 409
+          ? ' BucketNotEmpty — the object store is not throwaway; this suite needs a FRESH one, see backend/README.md'
+          : ''
+      })`;
+  const healed = await ensureDefaultObjectStore(sql, storeEnv);
   const bucketBack = (
     await probeS3.client.fetch(`${endpoint}/${bucket}`, { method: 'HEAD' })
   ).ok;
@@ -2709,7 +2723,7 @@ async function checkFiles(
       written.data.bucket === bucket &&
       // Self-hosted S3 has no per-bucket DNS; virtual-host style would 404.
       written.data.forcePathStyle,
-    `seed=${seeded.status} (want seeded), reseed=${reseeded.status} (want present), dropped=${bucketDropped}→healed=${healed.status}/back=${bucketBack} (want present/true), bucket=${written.success ? written.data.bucket : 'ERR'}, pathStyle=${written.success ? String(written.data.forcePathStyle) : 'ERR'}`,
+    `seed=${seeded.status} (want seeded), reseed=${reseeded.status} (want present), dropped=${bucketDropped}${dropDetail}→healed=${healed.status}/back=${bucketBack} (want present/true), bucket=${written.success ? written.data.bucket : 'ERR'}, pathStyle=${written.success ? String(written.data.forcePathStyle) : 'ERR'}`,
   );
 
   const { cookie, orgId } = ctx;
@@ -44499,7 +44513,7 @@ async function main(): Promise<void> {
             `itest-${orgSuffix}`,
           ),
       ],
-      ['checkFiles', () => checkFiles(baseUrl, authCtx)],
+      ['checkFiles', () => checkFiles(sql, baseUrl, authCtx)],
       ['checkDocuments', () => checkDocuments(sql, baseUrl, authCtx)],
       [
         'checkFolderBoundTaskFacts',

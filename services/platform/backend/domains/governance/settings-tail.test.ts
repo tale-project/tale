@@ -87,6 +87,7 @@ describe('cancelPendingRetentionChange — write order', () => {
     await cancelPendingRetentionChange(sql, AUTH);
 
     expect(writeGovernancePolicyFile).toHaveBeenCalledWith(
+      expect.anything(),
       'acme',
       'retention_policy',
       PENDING_ROW.oldConfig,
@@ -144,6 +145,7 @@ describe('proposeDsarPolicy — a tightening', () => {
     const writeAt = writeGovernancePolicyFile.mock.invocationCallOrder[0] ?? 0;
     expect(auditAt).toBeLessThan(writeAt);
     expect(writeGovernancePolicyFile).toHaveBeenCalledWith(
+      expect.anything(),
       'acme',
       'dsar_governance',
       TIGHTER,

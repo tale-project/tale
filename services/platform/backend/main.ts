@@ -120,7 +120,7 @@ async function main(): Promise<void> {
   // this points the default config tree at it. Never fails boot — a store
   // still starting up must not take the API down with it.
   try {
-    const store = await ensureDefaultObjectStore();
+    const store = await ensureDefaultObjectStore(sql);
     if (store.status !== 'present') {
       console.log(`[backend] object store (${store.status}): ${store.detail}`);
     }

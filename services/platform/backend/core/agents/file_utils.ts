@@ -25,11 +25,14 @@
 
 import path from 'node:path';
 
+import type { Sql } from 'postgres';
+
 import type { AgentFileReader } from '../../../lib/agents/listing';
 import {
   isValidAgentSlug,
   MAX_AGENT_FILE_BYTES,
 } from '../../../lib/shared/schemas/agents';
+import { withConfigWriteLock } from '../lib/config_store/write_lock';
 import {
   atomicWrite,
   generateHistoryTimestamp,
@@ -145,27 +148,32 @@ export function createOrgAgentReader(orgSlug: string): AgentFileReader {
 /**
  * Write an agent file, keeping the superseded version in the domain's history
  * trail. The write itself is atomic, so a reader never observes a half-written
- * file.
+ * file; the domain's write lock makes the read-snapshot-prune-write sequence
+ * one writer's, so two saves of the same agent cannot share a history
+ * timestamp or prune a trail the other is still extending.
  */
 export async function writeAgentFileText(
+  sql: Sql,
   orgSlug: string,
   slug: string,
   content: string,
 ): Promise<void> {
-  const filePath = resolveAgentFilePath(orgSlug, slug);
-  const current = await readAgentFileText(orgSlug, slug);
-  if (current !== null) {
-    const historyDir = resolveAgentHistoryDir(orgSlug, slug);
-    await atomicWrite(
-      path.join(
-        historyDir,
-        `${generateHistoryTimestamp()}${AGENT_FILE_EXTENSION}`,
-      ),
-      current,
-    );
-    await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
-  }
-  await atomicWrite(filePath, content);
+  await withConfigWriteLock(sql, orgSlug, 'agents', async () => {
+    const filePath = resolveAgentFilePath(orgSlug, slug);
+    const current = await readAgentFileText(orgSlug, slug);
+    if (current !== null) {
+      const historyDir = resolveAgentHistoryDir(orgSlug, slug);
+      await atomicWrite(
+        path.join(
+          historyDir,
+          `${generateHistoryTimestamp()}${AGENT_FILE_EXTENSION}`,
+        ),
+        current,
+      );
+      await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
+    }
+    await atomicWrite(filePath, content);
+  });
 }
 
 /**
@@ -173,10 +181,13 @@ export async function writeAgentFileText(
  * actually removed, so a caller can tell a delete from a no-op.
  */
 export async function removeAgentFile(
+  sql: Sql,
   orgSlug: string,
   slug: string,
 ): Promise<boolean> {
-  const removed = await removeFileSafe(resolveAgentFilePath(orgSlug, slug));
-  await removeDirSafe(resolveAgentHistoryDir(orgSlug, slug));
-  return removed;
+  return withConfigWriteLock(sql, orgSlug, 'agents', async () => {
+    const removed = await removeFileSafe(resolveAgentFilePath(orgSlug, slug));
+    await removeDirSafe(resolveAgentHistoryDir(orgSlug, slug));
+    return removed;
+  });
 }

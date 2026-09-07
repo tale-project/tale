@@ -51,6 +51,7 @@ export function createAgentRoutes(deps: {
       throw new Error(`organization ${c.get('orgId')} has no slug`);
     }
     return {
+      sql: deps.sql,
       orgSlug,
       viewerUserId: c.get('sessionBundle').user.id,
       // Administering the org's shared configuration is the `orgSettings`

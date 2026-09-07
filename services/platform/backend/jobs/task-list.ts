@@ -142,7 +142,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     },
     'org.scaffold': async (payload) => {
       const input = orgScaffoldSchema.parse(payload);
-      const result = await scaffoldNewOrganization(input);
+      const result = await scaffoldNewOrganization({ sql: deps.sql, ...input });
       // Starter content is a DB row, not a catalog file. Seed it even when
       // the filesystem scaffold skips (misconfigured catalog / invalid slug)
       // so a fresh org is usable and e2e can gate on "Getting started".

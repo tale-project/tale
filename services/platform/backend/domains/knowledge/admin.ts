@@ -1,6 +1,8 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { Sql } from 'postgres';
+
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import { pickEmbeddingRecommendations } from '../../../lib/shared/providers/embedding_recommendations.ts';
@@ -27,6 +29,7 @@ import {
   readPassword,
 } from '../../core/knowledge/connection.ts';
 import { invalidateOrgUrl } from '../../core/knowledge/pool.ts';
+import { withConfigWriteLock } from '../../core/lib/config_store/write_lock.ts';
 import {
   atomicWrite,
   atomicWriteSecret,
@@ -184,7 +187,14 @@ export async function readKnowledgeConnectionView(
   };
 }
 
+/**
+ * Write the org's knowledge-database connection. Connection and password
+ * sidecar are a pair, so the history snapshot and both writes run under the
+ * knowledge domain's write lock — a replica committing one save's host
+ * against another's password points retrieval at a database it cannot open.
+ */
 export async function writeKnowledgeConnection(
+  sql: Sql,
   orgSlug: string,
   args: { connection: unknown; password?: string | null },
 ): Promise<void> {
@@ -198,40 +208,45 @@ export async function writeKnowledgeConnection(
   const connection = parsed.data;
   assertHostAllowed(`http://${connection.host}:${connection.port}`);
 
-  const filePath = connectionFilePath(orgSlug);
-  const serialized = serializeConnectionJson(connection);
-  const currentContent = await readFileSafe(filePath);
-  if (currentContent) {
-    await snapshotHistory(orgSlug, KNOWLEDGE_CONNECTION_KEY, currentContent);
-  }
-  await atomicWrite(filePath, serialized);
-
-  if (args.password !== undefined && args.password !== null) {
-    const secretsPath = connectionSecretsFilePath(orgSlug);
-    if (args.password === '') {
-      await removeFileSafe(secretsPath);
-    } else {
-      const plaintext = serializeSecretsJson({ password: args.password });
-      const content = hasSopsKey()
-        ? await encryptJsonWithSops(plaintext)
-        : plaintext;
-      await atomicWriteSecret(secretsPath, content);
+  await withConfigWriteLock(sql, orgSlug, 'knowledge', async () => {
+    const filePath = connectionFilePath(orgSlug);
+    const serialized = serializeConnectionJson(connection);
+    const currentContent = await readFileSafe(filePath);
+    if (currentContent) {
+      await snapshotHistory(orgSlug, KNOWLEDGE_CONNECTION_KEY, currentContent);
     }
-    invalidateSecretsCache(secretsPath);
-  }
+    await atomicWrite(filePath, serialized);
 
-  invalidateOrgUrl(orgSlug);
+    if (args.password !== undefined && args.password !== null) {
+      const secretsPath = connectionSecretsFilePath(orgSlug);
+      if (args.password === '') {
+        await removeFileSafe(secretsPath);
+      } else {
+        const plaintext = serializeSecretsJson({ password: args.password });
+        const content = hasSopsKey()
+          ? await encryptJsonWithSops(plaintext)
+          : plaintext;
+        await atomicWriteSecret(secretsPath, content);
+      }
+      invalidateSecretsCache(secretsPath);
+    }
+
+    invalidateOrgUrl(orgSlug);
+  });
 }
 
 export async function deleteKnowledgeConnection(
+  sql: Sql,
   orgSlug: string,
 ): Promise<void> {
-  const secretsPath = connectionSecretsFilePath(orgSlug);
-  await removeFileSafe(connectionFilePath(orgSlug));
-  await removeFileSafe(secretsPath);
-  await removeDirSafe(historyDir(orgSlug, KNOWLEDGE_CONNECTION_KEY));
-  invalidateSecretsCache(secretsPath);
-  invalidateOrgUrl(orgSlug);
+  await withConfigWriteLock(sql, orgSlug, 'knowledge', async () => {
+    const secretsPath = connectionSecretsFilePath(orgSlug);
+    await removeFileSafe(connectionFilePath(orgSlug));
+    await removeFileSafe(secretsPath);
+    await removeDirSafe(historyDir(orgSlug, KNOWLEDGE_CONNECTION_KEY));
+    invalidateSecretsCache(secretsPath);
+    invalidateOrgUrl(orgSlug);
+  });
 }
 
 export interface KnowledgeProbeResult {
@@ -354,6 +369,7 @@ export async function readKnowledgeEmbeddingView(
 }
 
 export async function writeKnowledgeEmbedding(
+  sql: Sql,
   orgSlug: string,
   config: unknown,
 ): Promise<void> {
@@ -367,18 +383,25 @@ export async function writeKnowledgeEmbedding(
   if (parsed.data.baseUrl) {
     assertHostAllowed(parsed.data.baseUrl);
   }
-  const filePath = embeddingFilePath(orgSlug);
-  const serialized = serializeEmbeddingJson(parsed.data);
-  const currentContent = await readFileSafe(filePath);
-  if (currentContent) {
-    await snapshotHistory(orgSlug, KNOWLEDGE_EMBEDDING_KEY, currentContent);
-  }
-  await atomicWrite(filePath, serialized);
+  await withConfigWriteLock(sql, orgSlug, 'knowledge', async () => {
+    const filePath = embeddingFilePath(orgSlug);
+    const serialized = serializeEmbeddingJson(parsed.data);
+    const currentContent = await readFileSafe(filePath);
+    if (currentContent) {
+      await snapshotHistory(orgSlug, KNOWLEDGE_EMBEDDING_KEY, currentContent);
+    }
+    await atomicWrite(filePath, serialized);
+  });
 }
 
-export async function deleteKnowledgeEmbedding(orgSlug: string): Promise<void> {
-  await removeFileSafe(embeddingFilePath(orgSlug));
-  await removeDirSafe(historyDir(orgSlug, KNOWLEDGE_EMBEDDING_KEY));
+export async function deleteKnowledgeEmbedding(
+  sql: Sql,
+  orgSlug: string,
+): Promise<void> {
+  await withConfigWriteLock(sql, orgSlug, 'knowledge', async () => {
+    await removeFileSafe(embeddingFilePath(orgSlug));
+    await removeDirSafe(historyDir(orgSlug, KNOWLEDGE_EMBEDDING_KEY));
+  });
 }
 
 export interface EmbeddingRecommendation {

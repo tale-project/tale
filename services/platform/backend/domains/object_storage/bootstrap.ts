@@ -20,14 +20,22 @@
  *  3. **Never fails boot.** A store that is still starting up must not take
  *     the API down with it; the next upload re-reads the config, and an
  *     unseeded deployment fails closed exactly as before.
+ *
+ * Every role runs this at boot and a deployment runs several of them, so the
+ * check-then-seed is held under the default org's `object-storage` write lock:
+ * without it two booting replicas both read "absent" and both write the pair,
+ * and the connection can land against the other's secrets sidecar.
  */
 
 import { mkdir } from 'node:fs/promises';
+
+import type { Sql } from 'postgres';
 
 import {
   resolveBundledObjectStore,
   type BundledObjectStore,
 } from '../../../lib/utils/bundled-object-store.ts';
+import { withConfigWriteLock } from '../../core/lib/config_store/write_lock.ts';
 import { atomicWrite, atomicWriteSecret } from '../../core/lib/file_io.ts';
 import {
   encryptJsonWithSops,
@@ -83,6 +91,7 @@ async function ensureBucket(store: BundledObjectStore): Promise<void> {
  * of the three outcomes is a success.
  */
 export async function ensureDefaultObjectStore(
+  sql: Sql,
   env: Record<string, string | undefined> = process.env,
 ): Promise<ObjectStoreBootstrap> {
   const resolution = resolveBundledObjectStore(env);
@@ -91,6 +100,14 @@ export async function ensureDefaultObjectStore(
   }
   const store = resolution.store;
 
+  return withConfigWriteLock(sql, DEFAULT_ORG_SLUG, 'object-storage', () =>
+    seedDefaultObjectStore(store),
+  );
+}
+
+async function seedDefaultObjectStore(
+  store: BundledObjectStore,
+): Promise<ObjectStoreBootstrap> {
   const existing = await readOrgObjectStorageConnection(DEFAULT_ORG_SLUG).catch(
     // A connection.json whose secrets sidecar is missing or undecryptable
     // throws — that is the operator's config to fix, and overwriting it here

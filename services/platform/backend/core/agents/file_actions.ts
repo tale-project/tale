@@ -1,5 +1,7 @@
 'use node';
 
+import type { Sql } from 'postgres';
+
 import {
   canEditAgent,
   canViewAgent,
@@ -84,6 +86,10 @@ function assertValidSlug(slug: string): void {
 
 /** How a caller is identified to the file layer. */
 export interface AgentCallerArgs {
+  /** The database handle the config-store write lock is taken on — the
+   *  agents domain is files, and the lock is what serializes two replicas
+   *  editing the same org's trail. */
+  sql: Sql;
   orgSlug: string;
   viewerUserId: string;
   /** True when the member may administer the org's shared configuration. */
@@ -236,7 +242,7 @@ export async function saveAgentForCaller(
     }
     throw err;
   }
-  await writeAgentFileText(args.orgSlug, args.slug, content);
+  await writeAgentFileText(args.sql, args.orgSlug, args.slug, content);
 
   return toDocument(
     {
@@ -275,7 +281,7 @@ export async function deleteAgentForCaller(
         message: `Only an organization admin can delete the unreadable agent "${args.slug}".`,
       });
     }
-    return removeAgentFile(args.orgSlug, args.slug);
+    return removeAgentFile(args.sql, args.orgSlug, args.slug);
   }
   if (existing === null) return false;
   if (!canEditAgent(existing.definition, viewer)) {
@@ -284,7 +290,7 @@ export async function deleteAgentForCaller(
       message: `You cannot delete the agent "${args.slug}".`,
     });
   }
-  return removeAgentFile(args.orgSlug, args.slug);
+  return removeAgentFile(args.sql, args.orgSlug, args.slug);
 }
 /**
  * Read one agent, turning a malformed file into a AppError that names the
