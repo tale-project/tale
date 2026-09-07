@@ -15,6 +15,8 @@ import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar'
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { mailboxSideAddress } from '@/lib/shared/conversations/reply-from';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import {
   useAssignConversation,
@@ -68,6 +70,10 @@ export function ConversationAssigneePicker({
   const assigneeName = assignee?.displayName ?? assignee?.email;
   const team = teams.find((tm) => tm.id === assigneeTeamId);
   const teamName = team?.name;
+  const routingAddress = mailboxSideAddress(
+    isRecord(conversation.metadata) ? conversation.metadata : undefined,
+    conversation.direction,
+  );
 
   // Trigger content for the assign control.
   //
@@ -309,6 +315,10 @@ export function ConversationAssigneePicker({
             to="/dashboard/$id/settings/governance/policies-limits"
             params={{ id: organizationId }}
             hash="conversation-routing"
+            state={{
+              openRoutingRule: true,
+              ...(routingAddress ? { routingAddress } : {}),
+            }}
             className="hover:bg-muted flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-sm"
             onClick={() => setOpen(false)}
           >

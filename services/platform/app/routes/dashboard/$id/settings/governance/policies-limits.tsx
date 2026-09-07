@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useRouterState } from '@tanstack/react-router';
 
 import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
@@ -36,6 +36,11 @@ export const Route = createFileRoute(
 
 function PoliciesLimitsRoute() {
   const { id: organizationId } = Route.useParams();
+  // Inbox Auto assign passes open + address via history state (not search), so
+  // the mailbox address never appears in the URL / logs / Referer.
+  const { openRoutingRule, routingAddress } = useRouterState({
+    select: (s) => s.location.state,
+  });
 
   return (
     <SettingsPage>
@@ -47,7 +52,11 @@ function PoliciesLimitsRoute() {
         <PersonalizationPolicyEditor organizationId={organizationId} />
         <VoiceOutputPolicyEditor organizationId={organizationId} />
         <SandboxQuotaEditor organizationId={organizationId} />
-        <ConversationRoutingPolicyEditor organizationId={organizationId} />
+        <ConversationRoutingPolicyEditor
+          organizationId={organizationId}
+          openAddRule={Boolean(openRoutingRule)}
+          initialAddress={routingAddress}
+        />
       </EditorGroup>
     </SettingsPage>
   );

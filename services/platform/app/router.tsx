@@ -98,4 +98,10 @@ declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router;
   }
+
+  /** One-shot handoffs that must not land in the URL (see Auto assign → routing). */
+  interface HistoryState {
+    openRoutingRule?: boolean;
+    routingAddress?: string;
+  }
 }

@@ -53,6 +53,7 @@ vi.mock('@tanstack/react-router', () => ({
     to,
     hash,
     params,
+    state,
     onClick,
     className,
   }: {
@@ -60,12 +61,14 @@ vi.mock('@tanstack/react-router', () => ({
     to: string;
     hash?: string;
     params?: { id: string };
+    state?: { openRoutingRule?: boolean; routingAddress?: string };
     onClick?: () => void;
     className?: string;
   }) => (
     <a
       href={`${to}${hash ? `#${hash}` : ''}`}
       data-org={params?.id}
+      data-state={state ? JSON.stringify(state) : undefined}
       className={className}
       onClick={onClick}
     >
@@ -95,6 +98,8 @@ function makeConversation(
   overrides: {
     assigneeUserId?: string;
     assigneeTeamId?: string;
+    direction?: 'inbound' | 'outbound';
+    metadata?: Record<string, unknown>;
   } = {},
 ) {
   return {
@@ -170,6 +175,36 @@ describe('ConversationAssigneePicker', () => {
       '/dashboard/$id/settings/governance/policies-limits#conversation-routing',
     );
     expect(link).toHaveAttribute('data-org', 'org-1');
+    expect(link).toHaveAttribute(
+      'data-state',
+      JSON.stringify({ openRoutingRule: true }),
+    );
+  });
+
+  it('passes the inbound mailbox address via location state, not the URL', () => {
+    render(
+      <ConversationAssigneePicker
+        conversation={makeConversation({
+          direction: 'inbound',
+          metadata: { to: [{ address: 'billing@acme.test' }] },
+        })}
+        organizationId="org-1"
+      />,
+    );
+
+    const link = screen.getByRole('link', { name: /auto assign/i });
+    expect(link).toHaveAttribute(
+      'href',
+      '/dashboard/$id/settings/governance/policies-limits#conversation-routing',
+    );
+    expect(link.getAttribute('href')).not.toContain('routingAddress');
+    expect(link).toHaveAttribute(
+      'data-state',
+      JSON.stringify({
+        openRoutingRule: true,
+        routingAddress: 'billing@acme.test',
+      }),
+    );
   });
 
   it('shows Unassign and Auto assign together when a person is assigned', () => {

@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
+import { useNavigate } from '@tanstack/react-router';
 import { Check, ChevronDown, Signpost, Trash2, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -292,6 +293,10 @@ function RuleDialog({
 
 interface ConversationRoutingPolicyEditorProps {
   organizationId: string;
+  /** One-shot deep link: open the Add rule dialog (from inbox Auto assign). */
+  openAddRule?: boolean;
+  /** Prefill for the Address field when `openAddRule` is set. */
+  initialAddress?: string;
 }
 
 /**
@@ -303,10 +308,13 @@ interface ConversationRoutingPolicyEditorProps {
  */
 export function ConversationRoutingPolicyEditor({
   organizationId,
+  openAddRule = false,
+  initialAddress,
 }: ConversationRoutingPolicyEditorProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
+  const navigate = useNavigate();
 
   const { data: policy, isLoading } = useGovernancePolicy(
     organizationId,
@@ -404,6 +412,27 @@ export function ConversationRoutingPolicyEditor({
     setDialogRule(emptyRule());
     setDialogOpen(true);
   }, []);
+
+  // Inbox Auto assign handoff: open Add rule once with the thread address from
+  // history state, then clear that state so refresh/back does not reopen.
+  useEffect(() => {
+    if (!openAddRule) return;
+    setEditingIndex(null);
+    setDialogRule({ address: initialAddress?.trim() ?? '' });
+    setDialogOpen(true);
+    void navigate({
+      to: '/dashboard/$id/settings/governance/policies-limits',
+      params: { id: organizationId },
+      hash: 'conversation-routing',
+      state: (prev) => {
+        const next = { ...prev };
+        delete next.openRoutingRule;
+        delete next.routingAddress;
+        return next;
+      },
+      replace: true,
+    });
+  }, [openAddRule, initialAddress, navigate, organizationId]);
 
   const openEditDialog = useCallback(
     (index: number) => {
