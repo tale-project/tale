@@ -56,18 +56,37 @@ Les trois services sans état partagent une image (`ghcr.io/tale-project/tale/ta
 | Avec état | `proxy`, `db`, `object-store`, `sandbox`, `sandbox-egress`, `sandbox-llm-gateway`, `bgutil-provider` |
 | Sans état | `platform`, `backend-api`, `backend-worker` |
 
+## Les images
+
+Chaque image `tale-*` est publiée sur la GitHub Container Registry sous le même tag de release, un seul numéro de version épingle donc toute la stack. Deux services tournent sur des images upstream qui ont leurs propres versions.
+
+| Service | Image |
+| ------- | ----- |
+| `platform`, `backend-api`, `backend-worker` | `ghcr.io/tale-project/tale/tale-platform:<version>` |
+| `proxy` | `ghcr.io/tale-project/tale/tale-proxy:<version>` |
+| `db` | `ghcr.io/tale-project/tale/tale-db:<version>` |
+| `sandbox` | `ghcr.io/tale-project/tale/tale-sandbox:<version>` |
+| `sandbox-egress` | `ghcr.io/tale-project/tale/tale-sandbox-egress:<version>` |
+| `sandbox-llm-gateway` | `ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:<version>` |
+| `object-store` | `minio/minio:RELEASE.2025-04-22T22-12-26Z` |
+| `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
+
+Une image n’est pas un service compose : le spawner crée chaque conteneur de session depuis `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, et son défaut intégré est le tag local que construit la stack de développement — un hôte qui ne l’a jamais construit nomme l’image de la registry dans `SANDBOX_RUNTIME_IMAGE`, sinon `Run code`, le rendu web et la génération de documents échouent tous sur une image introuvable. Les exemples ci-dessous épinglent la release que documente cette page ; remplace le tag par la release que tu installes.
+
 ## Les services sans état
 
 Le fichier ci-dessous, ce sont les trois rôles sans état — alias, `/ping` en liveness, `TALE_ROLE`, `NET_ADMIN`. Pose les services avec état dans le même fichier ou ailleurs ; les tableaux de cette page disent ce qu’ils doivent encore faire. Épingle le tag d’image et remplis `.env` depuis la [Référence d’environnement](/fr/self-hosted/configuration/environment-reference).
 
 ```yaml
 # Stateless app tier. No container_name: --scale needs free names.
-# Add db, proxy, sandbox, … in this file or another — your call.
+# Add db, proxy, sandbox, … in this file or another — your call. In one file,
+# add depends_on: { db: { condition: service_healthy }, … } as well.
 services:
   platform:
     image: ghcr.io/tale-project/tale/tale-platform:0.5.11
     env_file: [.env]
     volumes: ['config-data:/app/data:ro']
+    restart: unless-stopped
     stop_grace_period: 45s
     healthcheck:
       test:
@@ -95,6 +114,7 @@ services:
     env_file: [.env]
     volumes: ['config-data:/app/data']
     cap_add: [NET_ADMIN]
+    restart: unless-stopped
     healthcheck:
       test: ['CMD-SHELL', 'curl -sf http://localhost:3005/ping']
       interval: 10s
@@ -118,6 +138,7 @@ services:
     env_file: [.env]
     volumes: ['config-data:/app/data']
     cap_add: [NET_ADMIN]
+    restart: unless-stopped
     healthcheck: { disable: true }
     networks: [internal]
 volumes:
@@ -131,6 +152,19 @@ networks:
 ```
 
 Il n’existe pas de compose de production versionné à recopier. La CLI génère une paire de fichiers et l’efface après `up`. Ton fichier n’a pas à lui ressembler.
+
+## Les secrets que tu génères avant le premier boot
+
+`tale init` génère chaque secret et écrit le `.env` ; sans la CLI, ce travail est le tien. La [Référence d’environnement](/fr/self-hosted/configuration/environment-reference) dit ce que fait chaque variable — les quatre ci-dessous sont celles qu’une stack montée à la main oublie le plus souvent, parce que le fichier d’exemple les laisse commentées pour que la CLI les remplisse.
+
+| Variable | Valeur | Ce qui casse sans elle |
+| -------- | ------ | ---------------------- |
+| `SANDBOX_TOKEN` | `openssl rand -hex 32` | Le spawner s’arrête au démarrage. Il tient le socket docker de l’hôte et répond à chaque conteneur de session, il n’a donc pas de mode non signé ; le backend signe chaque appel au spawner avec la même valeur. |
+| `OBJECT_STORE_ACCESS_KEY` | `tale`, ou un nom à toi | Le backend logue `object store (skipped)` au boot et refuse chaque upload. Il n’existe pas de défaut d’image pour elle — l’utilisateur root du store porte la même valeur. |
+| `OBJECT_STORE_SECRET_KEY` | `openssl rand -hex 32` | Même saut, même silence. Une rotation plus tard rend orphelins tous les blobs déjà écrits sous l’ancien credential. |
+| `OBJECT_STORE_PUBLIC_ENDPOINT` | ton `SITE_URL` | Les uploads échouent dans le navigateur avec une erreur réseau : l’URL présignée que le backend distribue pointe vers le `http://object-store:9000` interne, qu’aucun navigateur ne joint. |
+
+L’endpoint public se pose avant de démarrer, pas après. Le backend seede la connexion blob par défaut du déploiement dans le volume de config au premier boot (`default/object-storage/connection.json`) et ne réécrit jamais un défaut déjà présent — poser la variable sur une instance déjà démarrée ne change donc rien. Pour réparer une instance dans cet état, ajoute `"publicEndpoint": "<ton SITE_URL>"` dans ce fichier et redémarre le backend.
 
 ## Réseaux et noms DNS
 
@@ -198,6 +232,13 @@ La [Référence d’environnement](/fr/self-hosted/configuration/environment-ref
 | `OBJECT_STORE_ENDPOINT` | `http://object-store:9000` |
 | `SANDBOX_EGRESS_NETWORK` | `tale-sandbox-net` |
 | `SANDBOX_EGRESS_PROXY` | `http://sandbox-egress:3128` |
+| `SANDBOX_TOKEN` | La même valeur partout. `sandbox` ne démarre pas sans lui ; le backend signe ses appels au spawner avec. |
+| `SANDBOX_RUNTIME_IMAGE` | `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>` sur `sandbox`. Le défaut est un tag de build local qu’un hôte de production n’a pas. |
+| `BACKEND_UPSTREAM` | `backend-api:3005` sur `proxy`. |
+| `OBJECT_STORE_UPSTREAM` | `object-store:9000` sur `proxy`, pour que les URL présignées soient relayées sous `/<bucket>/*`. |
+| `OBJECT_STORE_BUCKET` | `tale-blobs` par défaut. Si tu le renommes, le même nom doit atteindre `proxy` et les deux rôles backend. |
+| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | Sur `object-store` : le store lit ses propres noms, mappe donc `OBJECT_STORE_ACCESS_KEY` et `OBJECT_STORE_SECRET_KEY` dessus. |
+| `TALE_DB_ROLE` | Unset sur la `db` repliée. Le rôle par défaut crée `tale_knowledge` et applique les migrations du corpus ; `platform` les saute et laisse le corpus sans tables. |
 
 ## Capacités et mounts qui cassent s’ils manquent
 
@@ -223,6 +264,8 @@ docker compose up -d
 # Wait until db, object-store, proxy, sandbox, sandbox-egress, sandbox-llm-gateway
 # report healthy. bgutil-provider is best-effort — YouTube ingest degrades without it.
 ```
+
+Donne à chaque service une politique de redémarrage (`restart: unless-stopped`). Rien d’autre ne ramène un conteneur après un reboot de l’hôte ou un kill OOM, et une stack qui boote une fois et plus jamais est la panne que les opérateurs trouvent des semaines plus tard.
 
 Les migrations de schéma tournent dans le backend au boot, sous un verrou advisory. Il n’y a pas d’étape migrate à part. Une replica qui ne peut pas appliquer une migration ne démarre pas ; laisse l’ancienne api tourner jusqu’à ce que la nouvelle soit saine.
 
