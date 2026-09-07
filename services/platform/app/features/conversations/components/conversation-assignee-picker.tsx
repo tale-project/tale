@@ -74,6 +74,12 @@ export function ConversationAssigneePicker({
     isRecord(conversation.metadata) ? conversation.metadata : undefined,
     conversation.direction,
   );
+  const inboxStatus =
+    conversation.status === 'closed' ||
+    conversation.status === 'spam' ||
+    conversation.status === 'archived'
+      ? conversation.status
+      : 'open';
 
   // Trigger content for the assign control.
   //
@@ -318,6 +324,10 @@ export function ConversationAssigneePicker({
             state={{
               openRoutingRule: true,
               ...(routingAddress ? { routingAddress } : {}),
+              returnToConversation: {
+                id: conversation.id,
+                status: inboxStatus,
+              },
             }}
             className="hover:bg-muted flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-sm"
             onClick={() => setOpen(false)}

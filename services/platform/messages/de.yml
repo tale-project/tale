@@ -4027,6 +4027,11 @@ governance:
     noAssignees: Keine Personen oder Teams gefunden
     removePerson: Person entfernen
     removeTeam: Team entfernen
+    handoffAddRuleDescription:
+      Neue Post an diese Adresse wird automatisch zugewiesen. Die Regeln liegen
+      hier unter Konversations-Routing — du erreichst diese Seite jederzeit über
+      Einstellungen.
+    backToConversation: Zurück zur Konversation
 metrics:
   title: Metriken
   groups:

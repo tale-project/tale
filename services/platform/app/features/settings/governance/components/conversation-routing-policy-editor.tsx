@@ -14,8 +14,15 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
-import { useNavigate } from '@tanstack/react-router';
-import { Check, ChevronDown, Signpost, Trash2, Users } from 'lucide-react';
+import { useNavigate, Link } from '@tanstack/react-router';
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  Signpost,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -79,6 +86,8 @@ interface RuleDialogProps {
   rule: ConversationRoutingRule;
   onSave: (rule: ConversationRoutingRule) => void;
   title: string;
+  /** Orient handoff visitors: why this page, where rules live. */
+  description?: string;
   cannotManage: boolean;
   teamOptions: Option[];
   memberOptions: Option[];
@@ -90,6 +99,7 @@ function RuleDialog({
   rule: initialRule,
   onSave,
   title,
+  description,
   cannotManage,
   teamOptions,
   memberOptions,
@@ -172,6 +182,7 @@ function RuleDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={title}
+      description={description}
       onSubmit={handleSubmit}
       submitText={t('conversationRouting.confirm')}
       isValid={isValid}
@@ -297,6 +308,11 @@ interface ConversationRoutingPolicyEditorProps {
   openAddRule?: boolean;
   /** Prefill for the Address field when `openAddRule` is set. */
   initialAddress?: string;
+  /** Return target while the Auto assign handoff is in flight. */
+  returnToConversation?: {
+    id: string;
+    status: 'open' | 'closed' | 'spam' | 'archived';
+  };
 }
 
 /**
@@ -310,6 +326,7 @@ export function ConversationRoutingPolicyEditor({
   organizationId,
   openAddRule = false,
   initialAddress,
+  returnToConversation,
 }: ConversationRoutingPolicyEditorProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
@@ -349,6 +366,10 @@ export function ConversationRoutingPolicyEditor({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dialogRule, setDialogRule] = useState(emptyRule());
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
+  // True for the Add rule open that came from inbox Auto assign — drives the
+  // orienting dialog description so visitors learn this page is the home of
+  // the feature.
+  const [fromHandoff, setFromHandoff] = useState(false);
 
   if (!isLoading && !initializedRef.current) {
     initializedRef.current = true;
@@ -409,15 +430,18 @@ export function ConversationRoutingPolicyEditor({
 
   const openAddDialog = useCallback(() => {
     setEditingIndex(null);
+    setFromHandoff(false);
     setDialogRule(emptyRule());
     setDialogOpen(true);
   }, []);
 
   // Inbox Auto assign handoff: open Add rule once with the thread address from
-  // history state, then clear that state so refresh/back does not reopen.
+  // history state, strip open/address so refresh does not reopen, but keep
+  // `returnToConversation` until Back is clicked.
   useEffect(() => {
     if (!openAddRule) return;
     setEditingIndex(null);
+    setFromHandoff(true);
     setDialogRule({ address: initialAddress?.trim() ?? '' });
     setDialogOpen(true);
     void navigate({
@@ -433,6 +457,11 @@ export function ConversationRoutingPolicyEditor({
       replace: true,
     });
   }, [openAddRule, initialAddress, navigate, organizationId]);
+
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    setDialogOpen(open);
+    if (!open) setFromHandoff(false);
+  }, []);
 
   const openEditDialog = useCallback(
     (index: number) => {
@@ -498,6 +527,20 @@ export function ConversationRoutingPolicyEditor({
           />
         }
       >
+        {returnToConversation ? (
+          <Link
+            to="/dashboard/$id/conversations/$status"
+            params={{
+              id: organizationId,
+              status: returnToConversation.status,
+            }}
+            search={{ conversation: returnToConversation.id }}
+            className="text-muted-foreground hover:text-foreground mb-4 inline-flex w-fit items-center gap-1.5 text-sm"
+          >
+            <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
+            {t('conversationRouting.backToConversation')}
+          </Link>
+        ) : null}
         {/* The rules table exists only while the section is on — a toggle
             hides its content rather than showing rules nothing applies. It
             stays mounted (masked) while loading so the skeleton keeps the
@@ -604,13 +647,18 @@ export function ConversationRoutingPolicyEditor({
         {dialogOpen && (
           <RuleDialog
             open={dialogOpen}
-            onOpenChange={setDialogOpen}
+            onOpenChange={handleDialogOpenChange}
             rule={dialogRule}
             onSave={handleDialogSave}
             title={
               editingIndex === null
                 ? t('conversationRouting.addRule')
                 : t('conversationRouting.editRule')
+            }
+            description={
+              fromHandoff && editingIndex === null
+                ? t('conversationRouting.handoffAddRuleDescription')
+                : undefined
             }
             cannotManage={cannotManage}
             teamOptions={teamOptions}

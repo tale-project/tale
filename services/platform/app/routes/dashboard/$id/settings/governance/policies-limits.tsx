@@ -36,11 +36,13 @@ export const Route = createFileRoute(
 
 function PoliciesLimitsRoute() {
   const { id: organizationId } = Route.useParams();
-  // Inbox Auto assign passes open + address via history state (not search), so
-  // the mailbox address never appears in the URL / logs / Referer.
-  const { openRoutingRule, routingAddress } = useRouterState({
-    select: (s) => s.location.state,
-  });
+  // Inbox Auto assign passes open + address + return target via history state
+  // (not search), so the mailbox address never appears in the URL / logs /
+  // Referer. `returnToConversation` stays until Back is clicked.
+  const { openRoutingRule, routingAddress, returnToConversation } =
+    useRouterState({
+      select: (s) => s.location.state,
+    });
 
   return (
     <SettingsPage>
@@ -56,6 +58,7 @@ function PoliciesLimitsRoute() {
           organizationId={organizationId}
           openAddRule={Boolean(openRoutingRule)}
           initialAddress={routingAddress}
+          returnToConversation={returnToConversation}
         />
       </EditorGroup>
     </SettingsPage>

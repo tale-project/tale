@@ -103,5 +103,9 @@ declare module '@tanstack/react-router' {
   interface HistoryState {
     openRoutingRule?: boolean;
     routingAddress?: string;
+    returnToConversation?: {
+      id: string;
+      status: 'open' | 'closed' | 'spam' | 'archived';
+    };
   }
 }
