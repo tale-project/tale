@@ -71,7 +71,16 @@ Chaque image `tale-*` est publiée sur la GitHub Container Registry sous le mêm
 | `object-store` | `minio/minio:RELEASE.2025-04-22T22-12-26Z` |
 | `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
 
-Une image n’est pas un service compose : le spawner crée chaque conteneur de session depuis `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, et son défaut intégré est le tag local que construit la stack de développement — un hôte qui ne l’a jamais construit nomme l’image de la registry dans `SANDBOX_RUNTIME_IMAGE`, sinon `Run code`, le rendu web et la génération de documents échouent tous sur une image introuvable. Récupère cette image toi-même avant le premier `up`. Le spawner la préchauffe au boot et ne répond sur `:8003` qu’une fois le pull terminé : sur un hôte froid, la sandbox reste donc en `starting` le temps que plusieurs gigaoctets arrivent — c’est exactement pour ça que `tale deploy` la récupère avant la stack. Les exemples ci-dessous épinglent la release que documente cette page ; remplace le tag par la release que tu installes.
+Une image n’est pas un service compose : le spawner crée chaque conteneur de session depuis `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, et son défaut intégré est le tag local que construit la stack de développement — un hôte qui ne l’a jamais construit nomme l’image de la registry dans `SANDBOX_RUNTIME_IMAGE`, sinon `Run code`, le rendu web et la génération de documents échouent tous sur une image introuvable. Récupère cette image toi-même avant le premier `up`. Le spawner la préchauffe au boot et ne répond sur `:8003` qu’une fois le pull terminé : sur un hôte froid, la sandbox reste donc en `starting` le temps que plusieurs gigaoctets arrivent — c’est exactement pour ça que `tale deploy` la récupère avant la stack.
+
+Chaque exemple ci-dessous lit son tag depuis une seule variable, pour qu’une stack ne finisse jamais avec une api 0.5.11 à côté d’un proxy 0.5.9 :
+
+```bash
+# .env — the one line that pins all seven tale-* images
+VERSION=0.5.11
+```
+
+`0.5.11` est la release contre laquelle cette page a été écrite, pas une recommandation. Installe la courante : son numéro est sur la page [latest release](https://github.com/tale-project/tale/releases/latest), et c’est ce numéro qui va dans `VERSION`. Compose la substitue depuis le `.env` du répertoire projet — le même fichier qui porte tes secrets.
 
 ## Les services sans état
 
@@ -83,7 +92,7 @@ Le fichier ci-dessous, ce sont les trois rôles sans état — alias, `/ping` en
 # add depends_on: { db: { condition: service_healthy }, … } as well.
 services:
   platform:
-    image: ghcr.io/tale-project/tale/tale-platform:0.5.11
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION}
     env_file: [.env]
     volumes: ['config-data:/app/data:ro']
     restart: unless-stopped
@@ -102,7 +111,7 @@ services:
       internal:
         aliases: [platform]
   backend-api:
-    image: ghcr.io/tale-project/tale/tale-platform:0.5.11
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION}
     environment:
       TALE_ROLE: api
       PORT: '3005'
@@ -127,7 +136,7 @@ services:
       sandbox:
         aliases: [backend-api]
   backend-worker:
-    image: ghcr.io/tale-project/tale/tale-platform:0.5.11
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION}
     environment:
       TALE_ROLE: worker
       TALE_CONFIG_DIR: /app/data
@@ -267,9 +276,13 @@ Ne publie que `80` et `443` sur `proxy`. Tout le reste reste sur le réseau inte
 Monte les stores d’abord, puis le plan sandbox, puis l’étage app. Une api qui démarre avant que `db` et `object-store` soient sains crash-loop sur `ENOTFOUND` et sur une base manquante. Dans un seul fichier, `depends_on` avec `service_healthy` suffit.
 
 ```bash
+# The pull is not a compose command, so it needs the tag .env pins in this
+# shell too.
+VERSION=$(sed -n 's/^VERSION=//p' .env)
+
 # Not a compose service, and the spawner blocks on it at boot — pull it first so
 # the sandbox probe is not waiting on several gigabytes.
-docker pull ghcr.io/tale-project/tale/tale-sandbox-runtime:0.5.11
+docker pull "ghcr.io/tale-project/tale/tale-sandbox-runtime:$VERSION"
 
 docker compose up -d
 # Wait until db, object-store, proxy, sandbox, sandbox-egress, sandbox-llm-gateway

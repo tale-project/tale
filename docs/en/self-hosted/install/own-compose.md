@@ -71,7 +71,16 @@ Every `tale-*` image is published on the GitHub Container Registry under the sam
 | `object-store` | `minio/minio:RELEASE.2025-04-22T22-12-26Z` |
 | `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
 
-One image is not a compose service. The spawner creates every session container from `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, and its built-in default is the local tag the development stack builds — a host that never built it must name the registry image in `SANDBOX_RUNTIME_IMAGE`, or `Run code`, web render, and document generation all fail with an image-not-found. Pull that image yourself before the first `up`. The spawner warms it at boot and does not start answering on `:8003` until the pull finishes, so on a cold host the sandbox sits in `starting` for as long as several gigabytes take to arrive — `tale deploy` pulls it ahead of the stack for exactly this reason. The examples below pin the release this page documents; replace the tag with the release you are installing.
+One image is not a compose service. The spawner creates every session container from `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, and its built-in default is the local tag the development stack builds — a host that never built it must name the registry image in `SANDBOX_RUNTIME_IMAGE`, or `Run code`, web render, and document generation all fail with an image-not-found. Pull that image yourself before the first `up`. The spawner warms it at boot and does not start answering on `:8003` until the pull finishes, so on a cold host the sandbox sits in `starting` for as long as several gigabytes take to arrive — `tale deploy` pulls it ahead of the stack for exactly this reason.
+
+Every example below reads its tag from one variable, so a stack cannot end up with a 0.5.11 api beside a 0.5.9 proxy:
+
+```bash
+# .env — the one line that pins all seven tale-* images
+VERSION=0.5.11
+```
+
+`0.5.11` is the release this page happened to be written against, not a recommendation. Install the current one: its number is on the [latest release](https://github.com/tale-project/tale/releases/latest) page, and that is what belongs in `VERSION`. Compose substitutes it from the `.env` in the project directory — the same file that carries your secrets.
 
 ## The stateless services
 
@@ -83,7 +92,7 @@ Below are the three stateless roles — aliases, `/ping` as liveness, `TALE_ROLE
 # add depends_on: { db: { condition: service_healthy }, … } as well.
 services:
   platform:
-    image: ghcr.io/tale-project/tale/tale-platform:0.5.11
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION}
     env_file: [.env]
     volumes: ['config-data:/app/data:ro']
     restart: unless-stopped
@@ -102,7 +111,7 @@ services:
       internal:
         aliases: [platform]
   backend-api:
-    image: ghcr.io/tale-project/tale/tale-platform:0.5.11
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION}
     environment:
       TALE_ROLE: api
       PORT: '3005'
@@ -127,7 +136,7 @@ services:
       sandbox:
         aliases: [backend-api]
   backend-worker:
-    image: ghcr.io/tale-project/tale/tale-platform:0.5.11
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION}
     environment:
       TALE_ROLE: worker
       TALE_CONFIG_DIR: /app/data
@@ -267,9 +276,13 @@ Publish only `80` and `443` on `proxy`. Everything else stays on the internal ne
 Bring the stores up first, then the sandbox plane, then the app tier. An api that starts before `db` and `object-store` are healthy crash-loops on `ENOTFOUND` and on a missing database. In one file, `depends_on` with `service_healthy` is enough.
 
 ```bash
+# The pull is not a compose command, so it needs the tag .env pins in this
+# shell too.
+VERSION=$(sed -n 's/^VERSION=//p' .env)
+
 # Not a compose service, and the spawner blocks on it at boot — pull it first so
 # the sandbox probe is not waiting on several gigabytes.
-docker pull ghcr.io/tale-project/tale/tale-sandbox-runtime:0.5.11
+docker pull "ghcr.io/tale-project/tale/tale-sandbox-runtime:$VERSION"
 
 docker compose up -d
 # Wait until db, object-store, proxy, sandbox, sandbox-egress, sandbox-llm-gateway
