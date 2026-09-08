@@ -64,6 +64,58 @@ describe('classifyYtDlpStderr', () => {
     ).toBe('geoblocked');
   });
 
+  // Verbatim stderr captured on 2026-09-08 against yt-dlp 2026.03.17 /
+  // 2026.07.04 / 2026.08.19. Every one of these used to fall through to
+  // `transient`, so each cost the full [30s, 60s, 120s] ladder and told the
+  // user "Temporary issue — try again" about a wall that never moves.
+  it('classifies a platform login wall as terminal, not transient', () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [vimeo] 1206142064: Failed to fetch macos OAuth token: HTTP Error 401: Unauthorized (caused by <HTTPError 401: Unauthorized>)',
+      ),
+    ).toBe('authRequired');
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [vimeo] 1206142064: The web client only works when logged-in. Use --cookies, --cookies-from-browser, --username and --password, --netrc-cmd, or --netrc (vimeo) to provide account credentials.',
+      ),
+    ).toBe('authRequired');
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [vimeo] 1206142064: The android client is unable to fetch new OAuth tokens and is only intended for use with previously cached tokens',
+      ),
+    ).toBe('authRequired');
+  });
+
+  it('keeps the bot wall ahead of the login wall', () => {
+    // "Sign in to confirm you're not a bot" is an auth-shaped sentence about
+    // a bot challenge. It must stay `botDetection` — that reason drives the
+    // pooled-session 'blocked' report, which `authRequired` must not.
+    expect(
+      classifyYtDlpStderr(
+        "ERROR: [youtube] xyz: Sign in to confirm you're not a bot. HTTP Error 401: Unauthorized",
+      ),
+    ).toBe('botDetection');
+  });
+
+  it("classifies Bilibili's bare 412 risk control as a block", () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [BiliBili] 18M7k6UE7d: Unable to download JSON metadata: HTTP Error 412: Precondition Failed (caused by <HTTPError 412: Precondition Failed>)',
+      ),
+    ).toBe('botDetection');
+  });
+
+  it('classifies a 404 as a gone video, but leaves toolchain faults alone', () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [vimeo] 999999999999: Unable to download webpage: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)',
+      ),
+    ).toBe('unavailable');
+    // A bare "not found" is ours to fix, not a gone video — it must NOT
+    // borrow the terminal reason and hide a broken image from the operator.
+    expect(classifyYtDlpStderr('ERROR: ffmpeg not found')).toBe('transient');
+  });
+
   it('falls back to transient for anything unrecognized', () => {
     expect(classifyYtDlpStderr('some unexpected network blip')).toBe(
       'transient',

@@ -477,6 +477,7 @@ export function sanitizeStderr(raw: string): string {
 
 export type YtDlpErrorReason =
   | 'privateOrAgeGated'
+  | 'authRequired'
   | 'unavailable'
   | 'geoblocked'
   | 'unsupported'
@@ -520,13 +521,25 @@ export class YtDlpError extends Error {
  *    just trigger harder blocks.
  *  - `jsRuntimeMissing` means the image is misconfigured (no Deno).
  *    Caller should alert loudly, not silently retry.
+ *  - Anything this function cannot name falls through to `transient`,
+ *    which IS retried. So every terminal HTTP shape must be named here
+ *    or it burns the full [30s, 60s, 120s] ladder and tells the user
+ *    "Temporary issue — try again" about a wall that will never move.
+ *    That is how a Vimeo login wall (401), a deleted video (404), and
+ *    Bilibili's risk control (412) each cost three retries and a lie.
  */
 export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   const s = stderr.toLowerCase();
   if (
     s.includes('sign in to confirm') ||
     s.includes("you're not a bot") ||
-    s.includes('confirm you’re not a bot')
+    s.includes('confirm you’re not a bot') ||
+    // Bilibili answers risk-controlled requests with a bare 412 rather than
+    // any human-readable wall text. Same meaning as the YouTube challenge:
+    // the platform refused an automated caller, and retrying on our own
+    // schedule only hardens it.
+    s.includes('http error 412') ||
+    s.includes('precondition failed')
   ) {
     return 'botDetection';
   }
@@ -542,6 +555,20 @@ export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   }
   if (s.includes('members-only') || s.includes('join this channel')) {
     return 'memberOnly';
+  }
+  // Ordered ABOVE `geoblocked` on purpose: that branch matches the bare
+  // substring `geo`, which is loose enough to swallow an auth message that
+  // happens to carry it (a redirect URL, a region-flavoured host name).
+  if (
+    s.includes('http error 401') ||
+    s.includes('unauthorized') ||
+    // Vimeo, 2026: every anonymous client is walled behind a login. The
+    // `web` client says so in prose; the `macos`/`android` ones fail
+    // fetching the OAuth token that would have carried the session.
+    s.includes('only works when logged-in') ||
+    s.includes('oauth token')
+  ) {
+    return 'authRequired';
   }
   if (
     // Matched loosely ("available in your …", not "not available in your …")
@@ -567,7 +594,14 @@ export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   if (s.includes('no supported javascript runtime')) return 'jsRuntimeMissing';
   if (s.includes('http error 403') || s.includes('forbidden'))
     return 'forbidden';
-  if (s.includes('video unavailable') || s.includes('has been removed')) {
+  if (
+    s.includes('video unavailable') ||
+    s.includes('has been removed') ||
+    // Matched on the full `http error 404` rather than a bare `not found`:
+    // the latter also appears in toolchain faults ("ffmpeg not found"),
+    // which are ours to fix, not a gone video.
+    s.includes('http error 404')
+  ) {
     return 'unavailable';
   }
   return 'transient';

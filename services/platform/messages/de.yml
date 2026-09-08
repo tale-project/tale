@@ -1148,6 +1148,7 @@ chat:
     errors:
       generic: Video konnte nicht analysiert werden
       privateOrAgeGated: Video ist privat oder altersbeschränkt
+      authRequired: Video-Plattform verlangt eine Anmeldung — dieses Video lässt sich nicht analysieren
       unavailable: Video ist nicht mehr verfügbar
       geoblocked: Video ist in dieser Region nicht verfügbar
       unsupported: Diese Seite wird nicht unterstützt

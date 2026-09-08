@@ -67,6 +67,9 @@ const MAX_ATTEMPTS = INGEST_RETRY_DELAYS_MS.length + 1;
 
 const NEVER_RETRY: ReadonlySet<string> = new Set([
   'privateOrAgeGated',
+  // A login wall does not open on a timer, and nothing in the ingest can
+  // sign in — retrying it only delays an honest message by 3.5 minutes.
+  'authRequired',
   'geoblocked',
   'unsupported',
   'unavailable',

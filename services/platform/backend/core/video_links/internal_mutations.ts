@@ -6,6 +6,7 @@
 export type VideoLinkErrorReason =
   // YtDlpErrorReason
   | 'privateOrAgeGated'
+  | 'authRequired'
   | 'unavailable'
   | 'geoblocked'
   | 'unsupported'
