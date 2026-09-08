@@ -299,22 +299,26 @@ export async function ingestVideoLinkImpl(
 
     const { jobDir, cleanup } = await createJobDir();
 
-    // Draw a pre-warmed youtube.com browser session from the pool (if any) so
-    // this job reuses a browser that already cleared YouTube's bot wall. The
-    // cookie jar is decrypted here (node action) and written into the per-job
-    // sandbox; yt-dlp reads it via argv. Best-effort: on any error we proceed
-    // without a session (an env proxy / PO provider still applies).
-    const YOUTUBE_SESSION_DOMAIN = 'youtube.com';
+    // Draw a pre-warmed browser session for THIS job's platform from the pool
+    // (if any) so the job reuses a browser that already cleared that site's
+    // bot wall. The cookie jar is decrypted here (node action) and written
+    // into the per-job sandbox; yt-dlp reads it via argv. Best-effort: on any
+    // error we proceed without a session (an env proxy / PO provider still
+    // applies), and a platform with no domain never claims one.
+    const sessionDomain = sessionDomainForPlatform(job.sourcePlatform);
     let session: YtdlpSession | undefined;
     let sessionId: Id<'browserSessions'> | undefined;
     try {
-      const claimed = await ctx.runMutation(
-        internal.browser_sessions.sessions.claimBrowserSession,
-        {
-          organizationId: job.organizationId,
-          domain: YOUTUBE_SESSION_DOMAIN,
-        },
-      );
+      const claimed =
+        sessionDomain === undefined
+          ? null
+          : await ctx.runMutation(
+              internal.browser_sessions.sessions.claimBrowserSession,
+              {
+                organizationId: job.organizationId,
+                domain: sessionDomain,
+              },
+            );
       if (claimed) {
         const jar = await decryptString(claimed.cookiesEncrypted);
         const cookiesFile = join(jobDir, 'cookies.txt');
@@ -939,6 +943,31 @@ async function tryEmbedFallback(
     );
     return null;
   }
+}
+
+/**
+ * The browser-session pool is keyed `(org, domain)`. Map a job's platform onto
+ * the domain whose jar could actually help it.
+ *
+ * This used to be hardcoded to `youtube.com` for every job, which had two
+ * costs. A Vimeo or Bilibili job drew a YouTube jar it could never use (the
+ * Netscape cookie file is domain-scoped, so yt-dlp sent none of it), and —
+ * worse — when that job hit its own platform's wall, `reportSession('blocked')`
+ * marked the YouTube session burned over a failure YouTube had no part in,
+ * shrinking the pool that does the work.
+ *
+ * A platform absent from this map claims nothing. Today only YouTube jars are
+ * ever minted (`importBrowserSession`), so the others read an empty pool and
+ * proceed session-less — the same path as before, minus the collateral damage.
+ */
+function sessionDomainForPlatform(platform: string): string | undefined {
+  return {
+    youtube: 'youtube.com',
+    bilibili: 'bilibili.com',
+    vimeo: 'vimeo.com',
+    dailymotion: 'dailymotion.com',
+    twitch: 'twitch.tv',
+  }[platform];
 }
 
 function isBotWallError(err: unknown): boolean {
