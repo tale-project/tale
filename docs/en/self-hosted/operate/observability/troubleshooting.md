@@ -34,6 +34,31 @@ docker compose logs --tail=200 backend-api
 
 The backend-api container is probably restarting (look for a crash in the logs) or unreachable from the proxy. Restart with `docker compose restart backend-api` — sessions are server-side and clients reconnect the SSE stream, so the restart is safe.
 
+## Every upload is refused
+
+Not one file gets through, on any screen. S3-compatible storage is the only blob backend, so a deployment that has no usable one refuses every upload rather than falling back. The boot log says which case it is:
+
+```bash
+docker compose logs backend-api | grep 'object store'
+```
+
+| Line | What to do |
+| ---- | ---------- |
+| `object store (skipped)` | `OBJECT_STORE_ACCESS_KEY` or `OBJECT_STORE_SECRET_KEY` is missing. The process has no defaults for either; set both and restart the backend. |
+| `object store (ignored)` | The connection file is marked `"managedBy": "operator"`, so the variables do nothing. Edit `default/object-storage/connection.json` in the config volume, or remove the marker to hand the file back to the environment. |
+| `bucket … does not exist and this key may not create it` | Create the bucket yourself, or grant `s3:CreateBucket`. |
+| *no line at all* | The store matched the environment and boot had nothing to say — the configuration is fine, so look at reachability below. |
+
+Then check that the backend can actually reach the store, rather than merely being configured for one:
+
+```bash
+curl -s http://backend-api:3005/metrics | grep tale_backend_store_up
+```
+
+`tale_backend_store_up{store="object_store"} 0` means the credentials, the endpoint, or the network path is wrong; the backend log names the failure when the gauge flips.
+
+If boot is clean and the gauge reads `1`, the failure is in the browser rather than the backend: presigned uploads go straight from the browser to the store, so an external bucket needs a CORS policy that allows your `SITE_URL` origin with `GET`, `PUT` and `HEAD`. The in-app connection test runs server-side and passes regardless, which is why this one only ever shows up as a failed upload. The browser console names it as a blocked cross-origin request.
+
 ## Uploads stuck in "indexing"
 
 Document ingestion runs inside the backend worker and writes the extracted chunks and embeddings to the knowledge corpus database. A long "indexing" state means either the worker cannot reach the corpus database or the file itself failed to extract. Check the worker logs and the corpus database first:

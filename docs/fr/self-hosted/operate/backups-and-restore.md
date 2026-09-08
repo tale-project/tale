@@ -11,7 +11,7 @@ Le contexte d'architecture vit dans [Architecture des conteneurs](/fr/self-hoste
 
 | Volume                       | Contient                                                                                                                                                 |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `db-data`                    | Postgres — le magasin applicatif (agents, runs, l'audit log) et le corpus de connaissances (fragments de documents, embeddings, pages crawlées)          |
+| `db-data`                    | Postgres — le magasin applicatif (agents, runs, l'audit log) et le corpus de connaissances (fragments de documents, embeddings, pages crawlées), **quand ils tournent dans le conteneur `db` embarqué** |
 | `config-data`                | Config d'org, secrets de fournisseurs, branding téléversé                                                                                                |
 | `object-store-data`          | Le store de blobs — fichiers téléversés, pièces jointes de chat, audio, médias générés — dès que le défaut du déploiement est le magasin d'objets fourni |
 | `caddy-data`, `caddy-config` | Certificats TLS et état du proxy                                                                                                                         |
@@ -20,6 +20,23 @@ Chaque snapshot est un répertoire nommé comme `20260611-142530-deploy` dans le
 
 Les blobs suivent le magasin d'objets. Avec le service `object-store` fourni — le défaut — le snapshot capture `object-store-data` comme n'importe quel autre volume, et son archive pèse autant que tout ce qui a jamais été téléversé : le store est en pause pendant le tar, donc les téléversements et les téléchargements restent bloqués aussi longtemps. Deux cas placent des blobs hors du snapshot, et le backup les annonce tous les deux au lieu de les passer sous silence. Un défaut du déploiement repointé vers un S3 externe (`default/object-storage/connection.json` ne nomme plus le store fourni) ne laisse dans le volume local rien que l'app lise : le backup saute le volume et `tale backup` imprime une notice d'une ligne avec l'endpoint et le bucket — la sauvegarde de ce bucket relève de ton propre outillage S3. Une organisation qui apporte son propre bucket sous **Paramètres > Résidence des données** n'écrit jamais non plus dans le volume local ; la notice nomme l'organisation, et aucun snapshot ne peut contenir ces blobs.
 
+
+<Warning>
+
+**Les bases que tu as sorties de la machine ne sont pas dans le snapshot, et rien ne te le dit.**
+`DATABASE_URL` et `KNOWLEDGE_DATABASE_URL` peuvent pointer l’une ou l’autre base vers un Postgres à
+toi ([Résidence des données](/fr/self-hosted/configuration/data-residency)). Les blobs obtiennent une
+annonce quand ils déménagent, les bases non : `db-data` reste sur l’hôte, continue d’être archivé, et
+le snapshot paraît complet alors qu’il ne contient rien des données qui comptent.
+
+Deux conséquences à prévoir :
+
+- Sauvegarde une base externe avec l’outillage de son fournisseur, sur son propre calendrier.
+- Un `tale restore` ramène les volumes locaux en arrière pendant qu’une base externe reste où elle
+  est. Si les deux sont en jeu, restaure la base depuis sa propre sauvegarde au même instant et
+  arrête le déploiement le temps de l’échange, plutôt que de restaurer une moitié sous trafic.
+
+</Warning>
 ## Quand les snapshots sont pris
 
 `tale deploy` snapshotte avant sa première étape mutante dès que le déploiement peut changer des données : la version cible diffère de celle qui tourne, ou un push de config hôte (`--override` / `--override-all`) est demandé. Pendant que chaque volume est mis en tar, les conteneurs qui l'utilisent sont mis en pause pour toute la durée — quelques secondes pour les volumes de base et de config, aussi longtemps que le store est gros pour le volume de blobs — pour que l'archive soit cohérente après crash : une copie à chaud d'un répertoire Postgres en marche n'est pas restaurable.

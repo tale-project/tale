@@ -34,6 +34,38 @@ docker compose logs --tail=200 backend-api
 
 Der backend-api-Container startet wahrscheinlich neu (such nach einem Crash in den Logs) oder ist vom Proxy unerreichbar. Starte mit `docker compose restart backend-api` neu — Sessions sind serverseitig, und Clients verbinden den SSE-Stream neu, also ist der Restart sicher.
 
+## Jeder Upload wird abgelehnt
+
+Keine einzige Datei kommt durch, auf keinem Screen. S3-kompatibler Speicher ist das einzige
+Blob-Backend, ein Deployment ohne einen brauchbaren lehnt deshalb jeden Upload ab, statt auf etwas
+anderes auszuweichen. Welcher Fall vorliegt, sagt das Boot-Log:
+
+```bash
+docker compose logs backend-api | grep 'object store'
+```
+
+| Zeile | Was zu tun ist |
+| ----- | -------------- |
+| `object store (skipped)` | `OBJECT_STORE_ACCESS_KEY` oder `OBJECT_STORE_SECRET_KEY` fehlt. Der Prozess hat für beide keinen Default; setz beide und starte das Backend neu. |
+| `object store (ignored)` | Die Verbindungsdatei trägt `"managedBy": "operator"`, die Variablen tun also nichts. Editiere `default/object-storage/connection.json` im Config-Volume, oder entferne die Markierung, um die Datei der Umgebung zurückzugeben. |
+| `bucket … does not exist and this key may not create it` | Leg den Bucket selbst an, oder gib `s3:CreateBucket` frei. |
+| *gar keine Zeile* | Der Store stimmte mit der Umgebung überein, und der Start hatte nichts zu melden — die Konfiguration passt, sieh dir also die Erreichbarkeit unten an. |
+
+Prüf dann, ob das Backend den Store wirklich erreicht, statt nur für einen konfiguriert zu sein:
+
+```bash
+curl -s http://backend-api:3005/metrics | grep tale_backend_store_up
+```
+
+`tale_backend_store_up{store="object_store"} 0` heißt: Zugangsdaten, Endpoint oder Netzwerkpfad
+stimmen nicht; das Backend-Log benennt den Fehler, sobald die Gauge kippt.
+
+Ist der Start sauber und die Gauge `1`, liegt der Fehler im Browser, nicht im Backend: Presignte
+Uploads laufen direkt vom Browser zum Store, ein externer Bucket braucht deshalb eine CORS-Policy,
+die deinen `SITE_URL`-Origin mit `GET`, `PUT` und `HEAD` zulässt. Der Verbindungstest in der App
+läuft serverseitig und besteht trotzdem — genau deshalb zeigt sich das nur als fehlschlagender
+Upload. Die Browser-Konsole benennt es als blockierte Cross-Origin-Anfrage.
+
 ## Uploads stecken in „indexing"
 
 Die Dokument-Ingestion läuft im Backend-Worker und schreibt die extrahierten Chunks und Embeddings in die Datenbank des Wissens-Korpus. Ein langer „indexing"-Zustand bedeutet entweder, dass der Worker die Korpus-Datenbank nicht erreicht oder dass die Datei selbst nicht extrahiert werden konnte. Prüf zuerst die Worker-Logs und die Korpus-Datenbank:

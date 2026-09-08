@@ -78,6 +78,7 @@ Richte Grafana zuerst auf Prometheus — füg eine Prometheus-Datenquelle unter 
 | Platform-Memory | `process_resident_memory_bytes{job="tale-platform"}` | Resident-Memory des platform-Containers                      |
 | Event-Loop-Lag  | `nodejs_eventloop_lag_seconds{job="tale-platform"}`  | Springt, wenn die Plattform gesättigt ist                    |
 | Backend up      | `up{job="tale-backend"}`                             | Backend-Erreichbarkeit — `0` ist ein Page                    |
+| Stores up       | `tale_backend_store_up`                              | `1` je erreichbarem Speicher, gelabelt `app_db`, `knowledge_db`, `object_store` |
 
 Der platform-Endpoint trägt Nodes Default-Prozessmetriken (CPU, Memory, Event-Loop-Lag, GC), darum zielen die konkreten Queries oben auf ihn. Der Backend-Endpoint exponiert seine eigene reichere Reihe, inklusive der In-Process-RAG- und Crawl-Timings — öffne ihn einmal (`curl -H "Authorization: Bearer $TOKEN" https://tale.example.com/metrics/backend`), um die exakten Metriknamen deiner Version zu lesen, und füg dann Panels für den Wissens-Ingestion-Durchsatz und die Provider-Fehlerrate aus Operations hinzu.
 
@@ -95,7 +96,23 @@ groups:
         labels: { severity: page }
         annotations:
           summary: 'Tale metrics target {{ $labels.job }} is down'
+      - alert: TaleStoreUnreachable
+        expr: tale_backend_store_up == 0
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: 'Tale erreicht seinen {{ $labels.store }}-Speicher nicht'
 ```
+
+Die zweite Regel macht „Erreichbarkeit der Wissensdatenbank" aus der Signaltabelle unten überhaupt
+erst pageable. Gib ihr ein längeres `for` als der Target-down-Regel: Die Gauge wird über einen Cache
+mit eigenem Intervall aufgefrischt, eine einzelne fehlgeschlagene Probe ist also noch kein Ausfall.
+
+`tale_backend_store_up` verdient auf jedem Deployment eine eigene Panel-Zeile, dessen Speicher keine
+Container neben dem Backend sind: Es ist das einzige Signal dafür, dass ein externes Postgres oder
+ein S3-Bucket nicht mehr antwortet — das Backend bleibt gesund und liefert weiter aus, bis jemand
+den Speicher benutzen will. Bewusst nicht Teil von `/ready`, damit ein flackernder Bucket keine
+Farbe mitten im Deploy drainen kann.
 
 Die volle Liste, was ein Page wert ist gegenüber was warten kann — platform-5xx-Rate, Postgres-Pool-Sättigung, Erreichbarkeit der Wissensdatenbank, tägliches-Backup-nicht-geschrieben — ist die Signaltabelle in [Operations](/de/self-hosted/operate/observability/operations); übersetz jede Zeile in eine Regel, sobald die passende Reihe auf deinem Dashboard ist.
 

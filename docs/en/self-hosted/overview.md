@@ -53,7 +53,7 @@ The [authentication reference](/self-hosted/configuration/authentication) covers
 
 ## When you outgrow single-host
 
-The default stack runs every container on one host. The architecture is single-tenant, but the tiers already split cleanly: `tale-backend-worker` scales horizontally, and the operational and knowledge stores are separate databases even when they share one Postgres process. The first thing you can move off the box without re-architecting is the knowledge corpus — point `KNOWLEDGE_DATABASE_URL` at a managed ParadeDB (for capacity or for a residency requirement) and it relocates independently, covered in [Data residency](/self-hosted/configuration/data-residency). The blob store is the second — an org that brings its own S3 bucket under **Settings > Data residency** bypasses the bundled `object-store` entirely.
+The default stack runs every container on one host. The architecture is single-tenant, but the tiers already split cleanly: `tale-backend-worker` scales horizontally, and the operational and knowledge stores are separate databases even when they share one Postgres process. All three stores can move off the box without re-architecting, each on its own: `KNOWLEDGE_DATABASE_URL` relocates the knowledge corpus to a managed ParadeDB (for capacity or for a residency requirement), `DATABASE_URL` relocates the application database, and the `OBJECT_STORE_*` variables point blobs at any S3-compatible bucket. Each is read on every start, so moving one is a variable change and a restart. Organizations can go further still and bring their own corpus database and bucket individually under **Settings > Data residency**. All of it is covered in [Data residency](/self-hosted/configuration/data-residency).
 
 ## Where this fits
 

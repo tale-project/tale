@@ -243,10 +243,10 @@ Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) ist
 | `TALE_ROLE` | `api` auf `backend-api`, `worker` auf `backend-worker`. Unset auf `platform`. |
 | `PORT` | `3005` auf der API. Der Proxy-Default für `BACKEND_UPSTREAM` ist `backend-api:3005`. |
 | `TALE_CONFIG_DIR` | `/app/data` |
-| `DATABASE_URL` | `postgresql://tale:${DB_PASSWORD}@db:5432/tale_app` |
+| `DATABASE_URL` | `postgresql://tale:${DB_PASSWORD}@db:5432/tale_app` — oder ein Postgres von dir, siehe [Speicher, die du schon hast](#speicher-die-du-schon-hast). |
 | `SANDBOX_URL` | `http://sandbox:8003` |
 | `SANDBOX_HTTP_API_BASE_URL` | `http://backend-api:3005` |
-| `OBJECT_STORE_ENDPOINT` | `http://object-store:9000` |
+| `OBJECT_STORE_ENDPOINT` | `http://object-store:9000` — oder dein eigener S3-Endpoint; für AWS S3 selbst lässt du ihn leer. |
 | `SANDBOX_EGRESS_NETWORK` | `tale-sandbox-net` |
 | `SANDBOX_EGRESS_PROXY` | `http://sandbox-egress:3128` |
 | `SANDBOX_TOKEN` | Überall derselbe Wert. `sandbox` startet ohne ihn nicht; das Backend signiert seine Spawner-Aufrufe damit. |
@@ -254,8 +254,115 @@ Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) ist
 | `BACKEND_UPSTREAM` | `backend-api:3005` auf `proxy`. |
 | `OBJECT_STORE_UPSTREAM` | `object-store:9000` auf `proxy`, damit presignte URLs unter `/<bucket>/*` weitergereicht werden. |
 | `OBJECT_STORE_BUCKET` | Standardmäßig `tale-blobs`. Benennst du ihn um, muss derselbe Name `proxy` und beide Backend-Rollen erreichen. |
+| `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY` | Kein Image-Default. Fehlt einer von beiden, konfiguriert das Backend gar keinen Blob-Store und lehnt jeden Upload ab. |
 | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | Auf `object-store`: Der Store liest seine eigenen Namen, also mappst du `OBJECT_STORE_ACCESS_KEY` und `OBJECT_STORE_SECRET_KEY` darauf. |
 | `TALE_DB_ROLE` | Unset auf der gefalteten `db`. Die Default-Rolle legt `tale_knowledge` an und wendet die Korpus-Migrationen an; `platform` überspringt sie und lässt den Korpus ohne Tabellen. |
+
+## Speicher, die du schon hast
+
+Compose selbst zu schreiben ist auch der Weg, Tale gegen eine Datenbank und einen Object-Store zu
+fahren, die du längst betreibst. Drei Variablen entscheiden das, alle bei jedem Start gelesen — jede
+davon ist also eine `.env`-Änderung plus ein Neustart von `backend-api` und `backend-worker`, nie
+ein Rebuild.
+
+| Speicher | Variable | Service streichen? |
+| -------- | -------- | ------------------ |
+| Anwendungsdatenbank | `DATABASE_URL` | Ja — `db` fällt weg, mit ihm `db-data` und `db-backup`. |
+| Wissens-Korpus | `KNOWLEDGE_DATABASE_URL` | Nur zusammen mit der Anwendungsdatenbank: im Einzelhost-Stack liegen beide im selben `db`-Service. |
+| Blobs | `OBJECT_STORE_*` | Ja — `object-store` und `object-store-data` fallen weg, und `proxy` braucht `OBJECT_STORE_UPSTREAM` nicht mehr. |
+
+Streichst du einen Service, streich auch die `depends_on`-Einträge, die auf ihn zeigen — sonst
+weigert sich Compose, die Schicht zu starten, die auf einen Container wartet, den es nicht mehr gibt.
+
+<Steps>
+
+<Step title="Die Datenbanken vorbereiten">
+
+Die Anwendungsdatenbank braucht keine Extensions und keinen Superuser — eine Datenbank und eine
+Rolle, die Schemata anlegen darf, genügt; das Backend migriert sie beim Start. Der Wissens-Korpus
+braucht ein bereits installiertes `pgvector`, denn Tale legt Schemata und Tabellen an, nie
+Extensions:
+
+```sql
+CREATE DATABASE tale_app;
+CREATE DATABASE tale_knowledge;
+\c tale_knowledge
+CREATE EXTENSION IF NOT EXISTS vector;
+-- Optional. Ohne die Extension fällt die hybride Suche auf reine Vektorsuche zurück, statt zu scheitern.
+CREATE EXTENSION IF NOT EXISTS pg_search;
+```
+
+Richte Tale auf den eigenen Port der Datenbank, nie auf einen Pooler im Transaction-Modus — die
+Job-Queue hält `LISTEN`-Verbindungen, der Boot-Migrator einen Session-weiten Advisory-Lock, und
+Queries nutzen Prepared Statements.
+
+</Step>
+
+<Step title="Den Bucket vorbereiten">
+
+Leg den Bucket an, oder überlass es Tale: Es prüft zuerst mit `HeadBucket` und legt nur an, was
+fehlt — ein Schlüssel, der auf einem von dir bereitgestellten Bucket nur `s3:GetObject`,
+`s3:PutObject` und `s3:DeleteObject` darf, reicht also.
+
+Presignte Up- und Downloads laufen im Browser, der Bucket braucht deshalb eine CORS-Policy, die
+deinen `SITE_URL`-Origin mit `GET`, `PUT` und `HEAD` zulässt.
+
+</Step>
+
+<Step title="Das Backend darauf richten">
+
+```bash .env
+DATABASE_URL=postgresql://tale:...@postgres.internal:5432/tale_app?sslmode=verify-full
+KNOWLEDGE_DATABASE_URL=postgresql://tale:...@postgres.internal:5432/tale_knowledge?sslmode=verify-full
+POSTGRES_CA_FILE=/run/secrets/postgres-ca.pem
+
+# Für AWS S3 selbst lässt du OBJECT_STORE_ENDPOINT leer.
+OBJECT_STORE_ENDPOINT=https://minio.internal
+OBJECT_STORE_BUCKET=tale-blobs
+OBJECT_STORE_ACCESS_KEY=...
+OBJECT_STORE_SECRET_KEY=...
+OBJECT_STORE_PUBLIC_ENDPOINT=https://minio.example.com
+```
+
+`OBJECT_STORE_PUBLIC_ENDPOINT` ist, wo der *Browser* den Bucket erreicht. Setz es, wenn sich das
+vom Endpoint des Backends unterscheidet; erreicht der Browser den Bucket ohnehin, lässt du es leer
+und streichst die `/<bucket>/*`-Weiterleitung im Proxy gleich mit.
+
+Mounte das CA-Bundle in beide Backend-Services, wenn du `sslmode=verify-ca` oder `verify-full`
+verlangst — verwaltete Anbieter signieren meist mit Roots, die Node nicht mitliefert, und ohne das
+Bundle lehnt das Backend die Verbindung beim Start ab, statt still herabzustufen.
+
+</Step>
+
+<Step title="Prüfen, dass es gegriffen hat">
+
+Das Boot-Log sagt, was die Object-Store-Variablen bewirkt haben — `seeded` auf einem frischen
+Config-Volume, `reconciled` nach einer Änderung, `skipped`, wenn kein Schlüsselpaar gesetzt ist:
+
+```bash
+docker compose logs backend-api | grep 'object store'
+```
+
+Danach liest du die Erreichbarkeits-Gauge, die nur dann `1` pro Speicher zeigt, wenn das Backend
+wirklich mit ihm sprechen kann:
+
+```bash
+curl -s http://backend-api:3005/metrics | grep tale_backend_store_up
+```
+
+</Step>
+
+</Steps>
+
+<Warning>
+
+`tale backup` sichert Docker-Volumes. Blobs in einem externen Bucket meldet es und überspringt das
+Volume — für eine externe **Datenbank** hat es kein Gegenstück: Zeigt `DATABASE_URL` oder
+`KNOWLEDGE_DATABASE_URL` vom Host weg, sieht ein Snapshot vollständig aus und enthält nichts davon.
+Sichere diese Datenbanken mit dem Werkzeug deines Anbieters — siehe
+[Backups und Restore](/de/self-hosted/operate/backups-and-restore).
+
+</Warning>
 
 ## Capabilities und Mounts, die ohne sie brechen
 
