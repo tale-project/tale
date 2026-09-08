@@ -256,7 +256,7 @@ export default {
       project: ['**/*.ts'],
     },
     'tools/plop': {
-      entry: ['generators/**/*.ts', 'helpers/**/*.ts'],
+      entry: ['plopfile.ts', 'generators/**/*.ts', 'helpers/**/*.ts'],
       project: ['**/*.ts', '!templates/**'],
     },
   },

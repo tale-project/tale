@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM"],
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["${configDir}/**/*"],
+  "exclude": ["${configDir}/_generated"]
+}

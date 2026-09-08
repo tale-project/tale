@@ -1,8 +1,3 @@
 {
-  "extends": "../../../tsconfig.base.json",
-  "compilerOptions": {
-    "types": ["bun", "node"],
-    "noUncheckedIndexedAccess": true
-  },
-  "include": ["src/**/*.ts"]
+  "extends": "../../../tsconfig.strict.json"
 }

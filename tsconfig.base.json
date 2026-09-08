@@ -5,18 +5,36 @@
     "noEmit": true,
     "incremental": true,
     "isolatedModules": true,
+    "moduleDetection": "force",
     "target": "ES2022",
     "lib": ["ESNext"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "types": ["bun"],
+    "types": ["bun", "node"],
+    "jsx": "react-jsx",
+    "allowJs": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
     "paths": {
       "@/*": ["${configDir}/src/*", "${configDir}/*"]
     }
-  }
+  },
+  "include": ["${configDir}/**/*.ts", "${configDir}/**/*.tsx"],
+  "exclude": [
+    "${configDir}/node_modules",
+    "${configDir}/dist",
+    "${configDir}/dist-ssr",
+    "${configDir}/build",
+    "${configDir}/bin",
+    "${configDir}/storybook-static",
+    "${configDir}/test-results",
+    "${configDir}/playwright-report",
+    "${configDir}/templates",
+    "${configDir}/tests/e2e/fixtures"
+  ]
 }

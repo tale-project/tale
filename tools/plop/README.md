@@ -6,8 +6,8 @@ generators** instead of hand-rolling or copy-pasting one, so every new part
 inherits the repo's conventions (the shared `tsconfig.base.json`, lint config,
 i18n bundle, tests, and Docker setup) automatically.
 
-The root [`plopfile.ts`](../../plopfile.ts) wires these generators into the
-`bun run gen` workflow.
+[`plopfile.ts`](plopfile.ts) wires these generators into the `bun run gen`
+workflow.
 
 ## Usage
 

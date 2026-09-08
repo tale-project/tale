@@ -36,7 +36,8 @@ The biggest quality lever is deciding well, not typing fast. Work in this order:
 8. **Prove it** — tests carry the change; observe the real outcome; drive web UIs in a real
    browser.
 9. **Review your own diff** — adversarial read, then the automated reviewers.
-10. **Land it** — meet the shared definition of done, atomic commits, one focused PR.
+10. **Land it** — meet the shared definition of done, atomic commits, pushed straight to
+    `main`; no branch and no PR unless the repo contract says otherwise.
 
 Every code-writing task passes **two gates**. **Gate A — before code:** note · intent · status quo
 · reuse · conventions · blast radius — a divergent second copy of an existing concept is a defect,
@@ -53,7 +54,7 @@ the enforced source and match it (orient in the repo first, then read the surrou
 | ----------------------- | -------------------------------------------------------------- |
 | Lint rules & code style | `.oxlintrc.json` (+ nested per-workspace extends)              |
 | Formatting              | `oxfmt` (`bun run format` + the edit hook) — never hand-format |
-| Types                   | the `tsconfig.base.json` chain (strict)                        |
+| Types                   | the root `tsconfig.*.json` family — leaves only `extends`       |
 | Commit format & scopes  | `.commitlintrc.json`                                           |
 | Security / SAST         | `tools/opengrep/` — `bun run lint:sast` (where present)        |
 | Repo specifics          | `.agents/repo.md`                                              |
@@ -73,21 +74,36 @@ Safety and architecture invariants — they hold even where no linter covers the
   only, never string-built SQL or shell.
 - **Accessibility is WCAG 2.1 AA** — real HTML, keyboard reachable, visible focus, labelled
   controls, AA contrast.
-- **Commits** follow `.commitlintrc.json` (atomic, imperative, ≤72-char header); branch off
-  `main` unless the repo contract says otherwise. **Never add `Co-Authored-By` or "Generated with
-  Claude Code" / any attribution line** — `.husky/commit-msg` strips such trailers before
-  commitlint runs.
+- **Commits** follow `.commitlintrc.json` (atomic, imperative, ≤72-char header) and land
+  **directly on `main`** — no feature branch, no pull request, unless the repo contract says
+  otherwise. **Never add `Co-Authored-By` or "Generated with Claude Code" / any attribution
+  line** — `.husky/commit-msg` strips such trailers before commitlint runs.
 - **A change is rarely one file** — sweep the concept's blast radius: a user-visible string →
   every locale the repo ships (+ docs); a new UI element → label + a11y + docs + tests; an env
   var / flag / API field → docs + `.env.example` + the READMEs. The guards catch the big ones —
   run them.
+- **One TypeScript config** — a workspace `tsconfig.json` is exactly one key, `extends`, and
+  holds NO `compilerOptions`, `include`, or `exclude`. Every option lives in the root family,
+  and a leaf picks the member that fits:
+
+  | Member                 | Adds                                          |
+  | ---------------------- | --------------------------------------------- |
+  | `tsconfig.base.json`   | everything; bun + node types, no DOM           |
+  | `tsconfig.dom.json`    | the DOM libs                                   |
+  | `tsconfig.vite.json`   | DOM + `vite/client`                            |
+  | `tsconfig.node.json`   | node types ONLY — for code that runs on node   |
+  | `tsconfig.strict.json` | `noUncheckedIndexedAccess`                     |
+  | `tsconfig.convex.json` | Convex's required settings                     |
+
+  The base reaches into each workspace through `${configDir}`, so `include`/`exclude` need no
+  per-leaf copy. Need an option one workspace alone wants? Add a family member — never a key in
+  the leaf. Unused locals/params are the LINTER's job (`eslint/no-unused-vars`, which honours
+  the `^_` prefix); never add `noUnusedLocals`/`noUnusedParameters` here, or the two guards
+  disagree.
 - **Scaffold a new part** (package / service / tool / skill) from a template (`bun run gen …`),
   never hand-rolled — so it carries the standard configs and test layout.
-- **Price the fix before you defer it** — a shortcoming you could fix in the same change is a
-  defect, not a limitation to write up. Check whether the index, field, or helper already exists,
-  and whether the repo already solves the same shape elsewhere; naming a follow-up route does not
-  make a deferral priced. A bounded listing's walk order, a cap's ordering, and a missing guard
-  are part of the feature, not caveats on it.
+- **Reach for a well-known, maintained library** before hand-rolling — prefer the established
+  package over a custom solution; write it yourself only when no suitable library exists.
 - **Instructions are docs too** — change a path, command, or pattern a skill or an agent contract
   documents, and update it in the same change.
 
