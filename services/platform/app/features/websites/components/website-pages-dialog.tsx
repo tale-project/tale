@@ -320,6 +320,7 @@ export function WebsitePagesDialog({
               <EmptyState
                 icon={SearchIcon}
                 title={t('pagesDialog.noSearchResults')}
+                description={t('pagesDialog.noSearchResultsDescription')}
               />
             )}
 
@@ -333,7 +334,11 @@ export function WebsitePagesDialog({
         ) : (
           <>
             {!isFirstLoad && pages.length === 0 && (
-              <EmptyState icon={FileText} title={t('pagesDialog.noPages')} />
+              <EmptyState
+                icon={FileText}
+                title={t('pagesDialog.noPages')}
+                description={t('pagesDialog.noPagesDescription')}
+              />
             )}
 
             <Skeletonize
@@ -357,9 +362,9 @@ export function WebsitePagesDialog({
                 <Button
                   variant="secondary"
                   onClick={loadMore}
-                  disabled={isPending}
+                  isLoading={isPending}
                 >
-                  {isPending ? '...' : t('pagesDialog.loadMore')}
+                  {t('pagesDialog.loadMore')}
                 </Button>
               </Row>
             )}

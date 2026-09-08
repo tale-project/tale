@@ -690,37 +690,35 @@ export function UserButton({
 
   return (
     <>
-      <TooltipPrimitive.Provider delayDuration={300}>
-        <TooltipPrimitive.Root>
-          <DropdownMenu
-            trigger={
-              <TooltipPrimitive.Trigger asChild>
-                {triggerContent}
-              </TooltipPrimitive.Trigger>
-            }
-            items={menuItems}
-            // On the rail the menu opens beside the tile: 16px offset = the
-            // tile's 8px inset to the rail edge + an 8px gap to the nav
-            // (matches the notification popover).
-            align={isSidebarVariant ? (align ?? 'end') : align}
-            side={isSidebarVariant ? 'right' : undefined}
-            sideOffset={isSidebarVariant ? 16 : undefined}
-            // The rail's own 8px inset: any more and Radix shifts the menu up,
-            // off the trigger's bottom edge the bell panel aligns with.
-            collisionPadding={isSidebarVariant ? 8 : undefined}
-            open={open}
-            onOpenChange={handleOpenChange}
-            contentClassName={contentClassName}
-          />
-          <TooltipPrimitive.Content
-            side="right"
-            sideOffset={4}
-            className={tooltipContentClassName}
-          >
-            {t('userButton.manageAccount')}
-          </TooltipPrimitive.Content>
-        </TooltipPrimitive.Root>
-      </TooltipPrimitive.Provider>
+      <TooltipPrimitive.Root>
+        <DropdownMenu
+          trigger={
+            <TooltipPrimitive.Trigger asChild>
+              {triggerContent}
+            </TooltipPrimitive.Trigger>
+          }
+          items={menuItems}
+          // On the rail the menu opens beside the tile: 16px offset = the
+          // tile's 8px inset to the rail edge + an 8px gap to the nav
+          // (matches the notification popover).
+          align={isSidebarVariant ? (align ?? 'end') : align}
+          side={isSidebarVariant ? 'right' : undefined}
+          sideOffset={isSidebarVariant ? 16 : undefined}
+          // The rail's own 8px inset: any more and Radix shifts the menu up,
+          // off the trigger's bottom edge the bell panel aligns with.
+          collisionPadding={isSidebarVariant ? 8 : undefined}
+          open={open}
+          onOpenChange={handleOpenChange}
+          contentClassName={contentClassName}
+        />
+        <TooltipPrimitive.Content
+          side="right"
+          sideOffset={4}
+          className={tooltipContentClassName}
+        >
+          {t('userButton.manageAccount')}
+        </TooltipPrimitive.Content>
+      </TooltipPrimitive.Root>
       {overlays}
     </>
   );

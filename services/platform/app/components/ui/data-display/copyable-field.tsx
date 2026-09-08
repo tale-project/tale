@@ -80,73 +80,71 @@ const CopyableFieldBase = React.memo(function CopyableFieldBase({
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
       {label && <Label id={labelId}>{label}</Label>}
-      <TooltipPrimitive.Provider delayDuration={300} disableHoverableContent>
+      {/* AppShell owns TooltipProvider. Overflow tips stay on the trigger —
+          hovering the tip body is not required for a truncated value. */}
+      <TooltipPrimitive.Root>
         {/* Uncontrolled on purpose: gating happens by withholding the CONTENT
           below — flipping Radix between controlled and uncontrolled on the
           first hover leaves it stuck closed. */}
-        <TooltipPrimitive.Root>
-          <TooltipPrimitive.Trigger asChild>
-            <button
-              id={valueId}
-              type="button"
-              onClick={onClick}
-              onPointerEnter={syncOverflow}
-              onFocus={syncOverflow}
-              aria-labelledby={
-                label ? `${labelId} ${valueTextId}` : valueTextId
-              }
-              aria-label={copyAriaLabel}
-              aria-describedby={
-                [description ? descriptionId : null, copied ? statusId : null]
-                  .filter(Boolean)
-                  .join(' ') || undefined
-              }
+        <TooltipPrimitive.Trigger asChild>
+          <button
+            id={valueId}
+            type="button"
+            onClick={onClick}
+            onPointerEnter={syncOverflow}
+            onFocus={syncOverflow}
+            aria-labelledby={label ? `${labelId} ${valueTextId}` : valueTextId}
+            aria-label={copyAriaLabel}
+            aria-describedby={
+              [description ? descriptionId : null, copied ? statusId : null]
+                .filter(Boolean)
+                .join(' ') || undefined
+            }
+            className={cn(
+              'ring-border bg-muted/40 hover:bg-muted/60',
+              'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+              'flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.25 text-left transition-colors',
+              inputClassName,
+            )}
+          >
+            <span
+              id={valueTextId}
+              ref={valueTextRef}
               className={cn(
-                'ring-border bg-muted/40 hover:bg-muted/60',
-                'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
-                'flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.25 text-left transition-colors',
-                inputClassName,
+                'text-muted-foreground flex-1 truncate text-sm',
+                mono && 'font-mono',
               )}
             >
-              <span
-                id={valueTextId}
-                ref={valueTextRef}
-                className={cn(
-                  'text-muted-foreground flex-1 truncate text-sm',
-                  mono && 'font-mono',
-                )}
-              >
-                {value}
-              </span>
-              {copied ? (
-                <Check
-                  className="size-4 shrink-0 text-green-600 dark:text-green-400"
-                  aria-hidden="true"
-                />
-              ) : (
-                <Copy
-                  className="text-muted-foreground size-4 shrink-0"
-                  aria-hidden="true"
-                />
+              {value}
+            </span>
+            {copied ? (
+              <Check
+                className="size-4 shrink-0 text-green-600 dark:text-green-400"
+                aria-hidden="true"
+              />
+            ) : (
+              <Copy
+                className="text-muted-foreground size-4 shrink-0"
+                aria-hidden="true"
+              />
+            )}
+          </button>
+        </TooltipPrimitive.Trigger>
+        {overflowing && (
+          <TooltipPrimitive.Portal>
+            <TooltipContent
+              side="top"
+              collisionPadding={8}
+              className={cn(
+                'max-w-[min(90vw,40rem)] break-all',
+                mono && 'font-mono',
               )}
-            </button>
-          </TooltipPrimitive.Trigger>
-          {overflowing && (
-            <TooltipPrimitive.Portal>
-              <TooltipContent
-                side="top"
-                collisionPadding={8}
-                className={cn(
-                  'max-w-[min(90vw,40rem)] break-all',
-                  mono && 'font-mono',
-                )}
-              >
-                {value}
-              </TooltipContent>
-            </TooltipPrimitive.Portal>
-          )}
-        </TooltipPrimitive.Root>
-      </TooltipPrimitive.Provider>
+            >
+              {value}
+            </TooltipContent>
+          </TooltipPrimitive.Portal>
+        )}
+      </TooltipPrimitive.Root>
       {description && (
         <Description id={descriptionId}>{description}</Description>
       )}

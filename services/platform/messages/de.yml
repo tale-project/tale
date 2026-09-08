@@ -345,7 +345,6 @@ auth:
   passwordPlaceholder: Gib Dein Passwort ein
   login:
     loginTitle: Anmelden
-    signingIn: Anmeldung läuft...
     loginButton: Anmelden
     continueWithSso: Weiter mit SSO
     ssoTitle: Mit SSO anmelden
@@ -403,7 +402,7 @@ auth:
         eine App läuft.
       step1: Tippe in der Symbolleiste deines Browsers auf „Teilen“.
       step2: Wähle „Zum Home-Bildschirm“ und tippe dann auf „Hinzufügen“.
-      done: Verstanden
+      done: OK
     documentation: Dokumentation
     currentVersion: 'Aktuelle Version: v{version}'
     whatsNew: Neuigkeiten
@@ -885,7 +884,7 @@ automations:
       newFolderFailed: Der Ordner konnte nicht erstellt werden — versuch es nochmal.
       uploading: Lädt hoch…
       uploaded: '{count} Datei(en) hochgeladen.'
-      uploadFailed: Hochladen fehlgeschlagen — versuch es nochmal.
+      uploadFailed: Datei konnte nicht hochgeladen werden — versuch es nochmal.
       wrongType: 'Nur diese Dateitypen sind erlaubt: {types}'
       wrongName: Der Dateiname passt nicht zum erwarteten Muster dieses Formulars.
       tooLarge: Die Datei überschreitet das Limit von {max} MB.
@@ -1080,12 +1079,12 @@ chat:
   invalidFiles: Ungültige Dateien
   fileSizeExceededMultiple: '{names} überschreitet das Dateigrößenlimit von {maxSize} MB.'
   audioDurationExceeded: '{names}: Audio länger als das Limit von {maxHours}
-    Stunden. Bitte in kürzere Segmente aufteilen.'
+    Stunden. Teile es in kürzere Segmente auf.'
   fileTypeNotAllowed: '{names}: Dateityp nicht erlaubt laut Upload-Richtlinie.'
   fileTypeUnsupported: '{names}: Dateityp nicht unterstützt.'
   fileUploaded: Datei hochgeladen
   uploadedSuccessfully: '{filename} hochgeladen'
-  uploadFailed: Upload fehlgeschlagen
+  uploadFailed: Datei konnte nicht hochgeladen werden
   failedToUpload: '{filename} konnte nicht hochgeladen werden'
   tooManyFiles: Zu viele Dateien
   tooManyFilesDescription:
@@ -1414,7 +1413,7 @@ chat:
     gefunden. Es wurde möglicherweise umbenannt oder entfernt.
   errorHintRateLimitedNamed: Ratenlimit bei {provider} erreicht. Warte einen Moment und versuch es erneut.
 
-  errorGenerating: Etwas ist schiefgelaufen
+  errorGenerating: Antwort konnte nicht erzeugt werden. Versuch es erneut.
   errorTriedModels: '{count} Modelle wurden vor dem Abbruch versucht.'
   errorDetailsSummary: Technische Details
   retryGeneration: Erneut versuchen
@@ -1525,7 +1524,7 @@ common:
     viewSource: Quelle anzeigen
     source: Quelle
     copy: Kopieren
-    copied: Kopiert!
+    copied: Kopiert
     showInfo: Info anzeigen
     clearAll: Alle löschen
     reset: Zurücksetzen
@@ -1659,7 +1658,7 @@ common:
   errors:
     generic: Etwas ist schiefgelaufen — versuch es erneut, oder lade die Seite neu, wenn das Problem bleibt.
     failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
-    somethingWentWrong: Etwas ist schiefgelaufen
+    somethingWentWrong: Etwas ist schiefgelaufen. Versuch es erneut.
     errorLoadingPage: Beim Laden dieser Seite ist etwas schiefgelaufen. Versuch es erneut oder wechsle zu einem anderen Bereich.
     persistsProblem: Wenn das immer wieder passiert,
     contactSupport: kontaktiere den Support
@@ -1714,7 +1713,7 @@ connectivity:
     automatisch wieder, sobald du online bist.
   backendTitle: Tale ist nicht erreichbar
   backendDescription: Der Tale-Server antwortet nicht. Wir versuchen, die
-    Verbindung wiederherzustellen — einen Moment Geduld.
+    Verbindung wiederherzustellen.
   retry: Erneut versuchen
   getApp: App herunterladen
   reachingServer: Verbindung zum Server wird hergestellt
@@ -2223,7 +2222,7 @@ documents:
     notAvailable: Vorschau nicht verfügbar
     notAvailableDescription:
       Dieser Dateityp kann nicht in der Vorschau angezeigt
-      werden. Bitte lade die Datei herunter, um den Inhalt anzuzeigen.
+      werden. Lade die Datei herunter, um den Inhalt anzuzeigen.
     truncatedNotice: Diese Datei ist zu groß für eine vollständige Vorschau —
       angezeigt wird der Anfang. Lade die Datei herunter, um alles zu sehen.
     download: Herunterladen
@@ -2269,7 +2268,7 @@ documents:
     fileSizeExceeded: 'Datei {name} überschreitet das Limit von {maxSize} MB.
       Aktuelle Größe: {currentSize} MB'
     uploadCancelled: Upload abgebrochen
-    uploadFailed: Upload fehlgeschlagen
+    uploadFailed: Datei konnte nicht hochgeladen werden
     uploadFailedRetry: Upload fehlgeschlagen. Prüfe deine Verbindung und versuch es erneut.
     quotaExceeded: Speicherkontingent voll — {used} von {limit} belegt. Lösche
       Dateien, um Platz zu schaffen (fehlgeschlagene Uploads zählen mit).
@@ -2510,7 +2509,7 @@ documents:
     notFound: Für diese Datei gibt es noch keinen Versionsverlauf.
 onboarding:
   title: Richte deinen Arbeitsbereich ein
-  subtitle: Nur ein paar schnelle Schritte, bis dein Arbeitsbereich einsatzbereit ist.
+  subtitle: Ein paar schnelle Schritte, bis dein Arbeitsbereich einsatzbereit ist.
   backToApp: Zurück zur App
   stepsAriaLabel: Onboarding-Schritte
   progress: 'Schritt {current} von {total}: {label}'
@@ -2533,7 +2532,7 @@ onboarding:
       frei – wir konfigurieren eine empfohlene Auswahl vor, damit du sofort
       loslegen kannst.
   finish:
-    heading: Alles bereit
+    heading: Bereit
     subtitle: 'Das kannst du als Nächstes tun:'
     providerItem: Verbinde einen KI-Anbieter für Agenten und Chat.
     providerConnected: KI-Anbieter verbunden.
@@ -5692,7 +5691,7 @@ settings:
       statusOk: Verifiziert
       statusAlert: Integritätswarnung aktiv
       verifyNow: Jetzt prüfen
-      verifyError: Die Prüfung konnte nicht abgeschlossen werden. Bitte versuche es erneut.
+      verifyError: Die Prüfung konnte nicht abgeschlossen werden. Versuche es erneut.
       resultValidTitle: Kette verifiziert
       resultValidBody:
         '{count, plural, one {# Eintrag geprüft} other {# Einträge
@@ -6121,7 +6120,6 @@ settings:
         oder einen neuen eingeben, um ihn zu ersetzen.
       writeOnlyHint: Nur Schreiben; leer lassen, um den gespeicherten Wert zu behalten
     testConnection: Verbindung testen
-    testing: Teste…
     result:
       ok: OK
       failed: Fehlgeschlagen
@@ -7036,12 +7034,14 @@ websites:
   pagesDialog:
     title: Website-Seiten
     noPages: Noch keine Seiten gecrawlt
+    noPagesDescription: Starte einen Scan für diese Website — gecrawlte Seiten erscheinen hier.
     loadMore: Mehr laden
     wordCount: '{count} Wörter'
     chunks: '{count} Chunks'
     lastCrawled: Gecrawlt am {date}
     searchPlaceholder: Website-Inhalt durchsuchen
     noSearchResults: Keine Ergebnisse gefunden
+    noSearchResultsDescription: Versuch einen anderen Begriff, oder leere die Suche, um alle Seiten zu sehen.
     noChunks: Keine Chunks für diese Seite indexiert
     chunkIndex: Chunk {index}
   filter:
@@ -7427,6 +7427,7 @@ webdav:
   list:
     title: App-Passwörter
     empty: Noch keine App-Passwörter.
+    emptyDescription: Erzeuge unten ein App-Passwort, um Tale-Dokumente als Netzlaufwerk einzubinden.
     label: Label
     prefix: Präfix
     lastUsed: Zuletzt genutzt

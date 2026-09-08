@@ -6,7 +6,7 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
-import { Info, Plus, UserX } from 'lucide-react';
+import { CircleHelp, Plus, UserX } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -153,7 +153,7 @@ export function AssigneePicker({
           className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex rounded align-middle focus-visible:ring-1 focus-visible:outline-none"
           onClick={(e) => e.stopPropagation()}
         >
-          <Info className="size-3.5" aria-hidden="true" />
+          <CircleHelp className="size-3.5" aria-hidden="true" />
         </button>
       </Tooltip>
     ),

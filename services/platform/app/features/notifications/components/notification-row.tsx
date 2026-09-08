@@ -60,7 +60,7 @@ export function NotificationRow({
   const interactive = target !== null || !read;
 
   const bodyClasses = cn(
-    'flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left transition-colors',
+    'flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left',
     interactive ? 'hover:bg-muted/60 cursor-pointer' : 'cursor-default',
     read && target === null && 'opacity-70',
   );

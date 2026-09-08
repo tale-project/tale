@@ -332,7 +332,6 @@ auth:
   passwordPlaceholder: Enter your password
   login:
     loginTitle: Log in
-    signingIn: Signing in...
     loginButton: Log in
     continueWithSso: Continue with SSO
     ssoTitle: Sign in with SSO
@@ -381,7 +380,7 @@ auth:
       description: Add Tale to your home screen for a full-screen, app-like experience.
       step1: Tap the Share button in your browser's toolbar.
       step2: Choose "Add to Home Screen", then tap "Add".
-      done: Got it
+      done: OK
     documentation: Documentation
     currentVersion: 'Current version: v{version}'
     whatsNew: What's new
@@ -398,7 +397,7 @@ auth:
         again to get back in.
       confirm: Log out
     toast:
-      signOutFailed: Failed to sign out
+      signOutFailed: Couldn't sign out
   changePassword:
     title: Change password
     currentPassword: Current password
@@ -851,7 +850,7 @@ automations:
       newFolderFailed: Couldn't create the folder — try again.
       uploading: Uploading…
       uploaded: '{count} file(s) uploaded.'
-      uploadFailed: Upload failed — try again.
+      uploadFailed: Couldn't upload the file — try again.
       wrongType: 'Only these file types are accepted: {types}'
       wrongName: The file name doesn't match the expected pattern for this form.
       tooLarge: File exceeds the {max} MB limit.
@@ -928,18 +927,18 @@ chat:
     assistant: Assistant
   moveToProject: Move to project…
   removeFromProject: Remove from project
-  removeFromProjectFailed: Failed to remove chat from project
+  removeFromProjectFailed: Couldn't remove chat from project
   deleteChat: Delete chat
   deleteConfirmation: Delete "{title}"?
   deletePermanentMessage: Move chat to Trash. You can restore it for the org's grace period; after that retention permanently deletes the chat and its messages.
-  deleteFailed: Failed to delete chat
+  deleteFailed: Couldn't delete chat
   editMessage: Edit message
   editSend: Send
   tryAgain: Try again
   regenerateFailed: Couldn't regenerate response
   forkChat: Fork chat
   forkSuccess: Chat forked
-  forkFailed: Failed to fork chat
+  forkFailed: Couldn't fork chat
   forkOf: Fork of {title}
   branchNavigator:
     previous: Previous branch
@@ -968,7 +967,7 @@ chat:
     modelAccessDenied: Model not available
     piiBlocked: Message blocked by PII policy
     policyViolation: Message blocked by content policy
-    sendFailed: Failed to send message
+    sendFailed: Couldn't send message
   modelSelector:
     label: Select model
     auto: Auto
@@ -1045,13 +1044,13 @@ chat:
   fileSizeExceededMultiple: '{names} exceeded the {maxSize}MB file size limit.'
   audioDurationExceeded:
     '{names}: audio is longer than the {maxHours}-hour limit.
-    Please split it into shorter segments.'
+    Split it into shorter segments.'
   fileTypeNotAllowed: '{names}: file type not allowed by upload policy.'
   fileTypeUnsupported: '{names}: file type not supported.'
   fileUploaded: File uploaded
   uploadedSuccessfully: '{filename} uploaded'
-  uploadFailed: Upload failed
-  failedToUpload: Failed to upload {filename}
+  uploadFailed: Couldn't upload the file
+  failedToUpload: Couldn't upload {filename}
   tooManyFiles: Too many files
   tooManyFilesDescription: You can attach up to {max} files per message.
     {rejected} {rejected, plural, one {file was} other {files were}} not added.
@@ -1122,7 +1121,7 @@ chat:
       memberOnly: Members-only video
       jsRuntimeMissing: Video processing isn't fully configured — contact your administrator
       binaryNotInstalled: Video processing is not enabled yet — contact your administrator
-      retryCooldown: This video was just rate-limited — please wait a few minutes before retrying
+      retryCooldown: This video was just rate-limited — wait a few minutes before retrying
       timeout: Took too long to fetch — try again
       outputValidationFailed: Couldn't validate the downloaded video file
       videoTooLong: Video exceeds the 4h length limit
@@ -1215,8 +1214,8 @@ chat:
     dropHereToAdd: Drop a chat here
     dropToChatsHint: Drop here to move to Chats
     toast:
-      moveFailed: Failed to move chat
-      renameFailed: Failed to rename chat
+      moveFailed: Couldn't move chat
+      renameFailed: Couldn't rename chat
   searchPalette:
     title: Search chats
     placeholder: Search chats
@@ -1269,11 +1268,11 @@ chat:
     preview: Preview
     notShareable: This chat can't be shared.
     cannotShareArena: Arena chats can't be shared.
-    shareFailed: Failed to share chat
+    shareFailed: Couldn't share chat
     sharedIndicator: Shared
     unshare: Stop sharing
     unshared: Sharing stopped
-    unshareFailed: Failed to stop sharing
+    unshareFailed: Couldn't stop sharing
     sharedChat: Shared chat
     byline: Shared by {name} on {date}
     notFound: This shared chat is no longer available.
@@ -1293,7 +1292,7 @@ chat:
     tie: Tie
     bothBad: Both bad
     verdictRecorded: Verdict recorded
-    verdictError: Failed to record verdict
+    verdictError: Couldn't record verdict
     busy: Both replies must finish first
     exitWithoutVerdict: Exit without verdict
     startFailed: Could not start Arena Mode
@@ -1371,7 +1370,7 @@ chat:
     may have been renamed or removed.
   errorHintRateLimitedNamed: Rate limit reached on {provider}. Wait a moment and try again.
 
-  errorGenerating: Something went wrong
+  errorGenerating: Couldn't generate a reply. Try again.
   errorTriedModels: 'Tried {count} models before giving up.'
   errorDetailsSummary: Technical details
   retryGeneration: Try again
@@ -1482,7 +1481,7 @@ common:
     viewSource: View source
     source: Source
     copy: Copy
-    copied: Copied!
+    copied: Copied
     showInfo: Show info
     clearAll: Clear all
     reset: Reset
@@ -1507,12 +1506,12 @@ common:
     confirmDeleteTitle: Delete {count, plural, one {# item} other {# items}}
     confirmDeleteDescription: Delete {count, plural, one {this item} other {these {count} items}}? This can't be undone.
     deleteSuccess: Deleted {count, plural, one {# item} other {# items}}
-    deleteFailed: Failed to delete some items
+    deleteFailed: Couldn't delete some items
     deleting: Deleting...
     confirmArchiveTitle: Archive {count, plural, one {# item} other {# items}}
     confirmArchiveDescription: Archive {count, plural, one {this item} other {these {count} items}}? You can restore {count, plural, one {it} other {them}} later.
     archiveSuccess: Archived {count, plural, one {# item} other {# items}}
-    archiveFailed: Failed to archive some items
+    archiveFailed: Couldn't archive some items
     archiving: Archiving...
   upload:
     clickToUpload: Upload
@@ -1613,8 +1612,8 @@ common:
       notification was sent.'
   errors:
     generic: Something went wrong — try again, or reload the page if it keeps happening.
-    failedToCopy: Failed to copy to clipboard
-    somethingWentWrong: Something went wrong
+    failedToCopy: Couldn't copy to clipboard
+    somethingWentWrong: Something went wrong. Try again.
     errorLoadingPage: Something went wrong while loading this page. Try again or go to another section.
     persistsProblem: If this keeps happening,
     contactSupport: contact support
@@ -1667,7 +1666,7 @@ connectivity:
   deviceDescription: Check your internet connection. Tale will reconnect
     automatically when you're back online.
   backendTitle: Can't reach Tale
-  backendDescription: Tale's server isn't responding. We're trying to reconnect — hold tight.
+  backendDescription: Tale's server isn't responding. We're trying to reconnect.
   retry: Try again
   getApp: Get the app
   reachingServer: Trying to reach the server
@@ -1728,7 +1727,7 @@ conversations:
       title: Discard draft?
       description: This draft will be permanently discarded.
     sent: Email sent
-    uploadFailed: Failed to upload attachment
+    uploadFailed: Couldn't upload attachment
   updating: Updating conversations...
   bulk:
     sendMessages: Send messages
@@ -1736,26 +1735,26 @@ conversations:
     reopen: Reopen
     messagesSent: Messages sent
     messagesSentDescription: Sent {successCount} messages{failedCount, plural, =0 {} other {, {failedCount} failed}}
-    sendFailed: Failed to send messages
+    sendFailed: Couldn't send messages
     resolved: Conversations resolved
     resolvedDescription: Resolved {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
-    resolveFailed: Failed to resolve conversations
+    resolveFailed: Couldn't resolve conversations
     reopened: Conversations reopened
     reopenedDescription: Reopened {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
-    reopenFailed: Failed to reopen conversations
+    reopenFailed: Couldn't reopen conversations
     selectedCount: '{count, plural, one {# selected} other {# selected}}'
     archive: Archive
     unarchive: Unarchive
     archived: Conversations archived
     archivedDescription: Archived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
-    archiveFailed: Failed to archive conversations
+    archiveFailed: Couldn't archive conversations
     unarchived: Conversations unarchived
     unarchivedDescription: Unarchived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
-    unarchiveFailed: Failed to unarchive conversations
+    unarchiveFailed: Couldn't unarchive conversations
     markSpam: Mark as spam
     markedAsSpam: Conversations marked as spam
     markedAsSpamDescription: Marked {successCount} conversations as spam{failedCount, plural, =0 {} other {, {failedCount} failed}}
-    spamFailed: Failed to mark conversations as spam
+    spamFailed: Couldn't mark conversations as spam
   header:
     moreActions: More actions
     contactInfo: Contact info
@@ -1811,7 +1810,7 @@ conversations:
     defaultSubject: 'Re: Conversation'
     contactEmailNotFound: 'Cannot send email: contact email not found'
     replySubjectPrefix: 'Re: {subject}'
-    loadFailed: Failed to load conversation
+    loadFailed: Couldn't load conversation
     loadFailedDescription: Something went wrong while loading this conversation.
     tryAgain: Try again
     closedBanner: Closed on {date}
@@ -1823,7 +1822,7 @@ conversations:
     delete: Delete
     deleting: Deleting...
     deleteSuccess: Conversation deleted
-    deleteFailed: Failed to delete conversation.
+    deleteFailed: Couldn't delete conversation.
     showEarlierMessages: Show {count} earlier {count, plural, one {message} other {messages}}
     undoSendFailed: Couldn't undo the send — the message may already be on its way.
     retrySendFailed: Couldn't retry the send.
@@ -1886,11 +1885,11 @@ contacts:
   create:
     title: Add contact
     success: Contact created
-    error: Failed to create contact
+    error: Couldn't create contact
     duplicateEmail: A contact with this email already exists
   thisContact: this contact
   updateSuccess: Contact updated
-  updateError: Failed to update contact
+  updateError: Couldn't update contact
   name: Name
   namePlaceholder: Enter contact name
   email: Email
@@ -1910,9 +1909,9 @@ contacts:
     errorCodes:
       duplicate_email: A contact with this email already exists
       duplicate_external_id: A contact with this external ID already exists
-      unknown: Something went wrong
+      unknown: Couldn't finish that import. Try again.
   deleteConfirmation: Delete {name}?
-  deleteError: Failed to delete contact
+  deleteError: Couldn't delete contact
   deleteWarning: This can't be undone.
 dataNotice:
   default: AI can make mistakes—verify responses and do not share sensitive data.
@@ -2085,13 +2084,13 @@ documents:
     description: Upload documents so agents can use them in chat.
   actions:
     deleteSyncFolder: Delete sync folder
-    deleteFolderFailed: Failed to delete folder
+    deleteFolderFailed: Couldn't delete folder
     deleteFileFailed: Couldn't delete the file — try again.
     manageTeams: Assign team
     reindex: Reindex
     stopSync: Stop syncing
     stopSyncDone: Syncing stopped. The imported files stay in your workspace.
-    stopSyncFailed: Failed to stop syncing
+    stopSyncFailed: Couldn't stop syncing
   folder:
     newFolder: New folder
     createFolder: Create folder
@@ -2100,13 +2099,13 @@ documents:
     nameRequired: Folder name is required
     creating: Creating...
     created: Folder created
-    createFailed: Failed to create folder
+    createFailed: Couldn't create folder
     duplicateName: A folder with this name already exists
   teamTags:
     title: Manage teams
     team: Team
     updated: Teams updated
-    updateFailed: Failed to update teams
+    updateFailed: Couldn't update teams
     noTeamsTitle: No teams yet
     noTeamsDescription: Create teams in Settings to control which groups can access this item.
     goToSettings: Go to settings
@@ -2141,15 +2140,15 @@ documents:
       sharePoint: SharePoint
   preview:
     loading: Loading…
-    failedToLoad: Failed to load document
+    failedToLoad: Couldn't load document
     downloadComplete: Download complete
     downloadFile: Download file
     closePreview: Close preview
     downloadedSuccessfully: '{filename} downloaded'
-    downloadFailed: Failed to download the file
+    downloadFailed: Couldn't download the file
     notAvailable: Preview not available
     notAvailableDescription:
-      This file type cannot be previewed. Please download the
+      This file type cannot be previewed. Download the
       file to view its contents.
     truncatedNotice: This file is too large to preview in full — showing the
       beginning. Download the file to view everything.
@@ -2195,7 +2194,7 @@ documents:
     fileTooLarge: File too large
     fileSizeExceeded: 'File {name} exceeds {maxSize}MB limit. Current size: {currentSize}MB'
     uploadCancelled: Upload cancelled
-    uploadFailed: Upload failed
+    uploadFailed: Couldn't upload the file
     uploadFailedRetry: Upload failed. Check your connection and try again.
     quotaExceeded:
       Storage quota full — {used} of {limit} used. Delete files to free
@@ -2263,7 +2262,7 @@ documents:
     grantPermissions: Grant Microsoft 365 permissions
     redirecting: Redirecting...
     folderEmpty: This folder is empty.
-    loadFailed: Failed to load items
+    loadFailed: Couldn't load items
     listingTruncated: >-
       Showing the first {count} items — this folder holds more. Open a
       subfolder or search to reach the rest.
@@ -2301,7 +2300,7 @@ documents:
     disconnectFailed: Could not disconnect Google Drive
     grantPermissions: Grant Google Drive permissions
     redirecting: Redirecting...
-    loadFailed: Failed to load items
+    loadFailed: Couldn't load items
     noFilesSelected: No importable files in the selection
     oneTimeImport: One-time import
     oneTimeDescription: Import files once and store them in your workspace
@@ -2344,8 +2343,8 @@ documents:
       indexingStarted: Indexing started
       indexingQueued: Indexing queued
       retryFailed: Retry failed
-      retryFailedDescription: Failed to retry RAG indexing
-      unexpectedError: Something went wrong
+      retryFailedDescription: Couldn't retry RAG indexing
+      unexpectedError: Couldn't finish that action. Try again.
     dialog:
       indexed:
         title: Document indexed
@@ -2425,7 +2424,7 @@ documents:
     notFound: That file has no version history yet.
 onboarding:
   title: Set up your workspace
-  subtitle: Just a few quick steps to get your workspace up and running.
+  subtitle: A few quick steps to get your workspace up and running.
   backToApp: Back to app
   stepsAriaLabel: Onboarding steps
   progress: 'Step {current} of {total}: {label}'
@@ -2447,7 +2446,7 @@ onboarding:
     why: One key unlocks hundreds of models for chat, images, voice, and more —
       we'll preconfigure a recommended set so you're ready right away.
   finish:
-    heading: You're all set
+    heading: Ready to go
     subtitle: "Here's what you can do next:"
     providerItem: Connect an AI provider to power agents and chat.
     providerConnected: AI provider connected.
@@ -2489,7 +2488,7 @@ emptyStates:
 governance:
   title: Governance
   toastSavedTitle: Changes saved
-  toastSaveFailedTitle: Failed to save changes
+  toastSaveFailedTitle: Couldn't save changes
   systemPrompt:
     title: Custom instructions
     description:
@@ -2498,7 +2497,7 @@ governance:
     enabled: Custom instructions
     instructionsPlaceholder: Enter the mandatory instructions...
     charLimitExceeded: Character limit exceeded
-    saveFailed: Failed to save the custom instructions
+    saveFailed: Couldn't save the custom instructions
   budgets:
     title: Budget rules
     description: Set token, cost, and request limits per scope and billing period.
@@ -2550,7 +2549,7 @@ governance:
     noApiKeysFound: No API keys found
     selectApiKeyAriaLabel: Select API key
     saved: Budget rules updated
-    saveFailed: Failed to save budget rules
+    saveFailed: Couldn't save budget rules
     targetRequired: Select a target for this scope, or the rule will never apply.
     limitRequired: Set at least one limit (tokens, cost, or requests) so the rule can enforce.
     invalidTokenLimit: Token limit must be greater than zero.
@@ -2561,7 +2560,7 @@ governance:
     title: Default models
     description: Set default models for specific user groups or roles.
     saved: Default model configuration updated
-    saveFailed: Failed to save default model configuration
+    saveFailed: Couldn't save default model configuration
     addRule: Add rule
     addRuleTitle: Add default model rule
     editRuleTitle: Edit default model rule
@@ -2623,7 +2622,7 @@ governance:
       vision model.
     searchModels: Search models
     noModelsFound: No model that reads images is available
-    saveFailed: Failed to save the vision model
+    saveFailed: Couldn't save the vision model
   uploadPolicy:
     title: Upload policy
     description: Configure allowed file types, maximum file size, and volume limits.
@@ -2641,12 +2640,12 @@ governance:
     mimeTypePlaceholder: image/*, application/pdf
     mbUnit: MB
     gbUnit: GB
-    saveFailed: Failed to save upload policy
+    saveFailed: Couldn't save upload policy
   retentionPolicy:
     title: Retention policy
     description: Configure how long each data type is kept before deletion.
     saved: Retention policy updated
-    saveFailed: Failed to save retention policy
+    saveFailed: Couldn't save retention policy
     save: Save changes
     reset: Reset to defaults
     unsavedHint: You have unsaved changes.
@@ -2697,7 +2696,7 @@ governance:
       title: A retention reduction is pending.
       applyIn: applies in {days} day(s).
       cancel: Cancel
-      cancelFailedToast: Failed to cancel the pending retention change.
+      cancelFailedToast: Couldn't cancel the pending retention change.
     boundsProposal:
       title: Operator has proposed retention bound changes.
       firstApplyTitle: Operator retention bounds need your initial approval.
@@ -2723,8 +2722,8 @@ governance:
       impactRow: '{category}: {current} will clamp to {clamped}'
       appliedToast: Bounds proposal applied. Cleanup will use new bounds on next run.
       rejectedToast: Bounds proposal rejected. Cleanup continues with previous bounds.
-      applyFailedToast: Failed to apply the bounds proposal.
-      rejectFailedToast: Failed to reject the bounds proposal.
+      applyFailedToast: Couldn't apply the bounds proposal.
+      rejectFailedToast: Couldn't reject the bounds proposal.
     promptTemplates:
       title: Prompt templates
       description: Saved prompts across all visibility scopes (personal, team, global).
@@ -2823,7 +2822,7 @@ governance:
       existing users are not forced to change immediately.
     invalidMinLength: Minimum length must be an integer between 6 and 128.
     invalidRotationDays: Rotation period must be an integer between 1 and 3650.
-    saveFailed: Failed to save password policy
+    saveFailed: Couldn't save password policy
   twoFactorPolicy:
     title: Two-factor authentication
     description:
@@ -2849,7 +2848,7 @@ governance:
       on). Members past the grace period are signed out until they enroll.
     confirmEnforceCta: Require two-factor
     saved: Two-factor policy updated
-    saveFailed: Failed to save two-factor policy
+    saveFailed: Couldn't save two-factor policy
   loginPolicy:
     title: Login attempt limits
     description: Lock accounts after repeated sign-in failures and grow the wait
@@ -2874,7 +2873,7 @@ governance:
     invalidProxies:
       Trusted proxies must be a comma-separated list of IPs, CIDRs, or
       keywords (max 32).
-    saveFailed: Failed to save login policy
+    saveFailed: Couldn't save login policy
   sessionIdleTimeout:
     title: Session idle timeout
     description: Sign members out after a period of inactivity. This can only
@@ -2885,7 +2884,7 @@ governance:
       "Minutes of inactivity before a member is signed out. Capped by the
       deployment's SESSION_IDLE_TIMEOUT_MINUTES when set. Default: 30."
     invalid: Idle timeout must be an integer between 1 and 1440 minutes.
-    saveFailed: Failed to save session idle timeout
+    saveFailed: Couldn't save session idle timeout
   sandboxQuota:
     title: Sandbox concurrency limits
     description:
@@ -2899,7 +2898,7 @@ governance:
       steps) that may be active at once for this organization. Requests beyond
       the cap fail with a quota error. Default: 2.'
     invalidSessions: Must be a whole number between 1 and 500.
-    saveFailed: Failed to save sandbox concurrency limits
+    saveFailed: Couldn't save sandbox concurrency limits
   featureFlags:
     title: Feature controls
     description: Cap the context window for AI replies per user, team, or role.
@@ -2921,7 +2920,7 @@ governance:
     noRulesTitle: No feature control rules configured
     noRulesDescription: Add a rule to cap context tokens per user, team, or role.
     saved: Feature controls updated
-    saveFailed: Failed to save feature controls
+    saveFailed: Couldn't save feature controls
     actions: Actions
     role: Role
     scopeLabels:
@@ -2948,11 +2947,11 @@ governance:
       effect.
     enabledLabel: Voice output enabled for this organization
     saved: Voice-output policy updated
-    saveFailed: Failed to save the voice-output policy
+    saveFailed: Couldn't save the voice-output policy
   personalization:
     enabledLabel: Enabled for this organization
     saved: Personalization policy updated
-    saveFailed: Failed to update personalization policy
+    saveFailed: Couldn't update personalization policy
     customInstructions:
       title: Custom instructions default
       description:
@@ -2968,7 +2967,7 @@ governance:
     description: Detect and mask or block personal data before sending to AI models.
     enableLabel: Enable PII protection
     saved: PII configuration updated
-    saveFailed: Failed to save PII configuration
+    saveFailed: Couldn't save PII configuration
   guardrailsOverview:
     title: Guardrails overview
     description: Filter layers run in this order on every message.
@@ -3346,8 +3345,8 @@ governance:
         overrides that policy and brings the record back to active. Audited.
       expiredPhraseLabel: Type "restore" to confirm
       restoredToast: Restored.
-      failedToast: Failed to restore
-      failedDescription: Failed to restore this record.
+      failedToast: Couldn't restore
+      failedDescription: Couldn't restore this record.
     emptyTitle: Trash is empty
     entityLabelOne: record
     entityLabel: records
@@ -3524,7 +3523,7 @@ governance:
       daysHours: '{days}d {hours}h'
     errors:
       generic:
-        title: Something went wrong
+        title: Couldn't finish that action
         description: Try again. If it keeps happening, contact your administrator.
       unauthenticated: Sign in required.
       forbidden: You don't have permission to do this.
@@ -3577,7 +3576,7 @@ governance:
     noTeamsFound: No teams found
     confirm: Confirm
     saved: Model access policy updated
-    saveFailed: Failed to save model access policy
+    saveFailed: Couldn't save model access policy
     removeDefaultConfirmTitle: Remove permission for active default model?
     removeDefaultConfirmBody:
       'The following default model rule(s) currently assign
@@ -3781,7 +3780,7 @@ governance:
         for the audit trail.
     errors:
       generic:
-        title: Something went wrong
+        title: Couldn't finish that action
         description: Try again. If it keeps happening, contact your administrator.
       unauthenticated: Sign in required.
       forbidden: You don't have permission to do this.
@@ -3873,7 +3872,7 @@ governance:
     removeRuleConfirmAction: Remove
     confirm: Save rule
     saved: Routing rules updated
-    saveFailed: Failed to save the routing rules
+    saveFailed: Couldn't save the routing rules
     routeTo: Route to
     routeToPlaceholder: Select a team or person
     peopleSection: People
@@ -3947,11 +3946,11 @@ knowledgeEntries:
     contentTooLong: Content must be 8000 characters or fewer
   toast:
     addSuccess: Knowledge entry added
-    addError: Failed to add knowledge entry
+    addError: Couldn't add knowledge entry
     addErrorDuplicate: An entry for this topic already exists
     updateSuccess: Knowledge entry updated
-    updateError: Failed to update knowledge entry
-    deleteError: Failed to delete knowledge entry
+    updateError: Couldn't update knowledge entry
+    deleteError: Couldn't delete knowledge entry
   delete:
     title: Delete knowledge entry
     confirmation: Delete this entry? Agents will no longer be able to find it in the knowledge base.
@@ -4490,7 +4489,7 @@ products:
       status: Status
     toast:
       success: Product updated
-      error: Failed to update product
+      error: Couldn't update product
       duplicateName: A product with this name already exists
   create:
     title: Add product
@@ -4498,7 +4497,7 @@ products:
       status: Status
     toast:
       success: Product created
-      error: Failed to create product
+      error: Couldn't create product
       duplicateName: A product with this name already exists
   createWizard:
     steps:
@@ -4513,7 +4512,7 @@ products:
     uploadFile: Upload a file
     success: Import successful
     successDescription: Imported {success} products{failed, select, 0 {} other {, {failed} failed}}
-    error: Failed to import products
+    error: Couldn't import products
     clickToUpload: Upload
     supportedFormats: .xlsx, .xls or .csv
     expectedColumns:
@@ -4521,9 +4520,9 @@ products:
       currency, category, status'
     draftStatusNote: Imported products are created with 'draft' status by default.
     errorCodes:
-      unknown: Something went wrong
+      unknown: Couldn't finish that import. Try again.
   actions:
-    deleteFailed: Failed to delete product
+    deleteFailed: Couldn't delete product
     deleteSuccess: Product deleted successfully
   delete:
     title: Delete product
@@ -4574,7 +4573,7 @@ skills:
   deleteSkill: Delete skill
   notFound: Skill not found
   skillDeleted: Skill deleted
-  skillDeleteFailed: Failed to delete skill
+  skillDeleteFailed: Couldn't delete skill
   deleteConfirmation:
     This removes the skill bundle "{slug}" from disk. Any agent currently
     equipped with it loses access.
@@ -4595,7 +4594,7 @@ skills:
     description: Description
     visibility: Visibility
     labels: Labels
-    loadError: Failed to read SKILL.md
+    loadError: Couldn't read SKILL.md
   loadErrorDetail:
     title:
       yamlSyntax: Frontmatter couldn't be parsed
@@ -4658,7 +4657,7 @@ skills:
     submit: Upload bundle
     submitting: Uploading…
     uploadSuccess: Skill bundle uploaded
-    uploadFailed: Failed to upload skill bundle
+    uploadFailed: Couldn't upload skill bundle
     replaceTitle: Replace existing skill?
     replaceDescription: '"{slug}" already exists. Uploading will overwrite it.'
     replaceConfirm: Replace
@@ -4722,7 +4721,7 @@ skills:
       {# more icons — keep typing to narrow}}'
   editor:
     saved: Skill saved
-    saveFailed: Failed to save skill
+    saveFailed: Couldn't save skill
     descriptionHelp:
       One or two sentences on what the skill covers — this is what tells
       the model when to read it.
@@ -5166,7 +5165,7 @@ settings:
     deleteConfirmAction: Delete organization
     deleteLoading: Deleting…
     deleteSuccess: Organization deleted
-    deleteFailed: Failed to delete organization
+    deleteFailed: Couldn't delete organization
     deleteBlockedByLegalHold: An active legal hold is preserving this organization's data. Release every hold under Governance > Legal hold, then try again.
     editMember: Edit member
     removeMember: Remove member
@@ -5197,12 +5196,12 @@ settings:
     deleteTeam: Delete team
     deleteConfirmation: Delete the {name} team? All members will be removed. This can't be undone.
     teamDeleted: Team deleted
-    teamDeleteFailed: Failed to delete team
+    teamDeleteFailed: Couldn't delete team
     teamCreated: Team created
     teamCreatedDescription: '{name} created with {count} {count, plural, one {member} other {members}}.'
-    teamCreateFailed: Failed to create team
+    teamCreateFailed: Couldn't create team
     teamUpdated: Team updated
-    teamUpdateFailed: Failed to update team
+    teamUpdateFailed: Couldn't update team
     teamNameRequired: Team name is required
     manageMembers: Members
     noMembersToAdd: All organization members are already in this team
@@ -5490,11 +5489,11 @@ settings:
       generate: Generate token
       disable: Disable
       baseUrlLabel: SCIM base URL
-      tokenFailed: Failed to generate SCIM token
+      tokenFailed: Couldn't generate SCIM token
     disable: Disable sign-in
     remove: Remove
     test: Test connection
-    saveFailed: Failed to save
+    saveFailed: Couldn't save
     testOk: Connection looks good
     testFailed: Connection test failed
     testMissingFields: Fill in the required fields before testing.
@@ -5761,7 +5760,7 @@ settings:
     keyCreatedDescription: Copy your API key now — it won't be shown again.
     yourApiKey: Your API key
     keyRevoked: API key revoked
-    keyRevokeFailed: Failed to revoke API key
+    keyRevokeFailed: Couldn't revoke API key
     revokeKey: Revoke key
     revokeKeyTitle: Revoke API key
     revokeConfirmation: 'Revoke "{keyName}"? Any applications using this key will immediately lose access. This can''t be undone.'
@@ -5797,7 +5796,7 @@ settings:
       statusOk: Verified
       statusAlert: Integrity alert active
       verifyNow: Verify now
-      verifyError: Verification couldn't be completed. Please try again.
+      verifyError: Verification couldn't be completed. Try again.
       resultValidTitle: Chain verified
       resultValidBody: '{count, plural, one {Checked # entry} other {Checked #
         entries}} — no tampering detected.'
@@ -6222,7 +6221,6 @@ settings:
         one to replace it.
       writeOnlyHint: Write-only; leave blank to keep the stored value
     testConnection: Test connection
-    testing: Testing…
     result:
       ok: OK
       failed: Failed
@@ -6568,7 +6566,7 @@ tasks:
     untitled: Untitled
     uploading: Uploading…
     dropHint: Drop files here, or click to browse
-    uploadFailed: The upload failed — try again.
+    uploadFailed: Couldn't finish the upload — try again.
     remove: 'Delete {name}'
     removeTitle: Delete this file?
     removeDescription: This deletes "{name}" from the project permanently — it can't be undone.
@@ -6895,12 +6893,12 @@ toast:
       title: Couldn't update profile
     passwordChangeFailed:
       title: Couldn't change password
-      description: Please check your current password and try again.
+      description: Check your current password and try again.
     organizationUpdateFailed:
       title: Couldn't update organization
     brandingUpdateFailed:
       title: Couldn't update branding
-    imageUploadFailed: Failed to upload image
+    imageUploadFailed: Couldn't upload image
     logoTooSmall: The logo must be at least {min}×{min} pixels.
     imageTooLarge: Image is too large. Maximum size is 2 MB.
     imageMimeUnsupported: Unsupported image format. Use PNG, SVG, JPG, WebP, or ICO.
@@ -6908,9 +6906,9 @@ toast:
     imageTypeInvalid: Invalid image type
     addMemberFailed:
       title: Couldn't add member
-      description: Something went wrong. Try again.
+      description: Couldn't finish that action. Try again.
     generic:
-      title: Something went wrong
+      title: Couldn't finish that action
       description: Try again.
 twoFactor:
   enrollment:
@@ -7064,15 +7062,15 @@ websites:
     urlListInvalid: 'This line is not a valid URL: {line}'
   toast:
     addSuccess: Website added
-    addError: Failed to add website
+    addError: Couldn't add website
     addErrorDuplicate: This website has already been added
     addListSuccess: '{count} URLs registered for indexing'
     addListPartial: 'Some sources could not be added: {domains}'
     updateSuccess: Website updated
-    updateError: Failed to update website
-    fetchPagesError: Failed to load pages
+    updateError: Couldn't update website
+    fetchPagesError: Couldn't load pages
     searchError: Search failed
-    deleteError: Failed to delete website
+    deleteError: Couldn't delete website
   adding: Adding...
   viewDialog:
     title: Website details
@@ -7096,12 +7094,14 @@ websites:
   pagesDialog:
     title: Website pages
     noPages: No pages crawled yet
+    noPagesDescription: Start a scan on this website, then come back — crawled pages show up here.
     loadMore: Load more
     wordCount: '{count} words'
     chunks: '{count} chunks'
     lastCrawled: Crawled {date}
     searchPlaceholder: Search website content
     noSearchResults: No results found
+    noSearchResultsDescription: Try another term, or clear the search to browse all pages.
     noChunks: No chunks indexed for this page
     chunkIndex: Chunk {index}
   filter:
@@ -7140,7 +7140,7 @@ webdav:
     labelLabel: Label
     labelPlaceholder: e.g. MacBook Finder
     submit: Generate
-    error: Failed to create app-password
+    error: Couldn't create app-password
     errorLimit: You have reached the maximum number of app-passwords. Revoke an
       unused one first.
     errorRateLimited: Too many app-passwords created recently. Try again later.
@@ -7150,6 +7150,7 @@ webdav:
   list:
     title: App-passwords
     empty: No app-passwords yet.
+    emptyDescription: Generate an app-password below to mount Tale documents as a network drive.
     label: Label
     prefix: Prefix
     lastUsed: Last used

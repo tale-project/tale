@@ -200,7 +200,11 @@ function WebdavAppPasswordsTable({
       isLoading={isLoading}
       approxRowCount={3}
       getRowId={(row) => row._id}
-      emptyState={{ icon: Key, title: t('list.empty') }}
+      emptyState={{
+        icon: Key,
+        title: t('list.empty'),
+        description: t('list.emptyDescription'),
+      }}
     />
   );
 }

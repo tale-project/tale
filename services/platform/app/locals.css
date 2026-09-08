@@ -29,7 +29,7 @@ body {
    enters with the same fade + lift as streamed blocks (`stream-block-in` is
    defined in @tale/ui globals). */
 .animate-toolbar-in {
-  animation: stream-block-in 520ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: stream-block-in var(--duration-medium) var(--ease-out-quint) both;
 }
 
 /* Chat "thinking" dots: a gentle staggered pulse (opacity + tiny lift) instead

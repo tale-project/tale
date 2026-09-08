@@ -3,12 +3,7 @@
 import * as React from 'react';
 
 import { cn } from '../../lib/cn';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '../overlays/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../overlays/tooltip';
 
 interface ProgressBarProps {
   value: number;
@@ -50,7 +45,7 @@ export function ProgressBar({
       >
         <div
           className={cn(
-            'bg-primary h-full w-full flex-1 transition-all duration-300 ease-in-out',
+            'bg-primary h-full w-full flex-1 transition-transform duration-[var(--duration-medium)] ease-out motion-reduce:transition-none',
             clampedPercentage === 100 && 'bg-green-500',
             indicatorClassName,
           )}
@@ -67,11 +62,9 @@ export function ProgressBar({
   if (!tooltipContent) return body;
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>{body}</TooltipTrigger>
-        <TooltipContent>{tooltipContent}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>{body}</TooltipTrigger>
+      <TooltipContent>{tooltipContent}</TooltipContent>
+    </Tooltip>
   );
 }

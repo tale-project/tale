@@ -84,7 +84,7 @@ const TableRow = forwardRef<
   <tr
     ref={ref}
     className={cn(
-      'data-[state=selected]:bg-muted border-b transition-colors last:border-b-0',
+      'data-[state=selected]:bg-muted border-b last:border-b-0',
       className,
     )}
     {...props}

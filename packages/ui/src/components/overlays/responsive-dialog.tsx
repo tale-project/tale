@@ -120,7 +120,7 @@ export const ResponsiveDialogContent = forwardRef<
     if (isMobile) {
       return (
         <DrawerPrimitive.Portal>
-          <DrawerPrimitive.Overlay className="bg-bg-overlay fixed inset-0 z-50" />
+          <DrawerPrimitive.Overlay className="bg-bg-overlay data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 duration-[var(--duration-short)] motion-reduce:animate-none" />
           <DrawerPrimitive.Content
             ref={ref}
             aria-modal="true"
@@ -131,7 +131,7 @@ export const ResponsiveDialogContent = forwardRef<
             className={cn(
               'bg-background fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[92dvh] flex-col rounded-t-2xl',
               'pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)',
-              'data-[state=open]:animate-in data-[state=closed]:animate-out',
+              'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 duration-[var(--duration-standard)]',
               'motion-reduce:animate-none',
               className,
             )}
@@ -151,7 +151,7 @@ export const ResponsiveDialogContent = forwardRef<
         <DialogPrimitive.Overlay
           className={cn(
             'bg-bg-overlay fixed inset-0 z-50',
-            'data-[state=open]:animate-in data-[state=closed]:animate-out',
+            'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-[var(--duration-short)]',
             'motion-reduce:animate-none',
           )}
         />
@@ -168,7 +168,7 @@ export const ResponsiveDialogContent = forwardRef<
             // tall dialog (long form, comment/activity feeds) stays fully usable
             // instead of overflowing off-screen.
             'max-h-[90dvh] overflow-x-hidden overflow-y-auto',
-            'data-[state=open]:animate-in data-[state=closed]:animate-out',
+            'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-[var(--duration-standard)]',
             'motion-reduce:animate-none',
             className,
           )}

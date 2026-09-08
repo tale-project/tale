@@ -76,26 +76,24 @@ export function OrganizationButton({
   }
 
   return (
-    <TooltipPrimitive.Provider delayDuration={300}>
-      <TooltipPrimitive.Root>
-        <DropdownMenu
-          trigger={
-            <TooltipPrimitive.Trigger asChild>
-              {triggerContent}
-            </TooltipPrimitive.Trigger>
-          }
-          items={menuItems}
-          align={align}
-          contentClassName="w-80"
-        />
-        <TooltipPrimitive.Content
-          side="right"
-          sideOffset={4}
-          className={tooltipContentClassName}
-        >
-          {accessibleLabel}
-        </TooltipPrimitive.Content>
-      </TooltipPrimitive.Root>
-    </TooltipPrimitive.Provider>
+    <TooltipPrimitive.Root>
+      <DropdownMenu
+        trigger={
+          <TooltipPrimitive.Trigger asChild>
+            {triggerContent}
+          </TooltipPrimitive.Trigger>
+        }
+        items={menuItems}
+        align={align}
+        contentClassName="w-80"
+      />
+      <TooltipPrimitive.Content
+        side="right"
+        sideOffset={4}
+        className={tooltipContentClassName}
+      >
+        {accessibleLabel}
+      </TooltipPrimitive.Content>
+    </TooltipPrimitive.Root>
   );
 }

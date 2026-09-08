@@ -157,9 +157,10 @@ function DocumentTeamDialogContent({
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || !hasChanges}
+            disabled={!hasChanges}
+            isLoading={isSubmitting}
           >
-            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.save')}
+            {tCommon('actions.save')}
           </Button>
         </>
       }

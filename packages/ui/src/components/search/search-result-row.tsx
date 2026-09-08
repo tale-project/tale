@@ -86,7 +86,7 @@ export function SearchResultRow({
         onFocus={onHover}
         onClick={onSelect}
         className={cn(
-          'group relative flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
+          'group relative flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left',
           'focus-visible:outline-none',
           isActive
             ? 'bg-bg-elevated text-fg-base'
@@ -95,7 +95,7 @@ export function SearchResultRow({
       >
         <span
           className={cn(
-            'mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md border transition-colors',
+            'mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md border',
             isActive
               ? 'border-border-strong bg-bg-base text-fg-base'
               : 'border-border-base/70 bg-bg-base/50 text-fg-muted',

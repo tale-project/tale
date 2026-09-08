@@ -373,7 +373,7 @@ export function NotificationListPanel({
                   type="button"
                   onClick={onBack}
                   aria-label={tCommon('actions.back')}
-                  className="hover:bg-muted -ml-1.5 flex size-6 shrink-0 items-center justify-center rounded-md transition-colors"
+                  className="hover:bg-muted -ml-1.5 flex size-6 shrink-0 items-center justify-center rounded-md"
                 >
                   <ChevronLeft className="text-muted-foreground size-4" />
                 </button>

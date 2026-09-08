@@ -84,7 +84,7 @@ export function HeaderBreadcrumbSwitcher({
           aria-label={ariaLabel}
           className={cn(
             'inline-flex max-w-full min-w-0 items-center gap-1 rounded-sm',
-            'hover:text-muted-foreground transition-colors',
+            'hover:text-muted-foreground',
             'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
           )}
         >

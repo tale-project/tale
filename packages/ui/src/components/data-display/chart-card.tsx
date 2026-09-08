@@ -5,12 +5,7 @@ import { type ComponentType, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
 import { EmptyState } from '../feedback/empty-state';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '../overlays/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../overlays/tooltip';
 
 interface ChartCardProps {
   /**
@@ -90,18 +85,16 @@ export function ChartCard({
               </h3>
             ) : null}
             {tooltip ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger
-                    type="button"
-                    aria-label={tooltip}
-                    className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-6 shrink-0 items-center justify-center rounded focus-visible:ring-2 focus-visible:outline-none"
-                  >
-                    <Info className="size-4" aria-hidden />
-                  </TooltipTrigger>
-                  <TooltipContent side="top">{tooltip}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  type="button"
+                  aria-label={tooltip}
+                  className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-6 shrink-0 items-center justify-center rounded focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <Info className="size-4" aria-hidden />
+                </TooltipTrigger>
+                <TooltipContent side="top">{tooltip}</TooltipContent>
+              </Tooltip>
             ) : null}
           </div>
           {toolbar ? <div className="shrink-0">{toolbar}</div> : null}

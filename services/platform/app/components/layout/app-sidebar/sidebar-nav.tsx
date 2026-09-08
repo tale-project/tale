@@ -66,7 +66,7 @@ export function SidebarNavItem({ item }: SidebarNavItemProps) {
   const rowContent = (
     <div
       className={cn(
-        'relative flex size-9 items-center justify-center rounded-md transition-colors',
+        'relative flex size-9 items-center justify-center rounded-md',
         isActive
           ? accentColor
             ? ''

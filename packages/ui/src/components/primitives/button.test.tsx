@@ -321,7 +321,7 @@ describe('Button', () => {
     it('has press animation classes', () => {
       render(<Button>Press me</Button>);
       const button = screen.getByRole('button');
-      expect(button.className).toContain('active:scale-[0.97]');
+      expect(button.className).toContain('active:scale-[var(--scale-pressed)]');
     });
 
     it('disabled button does not scale on press', () => {

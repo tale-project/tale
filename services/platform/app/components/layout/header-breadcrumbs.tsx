@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils/cn';
  * stay router-agnostic while every trail styles identically.
  */
 export const HEADER_CRUMB_LINK_CLASS =
-  'text-muted-foreground hover:text-foreground focus-visible:ring-ring cursor-pointer rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset';
+  'text-muted-foreground hover:text-foreground focus-visible:ring-ring cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset';
 
 export interface HeaderBreadcrumbCrumb {
   key: string;

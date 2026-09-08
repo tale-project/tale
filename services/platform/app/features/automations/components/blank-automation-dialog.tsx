@@ -322,7 +322,7 @@ export function BlankAutomationDialog({
           {t('blank.next')}
         </Button>
       ) : (
-        <Button type="submit" disabled={!canSubmitStep2 || submitting}>
+        <Button type="submit" disabled={!canSubmitStep2} isLoading={submitting}>
           {submitting ? t('blank.submitting') : t('blank.submit')}
         </Button>
       )}

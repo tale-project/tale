@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
+import { EmptyState } from '@tale/ui/empty-state';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
@@ -1063,9 +1063,11 @@ export function ProjectFilesTab({
             {rootFiles.map((doc) => renderFileRow(doc, 0))}
           </ul>
         ) : !isLoading ? (
-          <EmptyPlaceholder icon={FileText}>
-            {t('files.emptyTitle')}
-          </EmptyPlaceholder>
+          <EmptyState
+            icon={FileText}
+            title={t('files.emptyTitle')}
+            className="rounded-lg border border-dashed py-8"
+          />
         ) : null}
 
         {canEdit ? (

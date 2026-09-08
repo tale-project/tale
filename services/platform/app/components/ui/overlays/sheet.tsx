@@ -41,7 +41,7 @@ const sheetVariants = cva(
   // an interactive control, so the browser's default focus outline reads as a
   // stray blue ring around the whole panel — suppress it. Focusable controls
   // inside the panel keep their own `focus-visible` rings.
-  'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 gap-4 overflow-y-auto p-6 pr-[calc(1.5rem+var(--safe-right))] pl-[calc(1.5rem+var(--safe-left))] shadow-lg transition ease-in-out focus:outline-none data-[state=closed]:duration-300 data-[state=open]:duration-500',
+  'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 gap-4 overflow-y-auto p-6 pr-[calc(1.5rem+var(--safe-right))] pl-[calc(1.5rem+var(--safe-left))] shadow-lg transition ease-out focus:outline-none data-[state=closed]:duration-[var(--duration-short)] data-[state=open]:duration-[var(--duration-standard)] motion-reduce:animate-none motion-reduce:transition-none',
   {
     variants: {
       side: {
@@ -210,7 +210,7 @@ export function Sheet({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80" />
+        <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80 duration-[var(--duration-short)] motion-reduce:animate-none" />
         <DialogPrimitive.Content
           aria-modal="true"
           className={cn(sheetVariants({ side, size }), widthClass, className)}

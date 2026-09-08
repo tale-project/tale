@@ -120,7 +120,8 @@ export function SkillUploadPane({
               <Button
                 type="button"
                 onClick={() => void submit(false)}
-                disabled={!state.parsedBundle || state.isSubmitting}
+                disabled={!state.parsedBundle}
+                isLoading={state.isSubmitting}
               >
                 {state.isSubmitting
                   ? t('upload.submitting')

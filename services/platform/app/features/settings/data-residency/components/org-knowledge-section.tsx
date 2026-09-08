@@ -484,11 +484,10 @@ export function OrgKnowledgeSection({
               variant="secondary"
               size="sm"
               onClick={() => void onTest()}
-              disabled={test.isPending || remove.isPending}
+              disabled={remove.isPending}
+              isLoading={test.isPending}
             >
-              {test.isPending
-                ? t('dataResidency.testing')
-                : t('dataResidency.testConnection')}
+              {t('dataResidency.testConnection')}
             </Button>
             <TestResultLine
               result={testResult}

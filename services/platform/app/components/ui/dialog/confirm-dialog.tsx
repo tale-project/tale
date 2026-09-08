@@ -46,7 +46,7 @@ export interface ConfirmDialogProps {
   cancelText?: string;
   /** Text for the confirm button (defaults to common.actions.confirm) */
   confirmText?: string;
-  /** Text shown when loading (defaults to common.actions.loading) */
+  /** @deprecated Ignored — `isLoading` spinner carries confirm state; label stays `confirmText`. */
   loadingText?: string;
   /** Whether the dialog is in a loading state */
   isLoading?: boolean;
@@ -87,7 +87,7 @@ export function ConfirmDialog({
   children,
   cancelText,
   confirmText,
-  loadingText,
+  loadingText: _loadingText,
   isLoading = false,
   disableConfirm = false,
   onConfirm,
@@ -137,11 +137,10 @@ export function ConfirmDialog({
           onConfirm();
         }}
         disabled={isLoading || disableConfirm || !phraseSatisfied}
+        isLoading={isLoading}
         className={cn(confirmButtonVariants({ variant }))}
       >
-        {isLoading
-          ? (loadingText ?? tCommon('actions.loading'))
-          : (confirmText ?? tCommon('actions.confirm'))}
+        {confirmText ?? tCommon('actions.confirm')}
       </Button>
     </>
   );
