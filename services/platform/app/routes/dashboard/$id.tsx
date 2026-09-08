@@ -27,6 +27,7 @@ import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-
 import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/two-factor-low-backup-codes-banner';
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
+import { EmbeddingSetupBanner } from '@/app/features/settings/data-residency/components/embedding-setup-banner';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useAuth } from '@/app/hooks/use-session-user';
@@ -277,6 +278,9 @@ function DashboardLayout() {
                       <TwoFactorLowBackupCodesBanner
                         organizationId={organizationId}
                       />
+                    )}
+                    {hasRole && (
+                      <EmbeddingSetupBanner organizationId={organizationId} />
                     )}
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
                       {/* Safe-area inset clears the notch; the inner fixed-height row
