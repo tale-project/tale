@@ -157,7 +157,7 @@ export default createPlaywrightConfig({
         // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
         ENCRYPTION_SECRET_HEX:
           '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-        // `tests/manual/SETUP.md` §1A's mode-A command block mirrors this exact
+        // `tests/manual/setup.md` §1A's mode-A command block mirrors this exact
         // env set (TALE_CONFIG_DIR, TALE_CONFIG_BUILTIN_DIR, TALE_PROVIDER_KEY_
         // E2E_MOCK, TALE_ALLOW_PRIVATE_PROVIDER_HOSTS, TALE_MOCK_CONNECTORS_
         // BASE) for AI/manual testers — when you change a value or add/remove a

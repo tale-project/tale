@@ -16,6 +16,7 @@
     "lint": "bunx turbo run lint",
     "lint:fix": "bunx turbo run lint:fix",
     "lint:sast": "bash tools/opengrep/run.sh",
+    "lint:manual": "bun tools/lint-manual/cli.ts",
     "format": "oxfmt && uvx ruff@0.15.0 format && bunx turbo run format",
     "format:check": "oxfmt --check && uvx ruff@0.15.0 format --check && bunx turbo run format:check",
     "check": "bun run format:check && bunx turbo run lint typecheck test test:ui",

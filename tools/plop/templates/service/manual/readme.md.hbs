@@ -1,0 +1,154 @@
+# Manual tests
+
+The manual layer of this service's test suite, beside the automated specs.
+Everything here is driven by a human (or a chauffeur script) against a running
+instance — the edges no headless run can judge: layout, focus, printouts, live
+reactivity across two sessions, degraded modes, and exploratory pokes.
+
+**Suites and rounds are separate things.** The files under [`suites/`](suites)
+are the tests: evergreen, re-runnable, and **never ticked in place**.
+[`runs/`](runs) is the history: one record per round. A suite never names a
+round; a record is never a test.
+
+## The files
+
+| Path | What it is |
+|---|---|
+| [`readme.md`](readme.md) | this guide — how a round works, how a box works, how to judge |
+| [`setup.md`](setup.md) | the environment: toolchain, stack + ports, reset choreography, accounts, baseline gates |
+| [`template.md`](template.md) | the shape of a NEW suite, and the authoring conventions |
+| [`suites/`](suites) | the tests — one file per suite, listed below |
+| [`reference/automation.md`](reference/automation.md) | what the automated specs already own — **read before hand-verifying anything** |
+| [`reference/not-a-finding.md`](reference/not-a-finding.md) | out of scope · product quirks · known debt (`BL-n`) |
+| [`reference/error-codes.md`](reference/error-codes.md) | every error code and how to provoke it |
+| [`reference/pins.md`](reference/pins.md) | why a box says what it says — read before rewording one |
+| [`runs/readme.md`](runs/readme.md) | the round journal + how to close a round |
+| [`runs/template.md`](runs/template.md) | the round record to copy to `r<nnnn>.md` (`r0001.md`, `r0002.md`, …) |
+| [`runs/template-session-log.md`](runs/template-session-log.md) | the tick-as-you-go log to copy **outside** the repo |
+
+## The suites
+
+Every suite declares the ID prefix its boxes carry, in its header blockquote. A
+box ID is unique across this whole directory and greppable as one token; two
+suites may continue one numbering (a chain and the tours after it), but no
+prefix may shadow another.
+
+| Suite | Prefix | What it is | Resets | Rough cost |
+|---|---|---|---|---|
+| [smoke](suites/smoke.md) | `SMOKE-` | is this build even drivable — run it before investing in anything bigger | once, at the start | 10 min |
+
+## How a round runs
+
+1. **Baseline an untouched tree.** Every gate green before you judge anything
+   ([setup.md](setup.md#baseline)).
+2. **Set up** — stack, seed, accounts ([setup.md](setup.md)).
+3. **Copy the templates** — the [session log](runs/template-session-log.md) to
+   `/tmp/{{kebabCase name}}-qa/r<nnnn>/`, and tick there.
+4. **Smoke first** if you are short on time; red ⇒ stop and fix before touring.
+5. **Run the suites you mean to run**, in the order their own headers give.
+6. **Log as you go**, citing box IDs, with evidence under
+   `/tmp/{{kebabCase name}}-qa/r<nnnn>/<box-id>/`.
+7. **Fix in batches after the pass**, re-running every gate after each batch.
+8. **Close the round** — record, journal row, pins, registers
+   ([runs/readme.md](runs/readme.md#closing-a-round)).
+
+Keep devtools open throughout. **An unexpected console message at error level is
+always a finding, on any page.** Check it against the known-benign list in
+[`not-a-finding.md`](reference/not-a-finding.md) first.
+
+## Choosing what to run
+
+| Profile | Run | When |
+|---|---|---|
+| **Smoke** | [`suites/smoke.md`](suites/smoke.md) | before investing in anything bigger; after a dependency bump |
+| **Change-scoped** | the rows below that the change touches | the ordinary case — a feature or a fix landed |
+| **Full** | every suite | before a release, after a platform-level change, or when a round is asked for by name |
+
+Change-scoped, by area:
+
+| What changed | Run |
+|---|---|
+| routing or the app shell | `SMOKE-1`, `SMOKE-2` |
+| copy or catalogs (any locale) | `SMOKE-4` |
+| controls, focus, geometry | `SMOKE-5` · [`automation.md`](reference/automation.md) first |
+
+## How a box works
+
+Every box is one line of markdown that a round can tick, cite and diff:
+
+```
+- [ ] `SMOKE-2` · **Reload the page with devtools open** → the route
+  re-renders from the URL alone; no console error, no flash of empty state.
+```
+
+- **Do the bolded action, judge against everything after the `→`.** A box that
+  bundles several judgments still passes only if all of them hold.
+- **The ID is a stable contract.** Session logs, round records,
+  [`pins.md`](reference/pins.md), the automation register and code comments all
+  cite them. **Append, never renumber.**
+- **Keep the boxes in these files empty.** Tick in the session log; findings go
+  to the log, then to a [record](runs) — never into a suite.
+- **A box states what to check and why the expectation is what it is.** Where
+  the "why" is a war story, it lives in [`pins.md`](reference/pins.md) instead,
+  so the box stays readable.
+- Anything listed in [`not-a-finding.md`](reference/not-a-finding.md) is **not a
+  finding at any severity** — cite the entry and move on.
+
+ID scheme:
+
+| Form | Means | Example |
+|---|---|---|
+| `<PREFIX><n>` | a box in the suite that declares `<PREFIX>` | SMOKE-4 |
+| `<PREFIX><group>.<n>` | a box in a grouped suite (a tour, a phase) | P2.13 |
+| a trailing letter | a box appended between two existing ones, or one judgment split out of a crowded box — **part of the ID**, not a position | SMOKE-4a |
+| `BL-<n>` | a known-debt entry, not a box | BL-3 |
+
+## Judging
+
+Ask, in this order:
+
+1. **Is it already owned by a spec?**
+   ([`automation.md`](reference/automation.md)) — then it is not a manual
+   finding; a red there is a spec failure, and it belongs in the gate, not the
+   round.
+2. **Is it on a register?** ([`not-a-finding.md`](reference/not-a-finding.md)) —
+   out of scope, a product quirk, or known debt: cite it and move on.
+3. **Does a box say otherwise?** Read [`pins.md`](reference/pins.md) before
+   deciding the box is wrong — the wording is usually specific on purpose.
+4. **Then file it**, with exactly one severity.
+
+### Severity rubric
+
+| Severity | Means | Examples |
+|---|---|---|
+| `blocker` | Data loss, an auth/tenant-isolation breach, a crash, or a core path with **no** workaround. | One tenant can read another's record; Save throws and loses the draft. |
+| `bug` | Wrong behaviour with a workaround, or a violated documented contract. | A DE date renders in en-US format; a toast names the wrong file. |
+| `polish` | Cosmetic / UX nit, no functional impact. | Truncation one char too early; a focus ring is faint. |
+| `docs` | These files or the service readme are inaccurate. | The guide says a route that the router no longer has. |
+
+## Failure policy
+
+When a box fails: assign the next `R<round>-<box-id>`, capture evidence
+(screenshot + console transcript) to
+`/tmp/{{kebabCase name}}-qa/r<nnnn>/<box-id>/`, then decide whether to continue.
+
+| Situation | Do |
+|---|---|
+| a **blocker on a state-feeding box** (anything a later box depends on) | halt that suite; reset and restart it once the fix lands |
+| an **isolated or read-only failure** | log it and **continue**, so one bug does not mask the rest |
+| any failure, mid-suite | **never fix in place** — fixes are a separate batched phase, so a round's findings stay comparable |
+
+## Changing the suites
+
+- **New behaviour earns a box** wherever a human still has to judge it — and
+  **loses one** once a spec owns it end to end (move the row into
+  [`automation.md`](reference/automation.md) instead).
+- **Append IDs; never renumber one.**
+- **Keep a box about the product**, not about the round that wrote it: the round
+  belongs in [`runs/`](runs), the reason a box is worded oddly belongs in
+  [`pins.md`](reference/pins.md).
+- **A suite edit is a code change.** Change a flow, a route, a label or a cap,
+  and the box that asserts it moves in the same commit — a stale box costs the
+  next round a false finding.
+
+`bun run lint:manual` enforces the shape of everything above.

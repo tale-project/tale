@@ -1,0 +1,204 @@
+# Per-organization data residency
+
+> **Prefix** `DATA-` · **Reset** none · **Cost** 15 boxes
+
+An org admin points the organization's **knowledge database**
+(Postgres/ParadeDB for extracted text + embeddings) and **object storage**
+(S3-compatible bucket for uploaded source files) at infrastructure the org
+provides, configures the org's **embedding model**, and moves pre-existing
+blobs over with the backfill — from the settings UI or the per-org JSON
+config. This plan proves the UI flows, the physical placement of data, the
+combination matrix (one external / both external / several orgs external), and
+that removal fails safe. Precondition: Mode A (full stack with a RAG backend)
+for anything that ingests; the UI flows alone also work on the hermetic stack.
+
+## Scope & routes
+
+| Surface                                                      | Route                                      |
+| ------------------------------------------------------------ | ------------------------------------------ |
+| Data residency (three org sections)                          | `/dashboard/{org}/settings/data-residency` |
+| Documents (placement proof)                                  | `/dashboard/{org}/documents`               |
+
+The org sections (Knowledge database, Embedding model, Object storage) batch
+their edits through the settings header's shared **Discard/Save** cluster;
+Test, Remove, and the backfill are instant actions inside the sections. There
+is no deployment-wide store section any more — the deployment defaults are
+environment variables (`DATABASE_URL`, `KNOWLEDGE_DATABASE_URL`,
+`OBJECT_STORE_*`), not something the page writes.
+
+## Preconditions
+
+Bring the stack up and sign in per [SETUP.md](../setup.md) as an **org
+admin**. The throwaway containers below listen on loopback, and every
+org-supplied host/endpoint passes the outbound-host policy — so the platform
+process needs `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in its env or the
+saves/probes refuse with `PRIVATE_HOST_BLOCKED`. Disposable infrastructure for
+the "external" side (both containers are throwaway; pick free ports):
+
+```bash
+# External knowledge DB (ParadeDB: pgvector + pg_search)
+docker run -d --name dr-kdb -p 5599:5432 -e POSTGRES_PASSWORD=drtest \
+  -e POSTGRES_USER=tale -e POSTGRES_DB=tale_knowledge paradedb/paradedb:latest
+
+# External object storage (MinIO) + a bucket
+docker run -d --name dr-minio -p 9100:9000 \
+  -e MINIO_ROOT_USER=testkey -e MINIO_ROOT_PASSWORD=testsecret123 \
+  minio/minio server /data
+docker run --rm --network host --entrypoint sh minio/mc -c \
+  'mc alias set t http://127.0.0.1:9100 testkey testsecret123 && mc mb -p t/org-blobs'
+```
+
+To inspect the bucket during the run: `docker run --rm --network host
+--entrypoint sh minio/mc -c 'mc alias set t http://127.0.0.1:9100 testkey
+testsecret123 && mc ls --recursive t/org-blobs'`
+
+> **Agent note**: the JSON config path is the source of truth
+> (`$TALE_CONFIG_DIR/{orgSlug}/knowledge/connection.json` and
+> `…/{orgSlug}/object-storage/connection.json`, each with a
+> `connection.secrets.json` sidecar); the panel is a writer for the same
+> files. Testing the UI therefore also tests the JSON path — DATA-F7 checks
+> the file directly once.
+
+## Functional
+
+- [ ] `DATA-F1` · **Panel renders defaults** — As an org admin open
+  `/dashboard/{org}/settings/data-residency` → Three org sections first —
+  **Knowledge database** (`settings.dataResidency.orgKnowledge.title`),
+  **Embedding model** (`settings.dataResidency.orgEmbedding.title`), **Object
+  storage** (`settings.dataResidency.orgStorage.title`) and nothing below
+  them. Knowledge + storage carry the header badge **Deployment default**
+  (`…orgKnowledge.statusDefault` / `…orgStorage.statusDefault`) with their
+  toggle off; the embedding section carries **Not configured** with its toggle
+  off, and the search-unavailable warning stays visible while it is collapsed.
+- [ ] `DATA-F2` · **BYO knowledge DB: save + test** — Enable **Knowledge
+  database** → host `127.0.0.1`, port `5599`, database `tale_knowledge`, user
+  `tale`, **SSL mode `disable`** (the throwaway ParadeDB container serves no
+  TLS; the default `require` fails the probe with "Client network socket
+  disconnected before secure TLS connection"), password `drtest` → **Save** in
+  the settings header → **Test connection** inside the section. Then reload
+  and **Test connection again with the password left blank** — it must still
+  pass (the probe reuses the stored secret). → The header cluster flashes
+  **Saved** (no toast). Success line **OK** appears next to Test. Reload:
+  fields persist (password field is blank — write-only,
+  `settings.dataResidency.password.storedNoPreviewHint`) and the badge is no
+  longer **Deployment default**. The blank-password re-test passes
+  (regression: it used to fail "password authentication failed").
+- [ ] `DATA-F2b` · **Embedding model: save + search unblocks** — Toggle
+  **Embedding model** on, then pick a provider you hold a credential for (with
+  no stored credentials the provider dropdown is disabled and explains itself
+  in a tooltip) (add one under **Settings > AI providers** first if none — the
+  section says so), model `text-embedding-3-small` (or your provider's tag),
+  vector width `1536`, → **Save** in the header. Then remove it via the
+  section's **Remove** button and re-add it. → Badge flips to **Configured**
+  and the warning disappears;
+  `$TALE_CONFIG_DIR/{orgSlug}/knowledge/embedding.json` exists with exactly
+  the entered fields. Knowledge search stops refusing with "no embedding model
+  configured" (on a stack whose indexing is live, a searchable corpus returns
+  hits). Remove asks for confirmation, toasts (`…orgEmbedding.removed`), and
+  the warning returns.
+- [ ] `DATA-F3` · **BYO object storage: save + test** — Enable **Object
+  storage** → region `us-east-1`, endpoint `http://127.0.0.1:9100`, path-style
+  on, bucket `org-blobs`, both keys → **Save** in the settings header → **Test
+  connection** inside the section. Then reload and **Test connection again
+  with both key fields left blank** — it must still pass (the probe reuses the
+  stored keys). → The header cluster flashes **Saved** (no toast). **Bucket
+  verified (upload, read, delete)**
+  (`settings.dataResidency.orgStorage.verified`). Reload: config persists, key
+  fields blank with the stored-hint. The blank-key re-test passes (regression:
+  it used to be un-runnable — Test stayed disabled until both keys were
+  re-typed, so a saved connection could never be re-tested).
+- [ ] `DATA-F3b` · **Two dirty sections, one Save** — Edit the knowledge host
+  AND the storage bucket without saving → the header shows one
+  **Discard/Save** pair → **Save**. Then edit again and navigate away. → One
+  click persists both sections (both re-baseline, cluster flashes **Saved**).
+  The navigation attempt with unsaved edits raises the unsaved-changes
+  blocker; **Discard** resets both forms.
+- [ ] `DATA-F4` · **Uploads physically land in the org bucket** — With DATA-F3
+  active: Documents → upload a small PDF → wait for the RAG badge to move past
+  Queued (Mode A) → run the `mc ls --recursive` command above → The bucket
+  lists a new object under the org's slug prefix
+  (`[prefix/]{orgSlug}/<uuid>`); the document opens/downloads from the app;
+  chat can cite it after indexing. In Convex dashboard the row's ref starts
+  `s3:`
+- [ ] `DATA-F5` · **Backfill moves pre-existing blobs** — Upload one document
+  BEFORE DATA-F3 (it lands in built-in storage), then configure DATA-F3. In
+  the **Object storage** section click **Move existing files**
+  (`settings.dataResidency.orgStorage.backfill.start`) → confirm **Move
+  files**. For a dry run first (counts only, writes nothing), use the operator
+  CLI — the internal engine resolves the slug itself: `bunx convex run
+  object_storage/backfill_actions:migrateOrgBlobsToObjectStorage
+  '{"organizationId":"{org}","dryRun":true}'`. → The button disables while the
+  run is active and the inline status line streams progress reactively (no
+  reload), ending in **Done — N files moved, 0 failed**. The pre-existing
+  document's object appears in the bucket under `[prefix/]{orgSlug}/<uuid>`,
+  the doc still opens, and its ref in Convex is rewritten to `s3:`; a second
+  run migrates 0 (idempotent). A CLI dry run renders in the same status line
+  as **Dry run — N files would move**.
+- [ ] `DATA-F6` · **Combination matrix** — (a) Org X: only knowledge external
+  (DATA-F2, storage off) → upload + index a doc, ask chat about it. (b) Org X:
+  both external (DATA-F2+DATA-F3) → repeat. (c) Second org Y on the SAME
+  deployment: point Y at its own bucket/prefix (may be the same MinIO with a
+  different prefix) and its own or the default DB → repeat in Y → In every
+  combination the upload indexes, retrieval cites the doc, and placement is
+  correct: (a) chunks in the external DB (`psql -h 127.0.0.1 -p 5599 … -c
+  "select count(*) from private_knowledge.chunks"` grows) while the blob stays
+  in built-in storage; (b) both external; (c) Y's objects appear ONLY under
+  Y's namespace, X's data is untouched (`mc ls` shows disjoint prefixes; X's
+  chunk count unchanged while Y ingests)
+- [ ] `DATA-F7` · **JSON config parity** — After DATA-F3, read
+  `$TALE_CONFIG_DIR/{orgSlug}/object-storage/connection.json` (and
+  `connection.secrets.json`) on the convex volume → The JSON matches the panel
+  (region/endpoint/bucket/forcePathStyle); the secrets sidecar exists
+  (SOPS-encrypted when an age key is configured, plaintext otherwise).
+  Hand-editing the JSON (e.g. change `prefix`) is reflected in the panel after
+  reload — same file, two writers.
+
+## Boundary / error
+
+- [ ] `DATA-B1` · **Bad credentials fail the probe, save intact** — In
+  **Object storage** enter both keys with a WRONG secret key → **Test
+  connection** → Failure line carrying the store's parsed S3 error — a clean
+  `SignatureDoesNotMatch: The request signature we calculated…`, NOT a raw
+  truncated XML blob (regression: the probe used to surface the raw `<Error>`
+  document cut off mid-tag). No partial state — reloading shows the last saved
+  config.
+- [ ] `DATA-B2` · **Removal fails safe and is honest** — With DATA-F3 active
+  toggle **Object storage** off → confirm dialog **Remove the object-storage
+  connection?** (`settings.dataResidency.orgStorage.clearConfirm.title`) →
+  **Remove connection** → Toast (`settings.dataResidency.orgStorage.cleared`)
+  states new uploads go back to built-in storage AND that files already in the
+  bucket are unavailable to Tale until reconnected. New uploads work
+  (built-in). Documents whose ref is `s3:` now fail to open with an error —
+  reconnecting the same bucket restores them (fail-closed, no data loss)
+- [ ] `DATA-B3` · **Non-admin is refused** — Sign in as a plain member → open
+  the route directly → Access-denied panel (`accessDenied.dataResidency`); the
+  rail entry is hidden.
+- [ ] `DATA-B4` · **Foreign-key isolation (shared bucket)** — With orgs X and
+  Y on the same bucket (`DATA-F6` case (c)): via the API, try to bind or read an object
+  key of Y from X (e.g. request `…/storage?ref=s3:{Y-key}&org={X}`) → Refused
+  with **404** (not 500) — the org-namespace guard rejects a key outside the
+  org's own namespace on read, serve, and delete, and the `…/storage` HTTP
+  endpoint fails closed without leaking whether the object exists.
+- [ ] `DATA-B5` · **Large file (~100 MB) indexes on external stores** — With
+  DATA-F2+DATA-F3 active, upload a text file at the 100 MB
+  `DOCUMENT_MAX_FILE_SIZE` cap (a ~96 MB file is the reliable-pass variant;
+  the exact cap exercises the memory edge) → wait for the RAG badge to reach
+  **Indexed** → `mc ls` the bucket and `psql` the external DB → The blob lands
+  under the org's prefix; indexing completes (tens of thousands of chunks in
+  the external DB — `select chunks_count from private_knowledge.documents`; a
+  genuine 100 MB text file is ~57 k chunks) with no `InternalServerError`; the
+  doc opens and chat can cite it. **Note (`#2752`):** at the 100 MB cap the
+  single inline indexing action drives the executor to ~1.5 GB RSS and can OOM
+  under concurrent memory load, surfacing an honest **Indexing failed —
+  "Indexing did not finish. Retry…"** on the first try; **Retry indexing**
+  then completes in seconds (it dedups against the chunks the interrupted run
+  already stored). A ~96 MB file clears this margin and passes first-try. The
+  embed-per-batch fix removed the all-chunks-at-once OOM; the residual is the
+  prepare/chunk phase holding the whole document.
+
+## Accessibility
+
+- [ ] `DATA-A1` · **Keyboard + labels** — Tab through the panel with the
+  keyboard only → Every field, toggle, and button is reachable with a visible
+  focus ring; fields have programmatic labels (the panel's axe test also
+  asserts this)

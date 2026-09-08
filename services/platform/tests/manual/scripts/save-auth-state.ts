@@ -9,7 +9,7 @@
  * - `QA_AUTH_EMAIL` + `QA_AUTH_PASSWORD`: sign in as an EXISTING account
  *   instead, e.g. the `docker:dev` seeded dev login (SETUP.md mode C).
  *
- * Usage (stack already up — see services/platform/tests/manual/SETUP.md):
+ * Usage (stack already up — see services/platform/tests/manual/setup.md):
  *
  *   bunx playwright install chromium            # once
  *   # Mint a fresh owner + seeded org (modes A/B):

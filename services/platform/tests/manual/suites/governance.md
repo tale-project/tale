@@ -1,0 +1,267 @@
+# Governance
+
+> **Prefix** `GOV-` · **Reset** none · **Cost** 29 boxes
+
+Exercise the org-wide governance controls — content/model defaults, guardrails
+(content-safety / PII / moderation), policies & limits (budgets, upload,
+retention), security & monitoring (login / password / 2FA / session), legal
+hold, data-subject requests (DSAR), and the read-only surfaces (feedback
+metrics, usage metrics, logs, trash). Most write controls are
+admin/owner-gated. **Restore every toggle you flip** — these are org-wide
+settings. > Mock-LLM mode is fine for everything except F3's actual
+content-safety filtering, which exercises a local chat-filter (no LLM needed)
+but requires you to configure a word-list category first, and F17's
+real-provider moderation test (mode B).
+
+## Scope & routes
+
+All routes are under `/dashboard/{org}/settings/governance/…`. The bare
+`…/governance` index redirects to `content-models`.
+
+| Surface               | Route (sub-path)                          | Page contents (verified)                                                                    |
+| --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
+| Content & Models      | `content-models`                          | Custom instructions (unified field, was prefix/suffix), Default Models, Model access        |
+| Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output |
+| Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
+| Guardrails            | `guardrails`                              | Guardrails overview, Content safety, PII protection, Moderation provider                    |
+| Logs                  | `logs` (+ `?category=`)                   | Tabs: Audit logs · Sign-in blocks · Activity logs · Error logs; Export CSV/JSON             |
+| Usage                 | `usage`                                   | Read-only org usage metrics (cards + chart + tables)                                        |
+| Legal hold            | `legal-hold`                              | Active holds + Release requests; **Place legal hold**                                       |
+| DSAR                  | `data-subject-requests` · `…/{requestId}` | DSAR governance policy + request list; **File request**                                     |
+| Trash                 | `trash`                                   | Filterable list of retention-trashed rows; per-row **Restore** (no manual permanent delete) |
+| Feedback              | `feedback`                                | **Read-only** Feedback Metrics dashboard (thumbs up/down + arena verdicts)                  |
+| Audit-logs (legacy)   | `audit-logs` (+ `?category=`)             | 307 → `logs` (preserves `category`)                                                         |
+
+Group labels in the settings rail: **Content & Models**
+(`governance.groups.contentAndModels`) and **Security & Monitoring**
+(`governance.groups.securityAndMonitoring`).
+
+## Preconditions
+
+Stack up + signed in per [SETUP.md](../setup.md) as owner/admin. Mock mode (A)
+is sufficient. **GOV-F4b (per-API-key budget)** needs at least one API key to
+target — create one first under **Settings → API → REST**
+(`…/settings/api/rest`, see [settings.md](settings.md) SET-F9); the API-key
+select lists only the current admin's keys (`useApiKeys`).
+
+> **Agent note**: save → reload → assert the **persisted control state**,
+> never the toast. Voice output autosaves on toggle (no Save button); the
+> other editors have an explicit **Save** (`common.actions.save`). On a
+> freshly bootstrapped org the `policies-limits` page logs a benign
+> `RETENTION_CONFIG_MISSING` console error (the retention config file isn't
+> seeded) — the page still renders; that's an environment seam, not a page
+> bug.
+
+## Functional tests
+
+- [ ] `GOV-F1` · **Index redirect** — Open `…/governance` → URL becomes
+  `…/governance/content-models`
+- [ ] `GOV-F2` · **System prompt persist** — `content-models` → in the
+  **Custom instructions** section (`governance.systemPrompt.title`) flip the
+  section Switch ON (aria-label `governance.systemPrompt.enabled`) → type into
+  the textarea (placeholder `governance.systemPrompt.instructionsPlaceholder`,
+  aria-label = the section title) → **Save** (`common.actions.save`, the
+  settings header's global bar) → reload → After reload the section Switch is
+  still ON and the textarea still holds the typed text.
+- [ ] `GOV-F2b` · **Voice-output toggle** — `policies-limits` → flip **Voice
+  output enabled for this organization**
+  (`governance.voiceOutput.enabledLabel`) — it **autosaves** (toast
+  `governance.voiceOutput.saved`, no Save button) → reload → After reload the
+  switch's `aria-checked` reflects the new state; toggle it back to restore.
+- [ ] `GOV-F3` · **Content-safety filter** — `guardrails` → enable **Enable
+  content safety** (`governance.contentSafety.enableLabel`); add a category
+  (**Add category** `governance.contentSafety.addCategory`) with a banned word
+  in **block** mode → Save; then in chat send that exact word → The chat
+  message containing the banned word is blocked/masked (a guardrail audit
+  event appears under **Recent events**); enabling the toggle **alone** does
+  nothing (there is no built-in disallowed-content list)
+- [ ] `GOV-F4` · **Budget rule** — `policies-limits` → **Budget rules**
+  (`governance.budgets.title`) → **Add rule** (`governance.budgets.addRule`) →
+  set Period + **Max tokens** (`governance.budgets.tokenLimit`) / **Max cost
+  (USD)** (`governance.budgets.costLimitUsd`) / **Max requests**
+  (`governance.budgets.maxRequests`) → confirm → reload → The new rule row
+  appears in the Budget rules table and survives reload.
+- [ ] `GOV-F4b` · **Per-API-key budget** — `policies-limits` → **Budget
+  rules** (`governance.budgets.title`) → **Add rule**
+  (`governance.budgets.addRule`) → in the **Add budget rule** dialog
+  (`governance.budgets.addRuleDialogTitle`) set **Scope**
+  (`governance.budgets.scope`) = **API key** (`governance.budgets.apiKey`);
+  the **API key** searchable select appears (placeholder
+  `governance.budgets.selectApiKey`, aria-label
+  `governance.budgets.selectApiKeyAriaLabel`) → pick a key → set **Max
+  requests** (`governance.budgets.maxRequests`) → **Confirm**
+  (`governance.budgets.confirm`) → reload → The rule row's **Scope** cell
+  reads **ApiKey** (CSS-capitalized `scope`) and its **Target**
+  (`governance.budgets.target`) cell shows the chosen key's name (falls back
+  to the raw key id if the key isn't in the admin's list); the row survives
+  reload. **Precondition:** ≥1 API key exists (see Prerequisites)
+- [ ] `GOV-F6` · **Feedback metrics** — `feedback` → Read-only **Feedback
+  Metrics** dashboard renders (`analytics.feedback.title`); with no feedback
+  it shows the empty state **No feedback collected yet**
+  (`analytics.feedback.empty.title`). **There is nothing to configure/save
+  here.**.
+- [ ] `GOV-F7` · **Legal hold** — `legal-hold` → **Place legal hold**
+  (`governance.legalHold.actions.placeHold`) opens a dialog; place a hold;
+  view **Active holds** (`governance.legalHold.sections.activeHolds.title`);
+  request release; a different admin approves under **Release requests**
+  (`governance.legalHold.sections.releaseRequests.title`) → The placed hold
+  appears in the Active holds table; the release request appears under Release
+  requests and requires a **different** admin to approve.
+- [ ] `GOV-F8` · **DSAR** — `data-subject-requests` → **File request**
+  (`governance.dataSubjectRequests.actions.fileRequest`) opens **File erasure
+  request** (`governance.dataSubjectRequests.dialogs.fileRequest.title`); file
+  one; open it (`…/{requestId}`); fulfill / deny / extend → The request
+  appears in the list with a Status; opening `…/{requestId}` renders the
+  detail; status transitions persist on reload.
+- [ ] `GOV-F9` · **Security & monitoring** — `security-monitoring` → flip
+  **Enable login attempt limits** (`governance.loginPolicy.enabled`); set
+  **Failures before lockout** (`governance.loginPolicy.maxAttempts`) and
+  **Password policy → Minimum length** (`governance.passwordPolicy.minLength`)
+  → **Save** → reload → Each editor's value survives reload (the page is
+  login/password/2FA/session policy, **not** alert/anomaly rules)
+- [ ] `GOV-F10` · **Usage** — `usage` → Org-wide usage metrics (cards + chart
+  + tables) render read-only; empty org shows zeroed cards, no error.
+- [ ] `GOV-F11` · **Logs tabs** — `logs` → click each tab: **Audit logs**
+  (`settings.logs.auditLogs`), **Sign-in blocks**
+  (`settings.logs.blockCounters.tabLabel`), **Activity logs**
+  (`settings.logs.activityLogs`), **Error logs** (`settings.logs.errorLogs`) →
+  All four tabs render their table/empty-state; the Audit-logs table has
+  caption **Audit logs data table** (`settings.logs.audit.tableCaption`); a
+  seeded org shows ≥1 audit row.
+- [ ] `GOV-F12` · **Trash restore** — `trash` → if a trashed row exists, click
+  **Restore** (`governance.trash.restore.label`) and confirm
+  (`governance.trash.restore.confirm`); use **Filter**
+  (`governance.trash.filterTitle` = "Category") to filter by resource type →
+  reload → The restored row leaves the trash list after reload. **NOTE:**
+  there is **no manual "permanently delete"** action and **no "Memory audit"
+  tab** — rows are auto-purged at the end of their grace window
+  (`governance.trash.empty` describes this)
+- [ ] `GOV-F13` · **Sandbox quota** — `policies-limits` → **Sandbox
+  concurrency limits** (`governance.sandboxQuota.title`) → set **Max active
+  sessions** (`governance.sandboxQuota.maxSessions`) to a new value → Save →
+  reload → No page toast on save — the header Save cluster flashes **Saved**
+  (`common.actions.saved`) and Save goes disabled again; after reload the
+  **Max active sessions** field holds the saved value — **restore
+  afterwards**. Note: this org-level cap sits **beneath** operator/environment
+  caps (two-tier — the effective limit is the lower of the two). Bounds: see
+  GOV-B7.
+- [ ] `GOV-F14` · **Retention editor** — `policies-limits` → **Retention
+  policy** (`governance.retentionPolicy.title`) summary → open the edit drawer
+  **Edit retention policy** (`governance.retentionPolicy.drawer.title`) →
+  change a category (e.g. **Notifications**,
+  `governance.retentionPolicy.notifications.title`) → **Save changes**
+  (`governance.retentionPolicy.save`) → diff dialog **Confirm retention
+  changes** (`governance.retentionPolicy.diff.title`) → confirm via **Save
+  changes** (`governance.retentionPolicy.diff.confirmLabel`) → reload → Toast
+  (`governance.retentionPolicy.saved`); after reload the summary reflects the
+  new value. Verified live on a fresh org: the editor renders with defaults
+  and saves fine (the `RETENTION_CONFIG_MISSING` seam did not bite), but a
+  **reduction applies immediately** — the pending banner **A retention
+  reduction is pending.** (`governance.retentionPolicy.pendingChange.title`,
+  apply-in text `…pendingChange.applyIn`, **Cancel** `…pendingChange.cancel`)
+  triggers **only after the operator retention bounds are applied** (GOV-F15's
+  first-approval banner sits unapproved on a fresh org). **Restore
+  afterwards.**.
+- [ ] `GOV-F15` · **Operator bounds banner** — **Env-gated** — needs
+  operator-proposed retention bounds in the deployment config.
+  `policies-limits` → banner **Operator has proposed retention bound
+  changes.** (`governance.retentionPolicy.boundsProposal.title`) or, on first
+  approval, **Operator retention bounds need your initial approval.**
+  (`…boundsProposal.firstApplyTitle`) with **Apply**
+  (`…boundsProposal.applyLabel`) / **Reject** (`…boundsProposal.rejectLabel`)
+  / **View details** (`…boundsProposal.detailsLabel`) → open the details
+  drawer **Proposed bound changes** (`…boundsProposal.detailsTitle`) → The
+  details drawer lists the proposed bounds; **Apply** shows the toast
+  (`…boundsProposal.appliedToast`) and the banner clears; **Reject** shows the
+  toast (`…boundsProposal.rejectedToast`) and the banner clears — cleared
+  state survives reload.
+- [ ] `GOV-F16` · **PII protection** — `guardrails` → **PII protection**
+  (`governance.pii.title`) → flip **Enable PII protection**
+  (`governance.pii.enableLabel`) → pick a **Mode**
+  (`piiConfigPanel.modeLabel`: **Tokenize**/**Mask**/**Block**,
+  `piiConfigPanel.modeTokenize`/`…modeMask`/`…modeBlock`) → toggle a pattern
+  under **Detection patterns** (`piiConfigPanel.patternsTitle`) → reload → The
+  panel **autosaves each change** — there is no Save button; every toggle
+  fires the toast (`governance.pii.saved`). After reload the enable toggle,
+  mode, and pattern selection persist — **restore afterwards** (each restore
+  step autosaves too). (The live-preview pane was removed in the AI-backend
+  rewrite — the detector no longer runs client-side; mode/pattern persistence
+  is the observable contract now)
+- [ ] `GOV-F17` · **Moderation provider** — Config = mode A; live test = mode
+  B. `guardrails` → **Moderation provider**
+  (`governance.moderationProvider.title`) → flip **Enable moderation
+  provider** (`governance.moderationProvider.enableLabel`) → preset **Use
+  OpenAI Moderation** (`governance.moderationProvider.presetOpenai`) → **Set
+  key** (`governance.moderationProvider.setKey`) → review **Category
+  mappings** (`governance.moderationProvider.categoryMappings`; **Add category
+  mapping** `governance.moderationProvider.addMapping`) → Save → reload; then
+  **Test connection** (`governance.moderationProvider.testConnection`) → **Run
+  test** (`governance.moderationProvider.runTest`) → Preset shows toast
+  **Preset applied** (`governance.moderationProvider.presetApplied`) plus the
+  mappings note (`…presetAppliedMappings`); key save shows **API key saved**
+  (`governance.moderationProvider.apiKeySaved`); Save shows
+  (`governance.moderationProvider.saved`) and the config survives reload —
+  **restore afterwards**. **Test connection** pre-fills the default sample
+  (`governance.moderationProvider.testDefaultText`); with **no key** the
+  result reads **Not configured**
+  (`governance.moderationProvider.testNotConfigured`); a real-provider test is
+  mode B. The **Endpoint URL** field description explicitly allows HTTP for
+  internal/localhost mocks
+  (`governance.moderationProvider.endpointUrlFieldDescription`) — verified
+  live: **Run test** against `http://127.0.0.1:4141/…` reaches the gateway
+  end-to-end (the gateway currently 404s the moderations path, so the verdict
+  reads "endpoint URL is wrong" — a passing mode-A verdict needs a moderations
+  route in the mock). Caveats: enabling the provider **before** an endpoint is
+  configured autosaves and fails with a raw error toast (see Issues #1); a
+  stored key can only be **Replaced**, never cleared from the UI.
+
+## Boundary & error tests
+
+- [ ] `GOV-B1` · **DSAR cooling-off bounds** — `data-subject-requests` →
+  **Cooling-off window (hours)**
+  (`governance.dsarPolicy.coolingOffHours.label`) → enter `99` (>72) → Save →
+  Validation message **"Cooling-off window must be a whole number between 0
+  and 72."** (`governance.dsarPolicy.invalidCoolingOffHours`); save blocked.
+- [ ] `GOV-B2` · **DSAR daily-limit bounds** — **Daily limit per admin**
+  (`governance.dsarPolicy.dailyLimitPerAdmin.label`) → enter `0` or `99`
+  (valid range 1–50) → Save → Validation; save blocked (field documents range
+  1–50)
+- [ ] `GOV-B3` · **Login-policy attempt bounds** — `security-monitoring` →
+  **Failures before lockout** (`governance.loginPolicy.maxAttempts`) → enter
+  `0` or `99` (valid 1–50) → Save → Validation message **"Failure threshold
+  must be an integer between 1 and 50."**
+  (`governance.loginPolicy.invalidAttempts`); save blocked.
+- [ ] `GOV-B5` · **Restore toggles** — After GOV-F2/GOV-F2b/GOV-F9, reload →
+  Every flipped toggle/field is back to its original value (you restored them)
+- [ ] `GOV-B6` · **Budget apiKey target** — `policies-limits` → **Add rule** →
+  **Scope** (`governance.budgets.scope`) = **API key**, leave the API-key
+  select empty → **Confirm** (`governance.budgets.confirm`) → **Confirm** is
+  blocked; the inline error **"Select a target for this scope, or the rule
+  will never apply."** (`governance.budgets.targetRequired`) shows under the
+  scope row; no rule row is added (reload confirms). The same guard already
+  covers the user/team/role scopes.
+- [ ] `GOV-B7` · **Sandbox quota bounds** — `policies-limits` → **Max active
+  sessions** (`governance.sandboxQuota.maxSessions`) → enter `0` or `501` →
+  Save → Validation message **"Must be a whole number between 1 and 500."**
+  (`governance.sandboxQuota.invalidSessions`); save blocked.
+
+## Accessibility (WCAG 2.1 AA)
+
+- [ ] `GOV-A1` · **Toggles** → Each governance switch (voice output, content
+  safety, login limits) is reachable by role `switch` with a name; on/off
+  announced via `aria-checked`
+- [ ] `GOV-A2` · **Logs table** → The Audit-logs table exposes a caption
+  (`settings.logs.audit.tableCaption` = "Audit logs data table") and
+  `scope="col"` headers.
+- [ ] `GOV-A3` · **Dialogs** → DSAR **File erasure request** and legal-hold
+  **Place legal hold** dialogs trap focus; **Close** (`common.aria.close`)
+  returns focus to the trigger.
+
+## Performance
+
+- [ ] `GOV-P1` · **Governance tab nav** → Warm in-app navigation between two
+  governance sub-pages commits in **< 1 s** (loader-prefetched policies; no
+  skeleton flash)
+- [ ] `GOV-P2` · **Logs first page** → `logs` Audit-logs first page renders in
+  **< 2 s** on a freshly seeded org (≤ a few dozen rows)

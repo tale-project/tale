@@ -24,7 +24,7 @@ export default {
     // refresh the pinned registry snapshot — never imported, not a workspace.
     'tools/opengrep/vendor-rules.ts',
     // Hand-run QA helper (`bun services/platform/tests/manual/scripts/save-auth-state.ts`,
-    // see services/platform/tests/manual/SETUP.md) that mints a Playwright
+    // see services/platform/tests/manual/setup.md) that mints a Playwright
     // storageState — never imported; reuses the platform e2e auth helpers.
     'services/platform/tests/manual/scripts/**',
     // runnerd wire-protocol contract. `runnerd-protocol.ts` is the canonical

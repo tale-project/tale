@@ -1,0 +1,76 @@
+# Session log — R\<n\>
+
+> Copy to `/tmp/{{kebabCase name}}-qa/r<nnnn>/log.md` and tick **here**, never
+  in a suite. This file is scratch: it is where the round actually happens, and
+  it is the only input the [round record](template.md) needs.
+
+| | |
+|---|---|
+| **Round** | R\<n\> |
+| **Started** | \<YYYY-MM-DD HH:MM TZ\> |
+| **SHA** | `<git rev-parse --short HEAD>` |
+| **Browser** | \<engine + version\> |
+| **Viewport** | \<1440×900 + any a box named\> |
+| **State** | reset — \<time of each reset as you go\> |
+| **Ports** | \<the origin under test\> |
+| **Tester** | \<name / agent\> |
+
+## Preflight
+
+- [ ] `bun run check` on an untouched tree — result: \<n/n green\>
+- [ ] `bun run lint:manual` — green
+- [ ] \<the service's own preflight\>
+- [ ] Devtools console open
+
+## Run log
+
+Paste the boxes you mean to run out of the suites, in the order you will run
+them, and work down. Conventions:
+
+- `- [x]` — driven, matched the expectation.
+- `- [ ]` — not run (leave it; the record's "not reached" section reads these).
+- `- [x] … → **R<n>-<k>**` — driven, did not match: file it below and keep going
+  unless the [failure policy](../readme.md#failure-policy) says to halt.
+- Note anything surprising-but-correct inline; it may belong in
+  [`not-a-finding.md`](../reference/not-a-finding.md) at close.
+
+```
+### smoke                   reset at HH:MM
+- [ ] `SMOKE-1` · …
+- [ ] `SMOKE-2` · …
+```
+
+## Findings
+
+One line each, cited by box ID:
+
+```
+R<n>-<box-id> | severity | surface | repro | expected vs actual | fix (files) | verified by
+```
+
+- \<…\>
+
+## Evidence
+
+Screenshot + console transcript per finding under
+`/tmp/{{kebabCase name}}-qa/r<nnnn>/<box-id>/`. List what you captured, so the
+record can point at it:
+
+| Finding | Files |
+|---|---|
+| R\<n\>-1 | `SMOKE-2/before.png`, `SMOKE-2/console.txt` |
+
+## Console sweep
+
+Every unexpected `error`-level line, on any page, with the page it came from.
+Check each against the known-benign list in
+[`not-a-finding.md`](../reference/not-a-finding.md) before filing it.
+
+- \<…\>
+
+## Carry-over
+
+What this round did **not** reach, and why — copied verbatim into the record's
+"Not reached" section.
+
+- \<…\>

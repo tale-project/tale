@@ -221,7 +221,7 @@ async function main(): Promise<number> {
   }
 
   // Through-proxy platform health: the documented external readiness probe
-  // ({SITE_URL}/api/health — README.md, tests/manual/SETUP.md §1C). Guards the
+  // ({SITE_URL}/api/health — README.md, tests/manual/setup.md §1C). Guards the
   // Caddyfile route: without an explicit /api/health handle the generic /api/*
   // catch-all sends it to the backend, whose 404 would fail the documented
   // probe (#2553). Self-signed cert, so
