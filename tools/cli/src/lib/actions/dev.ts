@@ -34,6 +34,7 @@ import {
 import { dockerCompose } from '../docker/docker-compose';
 import { ensureConfigMountpoints } from '../docker/ensure-config-mountpoints';
 import { ensureDocker } from '../docker/ensure-docker';
+import { ensureImagePresent } from '../docker/ensure-image-present';
 import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureSandboxRuntimeImage } from '../docker/ensure-sandbox-runtime-image';
 import { ensureVolumes } from '../docker/ensure-volumes';
@@ -160,7 +161,25 @@ export async function runDev(options: DevOptions): Promise<void> {
   await assertDockerAvailable();
 
   const imageVersion = pkg.version.includes('-dev') ? 'latest' : pkg.version;
+  const appImage = `${env.GHCR_REGISTRY}/tale-platform:${imageVersion}`;
   const devPrefix = `${getProjectId()}-dev_`;
+
+  // Both images the CLI needs in its own hands before compose runs, fetched
+  // under a label that says so. The spawner's runtime image is a `docker run`
+  // and never a compose service; the app image is what the config-mountpoint
+  // helper runs on, and waiting for that download inside "Preparing volumes &
+  // networks" spends minutes of a first run under a label about neither.
+  await runStep(
+    {
+      active: 'Fetching the sandbox runtime and app images',
+      done: 'Images ready',
+    },
+    async () => {
+      await ensureSandboxRuntimeImage(env.GHCR_REGISTRY, imageVersion);
+      await ensureImagePresent(appImage);
+    },
+  );
+
   await runStep(
     {
       active: 'Preparing volumes & networks',
@@ -186,7 +205,7 @@ export async function runDev(options: DevOptions): Promise<void> {
         await ensureConfigMountpoints(
           `${devPrefix}config-data`,
           orgConfigMountTargets(projectDir),
-          `${env.GHCR_REGISTRY}/tale-platform:${imageVersion}`,
+          appImage,
         );
         if (!(await ensureNetwork('internal', devPrefix))) {
           throw new Error('Failed to create dev network');
@@ -204,19 +223,6 @@ export async function runDev(options: DevOptions): Promise<void> {
   const hostAlias = options.host ?? 'localhost';
   const portSuffix = port === 443 ? '' : `:${port}`;
   const url = `${env.SITE_URL.replace(/:443$/, '')}${portSuffix}`;
-
-  // Session containers are `docker run`, not compose services, so `compose up`
-  // never fetches the runtime image. Without it every agent turn and
-  // `Run code` fails with a "pull access denied" that reads like a login
-  // problem. `tale deploy` already does this; only a tag that is missing is
-  // fetched, so a source build stays untouched.
-  await runStep(
-    {
-      active: 'Checking the sandbox runtime image',
-      done: 'Sandbox runtime image ready',
-    },
-    () => ensureSandboxRuntimeImage(env.GHCR_REGISTRY, version),
-  );
 
   const compose = generateDevCompose(
     { version, registry: env.GHCR_REGISTRY },
