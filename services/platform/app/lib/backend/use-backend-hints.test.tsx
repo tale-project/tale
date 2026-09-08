@@ -13,6 +13,8 @@ class FakeEventSource {
   readonly url: string;
   readonly withCredentials: boolean;
   closed = false;
+  /** 0 CONNECTING (the browser is retrying), 1 OPEN, 2 CLOSED (it gave up). */
+  readyState = 1;
   private readonly listeners = new Map<
     string,
     Set<(event: MessageEvent<string>) => void>
@@ -67,11 +69,22 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   delete window.__ENV__;
   reportBackendReachable();
 });
+
+/** The browser abandoned the handshake (non-200) and will not retry. */
+function abandon(source: FakeEventSource | undefined): void {
+  act(() => {
+    if (source !== undefined) {
+      source.readyState = 2;
+      source.emit('error', '');
+    }
+  });
+}
 
 describe('useBackendHints', () => {
   it('subscribes the org stream and invalidates the entity prefix on a hint', () => {
@@ -152,5 +165,124 @@ describe('useBackendHints', () => {
   it('opens nothing without an org scope', () => {
     renderHook(() => useBackendHints(undefined), { wrapper });
     expect(FakeEventSource.instances).toHaveLength(0);
+  });
+
+  it('reopens a stream the browser abandoned on a non-200 handshake', () => {
+    vi.useFakeTimers();
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    const first = FakeEventSource.instances[0];
+
+    // What a rolling deploy does to an open tab: the handshake answers 502,
+    // the browser sets CLOSED and never retries.
+    abandon(first);
+    expect(first?.closed).toBe(true);
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(FakeEventSource.instances).toHaveLength(2);
+    expect(FakeEventSource.instances[1]?.url).toBe('/events?orgId=org1');
+  });
+
+  it('leaves a natively reconnecting stream alone', () => {
+    vi.useFakeTimers();
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    const source = FakeEventSource.instances[0];
+
+    act(() => {
+      // CONNECTING: the browser is already retrying with Last-Event-ID.
+      if (source !== undefined) source.readyState = 0;
+      source?.emit('error', '');
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(source?.closed).toBe(false);
+  });
+
+  it('never reopens after the terminal forbidden event', () => {
+    vi.useFakeTimers();
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    const source = FakeEventSource.instances[0];
+
+    act(() => {
+      source?.emit('forbidden', '');
+    });
+    abandon(source);
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(FakeEventSource.instances).toHaveLength(1);
+  });
+
+  it('refetches the org scope on the open that follows a forced reopen', () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+
+    // The first open is not a gap — nothing was missed yet.
+    act(() => {
+      FakeEventSource.instances[0]?.emit('open', '');
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+
+    abandon(FakeEventSource.instances[0]);
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    // A reopened source carries no Last-Event-ID, so the hints emitted while
+    // it was down are unrecoverable: the org scope has to refetch.
+    act(() => {
+      FakeEventSource.instances[1]?.emit('open', '');
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['backend', 'org1'] });
+  });
+
+  it('backs off between reopen attempts and resets after one opens', () => {
+    vi.useFakeTimers();
+    renderHook(() => useBackendHints('org1'), { wrapper });
+
+    abandon(FakeEventSource.instances[0]);
+    act(() => {
+      vi.advanceTimersByTime(999);
+    });
+    expect(FakeEventSource.instances).toHaveLength(1);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(FakeEventSource.instances).toHaveLength(2);
+
+    // Second failure waits twice as long.
+    abandon(FakeEventSource.instances[1]);
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(FakeEventSource.instances).toHaveLength(2);
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(FakeEventSource.instances).toHaveLength(3);
+
+    // A stream that opens clears the debt: the next failure waits 1s again.
+    act(() => {
+      FakeEventSource.instances[2]?.emit('open', '');
+    });
+    abandon(FakeEventSource.instances[2]);
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(FakeEventSource.instances).toHaveLength(4);
+  });
+
+  it('cancels a pending reopen on unmount', () => {
+    vi.useFakeTimers();
+    const { unmount } = renderHook(() => useBackendHints('org1'), { wrapper });
+
+    abandon(FakeEventSource.instances[0]);
+    unmount();
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(FakeEventSource.instances).toHaveLength(1);
   });
 });
