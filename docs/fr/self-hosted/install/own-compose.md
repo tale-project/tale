@@ -71,7 +71,7 @@ Chaque image `tale-*` est publiée sur la GitHub Container Registry sous le mêm
 | `object-store` | `minio/minio:RELEASE.2025-04-22T22-12-26Z` |
 | `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
 
-Une image n’est pas un service compose : le spawner crée chaque conteneur de session depuis `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, et son défaut intégré est le tag local que construit la stack de développement — un hôte qui ne l’a jamais construit nomme l’image de la registry dans `SANDBOX_RUNTIME_IMAGE`, sinon `Run code`, le rendu web et la génération de documents échouent tous sur une image introuvable. Les exemples ci-dessous épinglent la release que documente cette page ; remplace le tag par la release que tu installes.
+Une image n’est pas un service compose : le spawner crée chaque conteneur de session depuis `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, et son défaut intégré est le tag local que construit la stack de développement — un hôte qui ne l’a jamais construit nomme l’image de la registry dans `SANDBOX_RUNTIME_IMAGE`, sinon `Run code`, le rendu web et la génération de documents échouent tous sur une image introuvable. Récupère cette image toi-même avant le premier `up`. Le spawner la préchauffe au boot et ne répond sur `:8003` qu’une fois le pull terminé : sur un hôte froid, la sandbox reste donc en `starting` le temps que plusieurs gigaoctets arrivent — c’est exactement pour ça que `tale deploy` la récupère avant la stack. Les exemples ci-dessous épinglent la release que documente cette page ; remplace le tag par la release que tu installes.
 
 ## Les services sans état
 
@@ -155,7 +155,7 @@ Il n’existe pas de compose de production versionné à recopier. La CLI génè
 
 ## Les secrets que tu génères avant le premier boot
 
-`tale init` génère chaque secret et écrit le `.env` ; sans la CLI, ce travail est le tien. La [Référence d’environnement](/fr/self-hosted/configuration/environment-reference) dit ce que fait chaque variable — les quatre ci-dessous sont celles qu’une stack montée à la main oublie le plus souvent, parce que le fichier d’exemple les laisse commentées pour que la CLI les remplisse.
+`tale init` génère chaque secret et écrit le `.env` ; sans la CLI, ce travail est le tien. La [Référence d’environnement](/fr/self-hosted/configuration/environment-reference) dit ce que fait chaque variable — les cinq ci-dessous sont celles qu’une stack montée à la main oublie le plus souvent, parce que le fichier d’exemple les laisse commentées pour que la CLI les remplisse.
 
 | Variable | Valeur | Ce qui casse sans elle |
 | -------- | ------ | ---------------------- |
@@ -163,8 +163,11 @@ Il n’existe pas de compose de production versionné à recopier. La CLI génè
 | `OBJECT_STORE_ACCESS_KEY` | `tale`, ou un nom à toi | Le backend logue `object store (skipped)` au boot et refuse chaque upload. Il n’existe pas de défaut d’image pour elle — l’utilisateur root du store porte la même valeur. |
 | `OBJECT_STORE_SECRET_KEY` | `openssl rand -hex 32` | Même saut, même silence. Une rotation plus tard rend orphelins tous les blobs déjà écrits sous l’ancien credential. |
 | `OBJECT_STORE_PUBLIC_ENDPOINT` | ton `SITE_URL` | Les uploads échouent dans le navigateur avec une erreur réseau : l’URL présignée que le backend distribue pointe vers le `http://object-store:9000` interne, qu’aucun navigateur ne joint. |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | `openssl rand -hex 32` | Chaque run d’agent échoue sur « the agent run could not start ». L’API de management de la gateway est présente sur le réseau sandbox, donc le backend ne l’appelle jamais anonymement — et sans appel de management, pas de clé virtuelle de session, donc aucun tour de harness ne démarre. Le nom d’utilisateur vaut `admin` par défaut (`SANDBOX_LLM_GATEWAY_ADMIN_USERNAME`). |
 
 L’endpoint public se pose avant de démarrer, pas après. Le backend seede la connexion blob par défaut du déploiement dans le volume de config au premier boot (`default/object-storage/connection.json`) et ne réécrit jamais un défaut déjà présent — poser la variable sur une instance déjà démarrée ne change donc rien. Pour réparer une instance dans cet état, ajoute `"publicEndpoint": "<ton SITE_URL>"` dans ce fichier et redémarre le backend.
+
+Le mot de passe de la gateway est l’autre qu’il faut poser juste du premier coup. La gateway le hashe dans son propre volume `llm-gateway-data` à la première utilisation et vérifie contre ce hash ensuite : une valeur changée plus tard laisse le backend sur un 401 dont il ne se sort pas. Le retour en arrière consiste à effacer ce volume, et donc toutes les clés virtuelles qu’il contient.
 
 ## Réseaux et noms DNS
 
@@ -204,18 +207,22 @@ Les instances montées depuis avant 0.5.11 peuvent encore avoir un volume `conve
 
 Liveness et readiness sont deux questions différentes. Les mélanger coupe une replica en drain du DNS avant la fin du travail en vol, ou garde une replica pas prête dans le pool.
 
+La colonne commande est ce qu’exécute la stack livrée — chacune utilise un client qui existe vraiment dans cette image.
+
 | Service | Sonde | Ce qu’elle veut dire |
 | ------- | ----- | -------------------- |
-| `backend-api` | `GET /ping` sur `:3005` | Liveness. Reste 200 pendant que la replica draine. Docker et Caddy s’en servent. |
+| `backend-api` | `curl -sf http://localhost:3005/ping` | Liveness. Reste 200 pendant que la replica draine. Docker et Caddy s’en servent. |
 | `backend-api` | `GET /ready` sur `:3005` | Readiness. 503 dès que cette replica draine. Le déploiement pose la question ; Docker et Caddy non. |
-| `platform` | `GET /api/health` et fichier `/tmp/platform-ready` | Prête à servir la SPA. Garde ça à 200 tant que la replica tient encore l’alias `platform`. |
+| `platform` | `curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]` | Prête à servir la SPA. Garde ça à 200 tant que la replica tient encore l’alias `platform`. |
 | `backend-worker` | Aucune | Le worker n’expose pas de HTTP. Désactive le healthcheck web cuit dans l’image, sinon la replica lit unhealthy en permanence. |
-| `proxy` | `http://127.0.0.1:2020/health` | Santé admin de Caddy. |
-| `db` | `pg_isready` et fichier `/tmp/.db_ready` | Postgres accepte les connexions et l’init est fini (base de connaissances et extensions). `start_period` 120s. Arrête le conteneur avec `SIGINT`, pas `SIGTERM`. |
+| `proxy` | `curl -sf http://127.0.0.1:2020/health` | Santé admin de Caddy. |
+| `db` | `pg_isready -U tale && [ -f /tmp/.db_ready ]` | Postgres accepte les connexions et l’init est fini (base de connaissances et extensions). `start_period` 120s. Arrête le conteneur avec `SIGINT`, pas `SIGTERM`. |
 | `object-store` | `mc ready local` | MinIO accepte les écritures. |
-| `sandbox` | `GET /health` sur `:8003` | Le spawner est up. Ne publie pas ce port sur un hôte public. |
-| `sandbox-egress` | TCP `127.0.0.1:3128` | tinyproxy écoute. Ne sonde pas un hôte externe. |
-| `sandbox-llm-gateway` | `GET /health` sur `:8080` | La gateway est up. |
+| `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Le spawner est up. `start_period` 15s une fois l’image runtime sur l’hôte — assez longue pour couvrir le pull sinon. Ne publie pas ce port sur un hôte public. |
+| `sandbox-egress` | `nc -z 127.0.0.1 3128` | tinyproxy écoute. Ne sonde pas un hôte externe. |
+| `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | La gateway est up. L’image embarque le `wget` de busybox et pas `curl`. |
+
+Deux d’entre elles punissent la supposition évidente, et les deux échouent d’une façon qui désigne le mauvais conteneur. Une sonde `curl` sur la gateway sort en 127 (`/bin/sh: curl: not found`) et le conteneur ne quitte jamais `starting`, alors qu’il sert depuis le début ; comme `sandbox` et `backend-api` l’attendent avec `condition: service_healthy`, `docker compose up` abandonne sur `dependency failed to start`, sur une stack où rien n’est cassé. La sandbox a la même forme pour une autre raison : tant qu’elle préchauffe l’image runtime, elle reste muette sur `:8003` — une `start_period` calibrée pour un hôte chaud la marque unhealthy au premier boot d’un hôte froid.
 
 ## Env que Compose doit injecter
 
@@ -260,6 +267,10 @@ Ne publie que `80` et `443` sur `proxy`. Tout le reste reste sur le réseau inte
 Monte les stores d’abord, puis le plan sandbox, puis l’étage app. Une api qui démarre avant que `db` et `object-store` soient sains crash-loop sur `ENOTFOUND` et sur une base manquante. Dans un seul fichier, `depends_on` avec `service_healthy` suffit.
 
 ```bash
+# Not a compose service, and the spawner blocks on it at boot — pull it first so
+# the sandbox probe is not waiting on several gigabytes.
+docker pull ghcr.io/tale-project/tale/tale-sandbox-runtime:0.5.11
+
 docker compose up -d
 # Wait until db, object-store, proxy, sandbox, sandbox-egress, sandbox-llm-gateway
 # report healthy. bgutil-provider is best-effort — YouTube ingest degrades without it.

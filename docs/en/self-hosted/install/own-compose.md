@@ -71,7 +71,7 @@ Every `tale-*` image is published on the GitHub Container Registry under the sam
 | `object-store` | `minio/minio:RELEASE.2025-04-22T22-12-26Z` |
 | `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
 
-One image is not a compose service. The spawner creates every session container from `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, and its built-in default is the local tag the development stack builds — a host that never built it must name the registry image in `SANDBOX_RUNTIME_IMAGE`, or `Run code`, web render, and document generation all fail with an image-not-found. The examples below pin the release this page documents; replace the tag with the release you are installing.
+One image is not a compose service. The spawner creates every session container from `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, and its built-in default is the local tag the development stack builds — a host that never built it must name the registry image in `SANDBOX_RUNTIME_IMAGE`, or `Run code`, web render, and document generation all fail with an image-not-found. Pull that image yourself before the first `up`. The spawner warms it at boot and does not start answering on `:8003` until the pull finishes, so on a cold host the sandbox sits in `starting` for as long as several gigabytes take to arrive — `tale deploy` pulls it ahead of the stack for exactly this reason. The examples below pin the release this page documents; replace the tag with the release you are installing.
 
 ## The stateless services
 
@@ -155,7 +155,7 @@ There is no checked-in production compose to copy. The CLI generates a split fil
 
 ## Secrets you generate before the first boot
 
-`tale init` mints every secret and writes the `.env`; without the CLI that job is yours. The [Environment reference](/self-hosted/configuration/environment-reference) marks what each variable does — the four below are the ones a hand-rolled stack most often ships without, because the example file leaves them commented for the CLI to fill.
+`tale init` mints every secret and writes the `.env`; without the CLI that job is yours. The [Environment reference](/self-hosted/configuration/environment-reference) marks what each variable does — the five below are the ones a hand-rolled stack most often ships without, because the example file leaves them commented for the CLI to fill.
 
 | Variable | Value | What breaks without it |
 | -------- | ----- | ---------------------- |
@@ -163,8 +163,11 @@ There is no checked-in production compose to copy. The CLI generates a split fil
 | `OBJECT_STORE_ACCESS_KEY` | `tale`, or a name of your own | The backend logs `object store (skipped)` at boot and refuses every upload. There is no image default for it — the store's root user must carry the same value. |
 | `OBJECT_STORE_SECRET_KEY` | `openssl rand -hex 32` | Same skip, same silence. Rotating it later orphans every blob already written under the old credential. |
 | `OBJECT_STORE_PUBLIC_ENDPOINT` | your `SITE_URL` | Uploads fail in the browser with a network error: the presigned URL the backend hands out points at the internal `http://object-store:9000`, which no browser can reach. |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | `openssl rand -hex 32` | Every agent run fails with "the agent run could not start". The gateway's management API is dual-homed onto the sandbox network, so the backend refuses to call it anonymously — and no management call means no session virtual key, so no harness turn ever starts. The username defaults to `admin` (`SANDBOX_LLM_GATEWAY_ADMIN_USERNAME`). |
 
 The public endpoint is the one to get right before you start, not after. The backend seeds the deployment-default blob connection into the config volume on its first boot (`default/object-storage/connection.json`) and never rewrites a default that already exists, so setting the variable on an instance that has already booted changes nothing. To repair such an instance, add `"publicEndpoint": "<your SITE_URL>"` to that file and restart the backend.
+
+The gateway password is the other one to get right the first time. The gateway hashes it into its own `llm-gateway-data` volume on first use and verifies against that hash from then on, so a value changed later leaves the backend with a 401 it cannot talk its way out of — recover by wiping that volume, which also throws away every virtual key it holds.
 
 ## Networks and DNS names
 
@@ -204,18 +207,22 @@ Instances upgraded from before 0.5.11 may still have a `convex-data` volume besi
 
 Liveness and readiness are different questions. Mixing them cuts a draining replica out of DNS before in-flight work finishes, or keeps an unready replica in the pool.
 
+The command column is what the shipped stack runs — each one uses a client that exists in that image.
+
 | Service | Probe | What it means |
 | ------- | ----- | ------------- |
-| `backend-api` | `GET /ping` on `:3005` | Liveness. Stays 200 while the replica drains. Docker and Caddy use this. |
+| `backend-api` | `curl -sf http://localhost:3005/ping` | Liveness. Stays 200 while the replica drains. Docker and Caddy use this. |
 | `backend-api` | `GET /ready` on `:3005` | Readiness. 503 once this replica is draining. The deploy asks this; Docker and Caddy do not. |
-| `platform` | `GET /api/health` and file `/tmp/platform-ready` | Ready to serve the SPA. Keep this 200 while the replica still holds the `platform` alias. |
+| `platform` | `curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]` | Ready to serve the SPA. Keep this 200 while the replica still holds the `platform` alias. |
 | `backend-worker` | None | The worker exposes no HTTP. Disable the image's baked web healthcheck or the replica reads permanently unhealthy. |
-| `proxy` | `http://127.0.0.1:2020/health` | Caddy admin health. |
-| `db` | `pg_isready` and file `/tmp/.db_ready` | Postgres accepts connections and init finished (the knowledge database and extensions). `start_period` 120s. Stop the container with `SIGINT`, not `SIGTERM`. |
+| `proxy` | `curl -sf http://127.0.0.1:2020/health` | Caddy admin health. |
+| `db` | `pg_isready -U tale && [ -f /tmp/.db_ready ]` | Postgres accepts connections and init finished (the knowledge database and extensions). `start_period` 120s. Stop the container with `SIGINT`, not `SIGTERM`. |
 | `object-store` | `mc ready local` | MinIO is accepting writes. |
-| `sandbox` | `GET /health` on `:8003` | Spawner is up. Do not publish this port on a public host. |
-| `sandbox-egress` | TCP `127.0.0.1:3128` | tinyproxy is bound. Do not probe an external host. |
-| `sandbox-llm-gateway` | `GET /health` on `:8080` | Gateway is up. |
+| `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Spawner is up. `start_period` 15s once the runtime image is on the host — long enough to cover the pull if it is not. Do not publish this port on a public host. |
+| `sandbox-egress` | `nc -z 127.0.0.1 3128` | tinyproxy is bound. Do not probe an external host. |
+| `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | Gateway is up. The image ships busybox `wget` and no `curl`. |
+
+Two of these punish the obvious guess, and both fail in a way that points at the wrong container. A `curl` probe on the gateway exits 127 (`/bin/sh: curl: not found`) and the container never leaves `starting`, even though it is serving the whole time — and because `sandbox` and `backend-api` wait on it with `condition: service_healthy`, `docker compose up` aborts with `dependency failed to start` on a stack where nothing is actually broken. The sandbox has the same shape for a different reason: it stays silent on `:8003` while it warms the runtime image, so a `start_period` sized for a warm host marks it unhealthy on the first boot of a cold one.
 
 ## Environment the compose must inject
 
@@ -260,6 +267,10 @@ Publish only `80` and `443` on `proxy`. Everything else stays on the internal ne
 Bring the stores up first, then the sandbox plane, then the app tier. An api that starts before `db` and `object-store` are healthy crash-loops on `ENOTFOUND` and on a missing database. In one file, `depends_on` with `service_healthy` is enough.
 
 ```bash
+# Not a compose service, and the spawner blocks on it at boot — pull it first so
+# the sandbox probe is not waiting on several gigabytes.
+docker pull ghcr.io/tale-project/tale/tale-sandbox-runtime:0.5.11
+
 docker compose up -d
 # Wait until db, object-store, proxy, sandbox, sandbox-egress, sandbox-llm-gateway
 # report healthy. bgutil-provider is best-effort — YouTube ingest degrades without it.
