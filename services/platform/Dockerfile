@@ -63,6 +63,7 @@ COPY --from=workspace-deps /app/node_modules ./node_modules
 
 COPY tsconfig.base.json ./tsconfig.base.json
 COPY tsconfig.dom.json ./tsconfig.dom.json
+COPY tsconfig.convex.json ./tsconfig.convex.json
 
 COPY services/platform/vite.config.ts \
      services/platform/tsconfig.json \
