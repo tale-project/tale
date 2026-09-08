@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
+
+import { fireEvent, render, screen, act } from '@/tests/utils/render';
 
 import { ZoomPanViewer } from './zoom-pan-viewer';
 

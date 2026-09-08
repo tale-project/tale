@@ -147,7 +147,7 @@ describe('AddWebsiteDialog', () => {
       await waitFor(() =>
         expect(toast).toHaveBeenCalledWith(
           expect.objectContaining({
-            title: 'Failed to add website',
+            title: "Couldn't add website",
             variant: 'destructive',
           }),
         ),

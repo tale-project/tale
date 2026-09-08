@@ -52,7 +52,12 @@ test('notification bell: sorts by priority and expands into a modal', async ({
   await expect(expand).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expand.click();
 
-  await expect(page.getByRole('dialog')).toBeVisible({
+  // Expanding closes the popover and opens the modal. The popover's content is
+  // also `role="dialog"` (Radix) and can linger in the DOM with
+  // `data-state=closed` while its exit animation finishes — so an unqualified
+  // `getByRole('dialog')` matches both. Scope to the open modal.
+  const modal = page.locator('[role="dialog"][data-state="open"]');
+  await expect(modal).toBeVisible({
     timeout: TIMEOUT.VISIBLE,
   });
   await expect(
@@ -60,7 +65,7 @@ test('notification bell: sorts by priority and expands into a modal', async ({
   ).toHaveCount(0, { timeout: TIMEOUT.VISIBLE });
   // The modal keeps its own sort control.
   await expect(
-    page.getByRole('button', { name: new RegExp(`^${SORT_LABEL}:`) }),
+    modal.getByRole('button', { name: new RegExp(`^${SORT_LABEL}:`) }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 });
 

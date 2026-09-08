@@ -364,7 +364,7 @@ describe('EnterpriseSsoForm validation + save', () => {
     await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
     expect(toastMock).toHaveBeenCalledWith({
       title: 'Save',
-      description: 'Failed to save',
+      description: "Couldn't save",
       variant: 'destructive',
     });
   });
