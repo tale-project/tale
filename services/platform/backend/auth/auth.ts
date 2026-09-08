@@ -19,6 +19,7 @@ import { sessionIdleWindowSeconds } from '../../lib/shared/session-idle.ts';
 import { getString, isRecord } from '../../lib/utils/type-utils.ts';
 import { normalizeAuthEmail } from '../core/lib/auth/normalize_auth_email.ts';
 import { getClientIp } from '../core/lib/utils/client_ip.ts';
+import { resolvePostgresConnection } from '../db/ssl.ts';
 import { logJoinedOrganization } from '../domains/audit_logs/service.ts';
 import {
   clearOnSuccess,
@@ -360,8 +361,18 @@ export function createAuth(config: AuthConfig) {
     return null;
   };
 
+  // Better Auth owns its own pool, so it needs the same TLS treatment as
+  // every other connection this process opens — and node-postgres lets a
+  // connection string's `sslmode` override an `ssl` option, so it gets the
+  // stripped URL (see `db/ssl.ts`).
+  const authDb = resolvePostgresConnection(config.databaseUrl);
+
   return betterAuth({
-    database: new pg.Pool({ connectionString: config.databaseUrl, max: 5 }),
+    database: new pg.Pool({
+      connectionString: authDb.url,
+      ssl: authDb.ssl,
+      max: 5,
+    }),
     secret: config.secret,
     baseURL: siteUrl,
     basePath: '/api/auth',

@@ -119,11 +119,15 @@ async function main(): Promise<void> {
   }
 
   // The deployment-default BLOB store. S3 is the only blob backend, so an
-  // unseeded deployment refuses every upload; the stack ships a store and
-  // this points the default config tree at it. Never fails boot — a store
-  // still starting up must not take the API down with it.
+  // unconfigured deployment refuses every upload; this brings the default
+  // config tree in line with `OBJECT_STORE_*` — the bundled store, or a
+  // bucket the operator brings. Never fails boot — a store still starting up
+  // must not take the API down with it.
   try {
     const store = await ensureDefaultObjectStore(sql);
+    // `present` is the steady state and says nothing new on a healthy
+    // restart; every other outcome changed something or explains why it
+    // could not, so it belongs in the log.
     if (store.status !== 'present') {
       console.log(`[backend] object store (${store.status}): ${store.detail}`);
     }

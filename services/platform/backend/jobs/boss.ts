@@ -1,6 +1,8 @@
 import { PgBoss } from 'pg-boss';
 import type { Sql } from 'postgres';
 
+import { appPoolMax } from '../db/sql.ts';
+import { resolvePostgresConnection } from '../db/ssl.ts';
 import { TASK_QUEUE_OPTIONS } from './tasks.ts';
 
 /**
@@ -17,8 +19,18 @@ export function createBoss(
   databaseUrl: string,
   options: { supervise: boolean },
 ): PgBoss {
+  // pg-boss hands its whole config to `new pg.Pool`, and node-postgres lets a
+  // connection string's `sslmode` override an `ssl` option — so it gets the
+  // URL with the TLS parameters stripped plus the resolved options, exactly
+  // like every other connection this process opens (see `db/ssl.ts`).
+  const { url, ssl } = resolvePostgresConnection(databaseUrl);
   const boss = new PgBoss({
-    connectionString: databaseUrl,
+    connectionString: url,
+    ssl,
+    // A second pool of the same size as the app's — see `appPoolMax` for why
+    // that arithmetic is the operator's to control against an external
+    // database.
+    max: appPoolMax(),
     application_name: 'tale-backend',
     useListenNotify: true,
     supervise: options.supervise,

@@ -3,6 +3,8 @@ import { readdir, readFile } from 'node:fs/promises';
 import type { BetterAuthOptions } from 'better-auth';
 import postgres from 'postgres';
 
+import { resolvePostgresConnection } from './ssl.ts';
+
 /**
  * Boot-time migrator for the 0.5 app database.
  *
@@ -48,8 +50,10 @@ export async function runBootMigrations(
   const log = options.log ?? ((message: string) => console.log(message));
   // Dedicated single-connection client: the advisory lock is session-scoped,
   // so the lock lives exactly as long as this connection.
-  const sql = postgres(options.databaseUrl, {
+  const { url, ssl } = resolvePostgresConnection(options.databaseUrl);
+  const sql = postgres(url, {
     max: 1,
+    ssl,
     connect_timeout: 10,
     onnotice: () => undefined,
   });

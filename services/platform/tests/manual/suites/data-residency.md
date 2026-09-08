@@ -1,6 +1,6 @@
 # Per-organization data residency
 
-> **Prefix** `DATA-` · **Reset** none · **Cost** 15 boxes
+> **Prefix** `DATA-` · **Reset** none · **Cost** 18 boxes
 
 An org admin points the organization's **knowledge database**
 (Postgres/ParadeDB for extracted text + embeddings) and **object storage**
@@ -195,6 +195,40 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   already stored). A ~96 MB file clears this margin and passes first-try. The
   embed-per-batch fix removed the all-chunks-at-once OOM; the residual is the
   prepare/chunk phase holding the whole document.
+
+## Deployment defaults
+
+The three org sections above are per-organization. These boxes cover the
+DEPLOYMENT default — the store every org without its own config uses — which
+is environment-driven, not a UI surface. Run them against a stack whose
+`OBJECT_STORE_*` point at the throwaway MinIO from the preconditions, so the
+default is an external bucket rather than the bundled store.
+
+- [ ] `DATA-F8` · **Deployment default follows the environment** — With
+  `OBJECT_STORE_ENDPOINT`/`ACCESS_KEY`/`SECRET_KEY`/`BUCKET` set to the
+  throwaway MinIO, start the stack on an empty config volume → the boot log
+  says `object store (seeded): bucket "…"`,
+  `$TALE_CONFIG_DIR/default/object-storage/connection.json` names that bucket
+  and carries `"managedBy": "env"`, and `mc ls` shows the bucket was created.
+  Now change `OBJECT_STORE_SECRET_KEY` to a second MinIO user's key and
+  restart the backend → the log says `object store (reconciled)`, the secrets
+  sidecar holds the new key, and an upload still works. **This is the
+  rotation path: it must never require hand-editing a file in the volume.**
+- [ ] `DATA-F9` · **Least-privilege key against a bucket you provisioned** —
+  Create a MinIO user whose policy allows only `s3:GetObject`/`PutObject`/
+  `DeleteObject` on an EXISTING bucket (no `s3:CreateBucket`), point
+  `OBJECT_STORE_*` at it, and start on an empty config volume → boot reaches
+  `object store (seeded)` rather than failing, and a Knowledge-Hub upload
+  lands in that bucket. A `403` on bucket creation must not be the reason a
+  deployment refuses every upload.
+- [ ] `DATA-B6` · **An operator-managed default ignores the environment** —
+  Set `"managedBy": "operator"` in `default/object-storage/connection.json`,
+  change `OBJECT_STORE_BUCKET` to a different name, restart → the log says
+  `object store (ignored): … OBJECT_STORE_* is ignored …`, the file is
+  byte-identical, and blobs still go to the file's bucket. Then stop the
+  MinIO container and scrape `/metrics` → after ~30 s
+  `tale_backend_store_up{store="object_store"}` reads `0` while `/ready`
+  stays `200` (a flapping store must not drain the colour).
 
 ## Accessibility
 

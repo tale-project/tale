@@ -417,7 +417,7 @@ services:
       # Interpolated from .env at compose level; the dev fallback mirrors
       # compose.dev.yml's DB_PASSWORD default so the opt-in profile boots on a
       # plain dev stack. Production always has a real .env (tale deploy).
-      DATABASE_URL: postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}}
       TALE_CONFIG_DIR: /app/data
       # Where THIS process reaches the sandbox spawner. session_client.ts
       # defaults to localhost:8003 (host bun-dev); without the compose
@@ -429,7 +429,10 @@ services:
       # The bundled blob store the backend seeds the deployment default
       # against at boot. Internal address: presigned URLs are signed here and
       # forwarded by the proxy, so the store is never published directly.
-      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT:-http://object-store:9000}
+      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT-http://object-store:9000}
+      OBJECT_STORE_REGION: ${OBJECT_STORE_REGION:-us-east-1}
+      OBJECT_STORE_FORCE_PATH_STYLE: ${OBJECT_STORE_FORCE_PATH_STYLE:-}
+      OBJECT_STORE_PREFIX: ${OBJECT_STORE_PREFIX:-}
       OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
       OBJECT_STORE_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:-tale}
       OBJECT_STORE_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
@@ -485,7 +488,7 @@ services:
         VERSION: ${VERSION:-dev}
     environment:
       TALE_ROLE: worker
-      DATABASE_URL: postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}}
       TALE_CONFIG_DIR: /app/data
       SANDBOX_URL: ${SANDBOX_URL:-http://sandbox:8003}
       # The worker DISPATCHES connector bodies too (automation nodes), so it
@@ -494,7 +497,10 @@ services:
       # The bundled blob store the backend seeds the deployment default
       # against at boot. Internal address: presigned URLs are signed here and
       # forwarded by the proxy, so the store is never published directly.
-      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT:-http://object-store:9000}
+      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT-http://object-store:9000}
+      OBJECT_STORE_REGION: ${OBJECT_STORE_REGION:-us-east-1}
+      OBJECT_STORE_FORCE_PATH_STYLE: ${OBJECT_STORE_FORCE_PATH_STYLE:-}
+      OBJECT_STORE_PREFIX: ${OBJECT_STORE_PREFIX:-}
       OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
       OBJECT_STORE_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:-tale}
       OBJECT_STORE_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}

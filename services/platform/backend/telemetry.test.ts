@@ -1,5 +1,5 @@
 import * as client from 'prom-client';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import {
   hintStreamClosed,
@@ -64,6 +64,20 @@ describe('hint-stream gauge', () => {
   });
 });
 
+/**
+ * The store-reachability gauge reaches OUT of the process (see
+ * `store-health.ts`). These tests are about the database-backed collectors, so
+ * it answers from a stub rather than dialling a database and a bucket.
+ */
+vi.mock('./store-health.ts', () => ({
+  probeStores: () =>
+    Promise.resolve([
+      { name: 'app_db', up: true },
+      { name: 'knowledge_db', up: true },
+      { name: 'object_store', up: false, detail: 'stubbed' },
+    ]),
+}));
+
 describe('pull-time collectors', () => {
   /** A `postgres` stand-in whose tagged-template call returns fixed rows. */
   function fakeSql(rowsByQuery: (text: string) => unknown[]) {
@@ -89,7 +103,7 @@ describe('pull-time collectors', () => {
     );
     // `register.metrics()` runs every registered `collect()` itself — the
     // real scrape path, so the test exercises what Prometheus would.
-    expect(gauges).toHaveLength(4);
+    expect(gauges).toHaveLength(5);
     const metrics = await client.register.metrics();
     expect(metrics).toContain('tale_backend_generations_inflight 3');
     expect(metrics).toContain('tale_backend_jobs{state="created"} 12');
@@ -122,7 +136,7 @@ describe('pull-time collectors', () => {
         throw new Error('connection reset');
       }),
     );
-    expect(gauges).toHaveLength(4);
+    expect(gauges).toHaveLength(5);
     // The scrape still renders: each collector swallowed its own failure.
     await expect(client.register.metrics()).resolves.toBeTypeOf('string');
   });
