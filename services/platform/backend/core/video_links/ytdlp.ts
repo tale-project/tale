@@ -410,12 +410,12 @@ let versionProbeCache: Promise<void> | null = null;
  * The stale-binary line, built here so a test can hold it to the dev
  * reporter's contract.
  *
- * It leads with `WARN` because that is what makes it VISIBLE: the dev loop
- * pipes the backend through `classifyBackend`, which surfaces a line only
- * when it carries `ERROR` or `WARN` and drops the rest as noise. A warning
- * nobody sees is the same as no warning, and being seen is this one's whole
- * job. (Every other `console.warn` in the backend is dropped the same way —
- * a gap in the dev harness worth closing on its own, not here.)
+ * It leads with `WARN` so it reads as one wherever it lands: a raw container
+ * log has no severity column, and `classifyBackend` — which decides what the
+ * dev loop shows — keys on the words `ERROR` and `WARN`. (#3293 also teaches
+ * the dev loop that the backend's stderr is a warning stream, so this line
+ * would surface either way; the prefix costs nothing and does not depend on
+ * which lands first.)
  */
 export function ytdlpVersionWarning(version: string): string {
   return (
