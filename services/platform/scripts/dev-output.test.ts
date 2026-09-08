@@ -36,9 +36,7 @@ function fakeChild(): {
 } {
   const stdout = new PassThrough();
   const stderr = new PassThrough();
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pipeChild reads only `stdout`/`stderr` off the child
-  const child = { stdout, stderr } as Parameters<typeof pipeChild>[0];
-  return { child, stdout, stderr };
+  return { child: { stdout, stderr }, stdout, stderr };
 }
 
 /** Write a line and let the stream's data event land. */

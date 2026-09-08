@@ -104,7 +104,9 @@ export interface PipeChildOptions {
  * spawned with `stdio: ['ignore'|'inherit', 'pipe', 'pipe']`.
  */
 export function pipeChild(
-  child: ChildProcess,
+  // Only the two streams are read — narrower than `ChildProcess` so a test can
+  // hand it a pair of `PassThrough`s without an unsafe assertion.
+  child: Pick<ChildProcess, 'stdout' | 'stderr'>,
   opts: PipeChildOptions,
 ): PipeChildHandle {
   const classify = createStreamClassifier(opts.classifier ?? devStepClassifier);
