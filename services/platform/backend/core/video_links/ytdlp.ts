@@ -403,16 +403,7 @@ export function compareYtdlpVersions(a: string, b: string): number {
   return 0;
 }
 
-/**
- * Lazy probe of `yt-dlp --version`, cached like the `--help` one and run
- * alongside it on the first spawn. Warns exactly once when the binary on
- * PATH predates {@link MIN_YTDLP_VERSION}.
- *
- * A warning, not a refusal: an old binary still extracts most videos, and
- * failing the lane closed would break a dev host that is merely behind. The
- * point is that the operator hears it from us instead of reading a
- * platform's error message and believing it.
- */
+/** Memoized `--version` probe — see {@link warnIfYtdlpBelowFloor}. */
 let versionProbeCache: Promise<void> | null = null;
 
 /**
@@ -435,6 +426,16 @@ export function ytdlpVersionWarning(version: string): string {
   );
 }
 
+/**
+ * Lazy probe of `yt-dlp --version`, cached like the `--help` one and run
+ * alongside it on the first spawn. Warns exactly once when the binary on
+ * PATH predates {@link MIN_YTDLP_VERSION}.
+ *
+ * A warning, not a refusal: an old binary still extracts most videos, and
+ * failing the lane closed would break a dev host that is merely behind. The
+ * point is that the operator hears it from us instead of reading a
+ * platform's error message and believing it.
+ */
 function warnIfYtdlpBelowFloor(): Promise<void> {
   versionProbeCache ??= new Promise<void>((resolve) => {
     const child = spawn(YTDLP_BIN, ['--version'], {
@@ -466,10 +467,6 @@ function warnIfYtdlpBelowFloor(): Promise<void> {
   });
   return versionProbeCache;
 }
-
-/**
- * Lazy probe of `yt-dlp --help`. The result is cached for the lifetime
- * of the Node action instance
 
 /**
  * Lazy probe of `yt-dlp --help`. The result is cached for the lifetime

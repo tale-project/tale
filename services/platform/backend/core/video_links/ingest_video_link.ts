@@ -123,7 +123,8 @@ function isMachineWrittenTag(tag: string): boolean {
  * down to its base (`l.split('-')[0] === want`), which silently disabled
  * every source-language rung whenever the video's own language carried a
  * region subtag: YouTube reports `en-US` and names the ASR track `en`, so
- * neither `'en' === 'en-us'` nor `'en' === 'en-us'` ever held. The ladder
+ * neither the exact test (`'en' === 'en-us'`) nor the folded one
+ * (`baseLang('en') === 'en-us'`) could ever hold. The ladder
  * then fell through to the UI-locale rung and fetched a MACHINE TRANSLATION
  * of an English video — lower fidelity than the source track sitting right
  * there, and served by the one caption endpoint YouTube rate-limits hard.

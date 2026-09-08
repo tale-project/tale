@@ -173,11 +173,9 @@ export function isSafeVideoUrl(url: string): boolean {
   return true;
 }
 
-/**
- * Vimeo video ids are 6-11 digits. Tight enough that an album id sitting in
- * an `/album/<id>/video/<id>` path is never mistaken for the video, and that
- * a slug (`/ondemand/some-film`) never matches.
- */
+/** Vimeo video ids are 6-11 digits — a length that excludes a slug segment
+ *  (`/ondemand/some-film`) but NOT a sibling numeric id such as an album's;
+ *  the `video`/`videos` marker below is what tells those two apart. */
 const VIMEO_ID_RE = /^\d{6,11}$/;
 /** Unlisted-link hash — Vimeo mints lowercase hex, 6-32 chars. */
 const VIMEO_HASH_RE = /^[0-9a-f]{6,32}$/;
@@ -212,9 +210,10 @@ export function vimeoEmbedUrl(url: string): string | null {
   if (!/(^|\.)vimeo\.com$/.test(host)) return null;
 
   const segments = u.pathname.split('/').filter(Boolean);
-  // `/album/<albumId>/video/<videoId>` and `/groups/<g>/videos/<videoId>`
-  // name the video explicitly, and their FIRST id-shaped segment is the
-  // container's. Everywhere else (`/<id>`, `/channels/<name>/<id>`,
+  // Scan from after a `video`/`videos` marker when there is one: in
+  // `/album/<albumId>/video/<videoId>` the album id is ALSO id-shaped and
+  // comes first, so without the marker it would win. Everywhere else
+  // (`/<id>`, `/<id>/<hash>`, `/channels/<name>/<id>`,
   // `/user<uid>/review/<id>/<hash>`) the first id-shaped segment is the video.
   const marker = segments.findIndex((s) => s === 'video' || s === 'videos');
   const from = marker >= 0 ? marker + 1 : 0;
