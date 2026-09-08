@@ -366,6 +366,109 @@ export function buildAntiBotFlags(
 }
 
 /**
+ * Oldest yt-dlp this lane is known to work against. Must never exceed the
+ * `ARG YTDLP_VERSION` pin in `services/platform/Dockerfile` — the guard test
+ * in `ytdlp.test.ts` reads the Dockerfile and enforces that, so the two
+ * cannot drift apart.
+ *
+ * The image is pinned, so production always satisfies this. A dev host is
+ * NOT: `buildSpawnPath` runs whatever `yt-dlp` sits on `/usr/local/bin`,
+ * which is typically installed once and never touched again. Extractors are
+ * the whole product here and they rot on a scale of weeks — on 2026-09-08 a
+ * host stuck at 2026.03.17 got HTTP 412 from Bilibili (its API had moved to
+ * signed requests) on a video the pinned 2026.07.04 fetched fine from the
+ * same IP in the same minute. That failure is indistinguishable, in the UI
+ * and in the row, from the platform blocking us — which is exactly the wrong
+ * thing for a developer to conclude about their own stale binary.
+ */
+export const MIN_YTDLP_VERSION = '2026.07.04';
+
+/**
+ * Compare two yt-dlp versions. They are dates (`2026.07.04`), sometimes with
+ * a same-day or nightly suffix (`2026.07.04.232805`); comparing the numeric
+ * components pairwise orders both shapes. Returns <0, 0 or >0.
+ */
+export function compareYtdlpVersions(a: string, b: string): number {
+  const parts = (v: string): number[] =>
+    v
+      .trim()
+      .split('.')
+      .map((n) => Number.parseInt(n, 10))
+      .map((n) => (Number.isNaN(n) ? 0 : n));
+  const [pa, pb] = [parts(a), parts(b)];
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+/** Memoized `--version` probe — see {@link warnIfYtdlpBelowFloor}. */
+let versionProbeCache: Promise<void> | null = null;
+
+/**
+ * The stale-binary line, built here so a test can hold it to the dev
+ * reporter's contract.
+ *
+ * It leads with `WARN` so it reads as one wherever it lands: a raw container
+ * log has no severity column, and `classifyBackend` — which decides what the
+ * dev loop shows — keys on the words `ERROR` and `WARN`. (#3293 also teaches
+ * the dev loop that the backend's stderr is a warning stream, so this line
+ * would surface either way; the prefix costs nothing and does not depend on
+ * which lands first.)
+ */
+export function ytdlpVersionWarning(version: string): string {
+  return (
+    `WARN [ytdlp] yt-dlp ${version} on PATH is older than the ${MIN_YTDLP_VERSION} ` +
+    `this image pins. Extractors break as platforms change, so failures here may not ` +
+    `reproduce in production — and a stale binary reads exactly like a platform ` +
+    `block. Upgrade the yt-dlp on PATH, or point VIDEO_INGEST_BIN_DIR at a current one.`
+  );
+}
+
+/**
+ * Lazy probe of `yt-dlp --version`, cached like the `--help` one and run
+ * alongside it on the first spawn. Warns exactly once when the binary on
+ * PATH predates {@link MIN_YTDLP_VERSION}.
+ *
+ * A warning, not a refusal: an old binary still extracts most videos, and
+ * failing the lane closed would break a dev host that is merely behind. The
+ * point is that the operator hears it from us instead of reading a
+ * platform's error message and believing it.
+ */
+function warnIfYtdlpBelowFloor(): Promise<void> {
+  versionProbeCache ??= new Promise<void>((resolve) => {
+    const child = spawn(YTDLP_BIN, ['--version'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        PATH: buildSpawnPath(process.env),
+        HOME: tmpdir(),
+        LANG: 'C.UTF-8',
+      },
+    });
+    let out = '';
+    child.stdout.on('data', (d) => {
+      out += d.toString();
+    });
+    child.on('close', () => {
+      // `--version` prints the bare version and nothing else.
+      const version = out.trim().split('\n')[0]?.trim() ?? '';
+      if (
+        version !== '' &&
+        compareYtdlpVersions(version, MIN_YTDLP_VERSION) < 0
+      ) {
+        console.warn(ytdlpVersionWarning(version));
+      }
+      resolve();
+    });
+    // Missing / unexecutable binary: the real spawn below surfaces
+    // `binaryNotInstalled`, which says it better than a version warning.
+    child.on('error', () => resolve());
+  });
+  return versionProbeCache;
+}
+
+/**
  * Lazy probe of `yt-dlp --help`. The result is cached for the lifetime
  * of the Node action instance — every action run after the first reuses
  * the prior probe instead of paying the spawn cost again.
@@ -477,6 +580,7 @@ export function sanitizeStderr(raw: string): string {
 
 export type YtDlpErrorReason =
   | 'privateOrAgeGated'
+  | 'authRequired'
   | 'unavailable'
   | 'geoblocked'
   | 'unsupported'
@@ -520,13 +624,25 @@ export class YtDlpError extends Error {
  *    just trigger harder blocks.
  *  - `jsRuntimeMissing` means the image is misconfigured (no Deno).
  *    Caller should alert loudly, not silently retry.
+ *  - Anything this function cannot name falls through to `transient`,
+ *    which IS retried. So every terminal HTTP shape must be named here
+ *    or it burns the full [30s, 60s, 120s] ladder and tells the user
+ *    "Temporary issue — try again" about a wall that will never move.
+ *    That is how a Vimeo login wall (401), a deleted video (404), and
+ *    Bilibili's risk control (412) each cost three retries and a lie.
  */
 export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   const s = stderr.toLowerCase();
   if (
     s.includes('sign in to confirm') ||
     s.includes("you're not a bot") ||
-    s.includes('confirm you’re not a bot')
+    s.includes('confirm you’re not a bot') ||
+    // Bilibili answers risk-controlled requests with a bare 412 rather than
+    // any human-readable wall text. Same meaning as the YouTube challenge:
+    // the platform refused an automated caller, and retrying on our own
+    // schedule only hardens it.
+    s.includes('http error 412') ||
+    s.includes('precondition failed')
   ) {
     return 'botDetection';
   }
@@ -542,6 +658,20 @@ export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   }
   if (s.includes('members-only') || s.includes('join this channel')) {
     return 'memberOnly';
+  }
+  // Ordered ABOVE `geoblocked` on purpose: that branch matches the bare
+  // substring `geo`, which is loose enough to swallow an auth message that
+  // happens to carry it (a redirect URL, a region-flavoured host name).
+  if (
+    s.includes('http error 401') ||
+    s.includes('unauthorized') ||
+    // Vimeo, 2026: every anonymous client is walled behind a login. The
+    // `web` client says so in prose; the `macos`/`android` ones fail
+    // fetching the OAuth token that would have carried the session.
+    s.includes('only works when logged-in') ||
+    s.includes('oauth token')
+  ) {
+    return 'authRequired';
   }
   if (
     // Matched loosely ("available in your …", not "not available in your …")
@@ -567,7 +697,14 @@ export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   if (s.includes('no supported javascript runtime')) return 'jsRuntimeMissing';
   if (s.includes('http error 403') || s.includes('forbidden'))
     return 'forbidden';
-  if (s.includes('video unavailable') || s.includes('has been removed')) {
+  if (
+    s.includes('video unavailable') ||
+    s.includes('has been removed') ||
+    // Matched on the full `http error 404` rather than a bare `not found`:
+    // the latter also appears in toolchain faults ("ffmpeg not found"),
+    // which are ours to fix, not a gone video.
+    s.includes('http error 404')
+  ) {
     return 'unavailable';
   }
   return 'transient';
@@ -587,6 +724,7 @@ async function runYtdlp(
   // Resolve the flag set the installed yt-dlp actually accepts. First
   // call probes `--help` and caches; subsequent calls are free.
   const commonFlags = await resolveSupportedFlags();
+  await warnIfYtdlpBelowFloor();
   // Anti-bot flags are rebuilt per call (cheap) so an operator can change
   // proxy / provider / cookies config without restarting — env is re-read
   // from `process.env`, which the deployment env-sync keeps current. A pooled

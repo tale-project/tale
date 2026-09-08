@@ -1,9 +1,16 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { classifyBackend } from '@tale/shared/classify';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   buildAntiBotFlags,
   buildSpawnPath,
   classifyYtDlpStderr,
+  compareYtdlpVersions,
+  MIN_YTDLP_VERSION,
   cookiesFlagsFromEnv,
   ffmpegLocationFlags,
   impersonateFlagsFromEnv,
@@ -11,6 +18,7 @@ import {
   proxyFlagsFromEnv,
   sanitizeStderr,
   youtubeExtractorArgsFromEnv,
+  ytdlpVersionWarning,
 } from './ytdlp';
 import {
   BGUTIL_PLUGIN_NEST_DIR,
@@ -62,6 +70,58 @@ describe('classifyYtDlpStderr', () => {
     expect(
       classifyYtDlpStderr('The video is not available in your region'),
     ).toBe('geoblocked');
+  });
+
+  // Verbatim stderr captured on 2026-09-08 against yt-dlp 2026.03.17 /
+  // 2026.07.04 / 2026.08.19. Every one of these used to fall through to
+  // `transient`, so each cost the full [30s, 60s, 120s] ladder and told the
+  // user "Temporary issue — try again" about a wall that never moves.
+  it('classifies a platform login wall as terminal, not transient', () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [vimeo] 1206142064: Failed to fetch macos OAuth token: HTTP Error 401: Unauthorized (caused by <HTTPError 401: Unauthorized>)',
+      ),
+    ).toBe('authRequired');
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [vimeo] 1206142064: The web client only works when logged-in. Use --cookies, --cookies-from-browser, --username and --password, --netrc-cmd, or --netrc (vimeo) to provide account credentials.',
+      ),
+    ).toBe('authRequired');
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [vimeo] 1206142064: The android client is unable to fetch new OAuth tokens and is only intended for use with previously cached tokens',
+      ),
+    ).toBe('authRequired');
+  });
+
+  it('keeps the bot wall ahead of the login wall', () => {
+    // "Sign in to confirm you're not a bot" is an auth-shaped sentence about
+    // a bot challenge. It must stay `botDetection` — that reason drives the
+    // pooled-session 'blocked' report, which `authRequired` must not.
+    expect(
+      classifyYtDlpStderr(
+        "ERROR: [youtube] xyz: Sign in to confirm you're not a bot. HTTP Error 401: Unauthorized",
+      ),
+    ).toBe('botDetection');
+  });
+
+  it("classifies Bilibili's bare 412 risk control as a block", () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [BiliBili] 18M7k6UE7d: Unable to download JSON metadata: HTTP Error 412: Precondition Failed (caused by <HTTPError 412: Precondition Failed>)',
+      ),
+    ).toBe('botDetection');
+  });
+
+  it('classifies a 404 as a gone video, but leaves toolchain faults alone', () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [vimeo] 999999999999: Unable to download webpage: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)',
+      ),
+    ).toBe('unavailable');
+    // A bare "not found" is ours to fix, not a gone video — it must NOT
+    // borrow the terminal reason and hide a broken image from the operator.
+    expect(classifyYtDlpStderr('ERROR: ffmpeg not found')).toBe('transient');
   });
 
   it('falls back to transient for anything unrecognized', () => {
@@ -408,5 +468,48 @@ describe('ffmpegLocationFlags', () => {
     expect(ffmpegLocationFlags({ VIDEO_INGEST_FFMPEG_LOCATION: '  ' })).toEqual(
       ['--ffmpeg-location', '/usr/bin/ffmpeg'],
     );
+  });
+});
+
+describe('the yt-dlp version floor', () => {
+  it('orders date-shaped versions, nightly suffix included', () => {
+    expect(compareYtdlpVersions('2026.03.17', '2026.07.04')).toBeLessThan(0);
+    expect(compareYtdlpVersions('2026.08.19', '2026.07.04')).toBeGreaterThan(0);
+    expect(compareYtdlpVersions('2026.07.04', '2026.07.04')).toBe(0);
+    // A same-day nightly is newer than the release it builds on.
+    expect(
+      compareYtdlpVersions('2026.07.04.232805', '2026.07.04'),
+    ).toBeGreaterThan(0);
+    // Zero-padding is cosmetic; the components are numbers.
+    expect(compareYtdlpVersions('2026.7.4', '2026.07.04')).toBe(0);
+  });
+
+  it('emits the stale-binary warning where the dev loop will show it', () => {
+    // `bun dev` pipes the backend through `classifyBackend`, which surfaces a
+    // line only when it carries ERROR or WARN and drops everything else as
+    // noise. This warning exists to be READ — if it classifies as noise, a
+    // developer goes on reading a stale binary's failures as platform blocks,
+    // which is the exact confusion it was added to prevent.
+    const warning = ytdlpVersionWarning('2026.03.17');
+    expect(classifyBackend(warning).kind).toBe('warn');
+    // And it has to say what to do about it.
+    expect(warning).toContain('2026.03.17');
+    expect(warning).toContain(MIN_YTDLP_VERSION);
+    expect(warning).toContain('VIDEO_INGEST_BIN_DIR');
+  });
+
+  it('never exceeds the version the image pins', () => {
+    // The floor is what we warn a dev host about. If it ever rose above the
+    // Dockerfile pin, the shipped image would warn about itself — and the
+    // warning would stop meaning "your host is behind production".
+    const dockerfile = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../Dockerfile'),
+      'utf8',
+    );
+    const pinned = /^ARG YTDLP_VERSION=(\S+)$/m.exec(dockerfile)?.[1];
+    expect(pinned).toBeDefined();
+    expect(
+      compareYtdlpVersions(MIN_YTDLP_VERSION, pinned as string),
+    ).toBeLessThanOrEqual(0);
   });
 });

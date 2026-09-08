@@ -1155,6 +1155,7 @@ chat:
     errors:
       generic: Impossible d'analyser cette vidéo
       privateOrAgeGated: Vidéo privée ou à accès restreint
+      authRequired: La plateforme vidéo exige d'être connecté — impossible d'analyser cette vidéo
       unavailable: La vidéo n'est plus disponible
       geoblocked: Vidéo non disponible dans cette région
       unsupported: Ce site n'est pas pris en charge

@@ -1109,6 +1109,7 @@ chat:
     errors:
       generic: Couldn't analyze this video
       privateOrAgeGated: Video is private or age-restricted
+      authRequired: Video platform requires a sign-in — this video can't be analyzed
       unavailable: Video is no longer available
       geoblocked: Video isn't available in this region
       unsupported: This site isn't supported

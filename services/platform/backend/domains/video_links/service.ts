@@ -284,6 +284,12 @@ async function finalizeVideoLinkFile(
         status: 'completed',
         expectedStatus: 'indexing',
         progress: null,
+        // `updateJob` leaves any field it is not given, so a job that failed
+        // once, retried and then succeeded kept the FAILED attempt's reason on
+        // a completed row (observed: `completed | attempts=1 |
+        // error_reason_code=transient`). Clear them with the success.
+        errorReasonCode: null,
+        errorMessage: null,
       });
       if (patched !== 'ok') {
         throw new FinalizerStateLostError(args.jobId, patched);
