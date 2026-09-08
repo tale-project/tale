@@ -6,7 +6,9 @@
     "STORYBOOK_DISABLE_TELEMETRY",
     "TELEMETRY_DISABLED",
     "SCARF_ANALYTICS",
-    "SANDBOX_TOKEN"
+    "SANDBOX_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_TOKEN"
   ],
   "tasks": {
     "setup": {
