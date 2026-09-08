@@ -192,6 +192,29 @@ describe('insertSyntheticFileMetadata', () => {
     expect(deleteOrgBlobRefs).not.toHaveBeenCalled();
   });
 
+  it('clears the reason a failed earlier attempt left on the row', async () => {
+    // `updateJob` leaves every field it is not given. A job that failed once,
+    // retried and then succeeded was landing as
+    // `completed | attempts=1 | error_reason_code=transient` — a row that
+    // reads, to anyone querying it, like a success that also failed.
+    const fake = fakeJobs({
+      jobs: [jobRow({ attempts: 1, errorReasonCode: 'transient' })],
+      updates: [[{ id: 'job-1' }]],
+    });
+
+    await insertSyntheticFileMetadata(fake.sql, captionsArgs);
+
+    const patch = fake.statements.find((st) =>
+      st.text.startsWith('UPDATE app.video_link_jobs SET'),
+    );
+    expect(patch).toBeDefined();
+    expect(patch?.values).toContain('completed');
+    // Both error columns are bound to NULL in the same write as the success.
+    expect(
+      patch?.values.filter((v) => v === null).length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
   it('writes nothing for a job that already left indexing before it started', async () => {
     const fake = fakeJobs({
       jobs: [jobRow({ status: 'skipped' })],
