@@ -191,6 +191,7 @@ Two Docker networks carry every hop. An ordinary compose network is enough for t
 | `sandbox` | The sandbox spawner | `internal`, `sandbox` |
 | `sandbox-egress` | The egress proxy | `internal`, `sandbox` |
 | `llm-gateway` | `sandbox-llm-gateway` | `internal`, `sandbox` |
+| `bgutil-provider` | The worker's YouTube PO-token sidecar, which it reaches at `http://bgutil-provider:4416` by default | `internal` |
 | `HOST` (your public hostname) | `proxy`, so a container can hairpin to the public URL | `internal` |
 
 Workers have no shared alias. Nothing addresses a worker by name; they only claim jobs from the queue. Colour-suffixed aliases (`backend-api-blue`, `platform-green`) are only for a blue-green while two versions are up at once.
@@ -207,7 +208,7 @@ Name these logical volumes in your compose. One file can let compose create them
 | `db-data` | `db` at `/var/lib/postgresql/data` | `tale_app` and `tale_knowledge` |
 | `db-backup` | `db` at `/var/lib/postgresql/backup` | In-container Postgres backup target |
 | `object-store-data` | `object-store` at `/data` | Blobs |
-| `caddy-data`, `caddy-config` | `proxy` | Certificates and Caddy state |
+| `caddy-data`, `caddy-config` | `proxy` at `/data` and `/config` | Certificates and Caddy state |
 | `llm-gateway-data` | `sandbox-llm-gateway` at `/app/data` | Per-session virtual keys |
 
 Instances upgraded from before 0.5.11 may still have a `convex-data` volume beside `config-data`. The CLI copies the store across once and never deletes the old volume. A hand-rolled first boot on a fresh host does not need `convex-data`.
@@ -267,6 +268,7 @@ These look optional and fail closed when they are missing.
 | `sandbox` | `/var/run/docker.sock` and `/var/lib/tale-sandbox` bind-mounted 1:1 | The spawner cannot create session containers; workspace paths the daemon mounts will not match. |
 | `db` | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` | A `SIGTERM` wait-for-clients stop ends in `SIGKILL` and can leave the BM25 index with a zeroed page. |
 | `platform` | `stop_grace_period: 45s` | Docker's default 10s grace `SIGKILL`s the web tier mid-drain and cuts in-flight HTTP/SSE. |
+| `object-store` | `command: server /data` | The image's entrypoint prints its usage and exits, so the container never serves and `mc ready local` never passes. |
 | `object-store` | No published ports | Presigned URLs go through the proxy. Publishing MinIO is an extra public surface. |
 
 Publish only `80` and `443` on `proxy`. Everything else stays on the internal network.
