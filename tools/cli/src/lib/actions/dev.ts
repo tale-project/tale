@@ -159,6 +159,7 @@ export async function runDev(options: DevOptions): Promise<void> {
   }
   await assertDockerAvailable();
 
+  const imageVersion = pkg.version.includes('-dev') ? 'latest' : pkg.version;
   const devPrefix = `${getProjectId()}-dev_`;
   await runStep(
     {
@@ -185,6 +186,7 @@ export async function runDev(options: DevOptions): Promise<void> {
         await ensureConfigMountpoints(
           `${devPrefix}config-data`,
           orgConfigMountTargets(projectDir),
+          `${env.GHCR_REGISTRY}/tale-platform:${imageVersion}`,
         );
         if (!(await ensureNetwork('internal', devPrefix))) {
           throw new Error('Failed to create dev network');
@@ -197,7 +199,7 @@ export async function runDev(options: DevOptions): Promise<void> {
       }),
   );
 
-  const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;
+  const version = imageVersion;
   const port = options.port ?? 443;
   const hostAlias = options.host ?? 'localhost';
   const portSuffix = port === 443 ? '' : `:${port}`;
