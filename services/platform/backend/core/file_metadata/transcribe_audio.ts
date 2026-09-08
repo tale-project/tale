@@ -86,7 +86,9 @@ function readableMessage(err: unknown): string {
       detail =
         typeof code === 'string' ? `${code}: ${cause.message}` : cause.message;
     } else {
-      detail = String(cause);
+      // `Error.cause` is `unknown`, so it has no meaningful `toString` to lean
+      // on — JSON-encode it rather than emit '[object Object]'.
+      detail = typeof cause === 'string' ? cause : JSON.stringify(cause);
     }
     if (detail.length > 0 && !base.includes(detail)) {
       return `${base} (${detail})`;
