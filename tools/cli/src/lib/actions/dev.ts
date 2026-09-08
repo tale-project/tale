@@ -27,10 +27,15 @@ import { getProjectId, loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { findComposeOverride } from '../compose/find-compose-override';
 import { DEV_VOLUME_NAMES } from '../compose/generators/constants';
-import { generateDevCompose } from '../compose/generators/generate-dev-compose';
+import {
+  generateDevCompose,
+  orgConfigMountTargets,
+} from '../compose/generators/generate-dev-compose';
 import { dockerCompose } from '../docker/docker-compose';
+import { ensureConfigMountpoints } from '../docker/ensure-config-mountpoints';
 import { ensureDocker } from '../docker/ensure-docker';
 import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
+import { ensureSandboxRuntimeImage } from '../docker/ensure-sandbox-runtime-image';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { getContainerHealth } from '../docker/get-container-health';
@@ -172,6 +177,15 @@ export async function runDev(options: DevOptions): Promise<void> {
         if (!(await ensureVolumes([...DEV_VOLUME_NAMES], devPrefix))) {
           throw new Error('Failed to create dev volumes');
         }
+        // The web tier mounts the config volume read-only and the compose file
+        // nests one bind per `<slug>/<domain>` under it. runc cannot create a
+        // mountpoint inside a read-only mount, and the backend only creates
+        // those directories when it seeds the volume — which races the web
+        // tier on a first bring-up. Creating them here settles it.
+        await ensureConfigMountpoints(
+          `${devPrefix}config-data`,
+          orgConfigMountTargets(projectDir),
+        );
         if (!(await ensureNetwork('internal', devPrefix))) {
           throw new Error('Failed to create dev network');
         }
@@ -188,6 +202,19 @@ export async function runDev(options: DevOptions): Promise<void> {
   const hostAlias = options.host ?? 'localhost';
   const portSuffix = port === 443 ? '' : `:${port}`;
   const url = `${env.SITE_URL.replace(/:443$/, '')}${portSuffix}`;
+
+  // Session containers are `docker run`, not compose services, so `compose up`
+  // never fetches the runtime image. Without it every agent turn and
+  // `Run code` fails with a "pull access denied" that reads like a login
+  // problem. `tale deploy` already does this; only a tag that is missing is
+  // fetched, so a source build stays untouched.
+  await runStep(
+    {
+      active: 'Checking the sandbox runtime image',
+      done: 'Sandbox runtime image ready',
+    },
+    () => ensureSandboxRuntimeImage(env.GHCR_REGISTRY, version),
+  );
 
   const compose = generateDevCompose(
     { version, registry: env.GHCR_REGISTRY },
