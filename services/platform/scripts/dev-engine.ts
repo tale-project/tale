@@ -975,6 +975,10 @@ export async function runDevFleet() {
         label: 'backend',
         classifier: backendClassifier,
         mode: 'errors',
+        // A plain Node server: console.warn/error go to stderr, log/info to
+        // stdout. Without this the backend's ~430 `console.warn` calls are
+        // dropped as noise, because none of them spell `WARN` in their prose.
+        stderrIsSignal: true,
       });
       backendProcess.on('exit', (code) => {
         if (shuttingDown || restarting) return;
