@@ -62,26 +62,53 @@ function orgMountSources(
  *  caller discovers the sources once and warns once when there are none —
  *  this runs per service, so warning here would repeat per invocation
  *  (R31-P2-b). */
+function existingDomainDirs(
+  sources: { slug: string; relBase: string }[],
+  projectDir: string,
+): { slug: string; relBase: string; domain: string }[] {
+  const found: { slug: string; relBase: string; domain: string }[] = [];
+  for (const { slug, relBase } of sources) {
+    for (const domain of ORG_DOMAIN_DIRS) {
+      if (existsSync(join(projectDir, relBase, slug, domain))) {
+        found.push({ slug, relBase, domain });
+      }
+    }
+  }
+  return found;
+}
+
 function existingHostMounts(
   sources: { slug: string; relBase: string }[],
   projectDir: string,
   containerBase: string,
   suffix = '',
 ): string[] {
-  const mounts: string[] = [];
-  for (const { slug, relBase } of sources) {
-    for (const domain of ORG_DOMAIN_DIRS) {
-      const src = join(projectDir, relBase, slug, domain);
-      if (existsSync(src)) {
-        const hostPath =
-          relBase === '.'
-            ? `./${slug}/${domain}`
-            : `./${relBase}/${slug}/${domain}`;
-        mounts.push(`${hostPath}:${containerBase}/${slug}/${domain}${suffix}`);
-      }
-    }
-  }
-  return mounts;
+  return existingDomainDirs(sources, projectDir).map(
+    ({ slug, relBase, domain }) => {
+      const hostPath =
+        relBase === '.'
+          ? `./${slug}/${domain}`
+          : `./${relBase}/${slug}/${domain}`;
+      return `${hostPath}:${containerBase}/${slug}/${domain}${suffix}`;
+    },
+  );
+}
+
+/**
+ * The `<slug>/<domain>` paths this compose file nests INSIDE the read-only
+ * `config-data` mount, relative to the config root.
+ *
+ * runc creates every mountpoint it does not find, and it cannot create one
+ * inside a read-only mount — so on a config volume that does not already hold
+ * the directory, `platform` dies at start with "create mountpoint …:
+ * read-only file system". The directories arrive when the backend seeds the
+ * volume, which races the web tier on a first bring-up. `tale dev` pre-creates
+ * exactly this list so the outcome no longer depends on who wins.
+ */
+export function orgConfigMountTargets(projectDir: string): string[] {
+  return existingDomainDirs(orgMountSources(projectDir), projectDir).map(
+    ({ slug, domain }) => `${slug}/${domain}`,
+  );
 }
 
 export function generateDevCompose(
