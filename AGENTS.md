@@ -57,11 +57,38 @@ the enforced source and match it (orient in the repo first, then read the surrou
 | Types                   | the root `tsconfig.*.json` family — leaves only `extends`       |
 | Commit format & scopes  | `.commitlintrc.json`                                           |
 | Security / SAST         | `tools/opengrep/` — `bun run lint:sast` (where present)        |
+| Manual tests            | any `tests/manual/readme.md` — `bun run lint:manual`           |
 | Repo specifics          | `.agents/repo.md`                                              |
 | Everything at once      | `bun run check`                                                |
 
 The **guards are the spec** — run `bun run check` and read the failures; they teach the house
 style faster than prose. **When you add a rule, add its guard** — a rule no test enforces rots.
+
+## Manual tests
+
+Every deployable unit carries a manual layer at `<unit>/tests/manual/`, in the same shape in
+every repository, scaffolded by the generator and gated by `bun run lint:manual`. It holds
+what a headless run cannot judge — layout, focus, print, live reactivity across two sessions,
+degraded modes, exploratory pokes:
+
+| Path                           | What it is                                                    |
+| ------------------------------ | ------------------------------------------------------------- |
+| `readme.md`                    | how a round runs · box grammar · judging · severity · failure policy |
+| `setup.md`                     | toolchain · stack + ports · reset choreography · accounts · baseline |
+| `template.md`                  | the shape of a NEW suite, and the authoring conventions       |
+| `suites/<name>.md`             | the tests — evergreen, re-runnable, **never ticked in place** |
+| `reference/automation.md`      | what the automated specs already own                          |
+| `reference/not-a-finding.md`   | out of scope · quirks · benign console output · debt (`BL-n`) |
+| `reference/error-codes.md`     | every error code, and how to provoke it                       |
+| `reference/pins.md`            | why a box says what it says — keyed by box, never by round    |
+| `runs/`                        | the journal, its two templates, and one `r<nnnn>.md` per round |
+
+**Suites and rounds are separate things.** A suite is a test: evergreen, re-runnable, and never
+carrying a tick or a finding. A round is history: it ticks a session log **outside** the repo and
+lands as one record in `runs/`. A box is one line — ``- [ ] `ID` · **action** → judgment.`` — and
+its **ID is a stable contract**: each suite declares the prefix its boxes carry, IDs are unique
+per unit, and you append, never renumber. **Ship new behaviour with its box**, or with a row in
+`reference/automation.md` when a spec owns it end to end.
 
 ## Non-negotiable boundaries
 
@@ -101,7 +128,7 @@ Safety and architecture invariants — they hold even where no linter covers the
   the `^_` prefix); never add `noUnusedLocals`/`noUnusedParameters` here, or the two guards
   disagree.
 - **Scaffold a new part** (package / service / tool / skill) from a template (`bun run gen …`),
-  never hand-rolled — so it carries the standard configs and test layout.
+  never hand-rolled — so it carries the standard configs, the test layout and the manual layer.
 - **Reach for a well-known, maintained library** before hand-rolling — prefer the established
   package over a custom solution; write it yourself only when no suitable library exists.
 - **Instructions are docs too** — change a path, command, or pattern a skill or an agent contract

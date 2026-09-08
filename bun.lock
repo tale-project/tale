@@ -424,6 +424,10 @@
         "typescript": "6.0.2",
       },
     },
+    "tools/lint-manual": {
+      "name": "@tale/lint-manual",
+      "version": "0.1.0",
+    },
     "tools/opengrep": {
       "name": "@tale/opengrep",
       "version": "0.1.0",
@@ -1947,6 +1951,8 @@
     "@tale/docs": ["@tale/docs@workspace:services/docs"],
 
     "@tale/e2e": ["@tale/e2e@workspace:packages/e2e"],
+
+    "@tale/lint-manual": ["@tale/lint-manual@workspace:tools/lint-manual"],
 
     "@tale/opengrep": ["@tale/opengrep@workspace:tools/opengrep"],
 

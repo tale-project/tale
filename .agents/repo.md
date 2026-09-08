@@ -13,7 +13,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   `sandbox*` family.
 - `packages/` — `ui` (the design system), `shared` (schemas + pg), `e2e` (Playwright config
   factory).
-- `tools/` — `cli` (`@tale/cli`), `plop` (generators), `opengrep` (SAST gate).
+- `tools/` — `cli` (`@tale/cli`), `plop` (generators), `opengrep` (SAST gate), `lint-manual`
+  (the manual-test gate; its `src/`, `cli.ts` and `tests/` are shared bytes with every
+  tale-project repo — fix a rule in `example-project` and roll it, never here).
 - `configs/platform/` — the builtin, org-independent config catalog (`system/` read-only,
   `custom/` seeded per org). This is NOT per-customer content; that lives in the separate
   `tale-project/configs` repository.
@@ -41,6 +43,18 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   and missing in another is a defect, not a follow-up.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
   adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
+- **Three manual layers, one shape** — `services/{platform,web,docs}/tests/manual/` each carry the
+  standard tree (`AGENTS.md` "Manual tests"), gated by `bun run lint:manual`: suites under
+  `suites/`, the four registers under `reference/`, the round journal under `runs/`. Box IDs are
+  `<PREFIX><kind><n>` (`NAV-F3`, `CHAT-B1`, `A11Y-A2`) — the prefix is the suite, the letter is
+  what kind of check it is (F functional, B boundary, A accessibility, P performance). **Append,
+  never renumber.** Ship new behaviour with its box, or with a row in `reference/automation.md`
+  when a spec owns it end to end. The platform's `tests/manual/scripts/check-guide.ts` is the
+  content half of the gate: it resolves the i18n keys, routes and spec names a suite cites, and is
+  an authoring aid rather than a CI job — run it on every suite you touch.
+- **Judge the platform against its user docs** — the pages under `docs/en/platform/` are the
+  behaviour oracle for a manual round; a mismatch between the running app and its documented
+  behaviour is a reportable defect of one or the other, never a silent judgment call.
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR

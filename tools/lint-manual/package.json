@@ -1,0 +1,13 @@
+{
+  "name": "@tale/lint-manual",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The manual-test gate: the shape AGENTS.md states, enforced",
+  "type": "module",
+  "scripts": {
+    "lint": "bunx oxlint",
+    "lint:fix": "bunx oxlint --fix",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test ./tests"
+  }
+}

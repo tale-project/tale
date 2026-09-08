@@ -1,20 +1,22 @@
 /**
- * Static reference checker for the manual test guides — catches the drift that
- * makes a guide unexecutable: i18n keys that no longer resolve, routes that no
+ * Static reference checker for the manual suites — catches the drift that
+ * makes a box unexecutable: i18n keys that no longer resolve, routes that no
  * longer exist, and e2e spec citations whose file was deleted.
  *
- * It is an authoring aid, not a CI gate: run it on every guide you touch and
- * clear (or consciously justify) every finding before committing. A guide may
+ * It is an authoring aid beside `bun run lint:manual` (which owns the SHAPE of
+ * the manual layer, not the truth of what a box names): run it on every suite
+ * you touch and
+ * clear (or consciously justify) every finding before committing. A suite may
  * deliberately name a spec to say it does NOT exist — such negative mentions
  * are flagged too; read the finding in context.
  *
  * Usage (from the repo root):
  *
  *   bun services/platform/tests/manual/scripts/check-guide.ts \
- *     services/platform/tests/manual/chat.md [more guides…]
+ *     services/platform/tests/manual/suites/chat.md [more suites…]
  *
- * The service is inferred from each guide's path (`services/<service>/tests/…`),
- * so platform and web guides can be mixed in one invocation. Checks per guide:
+ * The service is inferred from each suite's path (`services/<service>/tests/…`),
+ * so platform and web suites can be mixed in one invocation. Checks per suite:
  *
  * 1. i18n keys — every backticked dotted token (`chat.send`, `settings.teams.*`)
  *    must resolve in `services/<service>/messages/en.yml` (+ `global.yml`);
@@ -193,7 +195,7 @@ function checkGuide(guidePath: string): number {
 const guides = process.argv.slice(2);
 if (guides.length === 0) {
   console.error(
-    'Usage: bun services/platform/tests/manual/scripts/check-guide.ts <guide.md> […]',
+    'Usage: bun services/platform/tests/manual/scripts/check-guide.ts <suite.md> […]',
   );
   process.exit(2);
 }

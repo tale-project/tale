@@ -1,0 +1,37 @@
+# Smoke
+
+> **Prefix** `SMOKE-` · **Reset** none · **Cost** ~10 min
+
+The fast "does this image even run" pass over {{scope}}/{{kebabCase name}}.
+Green ⇒ go on to the suites that matter for what changed; red ⇒ stop and fix,
+because everything after this reads on top of it.
+
+The boxes are deliberately about the **container contract** rather than the
+feature: it starts from the entrypoint production uses, it answers, it logs, it
+stops cleanly, and it survives a restart with its state intact.
+
+## Preconditions
+
+The image built per [`../setup.md`](../setup.md), and the environment it needs —
+nothing supplied by hand that production would not supply.
+
+> **Agent note**: judge readiness by the health endpoint, never by "the
+> container is up" — a process that has started and a process that can serve are
+> different states, and only the second one is what a deploy is waiting for.
+
+## Boxes
+
+- [ ] `SMOKE-1` · **Start the image with production's entrypoint and
+  environment** → it reaches its ready state without a manual step, and the
+  startup log names the version it is running.
+- [ ] `SMOKE-2` · **Ask it for health from outside the container** → it answers,
+  and the answer names the same version the startup log did.
+- [ ] `SMOKE-3` · **Start it with a required variable missing** → it refuses at
+  boot with a message naming the variable, rather than starting and failing on
+  first use.
+- [ ] `SMOKE-4` · **Read the log stream** → structured lines on stdout, no
+  secret in any of them, and the level of an ordinary request is not `error`.
+- [ ] `SMOKE-5` · **Stop it with SIGTERM** → it drains and exits `0` within its
+  grace period, rather than being killed.
+- [ ] `SMOKE-6` · **Start it again over the same state** → it comes back with
+  the state it had, and does not re-run a one-shot step it already ran.

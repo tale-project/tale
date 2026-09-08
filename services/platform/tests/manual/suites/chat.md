@@ -1,0 +1,373 @@
+# Chat
+
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 60 boxes
+
+Exercise the AI chat surface — the welcome view, messaging and the composer
+(model + reasoning-effort picker, attachments, dictation, voice output),
+edit/branch/regenerate/stop, the thought timeline and source cards, share
+links and forking, arena mode, the thread history panel, and the degraded
+states (backend unavailable, no provider, budget exceeded). There is **no
+agent picker** anymore: the composer picks a **model** and a reasoning effort;
+agents, skills, and connectors are equipped per **project** (see
+[projects.md](projects.md)), not in chat.
+
+## Scope & routes
+
+| Surface                   | Route                                       |
+| ------------------------- | ------------------------------------------- |
+| New chat                  | `/dashboard/{org}/chat`                     |
+| Thread                    | `/dashboard/{org}/chat/{threadId}`          |
+| Shared (public read-only) | `/dashboard/{org}/chat/shared/{shareToken}` |
+
+(`{threadId}` and `{shareToken}` are produced at runtime by sending a first
+message / enabling sharing — there is no static URL for them.)
+
+## Preconditions
+
+Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
+(or mode A's mock). In **mode A** any prompt returns the canned reply and the
+keyword triggers (`e2e:reasoning` / `e2e:nextsteps` / `e2e:humaninput` /
+`e2e:error`) drive CHAT-F16–CHAT-F19. Rows marked **mode B** need a live
+provider; CHAT-F25–CHAT-F26 additionally need a TTS-capable model,
+CHAT-F26/CHAT-AT7 a transcription-capable model, and CHAT-F32–CHAT-F33 a
+successfully indexed document (RAG indexing needs the full Docker stack — it
+fails under `TALE_DEV_SKIP_DOCKER=1`).
+
+The canvas / code-artifact surface has **no live UI right now** — its residual
+i18n keys were pruned in #2919 — so this guide carries no canvas cases.
+
+> **Agent note**: a chat turn is done when **Send** re-enables — Send and Stop
+> share one slot (**Stop generating** `chat.stopGenerating`, interim
+> **Stopping…** `chat.stoppingGeneration`); poll for Stop to disappear, never
+> for text. Sending the first message redirects to `/chat/{threadId}` (a 16+
+> char id); key all later selectors on that id, never the auto-generated
+> title. A blocked send states its reason as a tooltip on the disabled Send
+> button and as a destructive toast on Enter. `e2e:error` deliberately logs an
+> induced provider error to the console — that is the designed 500 path, not a
+> chat bug. The mock's canned payloads live in `lib/mocks/overrides/canned.ts`
+> (relative to the platform dir).
+
+## Functional tests
+
+- [ ] `CHAT-F1` · **Welcome view loads** — Open `/dashboard/{org}/chat` →
+  Status 200; heading **What are we working on?** (`chat.welcomeEmpty`); a
+  list of four conversation starters (`chat.starters.email`,
+  `chat.starters.summarize`, `chat.starters.brainstorm`,
+  `chat.starters.explain`); the composer with placeholder **Ask about your
+  documents or the web…** (`chat.placeholder`) and the model picker
+  (`chat.picker.ariaLabel`)
+- [ ] `CHAT-F2` · **Starter sends first message** — On the welcome view click
+  a starter, e.g. **Help me write a clear, professional email**
+  (`chat.starters.email`) → The starter text is sent as the first message; URL
+  becomes `/dashboard/{org}/chat/{threadId}`; a reply streams (canned in mode
+  A)
+- [ ] `CHAT-F3` · **Send a message** — Type a prompt in the message input
+  (`chat.aria.chatInput`), press **Enter** (or click **Send message**
+  `chat.send`) → URL becomes `/dashboard/{org}/chat/{threadId}`; an assistant
+  reply renders; **Stop generating** (`chat.stopGenerating`) replaces Send
+  while streaming, then Send returns.
+- [ ] `CHAT-F4` · **New chat + history panel** — Open the chats panel (**Show
+  chats** `chat.showHistory` / **Hide chats** `chat.hideHistory`); click **New
+  chat** (`chat.newChat`) → URL returns to `/dashboard/{org}/chat` (no thread
+  id); the prior thread is listed under **Chats** (`chat.chatsSection`); an
+  org with projects also shows **Projects** (`chat.projectsSection`)
+- [ ] `CHAT-F5` · **Title auto-generation** — Send the first message in a new
+  thread, then reload → The thread's history entry shows a generated title —
+  not **Untitled chat** (`chat.history.untitled`); the title persists after
+  reload.
+- [ ] `CHAT-F6` · **Model picker** — Open the combined picker (trigger
+  `chat.picker.ariaLabel` = "Choose model and reasoning effort"); search
+  (`chat.picker.searchPlaceholder`); pick a model under the **Model** section
+  (`chat.picker.sectionModel`) → The trigger shows the chosen model's name
+  (falls back to **Select model** `chat.modelSelector.label` with none); a
+  non-matching search shows **No matches** (`chat.picker.searchEmpty`); the
+  next turn runs on the chosen model (check via CHAT-F13's info dialog)
+- [ ] `CHAT-F7` · **Reasoning effort** — With a reasoning-capable model
+  selected, open the picker → **Reasoning effort** (`chat.effort.label`) →
+  pick **High** (`chat.effort.high`); reload `/dashboard/{org}/chat` → The
+  trigger shows the effort as a muted suffix; **Max** (`chat.effort.max`)
+  carries the hint `chat.effort.maxHint`; after reload a fresh composer seeds
+  from the saved pick (device-persisted, per org); a model without reasoning
+  shows no effort section.
+- [ ] `CHAT-F8` · **Edit message → branch** — Hover a sent user message →
+  **Edit message** (`chat.editMessage`) → change the text → **Send**
+  (`chat.editSend`) → A new branch is created; the branch navigator appears
+  with **Previous branch** / **Next branch** (`chat.branchNavigator.previous`,
+  `chat.branchNavigator.next`) and a position indicator.
+- [ ] `CHAT-F9` · **Regenerate** — On an assistant message click **Try again**
+  (`chat.tryAgain`) → A new response branch is added to the same turn; the
+  branch navigator shows >1 branch.
+- [ ] `CHAT-F10` · **Stop generation** — Send, then click **Stop generating**
+  (`chat.stopGenerating`) while it streams → The button shows **Stopping…**
+  (`chat.stoppingGeneration`) then Send returns; the partial reply is retained
+  with a **Generation stopped** annotation (`chat.generationStopped`)
+- [ ] `CHAT-F11` · **Copy reply** — Assistant toolbar → **Copy**
+  (`common.actions.copy`) → The tooltip flips to **Copied**
+  (`common.actions.copied`); the clipboard holds the reply as normalized plain
+  text (no stray blank lines)
+- [ ] `CHAT-F12` · **Feedback** — **Helpful** (`chat.feedback.thumbsUp`) /
+  **Not helpful** (`chat.feedback.thumbsDown`) → comment field (placeholder
+  `chat.feedback.commentPlaceholder`) → **Submit**
+  (`chat.feedback.submitComment`) → The chosen control latches
+  (`aria-pressed`); the choice survives a reload of the thread.
+- [ ] `CHAT-F13` · **Message info dialog** — Assistant toolbar → **Show info**
+  (`common.actions.showInfo`) → The **Message information** dialog
+  (`chat.messageInfo.title`) opens showing **Model**
+  (`chat.messageInfo.model`), **Token usage** (`chat.messageInfo.tokenUsage`),
+  and **Start → first token** (`chat.messageInfo.timeToFirstToken`); the model
+  line matches the CHAT-F6 pick.
+- [ ] `CHAT-F14` · **Fork chat** — Assistant toolbar → **Fork chat**
+  (`chat.forkChat`) → A toast **Chat forked successfully**
+  (`chat.forkSuccess`); a new thread opens titled **Fork of {title}**
+  (`chat.forkOf`) containing the messages up to the fork point.
+- [ ] `CHAT-F15` · **Quote selection** — Select text inside an assistant
+  message → floating **Quote** (`chat.quote.button`) → A **Quoted** chip
+  (`chat.quote.label`) appears over the composer; **Remove quote**
+  (`chat.quote.remove`) clears it; on send the quote is prepended to the
+  message as a markdown blockquote.
+- [ ] `CHAT-F16` · **Thought timeline** — Mode A: send a message containing
+  `e2e:reasoning` → While live the header reads **Thinking**
+  (`chat.thinking.label`) with ticking seconds; settled it reads **Thought for
+  {seconds}s** (`chat.thinking.done`) and stays; tool steps (**Called {tool}**
+  `chat.parts.toolCall`) are always visible; expanding the header
+  (user-controlled, never automatic) reveals the reasoning prose; the answer
+  text never renders inside the timeline.
+- [ ] `CHAT-F17` · **Next steps** — Mode A: send `e2e:nextsteps` → A
+  **Suggested follow-ups** section (`chat.structured.nextSteps`) renders
+  suggestion buttons; clicking one sends it as a new turn.
+- [ ] `CHAT-F18` · **Human input request** — Mode A: send `e2e:humaninput` →
+  The turn renders a human-input row with the question and the badge **Your
+  answer is needed** (`chat.parts.humanInputPending`); the response-status
+  region (`chat.generation.regionLabel`) reads **Waiting for your answer**
+  (`chat.generation.waitingInput`); an answered request flips the badge to
+  **Answered** (`chat.parts.humanInputAnswered`)
+- [ ] `CHAT-F19` · **Provider error** — Mode A: send `e2e:error` → A friendly
+  **Something went wrong** error (`chat.errorGenerating`) with a **Technical
+  details** disclosure (`chat.errorDetailsSummary`) and **Try again**
+  (`chat.retryGeneration`) renders — the app does not crash (the console's
+  induced-provider-error line is expected)
+- [ ] `CHAT-F20` · **Export** — Thread header **Conversation actions**
+  (`chat.aria.threadActions`) → **Export** (`chat.export.button`) → The
+  **Export chat** dialog (`chat.export.title`) opens; **Deselect all**
+  (`chat.export.deselectAll`) / **Select all** (`chat.export.selectAll`)
+  toggle the per-message checkboxes; **Download Markdown**
+  (`chat.export.downloadMarkdown`) saves a file; **Print to PDF**
+  (`chat.export.downloadPdf`) opens the print flow; with none selected both
+  are disabled.
+- [ ] `CHAT-F21` · **Share link** — **Share** (`chat.share.button`) → dialog
+  **Share chat** (`chat.share.title`) → toggle **Enable sharing**
+  (`chat.share.enableSharing`, a switch) → **Copy link**
+  (`chat.share.copyLink`) → **Preview** (`chat.share.preview`) → The link
+  (`chat.share.linkLabel`) copies with confirmation **Link copied**
+  (`chat.share.copied`); Preview opens
+  `/dashboard/{org}/chat/shared/{shareToken}`; the thread row gains the
+  **Shared** indicator (`chat.share.sharedIndicator`)
+- [ ] `CHAT-F22` · **Shared view + stop sharing** — Open the share URL in a
+  private window; then in the owner session use the thread-row menu → **Stop
+  sharing** (`chat.share.unshare`); reload the private window → The shared
+  page is read-only — header **Shared chat** (`chat.share.sharedChat`), byline
+  `chat.share.byline`, no composer; after unsharing the same URL shows **This
+  shared chat is no longer available.** (`chat.share.notFound`)
+- [ ] `CHAT-F23` · **Republish newer messages** — With sharing on, send
+  another message in the thread; reopen the Share dialog → The dialog shows
+  **Shared as of {date}…** (`chat.share.sharedAsOf`) and **Publish newer
+  messages** (`chat.share.republish`); before republishing the shared view
+  lacks the new message; after clicking republish and reloading the shared
+  view includes it.
+- [ ] `CHAT-F24` · **Arena mode** — **Open chat menu** (`composer.openMenu`) →
+  under **Modes** (`composer.modeHeader`) pick **Arena Mode**
+  (`chat.arena.label`); pick **Model A** / **Model B**
+  (`chat.arena.modelALabel`, `chat.arena.modelBLabel`); send → Two columns
+  respond; the verdict bar shows **Choose a verdict**
+  (`chat.arena.verdictLabel`); a verdict before both replies finish is refused
+  (`chat.arena.busy`); **A is better** (`chat.arena.aBetter`) records with
+  **Verdict recorded** (`chat.arena.verdictRecorded`); the Share dialog for an
+  arena thread refuses (`chat.share.notShareable` /
+  `chat.share.cannotShareArena`)
+- [ ] `CHAT-F25` · **Voice output (TTS)** — Toggle the composer's **Voice
+  mode** (`chat.voice.voiceModeLabel`, `aria-pressed`; tooltips
+  `chat.voice.voiceModeEnable` / `chat.voice.voiceModeDisable`); send (**mode
+  B**, TTS-capable provider). Or per message: **Speak out loud**
+  (`chat.speakOutLoud`) → The reply is spoken — **Speaking** indicator
+  (`chat.voice.voiceOutputSpeaking`) with **Stop voice output**
+  (`chat.voice.voiceOutputStop`); the per-thread toggle survives a reload.
+  Without a TTS model the toggle's tooltip reads
+  `chat.voice.voiceOutputErrorConfig` — itself a checkable outcome in mode A.
+- [ ] `CHAT-F26` · **Dictation (MediaRecorder)** — Click **Start dictation**
+  (`chat.dictation.start`) → speak → **Stop dictation**
+  (`chat.dictation.stop`) (**mode B**, transcription-capable provider) → While
+  recording a level meter (`chat.dictation.level`) and **Discard recording**
+  (`chat.dictation.discard`) show; after stop, **Transcribing…**
+  (`chat.dictation.transcribing`) then the transcript lands in the input;
+  sending while recording stops the mic. Without a transcription model the
+  mic's tooltip reads `chat.dictation.notConfigured` — checkable in mode A.
+- [ ] `CHAT-F27` · **Pin / rename / unread** — Thread-row **More actions**
+  (`chat.moreActions`) → **Pin chat** (`chat.pinChat`); **Rename**
+  (`chat.history.renameChat`); **Mark as unread** (`chat.markAsUnread`) → The
+  pinned thread shows the **Pinned** marker (`chat.pinned`) and sorts to the
+  top (**Unpin chat** `chat.unpinChat` reverses); the new name persists after
+  reload; an unread thread shows its unread affordance until **Mark as read**
+  (`chat.markAsRead`) or opening it.
+- [ ] `CHAT-F28` · **Archive / unarchive** — Thread-row menu → **Archive**
+  (`chat.archive`); open the archived thread; unarchive → Toast **Chat
+  archived** (`chat.archiveSuccess`); the thread moves under **Archived**
+  (`chat.archived.title`); opening it replaces the composer with the banner
+  **This conversation was archived** (`chat.archivedBanner`) and an
+  **Unarchive** action (`chat.unarchive`); unarchiving restores the composer.
+- [ ] `CHAT-F29` · **Delete chat** — Thread-row menu → **Delete chat**
+  (`chat.deleteChat`) → confirm (`chat.deleteConfirmation`) → The dialog
+  explains trash + grace period (`chat.deletePermanentMessage`); after
+  confirming the thread leaves the list; opening its old URL shows **This chat
+  is not available.** (`chat.notFound`)
+- [ ] `CHAT-F30` · **Search chats** — Panel **Search chats**
+  (`chat.searchPalette.title`) → type message content into the dialog
+  (placeholder `chat.searchPalette.placeholder`); then click the footer
+  **Search everything** (`chat.searchPalette.searchEverywhere`) → The matching
+  thread is listed (no match: `chat.searchPalette.noResults`); selecting it
+  navigates to `/dashboard/{org}/chat/{threadId}`. The palette is chats-only —
+  **Search everything** closes it and opens the org-wide ⌘K palette
+  (`dialogs.search.title`), which also covers projects, tasks, documents, and
+  contacts.
+- [ ] `CHAT-F31` · **Move to project** — Thread-row menu → **Move to
+  project…** (`chat.moveToProject`) → pick a project (create one first via
+  **New project** `chat.newProject` if none) → The thread relocates under the
+  project's folder in the panel; **Remove from project**
+  (`chat.removeFromProject`) returns it to **Chats**; both survive a reload.
+- [ ] `CHAT-F32` · **Source cards** — **Mode B + Docker stack**: ask about an
+  uploaded + indexed document (or a fetched web page) so the turn actually
+  loads sources → A **Sources** row (`chat.sources.label`) renders one card
+  per fetched page/document — derived from tool results, never from prose;
+  beyond 3 they fold behind **Show all {count} sources**
+  (`chat.sources.showAll`) / **Hide sources** (`chat.sources.hide`); web cards
+  open in a new tab, document cards open the in-app preview.
+- [ ] `CHAT-F33` · **Citations** — **Mode B + Docker stack**: same setup as
+  CHAT-F32 with a RAG-citing answer → Inline **Source {number}** buttons
+  (`chat.citations.source`) render; the popover shows **Page {page}**
+  (`chat.citations.page`) and **View in document**
+  (`chat.citations.viewDocument`) for documents, **Visit page**
+  (`chat.citations.visitPage`) for web sources.
+- [ ] `CHAT-F34` · **Step-limit notice** — **Mode B**: give a tool-heavy task
+  that exhausts the turn's tool-round budget (many sequential lookups) → The
+  turn ends with a neutral info line **Stopped here — this turn reached its
+  step limit. Send a message to continue.** (`chat.stepLimitReached`) — an
+  info note, not a warning; sending another message continues normally.
+- [ ] `CHAT-F35` · **Write-op approval row** — **Mode B**: ask the agent to
+  create/update an org record (a write that requires approval) → The turn
+  renders an approval row with the question and badge **Approval requested**
+  (`chat.parts.approvalPending`); the status region reads **Waiting for your
+  approval** (`chat.generation.waitingApproval`); after resolution the badge
+  flips (`chat.parts.approvalApproved` / `chat.parts.approvalRejected`) and
+  the write is verifiable in the target list.
+### Attachments
+- [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
+  (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
+  a small PDF; send → While uploading the chip shows **Uploading…**
+  (`chat.uploadingFile`) with **Cancel upload** (`chat.cancelUpload`); Send is
+  held until the upload lands; the sent turn shows the filename chip (no MIME,
+  no "Attachment:" prefix; long names truncate with full name on hover);
+  **Remove attachment** (`chat.removeAttachment`) works before send. Mode B:
+  the agent can use the content.
+- [ ] `CHAT-AT2` · **Attach an image** — Attach a PNG/JPEG → An image chip
+  (**View image** `chat.viewImage`) renders; clicking the sent image opens the
+  lightbox (`chat.imagePreview`); with a non-vision model selected the notice
+  `chat.modelCannotSeeImages` appears.
+- [ ] `CHAT-AT3` · **Paste an image** — Copy an image to the clipboard, paste
+  into the message input → The paste attaches the image (named
+  `pasted-image-1.png`; repeated pastes number up) instead of inserting text;
+  the chip behaves like CHAT-AT2.
+- [ ] `CHAT-AT4` · **Duplicate in batch** — Attach the same file twice before
+  sending → The second is rejected with a **Duplicate file** toast
+  (`chat.duplicateFile`, description `chat.duplicateFileDescription`); only
+  one chip remains.
+- [ ] `CHAT-AT5` · **Too many files** — Attach 11 files → Rejected at the
+  10-per-message cap — a **Too many files** toast (`chat.tooManyFiles`,
+  description `chat.tooManyFilesDescription`) reports the rejected count.
+- [ ] `CHAT-AT6` · **Oversized** — Attach a non-media file > 100 MB (or push
+  the batch past 200 MB total; or audio/video > 4 h) → Rejected with the
+  matching toast — `chat.fileSizeExceededMultiple`, **Attachments too large**
+  (`chat.totalSizeExceeded`), or `chat.audioDurationExceeded`; no chip is
+  added.
+- [ ] `CHAT-AT7` · **Audio transcription** — **Mode B** (transcription-capable
+  provider): attach an audio file → The chip shows **Transcribing…**
+  (`chat.transcription.transcribing`); Send is held with tooltip
+  `chat.transcription.inProgressTooltip`; then **Transcribed**
+  (`chat.transcription.transcribed`) with **View transcript**
+  (`chat.transcription.viewTranscript`) — the transcript stays off the message
+  bubble; a failure shows `chat.transcription.couldNotTranscribe` with **Try
+  again** (`chat.transcription.retry`)
+- [ ] `CHAT-AT8` · **Attachment-only send** — Attach a file, send with no text
+  → The message sends — staged attachments make an empty field sendable; the
+  turn renders with the file part only.
+
+## Boundary & error tests
+
+- [ ] `CHAT-B1` · **Empty composer** — Empty or whitespace-only input → **Send
+  message** (`chat.send`) is disabled; Enter no-ops.
+- [ ] `CHAT-B2` · **Very long message** — Mode A: paste a ~20k-character
+  message, send → The message sends without freezing the UI; the bubble
+  renders; the thread stays scrollable and the **Scroll to bottom** button
+  (`chat.scrollToBottom`) appears when scrolled up.
+- [ ] `CHAT-B3` · **Markdown edge cases** — Mode B (mode A's reply is fixed):
+  ask for nested lists, a wide table, code fences, and LaTeX → Nested lists
+  (≥3 levels) and code fences render; a wide table stays usable in a
+  horizontal-scroll wrapper. **LaTeX is NOT rendered** — the renderer ships
+  only `remark-gfm`, so `$$…$$` / `$…$` show verbatim (see Issues #1)
+- [ ] `CHAT-B4` · **Network drop mid-stream** — Mode A: go offline while a
+  reply streams → A friendly error (`chat.errorGenerating`) or a send-failure
+  toast (`chat.toast.sendFailed`) renders, no crash; **Try again**
+  (`chat.retryGeneration`) works after reconnect.
+- [ ] `CHAT-B5` · **Rapid send/stop/send** — Mode A: send → **Stop
+  generating** (`chat.stopGenerating`) immediately → send again → No duplicate
+  turn is created; the composer/Send state stays consistent.
+- [ ] `CHAT-B6` · **Budget exceeded** — Set a low budget rule (see
+  [governance.md](governance.md)), chat past it; **delete it after** →
+  Approaching the cap a banner shows the remainder (`chat.budgetRemaining`)
+  with **Dismiss** (`chat.budgetWarningDismiss`); exceeded, the banner shows
+  `chat.budgetExceededDetail` with **Request usage credits**
+  (`chat.budgetRequestCredits` → `chat.budgetRequestCreditsSent`); Send is
+  blocked with reason `chat.budgetExceededDefault` (tooltip on the disabled
+  button; destructive toast on Enter); a server-side refusal titles
+  `chat.toast.budgetExceeded`
+- [ ] `CHAT-B7` · **Backend unavailable** — Stop the chat backend while the
+  app is open (e.g. kill the dev backend process), open a thread → The surface
+  shows **Chat isn't connected yet** (`chat.backendUnavailable.title`) with
+  `chat.backendUnavailable.description` instead of a crash or endless spinner;
+  drafts are not lost (the draft persists per conversation)
+- [ ] `CHAT-B8` · **No provider configured** — Mode B: a fresh org with no
+  provider key → The chat shows **No AI provider connected yet**
+  (`chat.providerSetup.title`); an admin sees the **Open AI providers** action
+  (`chat.providerSetup.action`); a member sees
+  `chat.providerSetup.descriptionMember` — this is a designed state, not a
+  defect.
+
+## Accessibility (WCAG 2.1 AA)
+
+- [ ] `CHAT-A1` · **Keyboard send** → Enter sends; Shift+Enter inserts a
+  newline; a blocked send announces its reason (toast) instead of silently
+  no-opping.
+- [ ] `CHAT-A2` · **Landmarks & labels** → The chat region is labelled
+  (`chat.aria.chatRegion`), the input (`chat.aria.chatInput`), the transcript
+  (`chat.aria.messageHistory`), and the thread-actions menu
+  (`chat.aria.threadActions`)
+- [ ] `CHAT-A3` · **Generation announced** → The response-status region
+  (`chat.generation.regionLabel`) exposes the turn state (queued / streaming /
+  waiting) to assistive tech.
+- [ ] `CHAT-A4` · **Voice controls labelled** → The mic has an accessible name
+  (`chat.dictation.start`) and its level meter is labelled
+  (`chat.dictation.level`); **Voice mode** (`chat.voice.voiceModeLabel`)
+  exposes `aria-pressed`
+- [ ] `CHAT-A5` · **Disclosures keyboardable** → The thought-timeline header
+  (CHAT-F16) expands/collapses via keyboard with visible focus; **Scroll to
+  bottom** (`chat.scrollToBottom`) is a labelled button.
+
+## Performance
+
+- [ ] `CHAT-P1` · **TTFT (first token)** → < 3 s warm on a live provider (mode
+  B) to the first provider SSE text delta; ≤ ~500 ms in mode A (the mock
+  streams a canned reply)
+- [ ] `CHAT-P2` · **Attachment upload** → A small PDF uploads and shows its
+  chip in < 3 s.
+- [ ] `CHAT-P3` · **Thread switch** → Opening a history thread renders its
+  messages in < 1 s (warm)
+- [ ] `CHAT-P4` · **Long-thread scroll** → A 50+ message thread scrolls
+  without visible jank; the timeline/source folds stay responsive.

@@ -16,6 +16,24 @@ interface Answers {
   storybook: boolean;
 }
 
+// The manual-test layer, identical for every kind and every repo: the guide,
+// the environment, the suite shape, the registers a round consults and the
+// round journal. Only the starter suite is kind-specific, so it lives in the
+// kind's own file list. A service is born with the layer because acquiring one
+// later never happens — AGENTS.md "Manual tests".
+const MANUAL_FILES = [
+  'readme.md.hbs',
+  'setup.md.hbs',
+  'template.md.hbs',
+  'reference/automation.md.hbs',
+  'reference/not-a-finding.md.hbs',
+  'reference/error-codes.md.hbs',
+  'reference/pins.md.hbs',
+  'runs/readme.md.hbs',
+  'runs/template.md.hbs',
+  'runs/template-session-log.md.hbs',
+] as const;
+
 // Files scaffolded per kind, relative to templates/service/<kind>/. `react` is a
 // TanStack Start frontend (Vite + Tailwind v4 + Vitest + Playwright, like
 // services/web); `docker` is a pure-Docker service (like services/proxy).
@@ -59,6 +77,7 @@ const FILES_BY_KIND: Record<ServiceKind, string[]> = {
     'messages/global.yml',
     'public/manifest.webmanifest.hbs',
     'types/.gitkeep',
+    'tests/manual/suites/smoke.md.hbs',
   ],
   docker: [
     'package.json.hbs',
@@ -68,6 +87,7 @@ const FILES_BY_KIND: Record<ServiceKind, string[]> = {
     'entrypoint.sh.hbs',
     '.gitignore',
     'README.md.hbs',
+    'tests/manual/suites/smoke.md.hbs',
   ],
 };
 
@@ -141,15 +161,32 @@ export function registerService(plop: NodePlopAPI): void {
         files.push(...STORYBOOK_FILES);
       }
 
-      return files.map<ActionType>((file) => {
+      const view = {
+        ...answers,
+        isReact: answers.kind === 'react',
+        isDocker: answers.kind === 'docker',
+      };
+
+      const actions = files.map<ActionType>((file) => {
         const isHbs = file.endsWith('.hbs');
         return {
           type: 'add',
           path: `${dest}/${isHbs ? file.replace(/\.hbs$/, '') : file}`,
           templateFile: `${templateDir}/${answers.kind}/${file}`,
-          data: answers,
+          data: view,
         };
       });
+
+      actions.push(
+        ...MANUAL_FILES.map<ActionType>((file) => ({
+          type: 'add',
+          path: `${dest}/tests/manual/${file.replace(/\.hbs$/, '')}`,
+          templateFile: `${templateDir}/manual/${file}`,
+          data: view,
+        })),
+      );
+
+      return actions;
     },
   });
 }

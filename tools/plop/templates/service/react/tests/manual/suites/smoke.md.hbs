@@ -1,0 +1,41 @@
+# Smoke
+
+> **Prefix** `SMOKE-` · **Reset** none · **Cost** ~10 min
+
+The fast "is this build even drivable" pass over {{scope}}/{{kebabCase name}}.
+Green ⇒ go on to the suites that matter for what changed; red ⇒ stop and fix,
+because everything after this reads on top of it.
+
+The boxes are deliberately about the **shell** rather than the feature: a route
+that renders, a locale that resolves, a control a keyboard can reach, a console
+with nothing in it. Replace them as the service grows real surfaces — and move
+any box a spec takes over into
+[`../reference/automation.md`](../reference/automation.md).
+
+## Preconditions
+
+The dev server up on :{{port}} per [`../setup.md`](../setup.md), devtools open,
+a 1440×900 viewport.
+
+> **Agent note**: wait on the route's own heading, never on a timeout — the app
+> renders `home.title` only once i18n has initialized, so a heading assertion is
+> the earliest honest ready signal.
+
+## Boxes
+
+- [ ] `SMOKE-1` · **Open `/` with the console open** → the heading and the
+  tagline render; no console message at `warn` or `error` level.
+- [ ] `SMOKE-2` · **Reload the page** → the route re-renders from the URL alone;
+  no flash of an empty shell, no error boundary.
+- [ ] `SMOKE-3` · **Press the counting button three times** → the live region
+  reads the new count each time, and announces it (`aria-live="polite"`), rather
+  than only repainting.
+- [ ] `SMOKE-4` · **Switch the app to each locale it ships** → every visible
+  string changes with it; no key leaks through as its raw dotted path, and no
+  sentence stays English.
+- [ ] `SMOKE-5` · **Reach the button with Tab alone, then activate it with Enter
+  and with Space** → focus is visible at every stop, the order matches the
+  reading order, and both keys activate it.
+- [ ] `SMOKE-6` · **Open a route the app does not define** → a real not-found
+  renders inside the shell; no white screen, no unhandled rejection in the
+  console.
