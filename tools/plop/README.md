@@ -33,10 +33,15 @@ and scaffolds from the matching `templates/<category>/<kind>/` directory.
 - `templates/<category>/<kind>/` — Handlebars (`.hbs`) and static templates
   rendered by the generators
 - `helpers/` — shared Handlebars helpers registered with Plop
+- `tests/` — `templates.test.ts` asserts every templateFile a generator
+  references exists on disk; `manual.test.ts` renders the manual layer a
+  service is scaffolded with and runs the real `bun run lint:manual` over the
+  result, so a new service is never born red
 
 ## Workspace scripts
 
 ```bash
 bun run --filter @tale/plop lint
 bun run --filter @tale/plop typecheck
+bun run --filter @tale/plop test
 ```
