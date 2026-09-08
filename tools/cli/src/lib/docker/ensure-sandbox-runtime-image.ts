@@ -1,5 +1,6 @@
 import * as defaultLogger from '../../utils/logger';
 import { docker as defaultDocker } from './docker';
+import { imagePresent } from './ensure-image-present';
 import { pullImage as defaultPullImage } from './pull-image';
 
 /**
@@ -48,8 +49,7 @@ export async function ensureSandboxRuntimeImage(
     logger = defaultLogger,
   }: Partial<EnsureRuntimeImageDeps> = {},
 ): Promise<EnsureRuntimeImageOutcome> {
-  const present = await docker('image', 'inspect', SANDBOX_RUNTIME_LOCAL_TAG);
-  if (present.success) {
+  if (await imagePresent(SANDBOX_RUNTIME_LOCAL_TAG, docker)) {
     return 'present';
   }
 

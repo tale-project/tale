@@ -6297,6 +6297,13 @@ settings:
       notConfiguredWarning:
         La recherche de connaissances est indisponible tant qu'aucun modèle
         d'embedding n'est configuré.
+      banner:
+        title: La recherche de connaissances est coupée
+        body:
+          Cette organisation a un fournisseur IA mais aucun modèle
+          d'embedding, donc les documents ne peuvent être ni indexés ni
+          cherchés.
+        link: Choisir un modèle d'embedding
       recommendationBody:
         Ton identifiant {provider} peut servir {model} (vecteurs à {dimensions}
         dimensions).

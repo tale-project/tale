@@ -6182,6 +6182,13 @@ settings:
       notConfiguredWarning:
         Die Wissenssuche ist nicht verfügbar, bis ein Embedding-Modell
         eingerichtet ist.
+      banner:
+        title: Wissenssuche ist aus
+        body:
+          Diese Organisation hat einen KI-Anbieter, aber kein
+          Embedding-Modell — Dokumente lassen sich weder indexieren noch
+          durchsuchen.
+        link: Embedding-Modell wählen
       recommendationBody:
         Dein {provider}-Zugang kann {model} bedienen ({dimensions}-dimensionale
         Vektoren).

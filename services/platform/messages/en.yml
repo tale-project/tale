@@ -6282,6 +6282,12 @@ settings:
       notConfiguredWarning:
         Knowledge search is unavailable until an embedding model is
         configured.
+      banner:
+        title: Knowledge search is off
+        body:
+          This organization has an AI provider but no embedding model, so
+          documents cannot be indexed or searched.
+        link: Choose an embedding model
       recommendationBody:
         Your {provider} credential can serve {model} ({dimensions}-dimensional
         vectors).
