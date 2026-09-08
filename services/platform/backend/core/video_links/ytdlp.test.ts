@@ -1,9 +1,16 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { classifyBackend } from '@tale/shared/classify';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   buildAntiBotFlags,
   buildSpawnPath,
   classifyYtDlpStderr,
+  compareYtdlpVersions,
+  MIN_YTDLP_VERSION,
   cookiesFlagsFromEnv,
   ffmpegLocationFlags,
   impersonateFlagsFromEnv,
@@ -11,6 +18,7 @@ import {
   proxyFlagsFromEnv,
   sanitizeStderr,
   youtubeExtractorArgsFromEnv,
+  ytdlpVersionWarning,
 } from './ytdlp';
 import {
   BGUTIL_PLUGIN_NEST_DIR,
@@ -460,5 +468,48 @@ describe('ffmpegLocationFlags', () => {
     expect(ffmpegLocationFlags({ VIDEO_INGEST_FFMPEG_LOCATION: '  ' })).toEqual(
       ['--ffmpeg-location', '/usr/bin/ffmpeg'],
     );
+  });
+});
+
+describe('the yt-dlp version floor', () => {
+  it('orders date-shaped versions, nightly suffix included', () => {
+    expect(compareYtdlpVersions('2026.03.17', '2026.07.04')).toBeLessThan(0);
+    expect(compareYtdlpVersions('2026.08.19', '2026.07.04')).toBeGreaterThan(0);
+    expect(compareYtdlpVersions('2026.07.04', '2026.07.04')).toBe(0);
+    // A same-day nightly is newer than the release it builds on.
+    expect(
+      compareYtdlpVersions('2026.07.04.232805', '2026.07.04'),
+    ).toBeGreaterThan(0);
+    // Zero-padding is cosmetic; the components are numbers.
+    expect(compareYtdlpVersions('2026.7.4', '2026.07.04')).toBe(0);
+  });
+
+  it('emits the stale-binary warning where the dev loop will show it', () => {
+    // `bun dev` pipes the backend through `classifyBackend`, which surfaces a
+    // line only when it carries ERROR or WARN and drops everything else as
+    // noise. This warning exists to be READ — if it classifies as noise, a
+    // developer goes on reading a stale binary's failures as platform blocks,
+    // which is the exact confusion it was added to prevent.
+    const warning = ytdlpVersionWarning('2026.03.17');
+    expect(classifyBackend(warning).kind).toBe('warn');
+    // And it has to say what to do about it.
+    expect(warning).toContain('2026.03.17');
+    expect(warning).toContain(MIN_YTDLP_VERSION);
+    expect(warning).toContain('VIDEO_INGEST_BIN_DIR');
+  });
+
+  it('never exceeds the version the image pins', () => {
+    // The floor is what we warn a dev host about. If it ever rose above the
+    // Dockerfile pin, the shipped image would warn about itself — and the
+    // warning would stop meaning "your host is behind production".
+    const dockerfile = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../Dockerfile'),
+      'utf8',
+    );
+    const pinned = /^ARG YTDLP_VERSION=(\S+)$/m.exec(dockerfile)?.[1];
+    expect(pinned).toBeDefined();
+    expect(
+      compareYtdlpVersions(MIN_YTDLP_VERSION, pinned as string),
+    ).toBeLessThanOrEqual(0);
   });
 });
