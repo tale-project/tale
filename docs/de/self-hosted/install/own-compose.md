@@ -191,6 +191,7 @@ Zwei Docker-Netze tragen jeden Hop. Ein gewöhnliches Compose-Netz reicht für d
 | `sandbox` | Der Sandbox-Spawner | `internal`, `sandbox` |
 | `sandbox-egress` | Der Egress-Proxy | `internal`, `sandbox` |
 | `llm-gateway` | `sandbox-llm-gateway` | `internal`, `sandbox` |
+| `bgutil-provider` | Der YouTube-PO-Token-Sidecar des Workers, den er standardmäßig unter `http://bgutil-provider:4416` erreicht | `internal` |
 | `HOST` (dein öffentlicher Hostname) | `proxy`, damit ein Container zur öffentlichen URL hairpinnen kann | `internal` |
 
 Worker haben keinen geteilten Alias. Nichts adressiert einen Worker per Name; sie holen Jobs nur aus der Queue. Farb-suffigierte Aliase (`backend-api-blue`, `platform-green`) sind nur für ein Blue-Green, während zwei Versionen gleichzeitig oben sind.
@@ -207,7 +208,7 @@ Nenn diese logischen Volumes in deinem Compose. Eine Datei kann Compose sie anle
 | `db-data` | `db` unter `/var/lib/postgresql/data` | `tale_app` und `tale_knowledge` |
 | `db-backup` | `db` unter `/var/lib/postgresql/backup` | Postgres-Backup-Ziel im Container |
 | `object-store-data` | `object-store` unter `/data` | Blobs |
-| `caddy-data`, `caddy-config` | `proxy` | Zertifikate und Caddy-Zustand |
+| `caddy-data`, `caddy-config` | `proxy` unter `/data` und `/config` | Zertifikate und Caddy-Zustand |
 | `llm-gateway-data` | `sandbox-llm-gateway` unter `/app/data` | Virtuelle Keys pro Session |
 
 Instanzen, die vor 0.5.11 upgraded wurden, haben neben `config-data` oft noch ein `convex-data`-Volume. Die CLI kopiert den Store einmal rüber und löscht das alte Volume nie. Ein handgeschriebenes First-Boot auf einem frischen Host braucht `convex-data` nicht.
@@ -267,6 +268,7 @@ Die sehen optional aus und gehen geschlossen kaputt, wenn sie fehlen.
 | `sandbox` | `/var/run/docker.sock` und `/var/lib/tale-sandbox` 1:1 bind-gemountet | Der Spawner kann keine Session-Container anlegen; Workspace-Pfade, die der Daemon mountet, passen nicht. |
 | `db` | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` | Ein `SIGTERM`-Warten-auf-Clients endet in `SIGKILL` und kann den BM25-Index mit einer genullten Page hinterlassen. |
 | `platform` | `stop_grace_period: 45s` | Dockers Default-Grace von 10s `SIGKILL`t den Web-Tier mitten im Drain und kappt In-flight-HTTP/SSE. |
+| `object-store` | `command: server /data` | Der Entrypoint des Images gibt seine Verwendung aus und endet, der Container serviert also nie und `mc ready local` wird nie grün. |
 | `object-store` | Keine veröffentlichten Ports | Presigned URLs laufen durch den Proxy. MinIO zu veröffentlichen ist eine zusätzliche öffentliche Fläche. |
 
 Veröffentliche nur `80` und `443` auf `proxy`. Alles andere bleibt im internen Netz.
