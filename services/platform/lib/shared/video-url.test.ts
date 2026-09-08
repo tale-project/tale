@@ -6,6 +6,7 @@ import {
   isPlaylistUrl,
   isSafeVideoUrl,
   normalizeUrlForHash,
+  vimeoEmbedUrl,
 } from './video-url';
 
 describe('isSafeVideoUrl', () => {
@@ -407,5 +408,58 @@ describe('extractVideoUrls', () => {
     expect(out).toHaveLength(2);
     expect(out[0].platform).toBe('youtube');
     expect(out[1].platform).toBe('vimeo');
+  });
+});
+
+describe('vimeoEmbedUrl', () => {
+  it('rewrites the watch URL the user actually pastes', () => {
+    // Verbatim from the composer, tracking furniture and all — the link that
+    // walled on every yt-dlp client while the embed form served it fine.
+    expect(
+      vimeoEmbedUrl(
+        'https://vimeo.com/1206142064?fl=wc&source_section=316&source_position=2',
+      ),
+    ).toBe('https://player.vimeo.com/video/1206142064');
+  });
+
+  it('carries the unlisted hash across, from the path or the query', () => {
+    expect(vimeoEmbedUrl('https://vimeo.com/1206142064/a1b2c3d4e5')).toBe(
+      'https://player.vimeo.com/video/1206142064?h=a1b2c3d4e5',
+    );
+    expect(vimeoEmbedUrl('https://vimeo.com/1206142064?h=a1b2c3d4e5')).toBe(
+      'https://player.vimeo.com/video/1206142064?h=a1b2c3d4e5',
+    );
+  });
+
+  it('finds the video id in the container path forms', () => {
+    expect(
+      vimeoEmbedUrl('https://vimeo.com/channels/staffpicks/76979871'),
+    ).toBe('https://player.vimeo.com/video/76979871');
+    expect(
+      vimeoEmbedUrl('https://vimeo.com/groups/motion/videos/76979871'),
+    ).toBe('https://player.vimeo.com/video/76979871');
+    // `/album/<albumId>/video/<videoId>` — the FIRST id-shaped segment is the
+    // album's, so the marker segment is what makes this one come out right.
+    expect(
+      vimeoEmbedUrl('https://vimeo.com/album/12345678/video/76979871'),
+    ).toBe('https://player.vimeo.com/video/76979871');
+  });
+
+  it('returns null when there is nothing to fall back to', () => {
+    // Already the embed form.
+    expect(vimeoEmbedUrl('https://player.vimeo.com/video/76979871')).toBeNull();
+    // Not Vimeo.
+    expect(vimeoEmbedUrl('https://www.youtube.com/watch?v=abc')).toBeNull();
+    // No id-shaped segment — a profile, a slug, a bare host.
+    expect(vimeoEmbedUrl('https://vimeo.com/pepiginsberg')).toBeNull();
+    expect(vimeoEmbedUrl('https://vimeo.com/ondemand/some-film')).toBeNull();
+    expect(vimeoEmbedUrl('not a url')).toBeNull();
+  });
+
+  it('never invents a hash out of a path segment that is not one', () => {
+    // A trailing slug is not an unlisted hash and must not ride along as one.
+    expect(vimeoEmbedUrl('https://vimeo.com/76979871/the-new-player')).toBe(
+      'https://player.vimeo.com/video/76979871',
+    );
   });
 });

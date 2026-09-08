@@ -174,6 +174,68 @@ export function isSafeVideoUrl(url: string): boolean {
 }
 
 /**
+ * Vimeo video ids are 6-11 digits. Tight enough that an album id sitting in
+ * an `/album/<id>/video/<id>` path is never mistaken for the video, and that
+ * a slug (`/ondemand/some-film`) never matches.
+ */
+const VIMEO_ID_RE = /^\d{6,11}$/;
+/** Unlisted-link hash — Vimeo mints lowercase hex, 6-32 chars. */
+const VIMEO_HASH_RE = /^[0-9a-f]{6,32}$/;
+
+/**
+ * The embed-player form of a Vimeo watch URL, or null when there is nothing
+ * to rewrite (not Vimeo, already a player URL, no id-shaped segment).
+ *
+ * Why this exists: as of 2026 Vimeo answers every anonymous request for a
+ * WATCH page with a login wall — the `web` client says so in prose, the
+ * `macos`/`android` ones fail fetching an OAuth token (verified against
+ * yt-dlp 2026.03.17, 2026.07.04 and 2026.08.19). The same public video
+ * extracts fine through `player.vimeo.com/video/<id>`, captions included.
+ * So a Vimeo link that fails on the watch page is worth one more try here
+ * before it becomes a red chip.
+ *
+ * The unlisted-link hash is carried across: on a watch URL it rides either
+ * as a trailing path segment (`/<id>/<hash>`) or as `?h=`; the player takes
+ * it as `?h=` only. Every other query param is web-page furniture
+ * (`fl`, `source_section`, …) and is dropped.
+ */
+export function vimeoEmbedUrl(url: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.toLowerCase();
+  // Already the embed form — nothing to fall back to.
+  if (/(^|\.)player\.vimeo\.com$/.test(host)) return null;
+  if (!/(^|\.)vimeo\.com$/.test(host)) return null;
+
+  const segments = u.pathname.split('/').filter(Boolean);
+  // `/album/<albumId>/video/<videoId>` and `/groups/<g>/videos/<videoId>`
+  // name the video explicitly, and their FIRST id-shaped segment is the
+  // container's. Everywhere else (`/<id>`, `/channels/<name>/<id>`,
+  // `/user<uid>/review/<id>/<hash>`) the first id-shaped segment is the video.
+  const marker = segments.findIndex((s) => s === 'video' || s === 'videos');
+  const from = marker >= 0 ? marker + 1 : 0;
+  const idIndex = segments.findIndex(
+    (s, i) => i >= from && VIMEO_ID_RE.test(s),
+  );
+  if (idIndex === -1) return null;
+
+  const embed = new URL(`https://player.vimeo.com/video/${segments[idIndex]}`);
+  const pathHash = segments[idIndex + 1];
+  const hash =
+    pathHash !== undefined && VIMEO_HASH_RE.test(pathHash)
+      ? pathHash
+      : (u.searchParams.get('h') ?? undefined);
+  if (hash !== undefined && VIMEO_HASH_RE.test(hash)) {
+    embed.searchParams.set('h', hash);
+  }
+  return embed.toString();
+}
+
+/**
  * Reject standalone playlist URLs. yt-dlp watch?v=X&list=Y is fine because
  * we pass `--no-playlist`; pure /playlist?list=Y has no video to fall back
  * on and should be refused at submit time with a clear error.

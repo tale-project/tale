@@ -33,6 +33,7 @@ import { join } from 'node:path';
 
 import { sanitizeUntrustedField } from '../../../lib/chat/untrusted-content';
 import { CHAT_AUDIO_MAX_DURATION_SEC } from '../../../lib/shared/file-types';
+import { vimeoEmbedUrl } from '../../../lib/shared/video-url';
 import {
   joinSegmentsWithParagraphs,
   CAPTION_PROFILE,
@@ -383,20 +384,38 @@ export async function ingestVideoLinkImpl(
       });
       if (!(await assertNotCancelled())) return;
 
+      // The URL yt-dlp is pointed at. Starts as the link the user pasted and
+      // only ever changes to a platform-equivalent form that extraction can
+      // actually reach (see the Vimeo fallback below). Phases B and C follow
+      // it; provenance (`insertSyntheticFileMetadata`) keeps `job.sourceUrl`,
+      // so the chip still links where the user meant.
+      let extractionUrl = job.sourceUrl;
+
       let metadata: YtDlpMetadata;
       try {
-        metadata = await ytdlpJson(job.sourceUrl, jobDir, undefined, session);
+        metadata = await ytdlpJson(extractionUrl, jobDir, undefined, session);
       } catch (err) {
-        if (isBotWallError(err)) await reportSession('blocked');
-        await handleYtDlpError(
-          ctx,
-          args.jobId,
-          job,
+        const fallback = await tryEmbedFallback(
           err,
-          fail,
-          'fetching_metadata',
+          job.sourceUrl,
+          jobDir,
+          session,
+          args.jobId,
         );
-        return;
+        if (fallback === null) {
+          if (isBotWallError(err)) await reportSession('blocked');
+          await handleYtDlpError(
+            ctx,
+            args.jobId,
+            job,
+            err,
+            fail,
+            'fetching_metadata',
+          );
+          return;
+        }
+        metadata = fallback.metadata;
+        extractionUrl = fallback.url;
       }
 
       // Reject live / upcoming / oversized BEFORE any download.
@@ -494,7 +513,7 @@ export async function ingestVideoLinkImpl(
         // Re-validate URL against fresh DNS before spawning yt-dlp again.
         // Defends against TTL=0 rebind between Phase A and Phase B.
         try {
-          await assertSafeUrl(job.sourceUrl);
+          await assertSafeUrl(extractionUrl);
         } catch (err) {
           if (err instanceof UrlSafetyError) {
             await fail(err.kind, err.message, 'fetching_captions');
@@ -506,7 +525,7 @@ export async function ingestVideoLinkImpl(
         let vttPath: string | null = null;
         try {
           vttPath = await ytdlpWriteSubs(
-            job.sourceUrl,
+            extractionUrl,
             selection.lang,
             jobDir,
             {
@@ -684,7 +703,7 @@ export async function ingestVideoLinkImpl(
       // Re-validate URL against fresh DNS before the longest yt-dlp call
       // (15-min wall-clock). Defends against rebind across Phase B → C.
       try {
-        await assertSafeUrl(job.sourceUrl);
+        await assertSafeUrl(extractionUrl);
       } catch (err) {
         if (err instanceof UrlSafetyError) {
           await fail(err.kind, err.message, 'extracting_audio');
@@ -696,7 +715,7 @@ export async function ingestVideoLinkImpl(
       let audioPath: string;
       try {
         audioPath = await ytdlpExtractAudio(
-          job.sourceUrl,
+          extractionUrl,
           jobDir,
           undefined,
           session,
@@ -814,6 +833,75 @@ export async function ingestVideoLinkImpl(
 
 /** Whether a yt-dlp failure is the site actively blocking us (bot wall / 403 /
  *  rate limit) — the signal that burns the pooled session that was used. */
+/**
+ * yt-dlp failures a different URL for the SAME video cannot fix — the binary
+ * is missing, its JS runtime is missing, or the call already spent its
+ * wall-clock budget. Retrying those on an alternate form just doubles the
+ * phase cost and delays the operator-facing message.
+ */
+const NO_EMBED_FALLBACK: ReadonlySet<string> = new Set([
+  'binaryNotInstalled',
+  'jsRuntimeMissing',
+  'timeout',
+]);
+
+/**
+ * Second chance for a platform whose watch page is walled but whose embed
+ * player is not: re-run Phase A against the equivalent embed URL.
+ *
+ * Today that is Vimeo and only Vimeo (see `vimeoEmbedUrl`) — it answers an
+ * anonymous watch-page request with a login wall while serving the same
+ * public video, captions included, from `player.vimeo.com`. Returns null
+ * when there is no alternate form or the alternate fails too, and then the
+ * ORIGINAL error is what the caller reports: the user pasted a watch URL, so
+ * the watch URL's failure is the one that describes their link.
+ *
+ * A fallback, not an unconditional rewrite: a deployment that supplies Vimeo
+ * cookies — or a yt-dlp release that fixes the watch path — keeps using it
+ * without a code change, and the extra spawn is only ever spent on a link
+ * that has already failed.
+ */
+async function tryEmbedFallback(
+  err: unknown,
+  sourceUrl: string,
+  jobDir: string,
+  session: YtdlpSession | undefined,
+  jobId: Id<'videoLinkJobs'>,
+): Promise<{ url: string; metadata: YtDlpMetadata } | null> {
+  if (!(err instanceof YtDlpError)) return null;
+  if (NO_EMBED_FALLBACK.has(err.reason)) return null;
+  const embedUrl = vimeoEmbedUrl(sourceUrl);
+  if (embedUrl === null) return null;
+
+  try {
+    // The embed form is a DIFFERENT host, so it gets its own DNS pre-resolve
+    // — the Phase A check cleared `vimeo.com`, not `player.vimeo.com`.
+    await assertSafeUrl(embedUrl);
+    const metadata = await ytdlpJson(embedUrl, jobDir, undefined, session);
+    console.info(
+      JSON.stringify({
+        event: 'video_link.embed_fallback_hit',
+        jobId,
+        watchPageReason: err.reason,
+      }),
+    );
+    return { url: embedUrl, metadata };
+  } catch (fallbackErr) {
+    console.warn(
+      JSON.stringify({
+        event: 'video_link.embed_fallback_missed',
+        jobId,
+        watchPageReason: err.reason,
+        error:
+          fallbackErr instanceof Error
+            ? fallbackErr.message
+            : String(fallbackErr),
+      }),
+    );
+    return null;
+  }
+}
+
 function isBotWallError(err: unknown): boolean {
   return (
     err instanceof YtDlpError &&
