@@ -109,7 +109,7 @@ describe('BudgetEditor', () => {
       setLoaded([]);
       render(<BudgetEditor organizationId="org-1" />);
       expect(
-        screen.getByRole('heading', { name: /budget rules/i }),
+        screen.getByRole('heading', { name: /^budget rules$/i }),
       ).toBeInTheDocument();
     });
 
@@ -131,7 +131,7 @@ describe('BudgetEditor', () => {
       setLoading();
       render(<BudgetEditor organizationId="org-1" />);
       expect(
-        screen.getByRole('heading', { name: /budget rules/i }),
+        screen.getByRole('heading', { name: /^budget rules$/i }),
       ).toBeInTheDocument();
     });
 

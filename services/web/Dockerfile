@@ -38,6 +38,7 @@ FROM workspace-deps AS builder
 WORKDIR /app
 
 COPY tsconfig.base.json ./
+COPY tsconfig.dom.json ./
 COPY packages/ui ./packages/ui
 COPY services/web ./services/web
 

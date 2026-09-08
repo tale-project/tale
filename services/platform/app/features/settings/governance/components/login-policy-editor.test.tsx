@@ -172,7 +172,7 @@ describe('LoginPolicyEditor', () => {
       });
 
       expect(rejection).toBeInstanceOf(Error);
-      expect((rejection as Error).message).toBe('Failed to save login policy');
+      expect((rejection as Error).message).toBe("Couldn't save login policy");
       expect(pageToast).not.toHaveBeenCalled();
 
       saveMutateAsync.mockResolvedValue(null);

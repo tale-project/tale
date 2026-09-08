@@ -2,8 +2,9 @@
 // outbound row and the visible not-delivered treatment (reason + retry) on a
 // failed one. Fake timers drive the countdown deterministically.
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { act, fireEvent, render, screen } from '@/tests/utils/render';
 
 import type { Message as MessageType } from '../types';
 import { Message } from './message';

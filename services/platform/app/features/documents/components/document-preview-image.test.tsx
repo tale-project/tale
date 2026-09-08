@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
+
+import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import { DocumentPreviewImage } from './document-preview-image';
 

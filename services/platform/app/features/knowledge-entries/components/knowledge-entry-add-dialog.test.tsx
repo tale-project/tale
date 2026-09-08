@@ -104,7 +104,7 @@ describe('AddKnowledgeEntryDialog', () => {
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: 'Failed to add knowledge entry',
+          title: "Couldn't add knowledge entry",
           variant: 'destructive',
         }),
       ),
