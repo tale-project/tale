@@ -28,13 +28,13 @@ export function FilterSection({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-1 px-2 py-2"
+        className="hover:bg-muted flex w-full items-center gap-1 rounded-md px-2 py-2"
         aria-expanded={isExpanded}
       >
         <Text
           as="span"
           variant="label-sm"
-          className="text-muted-foreground/80 flex-1 text-left"
+          className="text-foreground flex-1 text-left"
         >
           {title}
         </Text>
@@ -51,7 +51,7 @@ export function FilterSection({
         )}
         <ChevronDown
           className={cn(
-            'text-muted-foreground size-4 shrink-0 transition-transform duration-200',
+            'text-muted-foreground size-4 shrink-0 transition-transform duration-200 motion-reduce:transition-none',
             !isExpanded && '-rotate-90',
           )}
         />

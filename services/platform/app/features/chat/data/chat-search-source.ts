@@ -2,8 +2,8 @@
 
 /**
  * The chat search source: the caller's conversations, matched by title or recent
- * message text through `"chat/search:searchChats"`. Used by the chat-scoped
- * palette and the global ⌘K palette.
+ * message text through `"chat/search:searchChats"`. Used by the shared shell
+ * palette (Chats scope and the chats group under Everything).
  *
  * Shaped like the docs source (`createDocsSearchSource`): the factory is
  * memoised at the call site so the hook-shaped source keeps one identity —

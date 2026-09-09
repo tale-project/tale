@@ -1,6 +1,7 @@
 'use client';
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
+import { Button } from '@tale/ui/button';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
@@ -209,12 +210,14 @@ export function useSessionIdleWatchdog(): void {
               asChild
               onClick={() => recordActivity(true)}
             >
-              <button
+              <Button
                 type="button"
-                className="bg-foreground text-background focus-visible:ring-ring inline-flex h-8 shrink-0 items-center rounded-md px-3 text-xs font-medium transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
+                variant="secondary"
+                size="sm"
+                className="shrink-0"
               >
                 {tRef.current('sessionIdle.staySignedIn')}
-              </button>
+              </Button>
             </ToastPrimitives.Action>
           ),
         });

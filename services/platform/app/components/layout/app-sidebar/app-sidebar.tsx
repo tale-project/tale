@@ -2,7 +2,6 @@
 
 import { Stack } from '@tale/ui/layout';
 
-import { ChatSearchCommand } from '@/app/features/chat/components/chat-search-command';
 import { useT } from '@/lib/i18n/client';
 
 import { MobileSidebarSheet } from './mobile-sidebar-sheet';
@@ -25,7 +24,7 @@ export interface AppSidebarProps {
  * where the mobile drawer takes over.
  *
  * Also mounts the surfaces that must exist on every route regardless of
- * viewport: the mobile drawer and the ⌘K palette.
+ * viewport: the mobile drawer and the shared search palette.
  */
 export function AppSidebar({ organizationId }: AppSidebarProps) {
   const { t: tNav } = useT('navigation');
@@ -54,7 +53,6 @@ export function AppSidebar({ organizationId }: AppSidebarProps) {
       </aside>
       <MobileSidebarSheet organizationId={organizationId} />
       <SidebarSearchCommand organizationId={organizationId} />
-      <ChatSearchCommand organizationId={organizationId} />
     </>
   );
 }

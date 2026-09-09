@@ -3,14 +3,17 @@
 import * as ToastPrimitives from '@radix-ui/react-toast';
 import type { ToastPosition, ToastVariant } from '@tale/ui/toast';
 import { cva } from 'class-variance-authority';
-import { X, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { CheckCircle2, XCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 import { useToast } from '@/app/hooks/use-toast';
 import { cn } from '@/lib/utils/cn';
 
 const toastVariants = cva(
-  'group data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full bg-background text-foreground pointer-events-auto relative flex w-full overflow-hidden rounded-xl border p-3 pr-6 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none',
+  // shadcn-style: one horizontal row, items-center, equal padding. Action sits
+  // beside the copy (not under it). No close control — toasts auto-dismiss
+  // (and pause on hover/focus); swipe still dismisses.
+  'group data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full bg-background text-foreground pointer-events-auto relative flex w-fit max-w-sm items-center gap-3 overflow-hidden rounded-xl border p-4 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none',
   {
     variants: {
       variant: {
@@ -29,14 +32,21 @@ function VariantIcon({ variant }: { variant?: ToastVariant }) {
   switch (variant) {
     case 'success':
       return (
-        <CheckCircle2 className="text-success size-5" aria-hidden="true" />
+        <CheckCircle2
+          className="text-success size-5 shrink-0"
+          aria-hidden="true"
+        />
       );
     case 'destructive':
-      return <XCircle className="text-destructive size-5" aria-hidden="true" />;
-    default:
       return (
-        <Info className="text-info-foreground size-5" aria-hidden="true" />
+        <XCircle
+          className="text-destructive size-5 shrink-0"
+          aria-hidden="true"
+        />
       );
+    default:
+      // Default / action toasts match shadcn: copy only, no leading info icon.
+      return null;
   }
 }
 
@@ -73,35 +83,20 @@ export function Toaster() {
               className={cn(toastVariants({ variant }), className)}
               {...props}
             >
-              <div className="flex w-full min-w-0 items-start gap-3 pr-4">
-                <VariantIcon variant={variant} />
-                <div className="grid min-w-0 flex-1 gap-1">
-                  {title && (
-                    <ToastPrimitives.Title className="text-sm font-semibold">
-                      {title}
-                    </ToastPrimitives.Title>
-                  )}
-                  {description && (
-                    <ToastPrimitives.Description className="text-sm whitespace-pre-line opacity-90">
-                      {description}
-                    </ToastPrimitives.Description>
-                  )}
-                  {/* Stack the action below the text. Putting it inline used
-                      to squeeze long titles (e.g. translated update prompts)
-                      into a narrow column when the action button's label was
-                      wide. */}
-                  {action && <div className="mt-2 flex">{action}</div>}
-                </div>
+              <VariantIcon variant={variant} />
+              <div className="grid min-w-0 flex-1 gap-1">
+                {title && (
+                  <ToastPrimitives.Title className="text-sm font-semibold">
+                    {title}
+                  </ToastPrimitives.Title>
+                )}
+                {description && (
+                  <ToastPrimitives.Description className="text-muted-foreground text-sm whitespace-pre-line">
+                    {description}
+                  </ToastPrimitives.Description>
+                )}
               </div>
-              <ToastPrimitives.Close
-                // Hover-reveal for mouse users; always-visible on coarse
-                // (touch) pointers, which have no hover so the toast would
-                // otherwise be undismissable until it auto-expires.
-                className="text-foreground/50 hover:text-foreground absolute top-2.5 right-2.5 rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 focus:opacity-100 focus:ring-2 focus:outline-none group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600 pointer-coarse:opacity-100"
-                aria-label="Close"
-              >
-                <X className="size-4" aria-hidden="true" />
-              </ToastPrimitives.Close>
+              {action}
             </ToastPrimitives.Root>
           );
         },
@@ -135,7 +130,7 @@ export function Toaster() {
                 // INSIDE the `top-0`/`max-h-screen` box, so the stack still fits
                 // the viewport, and the empty gap stays `pointer-events-none`
                 // (controls beneath it remain clickable).
-                'pointer-events-none fixed z-100 flex max-h-screen w-auto max-w-sm min-w-[18.75rem] flex-col p-3 pt-[calc(0.75rem+var(--safe-top))] pr-[calc(0.75rem+var(--safe-right))] pl-[calc(0.75rem+var(--safe-left))]',
+                'pointer-events-none fixed z-100 flex max-h-screen w-auto max-w-sm flex-col p-3 pt-[calc(0.75rem+var(--safe-top))] pr-[calc(0.75rem+var(--safe-right))] pl-[calc(0.75rem+var(--safe-left))]',
                 viewportPositionClasses[position],
               )}
             />,

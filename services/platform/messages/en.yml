@@ -1224,8 +1224,6 @@ chat:
     noResults: No results
     empty: Start typing to search
     emptyHint: Search by title, message, or participant
-    searchEverywhere: Search everything
-    searchEverywhereHint: Projects, tasks, chats, documents, and contacts across this organization
   aria:
     messageHistory: Message history
     chatRegion: Chat
@@ -1942,6 +1940,9 @@ dialogs:
     groupTasks: Tasks
     groupDocuments: Documents
     groupContacts: Contacts
+    scopeLabel: Search scope
+    scopeChats: Chats
+    scopeEverything: Everything
   thisMember: this member
   confirmRemoveMember: Remove {name} from the team? They'll lose access to this organization and all associated resources.
   toSend: to send
@@ -4741,7 +4742,6 @@ projects:
     empty: No projects found
     ariaLabel: 'Switch project, current: {name}'
     allProjects: All projects
-    allProjectsBadge: All
   navigation:
     overview: General
     files: Knowledge
@@ -6588,6 +6588,7 @@ tasks:
     add: Add attachments
     remove: Remove attachment
     uploading: Uploading…
+    emptyHint: Add images or documents
     dropHint: Drop or paste images or documents, or click to browse
   outputs:
     label: Deliverables
@@ -6621,9 +6622,10 @@ tasks:
     add: Add label…
     manage: Manage labels
     manageTitle: Project labels
-    manageDescription: Labels for this project. Attach them on tasks from the picker.
+    manageDescription: Labels for this project. Create or attach them from the task picker; rename and delete them here.
     empty: No labels yet.
-    emptyHint: Create labels under Manage labels first.
+    emptyHint: Type a name above to create one.
+    createNamed: 'Create "{name}"'
     createHeading: New label
     namePlaceholder: Label name
     rename: Rename
@@ -6631,7 +6633,7 @@ tasks:
     deleteConfirmDescription: Removes "{label}" from the project and from every task that uses it.
     errors:
       TASK_LABEL_NAME_TAKEN: A label with that name already exists.
-      TASK_LABEL_UNKNOWN: That label isn't in this project — create it under Manage labels.
+      TASK_LABEL_UNKNOWN: That label isn't in this project — type its name in the picker to create it.
       TASK_LABELS_INVALID: Invalid label name.
       TASK_LABEL_IN_USE: That label is still on a task.
       createFailed: Couldn't create the label.

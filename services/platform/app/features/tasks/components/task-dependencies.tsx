@@ -78,10 +78,10 @@ export function TaskDependencies({
   if (!canEdit && blockedBy.length === 0 && blocks.length === 0) return null;
 
   return (
-    // Lives in the modal's side property panel — the heading mirrors the
-    // panel's PropertyField label style so the column reads as one list.
+    // Lives in the modal's side property panel — the heading is the section
+    // title; row labels stay muted so Add / values can carry the contrast.
     <Stack as="section" gap={3}>
-      <h3 className="text-muted-foreground text-xs font-medium">
+      <h3 className="text-foreground text-xs font-medium">
         {t('detail.dependencies')}
       </h3>
       <DependencyGroup
@@ -181,7 +181,7 @@ function DependencyGroup({
                 type="button"
                 variant="ghost"
                 icon={Plus}
-                className="text-muted-foreground -mr-1 h-auto px-1.5 py-0.5"
+                className="text-foreground hover:bg-muted -mr-1 h-auto px-1.5 py-0.5"
               >
                 {t('actions.add')}
               </Button>

@@ -145,7 +145,6 @@ describe('ProjectBreadcrumbSwitcher', () => {
     expect(
       screen.getByRole('option', { name: /all projects/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText('All')).toBeInTheDocument();
     await user.click(screen.getByRole('option', { name: /all projects/i }));
 
     expect(mockNavigate).toHaveBeenCalledWith(

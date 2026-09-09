@@ -4,16 +4,16 @@ import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
 /**
- * Chat-scoped palette thread search. The palette (shared `SearchCommand`,
- * mounted at shell level as `ChatSearchCommand`) is wired to a chats-only
- * source: a query ≥2 chars runs a backend search over message content and
+ * Chat-scoped palette thread search. The shared shell `SearchCommand`
+ * (`SidebarSearchCommand`) opens on the Chats scope from the thread-list
+ * trigger: a query ≥2 chars runs a backend search over message content and
  * surfaces matching threads. To get a deterministic match, the spec seeds a
  * thread carrying a unique marker, then searches for it. The marker lives in
  * the user's own message (stored regardless of LLM mode), so the assertion
  * holds in mock and live modes. The palette is opened from the thread list's
  * search trigger (stable across OS) and closed with Escape (its close-button
  * label is in the `@tale/ui` search namespace, which the service-only `t()`
- * can't resolve). The org-wide ⌘K palette is a separate surface.
+ * can't resolve). ⌘K opens the same palette on Everything.
  *
  * FIXME(rewrite): seeding the thread requires a chat SEND, and the composer
  * disables Send until a model is available — which under the AI-backend

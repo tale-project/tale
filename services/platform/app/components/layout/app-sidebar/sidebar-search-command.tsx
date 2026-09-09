@@ -12,12 +12,13 @@ import { TASK_VIEW_ROUTES, type TaskView } from '@/app/features/tasks/lib/view';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useIsMac } from '@/app/hooks/use-is-mac';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import {
   createPlatformSearchSource,
   type PlatformSearchHitData,
 } from './platform-search-source';
-import { useSidebar } from './sidebar-context';
+import { useSidebar, type SearchScope } from './sidebar-context';
 
 function isPlatformHit<K extends PlatformSearchHitData['kind']>(
   data: unknown,
@@ -48,24 +49,27 @@ function parseTasksRouteContext(
   };
 }
 
+const SCOPE_ORDER: SearchScope[] = ['chats', 'everything'];
+
 export interface SidebarSearchCommandProps {
   organizationId: string;
 }
 
 /**
- * Global search palette (⌘K / sidebar): projects, tasks, chats, documents,
- * and contacts across the org. Chat's thread-list uses
- * {@link ChatSearchCommand} for a chats-only palette.
+ * Shared search palette (⌘K / sidebar / chat thread-list search). Scope chips
+ * switch between chats-only and org-wide without opening a second dialog.
  */
 export function SidebarSearchCommand({
   organizationId,
 }: SidebarSearchCommandProps) {
-  const { isSearchOpen, setSearchOpen, setChatSearchOpen } = useSidebar();
+  const { isSearchOpen, setSearchOpen, searchScope, setSearchScope } =
+    useSidebar();
   const navigate = useNavigate();
   const location = useLocation();
   const isMac = useIsMac();
   const ability = useAbility();
   const { t: tDialogs } = useT('dialogs');
+  const { t: tChat } = useT('chat');
 
   const include = useMemo(
     () => ({
@@ -86,20 +90,37 @@ export function SidebarSearchCommand({
   );
 
   const searchSource = useMemo(
-    () => createPlatformSearchSource({ organizationId, include }),
-    [organizationId, include],
+    () =>
+      createPlatformSearchSource({
+        organizationId,
+        include,
+        scope: searchScope,
+      }),
+    [organizationId, include, searchScope],
   );
 
+  const chatsOnly = searchScope === 'chats';
+
   const searchLabels = useMemo<Partial<SearchCommandLabels>>(
-    () => ({
-      title: tDialogs('search.title'),
-      placeholder: tDialogs('search.placeholder'),
-      loading: tDialogs('search.loading'),
-      noResultsTitle: tDialogs('search.noResults'),
-      empty: tDialogs('search.empty'),
-      emptyHint: tDialogs('search.emptyHint'),
-    }),
-    [tDialogs],
+    () =>
+      chatsOnly
+        ? {
+            title: tChat('searchPalette.title'),
+            placeholder: tChat('searchPalette.placeholder'),
+            loading: tChat('searchPalette.loading'),
+            noResultsTitle: tChat('searchPalette.noResults'),
+            empty: tChat('searchPalette.empty'),
+            emptyHint: tChat('searchPalette.emptyHint'),
+          }
+        : {
+            title: tDialogs('search.title'),
+            placeholder: tDialogs('search.placeholder'),
+            loading: tDialogs('search.loading'),
+            noResultsTitle: tDialogs('search.noResults'),
+            empty: tDialogs('search.empty'),
+            emptyHint: tDialogs('search.emptyHint'),
+          },
+    [chatsOnly, tChat, tDialogs],
   );
 
   const getGroupLabel = useCallback(
@@ -189,13 +210,54 @@ export function SidebarSearchCommand({
       if (isMod && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         e.stopPropagation();
-        setChatSearchOpen(false);
-        setSearchOpen((open) => !open);
+        if (isSearchOpen) {
+          setSearchOpen(false);
+          return;
+        }
+        setSearchScope('everything');
+        setSearchOpen(true);
       }
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isMac, setChatSearchOpen, setSearchOpen]);
+  }, [isMac, isSearchOpen, setSearchOpen, setSearchScope]);
+
+  const scopeLabel = (scope: SearchScope) =>
+    scope === 'chats'
+      ? tDialogs('search.scopeChats')
+      : tDialogs('search.scopeEverything');
+
+  const toolbar = (
+    <div className="border-border-base border-b px-4 py-2">
+      <div
+        role="group"
+        aria-label={tDialogs('search.scopeLabel')}
+        className="border-border bg-muted inline-flex gap-0.5 rounded-md border p-0.5"
+      >
+        {SCOPE_ORDER.map((scope) => {
+          const selected = searchScope === scope;
+          return (
+            <button
+              key={scope}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => setSearchScope(scope)}
+              className={cn(
+                'rounded-sm px-2.5 py-1 text-xs font-medium',
+                'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
+                'active:scale-[0.97] motion-reduce:active:scale-100',
+                selected
+                  ? 'text-foreground dark:bg-background bg-white shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {scopeLabel(scope)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <SearchCommand
@@ -204,9 +266,14 @@ export function SidebarSearchCommand({
       source={searchSource}
       labels={searchLabels}
       getGroupLabel={getGroupLabel}
-      recentsStorageKey="tale.platform.search.recentSearches.v1"
+      recentsStorageKey={
+        chatsOnly
+          ? 'tale.platform.chat.searchPalette.recentSearches.v1'
+          : 'tale.platform.search.recentSearches.v1'
+      }
       minQueryLength={2}
       onSelect={handleSelect}
+      toolbar={toolbar}
     />
   );
 }

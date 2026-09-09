@@ -1,6 +1,5 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Layers } from 'lucide-react';
 import { useMemo } from 'react';
@@ -66,14 +65,6 @@ export function ProjectBreadcrumbSwitcher({
       {
         value: ALL_PROJECTS_SWITCHER_VALUE,
         label: t('switcher.allProjects'),
-        // Blue badge + Layers marks the aggregate scope as different from a
-        // named project row — the same icon appears on the breadcrumb trigger
-        // while the mode is active.
-        labelBadge: (
-          <Badge variant="blue" icon={Layers} className="py-0.5 text-[10px]">
-            {t('switcher.allProjectsBadge')}
-          </Badge>
-        ),
       },
       ...projectOptions,
     ];

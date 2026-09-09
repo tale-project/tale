@@ -1262,8 +1262,6 @@ chat:
     noResults: Keine Ergebnisse
     empty: Tippe, um zu suchen
     emptyHint: Suche nach Titel, Nachricht oder Teilnehmer
-    searchEverywhere: Alles durchsuchen
-    searchEverywhereHint: Projekte, Tasks, Chats, Dokumente und Kontakte in dieser Organisation
   aria:
     messageHistory: Nachrichtenverlauf
     chatRegion: Chat
@@ -2007,6 +2005,9 @@ dialogs:
     groupTasks: Tasks
     groupDocuments: Dokumente
     groupContacts: Kontakte
+    scopeLabel: Suchbereich
+    scopeChats: Chats
+    scopeEverything: Alles
   thisMember: dieses Mitglied
   confirmRemoveMember: '{name} aus dem Team entfernen? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.'
   toSend: zum Senden
@@ -6507,6 +6508,7 @@ tasks:
     add: Anhänge hinzufügen
     remove: Anhang entfernen
     uploading: Wird hochgeladen …
+    emptyHint: Bilder oder Dokumente hinzufügen
     dropHint: Bilder oder Dokumente hierher ziehen, einfügen oder zum Auswählen klicken
   outputs:
     label: Ergebnisdateien
@@ -6540,9 +6542,10 @@ tasks:
     add: Label hinzufügen…
     manage: Labels verwalten
     manageTitle: Projekt-Labels
-    manageDescription: Labels in diesem Projekt. Du hängst sie an Aufgaben über den Picker.
+    manageDescription: Labels in diesem Projekt. Anlegen und anhängen machst du im Aufgaben-Picker; umbenennen und löschen hier.
     empty: Noch keine Labels.
-    emptyHint: Lege Labels zuerst unter Labels verwalten an.
+    emptyHint: Tippe oben einen Namen, um eines anzulegen.
+    createNamed: '„{name}“ anlegen'
     createHeading: Neues Label
     namePlaceholder: Labelname
     rename: Umbenennen
@@ -6550,7 +6553,7 @@ tasks:
     deleteConfirmDescription: Entfernt „{label}“ aus dem Projekt und von allen Aufgaben, die es nutzen.
     errors:
       TASK_LABEL_NAME_TAKEN: Ein Label mit diesem Namen gibt es schon.
-      TASK_LABEL_UNKNOWN: Dieses Label fehlt im Projekt — lege es unter Labels verwalten an.
+      TASK_LABEL_UNKNOWN: Dieses Label fehlt im Projekt — tippe den Namen im Picker, um es anzulegen.
       TASK_LABELS_INVALID: Ungültiger Labelname.
       TASK_LABEL_IN_USE: Dieses Label hängt noch an einer Aufgabe.
       createFailed: Label konnte nicht angelegt werden.
@@ -7073,7 +7076,6 @@ projects:
     empty: Keine Projekte gefunden
     ariaLabel: 'Projekt wechseln, aktuell: {name}'
     allProjects: Alle Projekte
-    allProjectsBadge: Alle
   navigation:
     overview: Allgemein
     files: Wissen

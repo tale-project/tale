@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -6,7 +6,7 @@ import enMessages from '../../../../messages/en.yml';
 import { SidebarProvider } from './sidebar-context';
 import { SidebarSearchTrigger } from './sidebar-search-trigger';
 
-const setSearchOpen = vi.fn();
+const openSearch = vi.fn();
 
 vi.mock('./sidebar-context', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./sidebar-context')>();
@@ -16,16 +16,20 @@ vi.mock('./sidebar-context', async (importOriginal) => {
       isMobileSheetOpen: false,
       setMobileSheetOpen: vi.fn(),
       isSearchOpen: false,
-      setSearchOpen,
-      isChatSearchOpen: false,
-      setChatSearchOpen: vi.fn(),
+      setSearchOpen: vi.fn(),
+      searchScope: 'everything' as const,
+      setSearchScope: vi.fn(),
+      openSearch,
     }),
   };
 });
 
 describe('SidebarSearchTrigger', () => {
-  it('opens the palette when clicked', async () => {
-    setSearchOpen.mockClear();
+  beforeEach(() => {
+    openSearch.mockClear();
+  });
+
+  it('opens the palette on Everything when clicked', async () => {
     const { user } = render(
       <SidebarProvider>
         <SidebarSearchTrigger />
@@ -37,6 +41,6 @@ describe('SidebarSearchTrigger', () => {
         name: enMessages.navigation.sidebar.search,
       }),
     );
-    expect(setSearchOpen).toHaveBeenCalledWith(true);
+    expect(openSearch).toHaveBeenCalledWith('everything');
   });
 });

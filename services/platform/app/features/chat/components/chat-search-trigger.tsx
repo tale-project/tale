@@ -11,7 +11,7 @@ export interface ChatSearchTriggerProps {
   className?: string;
 }
 
-/** Opens the chat-scoped search palette from the thread list header. */
+/** Opens the shared search palette scoped to chats from the thread list. */
 export function ChatSearchTrigger({ className }: ChatSearchTriggerProps) {
   const sidebar = useOptionalSidebar();
   const { t } = useT('chat');
@@ -25,7 +25,7 @@ export function ChatSearchTrigger({ className }: ChatSearchTriggerProps) {
       <Button
         size="icon"
         variant="ghost"
-        onClick={() => sidebar.setChatSearchOpen(true)}
+        onClick={() => sidebar.openSearch('chats')}
         aria-label={label}
         className={className ?? 'text-muted-foreground -my-1 size-7 shrink-0'}
       >

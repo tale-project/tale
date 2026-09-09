@@ -28,8 +28,8 @@ toast({
 
 ## Accessibility
 - Toasts use role="status" with aria-live
-- Close button has aria-label
-- Swipe to dismiss on touch devices
+- Auto-dismiss (pauses on hover/focus); swipe to dismiss
+- Action buttons use Toast Action with altText when present
         `,
       },
     },

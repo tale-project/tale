@@ -41,11 +41,8 @@ export function TaskWatchControl({ taskId }: { taskId: string }) {
   const busy = subscribe.isPending || setMuted.isPending;
 
   return (
-    // A panel ACTION, sitting with Archive rather than among the read-only
-    // properties: same secondary full-width button, same verb-first label.
-    // `shrink-0` for the same reason Archive needs it — the panel is a
-    // height-constrained flex column, and a fixed-height control compresses to
-    // its one-line min-content without it.
+    // Common toggle (Watch) stays a clear secondary control. Rare Archive
+    // below uses ghost so frequency matches visual weight (Emil).
     <Button
       variant="secondary"
       size="sm"

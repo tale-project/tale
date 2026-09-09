@@ -26,9 +26,9 @@ import { TaskLabelBadge } from './task-label-badge';
 const MAX_LABEL_LENGTH = 50;
 
 /**
- * Project-scoped label catalog manager. Create, rename, and delete labels
- * here — colour is derived automatically from the name. The task picker only
- * attaches existing labels.
+ * Project-scoped label catalog manager. Rename and delete live here; create
+ * also works from the task picker when a typed name is missing. Colour is
+ * derived automatically from the name.
  *
  * Default labels (bug / feature / improvement) are seeded when the dialog
  * opens (user gesture), not on mount via an effect.
@@ -150,11 +150,7 @@ export function LabelManageDialog({
         size="md"
       >
         <Stack gap={4} className="pt-1">
-          {labels.length === 0 ? (
-            <Text as="p" variant="muted" className="text-sm">
-              {t('labels.empty')}
-            </Text>
-          ) : (
+          {labels.length > 0 ? (
             <ul className="border-border divide-border max-h-72 divide-y overflow-y-auto rounded-lg border">
               {labels.map((label) => {
                 const isEditing = editingId === label._id;
@@ -238,7 +234,11 @@ export function LabelManageDialog({
                 );
               })}
             </ul>
-          )}
+          ) : !canEdit ? (
+            <Text as="p" variant="muted" className="text-sm">
+              {t('labels.empty')}
+            </Text>
+          ) : null}
 
           {canEdit && (
             <Stack gap={2}>

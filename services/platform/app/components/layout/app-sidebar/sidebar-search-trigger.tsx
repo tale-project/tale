@@ -15,8 +15,8 @@ export interface SidebarSearchTriggerProps {
 }
 
 /**
- * Opens the global search palette (⌘K / Ctrl+K). Sidebar rail and mobile menu
- * only — context pages use inline search or their own scoped palette.
+ * Opens the shared search palette on Everything (⌘K / Ctrl+K). Sidebar rail
+ * and mobile menu only — the chat thread list opens the same palette on Chats.
  */
 export function SidebarSearchTrigger({ className }: SidebarSearchTriggerProps) {
   const sidebar = useOptionalSidebar();
@@ -40,7 +40,7 @@ export function SidebarSearchTrigger({ className }: SidebarSearchTriggerProps) {
       <Button
         type="button"
         variant="ghost"
-        onClick={() => sidebar.setSearchOpen(true)}
+        onClick={() => sidebar.openSearch('everything')}
         aria-label={ariaLabel}
         aria-keyshortcuts={shortcut}
         className={

@@ -56,7 +56,9 @@ interface TaskComment {
  * discussion reply); edit is author-only; delete is author-or-admin (all
  * re-enforced server-side). Agent replies (from `run_on_task`) render as
  * agent-authored messages here. A task with no comments yet shows just the
- * composer.
+ * composer when the viewer can comment — the placeholder teaches; a second
+ * "No comments yet" line is omitted (empty-state craft). Read-only empty
+ * threads still show that line.
  *
  * NEWEST FIRST by default, composer on top. A task's discussion is not a chat:
  * most of its volume is automated reports a run files (a desk's summary runs to
@@ -276,14 +278,16 @@ export function TaskComments({
 
   // The composer sits at the NEWEST end of the thread — below an ascending
   // conversation, above a newest-first log — so a fresh comment appears where
-  // it was typed.
+  // it was typed. Empty thread: one compact composer (placeholder teaches);
+  // no second "No comments yet" line under it (Miller / empty-state craft).
+  const threadEmpty = comments.length === 0;
   const composer = canComment && (
     <Stack gap={2} className={order === 'desc' ? 'mt-3 mb-4' : 'mt-4'}>
       <MentionTextarea
         id="new-comment"
         organizationId={organizationId}
         projectId={projectId}
-        rows={2}
+        rows={threadEmpty && draft.trim().length === 0 ? 1 : 2}
         value={draft}
         onValueChange={setDraft}
         onKeyDown={onModEnter(() => {
@@ -304,6 +308,7 @@ export function TaskComments({
       />
       <Row gap={0} align="stretch" justify="end">
         <Button
+          variant="secondary"
           disabled={draft.trim().length === 0 || isAdding}
           isLoading={isAdding}
           onClick={() => void submitNew()}
@@ -341,7 +346,7 @@ export function TaskComments({
       {order === 'asc' && earlier}
 
       <Stack as="ul" className={showHeading ? 'mt-3' : undefined}>
-        {comments.length === 0 && (
+        {comments.length === 0 && !canComment && (
           <li>
             <Text as="p" variant="muted">
               {t('detail.noComments')}

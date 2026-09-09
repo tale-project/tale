@@ -46,8 +46,10 @@ export interface SearchCommandProps {
   resultIcon?: ResultIconResolver;
   getBreadcrumb?: BreadcrumbResolver;
   renderResult?: (args: RenderResultArgs) => React.ReactNode;
-  /** Optional row between the results list and the keyboard footer — e.g. a
-   *  scoped palette linking out to global search. */
+  /** Optional row under the query input — e.g. a Chats / Everything scope
+   *  toggle. Keeps the query and results in one palette. */
+  toolbar?: React.ReactNode;
+  /** Optional row between the results list and the keyboard footer. */
   footerAccessory?: React.ReactNode;
 }
 
@@ -71,6 +73,7 @@ export function SearchCommand({
   resultIcon,
   getBreadcrumb,
   renderResult,
+  toolbar,
   footerAccessory,
 }: SearchCommandProps) {
   const labels = useSearchCommandLabels(labelOverrides);
@@ -264,6 +267,8 @@ export function SearchCommand({
                   resultCount={results.length}
                   onKeyDown={onKeyDown}
                 />
+
+                {toolbar}
 
                 <div
                   ref={listboxRef}

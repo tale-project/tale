@@ -11,7 +11,7 @@ import {
 } from '@/tests/utils/render';
 
 import enMessages from '../../../../messages/en.yml';
-import { SidebarProvider } from './sidebar-context';
+import { SidebarProvider, useSidebar } from './sidebar-context';
 import { SidebarSearchCommand } from './sidebar-search-command';
 
 const { mockNavigate } = vi.hoisted(() => ({
@@ -44,10 +44,20 @@ vi.mock('@/app/features/chat/data/chat-backend', () => ({
 
 const MEMBER_ABILITY = defineAbilityFor('member');
 
+function OpenChatsButton() {
+  const { openSearch } = useSidebar();
+  return (
+    <button type="button" onClick={() => openSearch('chats')}>
+      open-chats
+    </button>
+  );
+}
+
 function renderPalette() {
   return render(
     <AbilityContext.Provider value={MEMBER_ABILITY}>
       <SidebarProvider>
+        <OpenChatsButton />
         <SidebarSearchCommand organizationId="org-1" />
       </SidebarProvider>
     </AbilityContext.Provider>,
@@ -113,6 +123,42 @@ describe('SidebarSearchCommand', () => {
       await screen.findByText(enMessages.dialogs.search.noResults),
     ).toBeInTheDocument();
     expect(screen.queryByRole('option')).not.toBeInTheDocument();
+  });
+
+  it('switches scope in place without a second palette', async () => {
+    const { user } = renderPalette();
+    await user.click(screen.getByRole('button', { name: 'open-chats' }));
+
+    expect(
+      await screen.findByRole('combobox', {
+        name: enMessages.chat.searchPalette.placeholder,
+      }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', {
+        name: enMessages.dialogs.search.scopeEverything,
+        pressed: false,
+      }),
+    );
+
+    expect(
+      await screen.findByRole('combobox', {
+        name: enMessages.dialogs.search.placeholder,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: enMessages.dialogs.search.scopeEverything,
+        pressed: true,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: enMessages.dialogs.search.scopeChats,
+        pressed: false,
+      }),
+    ).toBeInTheDocument();
   });
 
   describe('accessibility', () => {

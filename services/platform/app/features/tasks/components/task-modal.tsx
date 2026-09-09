@@ -305,7 +305,7 @@ function PropertyField({
           </span>
           {trailing}
         </Row>
-        {children}
+        <div className="w-full min-w-0">{children}</div>
       </div>
     );
   }
@@ -896,16 +896,16 @@ function CreateTaskBody({
                 onUnassign={() => setAssignee(null)}
               />
             </PropertyField>
-            <PropertyField label={t('startDate.label')} stacked="md">
+            <PropertyField label={t('startDate.label')}>
               <DatePicker
-                className="min-w-[10.5rem]"
+                className="w-full"
                 value={startDate}
                 onChange={(ms) => setStartDate(ms ?? undefined)}
               />
             </PropertyField>
-            <PropertyField label={t('dueDate.label')} stacked="md">
+            <PropertyField label={t('dueDate.label')}>
               <DatePicker
-                className="min-w-[10.5rem]"
+                className="w-full"
                 value={dueDate}
                 onChange={(ms) => setDueDate(ms ?? undefined)}
               />
@@ -1649,9 +1649,9 @@ function EditTaskBody({
                   }
                 />
               </PropertyField>
-              <PropertyField label={t('startDate.label')} stacked="md">
+              <PropertyField label={t('startDate.label')}>
                 <DatePicker
-                  className="min-w-[10.5rem]"
+                  className="w-full"
                   value={task.startDate}
                   disabled={!canMutate}
                   onChange={(startDate) =>
@@ -1661,9 +1661,9 @@ function EditTaskBody({
                   }
                 />
               </PropertyField>
-              <PropertyField label={t('dueDate.label')} stacked="md">
+              <PropertyField label={t('dueDate.label')}>
                 <DatePicker
-                  className="min-w-[10.5rem]"
+                  className="w-full"
                   value={task.dueDate}
                   disabled={!canMutate}
                   onChange={(dueDate) =>
@@ -1733,9 +1733,9 @@ function EditTaskBody({
                     `display: contents` span, so the button, not the span, is
                     the flex item. */}
                   <Button
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
-                    className="w-full shrink-0"
+                    className="text-muted-foreground hover:text-foreground w-full shrink-0"
                     icon={isArchived ? ArchiveRestore : Archive}
                     onClick={() => setArchiveOpen(true)}
                   >
