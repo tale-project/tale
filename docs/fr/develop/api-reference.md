@@ -54,6 +54,8 @@ La première réponse est **201** avec `{ "created": true, "client": { "client_i
 
 Utilise un client OIDC maintenu avec le flux Authorization Code, S256 PKCE, un état à usage unique et un nonce. Vérifie l'émetteur, l'audience, la signature RS256, l'expiration et le nonce du jeton d'identité, puis exige `email_verified: true`. Le claim `https://tale.dev/organization` contient `{ "id", "slug", "role" }` pour l'organisation enregistrée. Tale revérifie l'appartenance actuelle et l'exigence MFA native avant d'émettre les jetons et à chaque lecture de Userinfo. L'application reste responsable de sa propre politique d'accès. Les codes expirent après 60 secondes et ne s'échangent qu'une fois ; les jetons d'accès et d'identité expirent après cinq minutes. L'enregistrement dynamique, les flux implicites et les jetons de renouvellement sont désactivés.
 
+Les jetons d'accès servent uniquement au point de terminaison userinfo natif ; les audiences de ressources externes sont désactivées. Utilisez des clés API natives pour les requêtes REST.
+
 Pour un identifiant client validé, `POST /api/app/identity/clients/office-app/rotate-secret?orgId=<orgId>` avec `{}` renvoie une fois un nouveau `client_secret` et invalide l'ancien. `POST /api/app/identity/clients/office-app/status?orgId=<orgId>` avec `{ "disabled": true }` bloque les nouvelles autorisations ; `false` réactive le même client. Ces deux appels exigent, comme l'enregistrement, la même organisation active, une session administrateur, l'en-tête Origin et un contenu JSON. Supprimer une organisation supprime aussi ses clients et leurs consentements.
 
 ## Groupes d'endpoints

@@ -229,6 +229,14 @@ Its create response shows the secret once; drift requires explicit review, and
 rotation/status routes keep the same org-bound client ID. Native organization
 retirement removes these clients and cascades grants through the provider's FKs.
 
+External access-token audiences are disabled (`validAudiences: []`); the provider
+permits only its native userinfo audience for OpenID scopes. REST continues to
+require native API keys. This enforces the single-resource mitigation for
+[GHSA-p2fr-6hmx-4528](https://github.com/advisories/GHSA-p2fr-6hmx-4528), whose
+stable 1.6.x provider line does not bind resource indicators to authorization
+grants. The real identity probe refuses foreign and API-base resource requests,
+verifies the userinfo audience, and refuses that access token at REST routes.
+
 A verified native email, current membership in the client's organization and
 native MFA policy are required for signed identity claims. Verified Entra Graph
 identity can reconcile an existing member's email verification flag, but may

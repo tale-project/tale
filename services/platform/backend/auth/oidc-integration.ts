@@ -384,12 +384,40 @@ export async function checkNativeIdentity(
     { code_verifier: 'wrong-verifier' },
     { client_secret: 'wrong-secret' },
     { redirect_uri: 'https://foreign.example.test/callback' },
+    { resource: 'https://foreign.example.test/api' },
+    { resource: issuer },
   ]) {
     check(
       `code exchange refuses ${Object.keys(changes).join(',')} mismatch`,
       (await exchange(await issue(), changes)).status >= 400,
     );
   }
+  const userinfoResource = await exchange(await issue(), {
+    resource: `${issuer}/oauth2/userinfo`,
+  });
+  assert.equal(userinfoResource.status, 200);
+  const resourceTokens = z
+    .object({ access_token: z.string() })
+    .parse(await userinfoResource.json());
+  const { payload: resourcePayload } = await jwtVerify(
+    resourceTokens.access_token,
+    keySet,
+    { issuer, audience: `${issuer}/oauth2/userinfo`, algorithms: ['RS256'] },
+  );
+  check(
+    'access tokens target native userinfo only and never authenticate REST API calls',
+    (Array.isArray(resourcePayload.aud)
+      ? resourcePayload.aud.every((aud) => aud === `${issuer}/oauth2/userinfo`)
+      : resourcePayload.aud === `${issuer}/oauth2/userinfo`) &&
+      (
+        await fetch(`${base}/api/v1/contacts`, {
+          headers: {
+            Authorization: `Bearer ${resourceTokens.access_token}`,
+            'X-Organization-Slug': orgSlug,
+          },
+        })
+      ).status === 401,
+  );
   for (const changes of [
     { code_challenge: null, code_challenge_method: null },
     { code_challenge_method: 'plain' },

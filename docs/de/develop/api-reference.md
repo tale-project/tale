@@ -54,6 +54,8 @@ Die erste Antwort lautet **201** mit `{ "created": true, "client": { "client_id"
 
 Verwende einen gepflegten OIDC-Client mit Authorization Code Flow, S256 PKCE, einmaligem State und Nonce. Prüfe Aussteller, Zielgruppe, RS256-Signatur, Ablaufzeit und Nonce des ID-Tokens und verlange `email_verified: true`. Der Claim `https://tale.dev/organization` enthält `{ "id", "slug", "role" }` für die registrierte Organisation. Tale prüft vor der Token-Ausgabe und beim Abruf von Userinfo die aktuelle Mitgliedschaft und die native MFA-Pflicht erneut. Die Anwendung bleibt für ihre eigene Zugangsrichtlinie verantwortlich. Codes laufen nach 60 Sekunden ab und lassen sich einmal einlösen; Zugriffs- und ID-Tokens laufen nach fünf Minuten ab. Dynamische Registrierung, Implicit Grants und Refresh Tokens sind deaktiviert.
 
+Zugriffstokens gelten nur für die native Userinfo-Schnittstelle; externe Ressourcenzielgruppen sind deaktiviert. Verwende für REST-Anfragen native API-Schlüssel.
+
 Für einen geprüften Client-Schlüssel liefert `POST /api/app/identity/clients/office-app/rotate-secret?orgId=<orgId>` mit `{}` einmalig ein neues `client_secret` und macht das alte ungültig. `POST /api/app/identity/clients/office-app/status?orgId=<orgId>` mit `{ "disabled": true }` sperrt neue Autorisierungen; `false` aktiviert denselben Client wieder. Beide Aufrufe benötigen wie die Registrierung dieselbe aktuelle Organisation, eine Admin-Sitzung, den Origin-Header und JSON als Inhaltstyp. Beim Löschen einer Organisation werden ihre Clients und Einwilligungen entfernt.
 
 ## Endpoint-Gruppen

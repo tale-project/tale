@@ -54,6 +54,8 @@ The first response is **201** with `{ "created": true, "client": { "client_id": 
 
 Use a maintained OIDC client with authorization code flow, S256 PKCE, one-use state and a nonce. Validate the issuer, audience, RS256 signature, expiry and nonce of the ID token, then require `email_verified: true`. The `https://tale.dev/organization` claim contains `{ "id", "slug", "role" }` for the registered organization. Tale rechecks current membership and native MFA enforcement before issuing tokens and when reading userinfo; the application remains responsible for its own account access policy. Codes expire after 60 seconds and can be redeemed once; access and ID tokens expire after five minutes. Dynamic registration, implicit grants and refresh tokens are disabled.
 
+Access tokens serve only native userinfo; external resource audiences are disabled. Use native API keys for REST requests.
+
 For a reviewed client key, `POST /api/app/identity/clients/office-app/rotate-secret?orgId=<orgId>` with `{}` returns a new `client_secret` once and retires the old secret. `POST /api/app/identity/clients/office-app/status?orgId=<orgId>` with `{ "disabled": true }` blocks new authorizations; `false` restores the same client. Both require the same current organization, administrator session, Origin header and JSON content type as registration. Deleting an organization removes its clients and consent grants.
 
 ## Endpoint groups

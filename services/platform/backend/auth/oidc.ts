@@ -58,6 +58,10 @@ export function createOidcProvider(sql: Sql, baseUrl: string) {
     loginPage: `${basePath}/oauth/continue`,
     consentPage: `${basePath}/oauth/consent`,
     scopes: OIDC_SCOPES,
+    // Identity clients use only native userinfo (allowed by the provider for
+    // openid). No external resource audience is accepted: stable 1.6.x does
+    // not bind resource indicators to grants (GHSA-p2fr-6hmx-4528).
+    validAudiences: [],
     grantTypes: ['authorization_code'],
     codeExpiresIn: 60,
     accessTokenExpiresIn: 300,
