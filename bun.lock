@@ -262,7 +262,7 @@
         "mssql": "12.2.1",
         "mustache": "4.2.0",
         "mysql2": "3.23.1",
-        "nodemailer": "9.1.0",
+        "nodemailer": "9.1.1",
         "openai": "6.42.0",
         "parse5": "8.0.0",
         "pdfjs-dist": "5.5.207",
@@ -473,7 +473,7 @@
     "lodash": "4.18.1",
     "lodash-es": "4.18.1",
     "magic-string": "0.30.21",
-    "nodemailer": "9.1.0",
+    "nodemailer": "9.1.1",
     "postcss": "8.5.23",
     "qs": "6.16.0",
     "react-is": "19.2.5",
@@ -3668,7 +3668,7 @@
 
     "node-releases": ["node-releases@2.0.53", "", {}, "sha512-D9UOmYG3UH1V+ENW56t5QXBwJw1YEY18ruVeus89Rw+SyIgjPkCO84bRzO3uNIYosJbNwiabWVn48o3uJLjxFQ=="],
 
-    "nodemailer": ["nodemailer@9.1.0", "", {}, "sha512-xj1Ri5Sau3qpPffHJwi2bY0oWVVWYq62Ph17l+2v1xXpxjqTls3YPc3L8dub9mcJpxj+1ucNnuYVqLlgh4pmDA=="],
+    "nodemailer": ["nodemailer@9.1.1", "", {}, "sha512-izw9mVKFix6YSnC9eLgV6g1opl9DUlRio9ZNcq+Wu9Ujn2UwF+8Nl0B8nz22kEC+CTZCvinkxwJ0DeFbb6NwcQ=="],
 
     "non-error": ["non-error@0.1.0", "", {}, "sha512-TMB1uHiGsHRGv1uYclfhivcnf0/PdFp2pNqRxXjncaAsjYMoisaQJI+SSZCqRq+VliwRTC8tsMQfmrWjDMhkPQ=="],
 
