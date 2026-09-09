@@ -30,6 +30,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [auth](../suites/auth.md) | `AUTH-F2`, `AUTH-F3` | ✅ automated | `auth.spec.ts` |
 | [auth](../suites/auth.md) | `AUTH-F4`, `AUTH-F7`, `AUTH-F8`, `AUTH-F9` | ✅ automated | `auth-account.spec.ts` |
 | [auth](../suites/auth.md) | `AUTH-F6` | ✅ automated | `onboarding.spec.ts` |
+| [auth](../suites/auth.md) | `AUTH-F18` (identity protocol, consent/accessibility, signed continuation) | 🔶 backend + component | `backend/auth/oidc-integration.ts` (real HTTP/Postgres in `backend:integration`), `oauth-authorization.test.tsx`, `resume-oauth.test.ts`, `sentry-normalize.test.ts` (callback-secret redaction); live IdP/passkey/MFA round remains manual |
 | [auth](../suites/auth.md) | `AUTH-F14` | ✅ automated | `rbac.spec.ts` |
 | [auth](../suites/auth.md) | `AUTH-B5` (char-error path) | ✅ automated | `validation.spec.ts`, `onboarding.spec.ts` |
 | [auth](../suites/auth.md) | `AUTH-F15`, `AUTH-F16`, `AUTH-B7` | ✅ automated | `auth.spec.ts` (SSO error / conditional-access / verbatim-fallback via `?error=` params) + component `log-in-sso-error.test.tsx`; backend redirect `authorize_handler.test.ts` |
@@ -65,6 +66,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [connectors](../suites/connectors.md) | `CONN-F11`, `CONN-F12`, `CONN-F18`, `CONN-B2`, `CONN-B3`, `CONN-B6` | ⛔ manual-only | — (persistence reloads, live consent round trip, redirects, server refusals) |
 | [connectors](../suites/connectors.md) | `CONN-F15`, `CONN-F16` (full round trip) | ⛔ manual-only | — (need a real vendor consent, mode B) |
 | [conversations](../suites/conversations.md) | `CONV-G1`–`CONV-G3`, `CONV-F1`–`CONV-F10`, `CONV-B1`–`CONV-B4` | ⛔ manual-only | — (the `email-automation` spec, which automated the gate, redirect, channel filter, and reading pane, was retired in #2857 and has no successor) |
+| [conversations](../suites/conversations.md) | `CONV-F11` | 🔶 partial | `backend/domains/conversations/api-sync.integration.ts` owns HTTP/Postgres source imports, attachments, replies, undo, replay, isolation and deletion; `use-inbox-availability.test.ts` owns the API-only gate. Visual two-app flow and keyboard behavior remain manual. |
 | [data-residency](../suites/data-residency.md) | Case | Status | Where |
 | [data-residency](../suites/data-residency.md) | Panel render / save / probe / clear / access-denied / axe | ✅ automated | `app/features/settings/data-residency/**` (test:ui, 21 tests) |
 | [data-residency](../suites/data-residency.md) | Knowledge/embedding admin actions (gating, delegation, credential checks) | ✅ automated | `convex/knowledge/actions.test.ts` |

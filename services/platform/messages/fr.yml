@@ -341,6 +341,15 @@ analytics:
         model: Modèle
         agent: Agent
 auth:
+  oauth:
+    title: "Continuer avec Tale"
+    request: "{application} souhaite te connecter avec Tale."
+    permissions: "Autorise cette application à lire ton nom, ton adresse e-mail vérifiée et ton appartenance à son organisation Tale. Ton mot de passe reste dans Tale."
+    allow: "Autoriser et continuer"
+    cancel: "Annuler"
+    continuing: "Connexion…"
+    retry: "Réessayer"
+    failed: "Cette connexion ne peut pas continuer. Retourne dans l’application et recommence."
   email: Courriel
   password: Mot de passe
   emailPlaceholder: Entre ton adresse email

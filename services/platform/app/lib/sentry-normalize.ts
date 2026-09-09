@@ -28,6 +28,19 @@ interface NormalizableSentryEvent {
   message?: string;
   logentry?: { message?: string; params?: unknown[] };
   exception?: { values?: { value?: string }[] };
+  request?: {
+    url?: string;
+    query_string?: unknown;
+    data?: unknown;
+    cookies?: unknown;
+    headers?: Record<string, string>;
+  };
+  breadcrumbs?: { data?: Record<string, unknown> }[];
+}
+
+/** OAuth codes/state and signed callback queries must never leave the browser. */
+function withoutUrlSecrets(value: string): string {
+  return value.split(/[?#]/)[0] ?? '';
 }
 
 /**
@@ -38,6 +51,32 @@ interface NormalizableSentryEvent {
 export function normalizeConvexSentryEvent<
   Event extends NormalizableSentryEvent,
 >(event: Event): Event {
+  if (event.request) {
+    if (event.request.url)
+      event.request.url = withoutUrlSecrets(event.request.url);
+    delete event.request.query_string;
+    delete event.request.data;
+    delete event.request.cookies;
+    for (const [key, value] of Object.entries(event.request.headers ?? {})) {
+      const name = key.toLowerCase();
+      if (
+        ['authorization', 'cookie', 'set-cookie', 'x-api-key'].includes(name)
+      ) {
+        delete event.request.headers?.[key];
+      } else if (name === 'referer' || name === 'referrer') {
+        if (event.request.headers)
+          event.request.headers[key] = withoutUrlSecrets(value);
+      }
+    }
+  }
+  for (const breadcrumb of event.breadcrumbs ?? []) {
+    if (!breadcrumb.data) continue;
+    for (const key of ['url', 'from', 'to', 'referer', 'referrer']) {
+      const value = breadcrumb.data[key];
+      if (typeof value === 'string')
+        breadcrumb.data[key] = withoutUrlSecrets(value);
+    }
+  }
   if (typeof event.message === 'string') {
     event.message = stripConvexRequestId(event.message);
   }

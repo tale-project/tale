@@ -1,3 +1,4 @@
+import { sanitizeInternalRedirect } from '../../../../lib/shared/utils/safe-redirect';
 import { encryptString } from '../../lib/crypto/encrypt_string';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
@@ -131,6 +132,7 @@ export async function ssoAuthorizeHandler(
     const flowNonce = newFlowNonce();
     const statePayload = JSON.stringify({
       redirectUri,
+      returnTo: sanitizeInternalRedirect(url.searchParams.get('returnTo'), ''),
       timestamp: Date.now(),
       seamless: prompt === 'none',
       // Bind the resolved org to the state so the callback exchanges the code

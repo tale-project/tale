@@ -104,14 +104,20 @@ function systemPromptInstructionsField(page: Page): Locator {
   });
 }
 
-// The editor toasts nothing on success — the Save cluster flashes "Saved" and
-// then settles back to a DISABLED "Save" once the form is clean again, which is
-// the stable commit signal (a failed save leaves the form dirty and the button
-// enabled).
+// Save is disabled while the request is in flight as well as when the form is
+// clean. Observe the completed mutation before reloading, or navigation can
+// abort the write and make a valid editor look as though it lost the value.
 async function saveSystemPrompt(page: Page): Promise<void> {
   const save = globalSaveButton(page);
   await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
+  const committed = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname ===
+        '/api/app/governance/policies/system_prompt',
+  );
   await save.click();
+  expect((await committed).ok()).toBe(true);
   await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
 }
 

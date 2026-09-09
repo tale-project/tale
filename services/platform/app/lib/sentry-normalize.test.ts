@@ -42,6 +42,50 @@ describe('stripConvexRequestId', () => {
 });
 
 describe('normalizeConvexSentryEvent', () => {
+  it('removes OAuth callback secrets from request and navigation metadata', () => {
+    const event = normalizeConvexSentryEvent({
+      request: {
+        url: 'https://tale.example.test/oauth/consent?code=secret-code#secret-fragment',
+        query_string: 'state=secret-state',
+        data: { client_secret: 'secret-client' },
+        cookies: { session: 'secret-cookie' },
+        headers: {
+          Authorization: 'Bearer secret-bearer',
+          Cookie: 'session=secret-cookie',
+          'X-Api-Key': 'secret-api-key',
+          Referer: 'https://office.example.test/callback?code=secret-code',
+          Accept: 'application/json',
+        },
+      },
+      breadcrumbs: [
+        {
+          data: {
+            from: '/log-in?redirectTo=secret-state',
+            to: '/oauth/continue?sig=secret-signature',
+            status_code: 200,
+          },
+        },
+        {
+          data: {
+            url: 'https://tale.example.test/api/auth/oauth2/authorize?nonce=secret-nonce',
+          },
+        },
+        {},
+      ],
+    });
+    expect(JSON.stringify(event)).not.toContain('secret-');
+    expect(event.request.url).toBe('https://tale.example.test/oauth/consent');
+    expect(event.request.headers).toEqual({
+      Referer: 'https://office.example.test/callback',
+      Accept: 'application/json',
+    });
+    expect(event.breadcrumbs[0]?.data).toEqual({
+      from: '/log-in',
+      to: '/oauth/continue',
+      status_code: 200,
+    });
+  });
+
   it('normalizes message events (console-promoted failures)', () => {
     const event = normalizeConvexSentryEvent({ message: RAW_ACTION_FAILURE });
     expect(event.message).not.toContain('[Request ID:');

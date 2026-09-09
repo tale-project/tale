@@ -61,6 +61,8 @@ export const ssoAuthContextSchema = z.object({
 export type SsoAuthContext = z.infer<typeof ssoAuthContextSchema>;
 
 export const ssoUserInfoSchema = z.object({
+  /** True only when the adapter obtained the address from an authenticated identity authority. */
+  emailVerified: z.boolean().optional(),
   externalId: z.string(),
   email: z.string(),
   name: z.string(),

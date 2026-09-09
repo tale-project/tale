@@ -255,9 +255,17 @@ describe('S3 verbs — bounded against a wedged or flapping store', () => {
       vi.fn(
         (request: Request) =>
           new Promise<Response>((_resolve, reject) => {
-            request.signal.addEventListener('abort', () =>
-              reject(request.signal.reason),
-            );
+            // SigV4 signing can outlast this small deadline under load.
+            // Native fetch rejects an already-aborted signal immediately.
+            if (request.signal.aborted) {
+              reject(request.signal.reason);
+            } else {
+              request.signal.addEventListener(
+                'abort',
+                () => reject(request.signal.reason),
+                { once: true },
+              );
+            }
           }),
       ),
     );

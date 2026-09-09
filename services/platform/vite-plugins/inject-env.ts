@@ -86,7 +86,12 @@ export function injectEnv(): Plugin {
 
       // Convex proxy prefixes (mirrors `convexProxy` in vite.config.ts). These
       // must reach Vite's proxy middleware, not be answered with index.html.
-      const proxyPrefixes = ['/ws_api', '/http_api', '/api'];
+      const proxyPrefixes = [
+        '/ws_api',
+        '/http_api',
+        '/api',
+        '/.well-known/oauth-authorization-server/api/auth',
+      ];
 
       server.middlewares.use((req, res, next) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') return next();

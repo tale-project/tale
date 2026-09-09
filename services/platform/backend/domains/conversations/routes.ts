@@ -174,6 +174,14 @@ export function createConversationRoutes(deps: {
     });
   });
 
+  app.get('/api-sources', async (c) => {
+    const rows = await deps.sql<{ source: string }[]>`
+      SELECT DISTINCT source FROM app.conversation_api_bindings
+      WHERE org_id = ${c.get('orgId')} ORDER BY source LIMIT 100
+    `;
+    return c.json({ sources: rows.map((row) => row.source) });
+  });
+
   app.get('/:id', async (c) => {
     try {
       const conversation = await loadVisibleConversation(

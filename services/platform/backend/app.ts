@@ -1,7 +1,9 @@
+import { oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
 import type { Auth } from './auth/auth.ts';
+import { createIdentityRoutes } from './auth/identity-routes.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
 import { createAgentRoutes } from './domains/agents/routes.ts';
@@ -145,6 +147,10 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // Better Auth owns everything under its basePath (sign-up/in/out, session,
   // organization plugin endpoints, api-key/two-factor/passkey, …).
   app.on(['GET', 'POST'], '/api/auth/*', (c) => deps.auth.handler(c.req.raw));
+  app.route('/api/app/identity', createIdentityRoutes(deps));
+  app.get('/.well-known/oauth-authorization-server/api/auth', (c) =>
+    oauthProviderAuthServerMetadata(deps.auth)(c.req.raw),
+  );
   app.get('/events', requireSession(deps.auth), createEventsHandler(deps.sql));
   // Oracle for the platform web tier's own browser connection — it forwards
   // the request Cookie and acts on the verdict (realtime/oracle-routes.ts).

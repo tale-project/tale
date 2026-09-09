@@ -26,6 +26,7 @@ import { resolveProvisioning } from './config.ts';
 
 export interface FindOrCreateSsoUserArgs {
   email: string;
+  emailVerified?: boolean;
   name: string;
   externalId: string;
   providerId: string;
@@ -68,7 +69,7 @@ export interface FindOrCreateSsoUserResult {
    * would let a hostile org's IdP assert any known email and walk away with
    * a session as that user (cross-org account takeover).
    */
-  refusal?: 'existing_user_not_in_org';
+  refusal?: 'existing_user_not_in_org' | 'provider_identity_conflict';
 }
 
 /**
@@ -87,10 +88,24 @@ export async function findOrCreateSsoUser(
   const email = normalizeAuthEmail(args.email);
   return sql.begin(async (tx) => {
     const now = new Date();
+    // Serialize the immutable subject across replicas, including first login.
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${`sso-subject:${args.providerId}:${args.externalId}`}, 0))`;
+    const boundAccounts = await tx<{ userId: string }[]>`
+      SELECT "userId" FROM "account"
+      WHERE "providerId" = ${args.providerId} AND "accountId" = ${args.externalId}
+      LIMIT 1
+    `;
     const users = await tx<{ id: string }[]>`
-      SELECT "id" FROM "user" WHERE "email" = ${email} LIMIT 1
+      SELECT "id" FROM "user" WHERE "email" = ${email} LIMIT 1 FOR UPDATE
     `;
     const existingUserId = users[0]?.id;
+    if (boundAccounts[0] && boundAccounts[0].userId !== existingUserId) {
+      return {
+        userId: null,
+        isNewUser: false,
+        refusal: 'provider_identity_conflict' as const,
+      };
+    }
 
     if (existingUserId !== undefined) {
       // Membership gates EVERYTHING for an existing user — checked first,
@@ -111,13 +126,20 @@ export async function findOrCreateSsoUser(
         };
       }
 
-      const accounts = await tx<{ id: string }[]>`
-        SELECT "id" FROM "account"
+      const accounts = await tx<{ id: string; accountId: string }[]>`
+        SELECT "id", "accountId" FROM "account"
         WHERE "userId" = ${existingUserId}
           AND "providerId" = ${args.providerId}
         LIMIT 1
       `;
       const account = accounts[0];
+      if (account && account.accountId !== args.externalId) {
+        return {
+          userId: null,
+          isNewUser: false,
+          refusal: 'provider_identity_conflict' as const,
+        };
+      }
       if (account === undefined) {
         await tx`
           INSERT INTO "account" (
@@ -150,6 +172,16 @@ export async function findOrCreateSsoUser(
           UPDATE "member" SET "role" = ${args.role} WHERE "id" = ${member.id}
         `;
       }
+      if (args.emailVerified === true) {
+        // The current provider ceremony proved this exact canonical email.
+        // Membership and any pre-existing immutable account binding were
+        // checked before touching the shared credential row.
+        await tx`
+          UPDATE "user" SET "emailVerified" = true, "updatedAt" = ${now}
+          WHERE "id" = ${existingUserId} AND "email" = ${email}
+            AND "emailVerified" = false
+        `;
+      }
       return { userId: existingUserId, isNewUser: false };
     }
 
@@ -157,7 +189,7 @@ export async function findOrCreateSsoUser(
       INSERT INTO "user" (
         "id", "email", "name", "emailVerified", "createdAt", "updatedAt"
       ) VALUES (
-        gen_random_uuid(), ${email}, ${args.name}, true, ${now}, ${now}
+        gen_random_uuid(), ${email}, ${args.name}, ${args.emailVerified === true}, ${now}, ${now}
       )
       RETURNING "id"
     `;
@@ -427,6 +459,7 @@ async function reapEmptySyncedTeam(
 
 export interface HandleSsoLoginArgs {
   email: string;
+  emailVerified?: boolean;
   name: string;
   externalId: string;
   providerId: string;
@@ -481,6 +514,7 @@ export async function handleSsoLogin(
 
     const result = await findOrCreateSsoUser(sql, {
       email: args.email.toLowerCase(),
+      emailVerified: args.emailVerified === true,
       name: args.name,
       externalId: args.externalId,
       providerId: args.providerId,

@@ -192,6 +192,9 @@ BACKEND_UPSTREAM="${BACKEND_UPSTREAM:-backend-api:3005}"
 
 echo "Backend routing: 0.5 lanes → ${BACKEND_UPSTREAM}"
 BACKEND_BLOCK=$(cat <<EOF
+	handle /.well-known/oauth-authorization-server/api/auth {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
 	handle /api/auth/* {
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}

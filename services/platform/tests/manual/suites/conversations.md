@@ -38,10 +38,15 @@ deployed presentation declares `builtinViews: [{ id: 'inbox' }]` — the builtin
 packs are seeded into every org as drafts, so the seeded files alone must NOT
 surface the Inbox until someone deploys a sync pack. While the availability
 queries load, the nav entry and the route body stay hidden (no flash). With no
-qualifying deploy, `…/conversations*` renders a localized empty state
+qualifying deploy or registered API source, `…/conversations*` renders a localized empty state
 (`conversations.activate.noAutomationTitle` / `.noAutomationDescription`) with
 a **Browse automations** link (`conversations.activate.browseAutomations`)
 instead of the inbox.
+
+A registered native API source (for example VAT plus) also opens the Inbox and
+keeps its conversations in channel `api`. This requires no mail credentials. Use
+an isolated integration fixture for CONV-F11; do not create correspondence in a
+customer's live account as a manual test.
 
 > **Gating verified live** (2026-08-04, mode A, fresh org with no deployed
 > automation): the sidebar shows **no Inbox entry** (CONV-G1 holds) and a
@@ -203,6 +208,8 @@ rows lead with the subject.
   → **Archive** (`conversations.bulk.*`) → Selected rows leave the source lane
   and appear in the target **after reload**; the selection clears; **Send
   messages** opens the bulk-send dialog (`conversations.bulkSend.*`)
+
+- [ ] `CONV-F11` · **Reply through an API source** — In an isolated organization with a registered API source and no email automation, open Inbox and its synchronized customer thread, send a reply with a supported attachment, then let the source worker poll → The same reply and attachment appear once in the source app, native delivery becomes delivered, and an acknowledgement retry creates no extra message; keyboard focus remains usable after send.
 
 ## Boundary & error tests
 

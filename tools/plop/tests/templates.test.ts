@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { ActionType, NodePlopAPI, PlopGeneratorConfig } from 'plop';
 
+import { registerMigration } from '../generators/migration';
 import { registerPackage } from '../generators/package';
 import { registerService } from '../generators/service';
 import { registerSkill } from '../generators/skill';
@@ -39,6 +40,30 @@ function captureConfig(
   if (!captured) throw new Error('generator never called setGenerator');
   return captured;
 }
+
+test('migration output is anchored to the repo, never the Plop config directory', () => {
+  const config = captureConfig(registerMigration);
+  if (typeof config.actions !== 'function')
+    throw new Error('expected migration actions');
+  const actions = config.actions({
+    slug: 'integration_probe',
+    subject: 'Exercise the migration target path',
+  });
+  const add = actions.find(
+    (action) => typeof action === 'object' && action.type === 'add',
+  );
+  if (
+    !add ||
+    typeof add !== 'object' ||
+    !('path' in add) ||
+    typeof add.path !== 'string'
+  )
+    throw new Error('missing add action');
+  expect(path.dirname(add.path)).toBe(
+    path.resolve(here, '../../../services/platform/backend/db/migrations'),
+  );
+  expect(path.basename(add.path)).toMatch(/^\d{4}_integration_probe\.sql$/);
+});
 
 // Absolute path of every template file the generator's `add` actions reference
 // for the given answers. Non-`add` actions (e.g. the skill "next steps" message

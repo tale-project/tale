@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { Input } from '@/app/components/ui/forms/input';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
+import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
@@ -98,6 +99,7 @@ export function TwoFactorEnrollPage() {
   useEffect(() => {
     if (!status || !status.authenticated) return;
     if (status.twoFactorEnabled && step.kind === 'password') {
+      if (resumeOAuthSignIn(redirectTo)) return;
       void navigate({ to: redirectTo || '/dashboard', replace: true });
     }
   }, [status, step.kind, navigate, redirectTo]);
@@ -155,6 +157,7 @@ export function TwoFactorEnrollPage() {
 
   async function finish() {
     await invalidateAuthState(queryClient).catch(() => undefined);
+    if (resumeOAuthSignIn(redirectTo)) return;
     void navigate({ to: redirectTo || '/dashboard' });
   }
 

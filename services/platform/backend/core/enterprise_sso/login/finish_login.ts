@@ -9,6 +9,8 @@ export interface FinishLoginArgs {
   /** The origin the browser is on — decides Secure/__Secure- cookie shape
    * and where the dashboard redirect points. */
   frontendOrigin: string;
+  /** Root-relative app continuation, validated before the redirect. */
+  returnTo?: string;
 }
 
 /**

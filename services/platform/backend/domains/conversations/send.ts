@@ -25,6 +25,7 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { getFileUrl } from '../files/service.ts';
+import { queueApiReply, retryApiDelivery } from './api-sync.ts';
 import {
   assertAssignableMember,
   CONVERSATION_COLUMNS,
@@ -422,12 +423,13 @@ export async function replyToConversation(
     {
       organizationId: string;
       connectorName: string | null;
+      channel: string | null;
       subject: string | null;
       contactEmail: string | null;
     }[]
   >`
     SELECT c.org_id AS "organizationId",
-           c.connector_name AS "connectorName", c.subject,
+           c.connector_name AS "connectorName", c.channel, c.subject,
            ct.email AS "contactEmail"
     FROM app.conversations c
     LEFT JOIN app.contacts ct ON ct.id = c.contact_id AND ct.org_id = c.org_id
@@ -447,6 +449,14 @@ export async function replyToConversation(
       'Conversation does not belong to organization',
       403,
     );
+  }
+  if (row.channel === 'api') {
+    return queueApiReply(sql, {
+      ...args,
+      body: args.sourceMarkdown ?? splitHtmlText(args.content).text,
+      attachments: args.attachments ?? [],
+      availableAt: Date.now() + undoSendDelayMs(),
+    });
   }
   if (!row.connectorName) {
     throw new ConversationError(
@@ -792,6 +802,24 @@ export async function retrySendMessage(
         'Only a failed outbound message can be retried',
         409,
       );
+    }
+    if (message.channel === 'api') {
+      await retryApiDelivery(tx, args.organizationId, args.messageId);
+      await createAuditLog(tx, {
+        organizationId: args.organizationId,
+        actorId: args.actor.userId,
+        ...(args.actor.email !== undefined
+          ? { actorEmail: args.actor.email }
+          : {}),
+        actorType: 'user',
+        action: 'retry_send_message',
+        category: 'data',
+        resourceType: 'conversationMessage',
+        resourceId: args.messageId,
+        newState: { conversationId: message.conversationId, channel: 'api' },
+        status: 'success',
+      });
+      return;
     }
     const metadata = message.metadata ?? {};
     const to = asStringArray(metadata.to);
@@ -1228,6 +1256,8 @@ export async function recoverStuckConversationSends(
       )}
     WHERE direction = 'outbound' AND delivery_state = 'queued'
       AND coalesce(status_changed_at_ms, created_at_ms) < ${cutoff}
+      -- API replies have their own durable leased outbox, not email jobs.
+      AND channel IS DISTINCT FROM 'api'
     RETURNING id, conversation_id AS "conversationId", org_id AS "orgId"
   `;
   for (const row of failed) {

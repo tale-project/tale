@@ -3,7 +3,7 @@ import { passkey } from '@better-auth/passkey';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import { betterAuth, type BetterAuthPlugin } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { organization, twoFactor } from 'better-auth/plugins';
+import { jwt, organization, twoFactor } from 'better-auth/plugins';
 import pg from 'pg';
 import type { Sql } from 'postgres';
 
@@ -44,6 +44,7 @@ import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
 import { ac, orgRoles } from './access.ts';
+import { createOidcProvider, OIDC_DISABLED_PATHS } from './oidc.ts';
 
 /**
  * Better Auth on Postgres — the 0.5 replacement for the Convex Better Auth
@@ -379,6 +380,7 @@ export function createAuth(config: AuthConfig) {
     trustedOrigins: siteOrigins,
     // Pinned off regardless of upstream default changes.
     telemetry: { enabled: false },
+    disabledPaths: OIDC_DISABLED_PATHS,
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
@@ -618,6 +620,12 @@ export function createAuth(config: AuthConfig) {
       }),
     },
     plugins: [
+      jwt({
+        disableSettingJwtHeader: true,
+        jwks: { keyPairConfig: { alg: 'RS256' } },
+        jwt: { issuer: `${siteUrl.replace(/\/$/, '')}/api/auth` },
+      }),
+      createOidcProvider(sql, siteUrl),
       organization({
         ac,
         roles: orgRoles,

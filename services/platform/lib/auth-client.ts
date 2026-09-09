@@ -1,4 +1,5 @@
 import { apiKeyClient } from '@better-auth/api-key/client';
+import { oauthProviderClient } from '@better-auth/oauth-provider/client';
 import { passkeyClient } from '@better-auth/passkey/client';
 import {
   organizationClient,
@@ -6,6 +7,8 @@ import {
 } from 'better-auth/client/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 import { createAuthClient } from 'better-auth/react';
+
+import { sanitizeInternalRedirect } from './shared/utils/safe-redirect';
 
 // Mirror minimal access control on the client for type-safe checks
 const statement = {
@@ -61,6 +64,7 @@ export const authClient = createAuthClient({
     },
   },
   plugins: [
+    oauthProviderClient(),
     apiKeyClient(),
     // WebAuthn / passkeys (#1508). Exposes authClient.passkey.* for the
     // registration + authentication ceremonies the browser drives.
@@ -72,7 +76,13 @@ export const authClient = createAuthClient({
       // to preserve the current `redirectTo` query param.
       onTwoFactorRedirect() {
         const base = window.__ENV__?.BASE_PATH ?? '';
-        window.location.href = `${base}/2fa`;
+        const target = new URL(`${base}/2fa`, window.location.origin);
+        const returnTo = sanitizeInternalRedirect(
+          new URLSearchParams(window.location.search).get('redirectTo'),
+          '',
+        );
+        if (returnTo) target.searchParams.set('redirectTo', returnTo);
+        window.location.href = target.toString();
       },
     }),
     organizationClient({

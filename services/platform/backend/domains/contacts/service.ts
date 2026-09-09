@@ -391,17 +391,26 @@ export async function updateContact(
   tx: TransactionSql,
   scope: ContactScope,
   contactId: string,
-  patch: Partial<ContactInput>,
+  patch: Partial<ContactInput> & { expectedUpdatedAt?: number },
 ): Promise<void> {
   assertContactAccess(scope, 'write');
   const rows = await tx<ContactRow[]>`
     SELECT ${tx.unsafe(CONTACT_COLUMNS)} FROM app.contacts
-    WHERE id = ${contactId} AND org_id = ${scope.organizationId} LIMIT 1
+    WHERE id = ${contactId} AND org_id = ${scope.organizationId} LIMIT 1 FOR UPDATE
   `;
   const contact = rows[0];
   if (!contact) {
     throw new ContactError('CONTACT_NOT_FOUND', 'Contact not found', 404);
   }
+  if (
+    patch.expectedUpdatedAt !== undefined &&
+    patch.expectedUpdatedAt !== contact.updatedAt
+  )
+    throw new ContactError(
+      'CONTACT_STALE',
+      'Contact changed; reload before updating',
+      409,
+    );
   const email =
     patch.email === undefined
       ? contact.email
@@ -416,7 +425,7 @@ export async function updateContact(
       tags = ${patch.tags ?? contact.tags},
       metadata = ${patch.metadata === undefined ? (contact.metadata === null ? null : tx.json(toJson(contact.metadata))) : tx.json(toJson(patch.metadata))},
       notes = ${patch.notes === undefined ? contact.notes : patch.notes},
-      updated_at_ms = ${Date.now()}
+      updated_at_ms = ${Math.max(Date.now(), contact.updatedAt + 1)}
     WHERE id = ${contactId}
   `;
   await createAuditLog(tx, {

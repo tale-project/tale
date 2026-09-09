@@ -18,6 +18,7 @@ import {
 import { domainErrorResponse, type RestEnv } from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';
 import { createRestBrowserSessionRoutes } from './v1-browser-sessions.ts';
+import { createConversationRestRoutes } from './v1-conversations.ts';
 import { createCoreRoutes } from './v1-core.ts';
 import { createRestMcpRoutes } from './v1-mcp.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
@@ -186,6 +187,7 @@ export function createRestV1Routes(deps: {
   });
 
   app.route('/', createCoreRoutes({ sql: deps.sql }));
+  app.route('/', createConversationRestRoutes({ sql: deps.sql }));
   app.route('/', createProjectRestRoutes({ sql: deps.sql }));
   app.route('/', createTaskRestRoutes({ sql: deps.sql }));
   app.route('/', createThreadRestRoutes({ sql: deps.sql }));

@@ -142,6 +142,8 @@ compute codes from the enrollment secret.
   dashboard — the URL's org id changes and the org name in the user button
   matches the target. No flash of the old org's content after landing.
 
+- [ ] `AUTH-F18` · **Native application sign-in** — Start an OIDC authorization from a registered test application while signed out; finish native password plus TOTP, passkey or configured SSO → the original signed request resumes at **Continue with Tale** (`auth.oauth.title`), the reviewed application and signed-in email appear, and **Allow and continue** (`auth.oauth.allow`) returns once to the application. Repeat with **Cancel** (`auth.oauth.cancel`) → no application session; retry succeeds. Tab order reaches both actions with visible focus, including at a narrow viewport.
+
 ## Boundary & error tests
 
 - [ ] `AUTH-B1` · **Empty login** — `/log-in` with both fields empty → **Log

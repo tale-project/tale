@@ -80,7 +80,7 @@ export function registerMigration(plop: NodePlopAPI): void {
       const actions: ActionType[] = [
         {
           type: 'add',
-          path: dest,
+          path: path.join(repoRoot, dest),
           templateFile: `${templateDir}/migration.sql.hbs`,
           data: { ...answers, fileName },
         },

@@ -529,6 +529,9 @@ export async function deleteOrganization(
   // Better Auth's own rows, leaf-first. (Its `organization.delete` removes
   // members, invitations and the org but strands teams; this is the
   // complete set for the teams-enabled plugin.)
+  // Native OAuth clients bind to the organization through referenceId.
+  // Better Auth's foreign keys cascade their tokens and consent grants.
+  await tx`DELETE FROM "oauthClient" WHERE "referenceId" = ${organizationId}`;
   await tx`
     DELETE FROM "teamMember"
     WHERE "teamId" IN (

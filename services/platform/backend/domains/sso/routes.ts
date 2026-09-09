@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
+import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
 import { ssoAuthorizeHandler } from '../../core/enterprise_sso/login/authorize_handler.ts';
 import { ssoCallbackHandler } from '../../core/enterprise_sso/login/callback_handler.ts';
 import {
@@ -37,7 +38,10 @@ export const finishLoginPg: FinishLogin = async (
   );
   const basePath = process.env.BASE_PATH || '';
   const headers = new Headers();
-  headers.set('Location', `${args.frontendOrigin}${basePath}/dashboard`);
+  headers.set(
+    'Location',
+    `${args.frontendOrigin}${sanitizeInternalRedirect(args.returnTo, `${basePath}/dashboard`)}`,
+  );
   headers.append('Set-Cookie', cookie);
   return new Response(null, { status: 302, headers });
 };

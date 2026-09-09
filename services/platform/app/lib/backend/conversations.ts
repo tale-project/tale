@@ -58,6 +58,17 @@ function invalidateConversations(
 const LIST_LIMIT = 100;
 
 export const conversationReadAdapters: Record<string, ReadAdapter> = {
+  'conversations/queries:apiSources': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'conversation', 'api-sources'),
+      queryFn: () =>
+        backendFetch<{ sources: string[] }>('/conversations/api-sources', {
+          orgId,
+        }).then((body) => body.sources),
+    };
+  },
   'conversations/queries:listConversations': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;

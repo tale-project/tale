@@ -19,6 +19,7 @@ import { handleSsoLogin } from './service.ts';
  * `accessToken` may be empty — SAML carries none. */
 const handleSsoLoginArgs = z.object({
   email: z.string().min(1),
+  emailVerified: z.boolean().optional(),
   name: z.string(),
   externalId: z.string().min(1),
   providerId: z.string().min(1),

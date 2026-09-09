@@ -119,6 +119,9 @@ and the `/events` hint → `invalidateQueries` hook).
 
   Credentials default to `minioadmin` / `minioadmin`; override with
   `ITEST_S3_ACCESS_KEY` / `ITEST_S3_SECRET_KEY`.
+  The fake video downloader still generates real audio. On a macOS/Homebrew
+  host, also set `VIDEO_INGEST_FFMPEG_LOCATION=/opt/homebrew/bin/ffmpeg` (or the
+  installed absolute path); Linux defaults to the image's `/usr/bin/ffmpeg`.
 
   **Both** services must be THROWAWAY, recreated per run. Reusing the
   database truncates the run at the first lane that re-creates a fixture
@@ -168,3 +171,86 @@ pg-boss job lanes (automations, agent turns, sync, watchdogs, crons).
 [MIGRATION.md](./MIGRATION.md) is the completed campaign ledger — the
 domain-by-domain record of how each surface got here and the semantics it
 carries.
+
+## Native conversation sources
+
+The `/api/v1/conversations` family synchronizes an external app's conversation
+system with the native Inbox. Its OpenAPI contract is served at `/docs`, generated
+from the same snapshot schema the handler validates. It requires an editor-or-above
+API-key user and an explicit `X-Organization-Slug` on every request. A dedicated
+service user owns each `(organization, source, externalId)` binding; replacing that
+user's key does not change ownership.
+
+Create the customer's contact first with `/api/v1/contacts/bulk` and a stable
+`externalId`. POST a complete, bounded source snapshot to `/conversations/sync`.
+For contact updates, optional `expectedUpdatedAt` on `PATCH /contacts/:id` checks
+the current revision under the row lock. Stale writes return `409 CONTACT_STALE`
+without changing data. Refetch and merge source-owned fields before retrying;
+every successful update advances `updatedAt`, even when the clock does not.
+The source revision is an increasing integer: a replay is a no-op, conflicting
+content at the same revision is refused, and an older revision cannot undo newer
+content. Attachments are org-scoped, owned uploads with verified sizes. Reading the
+snapshot state returns its revision and bound attachment refs for crash recovery.
+
+An office reply on this API channel writes a native queued Inbox message and a
+durable delivery row in one transaction. It never schedules an email send. The
+external worker claims due deliveries, commits them idempotently in its app using
+the Tale message ID, then acknowledges with that app's message ID and committed
+source revision. Older snapshots cannot retract that newer receipt. Claim closes the
+undo window; acknowledgement links the existing native row to its source receipt
+so later source edits/retractions update that row without an echo. Unacknowledged
+replies are never removed by a source snapshot. A deleted source snapshot closes
+the binding and removes only acknowledged/source-owned messages.
+
+Claims carry a five-minute visibility lease and a fresh `claimToken`. Report
+failures through `/deliveries/:id/fail` with an allowlisted error code; duplicate
+or stale claim reports do not alter a newer attempt. Transient failures back off
+from one minute to one hour, stopping after ten reports. Permanent refusals stop
+immediately. Failed messages reuse native Inbox Retry/Discard, and retry restarts
+the API outbox without scheduling email. API outbox rows are excluded from the
+email-job watchdog. Only static error codes are stored, never destination bodies.
+
+Migration `0086_conversation_api_sync.sql` adds bindings, message receipts and the
+delivery outbox without altering existing rows. The native integration probe
+`domains/conversations/api-sync.integration.ts` exercises replay, tenant/user
+isolation, key rotation, attachments, reply/undo/claim/ack, edits and tombstones
+against real HTTP and Postgres. API source presence opens the Inbox without a
+deployed email automation; existing assignment privacy and write roles still apply.
+
+## Native identity clients
+
+The `@better-auth/oauth-provider` plugin owns OIDC discovery, RS256 signing keys,
+authorization codes, PKCE validation and native token storage. Boot uses the
+existing advisory-locked Better Auth migration path; no separate issuer service
+or seed credentials are required. `/api/app/identity/clients` is the only client
+administration door: current org administrators, matching active org and browser
+Origin, strict HTTPS callback, organization-serialized idempotent registration.
+Its create response shows the secret once; drift requires explicit review, and
+rotation/status routes keep the same org-bound client ID. Native organization
+retirement removes these clients and cascades grants through the provider's FKs.
+
+External access-token audiences are disabled (`validAudiences: []`); the provider
+permits only its native userinfo audience for OpenID scopes. REST continues to
+require native API keys. This enforces the single-resource mitigation for
+[GHSA-p2fr-6hmx-4528](https://github.com/advisories/GHSA-p2fr-6hmx-4528), whose
+stable 1.6.x provider line does not bind resource indicators to authorization
+grants. The real identity probe refuses foreign and API-base resource requests,
+verifies the userinfo audience, and refuses that access token at REST routes.
+
+A verified native email, current membership in the client's organization and
+native MFA policy are required for signed identity claims. Verified Entra Graph
+identity can reconcile an existing member's email verification flag, but may
+never change a linked subject, rename the user or link a nonmember. The browser
+keeps the signed OAuth query through native login and MFA; Better Auth's fetch
+plugin owns the single redirect after consent. The browser's existing Sentry
+normalizer removes request bodies, credentials and URL queries/fragments,
+including navigation breadcrumbs, so authorization codes/state stay local.
+
+`backend/auth/oidc-integration.ts` is mounted in `backend:integration` and proves
+the real HTTP/Postgres code flow, replay and concurrent redemption, PKCE, nonce,
+issuer/discovery, membership/MFA loss, trusted SSO reconciliation, secret
+rotation, disable/reenable and organization retirement. Component
+`oauth-authorization.test.tsx` covers consent accessibility and prevents duplicate
+callback navigation; `resume-oauth.test.ts` preserves repeated signed parameters
+while refusing foreign return paths. Consumer setup is in the localized
+[API reference](../../../docs/en/develop/api-reference.md).

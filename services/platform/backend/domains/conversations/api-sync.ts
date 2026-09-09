@@ -1,0 +1,693 @@
+import { createHash, randomUUID } from 'node:crypto';
+
+import { transactSerializable } from '@tale/shared/db/serializable';
+import { micromark } from 'micromark';
+import type { Sql, TransactionSql } from 'postgres';
+import { z } from 'zod';
+
+import {
+  apiAttachmentSchema,
+  apiDeliveryFailureSchema,
+  replyConstraintsSchema,
+  type ApiSnapshot,
+} from '../../../lib/shared/conversations/api-sync.ts';
+import { toJson } from '../../db/sql.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
+import { statOrgBlob } from '../files/service.ts';
+import { firstForeignUpload } from '../files/upload-intents.ts';
+import {
+  addMessageToConversation,
+  ConversationError,
+  createConversation,
+  viewerCanWrite,
+  type ConversationViewer,
+} from './service.ts';
+
+export {
+  apiSnapshotSchema,
+  apiSourceSchema,
+} from '../../../lib/shared/conversations/api-sync.ts';
+
+interface Binding {
+  conversationId: string;
+  ownerUserId: string;
+  externalContactId: string;
+  version: string;
+  hash: string | null;
+}
+
+function requireWriter(viewer: ConversationViewer): void {
+  if (!viewerCanWrite(viewer.role)) {
+    throw new ConversationError(
+      'FORBIDDEN',
+      'Only editors and above may synchronize conversations',
+      403,
+    );
+  }
+}
+
+function attachmentMetadata(
+  attachments: z.infer<typeof apiAttachmentSchema>[],
+) {
+  return attachments.map((attachment) => ({
+    id: attachment.externalId ?? attachment.storageId,
+    storageId: attachment.storageId,
+    filename: attachment.fileName,
+    contentType: attachment.contentType,
+    size: attachment.size,
+  }));
+}
+
+function messageHtml(content: string, format: 'plain' | 'markdown'): string {
+  if (format === 'markdown') return micromark(content);
+  return `<pre>${content.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</pre>`;
+}
+
+async function hint(
+  tx: TransactionSql,
+  organizationId: string,
+  conversationId: string,
+) {
+  await emitHintInTx(tx, {
+    orgId: organizationId,
+    entity: 'conversation',
+    entityId: conversationId,
+  });
+}
+
+/** A complete bounded source snapshot; source receipts fence its writes. */
+export async function synchronizeConversation(
+  sql: Sql,
+  viewer: ConversationViewer,
+  input: ApiSnapshot,
+) {
+  requireWriter(viewer);
+  const hash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
+  // Object-store reads stay outside the retried transaction. Previously
+  // receipted immutable refs already carry their verified size, so a source
+  // edit need not HEAD every old attachment again.
+  const knownRows = await sql<{ metadata: unknown }[]>`
+    SELECT m.metadata FROM app.conversation_api_bindings b
+    JOIN app.conversation_api_messages r ON r.conversation_id = b.conversation_id
+    JOIN app.conversation_messages m ON m.id = r.message_id AND m.org_id = b.org_id
+    WHERE b.org_id = ${viewer.organizationId} AND b.source = ${input.source}
+      AND b.external_id = ${input.externalId} AND b.owner_user_id = ${viewer.userId}
+  `;
+  const known = new Map<string, number>();
+  for (const row of knownRows) {
+    const parsed = z
+      .object({
+        attachments: z
+          .array(z.object({ storageId: z.string(), size: z.number() }))
+          .optional(),
+      })
+      .safeParse(row.metadata);
+    if (parsed.success)
+      for (const file of parsed.data.attachments ?? [])
+        known.set(file.storageId, file.size);
+  }
+  for (const file of input.messages.flatMap((message) => message.attachments)) {
+    if (known.get(file.storageId) === file.size) continue;
+    const landed = await statOrgBlob(
+      sql,
+      viewer.organizationId,
+      file.storageId,
+    );
+    if (!landed || landed.size !== file.size)
+      throw new ConversationError(
+        'attachment_invalid',
+        'Attachment bytes do not match the declared size',
+        400,
+      );
+    known.set(file.storageId, landed.size);
+  }
+  return transactSerializable(sql, async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${`conversation-api:${viewer.organizationId}:${input.source}:${input.externalId}`}, 0))`;
+    const bindings = await tx<Binding[]>`
+      SELECT conversation_id AS "conversationId", owner_user_id AS "ownerUserId",
+             external_contact_id AS "externalContactId",
+             snapshot_version::text AS version, snapshot_hash AS hash
+      FROM app.conversation_api_bindings
+      WHERE org_id = ${viewer.organizationId} AND source = ${input.source} AND external_id = ${input.externalId}
+      FOR UPDATE
+    `;
+    let binding = bindings[0];
+    if (binding && binding.ownerUserId !== viewer.userId) {
+      throw new ConversationError(
+        'FORBIDDEN',
+        'This integration belongs to another service user',
+        403,
+      );
+    }
+    if (binding && binding.externalContactId !== input.externalContactId)
+      throw new ConversationError(
+        'contact_conflict',
+        'The source conversation belongs to another contact',
+        409,
+      );
+    if (binding && Number(binding.version) > input.version)
+      return { conversationId: binding.conversationId, applied: false };
+    if (binding && Number(binding.version) === input.version) {
+      if (binding.hash !== hash)
+        throw new ConversationError(
+          'snapshot_conflict',
+          'Snapshot version already contains different content',
+          409,
+        );
+      return { conversationId: binding.conversationId, applied: false };
+    }
+    if (!binding) {
+      if (input.deleted) return { conversationId: null, applied: false };
+      const contacts = await tx<{ id: string }[]>`
+        SELECT id FROM app.contacts
+        WHERE org_id = ${viewer.organizationId} AND external_id = ${input.externalContactId}
+          AND lifecycle_status IS DISTINCT FROM 'trashed'
+        LIMIT 2
+      `;
+      const contact = contacts[0];
+      if (contacts.length !== 1 || !contact)
+        throw new ConversationError(
+          'contact_not_found',
+          'Expected one synchronized contact',
+          409,
+        );
+      const conversationId = await createConversation(tx, {
+        organizationId: viewer.organizationId,
+        contactId: contact.id,
+        subject: input.subject,
+        status: input.status,
+        channel: 'api',
+        connectorName: input.source,
+        direction: 'inbound',
+      });
+      await tx`
+        INSERT INTO app.conversation_api_bindings(conversation_id, org_id, source, external_id, external_contact_id, owner_user_id)
+        VALUES (${conversationId}, ${viewer.organizationId}, ${input.source}, ${input.externalId}, ${input.externalContactId}, ${viewer.userId})
+      `;
+      binding = {
+        conversationId,
+        ownerUserId: viewer.userId,
+        externalContactId: input.externalContactId,
+        version: '-1',
+        hash: null,
+      };
+    }
+    const conversationId = binding.conversationId;
+    await tx`SELECT id FROM app.conversations WHERE id = ${conversationId} AND org_id = ${viewer.organizationId} FOR UPDATE`;
+    const existing = await tx<
+      {
+        externalId: string;
+        messageId: string;
+        sourceVersion: number;
+        metadata: Record<string, unknown> | null;
+      }[]
+    >`
+      SELECT r.external_id AS "externalId", r.message_id AS "messageId", r.source_version::float8 AS "sourceVersion", m.metadata
+      FROM app.conversation_api_messages r JOIN app.conversation_messages m ON m.id = r.message_id
+      WHERE r.conversation_id = ${conversationId} AND m.org_id = ${viewer.organizationId}
+    `;
+    const byExternalId = new Map(existing.map((row) => [row.externalId, row]));
+    for (const message of input.messages) {
+      const content = messageHtml(message.content, message.format);
+      const previous = byExternalId.get(message.externalId);
+      if (previous && previous.sourceVersion > input.version)
+        throw new ConversationError(
+          'snapshot_conflict',
+          'A newer source receipt already owns this message',
+          409,
+        );
+      // Delivery acknowledgement links the VAT receipt to the EXISTING
+      // native reply. A lost ack is retried before this source revision can
+      // apply, preventing a second copy while preserving later source edits.
+      if (
+        message.taleMessageId &&
+        previous?.messageId !== message.taleMessageId
+      )
+        throw new ConversationError(
+          'delivery_unacknowledged',
+          'A native reply must be acknowledged before its source snapshot',
+          409,
+        );
+      const oldAttachments = z
+        .array(z.object({ storageId: z.string() }))
+        .safeParse(previous?.metadata?.attachments ?? []);
+      const oldRefs = new Set(
+        oldAttachments.success
+          ? oldAttachments.data.map((item) => item.storageId)
+          : [],
+      );
+      const newRefs = message.attachments
+        .map((attachment) => attachment.storageId)
+        .filter((ref) => !oldRefs.has(ref));
+      if (await firstForeignUpload(tx, viewer, newRefs))
+        throw new ConversationError(
+          'attachment_not_owned',
+          'An attachment is not owned by this integration',
+          403,
+        );
+      const metadata = {
+        sender: message.authorName,
+        isCustomer: message.isCustomer,
+        attachments: attachmentMetadata(message.attachments),
+      };
+      if (previous) {
+        await tx`
+          UPDATE app.conversation_messages SET content = ${content}, metadata = ${tx.json(toJson(metadata))},
+            direction = ${message.isCustomer ? 'inbound' : 'outbound'}, sent_at_ms = ${message.createdAt}
+          WHERE id = ${previous.messageId} AND org_id = ${viewer.organizationId}
+        `;
+      } else {
+        const created = await addMessageToConversation(tx, {
+          organizationId: viewer.organizationId,
+          conversationId,
+          sender: message.authorName,
+          content,
+          isCustomer: message.isCustomer,
+          // The legacy index is org-wide (email Message-ID semantics).
+          // API ids are local to their source/thread, so namespace them.
+          externalMessageId: `api:${input.source}:${createHash('sha256')
+            .update(JSON.stringify([input.externalId, message.externalId]))
+            .digest('hex')}`,
+          sentAt: message.createdAt,
+          connectorName: input.source,
+          metadata,
+        });
+        await tx`
+          INSERT INTO app.conversation_api_messages(conversation_id, external_id, message_id, source_version)
+          VALUES (${conversationId}, ${message.externalId}, ${created.messageId}, ${input.version})
+        `;
+      }
+      byExternalId.delete(message.externalId);
+    }
+    // Reconcile only receipt-owned messages. Unacknowledged native replies
+    // have no receipt and cannot be erased by an older source snapshot.
+    for (const removed of byExternalId.values()) {
+      if (removed.sourceVersion > input.version) continue;
+      await tx`DELETE FROM app.conversation_messages WHERE id = ${removed.messageId} AND org_id = ${viewer.organizationId}`;
+    }
+    await tx`
+      UPDATE app.conversations SET subject = ${input.subject}, status = ${input.deleted ? 'closed' : input.status},
+        metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), '{unread_count}', to_jsonb(least(
+          CASE WHEN jsonb_typeof(metadata->'unread_count') = 'number' THEN (metadata->>'unread_count')::bigint ELSE 0 END,
+          (SELECT count(*) FROM app.conversation_messages WHERE conversation_id = ${conversationId} AND direction = 'inbound')))),
+        last_message_at_ms = coalesce((SELECT max(coalesce(sent_at_ms, delivered_at_ms, created_at_ms))
+          FROM app.conversation_messages WHERE conversation_id = ${conversationId}), created_at_ms)
+      WHERE id = ${conversationId} AND org_id = ${viewer.organizationId}
+    `;
+    await tx`
+      UPDATE app.conversation_api_bindings SET snapshot_version = ${input.version}, snapshot_hash = ${hash}, source_deleted = ${input.deleted}, reply_constraints = ${tx.json(toJson(input.replyConstraints))}
+      WHERE conversation_id = ${conversationId} AND org_id = ${viewer.organizationId}
+    `;
+    await hint(tx, viewer.organizationId, conversationId);
+    return { conversationId, applied: true };
+  });
+}
+
+/**
+ * Called only after the normal Inbox visibility and write-role gates. A
+ * native API reply is queued for its source, never handed to an email sender.
+ */
+export async function queueApiReply(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    conversationId: string;
+    content: string;
+    body: string;
+    attachments: z.infer<typeof apiAttachmentSchema>[];
+    actor: { userId: string; email?: string };
+    availableAt: number;
+  },
+): Promise<string> {
+  if (!args.actor.email || args.body.length > 20_000)
+    throw new ConversationError(
+      'invalid_reply',
+      'An office reply needs an identified author and a bounded body',
+      400,
+    );
+  const actorEmail = args.actor.email;
+  for (const file of args.attachments) {
+    apiAttachmentSchema.parse(file);
+    const landed = await statOrgBlob(sql, args.organizationId, file.storageId);
+    if (!landed || landed.size !== file.size)
+      throw new ConversationError(
+        'attachment_invalid',
+        'Attachment bytes do not match the declared size',
+        400,
+      );
+  }
+  return transactSerializable(sql, async (tx) => {
+    const identities = await tx<
+      { email: string }[]
+    >`SELECT email FROM "user" WHERE id = ${args.actor.userId} AND "emailVerified" = true FOR SHARE`;
+    if (
+      identities[0]?.email.trim().toLowerCase() !==
+      actorEmail.trim().toLowerCase()
+    )
+      throw new ConversationError(
+        'unverified_author',
+        'Verify your email before replying through an external app',
+        403,
+      );
+    const bindings = await tx<{ source: string; constraints: unknown }[]>`
+      SELECT b.source, b.reply_constraints AS constraints FROM app.conversation_api_bindings b JOIN app.conversations c ON c.id = b.conversation_id
+      WHERE b.org_id = ${args.organizationId} AND b.conversation_id = ${args.conversationId}
+        AND NOT b.source_deleted
+        AND c.status = 'open' AND c.lifecycle_status IS DISTINCT FROM 'trashed'
+      FOR UPDATE OF c
+    `;
+    if (!bindings[0])
+      throw new ConversationError(
+        'conversation_closed',
+        'This API conversation is unavailable',
+        409,
+      );
+    const limits = replyConstraintsSchema.parse(bindings[0].constraints);
+    if (
+      args.body.trim().length > limits.maxBodyChars ||
+      (args.attachments.length === 0 &&
+        args.body.trim().length < limits.minBodyChars) ||
+      args.attachments.length > limits.maxAttachments ||
+      args.attachments.some(
+        (file) =>
+          file.size > limits.maxAttachmentBytes ||
+          (limits.attachmentExtensions &&
+            !limits.attachmentExtensions.includes(
+              file.fileName.split('.').at(-1)?.toLowerCase() ?? '',
+            )),
+      )
+    ) {
+      throw new ConversationError(
+        'reply_limits',
+        `This app accepts ${limits.minBodyChars}–${limits.maxBodyChars} characters and at most ${limits.maxAttachments} supported attachments`,
+        400,
+      );
+    }
+    const created = await addMessageToConversation(tx, {
+      organizationId: args.organizationId,
+      conversationId: args.conversationId,
+      sender: actorEmail,
+      content: args.content,
+      isCustomer: false,
+      status: 'queued',
+      connectorName: bindings[0].source,
+      metadata: {
+        sourceMarkdown: args.body,
+        scheduledSendAt: args.availableAt,
+        attachments: attachmentMetadata(args.attachments),
+      },
+    });
+    await tx`
+      INSERT INTO app.conversation_api_deliveries(message_id, conversation_id, org_id, actor_user_id, actor_email, body, available_at_ms, retry_at_ms)
+      VALUES (${created.messageId}, ${args.conversationId}, ${args.organizationId}, ${args.actor.userId}, ${actorEmail}, ${args.body}, ${args.availableAt}, ${args.availableAt})
+    `;
+    return created.messageId;
+  });
+}
+
+const DELIVERY_LEASE_MS = 5 * 60 * 1000;
+const DELIVERY_FAILURE_LIMIT = 10;
+
+/** A visibility lease closes undo and lets later replies progress on a crash. */
+export async function claimApiDeliveries(
+  sql: Sql,
+  viewer: ConversationViewer,
+  source: string,
+  limit: number,
+) {
+  requireWriter(viewer);
+  return transactSerializable(sql, async (tx) => {
+    const now = Date.now();
+    const rows = await tx<
+      {
+        messageId: string;
+        conversationId: string;
+        externalId: string;
+        actorUserId: string;
+        actorEmail: string;
+        body: string;
+        availableAt: number;
+        metadata: Record<string, unknown> | null;
+      }[]
+    >`
+      SELECT d.message_id AS "messageId", d.conversation_id AS "conversationId", b.external_id AS "externalId",
+        d.actor_user_id AS "actorUserId", d.actor_email AS "actorEmail", d.body, d.available_at_ms::float8 AS "availableAt", m.metadata
+      FROM app.conversation_api_deliveries d
+      JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
+      JOIN app.conversation_messages m ON m.id = d.message_id AND m.org_id = d.org_id
+      WHERE d.org_id = ${viewer.organizationId} AND b.source = ${source} AND b.owner_user_id = ${viewer.userId}
+        AND d.acknowledged_at_ms IS NULL AND d.failed_at_ms IS NULL
+        AND d.available_at_ms <= ${now} AND d.retry_at_ms <= ${now}
+      ORDER BY d.retry_at_ms, d.available_at_ms, d.message_id LIMIT ${limit}
+      FOR UPDATE OF d, m
+    `;
+    const tokens = new Map<string, string>();
+    for (const row of rows) {
+      const token = randomUUID();
+      tokens.set(row.messageId, token);
+      await tx`UPDATE app.conversation_api_deliveries SET claimed_at_ms = coalesce(claimed_at_ms, ${now}), claim_token = ${token}, retry_at_ms = ${now + DELIVERY_LEASE_MS} WHERE message_id = ${row.messageId}`;
+      await tx`UPDATE app.conversation_messages SET metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), '{sendClaimedAt}', ${tx.json(now)}) WHERE id = ${row.messageId}`;
+    }
+    return rows.map((row) => ({
+      messageId: row.messageId,
+      claimToken: tokens.get(row.messageId),
+      conversationId: row.conversationId,
+      externalId: row.externalId,
+      actorUserId: row.actorUserId,
+      actorEmail: row.actorEmail,
+      body: row.body,
+      availableAt: row.availableAt,
+      attachments: z
+        .array(
+          z.object({
+            storageId: z.string(),
+            filename: z.string(),
+            contentType: z.string(),
+            size: z.number(),
+          }),
+        )
+        .parse(row.metadata?.attachments ?? []),
+    }));
+  });
+}
+
+/** Failure reports are idempotent per claim; a stale worker cannot fail a new lease. */
+export async function failApiDelivery(
+  sql: Sql,
+  viewer: ConversationViewer,
+  messageId: string,
+  failure: z.infer<typeof apiDeliveryFailureSchema>,
+) {
+  requireWriter(viewer);
+  return transactSerializable(sql, async (tx) => {
+    const rows = await tx<
+      {
+        conversationId: string;
+        claimToken: string | null;
+        acknowledgedAt: string | null;
+        attempts: number;
+      }[]
+    >`
+      SELECT d.conversation_id AS "conversationId", d.claim_token AS "claimToken",
+        d.acknowledged_at_ms::text AS "acknowledgedAt", d.attempt_count AS attempts
+      FROM app.conversation_api_deliveries d
+      JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
+      WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND b.owner_user_id = ${viewer.userId}
+      FOR UPDATE OF d
+    `;
+    const row = rows[0];
+    if (!row)
+      throw new ConversationError(
+        'message_not_found',
+        'Delivery not found',
+        404,
+      );
+    if (row.acknowledgedAt !== null || row.claimToken !== failure.claimToken)
+      return { ok: true };
+    const attempts = row.attempts + 1;
+    const terminal = failure.permanent || attempts >= DELIVERY_FAILURE_LIMIT;
+    const now = Date.now();
+    const retryAt =
+      now + Math.min(60 * 60 * 1000, 60_000 * 2 ** (attempts - 1));
+    await tx`UPDATE app.conversation_api_deliveries SET claim_token = NULL, attempt_count = ${attempts},
+      retry_at_ms = ${retryAt}, failed_at_ms = ${terminal ? now : null}, last_error_code = ${failure.code}
+      WHERE message_id = ${messageId}`;
+    // Automatic retries stay queued. Only terminal failures expose Retry /
+    // Discard, so a user cannot discard a delivery during its next attempt.
+    if (terminal) {
+      await tx`UPDATE app.conversation_messages SET delivery_state = 'failed', status_changed_at_ms = ${now},
+        metadata = coalesce(metadata, '{}'::jsonb) || ${tx.json({ error: 'The external app could not accept this reply. Review access and retry.', errorCode: failure.code })}
+        WHERE id = ${messageId} AND org_id = ${viewer.organizationId}`;
+      await hint(tx, viewer.organizationId, row.conversationId);
+    }
+    return { ok: true };
+  });
+}
+
+/** The existing Inbox retry door restarts this outbox without an email job. */
+export async function retryApiDelivery(
+  tx: TransactionSql,
+  organizationId: string,
+  messageId: string,
+): Promise<void> {
+  // Match Discard's message-then-cascaded-delivery lock order. Otherwise a
+  // simultaneous retry/discard could deadlock after each acquired one row.
+  const locked = await tx`
+    SELECT id FROM app.conversation_messages WHERE id = ${messageId}
+      AND org_id = ${organizationId} AND delivery_state = 'failed' FOR UPDATE
+  `;
+  if (locked.length !== 1)
+    throw new ConversationError(
+      'retry_not_available',
+      'This API delivery cannot be retried',
+      409,
+    );
+  const rows = await tx<{ conversationId: string }[]>`
+    UPDATE app.conversation_api_deliveries d SET failed_at_ms = NULL, attempt_count = 0,
+      last_error_code = NULL, claim_token = NULL, retry_at_ms = 0
+    FROM app.conversation_api_bindings b, app.conversations c
+    WHERE d.message_id = ${messageId} AND d.org_id = ${organizationId}
+      AND d.failed_at_ms IS NOT NULL AND d.acknowledged_at_ms IS NULL
+      AND b.conversation_id = d.conversation_id AND NOT b.source_deleted
+      AND c.id = d.conversation_id AND c.org_id = d.org_id
+      AND c.status = 'open' AND c.lifecycle_status IS DISTINCT FROM 'trashed'
+    RETURNING d.conversation_id AS "conversationId"
+  `;
+  const row = rows[0];
+  if (!row)
+    throw new ConversationError(
+      'retry_not_available',
+      'This API delivery cannot be retried',
+      409,
+    );
+  const changed = await tx`
+    UPDATE app.conversation_messages SET delivery_state = 'queued', retry_count = coalesce(retry_count, 0) + 1,
+      status_changed_at_ms = ${Date.now()}, metadata = coalesce(metadata, '{}'::jsonb) - 'error' - 'errorCode'
+    WHERE id = ${messageId} AND org_id = ${organizationId} AND delivery_state = 'failed' RETURNING id
+  `;
+  if (changed.length !== 1)
+    throw new ConversationError(
+      'retry_not_available',
+      'This API delivery cannot be retried',
+      409,
+    );
+  await hint(tx, organizationId, row.conversationId);
+}
+
+export async function acknowledgeApiDelivery(
+  sql: Sql,
+  viewer: ConversationViewer,
+  messageId: string,
+  receiptId: string,
+  sourceVersion: number,
+) {
+  requireWriter(viewer);
+  return transactSerializable(sql, async (tx) => {
+    const rows = await tx<
+      { conversationId: string; receiptId: string | null }[]
+    >`
+      SELECT d.conversation_id AS "conversationId", d.receipt_id AS "receiptId"
+      FROM app.conversation_api_deliveries d JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id
+      WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND b.owner_user_id = ${viewer.userId}
+        AND d.claimed_at_ms IS NOT NULL FOR UPDATE OF d
+    `;
+    const row = rows[0];
+    if (!row)
+      throw new ConversationError(
+        'message_not_found',
+        'Delivery not found',
+        404,
+      );
+    if (row.receiptId !== null && row.receiptId !== receiptId)
+      throw new ConversationError(
+        'receipt_conflict',
+        'Delivery already has another receipt',
+        409,
+      );
+    const now = Date.now();
+    await tx`UPDATE app.conversation_api_deliveries SET acknowledged_at_ms = coalesce(acknowledged_at_ms, ${now}), receipt_id = ${receiptId}, failed_at_ms = NULL, last_error_code = NULL, claim_token = NULL WHERE message_id = ${messageId}`;
+    await tx`INSERT INTO app.conversation_api_messages(conversation_id, external_id, message_id, source_version)
+      VALUES (${row.conversationId}, ${receiptId}, ${messageId}, ${sourceVersion}) ON CONFLICT (conversation_id, external_id) DO NOTHING`;
+    const receipt = await tx<
+      { messageId: string; version: number }[]
+    >`SELECT message_id AS "messageId", source_version::float8 AS version FROM app.conversation_api_messages WHERE conversation_id = ${row.conversationId} AND external_id = ${receiptId}`;
+    if (
+      receipt[0]?.messageId !== messageId ||
+      receipt[0].version !== sourceVersion
+    )
+      throw new ConversationError(
+        'receipt_conflict',
+        'Receipt belongs to another message',
+        409,
+      );
+    await tx`UPDATE app.conversation_messages SET delivery_state = 'delivered', sent_at_ms = coalesce(sent_at_ms, ${now}), delivered_at_ms = coalesce(delivered_at_ms, ${now}), metadata = coalesce(metadata, '{}'::jsonb) - 'error' - 'errorCode' WHERE id = ${messageId} AND org_id = ${viewer.organizationId}`;
+    await hint(tx, viewer.organizationId, row.conversationId);
+    return { ok: true };
+  });
+}
+
+export async function apiSnapshotState(
+  sql: Sql,
+  viewer: ConversationViewer,
+  source: string,
+  externalId: string,
+) {
+  requireWriter(viewer);
+  const bindings = await sql<
+    { conversationId: string; version: number; organizationId: string }[]
+  >`
+    SELECT conversation_id AS "conversationId", snapshot_version::float8 AS version, org_id AS "organizationId"
+    FROM app.conversation_api_bindings
+    WHERE org_id = ${viewer.organizationId} AND source = ${source} AND external_id = ${externalId} AND owner_user_id = ${viewer.userId}
+  `;
+  const binding = bindings[0];
+  if (!binding) return null;
+  const rows = await sql<{ metadata: Record<string, unknown> | null }[]>`
+    SELECT m.metadata FROM app.conversation_api_messages r
+    JOIN app.conversation_messages m ON m.id = r.message_id
+    WHERE r.conversation_id = ${binding.conversationId} AND m.org_id = ${viewer.organizationId}
+  `;
+  return {
+    ...binding,
+    attachments: rows.flatMap((row) => {
+      const parsed = z
+        .array(z.object({ id: z.string(), storageId: z.string() }))
+        .safeParse(row.metadata?.attachments ?? []);
+      return parsed.success ? parsed.data : [];
+    }),
+  };
+}
+
+export async function apiDeliveryAttachment(
+  sql: Sql,
+  viewer: ConversationViewer,
+  messageId: string,
+  index: number,
+) {
+  requireWriter(viewer);
+  const rows = await sql<{ metadata: Record<string, unknown> | null }[]>`
+    SELECT m.metadata FROM app.conversation_api_deliveries d
+    JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
+    JOIN app.conversation_messages m ON m.id = d.message_id AND m.org_id = d.org_id
+    WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND b.owner_user_id = ${viewer.userId}
+      AND d.claimed_at_ms IS NOT NULL
+  `;
+  const parsed = z
+    .array(
+      z.object({
+        storageId: z.string(),
+        filename: z.string(),
+        contentType: z.string(),
+        size: z.number().max(30 * 1024 * 1024),
+      }),
+    )
+    .safeParse(rows[0]?.metadata?.attachments ?? []);
+  const attachment = parsed.success ? parsed.data[index] : undefined;
+  if (!attachment)
+    throw new ConversationError(
+      'attachment_not_found',
+      'Attachment not found',
+      404,
+    );
+  return attachment;
+}

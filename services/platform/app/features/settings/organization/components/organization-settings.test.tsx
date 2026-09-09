@@ -131,7 +131,8 @@ describe('OrganizationSettingsView name validation', () => {
   it('blocks an empty org name with an inline error and an invalid form', async () => {
     render(<ValidationHarness orgName="Acme" />);
     await waitFor(() => expect(holder.current?.isLoading).toBe(false));
-    expect(holder.current?.isValid).toBe(true);
+    // Applying baseline data and resolving the async schema are separate renders.
+    await waitFor(() => expect(holder.current?.isValid).toBe(true));
 
     const orgNameField = screen.getByRole('textbox', {
       name: orgNameLabel,
@@ -149,7 +150,7 @@ describe('OrganizationSettingsView name validation', () => {
   it('treats a whitespace-only org name as invalid', async () => {
     render(<ValidationHarness orgName="Acme" />);
     await waitFor(() => expect(holder.current?.isLoading).toBe(false));
-    expect(holder.current?.isValid).toBe(true);
+    await waitFor(() => expect(holder.current?.isValid).toBe(true));
 
     const orgNameField = screen.getByRole('textbox', {
       name: orgNameLabel,

@@ -16,6 +16,8 @@ import { Route as AuthRouteImport } from './routes/_auth';
 import { Route as R2faEnrollRouteImport } from './routes/2fa-enroll';
 import { Route as IndexRouteImport } from './routes/index';
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index';
+import { Route as OauthContinueRouteImport } from './routes/oauth.continue';
+import { Route as OauthConsentRouteImport } from './routes/oauth.consent';
 import { Route as ForcedChangePasswordIdRouteImport } from './routes/forced-change-password.$id';
 import { Route as DashboardSwitchingRouteImport } from './routes/dashboard/switching';
 import { Route as DashboardCreateOrganizationRouteImport } from './routes/dashboard/create-organization';
@@ -151,6 +153,16 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRoute,
+} as any);
+const OauthContinueRoute = OauthContinueRouteImport.update({
+  id: '/oauth/continue',
+  path: '/oauth/continue',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth/consent',
+  path: '/oauth/consent',
+  getParentRoute: () => rootRouteImport,
 } as any);
 const ForcedChangePasswordIdRoute = ForcedChangePasswordIdRouteImport.update({
   id: '/forced-change-password/$id',
@@ -760,6 +772,8 @@ export interface FileRoutesByFullPath {
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute;
   '/dashboard/switching': typeof DashboardSwitchingRoute;
   '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute;
+  '/oauth/consent': typeof OauthConsentRoute;
+  '/oauth/continue': typeof OauthContinueRoute;
   '/dashboard/': typeof DashboardIndexRoute;
   '/dashboard/$id/$': typeof DashboardIdSplatRoute;
   '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren;
@@ -866,6 +880,8 @@ export interface FileRoutesByTo {
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute;
   '/dashboard/switching': typeof DashboardSwitchingRoute;
   '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute;
+  '/oauth/consent': typeof OauthConsentRoute;
+  '/oauth/continue': typeof OauthContinueRoute;
   '/dashboard': typeof DashboardIndexRoute;
   '/dashboard/$id/$': typeof DashboardIdSplatRoute;
   '/dashboard/$id': typeof DashboardIdIndexRoute;
@@ -966,6 +982,8 @@ export interface FileRoutesById {
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute;
   '/dashboard/switching': typeof DashboardSwitchingRoute;
   '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute;
+  '/oauth/consent': typeof OauthConsentRoute;
+  '/oauth/continue': typeof OauthContinueRoute;
   '/dashboard/': typeof DashboardIndexRoute;
   '/dashboard/$id/$': typeof DashboardIdSplatRoute;
   '/dashboard/$id/_knowledge': typeof DashboardIdKnowledgeRouteWithChildren;
@@ -1077,6 +1095,8 @@ export interface FileRouteTypes {
     | '/dashboard/create-organization'
     | '/dashboard/switching'
     | '/forced-change-password/$id'
+    | '/oauth/consent'
+    | '/oauth/continue'
     | '/dashboard/'
     | '/dashboard/$id/$'
     | '/dashboard/$id/automations'
@@ -1183,6 +1203,8 @@ export interface FileRouteTypes {
     | '/dashboard/create-organization'
     | '/dashboard/switching'
     | '/forced-change-password/$id'
+    | '/oauth/consent'
+    | '/oauth/continue'
     | '/dashboard'
     | '/dashboard/$id/$'
     | '/dashboard/$id'
@@ -1282,6 +1304,8 @@ export interface FileRouteTypes {
     | '/dashboard/create-organization'
     | '/dashboard/switching'
     | '/forced-change-password/$id'
+    | '/oauth/consent'
+    | '/oauth/continue'
     | '/dashboard/'
     | '/dashboard/$id/$'
     | '/dashboard/$id/_knowledge'
@@ -1386,6 +1410,8 @@ export interface RootRouteChildren {
   DocsRoute: typeof DocsRoute;
   SetupRoute: typeof SetupRoute;
   ForcedChangePasswordIdRoute: typeof ForcedChangePasswordIdRoute;
+  OauthConsentRoute: typeof OauthConsentRoute;
+  OauthContinueRoute: typeof OauthContinueRoute;
 }
 
 declare module '@tanstack/react-router' {
@@ -1438,6 +1464,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/';
       preLoaderRoute: typeof DashboardIndexRouteImport;
       parentRoute: typeof DashboardRoute;
+    };
+    '/oauth/continue': {
+      id: '/oauth/continue';
+      path: '/oauth/continue';
+      fullPath: '/oauth/continue';
+      preLoaderRoute: typeof OauthContinueRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/oauth/consent': {
+      id: '/oauth/consent';
+      path: '/oauth/consent';
+      fullPath: '/oauth/consent';
+      preLoaderRoute: typeof OauthConsentRouteImport;
+      parentRoute: typeof rootRouteImport;
     };
     '/forced-change-password/$id': {
       id: '/forced-change-password/$id';
@@ -2581,6 +2621,8 @@ const rootRouteChildren: RootRouteChildren = {
   DocsRoute: DocsRoute,
   SetupRoute: SetupRoute,
   ForcedChangePasswordIdRoute: ForcedChangePasswordIdRoute,
+  OauthConsentRoute: OauthConsentRoute,
+  OauthContinueRoute: OauthContinueRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
