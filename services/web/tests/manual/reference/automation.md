@@ -62,3 +62,11 @@ When a spec takes a box over end to end, **delete the box and add its row here
 in the same commit**, naming the spec. A box that survives its automation is
 manual effort spent twice; `bun run lint:manual` rejects a box ID here that no
 suite defines.
+
+### Optional error reporting
+
+`packages/ui/src/monitoring/{config,browser}.test.ts` uses the real browser SDK
+and checks runtime configuration, envelope redaction and the disabled default.
+`packages/ui/src/server/monitoring.integration.test.ts` starts the real Bun
+server and a local receiver; it checks escaped runtime HTML, strict CSP, HTTP
+error receipt and zero report traffic when disabled.

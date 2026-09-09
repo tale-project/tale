@@ -10,6 +10,7 @@
 
 import { resolve } from 'node:path';
 
+import { initServerMonitoring } from '@tale/ui/monitoring/server';
 import { createPrecompiledServer } from '@tale/ui/seo';
 import {
   defaultReactServerSecurityHeaders,
@@ -17,6 +18,13 @@ import {
 } from '@tale/ui/server';
 
 import { buildRedirectPathMap, normalizeRequestPath } from './lib/redirects';
+
+const monitoring = initServerMonitoring({
+  dsn: process.env.SENTRY_DSN,
+  release: process.env.TALE_VERSION,
+  environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV,
+  service: 'tale-docs',
+});
 
 const BASE_PATH = (process.env.DOCS_BASE_URL ?? '/').replace(/\/+$/, '');
 
@@ -30,6 +38,8 @@ const artifacts = await createPrecompiledServer({
 const redirectPaths = buildRedirectPathMap();
 
 startReactServer({
+  monitoring: monitoring.config,
+  reportError: monitoring.capture,
   port: Number(process.env.PORT ?? 3002),
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: 'docs',

@@ -1,3 +1,4 @@
+import { reportBrowserError } from '@tale/ui/monitoring/browser';
 import { createRouter } from '@tanstack/react-router';
 
 import { routeTree } from './routeTree.gen';
@@ -10,6 +11,7 @@ const basepath =
 
 export const router = createRouter({
   routeTree,
+  defaultOnCatch: reportBrowserError,
   defaultPreload: 'intent',
   basepath,
 });

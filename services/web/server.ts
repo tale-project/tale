@@ -10,6 +10,7 @@
 
 import { resolve } from 'node:path';
 
+import { initServerMonitoring } from '@tale/ui/monitoring/server';
 import { createPrecompiledServer } from '@tale/ui/seo';
 import {
   defaultReactServerSecurityHeaders,
@@ -30,6 +31,13 @@ import { handleReleasesRequest, RELEASES_ROUTE } from './lib/releases/route';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
+
+const monitoring = initServerMonitoring({
+  dsn: process.env.SENTRY_DSN,
+  release: process.env.TALE_VERSION,
+  environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV,
+  service: 'tale-web',
+});
 
 const DISCORD_WEBHOOK_URL = process.env.WEB_DISCORD_WEBHOOK_URL ?? '';
 const FORMS_REQUIRED = process.env.WEB_FORMS_REQUIRED === 'true';
@@ -149,6 +157,7 @@ async function handleFormSubmit(request: Request): Promise<Response> {
     });
     if (!upstream.ok) {
       console.error('[forms] Discord webhook returned', upstream.status);
+      monitoring.capture(new Error('Form delivery rejected by upstream'));
       return Response.json(
         { ok: false, error: 'Upstream error' },
         { status: 502 },
@@ -156,6 +165,7 @@ async function handleFormSubmit(request: Request): Promise<Response> {
     }
   } catch (cause) {
     console.error('[forms] Discord webhook fetch failed', cause);
+    monitoring.capture(cause);
     return Response.json(
       { ok: false, error: 'Upstream error' },
       { status: 502 },
@@ -182,6 +192,8 @@ const releaseFeed = createReleaseFeed({
 // ---------------------------------------------------------------------------
 
 startReactServer({
+  monitoring: monitoring.config,
+  reportError: monitoring.capture,
   port: Number(process.env.PORT ?? 3001),
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: 'web',
