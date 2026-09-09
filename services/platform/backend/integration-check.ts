@@ -21660,6 +21660,72 @@ async function checkNotificationEmailSink(
         .sort()
         .join('|')}`,
     );
+
+    // E) The overdue-email defect, end to end: a task-bound bell whose
+    // params carry NO project. The writer resolves it from `app.tasks`,
+    // org-scoped, inside the caller's transaction — so the mail that lands
+    // opens the task instead of shipping with no CTA at all.
+    const deadlineProject = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES (${orgId}, 'Deadline project', ${userId}, ${Date.now()},
+              ${Date.now()})
+      RETURNING id
+    `;
+    const deadlineProjectId = deadlineProject[0]?.id ?? '';
+    const deadlineTask = await sql<{ id: string }[]>`
+      INSERT INTO app.tasks (
+        org_id, project_id, title, status, rank, number, created_by,
+        created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms
+      ) VALUES (
+        ${orgId}, ${deadlineProjectId}, 'Redesign side-navigation', 'todo',
+        'a0', 1, ${userId}, 'user', ${Date.now()}, ${Date.now()},
+        ${Date.now()}
+      )
+      RETURNING id
+    `;
+    const deadlineTaskId = deadlineTask[0]?.id ?? '';
+
+    await writeCoalescedNotification(sql, {
+      userId,
+      organizationId: orgId,
+      type: 'task_deadline',
+      titleKey: 'taskSlaEscalated',
+      bodyKey: 'taskSlaEscalatedBody',
+      // The shape the union now refuses from a typed caller — the point of
+      // the case is that the writer still repairs it at runtime.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- deliberately a row that arrived without its project
+      params: { title: 'Redesign side-navigation' } as unknown as {
+        projectId: string;
+      } & Record<string, unknown>,
+      resourceType: 'task',
+      resourceId: deadlineTaskId,
+      taskId: deadlineTaskId,
+      actorType: 'system',
+    });
+    const deadlineDrained = await drainNotificationEmails(sql);
+    const deadlineMail = smtpSends[1];
+    const deadlineLink =
+      `/dashboard/${orgId}/projects/${deadlineProjectId}` +
+      `/tasks?task=${deadlineTaskId}`;
+    const storedParams = await sql<{ projectId: string | null }[]>`
+      SELECT params ->> 'projectId' AS "projectId"
+      FROM app.user_notifications
+      WHERE org_id = ${orgId} AND task_id = ${deadlineTaskId}
+      LIMIT 1
+    `;
+
+    record(
+      'overdue notification email opens its task',
+      deadlineDrained &&
+        smtpSends.length === 2 &&
+        storedParams[0]?.projectId === deadlineProjectId &&
+        deadlineMail?.subject === 'Overdue task escalated' &&
+        (deadlineMail?.html ?? '').includes(`<a href="`) &&
+        (deadlineMail?.html ?? '').includes(deadlineLink) &&
+        (deadlineMail?.text ?? '').includes(`Open in Tale: `),
+      `drained=${deadlineDrained} emails=${smtpSends.length} (want 2) storedProject=${storedParams[0]?.projectId}==${deadlineProjectId} subject=${deadlineMail?.subject} link=${(deadlineMail?.html ?? '').includes(deadlineLink)} want=${deadlineLink} cta=${(deadlineMail?.text ?? '').includes('Open in Tale: ')}`,
+    );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
   }
