@@ -42,7 +42,7 @@ Un objet JSON contenant un tableau `models` confirme la clé, l’authentificati
 
 ## Le reste de la surface
 
-Tout le reste est une variation de cette requête. Les automatisations se lancent par nom via `POST /api/v1/automations/<name>/runs` avec la même clé Bearer — répondu 202, suivi via `/api/v1/runs/<runId>` — ou se déclenchent depuis l’extérieur via des URL de webhook de la forme `/api/automations/webhook/<token>`, où le jeton dans l’URL est l’identifiant. Le chat, c’est un thread, un message posté et un suivi ; les documents se téléversent via `/api/v1/documents` ; et la même clé ouvre l’[endpoint MCP](/fr/develop/mcp-endpoint) pour les clients pilotés par modèle. La [référence API](/fr/develop/api-reference) est l’inventaire complet avec l’authentification, les formes et les limites.
+Pour travailler dans un projet, démarre une automatisation avec `POST /api/v1/projects/{id}/automations/{name}/runs`, puis suis `/api/v1/projects/{id}/runs/{runId}`. Les chats, tâches et fichiers du projet suivent la même structure `/api/v1/projects/{id}/...` : l’ID du projet appartient à l’URL. Le chat personnel sans projet utilise `/api/v1/threads`, et `/api/v1/documents` gère les documents du hub sans projet. Un appelant webhook utilise `/api/projects/{id}/automations/webhook/{token}` pour une automatisation installée dans le projet ; le token l’autorise. La [référence API](/fr/develop/api-reference) décrit les routes sans projet, les droits et l’en-tête d’organisation requis. La même clé ouvre aussi l’[endpoint MCP](/fr/develop/mcp-endpoint) aux clients pilotés par modèle.
 
 ## Où tu en es
 

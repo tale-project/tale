@@ -175,6 +175,10 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
 
   // Automation webhook triggers — the token in the path is the credential.
   app.route('/api/automations/webhook', createWebhookRoutes({ sql: deps.sql }));
+  app.route(
+    '/api/projects/:id/automations/webhook',
+    createWebhookRoutes({ sql: deps.sql }),
+  );
 
   // Enterprise SSO — pre-auth by nature (it CREATES the session). Mounted on
   // the 0.5-native path and on the 0.4 proxy-era alias: IdP registrations

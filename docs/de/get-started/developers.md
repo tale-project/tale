@@ -42,7 +42,7 @@ Ein JSON-Objekt mit einem `models`-Array bestätigt Schlüssel, Authentifizierun
 
 ## Der Rest der Oberfläche
 
-Alles Weitere sind Variationen dieser Anfrage. Automatisierungen laufen per Name über `POST /api/v1/automations/<name>/runs` mit demselben Bearer-Schlüssel — beantwortet mit 202, gepollt über `/api/v1/runs/<runId>` — oder werden von außen über Webhook-URLs der Form `/api/automations/webhook/<token>` gefeuert; das Token in der URL ist der Berechtigungsnachweis. Chat ist ein Thread, eine gesendete Nachricht und ein Poll; Dokumente laden über `/api/v1/documents` hoch; und derselbe Schlüssel öffnet den [MCP-Endpoint](/de/develop/mcp-endpoint) für modellgetriebene Clients. Die [API-Referenz](/de/develop/api-reference) ist das vollständige Inventar mit Auth, Datenformen und Limits.
+Projektarbeit startest du mit `POST /api/v1/projects/{id}/automations/{name}/runs`; den Lauf fragst du unter `/api/v1/projects/{id}/runs/{runId}` ab. Projektchats, Aufgaben und Dateien folgen demselben Aufbau `/api/v1/projects/{id}/...`. Die Projekt-ID gehört in die URL. Persönliche Chats ohne Projekt verwenden `/api/v1/threads`; `/api/v1/documents` verwaltet Dokumente der Wissensdatenbank ohne Projektzuordnung. Ein Webhook-Aufrufer verwendet `/api/projects/{id}/automations/webhook/{token}` für eine dort installierte Automatisierung und weist sich mit dem Token aus. Die [API-Referenz](/de/develop/api-reference) erklärt die Zugänge ohne Projekt, die Rechte und die nötige Organisationskopfzeile. Derselbe Schlüssel öffnet auch den [MCP-Endpunkt](/de/develop/mcp-endpoint) für modellgesteuerte Clients.
 
 ## Wo du jetzt stehst
 

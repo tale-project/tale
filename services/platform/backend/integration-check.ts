@@ -10181,7 +10181,7 @@ async function checkAutomationRunLifecycle(
     .object({ token: z.string() })
     .safeParse(await hookSet.json());
   const hookBadProject = await fetch(
-    `${base}/api/automations/webhook/${hookToken.success ? hookToken.data.token : 'x'}?projectId=phantom-project`,
+    `${base}/api/projects/phantom-project/automations/webhook/${hookToken.success ? hookToken.data.token : 'x'}`,
     { method: 'POST', body: '{}' },
   );
   const hookNoProject = await fetch(
@@ -12077,8 +12077,8 @@ async function checkRestMachineJourney(
   }
 
   // Bind the door automation to the project (idempotent add).
-  const bindFirst = await v1('/automations/ops/door/projects', {
-    body: { projectId },
+  const bindFirst = await v1(`/projects/${projectId}/automations/ops__door`, {
+    method: 'POST',
   });
   const bindFirstBody = z
     .object({ added: z.boolean() })
@@ -12089,14 +12089,15 @@ async function checkRestMachineJourney(
     .loose()
     .safeParse(
       await (
-        await v1('/automations/ops/door/projects', { body: { projectId } })
+        await v1(`/projects/${projectId}/automations/ops__door`, {
+          method: 'POST',
+        })
       ).json(),
     );
 
   // External-ref task intake: create → idempotent re-pick → projection.
-  const taskFirst = await v1('/tasks', {
+  const taskFirst = await v1(`/projects/${projectId}/tasks`, {
     body: {
-      projectId,
       externalSystem: 'github',
       externalId: 'journey-issue-7',
       title: 'Prepare the ledger review',
@@ -12114,9 +12115,8 @@ async function checkRestMachineJourney(
     .object({ task: z.object({ id: z.string(), created: z.boolean() }) })
     .safeParse(
       await (
-        await v1('/tasks', {
+        await v1(`/projects/${projectId}/tasks`, {
           body: {
-            projectId,
             externalSystem: 'github',
             externalId: 'journey-issue-7',
             title: 'Prepare the ledger review (renamed)',
@@ -12133,14 +12133,16 @@ async function checkRestMachineJourney(
         externalSystem: z.string().optional(),
       }),
     })
-    .safeParse(await (await v1(`/tasks/${taskId}`)).json());
+    .safeParse(
+      await (await v1(`/projects/${projectId}/tasks/${taskId}`)).json(),
+    );
 
   // Comment lane: post as the key's user, read it back.
   const commentPosted = z
     .object({ comment: z.object({ id: z.string() }) })
     .safeParse(
       await (
-        await v1(`/tasks/${taskId}/comments`, {
+        await v1(`/projects/${projectId}/tasks/${taskId}/comments`, {
           body: { body: 'Prepared figures are attached.' },
         })
       ).json(),
@@ -12151,7 +12153,11 @@ async function checkRestMachineJourney(
         z.looseObject({ authorType: z.string(), body: z.string() }),
       ),
     })
-    .safeParse(await (await v1(`/tasks/${taskId}/comments`)).json());
+    .safeParse(
+      await (
+        await v1(`/projects/${projectId}/tasks/${taskId}/comments`)
+      ).json(),
+    );
 
   // Start the deployed workflow ON the task; the run carries the task as
   // its subject input and is attributed to the task's project.
@@ -12163,7 +12169,7 @@ async function checkRestMachineJourney(
     .loose()
     .safeParse(
       await (
-        await v1(`/tasks/${taskId}/start`, {
+        await v1(`/projects/${projectId}/tasks/${taskId}/start`, {
           body: { workflowSlug: 'ops/door' },
         })
       ).json(),
@@ -12238,7 +12244,7 @@ async function checkRestMachineJourney(
  * (per-item duplicate accounting), the Knowledge-Hub document CRUD +
  * retry-indexing honesty, the knowledge-entry version chain over the wire
  * (PATCH answers the NEW id), the skills file layer, the REST chat lane
- * (202-accept → detached turn → poll → reply), and org-wide knowledge
+ * (202-accept → detached turn → poll → reply), and user-visible Hub knowledge
  * search on a live embedding endpoint.
  */
 async function checkRestResources(
@@ -12533,7 +12539,7 @@ async function checkRestResources(
       threadListed.data.page.some((t) => t.id === threadId);
     chatDetail = `thread=${threadCreated.success}, accepted=${accepted.success ? accepted.data.status : 'ERR'}, idle=${idle}, reply=${replied}, listed=${threadListed.success && threadListed.data.page.some((t) => t.id === threadId)}`;
 
-    // ---- knowledge search: re-point the embedder, org-wide query --------
+    // ---- knowledge search: re-point the embedder, visible Hub query -----
     await writeFile(
       path.join(configRoot, orgSlug, 'knowledge', 'embedding.json'),
       JSON.stringify({
@@ -12599,7 +12605,7 @@ async function checkRestResources(
   );
 }
 
-/** Project agents use the same persisted roster through REST and session auth. */
+/** Real project resources share URL scope and persisted state across both doors. */
 async function checkRestProjectAgents(sql: Sql, base: string): Promise<void> {
   const { checkProjectAgentRest } =
     await import('./rest/project-agents-check.ts');
@@ -12619,11 +12625,21 @@ async function checkRestProjectAgents(sql: Sql, base: string): Promise<void> {
     .parse(await readJson(orgResponse, 'project agent API org'));
   const ctx = { ...user, orgId: org.id };
   const key = await mintRestKey(base, ctx.cookie, 'Project agent proof');
-  const count = await checkProjectAgentRest({
+  const requests = {
     sql,
     orgId: ctx.orgId,
     userId: ctx.userId,
-    rest: (method, route, body) =>
+    publicRequest: (
+      route: string,
+      body: unknown,
+      extraHeaders?: Record<string, string>,
+    ) =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...extraHeaders },
+        body: JSON.stringify(body),
+      }),
+    rest: (method: string, route: string, body?: unknown) =>
       fetch(`${base}/api/v1${route}`, {
         method,
         headers: {
@@ -12633,15 +12649,20 @@ async function checkRestProjectAgents(sql: Sql, base: string): Promise<void> {
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       }),
-    session: (method, route, body) =>
+    session: (method: string, route: string, body?: unknown) =>
       fetch(`${base}${route}`, {
         method,
         headers: { ...headers, cookie: ctx.cookie },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       }),
-  });
+  };
+  const { checkProjectResourceRest } =
+    await import('./rest/project-scope-check.ts');
+  const count =
+    (await checkProjectAgentRest(requests)) +
+    (await checkProjectResourceRest(requests));
   record(
-    'REST project agents: CRUD, project isolation, roles and session parity',
+    'REST project resources: URL isolation, roles, archival and session parity',
     true,
     `${count} HTTP checks`,
   );
@@ -43306,7 +43327,7 @@ async function checkTaskDiscussionPaging(
     const body = restPage.safeParse(
       await (
         await fetch(
-          `${base}/api/v1/tasks/${taskId}/comments?limit=150${restCursor === '' ? '' : `&cursor=${restCursor}`}`,
+          `${base}/api/v1/projects/${projectId}/tasks/${taskId}/comments?limit=150${restCursor === '' ? '' : `&cursor=${restCursor}`}`,
           {
             headers: {
               authorization: `Bearer ${apiKey}`,

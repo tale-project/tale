@@ -92,7 +92,7 @@ export function TriggerEditor({
   // The public webhook endpoint. External callers POST here; the token is the
   // last path segment and is shown only once (stored as a hash), so a revisit
   // shows a `<token>` placeholder and points to Rotate. The origin the operator
-  // is browsing IS the deployment origin (dev proxies /api/* to Convex), so it
+  // is browsing IS the deployment origin (dev proxies /api/* to the backend), so it
   // is the base of the URL an external caller uses.
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
   const webhookUrl = (token: string): string =>
@@ -396,7 +396,7 @@ export function TriggerEditor({
                 </Text>
                 <code className="bg-muted rounded px-1.5 py-0.5 text-xs break-all select-all">
                   curl -X POST{' '}
-                  {`${webhookUrl(mintedToken ?? '<token>')}?projectId=<projectId>`}
+                  {`${origin}/api/projects/<projectId>/automations/webhook/${mintedToken ?? '<token>'}`}
                 </code>
               </div>
             )}

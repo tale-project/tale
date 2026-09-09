@@ -35,6 +35,15 @@ vi.mock('../domains/knowledge/service.ts', async (importOriginal) => {
   };
 });
 
+vi.mock('../domains/audit_logs/service.ts', () => ({
+  createAuditLog: vi.fn(),
+}));
+vi.mock('../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
+vi.mock('../jobs/enqueue.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../jobs/enqueue.ts')>()),
+  addJobInTx: vi.fn(),
+}));
+
 vi.mock('../domains/documents/service.ts', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('../domains/documents/service.ts')>();
@@ -69,13 +78,64 @@ const trashed = {
   updatedAt: 1_700_000_000_000,
 };
 
-function fakeSql(): { sql: Sql; queries: string[] } {
+interface FixtureOptions {
+  project?: Record<string, unknown> | null;
+  file?: Record<string, unknown> | null;
+  role?: string;
+}
+
+function fakeSql(options: FixtureOptions = {}): {
+  sql: Sql;
+  queries: string[];
+} {
   const queries: string[] = [];
   const tag = (strings: TemplateStringsArray, ..._values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
     queries.push(text);
     if (text.includes('FROM app.contacts WHERE id')) {
       return Promise.resolve([trashed]);
+    }
+    if (text.includes('FROM app.file_metadata')) {
+      return Promise.resolve(
+        options.file === null
+          ? []
+          : [
+              {
+                id: 'file-1',
+                organizationId: 'org-1',
+                uploadedBy: 'user-1',
+                storageRef: 's3:acme/private',
+                documentId: null,
+                threadId: null,
+                conversationId: null,
+                lifecycleStatus: null,
+                contentType: 'text/plain',
+                ...options.file,
+              },
+            ],
+      );
+    }
+    if (text.startsWith('INSERT INTO app.documents')) {
+      return Promise.resolve([{ id: 'hub-1' }]);
+    }
+    if (text.includes('FROM app.projects')) {
+      return Promise.resolve(
+        options.project === null
+          ? []
+          : [
+              {
+                id: 'p-1',
+                organizationId: 'org-1',
+                teamId: null,
+                sharedWithTeamIds: [],
+                archivedAt: null,
+                ...options.project,
+              },
+            ],
+      );
+    }
+    if (text.includes('FROM "teamMember"')) {
+      return Promise.resolve([{ teamId: 'team-1' }]);
     }
     if (text.includes('INSERT INTO app.rate_limits')) {
       return Promise.resolve([{ value: '1' }]);
@@ -92,15 +152,15 @@ function fakeSql(): { sql: Sql; queries: string[] } {
   return { sql: sql as unknown as Sql, queries };
 }
 
-function mount() {
-  const fake = fakeSql();
+function mount(options: FixtureOptions = {}) {
+  const fake = fakeSql(options);
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
     c.set('orgSlug', 'acme');
-    c.set('role', 'admin');
+    c.set('role', options.role ?? 'admin');
     c.set('orgExplicit', true);
     c.set('clientIp', '203.0.113.9');
     return next();
@@ -169,12 +229,158 @@ describe('POST /knowledge/search without an embedding model', () => {
   });
 });
 
+describe('knowledge search resource scope', () => {
+  it.each([
+    ['/knowledge/search', [], true, 'all'],
+    ['/projects/p-1/knowledge/search', ['p-1'], false, 'documents'],
+  ])(
+    'limits %s to the caller and the URL scope',
+    async (route, projectIds, includeHub, corpus) => {
+      vi.mocked(searchKnowledgeForOrg).mockReset();
+      vi.mocked(searchKnowledgeForOrg).mockResolvedValueOnce({
+        hits: [],
+        diagnostics: { bm25: true, reranked: false, cached: false, legs: {} },
+      });
+      const { app } = mount({ role: 'member' });
+      const res = await app.request(
+        `http://localhost${route}`,
+        json('POST', { query: 'refunds' }),
+      );
+      expect(res.status).toBe(200);
+      expect(searchKnowledgeForOrg).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          organizationId: 'org-1',
+          corpus,
+          access: expect.objectContaining({
+            userId: 'user-1',
+            teamIds: includeHub ? ['org_org-1', 'team-1'] : [],
+            projectIds,
+            includeHub,
+            includeConversationScoped: false,
+          }),
+        }),
+      );
+    },
+  );
+
+  it.each(['/knowledge/search', '/projects/p-1/knowledge/search'])(
+    'rejects payload scope on %s',
+    async (route) => {
+      vi.mocked(searchKnowledgeForOrg).mockClear();
+      const { app } = mount();
+      const res = await app.request(
+        `http://localhost${route}`,
+        json('POST', { query: 'refunds', projectId: 'p-2' }),
+      );
+      expect(res.status).toBe(400);
+      expect(searchKnowledgeForOrg).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([null, { organizationId: 'other-org' }, { teamId: 'private-team' }])(
+    'hides inaccessible projects before retrieval: %s',
+    async (project) => {
+      vi.mocked(searchKnowledgeForOrg).mockClear();
+      const { app } = mount({ project, role: 'member' });
+      const res = await app.request(
+        'http://localhost/projects/p-1/knowledge/search',
+        json('POST', { query: 'refunds' }),
+      );
+      expect(res.status).toBe(404);
+      expect(searchKnowledgeForOrg).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a web corpus on project-only retrieval', async () => {
+    vi.mocked(searchKnowledgeForOrg).mockClear();
+    const { app } = mount();
+    const res = await app.request(
+      'http://localhost/projects/p-1/knowledge/search',
+      json('POST', { query: 'refunds', corpus: 'web' }),
+    );
+    expect(res.status).toBe(400);
+    expect(searchKnowledgeForOrg).not.toHaveBeenCalled();
+  });
+});
+
 describe('a hub document outside the active lifecycle', () => {
+  it.each([
+    ['POST', '/documents'],
+    ['PATCH', '/documents/doc-1'],
+  ])('rejects payload project scope on %s %s', async (method, route) => {
+    const { app, queries } = mount();
+    const res = await app.request(
+      `http://localhost${route}`,
+      json(method, { title: 'Project-only information', projectId: 'p-1' }),
+    );
+    expect(res.status).toBe(400);
+    expect(
+      queries.some((query) =>
+        /^(INSERT|UPDATE) (INTO )?app\.documents\b/.test(query),
+      ),
+    ).toBe(false);
+  });
+
   it('answers the opaque 404', async () => {
     const { app } = mount();
     const res = await app.request('http://localhost/documents/doc-expired');
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'Document not found' });
+  });
+});
+
+describe('Hub upload attachment authority', () => {
+  it.each([
+    null,
+    { uploadedBy: 'another-user' },
+    { uploadedBy: null },
+    { documentId: 'private-project-doc' },
+    { documentId: 'existing-hub-doc' },
+    { threadId: 'private-thread' },
+    { conversationId: 'private-conversation' },
+  ])(
+    'does not publish an unavailable or already-bound file: %s',
+    async (file) => {
+      const { app, queries } = mount({ role: 'editor', file });
+      const response = await app.request(
+        'http://localhost/documents',
+        json('POST', { title: 'Published copy', fileId: 'file-1' }),
+      );
+      expect(response.status).toBe(404);
+      expect(
+        queries.some((query) =>
+          /^(INSERT|UPDATE) (INTO )?app\.(documents|file_metadata)\b/.test(
+            query,
+          ),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it('allows the caller to publish their own unbound upload', async () => {
+    const { app, queries } = mount({ role: 'editor' });
+    const response = await app.request(
+      'http://localhost/documents',
+      json('POST', { title: 'My upload', fileId: 'file-1' }),
+    );
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ id: 'hub-1' });
+    expect(
+      queries.some((query) => query.startsWith('UPDATE app.file_metadata')),
+    ).toBe(true);
+  });
+
+  it('keeps content-only Hub creation available', async () => {
+    const { app, queries } = mount({ role: 'editor' });
+    const response = await app.request(
+      'http://localhost/documents',
+      json('POST', { title: 'A note', content: 'Visible Hub text' }),
+    );
+    expect(response.status).toBe(201);
+    expect(queries.some((query) => query.includes('app.file_metadata'))).toBe(
+      false,
+    );
   });
 });
 

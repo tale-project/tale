@@ -37,7 +37,7 @@ import {
  *    issue, a desk ticket) as a task, idempotently within the caller-chosen
  *    dedupe scope, keeping local triage authoritative while the external
  *    system owns the open/closed lifecycle. It drives the REST
- *    `POST /api/v1/tasks` door and, later, the sandbox `task_upsert` tool.
+ *    `POST /api/v1/projects/{id}/tasks` door and, later, the sandbox `task_upsert` tool.
  *  - {@link startWorkflowForTask} starts a DEPLOYED automation with the task
  *    as its subject input — one live run per (automation, task), attributed
  *    to the task's project.
@@ -494,78 +494,89 @@ export function taskWorkflowStartLockKey(
  * `retryLimit` for `task.start_workflow` dead and laundered a refusal (a
  * project the automation is not bound to) into "nothing happened".
  */
+interface StartWorkflowForTaskArgs {
+  organizationId: string;
+  task: Pick<
+    TaskRow,
+    | 'id'
+    | 'title'
+    | 'status'
+    | 'projectId'
+    | 'externalSystem'
+    | 'externalId'
+    | 'externalUrl'
+  >;
+  workflowSlug: string;
+  startedByUserId: string;
+  startedVia?: 'user' | 'api-key';
+}
+
 export async function startWorkflowForTask(
   sql: Sql,
-  args: {
-    organizationId: string;
-    task: Pick<
-      TaskRow,
-      | 'id'
-      | 'title'
-      | 'status'
-      | 'projectId'
-      | 'externalSystem'
-      | 'externalId'
-      | 'externalUrl'
-    >;
-    workflowSlug: string;
-    startedByUserId: string;
-    startedVia?: 'user' | 'api-key';
-  },
+  args: StartWorkflowForTaskArgs,
 ): Promise<{ runId: string; alreadyRunning: boolean } | null> {
-  // Assigned inside the callback: postgres.js types `begin`'s result through
-  // an array-unwrapping conditional the union return type does not survive.
+  // postgres.js's begin result conditionally unwraps arrays; retain the
+  // nullable result outside that conditional return type.
   let outcome: { runId: string; alreadyRunning: boolean } | null = null;
   await sql.begin(async (tx) => {
-    await tx`
-      SELECT pg_advisory_xact_lock(
-        hashtext(${taskWorkflowStartLockKey(args.organizationId, args.workflowSlug, args.task.id)})
-      )
-    `;
-    const live = await tx<{ id: string }[]>`
-      SELECT id FROM app.automation_runs
-      WHERE org_id = ${args.organizationId} AND name = ${args.workflowSlug}
-        AND status IN ('queued', 'running', 'waiting')
-        AND input->'task'->>'id' = ${args.task.id}
-      ORDER BY started_at_ms DESC LIMIT 1
-    `;
-    if (live[0] !== undefined) {
-      outcome = { runId: live[0].id, alreadyRunning: true };
-      return;
-    }
-    const input = taskWorkflowSubjectInput({
-      _id: args.task.id,
-      title: args.task.title,
-      status: args.task.status,
-      projectId: args.task.projectId,
-      ...(args.task.externalSystem !== null
-        ? { externalSystem: args.task.externalSystem }
-        : {}),
-      ...(args.task.externalId !== null
-        ? { externalId: args.task.externalId }
-        : {}),
-      ...(args.task.externalUrl !== null
-        ? { externalUrl: args.task.externalUrl }
-        : {}),
-    });
-    const started = await beginRunInTx(tx, {
-      organizationId: args.organizationId,
-      name: args.workflowSlug,
-      input,
-      mode: 'live',
-      startedBy: `${args.startedVia ?? 'user'}:${args.startedByUserId}`,
-      projectId: args.task.projectId,
-    });
-    if (started === null) {
-      console.warn(
-        '[task-workflow] start skipped — no deployed automation named',
-        args.workflowSlug,
-      );
-      return;
-    }
-    outcome = { runId: started.runId, alreadyRunning: false };
+    outcome = await startWorkflowForTaskInTx(tx, args);
   });
   return outcome;
+}
+
+/** Start inside the caller's transaction so a REST project/task scope
+ * check and the run insertion share the same authorization boundary. */
+export async function startWorkflowForTaskInTx(
+  tx: TransactionSql,
+  args: StartWorkflowForTaskArgs,
+): Promise<{ runId: string; alreadyRunning: boolean } | null> {
+  await tx`
+    SELECT pg_advisory_xact_lock(
+      hashtext(${taskWorkflowStartLockKey(args.organizationId, args.workflowSlug, args.task.id)})
+    )
+  `;
+  const live = await tx<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${args.organizationId} AND name = ${args.workflowSlug}
+      AND project_id = ${args.task.projectId}
+      AND status IN ('queued', 'running', 'waiting')
+      AND input->'task'->>'id' = ${args.task.id}
+    ORDER BY started_at_ms DESC LIMIT 1
+  `;
+  if (live[0] !== undefined) {
+    return { runId: live[0].id, alreadyRunning: true };
+  }
+  const input = taskWorkflowSubjectInput({
+    _id: args.task.id,
+    title: args.task.title,
+    status: args.task.status,
+    projectId: args.task.projectId,
+    ...(args.task.externalSystem !== null
+      ? { externalSystem: args.task.externalSystem }
+      : {}),
+    ...(args.task.externalId !== null
+      ? { externalId: args.task.externalId }
+      : {}),
+    ...(args.task.externalUrl !== null
+      ? { externalUrl: args.task.externalUrl }
+      : {}),
+  });
+  const started = await beginRunInTx(tx, {
+    organizationId: args.organizationId,
+    name: args.workflowSlug,
+    input,
+    mode: 'live',
+    startedBy: `${args.startedVia ?? 'user'}:${args.startedByUserId}`,
+    projectId: args.task.projectId,
+  });
+  if (started === null) {
+    console.warn(
+      '[task-workflow] start skipped — no deployed automation named',
+      args.workflowSlug,
+    );
+    return null;
+  }
+  return { runId: started.runId, alreadyRunning: false };
 }
 
 /** The 0.4 live-run wire for the task modal's inline automation banner. */

@@ -634,10 +634,10 @@ automations:
     tokenTitle: Webhook URL — copy it now
     tokenHint: The token is the last part of the URL, shown once and stored only as a hash.
     webhookEndpointLabel: Webhook endpoint
-    webhookHowto: Send an HTTP POST to this URL to run the automation.
+    webhookHowto: Use this URL only when the automation has no project bindings.
     hasToken: A token is active — the URL needs the token shown once when it was created; rotate to generate a new URL.
     noToken: Save to mint the token; the full URL is shown once.
-    webhookProjectHint: Optional — add a projectId to run in one bound project (validated against the bindings; omit to use the automation's own binding).
+    webhookProjectHint: To run in an installed project, use its ID in the URL below. The project must be active.
     rotate: Rotate token
   canvas:
     ariaLabel: Automation canvas

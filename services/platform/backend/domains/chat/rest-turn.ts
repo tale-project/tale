@@ -1,3 +1,4 @@
+import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
 import {
@@ -7,13 +8,22 @@ import {
 } from '../../../lib/shared/chat-errors.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { isBackendDraining } from '../control/service.ts';
+import { loadProjectOrThrow } from '../projects/service.ts';
 import { runChatTurn } from './service.ts';
-import { appendAssistantErrorMessage, appendMessageRow } from './store.ts';
-import { loadOwnedThread } from './threads.ts';
+import {
+  appendAssistantErrorMessage,
+  appendMessageRow,
+  assertThreadWriteScope,
+} from './store.ts';
+import {
+  ChatThreadError,
+  loadOwnedThread,
+  projectChatAccess,
+} from './threads.ts';
 
 /**
  * The REST message turn — the 0.5 twin of 0.4's `startTurnForApiKey`:
- * `POST /api/v1/threads/{id}/messages` answers 202 and enqueues this, so
+ * The scoped or unfiled REST messages route answers 202 and enqueues this, so
  * the caller never holds a connection open for a minutes-long stream. The
  * job re-runs the owned-thread and busy gates (it executes detached from
  * the accept), then drives the SAME `runChatTurn` the deferred-send lane
@@ -24,6 +34,8 @@ export interface ApiTurnPayload {
   organizationId: string;
   userId: string;
   threadId: string;
+  /** The URL scope accepted by REST; null means an unfiled thread. */
+  expectedProjectId: string | null;
   userText: string;
   modelId: string;
   providerSlug?: string;
@@ -49,7 +61,60 @@ export async function runApiTurn(
     payload.userId,
     payload.threadId,
   );
-  if (thread === null) return;
+  if (
+    thread === null ||
+    thread.projectId !== payload.expectedProjectId ||
+    thread.kind !== 'direct' ||
+    thread.archived
+  )
+    return;
+  // A queued send cannot follow an app-side move into another project, or
+  // keep running after project access was revoked or the project archived.
+  // Only readable membership is needed here, just as on the accepting URL.
+  if (payload.expectedProjectId !== null) {
+    const access = await projectChatAccess(sql, {
+      organizationId: payload.organizationId,
+      userId: payload.userId,
+      projectId: payload.expectedProjectId,
+    });
+    if (access !== 'ok') return;
+    const project = await loadProjectOrThrow(sql, payload.expectedProjectId);
+    if (project.archivedAt !== null) return;
+  }
+  const recordFailure = async (error: string, includeUserMessage: boolean) => {
+    try {
+      await transactSerializable(sql, async (tx) => {
+        await assertThreadWriteScope(tx, {
+          organizationId: payload.organizationId,
+          userId: payload.userId,
+          threadId: payload.threadId,
+          projectId: payload.expectedProjectId,
+        });
+        if (includeUserMessage) {
+          await appendMessageRow(tx, {
+            organizationId: payload.organizationId,
+            threadId: payload.threadId,
+            role: 'user',
+            parts: [{ type: 'text', text: payload.userText }],
+            text: payload.userText,
+          });
+        }
+        await appendAssistantErrorMessage(tx, {
+          organizationId: payload.organizationId,
+          threadId: payload.threadId,
+          model: payload.modelId,
+          error,
+        });
+      });
+    } catch (writeError) {
+      if (
+        writeError instanceof ChatThreadError &&
+        writeError.code === 'THREAD_SCOPE_CHANGED'
+      )
+        return;
+      throw writeError;
+    }
+  };
   const generating = await sql<{ threadId: string }[]>`
     SELECT thread_id AS "threadId" FROM app.generations
     WHERE thread_id = ${payload.threadId} LIMIT 1
@@ -58,16 +123,14 @@ export async function runApiTurn(
     console.warn(
       `[rest-turn] thread ${payload.threadId} busy — accepted message dropped`,
     );
-    await appendAssistantErrorMessage(sql, {
-      organizationId: payload.organizationId,
-      threadId: payload.threadId,
-      model: payload.modelId,
-      error: encodeChatError({
+    await recordFailure(
+      encodeChatError({
         code: 'generic',
         model: payload.modelId,
         raw: 'This conversation was already generating a response.',
       }),
-    });
+      false,
+    );
     return;
   }
   // Whether the turn got as far as persisting the caller's message: a
@@ -79,6 +142,7 @@ export async function runApiTurn(
       organizationId: payload.organizationId,
       userId: payload.userId,
       threadId: payload.threadId,
+      expectedProjectId: payload.expectedProjectId,
       userText: payload.userText,
       modelId: payload.modelId,
       ...(payload.providerSlug !== undefined
@@ -95,6 +159,11 @@ export async function runApiTurn(
       );
     }
   } catch (error) {
+    if (
+      error instanceof ChatThreadError &&
+      error.code === 'THREAD_SCOPE_CHANGED'
+    )
+      return;
     // A ThreadBusyError here is the busy gate above lost to a send that
     // slipped in between the read and the turn's atomic open — the same
     // fact, answered the same way: the caller sees why their message never
@@ -103,24 +172,13 @@ export async function runApiTurn(
     // AppError), never its serialized payload.
     const reason = describeChatError(error, 'The turn could not be started.');
     console.warn(`[rest-turn] turn threw for ${payload.threadId}: ${reason}`);
-    if (!userAppended) {
-      await appendMessageRow(sql, {
-        organizationId: payload.organizationId,
-        threadId: payload.threadId,
-        role: 'user',
-        parts: [{ type: 'text', text: payload.userText }],
-        text: payload.userText,
-      });
-    }
-    await appendAssistantErrorMessage(sql, {
-      organizationId: payload.organizationId,
-      threadId: payload.threadId,
-      model: payload.modelId,
-      error: encodeChatError({
+    await recordFailure(
+      encodeChatError({
         code: classifyChatErrorCode(error),
         model: payload.modelId,
         raw: reason,
       }),
-    });
+      !userAppended,
+    );
   }
 }

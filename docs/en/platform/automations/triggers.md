@@ -15,7 +15,7 @@ Every trigger fires against the automation's deployed version and runs in live m
 | `webhook`  | An external system posts to a token-guarded URL      |
 | `event`    | A named platform event happens                       |
 
-A programmatic start needs no trigger at all: an API client with an organization key calls `POST /api/v1/automations/{name}/runs` (or the MCP `start_run` tool) and the key itself is the entitlement — see the [API reference](/develop/api-reference).
+A programmatic start needs no trigger: an API client starts project work with `POST /api/v1/projects/{id}/automations/{name}/runs`. An automation without project bindings can also start without a project at `POST /api/v1/automations/{name}/runs`. The caller's API key and project permissions authorize the operation; the MCP `start_run` tool provides another entry point. See the [API reference](/develop/api-reference).
 
 ## Schedules
 
@@ -39,7 +39,7 @@ Resolution is one minute, and a schedule is a heartbeat rather than a queue: aft
 A webhook is an inbound URL guarded by a token. Creating one mints the token and shows it once; only its hash is stored, so the platform can verify a caller without ever being able to reproduce the URL. Any system that posts to it starts a run, and the request body becomes the run's payload.
 
 ```bash
-curl -X POST https://<your-tale-host>/api/automations/webhook/<token> \
+curl -X POST "https://<your-tale-host>/api/projects/<projectId>/automations/webhook/<token>" \
   -H 'Content-Type: application/json' \
   -d '{"invoiceId": "inv-1"}'
 ```
@@ -48,7 +48,7 @@ A successful call is accepted immediately and answers with the id of the run it 
 
 Deliveries are idempotent, because every vendor delivers at least once — a slow response, a dropped connection, or someone pressing _redeliver_ sends the same delivery again. A request that names its delivery (`Idempotency-Key`, the Standard Webhooks `webhook-id`, `X-GitHub-Delivery`, and the other common vendor headers) is remembered for 24 hours: a repeat with the same id answers with the run the first one started, flagged `duplicate: true`, instead of starting another. A request without an id is recognised by its body — a byte-identical body posted to the same URL within two minutes is the same delivery. Distinct deliveries each run; if your payloads can legitimately repeat inside two minutes, send an id. [Webhooks](/develop/webhooks) has the full header list and the response shapes.
 
-You can scope the run to a project by adding `?projectId=<id>` to the URL — the project you bake into the URL you give the vendor. Leave it off and the run uses the automation's own binding: an automation bound to a single project runs there, one bound to several or to none runs organization-wide. The project is validated against those bindings, so a public URL can never widen the run past what the automation is bound to; a project outside the set answers with a 400.
+The example URL names the project that will receive the run. The automation must be installed in that active project, in the token's organization. The token cannot select any other project. For an automation with no project bindings, `/api/automations/webhook/{token}` starts a non-project run; a bound automation answers **400** there. A `projectId` query parameter also answers **400**. Delivery IDs and body deduplication apply separately to each project URL. Poll a project delivery through `/api/v1/projects/{id}/runs/{runId}` with an API key that can read the project.
 
 Two refusals are worth recognising. An unknown token and a token belonging to a switched-off trigger both answer the same way, deliberately, so that nobody can probe the platform for which tokens exist. An automation with no deployed version answers with a conflict instead, which tells you the URL is fine and the deployment is missing.
 

@@ -364,9 +364,22 @@ export async function createDocumentFromUpload(
   args: CreateDocumentFromUploadArgs,
 ): Promise<string> {
   assertDocumentsWriteRole(auth);
-  const file = await getFileMetadata(tx, auth.organizationId, args.fileId);
+  // Share the Hub creator's metadata lock: a caller waiting on another bind
+  // must decide from the committed binding, not a previously unbound row.
+  const file = await getFileMetadata(tx, auth.organizationId, args.fileId, {
+    lock: true,
+  });
   if (!file) {
     throw new DocumentError('FILE_NOT_FOUND', 'Upload not found', 404);
+  }
+  if (file.documentId !== null) {
+    const existing = await loadDocumentOrThrow(tx, file.documentId);
+    if (existing.projectId !== (args.projectId ?? null)) {
+      throw new DocumentError(
+        'UPLOAD_SCOPE_CONFLICT',
+        'This upload is already attached to a different scope.',
+      );
+    }
   }
 
   let effectiveTeamId = args.teamId ?? null;
@@ -875,9 +888,21 @@ export async function createHubDocument(
   }
   const file =
     args.fileId !== undefined
-      ? await getFileMetadata(tx, auth.organizationId, args.fileId)
+      ? await getFileMetadata(tx, auth.organizationId, args.fileId, {
+          lock: true,
+        })
       : null;
-  if (args.fileId !== undefined && file === null) {
+  // Publishing is broader than reading. Only the caller's own staging
+  // upload may become a new Hub document; a prior document, thread or inbox
+  // binding cannot be overwritten to publish its bytes to another audience.
+  if (
+    args.fileId !== undefined &&
+    (file === null ||
+      file.uploadedBy !== auth.userId ||
+      file.documentId !== null ||
+      file.threadId !== null ||
+      file.conversationId !== null)
+  ) {
     throw new DocumentError('FILE_NOT_FOUND', 'Upload not found', 404);
   }
   const now = Date.now();

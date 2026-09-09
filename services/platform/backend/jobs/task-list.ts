@@ -506,6 +506,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           organizationId: z.string().min(1),
           userId: z.string().min(1),
           threadId: z.string().min(1),
+          expectedProjectId: z.string().min(1).nullable(),
           userText: z.string().min(1),
           modelId: z.string().min(1),
           providerSlug: z.string().min(1).optional(),

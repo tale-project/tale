@@ -193,8 +193,11 @@ describe('POST /runs/{runId}/cancel', () => {
   });
 
   it('keeps {cancelled:false} for a run that exists but already finished', async () => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only existence matters to the route
-    vi.mocked(getRun).mockResolvedValue({ id: 'run-1' } as never);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the global route needs an existing org-scoped run
+    vi.mocked(getRun).mockResolvedValue({
+      id: 'run-1',
+      projectId: null,
+    } as never);
     const res = await mount().request(
       'http://localhost/api/v1/runs/run-1/cancel',
       json('POST'),

@@ -11,21 +11,25 @@ You need a Developer role in the org, an automation with a deployed version, and
 
 Confirm two things. The automation you will trigger has a **deployed** version — saving a version is not enough, and a version is only deployable once its own tests pass, so run them first. Your role is at least Developer; adding triggers is gated to Developer and above. If you have no automation yet, the canonical small one is "record the payload and stop" — a single `transform` node, built on the canvas as [The workflow editor](/platform/automations/editor) describes.
 
+For the project delivery below, choose an active project where this automation is installed. The project and trigger must belong to the same organization. The [API reference](/develop/api-reference) explains how to install an automation in a project.
+
 ## Step 1 — Add a webhook trigger
 
 The first move is binding a webhook trigger to the automation. Without one, the automation runs only from the UI or a schedule; with one, it gets a URL any system can POST to.
 
-Open the automation's **Triggers** tab and add a webhook. Tale mints a URL with the credential embedded as a token in the path — there is no separate key and no Authorization header. The plaintext token is shown once and never stored, so copy it now; only its hash is kept, which is why nobody can recover the URL for you later.
+Open the automation's detail page and find **Trigger** in the settings panel on the right; on a narrow screen, the panel sits below the canvas. Set **Trigger type** to **Webhook**, then click **Save settings**. Tale shows the token once. Copy it when it appears: the token in the URL authorizes deliveries, and Tale stores only its hash.
 
 The trigger binds to the automation's **name**, not to the version you deployed. Deploy a new version tomorrow and this URL keeps working — that is the whole point of separating the two.
 
+Use the token just minted in the project URL below. The project comes from the URL, not the vendor body or a `projectId` query parameter. A non-project delivery uses `/api/automations/webhook/{token}` and requires an automation with no project bindings.
+
 ```bash
-export TALE_TRIGGER_URL="https://your-host.example.com/api/automations/webhook/<token>"
+export TALE_TRIGGER_URL="https://your-host.example.com/api/projects/<projectId>/automations/webhook/<token>"
 ```
 
 ## Step 2 — POST a payload from curl
 
-The webhook URL is an ordinary POST endpoint, and the body becomes the run's input. A body that is not JSON is handed through as text rather than refused, so a vendor that posts form-encoded data still reaches your first node.
+POST the vendor data to the project URL. The run receives `{ "trigger": "webhook", "payload": <body> }`, so the example's order ID is at `input.payload.orderId`. If the automation declares an `inputs` schema, it must describe this wrapper. Non-JSON bodies pass through as text.
 
 ```bash
 curl -sS "$TALE_TRIGGER_URL" \
@@ -33,15 +37,17 @@ curl -sS "$TALE_TRIGGER_URL" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
 ```
 
-An accepted call answers **202** with `{ "runId": "..." }`. The run is now executing asynchronously; open the automation's run list and you will see it with your payload as the input.
+An accepted call answers **202** with `{ "runId": "..." }`. The run continues asynchronously in the named project. Poll `GET /api/v1/projects/{id}/runs/{runId}` with an API key that can read the project, or open the automation's run list in the product.
 
 ## Step 3 — Read the failure cases
 
-Four responses cover everything the endpoint can say, and each one points at a different fix.
+Five responses cover this flow; the status tells you what to fix.
+
+**400** means the project scope is invalid, the project is archived or the automation is not installed there. A bound automation at the global URL, any `projectId` query parameter or input outside the declared schema also gives **400**. Correct the URL, binding or body before retrying.
 
 **404** means the token matches no enabled trigger — it is wrong, it was deleted, or the trigger is disabled. The response deliberately never says which, so a caller guessing tokens learns nothing from the difference. **409** with `{ "error": "automation has no deployed version" }` means the automation exists but nothing is live: deploy a version whose tests pass and the same call runs. **413** means the body is over 256 KB; post a reference instead of the payload. **202** is the only success.
 
-Retries deserve one sentence of their own: the endpoint de-duplicates, so a retried POST does not start a second run. Send a delivery id — `Idempotency-Key`, or your vendor's own header such as `X-GitHub-Delivery` — and a repeat inside 24 hours answers with the run the first attempt started, flagged `duplicate: true`; without one, a byte-identical body within two minutes is treated the same way. Keep the id stable across attempts and a stalled request is safe to retry. The run itself checkpoints every completed node too, so a run resumed after an interruption never repeats a side effect it already produced.
+Retries deserve one sentence of their own: the endpoint de-duplicates, so a retried POST does not start a second run. Send a delivery id — `Idempotency-Key`, or your vendor's own header such as `X-GitHub-Delivery` — and a repeat inside 24 hours answers with the run the first attempt started, flagged `duplicate: true`; without one, a byte-identical body within two minutes is treated the same way. Keep the id stable across attempts and a stalled request is safe to retry. The run itself checkpoints every completed node too, so a run resumed after an interruption never repeats a side effect it already produced. Delivery IDs and matching bodies are compared within the same project URL; a different installed project has its own deliveries. Removing the binding or archiving the project prevents further deliveries, including cached duplicate responses.
 
 ## Where this fits
 

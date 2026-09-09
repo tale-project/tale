@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import { getUserTeamIds } from '../auth/membership.ts';
@@ -60,8 +61,10 @@ import { resolveOrgSlug } from '../lib/org-config.ts';
 import { purgeIncompleteResponse } from '../lib/purge-incomplete-response.ts';
 import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
+  assertExplicitOrg,
   domainErrorResponse,
   formatKeysetCursor,
+  loadRestProject,
   pageLimit,
   parseKeysetCursor,
   readJsonBody,
@@ -71,7 +74,7 @@ import {
 
 /**
  * /api/v1 core resources: contacts, products, documents (the Knowledge-Hub
- * lane), knowledge entries, knowledge search, agents and skills (the file
+ * lane), knowledge entries, knowledge search and skills (the file
  * layer, reused). Thin adapters over the SAME domain services the app
  * surface uses, shaped like the 0.4 REST handlers.
  */
@@ -406,6 +409,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         teamId: z.string().max(128).optional(),
         folderId: z.string().max(64).optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("title" is required)' }, 400);
@@ -462,6 +466,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         teamId: z.string().max(128).nullable().optional(),
         folderId: z.string().max(64).nullable().optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
@@ -564,27 +569,58 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   // ---- knowledge search ----------------------------------------------------
-  // A POST because it carries a body, not because it writes. Deliberately
-  // ORG-WIDE: the API key speaks for the organization, not one member's
-  // visibility (the scoped surfaces are the chat tools and the sandbox
-  // bridge).
-  app.post('/knowledge/search', async (c) => {
-    const body = z
-      .object({
-        query: z.string().min(1).max(2000),
-        corpus: z.enum(['documents', 'web', 'all']).optional(),
-        limit: z.number().int().min(1).max(50).optional(),
-        minSimilarity: z.number().min(0).max(1).optional(),
-      })
-      .safeParse(await readJsonBody(c));
+  // Search is read-only. A key acts as its user: a project URL searches
+  // only that project's files; the global URL searches visible Hub teams
+  // and registered websites without admitting project or email attachments.
+  const knowledgeSearchBody = z
+    .object({
+      query: z.string().min(1).max(2000),
+      corpus: z.enum(['documents', 'web', 'all']).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+      minSimilarity: z.number().min(0).max(1).optional(),
+    })
+    .strict();
+  const projectKnowledgeSearchBody = knowledgeSearchBody.extend({
+    corpus: z.literal('documents').optional(),
+  });
+  const search = async (c: Context<RestEnv>, projectId: string | null) => {
+    const body = (
+      projectId === null ? knowledgeSearchBody : projectKnowledgeSearchBody
+    ).safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("query" is required)' }, 400);
     }
     try {
+      const auth = await restProjectAuth(deps.sql, c);
+      let access: KnowledgeAccessScope;
+      if (projectId !== null) {
+        const ambiguous = await assertExplicitOrg(deps.sql, c);
+        if (ambiguous) return ambiguous;
+        const project = await loadRestProject(deps.sql, auth, projectId);
+        access = {
+          userId: auth.userId,
+          teamIds: [],
+          projectIds: [project.id],
+          includeHub: false,
+          includeConversationScoped: false,
+          archivedProjectIds: project.archivedAt === null ? [] : [project.id],
+        };
+      } else {
+        access = {
+          userId: auth.userId,
+          teamIds: [
+            ...new Set([`org_${auth.organizationId}`, ...auth.teamIds]),
+          ],
+          projectIds: [],
+          includeHub: true,
+          includeConversationScoped: false,
+        };
+      }
       const result = await searchKnowledgeForOrg(deps.sql, {
         organizationId: c.get('organizationId'),
         query: body.data.query,
-        ...(body.data.corpus !== undefined ? { corpus: body.data.corpus } : {}),
+        corpus: projectId === null ? (body.data.corpus ?? 'all') : 'documents',
+        access,
         ...(body.data.limit !== undefined ? { limit: body.data.limit } : {}),
         ...(body.data.minSimilarity !== undefined
           ? { minSimilarity: body.data.minSimilarity }
@@ -604,7 +640,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       }
       return domainErrorResponse(c, error);
     }
-  });
+  };
+  app.post('/knowledge/search', (c) => search(c, null));
+  app.post('/projects/:id/knowledge/search', (c) =>
+    search(c, c.req.param('id')),
+  );
 
   // ---- knowledge entries ---------------------------------------------------
   interface RestEntryRow {

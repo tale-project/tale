@@ -9,7 +9,7 @@ vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { beginRun } from './store.ts';
 
-function fakeStore(deployed: number | undefined = 1) {
+function fakeStore(deployed: number | undefined = 1, projects: string[] = []) {
   const writes: unknown[][] = [];
   const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
@@ -30,6 +30,10 @@ function fakeStore(deployed: number | undefined = 1) {
         },
       ];
     }
+    if (text.includes('FROM app.automation_project_bindings')) {
+      return projects.map((projectId) => ({ projectId }));
+    }
+    if (text.includes('FROM app.projects')) return [{ id: 'p-1' }];
     if (text.includes('INSERT INTO app.automation_runs')) {
       writes.push(values);
       return [{ id: 'run-1' }];
@@ -99,5 +103,32 @@ describe('durable run admission', () => {
       runId: 'run-1',
       version: 2,
     });
+  });
+
+  it.each([['p-1'], ['p-1', 'p-2']])(
+    'refuses org execution when bindings would infer or hide a project: %j',
+    async (...projects) => {
+      const { sql, writes } = fakeStore(1, projects);
+      await expect(
+        beginRun(sql, { ...args, requireOrgScope: true }),
+      ).rejects.toMatchObject({
+        code: 'AUTOMATION_PROJECT_SCOPE_REQUIRED',
+        status: 409,
+      });
+      expect(writes).toHaveLength(0);
+      expect(addJobInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps a new org run unscoped when the automation is not installed in a project', async () => {
+    const { sql, writes } = fakeStore();
+    await beginRun(sql, { ...args, requireOrgScope: true });
+    expect(writes[0]?.[3]).toBeNull();
+  });
+
+  it('preserves the explicit project scope supplied by an authorized task or REST door', async () => {
+    const { sql, writes } = fakeStore(1, ['p-1']);
+    await beginRun(sql, { ...args, projectId: 'p-1' });
+    expect(writes[0]?.[3]).toBe('p-1');
   });
 });

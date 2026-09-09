@@ -226,21 +226,24 @@ export async function checkProjectAgentRest(args: {
       400,
     );
   }
-  const thread = z
-    .object({ id: z.string() })
-    .parse(
-      await (
-        await expectStatus(
-          rest('POST', '/threads', { projectId, title: 'Project context' }),
-          201,
-        )
-      ).json(),
-    );
+  const thread = z.object({ id: z.string() }).parse(
+    await (
+      await expectStatus(
+        rest('POST', `/projects/${projectId}/threads`, {
+          title: 'Project context',
+        }),
+        201,
+      )
+    ).json(),
+  );
   const threadRead = z
     .looseObject({ projectId: z.string() })
     .parse(
       await (
-        await expectStatus(rest('GET', `/threads/${thread.id}`), 200)
+        await expectStatus(
+          rest('GET', `/projects/${projectId}/threads/${thread.id}`),
+          200,
+        )
       ).json(),
     );
   assert.equal(threadRead.projectId, projectId);

@@ -15,7 +15,7 @@ Chaque déclencheur lance la version en service et s’exécute en mode réel :
 | `webhook`  | un système externe poste sur une URL protégée par un token      |
 | `event`    | un événement nommé de la plateforme se produit                  |
 
-Un démarrage programmatique n'a besoin d'aucun déclencheur : un client d'API avec une clé d'organisation appelle `POST /api/v1/automations/{name}/runs` (ou l'outil MCP `start_run`), et la clé elle-même est le droit d'entrée — voir la [référence API](/fr/develop/api-reference).
+Un démarrage programmatique n’exige aucun déclencheur. Pour un projet, le client appelle `POST /api/v1/projects/{id}/automations/{name}/runs`. Une automatisation sans liaison peut aussi démarrer sans projet via `POST /api/v1/automations/{name}/runs`. La clé API et les droits sur le projet autorisent l’opération. L’outil MCP `start_run` offre un autre accès ; la [référence API](/fr/develop/api-reference) précise les règles.
 
 ## Planifications
 
@@ -39,7 +39,7 @@ La résolution est d’une minute, et une planification est un battement de cœu
 Un webhook est une URL entrante protégée par un token. Sa création engendre le token et l’affiche une seule fois ; seul son empreinte est stockée, de sorte que la plateforme peut vérifier un appelant sans jamais pouvoir reconstituer l’URL. Tout système qui y poste lance une exécution, et le corps de la requête devient la charge utile de l’exécution.
 
 ```bash
-curl -X POST https://<ton-hote-tale>/api/automations/webhook/<token> \
+curl -X POST "https://<ton-hote-tale>/api/projects/<projectId>/automations/webhook/<token>" \
   -H 'Content-Type: application/json' \
   -d '{"invoiceId": "inv-1"}'
 ```
@@ -48,7 +48,7 @@ Un appel réussi est accepté immédiatement et répond avec l’id de l’exéc
 
 Les livraisons sont idempotentes, parce que chaque fournisseur livre au moins une fois — une réponse lente, une connexion coupée ou quelqu’un qui clique sur _renvoyer_ expédie la même livraison une seconde fois. Une requête qui nomme sa livraison (`Idempotency-Key`, le `webhook-id` des Standard Webhooks, `X-GitHub-Delivery` et les autres en-têtes courants des fournisseurs) reste connue pendant 24 heures : une répétition avec le même identifiant répond avec l’exécution que la première a lancée, marquée `duplicate: true`, au lieu d’en lancer une seconde. Une requête sans identifiant est reconnue à son corps — un corps identique à l’octet, posté sur la même URL en moins de deux minutes, est la même livraison. Des livraisons distinctes s’exécutent chacune ; si tes charges utiles peuvent légitimement se répéter en moins de deux minutes, envoie un identifiant. [Webhooks](/fr/develop/webhooks) donne la liste complète des en-têtes et les formes de réponse.
 
-Tu peux restreindre l’exécution à un projet en ajoutant `?projectId=<id>` à l’URL — le projet que tu intègres dans l’URL donnée au fournisseur. Omets-le et l’exécution utilise la liaison de l’automatisation elle-même : une automatisation liée à un seul projet s’y exécute, une liée à plusieurs ou à aucun s’exécute sur toute l’organisation. Le projet est vérifié contre ces liaisons, de sorte qu’une URL publique ne peut jamais étendre l’exécution au-delà de ce à quoi l’automatisation est liée ; un projet hors de l’ensemble répond par un 400.
+L’URL de l’exemple nomme le projet de l’exécution. L’automatisation doit y être installée, le projet actif et dans la même organisation que le token. Ce token ne permet pas de choisir un autre projet. Sans aucune liaison, `/api/automations/webhook/{token}` démarre une exécution sans projet ; une automatisation liée y donne **400**. Le paramètre de requête `projectId` donne aussi **400**. Les identifiants de livraison et la déduplication par corps s’appliquent séparément à chaque URL de projet. Suis une livraison de projet via `/api/v1/projects/{id}/runs/{runId}` avec une clé API qui peut lire ce projet.
 
 Deux refus valent la peine d’être reconnus. Un token inconnu et le token d’un déclencheur éteint répondent volontairement de la même manière, pour que personne ne puisse sonder la plateforme afin de savoir quels tokens existent. Une automatisation sans version en service répond plutôt par un conflit, ce qui te dit que l’URL va bien et que c’est la mise en service qui manque.
 

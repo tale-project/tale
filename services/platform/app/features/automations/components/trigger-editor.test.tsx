@@ -132,6 +132,12 @@ describe('TriggerEditor', () => {
     expect(
       screen.getByText(/shown once and stored only as a hash/),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /\/api\/projects\/<projectId>\/automations\/webhook\/wht_secret_1/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/\?projectId=/)).not.toBeInTheDocument();
   });
 
   it('renders read-only for members: binding visible, no controls', () => {

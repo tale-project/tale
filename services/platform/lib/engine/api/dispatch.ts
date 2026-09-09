@@ -145,6 +145,8 @@ export interface DispatchStore extends StoreAdapter {
     options?: { testsPassed?: boolean },
   ): Promise<{ name: string; version: number }>;
   setTrigger?(name: string, trigger: TriggerSpec): Promise<void>;
+  /** Host authorization before an in-process deployed run starts executing. */
+  authorizeRun?(name: string, mode: 'mock' | 'live'): Promise<void>;
   recordRun?(
     name: string,
     version: number,
@@ -154,7 +156,8 @@ export interface DispatchStore extends StoreAdapter {
   /** Hand a run to the host's durable runner. Returns the handle to poll, or
    * null when the automation has no version to run. `projectId`, when given,
    * is the project the run operates in — the host validates it against the
-   * automation's bindings; omitted means org-wide (or the sole bound project). */
+   * automation's bindings and the actor's access. A project-aware host can
+   * pin the scope; otherwise omission requests an organization run. */
   startRun?(
     name: string,
     input: unknown,
@@ -592,6 +595,13 @@ export async function dispatch(
       const mode = ctx.allowLive ? 'live' : 'mock';
       if (mode === 'live' && !ctx.connectorHost) {
         return await runDeployedDurably(ctx, name, version, p.input ?? {});
+      }
+      try {
+        await store.authorizeRun?.(name, mode);
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error.message : String(error),
+        };
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
       const result = await execute(found.automation as Automation, {

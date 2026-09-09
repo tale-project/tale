@@ -24,7 +24,7 @@ Une réponse réussie est une liste nommée : `{ "automations": [ { "name": "bi
 
 Les clés API se créent dans le produit par toute personne avec les permissions Admin ou Développeur — [Clés API](/fr/platform/admin/api-keys) décrit le panneau. Une clé s'affiche une seule fois à la création, jamais ensuite ; elle appartient à la personne qui l'a créée — chaque appel agit comme cette personne.
 
-Passe la clé en bearer token : `Authorization: Bearer <key>`. L'organisation se résout à chaque requête depuis les appartenances de l'utilisateur de la clé — une clé atteint exactement les organisations dont son utilisateur est membre, rien d'autre. Un header `X-Organization-Slug` explicite gagne toujours et est vérifié contre l'appartenance : un slug dont l'utilisateur n'est pas membre est refusé. Sans le header, un utilisateur d'une seule organisation atterrit dans celle-là. Un utilisateur de plusieurs suit l'organisation active en dernier dans le dashboard seulement en lecture — toute écriture (`POST`/`PATCH`/`PUT`/`DELETE`) et tout appel sur les routes Projets et Tâches doivent nommer l'organisation, et une requête multi-organisations sans le header répond **400**. Ce que la clé _peut faire_ suit le rôle de son détenteur : lire et lancer en mock demandent l'appartenance ; démarrer du travail live et modifier ce qui est déployé demande la capacité développeur. Les sections ci-dessous le précisent là où ça compte.
+Envoie la clé comme bearer token : `Authorization: Bearer <key>`. Chaque appel agit au nom du détenteur dans une organisation dont il est membre. L’en-tête `X-Organization-Slug` choisit cette organisation ; Tale vérifie toujours l’appartenance. Avec une seule appartenance, tu peux l’omettre. Avec plusieurs, il est obligatoire pour toute écriture et tout appel sous `/api/v1/projects/...`, même en lecture ; son absence donne **400**. Les autres lectures peuvent reprendre l’organisation active en dernier dans le dashboard. Les droits dépendent du projet et de l’action : les lecteurs du projet peuvent discuter et commenter, tandis que modifier ses ressources ou démarrer un workflow sur une tâche exige l’accès en édition. Les exécutions live à entrée libre demandent aussi la capacité développeur. Les sections suivantes précisent les droits par opération.
 
 ## Se connecter à une application avec Tale
 
@@ -60,16 +60,19 @@ Pour un identifiant client validé, `POST /api/app/identity/clients/office-app/r
 
 ## Groupes d'endpoints
 
+Pour une ressource de projet sous `/api/v1`, place l’ID du projet dans son URL. Ces corps de requête n’acceptent pas `projectId` : les schémas stricts le refusent avec **400**. La ressource doit appartenir au projet nommé et être visible pour le détenteur de la clé ; sinon, l’appel donne **404**. Les réponses peuvent contenir `projectId` comme métadonnée. Les catalogues de l’organisation, comme les définitions d’automatisations et les bundles de skills, gardent leurs chemins d’organisation.
+
 | Groupe                     | Chemin                                  | Ce qu'il couvre                                                                                                                                              |
 | -------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Automatisations            | `/api/v1/automations/...`               | Lister, lire les versions, démarrer des exécutions, lire l'historique, lier et délier les déclencheurs.                                                      |
-| Exécutions                 | `/api/v1/runs/{runId}`                  | Une exécution durable en entier — statut, sortie, trace, effets — plus `POST .../cancel`.                                                                    |
-| Threads                    | `/api/v1/threads/...`                   | Les threads de chat du détenteur de la clé : créer, lire les messages, envoyer, suivre le tour.                                                              |
+| Automatisations | `/api/v1/automations/...` | Définitions, versions et déclencheurs de l’organisation ; démarrer et lister les exécutions sans projet. |
+| Automatisations du projet | `/api/v1/projects/{id}/automations/...` | Lister les automatisations installées, en installer une, démarrer et lister les exécutions de ce projet. |
+| Exécutions | `/api/v1/projects/{id}/runs/{runId}` ou `/api/v1/runs/{runId}` | Statut, sortie, trace, effets et `POST .../cancel` ; une exécution de projet utilise le chemin du projet. |
+| Threads | `/api/v1/projects/{id}/threads/...` ou `/api/v1/threads/...` | Les chats du détenteur dans un projet ou sans projet : lister, créer, lire, envoyer des messages et suivre le tour. |
 | Modèles | `GET /api/v1/models` | Modèles de chat configurés auxquels le détenteur de la clé a accès dans cette organisation. |
 | Agents | `/api/v1/projects/{id}/agents/...` | Lister, lire, créer, modifier et supprimer les agents du projet indiqué. |
 | Skills | `/api/v1/skills/...` | Lister, lire, créer ou modifier et supprimer les bundles de skills de l’organisation. |
 | Entrées de connaissances   | `/api/v1/knowledge-entries/...`         | Des faits par sujet : lister, créer, remplacer, supprimer.                                                                                                   |
-| Recherche de connaissances | `POST /api/v1/knowledge/search`         | Recherche sémantique sur les connaissances indexées de l'organisation.                                                                                       |
+| Recherche de connaissances | `POST /api/v1/projects/{id}/knowledge/search` ou `POST /api/v1/knowledge/search` | Rechercher dans les fichiers indexés d’un projet, ou dans les documents visibles du hub sans projet et les sites web. |
 | Documents                  | `/api/v1/documents/...`                 | Les documents de la base de connaissances : CRUD plus `POST .../retry-indexing`. Les fichiers de projet n'apparaissent jamais ici — ils vivent sous Projets. |
 | Sites web                  | `/api/v1/websites/...`                  | Les sources crawlées : CRUD plus `.../pages`, `.../sync`, `.../search`.                                                                                      |
 | Sessions de navigateur     | `/api/v1/browser-sessions/...`          | Le pool de cookies préchauffés derrière l’[ingestion vidéo](/fr/self-hosted/configuration/video-ingestion) : liste masquée, `POST .../import` pour les opérateurs sur l’allowlist. |
@@ -77,15 +80,15 @@ Pour un identifiant client validé, `POST /api/app/identity/clients/office-app/r
 | Contacts                   | `/api/v1/contacts/...`                  | Les fiches contact : CRUD plus `POST /api/v1/contacts/bulk`.                                                                                                 |
 | Conversations | `/api/v1/conversations/...` | Refléter les conversations externes dans la boîte de réception, lire les messages, récupérer les réponses et confirmer leur livraison ; les schémas exacts figurent dans `/docs` sur ton instance. |
 | Projets                    | `/api/v1/projects/...`                  | L'accès machine des workers externes : chercher par id externe, créer, préparer les dossiers, charger des fichiers.                                          |
-| Tâches                     | `/api/v1/tasks/...`                     | Création idempotente depuis une référence externe, lecture d'état, démarrage de workflow, commentaires.                                                      |
+| Tâches | `/api/v1/projects/{id}/tasks/...` | Créer une tâche depuis une référence externe sans doublon, lire son état, démarrer un workflow et commenter dans le projet nommé. |
 | MCP                        | `POST /api/v1/mcp`                      | L'[endpoint MCP](/fr/develop/mcp-endpoint) — même clé, JSON-RPC au lieu de REST.                                                                             |
-| Déclencheur webhook        | `POST /api/automations/webhook/<token>` | Démarrer une automatisation déployée de l'extérieur ; la [page Webhooks](/fr/develop/webhooks).                                                              |
+| Déclencheur webhook | `POST /api/projects/{id}/automations/webhook/{token}` ou `POST /api/automations/webhook/{token}` | Démarrer une automatisation déployée avec son token ; [Webhooks](/fr/develop/webhooks) décrit les URL avec et sans projet. |
 
 Pour modifier un contact, transmets la dernière valeur `updatedAt` lue dans le champ facultatif `expectedUpdatedAt` de `PATCH /api/v1/contacts/{id}`. Une modification concurrente renvoie **409**, `CONTACT_STALE` ; recharge le contact et fusionne tes changements avant de réessayer.
 
 Les skills acceptent les visibilités `org` et `team` ; `teams` doit désigner des équipes de cette organisation. La visibilité `private` des skills a été retirée.
 
-Pour créer un document du hub, envoie son contenu dans `content` à `POST /api/v1/documents`. L’alternative `fileId` exige un chargement du hub déjà effectué depuis l’app. REST ne crée pas ce chargement, et ceux des projets ne conviennent pas ici. Les documents supprimés ou expirés, y compris les fichiers d’un projet supprimé, restent absents de cette interface du hub.
+Pour créer un document du hub, envoie son contenu dans `content` à `POST /api/v1/documents`. L’alternative `fileId` exige un chargement du hub encore sans liaison, effectué depuis l’app par le détenteur de la clé dans l’organisation choisie. REST ne crée pas ce chargement. Un fichier déjà lié à un document, un thread ou une conversation ne peut pas servir ici. Un chargement absent, appartenant à un autre utilisateur ou déjà lié donne **404**, `FILE_NOT_FOUND`. Cette route ne transforme pas les chargements de projet, de chat ou de conversation en documents du hub. Les documents supprimés ou expirés, y compris les fichiers d’un projet supprimé, restent absents de cette interface. Les corps de `POST` et `PATCH` sont stricts : un `projectId` donne **400**. Crée les fichiers de projet avec les routes de chargement et de fichiers du projet.
 
 ## Gérer les agents d’un projet
 
@@ -137,10 +140,10 @@ Le droit de lire un projet permet de lire ses agents ; les modifications exigen
 
 ## Les noms d'automatisation dans les URL
 
-Le nom d'une automatisation est un chemin en `/` — `billing/dunning` — et un chemin ne tient pas dans un seul segment d'URL. Dans chaque URL `/api/v1/automations/{name}/...`, écris le nom avec `__` à la place de chaque `/` :
+Le nom d'une automatisation est un chemin en `/` — `billing/dunning` — et un chemin ne tient pas dans un seul segment d'URL. Dans chaque URL `.../automations/{name}/...`, écris le nom avec `__` à la place de chaque `/` :
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/automations/billing__dunning/runs" \
+curl -sS "https://your-host.example.com/api/v1/automations/billing__dunning/versions" \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
@@ -151,56 +154,77 @@ Les réponses portent toujours le vrai nom (`"name": "billing/dunning"`) ; la f
 Une exécution est durable et peut prendre des minutes — le démarrage répond donc **202** avec l'identité de l'exécution, pas son résultat :
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/automations/billing__dunning/runs" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/automations/billing__dunning/runs" \
   -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d '{ "input": { "customerId": "cus_123" } }'
 # → 202 { "runId": "...", "version": 2, "name": "billing/dunning", "mode": "live" }
 ```
 
-Interroge `GET /api/v1/runs/{runId}` jusqu'à ce que `status` quitte `queued`/`running`/`waiting` ; l'exécution terminée porte `output`, la `trace` nœud par nœud et les `effects` produits. `POST /api/v1/runs/{runId}/cancel` arrête une exécution à sa prochaine frontière de nœud — ce qu'un nœud a déjà fait n'est pas défait.
+Interroge `GET /api/v1/projects/{id}/runs/{runId}` jusqu'à ce que `status` quitte `queued`/`running`/`waiting` ; l'exécution terminée porte `output`, la `trace` nœud par nœud et les `effects` produits. `POST /api/v1/projects/{id}/runs/{runId}/cancel` arrête une exécution à sa prochaine frontière de nœud — ce qu'un nœud a déjà fait n'est pas défait.
 
-`mode` vaut `live` par défaut. Une exécution live agit au nom de l'organisation, elle exige donc une clé dont le détenteur a la capacité développeur ; `{"mode": "mock"}` tourne contre des mocks déterministes et ne demande que l'appartenance. Démarrer ne demande aucun déclencheur — la clé API est le droit d'entrée. Une automatisation sans version déployée répond **409** ; déploie une version dont les tests passent et le même appel passe.
+`mode` vaut `live` par défaut. Les exécutions live à entrée libre et les annulations exigent la capacité développeur. Une exécution de projet demande aussi l’accès en édition à un projet actif, y compris avec `mode: "mock"`. Les mocks sont déterministes ; sans projet, une exécution mock demande seulement l’appartenance. Aucun déclencheur n’est nécessaire. Sans version déployée, l’appel donne **409**, sauf si tu choisis explicitement une version enregistrée pour une exécution mock.
 
 Une automatisation inconnue répond **404**. Une exécution live accepte uniquement la `version` déployée ; une autre version enregistrée donne **409**. Teste-la avec `mode: "mock"`. Sans corps, l’entrée vaut `{}` ; un JSON mal formé donne **400** et ne démarre rien. Si l’automatisation définit un schéma `inputs`, l’entrée doit le respecter avant la création de l’exécution.
 
-`projectId` nomme le projet dans lequel l’exécution opère — le projet sur lequel agissent ses outils de tâches et de documents. Omets-le et l’exécution porte sur toute l’organisation, sauf qu’une automatisation liée à un seul projet s’exécute dans celui-là automatiquement ; une automatisation liée à plusieurs n’accepte qu’un `projectId` parmi eux, et refuse tout autre.
+Le projet dans l’URL fournit le contexte aux outils de tâches et de documents de l’exécution. Une automatisation liée à des projets ne peut tourner que dans l’un d’eux. `GET /api/v1/projects/{id}/automations/{name}/runs` lit l’historique de ce projet. Sans aucune liaison, `POST /api/v1/automations/{name}/runs` démarre une exécution sans projet ; une automatisation liée y donne **409**. Les listes globales et `/api/v1/runs/{runId}` exposent uniquement les exécutions sans projet. Pour lire ou annuler une exécution de projet, utilise l’URL de ce projet.
 
 ## Envoyer un message, puis suivre le tour
 
-Le chat suit la même forme 202-puis-suivi. Crée un thread, poste un message, interroge la génération, puis lis les messages :
+Le chat de projet suit aussi la séquence 202, puis suivi. Choisis un projet que tu peux lire, crée un thread, envoie un message, interroge la génération, puis lis les messages :
 
 Liste les modèles avant d’envoyer un message. Reprends `id` dans `model` et `providerSlug` pour choisir le fournisseur. La liste respecte les règles d’accès aux modèles de l’organisation et ne contient que ceux que REST peut appeler directement. Une liste vide signifie qu’aucun modèle de chat n’est disponible pour le détenteur de la clé.
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/models" \
-  -H "Authorization: Bearer $TALE_API_KEY"
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
 # Aucun modèle disponible → 200 { "models": [] }
 ```
 
 ```bash
 # 1. Un thread à toi
-curl -sS -X POST "https://your-host.example.com/api/v1/threads" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/threads" \
   -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" -d '{}'
 # → 201 { "id": "<threadId>" }
 
 # 2. Envoyer un message — sur cette API le modèle est toujours explicite, jamais choisi pour toi
-curl -sS -X POST "https://your-host.example.com/api/v1/threads/<threadId>/messages" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/threads/<threadId>/messages" \
   -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d '{ "content": "Résume-moi ce trimestre.", "model": "<model-id>", "providerSlug": "<provider-slug>" }'
-# → 202 { "threadId": "...", "status": "accepted", "model": "...", "poll": "/api/v1/threads/<threadId>/generation" }
+# → 202 { "threadId": "...", "status": "accepted", "model": "...", "poll": "/api/v1/projects/<projectId>/threads/<threadId>/generation" }
 
 # 3. Interroger jusqu'à idle, puis lire
-curl -sS "https://your-host.example.com/api/v1/threads/<threadId>/generation" \
-  -H "Authorization: Bearer $TALE_API_KEY"
+curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<threadId>/generation" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
 # → 200 { "status": "streaming" } … puis { "status": "idle" }
 ```
 
-`{"status": "idle"}` signifie qu'aucun tour ne tourne — lis `GET /api/v1/threads/{id}/messages` pour la réponse. Un tour qui échoue avant toute sortie reste visible : l'erreur atterrit comme message d'assistant, jamais en silence. Les threads listés et lus par l'API sont ceux du détenteur de la clé ; les threads d'un autre utilisateur restent invisibles pour ta clé, même dans la même organisation.
+`{"status": "idle"}` signifie qu’aucun tour ne tourne. Lis `GET /api/v1/projects/{id}/threads/{threadId}/messages` pour obtenir la réponse. Les listes, détails, messages et statuts montrent uniquement les threads du détenteur de la clé dans ce projet. Ceux d’un autre utilisateur restent invisibles, même dans un projet commun. `GET /api/v1/projects/{id}/threads` liste tes threads ; `GET /api/v1/projects/{id}/threads/{threadId}` en lit un.
 
-Si un tour échoue, ton message reste enregistré et un message d’assistant porte l’erreur. La réponse REST fournit un texte lisible dans `error` et une classification `errorCode` lorsqu’elle est disponible. Les threads directs utilisent l’assistant intégré. Le champ facultatif `projectId` ajoute le contexte du projet ; les sélecteurs d’agent comme `agentSlug` ou `agentId` renvoient **400**.
+Pour un chat personnel sans projet, utilise `/api/v1/threads` et ses chemins de détail, de messages et de génération. Ces URL ne donnent pas accès aux threads de projet. Un mauvais projet dans l’URL donne **404**. Les deux types de chat utilisent l’assistant intégré ; `projectId`, `agentSlug` ou `agentId` dans un corps de création ou de message donne **400**. Les lecteurs du projet, y compris les Membres, peuvent créer et envoyer. Un projet archivé refuse ces écritures avec **403** ; un thread archivé refuse un message avec **409**.
+
+Un échec du modèle peut apparaître dans un message d’assistant avec un texte lisible dans `error` et, si disponible, un `errorCode`. Avant d’ouvrir le tour, le worker revérifie le thread accepté et l’accès au projet. Si le thread change de projet ou que l’accès disparaît pendant l’attente, il n’exécute pas le tour et n’ajoute pas d’erreur dans le nouveau contexte.
+
+## Rechercher dans les fichiers d’un projet
+
+Utilise l’URL du projet quand tous les résultats doivent en provenir. La recherche porte uniquement sur ses fichiers indexés et exige l’accès en lecture, même si le projet est archivé. Les documents du hub ou des équipes, les autres projets, les sites web et les pièces jointes d’e-mails sont exclus. Omets `corpus` ou donne-lui la valeur `"documents"`. Un autre corpus ou un champ `projectId` dans le corps donne **400**.
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/knowledge/search" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "query": "Date limite de déclaration du premier trimestre", "limit": 10 }'
+```
+
+Le corps exige `query` et accepte aussi `limit` (1–50) et `minSimilarity` (0–1). Sans modèle d’embedding, la réponse est **409**, `EMBEDDING_NOT_CONFIGURED`. Pour rechercher dans les documents visibles du hub et des équipes sans projet, ou dans les sites web enregistrés, utilise `POST /api/v1/knowledge/search`. Son champ `corpus` accepte `"documents"`, `"web"` ou `"all"`, la valeur par défaut. Cette URL exclut les fichiers de projet et les pièces jointes d’e-mails.
 
 ## Refléter un système externe dans un projet
 
@@ -290,36 +314,36 @@ La liste répond `{files, cursor?}` : un `cursor` dans la réponse veut dire d'
 
 ## Créer une tâche, puis l'exécuter
 
-Le groupe Tâches ferme la boucle : le worker transforme un élément externe en tâche sur le board du projet, y démarre un workflow déployé et rend compte. Un prérequis quand l'automatisation est liée à des projets : ses liaisons décident où elle a le droit de tourner — un projet fraîchement créé doit donc être lié une fois. C'est aussi un appel d'API, idempotent (**201** à la première liaison, **200** si elle existe déjà), et il exige la capacité Developer — la même barrière que le panneau de liaisons du dashboard. Crée la clé du worker pour un utilisateur qui a cette capacité, ou lie en amont :
+Les routes de tâches transforment un élément externe en tâche sur le board du projet, y démarrent un workflow déployé et en récupèrent les résultats. Une automatisation liée à des projets doit d’abord être installée dans celui-ci. L’installation est idempotente : **201** au premier appel, **200** si la liaison existe. Elle exige la capacité développeur et l’accès en édition à un projet actif. Prépare la liaison en amont si le compte du worker n’a pas ces droits :
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/automations/vat-return/projects" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/automations/vat-return" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
-  -d '{ "projectId": "<projectId>" }'
+  -d '{}'
 # → 201 { "name": "vat-return", "added": true }
 ```
 
-Une automatisation sans aucune liaison est à l'échelle de l'organisation et n'a besoin de rien de tout ça — chaque projet la voit. Délier reste une opération du dashboard.
+`GET /api/v1/projects/{id}/automations` liste les automatisations installées dans ce projet. Une automatisation sans aucune liaison peut aussi tourner dans un projet accessible si l’appelant possède les droits d’édition requis, mais elle ne figure pas dans cette liste. Les liaisons se retirent dans le dashboard.
 
-La création d'une tâche est idempotente par `(projectId, externalSystem, externalId)` — le premier appel crée (**201**, `created: true`), chaque répétition répond la même tâche (**200**, `created: false`) — un worker qui a crashé après son POST rejoue donc sans risque. `projectId` est requis ; cet accès ne retombe jamais sur un défaut à l'échelle de l'organisation.
+La création est idempotente par `(projectId, externalSystem, externalId)` : le premier appel crée la tâche (**201**, `created: true`), un nouvel appel renvoie la même (**200**, `created: false`). Le `projectId` vient de l’URL ; l’envoyer dans le corps donne **400**. La création exige l’accès en édition à un projet actif.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
-  -d '{ "projectId": "<projectId>", "externalSystem": "crm", "externalId": "case-991", "title": "Prepare the Q1 filing" }'
+  -d '{ "externalSystem": "crm", "externalId": "case-991", "title": "Prepare the Q1 filing" }'
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
 Un nouvel appel avec la même référence externe d’une tâche active met à jour son titre et sa description. Omettre `description` l’efface ; les libellés changent uniquement s’ils sont envoyés. Une tâche archivée reste inchangée. L’identifiant de tâche reste le même et `runWorkflowSlug` ne démarre aucune autre exécution. Garde les mêmes données lorsque tu réessaies après une réponse perdue.
 
-`description`, `labels` et `externalUrl` sont optionnels. Envoie `automationSlug` quand la tâche appartient à une automatisation : elle devient l'assignee, et c'est là-dessus que s'appuie le panneau de travail du dialogue de tâche — le bouton Start, la progression de l'exécution et les questions qu'une exécution pose à l'opérateur (un re-pick ultérieur comble une attribution manquante, mais n'écrase jamais un assignee). `runWorkflowSlug` démarre dans le même appel un workflow déployé sur une tâche fraîchement créée — l'exécution démarre en ligne, donc la réponse porte son `executionId` (l'id d'exécution à suivre), ou `executionId: null` quand le slug ne nomme aucune automatisation déployée. Démarre plutôt explicitement quand tu veux nommer le workflow dans un appel séparé :
+`description`, `labels` et `externalUrl` sont optionnels. Envoie `automationSlug` quand la tâche appartient à une automatisation : elle devient l'assignee, et c'est là-dessus que s'appuie le panneau de travail du dialogue de tâche — le bouton Start, la progression de l'exécution et les questions qu'une exécution pose à l'opérateur (un re-pick ultérieur comble une attribution manquante, mais n'écrase jamais un assignee). `runWorkflowSlug` démarre dans le même appel un workflow déployé sur une tâche fraîchement créée — l'exécution démarre en ligne, donc la réponse porte son `executionId` (l'id d'exécution à suivre), ou `executionId: null` quand le slug ne nomme aucune automatisation déployée. Démarre plutôt explicitement quand tu veux nommer le workflow dans un appel séparé. L’`automationSlug` responsable doit désigner une automatisation déployée, sinon l’appel donne **404**. Un workflow lié uniquement à d’autres projets donne **403**.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/start" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -327,19 +351,19 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \
 # → 200 { "started": true, "executionId": "<runId>" }
 ```
 
-L’entrée de l’exécution contient la tâche dans `{task: ...}` — démarrer demande donc l'appartenance et la visibilité de la tâche, pas la capacité développeur : l'acte privilégié était le déploiement du workflow, et le journal d'exécution attribue le démarrage à ta clé. Suis l'exécution au familier `GET /api/v1/runs/{runId}`. `started: false` porte un `reason` : `already_running` répond l'`executionId` de l'exécution en cours au lieu de risquer un doublon — suis celle-là ; `not_started` veut dire que le slug ne nomme aucune automatisation déployée.
+Le démarrage exige l’accès en édition à un projet actif et une tâche active. L’entrée contient la tâche dans `{task: ...}` ; aucune capacité développeur supplémentaire n’est requise. Le journal attribue le démarrage à ta clé. Suis `GET /api/v1/projects/{id}/runs/{runId}`. Avec `started: false`, `reason: "already_running"` fournit l’`executionId` de l’exécution en cours ; suis celle-là. `reason: "not_started"` signifie que le slug ne désigne aucune automatisation déployée.
 
-Rends compte et lis l'état — le commentaire est posté comme l'utilisateur qui a créé la clé, indiscernable de la même personne dans l'app, @mentions comprises :
+Rends compte et lis l'état — le commentaire est posté comme l'utilisateur qui a créé la clé, indiscernable de la même personne dans l'app, @mentions comprises. Les lecteurs du projet, y compris les Membres, peuvent commenter une tâche active dans un projet actif. La tâche et ses commentaires restent lisibles après archivage. Chaque URL de tâche vérifie son appartenance au projet nommé.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/comments" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d '{ "body": "Filed. Confirmation 2026-8842." }'
 # → 201 { "comment": { "id": "..." } }
 
-curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
+curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
@@ -348,7 +372,7 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 Et récupère les résultats. Ce que l'automatisation a rapporté se trouve dans la discussion de la tâche ; ce qu'elle a déposé arrive comme fichiers dans le dossier du trimestre — les deux se lisent par le même accès. La discussion arrive par pages, la plus récente d'abord (`limit`, 200 par défaut, 500 au plus), en ordre chronologique dans la page ; tant que `isDone` vaut `false`, renvoie `continueCursor` comme `cursor` pour lire les commentaires plus anciens. L'endpoint de contenu répond **302** vers une URL présignée de courte durée pour le blob stocké, donc suis les redirections :
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments?limit=100" \
+curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/comments?limit=100" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 200 { "comments": [ { "id": "...", "authorType": "agent", "body": "…", ... } ], "isDone": false, "continueCursor": "312" }
@@ -372,9 +396,9 @@ Branche sur le statut HTTP ; le message est pour les humains :
 
 - **400** — requête mal formée : champ requis manquant, mauvais type, corps illisible — ou une clé multi-organisations qui n'a pas nommé son organisation (requis à chaque écriture et sur toutes les routes Projets et Tâches).
 - **401** — clé API absente ou invalide.
-- **403** — la clé est valide mais le rôle de son détenteur n'a pas la capacité (exécutions live, écriture de déclencheurs, annulation).
-- **404** — la ressource n'existe pas dans ton organisation, appartient au thread de quelqu'un d'autre — ou est un projet ou une tâche que l'utilisateur de la clé ne peut pas voir : impossible à distinguer, à dessein, d'une ressource qui n'existe pas.
-- **409** — l'état refuse l'action : pas de version déployée, un sujet, un e-mail ou un `externalItemId` en double (unique par organisation — la même chaîne dans une autre organisation passe), un tour déjà en cours.
+- **403** — le rôle ou l’accès en édition manque, le projet ou la tâche est archivé pour l’écriture demandée, ou l’automatisation ne peut pas tourner dans ce projet.
+- **404** — la ressource est absente, invisible pour le détenteur, appartient au thread d’un autre utilisateur ou à un autre projet que celui de l’URL.
+- **409** — l’état empêche l’action : pas de version déployée, automatisation liée appelée sans URL de projet, thread archivé ou tour déjà en cours, sujet, e-mail ou `externalItemId` en double, ou recherche sans modèle d’embedding.
 - **413** — le corps est trop gros ; seul le déclencheur webhook le renvoie, à sa limite de 256 Ko. Un fichier chargé qui dépasse la politique de taille ou de type est refusé à la liaison avec **400** et un code de raison à la place.
 - **429** — limite de débit atteinte, avec `Retry-After` en secondes entières ; voir [Limites de débit](/fr/develop/rate-limits).
 - **500** — erreur interne.
@@ -383,7 +407,7 @@ Délier le déclencheur d’une automatisation existante (`DELETE .../triggers`)
 
 ## Versionnage
 
-L'API est versionnée par le préfixe d'URL — aujourd'hui `/api/v1/` — et y évolue par ajout : de nouveaux endpoints et de nouveaux champs optionnels arrivent, les formes existantes restent. Un changement cassant sortirait sous un nouveau préfixe. Le document OpenAPI sous `/docs` décrit toujours l'instance qui tourne.
+Le préfixe REST actuel est `/api/v1/`. Le document OpenAPI sous `/docs` décrit les routes et les schémas de requête et de réponse de l’instance qui tourne. Prends-le comme contrat pour ton client.
 
 ## Où ça se place
 

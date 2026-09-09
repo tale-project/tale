@@ -660,13 +660,12 @@ automations:
     tokenHint: Der Token ist der letzte Teil der URL, erscheint genau einmal
       und liegt nur als Hash gespeichert.
     webhookEndpointLabel: Webhook-Endpunkt
-    webhookHowto: Schicke einen HTTP-POST an diese URL, um die Automatisierung
-      auszuführen.
+    webhookHowto: Diese URL gilt für Automatisierungen, die keinem Projekt zugeordnet sind.
     hasToken: Ein Token ist aktiv — die URL braucht den beim Anlegen einmalig
       gezeigten Token; rotiere, um eine neue URL zu erzeugen.
     noToken: Zum Erzeugen des Tokens speichern; die vollständige URL erscheint
       einmal.
-    webhookProjectHint: Optional — hänge eine projectId an, um in einem gebundenen Projekt zu laufen (gegen die Bindungen geprüft; weglassen nutzt die Bindung der Automatisierung selbst).
+    webhookProjectHint: Für ein aktives Projekt, in dem die Automatisierung eingerichtet ist, setzt du dessen ID in die folgende URL ein.
     rotate: Token rotieren
   canvas:
     ariaLabel: Canvas der Automatisierung

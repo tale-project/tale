@@ -1,65 +1,161 @@
 // @vitest-environment node
 
 import { Hono } from 'hono';
-import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import type { Sql, TransactionSql } from 'postgres';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RestEnv } from './shared.ts';
 import { createTaskRestRoutes } from './v1-tasks.ts';
 
+const service = vi.hoisted(() => ({
+  upsertTaskByExternalRef: vi.fn(),
+  startWorkflowForTask: vi.fn(),
+  startWorkflowForTaskInTx: vi.fn(),
+  addTaskComment: vi.fn(),
+  listTaskComments: vi.fn(),
+}));
+
+vi.mock('../domains/tasks/external-ref.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../domains/tasks/external-ref.ts')
+  >()),
+  upsertTaskByExternalRef: service.upsertTaskByExternalRef,
+  startWorkflowForTask: service.startWorkflowForTask,
+  startWorkflowForTaskInTx: service.startWorkflowForTaskInTx,
+}));
+vi.mock('../domains/tasks/comments.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../domains/tasks/comments.ts')>()),
+  addTaskComment: service.addTaskComment,
+  listTaskComments: service.listTaskComments,
+}));
+
 interface Captured {
   text: string;
   values: unknown[];
+  inTransaction: boolean;
 }
 
 const project = {
   id: 'p-1',
   organizationId: 'org-1',
   name: 'Ledger',
-  description: null,
-  icon: null,
-  color: null,
-  key: null,
-  externalItemId: null,
-  taskCounter: 1,
-  openTaskCount: 1,
-  doneTaskCount: 0,
-  projectAgentCount: 0,
-  teamId: null,
+  teamId: 'team-1',
   sharedWithTeamIds: [],
-  instructions: null,
-  createdBy: 'user-1',
-  createdAt: 1_700_000_000_000,
-  updatedAt: 1_700_000_000_000,
   archivedAt: null,
 };
-
 const task = {
   id: 't-1',
   organizationId: 'org-1',
   projectId: 'p-1',
   title: 'Prepare the Q1 filing',
+  status: 'backlog',
   labelIds: [],
+  externalSystem: 'github',
+  externalId: 'issue-7',
+  externalUrl: null,
+  createdAt: 1,
+  updatedAt: 2,
+  archivedAt: null,
 };
+const input = {
+  externalSystem: 'github',
+  externalId: 'issue-7',
+  title: 'Prepare the Q1 filing',
+};
+const collection = '/projects/p-1/tasks';
+const item = `${collection}/t-1`;
+const operations = [
+  { method: 'GET', path: item },
+  { method: 'GET', path: `${item}/comments` },
+  { method: 'POST', path: `${item}/comments`, body: { body: 'Filed.' } },
+  { method: 'POST', path: `${item}/start`, body: { workflowSlug: 'triage' } },
+];
 
-/** Tagged-template Sql double: the visible task and its project, the
- * limiter's UPSERT (spent or not), empty elsewhere; records every query. */
-function fakeSql(opts: { spent?: boolean } = {}): {
-  sql: Sql;
-  queries: Captured[];
-} {
+function mount(
+  options: {
+    role?: string;
+    teamIds?: string[];
+    foreign?: boolean;
+    absent?: boolean;
+    taskAbsent?: boolean;
+    taskProjectId?: string;
+    taskProjectIdInTx?: string;
+    archived?: boolean;
+    archivedInTx?: boolean;
+    absentInTx?: boolean;
+    projectFailure?: boolean;
+    ambiguous?: boolean;
+    spent?: boolean;
+    deployed?: boolean;
+    boundProjectIds?: string[];
+  } = {},
+) {
   const queries: Captured[] = [];
-  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+  const execute = (
+    inTransaction: boolean,
+    strings: TemplateStringsArray,
+    values: unknown[],
+  ) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
-    queries.push({ text, values });
-    if (text.includes('FROM "teamMember"')) return Promise.resolve([]);
-    if (text.includes('FROM app.tasks WHERE id'))
-      return Promise.resolve([task]);
+    queries.push({ text, values, inTransaction });
+    if (text.includes('FROM "teamMember"')) {
+      return Promise.resolve(
+        (options.teamIds ?? ['team-1']).map((teamId) => ({ teamId })),
+      );
+    }
+    if (text.includes('FROM "member"')) {
+      return Promise.resolve([
+        { organizationId: 'org-1', role: 'admin' },
+        { organizationId: 'org-2', role: 'admin' },
+      ]);
+    }
+    if (text.includes('FROM app.tasks WHERE id')) {
+      return Promise.resolve(
+        options.taskAbsent
+          ? []
+          : [
+              {
+                ...task,
+                projectId:
+                  (inTransaction ? options.taskProjectIdInTx : undefined) ??
+                  options.taskProjectId ??
+                  'p-1',
+              },
+            ],
+      );
+    }
     if (text.includes('FROM app.projects WHERE id')) {
-      return Promise.resolve([project]);
+      if (options.projectFailure)
+        return Promise.reject(new Error('database unavailable'));
+      return Promise.resolve(
+        options.absent || (inTransaction && options.absentInTx)
+          ? []
+          : [
+              {
+                ...project,
+                organizationId: options.foreign ? 'other-org' : 'org-1',
+                archivedAt:
+                  options.archived || (inTransaction && options.archivedInTx)
+                    ? 1
+                    : null,
+              },
+            ],
+      );
+    }
+    if (text.includes('FROM app.automation_deployments')) {
+      return Promise.resolve(
+        options.deployed === false ? [] : [{ version: 1 }],
+      );
+    }
+    if (text.includes('FROM app.automation_project_bindings')) {
+      return Promise.resolve(
+        (options.boundProjectIds ?? ['p-1']).map((projectId) => ({
+          projectId,
+        })),
+      );
     }
     if (text.includes('INSERT INTO app.rate_limits')) {
-      return Promise.resolve(opts.spent ? [] : [{ value: '1' }]);
+      return Promise.resolve(options.spent ? [] : [{ value: '1' }]);
     }
     if (text.includes('FROM app.rate_limits')) {
       return Promise.resolve([{ value: '0', ts: String(Date.now()) }]);
@@ -67,93 +163,489 @@ function fakeSql(opts: { spent?: boolean } = {}): {
     return Promise.resolve([]);
   };
   const unsafe = (text: string) => ({ unsafe: text });
-  const begin = (fn: (tx: unknown) => Promise<unknown>) => fn(sql);
-  const sql = Object.assign(tag, { unsafe, begin });
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-  return { sql: sql as unknown as Sql, queries };
-}
-
-function mount(sql: Sql) {
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) =>
+    execute(false, strings, values);
+  const tx = Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) =>
+      execute(true, strings, values),
+    { unsafe },
+  ) as unknown as TransactionSql;
+  const begin = vi.fn(
+    (_options: string, callback: (tx: TransactionSql) => Promise<unknown>) =>
+      callback(tx),
+  );
+  const sql = Object.assign(tag, { unsafe, begin }) as unknown as Sql;
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
     c.set('orgSlug', 'acme');
-    c.set('role', 'admin');
-    c.set('orgExplicit', true);
+    c.set('role', options.role ?? 'admin');
+    c.set('orgExplicit', options.ambiguous !== true);
     c.set('clientIp', '203.0.113.9');
     return next();
   });
   app.route('/', createTaskRestRoutes({ sql }));
-  return app;
+  const request = (path: string, method = 'GET', body?: unknown) =>
+    app.request(`http://localhost${path}`, {
+      method,
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { 'content-type': 'application/json' },
+            body: typeof body === 'string' ? body : JSON.stringify(body),
+          }),
+    });
+  return { request, queries, sql, tx, begin };
 }
 
-/**
- * POST …/comments passes the per-user `task:comment` budget its in-app twin
- * passes — the spec promised it while the route charged only the general
- * lane. The key acts as its user, so the budget is the key holder's.
- */
-describe('POST /tasks/{id}/comments task:comment budget', () => {
-  it('answers 400 in the JSON envelope for a malformed body', async () => {
-    const { sql, queries } = fakeSql();
-    const res = await mount(sql).request(
-      'http://localhost/tasks/t-1/comments',
+beforeEach(() => {
+  vi.clearAllMocks();
+  service.upsertTaskByExternalRef.mockResolvedValue({
+    taskId: 't-1',
+    created: true,
+  });
+  service.startWorkflowForTask.mockResolvedValue({
+    runId: 'run-1',
+    alreadyRunning: false,
+  });
+  service.startWorkflowForTaskInTx.mockResolvedValue({
+    runId: 'run-1',
+    alreadyRunning: false,
+  });
+  service.addTaskComment.mockResolvedValue({ messageId: 'comment-1' });
+  service.listTaskComments.mockResolvedValue({
+    comments: [
       {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{',
+        messageId: 'comment-1',
+        authorType: 'user',
+        authorId: 'user-1',
+        body: 'Filed.',
+        createdAt: 3,
+        editedAt: null,
       },
+    ],
+    hasMore: true,
+    nextCursor: 12,
+  });
+});
+
+describe('project-scoped task intake', () => {
+  it('creates using the path project and checks it again inside the transaction', async () => {
+    const { request, queries, tx, begin } = mount();
+    const res = await request(collection, 'POST', input);
+    expect(begin).toHaveBeenCalledWith(
+      'isolation level serializable',
+      expect.any(Function),
     );
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: expect.any(String) });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ task: { id: 't-1', created: true } });
+    expect(service.upsertTaskByExternalRef).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        ...input,
+        projectId: 'p-1',
+        organizationId: 'org-1',
+        actorId: 'user-1',
+        creatorType: 'user',
+        dedupeScope: 'project',
+      }),
+    );
     expect(
-      queries.some((q) => q.text.startsWith('INSERT INTO app.messages')),
+      queries.some(
+        (query) =>
+          query.inTransaction && query.text.includes('FROM app.projects'),
+      ),
+    ).toBe(true);
+  });
+
+  it('returns an idempotent existing task without starting another workflow', async () => {
+    service.upsertTaskByExternalRef.mockResolvedValue({
+      taskId: 't-1',
+      created: false,
+    });
+    const { request } = mount();
+    const res = await request(collection, 'POST', {
+      ...input,
+      runWorkflowSlug: 'triage',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ task: { id: 't-1', created: false } });
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['projectId', { ...input, projectId: 'p-2' }],
+    ['unknown field', { ...input, arbitrary: true }],
+    ['empty automation', { ...input, automationSlug: '' }],
+    ['empty workflow', { ...input, runWorkflowSlug: '' }],
+    ['malformed JSON', '{'],
+  ])('rejects %s without creating a task', async (_name, body) => {
+    const { request } = mount();
+    expect((await request(collection, 'POST', body)).status).toBe(400);
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+  });
+
+  it('refuses read-only members before any intake or run', async () => {
+    const { request } = mount({ role: 'member' });
+    expect(
+      (
+        await request(collection, 'POST', {
+          ...input,
+          runWorkflowSlug: 'triage',
+        })
+      ).status,
+    ).toBe(403);
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['foreign project', { foreign: true }],
+    ['missing project', { absent: true }],
+    ['hidden project', { role: 'editor', teamIds: [] }],
+    ['deleted during intake', { absentInTx: true }],
+  ])('conceals %s and writes nothing', async (_name, options) => {
+    const { request } = mount(options);
+    expect((await request(collection, 'POST', input)).status).toBe(404);
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+  });
+
+  it.each([{ archived: true }, { archivedInTx: true }])(
+    'refuses an archived project, including archival after preflight: %j',
+    async (options) => {
+      const { request } = mount(options);
+      expect((await request(collection, 'POST', input)).status).toBe(403);
+      expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses an execution budget exhaustion before committing intake', async () => {
+    const { request, queries } = mount({ spent: true });
+    const res = await request(collection, 'POST', {
+      ...input,
+      runWorkflowSlug: 'triage',
+    });
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+    expect(
+      queries.find((query) =>
+        query.text.includes('INSERT INTO app.rate_limits'),
+      )?.values,
+    ).toContain('rest:execute');
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+  });
+
+  it('does not charge the execution budget for an ordinary intake', async () => {
+    const { request, queries } = mount({ spent: true });
+    expect((await request(collection, 'POST', input)).status).toBe(201);
+    expect(
+      queries.some((query) =>
+        query.text.includes('INSERT INTO app.rate_limits'),
+      ),
     ).toBe(false);
   });
 
-  it('answers the standard 429 with Retry-After when the budget is spent, writing nothing', async () => {
-    const { sql, queries } = fakeSql({ spent: true });
-    const res = await mount(sql).request(
-      'http://localhost/tasks/t-1/comments',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ body: 'Filed.' }),
-      },
+  it.each(['automationSlug', 'runWorkflowSlug'])(
+    'refuses a %s bound elsewhere before intake commits',
+    async (field) => {
+      const { request } = mount({ boundProjectIds: ['p-2'] });
+      expect(
+        (await request(collection, 'POST', { ...input, [field]: 'triage' }))
+          .status,
+      ).toBe(403);
+      expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses an undeployed explicit owner before creating an orphan assignment', async () => {
+    const { request } = mount({ deployed: false, boundProjectIds: [] });
+    expect(
+      (await request(collection, 'POST', { ...input, automationSlug: 'ghost' }))
+        .status,
+    ).toBe(404);
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+  });
+
+  it('keeps a committed task successful when an undeployed workflow does not start', async () => {
+    service.startWorkflowForTaskInTx.mockResolvedValue(null);
+    const { request } = mount({ deployed: false, boundProjectIds: [] });
+    const res = await request(collection, 'POST', {
+      ...input,
+      runWorkflowSlug: 'ghost',
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({
+      task: { id: 't-1', created: true },
+      executionId: null,
+    });
+  });
+
+  it('accepts an organization automation and starts with fresh scoped state in a transaction', async () => {
+    const { request, tx } = mount({ boundProjectIds: [] });
+    const res = await request(collection, 'POST', {
+      ...input,
+      automationSlug: 'triage',
+      runWorkflowSlug: 'triage',
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({
+      task: { id: 't-1', created: true },
+      executionId: 'run-1',
+    });
+    expect(service.startWorkflowForTaskInTx).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        task: expect.objectContaining({ id: 't-1', projectId: 'p-1' }),
+        startedVia: 'api-key',
+      }),
     );
-    expect(res.status).toBe(429);
-    expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
-    expect(await res.json()).toMatchObject({ error: 'RATE_LIMITED' });
-    const charge = queries.find((q) =>
-      q.text.includes('INSERT INTO app.rate_limits'),
+  });
+});
+
+describe('project-scoped task reads and operations', () => {
+  it('reads a task as a member', async () => {
+    const { request } = mount({ role: 'member' });
+    const res = await request(item);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      task: { id: 't-1', projectId: 'p-1', title: task.title },
+    });
+  });
+
+  it.each(operations)(
+    'refuses a task in a different same-org project: $method $path',
+    async ({ path, method, body }) => {
+      const { request, queries } = mount({ taskProjectId: 'p-2' });
+      expect((await request(path, method, body)).status).toBe(404);
+      expect(service.addTaskComment).not.toHaveBeenCalled();
+      expect(service.listTaskComments).not.toHaveBeenCalled();
+      expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+      expect(
+        queries.some((query) =>
+          query.text.includes('INSERT INTO app.rate_limits'),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it.each([
+    ['foreign project', { foreign: true }],
+    ['missing project', { absent: true }],
+    ['missing task', { taskAbsent: true }],
+    ['hidden project', { role: 'member', teamIds: [] }],
+  ])('conceals %s across all task operations', async (_name, options) => {
+    const { request } = mount(options);
+    for (const operation of operations) {
+      expect(
+        (await request(operation.path, operation.method, operation.body))
+          .status,
+      ).toBe(404);
+    }
+    expect(service.addTaskComment).not.toHaveBeenCalled();
+    expect(service.listTaskComments).not.toHaveBeenCalled();
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 for a database failure instead of concealing it as a missing task', async () => {
+    const { request } = mount({ projectFailure: true });
+    expect((await request(item)).status).toBe(500);
+  });
+
+  it('requires an explicit organization for ambiguous-key reads', async () => {
+    const { request } = mount({ ambiguous: true });
+    expect((await request(item)).status).toBe(400);
+  });
+
+  it('keeps archived projects readable but refuses comment and execution mutations', async () => {
+    const { request } = mount({ archived: true });
+    expect((await request(item)).status).toBe(200);
+    expect((await request(`${item}/comments`)).status).toBe(200);
+    expect(
+      (await request(`${item}/comments`, 'POST', { body: 'Filed.' })).status,
+    ).toBe(403);
+    expect(
+      (await request(`${item}/start`, 'POST', { workflowSlug: 'triage' }))
+        .status,
+    ).toBe(403);
+    expect(service.addTaskComment).not.toHaveBeenCalled();
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { path: `${item}/comments`, body: { body: 'Filed.' } },
+    { path: `${item}/start`, body: { workflowSlug: 'triage' } },
+  ])(
+    'rejects scope payload and malformed JSON at $path',
+    async ({ path, body }) => {
+      const { request } = mount();
+      expect(
+        (await request(path, 'POST', { ...body, projectId: 'p-2' })).status,
+      ).toBe(400);
+      expect((await request(path, 'POST', '{')).status).toBe(400);
+      expect(service.addTaskComment).not.toHaveBeenCalled();
+      expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { path: `${item}/comments`, body: { body: 'Filed.' } },
+    { path: `${item}/start`, body: { workflowSlug: 'triage' } },
+  ])(
+    'rechecks task binding inside the mutation transaction: $path',
+    async ({ path, body }) => {
+      const { request } = mount({ taskProjectIdInTx: 'p-2' });
+      expect((await request(path, 'POST', body)).status).toBe(404);
+      expect(service.addTaskComment).not.toHaveBeenCalled();
+      expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { path: `${item}/comments`, body: { body: 'Filed.' } },
+    { path: `${item}/start`, body: { workflowSlug: 'triage' } },
+  ])(
+    'refuses project archival after preflight at $path',
+    async ({ path, body }) => {
+      const { request } = mount({ archivedInTx: true });
+      expect((await request(path, 'POST', body)).status).toBe(403);
+      expect(service.addTaskComment).not.toHaveBeenCalled();
+      expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps member comments read-level, under the comment budget and in a transaction', async () => {
+    const { request, tx, queries } = mount({ role: 'member' });
+    const res = await request(`${item}/comments`, 'POST', { body: 'Filed.' });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ comment: { id: 'comment-1' } });
+    expect(service.addTaskComment).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ role: 'member' }),
+      { taskId: 't-1', body: 'Filed.' },
+    );
+    const charge = queries.find((query) =>
+      query.text.includes('INSERT INTO app.rate_limits'),
     );
     expect(charge?.values).toContain('task:comment');
     expect(charge?.values).toContain('user:user-1');
     expect(
-      queries.some((q) => q.text.startsWith('INSERT INTO app.messages')),
-    ).toBe(false);
+      queries.some(
+        (query) =>
+          query.inTransaction && query.text.includes('FROM app.projects'),
+      ),
+    ).toBe(true);
   });
 
-  it('charges only after the task proved visible, so an unknown task stays an opaque 404', async () => {
-    const { sql, queries } = fakeSql({ spent: true });
-    const res = await mount(sql).request(
-      'http://localhost/tasks/t-1/comments',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ body: 'Filed.' }),
-      },
-    );
+  it('returns the standard comment 429 without writing', async () => {
+    const { request } = mount({ spent: true });
+    const res = await request(`${item}/comments`, 'POST', { body: 'Filed.' });
     expect(res.status).toBe(429);
-    const order = queries.map((q) => q.text);
-    const taskAt = order.findIndex((t) =>
-      t.includes('FROM app.tasks WHERE id'),
+    expect(Number(res.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+    expect(service.addTaskComment).not.toHaveBeenCalled();
+  });
+
+  it('preserves comment pagination and rejects malformed cursors', async () => {
+    const { request, sql } = mount();
+    const res = await request(`${item}/comments?limit=100&cursor=25`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      comments: [
+        {
+          id: 'comment-1',
+          authorType: 'user',
+          authorId: 'user-1',
+          body: 'Filed.',
+          createdAt: 3,
+        },
+      ],
+      isDone: false,
+      continueCursor: '12',
+    });
+    expect(service.listTaskComments).toHaveBeenCalledWith(
+      sql,
+      expect.any(Object),
+      't-1',
+      { limit: 100, before: 25 },
     );
-    const chargeAt = order.findIndex((t) =>
-      t.includes('INSERT INTO app.rate_limits'),
+    expect((await request(`${item}/comments?cursor=abc`)).status).toBe(400);
+  });
+
+  it('refuses a member workflow start', async () => {
+    const { request } = mount({ role: 'member' });
+    expect(
+      (await request(`${item}/start`, 'POST', { workflowSlug: 'triage' }))
+        .status,
+    ).toBe(403);
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+  });
+
+  it('starts a workflow under the execution budget with checked project and fresh task in the transaction', async () => {
+    const { request, queries, tx } = mount({ role: 'editor' });
+    const res = await request(`${item}/start`, 'POST', {
+      workflowSlug: 'triage',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ started: true, executionId: 'run-1' });
+    expect(service.startWorkflowForTaskInTx).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        task: expect.objectContaining({ id: 't-1', projectId: 'p-1' }),
+        startedVia: 'api-key',
+      }),
     );
-    expect(taskAt).toBeGreaterThanOrEqual(0);
-    expect(chargeAt).toBeGreaterThan(taskAt);
+    expect(
+      queries.find((query) =>
+        query.text.includes('INSERT INTO app.rate_limits'),
+      )?.values,
+    ).toContain('rest:execute');
+    expect(
+      queries.some(
+        (query) => query.inTransaction && query.text.includes('FROM app.tasks'),
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    {
+      result: null,
+      response: { started: false, reason: 'not_started', executionId: null },
+    },
+    {
+      result: { runId: 'run-live', alreadyRunning: true },
+      response: {
+        started: false,
+        reason: 'already_running',
+        executionId: 'run-live',
+      },
+    },
+  ])(
+    'preserves workflow refusal/idempotence: $response.reason',
+    async ({ result, response }) => {
+      service.startWorkflowForTaskInTx.mockResolvedValue(result);
+      const { request } = mount();
+      const res = await request(`${item}/start`, 'POST', {
+        workflowSlug: 'triage',
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual(response);
+    },
+  );
+
+  it('removes the replaced flat task routes', async () => {
+    const { request } = mount();
+    expect(
+      (await request('/tasks', 'POST', { ...input, projectId: 'p-1' })).status,
+    ).toBe(404);
+    expect((await request('/tasks/t-1')).status).toBe(404);
+    expect((await request('/tasks/t-1/comments')).status).toBe(404);
+    expect(
+      (await request('/tasks/t-1/comments', 'POST', { body: 'Filed.' })).status,
+    ).toBe(404);
+    expect(
+      (await request('/tasks/t-1/start', 'POST', { workflowSlug: 'triage' }))
+        .status,
+    ).toBe(404);
   });
 });

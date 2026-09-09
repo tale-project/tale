@@ -458,14 +458,19 @@ export function buildSpec(): Json {
       summary: 'Create document',
       description:
         'Requires a documents-write role. Send inline `content` from a REST ' +
-        'client. `fileId` can reference an existing hub upload from the app; ' +
-        'REST does not mint hub uploads, and a project upload cannot be used here.',
+        'client. `fileId` must be the key holder’s own unbound upload in this ' +
+        'organization. Missing uploads, another user’s uploads and files already ' +
+        'bound to a document, thread or conversation answer 404 FILE_NOT_FOUND. ' +
+        'REST does not mint hub uploads; use the app to upload first.',
       operationId: 'createDocument',
       security: sec,
       requestBody: jsonBody(ref('DocumentInput')),
       responses: {
         '201': createdId('Created — the new document’s id'),
         '403': errorResponse('The key holder’s role cannot write documents'),
+        '404': errorResponse(
+          'The upload is absent, not owned by the key holder or already bound',
+        ),
         ...standardErrors,
       },
     },
@@ -492,7 +497,7 @@ export function buildSpec(): Json {
       summary: 'Update document',
       description:
         'Partial update; a `null` clears an optional field. Requires a ' +
-        'documents-write role; a controlled record under review, approval or ' +
+        'documents-write role. Only Knowledge Hub documents are accepted; project files return 404. A controlled record under review, approval or ' +
         'legal hold refuses the change.',
       operationId: 'updateDocument',
       security: sec,
@@ -510,7 +515,7 @@ export function buildSpec(): Json {
       tags: ['Documents'],
       summary: 'Delete document',
       description:
-        'The permanent delete: role gate, controlled-record protection, ' +
+        'Permanent deletion of a Knowledge Hub document; project files return 404. Role gate, controlled-record protection, ' +
         'legal holds, sync stop and the audit row, then the purge.',
       operationId: 'deleteDocument',
       security: sec,
@@ -532,7 +537,7 @@ export function buildSpec(): Json {
       tags: ['Documents'],
       summary: 'Retry RAG indexing',
       description:
-        'Re-queues the document’s blob for knowledge indexing. Requires a ' +
+        'Re-queues a Knowledge Hub document’s blob for indexing; project files return 404. Requires a ' +
         'documents-write role. Answers `skipped` — honestly — for a ' +
         'content-only document, a blob the platform does not track, or a ' +
         'file whose RAG opt-out is persisted.',
@@ -1007,9 +1012,10 @@ export function buildSpec(): Json {
       parameters: [orgSlugHeaderParam],
       requestBody: jsonBody({
         type: 'object',
+        additionalProperties: false,
         required: ['name'],
         properties: {
-          name: { type: 'string', maxLength: 80 },
+          name: { type: 'string', minLength: 1, maxLength: 80 },
           externalItemId: { type: 'string', maxLength: 256 },
           key: {
             type: 'string',
@@ -1191,11 +1197,13 @@ export function buildSpec(): Json {
       parameters: [orgSlugHeaderParam, pathParam('id', 'Project ID')],
       requestBody: jsonBody({
         type: 'object',
+        additionalProperties: false,
         required: ['name'],
         properties: {
-          name: { type: 'string', maxLength: 255 },
+          name: { type: 'string', minLength: 1, maxLength: 255 },
           parentId: {
             type: 'string',
+            maxLength: 64,
             description: 'Parent folder id (a folder of this project)',
           },
         },
@@ -1203,7 +1211,7 @@ export function buildSpec(): Json {
       responses: {
         '200': jsonResponse('The existing folder', ref('ProjectFolderResult')),
         '201': jsonResponse('The created folder', ref('ProjectFolderResult')),
-        '403': errorResponse('No project edit access'),
+        '403': errorResponse('No write access to an active project'),
         '404': errorResponse('Project or parent folder not found'),
         ...standardErrors,
       },
@@ -1232,16 +1240,17 @@ export function buildSpec(): Json {
       requestBody: jsonBody(
         {
           type: 'object',
+          additionalProperties: false,
           properties: {
-            fileName: { type: 'string' },
-            contentType: { type: 'string' },
+            fileName: { type: 'string', maxLength: 1024 },
+            contentType: { type: 'string', maxLength: 255 },
           },
         },
         false,
       ),
       responses: {
         '200': jsonResponse('The upload handoff', ref('ProjectUploadHandoff')),
-        '403': errorResponse('No project edit access'),
+        '403': errorResponse('No write access to an active project'),
         '404': errorResponse('Project not found'),
         ...standardErrors,
       },
@@ -1334,13 +1343,14 @@ export function buildSpec(): Json {
       parameters: [orgSlugHeaderParam, pathParam('id', 'Project ID')],
       requestBody: jsonBody({
         type: 'object',
+        additionalProperties: false,
         required: ['uploadId', 'fileId', 'folderId', 'fileName'],
         properties: {
-          uploadId: { type: 'string' },
-          fileId: { type: 'string' },
-          folderId: { type: 'string' },
-          fileName: { type: 'string' },
-          contentType: { type: 'string' },
+          uploadId: { type: 'string', minLength: 1, maxLength: 64 },
+          fileId: { type: 'string', minLength: 1, maxLength: 2048 },
+          folderId: { type: 'string', minLength: 1, maxLength: 64 },
+          fileName: { type: 'string', minLength: 1, maxLength: 1024 },
+          contentType: { type: 'string', maxLength: 255 },
           skipRagIndexing: { type: 'boolean', default: true },
         },
       }),
@@ -1361,7 +1371,7 @@ export function buildSpec(): Json {
             },
           },
         }),
-        '403': errorResponse('No project edit access'),
+        '403': errorResponse('No write access to an active project'),
         '404': errorResponse('Project or folder not found'),
         ...standardErrors,
         // Richer than the standard 400: the upload-policy refusals land
@@ -1380,197 +1390,183 @@ export function buildSpec(): Json {
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
 
-  paths['/api/v1/tasks'] = {
+  const taskCollectionParameters = [
+    orgSlugHeaderParam,
+    pathParam('id', 'Project ID'),
+  ];
+  const taskParameters = [
+    ...taskCollectionParameters,
+    pathParam('taskId', 'Task ID in this project'),
+  ];
+  const taskNotFound = errorResponse(
+    'Project or task missing, invisible, or outside this project',
+  );
+  paths['/api/v1/projects/{id}/tasks'] = {
     post: {
       tags: ['Tasks'],
-      summary: 'Create a task from an external ref (idempotent)',
+      summary: 'Create a project task from an external ref (idempotent)',
       description:
-        'Materializes an external item as a task of one project, keyed by ' +
-        '`(projectId, externalSystem, externalId)`: the first call creates ' +
-        '(201, `created: true`), any repeat answers the SAME task (200, ' +
-        '`created: false`). An active task takes the new title and description ' +
-        '(omitting description clears it); labels change only when supplied. ' +
-        'An archived task stays unchanged. No duplicate is created — safe for a worker that ' +
-        'retries after a crash. `projectId` is REQUIRED: this door never ' +
-        'falls back to the org-wide project, and the project must exist AND ' +
-        'be visible to the key’s minting user (an opaque 404 otherwise). ' +
-        '`externalId` is a caller-owned opaque key the platform never ' +
-        'interprets; `externalUrl` is stored verbatim. The task is created ' +
-        'by the minting user; over-long titles are truncated to the board ' +
-        'cap rather than refused. When `runWorkflowSlug` is sent, a NEWLY ' +
-        'created task also starts that workflow on itself, inline — the ' +
-        'response then carries the run’s `executionId` (poll `GET ' +
-        '/api/v1/runs/{runId}`), or `executionId: null` when the slug names ' +
-        'no deployed automation. Skipped on an idempotent re-pick (no ' +
-        '`executionId` field at all). Shares the general REST ' +
-        'bucket (120/min, keyed on the key holder).',
+        'Uses the project in the URL and requires project write access. The first ' +
+        '`(project, externalSystem, externalId)` intake creates a task (201); a repeat ' +
+        'returns the same task (200). An active task takes the new title and description ' +
+        '(omitting description clears it); labels change only when supplied. An archived ' +
+        'task stays unchanged. An archived project refuses intake. The key holder creates ' +
+        'the task; imported titles are truncated to the board cap. `automationSlug` must ' +
+        'name a deployed automation applicable to this project and fills an empty assignee ' +
+        'without replacing an existing one. `runWorkflowSlug` starts only a freshly created ' +
+        'task; poll its executionId at `GET /api/v1/projects/{id}/runs/{runId}`. An undeployed ' +
+        'workflow or a start failure after the task committed returns executionId null. ' +
+        'An idempotent repeat omits executionId. Supplying runWorkflowSlug charges the ' +
+        'execute bucket before intake, in addition to the general REST bucket. Scope ' +
+        'selectors such as projectId are refused in the body.',
       operationId: 'createTask',
       security: sec,
-      parameters: [orgSlugHeaderParam],
+      parameters: taskCollectionParameters,
       requestBody: jsonBody({
         type: 'object',
-        required: ['projectId', 'externalSystem', 'externalId', 'title'],
+        additionalProperties: false,
+        required: ['externalSystem', 'externalId', 'title'],
         properties: {
-          projectId: {
-            type: 'string',
-            description: 'The destination project — required, never defaulted',
-          },
-          externalSystem: {
-            type: 'string',
-            maxLength: 100,
-            description: 'The external system the ref belongs to',
-          },
+          externalSystem: { type: 'string', minLength: 1, maxLength: 100 },
           externalId: {
             type: 'string',
+            minLength: 1,
             maxLength: 500,
             description:
-              'Caller-owned natural key, opaque to the platform; the ' +
-              'idempotency key within the project (per externalSystem)',
+              'Caller-owned idempotency key within this project and external system',
           },
-          title: { type: 'string', maxLength: 2000 },
+          title: { type: 'string', minLength: 1, maxLength: 2000 },
           description: { type: 'string', maxLength: 20000 },
           labels: {
             type: 'array',
             items: { type: 'string', maxLength: 50 },
             maxItems: 50,
-            description:
-              'Label names, resolved against (and added to) the project’s ' +
-              'label catalog',
+            description: 'Names resolved against the project label catalog',
           },
           externalUrl: {
             type: 'string',
             maxLength: 2048,
-            description: 'Generic external reference, stored verbatim',
+            description: 'External reference stored verbatim',
           },
           runWorkflowSlug: {
             type: 'string',
+            minLength: 1,
             maxLength: 200,
             description:
-              'Deployed automation to schedule on the task when (and only ' +
-              'when) this call CREATES it',
+              'Workflow to start only when this request creates a task; must be applicable to the URL project',
           },
           automationSlug: {
             type: 'string',
+            minLength: 1,
             maxLength: 200,
             description:
-              'Attribute the task to this automation WITHOUT starting ' +
-              'anything: it becomes the assignee, which the task modal’s ' +
-              'work panel (Start, run progress, operator questions) keys ' +
-              'on. Send it when creating tasks an automation will operate. ' +
-              'A re-pick fills a missing attribution but never overwrites ' +
-              'an existing assignee.',
+              'Deployed owning automation applicable to this project; takes precedence over runWorkflowSlug for task assignment',
           },
         },
       }),
       responses: {
         '201': jsonResponse('Created', ref('TaskUpsertResult')),
         '200': jsonResponse(
-          'The task already existed (idempotent re-pick)',
+          'The task already existed',
           ref('TaskUpsertResult'),
         ),
-        '404': errorResponse('Project not found (or not visible to the key)'),
+        '403': errorResponse(
+          'Project is read-only or archived, or the automation is bound to other projects',
+        ),
+        '404': errorResponse(
+          'Project missing or invisible, or the explicit owning automation is not deployed',
+        ),
         ...standardErrors,
       },
     },
   };
-
-  paths['/api/v1/tasks/{id}/comments'] = {
+  paths['/api/v1/projects/{id}/tasks/{taskId}'] = {
     get: {
       tags: ['Tasks'],
-      summary: 'List the task’s comments',
+      summary: 'Read a project task',
       description:
-        'The discussion read lane: what automations reported back (prepared ' +
-        'figures, operator questions, setup summaries) and what people ' +
-        'replied. Answers the NEWEST `limit` comments (default 200, at most ' +
-        '500), chronological within the page; while `isDone` is false, pass ' +
-        '`continueCursor` back as `cursor` to read the older ones — a busy ' +
-        'task’s discussion is never silently cut at a fixed window. ' +
-        '`authorType` separates `user` and `agent` voices. Visibility is ' +
-        'the minting user’s, like every task read.',
+        'The task must belong to the URL project and be visible to the key holder. Archived tasks remain readable. Keep the executionId from a start to poll `GET /api/v1/projects/{id}/runs/{runId}`; the task response has no live-run linkage.',
+      operationId: 'getTask',
+      security: sec,
+      parameters: taskParameters,
+      responses: {
+        '200': jsonResponse('The task', {
+          type: 'object',
+          required: ['task'],
+          properties: { task: ref('Task') },
+        }),
+        '404': taskNotFound,
+        ...standardErrors,
+      },
+    },
+  };
+  paths['/api/v1/projects/{id}/tasks/{taskId}/comments'] = {
+    get: {
+      tags: ['Tasks'],
+      summary: 'Read a project task’s discussion',
+      description:
+        'The newest page first, chronological within each page. The default is 200 comments, at most 500. While isDone is false, pass continueCursor as cursor to read older comments. The task must belong to this project and be visible to the key holder.',
       operationId: 'listTaskComments',
       security: sec,
       parameters: [
-        orgSlugHeaderParam,
-        pathParam('id', 'Task ID'),
-        queryParam(
-          'limit',
-          'How many of the newest comments to answer (1–500, default 200)',
-          { type: 'integer' },
-        ),
+        ...taskParameters,
+        queryParam('limit', 'Page size from 1 to 500; default 200', {
+          type: 'integer',
+        }),
         queryParam(
           'cursor',
-          'The `continueCursor` of a previous page — answers the comments ' +
-            'older than that page',
+          'The previous page’s continueCursor; omit for the newest page',
         ),
       ],
       responses: {
-        '200': jsonResponse(
-          'The newest page of the discussion, chronological within the page',
-          {
-            type: 'object',
-            required: ['comments', 'isDone', 'continueCursor'],
-            properties: {
-              comments: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  required: [
-                    'id',
-                    'authorType',
-                    'authorId',
-                    'body',
-                    'createdAt',
-                  ],
-                  properties: {
-                    id: { type: 'string' },
-                    authorType: { type: 'string', enum: ['user', 'agent'] },
-                    authorId: { type: 'string' },
-                    body: { type: 'string' },
-                    createdAt: { type: 'number' },
-                    editedAt: { type: 'number' },
-                  },
+        '200': jsonResponse('The discussion page', {
+          type: 'object',
+          required: ['comments', 'isDone', 'continueCursor'],
+          properties: {
+            comments: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['id', 'authorType', 'authorId', 'body', 'createdAt'],
+                properties: {
+                  id: str,
+                  authorType: { type: 'string', enum: ['user', 'agent'] },
+                  authorId: str,
+                  body: str,
+                  createdAt: num,
+                  editedAt: num,
                 },
               },
-              isDone: {
-                type: 'boolean',
-                description:
-                  'True once this page reaches the start of the discussion',
-              },
-              continueCursor: {
-                type: 'string',
-                description:
-                  'Pass as `cursor` for the next older page; empty when done',
-              },
+            },
+            isDone: {
+              type: 'boolean',
+              description:
+                'True when this page reaches the start of the discussion',
+            },
+            continueCursor: {
+              type: 'string',
+              description: 'Cursor for older comments; empty when done',
             },
           },
-        ),
-        '404': errorResponse('Task not found'),
+        }),
+        '404': taskNotFound,
         ...standardErrors,
       },
     },
     post: {
       tags: ['Tasks'],
-      summary: 'Comment on the task as the key’s user',
+      summary: 'Comment on a project task as the key holder',
       description:
-        'Posts into the task’s discussion AS THE MINTING USER (author and ' +
-        'actor type `user`) — indistinguishable from the same person ' +
-        'commenting in the app, @mention behaviour included. Commenting is ' +
-        'a READ-level action: any member who can see the task may post. ' +
-        'The body is capped at 10000 characters and charged against the ' +
-        'same per-user `task:comment` budget as in-app comments (429 with ' +
-        'Retry-After beyond it).',
+        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and the project must be active. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior.',
       operationId: 'addTaskComment',
       security: sec,
-      parameters: [orgSlugHeaderParam, pathParam('id', 'Task ID')],
+      parameters: taskParameters,
       requestBody: jsonBody({
         type: 'object',
+        additionalProperties: false,
         required: ['body'],
         properties: {
-          body: {
-            type: 'string',
-            maxLength: 10000,
-            description: 'The comment text',
-          },
+          body: { type: 'string', minLength: 1, maxLength: 10000 },
         },
       }),
       responses: {
@@ -1581,76 +1577,31 @@ export function buildSpec(): Json {
             comment: {
               type: 'object',
               required: ['id'],
-              properties: { id: { type: 'string' } },
+              properties: { id: str },
             },
           },
         }),
-        '404': errorResponse('Task not found'),
+        '403': errorResponse('The project is archived'),
+        '404': taskNotFound,
         ...standardErrors,
       },
     },
   };
-
-  paths['/api/v1/tasks/{id}'] = {
-    get: {
-      tags: ['Tasks'],
-      summary: 'Get a task',
-      description:
-        'The task’s state for a polling worker. Visibility is the minting ' +
-        'user’s (a task inherits its project’s access): a cross-organization ' +
-        'id, an invisible task, and a nonexistent one all answer the same ' +
-        'opaque 404. The task row carries NO live-run linkage — to follow a ' +
-        'workflow run, keep the `executionId` answered by `POST ' +
-        '/api/v1/tasks/{id}/start` and poll `GET /api/v1/runs/{runId}`.',
-      operationId: 'getTask',
-      security: sec,
-      parameters: [orgSlugHeaderParam, pathParam('id', 'Task ID')],
-      responses: {
-        '200': jsonResponse('The task', {
-          type: 'object',
-          required: ['task'],
-          properties: { task: ref('Task') },
-        }),
-        '404': errorResponse('Task not found'),
-        ...standardErrors,
-      },
-    },
-  };
-
-  paths['/api/v1/tasks/{id}/start'] = {
+  paths['/api/v1/projects/{id}/tasks/{taskId}/start'] = {
     post: {
       tags: ['Tasks'],
-      summary: 'Start a deployed workflow on the task',
+      summary: 'Start a deployed workflow on a project task',
       description:
-        'Starts a fresh, subject-linked run of `workflowSlug` carrying the ' +
-        '`{task: ...}` as its input — the REST twin of the task board’s Start. RBAC ' +
-        'is deliberately the session action’s: org membership plus the ' +
-        'task’s READ visibility, NOT the developer gate `POST ' +
-        '/api/v1/automations/{name}/runs` applies — that endpoint starts a ' +
-        'run with arbitrary input, while this one is task-subject-bound ' +
-        '(its input contains the task), which narrows the blast radius; deploying ' +
-        'the workflow was the privileged act. The run is attributed ' +
-        '`api-key:<userId>` in the run log, so machine starts stay ' +
-        'distinguishable from human UI starts. Answers the session shape: ' +
-        '`started: true` with the new run’s `executionId` (poll `GET ' +
-        '/api/v1/runs/{runId}`); `already_running` with the in-flight run’s ' +
-        'id instead of racing a duplicate over the same task; `not_started` ' +
-        'when the slug names no deployed automation (or the start failed) — ' +
-        'the task itself is untouched either way. Work-starting lane: ' +
-        'charged against the execute bucket (20/min) on top of the general ' +
-        'one (120/min); both keyed on the key holder.',
+        'Requires write access to an active project and a task belonging to it. Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. An organization automation can operate in the project; a project-bound automation must include this project. A concurrent start reuses the live run. An undeployed workflow returns not_started; other refusals return their error status. Poll executionId at `GET /api/v1/projects/{id}/runs/{runId}`. Charges the execute bucket on top of the general REST bucket.',
       operationId: 'startTaskWorkflow',
       security: sec,
-      parameters: [orgSlugHeaderParam, pathParam('id', 'Task ID')],
+      parameters: taskParameters,
       requestBody: jsonBody({
         type: 'object',
+        additionalProperties: false,
         required: ['workflowSlug'],
         properties: {
-          workflowSlug: {
-            type: 'string',
-            maxLength: 200,
-            description: 'The deployed automation to run on this task',
-          },
+          workflowSlug: { type: 'string', minLength: 1, maxLength: 200 },
         },
       }),
       responses: {
@@ -1658,23 +1609,24 @@ export function buildSpec(): Json {
           type: 'object',
           required: ['started', 'executionId'],
           properties: {
-            started: { type: 'boolean' },
+            started: bool,
             reason: {
               type: 'string',
               enum: ['already_running', 'not_started'],
-              description: 'Present only when `started` is false',
+              description: 'Present when started is false',
             },
             executionId: {
               type: 'string',
               nullable: true,
               description:
-                'The run to poll via GET /api/v1/runs/{runId} — the new ' +
-                'run’s id, the in-flight one’s for `already_running`, null ' +
-                'for `not_started`',
+                'New or existing run ID for GET /api/v1/projects/{id}/runs/{runId}; null when not_started',
             },
           },
         }),
-        '404': errorResponse('Task not found'),
+        '403': errorResponse(
+          'Project is read-only or archived, or the automation is bound elsewhere',
+        ),
+        '404': taskNotFound,
         ...standardErrors,
       },
     },
@@ -1687,10 +1639,9 @@ export function buildSpec(): Json {
       tags: ['Automations'],
       summary: 'List automations',
       description:
-        'Every automation of the organization, by name — a complete set, ' +
-        'not paginated (an organization holds tens of automations, not ' +
-        'thousands). `projectIds` is the binding set: empty means ' +
-        'org-level.',
+        'The organization’s automation definitions, by name, as a complete set. ' +
+        'Project binding IDs are omitted. Read `/api/v1/projects/{id}/automations` ' +
+        'for the automations installed in a visible project.',
       operationId: 'listAutomations',
       security: sec,
       responses: {
@@ -1741,143 +1692,160 @@ export function buildSpec(): Json {
     },
   };
 
-  paths['/api/v1/automations/{name}/runs'] = {
+  const projectAutomationParameters = [
+    orgSlugHeaderParam,
+    pathParam('id', 'Project ID'),
+  ];
+  paths['/api/v1/projects/{id}/automations'] = {
     get: {
       tags: ['Automations'],
-      summary: 'List an automation’s runs',
+      summary: 'List automations installed in a project',
       description:
-        'The newest runs first — a bounded WINDOW (`limit` 1..200, default ' +
-        '50), not a cursor walk; each row is the full run. To follow one ' +
-        'run, poll `GET /api/v1/runs/{runId}`.',
-      operationId: 'listAutomationRuns',
+        'The definitions explicitly bound to the URL project. Requires project read access and omits all project binding IDs. Organization-wide definitions are available from the global catalog.',
+      operationId: 'listProjectAutomations',
       security: sec,
-      parameters: [
-        automationNameParam,
-        queryParam(
-          'limit',
-          'How many of the newest runs to answer, 1..200 (default 50)',
-          { type: 'integer' },
-        ),
-      ],
+      parameters: projectAutomationParameters,
       responses: {
-        '200': jsonResponse('Newest runs first', listOf('runs', ref('Run'))),
-        ...standardErrors,
-      },
-    },
-    post: {
-      tags: ['Automations'],
-      summary: 'Start a run of the deployed version',
-      description:
-        'Answers 202 with the run’s identity rather than its result: a run ' +
-        'is durable and may take minutes, so poll `GET /api/v1/runs/{runId}`. ' +
-        'Starting a run needs no trigger — the API key is the entitlement. ' +
-        '`mode` defaults to `live`, which requires the key holder to have ' +
-        'the developer capability; a `mock` run needs only membership. ' +
-        '`projectId` scopes the run to a project and must exist in this ' +
-        'organization; a project-bound automation accepts only one of its ' +
-        'bound projects (403 otherwise). Omitted, the run is attributed to ' +
-        'the sole binding, or runs organization-wide. ' +
-        'Charged against the execute bucket (20/min) on top of the general ' +
-        'one.',
-      operationId: 'startAutomationRun',
-      security: sec,
-      parameters: [automationNameParam],
-      requestBody: jsonBody(
-        {
-          type: 'object',
-          properties: {
-            input: {
-              description:
-                'The run input; must match the automation inputs schema when declared',
-            },
-            mode: { type: 'string', enum: ['live', 'mock'], default: 'live' },
-            version: {
-              type: 'integer',
-              description:
-                'Omitted: the deployed version. Live mode only accepts that ' +
-                'version; mock mode accepts any saved version.',
-            },
-            projectId: {
-              type: 'string',
-              description: 'The project the run operates in',
-            },
-          },
-        },
-        false,
-      ),
-      responses: {
-        '202': jsonResponse('Run started', {
-          type: 'object',
-          required: ['runId', 'version', 'name', 'mode'],
-          properties: {
-            runId: { type: 'string' },
-            version: { type: 'integer' },
-            name: { type: 'string' },
-            mode: { type: 'string', enum: ['live', 'mock'] },
-          },
-        }),
-        '403': errorResponse('A live run needs the developer capability'),
-        '404': errorResponse('Automation or version not found'),
-        '409': errorResponse(
-          'No deployed version, or the requested live version is not deployed',
+        '200': jsonResponse(
+          'Installed automations',
+          listOf('automations', ref('AutomationSummary')),
         ),
+        '404': errorResponse('Project missing or invisible'),
         ...standardErrors,
       },
     },
   };
-
-  paths['/api/v1/automations/{name}/projects'] = {
+  paths['/api/v1/projects/{id}/automations/{name}'] = {
     post: {
       tags: ['Automations'],
-      summary: 'Bind the automation to a project',
+      summary: 'Install an automation in a project',
       description:
-        'Idempotently adds ONE project to the automation’s binding set — ' +
-        'the machine door’s install step, so a worker that just created a ' +
-        'client project can put the automation on it without a human. The ' +
-        'binding SET is the scope: an automation with no bindings is ' +
-        'org-level (every project sees it); one with bindings runs only in ' +
-        'those projects. Requires the developer capability (the same gate ' +
-        'as the session binding panel), and a key whose user belongs to ' +
-        'several organizations must send `X-Organization-Slug`. The target ' +
-        'project must be visible to the key’s minting user — an invisible ' +
-        'or foreign project answers the same 404 as an absent one. Answers ' +
-        '201 when the binding was added, 200 when it already existed. ' +
-        'Unbinding stays a dashboard operation.',
+        'Idempotently binds the named automation to the URL project. Requires the developer capability and write access to an active project. Send no body or an empty object. Answers 201 when added and 200 when already bound. An automation with bindings can run only in those projects; an unbound definition can run organization-wide or in a visible project.',
       operationId: 'bindAutomationProject',
       security: sec,
-      parameters: [automationNameParam, orgSlugHeaderParam],
-      requestBody: jsonBody({
-        type: 'object',
-        required: ['projectId'],
-        properties: {
-          projectId: { type: 'string', description: 'The project to bind' },
-        },
-      }),
+      parameters: [...projectAutomationParameters, automationNameParam],
+      requestBody: jsonBody(
+        { type: 'object', additionalProperties: false, properties: {} },
+        false,
+      ),
       responses: {
         '201': jsonResponse('Binding added', {
           type: 'object',
           required: ['name', 'added'],
-          properties: {
-            name: { type: 'string' },
-            added: { type: 'boolean', enum: [true] },
-          },
+          properties: { name: str, added: { type: 'boolean', enum: [true] } },
         }),
-        '200': jsonResponse('Binding already existed', {
+        '200': jsonResponse('Already installed', {
           type: 'object',
           required: ['name', 'added'],
-          properties: {
-            name: { type: 'string' },
-            added: { type: 'boolean', enum: [false] },
-          },
+          properties: { name: str, added: { type: 'boolean', enum: [false] } },
         }),
-        '403': errorResponse('The key holder lacks the developer capability'),
-        '404': errorResponse(
-          'Automation or project not found (or not visible to the key)',
+        '403': errorResponse(
+          'Requires developer capability and write access to an active project',
         ),
+        '404': errorResponse('Automation or visible project not found'),
         ...standardErrors,
       },
     },
   };
+  for (const scope of [
+    { path: '/api/v1/automations/{name}/runs', project: false },
+    { path: '/api/v1/projects/{id}/automations/{name}/runs', project: true },
+  ]) {
+    const parameters = scope.project
+      ? [...projectAutomationParameters, automationNameParam]
+      : [orgSlugHeaderParam, automationNameParam];
+    const runPath = scope.project
+      ? '/api/v1/projects/{id}/runs/{runId}'
+      : '/api/v1/runs/{runId}';
+    paths[scope.path] = {
+      get: {
+        tags: ['Automations'],
+        summary: scope.project
+          ? 'List an automation’s runs in a project'
+          : 'List an automation’s organization runs',
+        description: `Newest first, as a bounded window (limit 1–200, default 50). ${scope.project ? 'Includes only runs attributed to the URL project; requires project read access.' : 'Includes only runs without a project. Project runs are read through their project URL.'} Poll a run at GET ${runPath}.`,
+        operationId: scope.project
+          ? 'listProjectAutomationRuns'
+          : 'listAutomationRuns',
+        security: sec,
+        parameters: [
+          ...parameters,
+          queryParam(
+            'limit',
+            'Newest runs to return, from 1 to 200; default 50',
+            { type: 'integer' },
+          ),
+        ],
+        responses: {
+          '200': jsonResponse('Newest runs first', listOf('runs', ref('Run'))),
+          ...(scope.project
+            ? { '404': errorResponse('Project missing or invisible') }
+            : {}),
+          ...standardErrors,
+        },
+      },
+      post: {
+        tags: ['Automations'],
+        summary: scope.project
+          ? 'Start an automation run in a project'
+          : 'Start an organization automation run',
+        description: `Answers 202 with the run identity; poll GET ${runPath}. Mode defaults to live and requires the developer capability. ${scope.project ? 'Both live and mock starts require write access to the active URL project. An automation with bindings must include this project; an unbound definition may also run here.' : 'Mock mode requires membership. Only definitions without project bindings can start here; a project-bound definition returns 409 AUTOMATION_PROJECT_SCOPE_REQUIRED.'} The body accepts input, mode and version only. Charges the execute bucket on top of the general REST bucket.`,
+        operationId: scope.project
+          ? 'startProjectAutomationRun'
+          : 'startAutomationRun',
+        security: sec,
+        parameters,
+        requestBody: jsonBody(
+          {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              input: {
+                description:
+                  'Run input; must match the automation inputs schema when declared. Defaults to an empty object.',
+              },
+              mode: { type: 'string', enum: ['live', 'mock'], default: 'live' },
+              version: {
+                type: 'integer',
+                minimum: 1,
+                description:
+                  'Omitted: the deployed version. Live accepts only that version; mock accepts any saved version.',
+              },
+            },
+          },
+          false,
+        ),
+        responses: {
+          '202': jsonResponse('Run started', {
+            type: 'object',
+            required: ['runId', 'version', 'name', 'mode'],
+            properties: {
+              runId: str,
+              version: int,
+              name: str,
+              mode: { type: 'string', enum: ['live', 'mock'] },
+            },
+          }),
+          '403': errorResponse(
+            scope.project
+              ? 'Requires write access to an active project; live also requires developer capability; automation must apply to the project'
+              : 'A live run requires developer capability',
+          ),
+          '404': errorResponse(
+            scope.project
+              ? 'Automation, version or visible project not found'
+              : 'Automation or version not found',
+          ),
+          '409': errorResponse(
+            scope.project
+              ? 'No deployed version, or the requested live version is not deployed'
+              : 'Project scope is required, no version is deployed, or the requested live version is not deployed',
+          ),
+          ...standardErrors,
+        },
+      },
+    };
+  }
 
   paths['/api/v1/automations/{name}/triggers'] = {
     get: {
@@ -1969,46 +1937,67 @@ export function buildSpec(): Json {
 
   // ── Runs ──────────────────────────────────────────────────────────────────
 
-  paths['/api/v1/runs/{runId}'] = {
-    get: {
-      tags: ['Runs'],
-      summary: 'Get one run in full',
-      operationId: 'getRun',
-      security: sec,
-      parameters: [pathParam('runId', 'The run ID a start call returned')],
-      responses: {
-        '200': jsonResponse(
-          'The run: status, output, trace, effects, checkpoints',
-          ref('Run'),
+  for (const scope of [
+    { path: '/api/v1/runs/{runId}', project: false },
+    { path: '/api/v1/projects/{id}/runs/{runId}', project: true },
+  ]) {
+    const parameters = [
+      orgSlugHeaderParam,
+      ...(scope.project ? [pathParam('id', 'Project ID')] : []),
+      pathParam('runId', 'Run ID returned by a start request'),
+    ];
+    const visibility = scope.project
+      ? 'The run must belong to the URL project, and the key holder must have project read access.'
+      : 'Only a run without a project is visible here. Use its project URL for a project run.';
+    paths[scope.path] = {
+      get: {
+        tags: ['Runs'],
+        summary: scope.project
+          ? 'Read a project run in full'
+          : 'Read an organization run in full',
+        description: visibility,
+        operationId: scope.project ? 'getProjectRun' : 'getRun',
+        security: sec,
+        parameters,
+        responses: {
+          '200': jsonResponse(
+            'Status, output, trace, effects and checkpoints',
+            ref('Run'),
+          ),
+          '404': errorResponse('Run missing or outside the visible URL scope'),
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.path}/cancel`] = {
+      post: {
+        tags: ['Runs'],
+        summary: 'Stop a run at its next node boundary',
+        description: `${visibility} Requires the developer capability.${scope.project ? ' The project must be active and writable.' : ''} Work already performed is not undone. Send no body or an empty object.`,
+        operationId: scope.project ? 'cancelProjectRun' : 'cancelRun',
+        security: sec,
+        parameters,
+        requestBody: jsonBody(
+          { type: 'object', additionalProperties: false, properties: {} },
+          false,
         ),
-        '404': errorResponse('Run not found'),
-        ...standardErrors,
+        responses: {
+          '200': jsonResponse('Cancellation result', {
+            type: 'object',
+            required: ['cancelled'],
+            properties: { cancelled: bool },
+          }),
+          '403': errorResponse(
+            scope.project
+              ? 'Requires developer capability and write access to an active project'
+              : 'Requires developer capability',
+          ),
+          '404': errorResponse('Run missing or outside the visible URL scope'),
+          ...standardErrors,
+        },
       },
-    },
-  };
-
-  paths['/api/v1/runs/{runId}/cancel'] = {
-    post: {
-      tags: ['Runs'],
-      summary: 'Stop a run at its next node boundary',
-      description:
-        'Requires the developer capability. Work a node already performed ' +
-        'is not undone.',
-      operationId: 'cancelRun',
-      security: sec,
-      parameters: [pathParam('runId', 'The run ID')],
-      responses: {
-        '200': jsonResponse('Cancellation result', {
-          type: 'object',
-          required: ['cancelled'],
-          properties: { cancelled: { type: 'boolean' } },
-        }),
-        '403': errorResponse('Needs the developer capability'),
-        '404': errorResponse('Run not found'),
-        ...standardErrors,
-      },
-    },
-  };
+    };
+  }
 
   // ── Threads ───────────────────────────────────────────────────────────────
 
@@ -2039,156 +2028,198 @@ export function buildSpec(): Json {
     },
   };
 
-  paths['/api/v1/threads'] = {
-    get: {
-      tags: ['Threads'],
-      summary: 'List the key holder’s threads',
-      description:
-        'The key’s own threads, including archived threads, newest activity first.',
-      operationId: 'listThreads',
-      security: sec,
-      parameters: paginationParams(100, 25),
-      responses: {
-        '200': jsonResponse('Paginated threads', pageOf(ref('Thread'))),
-        ...standardErrors,
-      },
+  for (const scope of [
+    {
+      collection: '/api/v1/threads',
+      item: '/api/v1/threads/{id}',
+      project: false,
     },
-    post: {
-      tags: ['Threads'],
-      summary: 'Create a thread',
-      description:
-        'A direct chat thread with the built-in assistant. Optional projectId supplies project context. This route does not execute project agents; agent selectors and other unknown fields are refused with 400.',
-      operationId: 'createThread',
-      security: sec,
-      requestBody: jsonBody(
-        {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            title: { type: 'string' },
-            projectId: { type: 'string' },
-          },
+    {
+      collection: '/api/v1/projects/{id}/threads',
+      item: '/api/v1/projects/{id}/threads/{threadId}',
+      project: true,
+    },
+  ]) {
+    const collectionParameters = [
+      orgSlugHeaderParam,
+      ...(scope.project ? [pathParam('id', 'Project ID')] : []),
+    ];
+    const itemParameters = [
+      ...collectionParameters,
+      pathParam(scope.project ? 'threadId' : 'id', 'Thread ID'),
+    ];
+    const visibility = scope.project
+      ? 'Only the key holder’s threads belonging to the URL project; requires project read access.'
+      : 'Only the key holder’s threads without a project. Project threads are available through their project URL.';
+    const notFound = errorResponse(
+      'Thread missing, owned by another user, or outside the visible URL scope',
+    );
+    paths[scope.collection] = {
+      get: {
+        tags: ['Threads'],
+        summary: scope.project
+          ? 'List your threads in a project'
+          : 'List your personal threads',
+        description: `${visibility} Includes archived threads, newest activity first.`,
+        operationId: scope.project ? 'listProjectThreads' : 'listThreads',
+        security: sec,
+        parameters: [...collectionParameters, ...paginationParams(100, 25)],
+        responses: {
+          '200': jsonResponse('Paginated threads', pageOf(ref('Thread'))),
+          ...(scope.project ? { '404': notFound } : {}),
+          ...standardErrors,
         },
-        false,
-      ),
-      responses: {
-        '201': createdId('Created — the thread’s id'),
-        '403': errorResponse('No access to the project'),
-        '404': errorResponse('Project not found'),
-        ...standardErrors,
       },
-    },
-  };
-
-  paths['/api/v1/threads/{id}'] = {
-    get: {
-      tags: ['Threads'],
-      summary: 'Get a thread',
-      operationId: 'getThread',
-      security: sec,
-      parameters: [pathParam('id', 'Thread ID')],
-      responses: {
-        '200': jsonResponse('The thread', ref('Thread')),
-        '404': errorResponse('Thread not found'),
-        ...standardErrors,
-      },
-    },
-  };
-
-  paths['/api/v1/threads/{id}/messages'] = {
-    get: {
-      tags: ['Threads'],
-      summary: 'List a thread’s messages',
-      description:
-        'The conversation in sequence order; `cursor` is the previous ' +
-        'page’s `continueCursor` (the last message’s `sequence`).',
-      operationId: 'listMessages',
-      security: sec,
-      parameters: [pathParam('id', 'Thread ID'), ...paginationParams(100, 25)],
-      responses: {
-        '200': jsonResponse('Paginated messages', pageOf(ref('Message'))),
-        '404': errorResponse('Thread not found'),
-        ...standardErrors,
-      },
-    },
-    post: {
-      tags: ['Threads'],
-      summary: 'Send a message and start a turn',
-      description:
-        'Answers 202 immediately; the turn runs in the background. Poll ' +
-        '`GET /api/v1/threads/{id}/generation` until `{"status": "idle"}`, ' +
-        'then read the messages. A turn that fails before producing output ' +
-        'surfaces as an assistant message carrying an error — never ' +
-        'silently. Charged against the execute bucket (20/min) on top of ' +
-        'the general one.',
-      operationId: 'postMessage',
-      security: sec,
-      parameters: [pathParam('id', 'Thread ID')],
-      requestBody: jsonBody({
-        type: 'object',
-        required: ['content', 'model'],
-        properties: {
-          content: { type: 'string' },
-          model: {
-            type: 'string',
-            description:
-              'A model id from GET /api/v1/models (never auto-selected)',
-          },
-          providerSlug: {
-            type: 'string',
-            description: 'The providerSlug returned with the model',
-          },
-          locale: { type: 'string' },
-        },
-      }),
-      responses: {
-        '202': jsonResponse('Turn accepted', {
-          type: 'object',
-          required: ['threadId', 'status', 'model', 'poll'],
-          properties: {
-            threadId: { type: 'string' },
-            status: { type: 'string', enum: ['accepted'] },
-            model: { type: 'string' },
-            poll: { type: 'string', description: 'The generation poll URL' },
-          },
-        }),
-        '404': errorResponse('Thread not found'),
-        '409': errorResponse('Sandbox thread, or a turn is already running'),
-        ...standardErrors,
-      },
-    },
-  };
-
-  paths['/api/v1/threads/{id}/generation'] = {
-    get: {
-      tags: ['Threads'],
-      summary: 'Poll the running turn',
-      operationId: 'getGeneration',
-      security: sec,
-      parameters: [pathParam('id', 'Thread ID')],
-      responses: {
-        '200': jsonResponse(
-          '`{"status": "idle"}` when no turn is running (read the messages); otherwise the live status',
+      post: {
+        tags: ['Threads'],
+        summary: scope.project
+          ? 'Create a chat in a project'
+          : 'Create a personal chat',
+        description: `A direct chat with the built-in assistant. ${scope.project ? 'The URL supplies its project context. Any member with project read access may create a chat while the project is active.' : 'The thread has no project context.'} This operation accepts only an optional title; agent selectors and projectId are refused. Project agents execute through project tasks.`,
+        operationId: scope.project ? 'createProjectThread' : 'createThread',
+        security: sec,
+        parameters: collectionParameters,
+        requestBody: jsonBody(
           {
             type: 'object',
-            required: ['status'],
+            additionalProperties: false,
             properties: {
-              status: {
-                type: 'string',
-                enum: ['idle', 'queued', 'streaming'],
-              },
-              messageId: {
-                type: 'string',
-                description: 'The assistant message being streamed',
-              },
+              title: { type: 'string', minLength: 1, maxLength: 200 },
             },
           },
+          false,
         ),
-        '404': errorResponse('Thread not found'),
-        ...standardErrors,
+        responses: {
+          '201': createdId('Created thread ID'),
+          ...(scope.project
+            ? {
+                '403': errorResponse('The project is archived'),
+                '404': notFound,
+              }
+            : {}),
+          ...standardErrors,
+        },
       },
-    },
-  };
+    };
+    paths[scope.item] = {
+      get: {
+        tags: ['Threads'],
+        summary: 'Read a thread',
+        description: visibility,
+        operationId: scope.project ? 'getProjectThread' : 'getThread',
+        security: sec,
+        parameters: itemParameters,
+        responses: {
+          '200': jsonResponse('The thread', ref('Thread')),
+          '404': notFound,
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.item}/messages`] = {
+      get: {
+        tags: ['Threads'],
+        summary: 'Read a thread’s messages',
+        description: `${visibility} Messages are in sequence order; use the previous continueCursor as cursor for the next page.`,
+        operationId: scope.project
+          ? 'listProjectThreadMessages'
+          : 'listMessages',
+        security: sec,
+        parameters: [...itemParameters, ...paginationParams(100, 25)],
+        responses: {
+          '200': jsonResponse('Paginated messages', pageOf(ref('Message'))),
+          '404': notFound,
+          ...standardErrors,
+        },
+      },
+      post: {
+        tags: ['Threads'],
+        summary: 'Send a message and start a turn',
+        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background. Poll GET ${scope.item}/generation until status is idle, then read the messages. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
+        operationId: scope.project ? 'postProjectThreadMessage' : 'postMessage',
+        security: sec,
+        parameters: itemParameters,
+        requestBody: jsonBody({
+          type: 'object',
+          additionalProperties: false,
+          required: ['content', 'model'],
+          properties: {
+            content: { type: 'string', minLength: 1, maxLength: 100000 },
+            model: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 200,
+              description:
+                'Model ID from GET /api/v1/models; never auto-selected',
+            },
+            providerSlug: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 200,
+              description: 'Provider slug returned with the model',
+            },
+            locale: { type: 'string', minLength: 1, maxLength: 20 },
+          },
+        }),
+        responses: {
+          '202': jsonResponse('Turn accepted', {
+            type: 'object',
+            required: ['threadId', 'status', 'model', 'poll'],
+            properties: {
+              threadId: str,
+              status: { type: 'string', enum: ['accepted'] },
+              model: str,
+              poll: {
+                type: 'string',
+                description: `Poll URL under ${scope.item}/generation`,
+              },
+            },
+          }),
+          ...(scope.project
+            ? { '403': errorResponse('The project is archived') }
+            : {}),
+          '404': notFound,
+          '409': errorResponse(
+            'Archived or non-direct thread, or a turn is already running',
+          ),
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`${scope.item}/generation`] = {
+      get: {
+        tags: ['Threads'],
+        summary: 'Poll the running turn',
+        description: visibility,
+        operationId: scope.project
+          ? 'getProjectThreadGeneration'
+          : 'getGeneration',
+        security: sec,
+        parameters: itemParameters,
+        responses: {
+          '200': jsonResponse(
+            'Idle when no turn is running; otherwise the live status',
+            {
+              type: 'object',
+              required: ['status'],
+              properties: {
+                status: {
+                  type: 'string',
+                  enum: ['idle', 'queued', 'streaming'],
+                },
+                messageId: {
+                  type: 'string',
+                  description: 'Assistant message being streamed',
+                },
+              },
+            },
+          ),
+          '404': notFound,
+          ...standardErrors,
+        },
+      },
+    };
+  }
 
   // ── Skills ────────────────────────────────────────────────────────────────
 
@@ -2366,41 +2397,61 @@ export function buildSpec(): Json {
     },
   };
 
-  paths['/api/v1/knowledge/search'] = {
-    post: {
-      tags: ['Knowledge'],
-      summary: 'Semantic search over the organization’s knowledge',
-      description:
-        'A POST because it carries a body, not because it writes. ' +
-        'Deliberately ORG-WIDE: the key speaks for the organization, not ' +
-        'one member’s visibility.',
-      operationId: 'searchKnowledge',
-      security: sec,
-      requestBody: jsonBody({
-        type: 'object',
-        required: ['query'],
-        properties: {
-          query: { type: 'string', maxLength: 2000 },
-          corpus: { type: 'string', enum: ['documents', 'web', 'all'] },
-          limit: { type: 'integer', minimum: 1, maximum: 50 },
-          minSimilarity: { type: 'number', minimum: 0, maximum: 1 },
-        },
-      }),
-      responses: {
-        '200': jsonResponse('Hits and diagnostics', {
+  for (const scope of [
+    { path: '/api/v1/knowledge/search', project: false },
+    { path: '/api/v1/projects/{id}/knowledge/search', project: true },
+  ]) {
+    paths[scope.path] = {
+      post: {
+        tags: ['Knowledge'],
+        summary: scope.project
+          ? 'Search a project’s indexed files'
+          : 'Search visible Hub knowledge and organization websites',
+        description: scope.project
+          ? 'Searches only indexed files attached to the URL project. Requires project read access; archived project files remain searchable. Corpus defaults to documents and accepts only documents. Hub files, other projects, websites and conversation attachments are excluded.'
+          : 'Read-only semantic search as the key holder. Document results come from the visible Knowledge Hub and teams; web results come from the organization’s registered websites. Every project and conversation attachment is excluded. Corpus defaults to all.',
+        operationId: scope.project
+          ? 'searchProjectKnowledge'
+          : 'searchKnowledge',
+        security: sec,
+        parameters: [
+          orgSlugHeaderParam,
+          ...(scope.project ? [pathParam('id', 'Project ID')] : []),
+        ],
+        requestBody: jsonBody({
           type: 'object',
-          required: ['hits'],
+          additionalProperties: false,
+          required: ['query'],
           properties: {
-            hits: { type: 'array', items: obj },
-            diagnostics: obj,
+            query: { type: 'string', minLength: 1, maxLength: 2000 },
+            corpus: {
+              type: 'string',
+              enum: scope.project ? ['documents'] : ['documents', 'web', 'all'],
+              default: scope.project ? 'documents' : 'all',
+            },
+            limit: { type: 'integer', minimum: 1, maximum: 50 },
+            minSimilarity: { type: 'number', minimum: 0, maximum: 1 },
           },
-          additionalProperties: true,
         }),
-        '409': errorResponse('No embedding model is configured'),
-        ...standardErrors,
+        responses: {
+          '200': jsonResponse('Hits and diagnostics', {
+            type: 'object',
+            required: ['hits'],
+            properties: {
+              hits: { type: 'array', items: obj },
+              diagnostics: obj,
+            },
+            additionalProperties: true,
+          }),
+          ...(scope.project
+            ? { '404': errorResponse('Project missing or invisible') }
+            : {}),
+          '409': errorResponse('No embedding model is configured'),
+          ...standardErrors,
+        },
       },
-    },
-  };
+    };
+  }
 
   // ── MCP ───────────────────────────────────────────────────────────────────
 
@@ -2431,34 +2482,90 @@ export function buildSpec(): Json {
 
   // ── Inbound automation webhook ────────────────────────────────────────────
 
-  paths['/api/automations/webhook/{token}'] = {
-    post: {
-      tags: ['Automations'],
-      summary: 'Fire a webhook trigger',
-      description:
-        'The URL token IS the credential (minted by `PUT /api/v1/automations/' +
-        '{name}/triggers`, shown once, stored hashed). The request body ' +
-        '(≤256 KB) becomes `payload` in the run input ' +
-        '`{trigger: "webhook", payload: <body>}`. Non-JSON bodies are text payloads.',
-      operationId: 'fireAutomationWebhook',
-      security: [],
-      parameters: [pathParam('token', 'The webhook token')],
-      requestBody: jsonBody({ type: 'object' }, false),
-      responses: {
-        '202': jsonResponse('Run started', {
-          type: 'object',
-          required: ['runId'],
-          properties: { runId: { type: 'string' } },
-        }),
-        '404': errorResponse('Unknown or disabled token'),
-        '400': errorResponse(
-          'Invalid project or input does not match the automation inputs schema',
-        ),
-        '409': errorResponse('The automation has no deployed version'),
-        '413': errorResponse('Body exceeds 256 KB'),
+  for (const projectScoped of [false, true]) {
+    const path = projectScoped
+      ? '/api/projects/{id}/automations/webhook/{token}'
+      : '/api/automations/webhook/{token}';
+    paths[path] = {
+      post: {
+        tags: ['Automations'],
+        summary: projectScoped
+          ? 'Fire a project webhook trigger'
+          : 'Fire an organization webhook trigger',
+        description:
+          (projectScoped
+            ? 'Starts a run in the URL project. The automation must be installed ' +
+              'in that existing, active project in the token’s organization. ' +
+              'Scope is rechecked before returning a duplicate delivery. '
+            : 'Starts a run without a project. Automations installed in any ' +
+              'project require the project webhook URL; this URL refuses them. ') +
+          'The URL token is the credential (minted by `PUT /api/v1/automations/' +
+          '{name}/triggers`, shown once, stored hashed); no API key or organization ' +
+          'header is needed. The `projectId` query parameter is rejected. The body ' +
+          '(≤256 KiB) becomes `payload` in the run input ' +
+          '`{trigger: "webhook", payload: <body>}`. Any JSON value is accepted as ' +
+          'event data; non-JSON bodies become text. Delivery IDs are remembered ' +
+          'for 24 hours, or byte-identical bodies for two minutes when no ID is ' +
+          'supplied. Deduplication includes the URL project.',
+        operationId: projectScoped
+          ? 'fireProjectAutomationWebhook'
+          : 'fireAutomationWebhook',
+        security: [],
+        parameters: [
+          ...(projectScoped
+            ? [
+                pathParam(
+                  'id',
+                  'The project where this automation is installed',
+                ),
+              ]
+            : []),
+          pathParam('token', 'The webhook token'),
+          {
+            name: 'Idempotency-Key',
+            in: 'header',
+            required: false,
+            schema: { type: 'string' },
+            description:
+              'A stable delivery ID. Recognized vendor delivery headers are also accepted.',
+          },
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': { schema: {} },
+            'text/plain': { schema: { type: 'string' } },
+          },
+        },
+        responses: {
+          '202': jsonResponse(
+            'Run started, or the original delivery returned',
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['runId'],
+              properties: {
+                runId: { type: 'string' },
+                duplicate: { type: 'boolean', enum: [true] },
+              },
+            },
+          ),
+          '404': {
+            description: 'Unknown or disabled token',
+            content: { 'text/plain': { schema: { type: 'string' } } },
+          },
+          '400': errorResponse(
+            'Invalid project scope, forbidden projectId query parameter, or input that does not match the automation inputs schema',
+          ),
+          '409': errorResponse('The automation has no deployed version'),
+          '413': {
+            description: 'Body exceeds 256 KiB',
+            content: { 'text/plain': { schema: { type: 'string' } } },
+          },
+        },
       },
-    },
-  };
+    };
+  }
 
   return {
     openapi: '3.0.3',
@@ -2470,14 +2577,25 @@ REST access to a Tale deployment: knowledge resources, automations and their
 runs, chat threads, agents, and skills — plus an MCP endpoint exposing the
 same platform to MCP clients.
 
+Project resources use \`/api/v1/projects/{id}/...\`: tasks, agents, files,
+chats, installed automations, runs and project document search. Their project
+comes from the URL; request bodies refuse projectId. Global chat and run URLs
+serve only resources without a project. Global document URLs serve the
+Knowledge Hub; global knowledge search excludes projects and conversations.
+
 ## Authentication
 
-Every request carries an organization API key (create one in
+Every \`/api/v1\` request carries an organization API key (create one in
 Settings → API):
 
 \`\`\`
 Authorization: Bearer tale_...
 \`\`\`
+
+Inbound automation webhooks authenticate with their URL token.
+
+If you belong to several organizations, send \`X-Organization-Slug\` to
+select one explicitly. Project reads require this header too.
 
 ## Errors
 
@@ -2491,8 +2609,8 @@ entries, threads, messages, websites — take \`cursor\` + \`limit\` and answer
 \`{page, isDone, continueCursor}\`; pass \`continueCursor\` back as \`cursor\`
 until \`isDone\`. Lists that answer a named array (\`{automations}\`,
 \`{runs}\`, \`{agents}\`, \`{skills}\`, \`{folders}\`, \`{comments}\`) are complete
-sets or bounded windows, not cursor walks; project files answer
-\`{files, cursor?}\`.
+sets or bounded windows, except comments, which include isDone and
+continueCursor for older pages. Project files answer \`{files, cursor?}\`.
 
 ## Rate limits
 
@@ -2507,18 +2625,21 @@ holder's budget. A 429 carries \`Retry-After\` in whole seconds.
 ## Quick start
 
 \`\`\`bash
-# 1. What automations does the org have?
+# 1. List automations installed in an existing project
 curl -H "Authorization: Bearer tale_..." \\
-  https://your-instance.com/api/v1/automations
+  -H "X-Organization-Slug: <orgSlug>" \\
+  "https://your-instance.com/api/v1/projects/<projectId>/automations"
 
-# 2. Start a run of the deployed version
+# 2. Start a deployed automation in that project
 curl -X POST -H "Authorization: Bearer tale_..." \\
+  -H "X-Organization-Slug: <orgSlug>" \\
   -H "Content-Type: application/json" -d '{"input": {}}' \\
-  https://your-instance.com/api/v1/automations/billing__dunning/runs
+  "https://your-instance.com/api/v1/projects/<projectId>/automations/billing__dunning/runs"
 
 # 3. Poll it
 curl -H "Authorization: Bearer tale_..." \\
-  https://your-instance.com/api/v1/runs/<runId>
+  -H "X-Organization-Slug: <orgSlug>" \\
+  "https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>"
 \`\`\`
 `.trim(),
     },
@@ -2623,11 +2744,17 @@ curl -H "Authorization: Bearer tale_..." \\
         },
         DocumentInput: {
           type: 'object',
+          additionalProperties: false,
           required: ['title'],
           properties: {
-            title: { type: 'string', maxLength: 512 },
+            title: { type: 'string', minLength: 1, maxLength: 512 },
             content: { type: 'string', maxLength: 5_000_000 },
-            fileId: { type: 'string', maxLength: 2048 },
+            fileId: {
+              type: 'string',
+              maxLength: 2048,
+              description:
+                'The metadata ID of the key holder’s own unbound upload in this organization',
+            },
             mimeType: { type: 'string', maxLength: 255 },
             extension: { type: 'string', maxLength: 32 },
             sourceProvider: { type: 'string', maxLength: 64 },
@@ -2638,9 +2765,11 @@ curl -H "Authorization: Bearer tale_..." \\
         },
         DocumentPatch: {
           type: 'object',
-          description: 'Every field optional; null clears it',
+          additionalProperties: false,
+          description:
+            'Every field optional; null clears a nullable field. Applies only to Knowledge Hub documents.',
           properties: {
-            title: { type: 'string', maxLength: 512 },
+            title: { type: 'string', minLength: 1, maxLength: 512 },
             content: nullable({ type: 'string', maxLength: 5_000_000 }),
             metadata: nullable(obj),
             mimeType: nullable({ type: 'string', maxLength: 255 }),
@@ -3041,7 +3170,7 @@ curl -H "Authorization: Bearer tale_..." \\
               description:
                 'Present only when `runWorkflowSlug` was sent and the task ' +
                 'was newly created: the started run’s id to poll, or null ' +
-                'when the slug names no deployed automation',
+                'when the workflow did not start. Poll GET /api/v1/projects/{id}/runs/{runId}.',
             },
           },
         },
@@ -3049,7 +3178,8 @@ curl -H "Authorization: Bearer tale_..." \\
         // ── Automations ──
         AutomationSummary: {
           type: 'object',
-          required: ['name', 'latestVersion', 'deployedVersion', 'projectIds'],
+          additionalProperties: false,
+          required: ['name', 'latestVersion', 'deployedVersion'],
           properties: {
             name: { type: 'string', description: 'The real `/`-slug' },
             latestVersion: int,
@@ -3059,10 +3189,6 @@ curl -H "Authorization: Bearer tale_..." \\
             }),
             presentation: {
               description: 'The newest version’s display block, if authored',
-            },
-            projectIds: {
-              ...strArray,
-              description: 'The binding set; empty means org-level',
             },
           },
         },
@@ -3134,7 +3260,11 @@ curl -H "Authorization: Bearer tale_..." \\
             organizationId: str,
             name: str,
             version: int,
-            projectId: nullable(str),
+            projectId: {
+              ...nullable(str),
+              description:
+                'URL project for a project run; null for an organization run',
+            },
             status: {
               type: 'string',
               enum: [
@@ -3180,7 +3310,11 @@ curl -H "Authorization: Bearer tale_..." \\
             title: str,
             kind: str,
             harness: str,
-            projectId: str,
+            projectId: {
+              ...str,
+              description:
+                'Present only for a thread returned through its project URL',
+            },
             archived: bool,
             isShared: bool,
             generating: bool,

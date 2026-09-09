@@ -11,11 +11,14 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
-const { cancelRun } = vi.hoisted(() => ({ cancelRun: vi.fn() }));
+const { cancelRun, getRun } = vi.hoisted(() => ({
+  cancelRun: vi.fn(),
+  getRun: vi.fn(async () => ({ id: 'run_1', projectId: null })),
+}));
 
 vi.mock('./store.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./store.ts')>();
-  return { ...actual, cancelRun };
+  return { ...actual, cancelRun, getRun };
 });
 
 import { pgAutomationStore } from './dispatch-store.ts';

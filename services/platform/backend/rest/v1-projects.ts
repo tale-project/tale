@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { projectAgentInputSchema } from '../../lib/shared/schemas/projects.ts';
 import {
   createDocumentFromUpload,
+  DocumentError,
   loadDocumentOrThrow,
   validateDocumentUploadForOrg,
   type DocumentRow,
@@ -26,7 +27,6 @@ import {
 } from '../domains/folders/service.ts';
 import {
   assertReadable,
-  assertWritable,
   createProject,
   createProjectAgent,
   deleteProjectAgent,
@@ -44,6 +44,8 @@ import {
   chargeLane,
   domainErrorResponse,
   formatKeysetCursor,
+  loadRestProject,
+  lockRestProjectForWrite,
   pageLimit,
   parseKeysetCursor,
   readJsonBody,
@@ -106,17 +108,11 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     auth: ProjectAuthContext,
     projectId: string,
   ): Promise<ProjectRow | Response> => {
-    let project: ProjectRow;
     try {
-      project = await loadProjectOrThrow(deps.sql, projectId);
-      assertReadable(project, auth);
-    } catch {
-      return c.json({ error: 'Project not found' }, 404);
+      return await loadRestProject(deps.sql, auth, projectId);
+    } catch (error) {
+      return domainErrorResponse(c, error);
     }
-    if (project.organizationId !== c.get('organizationId')) {
-      return c.json({ error: 'Project not found' }, 404);
-    }
-    return project;
   };
 
   /** Write preamble: editor role, then project EDIT access. */
@@ -125,17 +121,11 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     auth: ProjectAuthContext,
     projectId: string,
   ): Promise<ProjectRow | Response> => {
-    requireEditor(c);
-    const project = await loadVisibleProject(c, auth, projectId);
-    if (project instanceof Response) return project;
-    assertWritable(project, auth);
-    if (project.archivedAt !== null) {
-      return c.json(
-        { error: 'You do not have permission to modify this project' },
-        403,
-      );
+    try {
+      return await loadRestProject(deps.sql, auth, projectId, { write: true });
+    } catch (error) {
+      return domainErrorResponse(c, error);
     }
-    return project;
   };
 
   /**
@@ -174,6 +164,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         description: z.string().max(500).optional(),
         externalItemId: z.string().max(256).optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("name" is required)' }, 400);
@@ -321,6 +312,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         name: z.string().min(1).max(255),
         parentId: z.string().max(64).optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("name" is required)' }, 400);
@@ -338,15 +330,16 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         c.get('organizationId'),
       );
       if (limited) return limited;
-      const result = await deps.sql.begin((tx) =>
-        getOrCreateProjectFolder(tx, auth, {
+      const result = await deps.sql.begin(async (tx) => {
+        await lockRestProjectForWrite(tx, auth, project.id);
+        return getOrCreateProjectFolder(tx, auth, {
           projectId: project.id,
           name: body.data.name,
           ...(body.data.parentId !== undefined
             ? { parentId: body.data.parentId }
             : {}),
-        }),
-      );
+        });
+      });
       const payload = {
         folder: { id: result.folderId, name: result.name },
         created: result.created,
@@ -366,6 +359,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         fileName: z.string().max(1024).optional(),
         contentType: z.string().max(255).optional(),
       })
+      .strict()
       .safeParse(await readOptionalJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
@@ -376,25 +370,29 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
       if (project instanceof Response) return project;
-      const handoff = await createRestUploadHandoff(
-        deps.sql,
-        { organizationId: c.get('organizationId') },
-        body.data.contentType !== undefined
-          ? { contentType: body.data.contentType }
-          : {},
-      );
       const uploadId = randomUUID();
       const now = Date.now();
       const expiresAt = now + UPLOAD_INTENT_TTL_MS;
-      await deps.sql`
-        INSERT INTO app.rest_upload_intents (
-          id, org_id, user_id, project_id, s3_ref, expires_at_ms,
-          created_at_ms
-        ) VALUES (
-          ${uploadId}, ${c.get('organizationId')}, ${c.get('userId')},
-          ${project.id}, ${handoff.storageRef}, ${expiresAt}, ${now}
-        )
-      `;
+      const handoff = await deps.sql.begin(async (tx) => {
+        await lockRestProjectForWrite(tx, auth, project.id);
+        const signed = await createRestUploadHandoff(
+          deps.sql,
+          { organizationId: c.get('organizationId') },
+          body.data.contentType !== undefined
+            ? { contentType: body.data.contentType }
+            : {},
+        );
+        await tx`
+          INSERT INTO app.rest_upload_intents (
+            id, org_id, user_id, project_id, s3_ref, expires_at_ms,
+            created_at_ms
+          ) VALUES (
+            ${uploadId}, ${c.get('organizationId')}, ${c.get('userId')},
+            ${project.id}, ${signed.storageRef}, ${expiresAt}, ${now}
+          )
+        `;
+        return signed;
+      });
       // Lazy sweep of dead handshakes (consumed) and ABANDONED uploads (never
       // bound: their blob is reclaimed with the row — the intent is the only
       // record the bytes exist).
@@ -427,6 +425,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         contentType: z.string().max(255).optional(),
         skipRagIndexing: z.boolean().optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
@@ -438,6 +437,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // ONE transaction: the intent is consumed atomically with the
       // register + document create — any refusal rolls the consume back.
       const documentId = await deps.sql.begin(async (tx) => {
+        await lockRestProjectForWrite(tx, auth, project.id);
         const consumed = await tx<{ id: string }[]>`
           UPDATE app.rest_upload_intents SET consumed_at_ms = ${Date.now()}
           WHERE id = ${body.data.uploadId}
@@ -567,7 +567,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       FROM app.documents
       WHERE org_id = ${c.get('organizationId')}
         AND project_id = ${project.id}
-        AND lifecycle_status IS DISTINCT FROM 'trashed'
+        AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
         AND (${folderId ?? null}::text IS NULL
           OR folder_id = ${folderId ?? null})
         AND (${cursorCreatedAt}::bigint IS NULL
@@ -596,14 +596,17 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     let doc: DocumentRow;
     try {
       doc = await loadDocumentOrThrow(deps.sql, c.req.param('documentId'));
-    } catch {
-      return c.json({ error: 'File not found' }, 404);
+    } catch (error) {
+      if (error instanceof DocumentError && error.status === 404) {
+        return c.json({ error: 'File not found' }, 404);
+      }
+      throw error;
     }
     if (
       doc.organizationId !== c.get('organizationId') ||
       doc.projectId !== project.id ||
       doc.fileRef === null ||
-      doc.lifecycleStatus === 'trashed'
+      (doc.lifecycleStatus !== null && doc.lifecycleStatus !== 'active')
     ) {
       return c.json({ error: 'File not found' }, 404);
     }
@@ -618,6 +621,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         doc.title !== null ? { filename: doc.title } : {},
       );
     } catch (error) {
+      if (!(error instanceof FileError)) throw error;
       console.warn(
         '[projects-rest] refused content serve:',
         error instanceof Error ? error.message : String(error),

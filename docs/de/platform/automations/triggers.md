@@ -15,7 +15,7 @@ Jeder Trigger startet die live geschaltete Version und läuft im Live-Modus — 
 | `webhook`  | ein externes System an eine Token-geschützte URL sendet        |
 | `event`    | ein benanntes Plattform-Ereignis eintritt                      |
 
-Ein programmatischer Start braucht gar keinen Trigger: ein API-Client mit einem Organisationsschlüssel ruft `POST /api/v1/automations/{name}/runs` auf (oder das MCP-Tool `start_run`), und der Schlüssel selbst ist die Berechtigung — siehe die [API-Referenz](/de/develop/api-reference).
+Ein programmatischer Start braucht keinen Trigger. Für Projektarbeit ruft ein API-Client `POST /api/v1/projects/{id}/automations/{name}/runs` auf. Eine Automatisierung ohne Projektbindungen kann er auch ohne Projekt über `POST /api/v1/automations/{name}/runs` starten. Sein API-Schlüssel und seine Projektrechte berechtigen zum Aufruf. Das MCP-Tool `start_run` bietet einen weiteren Zugang; die [API-Referenz](/de/develop/api-reference) erklärt die Regeln.
 
 ## Zeitpläne
 
@@ -39,7 +39,7 @@ Die Auflösung beträgt eine Minute, und ein Zeitplan ist ein Herzschlag, keine 
 Ein Webhook ist eine eingehende URL, geschützt durch ein Token. Beim Anlegen wird das Token erzeugt und einmal angezeigt; gespeichert wird nur sein Hash, sodass die Plattform einen Aufrufer prüfen kann, ohne die URL je rekonstruieren zu können. Jedes System, das dorthin sendet, startet einen Lauf, und der Body der Anfrage wird zur Payload des Laufs.
 
 ```bash
-curl -X POST https://<dein-tale-host>/api/automations/webhook/<token> \
+curl -X POST "https://<dein-tale-host>/api/projects/<projectId>/automations/webhook/<token>" \
   -H 'Content-Type: application/json' \
   -d '{"invoiceId": "inv-1"}'
 ```
@@ -48,7 +48,7 @@ Ein erfolgreicher Aufruf wird sofort angenommen und antwortet mit der id des ges
 
 Zustellungen sind idempotent, denn jeder Anbieter liefert mindestens einmal — eine langsame Antwort, eine abgerissene Verbindung oder ein Klick auf _erneut zustellen_ schickt dieselbe Zustellung noch einmal. Eine Anfrage, die ihre Zustellung benennt (`Idempotency-Key`, das `webhook-id` der Standard Webhooks, `X-GitHub-Delivery` und die anderen gängigen Anbieter-Header), bleibt 24 Stunden bekannt: Eine Wiederholung mit derselben ID antwortet mit dem Lauf, den die erste gestartet hat, markiert mit `duplicate: true`, statt einen zweiten zu starten. Eine Anfrage ohne ID erkennt die Plattform am Body — ein byteidentischer Body an dieselbe URL innerhalb von zwei Minuten ist dieselbe Zustellung. Unterschiedliche Zustellungen laufen jede für sich; können sich deine Payloads innerhalb von zwei Minuten legitim wiederholen, schick eine ID mit. Die vollständige Header-Liste und die Antwortformen stehen unter [Webhooks](/de/develop/webhooks).
 
-Du kannst den Lauf auf ein Projekt beschränken, indem du der URL `?projectId=<id>` anhängst — das Projekt, das du in die URL einbackst, die du dem Anbieter gibst. Lässt du es weg, nutzt der Lauf die Bindung der Automatisierung selbst: eine an ein einzelnes Projekt gebundene Automatisierung läuft dort, eine an mehrere oder an keines gebundene läuft organisationsweit. Das Projekt wird gegen diese Bindungen geprüft, sodass eine öffentliche URL den Lauf nie über das hinaus ausweiten kann, woran die Automatisierung gebunden ist; ein Projekt außerhalb der Menge antwortet mit einem 400.
+Die Beispiel-URL benennt das Projekt des Laufs. Die Automatisierung muss in diesem aktiven Projekt installiert sein, in derselben Organisation wie das Token. Das Token kann kein anderes Projekt auswählen. Für eine Automatisierung ohne Projektbindungen startet `/api/automations/webhook/{token}` einen Lauf ohne Projekt; eine gebundene Automatisierung antwortet dort mit **400**. Ein Abfrageparameter `projectId` ergibt ebenfalls **400**. Zustellungs-IDs und identische Inhalte gelten jeweils pro Projekt-URL. Einen Projektlauf liest du über `/api/v1/projects/{id}/runs/{runId}` mit einem API-Schlüssel, der auf das Projekt zugreifen darf.
 
 Zwei Abweisungen lohnt es sich zu erkennen. Ein unbekanntes Token und ein Token eines ausgeschalteten Triggers antworten absichtlich gleich, damit niemand die Plattform danach abklopfen kann, welche Tokens existieren. Eine Automatisierung ohne live geschaltete Version antwortet stattdessen mit einem Konflikt — das sagt dir, dass die URL in Ordnung ist und das Live-Schalten fehlt.
 

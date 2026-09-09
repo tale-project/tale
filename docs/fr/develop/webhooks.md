@@ -11,20 +11,22 @@ Lis ceci quand tu câbles un système externe qui doit démarrer des automatisat
 
 Lie un déclencheur webhook à une automatisation — dans l'éditeur de l'automatisation, ou avec `PUT /api/v1/automations/{name}/triggers` et `{"kind": "webhook"}` — et Tale répond une seule fois avec le jeton de l'URL. Ensuite, n'importe quel système démarre une exécution :
 
+Choisis l’URL selon le travail à lancer. Pour une exécution de projet, utilise `/api/projects/{id}/automations/webhook/{token}`, comme dans cet exemple. L’automatisation doit être installée dans ce projet actif ; le projet et le token doivent appartenir à la même organisation. Le token autorise l’appel, mais ne permet pas de choisir un projet sans liaison. Pour une exécution sans projet, utilise `/api/automations/webhook/{token}` avec une automatisation qui n’a aucune liaison de projet. Une automatisation liée refuse cette URL globale avec **400**. Le paramètre de requête `projectId` donne **400** sur les deux URL. Le corps du fournisseur devient une donnée de l’automatisation ; il ne choisit pas le projet.
+
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>" \
+curl -sS -X POST "https://your-host.example.com/api/projects/<projectId>/automations/webhook/<token>" \
   -H "Content-Type: application/json" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
 # → 202 { "runId": "..." }
 ```
 
-L’exécution reçoit `{ "trigger": "webhook", "payload": <body> }`. Lis l’identifiant de commande de l’exemple avec `input.payload.orderId`. Si tu définis un schéma `inputs`, il décrit cet objet englobant. Un corps qui n'est pas du JSON passe tel quel comme texte au lieu d'être refusé — certains fournisseurs envoient du texte brut — et tout ce qui dépasse 256 Ko est rejeté en **413** — la limite compte les octets au fil de l’arrivée du corps, une livraison trop grosse est donc refusée plutôt que mise en mémoire. Suis l'exécution comme n'importe quelle autre via `GET /api/v1/runs/{runId}` avec une clé API, ou regarde-la dans le produit.
+L’exécution reçoit `{ "trigger": "webhook", "payload": <body> }`. Lis l’identifiant de commande de l’exemple avec `input.payload.orderId`. Si tu définis un schéma `inputs`, il décrit cet objet englobant. Un corps qui n'est pas du JSON passe tel quel comme texte au lieu d'être refusé — certains fournisseurs envoient du texte brut — et tout ce qui dépasse 256 Ko est rejeté en **413** — la limite compte les octets au fil de l’arrivée du corps, une livraison trop grosse est donc refusée plutôt que mise en mémoire. Suis l'exécution comme n'importe quelle autre via `GET /api/v1/projects/{id}/runs/{runId}` avec une clé API, ou regarde-la dans le produit. Pour une livraison sans projet, utilise plutôt `GET /api/v1/runs/{runId}`. Une livraison de projet exige l’URL de ce projet et une clé API dont le détenteur peut le lire.
 
 Le vocabulaire complet des réponses :
 
 - **202** `{ "runId": "..." }` — l'exécution a démarré.
 - **202** `{ "runId": "...", "duplicate": true }` — une nouvelle livraison d’une livraison déjà acceptée ; `runId` est l’exécution que la première a lancée, et il n’en existe pas de seconde.
-- **400** — le projet est invalide ou l’entrée englobante ne respecte pas le schéma `inputs` de l’automatisation ; aucune exécution ne démarre.
+- **400** — projet invalide, archivé ou sans liaison, automatisation liée appelée sur l’URL globale, paramètre de requête `projectId` ou entrée incompatible avec le schéma `inputs`. Aucune exécution ne démarre.
 - **404** — jeton inconnu, désactivé ou mal tapé. La réponse ne distingue jamais les cas — qui devine n'apprend rien.
 - **409** `{ "error": "automation has no deployed version" }` — déploie une version dont les tests passent et le même appel s'exécute.
 - **413** — le corps dépasse 256 Ko.
@@ -37,13 +39,13 @@ URL perdue ou fuitée ? Fais-la tourner — `PUT /api/v1/automations/{name}/tri
 
 ## Idempotence et relances
 
-L’endpoint déduplique les livraisons, parce que chaque fournisseur livre au moins une fois. Deux choses identifient une livraison :
+L’endpoint reconnaît les livraisons répétées. La déduplication porte sur le déclencheur et le projet de son URL : le même identifiant peut démarrer une exécution dans chaque projet où l’automatisation est installée. Avant de renvoyer un doublon mémorisé, Tale vérifie encore la liaison et l’état actif du projet. Deux éléments identifient une livraison :
 
 - **Un identifiant de livraison que tu envoies.** Le premier de ces en-têtes présent l’emporte : `Idempotency-Key`, `X-Idempotency-Key`, le `webhook-id` des Standard Webhooks, `X-GitHub-Delivery`, `X-Gitlab-Event-UUID`, `X-Shopify-Webhook-Id`, `Linear-Delivery`, `X-Atlassian-Webhook-Identifier`, `X-Request-UUID` (Bitbucket), `I-Twilio-Idempotency-Token`, `X-Webhook-Id`. Une répétition avec le même identifiant dans les 24 heures répond **202** avec l’exécution d’origine et `"duplicate": true` — quoi que dise son corps.
-- **Le corps lui-même.** Sans en-tête d’identifiant, un corps identique à l’octet posté sur la même URL (et le même `projectId`) en moins de deux minutes est la même livraison. Passé deux minutes, c’est une nouvelle livraison — un heartbeat qui poste le même corps toutes les quelques minutes continue donc de s’exécuter.
+- **Le corps lui-même.** Sans en-tête d’identifiant, un corps identique à l’octet envoyé à la même URL en moins de deux minutes correspond à la même livraison. Après deux minutes, c’en est une nouvelle. Un heartbeat qui renvoie le même corps toutes les quelques minutes continue donc à démarrer des exécutions.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>" \
+curl -sS -X POST "https://your-host.example.com/api/projects/<projectId>/automations/webhook/<token>" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: order-12345-paid" \
   -d '{ "orderId": "12345", "status": "paid" }'
@@ -52,8 +54,8 @@ curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>"
 # → 202 { "runId": "run_a", "duplicate": true }
 ```
 
-Relancer est donc sûr de ton côté : relance les timeouts et les réponses non-2xx avec backoff, garde l’identifiant de livraison stable d’une tentative à l’autre, et considère tout **202** comme accepté — `duplicate: true` te dit que la tentative précédente avait déjà abouti. La réponse dit si l’exécution a _démarré_, pas si elle a réussi ; suis-la via `GET /api/v1/runs/{runId}`. Un **409** n’est pas mémorisé : déploie une version et renvoie la livraison.
+Relancer est donc sûr de ton côté : relance les timeouts et les réponses non-2xx avec backoff, garde l’identifiant de livraison stable d’une tentative à l’autre, et considère tout **202** comme accepté — `duplicate: true` te dit que la tentative précédente avait déjà abouti. La réponse dit si l’exécution a _démarré_, pas si elle a réussi ; suis-la via `GET /api/v1/projects/{id}/runs/{runId}`. Un **409** n’est pas mémorisé : déploie une version et renvoie la livraison.
 
 ## Où ça se place
 
-Le webhook est l'entrée sans clé ; tout le reste passe par une clé API. La [page Déclencheurs](/fr/platform/automations/triggers) couvre le côté produit — plannings, événements et webhooks tels que l'éditeur d'automatisation les présente. La [référence API](/fr/develop/api-reference) couvre le démarrage d'exécutions avec clé (`POST /api/v1/automations/{name}/runs`) — la meilleure couture quand l'appelant est ton propre code.
+Le webhook est l'entrée sans clé ; tout le reste passe par une clé API. La [page Déclencheurs](/fr/platform/automations/triggers) couvre le côté produit — plannings, événements et webhooks tels que l'éditeur d'automatisation les présente. La [référence API](/fr/develop/api-reference) couvre le démarrage d'exécutions avec clé (`POST /api/v1/projects/{id}/automations/{name}/runs`) — la meilleure couture quand l'appelant est ton propre code.

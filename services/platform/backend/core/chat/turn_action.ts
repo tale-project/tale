@@ -740,6 +740,9 @@ export interface ExecuteTurnArgs {
   readonly organizationId: string;
   readonly userId: string;
   readonly threadId: string;
+  /** Detached REST turns pin their URL project; the host's store validates
+   * this scope again when it opens the turn. Undefined reads the thread. */
+  readonly expectedProjectId?: string | null;
   readonly userText: string;
   /** Uploaded files riding the message — image and audio/video blob
    * references the caller staged through the composer. Validated here
@@ -1101,9 +1104,11 @@ export async function executeTurn(
   // authenticated round-trip, so a serial read would add to the caller's wait
   // for a field most threads do not have.
   const pendingProjectId = settled(
-    ctx.runQuery(internal.projects.internal_queries.getProjectIdForThread, {
-      threadId: args.threadId,
-    }),
+    args.expectedProjectId !== undefined
+      ? Promise.resolve(args.expectedProjectId)
+      : ctx.runQuery(internal.projects.internal_queries.getProjectIdForThread, {
+          threadId: args.threadId,
+        }),
   );
   const pendingAttachmentProblem =
     sentAttachments.length > 0

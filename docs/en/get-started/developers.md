@@ -42,7 +42,7 @@ A JSON object with a `models` array proves the key, authentication and route. Th
 
 ## The rest of the surface
 
-Everything else is variations on that request. Automations run by name over `POST /api/v1/automations/<name>/runs` with the same Bearer key — answered 202, polled via `/api/v1/runs/<runId>` — or fire from outside over webhook URLs of the form `/api/automations/webhook/<token>`, where the token in the URL is the credential. Chat is a thread, a posted message, and a poll; documents upload over `/api/v1/documents`; and the same key opens the [MCP endpoint](/develop/mcp-endpoint) for model-driven clients. The [API reference](/develop/api-reference) is the complete inventory with auth, shapes, and limits.
+For work in a project, start an automation at `POST /api/v1/projects/{id}/automations/{name}/runs` and poll `/api/v1/projects/{id}/runs/{runId}`. Project chats, tasks and files use the same `/api/v1/projects/{id}/...` structure; the project ID belongs in the URL. Ordinary personal chat uses `/api/v1/threads`, and `/api/v1/documents` serves Hub documents with no project. Webhook callers use `/api/projects/{id}/automations/webhook/{token}` for an installed project automation; the token is their credential. The [API reference](/develop/api-reference) covers the matching non-project routes, permissions and required organization header. The same key also opens the [MCP endpoint](/develop/mcp-endpoint) for model-driven clients.
 
 ## Where you are now
 

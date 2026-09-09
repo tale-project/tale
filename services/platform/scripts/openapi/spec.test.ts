@@ -1,16 +1,20 @@
 // @vitest-environment node
 
+import { readFileSync } from 'node:fs';
+
 import Ajv from 'ajv';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../../backend/auth/auth.ts';
+import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
 import type { RestEnv } from '../../backend/rest/shared.ts';
 import { createAutomationRestRoutes } from '../../backend/rest/v1-automations.ts';
 import { createRestBrowserSessionRoutes } from '../../backend/rest/v1-browser-sessions.ts';
 import { createCoreRoutes } from '../../backend/rest/v1-core.ts';
 import { createProjectRestRoutes } from '../../backend/rest/v1-projects.ts';
+import { createTaskRestRoutes } from '../../backend/rest/v1-tasks.ts';
 import { createThreadRestRoutes } from '../../backend/rest/v1-threads.ts';
 import { createRestV1Routes } from '../../backend/rest/v1.ts';
 import { buildSpec, type Json } from './spec.ts';
@@ -49,8 +53,8 @@ const paths = spec.paths as Record<string, Record<string, Json>>;
 const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
 
 /** `/automations/:name{.+}/runs` → `/api/v1/automations/{name}/runs`. */
-function openapiPath(honoPath: string): string {
-  return `/api/v1${honoPath.replace(/:([A-Za-z_][A-Za-z0-9_]*)(\{[^}]*\})?/g, '{$1}')}`;
+function openapiPath(honoPath: string, prefix = '/api/v1'): string {
+  return `${prefix}${honoPath.replace(/:([A-Za-z_][A-Za-z0-9_]*)(\{[^}]*\})?/g, '{$1}')}`;
 }
 
 /** Routes the router registers that the spec deliberately leaves out. */
@@ -75,9 +79,34 @@ describe('openapi spec ↔ /api/v1 router', () => {
     ),
   );
 
-  it('documents only registered /api/v1 routes (plus the app-level webhook)', () => {
+  it('documents only registered /api/v1 routes and the app-level webhooks', () => {
     const outsideV1 = [...documented].filter((op) => !op.includes(' /api/v1/'));
-    expect(outsideV1).toEqual(['POST /api/automations/webhook/{token}']);
+    expect(outsideV1.sort()).toEqual([
+      'POST /api/automations/webhook/{token}',
+      'POST /api/projects/{id}/automations/webhook/{token}',
+    ]);
+    // Use the app's literal mount points and the child router's registered
+    // operations without constructing every session route or telemetry.
+    const appSource = readFileSync(
+      new URL('../../backend/app.ts', import.meta.url),
+      'utf8',
+    );
+    const mounts = [
+      ...appSource.matchAll(
+        /app\.route\(\s*['"]([^'"]+)['"],\s*createWebhookRoutes\(/g,
+      ),
+    ].map((match) => match[1]);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- route registration never queries the database
+    const webhooks = createWebhookRoutes({ sql: {} as Sql });
+    const registeredWebhooks = mounts.flatMap((base) =>
+      webhooks.routes
+        .filter((route) => route.method !== 'ALL')
+        .map(
+          (route) =>
+            `${route.method} ${openapiPath(`${base}${route.path}`, '')}`,
+        ),
+    );
+    expect(outsideV1.sort()).toEqual(registeredWebhooks.sort());
     const phantom = [...documented].filter(
       (op) => op.includes(' /api/v1/') && !registered.has(op),
     );
@@ -89,6 +118,16 @@ describe('openapi spec ↔ /api/v1 router', () => {
       (op) => !documented.has(op) && !UNDOCUMENTED_ROUTES.has(op),
     );
     expect(missing).toEqual([]);
+  });
+
+  it('publishes the current schema in public/openapi.json', () => {
+    const published: unknown = JSON.parse(
+      readFileSync(
+        new URL('../../public/openapi.json', import.meta.url),
+        'utf8',
+      ),
+    );
+    expect(published).toEqual(spec);
   });
 
   it('gives every operation a unique operationId', () => {
@@ -130,7 +169,15 @@ function fakeSql(
     return Promise.resolve(respond?.(text) ?? rows);
   };
   const unsafe = (text: string) => ({ unsafe: text });
-  const begin = (fn: (tx: unknown) => Promise<unknown>) => fn(sql);
+  const begin = (
+    optionsOrCallback: string | ((tx: unknown) => Promise<unknown>),
+    callback?: (tx: unknown) => Promise<unknown>,
+  ) => {
+    const run =
+      typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+    if (run === undefined) throw new Error('Missing transaction callback');
+    return run(sql);
+  };
   const sql = Object.assign(tag, { unsafe, begin });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return sql as unknown as Sql;
@@ -511,4 +558,260 @@ describe('handler statuses and bodies match the documented operation', () => {
       );
     },
   );
+});
+
+/** Scope is contractual input: a client must not be told to send a JSON
+ * selector that the route refuses or ignores. */
+describe('project scope in OpenAPI inputs', () => {
+  function validateBody(path: string, method: string, body: unknown) {
+    const request = paths[path]?.[method]?.requestBody as Json | undefined;
+    const content = request?.content as Record<string, Json> | undefined;
+    const schema = content?.['application/json']?.schema as Json | undefined;
+    expect(
+      schema,
+      `${method.toUpperCase()} ${path} request schema`,
+    ).toBeDefined();
+    const validate = ajv.compile({ ...schema, components: spec.components });
+    return validate(body);
+  }
+
+  const bodies = [
+    { path: '/api/v1/projects', body: { name: 'Ledger' } },
+    {
+      path: '/api/v1/projects/{id}/tasks',
+      body: { externalSystem: 'github', externalId: '7', title: 'Review' },
+    },
+    {
+      path: '/api/v1/projects/{id}/tasks/{taskId}/comments',
+      body: { body: 'Filed.' },
+    },
+    {
+      path: '/api/v1/projects/{id}/tasks/{taskId}/start',
+      body: { workflowSlug: 'triage' },
+    },
+    { path: '/api/v1/projects/{id}/folders', body: { name: 'Reports' } },
+    { path: '/api/v1/projects/{id}/uploads', body: { fileName: 'report.pdf' } },
+    {
+      path: '/api/v1/projects/{id}/files',
+      body: {
+        uploadId: 'u-1',
+        fileId: 'f-1',
+        folderId: 'fold-1',
+        fileName: 'report.pdf',
+      },
+    },
+    { path: '/api/v1/projects/{id}/automations/{name}', body: {} },
+    {
+      path: '/api/v1/projects/{id}/automations/{name}/runs',
+      body: { input: { n: 1 }, mode: 'mock', version: 1 },
+    },
+    {
+      path: '/api/v1/automations/{name}/runs',
+      body: { input: { n: 1 }, mode: 'mock', version: 1 },
+    },
+    { path: '/api/v1/projects/{id}/runs/{runId}/cancel', body: {} },
+    { path: '/api/v1/runs/{runId}/cancel', body: {} },
+    { path: '/api/v1/threads', body: { title: 'Review' } },
+    { path: '/api/v1/projects/{id}/threads', body: { title: 'Review' } },
+    {
+      path: '/api/v1/threads/{id}/messages',
+      body: { content: 'Review', model: 'test' },
+    },
+    {
+      path: '/api/v1/projects/{id}/threads/{threadId}/messages',
+      body: { content: 'Review', model: 'test' },
+    },
+    {
+      path: '/api/v1/knowledge/search',
+      body: { query: 'Review', corpus: 'all' },
+    },
+    {
+      path: '/api/v1/projects/{id}/knowledge/search',
+      body: { query: 'Review', corpus: 'documents' },
+    },
+  ];
+  it.each(bodies)(
+    '$path accepts its scoped input and rejects a projectId payload',
+    ({ path, body }) => {
+      expect(validateBody(path, 'post', body)).toBe(true);
+      expect(
+        validateBody(path, 'post', { ...body, projectId: 'another-project' }),
+      ).toBe(false);
+      expect(validateBody(path, 'post', { ...body, arbitrary: true })).toBe(
+        false,
+      );
+    },
+  );
+
+  it.each([
+    { path: '/api/v1/documents', method: 'post', body: { title: 'Report' } },
+    {
+      path: '/api/v1/documents/{id}',
+      method: 'patch',
+      body: { title: 'Revised report' },
+    },
+  ])(
+    '$method $path cannot claim project scope in a Hub request',
+    ({ path, method, body }) => {
+      expect(validateBody(path, method, body)).toBe(true);
+      expect(validateBody(path, method, { ...body, projectId: 'p-1' })).toBe(
+        false,
+      );
+    },
+  );
+
+  it('project knowledge search accepts only the project document corpus', () => {
+    const path = '/api/v1/projects/{id}/knowledge/search';
+    expect(validateBody(path, 'post', { query: 'Review' })).toBe(true);
+    expect(validateBody(path, 'post', { query: 'Review', corpus: 'all' })).toBe(
+      false,
+    );
+    expect(validateBody(path, 'post', { query: 'Review', corpus: 'web' })).toBe(
+      false,
+    );
+  });
+
+  it('declares each URL placeholder exactly once as a required path parameter', () => {
+    for (const [path, methods] of Object.entries(paths)) {
+      const placeholders = [...path.matchAll(/\{([^}]+)\}/g)]
+        .map((match) => match[1])
+        .sort();
+      for (const [method, operation] of Object.entries(methods)) {
+        if (!HTTP_METHODS.has(method)) continue;
+        const params = (operation.parameters ?? []) as Json[];
+        const pathParams = params.filter((param) => param.in === 'path');
+        expect(
+          pathParams.map((param) => String(param.name)).sort(),
+          `${method} ${path}`,
+        ).toEqual(placeholders);
+        expect(
+          pathParams.every((param) => param.required === true),
+          `${method} ${path}`,
+        ).toBe(true);
+      }
+    }
+  });
+});
+
+describe('token-authenticated webhook contracts', () => {
+  it.each([
+    '/api/automations/webhook/{token}',
+    '/api/projects/{id}/automations/webhook/{token}',
+  ])('%s keeps vendor payloads separate from URL project scope', (path) => {
+    const operation = paths[path]?.post;
+    expect(operation).toBeDefined();
+    expect(operation?.security).toEqual([]);
+    const params = (operation?.parameters ?? []) as Json[];
+    expect(params.some((param) => param.name === 'projectId')).toBe(false);
+    const requestBody = operation?.requestBody as Json | undefined;
+    expect(requestBody?.required).toBe(false);
+    const content = requestBody?.content as Record<string, Json> | undefined;
+    expect(content?.['text/plain']?.schema).toEqual({ type: 'string' });
+    const schema = content?.['application/json']?.schema as Json | undefined;
+    expect(schema).toBeDefined();
+    const validate = ajv.compile(schema ?? {});
+    for (const payload of [
+      { projectId: 'vendor-event-data' },
+      [],
+      'event',
+      true,
+      null,
+    ]) {
+      expect(validate(payload)).toBe(true);
+    }
+    const validateResponse = responseValidator(path, 'post', '202');
+    expect(validateResponse({ runId: 'run-1', duplicate: true })).toBe(true);
+    expect(validateResponse({ runId: 'run-1', duplicate: 'yes' })).toBe(false);
+    const responses = operation?.responses as Record<string, Json> | undefined;
+    for (const status of ['404', '413']) {
+      const responseContent = responses?.[status]?.content as
+        | Record<string, Json>
+        | undefined;
+      expect(responseContent?.['text/plain']?.schema).toEqual({
+        type: 'string',
+      });
+    }
+  });
+});
+
+describe('new project routes answer the published wire schemas', () => {
+  const task = {
+    id: 'task-1',
+    organizationId: 'org-1',
+    projectId: 'p-1',
+    title: 'Review',
+    status: 'backlog',
+    labelIds: [],
+    createdAt: 1,
+    updatedAt: 2,
+    discussionThreadId: null,
+  };
+  const projectThread = { ...thread, projectId: 'p-1' };
+  const projectRun = { ...run, projectId: 'p-1' };
+  const sql = fakeSql([], (text) => {
+    if (text.includes('FROM app.projects WHERE id')) return [project];
+    if (text.includes('FROM app.tasks WHERE id')) return [task];
+    if (text.includes('FROM app.threads t')) return [projectThread];
+    if (text.includes('FROM app.automation_runs')) return [projectRun];
+    if (text.includes('FROM app.automation_project_bindings'))
+      return [{ automationName: automation.name, projectId: 'p-1' }];
+    if (text.includes('FROM app.automations a')) return [automation];
+    return [];
+  });
+  const cases = [
+    {
+      route: '/projects/p-1/tasks/task-1',
+      path: '/api/v1/projects/{id}/tasks/{taskId}',
+      factory: createTaskRestRoutes,
+    },
+    {
+      route: '/projects/p-1/tasks/task-1/comments',
+      path: '/api/v1/projects/{id}/tasks/{taskId}/comments',
+      factory: createTaskRestRoutes,
+    },
+    {
+      route: '/projects/p-1/threads',
+      path: '/api/v1/projects/{id}/threads',
+      factory: createThreadRestRoutes,
+    },
+    {
+      route: '/projects/p-1/threads/t-1',
+      path: '/api/v1/projects/{id}/threads/{threadId}',
+      factory: createThreadRestRoutes,
+    },
+    {
+      route: '/projects/p-1/threads/t-1/generation',
+      path: '/api/v1/projects/{id}/threads/{threadId}/generation',
+      factory: createThreadRestRoutes,
+    },
+    {
+      route: '/projects/p-1/automations',
+      path: '/api/v1/projects/{id}/automations',
+      factory: createAutomationRestRoutes,
+    },
+    {
+      route: '/projects/p-1/automations/billing__dunning/runs',
+      path: '/api/v1/projects/{id}/automations/{name}/runs',
+      factory: createAutomationRestRoutes,
+    },
+    {
+      route: '/projects/p-1/runs/run-1',
+      path: '/api/v1/projects/{id}/runs/{runId}',
+      factory: createAutomationRestRoutes,
+    },
+  ];
+  it.each(cases)('$route', async ({ route, path, factory }) => {
+    const response = await mount(factory({ sql })).request(
+      `http://localhost${route}`,
+    );
+    expect(response.status).toBe(200);
+    const body: unknown = await response.json();
+    const validate = responseValidator(path, 'get', '200');
+    expect(
+      validate(body),
+      JSON.stringify({ errors: validate.errors, body }),
+    ).toBe(true);
+    if (route.endsWith('/automations'))
+      expect(body).toEqual({ automations: [automation] });
+  });
 });

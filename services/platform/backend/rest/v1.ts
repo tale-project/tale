@@ -47,9 +47,8 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * stranger cannot drain any key holder's budget.
  *
  * The resource families are thin adapters over the SAME domain services
- * the app surface uses — the 0.4 REST handlers' parsing and response
- * shapes mirrored onto them (`public/openapi.json` is the parity oracle),
- * so a consumer written against 0.4 keeps working. Families live beside
+ * the app surface uses; `public/openapi.json` documents their contract.
+ * Project-owned resources take their project from the URL. Families live beside
  * this door: v1-core (contacts, products, documents, knowledge, agents,
  * skills), v1-automations (+ runs), v1-projects (folders, uploads, files),
  * v1-tasks (external-ref intake, comments, start), v1-threads (chat).
@@ -57,7 +56,9 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * is the operator door to the video-ingest cookie pool
  * (v1-browser-sessions), and `/api/v1/mcp` rides automations_builder
  * (v1-mcp); the automation webhook trigger lives at
- * `/api/automations/webhook/:token` (app.ts).
+ * `/api/automations/webhook/:token` for org-only automations and
+ * `/api/projects/:id/automations/webhook/:token` for installed project
+ * automations (app.ts). The token is their sole credential.
  */
 
 /** The 429 every lane answers: the flat envelope plus `Retry-After`. */

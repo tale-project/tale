@@ -20,9 +20,10 @@ Create a key in the [API keys](/platform/admin/api-keys) panel and copy what it 
 ```bash
 export TALE_API_KEY="tale_..."
 export TALE_BASE_URL="https://your-host.example.com"
+export TALE_ORG_SLUG="<org-slug>"
 ```
 
-The key belongs to you and to your organization; what it may do follows your role. Treat it like a password.
+The key acts as you in the organization selected by `TALE_ORG_SLUG`; your membership and role determine what it may do. The organization header is required on writes and all project routes when you belong to several organizations. Store the key like a password.
 
 ## Step 2 — Smoke-test with curl
 
@@ -30,27 +31,32 @@ The smallest end-to-end check is listing the organization's automations. If this
 
 ```bash
 curl -sS "$TALE_BASE_URL/api/v1/automations" \
-  -H "Authorization: Bearer $TALE_API_KEY" | jq
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $TALE_ORG_SLUG" | jq
 ```
 
 A 200 with a `{ "automations": [...] }` body confirms the round-trip. A 401 means the key is wrong; anything else means the instance is unreachable or the path is mistyped.
 
 ## Step 3 — Ask a model and read the reply
 
-Chat over the API is asynchronous: you post a message, the turn runs in the background, and you poll until it is done. Three calls, one loop:
+Chat over the API is asynchronous: post a message, poll while the turn runs in the background, then read the reply. This example creates a personal thread with no project. For project chat, set `threads_url` to `f"{base}/api/v1/projects/{os.environ['TALE_PROJECT_ID']}/threads"`; all subsequent calls keep that scope, with no `projectId` in the body. You need read access to that active project, even as a Member.
 
 ```python
 import os, time, requests
 
 base = os.environ["TALE_BASE_URL"]
-auth = {"Authorization": f"Bearer {os.environ['TALE_API_KEY']}"}
+auth = {
+    "Authorization": f"Bearer {os.environ['TALE_API_KEY']}",
+    "X-Organization-Slug": os.environ["TALE_ORG_SLUG"],
+}
+threads_url = f"{base}/api/v1/threads"
 
 # 1. A thread of your own
-thread = requests.post(f"{base}/api/v1/threads", headers=auth, json={}).json()
+thread = requests.post(threads_url, headers=auth, json={}).json()
 
 # 2. Send a message — name a model your org has configured
 requests.post(
-    f"{base}/api/v1/threads/{thread['id']}/messages",
+    f"{threads_url}/{thread['id']}/messages",
     headers=auth,
     json={"content": "In one sentence: what is Tale?", "model": "<your-model>"},
 ).raise_for_status()
@@ -58,35 +64,38 @@ requests.post(
 # 3. Poll until idle, then read the last message
 while True:
     status = requests.get(
-        f"{base}/api/v1/threads/{thread['id']}/generation", headers=auth
+        f"{threads_url}/{thread['id']}/generation", headers=auth
     ).json()["status"]
     if status == "idle":
         break
     time.sleep(1)
 
 messages = requests.get(
-    f"{base}/api/v1/threads/{thread['id']}/messages", headers=auth
+    f"{threads_url}/{thread['id']}/messages", headers=auth
 ).json()["page"]
 reply = messages[-1]
 print("".join(p["text"] for p in reply["parts"] if p.get("type") == "text"))
 ```
 
-`{"status": "idle"}` means the turn finished — including a failed one, which lands as an assistant message carrying the error rather than vanishing. The send call answers **202** immediately; the reply exists only after the poll loop leaves `queued`/`streaming`.
+`{"status": "idle"}` means no turn is running. Read the messages for the reply or a model error. The send call answers **202** before the work finishes. If you lose access or move the thread before the queued turn opens, the worker refuses it; see the [API reference](/develop/api-reference) for the scope rules.
 
 ## Step 4 — Start an automation run
 
-The same 202-then-poll shape starts real work. Automation names are `/`-paths written with `__` in URLs — `billing/dunning` travels as `billing__dunning`:
+Choose an active project you can edit and an automation deployed for it, then set `TALE_PROJECT_ID` below. This example uses `billing/dunning`; names containing `/` use `__` in URLs, so it becomes `billing__dunning`. The start and poll both name the same project:
 
 ```bash
-RUN=$(curl -sS -X POST "$TALE_BASE_URL/api/v1/automations/billing__dunning/runs" \
+export TALE_PROJECT_ID="<projectId>"
+RUN=$(curl -sS -X POST "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/automations/billing__dunning/runs" \
   -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $TALE_ORG_SLUG" \
   -H "Content-Type: application/json" -d '{ "input": {} }' | jq -r .runId)
 
-curl -sS "$TALE_BASE_URL/api/v1/runs/$RUN" \
-  -H "Authorization: Bearer $TALE_API_KEY" | jq .status
+curl -sS "$TALE_BASE_URL/api/v1/projects/$TALE_PROJECT_ID/runs/$RUN" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $TALE_ORG_SLUG" | jq .status
 ```
 
-A live run needs your Developer role; pass `{"mode": "mock"}` to rehearse against deterministic mocks with any member key. A 409 means the automation has no deployed version yet.
+A live run needs your Developer role and project edit access. `{"mode": "mock"}` uses deterministic mocks but still requires project edit access. A 409 means no deployed version is available for this call. An automation with bindings must include the chosen project; install it there first if needed. The [API reference](/develop/api-reference) covers installation and non-project runs.
 
 ## Where this fits
 

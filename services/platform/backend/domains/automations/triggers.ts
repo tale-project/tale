@@ -1,3 +1,4 @@
+import { transactSerializable } from '@tale/shared/db/serializable';
 import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -12,7 +13,13 @@ import {
   isPlausibleWebhookToken,
   tokenHashEquals,
 } from '../../core/automations/webhook_token.ts';
-import { AutomationError, beginRun, beginRunInTx } from './store.ts';
+import {
+  AutomationError,
+  beginRun,
+  beginRunInTx,
+  getRun,
+  resolveRunProject,
+} from './store.ts';
 
 /**
  * Trigger DELIVERY — the 0.5 twins of `convex/automations/triggers.ts`:
@@ -23,7 +30,7 @@ import { AutomationError, beginRun, beginRunInTx } from './store.ts';
  *    never a cap an arbitrary subset could hide behind) and CLAIMS each due
  *    occurrence with a conditional stamp, so a throwing run never re-fires
  *    the same minute and two overlapping scans fire it once;
- *  - the webhook door `POST /api/automations/webhook/<token>` — the token in
+ *  - the webhook doors for organization and explicitly named projects — the token in
  *    the path IS the credential (sha256 verifier + constant-time compare;
  *    unknown/disabled reads as a plain 404). Deliveries are IDEMPOTENT: a
  *    redelivery (the sender's delivery id, or a byte-identical body inside
@@ -237,7 +244,40 @@ async function acceptWebhookDelivery(
 ): Promise<{ runId: string; duplicate: boolean }> {
   const { trigger, identity } = args;
   const now = Date.now();
-  return sql.begin(async (tx) => {
+  return transactSerializable(sql, async (tx) => {
+    // A token grants one automation's installations, not a user's project
+    // visibility. Recheck scope even on retries: removing an installation or
+    // archiving its project also closes cached-delivery access.
+    const scope =
+      args.projectId === undefined
+        ? { requireOrgScope: true }
+        : { projectId: args.projectId, requireProjectBinding: true };
+    await resolveRunProject(tx, {
+      organizationId: trigger.organizationId,
+      name: trigger.name,
+      ...scope,
+    });
+    if (args.projectId !== undefined) {
+      const projects = await tx<{ archivedAt: number | null }[]>`
+        SELECT archived_at_ms AS "archivedAt" FROM app.projects
+        WHERE org_id = ${trigger.organizationId} AND id = ${args.projectId}
+        LIMIT 1
+      `;
+      if (projects[0] === undefined) {
+        throw new AutomationError(
+          'AUTOMATION_PROJECT_UNKNOWN',
+          'The project does not exist in this organization.',
+          404,
+        );
+      }
+      if (projects[0].archivedAt !== null) {
+        throw new AutomationError(
+          'AUTOMATION_PROJECT_ARCHIVED',
+          'The project is archived.',
+          403,
+        );
+      }
+    }
     const claimed = await tx<{ triggerId: string }[]>`
       INSERT INTO app.automation_webhook_deliveries AS d (
         trigger_id, delivery_key, source, run_id, received_at_ms, expires_at_ms
@@ -267,6 +307,16 @@ async function acceptWebhookDelivery(
           `webhook delivery ledger row for trigger ${trigger.id} carries no run`,
         );
       }
+      // Old flat-URL ledger entries may point at a formerly inferred project.
+      // Never return that identity through a different current URL scope.
+      const run = await getRun(tx, trigger.organizationId, runId);
+      if (run === null || run.projectId !== (args.projectId ?? null)) {
+        throw new AutomationError(
+          'AUTOMATION_DELIVERY_SCOPE_MISMATCH',
+          'The recorded delivery belongs to a different scope.',
+          409,
+        );
+      }
       return { runId, duplicate: true };
     }
     const started = await beginRunInTx(tx, {
@@ -275,7 +325,7 @@ async function acceptWebhookDelivery(
       input: { trigger: 'webhook', payload: args.payload },
       mode: 'live',
       startedBy: `trigger:${trigger.id}`,
-      ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
+      ...scope,
     });
     if (!started) throw new NotDeployedError();
     await tx`
@@ -292,7 +342,8 @@ async function acceptWebhookDelivery(
   });
 }
 
-/** The inbound webhook door. Mounted at `/api/automations/webhook`. */
+/** Token-only ingress, mounted at `/api/automations/webhook` and
+ * `/api/projects/:id/automations/webhook`; the latter supplies URL scope. */
 export function createWebhookRoutes(deps: { sql: Sql }): Hono {
   const app = new Hono();
 
@@ -341,11 +392,13 @@ export function createWebhookRoutes(deps: { sql: Sql }): Hono {
     ) {
       return c.text('Not found', 404);
     }
-    const requestedProject = c.req.query('projectId');
-    const projectId =
-      requestedProject !== undefined && requestedProject !== ''
-        ? requestedProject
-        : undefined;
+    if (c.req.query('projectId') !== undefined) {
+      return c.json(
+        { error: 'Project scope must be supplied in the webhook URL path.' },
+        400,
+      );
+    }
+    const projectId = c.req.param('id');
     const identity = await deliveryIdentity({
       headers: c.req.raw.headers,
       body: bytes,
@@ -369,7 +422,7 @@ export function createWebhookRoutes(deps: { sql: Sql }): Hono {
         return c.json({ error: error.message }, 409);
       }
       // The token proved the caller may start this automation, so a bad
-      // projectId is a plain 400 with the reason — not the token-secrecy 404.
+      // project scope is a plain 400 with the reason, not the token-secrecy 404.
       if (error instanceof AutomationError) {
         return c.json({ error: error.message }, 400);
       }

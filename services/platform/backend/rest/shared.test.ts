@@ -1,8 +1,82 @@
 // @vitest-environment node
 
+import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { formatKeysetCursor, pageLimit, parseKeysetCursor } from './shared.ts';
+import {
+  formatKeysetCursor,
+  loadRestProject,
+  pageLimit,
+  parseKeysetCursor,
+} from './shared.ts';
+
+describe('REST project access', () => {
+  const auth = {
+    organizationId: 'org-1',
+    userId: 'user-1',
+    role: 'member',
+    teamIds: ['team-1'],
+  };
+  const project = {
+    id: 'project-1',
+    organizationId: 'org-1',
+    teamId: 'team-1',
+    sharedWithTeamIds: [],
+    archivedAt: null,
+  };
+  const database = (rows: unknown[], error?: Error) =>
+    Object.assign(
+      () => (error ? Promise.reject(error) : Promise.resolve(rows)),
+      { unsafe: (text: string) => text },
+    ) as unknown as Sql;
+
+  it('keeps missing, foreign and invisible projects opaque', async () => {
+    for (const rows of [
+      [],
+      [{ ...project, organizationId: 'other-org' }],
+      [{ ...project, teamId: 'other-team' }],
+    ]) {
+      await expect(
+        loadRestProject(database(rows), auth, project.id),
+      ).rejects.toMatchObject({ status: 404, message: 'Project not found' });
+    }
+  });
+
+  it('allows member collaboration but refuses editorial changes', async () => {
+    const sql = database([project]);
+    await expect(
+      loadRestProject(sql, auth, project.id, { active: true }),
+    ).resolves.toEqual(project);
+    await expect(
+      loadRestProject(sql, auth, project.id, { write: true }),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      loadRestProject(sql, { ...auth, role: 'editor' }, project.id, {
+        write: true,
+      }),
+    ).resolves.toEqual(project);
+  });
+
+  it('permits archived reads but refuses all active-project mutations', async () => {
+    const archived = { ...project, archivedAt: 123 };
+    const sql = database([archived]);
+    await expect(loadRestProject(sql, auth, project.id)).resolves.toEqual(
+      archived,
+    );
+    for (const options of [{ active: true }, { write: true }]) {
+      await expect(
+        loadRestProject(sql, { ...auth, role: 'admin' }, project.id, options),
+      ).rejects.toMatchObject({ status: 403 });
+    }
+  });
+
+  it('preserves database failures as outages rather than missing resources', async () => {
+    const outage = new Error('database unavailable');
+    await expect(
+      loadRestProject(database([], outage), auth, project.id),
+    ).rejects.toBe(outage);
+  });
+});
 
 /**
  * The one cursor codec every keyset-paginated /api/v1 list shares, and the

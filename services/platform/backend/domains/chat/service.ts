@@ -30,6 +30,8 @@ export interface ChatTurnRequest {
   readonly organizationId: string;
   readonly userId: string;
   readonly threadId: string;
+  /** REST pins the accepted URL scope; session turns omit this. */
+  readonly expectedProjectId?: string | null;
   readonly userText: string;
   readonly attachments?: ExecuteTurnArgs['attachments'];
   readonly modelId?: string;
@@ -56,6 +58,9 @@ export async function runChatTurn(
     organizationId: request.organizationId,
     userId: request.userId,
     threadId: request.threadId,
+    ...(request.expectedProjectId !== undefined
+      ? { expectedProjectId: request.expectedProjectId }
+      : {}),
     userText: request.userText,
     ...(request.attachments !== undefined
       ? { attachments: request.attachments }
@@ -79,12 +84,19 @@ export async function runChatTurn(
     args,
     {
       deps: {
-        store: createPgTurnStore(
-          sql,
-          request.onUserMessageAppended !== undefined
+        store: createPgTurnStore(sql, {
+          ...(request.onUserMessageAppended !== undefined
             ? { onUserMessageAppended: request.onUserMessageAppended }
-            : {},
-        ),
+            : {}),
+          ...(request.expectedProjectId !== undefined
+            ? {
+                scope: {
+                  userId: request.userId,
+                  projectId: request.expectedProjectId,
+                },
+              }
+            : {}),
+        }),
         usage: createPgUsageLedger(sql),
       },
     },
