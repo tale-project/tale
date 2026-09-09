@@ -183,7 +183,7 @@
     "@vitest/browser-playwright": "4.1.10",
     "postcss-load-config": "6.0.1",
     "seedrandom": "3.0.5",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "tree-kill": "1.2.2",
     "vitest-axe": "1.0.0-pre.5"
   },
