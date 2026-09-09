@@ -274,60 +274,89 @@ export class WebCorpusReader implements CorpusReader {
     query: CorpusLegQuery,
   ): Promise<readonly KnowledgeHit[] | null> {
     if (!(await bm25Available(this.sql))) return null;
-    const statement = `
-      SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
-             c.url AS ref, c.title, c.url,
-             NULL::text AS project_id, NULL::text AS conversation_id,
-             u.last_crawled_at AS modified_at,
-             CASE WHEN c.core_content <> ''
-                   AND position(c.core_content IN u.content) > 0
-                  THEN (position(c.core_content IN u.content) - 1)::text
-                  ELSE NULL END AS hit_offset,
-             paradedb.score(c.id) AS score
-      FROM ${PUBLIC_WEB_SCHEMA}.chunks c
-      JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
-        ON m.domain = c.domain AND m.org_slug = $2
-      JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
-        ON u.domain = c.domain AND u.url = c.url
-      WHERE c.id @@@ paradedb.match('chunk_content', $1)
-      ORDER BY score DESC
-      LIMIT $3
-    `;
-    return runKeywordLeg(this.sql, this.corpus, statement, [
-      query.query,
-      this.orgSlug,
-      query.limit,
-    ]);
+    return runKeywordLeg(
+      this.sql,
+      this.corpus,
+      webCorpusStatement(RANKING.bm25),
+      [query.query, this.orgSlug, query.limit],
+    );
   }
 
   async dense(
     query: CorpusLegQuery & { readonly embedding: readonly number[] },
   ): Promise<readonly KnowledgeHit[]> {
-    const statement = `
-      SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
-             c.url AS ref, c.title, c.url,
-             NULL::text AS project_id, NULL::text AS conversation_id,
-             u.last_crawled_at AS modified_at,
-             CASE WHEN c.core_content <> ''
-                   AND position(c.core_content IN u.content) > 0
-                  THEN (position(c.core_content IN u.content) - 1)::text
-                  ELSE NULL END AS hit_offset,
-             1 - (c.embedding <=> $1::vector) AS score
+    return runDenseLeg(
+      this.sql,
+      this.corpus,
+      webCorpusStatement(RANKING.vector),
+      [JSON.stringify(query.embedding), this.orgSlug, query.limit],
+    );
+  }
+}
+
+/** The per-leg half of a web-corpus query: the score expression, the row
+ * filter that selects the candidate set, and the sort. `$1` is the query
+ * (a search string for bm25, a vector literal for dense), `$2` the org slug,
+ * `$3` the candidate limit. */
+const RANKING = {
+  bm25: {
+    score: 'paradedb.score(c.id)',
+    where: "c.id @@@ paradedb.match('chunk_content', $1)",
+    order: 'score DESC',
+  },
+  vector: {
+    score: '1 - (c.embedding <=> $1::vector)',
+    where: 'c.embedding IS NOT NULL',
+    order: 'c.embedding <=> $1::vector',
+  },
+} as const;
+
+/**
+ * A web-corpus leg, ranked THEN offset-resolved.
+ *
+ * `hit_offset` locates a chunk inside its page with
+ * `position(core_content IN content)`, which is O(page size). Computing it in
+ * the ranking SELECT evaluates it for every candidate row before the LIMIT,
+ * and a single large page (a full-text export can be megabytes) then dominates
+ * the whole search — one deployment measured ~35s, almost all of it in this
+ * substring scan over the biggest page's body, repeated across thousands of
+ * candidates. So rank and cut to the LIMIT first (the CTE never touches
+ * `content`), and resolve the offset only for the survivors — the same rows
+ * the caller will actually see.
+ */
+function webCorpusStatement(
+  rank: (typeof RANKING)[keyof typeof RANKING],
+): string {
+  return `
+    WITH ranked AS (
+      SELECT c.id, c.chunk_content, c.chunk_index, c.url, c.domain, c.title,
+             c.core_content, u.last_crawled_at,
+             ${rank.score} AS score
       FROM ${PUBLIC_WEB_SCHEMA}.chunks c
       JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
         ON m.domain = c.domain AND m.org_slug = $2
       JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
         ON u.domain = c.domain AND u.url = c.url
-      WHERE c.embedding IS NOT NULL
-      ORDER BY c.embedding <=> $1::vector
+      WHERE ${rank.where}
+      ORDER BY ${rank.order}
       LIMIT $3
-    `;
-    return runDenseLeg(this.sql, this.corpus, statement, [
-      JSON.stringify(query.embedding),
-      this.orgSlug,
-      query.limit,
-    ]);
-  }
+    )
+    SELECT r.id::text AS id, r.chunk_content, r.chunk_index,
+           r.url AS ref, r.title, r.url,
+           NULL::text AS project_id, NULL::text AS conversation_id,
+           r.last_crawled_at AS modified_at,
+           CASE WHEN off.p > 0 THEN (off.p - 1)::text ELSE NULL END AS hit_offset,
+           r.score
+    FROM ranked r
+    JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
+      ON u.domain = r.domain AND u.url = r.url
+    CROSS JOIN LATERAL (
+      SELECT CASE WHEN r.core_content <> ''
+                  THEN position(r.core_content IN u.content)
+                  ELSE 0 END AS p
+    ) off
+    ORDER BY r.score DESC
+  `;
 }
 
 /**
