@@ -343,8 +343,12 @@ any toggled setting after the run.
   trigger management** (`settings.mcpEndpoint.tools.management.title`),
   **Skills & knowledge** (`settings.mcpEndpoint.tools.capability.title`) — and
   the **Try it** example (`settings.mcpEndpoint.exampleTitle`); auth help
-  points at REST API keys (`settings.mcpEndpoint.authLink`); with an SET-F32
-  key filled in, the copied `tools/list` request returns those tools.
+  points at REST API keys (`settings.mcpEndpoint.authLink`); the
+  **Organization slug** row (`settings.mcpEndpoint.orgSlug.title`) shows this
+  org's slug with its own copy control (`settings.mcpEndpoint.orgSlug.copy`)
+  and the copied example already carries `X-Organization-Slug: <that slug>`;
+  with an SET-F32 key filled in, the copied `tools/list` request returns those
+  tools — also for a user who belongs to two organizations.
 - [ ] `SET-F34` · **WebDAV app-passwords** —
   `/dashboard/{org}/settings/api/webdav` → **Generate a new app-password**
   (`webdav.create.title`) → **Label** (`webdav.create.labelLabel`) →

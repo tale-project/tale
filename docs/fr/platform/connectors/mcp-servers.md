@@ -15,9 +15,9 @@ Les serveurs MCP sortants ne sont pas disponibles dans cette version. L’ancien
 
 Tale expose un endpoint MCP par déploiement, sous `/api/v1/mcp`, authentifié par une clé API d’organisation. Vingt-deux outils se tiennent derrière, en trois groupes — écrire et déployer des automatisations, les exécuter et lire leurs exécutions, chercher et invoquer ce que l’organisation sait faire. **Paramètres > API > MCP** affiche l’URL de l’endpoint de ton déploiement, l’inventaire dans ces trois groupes et, sous **Essaie**, une requête `tools/list` à copier. [Endpoint MCP](/fr/develop/mcp-endpoint) est la référence — protocole, table des outils et ce que la clé de chaque rôle peut faire ; [Clés API](/fr/platform/admin/api-keys) couvre la création de la clé.
 
-<Frame caption="Paramètres > API > MCP — l’URL de l’endpoint à donner à ton client, l’inventaire des outils dans ses trois groupes et une requête pour essayer la clé.">
+<Frame caption="Paramètres > API > MCP — l’URL de l’endpoint à donner à ton client, le slug de l’organisation qu’une clé multi-organisations envoie, l’inventaire des outils dans ses trois groupes et une requête pour essayer la clé.">
 
-![La page MCP sous Paramètres > API, avec la ligne Endpoint MCP dont l’URL se termine par /api/v1/mcp et son bouton de copie, trois lignes qui listent les noms d’outils par groupe — Écriture, Gestion des exécutions & déclencheurs, Skills & connaissances — et une ligne Essaie qui contient une requête curl appelant tools/list avec une clé API en bearer.](/images/platform/settings-mcp-endpoint.webp)
+![La page MCP sous Paramètres > API, avec la ligne Endpoint MCP dont l’URL se termine par /api/v1/mcp et son bouton de copie, une ligne Slug de l’organisation, trois lignes qui listent les noms d’outils par groupe — Écriture, Gestion des exécutions & déclencheurs, Skills & connaissances — et une ligne Essaie qui contient une requête curl appelant tools/list avec une clé API en bearer et l’en-tête de slug d’organisation.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 

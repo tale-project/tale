@@ -3,6 +3,7 @@
 import { Link } from '@tanstack/react-router';
 
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
+import { useOrganization } from '@/app/features/organization/hooks/queries';
 import {
   SettingsFieldList,
   SettingsFieldRow,
@@ -36,6 +37,14 @@ export function McpEndpointSection({
   const siteOrigin = useSiteUrl();
   const endpoint = `${siteOrigin}/api/v1/mcp`;
 
+  // The REST door refuses to guess the organization for a key whose holder
+  // belongs to several (400 ORG_SLUG_REQUIRED), so the example carries THIS
+  // organization's slug — a copied request works for every key, not only a
+  // single-organization one.
+  const organization = useOrganization(organizationId);
+  const orgSlug = organization.data?.slug;
+  const example = `curl -X POST ${endpoint} -H 'Authorization: Bearer <api-key>' -H 'X-Organization-Slug: ${orgSlug ?? '<org-slug>'}' -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`;
+
   return (
     <SettingsSection
       className={className}
@@ -67,6 +76,21 @@ export function McpEndpointSection({
           />
         </SettingsFieldRow>
 
+        {/* The tenant header. A multi-organization key must name the
+            organization on every request; the slug is the value it sends. */}
+        {orgSlug !== undefined && (
+          <SettingsFieldRow
+            label={t('mcpEndpoint.orgSlug.title')}
+            description={t('mcpEndpoint.orgSlug.description')}
+          >
+            <CopyableField
+              value={orgSlug}
+              mono
+              copyAriaLabel={t('mcpEndpoint.orgSlug.copy')}
+            />
+          </SettingsFieldRow>
+        )}
+
         {/* The inventory in the same three groups the docs table draws —
             authoring, run & trigger management, capabilities & knowledge —
             so a reader can map this list onto the MCP endpoint docs 1:1. */}
@@ -91,7 +115,7 @@ export function McpEndpointSection({
           description={t('mcpEndpoint.exampleHelp')}
         >
           <CopyableField
-            value={`curl -X POST ${endpoint} -H 'Authorization: Bearer <api-key>' -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`}
+            value={example}
             mono
             copyAriaLabel={t('mcpEndpoint.copyExample')}
           />

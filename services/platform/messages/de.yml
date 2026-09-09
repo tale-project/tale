@@ -4952,6 +4952,13 @@ settings:
     authHelp: 'Authentifiziere dich mit einem API-Schlüssel der Organisation als
       Bearer-Token: Schlüssel erstellst und verwaltest du unter'
     authLink: REST-API-Schlüssel.
+    orgSlug:
+      title: Organisations-Slug
+      description: Gehört der Schlüsselinhaber mehreren Organisationen an,
+        muss jede Anfrage diese hier benennen — schick den Wert als
+        X-Organization-Slug mit. Ein Schlüssel mit nur einer Organisation
+        kann ihn weglassen.
+      copy: Organisations-Slug kopieren
     tools:
       authoring:
         title: Autorieren
@@ -4967,7 +4974,8 @@ settings:
         description: Die eigene Oberfläche der Organisation — durchsuchen, was
           sie kann, eine Capability aufrufen, Wissen abrufen.
     exampleTitle: Ausprobieren
-    exampleHelp: Listet die Tools — setze deinen API-Schlüssel ein.
+    exampleHelp: Listet die Tools — setze deinen API-Schlüssel ein;
+      X-Organization-Slug ist schon eingetragen.
     copyExample: Beispiel-Anfrage kopieren
   account:
     profile:

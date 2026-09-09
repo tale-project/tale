@@ -11,28 +11,32 @@ Lies das, um einen Client zu verbinden und das Tool-Inventar zu verstehen. Die G
 
 ## Einen Client verbinden
 
-Der Endpoint spricht MCP-Protokoll `2025-03-26` als JSON-RPC über HTTPS — reine JSON-Antworten, kein SSE-Stream, eine Nachricht pro Request (ein Batch antwortet Fehler `-32600`). Authentifiziere mit einem Organisations-API-Schlüssel ([API-Schlüssel](/de/platform/admin/api-keys) beschreibt das Erzeugen):
+Der Endpoint spricht MCP-Protokoll `2025-03-26` als JSON-RPC über HTTPS — reine JSON-Antworten, kein SSE-Stream, eine Nachricht pro Request (ein Batch antwortet Fehler `-32600`). Authentifiziere mit einem Organisations-API-Schlüssel ([API-Schlüssel](/de/platform/admin/api-keys) beschreibt das Erzeugen). Gehört der Schlüsselinhaber mehreren Organisationen an, muss jede Anfrage zusätzlich sagen, welche gemeint ist — über `X-Organization-Slug`, gegen die Mitgliedschaft geprüft. Ohne diesen Wert antwortet so eine Anfrage mit **400** `ORG_SLUG_REQUIRED`, statt aus dem Dashboard zu raten; ein Schlüssel mit nur einer Organisation kann ihn weglassen.
 
 ```json
 // POST https://your-host.example.com/api/v1/mcp
 // Authorization: Bearer tale_...
+// X-Organization-Slug: acme
 { "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }
 ```
 
-Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Block ist das alles, was du brauchst:
+Der Server identifiziert sich als `tale-platform`. In einem Client mit Config-Block reichen diese beiden Einträge:
 
 ```json
 {
   "mcpServers": {
     "tale": {
       "url": "https://your-host.example.com/api/v1/mcp",
-      "headers": { "Authorization": "Bearer tale_..." }
+      "headers": {
+        "Authorization": "Bearer tale_...",
+        "X-Organization-Slug": "acme"
+      }
     }
   }
 }
 ```
 
-`tools/list` liefert das volle Inventar; `GET` auf den Endpoint antwortet **405** — es gibt keinen Event-Stream zum Abonnieren. Die Endpoint-URL deines Deployments, dasselbe Inventar in seinen drei Gruppen und eine kopierbare `tools/list`-Anfrage findest du unter **Einstellungen > API > MCP**.
+`tools/list` liefert das volle Inventar; `GET` auf den Endpoint antwortet **405** — es gibt keinen Event-Stream zum Abonnieren. Die Endpoint-URL deines Deployments, den Organisations-Slug, dasselbe Inventar in seinen drei Gruppen und eine kopierbare `tools/list`-Anfrage mit beiden Werten findest du unter **Einstellungen > API > MCP**.
 
 ## Die Tools
 

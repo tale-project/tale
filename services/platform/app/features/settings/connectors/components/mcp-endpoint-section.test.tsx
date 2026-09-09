@@ -29,6 +29,13 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }));
 
+// The tenant-header row and the example request read the organization's slug
+// through `useOrganization`; the shared render mounts no QueryClient, so the
+// hook answers as a settled query.
+vi.mock('@/app/features/organization/hooks/queries', () => ({
+  useOrganization: () => ({ data: { slug: 'northlight' } }),
+}));
+
 const GROUP_HEADINGS: Record<McpToolGroup, string> = {
   authoring: 'Authoring',
   management: 'Run & trigger management',
@@ -41,6 +48,17 @@ describe('McpEndpointSection', () => {
 
     expect(
       screen.getByText('https://tale.example.com/api/v1/mcp'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the organization slug and bakes it into the example request', () => {
+    render(<McpEndpointSection organizationId="org-1" />);
+
+    // A multi-organization key must send the slug on every request, so the
+    // page shows it on its own row and the copied example already carries it.
+    expect(screen.getByText('northlight')).toBeInTheDocument();
+    expect(
+      screen.getByText(/-H 'X-Organization-Slug: northlight'/),
     ).toBeInTheDocument();
   });
 
