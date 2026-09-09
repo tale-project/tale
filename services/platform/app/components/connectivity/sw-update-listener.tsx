@@ -31,7 +31,7 @@ export function SwUpdateListener() {
             >
               <Button
                 type="button"
-                variant="secondary"
+                variant="primary"
                 size="sm"
                 className="shrink-0"
               >

@@ -55,7 +55,7 @@ export function ChangelogToastTrigger() {
       description: t('toast.description'),
       action: (
         <ToastPrimitives.Action altText={t('toast.action')} asChild>
-          <Button variant="secondary" size="sm" className="shrink-0" asChild>
+          <Button variant="primary" size="sm" className="shrink-0" asChild>
             <Link
               to="/dashboard/changelog"
               search={{ from: lastSeenVersion, to: currentVersion }}
