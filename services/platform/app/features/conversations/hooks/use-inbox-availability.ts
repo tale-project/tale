@@ -37,6 +37,10 @@ export function useInboxAvailability(organizationId: string): {
     'automations/queries:listAutomations',
     organizationId ? { organizationId, includeProjectBound: true } : 'skip',
   );
+  const { data: apiSources, isLoading: sourcesLoading } = useBackendQuery(
+    'conversations/queries:apiSources',
+    organizationId ? { organizationId } : 'skip',
+  );
 
   const inboxAutomations = useMemo(() => {
     if (!data) return [];
@@ -55,8 +59,8 @@ export function useInboxAvailability(organizationId: string): {
   }, [data]);
 
   return {
-    isLoading,
-    hasInbox: inboxAutomations.length > 0,
+    isLoading: isLoading || sourcesLoading,
+    hasInbox: inboxAutomations.length > 0 || (apiSources?.length ?? 0) > 0,
     inboxAutomations,
   };
 }

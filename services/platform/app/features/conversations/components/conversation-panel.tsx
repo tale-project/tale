@@ -275,7 +275,10 @@ export function ConversationPanel({
 
     const contactEmail = conversation.contact.email;
 
-    if (!contactEmail || contactEmail === 'unknown@example.com') {
+    if (
+      conversation.channel !== 'api' &&
+      (!contactEmail || contactEmail === 'unknown@example.com')
+    ) {
       console.error('No contact email found in conversation');
       throw new Error(tConversations('panel.contactEmailNotFound'));
     }
@@ -292,7 +295,7 @@ export function ConversationPanel({
       organizationId: conversation.organizationId,
       connectorName: conversation.connectorName ?? 'outlook',
       content: message,
-      to: [contactEmail],
+      to: contactEmail ? [contactEmail] : [],
       subject: replySubject,
       html: message,
       text: message.replace(/<[^>]*>/g, ''),

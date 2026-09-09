@@ -235,7 +235,7 @@ export function ConversationHeader({
 
   // Primary line prefers a display name; when the contact has none, it already
   // shows the email — repeating it on the meta line is noise and eats width.
-  const primaryLabel = contact.name || contact.email;
+  const primaryLabel = contact.name || contact.email || t('unknownContact');
   const showEmailInMeta = Boolean(contact.name && contact.email);
 
   return (

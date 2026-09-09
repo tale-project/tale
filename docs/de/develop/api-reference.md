@@ -26,6 +26,36 @@ API-Schlüssel erzeugt jeder mit Admin- oder Entwickler-Berechtigungen im Produk
 
 Übergib den Schlüssel als Bearer-Token: `Authorization: Bearer <key>`. Die Organisation wird pro Anfrage aus den Mitgliedschaften des Schlüssel-Benutzers aufgelöst — ein Schlüssel erreicht genau die Organisationen, denen sein Benutzer angehört, sonst keine. Ein expliziter `X-Organization-Slug`-Header gewinnt immer und wird auf Mitgliedschaft geprüft: ein Slug, dessen Organisation der Benutzer nicht angehört, wird abgewiesen. Ohne Header landet ein Benutzer mit einer Organisation in dieser einen. Ein Benutzer mit mehreren folgt der zuletzt im Dashboard aktiven Organisation nur beim Lesen — jedes Schreiben (`POST`/`PATCH`/`PUT`/`DELETE`) und jeder Aufruf auf den Projekt- und Aufgaben-Routen muss die Organisation benennen, und eine Multi-Org-Anfrage ohne den Header antwortet **400**. Was der Schlüssel _tun darf_, folgt der Rolle seines Besitzers: Lesen und Mock-Läufe brauchen Mitgliedschaft; Live-Arbeit starten und Deploytes verändern braucht die Entwickler-Fähigkeit. Wo das zählt, sagen es die Abschnitte unten.
 
+## Mit Tale bei einer Anwendung anmelden
+
+Tale ist auch ein OpenID-Connect-Aussteller. Eine registrierte Anwendung führt dich durch die native Anmeldung und Einwilligung in Tale. Sie erhält eine signierte Identität mit bestätigter E-Mail-Adresse und der Mitgliedschaft in genau der Organisation, an die ihr Client gebunden ist. Ein API-Schlüssel ersetzt in diesem Ablauf keine persönliche Anmeldung.
+
+Registriere die Anwendung mit einer aktiven Owner- oder Admin-Sitzung, deren ausgewählte Organisation `TALE_ORG_ID` entspricht. `TALE_ORIGIN` ist der Ursprung deiner Tale-Instanz, `TALE_SESSION_COOKIE` der Cookie-Header dieser Sitzung. Verwende die genaue HTTPS-Callback-URL der Anwendung; HTTP ist nur auf Loopback für die lokale Entwicklung erlaubt:
+
+```bash
+curl -sS -X POST "$TALE_ORIGIN/api/app/identity/clients?orgId=$TALE_ORG_ID" \
+  -H "Cookie: $TALE_SESSION_COOKIE" \
+  -H "Origin: $TALE_ORIGIN" \
+  -H "Content-Type: application/json" \
+  -d '{"key":"office-app","name":"Office application","redirectUri":"https://office.example.com/api/auth/oauth2/callback/tale"}'
+```
+
+Die erste Antwort lautet **201** mit `{ "created": true, "client": { "client_id": "…", "client_secret": "…", … } }`. Speichere das Geheimnis in der geheimen Umgebungskonfiguration der Anwendung. Derselbe Schlüssel mit unveränderter Konfiguration liefert bei Wiederholung **200**, `created: false` und dieselbe Client-ID ohne Geheimnis. Eine geänderte Callback-URL oder Richtlinie führt zu **409**. Ein erneuter Lauf kann eine bestehende Integration so nicht unbemerkt umleiten.
+
+| Zweck | Endpoint oder Anforderung |
+| --- | --- |
+| Aussteller | `https://your-host.example.com/api/auth` |
+| Discovery | `GET /api/auth/.well-known/openid-configuration` |
+| Autorisierung | `GET /api/auth/oauth2/authorize` |
+| Code-Austausch | `POST /api/auth/oauth2/token`, `client_secret_post` |
+| Signaturschlüssel | `GET /api/auth/jwks` |
+| Aktuelle Identität | `GET /api/auth/oauth2/userinfo`, Bearer-Zugriffstoken |
+| Angeforderte Scopes | `openid profile email tale:organization` |
+
+Verwende einen gepflegten OIDC-Client mit Authorization Code Flow, S256 PKCE, einmaligem State und Nonce. Prüfe Aussteller, Zielgruppe, RS256-Signatur, Ablaufzeit und Nonce des ID-Tokens und verlange `email_verified: true`. Der Claim `https://tale.dev/organization` enthält `{ "id", "slug", "role" }` für die registrierte Organisation. Tale prüft vor der Token-Ausgabe und beim Abruf von Userinfo die aktuelle Mitgliedschaft und die native MFA-Pflicht erneut. Die Anwendung bleibt für ihre eigene Zugangsrichtlinie verantwortlich. Codes laufen nach 60 Sekunden ab und lassen sich einmal einlösen; Zugriffs- und ID-Tokens laufen nach fünf Minuten ab. Dynamische Registrierung, Implicit Grants und Refresh Tokens sind deaktiviert.
+
+Für einen geprüften Client-Schlüssel liefert `POST /api/app/identity/clients/office-app/rotate-secret?orgId=<orgId>` mit `{}` einmalig ein neues `client_secret` und macht das alte ungültig. `POST /api/app/identity/clients/office-app/status?orgId=<orgId>` mit `{ "disabled": true }` sperrt neue Autorisierungen; `false` aktiviert denselben Client wieder. Beide Aufrufe benötigen wie die Registrierung dieselbe aktuelle Organisation, eine Admin-Sitzung, den Origin-Header und JSON als Inhaltstyp. Beim Löschen einer Organisation werden ihre Clients und Einwilligungen entfernt.
+
 ## Endpoint-Gruppen
 
 | Gruppe            | Pfad                                    | Was sie abdeckt                                                                                                                      |
@@ -42,10 +72,13 @@ API-Schlüssel erzeugt jeder mit Admin- oder Entwickler-Berechtigungen im Produk
 | Browser-Sessions  | `/api/v1/browser-sessions/...`          | Der vorgewärmte Cookie-Pool hinter der [Video-Ingestion](/de/self-hosted/configuration/video-ingestion): maskierte Liste, `POST .../import` für Operatoren auf der Allowlist. |
 | Produkte          | `/api/v1/products/...`                  | Produktkatalog-Einträge: CRUD.                                                                                                       |
 | Kontakte          | `/api/v1/contacts/...`                  | Kontaktdaten: CRUD plus `POST /api/v1/contacts/bulk`.                                                                                |
+| Gespräche | `/api/v1/conversations/...` | Externe Gespräche in den Posteingang spiegeln, Nachrichten lesen, Antworten abrufen und die Zustellung bestätigen; genaue Schemas stehen unter `/docs` der laufenden Instanz. |
 | Projekte          | `/api/v1/projects/...`                  | Der Maschinenzugang für externe Worker: per externer ID nachschlagen, anlegen, Ordner vorbereiten, Dateien hochladen.                |
 | Aufgaben          | `/api/v1/tasks/...`                     | Idempotentes Anlegen aus einer externen Referenz, Zustand lesen, Workflow starten, kommentieren.                                     |
 | MCP               | `POST /api/v1/mcp`                      | Der [MCP-Endpoint](/de/develop/mcp-endpoint) — derselbe Schlüssel, JSON-RPC statt REST.                                              |
 | Webhook-Trigger   | `POST /api/automations/webhook/<token>` | Eine deployte Automatisierung von außen starten; die [Webhooks-Seite](/de/develop/webhooks).                                         |
+
+Übergib bei Kontaktänderungen den zuletzt gelesenen Wert `updatedAt` als optionales `expectedUpdatedAt` an `PATCH /api/v1/contacts/{id}`. Eine zwischenzeitliche Änderung liefert **409**, `CONTACT_STALE`; lade den Kontakt erneut und führe deine Änderungen vor dem nächsten Versuch zusammen.
 
 ## Automatisierungsnamen in URLs
 

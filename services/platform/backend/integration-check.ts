@@ -40,6 +40,7 @@ import { z } from 'zod';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
@@ -49,6 +50,7 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
+import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
@@ -27156,8 +27158,12 @@ set -u
 args=("$@")
 url="\${args[\${#args[@]}-1]}"
 home_dir=""
+ffmpeg_bin=""
 for a in "\${args[@]}"; do
   case "$a" in home:*) home_dir="\${a#home:}";; esac
+done
+for ((i=0; i<\${#args[@]}; i++)); do
+  if [[ "\${args[$i]}" == "--ffmpeg-location" ]]; then ffmpeg_bin="\${args[$((i+1))]}"; fi
 done
 case "$*" in
   *--help*) echo "Usage: yt-dlp (itest fake)"; exit 0;;
@@ -27206,7 +27212,10 @@ if [[ "$*" == *" -x "* || "\${args[0]}" == "-x" ]]; then
   # provider failure must actually reach the provider.
   freq=440
   case "$vid" in whis2) freq=660;; esac
-  /usr/bin/ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=$freq:duration=2" -b:a 32k "$home_dir/whis1.mp3"
+  # Exercise the production toolchain's resolved executable, including
+  # Homebrew paths on macOS; the child deliberately has a stripped PATH.
+  [[ -n "$ffmpeg_bin" ]] || { echo "Missing --ffmpeg-location" >&2; exit 1; }
+  "$ffmpeg_bin" -hide_banner -loglevel error -f lavfi -i "sine=frequency=$freq:duration=2" -b:a 32k "$home_dir/whis1.mp3" || exit $?
   exit 0
 fi
 echo "ERROR: itest fake yt-dlp got unexpected args: $*" >&2
@@ -45082,6 +45091,40 @@ async function main(): Promise<void> {
       [
         'checkWorkflowTurnReattach',
         () => checkWorkflowTurnReattach(sql, authCtx),
+      ],
+      [
+        'checkNativeIdentity',
+        () => checkNativeIdentity(sql, baseUrl, auth, record),
+      ],
+      [
+        'checkConversationApi',
+        async () => {
+          const user = await signUpUser(baseUrl, 'conversation-api');
+          const response = await fetch(
+            `${baseUrl}/api/auth/organization/create`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Origin: baseUrl,
+                cookie: user.cookie,
+              },
+              body: JSON.stringify({
+                name: 'Conversation API integration',
+                slug: `api-sync-${randomUUID().slice(0, 8)}`,
+              }),
+            },
+          );
+          const org = z
+            .object({ id: z.string() })
+            .parse(await readJson(response, 'conversation API org'));
+          await checkConversationApi(
+            sql,
+            baseUrl,
+            { ...user, orgId: org.id },
+            record,
+          );
+        },
       ],
       ['checkConversations', () => checkConversations(sql, baseUrl, authCtx)],
       ['checkMailboxSyncLane', () => checkMailboxSyncLane(sql, authCtx)],

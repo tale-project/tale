@@ -25,6 +25,7 @@ import {
   useIsSsoConfigured,
   useSsoSelectableOrgs,
 } from '@/app/features/auth/hooks/queries';
+import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
@@ -296,6 +297,7 @@ export function LogInPage() {
       await invalidateAuthState(queryClient).catch((error) =>
         console.warn('Session cache invalidation failed:', error),
       );
+      if (resumeOAuthSignIn(redirectTo)) return;
       void navigate({ to: redirectTo || '/dashboard' });
     } catch (error) {
       console.error('Log in error:', error);
@@ -322,11 +324,16 @@ export function LogInPage() {
       }
       const authorizeUrl = new URL(`${base}/authorize`);
       authorizeUrl.searchParams.set('redirect_uri', `${base}/callback`);
+      if (redirectTo)
+        authorizeUrl.searchParams.set(
+          'returnTo',
+          sanitizeInternalRedirect(redirectTo, ''),
+        );
       const trimmed = email.trim();
       if (trimmed) authorizeUrl.searchParams.set('email', trimmed);
       window.location.href = authorizeUrl.toString();
     },
-    [ssoConfig?.providerType],
+    [ssoConfig?.providerType, redirectTo],
   );
 
   const handleSsoLogin = useCallback(async () => {
@@ -354,10 +361,15 @@ export function LogInPage() {
       }
       const authorizeUrl = new URL(`${base}/authorize`);
       authorizeUrl.searchParams.set('redirect_uri', `${base}/callback`);
+      if (redirectTo)
+        authorizeUrl.searchParams.set(
+          'returnTo',
+          sanitizeInternalRedirect(redirectTo, ''),
+        );
       authorizeUrl.searchParams.set('organizationId', organizationId);
       window.location.href = authorizeUrl.toString();
     },
-    [],
+    [redirectTo],
   );
 
   // Passkey / WebAuthn sign-in (#1508). Drives the browser's get-credential
@@ -374,6 +386,7 @@ export function LogInPage() {
         return;
       }
       await invalidateAuthState(queryClient).catch(() => undefined);
+      if (resumeOAuthSignIn(redirectTo)) return;
       void navigate({ to: redirectTo || '/dashboard' });
     } catch {
       // Thrown when the user dismisses the prompt or has no matching passkey.

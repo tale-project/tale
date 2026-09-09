@@ -9,17 +9,22 @@ import { useEffect } from 'react';
 
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
 import { AuthSsoHeader } from '@/app/features/auth/components/auth-sso-header';
+import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
 
 export const Route = createFileRoute('/_auth')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     // fetchQuery rejects on transport failures (after retries) — treat that
     // as signed-out and show the auth page rather than a route error.
     const session = await context.queryClient
       .fetchQuery(sessionQueryOptions)
       .catch(() => null);
     if (session?.data?.user) {
+      const returnTo = new URLSearchParams(location.searchStr).get(
+        'redirectTo',
+      );
+      if (resumeOAuthSignIn(returnTo ?? undefined)) return;
       throw redirect({ to: '/dashboard' });
     }
   },

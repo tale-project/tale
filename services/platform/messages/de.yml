@@ -339,6 +339,15 @@ analytics:
         model: Modell
         agent: Agent
 auth:
+  oauth:
+    title: "Mit Tale fortfahren"
+    request: "{application} möchte dich mit Tale anmelden."
+    permissions: "Erlaube dieser Anwendung, deinen Namen, deine bestätigte E-Mail-Adresse und deine Mitgliedschaft in ihrer Tale-Organisation zu lesen. Dein Passwort bleibt in Tale."
+    allow: "Erlauben und fortfahren"
+    cancel: "Abbrechen"
+    continuing: "Weiter…"
+    retry: "Erneut versuchen"
+    failed: "Diese Anmeldung lässt sich nicht fortsetzen. Kehre zur Anwendung zurück und starte erneut."
   email: E-Mail
   password: Passwort
   emailPlaceholder: Gib deine E-Mail-Adresse ein

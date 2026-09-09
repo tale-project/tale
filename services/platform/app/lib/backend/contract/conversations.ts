@@ -8,6 +8,11 @@
  */
 
 export interface ConversationsContract {
+  'conversations/queries:apiSources': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: string[];
+  };
   'conversations/actions:improveMessage': {
     kind: 'action';
     args: {

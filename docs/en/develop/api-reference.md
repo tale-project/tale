@@ -26,6 +26,36 @@ API keys are minted in the product by anyone with Admin or Developer permissions
 
 Pass the key as a bearer token: `Authorization: Bearer <key>`. The organization is resolved per request from the key user's memberships — a key reaches exactly the organizations its user belongs to, nothing else. An explicit `X-Organization-Slug` header always wins and is membership-checked: a slug the user is not a member of is refused. Without the header, a single-org user lands in their one organization. A multi-org user follows the organization last active in the dashboard only on reads — any write (`POST`/`PATCH`/`PUT`/`DELETE`), and every call on the Projects and Tasks routes, must name the organization, and a multi-org request without it answers **400**. What the key may _do_ follows the key holder's role: reads and mock runs need membership, while starting live work and editing what is deployed needs the developer capability. Where that matters, the endpoint notes below say so.
 
+## Sign in to an application with Tale
+
+Tale is also an OpenID Connect issuer. A registered application sends you through Tale's native login and consent; it receives a signed identity with a verified email and membership in the one organization bound to its client. An API key does not authenticate a person for this flow.
+
+Register the application with an active Owner or Admin session whose selected organization equals `TALE_ORG_ID`. `TALE_ORIGIN` is your Tale origin and `TALE_SESSION_COOKIE` is that session's cookie header. Use the application's exact HTTPS callback; HTTP is accepted only on loopback for local development:
+
+```bash
+curl -sS -X POST "$TALE_ORIGIN/api/app/identity/clients?orgId=$TALE_ORG_ID" \
+  -H "Cookie: $TALE_SESSION_COOKIE" \
+  -H "Origin: $TALE_ORIGIN" \
+  -H "Content-Type: application/json" \
+  -d '{"key":"office-app","name":"Office application","redirectUri":"https://office.example.com/api/auth/oauth2/callback/tale"}'
+```
+
+The first response is **201** with `{ "created": true, "client": { "client_id": "…", "client_secret": "…", … } }`. Store the secret in the application's secret environment. Repeating the same key and configuration returns **200**, `created: false`, and the same client ID without the secret. A changed callback or policy returns **409** so a rerun cannot silently redirect an existing integration.
+
+| Purpose | Endpoint or requirement |
+| --- | --- |
+| Issuer | `https://your-host.example.com/api/auth` |
+| Discovery | `GET /api/auth/.well-known/openid-configuration` |
+| Authorization | `GET /api/auth/oauth2/authorize` |
+| Code exchange | `POST /api/auth/oauth2/token`, `client_secret_post` |
+| Signing keys | `GET /api/auth/jwks` |
+| Current identity | `GET /api/auth/oauth2/userinfo`, bearer access token |
+| Requested scopes | `openid profile email tale:organization` |
+
+Use a maintained OIDC client with authorization code flow, S256 PKCE, one-use state and a nonce. Validate the issuer, audience, RS256 signature, expiry and nonce of the ID token, then require `email_verified: true`. The `https://tale.dev/organization` claim contains `{ "id", "slug", "role" }` for the registered organization. Tale rechecks current membership and native MFA enforcement before issuing tokens and when reading userinfo; the application remains responsible for its own account access policy. Codes expire after 60 seconds and can be redeemed once; access and ID tokens expire after five minutes. Dynamic registration, implicit grants and refresh tokens are disabled.
+
+For a reviewed client key, `POST /api/app/identity/clients/office-app/rotate-secret?orgId=<orgId>` with `{}` returns a new `client_secret` once and retires the old secret. `POST /api/app/identity/clients/office-app/status?orgId=<orgId>` with `{ "disabled": true }` blocks new authorizations; `false` restores the same client. Both require the same current organization, administrator session, Origin header and JSON content type as registration. Deleting an organization removes its clients and consent grants.
+
 ## Endpoint groups
 
 | Group             | Path                                    | What it covers                                                                                               |
@@ -42,10 +72,13 @@ Pass the key as a bearer token: `Authorization: Bearer <key>`. The organization 
 | Browser sessions  | `/api/v1/browser-sessions/...`          | The warmed cookie pool behind [video ingestion](/self-hosted/configuration/video-ingestion): masked list, `POST .../import` for allowlisted operators. |
 | Products          | `/api/v1/products/...`                  | Product catalog entries: CRUD.                                                                               |
 | Contacts          | `/api/v1/contacts/...`                  | Contact records: CRUD plus `POST /api/v1/contacts/bulk`.                                                     |
+| Conversations | `/api/v1/conversations/...` | Mirror external conversations into Inbox, read messages, claim replies and acknowledge delivery; exact schemas are in the running instance’s `/docs`. |
 | Projects          | `/api/v1/projects/...`                  | The machine door for external workers: look up by external id, create, prepare folders, upload files.        |
 | Tasks             | `/api/v1/tasks/...`                     | Idempotent task creation from an external ref, state reads, workflow starts, comments.                       |
 | MCP               | `POST /api/v1/mcp`                      | The [MCP endpoint](/develop/mcp-endpoint) — same key, JSON-RPC instead of REST.                              |
 | Webhook trigger   | `POST /api/automations/webhook/<token>` | Start a deployed automation from outside; the [Webhooks page](/develop/webhooks).                            |
+
+For contact updates, pass the last read `updatedAt` as optional `expectedUpdatedAt` in `PATCH /api/v1/contacts/{id}`. A concurrent edit returns **409**, `CONTACT_STALE`; reload the contact and merge your changes before retrying.
 
 ## Automation names in URLs
 

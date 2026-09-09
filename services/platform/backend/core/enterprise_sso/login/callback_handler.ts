@@ -202,6 +202,7 @@ async function completeCallback(
 
     let state: {
       redirectUri: string;
+      returnTo?: string;
       timestamp: number;
       pkce?: string;
       organizationId?: string;
@@ -357,6 +358,7 @@ async function completeCallback(
       internal.enterprise_sso.internal_actions.handleSsoLogin,
       {
         email: userInfo.email,
+        emailVerified: userInfo.emailVerified === true,
         name: userInfo.name,
         externalId: userInfo.externalId,
         providerId: config.providerId,
@@ -394,6 +396,7 @@ async function completeCallback(
     return await deps.finishLogin(ctx, {
       sessionToken: result.sessionToken,
       frontendOrigin,
+      returnTo: state.returnTo,
     });
   } catch (error) {
     console.error('[SSO] Callback error:', error);

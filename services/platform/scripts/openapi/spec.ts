@@ -12,6 +12,12 @@
  */
 
 // ── Small builders ───────────────────────────────────────────────────────────
+import { z } from 'zod';
+
+import {
+  apiDeliveryFailureSchema,
+  apiSnapshotSchema,
+} from '../../lib/shared/conversations/api-sync.ts';
 
 export type Json = Record<string, unknown>;
 
@@ -159,6 +165,270 @@ const orgSlugHeaderParam = {
 
 export function buildSpec(): Json {
   const paths: Record<string, Json> = {};
+
+  const conversationOrg = {
+    ...orgSlugHeaderParam,
+    required: true,
+    description:
+      'Required on every conversation API request, including single-organization keys.',
+  };
+  const conversationErrors = {
+    ...standardErrors,
+    '403': errorResponse(
+      'Read-only role or another service user owns this binding',
+    ),
+    '409': errorResponse('Conflicting identity, revision, or receipt'),
+    '413': errorResponse('Request body exceeds its byte limit'),
+  };
+  const conversationOperation = {
+    tags: ['Conversations'],
+    security: sec,
+    parameters: [conversationOrg],
+  };
+  const snapshotState = {
+    type: 'object',
+    required: ['conversationId', 'organizationId', 'version', 'attachments'],
+    properties: {
+      conversationId: str,
+      organizationId: str,
+      version: int,
+      attachments: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['id', 'storageId'],
+          properties: { id: str, storageId: str },
+        },
+      },
+    },
+  };
+  paths['/api/v1/conversations/sync'] = {
+    get: {
+      ...conversationOperation,
+      operationId: 'getConversationSourceState',
+      summary: 'Read an integration snapshot receipt',
+      description:
+        'Returns the current source revision and attachment refs for safe crash recovery. An unknown or differently owned source returns a null snapshot.',
+      parameters: [
+        conversationOrg,
+        {
+          ...queryParam('source', 'Stable source slug, e.g. vatplus'),
+          required: true,
+        },
+        {
+          ...queryParam('externalId', 'Stable source conversation ID'),
+          required: true,
+        },
+      ],
+      responses: {
+        '200': jsonResponse('Current source state', {
+          type: 'object',
+          required: ['snapshot'],
+          properties: { snapshot: nullable(snapshotState) },
+        }),
+        ...conversationErrors,
+      },
+    },
+    post: {
+      ...conversationOperation,
+      operationId: 'synchronizeConversationSource',
+      summary: 'Apply a complete native Inbox source snapshot',
+      description:
+        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A Tale-origin message must carry taleMessageId and have been acknowledged with its externalId first. A deleted snapshot closes the source and has no messages. Unacknowledged office replies are preserved. JSON is limited to 8 MiB.',
+      requestBody: jsonBody(
+        z.toJSONSchema(apiSnapshotSchema, {
+          target: 'openapi-3.0',
+          io: 'input',
+        }),
+      ),
+      responses: {
+        '200': jsonResponse('Applied or replayed snapshot', {
+          type: 'object',
+          required: ['conversationId', 'applied'],
+          properties: { conversationId: nullable(str), applied: bool },
+        }),
+        ...conversationErrors,
+      },
+    },
+  };
+  paths['/api/v1/conversations/deliveries/claim'] = {
+    post: {
+      ...conversationOperation,
+      operationId: 'claimConversationDeliveries',
+      summary: 'Poll queued native Inbox replies',
+      description:
+        'Claims up to 100 due replies for a source owned by this API key user. Claim closes undo and grants a five-minute visibility lease. Unacknowledged deliveries become eligible again after their lease/backoff in retryAt/availableAt/messageId order. Use stable messageId as the destination idempotency key and claimToken when reporting a failure. JSON is limited to 64 KiB.',
+      requestBody: jsonBody({
+        type: 'object',
+        required: ['source'],
+        properties: {
+          source: { type: 'string', pattern: '^[a-z][a-z0-9_-]{0,59}$' },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 100 },
+        },
+      }),
+      responses: {
+        '200': jsonResponse(
+          'Pending deliveries',
+          listOf('deliveries', {
+            type: 'object',
+            required: [
+              'messageId',
+              'claimToken',
+              'conversationId',
+              'externalId',
+              'actorUserId',
+              'actorEmail',
+              'body',
+              'availableAt',
+              'attachments',
+            ],
+            properties: {
+              messageId: str,
+              claimToken: { type: 'string', format: 'uuid' },
+              conversationId: str,
+              externalId: str,
+              actorUserId: str,
+              actorEmail: str,
+              body: str,
+              availableAt: num,
+              attachments: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['storageId', 'filename', 'contentType', 'size'],
+                  properties: {
+                    storageId: str,
+                    filename: str,
+                    contentType: str,
+                    size: int,
+                  },
+                },
+              },
+            },
+          }),
+        ),
+        ...conversationErrors,
+      },
+    },
+  };
+  paths['/api/v1/conversations/deliveries/{id}/fail'] = {
+    post: {
+      ...conversationOperation,
+      operationId: 'failConversationDelivery',
+      summary: 'Report a refused or interrupted delivery',
+      description:
+        'Idempotent for the claimToken; stale claims cannot fail a new attempt or an acknowledged reply. A permanent refusal, or ten transient failure reports, exposes native Inbox Retry/Discard. Transient failures retry after 1, 2, 4 minutes up to one hour. Only static error codes are accepted. JSON is limited to 64 KiB.',
+      parameters: [
+        conversationOrg,
+        pathParam('id', 'The claimed native message ID'),
+      ],
+      requestBody: jsonBody(
+        z.toJSONSchema(apiDeliveryFailureSchema, {
+          target: 'openapi-3.0',
+          io: 'input',
+        }),
+      ),
+      responses: {
+        '200': jsonResponse('Failure recorded or already superseded', {
+          type: 'object',
+          required: ['ok'],
+          properties: { ok: bool },
+        }),
+        '404': errorResponse('No delivery owned by this user'),
+        ...conversationErrors,
+      },
+    },
+  };
+  paths['/api/v1/conversations/deliveries/{id}/ack'] = {
+    post: {
+      ...conversationOperation,
+      operationId: 'acknowledgeConversationDelivery',
+      summary: 'Acknowledge a reply after its destination commits',
+      description:
+        'The receiptId is the destination message ID and sourceVersion is its committed source revision, reused unchanged on retries. Links that receipt to the existing native message and marks it delivered. A snapshot older than sourceVersion cannot delete the reply. Repeating the same receipt and version succeeds; changing either returns 409. JSON is limited to 64 KiB.',
+      parameters: [
+        conversationOrg,
+        pathParam('id', 'The claimed native message ID'),
+      ],
+      requestBody: jsonBody({
+        type: 'object',
+        required: ['receiptId', 'sourceVersion'],
+        properties: {
+          receiptId: { type: 'string', minLength: 1, maxLength: 256 },
+          sourceVersion: {
+            type: 'integer',
+            minimum: 0,
+            maximum: Number.MAX_SAFE_INTEGER,
+          },
+        },
+      }),
+      responses: {
+        '200': jsonResponse('Delivery acknowledged', {
+          type: 'object',
+          required: ['ok'],
+          properties: { ok: bool },
+        }),
+        '404': errorResponse('No claimed delivery owned by this user'),
+        ...conversationErrors,
+      },
+    },
+  };
+  paths['/api/v1/conversations/deliveries/{id}/attachments/{index}'] = {
+    get: {
+      ...conversationOperation,
+      operationId: 'downloadConversationDeliveryAttachment',
+      summary: 'Download a claimed reply attachment',
+      parameters: [
+        conversationOrg,
+        pathParam('id', 'Claimed native message ID'),
+        {
+          ...pathParam(
+            'index',
+            'Zero-based attachment position in the claimed delivery',
+          ),
+          schema: { type: 'integer', minimum: 0, maximum: 9 },
+        },
+      ],
+      responses: {
+        '200': {
+          description:
+            'Private attachment bytes, Cache-Control: private, no-store',
+          content: {
+            'application/octet-stream': {
+              schema: { type: 'string', format: 'binary' },
+            },
+          },
+        },
+        '404': errorResponse('No owned, claimed attachment'),
+        ...conversationErrors,
+      },
+    },
+  };
+  paths['/api/v1/conversations/uploads'] = {
+    post: {
+      ...conversationOperation,
+      operationId: 'uploadConversationSourceAttachment',
+      summary: 'Stage attachment bytes for a source snapshot',
+      description:
+        'Uploads at most 30 MiB to this organization and records an upload intent owned by this key user. Bind the storageId, actual size and filename in a snapshot within two hours. Previously receipted refs can be reused on later source revisions.',
+      requestBody: {
+        required: true,
+        content: {
+          'application/octet-stream': {
+            schema: { type: 'string', format: 'binary' },
+          },
+        },
+      },
+      responses: {
+        '200': jsonResponse('Staged attachment', {
+          type: 'object',
+          required: ['storageId'],
+          properties: { storageId: str },
+        }),
+        ...conversationErrors,
+      },
+    },
+  };
 
   // ── Documents (the Knowledge-Hub lane) ────────────────────────────────────
 
@@ -642,14 +912,32 @@ export function buildSpec(): Json {
     patch: {
       tags: ['Contacts'],
       summary: 'Update contact',
+      description:
+        'Optionally send expectedUpdatedAt from the last contact read. The update locks and checks that revision atomically; a stale revision returns 409 CONTACT_STALE without changing any field. Every successful update advances updatedAt, even within one millisecond. Omit the precondition for the existing unconditional behavior.',
       operationId: 'patchContact',
       security: sec,
       parameters: [pathParam('id', 'Contact ID')],
-      requestBody: jsonBody(ref('ContactInput')),
+      requestBody: jsonBody({
+        allOf: [
+          ref('ContactInput'),
+          {
+            type: 'object',
+            properties: {
+              expectedUpdatedAt: {
+                type: 'integer',
+                minimum: 0,
+                maximum: Number.MAX_SAFE_INTEGER,
+              },
+            },
+          },
+        ],
+      }),
       responses: {
         '200': jsonResponse('The updated contact', ref('Contact')),
         '404': errorResponse('Contact not found'),
-        '409': errorResponse('Duplicate email or external id'),
+        '409': errorResponse(
+          'Duplicate email/external id or stale expectedUpdatedAt',
+        ),
         ...standardErrors,
       },
     },

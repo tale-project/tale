@@ -171,6 +171,9 @@ async function getUserInfo(
 
   return {
     externalId: data.id,
+    // This address comes from Microsoft's authenticated Graph /me, never
+    // a browser profile field or an unverified decoded JWT claim.
+    emailVerified: true,
     // A guest or unlicensed account can come back with neither `mail` nor a
     // UPN; refuse readably here rather than as a TypeError downstream.
     email: requireEmailClaim(

@@ -164,13 +164,15 @@ export function projectConversationItem(args: {
   const { conversation } = args;
   const metadata = isRecord(conversation.metadata) ? conversation.metadata : {};
   const messages = args.messages.map(projectConversationMessage);
+  const missingEmail =
+    conversation.channel === 'api' ? '' : 'unknown@example.com';
   // A missing name stays undefined so the client renders its localized
   // fallback instead of a hardcoded English string.
   const contact =
     args.contact === null
       ? {
           id: conversation.contactId ?? 'unknown',
-          email: 'unknown@example.com',
+          email: missingEmail,
           locale: 'en',
           source: 'unknown',
           created_at: new Date(conversation.createdAt).toISOString(),
@@ -178,7 +180,7 @@ export function projectConversationItem(args: {
       : {
           id: args.contact.id,
           ...(args.contact.name ? { name: args.contact.name } : {}),
-          email: args.contact.email || 'unknown@example.com',
+          email: args.contact.email || missingEmail,
           locale: args.contact.locale || 'en',
           source: args.contact.source || 'unknown',
           created_at: new Date(args.contact.createdAt).toISOString(),

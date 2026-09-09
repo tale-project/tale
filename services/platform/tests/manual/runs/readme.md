@@ -22,6 +22,7 @@ Newest first. `R<n>` numbers are consumed in order and never reused.
 
 | Round | Date | Scope | Findings | Verdict |
 |---|---|---|---|---|
+| [R2](r0002.md) | 2026-09-09 | native identity consent, TOTP continuation and API-only Inbox reply | 1 bug | fixed + pinned |
 | [R1](r0001.md) | 2026-09-08 | not a round — the findings the guides were carrying when they became suites | 2 blocker · 6 bug · 8 polish · 1 docs | carried over |
 
 Column rules, so the table stays diffable:

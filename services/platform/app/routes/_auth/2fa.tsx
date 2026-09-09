@@ -13,6 +13,7 @@ import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
+import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
@@ -99,6 +100,7 @@ function TwoFactorVerifyPage() {
         });
       }
       await invalidateAuthState(queryClient).catch(() => undefined);
+      if (resumeOAuthSignIn(redirectTo)) return;
       void navigate({ to: redirectTo || '/dashboard' });
     } catch {
       setError(t('verify.invalid'));
@@ -123,6 +125,7 @@ function TwoFactorVerifyPage() {
         return;
       }
       await invalidateAuthState(queryClient).catch(() => undefined);
+      if (resumeOAuthSignIn(redirectTo)) return;
       void navigate({ to: redirectTo || '/dashboard' });
     } catch {
       // Thrown when the user dismisses the prompt or has no matching passkey.

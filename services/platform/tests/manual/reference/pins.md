@@ -24,3 +24,4 @@ time you are tempted to shorten one.
 
 | Box | What it pins |
 |---|---|
+| `AUTH-F18` | Better Auth's browser fetch plugin already follows successful consent/continuation responses. A second navigation can race the callback's one-use state and code; `oauth-authorization.test.tsx` pins single redirect ownership, StrictMode continuation and both consent actions. |

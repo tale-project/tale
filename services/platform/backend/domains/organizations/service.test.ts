@@ -388,6 +388,7 @@ describe('deleteOrganization', () => {
       'app.user_preferences',
       'app.projects',
       'app_realtime.outbox',
+      '"oauthClient"',
       '"teamMember"',
       '"team"',
       '"invitation"',

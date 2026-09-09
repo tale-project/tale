@@ -187,7 +187,17 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.patch('/contacts/:id', async (c) => {
-    const body = contactInput.partial().safeParse(await readJsonBody(c));
+    const body = contactInput
+      .partial()
+      .extend({
+        expectedUpdatedAt: z
+          .number()
+          .int()
+          .min(0)
+          .max(Number.MAX_SAFE_INTEGER)
+          .optional(),
+      })
+      .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }

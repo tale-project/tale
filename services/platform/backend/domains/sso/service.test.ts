@@ -142,7 +142,7 @@ describe('findOrCreateSsoUser — org-binding contract', () => {
       if (text.startsWith('SELECT "id", "role" FROM "member"')) {
         return [{ id: 'm1', role: 'member' }];
       }
-      if (text.startsWith('SELECT "id" FROM "account"')) return [];
+      if (text.startsWith('SELECT "id", "accountId" FROM "account"')) return [];
       return [];
     });
 
@@ -183,6 +183,98 @@ describe('findOrCreateSsoUser — org-binding contract', () => {
     expect(memberInsert?.values).toContain('their-org');
     expect(memberInsert?.values).toContain('fresh-user');
   });
+});
+
+describe('trusted SSO email verification preserves immutable bindings', () => {
+  const memberAnswer = (text: string): object[] => {
+    if (text.startsWith('SELECT "id" FROM "user"')) return [{ id: 'staff' }];
+    if (text.startsWith('SELECT "id", "role" FROM "member"'))
+      return [{ id: 'seat', role: 'owner' }];
+    if (text.startsWith('SELECT "id", "accountId" FROM "account"'))
+      return [{ id: 'provider', accountId: 'ext-1' }];
+    return [];
+  };
+  it('verifies the exact canonical email only after matching membership and subject', async () => {
+    const { sql, queries } = fakeSql(memberAnswer);
+    const result = await findOrCreateSsoUser(sql, {
+      ...baseArgs,
+      email: ' STAFF@Example.COM ',
+      emailVerified: true,
+      organizationId: 'org',
+    });
+    expect(result.userId).toBe('staff');
+    const verification = writes(queries).find((q) =>
+      q.text.startsWith('UPDATE "user"'),
+    );
+    expect(verification?.values).toContain('staff@example.com');
+    expect(verification?.values).toContain('staff');
+    expect(queries.some((q) => q.text.includes('FOR UPDATE'))).toBe(true);
+    expect(
+      writes(queries).some((q) => q.text.startsWith('UPDATE "member"')),
+    ).toBe(false);
+  });
+  it.each([false, undefined])(
+    'never promotes an unproven provider email (%s)',
+    async (emailVerified) => {
+      const { sql, queries } = fakeSql(memberAnswer);
+      await findOrCreateSsoUser(sql, {
+        ...baseArgs,
+        email: 'staff@example.com',
+        emailVerified,
+        organizationId: 'org',
+      });
+      expect(
+        writes(queries).some((q) => q.text.startsWith('UPDATE "user"')),
+      ).toBe(false);
+    },
+  );
+  it('refuses a different subject for an already linked account before any mutation', async () => {
+    const { sql, queries } = fakeSql(memberAnswer);
+    expect(
+      await findOrCreateSsoUser(sql, {
+        ...baseArgs,
+        externalId: 'another-subject',
+        email: 'staff@example.com',
+        emailVerified: true,
+        organizationId: 'org',
+      }),
+    ).toMatchObject({ userId: null, refusal: 'provider_identity_conflict' });
+    expect(writes(queries)).toHaveLength(0);
+  });
+  it('refuses a previously bound subject renamed to another local email', async () => {
+    const { sql, queries } = fakeSql((text) =>
+      text.startsWith('SELECT "userId" FROM "account"')
+        ? [{ userId: 'somebody-else' }]
+        : memberAnswer(text),
+    );
+    expect(
+      await findOrCreateSsoUser(sql, {
+        ...baseArgs,
+        email: 'staff@example.com',
+        emailVerified: true,
+        organizationId: 'org',
+      }),
+    ).toMatchObject({ userId: null, refusal: 'provider_identity_conflict' });
+    expect(writes(queries)).toHaveLength(0);
+  });
+  it.each([true, false, undefined])(
+    'new accounts retain only the provider-proven verification state (%s)',
+    async (emailVerified) => {
+      const { sql, queries } = fakeSql((text) =>
+        text.startsWith('INSERT INTO "user"') ? [{ id: 'new-user' }] : [],
+      );
+      await findOrCreateSsoUser(sql, {
+        ...baseArgs,
+        email: 'new@example.com',
+        emailVerified,
+        organizationId: 'org',
+      });
+      expect(
+        writes(queries).find((q) => q.text.startsWith('INSERT INTO "user"'))
+          ?.values[2],
+      ).toBe(emailVerified === true);
+    },
+  );
 });
 
 describe('handleSsoLogin — refusal surfaces, session binds the org', () => {

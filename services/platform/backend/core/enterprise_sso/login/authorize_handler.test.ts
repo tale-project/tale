@@ -253,6 +253,9 @@ describe('ssoAuthorizeHandler — binds the flow to the browser', () => {
       'https://app.example.com/http_api/api/sso/callback',
     );
     url.searchParams.set('organizationId', 'org1');
+    const returnTo =
+      '/oauth/continue?ba_param=state&ba_param=nonce&sig=bytes%2B';
+    url.searchParams.set('returnTo', returnTo);
 
     const res = await ssoAuthorizeHandler(ctx, new Request(url.toString()));
 
@@ -278,6 +281,7 @@ describe('ssoAuthorizeHandler — binds the flow to the browser', () => {
     );
     expect(payload.flow).toBe(await hashFlowNonce(nonce));
     expect(payload.organizationId).toBe('org1');
+    expect(payload.returnTo).toBe(returnTo);
     // The nonce itself never leaves the browser.
     expect(idpUrl.toString()).not.toContain(nonce);
   });

@@ -334,6 +334,7 @@ describe('entraIdAdapter.getUserInfo — email boundary', () => {
     const info = await entraIdAdapter.getUserInfo(fakeConfig, 'access-token');
 
     expect(info.email).toBe('upn@example.com');
+    expect(info.emailVerified).toBe(true);
   });
 
   it('refuses readably when Graph returns neither mail nor a UPN', async () => {

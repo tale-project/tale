@@ -36,11 +36,18 @@ const SYNC_PRESENTATION = {
   requiredConnectors: ['imap-smtp', 'conversation'],
 };
 
-function stubList(data: unknown[] | undefined, isLoading = false): void {
-  convexQuery.mockImplementation((_ref: unknown, args: unknown) =>
+function stubList(
+  data: unknown[] | undefined,
+  isLoading = false,
+  sources: string[] = [],
+): void {
+  convexQuery.mockImplementation((ref: unknown, args: unknown) =>
     args === 'skip'
       ? { data: undefined, isLoading: false }
-      : { data, isLoading },
+      : {
+          data: ref === 'conversations/queries:apiSources' ? sources : data,
+          isLoading,
+        },
   );
 }
 
@@ -49,6 +56,12 @@ beforeEach(() => {
 });
 
 describe('useInboxAvailability', () => {
+  it('opens the native Inbox for an API source without a mail automation', () => {
+    stubList([], false, ['vatplus']);
+    const { result } = renderHook(() => useInboxAvailability('org_1'));
+    expect(result.current.hasInbox).toBe(true);
+    expect(result.current.inboxAutomations).toEqual([]);
+  });
   it('opens the Inbox for a deployed pack and reports its mail provider', () => {
     stubList([
       automationRow('imap-smtp/sync-emails', SYNC_PRESENTATION, 1),

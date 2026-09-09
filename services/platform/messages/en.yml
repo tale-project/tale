@@ -326,6 +326,15 @@ analytics:
         model: Model
         agent: Agent
 auth:
+  oauth:
+    title: "Continue with Tale"
+    request: "{application} wants to sign you in with Tale."
+    permissions: "Allow this application to read your name, verified email address, and membership in its Tale organization. Your password stays in Tale."
+    allow: "Allow and continue"
+    cancel: "Cancel"
+    continuing: "Continuing…"
+    retry: "Try again"
+    failed: "This sign-in request could not continue. Return to the application and start again."
   email: Email
   password: Password
   emailPlaceholder: Enter your email address

@@ -27,6 +27,10 @@ const BACKEND_BASE = process.env.TALE_BACKEND_URL || 'http://127.0.0.1:3005';
 // scripts/dev.ts). `/dav` is here too: the protocol door lives on the api,
 // and Vite's SPA catch-all would otherwise answer PROPFIND with index.html.
 const backendProxy = {
+  '/.well-known/oauth-authorization-server/api/auth': {
+    target: BACKEND_BASE,
+    changeOrigin: true,
+  },
   '/api': { target: BACKEND_BASE, changeOrigin: true },
   // SSE hint stream: default proxy timeouts close the lane, which EventSource
   // reports as `error`. Keep it open for the server's 15s heartbeat.
