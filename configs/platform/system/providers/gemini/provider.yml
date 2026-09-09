@@ -16,6 +16,7 @@ apiFormat: openai
 baseUrl: https://generativelanguage.googleapis.com/v1beta/openai
 catalog:
   source: static
+embedding: unknown
 auth:
   - method: api-key
   - method: env

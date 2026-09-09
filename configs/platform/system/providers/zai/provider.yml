@@ -25,6 +25,7 @@ apiFormat: openai
 baseUrl: https://api.z.ai/api/coding/paas/v4
 catalog:
   source: static
+embedding: unknown
 auth:
   - method: api-key
   - method: env

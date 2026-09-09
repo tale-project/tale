@@ -11,6 +11,7 @@ apiFormat: openai
 baseUrl: https://api.x.ai/v1
 catalog:
   source: static
+embedding: unknown
 auth:
   - method: api-key
   - method: env

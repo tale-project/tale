@@ -12,6 +12,7 @@ wireDialect: openai-modern
 baseUrl: https://api.openai.com/v1
 catalog:
   source: static
+embedding: supported
 auth:
   - method: api-key
   - method: env
