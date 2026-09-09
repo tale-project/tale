@@ -12,6 +12,7 @@
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
 import type { Issue } from '../types';
+import { AUTOMATION_NAME_RULE, isValidAutomationName } from './name';
 import { compileSchema } from './schema';
 
 const TOP_FIELDS = [
@@ -24,10 +25,6 @@ const TOP_FIELDS = [
   'tests',
   'ui',
 ];
-
-/** Automation names are kebab-case — the store identity and the subautomation
- * `automation` reference syntax both build on this shape. */
-export const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 const SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bsk-[A-Za-z0-9_-]{16,}/, 'API key (sk-…)'],
@@ -80,13 +77,15 @@ export function validateDocument(
     );
   }
 
-  if (typeof doc.name !== 'string' || !NAME_RE.test(doc.name)) {
+  // The name is the store identity and the subautomation reference — one
+  // grammar (`./name`) for every surface, so a document the validator passes
+  // is a name the platform can save and address.
+  if (!isValidAutomationName(doc.name)) {
     issues.push(
-      err(
-        'NAME_INVALID',
-        '"name" is required and must be kebab-case (e.g. "weather-report")',
-        { path: 'name' },
-      ),
+      err('NAME_INVALID', `"name" is required — ${AUTOMATION_NAME_RULE}`, {
+        path: 'name',
+        hint: 'lowercase letters and digits; "-" or "_" between words inside a segment, "/" between segments; at most 200 characters',
+      }),
     );
   }
 

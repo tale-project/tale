@@ -291,7 +291,7 @@ export function pgAutomationStore(
     },
     deleteTrigger: async (name) => {
       await authorizeActorRun(sql, organizationId, actor, 'developer');
-      await deleteTrigger(sql, organizationId, name);
+      return { deleted: await deleteTrigger(sql, organizationId, name) };
     },
     listRuns: async (options) =>
       (

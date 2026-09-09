@@ -17,7 +17,7 @@ export const CODES = {
   UNKNOWN_TOP_FIELD: 'only the documented top-level fields exist',
   VERSION_UNSUPPORTED: 'this engine supports document version 1',
   VERSION_MISSING: 'documents should declare version: 1',
-  NAME_INVALID: 'name is required, kebab-case',
+  NAME_INVALID: 'name is required — lowercase slug segments separated by "/"',
   INPUTS_SCHEMA_INVALID: 'inputs must be a valid JSON Schema',
   NODES_MISSING: 'an automation is a non-empty array of nodes',
   NODES_TOO_MANY: 'at most 40 nodes per automation',

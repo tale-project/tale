@@ -163,7 +163,28 @@ export interface DispatchStore extends StoreAdapter {
   cancelRun?(runId: string): Promise<{ cancelled: boolean }>;
   listVersions?(name: string): Promise<VersionSummary[]>;
   listTriggers?(name?: string): Promise<TriggerView[]>;
-  deleteTrigger?(name: string): Promise<void>;
+  /** Unbind the automation's trigger. `deleted` says whether one was bound —
+   * an unbind that found nothing is not a change, and the caller must be
+   * able to tell. */
+  deleteTrigger?(name: string): Promise<{ deleted: boolean }>;
+}
+
+/**
+ * The refusal for a trigger call that names an automation the store has never
+ * saved. A trigger binds to a NAME, and the host persists it without looking
+ * the automation up, so without this check a typo would either record an
+ * orphan binding or report an unbind that unbound nothing — both read as
+ * success to the caller.
+ */
+async function missingAutomation(
+  store: DispatchStore,
+  name: string,
+): Promise<{ error: string; hint: string } | null> {
+  if ((await store.get(name)) !== null) return null;
+  return {
+    error: `no saved automation named "${name}"`,
+    hint: 'list_automations shows the saved ones',
+  };
 }
 
 export interface DispatchContext {
@@ -335,16 +356,28 @@ export async function dispatch(
         };
       }
       const matches = searchCatalog(query);
+      if (matches.length > 0) return { matches };
+      // The catalog is the CONNECTOR surface; the core node kinds (transform,
+      // llm, agent, subautomation) are the grammar get_docs teaches, so a
+      // search for one of them must point there instead of answering "nothing".
+      const coreKind = [...nodeTypes().values()].find(
+        (def) => def.kind !== 'connector' && def.type === query.toLowerCase(),
+      );
       return {
         matches,
-        ...(matches.length === 0 && {
-          hint: 'no matches — try different capability keywords (verbs + objects)',
-        }),
+        hint: coreKind
+          ? `"${coreKind.type}" is a core node kind, not a catalog capability — get_docs describes it`
+          : 'no matches — try different capability keywords (verbs + objects)',
       };
     }
 
     case 'validate_automation': {
-      if (!p.automation) return { error: 'missing params.automation' };
+      if (!p.automation) {
+        return {
+          error: 'missing params.automation',
+          hint: 'call as {method: validate_automation, params: {automation: {...}}}',
+        };
+      }
       const { errors, warnings } = await validate(p.automation, { store });
       return { valid: errors.length === 0, errors, warnings };
     }
@@ -414,7 +447,12 @@ export async function dispatch(
     }
 
     case 'save_automation': {
-      if (!p.automation) return { error: 'missing params.automation' };
+      if (!p.automation) {
+        return {
+          error: 'missing params.automation',
+          hint: 'call as {method: save_automation, params: {automation: {...}, message?: "why this version"}}',
+        };
+      }
       const { errors } = await validate(p.automation, { store });
       if (errors.length > 0) {
         return {
@@ -423,7 +461,15 @@ export async function dispatch(
         };
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated above
-      return await store.save(p.automation as Automation, asString(p.message));
+      const automation = p.automation as Automation;
+      try {
+        return await store.save(automation, asString(p.message));
+      } catch (e) {
+        // The host's own refusals — a name it reserves for its fixed routes,
+        // a name another owner holds — are refusals, not protocol errors:
+        // they come back as data so the caller can rename and retry.
+        return { error: e instanceof Error ? e.message : String(e) };
+      }
     }
 
     case 'get_automation': {
@@ -500,9 +546,18 @@ export async function dispatch(
           hint: '{method: set_trigger, params: {name, trigger: {kind: "schedule"|"webhook"|"event", …}}}',
         };
       }
+      const name = asString(p.name);
+      if (!name) {
+        return {
+          error: 'missing params.name',
+          hint: 'list_automations shows the saved ones',
+        };
+      }
+      const missing = await missingAutomation(store, name);
+      if (missing) return missing;
       try {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape guarded by the host on persist
-        await store.setTrigger(asString(p.name), trigger as TriggerSpec);
+        await store.setTrigger(name, trigger as TriggerSpec);
         return {
           ok: true,
           note: 'trigger recorded; the host schedules and delivers it',
@@ -663,13 +718,27 @@ export async function dispatch(
         return { error: 'triggers are not supported in this environment' };
       }
       const name = asString(p.name);
-      if (!name) return { error: 'missing params.name' };
-      try {
-        await store.deleteTrigger(name);
+      if (!name) {
         return {
-          ok: true,
-          note: 'the automation no longer starts on its own; its versions and run history stay',
+          error: 'missing params.name',
+          hint: 'list_triggers shows what is bound',
         };
+      }
+      const missing = await missingAutomation(store, name);
+      if (missing) return missing;
+      try {
+        const { deleted } = await store.deleteTrigger(name);
+        return deleted
+          ? {
+              ok: true,
+              deleted: true,
+              note: 'the automation no longer starts on its own; its versions and run history stay',
+            }
+          : {
+              ok: true,
+              deleted: false,
+              note: `no trigger was bound to "${name}" — nothing changed`,
+            };
       } catch (e) {
         return { error: e instanceof Error ? e.message : String(e) };
       }

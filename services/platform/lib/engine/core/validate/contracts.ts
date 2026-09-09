@@ -20,7 +20,7 @@ import { err, warn } from '../errors';
 import { nodeTypes, type ConnectorLike, type StoreAdapter } from '../slots';
 import { refsInSource, templateExprsIn, TPL_RE } from '../template';
 import type { Issue, NodeDef } from '../types';
-import { NAME_RE } from './document';
+import { isValidAutomationName } from './name';
 import { exprSourcesOf } from './references';
 import { compileSchema } from './schema';
 import { closestName } from './similar';
@@ -52,7 +52,7 @@ function parseAutomationRef(
   ref: string,
 ): { name: string; version?: number } | null {
   const [name, version, ...rest] = ref.split('@');
-  if (rest.length > 0 || !NAME_RE.test(name)) return null;
+  if (rest.length > 0 || !isValidAutomationName(name)) return null;
   if (version === undefined) return { name };
   if (!/^\d+$/.test(version)) return null;
   return { name, version: Number(version) };

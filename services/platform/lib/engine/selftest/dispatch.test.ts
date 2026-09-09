@@ -331,22 +331,26 @@ describe('dispatch — the shared method table', () => {
   });
 
   it('set_trigger records a binding', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
     const result = (await dispatch(
       'set_trigger',
       {
         name: 'order-report',
         trigger: { kind: 'schedule', cron: '0 9 * * *' },
       },
-      { store: dispatchStore() },
+      { store },
     )) as { ok?: boolean };
     expect(result.ok).toBe(true);
   });
 
   it('set_trigger refuses the retired api-key kind', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
     const result = (await dispatch(
       'set_trigger',
       { name: 'order-report', trigger: { kind: 'api-key' } },
-      { store: dispatchStore() },
+      { store },
     )) as { error?: string };
     expect(result.error).toContain('unknown trigger kind "api-key"');
     expect(result.error).toContain('schedule, webhook, event');
@@ -607,6 +611,7 @@ describe('dispatch — run and trigger management', () => {
 
   it('list_triggers shows the binding and delete_trigger removes it', async () => {
     const store = dispatchStore();
+    await deployedExample(store);
     await dispatch(
       'set_trigger',
       {
@@ -634,14 +639,61 @@ describe('dispatch — run and trigger management', () => {
       'delete_trigger',
       { name: 'order-report' },
       { store },
-    )) as { ok?: boolean; note?: string };
-    expect(deleted.ok).toBe(true);
+    )) as { ok?: boolean; deleted?: boolean; note?: string };
+    expect(deleted).toMatchObject({ ok: true, deleted: true });
     expect(deleted.note).toContain('run history');
 
     const after = (await dispatch('list_triggers', {}, { store })) as {
       triggers: unknown[];
     };
     expect(after.triggers).toEqual([]);
+  });
+
+  it('set_trigger and delete_trigger refuse a name nothing was saved under', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
+    const refusal = {
+      error: 'no saved automation named "order-reprot"',
+      hint: 'list_automations shows the saved ones',
+    };
+
+    // A typo must not record an orphan binding the scheduler would fire.
+    const bound = await dispatch(
+      'set_trigger',
+      {
+        name: 'order-reprot',
+        trigger: { kind: 'event', event: 'order.created' },
+      },
+      { store },
+    );
+    expect(bound).toEqual(refusal);
+    const listed = (await dispatch('list_triggers', {}, { store })) as {
+      triggers: unknown[];
+    };
+    expect(listed.triggers).toEqual([]);
+
+    // …and an unbind of nothing must not read as success.
+    const unbound = await dispatch(
+      'delete_trigger',
+      { name: 'order-reprot' },
+      { store },
+    );
+    expect(unbound).toEqual(refusal);
+  });
+
+  it('delete_trigger on a saved automation with nothing bound says so', async () => {
+    const store = dispatchStore();
+    await deployedExample(store);
+    const result = await dispatch(
+      'delete_trigger',
+      { name: 'order-report' },
+      { store },
+    );
+    expect(result).toEqual({
+      ok: true,
+      deleted: false,
+      note: 'no trigger was bound to "order-report" — nothing changed',
+    });
   });
 
   it('a store without the capability refuses instead of throwing', async () => {
@@ -674,6 +726,83 @@ describe('dispatch — run and trigger management', () => {
       const result = await dispatch(method, {}, { store });
       expect(result).not.toMatchObject({
         error: expect.stringContaining('unknown method'),
+      });
+    }
+  });
+});
+
+describe('automation names are "/"-separated slug paths', () => {
+  it('save_automation persists a folder name and the reads address it', async () => {
+    const store = dispatchStore();
+    const saved = await dispatch(
+      'save_automation',
+      {
+        automation: {
+          ...DOC_EXAMPLE.automation,
+          name: 'billing/dunning-reminder',
+        },
+      },
+      { store },
+    );
+    expect(saved).toEqual({ name: 'billing/dunning-reminder', version: 1 });
+
+    const read = (await dispatch(
+      'get_automation',
+      { name: 'billing/dunning-reminder' },
+      { store },
+    )) as { automation?: { name?: string } };
+    expect(read.automation?.name).toBe('billing/dunning-reminder');
+  });
+
+  it('a name the grammar refuses never reaches the store', async () => {
+    const store = dispatchStore();
+    const result = (await dispatch(
+      'save_automation',
+      { automation: { ...DOC_EXAMPLE.automation, name: 'Billing/Dunning' } },
+      { store },
+    )) as { error?: string; errors?: Array<{ code: string }> };
+    expect(result.error).toContain('failed validation');
+    expect(result.errors?.map((issue) => issue.code)).toEqual(['NAME_INVALID']);
+    expect(await store.list()).toEqual([]);
+  });
+
+  it("the host's own refusal on save comes back as data, not a throw", async () => {
+    const store = dispatchStore();
+    store.save = async () => {
+      throw new Error(
+        '"runs/nightly" starts with a word the platform reserves',
+      );
+    };
+    const result = await dispatch(
+      'save_automation',
+      { automation: { ...DOC_EXAMPLE.automation, name: 'runs/nightly' } },
+      { store },
+    );
+    expect(result).toEqual({
+      error: '"runs/nightly" starts with a word the platform reserves',
+    });
+  });
+});
+
+describe('hints point where the answer lives', () => {
+  it('search_catalog names get_docs for a core node kind', async () => {
+    const result = await dispatch(
+      'search_catalog',
+      { query: 'llm' },
+      { store: bareStore() },
+    );
+    expect(result).toEqual({
+      matches: [],
+      hint: '"llm" is a core node kind, not a catalog capability — get_docs describes it',
+    });
+  });
+
+  it('validate_automation and save_automation say how to call them', async () => {
+    for (const method of ['validate_automation', 'save_automation'] as const) {
+      const result = await dispatch(method, {}, { store: bareStore() });
+      expect(result).toMatchObject({
+        error: 'missing params.automation',
+        hint: expect.stringContaining(method),
       });
     }
   });

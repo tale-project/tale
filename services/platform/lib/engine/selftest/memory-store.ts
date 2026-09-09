@@ -46,7 +46,7 @@ export interface MemoryStore extends StoreAdapter {
   listVersions(name: string): Promise<VersionSummary[]>;
   setTrigger(name: string, trigger: TriggerSpec): Promise<void>;
   listTriggers(name?: string): Promise<TriggerView[]>;
-  deleteTrigger(name: string): Promise<void>;
+  deleteTrigger(name: string): Promise<{ deleted: boolean }>;
   startRun(
     name: string,
     input: unknown,
@@ -171,7 +171,7 @@ export function memoryStore(): MemoryStore {
       );
     },
     async deleteTrigger(name) {
-      triggers.delete(name);
+      return { deleted: triggers.delete(name) };
     },
 
     /**
