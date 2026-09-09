@@ -596,7 +596,7 @@ export function renderActionableEmailContent(
     titleKey: string;
     bodyKey: string;
     params?: Record<string, unknown>;
-    deepLink: string | null;
+    deepLink: string;
   },
 ): { subject: string; text: string; html: string } {
   const subject = renderInboxMessage(locale, args.titleKey, args.params);
@@ -604,11 +604,7 @@ export function renderActionableEmailContent(
   const cta = renderInboxMessage(locale, 'email.cta');
   const footer = renderInboxMessage(locale, 'email.footer');
 
-  let text = body;
-  if (args.deepLink) {
-    text += `\n\n${cta}: ${args.deepLink}`;
-  }
-  text += `\n\n${footer}`;
+  const text = `${body}\n\n${cta}: ${args.deepLink}\n\n${footer}`;
 
   // Params enter HTML exactly ONCE, escaped at that single entry point: the
   // template is interpolated one time with the `escapeHtml` transform. The
@@ -623,13 +619,12 @@ export function renderActionableEmailContent(
       : interpolateTemplate(bodyTemplate, args.params, escapeHtml);
   const ctaHtml = escapeHtml(cta);
   const footerHtml = escapeHtml(footer);
-  const linkHtml = args.deepLink ? escapeHtml(args.deepLink) : null;
+  const linkHtml = escapeHtml(args.deepLink);
 
-  let html = `<p>${bodyHtml}</p>`;
-  if (linkHtml) {
-    html += `<p><a href="${linkHtml}">${ctaHtml}</a></p>`;
-  }
-  html += `<p style="color:#666;font-size:12px;">${footerHtml}</p>`;
+  const html =
+    `<p>${bodyHtml}</p>` +
+    `<p><a href="${linkHtml}">${ctaHtml}</a></p>` +
+    `<p style="color:#666;font-size:12px;">${footerHtml}</p>`;
 
   return { subject, text, html };
 }

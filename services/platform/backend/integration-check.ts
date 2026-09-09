@@ -21660,9 +21660,177 @@ async function checkNotificationEmailSink(
         .sort()
         .join('|')}`,
     );
+
+    // E) The overdue-email defect, end to end: a task-bound bell whose
+    // params carry NO project. The writer resolves it from `app.tasks`,
+    // org-scoped, inside the caller's transaction — so the mail that lands
+    // opens the task instead of shipping with no CTA at all.
+    const deadlineProject = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES (${orgId}, 'Deadline project', ${userId}, ${Date.now()},
+              ${Date.now()})
+      RETURNING id
+    `;
+    const deadlineProjectId = deadlineProject[0]?.id ?? '';
+    const deadlineTask = await sql<{ id: string }[]>`
+      INSERT INTO app.tasks (
+        org_id, project_id, title, status, rank, number, created_by,
+        created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms
+      ) VALUES (
+        ${orgId}, ${deadlineProjectId}, 'Redesign side-navigation', 'todo',
+        'a0', 1, ${userId}, 'user', ${Date.now()}, ${Date.now()},
+        ${Date.now()}
+      )
+      RETURNING id
+    `;
+    const deadlineTaskId = deadlineTask[0]?.id ?? '';
+
+    await writeCoalescedNotification(sql, {
+      userId,
+      organizationId: orgId,
+      type: 'task_deadline',
+      titleKey: 'taskSlaEscalated',
+      bodyKey: 'taskSlaEscalatedBody',
+      // The shape the union now refuses from a typed caller — the point of
+      // the case is that the writer still repairs it at runtime.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- deliberately a row that arrived without its project
+      params: { title: 'Redesign side-navigation' } as unknown as {
+        projectId: string;
+      } & Record<string, unknown>,
+      resourceType: 'task',
+      resourceId: deadlineTaskId,
+      taskId: deadlineTaskId,
+      actorType: 'system',
+    });
+    const deadlineDrained = await drainNotificationEmails(sql);
+    const deadlineMail = smtpSends[1];
+    const deadlineLink =
+      `/dashboard/${orgId}/projects/${deadlineProjectId}` +
+      `/tasks?task=${deadlineTaskId}`;
+    const storedParams = await sql<{ projectId: string | null }[]>`
+      SELECT params ->> 'projectId' AS "projectId"
+      FROM app.user_notifications
+      WHERE org_id = ${orgId} AND task_id = ${deadlineTaskId}
+      LIMIT 1
+    `;
+
+    record(
+      'overdue notification email opens its task',
+      deadlineDrained &&
+        smtpSends.length === 2 &&
+        storedParams[0]?.projectId === deadlineProjectId &&
+        deadlineMail?.subject === 'Overdue task escalated' &&
+        (deadlineMail?.html ?? '').includes(`<a href="`) &&
+        (deadlineMail?.html ?? '').includes(deadlineLink) &&
+        (deadlineMail?.text ?? '').includes(`Open in Tale: `),
+      `drained=${deadlineDrained} emails=${smtpSends.length} (want 2) storedProject=${storedParams[0]?.projectId}==${deadlineProjectId} subject=${deadlineMail?.subject} link=${(deadlineMail?.html ?? '').includes(deadlineLink)} want=${deadlineLink} cta=${(deadlineMail?.text ?? '').includes('Open in Tale: ')}`,
+    );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
   }
+}
+
+/**
+ * The 0087 backfill: stored task rows written before the project was
+ * stamped still have to deep-link, and the statement that repairs them must
+ * be idempotent and must not cross a tenant boundary. Runs the migration's
+ * own UPDATE against rows seeded here — boot already applied it, so a fresh
+ * row needs the statement re-executed to be judged.
+ */
+async function checkNotificationProjectBackfill(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const applied = await sql<{ name: string }[]>`
+    SELECT name FROM app_migrations
+    WHERE name = '0087_notification_params_project_backfill.sql'
+  `;
+
+  const project = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Backfill project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = project[0]?.id ?? '';
+  const task = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, number, created_by,
+      created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Backfill task', 'todo', 'a0', 1, ${userId},
+      'user', ${now}, ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const taskId = task[0]?.id ?? '';
+
+  // A stored row of the shape the emitters used to write.
+  const stale = await sql<{ id: string }[]>`
+    INSERT INTO app.user_notifications (
+      user_id, org_id, type, title_key, body_key, params, resource_type,
+      resource_id, task_id, actor_type, read, created_at_ms
+    ) VALUES (
+      ${userId}, ${orgId}, 'task_deadline', 'taskSlaEscalated',
+      'taskSlaEscalatedBody', ${sql.json({ title: 'Backfill task' })}, 'task',
+      ${taskId}, ${taskId}, 'system', false, ${now}
+    )
+    RETURNING id
+  `;
+  const staleId = stale[0]?.id ?? '';
+
+  // The same task id under a DIFFERENT organization: the join carries
+  // `org_id` on both sides, so this row must be left alone.
+  const foreignOrgId = `itest-foreign-${now}`;
+  const foreign = await sql<{ id: string }[]>`
+    INSERT INTO app.user_notifications (
+      user_id, org_id, type, title_key, body_key, params, resource_type,
+      resource_id, task_id, actor_type, read, created_at_ms
+    ) VALUES (
+      ${userId}, ${foreignOrgId}, 'task_deadline', 'taskSlaEscalated',
+      'taskSlaEscalatedBody', ${sql.json({ title: 'Not yours' })}, 'task',
+      ${taskId}, ${taskId}, 'system', false, ${now}
+    )
+    RETURNING id
+  `;
+  const foreignId = foreign[0]?.id ?? '';
+
+  const backfill = async (): Promise<number> => {
+    const rows = await sql`
+      UPDATE app.user_notifications n
+      SET params = coalesce(n.params, '{}'::jsonb)
+                   || jsonb_build_object('projectId', t.project_id)
+      FROM app.tasks t
+      WHERE n.task_id = t.id
+        AND n.org_id = t.org_id
+        AND n.params ->> 'projectId' IS NULL
+      RETURNING n.id
+    `;
+    return rows.length;
+  };
+
+  const firstPass = await backfill();
+  const secondPass = await backfill();
+
+  const after = await sql<{ id: string; projectId: string | null }[]>`
+    SELECT id, params ->> 'projectId' AS "projectId"
+    FROM app.user_notifications WHERE id IN (${staleId}, ${foreignId})
+  `;
+  const repaired = after.find((row) => row.id === staleId)?.projectId;
+  const untouched = after.find((row) => row.id === foreignId)?.projectId;
+
+  record(
+    'notification project backfill (idempotent, org-scoped)',
+    applied.length === 1 &&
+      firstPass >= 1 &&
+      secondPass === 0 &&
+      repaired === projectId &&
+      untouched === null,
+    `applied=${applied.length} first=${firstPass} second=${secondPass} (want 0) repaired=${repaired}==${projectId} foreignUntouched=${untouched === null}`,
+  );
 }
 
 /**
@@ -34608,7 +34776,12 @@ async function checkBellHintWire(
       type: 'task_status_changed',
       titleKey: 'taskStatusChanged',
       bodyKey: 'taskStatusChangedBody',
-      params: { title: 'Bell wire', from: 'todo', to: 'in_progress' },
+      params: {
+        title: 'Bell wire',
+        from: 'todo',
+        to: 'in_progress',
+        projectId: 'p-bell-wire',
+      },
       resourceType: 'task',
       resourceId: 'itest-bell-wire',
       taskId: 'itest-bell-wire',
@@ -45080,6 +45253,10 @@ async function main(): Promise<void> {
       [
         'checkSandboxBlobDoor',
         () => checkSandboxBlobDoor(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkNotificationProjectBackfill',
+        () => checkNotificationProjectBackfill(sql, authCtx),
       ],
       ['checkTurnReattach', () => checkTurnReattach(sql, authCtx)],
       ['checkQueuedRunRecovery', () => checkQueuedRunRecovery(sql, authCtx)],

@@ -27,22 +27,39 @@ type Db = Sql | TransactionSql;
 
 export type NotificationActorType = 'user' | 'agent' | 'system';
 
-export interface CollabNotificationInput {
+interface CollabNotificationBase {
   userId: string;
   organizationId: string;
   type: string;
   titleKey: string;
   bodyKey: string;
-  params?: Record<string, unknown>;
   resourceType: string;
   resourceId: string;
-  taskId?: string;
   actorType: NotificationActorType;
   actorId?: string;
   /** This event UNDOES its dimension (an unassignment after an assignment):
    * when the row it would replace is still unread, both drop. */
   undoes?: boolean;
 }
+
+/**
+ * A task-bound row must carry its project. Both deep-link builders — the
+ * bell's `personalNotificationTarget` and the email's
+ * `buildPersonalNotificationUrl` — need `taskId` AND `params.projectId`
+ * together to open the task. With only `taskId` the bell row degrades to the
+ * org home and the email loses its CTA entirely, silently: no type error, no
+ * failing test, and a fallback that reads as deliberate. The two-arm union
+ * makes the pair unwritable apart.
+ */
+export type CollabNotificationInput =
+  | (CollabNotificationBase & {
+      taskId: string;
+      params: Record<string, unknown> & { projectId: string };
+    })
+  | (CollabNotificationBase & {
+      taskId?: undefined;
+      params?: Record<string, unknown>;
+    });
 
 /** The per-type preference column (the 0.4 PREF_FIELD map). The 0.4
  * `automation_alerts` group (automation_failed / budget_alert /
@@ -163,13 +180,46 @@ async function emitBellHints(
 }
 
 /**
+ * Resolve a task-bound row's project when the caller left it out, so the row
+ * can still deep-link. The union above requires the pair from typed callers,
+ * so this is the belt: this writer is also reached from dynamically built
+ * args, and from rows assembled behind a cast.
+ *
+ * Scoped to the row's own organization — a task id that does not resolve
+ * inside it is left alone, so a link is never invented from another tenant's
+ * data. Only queries on the miss path, and uses the caller's handle, so it
+ * joins the open transaction rather than reading around it.
+ *
+ * `coalesceKeyFor` reads `conversationId` and `documentId`, never
+ * `projectId`, so enriching here cannot move a row's collapse identity.
+ */
+async function withTaskProjectContext(
+  db: Db,
+  args: CollabNotificationInput,
+): Promise<CollabNotificationInput> {
+  if (args.taskId === undefined) return args;
+  const params: Record<string, unknown> = args.params;
+  const supplied = params.projectId;
+  if (typeof supplied === 'string' && supplied !== '') return args;
+  const rows = await db<{ projectId: string }[]>`
+    SELECT project_id AS "projectId" FROM app.tasks
+    WHERE id = ${args.taskId} AND org_id = ${args.organizationId}
+    LIMIT 1
+  `;
+  const projectId = rows[0]?.projectId;
+  if (projectId === undefined) return args;
+  return { ...args, params: { ...params, projectId } };
+}
+
+/**
  * Write (or rewrite, or cancel) one notification row. Callers own the
  * preference gate — this is the mechanics of one row.
  */
 export async function writeCoalescedNotification(
   db: Db,
-  args: CollabNotificationInput,
+  input: CollabNotificationInput,
 ): Promise<CoalesceOutcome> {
+  const args = await withTaskProjectContext(db, input);
   const key = coalesceKeyFor(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused pure fn narrows types internally; unknown types simply never collapse
     args as unknown as Parameters<typeof coalesceKeyFor>[0],
@@ -989,17 +1039,33 @@ export async function notifyAgentQuestionAsked(
     args.organizationId,
     projectId,
   );
-  const params: Record<string, unknown> = {
+  const shared = {
     name: args.automationLabel,
     question: questionExcerpt(args.question),
     askId: args.askId,
     runId: args.runId,
-    ...(args.task
-      ? { title: args.task.title, projectId: args.task.projectId }
-      : projectId !== null
-        ? { projectId }
-        : {}),
   };
+  // Two explicit arms rather than one widened bag: a task-bound row has to
+  // carry its project, and `CollabNotificationInput` will not accept a
+  // spread that TypeScript cannot narrow to that pair.
+  const row = args.task
+    ? ({
+        bodyKey: 'agentQuestionAskedBody',
+        params: {
+          ...shared,
+          title: args.task.title,
+          projectId: args.task.projectId,
+        },
+        resourceType: 'task',
+        resourceId: args.task.id,
+        taskId: args.task.id,
+      } as const)
+    : ({
+        bodyKey: 'agentQuestionAskedNoTaskBody',
+        params: projectId !== null ? { ...shared, projectId } : { ...shared },
+        resourceType: 'dashboard',
+        resourceId: projectId ?? args.organizationId,
+      } as const);
   let notified = 0;
   for (const userId of [...new Set(recipients)].slice(0, MAX_ASK_RECIPIENTS)) {
     if (
@@ -1013,17 +1079,11 @@ export async function notifyAgentQuestionAsked(
       continue;
     }
     await writeCoalescedNotification(db, {
+      ...row,
       userId,
       organizationId: args.organizationId,
       type: 'agent_escalation',
       titleKey: 'agentQuestionAsked',
-      bodyKey: args.task
-        ? 'agentQuestionAskedBody'
-        : 'agentQuestionAskedNoTaskBody',
-      params,
-      resourceType: args.task ? 'task' : 'dashboard',
-      resourceId: args.task ? args.task.id : (projectId ?? args.organizationId),
-      ...(args.task ? { taskId: args.task.id } : {}),
       actorType: 'agent',
       actorId: args.automationLabel,
     });

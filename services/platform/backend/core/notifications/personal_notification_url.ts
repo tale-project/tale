@@ -1,11 +1,36 @@
 /**
  * Deep-link builder for actionable notification email — mirrors the in-app
- * `personalNotificationTarget` routing. Pure (the caller supplies or
- * defaults the site URL), shared by the 0.4 email action and the 0.5
- * backend's email sink.
+ * `personalNotificationTarget` routing. The caller may pass `siteUrl` to pin
+ * the origin; otherwise it comes from the deployment's `SITE_URL`.
  */
 
-const SITE_URL = process.env.SITE_URL ?? 'http://127.0.0.1:3000';
+import { automationSlugToParam } from '../../../lib/automations/slug';
+import {
+  canonicalOrigin,
+  publicBaseUrlFor,
+} from '../lib/helpers/public_origin';
+
+/**
+ * Dev fallback when `SITE_URL` is unset — the local app origin, the same
+ * literal this module has always used. A real deployment always has one:
+ * `backend/env.ts` validates it at boot.
+ */
+const FALLBACK_ORIGIN = 'http://127.0.0.1:3000';
+
+/**
+ * `<origin><BASE_PATH>` for a notification deep link, read at CALL time.
+ * It used to be a module-load constant, which froze whatever the env held at
+ * import — wrong for a worker that imports before the container's env is in
+ * place, and untestable without re-importing the module. `BASE_PATH` was
+ * ignored outright, so every link on a subpath deployment 404'd.
+ */
+function notificationBase(siteUrl?: string): string {
+  const origin = (siteUrl ?? canonicalOrigin() ?? FALLBACK_ORIGIN).replace(
+    /\/$/,
+    '',
+  );
+  return publicBaseUrlFor(origin);
+}
 
 /** Mirrors the in-app personal notification deep-link builder. */
 export function buildPersonalNotificationUrl(args: {
@@ -13,10 +38,10 @@ export function buildPersonalNotificationUrl(args: {
   taskId?: string;
   params?: Record<string, unknown>;
   siteUrl?: string;
-}): string | null {
+}): string {
   const projectId = args.params?.projectId;
   const threadId = args.params?.threadId;
-  const base = (args.siteUrl ?? SITE_URL).replace(/\/$/, '');
+  const base = notificationBase(args.siteUrl);
 
   if (args.params?.chat === true && typeof threadId === 'string') {
     return `${base}/dashboard/${args.organizationId}/chat/${encodeURIComponent(threadId)}`;
@@ -46,7 +71,7 @@ export function buildPersonalNotificationUrl(args: {
     return `${base}/dashboard/${args.organizationId}/documents?${docSearch}`;
   }
   if (args.taskId && typeof projectId === 'string') {
-    return `${base}/dashboard/${args.organizationId}/projects/${projectId}/tasks?task=${args.taskId}`;
+    return `${base}/dashboard/${args.organizationId}/projects/${encodeURIComponent(projectId)}/tasks?task=${encodeURIComponent(args.taskId)}`;
   }
   // Legacy discussion-mention rows (threadId + projectId): their route is
   // gone, so the email lands on the project's Tasks board — parity with
@@ -54,5 +79,17 @@ export function buildPersonalNotificationUrl(args: {
   if (typeof threadId === 'string' && typeof projectId === 'string') {
     return `${base}/dashboard/${args.organizationId}/projects/${projectId}/tasks`;
   }
-  return null;
+  // An agent escalation on an org-scoped run: no task, no project, but the
+  // row names the run and its automation. Needs BOTH keys.
+  const runId = args.params?.runId;
+  const automationName = args.params?.name;
+  if (typeof runId === 'string' && typeof automationName === 'string') {
+    const slug = encodeURIComponent(automationSlugToParam(automationName));
+    return `${base}/dashboard/${args.organizationId}/automations/${slug}/runs/${encodeURIComponent(runId)}`;
+  }
+  // Never null: an actionable email always carries a way in. A row with no
+  // entity context (a legacy row written before its project was stamped)
+  // lands on the org dashboard rather than shipping a link-less email that
+  // names something the reader then has to go and find by hand.
+  return `${base}/dashboard/${args.organizationId}`;
 }

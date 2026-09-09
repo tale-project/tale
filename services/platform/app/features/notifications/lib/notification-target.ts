@@ -1,3 +1,5 @@
+import type { OrgNotificationLink } from '@/backend/core/notifications/org_notification_link';
+import { automationSlugToParam } from '@/lib/automations/slug';
 import { isRecord } from '@/lib/utils/type-utils';
 
 /**
@@ -45,6 +47,28 @@ export type NotificationTarget =
       to: '/dashboard/$id/settings/governance/data-subject-requests';
       params: { id: string };
     }
+  // A DSAR alert names one request and the row carries its id, so open it.
+  | {
+      to: '/dashboard/$id/settings/governance/data-subject-requests/$requestId';
+      params: { id: string; requestId: string };
+    }
+  // The budget editor — where an admin grants the credits a member asked for.
+  | {
+      to: '/dashboard/$id/settings/governance/policies-limits';
+      params: { id: string };
+    }
+  // The websites list, filtered to the status the alert is about.
+  | {
+      to: '/dashboard/$id/websites';
+      params: { id: string };
+      search?: { status?: string };
+    }
+  // An automation run — the landing for an escalation with no task and no
+  // project, whose row carries the run id and its automation's name.
+  | {
+      to: '/dashboard/$id/automations/$automationSlug/runs/$runId';
+      params: { id: string; automationSlug: string; runId: string };
+    }
   | {
       to: '/dashboard/$id/settings/governance/security-monitoring';
       params: { id: string };
@@ -77,16 +101,10 @@ export type NotificationTarget =
     };
 
 /**
- * The org-alert `link` shape. Mirrors `notificationLinkValidator` in
- * `convex/notifications/schema.ts` — keep the two in sync (closed union).
+ * The org-alert `link` shape. Declared once in `backend/core` and re-exported
+ * here so the producer, the wire contract and this router cannot drift.
  */
-export type OrgNotificationLink =
-  | { kind: 'agent'; agentSlug: string }
-  // `logId` deep-links to the specific broken audit row (#1845); optional so a
-  // finding without a concrete row (config/checkpoint) still links to the page.
-  | { kind: 'audit-logs'; logId?: string }
-  | { kind: 'dsar' }
-  | { kind: 'security-monitoring' };
+export type { OrgNotificationLink };
 
 /**
  * Deep-link target for a PERSONAL notification (`userNotifications`). Task-bound
@@ -171,6 +189,24 @@ export function personalNotificationTarget(args: {
       params: { id, projectId },
     };
   }
+
+  // An agent escalation on an org-scoped run has no task and no project, but
+  // it does name the run. Needs BOTH keys — neither appears in any other
+  // personal row's params, so this cannot swallow another type's row.
+  const runId = typeof params?.runId === 'string' ? params.runId : undefined;
+  const automationName =
+    typeof params?.name === 'string' ? params.name : undefined;
+  if (runId && automationName) {
+    return {
+      to: '/dashboard/$id/automations/$automationSlug/runs/$runId',
+      params: {
+        id,
+        automationSlug: automationSlugToParam(automationName),
+        runId,
+      },
+    };
+  }
+
   return { to: '/dashboard/$id', params: { id } };
 }
 
@@ -181,23 +217,34 @@ export function personalNotificationTarget(args: {
  * Automations. Always returns a target, so an org row is never a dead,
  * unclickable line (#2377).
  */
+function categoryLanding(
+  id: string,
+  category: 'security' | 'system',
+): NotificationTarget {
+  return category === 'security'
+    ? { to: '/dashboard/$id/settings/governance', params: { id } }
+    : { to: '/dashboard/$id/automations', params: { id } };
+}
+
 export function orgNotificationTarget(
   organizationId: string,
   link: OrgNotificationLink | undefined,
   category: 'security' | 'system',
 ): NotificationTarget {
   const id = organizationId;
-  if (!link) {
-    return category === 'security'
-      ? { to: '/dashboard/$id/settings/governance', params: { id } }
-      : { to: '/dashboard/$id/automations', params: { id } };
-  }
+  if (!link) return categoryLanding(id, category);
   switch (link.kind) {
-    case 'agent':
-      // The agents management page was removed; an agent-scoped alert has no
-      // dedicated page to open, so it lands on the org home rather than a dead
-      // link. (The `agent` link kind is kept — producers still stamp it.)
-      return { to: '/dashboard/$id', params: { id } };
+    case 'budgets':
+      return {
+        to: '/dashboard/$id/settings/governance/policies-limits',
+        params: { id },
+      };
+    case 'websites':
+      return {
+        to: '/dashboard/$id/websites',
+        params: { id },
+        search: { status: 'error' },
+      };
     case 'audit-logs':
       return link.logId
         ? {
@@ -207,19 +254,29 @@ export function orgNotificationTarget(
           }
         : { to: '/dashboard/$id/settings/governance/logs', params: { id } };
     case 'dsar':
-      return {
-        to: '/dashboard/$id/settings/governance/data-subject-requests',
-        params: { id },
-      };
+      return link.requestId
+        ? {
+            to: '/dashboard/$id/settings/governance/data-subject-requests/$requestId',
+            params: { id, requestId: link.requestId },
+          }
+        : {
+            to: '/dashboard/$id/settings/governance/data-subject-requests',
+            params: { id },
+          };
     case 'security-monitoring':
       return {
         to: '/dashboard/$id/settings/governance/security-monitoring',
         params: { id },
       };
     default: {
-      // Exhaustiveness guard — a new `kind` must extend this switch.
+      // Exhaustiveness guard — a new `kind` must extend this switch. At
+      // RUNTIME this arm is reached only by a stored row from a retired
+      // producer, so it lands on the category page. Returning `_exhaustive`
+      // handed the link OBJECT back as a target, and a `<Link>` spread with
+      // no `to` navigates nowhere.
       const _exhaustive: never = link;
-      return _exhaustive;
+      void _exhaustive;
+      return categoryLanding(id, category);
     }
   }
 }

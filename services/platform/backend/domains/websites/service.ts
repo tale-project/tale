@@ -401,6 +401,9 @@ export async function recordScanFailure(
         titleKey: 'websiteScanPaused',
         bodyKey: 'websiteScanPausedDetails',
         params: { domain: args.domain, failures },
+        // The row's status is set to `error` in this same transaction, so
+        // the filtered list contains the site the alert is about.
+        link: { kind: 'websites' },
       });
     }
   });

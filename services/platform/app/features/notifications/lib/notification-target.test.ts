@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { OrgNotificationLink } from '@/backend/core/notifications/org_notification_link';
+
 import {
   orgNotificationTarget,
   personalNotificationTarget,
@@ -144,7 +146,11 @@ describe('personalNotificationTarget', () => {
     });
   });
 
-  it('falls back to the org home when there is no project context (legacy/digest)', () => {
+  // The shape below is no longer writable — `CollabNotificationInput`
+  // requires `params.projectId` beside `taskId` — but rows stored before the
+  // project was stamped still reach this builder, and the client cannot
+  // resolve a project from a task id.
+  it('falls back to the org home for a legacy row written before the project was stamped', () => {
     expect(
       personalNotificationTarget({
         organizationId: ORG,
@@ -152,6 +158,38 @@ describe('personalNotificationTarget', () => {
         params: { title: 'No project here' },
       }),
     ).toEqual({ to: '/dashboard/$id', params: { id: ORG } });
+  });
+
+  // The defect: a deadline row named a task and opened the org home.
+  it('opens the task for a deadline row, which now carries its project', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: 'task_abc',
+        params: { title: 'Redesign side-navigation', projectId: 'proj_xyz' },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/projects/$projectId/tasks',
+      params: { id: ORG, projectId: 'proj_xyz' },
+      search: { task: 'task_abc' },
+    });
+  });
+
+  it('opens the run for an escalation with no task and no project', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: undefined,
+        params: { name: 'billing/dunning-reminder', runId: 'run_1' },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/automations/$automationSlug/runs/$runId',
+      params: {
+        id: ORG,
+        automationSlug: 'billing__dunning-reminder',
+        runId: 'run_1',
+      },
+    });
   });
 
   it('falls back to the org home for non-record params (never a dead row)', () => {
@@ -180,16 +218,51 @@ describe('orgNotificationTarget', () => {
     });
   });
 
-  it('maps an agent link to the org home (agents page removed)', () => {
+  // A row stored by a retired producer (the `agent` kind, whose page was
+  // removed) still reaches this switch. It used to return the link OBJECT,
+  // which a `<Link>` spread with no `to` navigates nowhere from.
+  it('lands an unknown stored kind on the category page, not a dead link', () => {
+    const retired = { kind: 'agent', agentSlug: 'researcher' };
+    expect(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a stored row from a producer the union no longer carries
+      orgNotificationTarget(ORG, retired as OrgNotificationLink, 'system'),
+    ).toEqual({ to: '/dashboard/$id/automations', params: { id: ORG } });
+    expect(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- as above, on the security lane
+      orgNotificationTarget(ORG, retired as OrgNotificationLink, 'security'),
+    ).toEqual({
+      to: '/dashboard/$id/settings/governance',
+      params: { id: ORG },
+    });
+  });
+
+  it('opens the request itself for a DSAR alert that names one', () => {
     expect(
       orgNotificationTarget(
         ORG,
-        { kind: 'agent', agentSlug: 'researcher' },
-        'system',
+        { kind: 'dsar', requestId: 'req_1' },
+        'security',
       ),
     ).toEqual({
-      to: '/dashboard/$id',
+      to: '/dashboard/$id/settings/governance/data-subject-requests/$requestId',
+      params: { id: ORG, requestId: 'req_1' },
+    });
+  });
+
+  it('maps a budgets link to the page that grants the credits', () => {
+    expect(orgNotificationTarget(ORG, { kind: 'budgets' }, 'system')).toEqual({
+      to: '/dashboard/$id/settings/governance/policies-limits',
       params: { id: ORG },
+    });
+  });
+
+  it('maps a websites link to the list, filtered to the failing sites', () => {
+    expect(
+      orgNotificationTarget(ORG, { kind: 'websites' }, 'security'),
+    ).toEqual({
+      to: '/dashboard/$id/websites',
+      params: { id: ORG },
+      search: { status: 'error' },
     });
   });
 

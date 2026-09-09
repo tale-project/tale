@@ -126,9 +126,10 @@ their own action, so a single account cannot generate those rows.
   (`inbox.taskReviewReminder`), **Review overdue**
   (`inbox.taskReviewEscalated`), **Workflow waiting on input**
   (`inbox.humanInputEscalated`), **Agent escalation**
-  (`inbox.agentEscalation`, body `inbox.agentEscalationBody`) → Assert only
-  that any observed row renders its **translated title** (one of the strings
-  above) — never a raw key like `inbox.taskDueSoon`
+  (`inbox.agentEscalation`, body `inbox.agentEscalationBody`) → Assert the
+  row renders its **translated title** (one of the strings above) — never a
+  raw key like `inbox.taskDueSoon` — and that clicking a **deadline** row
+  (start / due soon / overdue) opens the task sheet, NOT the org dashboard
 - [ ] `NOTIF-F13` · **Agent asked a question** — Park an automation run on
   `ask_human` with a task subject ([approvals.md](approvals.md)
   APV-F5/APV-F7); as any member who can **see the task's project**, open the
@@ -142,6 +143,15 @@ their own action, so a single account cannot generate those rows.
   stacking); once anyone answers — or the ask expires/cancels — the unread
   rows flip to read **without** manual mark-read and a still-pending email is
   cancelled.
+- [ ] `NOTIF-F14` · **Org alerts open their subject** — Env-gated
+  documentation row (these are admin/system-driven). As an owner/admin, on
+  any org row observed in the bell: a **Usage credits requested**
+  (`notifications.creditRequestTitle`) row opens **Settings → Governance →
+  Policies & limits**; a **Website scan paused**
+  (`notifications.websiteScanPaused`) row opens **Websites** filtered to
+  `status=error`; a DSAR row (`notifications.dsarApprovalNeeded` /
+  `dsarScheduled`) opens **that request**, not the requests list → No org row
+  lands on a bare Governance or Automations landing page
 > The **Upgraded to v{version}** changelog release toast is **not** a bell
 > notification — it belongs to the app shell and is covered in
 > [navigation.md](navigation.md) (its NAV-F12), which owns the changelog.

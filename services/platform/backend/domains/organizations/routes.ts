@@ -83,6 +83,8 @@ export function createOrganizationRoutes(deps: {
           name: session.user.name || session.user.email || 'A member',
         },
         subjectUserId: userId,
+        // The page where an admin grants the credits this asks for.
+        link: { kind: 'budgets' },
       }),
     );
     return c.json({ ok: true });

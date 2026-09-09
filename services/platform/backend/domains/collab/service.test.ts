@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NOTIFICATION_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import { coalesceKeyFor } from '../../core/collab/coalesce.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import type { CollabNotificationInput } from './service.ts';
 import {
   dismissReviewRequestNotifications,
   getMyAttentionSummary,
@@ -25,19 +26,35 @@ type Row = Record<string, unknown>;
 function fakeDb(answer: (text: string) => Row[]): {
   db: Sql;
   statements: string[];
+  calls: { text: string; values: unknown[] }[];
 } {
   const statements: string[] = [];
+  const calls: { text: string; values: unknown[] }[] = [];
   const tag = (
     strings: TemplateStringsArray,
-    ..._values: unknown[]
+    ...values: unknown[]
   ): Promise<Row[]> => {
     const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
     statements.push(text);
+    calls.push({ text, values });
     return Promise.resolve(answer(text));
   };
   const db = Object.assign(tag, { json: (value: unknown) => value });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js template function
-  return { db: db as unknown as Sql, statements };
+  return { db: db as unknown as Sql, statements, calls };
+}
+
+/** The `params` bag an INSERT carried, read back off the captured values. */
+function insertedParams(
+  calls: { text: string; values: unknown[] }[],
+): Record<string, unknown> | undefined {
+  const insert = calls.find((c) =>
+    c.text.startsWith('INSERT INTO app.user_notifications'),
+  );
+  return insert?.values.find(
+    (v): v is Record<string, unknown> =>
+      typeof v === 'object' && v !== null && 'to' in v,
+  );
 }
 
 const RECIPIENT = { userId: 'u-recipient', organizationId: 'org-1' };
@@ -48,7 +65,7 @@ const statusBell = {
   type: 'task_status_changed',
   titleKey: 'taskStatusChanged',
   bodyKey: 'taskStatusChangedBody',
-  params: { to: 'in_progress' },
+  params: { to: 'in_progress', projectId: 'proj-1' },
   resourceType: 'task',
   resourceId: 'task-1',
   taskId: 'task-1',
@@ -63,6 +80,76 @@ const twinKey = coalesceKeyFor(
 
 beforeEach(() => {
   vi.mocked(emitHintInTx).mockReset();
+});
+
+/**
+ * A task row that arrived WITHOUT its project — the shape
+ * `CollabNotificationInput` now refuses from a typed caller, and so
+ * reachable only from dynamically built args or from behind a cast. The cast
+ * IS the test: it reproduces what the writer must still repair at runtime.
+ */
+const projectlessBell = {
+  ...statusBell,
+  params: { to: 'in_progress' },
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- deliberately the shape the union forbids
+} as unknown as CollabNotificationInput;
+
+describe('a task-bound row always carries its project', () => {
+  it('resolves the project from the task when the caller left it out', async () => {
+    const { db, calls } = fakeDb((text) => {
+      if (text.startsWith('SELECT project_id')) {
+        return [{ projectId: 'proj-resolved' }];
+      }
+      if (text.startsWith('SELECT id, coalesce_key')) return [];
+      if (text.startsWith('INSERT INTO app.user_notifications')) {
+        return [{ id: 'n-new' }];
+      }
+      return [];
+    });
+
+    await expect(writeCoalescedNotification(db, projectlessBell)).resolves.toBe(
+      'inserted',
+    );
+    expect(insertedParams(calls)).toEqual({
+      to: 'in_progress',
+      projectId: 'proj-resolved',
+    });
+  });
+
+  it('does not look the project up when the caller supplied one', async () => {
+    const { db, statements } = fakeDb((text) => {
+      if (text.startsWith('SELECT id, coalesce_key')) return [];
+      if (text.startsWith('INSERT INTO app.user_notifications')) {
+        return [{ id: 'n-new' }];
+      }
+      return [];
+    });
+
+    await writeCoalescedNotification(db, statusBell);
+    expect(statements.some((s) => s.startsWith('SELECT project_id'))).toBe(
+      false,
+    );
+  });
+
+  it("invents nothing when the task is not in the row's organization", async () => {
+    // The lookup is org-scoped, so a task id belonging to another tenant
+    // answers no row. Leave the bag as it came rather than linking to
+    // something the recipient cannot see.
+    const { db, calls, statements } = fakeDb((text) => {
+      if (text.startsWith('SELECT id, coalesce_key')) return [];
+      if (text.startsWith('INSERT INTO app.user_notifications')) {
+        return [{ id: 'n-new' }];
+      }
+      return [];
+    });
+
+    await writeCoalescedNotification(db, projectlessBell);
+    const lookup = statements.find((s) => s.startsWith('SELECT project_id'));
+    // Tenant isolation is the point: the lookup is keyed by BOTH the task
+    // and the row's organization, so another tenant's task answers no row.
+    expect(lookup).toContain('org_id = ?');
+    expect(insertedParams(calls)).toEqual({ to: 'in_progress' });
+  });
 });
 
 describe('the personal bell hint (wire contract with the web app)', () => {

@@ -114,6 +114,8 @@ describe('renderInboxMessage', () => {
   });
 });
 
+const LINK = 'https://app.example.com/dashboard/org_1';
+
 describe('renderActionableEmailContent', () => {
   it('includes a deep link and footer in plain text', () => {
     const content = renderActionableEmailContent('en', {
@@ -130,6 +132,20 @@ describe('renderActionableEmailContent', () => {
     expect(content.html).toContain('href="https://app.example.com');
   });
 
+  // A notification that names something the reader cannot reach is the
+  // defect this pins: the CTA block used to be dropped whenever the deep
+  // link came back null, so the email named a task and offered no way in.
+  it('always carries the CTA, in both lanes', () => {
+    const content = renderActionableEmailContent('en', {
+      titleKey: 'taskSlaEscalated',
+      bodyKey: 'taskSlaEscalatedBody',
+      params: { title: 'Redesign side-navigation' },
+      deepLink: LINK,
+    });
+    expect(content.text).toContain(`Open in Tale: ${LINK}`);
+    expect(content.html).toContain(`<a href="${LINK}">Open in Tale</a>`);
+  });
+
   // Regression: the html lane used to re-interpolate the ALREADY-interpolated
   // body, so the escape transform saw no placeholders and external text (task
   // titles, user names, conversation subjects) landed raw in HTML email.
@@ -141,7 +157,7 @@ describe('renderActionableEmailContent', () => {
         actor: '<script>alert(1)</script>',
         title: 'a "quoted" & <b>bold</b> title',
       },
-      deepLink: null,
+      deepLink: LINK,
     });
     expect(content.html).toContain(
       '&lt;script&gt;alert(1)&lt;/script&gt; assigned you to',
@@ -158,7 +174,7 @@ describe('renderActionableEmailContent', () => {
       titleKey: 'taskAssigned',
       bodyKey: 'taskAssignedByBody',
       params: { actor: 'A&B', title: '&amp;<i>' },
-      deepLink: null,
+      deepLink: LINK,
     });
     // The literal string `&amp;<i>` renders as itself in the mail client,
     // never as an entity/tag — i.e. it is escaped to `&amp;amp;&lt;i&gt;`.
@@ -171,7 +187,7 @@ describe('renderActionableEmailContent', () => {
       titleKey: 'taskAssigned',
       bodyKey: 'taskAssignedByBody',
       params: { actor: '<script>alert(1)</script>', title: 'T & Co' },
-      deepLink: null,
+      deepLink: LINK,
     });
     // Plain text is not an HTML context; entities there would show literally.
     expect(content.text).toContain(
@@ -187,7 +203,7 @@ describe('renderActionableEmailContent', () => {
       titleKey: 'taskAssigned',
       bodyKey: 'taskAssignedByBody',
       params: { actor: '{title}', title: 'Real title' },
-      deepLink: null,
+      deepLink: LINK,
     });
     expect(content.html).toContain('{title} assigned you to');
     expect(content.text).toContain('{title} assigned you to');
@@ -198,7 +214,7 @@ describe('renderActionableEmailContent', () => {
       titleKey: 'taskAssigned',
       bodyKey: 'no-such-key <x>',
       params: {},
-      deepLink: null,
+      deepLink: LINK,
     });
     expect(content.html).toContain('no-such-key &lt;x&gt;');
     expect(content.text).toContain('no-such-key <x>');

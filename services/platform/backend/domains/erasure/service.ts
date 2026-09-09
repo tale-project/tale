@@ -158,7 +158,7 @@ async function parkForDualApproval(
       requestId: args.requestId,
     },
     subjectUserId: args.targetUserId,
-    link: { kind: 'dsar' },
+    link: { kind: 'dsar', requestId: args.requestId },
   });
 }
 
@@ -1667,7 +1667,7 @@ export async function confirmAndScheduleErasure(
       requestId: row.id,
     },
     subjectUserId: row.targetUserId,
-    link: { kind: 'dsar' },
+    link: { kind: 'dsar', requestId: row.id },
   });
 }
 
