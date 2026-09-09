@@ -37,6 +37,14 @@ Dans **Ce PC**, choisis **Connecter un lecteur réseau**, colle l’URL comme do
 
 </Tab>
 
+<Tab title="Linux">
+
+GNOME Fichiers monte le WebDAV sous son propre schéma — appuie sur **Ctrl+L**, saisis l’URL avec `davs://` à la place de `https://` (`davs://<your-site>/dav/<orgSlug>/documents/`) et connecte-toi avec ton e-mail et le mot de passe applicatif. KDE Dolphin prend la même adresse en `webdavs://`.
+
+Les gestionnaires de fichiers dont la boîte de dialogue **Se connecter au serveur** sépare les champs (Nemo, Caja) assemblent l’adresse eux-mêmes — mets seulement le nom d’hôte (`<your-site>`) dans **Serveur**, garde le port `443` et le type **WebDAV sécurisé (HTTPS)**, et indique `/dav/<orgSlug>/documents` comme dossier.
+
+</Tab>
+
 <Tab title="Fichiers iOS">
 
 Touche le menu à trois points, choisis **Se connecter au serveur** et saisis la même URL et les mêmes identifiants. Fichiers prend en charge la navigation et le téléchargement ; la modification sur place fonctionne pour les formats dotés d’une app iOS.

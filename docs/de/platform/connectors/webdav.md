@@ -37,6 +37,14 @@ Wähle in **Dieser PC** die Option **Netzlaufwerk verbinden**, füge die URL als
 
 </Tab>
 
+<Tab title="Linux">
+
+GNOME Dateien hängt WebDAV unter einem eigenen Schema ein — drücke **Strg+L**, gib die URL mit `davs://` statt `https://` ein (`davs://<your-site>/dav/<orgSlug>/documents/`) und melde dich mit deiner E-Mail und dem App-Passwort an. KDE Dolphin nutzt für dieselbe Adresse `webdavs://`.
+
+Dateimanager mit einem geteilten **Mit Server verbinden**-Dialog (Nemo, Caja) bauen die Adresse aus ihren Feldern zusammen — trage in **Server** nur den Hostnamen ein (`<your-site>`), lass Port auf `443` und Typ auf **Sicheres WebDAV (HTTPS)** stehen und gib `/dav/<orgSlug>/documents` als Ordner an.
+
+</Tab>
+
 <Tab title="iOS Files">
 
 Tippe auf das Dreipunkt-Menü, wähle **Mit Server verbinden** und gib dieselbe URL und dieselben Zugangsdaten ein. Die Dateien-App unterstützt Durchsuchen und Herunterladen; Bearbeiten an Ort und Stelle funktioniert für Formate mit einer iOS-App.
