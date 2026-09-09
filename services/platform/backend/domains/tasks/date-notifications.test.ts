@@ -205,3 +205,67 @@ describe('enforceTaskDatesForOrg — each row is claimed and announced in its ow
     expect(rolledBack).toEqual(['TASK_COMMENT_INVALID']);
   });
 });
+
+/**
+ * The defect this pins: every rung wrote `params: { title }` and dropped the
+ * project it already had in hand, so the bell row fell back to the org home
+ * and the email shipped with no CTA at all. Both link builders need `taskId`
+ * and `params.projectId` together to open the task.
+ */
+describe('enforceTaskDatesForOrg — every rung stamps the project', () => {
+  it('the start-date rung sends the project alongside the task', async () => {
+    const { sql } = fakeSql((text, values) => {
+      if (
+        text.startsWith('SELECT t2.id FROM app.tasks t2') &&
+        text.includes('start_date_ms')
+      ) {
+        return [{ id: 't-a' }];
+      }
+      if (text.startsWith('UPDATE app.tasks SET start_notified_at_ms')) {
+        return [sweepRow(String(values[1]))];
+      }
+      return [];
+    });
+
+    await enforceTaskDatesForOrg(sql, 'org-1');
+
+    expect(notifyUser).toHaveBeenCalledTimes(1);
+    const [, args] = vi.mocked(notifyUser).mock.calls[0] ?? [];
+    expect(args?.taskId).toBe('t-a');
+    expect(args?.params).toEqual({ title: 'Task t-a', projectId: 'p-1' });
+  });
+
+  it('the escalation rung sends it to every recipient', async () => {
+    const { sql } = fakeSql((text, values) => {
+      if (
+        text.startsWith('SELECT t2.id FROM app.tasks t2') &&
+        text.includes('> coalesce(t2.sla_level, 0)')
+      ) {
+        return [{ id: 't-late' }];
+      }
+      if (
+        text.startsWith('UPDATE app.tasks SET sla_level = ?, sla_level_at_ms')
+      ) {
+        return values.includes('t-late')
+          ? [sweepRow('t-late', { newLevel: 4 })]
+          : [];
+      }
+      if (text.startsWith('SELECT "userId" FROM "member"')) {
+        return [{ userId: 'u-admin' }];
+      }
+      return [];
+    });
+
+    await enforceTaskDatesForOrg(sql, 'org-1');
+
+    // The task's creator plus the org admin.
+    expect(notifyUser).toHaveBeenCalledTimes(2);
+    for (const [, args] of vi.mocked(notifyUser).mock.calls) {
+      expect(args.titleKey).toBe('taskSlaEscalated');
+      expect(args.params).toEqual({
+        title: 'Task t-late',
+        projectId: 'p-1',
+      });
+    }
+  });
+});

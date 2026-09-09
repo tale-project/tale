@@ -105,7 +105,7 @@ async function notifyDateAlert(
     type: 'task_deadline',
     titleKey: args.titleKey,
     bodyKey: args.bodyKey,
-    params: { title: args.row.title },
+    params: { title: args.row.title, projectId: args.row.projectId },
     resourceType: 'task',
     resourceId: args.row.taskId,
     taskId: args.row.taskId,
@@ -363,6 +363,9 @@ export async function enforceTaskDatesForOrg(
         for (const adminId of await orgAdminUserIds(tx, organizationId)) {
           escalationTargets.add(adminId);
         }
+        // Built once: every recipient gets the same row, and the project is
+        // what makes it deep-link to the task.
+        const params = { title: row.title, projectId: row.projectId };
         for (const userId of escalationTargets) {
           await notifyUser(tx, {
             userId,
@@ -370,7 +373,7 @@ export async function enforceTaskDatesForOrg(
             type: 'task_deadline',
             titleKey: 'taskSlaEscalated',
             bodyKey: 'taskSlaEscalatedBody',
-            params: { title: row.title },
+            params,
             resourceType: 'task',
             resourceId: row.taskId,
             taskId: row.taskId,

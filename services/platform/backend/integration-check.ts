@@ -34608,7 +34608,12 @@ async function checkBellHintWire(
       type: 'task_status_changed',
       titleKey: 'taskStatusChanged',
       bodyKey: 'taskStatusChangedBody',
-      params: { title: 'Bell wire', from: 'todo', to: 'in_progress' },
+      params: {
+        title: 'Bell wire',
+        from: 'todo',
+        to: 'in_progress',
+        projectId: 'p-bell-wire',
+      },
       resourceType: 'task',
       resourceId: 'itest-bell-wire',
       taskId: 'itest-bell-wire',
