@@ -11,28 +11,32 @@ Read this to connect a client and understand the tool inventory. The grammar for
 
 ## Connect a client
 
-The endpoint speaks MCP protocol `2025-03-26` as JSON-RPC over HTTPS — plain JSON responses, no SSE stream, one message per request (a batch answers error `-32600`). Authenticate with an organization API key ([API keys](/platform/admin/api-keys) covers minting one):
+The endpoint speaks MCP protocol `2025-03-26` as JSON-RPC over HTTPS — plain JSON responses, no SSE stream, one message per request (a batch answers error `-32600`). Authenticate with an organization API key ([API keys](/platform/admin/api-keys) covers minting one). A key whose holder belongs to more than one organization must also name the organization it means, on every request — the `X-Organization-Slug` header, membership-checked. Without it such a request answers **400** `ORG_SLUG_REQUIRED` rather than guessing from the dashboard; a single-organization key may omit the header.
 
 ```json
 // POST https://your-host.example.com/api/v1/mcp
 // Authorization: Bearer tale_...
+// X-Organization-Slug: acme
 { "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }
 ```
 
-The server identifies as `tale-platform`. In a client that takes a config block, that is all you need:
+The server identifies as `tale-platform`. In a client that takes a config block, the two headers are all you need:
 
 ```json
 {
   "mcpServers": {
     "tale": {
       "url": "https://your-host.example.com/api/v1/mcp",
-      "headers": { "Authorization": "Bearer tale_..." }
+      "headers": {
+        "Authorization": "Bearer tale_...",
+        "X-Organization-Slug": "acme"
+      }
     }
   }
 }
 ```
 
-`tools/list` returns the full inventory; `GET` on the endpoint answers **405** — there is no event stream to subscribe to. Your deployment's endpoint URL, the same inventory in its three groups, and a copyable `tools/list` request sit under **Settings > API > MCP**.
+`tools/list` returns the full inventory; `GET` on the endpoint answers **405** — there is no event stream to subscribe to. Your deployment's endpoint URL, the organization slug, the same inventory in its three groups, and a copyable `tools/list` request with both headers in place sit under **Settings > API > MCP**.
 
 ## The tools
 

@@ -5038,6 +5038,13 @@ settings:
       "Authentifie-toi avec une clé API de l'organisation en jeton Bearer :
       tu crées et gères les clés sous"
     authLink: Clés API REST.
+    orgSlug:
+      title: Slug de l'organisation
+      description: Si le détenteur de la clé appartient à plusieurs
+        organisations, chaque requête doit nommer celle-ci — envoie cette
+        valeur dans l'en-tête X-Organization-Slug. Une clé à organisation
+        unique peut s'en passer.
+      copy: Copier le slug de l'organisation
     tools:
       authoring:
         title: Écriture
@@ -5054,7 +5061,8 @@ settings:
         description: La surface propre à l'organisation — chercher ce qu'elle
           sait faire, invoquer une capacité, récupérer des connaissances.
     exampleTitle: Essaie
-    exampleHelp: Liste les outils — remplace par ta clé API.
+    exampleHelp: Liste les outils — remplace par ta clé API ; X-Organization-Slug
+      est déjà renseigné.
     copyExample: Copier la requête d'exemple
   account:
     profile:

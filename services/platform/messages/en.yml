@@ -5095,6 +5095,12 @@ settings:
       'Authenticate with an organization API key as a bearer token: create
       and manage keys under'
     authLink: REST API keys.
+    orgSlug:
+      title: Organization slug
+      description: A key whose holder belongs to more than one organization
+        must name this one on every request — send this value as the
+        X-Organization-Slug header. A single-organization key may omit it.
+      copy: Copy organization slug
     tools:
       authoring:
         title: Authoring
@@ -5109,7 +5115,8 @@ settings:
         description: This organization's own surface — search what it can do,
           invoke one capability, retrieve knowledge.
     exampleTitle: Try it
-    exampleHelp: Lists the tools with your API key in place.
+    exampleHelp: Lists the tools — put your API key in place; the organization
+      header is already filled in.
     copyExample: Copy example request
   account:
     profile:

@@ -629,7 +629,12 @@ export const SHOTS: readonly Shot[] = [
     name: 'settings-mcp-endpoint',
     section: 'platform',
     route: '/dashboard/:orgId/settings/api/mcp',
-    readyWhen: (page) => page.getByText('/api/v1/mcp').first(),
+    // Gate on the Organization slug row, which renders only once the org query
+    // resolves — the example request embeds that slug, so waiting for it keeps
+    // the field from re-rendering (and un-sanitizing its origin) after
+    // `sanitize` runs.
+    readyWhen: (page) =>
+      page.getByText(t('settings.mcpEndpoint.orgSlug.title')),
     // The endpoint URL and the example request print the rig's origin.
     sanitize: replaceRigOrigin,
   },

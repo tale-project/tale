@@ -33,7 +33,8 @@ name-invalid:
   errors:
     - code: NAME_INVALID
       path: name
-      message: '"name" is required and must be kebab-case (e.g. "weather-report")'
+      message: '"name" is required — lowercase slug segments separated by "/" (e.g. "billing/dunning-reminder")'
+      hint: lowercase letters and digits; "-" or "_" between words inside a segment, "/" between segments; at most 200 characters
   warnings: []
 inputs-not-an-object:
   errors:

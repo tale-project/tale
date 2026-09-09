@@ -166,6 +166,7 @@ registry and knowledge base, and describe themselves in their own schemas.
 
 ## Automation document
 An automation is a node graph. Execution order is computed automatically from data references; list order does not matter and there is NO "edges" field. All nodes run unless skipped. Documents start with version: 1.
+- "name": the identity — lowercase slug segments; "/" groups related automations into folders ("billing/dunning-reminder").
 - "inputs": JSON Schema describing the runtime input.
 - "output": the automation's return value (templates allowed inside).
 - "tests": [{name, input, expect: {output?, effects?: [{connector, input}]}}] — acceptance tests run by test_automation.

@@ -15,9 +15,9 @@ Outbound MCP servers are not available in this version. The former **Settings > 
 
 Tale exposes one MCP endpoint per deployment at `/api/v1/mcp`, authenticated with an organization API key. Twenty-two tools sit behind it in three groups — authoring and deploying automations, running them and reading their runs, and searching and invoking what the organization can do. **Settings > API > MCP** shows your deployment's endpoint URL, the inventory in those three groups, and under **Try it** a copyable `tools/list` request. [MCP endpoint](/develop/mcp-endpoint) is the reference — protocol, tool table, and what each role's key may do; [API keys](/platform/admin/api-keys) covers minting the key.
 
-<Frame caption="Settings > API > MCP — the endpoint URL to point a client at, the tool inventory in its three groups, and a request to try the key with.">
+<Frame caption="Settings > API > MCP — the endpoint URL to point a client at, the organization slug a multi-org key sends, the tool inventory in its three groups, and a request to try the key with.">
 
-![The MCP page under Settings > API showing the MCP endpoint row with the deployment's URL ending in /api/v1/mcp and a copy button, three rows listing tool names by group — Authoring, Run & trigger management, Skills & knowledge — and a Try it row holding a curl request that calls tools/list with a bearer API key.](/images/platform/settings-mcp-endpoint.webp)
+![The MCP page under Settings > API showing the MCP endpoint row with the deployment's URL ending in /api/v1/mcp and a copy button, an Organization slug row, three rows listing tool names by group — Authoring, Run & trigger management, Skills & knowledge — and a Try it row holding a curl request that calls tools/list with a bearer API key and the organization-slug header.](/images/platform/settings-mcp-endpoint.webp)
 
 </Frame>
 

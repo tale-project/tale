@@ -1,6 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  AUTOMATION_NAME_MAX_LENGTH,
+  AUTOMATION_NAME_RE,
+} from '../../../lib/engine/core/validate/name.ts';
+import {
   boundCheckpointTrace,
   truncateRunDetail,
 } from '../../core/automations/bound_run_payload.ts';
@@ -49,13 +53,16 @@ export class AutomationError extends Error {
   }
 }
 
-/** Mirror of the 0.4 name rule: '/'-separated slug path. */
+/** The engine's name grammar (`lib/engine/core/validate/name.ts`) — ONE rule
+ * for the document validator, the subautomation reference parser, this store
+ * and the `__` URL codec, so a name the validator passes is a name this store
+ * saves and every address resolves. */
 export function assertAutomationName(name: string): string {
   const trimmed = name.trim();
   if (
     trimmed.length === 0 ||
-    trimmed.length > 200 ||
-    !/^[a-z0-9][a-z0-9_-]*(\/[a-z0-9][a-z0-9_-]*)*$/.test(trimmed)
+    trimmed.length > AUTOMATION_NAME_MAX_LENGTH ||
+    !AUTOMATION_NAME_RE.test(trimmed)
   ) {
     throw new AutomationError(
       'AUTOMATION_NAME_INVALID',

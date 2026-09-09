@@ -11,28 +11,32 @@ Lis ceci pour connecter un client et comprendre l'inventaire des outils. La gram
 
 ## Connecter un client
 
-L'endpoint parle le protocole MCP `2025-03-26` en JSON-RPC sur HTTPS — réponses JSON pures, pas de flux SSE, un message par requête (un batch répond l'erreur `-32600`). Authentifie-toi avec une clé API d'organisation ([Clés API](/fr/platform/admin/api-keys) décrit la création) :
+L'endpoint parle le protocole MCP `2025-03-26` en JSON-RPC sur HTTPS — réponses JSON pures, pas de flux SSE, un message par requête (un batch répond l'erreur `-32600`). Authentifie-toi avec une clé API d'organisation ([Clés API](/fr/platform/admin/api-keys) décrit la création). Si le détenteur de la clé appartient à plusieurs organisations, chaque requête doit aussi nommer celle qu’elle vise — l’en-tête `X-Organization-Slug`, vérifié contre les adhésions. Sans lui, une telle requête répond **400** `ORG_SLUG_REQUIRED` plutôt que de deviner depuis le dashboard ; une clé à organisation unique peut s’en passer.
 
 ```json
 // POST https://your-host.example.com/api/v1/mcp
 // Authorization: Bearer tale_...
+// X-Organization-Slug: acme
 { "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }
 ```
 
-Le serveur s'identifie comme `tale-platform`. Dans un client à bloc de config, c'est tout ce qu'il faut :
+Le serveur s'identifie comme `tale-platform`. Dans un client à bloc de config, ces deux en-têtes suffisent :
 
 ```json
 {
   "mcpServers": {
     "tale": {
       "url": "https://your-host.example.com/api/v1/mcp",
-      "headers": { "Authorization": "Bearer tale_..." }
+      "headers": {
+        "Authorization": "Bearer tale_...",
+        "X-Organization-Slug": "acme"
+      }
     }
   }
 }
 ```
 
-`tools/list` renvoie l'inventaire complet ; `GET` sur l'endpoint répond **405** — il n'y a pas de flux d'événements à écouter. L’URL de l’endpoint de ton déploiement, le même inventaire en trois groupes et une requête `tools/list` à copier se trouvent sous **Paramètres > API > MCP**.
+`tools/list` renvoie l'inventaire complet ; `GET` sur l'endpoint répond **405** — il n'y a pas de flux d'événements à écouter. L’URL de l’endpoint de ton déploiement, le slug de l’organisation, le même inventaire en trois groupes et une requête `tools/list` à copier avec les deux en-têtes déjà en place se trouvent sous **Paramètres > API > MCP**.
 
 ## Les outils
 
