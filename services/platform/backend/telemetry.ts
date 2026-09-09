@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 import * as client from 'prom-client';
 
 import { registerSlaTargetMetrics } from '../sla-targets.ts';
+import { probeStores } from './store-health.ts';
 
 /**
  * Prometheus metrics for the 0.5 Postgres backend.
@@ -14,10 +15,16 @@ import { registerSlaTargetMetrics } from '../sla-targets.ts';
  * behaving.
  *
  * The collectors are pull-time (`prom-client` `collect()` callbacks), so a
- * scrape costs three cheap aggregate queries and nothing runs between
+ * scrape costs a few cheap aggregate queries and nothing runs between
  * scrapes. Every query is bounded and read-only; a failing one leaves its
  * gauge unset for that scrape rather than failing the whole endpoint —
  * metrics must never be the reason a deploy probe goes red.
+ *
+ * `tale_backend_store_up` is the exception to "nothing runs between scrapes":
+ * it reaches OUT of the process, to the databases and the blob store, so it
+ * reads a cached probe rather than a fresh one (`store-health.ts`). It exists
+ * because a deployment whose stores are external infrastructure has no other
+ * signal that one of them stopped answering.
  *
  * The SLA target gauges are REUSED from the platform's `sla-targets.ts`
  * (one source of truth for the contractual budgets, as that module's own
@@ -161,9 +168,26 @@ export function registerBackendCollectors(sql: Sql): client.Gauge[] {
     },
   });
 
+  const stores = new client.Gauge({
+    name: 'tale_backend_store_up',
+    help: 'Whether each of the deployment’s three stores is reachable.',
+    labelNames: ['store'] as const,
+    async collect() {
+      try {
+        // Cached behind its own TTL, so a tight scrape interval does not turn
+        // into a round-trip to every store (see store-health.ts).
+        for (const status of await probeStores(sql)) {
+          this.set({ store: status.name }, status.up ? 1 : 0);
+        }
+      } catch (error) {
+        console.warn('[metrics] store-health gauge failed:', error);
+      }
+    },
+  });
+
   // Returned so a test can drive the collectors against a throwaway
   // registry; the constructors already self-register on the default one.
-  return [hintStreams, generations, jobs, drain];
+  return [hintStreams, generations, jobs, drain, stores];
 }
 
 export function initBackendTelemetry(sql: Sql): void {

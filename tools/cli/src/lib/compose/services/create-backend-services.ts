@@ -83,15 +83,29 @@ function roleEnvironment(
     // tale-db image's init scripts own the `tale` role and `tale_app`
     // database. `:?` fails the up on a missing password instead of booting
     // against a guessed default (mirrors the object-store key below).
+    //
+    // An explicit DATABASE_URL wins, so a deployment can run against a
+    // Postgres of its own. Without the outer default this key would pin the
+    // bundled `db` and quietly ignore the variable the documentation tells
+    // operators to set.
     DATABASE_URL:
-      'postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${APP_DB_NAME:-tale_app}',
+      '${DATABASE_URL:-postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${APP_DB_NAME:-tale_app}}',
     TALE_CONFIG_DIR: '/app/data',
     SANDBOX_URL: '${SANDBOX_URL:-http://sandbox:8003}',
     SANDBOX_HTTP_API_BASE_URL: `http://backend-api:${BACKEND_API_PORT}`,
-    // The bundled blob store the backend seeds the deployment default
-    // against at boot. Internal address: presigned URLs are signed here
-    // and forwarded by the proxy, so the store is never published.
-    OBJECT_STORE_ENDPOINT: BUNDLED_OBJECT_STORE_ENDPOINT,
+    // Where the backend reaches the blob store. Defaults to the bundled
+    // one at its internal address — presigned URLs are signed here and
+    // forwarded by the proxy, so that store is never published — and an
+    // explicit endpoint points the deployment at a bucket of its own. Empty
+    // is meaningful too: it selects AWS S3 proper, addressed by bucket and
+    // region, so this passes the variable through rather than defaulting a
+    // deliberately blank value back to the bundled store.
+    OBJECT_STORE_ENDPOINT: `\${OBJECT_STORE_ENDPOINT-${BUNDLED_OBJECT_STORE_ENDPOINT}}`,
+    OBJECT_STORE_REGION: '${OBJECT_STORE_REGION:-us-east-1}',
+    // Both empty by default: the backend reads "unset" off an empty string
+    // and applies the shape the endpoint implies / the bucket root.
+    OBJECT_STORE_FORCE_PATH_STYLE: '${OBJECT_STORE_FORCE_PATH_STYLE:-}',
+    OBJECT_STORE_PREFIX: '${OBJECT_STORE_PREFIX:-}',
     OBJECT_STORE_BUCKET: '${OBJECT_STORE_BUCKET:-tale-blobs}',
     OBJECT_STORE_ACCESS_KEY: '${OBJECT_STORE_ACCESS_KEY:-tale}',
     OBJECT_STORE_SECRET_KEY:

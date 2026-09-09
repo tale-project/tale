@@ -78,6 +78,7 @@ Pointe d'abord Grafana sur Prometheus — ajoute une source de données Promethe
 | Mémoire plateforme  | `process_resident_memory_bytes{job="tale-platform"}` | Mémoire résidente du conteneur platform             |
 | Lag de l'event-loop | `nodejs_eventloop_lag_seconds{job="tale-platform"}`  | Bondit quand la plateforme est saturée              |
 | Backend up          | `up{job="tale-backend"}`                             | Joignabilité du backend — `0` est un page           |
+| Stores up           | `tale_backend_store_up`                              | `1` par magasin joignable, étiqueté `app_db`, `knowledge_db`, `object_store` |
 
 L'endpoint platform porte les métriques de processus par défaut de Node (CPU, mémoire, lag de l'event-loop, GC), c'est pourquoi les requêtes concrètes ci-dessus le ciblent. L'endpoint backend expose sa propre série plus riche, dont les timings RAG et de crawl en in-process — ouvre-le une fois (`curl -H "Authorization: Bearer $TOKEN" https://tale.example.com/metrics/backend`) pour lire les noms de métriques exacts qu'expose ta version, puis ajoute des panneaux pour le débit d'ingestion de connaissances et le taux d'erreur fournisseur évoqués dans Opérations.
 
@@ -95,7 +96,24 @@ groups:
         labels: { severity: page }
         annotations:
           summary: 'Tale metrics target {{ $labels.job }} is down'
+      - alert: TaleStoreUnreachable
+        expr: tale_backend_store_up == 0
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: 'Tale ne joint plus son magasin {{ $labels.store }}'
 ```
+
+La deuxième règle est ce qui rend « joignabilité de la base de connaissances », dans le tableau des
+signaux ci-dessous, réellement pageable. Donne-lui un `for` plus long qu’à la règle target-down : la
+jauge est rafraîchie derrière un cache qui a son propre intervalle, une sonde ratée isolée n’est donc
+pas encore une panne.
+
+`tale_backend_store_up` mérite un panneau à lui sur tout déploiement dont les magasins ne sont pas
+des conteneurs voisins du backend : c’est le seul signal qu’un Postgres ou un bucket S3 externe a
+cessé de répondre, car le backend reste sain et continue de servir jusqu’à ce que quelqu’un veuille
+s’en servir. Volontairement absent de `/ready`, pour qu’un bucket instable ne puisse pas drainer une
+couleur en plein déploiement.
 
 La liste complète de ce qui vaut un page contre ce qui peut attendre — taux de 5xx de la plateforme, saturation du pool Postgres, joignabilité de la base de connaissances, sauvegarde-quotidienne-non-écrite — est le tableau de signaux dans [Opérations](/fr/self-hosted/operate/observability/operations) ; traduis chaque ligne en règle dès que la série correspondante est sur ton tableau de bord.
 

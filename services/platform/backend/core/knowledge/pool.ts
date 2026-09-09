@@ -48,6 +48,7 @@
 import postgres, { type Sql } from 'postgres';
 
 import { logger } from '../../../lib/knowledge/logger';
+import { resolvePostgresConnection } from '../../db/ssl';
 import { buildConnectionUrl, readOrgConnection } from './connection';
 import { applyCorpusSchema } from './ddl';
 
@@ -77,9 +78,15 @@ export interface PoolOptions {
  */
 export type PoolFactory = (url: string, options?: PoolOptions) => Sql;
 
-let openPool: PoolFactory = (url, options) =>
-  postgres(url, {
+let openPool: PoolFactory = (rawUrl, options) => {
+  // TLS is resolved in ONE place for every Postgres this process reaches —
+  // the app database, this deployment's corpus, and the databases
+  // organizations bring themselves, whose `sslmode` arrives through
+  // `buildConnectionUrl`. See `backend/db/ssl.ts`.
+  const { url, ssl } = resolvePostgresConnection(rawUrl);
+  return postgres(url, {
     max: options?.session ? 1 : poolMax(),
+    ssl,
     idle_timeout: options?.session ? 30 : 120,
     connect_timeout: 30,
     ...(options?.session ? { onnotice: () => undefined } : {}),
@@ -89,6 +96,7 @@ let openPool: PoolFactory = (url, options) =>
       search_path: `${PRIVATE_KNOWLEDGE_SCHEMA},${PUBLIC_WEB_SCHEMA},public`,
     },
   });
+};
 
 /** Install a pool factory (a test double, or a host with its own driver).
  * Passing `null` restores the real postgres.js factory. */

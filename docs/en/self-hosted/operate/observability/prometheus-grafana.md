@@ -78,6 +78,9 @@ Point Grafana at Prometheus first — add a Prometheus data source at `http://pr
 | Platform memory | `process_resident_memory_bytes{job="tale-platform"}` | Resident memory of the platform container         |
 | Event-loop lag  | `nodejs_eventloop_lag_seconds{job="tale-platform"}`  | Spikes when the platform is saturated             |
 | Backend up      | `up{job="tale-backend"}`                             | Backend reachability — `0` is a page              |
+| Stores up       | `tale_backend_store_up`                              | `1` per reachable store, labelled `app_db`, `knowledge_db`, `object_store` |
+
+`tale_backend_store_up` is worth a panel of its own on any deployment whose stores are not containers next to the backend: it is the only signal that an external Postgres or S3 bucket stopped answering, because the backend stays healthy and keeps serving until someone tries to use the store. It is deliberately not part of `/ready`, so a flapping bucket cannot drain a colour mid-deploy.
 
 The platform endpoint carries Node's default process metrics (CPU, memory, event-loop lag, GC), which is why the concrete queries above target it. The backend endpoint exposes its own richer series, including the in-process RAG and crawl timings — open it once (`curl -H "Authorization: Bearer $TOKEN" https://tale.example.com/metrics/backend`) to read the exact metric names your version exposes, then add panels for knowledge-ingestion throughput and provider error rate called out in Operations.
 
@@ -95,7 +98,15 @@ groups:
         labels: { severity: page }
         annotations:
           summary: 'Tale metrics target {{ $labels.job }} is down'
+      - alert: TaleStoreUnreachable
+        expr: tale_backend_store_up == 0
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: 'Tale cannot reach its {{ $labels.store }} store'
 ```
+
+The second rule is what makes "knowledge-database reachability" in the signal table below pageable. Give it a longer `for` than the target-down rule: the gauge is refreshed on a cache with its own interval, so a single failed probe is not yet an outage.
 
 The full list of what's worth paging on versus what can wait — platform 5xx rate, Postgres pool saturation, knowledge-database reachability, daily-backup-did-not-write — is the signal table in [Operations](/self-hosted/operate/observability/operations); translate each row into a rule once the matching series is on your dashboard.
 

@@ -11,7 +11,7 @@ The architecture context lives in [Container architecture](/self-hosted/operate/
 
 | Volume                       | Holds                                                                                                                                   |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `db-data`                    | Postgres — the application store (agents, runs, the audit log) and the knowledge corpus (document chunks, embeddings, crawled pages)    |
+| `db-data`                    | Postgres — the application store (agents, runs, the audit log) and the knowledge corpus (document chunks, embeddings, crawled pages), **when they run in the bundled `db` container** |
 | `config-data`                | Org config, provider secrets, uploaded branding                                                                                         |
 | `object-store-data`          | The blob store — uploaded files, chat attachments, audio, generated media — whenever the deployment default is the bundled object store |
 | `caddy-data`, `caddy-config` | TLS certificates and proxy state                                                                                                        |
@@ -20,6 +20,23 @@ Each snapshot is a directory named like `20260611-142530-deploy` inside the proj
 
 Blobs follow the object store. With the bundled `object-store` — the default — `object-store-data` is captured like every other volume, and its archive is as large as everything ever uploaded: the store is paused while it is tarred, so uploads and downloads stall for that long. Two cases put blobs outside the snapshot, and both are announced rather than silent. A deployment default repointed at an external S3 (`default/object-storage/connection.json` no longer naming the bundled store) leaves the local volume with nothing the app reads, so the volume is skipped and `tale backup` prints a one-line notice with the endpoint and bucket — that bucket's backup runs under your own S3 tooling. An organization that brings its own bucket under **Settings > Data residency** never writes to the local volume either; the notice names the organization, and no snapshot can contain those blobs.
 
+
+<Warning>
+
+**Databases you moved off the box are not in the snapshot, and nothing says so.** `DATABASE_URL`
+and `KNOWLEDGE_DATABASE_URL` can point either database at a Postgres of your own
+([Data residency](/self-hosted/configuration/data-residency)). Blobs get an announcement when they
+move; databases do not — `db-data` still exists on the host, still gets tarred, and the snapshot
+still looks complete while containing none of the data that matters.
+
+Two consequences to plan for:
+
+- Back an external database up with your provider's own tooling, on its own schedule.
+- A `tale restore` rolls the local volumes back while an external database stays where it is. If
+  both are in play, restore the database from its own backup to the same point in time, and take
+  the deployment down for the swap rather than restoring one half under live traffic.
+
+</Warning>
 ## When snapshots are taken
 
 `tale deploy` snapshots before its first mutating step whenever the deploy can change data: the target version differs from the running one, or a host-config push (`--override` / `--override-all`) is requested. While each volume is tarred, the containers using it are paused for the duration — seconds for the database and config volumes, as long as the store is large for the blob volume — so the archive is crash-consistent: a live copy of a running Postgres directory is not restorable.

@@ -1,6 +1,8 @@
 import postgres from 'postgres';
 import type { JSONValue, Sql } from 'postgres';
 
+import { resolvePostgresConnection } from './ssl.ts';
+
 /**
  * Recast a JSON-shaped value for postgres.js's `sql.json()`, whose JSONValue
  * type demands an index signature plain interfaces don't carry. Callers pass
@@ -52,9 +54,28 @@ const jsonPassthrough = {
   parse: (raw: string): unknown => JSON.parse(raw),
 };
 
+/**
+ * How many connections ONE process opens to the application database.
+ *
+ * The budget matters once the database is external: a replica costs this pool
+ * plus pg-boss's own pool of the same size, and a managed Postgres can cap
+ * `max_connections` far below what a handful of replicas would then ask for
+ * (Azure's smallest Flexible Server allows 50). Tunable so the arithmetic is
+ * the operator's to do rather than the code's to assume.
+ */
+export function appPoolMax(
+  env: Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.DATABASE_POOL_MAX;
+  const parsed = raw ? Number(raw) : Number.NaN;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 10;
+}
+
 export function createSql(databaseUrl: string): Sql {
-  return postgres(databaseUrl, {
-    max: 10,
+  const { url, ssl } = resolvePostgresConnection(databaseUrl);
+  return postgres(url, {
+    max: appPoolMax(),
+    ssl,
     idle_timeout: 30,
     connect_timeout: 10,
     types: {

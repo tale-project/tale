@@ -243,10 +243,10 @@ The [Environment reference](/self-hosted/configuration/environment-reference) is
 | `TALE_ROLE` | `api` on `backend-api`, `worker` on `backend-worker`. Unset on `platform`. |
 | `PORT` | `3005` on the api. The proxy's `BACKEND_UPSTREAM` default is `backend-api:3005`. |
 | `TALE_CONFIG_DIR` | `/app/data` |
-| `DATABASE_URL` | `postgresql://tale:${DB_PASSWORD}@db:5432/tale_app` |
+| `DATABASE_URL` | `postgresql://tale:${DB_PASSWORD}@db:5432/tale_app` — or a Postgres of your own, see [Stores you already have](#stores-you-already-have). |
 | `SANDBOX_URL` | `http://sandbox:8003` |
 | `SANDBOX_HTTP_API_BASE_URL` | `http://backend-api:3005` |
-| `OBJECT_STORE_ENDPOINT` | `http://object-store:9000` |
+| `OBJECT_STORE_ENDPOINT` | `http://object-store:9000` — or your own S3 endpoint; leave it unset for AWS S3 proper. |
 | `SANDBOX_EGRESS_NETWORK` | `tale-sandbox-net` |
 | `SANDBOX_EGRESS_PROXY` | `http://sandbox-egress:3128` |
 | `SANDBOX_TOKEN` | The same value everywhere. `sandbox` refuses to start without it; the backend signs its spawner calls with it. |
@@ -254,8 +254,113 @@ The [Environment reference](/self-hosted/configuration/environment-reference) is
 | `BACKEND_UPSTREAM` | `backend-api:3005` on `proxy`. |
 | `OBJECT_STORE_UPSTREAM` | `object-store:9000` on `proxy`, so presigned URLs are forwarded at `/<bucket>/*`. |
 | `OBJECT_STORE_BUCKET` | `tale-blobs` by default. Rename it and the same name has to reach `proxy` and both backend roles. |
+| `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY` | No image default. With either missing the backend configures no blob store at all and refuses every upload. |
 | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | On `object-store`: the store reads its own names, so map `OBJECT_STORE_ACCESS_KEY` and `OBJECT_STORE_SECRET_KEY` onto them. |
 | `TALE_DB_ROLE` | Unset on the folded `db`. The default role creates `tale_knowledge` and applies the corpus migrations; `platform` skips them and leaves the corpus tableless. |
+
+## Stores you already have
+
+Writing the compose yourself is also how you run Tale against a database and an object store you
+already operate. Three variables decide it, all read on every start, so each of these is an `.env`
+change plus a restart of `backend-api` and `backend-worker` — never a rebuild.
+
+| Store | Variable | Drop the service? |
+| ----- | -------- | ----------------- |
+| Application database | `DATABASE_URL` | Yes — `db` disappears, along with `db-data` and `db-backup`. |
+| Knowledge corpus | `KNOWLEDGE_DATABASE_URL` | Only together with the application database: on the single-host stack both live in the one `db` service. |
+| Blobs | `OBJECT_STORE_*` | Yes — `object-store` and `object-store-data` disappear, and `proxy` no longer needs `OBJECT_STORE_UPSTREAM`. |
+
+Drop a service and you must also drop the `depends_on` entries pointing at it, or compose refuses
+to start the tier that waits for a container that no longer exists.
+
+<Steps>
+
+<Step title="Prepare the databases">
+
+The application database needs no extensions and no superuser — a database and a role that may
+create schemas is enough; the backend migrates it at boot. The knowledge corpus needs `pgvector`
+already installed, because Tale creates schemas and tables but never extensions:
+
+```sql
+CREATE DATABASE tale_app;
+CREATE DATABASE tale_knowledge;
+\c tale_knowledge
+CREATE EXTENSION IF NOT EXISTS vector;
+-- Optional. Without it hybrid search degrades to vector-only instead of failing.
+CREATE EXTENSION IF NOT EXISTS pg_search;
+```
+
+Point Tale at the database's own port, never at a transaction-mode pooler — the job queue holds
+`LISTEN` connections, the boot migrator holds a session-scoped advisory lock, and queries use
+prepared statements.
+
+</Step>
+
+<Step title="Prepare the bucket">
+
+Create the bucket, or let Tale create it: it probes with `HeadBucket` first and only creates what
+is absent, so a key restricted to `s3:GetObject`, `s3:PutObject` and `s3:DeleteObject` on a bucket
+you provisioned is enough.
+
+Presigned uploads and downloads run in the browser, so the bucket needs a CORS policy allowing your
+`SITE_URL` origin with `GET`, `PUT` and `HEAD`.
+
+</Step>
+
+<Step title="Point the backend at them">
+
+```bash .env
+DATABASE_URL=postgresql://tale:...@postgres.internal:5432/tale_app?sslmode=verify-full
+KNOWLEDGE_DATABASE_URL=postgresql://tale:...@postgres.internal:5432/tale_knowledge?sslmode=verify-full
+POSTGRES_CA_FILE=/run/secrets/postgres-ca.pem
+
+# Leave OBJECT_STORE_ENDPOINT unset for AWS S3 proper.
+OBJECT_STORE_ENDPOINT=https://minio.internal
+OBJECT_STORE_BUCKET=tale-blobs
+OBJECT_STORE_ACCESS_KEY=...
+OBJECT_STORE_SECRET_KEY=...
+OBJECT_STORE_PUBLIC_ENDPOINT=https://minio.example.com
+```
+
+`OBJECT_STORE_PUBLIC_ENDPOINT` is where the *browser* reaches the bucket. Set it when that differs
+from the endpoint the backend uses; for a bucket the browser can already reach, leave it unset and
+drop the proxy's `/<bucket>/*` forwarding with it.
+
+Mount the CA bundle into both backend services if you asked for `sslmode=verify-ca` or
+`verify-full` — managed providers usually sign with roots Node does not ship, and without the
+bundle the backend refuses the connection at boot rather than downgrading silently.
+
+</Step>
+
+<Step title="Confirm it took">
+
+The boot log states what the object-store variables did — `seeded` on a fresh config volume,
+`reconciled` after a change, `skipped` when no credential pair is set:
+
+```bash
+docker compose logs backend-api | grep 'object store'
+```
+
+Then read the reachability gauge, which is `1` per store only when the backend can actually talk to
+it:
+
+```bash
+curl -s http://backend-api:3005/metrics | grep tale_backend_store_up
+```
+
+</Step>
+
+</Steps>
+
+<Warning>
+
+`tale backup` snapshots Docker volumes. It announces blobs that live in an external bucket and
+skips that volume, but it has no equivalent awareness of an external **database**: with
+`DATABASE_URL` or `KNOWLEDGE_DATABASE_URL` pointed off the box, a snapshot looks complete and
+contains none of that data. Back those databases up with your provider's own tooling — see
+[Backups and restore](/self-hosted/operate/backups-and-restore).
+
+</Warning>
 
 ## Capabilities and mounts that break if omitted
 

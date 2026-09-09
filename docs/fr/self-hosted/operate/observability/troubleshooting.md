@@ -34,6 +34,40 @@ docker compose logs --tail=200 backend-api
 
 Le conteneur backend-api redémarre probablement (cherche un crash dans les logs) ou est injoignable depuis le proxy. Redémarre avec `docker compose restart backend-api` — les sessions sont côté serveur et les clients reconnectent le flux SSE, donc le redémarrage est sûr.
 
+## Tout téléversement est refusé
+
+Pas un fichier ne passe, sur aucun écran. Le stockage compatible S3 est le seul backend de blobs :
+un déploiement qui n’en a pas d’utilisable refuse donc tout téléversement au lieu de se rabattre
+ailleurs. Le journal de démarrage dit de quel cas il s’agit :
+
+```bash
+docker compose logs backend-api | grep 'object store'
+```
+
+| Ligne | Que faire |
+| ----- | --------- |
+| `object store (skipped)` | `OBJECT_STORE_ACCESS_KEY` ou `OBJECT_STORE_SECRET_KEY` manque. Le processus n’a de défaut pour aucune des deux ; pose-les et redémarre le backend. |
+| `object store (ignored)` | Le fichier de connexion porte `"managedBy": "operator"`, les variables ne font donc rien. Édite `default/object-storage/connection.json` dans le volume de config, ou retire la marque pour rendre le fichier à l’environnement. |
+| `bucket … does not exist and this key may not create it` | Crée le bucket toi-même, ou accorde `s3:CreateBucket`. |
+| *aucune ligne* | Le store correspondait déjà à l’environnement et le démarrage n’avait rien à dire — la configuration est bonne, regarde donc l’accessibilité ci-dessous. |
+
+Vérifie ensuite que le backend atteint vraiment le store, et pas seulement qu’il en a un de
+configuré :
+
+```bash
+curl -s http://backend-api:3005/metrics | grep tale_backend_store_up
+```
+
+`tale_backend_store_up{store="object_store"} 0` signifie que les identifiants, l’endpoint ou le
+chemin réseau sont faux ; le journal du backend nomme l’échec quand la jauge bascule.
+
+Si le démarrage est propre et que la jauge vaut `1`, la panne est dans le navigateur et non dans le
+backend : les téléversements présignés vont directement du navigateur au store, un bucket externe a
+donc besoin d’une politique CORS qui autorise l’origine de ton `SITE_URL` en `GET`, `PUT` et `HEAD`.
+Le test de connexion dans l’app tourne côté serveur et passe quand même — c’est précisément pour ça
+que le problème n’apparaît que sous la forme d’un téléversement qui échoue. La console du navigateur
+le nomme comme une requête cross-origin bloquée.
+
 ## Téléversements bloqués en « indexation »
 
 L'ingestion de documents tourne dans le backend worker et écrit les fragments extraits et les embeddings dans la base du corpus de connaissances. Un long état « indexation » signifie soit que le worker ne peut pas joindre la base du corpus, soit que le fichier lui-même n'a pas pu être extrait. Vérifie les logs du worker et la base du corpus en premier :

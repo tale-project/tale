@@ -7,12 +7,14 @@ import { z } from 'zod/v4';
  * attachments, audio, TTS, video-link media, thread/workspace files, agent
  * knowledge, task/email attachments, generated images — at its OWN
  * S3-compatible bucket (AWS S3, MinIO, Cloudflare R2, Wasabi, …) instead of the
- * deployment's Convex `_storage`. Combined with the per-org knowledge Postgres
+ * deployment's default store. Combined with the per-org knowledge Postgres
  * (`knowledge/connection.json`), this puts EVERY layer of an org's data — source
  * blobs, extracted text, chunks, embeddings — physically in the org's own
- * infrastructure. Absent this config, the org's blobs stay on the deployment
- * default (Convex `_storage`), scoped per-org logically (today's behaviour, zero
- * regression).
+ * infrastructure. Absent this config, the org's blobs stay in the deployment
+ * default bucket, scoped per-org by key prefix.
+ *
+ * The SAME file shape describes the DEPLOYMENT default, under the `default`
+ * tree. That one may additionally be env-managed — see `managedBy` below.
  *
  * TENANT ISOLATION: a per-org bucket is dedicated to one org and MUST NEVER be
  * addressed for another org — the resolver keys strictly by orgSlug, never a
@@ -97,6 +99,25 @@ export const objectStorageConnectionFileSchema = z
         }
       }, 'Public endpoint must be http(s)://')
       .optional(),
+    /**
+     * Who owns this file — and therefore whether the deployment's
+     * `OBJECT_STORE_*` variables may rewrite it at boot.
+     *
+     * Only the `default` tree's connection carries it; a per-org bucket is
+     * always written by an admin (UI or by hand) and is never env-managed.
+     *
+     * `env` — the boot reconcile keeps this file equal to the environment, so
+     * rotating the store's credentials is an env change plus a restart rather
+     * than a hand-edit of a SOPS-encrypted file inside a container volume.
+     * `operator` — the file is authoritative and boot never touches it, for a
+     * deployment that manages the default store by hand.
+     *
+     * ABSENT means a file written before this field existed. Boot adopts it as
+     * `env` only when it already names the same bucket at the same endpoint
+     * the environment does — otherwise someone repointed it deliberately, and
+     * that edit outranks the environment.
+     */
+    managedBy: z.enum(['env', 'operator']).optional(),
   })
   .strict();
 export type ObjectStorageConnectionFile = z.infer<
