@@ -103,7 +103,9 @@ describe('buildPersonalNotificationUrl — routing', () => {
     ).toBe(`${SITE}/dashboard/${ORG}/projects/proj_1/tasks`);
   });
 
-  it('needs the project as well as the task — a task alone does not resolve', () => {
+  // Never null: an email that names something the reader cannot reach is
+  // the defect. A row with no entity context still gets a way in.
+  it('lands on the org dashboard when there is no entity context', () => {
     expect(
       buildPersonalNotificationUrl({
         organizationId: ORG,
@@ -111,7 +113,7 @@ describe('buildPersonalNotificationUrl — routing', () => {
         params: { title: 'No project here' },
         siteUrl: SITE,
       }),
-    ).toBeNull();
+    ).toBe(`${SITE}/dashboard/${ORG}`);
   });
 });
 

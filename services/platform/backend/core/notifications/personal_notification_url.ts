@@ -37,7 +37,7 @@ export function buildPersonalNotificationUrl(args: {
   taskId?: string;
   params?: Record<string, unknown>;
   siteUrl?: string;
-}): string | null {
+}): string {
   const projectId = args.params?.projectId;
   const threadId = args.params?.threadId;
   const base = notificationBase(args.siteUrl);
@@ -70,7 +70,7 @@ export function buildPersonalNotificationUrl(args: {
     return `${base}/dashboard/${args.organizationId}/documents?${docSearch}`;
   }
   if (args.taskId && typeof projectId === 'string') {
-    return `${base}/dashboard/${args.organizationId}/projects/${projectId}/tasks?task=${args.taskId}`;
+    return `${base}/dashboard/${args.organizationId}/projects/${encodeURIComponent(projectId)}/tasks?task=${encodeURIComponent(args.taskId)}`;
   }
   // Legacy discussion-mention rows (threadId + projectId): their route is
   // gone, so the email lands on the project's Tasks board — parity with
@@ -78,5 +78,9 @@ export function buildPersonalNotificationUrl(args: {
   if (typeof threadId === 'string' && typeof projectId === 'string') {
     return `${base}/dashboard/${args.organizationId}/projects/${projectId}/tasks`;
   }
-  return null;
+  // Never null: an actionable email always carries a way in. A row with no
+  // entity context (a legacy row written before its project was stamped)
+  // lands on the org dashboard rather than shipping a link-less email that
+  // names something the reader then has to go and find by hand.
+  return `${base}/dashboard/${args.organizationId}`;
 }
