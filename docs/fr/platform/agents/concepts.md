@@ -1,70 +1,51 @@
 ---
-title: Concepts d’agent
-description: Un agent est une persona — des instructions, les outils et skills qu’il peut solliciter, les connaissances qu’il peut fouiller, et qui a le droit de s’en servir.
+title: Comprendre les agents
+description: Un agent de projet réunit un harness, un modèle, des instructions et un équipement pour traiter les tâches d’un seul projet.
 ---
 
-C’est vers un agent que Tale se tourne quand la même question ne cesse de revenir. Il s’agit d’une **persona** plutôt que d’un environnement d’exécution : il dit qui répond — un nom, des instructions, ce qu’il a le droit de solliciter et qui dans l’organisation peut s’en servir — et rien sur la façon dont un tour s’exécute. Dans cette version, une persona est un fichier YAML dans la configuration de l’organisation, servi et modifié par l’API de la plateforme ; aucun écran n’en liste ni n’en modifie une, et le composer du chat n’en propose aucune à choisir. Les agents que tu rencontres à l’écran sont des **agents de projet**, l’équipe nommée de l’onglet **Agents** d’un projet — les mêmes décisions, emballées pour les tâches du tableau.
+Un agent de projet prend en charge les tâches d’un projet précis. Sa configuration réunit le harness qui exécute le travail, le modèle, les instructions permanentes et l’équipement autorisé. Cette page t’aide à choisir ce dont ton agent a besoin ; [Agents de projet](/fr/platform/projects/project-agents) explique comment le créer et le gérer.
 
-Cette page te donne le modèle mental que le reste du chapitre présuppose. Lis-la une fois avant d’écrire ton premier fichier de persona ou de doter ton premier projet, puis reviens-y quand tu ne sais plus si le comportement que tu veux changer tient aux instructions, aux outils, aux skills ou à la portée des connaissances.
+## Définir sa responsabilité
 
-Tu préfères regarder d’abord ? L’épisode 4 a été enregistré dans l’ancien éditeur d’agent — un écran que cette version ne livre pas —, mais les décisions qu’il parcourt, en moins de trois minutes et sous-titres compris, sont celles qu’une persona porte toujours.
+Un agent appartient à un seul projet. Son ID désigne l’agent de ce projet, et une tâche ne peut recevoir qu’un agent du même projet. Chaque projet accueille jusqu’à 50 agents, avec des noms distincts dans ce projet.
 
-<Video src="/videos/fr/tutorials/ep4-agent/ep4-agent.fr.mp4" poster="/videos/fr/tutorials/ep4-agent/ep4-agent.fr.webp" captions="/videos/fr/tutorials/ep4-agent/ep4-agent.fr.vtt" lang="fr" title="Épisode 4 — Ton premier agent" caption="Épisode 4 — Ton premier agent (2:42)">
+La visibilité suit les droits du projet. Les personnes qui peuvent lire le projet voient ses agents ; celles qui peuvent le modifier les gèrent tant que le projet est actif. L’agent n’a pas de réglage distinct de visibilité privée ou à l’échelle de l’organisation.
 
-</Video>
+## Choisir l’exécution
 
-## Ce que porte un agent
+Le **harness** exécute la session de code dans une sandbox ; le **modèle** et son fournisseur déterminent le moteur qui répond. Ces choix font partie de la configuration de l’agent. [Harnesses](/fr/platform/agents/harnesses) présente les environnements d’exécution, et [Fournisseurs](/fr/platform/admin/providers) leurs identifiants.
 
-Un fichier de persona porte cinq choses. Chacune est validée à l’enregistrement du fichier, et aucune ne se règle depuis un écran dans cette version — [Agents (vue Admin)](/fr/platform/admin/agents) dit qui peut modifier un fichier et comment la visibilité est appliquée.
+Les **instructions** permanentes définissent la responsabilité et les limites de l’agent, jusqu’à 20 000 caractères. Pour un agent de revue, précise les points à vérifier, les changements qui demandent une décision et la forme du compte rendu. Garde les exigences propres à une tâche dans cette tâche pour réutiliser l’agent sur la suivante.
 
-**L’identité.** Le slug sous lequel l’agent est rangé — c’est le nom du fichier, figé dès que l’agent existe —, le nom affiché sous lequel les gens le rencontrent, une courte description de son objet, et au besoin des versions de ces textes par langue, pour qu’un lecteur allemand ou français tombe sur l’agent dans sa propre langue. Le nom affiché, tu le changes chaque fois que le travail se déplace.
+## Donner l’équipement utile
 
-**Les instructions.** La prose que la persona apporte à chaque tour qu’elle cadre — jusqu’à 20 000 caractères, au niveau racine ou par langue. Garde-la courte, tranchée et concrète : de longues instructions se diluent dans les longues conversations. Nomme la voix, les limites, et les cas où l’agent doit refuser.
+Les **skills** apportent des documents de référence, les **connectors** donnent accès aux services connectés et les **outils** autorisent des opérations sur la plateforme. Chaque liste accepte jusqu’à 25 entrées. Accorde les capacités nécessaires au travail ; autoriser un outil d’écriture permet ses modifications dans le cadre de ses règles d’accès.
 
-**Les outils et les skills.** Deux listes d’autorisation. Les outils nomment les capacités que l’agent peut appeler — jusqu’à cent —, et les outils de la plateforme, les connectors connectés et les automatisations de l’organisation figurent tous dans cette même liste. Les skills nomment les bundles de skills qu’il peut déplier, dix au plus. La même règle vaut pour les deux : omets une liste et l’agent n’est pas restreint, remplis-la et il s’en tient exactement à ce que tu as nommé — une liste vide veut dire rien du tout.
-
-**La portée des connaissances.** Un seul réglage décide quel corpus la recherche de l’agent a le droit de lire : les documents propres à l’organisation, les pages récupérées pour son compte, les deux ensemble (le défaut), ou rien du tout. Chaque corpus appartient à l’organisation elle-même, si bien qu’élargir la portée ne franchit jamais la frontière d’une autre organisation.
-
-**La visibilité.** `private`, et seul son propriétaire l’atteint ; `org`, et tous les membres l’atteignent. Un agent privé nomme un propriétaire, faute de quoi personne ne pourrait l’atteindre ; une persona créée par l’API appartient à son auteur et démarre privée, et la partager est une modification explicite.
+Les **secrets** désignent des noms de secrets de l’organisation, jusqu’à 25 par agent. Seuls les Propriétaires et Admins de l’organisation peuvent modifier ces autorisations. Les valeurs restent chiffrées dans le stockage des secrets ; la configuration porte leurs noms, et l’exécution reçoit les valeurs autorisées.
 
 ```mermaid
 flowchart LR
-    I[Instructions] --> A((Agent))
-    T[Outils] --> A
-    S[Skills] --> A
-    K[Portée des connaissances] --> A
-    A --> R[Réponse avec citations]
+    P[Projet et tâche assignée] --> A[Agent de projet]
+    H[Harness et modèle] --> A
+    I[Instructions permanentes] --> A
+    E[Skills, connectors, outils et secrets] --> A
+    A --> R[Résultat à faire vérifier]
 ```
 
-## Ce dont l’agent ne décide pas
+## Réunir ces choix
 
-Le modèle ne fait pas partie de l’agent. Ce choix appartient à qui compose le tour : le sélecteur du composer du chat ne propose que des modèles — il s’ouvre sur **Auto** (Tale choisit un modèle par message, et la réponse enregistre lequel a tourné), avec chaque modèle servi en direct à portée d’épingle. Un agent qui épinglerait un modèle écraserait en silence le choix que quelqu’un vient de faire devant l’écran, alors il n’en porte aucun.
+Un agent de revue peut travailler avec un harness de code, un modèle servi par un fournisseur approuvé, le skill de revue de l’équipe et le connector du dépôt. Ses instructions lui demandent de signaler les défauts avec des preuves. Il traite une tâche de son projet, puis remet le résultat à une personne pour vérification. Un autre projet doit avoir son propre agent, même si le nom et les instructions sont identiques.
 
-Le même raisonnement écarte plusieurs réglages que tu pourrais chercher. Une persona n’a ni type ni sélecteur de harness : savoir si le travail tourne sur un [harness](/fr/platform/agents/harnesses) de code se décide quand tu crées un **agent de projet** ou un nœud **agent** d’automatisation (les deux nomment le champ **Harness**), et certains accès fournisseur en imposent un. Elle ne porte aucun délai d’exécution, parce qu’un plafond appartient à l’hôte qui exécute le tour et non à une persona. Elle ne détient ni variables d’environnement ni identifiants propres — ceux-là vivent sur les fiches fournisseur de l’organisation, où ils se font tourner et auditer au même endroit. Et elle ne livre aucune amorce toute faite — rien dans cette version ne présente une persona comme point d’entrée du chat.
+## Choisir la forme de travail
 
-## Mis bout à bout — un agent de tri du support
+| Utilise | Pour obtenir |
+| --- | --- |
+| Le chat | Un échange avec l’assistant intégré pour des questions, des recherches ou un brouillon. |
+| Un agent de projet | Un exécutant configuré pour une tâche de projet dont une personne vérifie le résultat. |
+| Une automatisation | Des étapes définies, une planification ou des approbations entre étapes. |
 
-Un premier agent utile, c’est celui du tri du support : il lit la question entrante, répond à ce qu’il peut et transmet le reste. Les décisions, que tu les écrives dans un fichier de persona ou dans la boîte de dialogue d’un agent de projet :
+Le chat direct utilise l’assistant intégré. Lui donner le contexte d’un projet ne sélectionne pas un agent de projet ; le nœud agent d’une automatisation possède sa propre configuration d’exécution.
 
-- Instructions : un paragraphe pour la voix, plus trois cas explicites où il refuse.
-- Outils : aussi peu que le travail le permet — pour un agent qui lit un message et écrit deux lignes, aucun.
-- Skills : le bundle maison pour le ton des réponses, afin que la formulation soit la même partout.
-- Connaissances : les documents de l’organisation, le web collecté reste dehors — sur un agent de projet, les outils de lecture des connaissances et des documents.
-- Visibilité : `org`, pour que toute l’équipe support puisse lire la persona ; un agent de projet appartient à son projet, et quiconque peut le modifier le gère.
+## Constituer l’équipe du projet
 
-L’agent qui tourne réellement dans cette version, c’est l’agent de projet : crée-le dans l’onglet **Agents** du projet avec ces instructions, assigne-lui une tâche, clique sur **Démarrer l'agent** et lis les deux lignes qu’il renvoie en **En revue** — [Construire ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) parcourt exactement cela. Passer la main à un spécialiste n’est pas un réglage de la persona : transmettre du travail, c’est une autre tâche, assignée à un autre agent, comme l’explique [Automatisation des tâches](/fr/platform/projects/task-automation).
-
-## Quand y recourir
-
-Une persona est une configuration qui dit qui répond ; les voies parmi lesquelles tu choisis vraiment sont le chat, un agent de projet et une automatisation. Prends le chat quand tu explores toi-même une réponse — l’assistant intégré cherche et rédige, et ne produit aucun fichier. Prends un agent de projet quand le travail est une tâche dont une personne doit relire le résultat. Prends une [automatisation](/fr/platform/automations/concepts) quand le travail a des étapes fixes et que tu veux des validations ou une planification entre elles.
-
-| Choisis … quand                                       | Chat | Agent de projet | Automatisation |
-| ----------------------------------------------------- | ---- | --------------- | -------------- |
-| Tu explores une réponse ou veux un brouillon          | ✓    |                 |                |
-| Le résultat est un fichier ou un changement à relire  |      | ✓               |                |
-| La voix et les limites doivent tenir à chaque fois    |      | ✓               | ✓              |
-| Il faut des validations ou un calendrier entre étapes |      |                 | ✓              |
-
-## Construis-en un
-
-Un agent, c’est une identité, des instructions, deux listes d’autorisation, une portée de connaissances et une visibilité — change l’un d’eux et tu as changé son comportement, change-en trois et tu as un autre produit. Tout ce qui touche au déroulé d’un tour reste hors de la persona et se décide dans la voie qui l’exécute : le sélecteur de modèle du composer, le harness et le modèle d’un agent de projet, les réglages d’un nœud d’automatisation. Les agents que tu construis à l’écran sont des agents de projet — [Agents de projet](/fr/platform/projects/project-agents) parcourt la boîte de dialogue champ par champ, et [Agents (vue Admin)](/fr/platform/admin/agents) couvre les fichiers de persona et qui peut les modifier.
+Choisis d’abord le projet et la tâche, puis adapte l’exécution, les instructions et l’équipement de l’agent. [Agents de projet](/fr/platform/projects/project-agents) décrit la création, [Agents côté administration](/fr/platform/admin/agents) les droits de modification et la [Référence API](/fr/develop/api-reference#gerer-les-agents-dun-projet) la gestion depuis une intégration.

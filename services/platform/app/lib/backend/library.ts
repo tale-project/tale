@@ -1,7 +1,6 @@
 /**
- * The library verticals over the 0.5 backend: AGENTS (read surfaces — the
- * settings page edits ride later servers) and SKILLS (the full file-backed
- * CRUD + the bundle-upload lane). Both are org-config FILE families, so
+ * The skill library over the backend: file-backed CRUD and bundle uploads.
+ * Skills are an org-config file family, so
  * every read is an ACTION_QUERY row; the staged skill zip travels the org
  * byte lane exactly like the automation pack.
  */
@@ -15,8 +14,6 @@ import type {
 } from './adapters';
 import { backendFetch, backendUrl } from './api-client';
 
-type AgentListingResult = ReturnsOf<'agents/actions:listAgents'>;
-type AgentDocumentResult = ReturnsOf<'agents/actions:getAgent'>;
 type SkillListingResult = ReturnsOf<'skills/actions:listSkills'>;
 type SkillDocumentResult = ReturnsOf<'skills/actions:getSkill'>;
 type SkillAssetResult = ReturnsOf<'skills/actions:getSkillAsset'>;
@@ -52,29 +49,6 @@ function stringArg(args: Record<string, unknown>, key: string): string {
 }
 
 export const libraryActionQueryAdapters: Record<string, ActionQueryAdapter> = {
-  'agents/actions:listAgents': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return () => backendFetch<AgentListingResult>('/agents', { orgId });
-  },
-  'agents/actions:getAgent': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    const slug = args.slug;
-    if (orgId === undefined || typeof slug !== 'string' || slug === '') {
-      return null;
-    }
-    return () =>
-      backendFetch<{ agent: AgentDocumentResult }>(
-        `/agents/${encodeURIComponent(slug)}`,
-        { orgId },
-      ).then(
-        (body) => body.agent,
-        (error: unknown) => {
-          if (isNotFound(error)) return null;
-          throw error;
-        },
-      );
-  },
   'skills/actions:listSkills': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;

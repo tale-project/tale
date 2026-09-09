@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
+import { transactSerializable } from '@tale/shared/db/serializable';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { projectAgentInputSchema } from '../../lib/shared/schemas/projects.ts';
 import {
   createDocumentFromUpload,
   loadDocumentOrThrow,
@@ -24,9 +26,15 @@ import {
 } from '../domains/folders/service.ts';
 import {
   assertReadable,
+  assertWritable,
   createProject,
+  createProjectAgent,
+  deleteProjectAgent,
+  getProjectAgent,
   getProjectByExternalItemId,
+  listProjectAgents,
   loadProjectOrThrow,
+  updateProjectAgent,
   type ProjectAuthContext,
   type ProjectRow,
 } from '../domains/projects/service.ts';
@@ -63,6 +71,7 @@ import {
  */
 
 const UPLOAD_INTENT_TTL_MS = 30 * 60_000;
+const projectAgentBody = projectAgentInputSchema.strict();
 
 function projectPayload(project: ProjectRow): Record<string, unknown> {
   return {
@@ -119,6 +128,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     requireEditor(c);
     const project = await loadVisibleProject(c, auth, projectId);
     if (project instanceof Response) return project;
+    assertWritable(project, auth);
     if (project.archivedAt !== null) {
       return c.json(
         { error: 'You do not have permission to modify this project' },
@@ -186,6 +196,100 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const project = await loadVisibleProject(c, auth, c.req.param('id'));
     if (project instanceof Response) return project;
     return c.json({ project: projectPayload(project) });
+  });
+
+  // ---- project agents -------------------------------------------------------
+  app.get('/projects/:id/agents', async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadVisibleProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      return c.json({
+        agents: await listProjectAgents(deps.sql, auth, project.id),
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.post('/projects/:id/agents', async (c) => {
+    const body = projectAgentBody.safeParse(await readJsonBody(c));
+    if (!body.success)
+      return c.json({ error: 'invalid project agent body' }, 400);
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadEditableProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const agent = await transactSerializable(deps.sql, async (tx) => {
+        const id = await createProjectAgent(tx, auth, {
+          ...body.data,
+          projectId: project.id,
+        });
+        return getProjectAgent(tx, auth, project.id, id);
+      });
+      return c.json({ agent }, 201);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.get('/projects/:id/agents/:agentId', async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadVisibleProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const agent = await getProjectAgent(
+        deps.sql,
+        auth,
+        project.id,
+        c.req.param('agentId'),
+      );
+      if (agent === null) return c.json({ error: 'Agent not found' }, 404);
+      return c.json({ agent });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.put('/projects/:id/agents/:agentId', async (c) => {
+    const body = projectAgentBody.safeParse(await readJsonBody(c));
+    if (!body.success)
+      return c.json({ error: 'invalid project agent body' }, 400);
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadEditableProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const agentId = c.req.param('agentId');
+      const agent = await transactSerializable(deps.sql, async (tx) => {
+        if ((await getProjectAgent(tx, auth, project.id, agentId)) === null)
+          return null;
+        await updateProjectAgent(tx, auth, { ...body.data, agentId });
+        return getProjectAgent(tx, auth, project.id, agentId);
+      });
+      if (agent === null) return c.json({ error: 'Agent not found' }, 404);
+      return c.json({ agent });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.delete('/projects/:id/agents/:agentId', async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadEditableProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const agentId = c.req.param('agentId');
+      const deleted = await transactSerializable(deps.sql, async (tx) => {
+        if ((await getProjectAgent(tx, auth, project.id, agentId)) === null)
+          return false;
+        await deleteProjectAgent(tx, auth, agentId);
+        return true;
+      });
+      if (!deleted) return c.json({ error: 'Agent not found' }, 404);
+      return c.body(null, 204);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
   });
 
   // ---- folders --------------------------------------------------------------

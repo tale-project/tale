@@ -66,8 +66,8 @@ Für einen geprüften Client-Schlüssel liefert `POST /api/app/identity/clients/
 | Läufe             | `/api/v1/runs/{runId}`                  | Ein durabler Lauf in voller Tiefe — Status, Output, Trace, Effekte — plus `POST .../cancel`.                                         |
 | Threads           | `/api/v1/threads/...`                   | Die Chat-Threads des Schlüsselbesitzers: erstellen, Nachrichten lesen, senden, Turn pollen.                                          |
 | Modelle | `GET /api/v1/models` | Konfigurierte Chat-Modelle, die dem Schlüsselbesitzer in dieser Organisation zur Verfügung stehen. |
-| Agenten           | `/api/v1/agents/...`                    | Agenten der Organisation auflisten, lesen, anlegen oder aktualisieren, löschen.                                                           |
-| Skills            | `/api/v1/skills/...`                    | Dieselbe Form wie Agenten, für Skills.                                                                                               |
+| Agenten | `/api/v1/projects/{id}/agents/...` | Agenten im angegebenen Projekt auflisten, lesen, anlegen, ändern und löschen. |
+| Skills | `/api/v1/skills/...` | Skill-Bundles der Organisation auflisten, lesen, anlegen oder ändern und löschen. |
 | Wissenseinträge   | `/api/v1/knowledge-entries/...`         | Themen-Fakten: auflisten, anlegen, ablösen, löschen.                                                                                 |
 | Wissenssuche      | `POST /api/v1/knowledge/search`         | Semantische Suche über das indexierte Wissen der Organisation.                                                                       |
 | Dokumente         | `/api/v1/documents/...`                 | Dokumente der Wissensdatenbank: CRUD plus `POST .../retry-indexing`. Projektdateien tauchen hier nie auf — sie leben unter Projekte. |
@@ -83,9 +83,57 @@ Für einen geprüften Client-Schlüssel liefert `POST /api/app/identity/clients/
 
 Übergib bei Kontaktänderungen den zuletzt gelesenen Wert `updatedAt` als optionales `expectedUpdatedAt` an `PATCH /api/v1/contacts/{id}`. Eine zwischenzeitliche Änderung liefert **409**, `CONTACT_STALE`; lade den Kontakt erneut und führe deine Änderungen vor dem nächsten Versuch zusammen.
 
-Ein Agenten-`PUT` aktualisiert die gesendeten Felder; ausgelassene optionale Felder behalten ihren Wert. Skills unterstützen die Sichtbarkeit `org` und `team`; `teams` muss Teams dieser Organisation benennen. Die Sichtbarkeit `private` gibt es für Skills nicht mehr.
+Skills unterstützen die Sichtbarkeit `org` und `team`; `teams` muss Teams dieser Organisation benennen. Die Sichtbarkeit `private` gibt es für Skills nicht mehr.
 
 Sende für ein Hub-Dokument den Inhalt als `content` an `POST /api/v1/documents`. Die Alternative `fileId` setzt einen vorhandenen Hub-Upload aus der App voraus. REST erstellt keinen solchen Upload; Projekt-Uploads lassen sich hier nicht verwenden. Gelöschte oder abgelaufene Dokumente, auch Dateien eines gelöschten Projekts, erscheinen nicht auf dieser Hub-Schnittstelle.
+
+## Agenten eines Projekts verwalten
+
+Jeder Agent gehört zu einem Projekt. Die Projekt-ID steht bei jeder Operation verpflichtend in der URL; die Antwort enthält `projectId` und die `id` des Agenten. API und Projekt-Tab **Agenten** verwalten dieselben Datensätze mit denselben Zugriffsrechten.
+
+| Operation | Route | Erfolg |
+| --- | --- | --- |
+| Agenten auflisten | `GET /api/v1/projects/{id}/agents` | `200 {agents}` |
+| Anlegen | `POST /api/v1/projects/{id}/agents` | `201 {agent}` |
+| Lesen | `GET /api/v1/projects/{id}/agents/{agentId}` | `200 {agent}` |
+| Gesamte Konfiguration speichern | `PUT /api/v1/projects/{id}/agents/{agentId}` | `200 {agent}` |
+| Löschen | `DELETE /api/v1/projects/{id}/agents/{agentId}` | `204` |
+
+Wähle ein vorhandenes Projekt und ein Modell, das der gewählte Harness bedienen kann. Das Beispiel legt einen Claude-Code-Agenten an und liest seine Konfiguration zurück; eine Aufgabe startet es nicht.
+
+```bash
+: "${BASE:?Set BASE to your Tale origin}"
+: "${TALE_API_KEY:?Set TALE_API_KEY}"
+: "${ORG_SLUG:?Set ORG_SLUG}"
+: "${PROJECT_ID:?Set PROJECT_ID to an existing project ID}"
+: "${MODEL_ID:?Set MODEL_ID to a model served by your harness}"
+AGENT_URL="$BASE/api/v1/projects/$PROJECT_ID/agents"
+AGENT_BODY=$(jq -n --arg model "$MODEL_ID" \
+  '{name:"Reviewer",harness:"claude-code",model:$model,skills:[],connectors:[]}')
+AGENT_ID=$(curl -fsS "$AGENT_URL" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $ORG_SLUG" \
+  -H 'Content-Type: application/json' -d "$AGENT_BODY" | jq -er '.agent.id')
+curl -fsS "$AGENT_URL/$AGENT_ID" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $ORG_SLUG" \
+  | jq '.agent | {name, harness, skills, connectors}'
+```
+
+```json
+{
+  "name": "Reviewer",
+  "harness": "claude-code",
+  "skills": [],
+  "connectors": []
+}
+```
+
+`POST` und `PUT` verlangen `name`, `harness`, `model`, `skills` und `connectors`. Optional sind `modelProvider`, `tools`, `secrets` und `instructions`. Ein `PUT` speichert die gesamte Konfiguration: Ausgelassene Anbieter- und Anweisungsfelder werden `null`, ausgelassene Tool- und Secret-Listen werden leer. Die Agenten-ID muss bereits existieren; ein `PUT` legt keinen neuen Agenten an.
+
+Ein Projekt fasst höchstens 50 Agenten. Namen müssen innerhalb des Projekts unabhängig von Groß- und Kleinschreibung eindeutig sein und dürfen bis zu 120 Zeichen lang sein; jede Ausstattungsliste erlaubt 25 Einträge, Anweisungen 20.000 Zeichen. Ungültige Konfiguration, ein belegter Name oder eine überschrittene Grenze ergibt **400**. `secrets` enthält Namen von Organisationsgeheimnissen, niemals deren Werte; unbekannte Namen entfallen. Nur Inhaber und Admins der Organisation dürfen die Freigaben ändern. Ein Redakteur muss vorhandene Freigaben beim Speichern beibehalten.
+
+Projektleser dürfen die Agenten lesen; Änderungen verlangen Bearbeitungsrechte und ein aktives Projekt. Ein unsichtbares oder fehlendes Projekt sowie eine Agenten-ID aus einem anderen Projekt ergibt **404**. Bei Mitgliedschaft in mehreren Organisationen muss jede Lese- und Schreibanfrage `X-Organization-Slug` enthalten. [Projekt-Agenten](/de/platform/projects/project-agents) erklärt die Arbeit an Aufgaben; der direkte Chat verwendet weiterhin den eingebauten Assistenten.
 
 ## Automatisierungsnamen in URLs
 
@@ -96,7 +144,7 @@ curl -sS "https://your-host.example.com/api/v1/automations/billing__dunning/runs
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
-Antworten tragen immer den echten Namen (`"name": "billing/dunning"`); die `__`-Form existiert nur in URLs. Agent- und Skill-Slugs sind flach und brauchen keine Kodierung.
+Antworten tragen immer den echten Namen (`"name": "billing/dunning"`); die `__`-Form existiert nur in URLs. Skill-Slugs sind flach und brauchen keine Kodierung. Projekt-Agenten verwenden die Projekt-ID und die Agenten-ID.
 
 ## Einen Lauf starten, dann pollen
 
@@ -152,7 +200,7 @@ curl -sS "https://your-host.example.com/api/v1/threads/<threadId>/generation" \
 
 `{"status": "idle"}` heißt: kein Turn läuft — lies `GET /api/v1/threads/{id}/messages` für die Antwort. Ein Turn, der vor jeder Ausgabe scheitert, taucht trotzdem auf: der Fehler landet als Assistenten-Nachricht, nie lautlos. Über die API gelistete und gelesene Threads sind die des Schlüsselbesitzers; die Threads anderer Benutzer bleiben für deinen Schlüssel unsichtbar, auch innerhalb derselben Organisation.
 
-Scheitert ein Turn, bleibt deine gesendete Nachricht erhalten; eine Assistenten-Nachricht enthält den Fehler. Die REST-Nachricht liefert lesbaren Text in `error` und, wenn verfügbar, eine Klassifizierung als `errorCode`. Das Anlegen eines Threads mit einer unbekannten oder nicht zugänglichen `agentSlug` ergibt **404**.
+Scheitert ein Turn, bleibt deine gesendete Nachricht erhalten; eine Assistenten-Nachricht enthält den Fehler. Die REST-Nachricht liefert lesbaren Text in `error` und, wenn verfügbar, eine Klassifizierung als `errorCode`. Direkte Threads verwenden den eingebauten Assistenten. Die optionale `projectId` ergänzt den Projektkontext; eine Agentenauswahl über `agentSlug` oder `agentId` lehnt die API mit **400** ab.
 
 ## Ein externes System in ein Projekt spiegeln
 

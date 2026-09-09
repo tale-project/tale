@@ -134,21 +134,4 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
     name: 'skills',
     scaffoldKind: 'bundle',
   },
-  // Agents — one `<org>/agents/<slug>.yml` per agent. An agent is a persona:
-  // a name, instructions, what it may reach for, and who may use it. It says
-  // nothing about how a turn executes (no model, no ceiling, no harness, no
-  // credentials), so there is no runtime state to keep beside the file and
-  // nothing to mirror into a table. Read at the two places that consume it
-  // — the org-facing editor and the turn that resolves the agent answering.
-  // Sharing lives in the file (`visibility: private | org` with an `owner`),
-  // which is also why nothing here is shared across organizations: a file
-  // only exists inside one org's tree. Catalog-scaffolded (`flat`: one
-  // `<slug>.yml` per agent) so a fresh org ships with the builtin agents
-  // under `configs/platform/custom/agents/` — e.g. the Coding Agent, which
-  // lists the baked `visual-aspect-analyzer` skill in its `skills:`
-  // allowlist.
-  {
-    name: 'agents',
-    scaffoldKind: 'flat',
-  },
 ];

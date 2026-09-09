@@ -67,8 +67,6 @@ function isFileNotFound(err: unknown): boolean {
  * route still responds.
  *
  * Used to replace silent `catch {}` blocks at:
- *  - convex/agents/file_actions.ts (listAgents, duplicateAgent, listHistory)
- *  - convex/agents/internal_actions.ts (listAgentsInternal)
  *  - convex/workflows/file_actions.ts (listWorkflowsForAgent)
  */
 export function handleDirReadError(err: unknown, label: string): void {

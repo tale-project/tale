@@ -23,16 +23,16 @@ Für einen Berechtigungsnachweis, den deine Skripte halten können, öffne **Ein
 
 <Step title="Mach die erste Anfrage">
 
-Der kürzeste nützliche Aufruf listet die Agents, die dein Schlüssel sehen kann. Der Schlüssel reist als Bearer-Token mit; den Arbeitsbereichs-Kontext leitet Tale aus dem Schlüssel selbst ab:
+Die erste Anfrage listet die Modelle auf, die dein Schlüssel im direkten Chat verwenden darf. Der Schlüssel steht als Bearer-Token in der Anfrage; der Organisationskontext folgt deiner Mitgliedschaft:
 
 ```bash
-curl -sS https://your-host.example.com/api/v1/agents \
+curl -sS https://your-host.example.com/api/v1/models \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
 <Check>
 
-Ein JSON-Objekt mit einem `agents`-Array — samt dem eingebauten Assistenten — beweist Schlüssel, Header und Route. Ein `401` heißt: Der Token-Header ist fehlerhaft, oder der Schlüssel wurde widerrufen.
+Ein JSON-Objekt mit einem `models`-Array bestätigt Schlüssel, Authentifizierung und Route. Das Array darf leer sein, wenn kein Modell für den direkten Chat verfügbar ist. Bei `401` ist die Autorisierungskopfzeile fehlerhaft oder der Schlüssel widerrufen.
 
 </Check>
 

@@ -14,6 +14,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 | Suite | Boxes | Status | Owning spec |
 |---|---|---|---|
+| [projects](../suites/projects.md) | Project-agent REST CRUD, project isolation, roles, secret grants and session parity | ✅ automated | `backend/rest/v1-project-agents.test.ts`, `backend/domains/projects/routes.test.ts`, `backend/rest/project-agents-check.ts` (43 real HTTP/Postgres checks in `checkRestProjectAgents`) |
 | [settings](../suites/settings.md) | `SET-B11` (REST model discovery) | 🔶 backend | `backend/rest/v1-threads.contract.test.ts`, `backend/rest/v1-threads.test.ts` — org/user scoping, empty catalog, credential-free response, provider forwarded; live provider response stays manual |
 | [accessibility](../suites/accessibility.md) | Layer | Status | Where |
 | [accessibility](../suites/accessibility.md) | Per-component axe (WCAG 2.1 AA) | ✅ automated | `checkAccessibility()` — `packages/ui/tests/utils/a11y.ts` (axe via `vitest-axe`); ~30+ component `.test.tsx` call it |

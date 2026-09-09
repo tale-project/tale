@@ -366,7 +366,6 @@ const thread = {
   id: 't-1',
   title: 'Refunds',
   kind: 'direct',
-  agentSlug: null,
   harness: null,
   projectId: null,
   archived: false,
@@ -461,11 +460,55 @@ describe('handler statuses and bodies match the documented operation', () => {
     );
   });
 
-  it('DELETE /agents/{slug} documents 204 and 404, not a {deleted} 200', () => {
-    // The route itself is pinned in rest/v1-core.test.ts (204, then 404).
-    const statuses = documentedStatuses('/api/v1/agents/{slug}', 'delete');
+  it('DELETE /projects/{id}/agents/{agentId} documents 204 and 404, not a {deleted} 200', () => {
+    // The real Postgres lifecycle is pinned in rest/project-agents-check.ts.
+    const statuses = documentedStatuses(
+      '/api/v1/projects/{id}/agents/{agentId}',
+      'delete',
+    );
     expect(statuses).toContain('204');
     expect(statuses).toContain('404');
     expect(statuses).not.toContain('200');
   });
+
+  it.each([
+    ['/projects/p-1/agents', '/api/v1/projects/{id}/agents'],
+    ['/projects/p-1/agents/a-1', '/api/v1/projects/{id}/agents/{agentId}'],
+  ])(
+    '%s returns project-agent records matching the published schema',
+    async (route, specPath) => {
+      const agent = {
+        id: 'a-1',
+        organizationId: 'org-1',
+        projectId: 'p-1',
+        name: 'Reviewer',
+        harness: 'claude-code',
+        model: 'test-model',
+        modelProvider: null,
+        instructions: null,
+        skills: [],
+        connectors: [],
+        tools: [],
+        secrets: [],
+        createdBy: 'user-1',
+        createdAt: 1,
+        updatedAt: 2,
+      };
+      const sql = fakeSql([], (text) => {
+        if (text.includes('FROM app.projects WHERE id')) return [project];
+        if (text.includes('FROM app.project_agents')) return [agent];
+        return [];
+      });
+      const response = await mount(createProjectRestRoutes({ sql })).request(
+        `http://localhost${route}`,
+      );
+      expect(response.status).toBe(200);
+      const body: unknown = await response.json();
+      const validate = responseValidator(specPath, 'get', '200');
+      expect(validate(body), JSON.stringify(validate.errors)).toBe(true);
+      expect(body).toEqual(
+        route.endsWith('/a-1') ? { agent } : { agents: [agent] },
+      );
+    },
+  );
 });

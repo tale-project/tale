@@ -59,7 +59,7 @@
     },
     {
       "name": "Agents",
-      "description": "The organization’s agents."
+      "description": "Agents belonging to one project."
     },
     {
       "name": "Skills",
@@ -3816,6 +3816,540 @@
         }
       }
     },
+    "/api/v1/projects/{id}/agents": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "List project agents",
+        "description": "The complete agent roster of this project (at most 50). Uses the same records and project visibility as the project Agents tab. Multi-organization key holders must supply X-Organization-Slug, including on reads.",
+        "operationId": "listProjectAgents",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID — required for every agent operation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project agent roster",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["agents"],
+                  "properties": {
+                    "agents": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProjectAgent"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project is not editable, is archived, or the caller cannot change secret grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project is missing or invisible, or agent does not belong to this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Agents"],
+        "summary": "Create a project agent",
+        "description": "Creates an agent in the named project using its existing access rules. Requires project edit access; archived projects are read-only. Agent names are unique within the project (case-insensitive), and a project holds at most 50 agents. Invalid configuration, a duplicate name, or exceeding the limit answers 400.",
+        "operationId": "createProjectAgent",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID — required for every agent operation"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectAgentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created project agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["agent"],
+                  "properties": {
+                    "agent": {
+                      "$ref": "#/components/schemas/ProjectAgent"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project is not editable, is archived, or the caller cannot change secret grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project is missing or invisible, or agent does not belong to this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/agents/{agentId}": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Get a project agent",
+        "operationId": "getProjectAgent",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID — required for every agent operation"
+          },
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agent ID within this project"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["agent"],
+                  "properties": {
+                    "agent": {
+                      "$ref": "#/components/schemas/ProjectAgent"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project is not editable, is archived, or the caller cannot change secret grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project is missing or invisible, or agent does not belong to this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Agents"],
+        "summary": "Update a project agent",
+        "description": "Saves the complete configuration of an existing agent in this project. Omitted optional fields reset to their empty values. Requires project edit access; changing secret-name grants requires an organization admin. An agent from another project answers 404 even if the key holder can access both projects.",
+        "operationId": "updateProjectAgent",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID — required for every agent operation"
+          },
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agent ID within this project"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectAgentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved project agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["agent"],
+                  "properties": {
+                    "agent": {
+                      "$ref": "#/components/schemas/ProjectAgent"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project is not editable, is archived, or the caller cannot change secret grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project is missing or invisible, or agent does not belong to this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Agents"],
+        "summary": "Delete a project agent",
+        "operationId": "deleteProjectAgent",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID — required for every agent operation"
+          },
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agent ID within this project"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project is not editable, is archived, or the caller cannot change secret grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project is missing or invisible, or agent does not belong to this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{id}/folders": {
       "get": {
         "tags": ["Projects"],
@@ -6356,7 +6890,7 @@
       "post": {
         "tags": ["Threads"],
         "summary": "Create a thread",
-        "description": "A direct chat thread (never a sandbox thread — that needs a harness this surface cannot drive).",
+        "description": "A direct chat thread with the built-in assistant. Optional projectId supplies project context. This route does not execute project agents; agent selectors and other unknown fields are refused with 400.",
         "operationId": "createThread",
         "security": [
           {
@@ -6369,13 +6903,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
+                "additionalProperties": false,
                 "properties": {
                   "title": {
                     "type": "string"
-                  },
-                  "agentSlug": {
-                    "type": "string",
-                    "description": "Pin the thread to one of the organization’s agents; every turn on the thread runs as that agent"
                   },
                   "projectId": {
                     "type": "string"
@@ -6433,7 +6964,7 @@
             }
           },
           "404": {
-            "description": "Project or agent not found",
+            "description": "Project not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -6833,341 +7364,6 @@
           },
           "404": {
             "description": "Thread not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded (Retry-After names the wait)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/agents": {
-      "get": {
-        "tags": ["Agents"],
-        "summary": "List agents",
-        "description": "The agents the key holder can see — a complete set, not paginated. `failures` names agent files that could not be read.",
-        "operationId": "listAgents",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The organization’s agents",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["agents", "failures"],
-                  "properties": {
-                    "agents": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/AgentSummary"
-                      }
-                    },
-                    "failures": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (malformed body or parameters)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded (Retry-After names the wait)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/agents/{slug}": {
-      "get": {
-        "tags": ["Agents"],
-        "summary": "Get agent",
-        "operationId": "getAgent",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "The agent slug"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The agent",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["agent"],
-                  "properties": {
-                    "agent": {
-                      "$ref": "#/components/schemas/Agent"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (malformed body or parameters)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such agent",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded (Retry-After names the wait)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": ["Agents"],
-        "summary": "Create or update agent",
-        "description": "Omitted optional fields retain their existing values.",
-        "operationId": "saveAgent",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "The agent slug"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["displayName"],
-                "properties": {
-                  "displayName": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "instructions": {
-                    "type": "string"
-                  },
-                  "visibility": {
-                    "type": "string",
-                    "enum": ["private", "org"]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The saved agent",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["agent"],
-                  "properties": {
-                    "agent": {
-                      "$ref": "#/components/schemas/Agent"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (malformed body or parameters)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not editable with this key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded (Retry-After names the wait)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": ["Agents"],
-        "summary": "Delete agent",
-        "description": "Removes the agent; deleting one that is not there answers 404 — you asked to remove a thing that does not exist (unlike the idempotent trigger unbind).",
-        "operationId": "deleteAgent",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "The agent slug"
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Deleted"
-          },
-          "400": {
-            "description": "Invalid request (malformed body or parameters)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not deletable with this key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Agent not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -9315,9 +9511,6 @@
           "kind": {
             "type": "string"
           },
-          "agentSlug": {
-            "type": "string"
-          },
           "harness": {
             "type": "string"
           },
@@ -9387,61 +9580,148 @@
           }
         }
       },
-      "AgentSummary": {
+      "ProjectAgentInput": {
         "type": "object",
-        "required": ["slug", "displayName", "visibility"],
         "properties": {
-          "slug": {
-            "type": "string"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "visibility": {
+          "name": {
             "type": "string",
-            "enum": ["private", "org"]
+            "minLength": 1,
+            "maxLength": 120
           },
-          "owner": {
-            "type": "string"
+          "harness": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
           },
-          "icon": {
-            "type": "string"
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
           },
-          "labels": {
+          "modelProvider": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "skills": {
+            "maxItems": 25,
             "type": "array",
             "items": {
               "type": "string"
             }
-          }
-        },
-        "additionalProperties": true
-      },
-      "Agent": {
-        "type": "object",
-        "description": "The agent file as authored, plus its resolved summary",
-        "required": ["slug", "displayName"],
-        "properties": {
-          "slug": {
-            "type": "string"
           },
-          "displayName": {
-            "type": "string"
+          "connectors": {
+            "maxItems": 25,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
-          "description": {
-            "type": "string"
+          "tools": {
+            "maxItems": 25,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "secrets": {
+            "maxItems": 25,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "instructions": {
-            "type": "string"
-          },
-          "visibility": {
             "type": "string",
-            "enum": ["private", "org"]
+            "maxLength": 20000
           }
         },
-        "additionalProperties": true
+        "required": ["name", "harness", "model", "skills", "connectors"],
+        "additionalProperties": false,
+        "description": "Full project-agent configuration. name, harness, model, skills and connectors are required. Harness must support project-agent execution (Cursor is excluded). Omitted modelProvider/instructions reset to null; omitted tools/secrets reset to empty arrays. secrets contains organization secret NAMES, never values; only organization admins may change these grants. Unknown secret names are pruned."
+      },
+      "ProjectAgent": {
+        "type": "object",
+        "required": [
+          "id",
+          "organizationId",
+          "projectId",
+          "name",
+          "harness",
+          "model",
+          "modelProvider",
+          "skills",
+          "connectors",
+          "tools",
+          "secrets",
+          "instructions",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "modelProvider": {
+            "type": "string",
+            "nullable": true
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "connectors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "secrets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Granted organization secret names. Secret values are never returned."
+          },
+          "instructions": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          },
+          "updatedAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          }
+        }
       },
       "SkillSummary": {
         "type": "object",

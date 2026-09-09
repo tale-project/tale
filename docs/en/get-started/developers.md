@@ -23,16 +23,16 @@ To get a credential your scripts can hold, open **Settings > API > REST** and cl
 
 <Step title="Make the first request">
 
-The shortest useful call lists the agents your key can see. The key rides as a bearer token; the workspace context is inferred from the key itself:
+The shortest useful call lists the direct-chat models your key can use. The key travels as a bearer token; organization context follows your membership:
 
 ```bash
-curl -sS https://your-host.example.com/api/v1/agents \
+curl -sS https://your-host.example.com/api/v1/models \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
 <Check>
 
-A JSON object with an `agents` array — including the built-in Assistant — proves the key, the header, and the route. A `401` means the token header is malformed or the key was revoked.
+A JSON object with a `models` array proves the key, authentication and route. The array can be empty when no direct-chat model is available. A `401` means the authorization header is malformed or the key was revoked.
 
 </Check>
 

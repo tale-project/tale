@@ -6,18 +6,11 @@ import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import { getUserTeamIds } from '../auth/membership.ts';
 import {
-  deleteAgentForCaller,
-  listAgentsForCaller,
-  readAgentForCaller,
-  saveAgentForCaller,
-} from '../core/agents/file_actions.ts';
-import {
   deleteSkillForViewer,
   listSkillsForViewer,
   readSkillForViewer,
   saveSkillForViewer,
 } from '../core/skills/file_actions.ts';
-import { agentErrorResponse } from '../domains/agents/errors.ts';
 import {
   bulkCreateContacts,
   createContact,
@@ -781,75 +774,6 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
-    }
-  });
-
-  // ---- agents (the file layer, reused) ------------------------------------
-  const agentCaller = async (c: Context<RestEnv>) => ({
-    sql: deps.sql,
-    orgSlug:
-      (await resolveOrgSlug(deps.sql, c.get('organizationId'))) ??
-      c.get('orgSlug'),
-    viewerUserId: c.get('userId'),
-    isOrgAdmin: defineAbilityFor(c.get('role')).can('write', 'orgSettings'),
-  });
-
-  app.get('/agents', async (c) => {
-    return c.json(await listAgentsForCaller(await agentCaller(c)));
-  });
-
-  // The file layer's coded refusals — an invalid slug, an agent the key
-  // holder may not edit, a malformed file — map onto 400/403/422 exactly as
-  // the app route maps them; uncaught they read as a 500 outage.
-  app.get('/agents/:slug', async (c) => {
-    try {
-      const agent = await readAgentForCaller({
-        ...(await agentCaller(c)),
-        slug: c.req.param('slug'),
-      });
-      if (agent === null) return c.json({ error: 'Agent not found' }, 404);
-      return c.json({ agent });
-    } catch (error) {
-      return agentErrorResponse(c, error);
-    }
-  });
-
-  app.put('/agents/:slug', async (c) => {
-    const body = z
-      .object({
-        displayName: z.string().min(1),
-        description: z.string().optional(),
-        instructions: z.string().optional(),
-        visibility: z.enum(['private', 'org']).optional(),
-      })
-      .safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const agent = await saveAgentForCaller({
-        ...(await agentCaller(c)),
-        slug: c.req.param('slug'),
-        ...body.data,
-      });
-      return c.json({ agent });
-    } catch (error) {
-      return agentErrorResponse(c, error);
-    }
-  });
-
-  /** Removing a resource that is not there is a 404 — the deletion
-   * semantics the API reference documents, and the skills family's. */
-  app.delete('/agents/:slug', async (c) => {
-    try {
-      const deleted = await deleteAgentForCaller({
-        ...(await agentCaller(c)),
-        slug: c.req.param('slug'),
-      });
-      if (!deleted) return c.json({ error: 'Agent not found' }, 404);
-      return c.body(null, 204);
-    } catch (error) {
-      return agentErrorResponse(c, error);
     }
   });
 

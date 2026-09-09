@@ -98,6 +98,10 @@ export const PROJECT_DESCRIPTION_MAX = 500;
 export const PROJECT_INSTRUCTIONS_MAX_CHARS = 20_000;
 export const PROJECT_SHARED_TEAMS_MAX = 20;
 export const PROJECT_RECOMMENDED_AGENTS_MAX = 20;
+export const PROJECT_AGENT_NAME_MAX = 120;
+export const PROJECT_AGENT_MODEL_MAX = 200;
+export const PROJECT_AGENT_BINDINGS_MAX = 25;
+export const PROJECT_AGENT_INSTRUCTIONS_MAX = 20_000;
 const PROJECT_ALLOWED_AGENTS_MAX = 50;
 const PROJECT_RECOMMENDED_MODELS_MAX = 10;
 const PROJECT_ALLOWED_MODELS_MAX = 50;
@@ -123,6 +127,20 @@ const agentSlugSchema = z
 
 const modelRefSchema = z.string().min(1).refine(isValidModelRef, {
   message: 'Invalid model ref (expected "[provider:]model-id")',
+});
+
+/** Project-agent saves share one input shape across the session and REST
+ * doors. The domain owns harness eligibility, normalization and secret grants. */
+export const projectAgentInputSchema = z.object({
+  name: z.string().min(1).max(PROJECT_AGENT_NAME_MAX),
+  harness: z.string().min(1).max(100),
+  model: z.string().min(1).max(PROJECT_AGENT_MODEL_MAX),
+  modelProvider: z.string().max(PROJECT_AGENT_MODEL_MAX).optional(),
+  skills: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX),
+  connectors: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX),
+  tools: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX).optional(),
+  secrets: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX).optional(),
+  instructions: z.string().max(PROJECT_AGENT_INSTRUCTIONS_MAX).optional(),
 });
 
 export const createProjectInputSchema = z.object({

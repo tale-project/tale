@@ -8,15 +8,6 @@ import { addJobInTx } from '../jobs/enqueue.ts';
 import type { RestEnv } from './shared.ts';
 import { createThreadRestRoutes } from './v1-threads.ts';
 
-// The agent pin is checked against the file layer before the thread is
-// created; here the pinned agent exists (the refusal path has its own
-// suite in v1-threads.contract.test.ts).
-vi.mock('../core/agents/file_actions.ts', () => ({
-  readAgentForCaller: vi.fn(async () => ({ slug: 'triage-bot' })),
-}));
-vi.mock('../lib/org-config.ts', () => ({
-  resolveOrgSlug: vi.fn(async () => 'acme'),
-}));
 vi.mock('../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
 interface Captured {
@@ -28,7 +19,6 @@ const thread = {
   id: 't-1',
   title: 'Refunds',
   kind: 'direct',
-  agentSlug: null,
   harness: null,
   projectId: null,
   archived: false,
@@ -106,13 +96,6 @@ describe('GET /threads/{id}/messages limit', () => {
   );
 });
 
-/**
- * POST /threads forwards the documented `agentSlug`. The regression under
- * test: the create schema declared only title and projectId, and zod strips
- * unknown keys — a consumer pinning an agent got a 201 and a thread whose
- * `agent_slug` was NULL, so every turn ran as the default assistant with no
- * signal that the pin was dropped.
- */
 describe('POST /threads/{id}/messages body', () => {
   it('forwards the chosen model provider to the background turn', async () => {
     const { sql } = fakeSql();
@@ -156,44 +139,33 @@ describe('POST /threads/{id}/messages body', () => {
   });
 });
 
-describe('POST /threads agentSlug', () => {
-  it('writes the agent pin into the thread metadata', async () => {
-    const { sql, queries } = fakeSql();
-    const res = await mount(sql).request('http://localhost/threads', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'Refunds', agentSlug: 'triage-bot' }),
-    });
-    expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ id: 't-new' });
-    const metadata = queries.find((q) =>
-      q.text.startsWith('INSERT INTO app.thread_metadata'),
-    );
-    expect(metadata?.values).toContain('triage-bot');
-  });
+describe('POST /threads uses the built-in assistant', () => {
+  it.each(['agentSlug', 'agentId', 'projectAgentId'])(
+    'rejects an unsupported %s selector before creating a thread',
+    async (selector) => {
+      const { sql, queries } = fakeSql();
+      const response = await mount(sql).request('http://localhost/threads', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'Refunds', [selector]: 'reviewer' }),
+      });
+      expect(response.status).toBe(400);
+      expect(
+        queries.some((query) =>
+          query.text.startsWith('INSERT INTO app.threads'),
+        ),
+      ).toBe(false);
+    },
+  );
 
-  it('leaves the pin NULL when the consumer sends none', async () => {
-    const { sql, queries } = fakeSql();
-    const res = await mount(sql).request('http://localhost/threads', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
-    });
-    expect(res.status).toBe(201);
-    const metadata = queries.find((q) =>
-      q.text.startsWith('INSERT INTO app.thread_metadata'),
-    );
-    // (…, project_id, agent_slug, harness, …) — the slug slot is null.
-    expect(metadata?.values[6]).toBeNull();
-  });
-
-  it('refuses an empty agentSlug', async () => {
+  it('creates a direct thread with no selector', async () => {
     const { sql } = fakeSql();
-    const res = await mount(sql).request('http://localhost/threads', {
+    const response = await mount(sql).request('http://localhost/threads', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ agentSlug: '' }),
+      body: JSON.stringify({ title: 'Refunds' }),
     });
-    expect(res.status).toBe(400);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ id: 't-new' });
   });
 });

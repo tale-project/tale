@@ -8,6 +8,10 @@ import {
   PROJECT_KEY_MAX,
 } from '../../../lib/shared/project_key.ts';
 import {
+  PROJECT_AGENT_BINDINGS_MAX,
+  PROJECT_AGENT_INSTRUCTIONS_MAX,
+  PROJECT_AGENT_MODEL_MAX,
+  PROJECT_AGENT_NAME_MAX,
   PROJECT_DESCRIPTION_MAX,
   PROJECT_INSTRUCTIONS_MAX_CHARS,
   PROJECT_NAME_MAX,
@@ -57,14 +61,7 @@ import { retireTasksInTx } from '../tasks/retire.ts';
 // file — the editor counts against the same constants.
 const PROJECT_EXTERNAL_ITEM_ID_MAX = 256;
 
-const MAX_PROJECT_AGENT_SKILLS = 25;
-const MAX_PROJECT_AGENT_CONNECTORS = 25;
-const MAX_PROJECT_AGENT_TOOLS = 25;
-const MAX_PROJECT_AGENT_SECRETS = 25;
 const MAX_PROJECT_AGENTS = 50;
-const PROJECT_AGENT_NAME_MAX = 120;
-const PROJECT_AGENT_MODEL_MAX = 200;
-const PROJECT_AGENT_INSTRUCTIONS_MAX = 20_000;
 const PROJECT_AGENT_INELIGIBLE_HARNESSES = new Set(['cursor']);
 
 export class ProjectError extends Error {
@@ -1402,14 +1399,14 @@ function validateProjectAgentFields(args: {
     throw new ProjectError('PROJECT_AGENT_MODEL_INVALID', 'Invalid provider');
   }
   if (
-    args.skills.length > MAX_PROJECT_AGENT_SKILLS ||
-    args.connectors.length > MAX_PROJECT_AGENT_CONNECTORS ||
-    (args.tools?.length ?? 0) > MAX_PROJECT_AGENT_TOOLS ||
-    (args.secrets?.length ?? 0) > MAX_PROJECT_AGENT_SECRETS
+    args.skills.length > PROJECT_AGENT_BINDINGS_MAX ||
+    args.connectors.length > PROJECT_AGENT_BINDINGS_MAX ||
+    (args.tools?.length ?? 0) > PROJECT_AGENT_BINDINGS_MAX ||
+    (args.secrets?.length ?? 0) > PROJECT_AGENT_BINDINGS_MAX
   ) {
     throw new ProjectError(
       'too_many_bindings',
-      `An agent may be equipped with at most ${MAX_PROJECT_AGENT_SKILLS} skills, ${MAX_PROJECT_AGENT_CONNECTORS} connectors, ${MAX_PROJECT_AGENT_TOOLS} tools, and ${MAX_PROJECT_AGENT_SECRETS} secrets.`,
+      `An agent may be equipped with at most ${PROJECT_AGENT_BINDINGS_MAX} skills, ${PROJECT_AGENT_BINDINGS_MAX} connectors, ${PROJECT_AGENT_BINDINGS_MAX} tools, and ${PROJECT_AGENT_BINDINGS_MAX} secrets.`,
     );
   }
   const instructions = args.instructions?.trim();
@@ -1483,6 +1480,21 @@ function assertMaySetSecrets(
   }
 }
 
+/** Check inside the write transaction so archiving cannot race an agent save. */
+function assertAgentWritable(
+  project: ProjectRow,
+  auth: ProjectAuthContext,
+): void {
+  assertWritable(project, auth);
+  if (project.archivedAt !== null) {
+    throw new ProjectError(
+      'PROJECT_FORBIDDEN',
+      'You do not have permission to modify this project',
+      403,
+    );
+  }
+}
+
 export async function listProjectAgents(
   sql: Sql,
   auth: ProjectAuthContext,
@@ -1495,6 +1507,24 @@ export async function listProjectAgents(
     WHERE project_id = ${projectId}
     ORDER BY created_at_ms ASC
   `;
+}
+
+/** Read one agent only within its named project and the caller's organization. */
+export async function getProjectAgent(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  agentId: string,
+): Promise<ProjectAgentRow | null> {
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertReadable(project, auth);
+  const rows = await sql<ProjectAgentRow[]>`
+    SELECT ${sql.unsafe(PROJECT_AGENT_COLUMNS)} FROM app.project_agents
+    WHERE id = ${agentId} AND project_id = ${projectId}
+      AND org_id = ${auth.organizationId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
 }
 
 export async function createProjectAgent(
@@ -1514,7 +1544,7 @@ export async function createProjectAgent(
   },
 ): Promise<string> {
   const project = await loadProjectOrThrow(tx, args.projectId);
-  assertWritable(project, auth);
+  assertAgentWritable(project, auth);
   const fields = validateProjectAgentFields(args);
   fields.secrets = await pruneMissingSecrets(
     tx,
@@ -1607,7 +1637,7 @@ export async function updateProjectAgent(
     throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
   }
   const project = await loadProjectOrThrow(tx, agent.projectId);
-  assertWritable(project, auth);
+  assertAgentWritable(project, auth);
   const fields = validateProjectAgentFields(args);
   // Prune BEFORE the gate: a set that only lost a deleted secret is not a
   // privileged change, so an editor's unrelated save must not be refused.
@@ -1680,7 +1710,7 @@ export async function deleteProjectAgent(
     throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
   }
   const project = await loadProjectOrThrow(tx, agent.projectId);
-  assertWritable(project, auth);
+  assertAgentWritable(project, auth);
 
   await tx`DELETE FROM app.project_agents WHERE id = ${agentId}`;
   await tx`

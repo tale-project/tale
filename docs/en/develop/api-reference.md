@@ -66,8 +66,8 @@ For a reviewed client key, `POST /api/app/identity/clients/office-app/rotate-sec
 | Runs              | `/api/v1/runs/{runId}`                  | One durable run in full — status, output, trace, effects — and `POST .../cancel`.                            |
 | Threads           | `/api/v1/threads/...`                   | The key holder's chat threads: create, read messages, send a message, poll the turn.                         |
 | Models | `GET /api/v1/models` | Configured chat models available to the key holder in this organization. |
-| Agents            | `/api/v1/agents/...`                    | List, read, create or update, delete the organization's agents.                                             |
-| Skills            | `/api/v1/skills/...`                    | Same shape as agents, for skills.                                                                            |
+| Agents | `/api/v1/projects/{id}/agents/...` | List, read, create, update and delete agents within the required project. |
+| Skills | `/api/v1/skills/...` | List, read, create or update, and delete organization skill bundles. |
 | Knowledge entries | `/api/v1/knowledge-entries/...`         | Topic-keyed facts: list, create, supersede, delete.                                                          |
 | Knowledge search  | `POST /api/v1/knowledge/search`         | Semantic retrieval over the organization's indexed knowledge.                                                |
 | Documents         | `/api/v1/documents/...`                 | Knowledge-base documents: CRUD plus `POST .../retry-indexing`. Hub only — project files live under Projects. |
@@ -83,9 +83,57 @@ For a reviewed client key, `POST /api/app/identity/clients/office-app/rotate-sec
 
 For contact updates, pass the last read `updatedAt` as optional `expectedUpdatedAt` in `PATCH /api/v1/contacts/{id}`. A concurrent edit returns **409**, `CONTACT_STALE`; reload the contact and merge your changes before retrying.
 
-Agent `PUT` updates the fields you send; omitted optional fields retain their values. Skills support `org` and `team` visibility; `teams` must name teams in this organization. `private` skill visibility is retired.
+Skills support `org` and `team` visibility; `teams` must name teams in this organization. `private` skill visibility is retired.
 
 For a hub document, send inline `content` to `POST /api/v1/documents`. Its `fileId` alternative requires an existing hub upload from the app; REST does not mint one, and project uploads cannot be used as hub uploads. Trashed or expired documents, including files from a deleted project, stay out of this hub surface.
+
+## Manage a project's agents
+
+Every agent belongs to a project. The project ID is required in the URL for every operation; responses include both `projectId` and the agent's `id`. These are the same agents managed in the project's **Agents** tab, with the same access rules.
+
+| Operation | Route | Success |
+| --- | --- | --- |
+| List the roster | `GET /api/v1/projects/{id}/agents` | `200 {agents}` |
+| Create | `POST /api/v1/projects/{id}/agents` | `201 {agent}` |
+| Read | `GET /api/v1/projects/{id}/agents/{agentId}` | `200 {agent}` |
+| Save full configuration | `PUT /api/v1/projects/{id}/agents/{agentId}` | `200 {agent}` |
+| Delete | `DELETE /api/v1/projects/{id}/agents/{agentId}` | `204` |
+
+Choose an existing project and a model available to the selected harness. This example creates a Claude Code agent and reads back its configuration; it does not start a task.
+
+```bash
+: "${BASE:?Set BASE to your Tale origin}"
+: "${TALE_API_KEY:?Set TALE_API_KEY}"
+: "${ORG_SLUG:?Set ORG_SLUG}"
+: "${PROJECT_ID:?Set PROJECT_ID to an existing project ID}"
+: "${MODEL_ID:?Set MODEL_ID to a model served by your harness}"
+AGENT_URL="$BASE/api/v1/projects/$PROJECT_ID/agents"
+AGENT_BODY=$(jq -n --arg model "$MODEL_ID" \
+  '{name:"Reviewer",harness:"claude-code",model:$model,skills:[],connectors:[]}')
+AGENT_ID=$(curl -fsS "$AGENT_URL" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $ORG_SLUG" \
+  -H 'Content-Type: application/json' -d "$AGENT_BODY" | jq -er '.agent.id')
+curl -fsS "$AGENT_URL/$AGENT_ID" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $ORG_SLUG" \
+  | jq '.agent | {name, harness, skills, connectors}'
+```
+
+```json
+{
+  "name": "Reviewer",
+  "harness": "claude-code",
+  "skills": [],
+  "connectors": []
+}
+```
+
+`POST` and `PUT` require `name`, `harness`, `model`, `skills` and `connectors`. Optional fields are `modelProvider`, `tools`, `secrets` and `instructions`. A `PUT` saves the full configuration: omitted provider/instructions reset to `null`, and omitted tools/secrets reset to empty lists. It updates an existing agent; it does not create one at an unknown ID.
+
+A project holds at most 50 agents. Names are unique within the project without regard to case, up to 120 characters; each equipment list allows 25 entries and instructions allow 20,000 characters. An invalid configuration, duplicate name or exceeded limit answers **400**. `secrets` contains organization secret names, never values; unknown names are pruned. Only organization Owners and Admins may change secret grants, so an editor's full save must preserve existing grants.
+
+Project readers can read the roster; writes require project edit access and an active project. An invisible or missing project, or an agent ID from another project, answers **404**. A multi-organization key must include `X-Organization-Slug` on reads and writes. [Project agents](/platform/projects/project-agents) explains how these agents work on tasks; direct chat keeps using the built-in assistant.
 
 ## Automation names in URLs
 
@@ -96,7 +144,7 @@ curl -sS "https://your-host.example.com/api/v1/automations/billing__dunning/runs
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
-Responses always carry the real name (`"name": "billing/dunning"`); the `__` form exists only in URLs. Agent and skill slugs are flat and need no encoding.
+Responses always carry the real name (`"name": "billing/dunning"`); the `__` form exists only in URLs. Skill slugs are flat and need no encoding. Project agents use their project ID and agent ID.
 
 ## Start a run, then poll it
 
@@ -152,7 +200,7 @@ curl -sS "https://your-host.example.com/api/v1/threads/<threadId>/generation" \
 
 `{"status": "idle"}` means no turn is running — read `GET /api/v1/threads/{id}/messages` for the reply. A turn that fails before producing output still surfaces: the failure lands as an assistant message carrying the error, never silently. Threads listed and read over the API are the key holder's own; a second user's threads are invisible to your key even inside the same organization.
 
-A failed turn keeps your submitted message and appends an assistant error. The REST message has readable `error` text and an `errorCode` when a classification is available. Creating a thread with an unknown or inaccessible `agentSlug` answers **404**.
+A failed turn keeps your submitted message and appends an assistant error. The REST message has readable `error` text and an `errorCode` when a classification is available. Direct threads use the built-in assistant. Optional `projectId` adds project context; agent selectors such as `agentSlug` or `agentId` are refused with **400**.
 
 ## Mirror an external system into a project
 

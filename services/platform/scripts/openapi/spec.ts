@@ -18,6 +18,7 @@ import {
   apiDeliveryFailureSchema,
   apiSnapshotSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
+import { projectAgentInputSchema } from '../../lib/shared/schemas/projects.ts';
 
 export type Json = Record<string, unknown>;
 
@@ -1057,6 +1058,104 @@ export function buildSpec(): Json {
     },
   };
 
+  const projectAgentParameters = [
+    orgSlugHeaderParam,
+    pathParam('id', 'Project ID — required for every agent operation'),
+  ];
+  const projectAgentErrors = {
+    ...standardErrors,
+    '403': errorResponse(
+      'Project is not editable, is archived, or the caller cannot change secret grants',
+    ),
+    '404': errorResponse(
+      'Project is missing or invisible, or agent does not belong to this project',
+    ),
+  };
+  const projectAgentResponse = {
+    type: 'object',
+    required: ['agent'],
+    properties: { agent: ref('ProjectAgent') },
+  };
+  paths['/api/v1/projects/{id}/agents'] = {
+    get: {
+      tags: ['Agents'],
+      summary: 'List project agents',
+      description:
+        'The complete agent roster of this project (at most 50). Uses the same records and project visibility as the project Agents tab. Multi-organization key holders must supply X-Organization-Slug, including on reads.',
+      operationId: 'listProjectAgents',
+      security: sec,
+      parameters: projectAgentParameters,
+      responses: {
+        '200': jsonResponse(
+          'Project agent roster',
+          listOf('agents', ref('ProjectAgent')),
+        ),
+        ...projectAgentErrors,
+      },
+    },
+    post: {
+      tags: ['Agents'],
+      summary: 'Create a project agent',
+      description:
+        'Creates an agent in the named project using its existing access rules. Requires project edit access; archived projects are read-only. Agent names are unique within the project (case-insensitive), and a project holds at most 50 agents. Invalid configuration, a duplicate name, or exceeding the limit answers 400.',
+      operationId: 'createProjectAgent',
+      security: sec,
+      parameters: projectAgentParameters,
+      requestBody: jsonBody(ref('ProjectAgentInput')),
+      responses: {
+        '201': jsonResponse('Created project agent', projectAgentResponse),
+        ...projectAgentErrors,
+      },
+    },
+  };
+  paths['/api/v1/projects/{id}/agents/{agentId}'] = {
+    get: {
+      tags: ['Agents'],
+      summary: 'Get a project agent',
+      operationId: 'getProjectAgent',
+      security: sec,
+      parameters: [
+        ...projectAgentParameters,
+        pathParam('agentId', 'Agent ID within this project'),
+      ],
+      responses: {
+        '200': jsonResponse('Project agent', projectAgentResponse),
+        ...projectAgentErrors,
+      },
+    },
+    put: {
+      tags: ['Agents'],
+      summary: 'Update a project agent',
+      description:
+        'Saves the complete configuration of an existing agent in this project. Omitted optional fields reset to their empty values. Requires project edit access; changing secret-name grants requires an organization admin. An agent from another project answers 404 even if the key holder can access both projects.',
+      operationId: 'updateProjectAgent',
+      security: sec,
+      parameters: [
+        ...projectAgentParameters,
+        pathParam('agentId', 'Agent ID within this project'),
+      ],
+      requestBody: jsonBody(ref('ProjectAgentInput')),
+      responses: {
+        '200': jsonResponse('Saved project agent', projectAgentResponse),
+        ...projectAgentErrors,
+      },
+    },
+    delete: {
+      tags: ['Agents'],
+      summary: 'Delete a project agent',
+      operationId: 'deleteProjectAgent',
+      security: sec,
+      parameters: [
+        ...projectAgentParameters,
+        pathParam('agentId', 'Agent ID within this project'),
+      ],
+      responses: {
+        '204': noContent('Deleted'),
+        ...projectAgentErrors,
+      },
+    },
+  };
+
   paths['/api/v1/projects/{id}/folders'] = {
     get: {
       tags: ['Projects'],
@@ -1958,21 +2057,15 @@ export function buildSpec(): Json {
       tags: ['Threads'],
       summary: 'Create a thread',
       description:
-        'A direct chat thread (never a sandbox thread — that needs a ' +
-        'harness this surface cannot drive).',
+        'A direct chat thread with the built-in assistant. Optional projectId supplies project context. This route does not execute project agents; agent selectors and other unknown fields are refused with 400.',
       operationId: 'createThread',
       security: sec,
       requestBody: jsonBody(
         {
           type: 'object',
+          additionalProperties: false,
           properties: {
             title: { type: 'string' },
-            agentSlug: {
-              type: 'string',
-              description:
-                'Pin the thread to one of the organization’s agents; every ' +
-                'turn on the thread runs as that agent',
-            },
             projectId: { type: 'string' },
           },
         },
@@ -1981,7 +2074,7 @@ export function buildSpec(): Json {
       responses: {
         '201': createdId('Created — the thread’s id'),
         '403': errorResponse('No access to the project'),
-        '404': errorResponse('Project or agent not found'),
+        '404': errorResponse('Project not found'),
         ...standardErrors,
       },
     },
@@ -2092,92 +2185,6 @@ export function buildSpec(): Json {
           },
         ),
         '404': errorResponse('Thread not found'),
-        ...standardErrors,
-      },
-    },
-  };
-
-  // ── Agents ────────────────────────────────────────────────────────────────
-
-  paths['/api/v1/agents'] = {
-    get: {
-      tags: ['Agents'],
-      summary: 'List agents',
-      description:
-        'The agents the key holder can see — a complete set, not ' +
-        'paginated. `failures` names agent files that could not be read.',
-      operationId: 'listAgents',
-      security: sec,
-      responses: {
-        '200': jsonResponse(
-          'The organization’s agents',
-          listOf('agents', ref('AgentSummary'), {
-            failures: { type: 'array', items: obj },
-          }),
-        ),
-        ...standardErrors,
-      },
-    },
-  };
-
-  paths['/api/v1/agents/{slug}'] = {
-    get: {
-      tags: ['Agents'],
-      summary: 'Get agent',
-      operationId: 'getAgent',
-      security: sec,
-      parameters: [pathParam('slug', 'The agent slug')],
-      responses: {
-        '200': jsonResponse('The agent', {
-          type: 'object',
-          required: ['agent'],
-          properties: { agent: ref('Agent') },
-        }),
-        '404': errorResponse('No such agent'),
-        ...standardErrors,
-      },
-    },
-    put: {
-      tags: ['Agents'],
-      summary: 'Create or update agent',
-      description: 'Omitted optional fields retain their existing values.',
-      operationId: 'saveAgent',
-      security: sec,
-      parameters: [pathParam('slug', 'The agent slug')],
-      requestBody: jsonBody({
-        type: 'object',
-        required: ['displayName'],
-        properties: {
-          displayName: str,
-          description: str,
-          instructions: str,
-          visibility: { type: 'string', enum: ['private', 'org'] },
-        },
-      }),
-      responses: {
-        '200': jsonResponse('The saved agent', {
-          type: 'object',
-          required: ['agent'],
-          properties: { agent: ref('Agent') },
-        }),
-        '403': errorResponse('Not editable with this key'),
-        ...standardErrors,
-      },
-    },
-    delete: {
-      tags: ['Agents'],
-      summary: 'Delete agent',
-      description:
-        'Removes the agent; deleting one that is not there answers 404 — ' +
-        'you asked to remove a thing that does not exist (unlike the ' +
-        'idempotent trigger unbind).',
-      operationId: 'deleteAgent',
-      security: sec,
-      parameters: [pathParam('slug', 'The agent slug')],
-      responses: {
-        '204': noContent('Deleted'),
-        '403': errorResponse('Not deletable with this key'),
-        '404': errorResponse('Agent not found'),
         ...standardErrors,
       },
     },
@@ -2548,7 +2555,7 @@ curl -H "Authorization: Bearer tale_..." \\
       },
       { name: 'Runs', description: 'Durable automation runs.' },
       { name: 'Threads', description: 'Chat threads of the key holder.' },
-      { name: 'Agents', description: 'The organization’s agents.' },
+      { name: 'Agents', description: 'Agents belonging to one project.' },
       { name: 'Skills', description: 'The organization’s skills.' },
       {
         name: 'Knowledge',
@@ -3172,7 +3179,6 @@ curl -H "Authorization: Bearer tale_..." \\
             id: str,
             title: str,
             kind: str,
-            agentSlug: str,
             harness: str,
             projectId: str,
             archived: bool,
@@ -3207,32 +3213,54 @@ curl -H "Authorization: Bearer tale_..." \\
         },
 
         // ── Agents & skills ──
-        AgentSummary: {
-          type: 'object',
-          required: ['slug', 'displayName', 'visibility'],
-          properties: {
-            slug: str,
-            displayName: str,
-            description: str,
-            visibility: { type: 'string', enum: ['private', 'org'] },
-            owner: str,
-            icon: str,
-            labels: strArray,
-          },
-          additionalProperties: true,
+        ProjectAgentInput: {
+          ...z.toJSONSchema(projectAgentInputSchema.strict(), {
+            target: 'openapi-3.0',
+            io: 'input',
+          }),
+          description:
+            'Full project-agent configuration. name, harness, model, skills and connectors are required. Harness must support project-agent execution (Cursor is excluded). Omitted modelProvider/instructions reset to null; omitted tools/secrets reset to empty arrays. secrets contains organization secret NAMES, never values; only organization admins may change these grants. Unknown secret names are pruned.',
         },
-        Agent: {
+        ProjectAgent: {
           type: 'object',
-          description: 'The agent file as authored, plus its resolved summary',
-          required: ['slug', 'displayName'],
+          required: [
+            'id',
+            'organizationId',
+            'projectId',
+            'name',
+            'harness',
+            'model',
+            'modelProvider',
+            'skills',
+            'connectors',
+            'tools',
+            'secrets',
+            'instructions',
+            'createdBy',
+            'createdAt',
+            'updatedAt',
+          ],
           properties: {
-            slug: str,
-            displayName: str,
-            description: str,
-            instructions: str,
-            visibility: { type: 'string', enum: ['private', 'org'] },
+            id: str,
+            organizationId: str,
+            projectId: str,
+            name: str,
+            harness: str,
+            model: str,
+            modelProvider: nullable(str),
+            skills: strArray,
+            connectors: strArray,
+            tools: strArray,
+            secrets: {
+              ...strArray,
+              description:
+                'Granted organization secret names. Secret values are never returned.',
+            },
+            instructions: nullable(str),
+            createdBy: str,
+            createdAt: { ...num, description: 'Epoch ms' },
+            updatedAt: { ...num, description: 'Epoch ms' },
           },
-          additionalProperties: true,
         },
         SkillSummary: {
           type: 'object',

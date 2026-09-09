@@ -5,7 +5,6 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { encodeChatError } from '../../lib/shared/chat-errors.ts';
-import { readAgentForCaller } from '../core/agents/file_actions.ts';
 import { listComposerModels } from '../domains/chat/composer.ts';
 import type { RestEnv } from './shared.ts';
 import { createThreadRestRoutes } from './v1-threads.ts';
@@ -14,19 +13,12 @@ import { createThreadRestRoutes } from './v1-threads.ts';
  * The threads door's contract details. The regressions under test:
  *
  * - `POST /threads` took a broken JSON body for an empty one and created a
- *   thread; and it pinned a thread to an `agentSlug` nobody saved, after
- *   which every turn ran as the default assistant behind a 201.
+ *   thread.
  * - `GET …/messages` shipped a failed turn's `error` as the app's stored
  *   envelope — `TALE_ERR1 %7B…%7D` and the sentence after a newline — so a
  *   REST client read an internal header instead of what went wrong.
  */
 
-vi.mock('../core/agents/file_actions.ts', () => ({
-  readAgentForCaller: vi.fn(),
-}));
-vi.mock('../lib/org-config.ts', () => ({
-  resolveOrgSlug: vi.fn(() => Promise.resolve('acme')),
-}));
 vi.mock('../domains/chat/composer.ts', () => ({
   listComposerModels: vi.fn(),
 }));
@@ -35,7 +27,6 @@ const thread = {
   id: 't-1',
   title: 'Refunds',
   kind: 'direct',
-  agentSlug: null,
   harness: null,
   projectId: null,
   archived: false,
@@ -110,7 +101,6 @@ const post = (body: string) => ({
 });
 
 beforeEach(() => {
-  vi.mocked(readAgentForCaller).mockReset();
   vi.mocked(listComposerModels).mockReset();
 });
 
@@ -182,37 +172,6 @@ describe('POST /threads', () => {
     expect(queries.some((q) => q.startsWith('INSERT INTO app.threads'))).toBe(
       false,
     );
-  });
-
-  it('answers 404 for an agentSlug nobody saved, and creates nothing', async () => {
-    vi.mocked(readAgentForCaller).mockResolvedValue(null);
-    const { app, queries } = mount();
-    const res = await app.request(
-      'http://localhost/threads',
-      post('{"agentSlug": "no-such-agent"}'),
-    );
-    expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'Agent not found' });
-    expect(readAgentForCaller).toHaveBeenCalledWith(
-      expect.objectContaining({ slug: 'no-such-agent', orgSlug: 'acme' }),
-    );
-    expect(queries.some((q) => q.startsWith('INSERT INTO app.threads'))).toBe(
-      false,
-    );
-  });
-
-  it('pins the thread once the agent is there', async () => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only existence matters to the route
-    vi.mocked(readAgentForCaller).mockResolvedValue({
-      slug: 'helper',
-    } as never);
-    const { app } = mount();
-    const res = await app.request(
-      'http://localhost/threads',
-      post('{"agentSlug": "helper"}'),
-    );
-    expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ id: 't-new' });
   });
 });
 

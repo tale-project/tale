@@ -11,7 +11,6 @@
  */
 
 import type { AgentSecretsContract } from './agent-secrets';
-import type { AgentsContract } from './agents';
 import type { ApprovalsContract } from './approvals';
 import type { AuditLogsContract } from './audit-logs';
 import type { AutomationsContract } from './automations';
@@ -62,7 +61,6 @@ import type { WebsitesContract } from './websites';
 export interface BackendContract
   extends
     AgentSecretsContract,
-    AgentsContract,
     ApprovalsContract,
     AuditLogsContract,
     AutomationsContract,

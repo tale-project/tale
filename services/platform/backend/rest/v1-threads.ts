@@ -2,14 +2,10 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { decodeChatError } from '../../lib/shared/chat-errors.ts';
-import { readAgentForCaller } from '../core/agents/file_actions.ts';
-import { agentErrorResponse } from '../domains/agents/errors.ts';
 import { listComposerModels } from '../domains/chat/composer.ts';
 import { createThread, loadOwnedThread } from '../domains/chat/threads.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
-import { resolveOrgSlug } from '../lib/org-config.ts';
 import {
   chargeLane,
   domainErrorResponse,
@@ -37,14 +33,13 @@ import {
  */
 
 const MAX_TITLE = 200;
-const MAX_SLUG = 200;
 const MAX_MESSAGE = 100_000;
+const MAX_MODEL_ID = 200;
 
 interface RestThreadRow {
   id: string;
   title: string | null;
   kind: string;
-  agentSlug: string | null;
   harness: string | null;
   projectId: string | null;
   archived: boolean;
@@ -54,7 +49,7 @@ interface RestThreadRow {
 }
 
 const REST_THREAD_COLUMNS = `
-  t.id, t.title, tm.chat_type AS "kind", tm.agent_slug AS "agentSlug",
+  t.id, t.title, tm.chat_type AS "kind",
   tm.harness, tm.project_id AS "projectId", tm.archived,
   tm.is_shared AS "isShared", t.created_at_ms::float8 AS "createdAt",
   t.updated_at_ms::float8 AS "updatedAt"
@@ -109,7 +104,6 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     id: row.id,
     ...(row.title !== null ? { title: row.title } : {}),
     kind: row.kind,
-    ...(row.agentSlug !== null ? { agentSlug: row.agentSlug } : {}),
     ...(row.harness !== null ? { harness: row.harness } : {}),
     ...(row.projectId !== null ? { projectId: row.projectId } : {}),
     archived: row.archived,
@@ -185,33 +179,11 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .object({
         title: z.string().min(1).max(MAX_TITLE).optional(),
         projectId: z.string().max(100).optional(),
-        agentSlug: z.string().min(1).max(MAX_SLUG).optional(),
       })
+      .strict()
       .safeParse(await readOptionalJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
-    }
-    // The pin must name an agent the key holder can see: a thread pinned to
-    // a slug nobody saved answered 201 and then ran every turn as the default
-    // assistant — a typo that looked like success.
-    if (body.data.agentSlug !== undefined) {
-      try {
-        const agent = await readAgentForCaller({
-          sql: deps.sql,
-          orgSlug:
-            (await resolveOrgSlug(deps.sql, c.get('organizationId'))) ??
-            c.get('orgSlug'),
-          viewerUserId: c.get('userId'),
-          isOrgAdmin: defineAbilityFor(c.get('role')).can(
-            'write',
-            'orgSettings',
-          ),
-          slug: body.data.agentSlug,
-        });
-        if (agent === null) return c.json({ error: 'Agent not found' }, 404);
-      } catch (error) {
-        return agentErrorResponse(c, error);
-      }
     }
     try {
       const threadId = await createThread(deps.sql, {
@@ -221,12 +193,6 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ...(body.data.title !== undefined ? { title: body.data.title } : {}),
         ...(body.data.projectId !== undefined
           ? { projectId: body.data.projectId }
-          : {}),
-        // The documented agent pin, forwarded exactly as the session door
-        // does — dropped, every turn would run as the default assistant
-        // behind a 201 that looks like success.
-        ...(body.data.agentSlug !== undefined
-          ? { agentSlug: body.data.agentSlug }
           : {}),
       });
       return c.json({ id: threadId }, 201);
@@ -331,8 +297,8 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const body = z
       .object({
         content: z.string().min(1).max(MAX_MESSAGE),
-        model: z.string().min(1).max(MAX_SLUG),
-        providerSlug: z.string().min(1).max(MAX_SLUG).optional(),
+        model: z.string().min(1).max(MAX_MODEL_ID),
+        providerSlug: z.string().min(1).max(MAX_MODEL_ID).optional(),
         locale: z.string().max(20).optional(),
       })
       .safeParse(await readJsonBody(c));
