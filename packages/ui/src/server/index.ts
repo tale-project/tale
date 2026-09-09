@@ -30,6 +30,12 @@ import {
   type NegotiatePathLocaleResult,
 } from '@tale/ui/i18n/negotiate';
 
+import {
+  monitoringConfig,
+  monitoringJson,
+  MONITORING_CONFIG_ID,
+  type SiteMonitoringConfig,
+} from '../monitoring/config';
 import type { ArtifactsServer } from '../seo';
 import { parseByteRange } from './byte-range';
 import {
@@ -115,6 +121,10 @@ export interface ReactServerOptions {
    * static serving. Misses (unknown route) fall through.
    */
   artifacts?: ArtifactsServer;
+  /** Optional public error-reporting metadata injected into HTML at runtime. */
+  monitoring?: SiteMonitoringConfig;
+  /** Reports handled server failures without exposing the request to an SDK. */
+  reportError?: (error: unknown) => void;
 }
 
 function contentTypeFor(path: string): string | null {
@@ -148,6 +158,7 @@ async function handleArtifacts(
   artifacts: ArtifactsServer,
   request: Request,
   logPrefix: string,
+  reportError?: (error: unknown) => void,
 ): Promise<Response | null> {
   try {
     return await artifacts.handle(request);
@@ -157,6 +168,7 @@ async function handleArtifacts(
       new URL(request.url).pathname,
       error,
     );
+    reportError?.(error);
     return new Response('Artifact render failed', { status: 500 });
   }
 }
@@ -192,7 +204,7 @@ function computeEffectiveSecurityHeaders(
   }
 }
 
-export function startReactServer(opts: ReactServerOptions): void {
+export function startReactServer(opts: ReactServerOptions) {
   const {
     port,
     hostname = '0.0.0.0',
@@ -205,7 +217,12 @@ export function startReactServer(opts: ReactServerOptions): void {
     buildHealthResponse,
     extraRoutes,
     artifacts,
+    reportError,
   } = opts;
+  const monitoring = monitoringConfig(opts.monitoring);
+  const monitoringScript = monitoring
+    ? `<script id="${MONITORING_CONFIG_ID}" type="application/json">${monitoringJson(monitoring)}</script>`
+    : undefined;
 
   // Pin the CSP `script-src` to the sha256 of the built page's inline
   // theme-flash script and drop `'unsafe-inline'` — computed once at boot from
@@ -213,11 +230,25 @@ export function startReactServer(opts: ReactServerOptions): void {
   // script the browser runs. On any miss (no dist, no inline script, read
   // error) the configured policy is used unchanged, so a hashing failure can
   // never break the theme; it just keeps the looser `'unsafe-inline'`.
-  const effectiveSecurityHeaders = computeEffectiveSecurityHeaders(
+  let effectiveSecurityHeaders = computeEffectiveSecurityHeaders(
     securityHeaders,
     distDir,
     logPrefix,
   );
+
+  if (monitoring && effectiveSecurityHeaders?.contentSecurityPolicy) {
+    const policy = effectiveSecurityHeaders.contentSecurityPolicy;
+    effectiveSecurityHeaders = {
+      ...effectiveSecurityHeaders,
+      contentSecurityPolicy: {
+        ...policy,
+        connectSrc: [
+          ...(policy.connectSrc ?? ["'self'"]),
+          new URL(monitoring.dsn).origin,
+        ],
+      },
+    };
+  }
 
   const distPrefix = distDir + sep;
 
@@ -319,16 +350,44 @@ export function startReactServer(opts: ReactServerOptions): void {
     return notFoundOrShell();
   }
 
-  Bun.serve({
+  const server = Bun.serve({
     port,
+    error(error) {
+      reportError?.(error);
+      console.error(`[${logPrefix}] request failed`, error);
+      const response = new Response('Internal Server Error', { status: 500 });
+      return effectiveSecurityHeaders
+        ? applySecurityHeaders(response, effectiveSecurityHeaders, false)
+        : response;
+    },
     hostname,
     async fetch(request) {
       const url = new URL(request.url);
       const secure = isSecureRequest(request);
-      const finalize = (response: Response) =>
-        effectiveSecurityHeaders
-          ? applySecurityHeaders(response, effectiveSecurityHeaders, secure)
-          : response;
+      const finalize = async (response: Response) => {
+        const withConfig =
+          monitoringScript &&
+          response.status !== 206 &&
+          response.headers.get('content-type')?.includes('text/html')
+            ? new HTMLRewriter()
+                .on('head', {
+                  element(element) {
+                    element.prepend(monitoringScript, { html: true });
+                  },
+                })
+                .transform(response)
+            : response;
+        // Bun 1.3 can leave a transformed BunFile response unconsumed when
+        // returned directly from fetch. Materialize only HTML that needs the
+        // runtime block; immutable assets keep their zero-copy file response.
+        const materialized =
+          withConfig === response
+            ? response
+            : new Response(await withConfig.text(), withConfig);
+        return effectiveSecurityHeaders
+          ? applySecurityHeaders(materialized, effectiveSecurityHeaders, secure)
+          : materialized;
+      };
 
       if (url.pathname === '/api/health') {
         const shuttingDown = Boolean(
@@ -355,7 +414,12 @@ export function startReactServer(opts: ReactServerOptions): void {
       }
 
       if (artifacts) {
-        const artifact = await handleArtifacts(artifacts, request, logPrefix);
+        const artifact = await handleArtifacts(
+          artifacts,
+          request,
+          logPrefix,
+          reportError,
+        );
         if (artifact) return finalize(artifact);
       }
 
@@ -394,5 +458,6 @@ export function startReactServer(opts: ReactServerOptions): void {
     },
   });
 
-  console.log(`[${logPrefix}] listening on :${port}`);
+  console.log(`[${logPrefix}] listening on :${server.port}`);
+  return server;
 }

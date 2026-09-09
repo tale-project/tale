@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -412,9 +414,7 @@ describe('service → image parity', () => {
       resolve(repoRoot, '.github/workflows/release.yml'),
       'utf8',
     );
-    const built = new Set(
-      [...releaseYml.matchAll(/- \{ name: ([a-z0-9-]+) \}/g)].map((m) => m[1]),
-    );
+    const built = new Set(resolveRelease(releaseYml, false).services);
     expect(built.size).toBeGreaterThan(0);
     const taleServices = ALL_SERVICES.filter(
       (
@@ -430,6 +430,24 @@ describe('service → image parity', () => {
     }
   });
 
+  test('a content-site release publishes only web/docs and skips platform release jobs', () => {
+    const releaseYml = readFileSync(
+      resolve(repoRoot, '.github/workflows/release.yml'),
+      'utf8',
+    );
+    const resolved = resolveRelease(releaseYml, true);
+    expect(resolved.services).toEqual(['web', 'docs']);
+    expect(resolved.version).toBe('0.5.15-sites.1');
+    const workflow = parse(releaseYml) as {
+      jobs: Record<string, { if?: string }>;
+    };
+    for (const job of ['create-release', 'trigger-cli']) {
+      expect(workflow.jobs[job]?.if).toBe(
+        "needs.prepare.outputs.sites_only != 'true'",
+      );
+    }
+  });
+
   test('the object-store pin is one value, shared by every lane', () => {
     // compose.yml, the CLI creator, and the deploy pull list must agree on
     // the minio pin; THIRD_PARTY_IMAGES is the source the CLI lanes share and
@@ -442,6 +460,47 @@ describe('service → image parity', () => {
     );
   });
 });
+
+/** Exercise the workflow's version/matrix script, not a second service list. */
+function resolveRelease(source: string, sitesOnly: boolean) {
+  const workflow = parse(source) as {
+    jobs: { prepare: { steps: { id?: string; run: string }[] } };
+  };
+  const script = workflow.jobs.prepare.steps.find(
+    (step) => step.id === 'version',
+  )?.run;
+  if (!script) throw new Error('Release version step is missing');
+  const directory = mkdtempSync(resolve(tmpdir(), 'tale-release-matrix-'));
+  const output = resolve(directory, 'output');
+  try {
+    const result = spawnSync('bash', ['-euo', 'pipefail', '-c', script], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        EVENT_NAME: 'workflow_dispatch',
+        INPUT_VERSION: 'v0.5.15-sites.1',
+        SITES_ONLY: String(sitesOnly),
+        GITHUB_OUTPUT: output,
+      },
+    });
+    expect(result.status).toBe(0);
+    const lines = Object.fromEntries(
+      readFileSync(output, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => [
+          line.slice(0, line.indexOf('=')),
+          line.slice(line.indexOf('=') + 1),
+        ]),
+    );
+    return {
+      services: JSON.parse(lines.service_names as string) as string[],
+      version: lines.version_number,
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
 
 describe('database fast-shutdown parity (SIGINT)', () => {
   // The tale-db runtime stage is `FROM scratch`, which drops the upstream

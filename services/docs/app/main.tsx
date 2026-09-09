@@ -1,4 +1,8 @@
 import { AppShell } from '@tale/ui/app-shell';
+import {
+  initBrowserMonitoring,
+  reportBrowserError,
+} from '@tale/ui/monitoring/browser';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -9,6 +13,8 @@ import { router } from './router';
 
 import './globals.css';
 import './locals.css';
+
+initBrowserMonitoring();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
@@ -45,9 +51,10 @@ void router
   .load()
   .catch((error: unknown) => {
     console.error('[docs] initial route load failed', error);
+    reportBrowserError(error);
   })
   .then(() => {
-    createRoot(root).render(
+    createRoot(root, { onUncaughtError: reportBrowserError }).render(
       <StrictMode>
         <AppShell i18n={i18n} theme={{ defaultTheme: 'light' }}>
           <RouterProvider router={router} />

@@ -6,7 +6,7 @@ noindex: true
 
 A subprocessor is a third party Tale engages to process customer personal data on its behalf. The list below covers Tale Cloud; self-hosted operators control their own infrastructure and the subprocessor list for those deployments is whichever providers you choose. Material additions are announced 30 days in advance and org Owners are notified by email.
 
-Read this when an auditor asks who else touches your data. Come back when a procurement review needs the current vendor list and the location of each. This page mirrors **Appendix A** of the [Data Processing Agreement](https://tale.dev/legal/data-processing-agreement) — both are updated in the same change. The endpoints and data flows of the Tale platform itself are described in the public [API documentation](https://demo.tale.dev/docs).
+Read this when an auditor asks who else touches your data. Come back when a procurement review needs the current vendor list and the location of each. This page mirrors **Appendix A** of the [Data Processing Agreement](https://tale.dev/legal/data-processing-agreement) — both are updated in the same change. The endpoints and data flows of the Tale platform itself are described in the public [API documentation](https://platform.tale.dev/docs).
 
 ## No use of customer data for model training
 

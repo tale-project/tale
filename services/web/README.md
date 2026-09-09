@@ -43,3 +43,26 @@ Both layers are needed: release images are built _before_ the release workflow
 publishes the GitHub release, so a snapshot alone is always at least one
 release behind. Reads never block on GitHub — a failed refresh keeps the last
 good list (or the snapshot) and backs off.
+
+## Optional error reporting
+
+Set `SENTRY_DSN` at runtime to send error metadata to a Sentry-compatible
+receiver such as GlitchTip. `SENTRY_ENVIRONMENT` defaults to `NODE_ENV`;
+`TALE_VERSION` identifies the release. No DSN means no SDK initialization,
+listeners or reports. Remote DSNs require HTTPS; loopback HTTP is supported
+for isolated tests.
+
+The Bun server includes only the selected public metadata as escaped inert
+JSON in each HTML response. The browser reads that configuration before
+rendering, so image rebuilds and extra startup requests are unnecessary.
+The CSP permits only the configured receiver origin in addition to self.
+Server request failures, React/router boundary errors and unhandled errors
+are reported. Error messages, form fields, request headers, cookies, query
+strings, user identity, breadcrumbs and source context are removed. Reports
+retain error type, release and compiled stack locations for grouping. Tracing,
+replay, session collection, logs and performance instrumentation stay off.
+
+The shared implementation lives in `@tale/ui/monitoring` and
+`@tale/ui/server`. The `Release` workflow's `sites_only` option builds and tests
+web/docs images without publishing platform images, CLI assets, a full Tale
+release, or latest tags. Use a distinct version such as `0.5.15-sites.1`.

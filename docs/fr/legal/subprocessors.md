@@ -6,7 +6,7 @@ noindex: true
 
 Un sous-traitant ultérieur est un tiers que Tale engage pour traiter les données personnelles des clients pour son compte. La liste ci-dessous couvre Tale Cloud ; les opérateurs auto-hébergés contrôlent leur propre infrastructure et la liste de sous-traitants pour ces déploiements est celle des fournisseurs que tu choisis. Les ajouts substantiels sont annoncés 30 jours à l’avance et les Propriétaires d’org sont avertis par courriel.
 
-Lis ceci quand un auditeur demande qui d’autre touche tes données. Reviens-y quand une revue d’achats a besoin de la liste actuelle de fournisseurs et de la localisation de chacun. Cette page reprend l’**Annexe A** de l’[Accord de traitement des données](https://tale.dev/fr/legal/data-processing-agreement) — les deux sont mis à jour dans le même changement. Les endpoints et flux de données de la plateforme Tale elle-même sont décrits dans la [documentation API](https://demo.tale.dev/docs) publique.
+Lis ceci quand un auditeur demande qui d’autre touche tes données. Reviens-y quand une revue d’achats a besoin de la liste actuelle de fournisseurs et de la localisation de chacun. Cette page reprend l’**Annexe A** de l’[Accord de traitement des données](https://tale.dev/fr/legal/data-processing-agreement) — les deux sont mis à jour dans le même changement. Les endpoints et flux de données de la plateforme Tale elle-même sont décrits dans la [documentation API](https://platform.tale.dev/docs) publique.
 
 ## Aucune utilisation des données du client pour l’entraînement de modèles
 

@@ -1,4 +1,8 @@
 import { AppShell } from '@tale/ui/app-shell';
+import {
+  initBrowserMonitoring,
+  reportBrowserError,
+} from '@tale/ui/monitoring/browser';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -9,6 +13,8 @@ import { router } from './router';
 
 import './globals.css';
 import './locals.css';
+
+initBrowserMonitoring();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
@@ -26,7 +32,7 @@ if (!root) throw new Error('Missing #root element');
 // `<AppShell>` is mounted without `locale` because the marketing site reads
 // its locale from the URL — `__root.tsx` calls `<LocaleSync>` directly with
 // `useCurrentLocale()`. Mirror any change here in `app/entry-server.tsx`.
-createRoot(root).render(
+createRoot(root, { onUncaughtError: reportBrowserError }).render(
   <StrictMode>
     <AppShell i18n={i18n} theme>
       <RouterProvider router={router} />

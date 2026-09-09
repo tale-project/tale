@@ -6,7 +6,7 @@ noindex: true
 
 Ein Auftragsverarbeiter ist eine Drittpartei, die Tale beauftragt, personenbezogene Kundendaten in seinem Auftrag zu verarbeiten. Die Liste unten bezieht sich auf Tale Cloud; Self-hosted-Betreiber kontrollieren ihre eigene Infrastruktur, und die Auftragsverarbeiter-Liste solcher Deployments sind die Anbieter, die du wählst. Wesentliche Ergänzungen werden 30 Tage im Voraus angekündigt, und Org-Inhaber werden per E-Mail benachrichtigt.
 
-Lies das, wenn ein Auditor fragt, wer sonst noch deine Daten berührt. Komm zurück, wenn ein Beschaffungs-Review die aktuelle Anbieterliste und den Standort jedes einzelnen braucht. Diese Seite spiegelt **Anhang A** der [Auftragsverarbeitungsvereinbarung](https://tale.dev/de/legal/data-processing-agreement) — beide werden in derselben Änderung aktualisiert. Die Endpunkte und Datenflüsse der Tale-Plattform selbst sind in der öffentlichen [API-Dokumentation](https://demo.tale.dev/docs) beschrieben.
+Lies das, wenn ein Auditor fragt, wer sonst noch deine Daten berührt. Komm zurück, wenn ein Beschaffungs-Review die aktuelle Anbieterliste und den Standort jedes einzelnen braucht. Diese Seite spiegelt **Anhang A** der [Auftragsverarbeitungsvereinbarung](https://tale.dev/de/legal/data-processing-agreement) — beide werden in derselben Änderung aktualisiert. Die Endpunkte und Datenflüsse der Tale-Plattform selbst sind in der öffentlichen [API-Dokumentation](https://platform.tale.dev/docs) beschrieben.
 
 ## Keine Nutzung von Kundendaten zum Modell-Training
 

@@ -179,7 +179,9 @@
     "./use-resize-observer": "./src/hooks/use-resize-observer.ts",
     "./use-restore-focus": "./src/hooks/use-restore-focus.ts",
     "./use-safe-area-insets": "./src/hooks/use-safe-area-insets.ts",
-    "./vite/yaml": "./src/vite/yaml.ts"
+    "./vite/yaml": "./src/vite/yaml.ts",
+    "./monitoring/browser": "./src/monitoring/browser.ts",
+    "./monitoring/server": "./src/monitoring/server.ts"
   },
   "scripts": {
     "lint": "bunx oxlint --type-aware",
@@ -199,6 +201,8 @@
     "@radix-ui/react-separator": "1.1.8",
     "@radix-ui/react-slot": "1.2.4",
     "@radix-ui/react-tabs": "1.1.13",
+    "@sentry/browser": "10.48.0",
+    "@sentry/bun": "10.48.0",
     "@tanstack/react-router": "1.168.10",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
