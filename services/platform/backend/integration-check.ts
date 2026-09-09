@@ -21732,6 +21732,108 @@ async function checkNotificationEmailSink(
 }
 
 /**
+ * The 0087 backfill: stored task rows written before the project was
+ * stamped still have to deep-link, and the statement that repairs them must
+ * be idempotent and must not cross a tenant boundary. Runs the migration's
+ * own UPDATE against rows seeded here — boot already applied it, so a fresh
+ * row needs the statement re-executed to be judged.
+ */
+async function checkNotificationProjectBackfill(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const applied = await sql<{ name: string }[]>`
+    SELECT name FROM app_migrations
+    WHERE name = '0087_notification_params_project_backfill.sql'
+  `;
+
+  const project = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Backfill project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = project[0]?.id ?? '';
+  const task = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, number, created_by,
+      created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Backfill task', 'todo', 'a0', 1, ${userId},
+      'user', ${now}, ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const taskId = task[0]?.id ?? '';
+
+  // A stored row of the shape the emitters used to write.
+  const stale = await sql<{ id: string }[]>`
+    INSERT INTO app.user_notifications (
+      user_id, org_id, type, title_key, body_key, params, resource_type,
+      resource_id, task_id, actor_type, read, created_at_ms
+    ) VALUES (
+      ${userId}, ${orgId}, 'task_deadline', 'taskSlaEscalated',
+      'taskSlaEscalatedBody', ${sql.json({ title: 'Backfill task' })}, 'task',
+      ${taskId}, ${taskId}, 'system', false, ${now}
+    )
+    RETURNING id
+  `;
+  const staleId = stale[0]?.id ?? '';
+
+  // The same task id under a DIFFERENT organization: the join carries
+  // `org_id` on both sides, so this row must be left alone.
+  const foreignOrgId = `itest-foreign-${now}`;
+  const foreign = await sql<{ id: string }[]>`
+    INSERT INTO app.user_notifications (
+      user_id, org_id, type, title_key, body_key, params, resource_type,
+      resource_id, task_id, actor_type, read, created_at_ms
+    ) VALUES (
+      ${userId}, ${foreignOrgId}, 'task_deadline', 'taskSlaEscalated',
+      'taskSlaEscalatedBody', ${sql.json({ title: 'Not yours' })}, 'task',
+      ${taskId}, ${taskId}, 'system', false, ${now}
+    )
+    RETURNING id
+  `;
+  const foreignId = foreign[0]?.id ?? '';
+
+  const backfill = async (): Promise<number> => {
+    const rows = await sql`
+      UPDATE app.user_notifications n
+      SET params = coalesce(n.params, '{}'::jsonb)
+                   || jsonb_build_object('projectId', t.project_id)
+      FROM app.tasks t
+      WHERE n.task_id = t.id
+        AND n.org_id = t.org_id
+        AND n.params ->> 'projectId' IS NULL
+      RETURNING n.id
+    `;
+    return rows.length;
+  };
+
+  const firstPass = await backfill();
+  const secondPass = await backfill();
+
+  const after = await sql<{ id: string; projectId: string | null }[]>`
+    SELECT id, params ->> 'projectId' AS "projectId"
+    FROM app.user_notifications WHERE id IN (${staleId}, ${foreignId})
+  `;
+  const repaired = after.find((row) => row.id === staleId)?.projectId;
+  const untouched = after.find((row) => row.id === foreignId)?.projectId;
+
+  record(
+    'notification project backfill (idempotent, org-scoped)',
+    applied.length === 1 &&
+      firstPass >= 1 &&
+      secondPass === 0 &&
+      repaired === projectId &&
+      untouched === null,
+    `applied=${applied.length} first=${firstPass} second=${secondPass} (want 0) repaired=${repaired}==${projectId} foreignUntouched=${untouched === null}`,
+  );
+}
+
+/**
  * The chat assistant's conversations search leg (rag_search entity leg,
  * previously an honest empty): subject/contact/body matching over the rows
  * the mailbox and send checks seeded, with the assignment-privacy predicate
@@ -45151,6 +45253,10 @@ async function main(): Promise<void> {
       [
         'checkSandboxBlobDoor',
         () => checkSandboxBlobDoor(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkNotificationProjectBackfill',
+        () => checkNotificationProjectBackfill(sql, authCtx),
       ],
       ['checkTurnReattach', () => checkTurnReattach(sql, authCtx)],
       ['checkQueuedRunRecovery', () => checkQueuedRunRecovery(sql, authCtx)],
