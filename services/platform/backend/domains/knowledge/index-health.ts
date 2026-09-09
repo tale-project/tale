@@ -615,7 +615,7 @@ function notificationArgs(
   const shared = {
     organizationIds: [organizationId],
     category: 'security' as const,
-    link: { kind: 'audit-logs' },
+    link: { kind: 'audit-logs' } as const,
     dedupeKey: `knowledge-index:${event.kind}:${index}:${stamp}`,
   };
   switch (event.kind) {

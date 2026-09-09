@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { NOTIFICATION_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import { isAdminRole } from '../../auth/membership.ts';
+import type { OrgNotificationLink } from '../../core/notifications/org_notification_link.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 
@@ -39,7 +40,7 @@ export interface WriteNotificationArgs {
   bodyKey: string;
   params?: Record<string, unknown>;
   subjectUserId?: string;
-  link?: Record<string, unknown>;
+  link?: OrgNotificationLink;
   /**
    * Durable idempotency key, unique per org — derive from the triggering
    * entity, never mint per attempt; a duplicate delivery becomes a no-op.

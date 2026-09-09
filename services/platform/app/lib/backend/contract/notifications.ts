@@ -7,6 +7,8 @@
  * actually serve them.
  */
 
+import type { OrgNotificationLink } from '@/backend/core/notifications/org_notification_link';
+
 export interface NotificationsContract {
   'notifications/mutations:markAllRead': {
     kind: 'mutation';
@@ -43,12 +45,7 @@ export interface NotificationsContract {
         titleKey: string;
         bodyKey: string;
         params: unknown;
-        link:
-          | undefined
-          | { kind: 'agent'; agentSlug: string }
-          | { logId?: string; kind: 'audit-logs' }
-          | { kind: 'dsar' }
-          | { kind: 'security-monitoring' };
+        link: OrgNotificationLink | undefined;
         createdAt: number;
         readBy: string[];
         read: boolean;

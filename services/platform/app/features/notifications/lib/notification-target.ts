@@ -1,3 +1,4 @@
+import type { OrgNotificationLink } from '@/backend/core/notifications/org_notification_link';
 import { isRecord } from '@/lib/utils/type-utils';
 
 /**
@@ -77,16 +78,10 @@ export type NotificationTarget =
     };
 
 /**
- * The org-alert `link` shape. Mirrors `notificationLinkValidator` in
- * `convex/notifications/schema.ts` — keep the two in sync (closed union).
+ * The org-alert `link` shape. Declared once in `backend/core` and re-exported
+ * here so the producer, the wire contract and this router cannot drift.
  */
-export type OrgNotificationLink =
-  | { kind: 'agent'; agentSlug: string }
-  // `logId` deep-links to the specific broken audit row (#1845); optional so a
-  // finding without a concrete row (config/checkpoint) still links to the page.
-  | { kind: 'audit-logs'; logId?: string }
-  | { kind: 'dsar' }
-  | { kind: 'security-monitoring' };
+export type { OrgNotificationLink };
 
 /**
  * Deep-link target for a PERSONAL notification (`userNotifications`). Task-bound
