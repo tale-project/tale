@@ -76,7 +76,8 @@ afterAll(() => {
 describe('Bun content-site reporting', () => {
   it('injects escaped runtime metadata, keeps strict CSP and reports server failures over HTTP', async () => {
     const { app, ingest } = await start(true);
-    const page = await fetch(`${app}/en`, {
+    const page = await fetch(`${app}/`, {
+      headers: { 'Accept-Language': 'en' },
       signal: AbortSignal.timeout(5000),
     });
     const html = await page.text();
@@ -109,7 +110,8 @@ describe('Bun content-site reporting', () => {
 
   it('omits SDK traffic, runtime metadata and external CSP origins when disabled', async () => {
     const { app, ingest } = await start(false);
-    const page = await fetch(`${app}/en`, {
+    const page = await fetch(`${app}/`, {
+      headers: { 'Accept-Language': 'en' },
       signal: AbortSignal.timeout(5000),
     });
     expect(await page.text()).not.toContain('tale-monitoring');
