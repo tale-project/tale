@@ -18,12 +18,13 @@ curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>"
 # → 202 { "runId": "..." }
 ```
 
-The body becomes the run's input. A body that is not JSON is handed through as text rather than refused — some vendors send plain text — and anything over 256 KB is rejected with **413** — the cap is counted in bytes as the body arrives, so an oversized delivery is refused rather than buffered. Poll the run like any other via `GET /api/v1/runs/{runId}` with an API key, or watch it in the product.
+The run receives `{ "trigger": "webhook", "payload": <body> }`. Read the example’s order id as `input.payload.orderId`; a declared `inputs` schema describes this wrapper. A body that is not JSON is handed through as text rather than refused — some vendors send plain text — and anything over 256 KB is rejected with **413** — the cap is counted in bytes as the body arrives, so an oversized delivery is refused rather than buffered. Poll the run like any other via `GET /api/v1/runs/{runId}` with an API key, or watch it in the product.
 
 The full response vocabulary:
 
 - **202** `{ "runId": "..." }` — the run started.
 - **202** `{ "runId": "...", "duplicate": true }` — a redelivery of a delivery already accepted; `runId` is the run the first one started, and no second run exists.
+- **400** — the project is invalid or the wrapped input does not match the automation’s `inputs` schema; no run starts.
 - **404** — unknown, disabled, or mistyped token. The response never distinguishes the cases, so a guesser learns nothing.
 - **409** `{ "error": "automation has no deployed version" }` — deploy a version whose tests pass and the same call runs.
 - **413** — the body exceeds 256 KB.

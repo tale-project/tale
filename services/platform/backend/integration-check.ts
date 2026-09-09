@@ -41085,12 +41085,16 @@ async function checkAccountAuthzHardening(
       `
     : [];
   const keyRow = keyRows[0];
+  // The plugin's own per-key window is OFF (auth.ts `API_KEY_RATE_LIMIT`):
+  // the door's `rest:api` bucket is the documented budget. The window
+  // columns still persist the declared 60-second default (never the 60 ms
+  // of the original unit bug) with the flag every minted key inherits.
   record(
-    'api-key rate limit persists a 60-second window (60000ms), not 60ms',
+    'api-key rate limit persists a disabled 60-second window (60000ms), not 60ms',
     keyRow?.rateLimitTimeWindow === 60_000 &&
       keyRow?.rateLimitMax === 100 &&
-      keyRow?.rateLimitEnabled === true,
-    `timeWindow=${keyRow?.rateLimitTimeWindow ?? 'ERR'} (want 60000), max=${keyRow?.rateLimitMax ?? 'ERR'}, enabled=${keyRow?.rateLimitEnabled ?? 'ERR'}`,
+      keyRow?.rateLimitEnabled === false,
+    `timeWindow=${keyRow?.rateLimitTimeWindow ?? 'ERR'} (want 60000), max=${keyRow?.rateLimitMax ?? 'ERR'}, enabled=${keyRow?.rateLimitEnabled ?? 'ERR'} (want false)`,
   );
 }
 

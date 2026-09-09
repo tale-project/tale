@@ -136,9 +136,13 @@ export interface DispatchStore extends StoreAdapter {
     automation: Automation,
     message?: string,
   ): Promise<{ name: string; version: number }>;
+  /** Promote a saved version. `options.testsPassed` is set when the deploy
+   * gate just ran the version's tests and they passed — a host that keeps a
+   * per-version verdict stamps it, so the version reads as tested. */
   deploy(
     name: string,
     version: number,
+    options?: { testsPassed?: boolean },
   ): Promise<{ name: string; version: number }>;
   setTrigger?(name: string, trigger: TriggerSpec): Promise<void>;
   recordRun?(
@@ -515,6 +519,7 @@ export async function dispatch(
           errors,
         };
       }
+      let testsPassed: boolean | undefined;
       if (automation.tests && automation.tests.length > 0) {
         const report = await runAutomationTests(automation, { store });
         if ('failed' in report && report.failed > 0) {
@@ -523,9 +528,14 @@ export async function dispatch(
             report,
           };
         }
+        testsPassed = true;
       }
       try {
-        const deployed = await store.deploy(name, version);
+        const deployed = await store.deploy(
+          name,
+          version,
+          testsPassed === undefined ? undefined : { testsPassed },
+        );
         return {
           deployed,
           note: 'this version is now live-eligible via run_deployed and triggers',

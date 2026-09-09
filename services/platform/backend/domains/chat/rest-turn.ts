@@ -2,12 +2,13 @@ import type { Sql } from 'postgres';
 
 import {
   classifyChatErrorCode,
+  describeChatError,
   encodeChatError,
 } from '../../../lib/shared/chat-errors.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { isBackendDraining } from '../control/service.ts';
 import { runChatTurn } from './service.ts';
-import { appendAssistantErrorMessage } from './store.ts';
+import { appendAssistantErrorMessage, appendMessageRow } from './store.ts';
 import { loadOwnedThread } from './threads.ts';
 
 /**
@@ -69,6 +70,10 @@ export async function runApiTurn(
     });
     return;
   }
+  // Whether the turn got as far as persisting the caller's message: a
+  // refusal BEFORE that point (an unknown model, say) used to leave the
+  // thread with an assistant error row and no trace of what was asked.
+  let userAppended = false;
   try {
     const outcome = await runChatTurn(sql, {
       organizationId: payload.organizationId,
@@ -80,6 +85,9 @@ export async function runApiTurn(
         ? { providerSlug: payload.providerSlug }
         : {}),
       locale: payload.locale ?? 'en',
+      onUserMessageAppended: async () => {
+        userAppended = true;
+      },
     });
     if (outcome.status === 'refused') {
       console.warn(
@@ -91,9 +99,19 @@ export async function runApiTurn(
     // slipped in between the read and the turn's atomic open — the same
     // fact, answered the same way: the caller sees why their message never
     // got a reply. (The open rolled back; the other turn is untouched.)
-    const reason =
-      error instanceof Error ? error.message : 'The turn could not be started.';
+    // The sentence is the refusal's own (`data.message` for a platform
+    // AppError), never its serialized payload.
+    const reason = describeChatError(error, 'The turn could not be started.');
     console.warn(`[rest-turn] turn threw for ${payload.threadId}: ${reason}`);
+    if (!userAppended) {
+      await appendMessageRow(sql, {
+        organizationId: payload.organizationId,
+        threadId: payload.threadId,
+        role: 'user',
+        parts: [{ type: 'text', text: payload.userText }],
+        text: payload.userText,
+      });
+    }
     await appendAssistantErrorMessage(sql, {
       organizationId: payload.organizationId,
       threadId: payload.threadId,

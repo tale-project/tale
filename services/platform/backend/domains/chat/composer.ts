@@ -1,6 +1,9 @@
 import type { Sql } from 'postgres';
 
-import { collectComposerOptions } from '../../core/chat/composer.ts';
+import {
+  collectComposerOptions,
+  type ComposerModelOption,
+} from '../../core/chat/composer.ts';
 import { listConnectorSummaries } from '../../core/connector_credentials/connector_catalog.ts';
 import { walkChatCatalog } from '../../core/lib/providers/chat_catalog.ts';
 import {
@@ -75,7 +78,7 @@ export async function listComposerModels(
   sql: Sql,
   args: { organizationId: string; userId: string },
 ): Promise<{
-  models: unknown[];
+  models: ComposerModelOption[];
   harnesses: Array<{ harness: string; label: string; iconUrl?: string }>;
   voice: { ttsAvailable: boolean; transcriptionAvailable: boolean };
 }> {

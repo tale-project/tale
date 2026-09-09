@@ -218,10 +218,12 @@ export async function listWebsites(
     after = { createdAt: last.createdAt, id: last.id };
   }
   const tail = page[page.length - 1];
+  // The last page carries no cursor — the contract every paged list keeps,
+  // so a pager that loops on `continueCursor` stops with `isDone`.
   return {
     page,
     isDone,
-    continueCursor: tail ? `${tail.createdAt}:${tail.id}` : '',
+    continueCursor: isDone || !tail ? '' : `${tail.createdAt}:${tail.id}`,
   };
 }
 
@@ -251,12 +253,15 @@ export async function createWebsiteRow(
   assertScanInterval(args.scanInterval);
   const domain = toWebsiteDomain(args.domain);
   const now = Date.now();
+  // A row is a whole-site crawl unless registered as a URL list — `kind` is
+  // part of the wire shape from the first read, not only once the corpus
+  // sync fills it in.
   const rows = await db<{ id: string }[]>`
     INSERT INTO app.websites (
       org_id, domain, kind, title, description, scan_interval, status,
       created_at_ms, updated_at_ms
     ) VALUES (
-      ${args.organizationId}, ${domain}, ${args.kind ?? null},
+      ${args.organizationId}, ${domain}, ${args.kind ?? 'site'},
       ${args.title ?? null}, ${args.description ?? null},
       ${args.scanInterval}, ${args.status ?? null}, ${now}, ${now}
     )
@@ -299,6 +304,7 @@ export async function patchWebsite(
     pageCount?: number;
     crawledPageCount?: number;
     metadata?: Record<string, unknown>;
+    fillMetadataBlanks?: boolean;
   },
 ): Promise<WebsiteRow | null> {
   if (args.scanInterval !== undefined) assertScanInterval(args.scanInterval);
@@ -319,8 +325,12 @@ export async function patchWebsite(
   const rows = await db<WebsiteRow[]>`
     UPDATE app.websites SET
       kind = ${args.kind !== undefined ? args.kind : db.unsafe('kind')},
-      title = ${args.title !== undefined ? args.title : db.unsafe('title')},
-      description = ${args.description !== undefined ? args.description : db.unsafe('description')},
+      title = CASE WHEN ${args.fillMetadataBlanks === true}
+        THEN coalesce(title, ${args.title ?? null})
+        ELSE ${args.title !== undefined ? args.title : db.unsafe('title')} END,
+      description = CASE WHEN ${args.fillMetadataBlanks === true}
+        THEN coalesce(description, ${args.description ?? null})
+        ELSE ${args.description !== undefined ? args.description : db.unsafe('description')} END,
       scan_interval = ${args.scanInterval !== undefined ? args.scanInterval : db.unsafe('scan_interval')},
       last_scanned_at_ms = ${args.lastScannedAt !== undefined ? args.lastScannedAt : db.unsafe('last_scanned_at_ms')},
       status = ${args.status !== undefined ? args.status : db.unsafe('status')},
@@ -714,7 +724,9 @@ export async function runWebsiteRegister(
 
   if (!isList) {
     // Homepage title/description, best-effort (not for lists — their
-    // homepage is not part of the list).
+    // homepage is not part of the list). They FILL blanks only: a title or
+    // description the author set on the row is theirs, never overwritten by
+    // what the homepage happens to say.
     try {
       const response = await safeFetch(`https://${args.domain}/`, {
         method: 'GET',
@@ -724,11 +736,19 @@ export async function runWebsiteRegister(
         allowedHosts: [...siteHosts(args.domain)],
       });
       if (response.status >= 200 && response.status < 300) {
-        const title = htmlTitle(response.body) ?? undefined;
-        const description = metaDescription(response.body) ?? undefined;
+        const current = await getWebsite(sql, args.websiteId);
+        const title =
+          current?.title === null
+            ? (htmlTitle(response.body) ?? undefined)
+            : undefined;
+        const description =
+          current?.description === null
+            ? (metaDescription(response.body) ?? undefined)
+            : undefined;
         if (title !== undefined || description !== undefined) {
           await patchWebsite(sql, {
             websiteId: args.websiteId,
+            fillMetadataBlanks: true,
             ...(title !== undefined ? { title } : {}),
             ...(description !== undefined ? { description } : {}),
           });
@@ -767,14 +787,22 @@ export async function syncSingleWebsite(
     const pool = await getKnowledgePoolForOrg(orgSlug);
     const info = await fetchWebsiteInfoFromCorpus(pool, orgSlug, args.domain);
     if (info) {
+      // The corpus's discovered title/description fill blanks only — a
+      // value the author wrote on the row (the app form, a REST PATCH)
+      // survives every sync.
       await patchWebsite(sql, {
         websiteId: args.websiteId,
+        fillMetadataBlanks: true,
         status: info.status,
         kind: info.kind,
         pageCount: info.page_count,
         crawledPageCount: info.crawled_count,
-        ...(info.title !== null ? { title: info.title } : {}),
-        ...(info.description !== null ? { description: info.description } : {}),
+        ...(info.title !== null && website.title === null
+          ? { title: info.title }
+          : {}),
+        ...(info.description !== null && website.description === null
+          ? { description: info.description }
+          : {}),
         ...(info.last_scanned_at !== null
           ? { lastScannedAt: new Date(info.last_scanned_at).getTime() }
           : {}),

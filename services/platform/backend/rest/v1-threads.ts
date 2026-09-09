@@ -2,8 +2,14 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { defineAbilityFor } from '../../lib/permissions/ability.ts';
+import { decodeChatError } from '../../lib/shared/chat-errors.ts';
+import { readAgentForCaller } from '../core/agents/file_actions.ts';
+import { agentErrorResponse } from '../domains/agents/errors.ts';
+import { listComposerModels } from '../domains/chat/composer.ts';
 import { createThread, loadOwnedThread } from '../domains/chat/threads.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
+import { resolveOrgSlug } from '../lib/org-config.ts';
 import {
   chargeLane,
   domainErrorResponse,
@@ -11,6 +17,7 @@ import {
   pageLimit,
   parseKeysetCursor,
   readJsonBody,
+  readOptionalJsonBody,
   type RestEnv,
 } from './shared.ts';
 
@@ -53,8 +60,50 @@ const REST_THREAD_COLUMNS = `
   t.updated_at_ms::float8 AS "updatedAt"
 `;
 
+/**
+ * A failed turn's stored `error` is the app's envelope (`TALE_ERR1 <header>`
+ * + the raw sentence) that the chat UI decodes. The wire carries the
+ * sentence, and the stable classification code beside it, never the
+ * URL-encoded header a client cannot read.
+ */
+function restMessageError(stored: string): {
+  error: string;
+  errorCode?: string;
+} {
+  const info = decodeChatError(stored);
+  return {
+    error: info.raw ?? 'The turn failed.',
+    ...(info.code !== undefined ? { errorCode: info.code } : {}),
+  };
+}
+
 export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
+
+  app.get('/models', async (c) => {
+    try {
+      const { models } = await listComposerModels(deps.sql, {
+        organizationId: c.get('organizationId'),
+        userId: c.get('userId'),
+      });
+      return c.json({
+        models: models
+          .filter(
+            ({ credential }) =>
+              credential.authMethod === 'api-key' ||
+              credential.authMethod === 'env',
+          )
+          .map(({ id, label, providerSlug, providerLabel }) => ({
+            id,
+            label,
+            providerSlug,
+            providerLabel,
+          })),
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
 
   const threadView = (row: RestThreadRow, generating: boolean) => ({
     id: row.id,
@@ -138,9 +187,31 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         projectId: z.string().max(100).optional(),
         agentSlug: z.string().min(1).max(MAX_SLUG).optional(),
       })
-      .safeParse(await c.req.json().catch(() => ({})));
+      .safeParse(await readOptionalJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
+    }
+    // The pin must name an agent the key holder can see: a thread pinned to
+    // a slug nobody saved answered 201 and then ran every turn as the default
+    // assistant — a typo that looked like success.
+    if (body.data.agentSlug !== undefined) {
+      try {
+        const agent = await readAgentForCaller({
+          sql: deps.sql,
+          orgSlug:
+            (await resolveOrgSlug(deps.sql, c.get('organizationId'))) ??
+            c.get('orgSlug'),
+          viewerUserId: c.get('userId'),
+          isOrgAdmin: defineAbilityFor(c.get('role')).can(
+            'write',
+            'orgSettings',
+          ),
+          slug: body.data.agentSlug,
+        });
+        if (agent === null) return c.json({ error: 'Agent not found' }, 404);
+      } catch (error) {
+        return agentErrorResponse(c, error);
+      }
     }
     try {
       const threadId = await createThread(deps.sql, {
@@ -226,7 +297,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ...(row.blockedReason !== null
           ? { blockedReason: row.blockedReason }
           : {}),
-        ...(row.error !== null ? { error: row.error } : {}),
+        ...(row.error !== null ? restMessageError(row.error) : {}),
         createdAt: row.createdAt,
       })),
       isDone,
@@ -261,6 +332,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .object({
         content: z.string().min(1).max(MAX_MESSAGE),
         model: z.string().min(1).max(MAX_SLUG),
+        providerSlug: z.string().min(1).max(MAX_SLUG).optional(),
         locale: z.string().max(20).optional(),
       })
       .safeParse(await readJsonBody(c));
@@ -301,6 +373,9 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       threadId: thread.id,
       userText: body.data.content,
       modelId: body.data.model,
+      ...(body.data.providerSlug !== undefined
+        ? { providerSlug: body.data.providerSlug }
+        : {}),
       ...(body.data.locale !== undefined ? { locale: body.data.locale } : {}),
     });
 

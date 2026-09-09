@@ -69,13 +69,13 @@ const PROJECT_AGENT_INELIGIBLE_HARNESSES = new Set(['cursor']);
 
 export class ProjectError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404 | 429;
+  readonly status: 400 | 403 | 404 | 409 | 429;
   readonly data: Record<string, unknown> | undefined;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 429 = 400,
+    status: 400 | 403 | 404 | 409 | 429 = 400,
     data?: Record<string, unknown>,
   ) {
     super(message);
@@ -423,23 +423,38 @@ async function keyTaken(
   return rows.length > 0;
 }
 
+/**
+ * The task-identifier prefix. An EXPLICIT key is validated as sent (upper-
+ * cased, never stripped or truncated to something the caller did not ask
+ * for — `TOOLONGKEY` used to land as `TOOLON`); a DERIVED key that the name
+ * cannot yield (no Latin letters or digits) leaves the project keyless
+ * rather than refusing a name the platform accepts everywhere else.
+ */
 async function resolveProjectKey(
   tx: TransactionSql | Sql,
   organizationId: string,
   rawKey: string | undefined,
   name: string,
-): Promise<string> {
-  const key = normalizeProjectKey(rawKey?.trim() || deriveProjectKey(name));
-  if (!isValidProjectKey(key)) {
-    throw new ProjectError(
-      'PROJECT_KEY_INVALID',
-      'Project key must be 2-6 characters, letters and digits only',
-    );
+): Promise<string | undefined> {
+  const explicit = rawKey?.trim() ?? '';
+  let key: string;
+  if (explicit !== '') {
+    key = normalizeProjectKey(explicit);
+    if (key !== explicit.toUpperCase() || !isValidProjectKey(key)) {
+      throw new ProjectError(
+        'PROJECT_KEY_INVALID',
+        'Project key must be 2-6 characters, letters and digits only',
+      );
+    }
+  } else {
+    key = normalizeProjectKey(deriveProjectKey(name));
+    if (!isValidProjectKey(key)) return undefined;
   }
   if (await keyTaken(tx, organizationId, key)) {
     throw new ProjectError(
       'PROJECT_KEY_TAKEN',
       `Project key "${key}" is already taken in this organization`,
+      409,
     );
   }
   return key;
@@ -496,7 +511,7 @@ async function resolveExternalItemId(
     throw new ProjectError(
       'PROJECT_DUPLICATE_EXTERNAL_ID',
       `A project with externalItemId "${externalItemId}" already exists in this organization`,
-      400,
+      409,
       { externalItemId },
     );
   }

@@ -975,7 +975,7 @@ export async function listHubDocumentsPage(
     SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
     WHERE org_id = ${auth.organizationId}
       AND project_id IS NULL
-      AND lifecycle_status IS DISTINCT FROM 'trashed'
+      AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
       AND (${options.sourceProvider ?? null}::text IS NULL
         OR source_provider = ${options.sourceProvider ?? null})
       AND (${options.folderId ?? null}::text IS NULL

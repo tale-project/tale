@@ -456,8 +456,9 @@ export function buildSpec(): Json {
       tags: ['Documents'],
       summary: 'Create document',
       description:
-        'Requires a documents-write role. Either inline `content` or a ' +
-        '`fileId` (an uploaded blob reference) backs the document.',
+        'Requires a documents-write role. Send inline `content` from a REST ' +
+        'client. `fileId` can reference an existing hub upload from the app; ' +
+        'REST does not mint hub uploads, and a project upload cannot be used here.',
       operationId: 'createDocument',
       security: sec,
       requestBody: jsonBody(ref('DocumentInput')),
@@ -998,9 +999,8 @@ export function buildSpec(): Json {
         'regardless of lifecycle — a conflict against an archived project ' +
         'is still a 409. A blank or over-long value is a 400. `key` (the ' +
         'task-identifier prefix) is derived from the name when omitted; a ' +
-        'derived key that collides gets a numeric suffix, and a name no key ' +
-        'can be derived from creates the project keyless — only an EXPLICIT ' +
-        '`key` conflict answers 409.',
+        'name no key can be derived from creates the project keyless. ' +
+        'A key collision answers 409; choose an explicit unused key.',
       operationId: 'createProject',
       security: sec,
       parameters: [orgSlugHeaderParam],
@@ -1014,8 +1014,9 @@ export function buildSpec(): Json {
             type: 'string',
             description:
               'Immutable 2-6 char task-key prefix. Omitted: derived from ' +
-              'the name, suffixed on collision, keyless when underivable. ' +
-              'Explicit: a collision is a 409.',
+              'the name, keyless when underivable. Letters and digits only; ' +
+              'normalized to uppercase, never truncated. A collision is a 409.',
+            maxLength: 6,
           },
           description: { type: 'string', maxLength: 500 },
         },
@@ -1288,7 +1289,9 @@ export function buildSpec(): Json {
         'Materializes an external item as a task of one project, keyed by ' +
         '`(projectId, externalSystem, externalId)`: the first call creates ' +
         '(201, `created: true`), any repeat answers the SAME task (200, ' +
-        '`created: false`) instead of a duplicate — safe for a worker that ' +
+        '`created: false`). An active task takes the new title and description ' +
+        '(omitting description clears it); labels change only when supplied. ' +
+        'An archived task stays unchanged. No duplicate is created — safe for a worker that ' +
         'retries after a crash. `projectId` is REQUIRED: this door never ' +
         'falls back to the org-wide project, and the project must exist AND ' +
         'be visible to the key’s minting user (an opaque 404 otherwise). ' +
@@ -1521,12 +1524,12 @@ export function buildSpec(): Json {
       summary: 'Start a deployed workflow on the task',
       description:
         'Starts a fresh, subject-linked run of `workflowSlug` carrying the ' +
-        'task as its input — the REST twin of the task board’s Start. RBAC ' +
+        '`{task: ...}` as its input — the REST twin of the task board’s Start. RBAC ' +
         'is deliberately the session action’s: org membership plus the ' +
         'task’s READ visibility, NOT the developer gate `POST ' +
         '/api/v1/automations/{name}/runs` applies — that endpoint starts a ' +
         'run with arbitrary input, while this one is task-subject-bound ' +
-        '(its input IS the task), which narrows the blast radius; deploying ' +
+        '(its input contains the task), which narrows the blast radius; deploying ' +
         'the workflow was the privileged act. The run is attributed ' +
         '`api-key:<userId>` in the run log, so machine starts stay ' +
         'distinguishable from human UI starts. Answers the session shape: ' +
@@ -1684,12 +1687,16 @@ export function buildSpec(): Json {
         {
           type: 'object',
           properties: {
-            input: { type: 'object', description: 'The run’s input value' },
+            input: {
+              description:
+                'The run input; must match the automation inputs schema when declared',
+            },
             mode: { type: 'string', enum: ['live', 'mock'], default: 'live' },
             version: {
               type: 'integer',
               description:
-                'Run a specific version (the deployed one when omitted)',
+                'Omitted: the deployed version. Live mode only accepts that ' +
+                'version; mock mode accepts any saved version.',
             },
             projectId: {
               type: 'string',
@@ -1711,7 +1718,10 @@ export function buildSpec(): Json {
           },
         }),
         '403': errorResponse('A live run needs the developer capability'),
-        '409': errorResponse('The automation has no deployed version'),
+        '404': errorResponse('Automation or version not found'),
+        '409': errorResponse(
+          'No deployed version, or the requested live version is not deployed',
+        ),
         ...standardErrors,
       },
     },
@@ -1835,6 +1845,7 @@ export function buildSpec(): Json {
           },
         }),
         '403': errorResponse('Needs the developer capability'),
+        '404': errorResponse('Automation not found'),
         ...standardErrors,
       },
     },
@@ -1842,7 +1853,8 @@ export function buildSpec(): Json {
       tags: ['Automations'],
       summary: 'Unbind the automation’s trigger',
       description:
-        'Idempotent: answers 204 whether or not a trigger existed. Versions ' +
+        'For an existing automation, answers 204 whether or not a trigger existed. ' +
+        'An unknown automation answers 404. Versions ' +
         'and run history stay. Requires the developer capability.',
       operationId: 'deleteAutomationTrigger',
       security: sec,
@@ -1850,6 +1862,7 @@ export function buildSpec(): Json {
       responses: {
         '204': noContent('Unbound (or nothing was bound)'),
         '403': errorResponse('Needs the developer capability'),
+        '404': errorResponse('Automation not found'),
         ...standardErrors,
       },
     },
@@ -1900,11 +1913,39 @@ export function buildSpec(): Json {
 
   // ── Threads ───────────────────────────────────────────────────────────────
 
+  paths['/api/v1/models'] = {
+    get: {
+      tags: ['Threads'],
+      summary: 'List available chat models',
+      description:
+        'The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available. Use id as model and providerSlug when sending a message.',
+      operationId: 'listChatModels',
+      security: sec,
+      responses: {
+        '200': jsonResponse(
+          'Available models',
+          listOf('models', {
+            type: 'object',
+            required: ['id', 'label', 'providerSlug', 'providerLabel'],
+            properties: {
+              id: str,
+              label: str,
+              providerSlug: str,
+              providerLabel: str,
+            },
+          }),
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
   paths['/api/v1/threads'] = {
     get: {
       tags: ['Threads'],
       summary: 'List the key holder’s threads',
-      description: 'The key’s own active threads, newest activity first.',
+      description:
+        'The key’s own threads, including archived threads, newest activity first.',
       operationId: 'listThreads',
       security: sec,
       parameters: paginationParams(100, 25),
@@ -1940,7 +1981,7 @@ export function buildSpec(): Json {
       responses: {
         '201': createdId('Created — the thread’s id'),
         '403': errorResponse('No access to the project'),
-        '404': errorResponse('Project not found'),
+        '404': errorResponse('Project or agent not found'),
         ...standardErrors,
       },
     },
@@ -1997,7 +2038,12 @@ export function buildSpec(): Json {
           content: { type: 'string' },
           model: {
             type: 'string',
-            description: 'The model to answer with (never auto-selected)',
+            description:
+              'A model id from GET /api/v1/models (never auto-selected)',
+          },
+          providerSlug: {
+            type: 'string',
+            description: 'The providerSlug returned with the model',
           },
           locale: { type: 'string' },
         },
@@ -2093,7 +2139,8 @@ export function buildSpec(): Json {
     },
     put: {
       tags: ['Agents'],
-      summary: 'Create or replace agent',
+      summary: 'Create or update agent',
+      description: 'Omitted optional fields retain their existing values.',
       operationId: 'saveAgent',
       security: sec,
       parameters: [pathParam('slug', 'The agent slug')],
@@ -2185,7 +2232,7 @@ export function buildSpec(): Json {
         properties: {
           description: { type: 'string', maxLength: 1024 },
           body: { type: 'string', maxLength: 1_000_000 },
-          visibility: { type: 'string', enum: ['private', 'team', 'org'] },
+          visibility: { type: 'string', enum: ['team', 'org'] },
           teams: { type: 'array', items: str, maxItems: 32 },
           icon: str,
           labels: { type: 'array', items: str, maxItems: 50 },
@@ -2384,7 +2431,8 @@ export function buildSpec(): Json {
       description:
         'The URL token IS the credential (minted by `PUT /api/v1/automations/' +
         '{name}/triggers`, shown once, stored hashed). The request body ' +
-        '(≤256 KB) becomes the run’s input.',
+        '(≤256 KB) becomes `payload` in the run input ' +
+        '`{trigger: "webhook", payload: <body>}`. Non-JSON bodies are text payloads.',
       operationId: 'fireAutomationWebhook',
       security: [],
       parameters: [pathParam('token', 'The webhook token')],
@@ -2396,6 +2444,9 @@ export function buildSpec(): Json {
           properties: { runId: { type: 'string' } },
         }),
         '404': errorResponse('Unknown or disabled token'),
+        '400': errorResponse(
+          'Invalid project or input does not match the automation inputs schema',
+        ),
         '409': errorResponse('The automation has no deployed version'),
         '413': errorResponse('Body exceeds 256 KB'),
       },
@@ -2526,6 +2577,15 @@ curl -H "Authorization: Bearer tale_..." \\
             code: {
               type: 'string',
               description: 'A stable refusal code, when the domain has one',
+            },
+            data: {
+              type: 'object',
+              properties: {
+                retryAfterMs: {
+                  type: 'number',
+                  description: 'Wait in milliseconds for RATE_LIMITED',
+                },
+              },
             },
           },
         },
@@ -3012,7 +3072,7 @@ curl -H "Authorization: Bearer tale_..." \\
                 '`get_docs` tool is the grammar reference.',
             },
             message: { type: 'string' },
-            testsPassed: { type: 'boolean' },
+            testsPassed: nullable(bool),
             deployedVersion: { type: 'integer' },
             createdBy: { type: 'string' },
             createdAt: { type: 'number' },
@@ -3138,6 +3198,10 @@ curl -H "Authorization: Bearer tale_..." \\
             providerSlug: str,
             blockedReason: str,
             error: str,
+            errorCode: {
+              type: 'string',
+              description: 'Stable chat error classification when available',
+            },
             createdAt: { ...num, description: 'Epoch ms' },
           },
         },
@@ -3176,7 +3240,7 @@ curl -H "Authorization: Bearer tale_..." \\
           properties: {
             slug: str,
             description: str,
-            visibility: { type: 'string', enum: ['private', 'team', 'org'] },
+            visibility: { type: 'string', enum: ['team', 'org'] },
             teams: strArray,
             owner: str,
           },
@@ -3190,7 +3254,7 @@ curl -H "Authorization: Bearer tale_..." \\
             slug: str,
             description: str,
             body: str,
-            visibility: { type: 'string', enum: ['private', 'team', 'org'] },
+            visibility: { type: 'string', enum: ['team', 'org'] },
             teams: strArray,
           },
           additionalProperties: true,

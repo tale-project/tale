@@ -18,12 +18,13 @@ curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>"
 # → 202 { "runId": "..." }
 ```
 
-Le corps devient l'entrée de l'exécution. Un corps qui n'est pas du JSON passe tel quel comme texte au lieu d'être refusé — certains fournisseurs envoient du texte brut — et tout ce qui dépasse 256 Ko est rejeté en **413** — la limite compte les octets au fil de l’arrivée du corps, une livraison trop grosse est donc refusée plutôt que mise en mémoire. Suis l'exécution comme n'importe quelle autre via `GET /api/v1/runs/{runId}` avec une clé API, ou regarde-la dans le produit.
+L’exécution reçoit `{ "trigger": "webhook", "payload": <body> }`. Lis l’identifiant de commande de l’exemple avec `input.payload.orderId`. Si tu définis un schéma `inputs`, il décrit cet objet englobant. Un corps qui n'est pas du JSON passe tel quel comme texte au lieu d'être refusé — certains fournisseurs envoient du texte brut — et tout ce qui dépasse 256 Ko est rejeté en **413** — la limite compte les octets au fil de l’arrivée du corps, une livraison trop grosse est donc refusée plutôt que mise en mémoire. Suis l'exécution comme n'importe quelle autre via `GET /api/v1/runs/{runId}` avec une clé API, ou regarde-la dans le produit.
 
 Le vocabulaire complet des réponses :
 
 - **202** `{ "runId": "..." }` — l'exécution a démarré.
 - **202** `{ "runId": "...", "duplicate": true }` — une nouvelle livraison d’une livraison déjà acceptée ; `runId` est l’exécution que la première a lancée, et il n’en existe pas de seconde.
+- **400** — le projet est invalide ou l’entrée englobante ne respecte pas le schéma `inputs` de l’automatisation ; aucune exécution ne démarre.
 - **404** — jeton inconnu, désactivé ou mal tapé. La réponse ne distingue jamais les cas — qui devine n'apprend rien.
 - **409** `{ "error": "automation has no deployed version" }` — déploie une version dont les tests passent et le même appel s'exécute.
 - **413** — le corps dépasse 256 Ko.

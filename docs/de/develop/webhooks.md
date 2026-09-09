@@ -18,12 +18,13 @@ curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>"
 # → 202 { "runId": "..." }
 ```
 
-Der Body wird zum Input des Laufs. Ein Body, der kein JSON ist, wird als Text durchgereicht statt abgewiesen — manche Anbieter senden reinen Text — und alles über 256 KB wird mit **413** abgelehnt — die Grenze zählt Bytes, während der Body eintrifft, eine zu große Zustellung wird also abgewiesen statt gepuffert. Polle den Lauf wie jeden anderen über `GET /api/v1/runs/{runId}` mit einem API-Schlüssel, oder schau ihm im Produkt zu.
+Der Lauf erhält `{ "trigger": "webhook", "payload": <body> }`. Lies die Bestell-ID aus dem Beispiel über `input.payload.orderId`. Ein definiertes `inputs`-Schema beschreibt dieses umschließende Objekt. Ein Body, der kein JSON ist, wird als Text durchgereicht statt abgewiesen — manche Anbieter senden reinen Text — und alles über 256 KB wird mit **413** abgelehnt — die Grenze zählt Bytes, während der Body eintrifft, eine zu große Zustellung wird also abgewiesen statt gepuffert. Polle den Lauf wie jeden anderen über `GET /api/v1/runs/{runId}` mit einem API-Schlüssel, oder schau ihm im Produkt zu.
 
 Das vollständige Antwortvokabular:
 
 - **202** `{ "runId": "..." }` — der Lauf ist gestartet.
 - **202** `{ "runId": "...", "duplicate": true }` — eine erneute Zustellung einer bereits angenommenen; `runId` ist der Lauf, den die erste gestartet hat, einen zweiten gibt es nicht.
+- **400** — das Projekt ist ungültig oder das umschließende Eingabeobjekt passt nicht zum `inputs`-Schema der Automatisierung. Es startet kein Lauf.
 - **404** — unbekanntes, deaktiviertes oder vertipptes Token. Die Antwort unterscheidet die Fälle nie — wer rät, lernt nichts.
 - **409** `{ "error": "automation has no deployed version" }` — deploye eine Version, deren Tests bestehen, und derselbe Aufruf läuft.
 - **413** — der Body übersteigt 256 KB.

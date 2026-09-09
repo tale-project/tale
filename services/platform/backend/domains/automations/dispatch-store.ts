@@ -176,8 +176,16 @@ export function pgAutomationStore(
           : {}),
       });
     },
-    deploy: (name, version) =>
-      deployVersion(sql, { organizationId, name, version, actor }),
+    deploy: (name, version, options) =>
+      deployVersion(sql, {
+        organizationId,
+        name,
+        version,
+        actor,
+        ...(options?.testsPassed !== undefined
+          ? { testsPassed: options.testsPassed }
+          : {}),
+      }),
     setTrigger: async (name, trigger) => {
       const automation = assertAutomationName(name);
       if (!TRIGGER_KINDS.has(trigger.kind)) {

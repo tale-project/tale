@@ -112,6 +112,29 @@ export async function readJsonBody(c: Context<RestEnv>): Promise<unknown> {
 }
 
 /**
+ * The body of a route whose body is OPTIONAL: nothing sent (or whitespace)
+ * reads as `{}`, a body that is present but not JSON reads as
+ * `INVALID_JSON`. The former `c.req.json().catch(() => ({}))` treated a
+ * truncated `curl -d` like no body at all — a broken JSON document started a
+ * live run with `{}` as its input instead of the documented 400.
+ */
+export async function readOptionalJsonBody(
+  c: Context<RestEnv>,
+): Promise<unknown> {
+  const raw = await c.req.text();
+  if (raw.trim() === '') return {};
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch (error) {
+    console.warn(
+      '[rest] unparseable JSON body:',
+      error instanceof Error ? error.message : String(error),
+    );
+    return INVALID_JSON;
+  }
+}
+
+/**
  * The developer capability gate — authoring a trigger, starting a LIVE run,
  * cancelling a run (the same rule the session surface applies).
  */

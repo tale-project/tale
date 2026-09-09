@@ -24,8 +24,10 @@ Manche Schreibzugriffe durchlaufen zusätzlich dieselben Budgets pro Benutzer od
 Eine Überschreitung antwortet mit dem gewöhnlichen Fehlerumschlag der API, plus einem `Retry-After`-Header, der die Wartezeit in ganzen Sekunden nennt (aufgerundet):
 
 ```json
-{ "error": "Rate limit exceeded" }
+{ "error": "RATE_LIMITED", "data": { "retryAfterMs": 1500 } }
 ```
+
+Der Antwort-Body nennt dieselbe Wartezeit in Millisekunden als `data.retryAfterMs`; die Kopfzeile `Retry-After` rundet sie auf ganze Sekunden auf. Aus `1500` Millisekunden wird zum Beispiel `Retry-After: 2`.
 
 Warte mindestens `Retry-After`, bevor du es erneut versuchst. Restbudget-Zähler gibt es keine — darüber hinaus backe blind zurück: starte bei einer Sekunde, verdopple pro aufeinanderfolgendem 429, deckle bei sechzig, und füge Jitter hinzu, damit parallele Worker nicht im Gleichschritt wiederholen. Weil ein Lauf-Start mit **202** antwortet, bevor die Arbeit passiert, ist eine verlorene Antwort billig zu erkennen — liste die letzten Läufe der Automatisierung, bevor du erneut feuerst, statt Schreibzugriffe auf Verdacht zu wiederholen.
 

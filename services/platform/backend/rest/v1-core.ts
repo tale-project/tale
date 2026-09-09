@@ -38,7 +38,10 @@ import {
   updateDocument,
   type DocumentRow,
 } from '../domains/documents/service.ts';
-import { searchKnowledgeForOrg } from '../domains/knowledge/service.ts';
+import {
+  KnowledgeError,
+  searchKnowledgeForOrg,
+} from '../domains/knowledge/service.ts';
 import {
   markRagQueued,
   syncRagDocumentScope,
@@ -176,10 +179,25 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
+  /** The live contact, or the documented 404. A DELETE trashes the row
+   * (governance owns the hard erase), and the directory hides trash — so
+   * this door does too: a trashed contact reads, patches and deletes as
+   * absent, the way the reference promises "404 when it is gone". */
+  const loadLiveContact = async (
+    c: Context<RestEnv>,
+    contactId: string,
+  ): Promise<Awaited<ReturnType<typeof getContact>> | Response> => {
+    const contact = await getContact(deps.sql, scope(c), contactId);
+    if (contact.lifecycleStatus === 'trashed') {
+      return c.json({ error: 'Contact not found' }, 404);
+    }
+    return contact;
+  };
+
   app.get('/contacts/:id', async (c) => {
     try {
-      const contact = await getContact(deps.sql, scope(c), c.req.param('id'));
-      if (!contact) return c.json({ error: 'Contact not found' }, 404);
+      const contact = await loadLiveContact(c, c.req.param('id'));
+      if (contact instanceof Response) return contact;
       return c.json(contact);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -202,8 +220,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
+      const current = await loadLiveContact(c, c.req.param('id'));
+      if (current instanceof Response) return current;
       await deps.sql.begin((tx) =>
-        updateContact(tx, scope(c), c.req.param('id'), {
+        updateContact(tx, scope(c), current.id, {
           ...body.data,
           externalId:
             body.data.externalId === undefined
@@ -212,8 +232,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           source: body.data.source,
         }),
       );
-      const updated = await getContact(deps.sql, scope(c), c.req.param('id'));
-      if (!updated) return c.json({ error: 'Contact not found' }, 404);
+      const updated = await getContact(deps.sql, scope(c), current.id);
       return c.json(updated);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -222,9 +241,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   app.delete('/contacts/:id', async (c) => {
     try {
-      await deps.sql.begin((tx) =>
-        deleteContact(tx, scope(c), c.req.param('id')),
-      );
+      const current = await loadLiveContact(c, c.req.param('id'));
+      if (current instanceof Response) return current;
+      await deps.sql.begin((tx) => deleteContact(tx, scope(c), current.id));
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -409,14 +428,19 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  /** One hub document, or the opaque 404 (missing, foreign, project file). */
+  /** One hub document, or the opaque 404 (missing, foreign, project file,
+   * or a row that left the active lifecycle — trashed, or expired by a
+   * project cascade and waiting for the retention sweep). */
   const loadHubDocument = async (
     c: Context<RestEnv>,
     documentId: string,
   ): Promise<DocumentRow | Response> => {
     const auth = await restProjectAuth(deps.sql, c);
     const doc = await getDocumentById(deps.sql, auth, documentId);
-    if (doc.projectId !== null) {
+    if (
+      doc.projectId !== null ||
+      (doc.lifecycleStatus ?? 'active') !== 'active'
+    ) {
       return c.json({ error: 'Document not found' }, 404);
     }
     return doc;
@@ -575,6 +599,16 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       });
       return c.json(result);
     } catch (error) {
+      // The domain reports a missing embedding model as its 503; on this
+      // door that is the documented 409 — the organization's state refuses
+      // the search until an admin configures a model — never the 500 an
+      // unmapped 5xx domain error used to become.
+      if (
+        error instanceof KnowledgeError &&
+        error.code === 'EMBEDDING_NOT_CONFIGURED'
+      ) {
+        return c.json({ error: error.message, code: error.code }, 409);
+      }
       return domainErrorResponse(c, error);
     }
   });
@@ -867,6 +901,27 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
+    }
+    // The file layer trusts team ids (the app's library only offers real
+    // ones); a machine caller can send anything, so they are checked here —
+    // a share with a team that does not exist is a 400 naming the ids.
+    if (body.data.teams !== undefined && body.data.teams.length > 0) {
+      const known = await deps.sql<{ id: string }[]>`
+        SELECT "id" FROM "team"
+        WHERE "organizationId" = ${c.get('organizationId')}
+          AND "id" = ANY(${body.data.teams})
+      `;
+      const knownIds = new Set(known.map((row) => row.id));
+      const unknown = body.data.teams.filter((id) => !knownIds.has(id));
+      if (unknown.length > 0) {
+        return c.json(
+          {
+            error: `Unknown team ids: ${unknown.join(', ')}`,
+            code: 'SKILL_TEAM_UNKNOWN',
+          },
+          400,
+        );
+      }
     }
     try {
       const who = await skillCaller(c);

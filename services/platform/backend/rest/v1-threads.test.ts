@@ -2,10 +2,22 @@
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { addJobInTx } from '../jobs/enqueue.ts';
 import type { RestEnv } from './shared.ts';
 import { createThreadRestRoutes } from './v1-threads.ts';
+
+// The agent pin is checked against the file layer before the thread is
+// created; here the pinned agent exists (the refusal path has its own
+// suite in v1-threads.contract.test.ts).
+vi.mock('../core/agents/file_actions.ts', () => ({
+  readAgentForCaller: vi.fn(async () => ({ slug: 'triage-bot' })),
+}));
+vi.mock('../lib/org-config.ts', () => ({
+  resolveOrgSlug: vi.fn(async () => 'acme'),
+}));
+vi.mock('../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
 interface Captured {
   text: string;
@@ -102,6 +114,30 @@ describe('GET /threads/{id}/messages limit', () => {
  * signal that the pin was dropped.
  */
 describe('POST /threads/{id}/messages body', () => {
+  it('forwards the chosen model provider to the background turn', async () => {
+    const { sql } = fakeSql();
+    const res = await mount(sql).request(
+      'http://localhost/threads/t-1/messages',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          content: 'Hello',
+          model: 'model-a',
+          providerSlug: 'provider-a',
+        }),
+      },
+    );
+    expect(res.status).toBe(202);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'chat.api_turn',
+      expect.objectContaining({
+        modelId: 'model-a',
+        providerSlug: 'provider-a',
+      }),
+    );
+  });
   it('answers 400 in the JSON envelope for a malformed body', async () => {
     const { sql, queries } = fakeSql();
     const res = await mount(sql).request(

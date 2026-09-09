@@ -65,7 +65,8 @@ Pour un identifiant client validé, `POST /api/app/identity/clients/office-app/r
 | Automatisations            | `/api/v1/automations/...`               | Lister, lire les versions, démarrer des exécutions, lire l'historique, lier et délier les déclencheurs.                                                      |
 | Exécutions                 | `/api/v1/runs/{runId}`                  | Une exécution durable en entier — statut, sortie, trace, effets — plus `POST .../cancel`.                                                                    |
 | Threads                    | `/api/v1/threads/...`                   | Les threads de chat du détenteur de la clé : créer, lire les messages, envoyer, suivre le tour.                                                              |
-| Agents                     | `/api/v1/agents/...`                    | Lister, lire, créer ou remplacer, supprimer les agents de l'organisation.                                                                                    |
+| Modèles | `GET /api/v1/models` | Modèles de chat configurés auxquels le détenteur de la clé a accès dans cette organisation. |
+| Agents                     | `/api/v1/agents/...`                    | Lister, lire, créer ou mettre à jour, supprimer les agents de l'organisation.                                                                                    |
 | Skills                     | `/api/v1/skills/...`                    | La même forme que les agents, pour les skills.                                                                                                               |
 | Entrées de connaissances   | `/api/v1/knowledge-entries/...`         | Des faits par sujet : lister, créer, remplacer, supprimer.                                                                                                   |
 | Recherche de connaissances | `POST /api/v1/knowledge/search`         | Recherche sémantique sur les connaissances indexées de l'organisation.                                                                                       |
@@ -81,6 +82,10 @@ Pour un identifiant client validé, `POST /api/app/identity/clients/office-app/r
 | Déclencheur webhook        | `POST /api/automations/webhook/<token>` | Démarrer une automatisation déployée de l'extérieur ; la [page Webhooks](/fr/develop/webhooks).                                                              |
 
 Pour modifier un contact, transmets la dernière valeur `updatedAt` lue dans le champ facultatif `expectedUpdatedAt` de `PATCH /api/v1/contacts/{id}`. Une modification concurrente renvoie **409**, `CONTACT_STALE` ; recharge le contact et fusionne tes changements avant de réessayer.
+
+Un `PUT` d’agent met à jour les champs envoyés ; les champs optionnels omis gardent leur valeur. Les skills acceptent les visibilités `org` et `team` ; `teams` doit désigner des équipes de cette organisation. La visibilité `private` des skills a été retirée.
+
+Pour créer un document du hub, envoie son contenu dans `content` à `POST /api/v1/documents`. L’alternative `fileId` exige un chargement du hub déjà effectué depuis l’app. REST ne crée pas ce chargement, et ceux des projets ne conviennent pas ici. Les documents supprimés ou expirés, y compris les fichiers d’un projet supprimé, restent absents de cette interface du hub.
 
 ## Les noms d'automatisation dans les URL
 
@@ -109,11 +114,21 @@ Interroge `GET /api/v1/runs/{runId}` jusqu'à ce que `status` quitte `queued`/`r
 
 `mode` vaut `live` par défaut. Une exécution live agit au nom de l'organisation, elle exige donc une clé dont le détenteur a la capacité développeur ; `{"mode": "mock"}` tourne contre des mocks déterministes et ne demande que l'appartenance. Démarrer ne demande aucun déclencheur — la clé API est le droit d'entrée. Une automatisation sans version déployée répond **409** ; déploie une version dont les tests passent et le même appel passe.
 
+Une automatisation inconnue répond **404**. Une exécution live accepte uniquement la `version` déployée ; une autre version enregistrée donne **409**. Teste-la avec `mode: "mock"`. Sans corps, l’entrée vaut `{}` ; un JSON mal formé donne **400** et ne démarre rien. Si l’automatisation définit un schéma `inputs`, l’entrée doit le respecter avant la création de l’exécution.
+
 `projectId` nomme le projet dans lequel l’exécution opère — le projet sur lequel agissent ses outils de tâches et de documents. Omets-le et l’exécution porte sur toute l’organisation, sauf qu’une automatisation liée à un seul projet s’exécute dans celui-là automatiquement ; une automatisation liée à plusieurs n’accepte qu’un `projectId` parmi eux, et refuse tout autre.
 
 ## Envoyer un message, puis suivre le tour
 
 Le chat suit la même forme 202-puis-suivi. Crée un thread, poste un message, interroge la génération, puis lis les messages :
+
+Liste les modèles avant d’envoyer un message. Reprends `id` dans `model` et `providerSlug` pour choisir le fournisseur. La liste respecte les règles d’accès aux modèles de l’organisation et ne contient que ceux que REST peut appeler directement. Une liste vide signifie qu’aucun modèle de chat n’est disponible pour le détenteur de la clé.
+
+```bash
+curl -sS "https://your-host.example.com/api/v1/models" \
+  -H "Authorization: Bearer $TALE_API_KEY"
+# Aucun modèle disponible → 200 { "models": [] }
+```
 
 ```bash
 # 1. Un thread à toi
@@ -126,7 +141,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/threads" \
 curl -sS -X POST "https://your-host.example.com/api/v1/threads/<threadId>/messages" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{ "content": "Résume-moi ce trimestre.", "model": "<un modèle configuré dans ton organisation>" }'
+  -d '{ "content": "Résume-moi ce trimestre.", "model": "<model-id>", "providerSlug": "<provider-slug>" }'
 # → 202 { "threadId": "...", "status": "accepted", "model": "...", "poll": "/api/v1/threads/<threadId>/generation" }
 
 # 3. Interroger jusqu'à idle, puis lire
@@ -136,6 +151,8 @@ curl -sS "https://your-host.example.com/api/v1/threads/<threadId>/generation" \
 ```
 
 `{"status": "idle"}` signifie qu'aucun tour ne tourne — lis `GET /api/v1/threads/{id}/messages` pour la réponse. Un tour qui échoue avant toute sortie reste visible : l'erreur atterrit comme message d'assistant, jamais en silence. Les threads listés et lus par l'API sont ceux du détenteur de la clé ; les threads d'un autre utilisateur restent invisibles pour ta clé, même dans la même organisation.
+
+Si un tour échoue, ton message reste enregistré et un message d’assistant porte l’erreur. La réponse REST fournit un texte lisible dans `error` et une classification `errorCode` lorsqu’elle est disponible. Créer un thread avec un `agentSlug` inconnu ou inaccessible donne **404**.
 
 ## Refléter un système externe dans un projet
 
@@ -166,6 +183,8 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects" \
 ```
 
 `key` (le préfixe des identifiants de tâches) et `description` sont optionnels — le key se dérive du nom quand tu l'omets. Une seconde création avec le même `externalItemId` répond **409** ; la même chaîne dans une autre organisation passe, l'unicité vaut par organisation.
+
+Un `key` de projet explicite contient 2 à 6 lettres ou chiffres, convertis en majuscules. Une valeur invalide donne **400**, sans troncature. Si le nom ne permet pas de former un key valide, le projet est créé sans key. Une collision donne **409** ; fournis un key libre.
 
 ### Créer les dossiers
 
@@ -247,6 +266,8 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
+Un nouvel appel avec la même référence externe d’une tâche active met à jour son titre et sa description. Omettre `description` l’efface ; les libellés changent uniquement s’ils sont envoyés. Une tâche archivée reste inchangée. L’identifiant de tâche reste le même et `runWorkflowSlug` ne démarre aucune autre exécution. Garde les mêmes données lorsque tu réessaies après une réponse perdue.
+
 `description`, `labels` et `externalUrl` sont optionnels. Envoie `automationSlug` quand la tâche appartient à une automatisation : elle devient l'assignee, et c'est là-dessus que s'appuie le panneau de travail du dialogue de tâche — le bouton Start, la progression de l'exécution et les questions qu'une exécution pose à l'opérateur (un re-pick ultérieur comble une attribution manquante, mais n'écrase jamais un assignee). `runWorkflowSlug` démarre dans le même appel un workflow déployé sur une tâche fraîchement créée — l'exécution démarre en ligne, donc la réponse porte son `executionId` (l'id d'exécution à suivre), ou `executionId: null` quand le slug ne nomme aucune automatisation déployée. Démarre plutôt explicitement quand tu veux nommer le workflow dans un appel séparé :
 
 ```bash
@@ -258,7 +279,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \
 # → 200 { "started": true, "executionId": "<runId>" }
 ```
 
-L'entrée de l'exécution est la tâche elle-même — démarrer demande donc l'appartenance et la visibilité de la tâche, pas la capacité développeur : l'acte privilégié était le déploiement du workflow, et le journal d'exécution attribue le démarrage à ta clé. Suis l'exécution au familier `GET /api/v1/runs/{runId}`. `started: false` porte un `reason` : `already_running` répond l'`executionId` de l'exécution en cours au lieu de risquer un doublon — suis celle-là ; `not_started` veut dire que le slug ne nomme aucune automatisation déployée.
+L’entrée de l’exécution contient la tâche dans `{task: ...}` — démarrer demande donc l'appartenance et la visibilité de la tâche, pas la capacité développeur : l'acte privilégié était le déploiement du workflow, et le journal d'exécution attribue le démarrage à ta clé. Suis l'exécution au familier `GET /api/v1/runs/{runId}`. `started: false` porte un `reason` : `already_running` répond l'`executionId` de l'exécution en cours au lieu de risquer un doublon — suis celle-là ; `not_started` veut dire que le slug ne nomme aucune automatisation déployée.
 
 Rends compte et lis l'état — le commentaire est posté comme l'utilisateur qui a créé la clé, indiscernable de la même personne dans l'app, @mentions comprises :
 
@@ -310,7 +331,7 @@ Branche sur le statut HTTP ; le message est pour les humains :
 - **429** — limite de débit atteinte, avec `Retry-After` en secondes entières ; voir [Limites de débit](/fr/develop/rate-limits).
 - **500** — erreur interne.
 
-Deux sémantiques de suppression existent, à dessein. Délier le déclencheur d'une automatisation (`DELETE .../triggers`) répond **204**, qu'un déclencheur ait existé ou non — un « fais que ce soit ainsi » idempotent. Supprimer une ressource (`DELETE /api/v1/agents/{slug}`) répond **404** quand rien n'existait — tu as demandé de retirer une chose absente.
+Délier le déclencheur d’une automatisation existante (`DELETE .../triggers`) répond **204**, même si aucun déclencheur n’était lié. Une automatisation inconnue donne **404**. Supprimer une ressource absente donne aussi **404**, y compris un contact déjà dans la corbeille ou une entrée de connaissances déjà supprimée. Annuler une exécution inconnue donne **404** ; `{cancelled: false}` signifie qu’elle existe mais qu’elle est déjà terminée.
 
 ## Versionnage
 

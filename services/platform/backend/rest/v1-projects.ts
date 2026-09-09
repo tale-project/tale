@@ -39,6 +39,7 @@ import {
   pageLimit,
   parseKeysetCursor,
   readJsonBody,
+  readOptionalJsonBody,
   requireEditor,
   type RestEnv,
   restProjectAuth,
@@ -261,7 +262,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         fileName: z.string().max(1024).optional(),
         contentType: z.string().max(255).optional(),
       })
-      .safeParse(await c.req.json().catch(() => ({})));
+      .safeParse(await readOptionalJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }

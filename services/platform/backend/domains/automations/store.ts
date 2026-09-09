@@ -4,6 +4,8 @@ import {
   AUTOMATION_NAME_MAX_LENGTH,
   AUTOMATION_NAME_RE,
 } from '../../../lib/engine/core/validate/name.ts';
+import { compileSchema } from '../../../lib/engine/core/validate/schema.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   boundCheckpointTrace,
   truncateRunDetail,
@@ -303,6 +305,12 @@ export async function deploy(
     name: string;
     version: number;
     actor: string;
+    /** The deploy gate's verdict when it ran the version's tests just now:
+     * `true` stamps a version saved without a verdict (`tests_passed` NULL),
+     * so `GET /automations/{name}` reads `testsPassed: true` after a
+     * gate-passing deploy instead of `null` forever. A stored verdict is
+     * never overwritten — it was the save's own run. */
+    testsPassed?: boolean;
   },
 ): Promise<{ name: string; version: number }> {
   const row = await versionRow(
@@ -337,6 +345,13 @@ export async function deploy(
         version = EXCLUDED.version, deployed_by = EXCLUDED.deployed_by,
         deployed_at_ms = EXCLUDED.deployed_at_ms
     `;
+    if (args.testsPassed === true && row.testsPassed === null) {
+      await tx`
+        UPDATE app.automations SET tests_passed = true
+        WHERE org_id = ${args.organizationId} AND name = ${args.name}
+          AND version = ${args.version} AND tests_passed IS NULL
+      `;
+    }
     await emitDefinitionHint(tx, args.organizationId, args.name);
   });
   return { name: args.name, version: args.version };
@@ -1007,12 +1022,34 @@ export async function beginRunInTx(
   args: BeginRunArgs,
 ): Promise<{ runId: string; version: number } | null> {
   {
-    const version =
-      args.version ??
-      (await deployedVersion(tx, args.organizationId, args.name));
+    const deployed =
+      args.mode === 'live' || args.version === undefined
+        ? await deployedVersion(tx, args.organizationId, args.name)
+        : undefined;
+    if (
+      args.mode === 'live' &&
+      args.version !== undefined &&
+      args.version !== deployed
+    ) {
+      throw new AutomationError(
+        'AUTOMATION_VERSION_NOT_DEPLOYED',
+        'Live runs must use the deployed version. Deploy this version or use mock mode.',
+        409,
+      );
+    }
+    const version = args.version ?? deployed;
     if (version === undefined) return null;
     const row = await versionRow(tx, args.organizationId, args.name, version);
     if (!row) return null;
+    if (isRecord(row.document) && isRecord(row.document.inputs)) {
+      const check = compileSchema(row.document.inputs);
+      if (!check(args.input)) {
+        throw new AutomationError(
+          'AUTOMATION_INPUT_INVALID',
+          'Run input does not match the automation inputs schema.',
+        );
+      }
+    }
     // The caller's project wins; otherwise the sole bound project keeps
     // trigger and manual runs attributed as the single-surface model did.
     const bindings = await bindingProjectIds(

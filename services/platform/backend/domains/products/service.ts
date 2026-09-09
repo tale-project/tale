@@ -29,9 +29,13 @@ export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 
 export class ProductError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404;
+  readonly status: 400 | 403 | 404 | 409;
 
-  constructor(code: string, message: string, status: 400 | 403 | 404 = 400) {
+  constructor(
+    code: string,
+    message: string,
+    status: 400 | 403 | 404 | 409 = 400,
+  ) {
     super(message);
     this.name = 'ProductError';
     this.code = code;
@@ -117,6 +121,45 @@ function validateProductFields(input: Partial<ProductInput>): void {
   ) {
     throw new ProductError('PRODUCT_FIELDS_INVALID', 'Invalid product fields');
   }
+  // The column's CHECK constraint used to be the only guard: a status
+  // outside the vocabulary reached Postgres and surfaced as a 500.
+  if (
+    input.status !== undefined &&
+    !(PRODUCT_STATUSES as readonly string[]).includes(input.status)
+  ) {
+    throw new ProductError(
+      'PRODUCT_STATUS_INVALID',
+      `"status" must be one of: ${PRODUCT_STATUSES.join(', ')}`,
+    );
+  }
+}
+
+/** The per-org external id is the connector lane's key; a second product
+ * carrying one is a 409, the same refusal the bulk contact door gives. */
+async function assertUniqueExternalId(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  externalId: string,
+  excludeId?: string,
+): Promise<void> {
+  await tx`
+    SELECT pg_advisory_xact_lock(
+      hashtextextended('product-ext:' || ${organizationId} || ':' || ${externalId}, 0)
+    )
+  `;
+  const rows = await tx<{ id: string }[]>`
+    SELECT id FROM app.products
+    WHERE org_id = ${organizationId} AND external_id = ${externalId}
+      AND (${excludeId ?? null}::text IS NULL OR id <> ${excludeId ?? null})
+    LIMIT 1
+  `;
+  if (rows.length > 0) {
+    throw new ProductError(
+      'DUPLICATE_PRODUCT_EXTERNAL_ID',
+      `A product with external ID "${externalId}" already exists.`,
+      409,
+    );
+  }
 }
 
 async function assertUniqueName(
@@ -148,6 +191,9 @@ export async function createProduct(
   validateProductFields(input);
   const name = input.name.trim();
   await assertUniqueName(tx, scope.organizationId, name);
+  if (input.externalId !== undefined && input.externalId !== '') {
+    await assertUniqueExternalId(tx, scope.organizationId, input.externalId);
+  }
   const now = Date.now();
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.products (
@@ -217,6 +263,22 @@ export async function updateProduct(
   if (patch.name !== undefined) {
     await assertUniqueName(tx, scope.organizationId, name, productId);
   }
+  // The patch used to drop `externalId` on the floor — the connector key a
+  // caller sent was neither written nor checked.
+  const externalId =
+    patch.externalId === undefined
+      ? product.externalId
+      : patch.externalId === ''
+        ? null
+        : patch.externalId;
+  if (externalId !== null && externalId !== product.externalId) {
+    await assertUniqueExternalId(
+      tx,
+      scope.organizationId,
+      externalId,
+      productId,
+    );
+  }
   await tx`
     UPDATE app.products SET
       name = ${name},
@@ -228,6 +290,7 @@ export async function updateProduct(
       category = ${patch.category === undefined ? product.category : patch.category},
       tags = ${patch.tags ?? product.tags},
       status = ${patch.status === undefined ? product.status : patch.status},
+      external_id = ${externalId},
       metadata = ${patch.metadata === undefined ? (product.metadata === null ? null : tx.json(toJson(product.metadata))) : tx.json(toJson(patch.metadata))},
       updated_at_ms = ${Date.now()}
     WHERE id = ${productId}

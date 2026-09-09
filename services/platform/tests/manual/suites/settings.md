@@ -446,6 +446,8 @@ any toggled setting after the run.
   banner renders (`settings.enterpriseSso.deploymentWarning.title`) —
   env-dependent, note rather than force it.
 
+- [ ] `SET-B11` · **REST model discovery** → With a SET-F32 key, call `GET /api/v1/models`; only this organization's configured chat models allowed by the key holder's model policy appear. Without available models the response is `200 {"models":[]}`; use an entry's `id` and `providerSlug` to send a thread message and verify the selected provider answers.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `SET-A1` · **Settings rail** → The rail is a labelled `nav`

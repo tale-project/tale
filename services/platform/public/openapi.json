@@ -1354,7 +1354,7 @@
       "post": {
         "tags": ["Documents"],
         "summary": "Create document",
-        "description": "Requires a documents-write role. Either inline `content` or a `fileId` (an uploaded blob reference) backs the document.",
+        "description": "Requires a documents-write role. Send inline `content` from a REST client. `fileId` can reference an existing hub upload from the app; REST does not mint hub uploads, and a project upload cannot be used here.",
         "operationId": "createDocument",
         "security": [
           {
@@ -3607,7 +3607,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Create a project",
-        "description": "Requires the org editor role. `externalItemId` is an opaque caller-owned key, stored trimmed, unique per organization regardless of lifecycle — a conflict against an archived project is still a 409. A blank or over-long value is a 400. `key` (the task-identifier prefix) is derived from the name when omitted; a derived key that collides gets a numeric suffix, and a name no key can be derived from creates the project keyless — only an EXPLICIT `key` conflict answers 409.",
+        "description": "Requires the org editor role. `externalItemId` is an opaque caller-owned key, stored trimmed, unique per organization regardless of lifecycle — a conflict against an archived project is still a 409. A blank or over-long value is a 400. `key` (the task-identifier prefix) is derived from the name when omitted; a name no key can be derived from creates the project keyless. A key collision answers 409; choose an explicit unused key.",
         "operationId": "createProject",
         "security": [
           {
@@ -3643,7 +3643,8 @@
                   },
                   "key": {
                     "type": "string",
-                    "description": "Immutable 2-6 char task-key prefix. Omitted: derived from the name, suffixed on collision, keyless when underivable. Explicit: a collision is a 409."
+                    "description": "Immutable 2-6 char task-key prefix. Omitted: derived from the name, keyless when underivable. Letters and digits only; normalized to uppercase, never truncated. A collision is a 409.",
+                    "maxLength": 6
                   },
                   "description": {
                     "type": "string",
@@ -4518,7 +4519,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Create a task from an external ref (idempotent)",
-        "description": "Materializes an external item as a task of one project, keyed by `(projectId, externalSystem, externalId)`: the first call creates (201, `created: true`), any repeat answers the SAME task (200, `created: false`) instead of a duplicate — safe for a worker that retries after a crash. `projectId` is REQUIRED: this door never falls back to the org-wide project, and the project must exist AND be visible to the key’s minting user (an opaque 404 otherwise). `externalId` is a caller-owned opaque key the platform never interprets; `externalUrl` is stored verbatim. The task is created by the minting user; over-long titles are truncated to the board cap rather than refused. When `runWorkflowSlug` is sent, a NEWLY created task also starts that workflow on itself, inline — the response then carries the run’s `executionId` (poll `GET /api/v1/runs/{runId}`), or `executionId: null` when the slug names no deployed automation. Skipped on an idempotent re-pick (no `executionId` field at all). Shares the general REST bucket (120/min, keyed on the key holder).",
+        "description": "Materializes an external item as a task of one project, keyed by `(projectId, externalSystem, externalId)`: the first call creates (201, `created: true`), any repeat answers the SAME task (200, `created: false`). An active task takes the new title and description (omitting description clears it); labels change only when supplied. An archived task stays unchanged. No duplicate is created — safe for a worker that retries after a crash. `projectId` is REQUIRED: this door never falls back to the org-wide project, and the project must exist AND be visible to the key’s minting user (an opaque 404 otherwise). `externalId` is a caller-owned opaque key the platform never interprets; `externalUrl` is stored verbatim. The task is created by the minting user; over-long titles are truncated to the board cap rather than refused. When `runWorkflowSlug` is sent, a NEWLY created task also starts that workflow on itself, inline — the response then carries the run’s `executionId` (poll `GET /api/v1/runs/{runId}`), or `executionId: null` when the slug names no deployed automation. Skipped on an idempotent re-pick (no `executionId` field at all). Shares the general REST bucket (120/min, keyed on the key holder).",
         "operationId": "createTask",
         "security": [
           {
@@ -5020,7 +5021,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Start a deployed workflow on the task",
-        "description": "Starts a fresh, subject-linked run of `workflowSlug` carrying the task as its input — the REST twin of the task board’s Start. RBAC is deliberately the session action’s: org membership plus the task’s READ visibility, NOT the developer gate `POST /api/v1/automations/{name}/runs` applies — that endpoint starts a run with arbitrary input, while this one is task-subject-bound (its input IS the task), which narrows the blast radius; deploying the workflow was the privileged act. The run is attributed `api-key:<userId>` in the run log, so machine starts stay distinguishable from human UI starts. Answers the session shape: `started: true` with the new run’s `executionId` (poll `GET /api/v1/runs/{runId}`); `already_running` with the in-flight run’s id instead of racing a duplicate over the same task; `not_started` when the slug names no deployed automation (or the start failed) — the task itself is untouched either way. Work-starting lane: charged against the execute bucket (20/min) on top of the general one (120/min); both keyed on the key holder.",
+        "description": "Starts a fresh, subject-linked run of `workflowSlug` carrying the `{task: ...}` as its input — the REST twin of the task board’s Start. RBAC is deliberately the session action’s: org membership plus the task’s READ visibility, NOT the developer gate `POST /api/v1/automations/{name}/runs` applies — that endpoint starts a run with arbitrary input, while this one is task-subject-bound (its input contains the task), which narrows the blast radius; deploying the workflow was the privileged act. The run is attributed `api-key:<userId>` in the run log, so machine starts stay distinguishable from human UI starts. Answers the session shape: `started: true` with the new run’s `executionId` (poll `GET /api/v1/runs/{runId}`); `already_running` with the in-flight run’s id instead of racing a duplicate over the same task; `not_started` when the slug names no deployed automation (or the start failed) — the task itself is untouched either way. Work-starting lane: charged against the execute bucket (20/min) on top of the general one (120/min); both keyed on the key holder.",
         "operationId": "startTaskWorkflow",
         "security": [
           {
@@ -5473,8 +5474,7 @@
                 "type": "object",
                 "properties": {
                   "input": {
-                    "type": "object",
-                    "description": "The run’s input value"
+                    "description": "The run input; must match the automation inputs schema when declared"
                   },
                   "mode": {
                     "type": "string",
@@ -5483,7 +5483,7 @@
                   },
                   "version": {
                     "type": "integer",
-                    "description": "Run a specific version (the deployed one when omitted)"
+                    "description": "Omitted: the deployed version. Live mode only accepts that version; mock mode accepts any saved version."
                   },
                   "projectId": {
                     "type": "string",
@@ -5551,8 +5551,18 @@
               }
             }
           },
+          "404": {
+            "description": "Automation or version not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "409": {
-            "description": "The automation has no deployed version",
+            "description": "No deployed version, or the requested live version is not deployed",
             "content": {
               "application/json": {
                 "schema": {
@@ -5902,6 +5912,16 @@
               }
             }
           },
+          "404": {
+            "description": "Automation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
@@ -5917,7 +5937,7 @@
       "delete": {
         "tags": ["Automations"],
         "summary": "Unbind the automation’s trigger",
-        "description": "Idempotent: answers 204 whether or not a trigger existed. Versions and run history stay. Requires the developer capability.",
+        "description": "For an existing automation, answers 204 whether or not a trigger existed. An unknown automation answers 404. Versions and run history stay. Requires the developer capability.",
         "operationId": "deleteAutomationTrigger",
         "security": [
           {
@@ -5961,6 +5981,16 @@
           },
           "403": {
             "description": "Needs the developer capability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Automation not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -6149,11 +6179,95 @@
         }
       }
     },
+    "/api/v1/models": {
+      "get": {
+        "tags": ["Threads"],
+        "summary": "List available chat models",
+        "description": "The configured chat models available to the key holder in this organization, filtered by model-access policy and direct API credentials. Subscription models that require a sandbox are excluded. An empty list means none are available. Use id as model and providerSlug when sending a message.",
+        "operationId": "listChatModels",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["models"],
+                  "properties": {
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "label",
+                          "providerSlug",
+                          "providerLabel"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "providerSlug": {
+                            "type": "string"
+                          },
+                          "providerLabel": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/threads": {
       "get": {
         "tags": ["Threads"],
         "summary": "List the key holder’s threads",
-        "description": "The key’s own active threads, newest activity first.",
+        "description": "The key’s own threads, including archived threads, newest activity first.",
         "operationId": "listThreads",
         "security": [
           {
@@ -6319,7 +6433,7 @@
             }
           },
           "404": {
-            "description": "Project not found",
+            "description": "Project or agent not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -6559,7 +6673,11 @@
                   },
                   "model": {
                     "type": "string",
-                    "description": "The model to answer with (never auto-selected)"
+                    "description": "A model id from GET /api/v1/models (never auto-selected)"
+                  },
+                  "providerSlug": {
+                    "type": "string",
+                    "description": "The providerSlug returned with the model"
                   },
                   "locale": {
                     "type": "string"
@@ -6889,7 +7007,8 @@
       },
       "put": {
         "tags": ["Agents"],
-        "summary": "Create or replace agent",
+        "summary": "Create or update agent",
+        "description": "Omitted optional fields retain their existing values.",
         "operationId": "saveAgent",
         "security": [
           {
@@ -7253,7 +7372,7 @@
                   },
                   "visibility": {
                     "type": "string",
-                    "enum": ["private", "team", "org"]
+                    "enum": ["team", "org"]
                   },
                   "teams": {
                     "type": "array",
@@ -8033,7 +8152,7 @@
       "post": {
         "tags": ["Automations"],
         "summary": "Fire a webhook trigger",
-        "description": "The URL token IS the credential (minted by `PUT /api/v1/automations/{name}/triggers`, shown once, stored hashed). The request body (≤256 KB) becomes the run’s input.",
+        "description": "The URL token IS the credential (minted by `PUT /api/v1/automations/{name}/triggers`, shown once, stored hashed). The request body (≤256 KB) becomes `payload` in the run input `{trigger: \"webhook\", payload: <body>}`. Non-JSON bodies are text payloads.",
         "operationId": "fireAutomationWebhook",
         "security": [],
         "parameters": [
@@ -8070,6 +8189,16 @@
                       "type": "string"
                     }
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid project or input does not match the automation inputs schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -8128,6 +8257,15 @@
           "code": {
             "type": "string",
             "description": "A stable refusal code, when the domain has one"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "retryAfterMs": {
+                "type": "number",
+                "description": "Wait in milliseconds for RATE_LIMITED"
+              }
+            }
           }
         }
       },
@@ -9006,7 +9144,8 @@
             "type": "string"
           },
           "testsPassed": {
-            "type": "boolean"
+            "type": "boolean",
+            "nullable": true
           },
           "deployedVersion": {
             "type": "integer"
@@ -9238,6 +9377,10 @@
           "error": {
             "type": "string"
           },
+          "errorCode": {
+            "type": "string",
+            "description": "Stable chat error classification when available"
+          },
           "createdAt": {
             "type": "number",
             "description": "Epoch ms"
@@ -9312,7 +9455,7 @@
           },
           "visibility": {
             "type": "string",
-            "enum": ["private", "team", "org"]
+            "enum": ["team", "org"]
           },
           "teams": {
             "type": "array",
@@ -9342,7 +9485,7 @@
           },
           "visibility": {
             "type": "string",
-            "enum": ["private", "team", "org"]
+            "enum": ["team", "org"]
           },
           "teams": {
             "type": "array",

@@ -1,4 +1,4 @@
-import { Hono, type Context } from 'hono';
+import { Hono, type Context, type Env } from 'hono';
 import type { Sql } from 'postgres';
 
 import {
@@ -197,4 +197,19 @@ export function createRestV1Routes(deps: {
   app.route('/', createRestMcpRoutes({ sql: deps.sql }));
 
   return app;
+}
+
+/**
+ * Mount the door at `/api/v1`, followed by the JSON 404 for a path no
+ * family serves — every non-2xx on this door is the one flat envelope, never
+ * the app's text/plain `404 Not Found`. The catch-all lives on the PARENT,
+ * registered after the families, so a served route always wins and the
+ * door middleware (401 first) still runs ahead of it.
+ */
+export function mountRestV1Routes<E extends Env>(
+  app: Hono<E>,
+  deps: { sql: Sql; auth: Auth },
+): void {
+  app.route('/api/v1', createRestV1Routes(deps));
+  app.all('/api/v1/*', (c) => c.json({ error: 'Not found' }, 404));
 }

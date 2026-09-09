@@ -65,7 +65,8 @@ For a reviewed client key, `POST /api/app/identity/clients/office-app/rotate-sec
 | Automations       | `/api/v1/automations/...`               | List, read versions, start runs, read run history, bind and unbind triggers.                                 |
 | Runs              | `/api/v1/runs/{runId}`                  | One durable run in full — status, output, trace, effects — and `POST .../cancel`.                            |
 | Threads           | `/api/v1/threads/...`                   | The key holder's chat threads: create, read messages, send a message, poll the turn.                         |
-| Agents            | `/api/v1/agents/...`                    | List, read, create or replace, delete the organization's agents.                                             |
+| Models | `GET /api/v1/models` | Configured chat models available to the key holder in this organization. |
+| Agents            | `/api/v1/agents/...`                    | List, read, create or update, delete the organization's agents.                                             |
 | Skills            | `/api/v1/skills/...`                    | Same shape as agents, for skills.                                                                            |
 | Knowledge entries | `/api/v1/knowledge-entries/...`         | Topic-keyed facts: list, create, supersede, delete.                                                          |
 | Knowledge search  | `POST /api/v1/knowledge/search`         | Semantic retrieval over the organization's indexed knowledge.                                                |
@@ -81,6 +82,10 @@ For a reviewed client key, `POST /api/app/identity/clients/office-app/rotate-sec
 | Webhook trigger   | `POST /api/automations/webhook/<token>` | Start a deployed automation from outside; the [Webhooks page](/develop/webhooks).                            |
 
 For contact updates, pass the last read `updatedAt` as optional `expectedUpdatedAt` in `PATCH /api/v1/contacts/{id}`. A concurrent edit returns **409**, `CONTACT_STALE`; reload the contact and merge your changes before retrying.
+
+Agent `PUT` updates the fields you send; omitted optional fields retain their values. Skills support `org` and `team` visibility; `teams` must name teams in this organization. `private` skill visibility is retired.
+
+For a hub document, send inline `content` to `POST /api/v1/documents`. Its `fileId` alternative requires an existing hub upload from the app; REST does not mint one, and project uploads cannot be used as hub uploads. Trashed or expired documents, including files from a deleted project, stay out of this hub surface.
 
 ## Automation names in URLs
 
@@ -109,11 +114,21 @@ Poll `GET /api/v1/runs/{runId}` until `status` leaves `queued`/`running`/`waitin
 
 `mode` defaults to `live`. A live run acts on the organization's behalf, so it needs a key whose holder has the developer capability; `{"mode": "mock"}` runs against deterministic mocks and needs only membership. Starting a run needs no trigger — the API key is the entitlement. An automation with no deployed version answers **409**; deploy a version whose tests pass and the same call goes through.
 
+An unknown automation answers **404**. A live run can only use the deployed `version`; naming another saved version answers **409**. Use `mode: "mock"` to test another saved version. A missing body means `{}`, but malformed JSON answers **400** and starts nothing. When the automation declares an `inputs` schema, the input must match it before a run is created.
+
 `projectId` names the project the run operates in — the project its task and document tools act on. Omit it and the run is organization-wide, except that an automation bound to a single project runs in that one automatically; an automation bound to several accepts only a `projectId` among them, and refuses any other.
 
 ## Send a message, then poll the turn
 
 Chat is the same 202-then-poll shape. Create a thread, post a message, poll the generation, then read the messages:
+
+List models before sending a message. Use an entry’s `id` as `model` and its `providerSlug` to select the provider. The list respects the organization’s model-access policy and includes only models callable directly through REST; an empty list means no chat model is available to this key holder.
+
+```bash
+curl -sS "https://your-host.example.com/api/v1/models" \
+  -H "Authorization: Bearer $TALE_API_KEY"
+# No available model → 200 { "models": [] }
+```
 
 ```bash
 # 1. A thread of your own
@@ -126,7 +141,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/threads" \
 curl -sS -X POST "https://your-host.example.com/api/v1/threads/<threadId>/messages" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{ "content": "Summarise this quarter for me.", "model": "<a model your org has configured>" }'
+  -d '{ "content": "Summarise this quarter for me.", "model": "<model-id>", "providerSlug": "<provider-slug>" }'
 # → 202 { "threadId": "...", "status": "accepted", "model": "...", "poll": "/api/v1/threads/<threadId>/generation" }
 
 # 3. Poll until idle, then read
@@ -136,6 +151,8 @@ curl -sS "https://your-host.example.com/api/v1/threads/<threadId>/generation" \
 ```
 
 `{"status": "idle"}` means no turn is running — read `GET /api/v1/threads/{id}/messages` for the reply. A turn that fails before producing output still surfaces: the failure lands as an assistant message carrying the error, never silently. Threads listed and read over the API are the key holder's own; a second user's threads are invisible to your key even inside the same organization.
+
+A failed turn keeps your submitted message and appends an assistant error. The REST message has readable `error` text and an `errorCode` when a classification is available. Creating a thread with an unknown or inaccessible `agentSlug` answers **404**.
 
 ## Mirror an external system into a project
 
@@ -166,6 +183,8 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects" \
 ```
 
 `key` (the task-identifier prefix) and `description` are optional — the key derives from the name when omitted. A second create with the same `externalItemId` answers **409**; the same string in another organization is fine, uniqueness is per organization.
+
+An explicit project `key` contains 2–6 letters or digits and is normalized to uppercase; invalid keys answer **400**, without truncation. A name that yields no valid key creates a keyless project. A key collision answers **409**; supply an unused key.
 
 ### Create folders
 
@@ -247,6 +266,8 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
+Repeating an active task’s external reference updates its title and description; omitting `description` clears it. Labels change only when supplied. An archived task stays unchanged. The task id stays the same, and `runWorkflowSlug` does not start another run on that repeat. Keep the repeated payload stable when retrying after a lost response.
+
 `description`, `labels`, and `externalUrl` are optional. Send `automationSlug` when the task belongs to an automation: it becomes the assignee, and the task modal's work panel — the Start button, run progress, and the operator questions a run asks — keys on that ownership (a later re-pick fills a missing attribution, but never overwrites an assignee). `runWorkflowSlug` starts a deployed workflow on a newly created task in the same call — the run starts inline, so the response carries its `executionId` (the run id to poll), or `executionId: null` when the slug names no deployed automation. Start explicitly instead when you want to name the workflow in a separate call:
 
 ```bash
@@ -258,7 +279,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \
 # → 200 { "started": true, "executionId": "<runId>" }
 ```
 
-The run's input is the task itself, so starting needs membership and the task's visibility, not the developer capability — deploying the workflow was the privileged act, and the run log attributes the start to your key. Poll the run at the familiar `GET /api/v1/runs/{runId}`. `started: false` carries a `reason`: `already_running` answers the in-flight run's `executionId` instead of racing a duplicate — poll that one; `not_started` means the slug names no deployed automation.
+The run’s input wraps the task as `{task: ...}`, so starting needs membership and the task's visibility, not the developer capability — deploying the workflow was the privileged act, and the run log attributes the start to your key. Poll the run at the familiar `GET /api/v1/runs/{runId}`. `started: false` carries a `reason`: `already_running` answers the in-flight run's `executionId` instead of racing a duplicate — poll that one; `not_started` means the slug names no deployed automation.
 
 Report back and read state — the comment posts as the key's minting user, indistinguishable from the same person commenting in the app, @mentions included:
 
@@ -310,7 +331,7 @@ Branch on the HTTP status; the message is for humans:
 - **429** — rate limit exceeded; the response carries `Retry-After` in whole seconds — see [Rate limits](/develop/rate-limits).
 - **500** — internal error.
 
-Two deletion semantics exist, on purpose. Unbinding an automation's trigger (`DELETE .../triggers`) answers **204** whether or not a trigger existed — it is an idempotent "make it so". Deleting a resource (`DELETE /api/v1/agents/{slug}`) answers **404** when nothing existed — you asked to remove a thing that is not there.
+Unbinding a trigger from an existing automation (`DELETE .../triggers`) answers **204** whether or not a trigger was bound; an unknown automation answers **404**. Deleting a resource answers **404** when it is absent, including a contact already moved to trash or a knowledge entry already deleted. Cancelling an unknown run also answers **404**; `{cancelled: false}` means the run exists but has already finished.
 
 ## Versioning
 

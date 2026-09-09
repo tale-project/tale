@@ -25,6 +25,7 @@ import {
   domainErrorResponse,
   pageLimit,
   readJsonBody,
+  readOptionalJsonBody,
   requireDeveloper,
   type RestEnv,
   restProjectAuth,
@@ -50,6 +51,16 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         suffix.length > 0 ? -suffix.length : undefined,
       ),
     );
+
+  /** Whether any version of the automation exists in this org — the
+   * trigger and run doors answer 404 for a name nobody saved, never a
+   * "bound" trigger or a "not deployed" refusal for a typo. */
+  const automationExists = async (
+    c: Context<RestEnv>,
+    name: string,
+  ): Promise<boolean> =>
+    (await versionRow(deps.sql, c.get('organizationId'), name, undefined)) !==
+    null;
 
   app.get('/automations', async (c) => {
     return c.json({
@@ -95,6 +106,9 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       requireDeveloper(c);
       const name = decodeName(c, '/triggers');
+      if (!(await automationExists(c, name))) {
+        return c.json({ error: 'Automation not found' }, 404);
+      }
       const result = await setTrigger(deps.sql, {
         organizationId: c.get('organizationId'),
         name,
@@ -107,11 +121,16 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  /** Unbind the automation's trigger. Versions and run history stay. */
+  /** Unbind the automation's trigger — idempotent for an automation that
+   * exists (204 whether or not a trigger was bound); an unknown name is a
+   * 404, so a typo never reads as "unbound". Versions and run history stay. */
   app.delete('/automations/:name{.+?}/triggers', async (c) => {
     try {
       requireDeveloper(c);
       const name = decodeName(c, '/triggers');
+      if (!(await automationExists(c, name))) {
+        return c.json({ error: 'Automation not found' }, 404);
+      }
       await deleteTrigger(deps.sql, c.get('organizationId'), name);
       return c.body(null, 204);
     } catch (error) {
@@ -192,7 +211,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         version: z.number().int().min(1).optional(),
         projectId: z.string().max(200).optional(),
       })
-      .safeParse(await c.req.json().catch(() => ({})));
+      .safeParse(await readOptionalJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -200,6 +219,44 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       if (mode === 'live') requireDeveloper(c);
       const name = decodeName(c, '/runs');
+      const organizationId = c.get('organizationId');
+      if (!(await automationExists(c, name))) {
+        return c.json({ error: 'Automation not found' }, 404);
+      }
+      if (body.data.version !== undefined) {
+        const named = await versionRow(
+          deps.sql,
+          organizationId,
+          name,
+          body.data.version,
+        );
+        if (named === null) {
+          return c.json(
+            {
+              error: `"${name}" has no version ${body.data.version}.`,
+              code: 'AUTOMATION_VERSION_UNKNOWN',
+            },
+            404,
+          );
+        }
+        // The deploy gate holds on this door too: a LIVE run acts on the
+        // organization's behalf, so it may only run the version the gate
+        // promoted. Naming any saved version is the mock lane's privilege —
+        // the builder's test run, which reaches nothing outside the process.
+        if (
+          mode === 'live' &&
+          (await deployedVersion(deps.sql, organizationId, name)) !==
+            body.data.version
+        ) {
+          return c.json(
+            {
+              error: `"${name}@${body.data.version}" is not the deployed version — deploy it first, or run it in mock mode.`,
+              code: 'AUTOMATION_VERSION_NOT_DEPLOYED',
+            },
+            409,
+          );
+        }
+      }
       const started = await beginRun(deps.sql, {
         organizationId: c.get('organizationId'),
         name,
@@ -277,16 +334,17 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json(run);
   });
 
+  /** Stop a run at its next node boundary. A run that is not there is a
+   * 404 — `{cancelled: false}` is reserved for a run that exists and had
+   * already finished, so a mistyped id never reads as "nothing to cancel". */
   app.post('/runs/:runId/cancel', async (c) => {
     try {
       requireDeveloper(c);
-      return c.json(
-        await cancelRun(
-          deps.sql,
-          c.get('organizationId'),
-          c.req.param('runId'),
-        ),
-      );
+      const runId = c.req.param('runId');
+      if ((await getRun(deps.sql, c.get('organizationId'), runId)) === null) {
+        return c.json({ error: 'Run not found' }, 404);
+      }
+      return c.json(await cancelRun(deps.sql, c.get('organizationId'), runId));
     } catch (error) {
       return domainErrorResponse(c, error);
     }

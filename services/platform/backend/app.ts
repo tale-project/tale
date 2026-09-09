@@ -75,7 +75,7 @@ import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { appErrorHandler } from './error-reporting.ts';
 import { createSseAuthRoutes } from './realtime/oracle-routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
-import { createRestV1Routes } from './rest/v1.ts';
+import { mountRestV1Routes } from './rest/v1.ts';
 import {
   backendMetricsResponse,
   httpDuration,
@@ -196,8 +196,8 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   const trustedRoutes = createTrustedHeadersRoutes({ sql: deps.sql });
   app.route('/api/trusted-headers', trustedRoutes);
   app.route('/http_api/api/trusted-headers', trustedRoutes);
-  // The REST machine door (Bearer API key).
-  app.route('/api/v1', createRestV1Routes(deps));
+  // The REST machine door (Bearer API key), with its JSON 404 catch-all.
+  mountRestV1Routes(app, deps);
   // Internal app API (the surface the web app consumes); one sub-app per
   // ported domain.
   app.route('/api/app/agent-secrets', createAgentSecretRoutes(deps));

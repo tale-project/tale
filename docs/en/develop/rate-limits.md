@@ -24,8 +24,10 @@ Some writes also pass the same per-user or per-organization budgets as their in-
 An overrun answers the API's ordinary error envelope, plus a `Retry-After` header naming the wait in whole seconds (rounded up):
 
 ```json
-{ "error": "Rate limit exceeded" }
+{ "error": "RATE_LIMITED", "data": { "retryAfterMs": 1500 } }
 ```
+
+The response body names the same wait in milliseconds as `data.retryAfterMs`; the `Retry-After` header rounds it up to whole seconds. For example, `1500` milliseconds gives `Retry-After: 2`.
 
 Sleep at least `Retry-After` before the next attempt. There are no remaining-budget counters, so beyond that back off blind: start at one second, double per consecutive 429, cap at sixty, and add jitter so concurrent workers do not retry in lock-step. Because starting a run answers **202** before the work happens, a lost response is cheap to detect — list the automation's recent runs before firing again rather than retrying writes on suspicion.
 

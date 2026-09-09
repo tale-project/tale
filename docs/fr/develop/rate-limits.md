@@ -24,8 +24,10 @@ Certaines écritures passent aussi par les mêmes budgets par utilisateur ou par
 Un dépassement répond avec l'enveloppe d'erreur ordinaire de l'API, plus un header `Retry-After` qui nomme l'attente en secondes entières (arrondies au-dessus) :
 
 ```json
-{ "error": "Rate limit exceeded" }
+{ "error": "RATE_LIMITED", "data": { "retryAfterMs": 1500 } }
 ```
+
+Le corps indique la même attente en millisecondes dans `data.retryAfterMs` ; l’en-tête `Retry-After` l’arrondit aux secondes entières supérieures. Par exemple, `1500` millisecondes donnent `Retry-After: 2`.
 
 Dors au moins `Retry-After` avant le prochain essai. Il n'y a pas de compteurs de budget restant — au-delà, recule à l'aveugle : commence à une seconde, double à chaque 429 consécutif, plafonne à soixante, et ajoute du jitter pour que des workers parallèles ne relancent pas au pas. Comme démarrer une exécution répond **202** avant que le travail n'ait lieu, une réponse perdue se détecte à bas prix — liste les dernières exécutions de l'automatisation avant de tirer à nouveau, plutôt que de rejouer des écritures au soupçon.
 

@@ -14,6 +14,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 | Suite | Boxes | Status | Owning spec |
 |---|---|---|---|
+| [settings](../suites/settings.md) | `SET-B11` (REST model discovery) | 🔶 backend | `backend/rest/v1-threads.contract.test.ts`, `backend/rest/v1-threads.test.ts` — org/user scoping, empty catalog, credential-free response, provider forwarded; live provider response stays manual |
 | [accessibility](../suites/accessibility.md) | Layer | Status | Where |
 | [accessibility](../suites/accessibility.md) | Per-component axe (WCAG 2.1 AA) | ✅ automated | `checkAccessibility()` — `packages/ui/tests/utils/a11y.ts` (axe via `vitest-axe`); ~30+ component `.test.tsx` call it |
 | [accessibility](../suites/accessibility.md) | Per-story axe (WCAG 2.1 AA) | ✅ automated | Storybook `@storybook/addon-a11y` + `@storybook/addon-vitest` (`packages/ui/src/storybook/main.ts`); rules `wcag2a/wcag2aa/wcag21aa/best-practice` (`preview.tsx`) |

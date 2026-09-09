@@ -65,7 +65,8 @@ Für einen geprüften Client-Schlüssel liefert `POST /api/app/identity/clients/
 | Automatisierungen | `/api/v1/automations/...`               | Auflisten, Versionen lesen, Läufe starten, Laufhistorie lesen, Trigger binden und lösen.                                             |
 | Läufe             | `/api/v1/runs/{runId}`                  | Ein durabler Lauf in voller Tiefe — Status, Output, Trace, Effekte — plus `POST .../cancel`.                                         |
 | Threads           | `/api/v1/threads/...`                   | Die Chat-Threads des Schlüsselbesitzers: erstellen, Nachrichten lesen, senden, Turn pollen.                                          |
-| Agenten           | `/api/v1/agents/...`                    | Agenten der Organisation auflisten, lesen, anlegen oder ersetzen, löschen.                                                           |
+| Modelle | `GET /api/v1/models` | Konfigurierte Chat-Modelle, die dem Schlüsselbesitzer in dieser Organisation zur Verfügung stehen. |
+| Agenten           | `/api/v1/agents/...`                    | Agenten der Organisation auflisten, lesen, anlegen oder aktualisieren, löschen.                                                           |
 | Skills            | `/api/v1/skills/...`                    | Dieselbe Form wie Agenten, für Skills.                                                                                               |
 | Wissenseinträge   | `/api/v1/knowledge-entries/...`         | Themen-Fakten: auflisten, anlegen, ablösen, löschen.                                                                                 |
 | Wissenssuche      | `POST /api/v1/knowledge/search`         | Semantische Suche über das indexierte Wissen der Organisation.                                                                       |
@@ -81,6 +82,10 @@ Für einen geprüften Client-Schlüssel liefert `POST /api/app/identity/clients/
 | Webhook-Trigger   | `POST /api/automations/webhook/<token>` | Eine deployte Automatisierung von außen starten; die [Webhooks-Seite](/de/develop/webhooks).                                         |
 
 Übergib bei Kontaktänderungen den zuletzt gelesenen Wert `updatedAt` als optionales `expectedUpdatedAt` an `PATCH /api/v1/contacts/{id}`. Eine zwischenzeitliche Änderung liefert **409**, `CONTACT_STALE`; lade den Kontakt erneut und führe deine Änderungen vor dem nächsten Versuch zusammen.
+
+Ein Agenten-`PUT` aktualisiert die gesendeten Felder; ausgelassene optionale Felder behalten ihren Wert. Skills unterstützen die Sichtbarkeit `org` und `team`; `teams` muss Teams dieser Organisation benennen. Die Sichtbarkeit `private` gibt es für Skills nicht mehr.
+
+Sende für ein Hub-Dokument den Inhalt als `content` an `POST /api/v1/documents`. Die Alternative `fileId` setzt einen vorhandenen Hub-Upload aus der App voraus. REST erstellt keinen solchen Upload; Projekt-Uploads lassen sich hier nicht verwenden. Gelöschte oder abgelaufene Dokumente, auch Dateien eines gelöschten Projekts, erscheinen nicht auf dieser Hub-Schnittstelle.
 
 ## Automatisierungsnamen in URLs
 
@@ -109,11 +114,21 @@ Polle `GET /api/v1/runs/{runId}`, bis `status` `queued`/`running`/`waiting` verl
 
 `mode` ist standardmäßig `live`. Ein Live-Lauf handelt im Namen der Organisation und braucht deshalb einen Schlüssel, dessen Besitzer die Entwickler-Fähigkeit hat; `{"mode": "mock"}` läuft gegen deterministische Mocks und braucht nur Mitgliedschaft. Ein Start braucht keinen Trigger — der API-Schlüssel ist die Berechtigung. Eine Automatisierung ohne deployte Version antwortet **409**; deploye eine Version, deren Tests bestehen, und derselbe Aufruf geht durch.
 
+Eine unbekannte Automatisierung antwortet mit **404**. Ein Live-Lauf darf nur die deployte `version` verwenden; eine andere gespeicherte Version ergibt **409**. Teste diese mit `mode: "mock"`. Ohne Body gilt `{}`; fehlerhaftes JSON ergibt **400** und startet nichts. Definiert die Automatisierung ein `inputs`-Schema, muss die Eingabe dazu passen, bevor ein Lauf entsteht.
+
 `projectId` benennt das Projekt, in dem der Lauf arbeitet — das Projekt, auf das seine Aufgaben- und Dokument-Tools wirken. Lässt du es weg, ist der Lauf organisationsweit — außer eine an ein einzelnes Projekt gebundene Automatisierung läuft automatisch in diesem einen; eine an mehrere gebundene akzeptiert nur eine `projectId` aus dieser Menge und weist jede andere ab.
 
 ## Eine Nachricht senden, dann den Turn pollen
 
 Chat hat dieselbe 202-dann-pollen-Form. Erstelle einen Thread, sende eine Nachricht, polle die Generierung, lies dann die Nachrichten:
+
+Rufe vor dem Senden die Modelle ab. Übernimm `id` als `model` und `providerSlug` für die Auswahl des Anbieters. Die Liste berücksichtigt die Modellzugriffsregeln der Organisation und enthält nur Modelle, die REST direkt aufrufen kann. Ist sie leer, steht dem Schlüsselbesitzer kein Chat-Modell zur Verfügung.
+
+```bash
+curl -sS "https://your-host.example.com/api/v1/models" \
+  -H "Authorization: Bearer $TALE_API_KEY"
+# Kein Modell verfügbar → 200 { "models": [] }
+```
 
 ```bash
 # 1. Ein eigener Thread
@@ -126,7 +141,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/threads" \
 curl -sS -X POST "https://your-host.example.com/api/v1/threads/<threadId>/messages" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{ "content": "Fasse mir dieses Quartal zusammen.", "model": "<ein Modell deiner Organisation>" }'
+  -d '{ "content": "Fasse mir dieses Quartal zusammen.", "model": "<model-id>", "providerSlug": "<provider-slug>" }'
 # → 202 { "threadId": "...", "status": "accepted", "model": "...", "poll": "/api/v1/threads/<threadId>/generation" }
 
 # 3. Bis idle pollen, dann lesen
@@ -136,6 +151,8 @@ curl -sS "https://your-host.example.com/api/v1/threads/<threadId>/generation" \
 ```
 
 `{"status": "idle"}` heißt: kein Turn läuft — lies `GET /api/v1/threads/{id}/messages` für die Antwort. Ein Turn, der vor jeder Ausgabe scheitert, taucht trotzdem auf: der Fehler landet als Assistenten-Nachricht, nie lautlos. Über die API gelistete und gelesene Threads sind die des Schlüsselbesitzers; die Threads anderer Benutzer bleiben für deinen Schlüssel unsichtbar, auch innerhalb derselben Organisation.
+
+Scheitert ein Turn, bleibt deine gesendete Nachricht erhalten; eine Assistenten-Nachricht enthält den Fehler. Die REST-Nachricht liefert lesbaren Text in `error` und, wenn verfügbar, eine Klassifizierung als `errorCode`. Das Anlegen eines Threads mit einer unbekannten oder nicht zugänglichen `agentSlug` ergibt **404**.
 
 ## Ein externes System in ein Projekt spiegeln
 
@@ -166,6 +183,8 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects" \
 ```
 
 `key` (das Präfix der Aufgaben-Kennungen) und `description` sind optional — der Key leitet sich aus dem Namen ab, wenn du ihn weglässt. Ein zweites Anlegen mit derselben `externalItemId` antwortet **409**; derselbe String in einer anderen Organisation ist in Ordnung, die Eindeutigkeit gilt pro Organisation.
+
+Ein expliziter Projekt-`key` besteht aus 2–6 Buchstaben oder Ziffern und landet in Großbuchstaben. Ungültige Werte ergeben **400**, ohne Kürzung. Lässt sich aus dem Namen kein gültiger Key ableiten, entsteht das Projekt ohne Key. Bei einem belegten Key folgt **409**; sende einen freien Key mit.
 
 ### Ordner anlegen
 
@@ -247,6 +266,8 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
+Ein erneuter Aufruf mit derselben externen Referenz einer aktiven Aufgabe aktualisiert Titel und Beschreibung. Ohne `description` wird die Beschreibung gelöscht; Labels ändern sich nur, wenn du sie mitsendest. Archivierte Aufgaben bleiben unverändert. Die Aufgaben-ID bleibt gleich; `runWorkflowSlug` startet dabei keinen weiteren Lauf. Sende beim Wiederholen nach einer verlorenen Antwort dieselben Daten.
+
 `description`, `labels` und `externalUrl` sind optional. Schick `automationSlug` mit, wenn die Aufgabe einer Automatisierung gehört: sie wird zum Assignee, und daran hängt das Arbeits-Panel des Aufgaben-Dialogs — der Start-Button, der Lauf-Fortschritt und die Fragen, die ein Lauf an den Operator stellt (ein späterer Re-Pick füllt eine fehlende Zuordnung nach, überschreibt aber nie einen Assignee). `runWorkflowSlug` startet im selben Aufruf einen deployten Workflow auf einer frisch angelegten Aufgabe — der Lauf startet inline, sodass die Antwort seine `executionId` trägt (die zu pollende Lauf-ID), oder `executionId: null`, wenn der Slug keine deployte Automatisierung benennt. Starte stattdessen explizit, wenn du den Workflow in einem eigenen Aufruf benennen willst:
 
 ```bash
@@ -258,7 +279,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \
 # → 200 { "started": true, "executionId": "<runId>" }
 ```
 
-Die Eingabe des Laufs ist die Aufgabe selbst — Starten braucht deshalb Mitgliedschaft und die Sichtbarkeit der Aufgabe, nicht die Entwickler-Fähigkeit: der privilegierte Akt war das Deployen des Workflows, und das Lauf-Log schreibt den Start deinem Schlüssel zu. Polle den Lauf am vertrauten `GET /api/v1/runs/{runId}`. `started: false` trägt einen `reason`: `already_running` antwortet mit der `executionId` des laufenden Laufs, statt ein Duplikat zu riskieren — polle diesen; `not_started` heißt, der Slug benennt keine deployte Automatisierung.
+Die Eingabe des Laufs enthält die Aufgabe als `{task: ...}` — Starten braucht deshalb Mitgliedschaft und die Sichtbarkeit der Aufgabe, nicht die Entwickler-Fähigkeit: der privilegierte Akt war das Deployen des Workflows, und das Lauf-Log schreibt den Start deinem Schlüssel zu. Polle den Lauf am vertrauten `GET /api/v1/runs/{runId}`. `started: false` trägt einen `reason`: `already_running` antwortet mit der `executionId` des laufenden Laufs, statt ein Duplikat zu riskieren — polle diesen; `not_started` heißt, der Slug benennt keine deployte Automatisierung.
 
 Melde zurück und lies den Zustand — der Kommentar erscheint als der Benutzer, der den Schlüssel erzeugt hat, ununterscheidbar von derselben Person in der App, @-Erwähnungen eingeschlossen:
 
@@ -310,7 +331,7 @@ Verzweige auf den HTTP-Status; die Meldung ist für Menschen:
 - **429** — Rate-Limit erreicht; die Antwort trägt `Retry-After` in ganzen Sekunden — siehe [Rate-Limits](/de/develop/rate-limits).
 - **500** — interner Fehler.
 
-Zwei Lösch-Semantiken existieren, mit Absicht. Das Lösen eines Automatisierungs-Triggers (`DELETE .../triggers`) antwortet **204**, ob ein Trigger existierte oder nicht — ein idempotentes „stell es so her“. Das Löschen einer Ressource (`DELETE /api/v1/agents/{slug}`) antwortet **404**, wenn nichts da war — du wolltest etwas entfernen, das es nicht gibt.
+Das Lösen eines Triggers einer vorhandenen Automatisierung (`DELETE .../triggers`) antwortet mit **204**, auch wenn kein Trigger gebunden war. Eine unbekannte Automatisierung ergibt **404**. Das Löschen einer fehlenden Ressource ergibt ebenfalls **404**, auch bei einem Kontakt im Papierkorb oder einem bereits gelöschten Wissenseintrag. Ein unbekannter Lauf ergibt beim Abbrechen **404**; `{cancelled: false}` bedeutet, dass der Lauf existiert und bereits beendet ist.
 
 ## Versionierung
 
