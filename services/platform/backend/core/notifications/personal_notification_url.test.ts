@@ -103,6 +103,18 @@ describe('buildPersonalNotificationUrl — routing', () => {
     ).toBe(`${SITE}/dashboard/${ORG}/projects/proj_1/tasks`);
   });
 
+  it('opens the run for an escalation with no task and no project', () => {
+    expect(
+      buildPersonalNotificationUrl({
+        organizationId: ORG,
+        params: { name: 'billing/dunning-reminder', runId: 'run_1' },
+        siteUrl: SITE,
+      }),
+    ).toBe(
+      `${SITE}/dashboard/${ORG}/automations/billing__dunning-reminder/runs/run_1`,
+    );
+  });
+
   // Never null: an email that names something the reader cannot reach is
   // the defect. A row with no entity context still gets a way in.
   it('lands on the org dashboard when there is no entity context', () => {

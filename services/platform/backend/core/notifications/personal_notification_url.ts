@@ -4,6 +4,7 @@
  * the origin; otherwise it comes from the deployment's `SITE_URL`.
  */
 
+import { automationSlugToParam } from '../../../lib/automations/slug';
 import {
   canonicalOrigin,
   publicBaseUrlFor,
@@ -77,6 +78,14 @@ export function buildPersonalNotificationUrl(args: {
   // `personalNotificationTarget`.
   if (typeof threadId === 'string' && typeof projectId === 'string') {
     return `${base}/dashboard/${args.organizationId}/projects/${projectId}/tasks`;
+  }
+  // An agent escalation on an org-scoped run: no task, no project, but the
+  // row names the run and its automation. Needs BOTH keys.
+  const runId = args.params?.runId;
+  const automationName = args.params?.name;
+  if (typeof runId === 'string' && typeof automationName === 'string') {
+    const slug = encodeURIComponent(automationSlugToParam(automationName));
+    return `${base}/dashboard/${args.organizationId}/automations/${slug}/runs/${encodeURIComponent(runId)}`;
   }
   // Never null: an actionable email always carries a way in. A row with no
   // entity context (a legacy row written before its project was stamped)
