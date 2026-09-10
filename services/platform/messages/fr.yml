@@ -318,6 +318,7 @@ analytics:
     errorType:
       missing_api_key: Clé API manquante
       credit_exhausted: Crédits épuisés
+      model_not_entitled: Modèle hors forfait
       auth_error: Erreur d'authentification
       model_not_found: Modèle introuvable
       unsupported_parameter: Paramètre non pris en charge

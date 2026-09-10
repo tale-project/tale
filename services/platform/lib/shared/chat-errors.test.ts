@@ -53,6 +53,56 @@ describe('classifyChatErrorCode', () => {
     ).toBe('rate_limited');
   });
 
+  it('reads the provider code out of the real wire shapes, not only a flat field', () => {
+    // The direct wire wraps the provider body into its sentence with the
+    // status attached — the code is inside the JSON text, the wording may
+    // be anything (a localized message, a rewrite).
+    expect(
+      classifyChatErrorCode({
+        status: 429,
+        message:
+          'The model provider answered 429: {"error":{"code":"1311","message":"当前套餐不包含该模型"}}',
+      }),
+    ).toBe('model_not_entitled');
+    expect(
+      classifyChatErrorCode({
+        status: 429,
+        message:
+          'The model provider answered 429: {"error":{"code":"1113","message":"余额不足"}}',
+      }),
+    ).toBe('credit_exhausted');
+    // An SDK error nests the provider body under `error`.
+    expect(
+      classifyChatErrorCode({
+        status: 429,
+        error: { code: '1311', message: 'refused' },
+      }),
+    ).toBe('model_not_entitled');
+    expect(classifyChatErrorCode({ status: 429, error: { code: 1113 } })).toBe(
+      'credit_exhausted',
+    );
+  });
+
+  it('classifies the platform’s own model refusals as model_not_found', () => {
+    expect(
+      classifyChatErrorCode({
+        data: {
+          code: 'CHAT_PROVIDER_UNAVAILABLE',
+          message:
+            'Provider "a" no longer serves model "m" in this organization.',
+        },
+      }),
+    ).toBe('model_not_found');
+    expect(
+      classifyChatErrorCode({
+        data: {
+          code: 'CHAT_MODEL_UNKNOWN',
+          message: 'No model "m" is available in this organization.',
+        },
+      }),
+    ).toBe('model_not_found');
+  });
+
   it('classifies auth errors by 401/403 and message', () => {
     expect(classifyChatErrorCode({ status: 401 })).toBe('auth_error');
     expect(classifyChatErrorCode({ status: 403 })).toBe('auth_error');

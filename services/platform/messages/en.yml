@@ -303,6 +303,7 @@ analytics:
     errorType:
       missing_api_key: Missing API key
       credit_exhausted: Credit exhausted
+      model_not_entitled: Model not in plan
       auth_error: Auth error
       model_not_found: Model not found
       unsupported_parameter: Unsupported parameter

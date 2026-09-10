@@ -316,6 +316,7 @@ analytics:
     errorType:
       missing_api_key: API-Schlüssel fehlt
       credit_exhausted: Guthaben aufgebraucht
+      model_not_entitled: Modell nicht im Tarif
       auth_error: Authentifizierungsfehler
       model_not_found: Modell nicht gefunden
       unsupported_parameter: Parameter nicht unterstützt

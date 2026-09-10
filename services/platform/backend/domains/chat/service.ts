@@ -36,6 +36,9 @@ export interface ChatTurnRequest {
   readonly attachments?: ExecuteTurnArgs['attachments'];
   readonly modelId?: string;
   readonly providerSlug?: string;
+  /** REST: the named provider is a choice the turn must keep (see
+   * `ExecuteTurnArgs.providerStrict`). */
+  readonly providerStrict?: boolean;
   readonly reasoningEffort?: ExecuteTurnArgs['reasoningEffort'];
   readonly locale?: string;
   readonly resend?: boolean;
@@ -72,6 +75,7 @@ export async function runChatTurn(
     ...(request.providerSlug !== undefined
       ? { providerSlug: request.providerSlug }
       : {}),
+    ...(request.providerStrict === true ? { providerStrict: true } : {}),
     ...(request.reasoningEffort !== undefined
       ? { reasoningEffort: request.reasoningEffort }
       : {}),

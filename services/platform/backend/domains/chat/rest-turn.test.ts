@@ -214,6 +214,30 @@ describe('runApiTurn — the accepted scope is checked again before execution', 
     );
   });
 
+  it('carries the accepted provider as a strict choice into the turn', async () => {
+    boundary.loadOwnedThread.mockResolvedValue({
+      id: 't-1',
+      kind: 'direct',
+      projectId: null,
+      archived: false,
+    });
+    vi.mocked(runChatTurn).mockRejectedValue(unknownModel);
+    await runApiTurn(sql, {
+      ...payload,
+      providerSlug: 'provider-a',
+      providerStrict: true,
+    });
+    // The 202 promised this provider; the turn must refuse a pair that
+    // stopped resolving rather than fall back to another connector.
+    expect(runChatTurn).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        providerSlug: 'provider-a',
+        providerStrict: true,
+      }),
+    );
+  });
+
   it('preserves the exact accepted scope when drain requeues the job', async () => {
     vi.mocked(isBackendDraining).mockResolvedValue(true);
     const accepted = { ...payload, expectedProjectId: 'p-a' };

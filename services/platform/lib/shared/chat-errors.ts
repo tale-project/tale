@@ -115,18 +115,33 @@ function extractErrorFacts(error: unknown): ErrorFacts {
     err.data !== null && typeof err.data === 'object'
       ? (err.data as Record<string, unknown>)
       : undefined;
-  const code =
-    typeof err.code === 'string'
-      ? err.code
-      : typeof data?.code === 'string'
-        ? data.code
-        : undefined;
   const message =
     typeof data?.message === 'string'
       ? data.message
       : typeof err.message === 'string'
         ? err.message
         : '';
+  // A provider's own code rides in the `{error: {code, message}}` body. The
+  // direct wire wraps that body into the sentence it throws ("The model
+  // provider answered 429: {…}") with only the status attached, and an SDK
+  // error nests it under `error` — so the code is read from the top level,
+  // a platform refusal's `data`, a nested `error`, and last from the wrapped
+  // JSON text, before any wording is consulted.
+  const nested =
+    err.error !== null && typeof err.error === 'object'
+      ? (err.error as Record<string, unknown>)
+      : undefined;
+  const embedded = /"code"\s*:\s*"?([A-Za-z0-9_.-]+)"?/.exec(message);
+  const code =
+    typeof err.code === 'string'
+      ? err.code
+      : typeof data?.code === 'string'
+        ? data.code
+        : typeof nested?.code === 'string'
+          ? nested.code
+          : typeof nested?.code === 'number'
+            ? String(nested.code)
+            : embedded?.[1];
   return { status, code, message: message.toLowerCase() };
 }
 
@@ -171,6 +186,11 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
     code === 'CHAT_CREDENTIAL_UNSUPPORTED'
   ) {
     return 'auth_error';
+  }
+  // The organization lists no such model, or the chosen provider stopped
+  // serving it before the turn ran (the REST door's strict choice).
+  if (code === 'CHAT_MODEL_UNKNOWN' || code === 'CHAT_PROVIDER_UNAVAILABLE') {
+    return 'model_not_found';
   }
 
   // Org has no usable provider / no API key at all — actionable setup error.

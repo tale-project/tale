@@ -449,8 +449,11 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         expectedProjectId: projectId,
         userText: body.data.content,
         modelId: body.data.model,
+        // A named provider is the caller's choice all the way to the wire —
+        // the turn refuses a pair that stops resolving rather than falling
+        // back to another connector.
         ...(body.data.providerSlug !== undefined
-          ? { providerSlug: body.data.providerSlug }
+          ? { providerSlug: body.data.providerSlug, providerStrict: true }
           : {}),
         ...(body.data.locale !== undefined ? { locale: body.data.locale } : {}),
       });

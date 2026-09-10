@@ -156,6 +156,9 @@ describe('POST /threads/{id}/messages body', () => {
       expect.objectContaining({
         modelId: 'model-a',
         providerSlug: 'provider-a',
+        // A choice, not a hint: the turn must not fall back to another
+        // connector if the configuration changes before it runs.
+        providerStrict: true,
       }),
     );
   });
