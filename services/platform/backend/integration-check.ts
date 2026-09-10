@@ -53,6 +53,7 @@ import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
+import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -28476,16 +28477,34 @@ async function checkTaskAgentTurnDrive(
         res.end('{}');
         return;
       }
+      if (url.startsWith('/api/governance/pricing-overrides')) {
+        // The pricing plane: nothing stored, every write accepted.
+        res.end(
+          method === 'GET'
+            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
+            : '{}',
+        );
+        return;
+      }
       if (url === '/api/governance/virtual-keys' && method === 'POST') {
         gatewayCalls.minted += 1;
         // Unique per mint: the session-token row hashes the key VALUE, so a
         // second turn re-minting a byte-identical key would die on the
-        // token-hash unique constraint before its exec ever starts.
+        // token-hash unique constraint before its exec ever starts. The
+        // `budgets` array mirrors the real gateway's multi-budget response —
+        // the mint refuses a key that comes back without one.
         res.end(
           JSON.stringify({
             virtual_key: {
               id: `vk-drive-${gatewayCalls.minted}`,
               value: `sk-bf-drive-${gatewayCalls.minted}`,
+              budgets: [
+                {
+                  id: `budget-drive-${gatewayCalls.minted}`,
+                  max_limit: 5,
+                  current_usage: 0,
+                },
+              ],
             },
           }),
         );
@@ -28498,7 +28517,9 @@ async function checkTaskAgentTurnDrive(
           return;
         }
         res.end(
-          JSON.stringify({ virtual_key: { budget: { current_usage: 0.03 } } }),
+          JSON.stringify({
+            virtual_key: { budgets: [{ current_usage: 0.03 }] },
+          }),
         );
         return;
       }
@@ -29307,13 +29328,31 @@ async function checkAutomationAgentNode(
         res.end('{}');
         return;
       }
+      if (url.startsWith('/api/governance/pricing-overrides')) {
+        // The pricing plane: nothing stored, every write accepted.
+        res.end(
+          method === 'GET'
+            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
+            : '{}',
+        );
+        return;
+      }
       if (url === '/api/governance/virtual-keys' && method === 'POST') {
         gatewayCalls.minted += 1;
+        // `budgets` mirrors the real gateway's multi-budget response — the
+        // mint refuses a key that comes back without one.
         res.end(
           JSON.stringify({
             virtual_key: {
               id: `vk-node-${gatewayCalls.minted}`,
               value: `sk-bf-node-${gatewayCalls.minted}`,
+              budgets: [
+                {
+                  id: `budget-node-${gatewayCalls.minted}`,
+                  max_limit: 5,
+                  current_usage: 0,
+                },
+              ],
             },
           }),
         );
@@ -29326,7 +29365,9 @@ async function checkAutomationAgentNode(
           return;
         }
         res.end(
-          JSON.stringify({ virtual_key: { budget: { current_usage: 0.01 } } }),
+          JSON.stringify({
+            virtual_key: { budgets: [{ current_usage: 0.01 }] },
+          }),
         );
         return;
       }
@@ -29868,7 +29909,7 @@ async function checkSandboxSessions(
     .then(() => 'ok')
     .catch(code);
 
-  // Separate workflow budget (default 4) — untouched by the project fill.
+  // Separate workflow budget (default 2) — untouched by the project fill.
   const wf = await reserve(10, 'workflow_run')
     .then(() => 'ok')
     .catch(code);
@@ -29959,6 +30000,45 @@ async function checkSandboxSettingsViews(
       workflow?.ownerLabel === 'Daily research' &&
       workflow.currentOp?.workflowRunId === runId,
     `project=${project?.ownerLabel}, task=${project?.currentOp?.taskId}, workflow=${workflow?.ownerLabel}, run=${workflow?.currentOp?.workflowRunId}`,
+  );
+  // A project agent runs its tasks concurrently in the ONE workspace it owns
+  // (`pa-<agentId>`), so a workspace row lists every running turn with its
+  // task — one "current" op would hide the siblings.
+  const busySessionId = `view-busy-${randomUUID()}`;
+  const busyTasks: string[] = [];
+  await sql`
+    INSERT INTO app.sandbox_sessions (org_id, session_id, status, owner_type, owner_id, created_by, created_at_ms, expires_at_ms)
+    VALUES (${orgId}, ${busySessionId}, 'active', 'project_agent', ${agentId}, ${userId}, ${now}, ${now + 60_000})
+  `;
+  for (const offset of [3000, 2000, 1000]) {
+    const busyTaskId = randomUUID();
+    const busyExecId = randomUUID();
+    busyTasks.push(busyTaskId);
+    await sql`
+      INSERT INTO app.tasks (id, org_id, project_id, title, status, rank, created_by, created_by_type, created_at_ms, updated_at_ms)
+      VALUES (${busyTaskId}, ${orgId}, ${projectId}, ${`Concurrent task ${offset}`}, 'in_progress', ${`b${offset}`}, ${userId}, 'user', ${now}, ${now})
+    `;
+    await sql`
+      INSERT INTO app.sandbox_session_ops (org_id, session_id, exec_id, kind, status, spent_cents, started_at_ms)
+      VALUES (${orgId}, ${busySessionId}, ${busyExecId}, 'task-agent', 'running', ${offset === 3000 ? 5 : null}, ${now - offset})
+    `;
+    await sql`
+      INSERT INTO app.project_agent_runs (org_id, project_id, task_id, agent_id, session_id, exec_id, status, harness, model, started_by, started_at_ms, deadline_at_ms, updated_at_ms)
+      VALUES (${orgId}, ${projectId}, ${busyTaskId}, ${agentId}, ${busySessionId}, ${busyExecId}, 'running', 'opencode', 'itest', ${userId}, ${now - offset}, ${now + 60_000}, ${now})
+    `;
+  }
+  const busy = (await listSandboxViewsForOrg(sql, orgId)).find(
+    (view) => view.sessionId === busySessionId,
+  );
+  record(
+    'sandbox settings list every task running in one workspace, oldest first',
+    busy?.busy === true &&
+      busy.totalSpentCents === 5 &&
+      busy.runningOps.map((op) => op.taskId).join(',') ===
+        busyTasks.join(',') &&
+      busy.runningOps.every((op) => op.kind === 'task-agent') &&
+      busy.currentOp?.taskId === busyTasks[2],
+    `busy=${busy?.busy}, spent=${busy?.totalSpentCents}, running=${busy?.runningOps.map((op) => op.taskId?.slice(0, 8)).join(',')}, current=${busy?.currentOp?.taskId?.slice(0, 8)}, want=${busyTasks.map((id) => id.slice(0, 8)).join(',')}`,
   );
   // A corrupt/stale cross-org owner reference must not reveal that owner's
   // label, even though the referenced primary key exists globally.
@@ -45470,6 +45550,10 @@ async function main(): Promise<void> {
           ),
       ],
       ['checkSandboxSessions', () => checkSandboxSessions(sql, authCtx)],
+      [
+        'checkSandboxIdleRelease',
+        () => checkSandboxIdleRelease(sql, authCtx, record),
+      ],
       [
         'checkSandboxSettingsViews',
         () => checkSandboxSettingsViews(sql, baseUrl, authCtx),

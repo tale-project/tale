@@ -16,6 +16,10 @@
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
+import {
+  DEFAULT_SANDBOX_QUOTA,
+  sandboxQuotaTotal,
+} from '../../lib/shared/schemas/governance';
 import { composer, messageLog, sendButton } from '../e2e/helpers/chat';
 import { TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';
@@ -699,8 +703,75 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/settings/sandboxes',
     prepare: async (page) => {
-      await expect(page.getByRole('spinbutton').first()).toBeEnabled();
-      await expect(page.getByRole('spinbutton').first()).not.toHaveValue('');
+      const fields = [
+        ['project', DEFAULT_SANDBOX_QUOTA.maxSessionsPerOrg],
+        ['workflow', DEFAULT_SANDBOX_QUOTA.maxWorkflowSessionsPerOrg],
+        ['render', DEFAULT_SANDBOX_QUOTA.maxRenderSessionsPerOrg],
+      ] as const;
+      // The dedicated docs org may still hold older saved limits. Set the
+      // current defaults through the real editor, so the capture shows the
+      // persisted total rather than an unsaved example or fabricated pixels.
+      let changed = false;
+      for (const [budget, limit] of fields) {
+        const input = page.getByRole('spinbutton', {
+          name: t(`sandboxes.quota.budgets.${budget}`),
+          exact: true,
+        });
+        await expect(input).toBeEnabled();
+        await expect(input).not.toHaveValue('');
+        if ((await input.inputValue()) !== String(limit)) {
+          await input.fill(String(limit));
+          changed = true;
+        }
+      }
+      if (changed) {
+        const save = page.getByRole('button', {
+          name: t('common.actions.save'),
+          exact: true,
+        });
+        await expect(save).toBeEnabled();
+        await save.click();
+        await expect(
+          page.getByRole('button', {
+            name: t('common.actions.saved'),
+            exact: true,
+          }),
+        ).toBeVisible();
+        await page.reload();
+        for (const [budget, limit] of fields) {
+          await expect(
+            page.getByRole('spinbutton', {
+              name: t(`sandboxes.quota.budgets.${budget}`),
+              exact: true,
+            }),
+          ).toHaveValue(String(limit));
+        }
+      }
+      await expect(
+        page.getByRole('status', {
+          name: t('sandboxes.limits.total'),
+          exact: true,
+        }),
+      ).toHaveText(
+        new RegExp(`^${sandboxQuotaTotal(DEFAULT_SANDBOX_QUOTA)} / \\d+$`),
+      );
+    },
+    readyWhen: (page) =>
+      page.getByRole('region', {
+        name: t('sandboxes.limits.title'),
+        exact: true,
+      }),
+    capture: (page) =>
+      page.getByRole('region', {
+        name: t('sandboxes.limits.title'),
+        exact: true,
+      }),
+  },
+  {
+    name: 'sandbox-infrastructure-capacity',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/sandboxes',
+    prepare: async (page) => {
       await expect(
         page.getByRole('button', {
           name: t('sandboxes.capacity.refresh'),
@@ -714,8 +785,15 @@ export const SHOTS: readonly Shot[] = [
       ).toBeVisible();
     },
     readyWhen: (page) =>
-      page.getByText(t('sandboxes.capacity.title'), { exact: true }),
-    viewport: { width: 1440, height: 1040 },
+      page.getByRole('region', {
+        name: t('sandboxes.capacity.title'),
+        exact: true,
+      }),
+    capture: (page) =>
+      page.getByRole('region', {
+        name: t('sandboxes.capacity.title'),
+        exact: true,
+      }),
   },
   {
     // Governance > Guardrails — the three filter-layer status cards, the

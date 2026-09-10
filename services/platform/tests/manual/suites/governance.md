@@ -140,11 +140,14 @@ select lists only the current admin's keys (`useApiKeys`).
 - [ ] `GOV-F13` · **Sandbox quota** — `/dashboard/{org}/settings/sandboxes` →
   **Organization limits** (`sandboxes.limits.title`) → change **Project agent
   sessions**, **Workflow sessions**, and **Render sessions**
-  (`sandboxes.quota.budgets.project` / `…workflow` / `…render`) → Save →
+  (`sandboxes.quota.budgets.project` / `…workflow` / `…render`) within the
+  displayed deployment capacity → Save →
   reload → No page toast on save — the header Save cluster flashes **Saved**
   (`common.actions.saved`) and Save goes disabled again; after reload the
-  three fields and allocated/limit summaries hold the saved limits — **restore
-  afterwards**. Deployment runtime limits apply separately. Bounds: see GOV-B7.
+  three fields and allocated/limit summaries hold the saved limits;
+  **Total organization sessions** (`sandboxes.limits.total`) shows their sum
+  against the deployment capacity — **restore afterwards**. Other organizations
+  share the deployment capacity. Bounds: see GOV-B7.
 - [ ] `GOV-F14` · **Retention editor** — `policies-limits` → **Retention
   policy** (`governance.retentionPolicy.title`) summary → open the edit drawer
   **Edit retention policy** (`governance.retentionPolicy.drawer.title`) →

@@ -82,7 +82,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
         accessorKey: 'linkedActiveHolds',
         header: t('legalHold.columns.linkedHolds'),
         cell: ({ row }) => row.original.linkedActiveHolds,
-        size: 130,
+        size: 156,
       },
       {
         accessorKey: 'createdAt',

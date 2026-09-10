@@ -109,6 +109,8 @@ describe('infrastructure capacity observations', () => {
       starting: 2,
       organizationRunning: 1,
       organizationStarting: 2,
+      limit: 8,
+      organizationLimit: 8,
     });
     expect(a.runtimeSessions).toContainEqual({
       sessionId: 'a-old',

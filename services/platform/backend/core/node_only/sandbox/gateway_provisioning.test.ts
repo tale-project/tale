@@ -11,6 +11,7 @@ import {
 } from './gateway_provisioning';
 import {
   applyGatewayConfig,
+  ensureModelPricingOverride,
   mintVirtualKey,
   provisionProviders,
 } from './llm_gateway_admin';
@@ -21,6 +22,7 @@ vi.mock('./llm_gateway_admin', async (importOriginal) => {
     ...original,
     provisionProviders: vi.fn(async () => []),
     applyGatewayConfig: vi.fn(async () => {}),
+    ensureModelPricingOverride: vi.fn(async () => {}),
     mintVirtualKey: vi.fn(async () => ({ key: 'sk-bf-t', keyId: 'vk-9' })),
   };
 });
@@ -29,7 +31,11 @@ vi.mock('../../provider_credentials/resolve_credential', () => ({
 }));
 vi.mock('../../lib/providers/catalog_fetch', () => ({
   getProviderCatalog: vi.fn(async () => [
-    { id: 'anthropic/claude-sonnet-5' },
+    {
+      id: 'anthropic/claude-sonnet-5',
+      pricing: { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },
+    },
+    // No published price: left to the gateway's own datasheet.
     { id: 'openai/gpt-5.5' },
   ]),
 }));
@@ -174,6 +180,49 @@ describe('provisionSessionGatewayKey', () => {
     expect(result.keyHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it('tells the gateway the catalog price of each allowed model that has one', async () => {
+    // The gateway meters the key's budget from the cost it computes, and its
+    // own datasheet cannot price an org's custom record — so the catalog
+    // price rides along with the credential. An entry without a price is
+    // left to the datasheet.
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-1',
+      allowedModels: MODELS,
+      budgetCents: 500,
+    });
+    expect(ensureModelPricingOverride).toHaveBeenCalledTimes(1);
+    expect(ensureModelPricingOverride).toHaveBeenCalledWith({
+      gatewayProvider: 'openrouter',
+      modelId: 'anthropic/claude-sonnet-5',
+      inputCentsPerMillion: 300,
+      outputCentsPerMillion: 1500,
+    });
+  });
+
+  it('still mints when a pricing push fails (accounting never refuses a session)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    vi.mocked(ensureModelPricingOverride).mockRejectedValueOnce(
+      new Error('llm-gateway create pricing override failed (503)'),
+    );
+    const result = await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-1',
+      allowedModels: MODELS,
+      budgetCents: 500,
+    });
+    expect(result.keyId).toBe('vk-9');
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'pricing for openrouter/anthropic/claude-sonnet-5 could not be pushed',
+      ),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+
   it("provisions a custom provider under the org's per-model record so the mint can bind", async () => {
     // deepseek is NOT a standard gateway provider, so it routes per (org,
     // model) (`org_1__deepseek__deepseek-v4-flash`). The provision record
@@ -184,7 +233,10 @@ describe('provisionSessionGatewayKey', () => {
     // shape is irrelevant here.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     mockedCatalog.mockResolvedValue([
-      { id: 'deepseek-v4-flash' },
+      {
+        id: 'deepseek-v4-flash',
+        pricing: { inputCentsPerMillion: 14, outputCentsPerMillion: 28 },
+      },
       { id: 'deepseek-v4-pro' },
     ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
     await provisionSessionGatewayKey(fakeCtx(), {
@@ -204,6 +256,14 @@ describe('provisionSessionGatewayKey', () => {
         apiKey: 'sk-ds',
       }),
     ]);
+    // The price is scoped to that same per-model record, matched on the
+    // wire model id (the ref with the record prefix stripped).
+    expect(ensureModelPricingOverride).toHaveBeenCalledWith({
+      gatewayProvider: 'org_1__deepseek__deepseek-v4-flash',
+      modelId: 'deepseek-v4-flash',
+      inputCentsPerMillion: 14,
+      outputCentsPerMillion: 28,
+    });
   });
 
   it('keeps two orgs sharing a custom connector name on separate gateway records', async () => {

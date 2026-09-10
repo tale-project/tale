@@ -20,6 +20,7 @@ import {
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ActivityGate } from './activity-gate.ts';
 import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import {
@@ -67,6 +68,7 @@ if (process.env.TALE_SESSION_ENV) {
 }
 const envStore = new EnvStore(seedEnv);
 const execManager = new ExecManager(envStore, touch);
+const activity = new ActivityGate(() => execManager.liveCount());
 
 function tokenOk(req: IncomingMessage): boolean {
   if (TOKEN === '') return true; // unsigned dev mode
@@ -268,10 +270,98 @@ async function router(
       bootedAtMs,
       lastActivityAtMs,
       liveExecs: execManager.liveCount(),
+      activity: activity.snapshot(),
     };
     sendJson(res, 200, body);
     return;
   }
+  if (req.method === 'GET' && path === '/release') {
+    sendJson(res, 200, { generation: activity.snapshot().generation });
+    return;
+  }
+  if (req.method === 'POST' && path === '/acquire') {
+    const generation = activity.acquire();
+    sendJson(
+      res,
+      generation === null ? 503 : 200,
+      generation === null ? { error: 'reclaiming' } : { generation },
+    );
+    return;
+  }
+  if (
+    req.method === 'POST' &&
+    ['/release', '/reclaim', '/pin'].includes(path)
+  ) {
+    const body = await readJsonBody(req);
+    if (!body.ok) {
+      sendJson(res, body.status, { error: body.error });
+      return;
+    }
+    if (!isObject(body.value)) {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
+    if (path === '/pin') {
+      if (typeof body.value.pinned !== 'boolean') {
+        sendJson(res, 400, { error: 'bad_request' });
+        return;
+      }
+      const applied = activity.setPinned(body.value.pinned);
+      sendJson(
+        res,
+        applied ? 200 : 503,
+        applied ? { ok: true } : { error: 'reclaiming' },
+      );
+      return;
+    }
+    const token =
+      path === '/release' ? body.value.generation : body.value.claimId;
+    if (typeof token !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(token)) {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
+    if (
+      path === '/reclaim' &&
+      (typeof body.value.generation !== 'string' ||
+        !/^[a-zA-Z0-9_-]{1,128}$/.test(body.value.generation))
+    ) {
+      sendJson(res, 400, { error: 'bad_request' });
+      return;
+    }
+    sendJson(
+      res,
+      200,
+      path === '/release'
+        ? { released: activity.release(token) }
+        : { claimed: activity.claim(token, String(body.value.generation)) },
+    );
+    return;
+  }
+  // Passive status/file reads protect their I/O while it runs without turning
+  // an idle workspace back into an indefinitely allocated workload.
+  const observation =
+    req.method === 'GET' &&
+    (EXEC_STATUS_RE.test(path) || path.startsWith('/fs/'));
+  const leave = activity.enter(!observation);
+  if (leave === null) {
+    sendJson(res, 503, { error: 'reclaiming' });
+    return;
+  }
+  try {
+    await handleOperation(req, res, url);
+  } finally {
+    leave();
+  }
+}
+
+/** The activity gate is entered before this function can await body intake,
+ * staging fetches, filesystem I/O, exec creation or stream completion. */
+async function handleOperation(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
+  const path = url.pathname;
   if (req.method === 'POST' && path === '/execs') {
     await handleExec(req, res);
     return;

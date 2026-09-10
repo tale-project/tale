@@ -19,6 +19,7 @@ import {
 } from '../../core/sandbox/quota_policy.ts';
 import { SANDBOX_AGENT_OP_KINDS } from '../../core/sandbox/session_constants.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { getSandboxDeploymentLimits } from './limits.ts';
 import { pinSession, reconcileSession, teardownSession } from './service.ts';
 import {
   getAgentNodeSandboxOp,
@@ -58,6 +59,13 @@ export function createSandboxRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+
+  app.get('/limits', async (c) => {
+    const denied = requireComputeReader(c);
+    if (denied) return denied;
+    c.header('Cache-Control', 'no-store');
+    return c.json(await getSandboxDeploymentLimits(c.get('orgId')));
+  });
 
   /** Aggregate hardware/runtime observations, separate from organization
    * policy. Only administrators and developers see host aggregates; no other org's ids are

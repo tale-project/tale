@@ -9,7 +9,7 @@ i18nLintExclude:
 
 Tale reads its configuration from a single `.env` file at the repo root. About a dozen variables are mandatory at first boot; the rest tune behaviour. This page lists every variable the [`.env.example`](https://github.com/tale-project/tale/blob/main/.env.example) ships with, what it defaults to, and which surface in the product consumes it.
 
-Groups are ordered by when you first need them: domain identity, TLS, secrets, database, instance, observability, provider encryption. If a variable changes value, restart the services that read it (`docker compose restart platform backend-api backend-worker`) for it to take effect.
+Groups are ordered by when you first need them: domain identity, TLS, secrets, database, instance, observability, provider encryption. After changing `.env`, recreate the services that read it through your deployment workflow. `docker compose restart` keeps the container's existing environment.
 
 ## How to read this page
 
@@ -231,15 +231,54 @@ Leave it unset to keep the default session lifetime. When set, an idle session e
 
 ## Sandbox infrastructure
 
-The sandbox spawner reads the settings below. Pass them into its environment and restart that service after a change; they do not change the organization policies edited in [Sandboxes](/platform/admin/sandboxes). The page reports actual runtime counts and host measurements separately from those organization allocations.
+The sandbox spawner reads the settings below. Pass them into its environment and recreate that service after a change. `SANDBOX_MAX_SESSIONS` sets the capacity shared by all organizations; an organization's three workload limits add up automatically and cannot be saved above that capacity. Manage those limits in [Sandboxes](/platform/admin/sandboxes), where actual runtime counts and host measurements appear separately from workload allocations.
 
 | Name | Default | Description |
 | --- | --- | --- |
-| `SANDBOX_MAX_SESSIONS` | `16` | Running and starting sessions across organizations on the Docker host or Kubernetes namespace. A runtime admission limit, not a CPU or memory reservation. Concurrent Kubernetes replicas enforce it on a best-effort basis; use ResourceQuota for hard namespace resource bounds. |
-| `SANDBOX_MAX_SESSIONS_PER_ORG` | `50` | Runtime ceiling for one organization across project agents, workflow runs and rendering, including idle containers that remain running. |
+| `SANDBOX_MAX_SESSIONS` | `8` | Maximum running and starting sessions across all organizations on the Docker host or in the Kubernetes namespace, including idle containers kept for reuse. This capacity does not reserve CPU or memory. Concurrent Kubernetes replicas enforce it on a best-effort basis; use ResourceQuota for hard namespace resource bounds. |
+| `SANDBOX_AGENT_CPUS` | `2` | CPU limit per agent session. Account for overlapping builds and other host workloads when choosing the session count. |
+| `SANDBOX_AGENT_MEMORY` | `4g`; `8g` with Docker inside the sandbox | Memory limit per agent session, shared with its inner Docker daemon and nested containers. An explicit value overrides either default and applies to newly created sessions. |
 | `SANDBOX_SESSION_MAX_IDLE_MS` | `1800000` (30 min) | Idle window for stopping unpinned sessions. Organization build-cache helpers also stop after this window with no potentially active organization session; their networks and cache volumes are retained. |
 | `SANDBOX_RUNTIME_IMAGE`          | `tale-sandbox-runtime:latest` | **Optional, read by the spawner.** The image every session container is created from. The default is the tag the development stack builds locally, so a host that pulls its images sets the registry one: `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, matching the rest of the stack. `tale deploy` sets it for you. |
 | `SANDBOX_DIND_INNER_POOL` | unset (automatic) | Optional inner Docker address pool for agent sessions on Docker or Kubernetes. Use a canonical RFC1918 IPv4 `/16` outside your Pod, Service and VPC networks. The runtime rejects overlaps with networks and addresses it discovers. |
+
+At full capacity, the spawner can stop a released, unpinned idle session before the idle timeout to admit new work. The daemon must confirm that no work is in progress; busy sessions and sessions with unknown state are protected. Stopping compute preserves the persistent workspace directory or volume. If no safe session can be reclaimed, admission remains blocked by the deployment capacity.
+
+### Size session capacity
+
+Start with 8, then test the tasks your deployment will run together. Browser rendering and Docker builds have different peaks; include agents, workflows and crawling across all organizations. A free session slot does not guarantee enough resources, and the spawner does not automatically adjust this setting to host memory.
+
+On Docker, sample resource use while representative tasks overlap. Repeat this command during the run; an idle snapshot does not show task peaks:
+
+```bash
+docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}'
+```
+
+Subtract the operating system, platform services, databases, build-cache helpers and a safety margin from host memory. Divide the remaining memory by the measured peak per active session and round down. For example, a 32 GiB host with 8 GiB set aside and a measured peak of 3 GiB per session gives `(32 - 8) / 3 = 8` sessions. This is a sizing example, not a benchmark. For mixed workloads, budget their simultaneous peaks together and check CPU saturation and task duration before raising the limit.
+
+An agent's 4 GiB or 8 GiB memory limit is a ceiling, not memory reserved at startup. Eight agents running Docker builds can therefore require much more memory than eight mostly idle sessions. Measure under representative load and keep headroom; increase capacity to 16 or higher only when the host can sustain it. Before lowering capacity, reduce any organization totals that exceed the new value. The default organization limits total 6, so a smaller deployment capacity also needs smaller organization limits.
+
+### Apply a capacity change
+
+Add or update this line in the deployment's `.env`, keeping its other entries. Explicit values remain in effect across upgrades; the default of 8 applies when the variable is unset.
+
+```dotenv .env
+SANDBOX_MAX_SESSIONS=8
+```
+
+For a Compose stack you manage yourself, recreate only the sandbox service using its existing local image:
+
+```bash
+docker compose up -d --no-deps --no-build --pull never sandbox
+```
+
+Use the same project, `-f` files and environment-file options as the running stack. A restart alone does not load an edited `.env`. For CLI-managed installations, apply the change through the deployment workflow in [Upgrades](/self-hosted/operate/upgrades). On Kubernetes, set the variable on the sandbox spawner Deployment and roll out that Deployment.
+
+Confirm the new deployment capacity in [Sandboxes](/platform/admin/sandboxes). With organization limits at 2/2/2 and deployment capacity at 8, the total reads **6 / 8**. Existing organization settings are preserved; saving still requires their total to fit the current capacity. Changing the capacity does not increase any container's CPU or memory limit.
+
+### After an upgrade
+
+The default capacity used to be 16, and organizations created before this release were seeded with limits of 2/4/4, a total of 10. A deployment that never set `SANDBOX_MAX_SESSIONS` therefore starts the new version with a capacity of 8 and organizations whose saved total exceeds it. Running work is not affected, and each organization keeps admitting work under its saved limits; only saving the Sandboxes page is blocked until its total fits, and lowering limits still saves. Either set `SANDBOX_MAX_SESSIONS=16` explicitly to keep the previous capacity, or ask each affected organization to lower one limit.
 
 ### Docker build caches
 

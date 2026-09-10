@@ -11,6 +11,7 @@ import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { dismissAgentQuestionNotifications } from '../collab/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { listFilesByFolder } from '../documents/agent-list.ts';
+import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
 import {
@@ -317,16 +318,15 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         const row = rows[0];
         if (!row) return { recorded: false };
         if (!['waiting', 'running', 'queued'].includes(row.status)) {
-          // Late settle after a terminal run: free the run's session now.
-          await tx`
-            UPDATE app.sandbox_sessions SET status = 'stopped'
-            WHERE org_id = ${args.organizationId}
-              AND owner_type = 'workflow_run'
-              AND (owner_id = ${args.runId}
-                   OR owner_id LIKE ${args.runId + ':%'})
-              AND status IN ('creating', 'active', 'degraded')
-              AND pinned = false
-          `;
+          // Late settle after a terminal run: the terminal door already
+          // freed the allocation while this op was still running, so its
+          // release job found the runtime busy. Now that the op is final,
+          // the same release captures a fresh ticket for the idle runtime.
+          await stopWorkflowSessionSlotsInTx(tx, {
+            organizationId: args.organizationId,
+            executionId: args.runId,
+            onlyIdle: true,
+          });
           return { recorded: false };
         }
         const checkpoints =
@@ -526,18 +526,19 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     ) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { executionId: string };
-      await sql`
-        UPDATE app.sandbox_sessions s SET status = 'stopped'
-        WHERE s.owner_type = 'workflow_run'
-          AND (s.owner_id = ${args.executionId}
-               OR s.owner_id LIKE ${args.executionId + ':%'})
-          AND s.status IN ('creating', 'active', 'degraded')
-          AND s.pinned = false
-          AND NOT EXISTS (
-            SELECT 1 FROM app.sandbox_session_ops op
-            WHERE op.session_id = s.session_id AND op.status = 'running'
-          )
-      `;
+      await sql.begin(async (tx) => {
+        const rows = await tx<{ organizationId: string }[]>`
+          SELECT org_id AS "organizationId" FROM app.automation_runs
+          WHERE id = ${args.executionId} LIMIT 1
+        `;
+        const row = rows[0];
+        if (row === undefined) return;
+        await stopWorkflowSessionSlotsInTx(tx, {
+          organizationId: row.organizationId,
+          executionId: args.executionId,
+          onlyIdle: true,
+        });
+      });
       return null;
     },
 

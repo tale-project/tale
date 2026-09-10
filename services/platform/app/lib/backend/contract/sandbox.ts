@@ -3,7 +3,14 @@
  * adapters in `../settings.ts` bind these names to authenticated HTTP routes.
  */
 
+import type { SandboxDeploymentLimits } from '@/lib/shared/schemas/sandbox-capacity';
+
 export interface SandboxContract {
+  'sandbox/session_queries_public:getSandboxDeploymentLimits': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: SandboxDeploymentLimits;
+  };
   'sandbox/session_queries_public:getSandboxCapacity': {
     kind: 'query';
     args: { organizationId: string };
@@ -99,22 +106,29 @@ export interface SandboxContract {
       lastActivityAt: null | number;
       busy: boolean;
       totalSpentCents: number;
-      currentOp: null | {
-        kind?: 'task-agent' | 'workflow-agent';
-        taskId?: string;
-        workflowRunId?: string;
-        threadId?: string;
-        execId: string;
-        status: string;
-        continuationCount?: number;
-        spentCents?: number;
-        pausedReason?: string;
-        progressText?: string;
-        startedAt: number;
-        heartbeatAt?: number;
-      };
+      /** The op the row leads with: a running one, else the latest. */
+      currentOp: null | SandboxOpView;
+      /** Every op still running in this workspace, oldest first — a project
+       * agent runs its tasks concurrently in the one workspace it owns. */
+      runningOps: SandboxOpView[];
     }>;
   };
+}
+
+/** One sandbox operation (an agent turn) as the settings page sees it. */
+interface SandboxOpView {
+  kind?: 'task-agent' | 'workflow-agent';
+  taskId?: string;
+  workflowRunId?: string;
+  threadId?: string;
+  execId: string;
+  status: string;
+  continuationCount?: number;
+  spentCents?: number;
+  pausedReason?: string;
+  progressText?: string;
+  startedAt: number;
+  heartbeatAt?: number;
 }
 
 export type SandboxCapacity =
@@ -130,6 +144,7 @@ export type SandboxCapacity =
         limit: number;
         organizationRunning: number;
         organizationStarting: number;
+        /** Deprecated compatibility field; never an organization quota. */
         organizationLimit: number;
       };
       resources: {

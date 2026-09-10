@@ -18,7 +18,14 @@ import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
+import { lockOrgAdmission } from './admission-lock.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
+import {
+  captureIdleReleaseTickets,
+  enqueueIdleSessionReleases,
+  type IdleReleaseSession,
+  type IdleReleaseTicketReader,
+} from './idle-release.ts';
 
 /**
  * The sandbox session substrate over PG — the 0.5 twin of
@@ -91,16 +98,6 @@ async function readQuota(
     'sandbox_quota',
   );
   return policy ?? DEFAULT_SANDBOX_QUOTA;
-}
-
-/** Serialize every admission decision for one org (count+rank+claim+insert). */
-async function lockOrgAdmission(
-  tx: TransactionSql,
-  organizationId: string,
-): Promise<void> {
-  await tx`
-    SELECT pg_advisory_xact_lock(hashtextextended('sandbox:' || ${organizationId}, 0))
-  `;
 }
 
 async function inFlightCount(
@@ -263,18 +260,40 @@ export async function setSessionPinned(
 /**
  * Release a project agent's standing-session slot at the end of a turn —
  * the ONE seam behind the host's settle release, its rollback after a
- * failed resume-create, and the deadline watchdog's slot free. The session
- * hibernates (`stopped`: compute released, workspace preserved, slot freed)
- * unless a sibling turn's op is still running on it or the row is pinned.
- * A freed slot is a release edge: the org's oldest parked run is woken at
- * once instead of idling until the 2-minute watchdog tick. Best-effort — a
- * wake failure must never fail the release.
+ * failed resume-create, the deadline watchdog's slot free and the task
+ * watchdog's orphan backstop. The session hibernates (`stopped`: compute
+ * released, workspace preserved, slot freed) unless a sibling turn's op is
+ * still running on it, a live turn of the agent (queued or running, not
+ * parked for capacity) still owns the slot before its exec exists, or the
+ * row is pinned. A freed slot is a release edge: the org's oldest parked
+ * run is woken at once instead of idling until the 2-minute watchdog tick.
+ * Best-effort — a wake failure must never fail the release.
  */
 export async function releaseProjectAgentSessionSlot(
   sql: Sql,
   args: { organizationId: string; agentId: string },
+  readTicket?: IdleReleaseTicketReader,
 ): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`
+  // The runtime release tickets are read BEFORE the transaction: the
+  // spawner round-trip must not run under the org's admission lock (every
+  // reserve/resume of the org would wait on it) or pin a pool connection. A
+  // ticket captured early is safe by the daemon's generation check — a turn
+  // that re-acquires the session in between rotates the generation and the
+  // release job is refused; a candidate that appears after this read gets no
+  // ticket and simply keeps its warm compute until the ordinary reaper.
+  const candidates = await sql<IdleReleaseSession[]>`
+    SELECT org_id AS "organizationId", session_id AS "sessionId"
+    FROM app.sandbox_sessions
+    WHERE owner_type = 'project_agent' AND owner_id = ${args.agentId}
+      AND org_id = ${args.organizationId}
+      AND status IN ('creating', 'active', 'degraded') AND pinned = false
+  `;
+  const tickets = await captureIdleReleaseTickets(candidates, readTicket);
+  const rows = await sql.begin(async (tx) => {
+    // Order release with re-admission before touching the owner's rows. A
+    // delayed old settle cannot uncount a newer turn's pre-exec allocation.
+    await lockOrgAdmission(tx, args.organizationId);
+    const released = await tx<IdleReleaseSession[]>`
     UPDATE app.sandbox_sessions s SET status = 'stopped'
     WHERE s.owner_type = 'project_agent' AND s.owner_id = ${args.agentId}
       AND s.org_id = ${args.organizationId}
@@ -284,8 +303,17 @@ export async function releaseProjectAgentSessionSlot(
         SELECT 1 FROM app.sandbox_session_ops op
         WHERE op.session_id = s.session_id AND op.status = 'running'
       )
-    RETURNING s.id
+      AND NOT EXISTS (
+        SELECT 1 FROM app.project_agent_runs r
+        WHERE r.org_id = s.org_id AND r.agent_id = s.owner_id
+          AND r.status IN ('queued', 'running')
+          AND r.waiting_for_capacity_at_ms IS NULL
+      )
+    RETURNING s.org_id AS "organizationId", s.session_id AS "sessionId"
   `;
+    await enqueueIdleSessionReleases(tx, released, tickets);
+    return released;
+  });
   if (rows.length > 0) {
     await wakeParkedAgentRuns(sql, args.organizationId).catch(
       (error: unknown) => {
@@ -317,6 +345,7 @@ export async function resumeSessionSlot(
       FROM app.sandbox_sessions
       WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
         AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
+      ORDER BY created_at_ms DESC
       LIMIT 1
     `;
     const row = rows[0];
@@ -525,7 +554,12 @@ export interface SandboxSessionView {
   lastActivityAt: number | null;
   status: string;
   busy: boolean;
+  /** The op the page leads with: a running one, else the latest. */
   currentOp: SandboxCurrentOpView | null;
+  /** Every op still running, oldest first. A project agent runs its tasks
+   * concurrently in the ONE workspace it owns, so the settings page lists
+   * all of them rather than one "current" turn. */
+  runningOps: SandboxCurrentOpView[];
   totalSpentCents: number;
 }
 
@@ -592,6 +626,7 @@ export async function listSandboxViewsForOrg(
     let currentRunning = false;
     let busy = false;
     let totalSpentCents = 0;
+    const running: SandboxCurrentOpView[] = [];
     for (const op of ops) {
       if (op.sessionId !== session.sessionId) continue;
       totalSpentCents += op.spentCents ?? 0;
@@ -599,13 +634,7 @@ export async function listSandboxViewsForOrg(
       // whose status never flipped must not read as "busy".
       const isRunning = op.status === 'running' && op.finalizedAt === null;
       if (isRunning) busy = true;
-      const wins =
-        current === null ||
-        (isRunning && !currentRunning) ||
-        (isRunning === currentRunning && op.startedAt > current.startedAt);
-      if (!wins) continue;
-      currentRunning = isRunning;
-      current = {
+      const view: SandboxCurrentOpView = {
         execId: op.execId,
         status: op.status,
         startedAt: op.startedAt,
@@ -629,7 +658,18 @@ export async function listSandboxViewsForOrg(
           : {}),
         ...(op.heartbeatAt !== null ? { heartbeatAt: op.heartbeatAt } : {}),
       };
+      // The same object rides both lists, so the task lookup below stamps
+      // its taskId once for both.
+      if (isRunning) running.push(view);
+      const wins =
+        current === null ||
+        (isRunning && !currentRunning) ||
+        (isRunning === currentRunning && op.startedAt > current.startedAt);
+      if (!wins) continue;
+      currentRunning = isRunning;
+      current = view;
     }
+    running.sort((a, b) => a.startedAt - b.startedAt);
     const owner = userById.get(session.createdBy);
     return {
       sessionId: session.sessionId,
@@ -646,17 +686,31 @@ export async function listSandboxViewsForOrg(
       status: session.status,
       busy,
       currentOp: current,
+      runningOps: running,
       totalSpentCents,
     };
   });
-  // Resolve task ownership only for the displayed operations, in one org-
-  // scoped read. Joining every historical op to the run ledger would repeat
-  // the lookup for a standing workspace's entire lifetime.
-  const taskOps = views.flatMap((view) =>
-    view.ownerType === 'project_agent' && view.currentOp !== null
-      ? [{ sessionId: view.sessionId, op: view.currentOp }]
-      : [],
-  );
+  // Resolve task ownership only for the displayed operations (the lead op
+  // plus every running one), in one org-scoped read. Joining every
+  // historical op to the run ledger would repeat the lookup for a standing
+  // workspace's entire lifetime.
+  const taskOpsByKey = new Map<
+    string,
+    { sessionId: string; op: SandboxCurrentOpView }
+  >();
+  for (const view of views) {
+    if (view.ownerType !== 'project_agent') continue;
+    for (const op of [
+      ...(view.currentOp !== null ? [view.currentOp] : []),
+      ...view.runningOps,
+    ]) {
+      taskOpsByKey.set(`${view.sessionId}:${op.execId}`, {
+        sessionId: view.sessionId,
+        op,
+      });
+    }
+  }
+  const taskOps = [...taskOpsByKey.values()];
   if (taskOps.length > 0) {
     const runs = await sql<
       { sessionId: string; execId: string; taskId: string }[]

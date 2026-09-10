@@ -39,6 +39,7 @@ import {
   runOneDriveSyncScan,
 } from '../domains/onedrive/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
+import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import { kickAgentRun } from '../domains/tasks/agent-runs.ts';
 import {
@@ -68,6 +69,12 @@ export type BackendTaskList = Record<string, TaskHandler>;
 const orgScaffoldSchema = z.object({
   orgSlug: z.string().min(1),
   cleanFirst: z.boolean().optional(),
+});
+
+const idleSessionReleaseSchema = z.object({
+  organizationId: z.string().min(1),
+  sessionId: z.string().min(1),
+  generation: z.string().min(1),
 });
 
 const orgCleanupSchema = z.object({
@@ -136,6 +143,12 @@ export interface TaskDeps {
  */
 export function createTaskList(deps: TaskDeps): BackendTaskList {
   return {
+    'sandbox.release_idle': async (payload) => {
+      await releaseIdleSession(
+        deps.sql,
+        idleSessionReleaseSchema.parse(payload),
+      );
+    },
     noop: (payload) => {
       console.debug(`[backend] noop task executed: ${JSON.stringify(payload)}`);
       return Promise.resolve();
@@ -439,9 +452,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
       const result = await runTaskAgentWatchdog(deps.sql);
-      if (result.failed > 0 || result.woken > 0) {
+      if (result.failed > 0 || result.released > 0 || result.woken > 0) {
         console.log(
-          `[watchdog] task agents: failed ${result.failed} overdue, woke ${result.woken} parked`,
+          `[watchdog] task agents: failed ${result.failed} overdue, released ${result.released} orphaned session(s), woke ${result.woken} parked`,
         );
       }
     },

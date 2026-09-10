@@ -2,6 +2,10 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  ACTIONS_COLUMN_SIZE,
+  SELECT_COLUMN_SIZE,
+} from '@/app/components/ui/data-table/column-builders';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
@@ -126,9 +130,14 @@ describe('ProjectsTable', () => {
   });
 
   it('shares width proportionally so metadata columns are not clustered', () => {
-    // Name is the implicit flex column; Tasks/Activity use size ratios —
-    // 152 and 110 of 240+152+92+80+88+110 = 762. No meta.flex on Tasks
-    // (that packed Overdue…Activity against the right edge).
+    // Name is the implicit flex column; Tasks/Activity get their declared
+    // size as a plain percentage of the table's floor — the content sizes
+    // 240+152+92+80+88+136 = 788 plus the pinned select + actions px — so
+    // the floor resolves to exactly the declared px and a wider table scales
+    // every column up. No meta.flex on Tasks (that packed Overdue…Activity
+    // against the right edge).
+    const floorPx = 788 + SELECT_COLUMN_SIZE + ACTIONS_COLUMN_SIZE;
+    const share = (size: number) => `${((size / floorPx) * 100).toFixed(4)}%`;
     renderTable([row({ name: 'Acme onboarding' })]);
 
     const nameHeader = screen.getByRole('columnheader', {
@@ -141,8 +150,8 @@ describe('ProjectsTable', () => {
       name: 'projects.list.columnActivity',
     });
     expect(nameHeader.style.width).toBe('');
-    expect(tasksHeader.style.width).toContain('0.1995');
-    expect(activityHeader.style.width).toContain('0.1444');
+    expect(tasksHeader.style.width).toBe(share(152));
+    expect(activityHeader.style.width).toBe(share(136));
   });
 
   it('hides low-priority columns on small screens so Name stays readable', () => {

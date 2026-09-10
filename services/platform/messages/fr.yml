@@ -7567,11 +7567,17 @@ sandboxes:
     description:
       Fixe le nombre de sessions que chaque type de travail peut utiliser à la fois.
       Les sessions occupent le quota au démarrage et pendant le travail.
-      Augmenter ces limites n'ajoute ni CPU ni mémoire ; les limites du
-      déploiement continuent de s'appliquer.
+      Le total se recalcule automatiquement et ne doit pas dépasser la capacité
+      du déploiement.
     usage: 'Allouées : {used} / {limit}'
     usageUnavailable: Allocation indisponible
     invalidSessions: Saisis un nombre entier entre 1 et 500.
+    total: Total des sessions de ton organisation
+    totalValue: '{total} / {maxSessions}'
+    totalHint: Somme des trois limites / capacité du déploiement. Les autres organisations partagent cette capacité.
+    totalExceedsDeployment: Le total de {total} sessions dépasse la capacité du déploiement de {maxSessions}. Réduis au moins une limite pour enregistrer.
+    capacityUnavailable: La capacité du déploiement est indisponible. Tu peux abaisser les limites ; actualise les données de l'infrastructure avant d'en augmenter une.
+    capacityLoading: Vérification de la capacité du déploiement…
     saveFailed: Impossible d'enregistrer les limites des sandboxes
   quota:
     budgets:
@@ -7589,13 +7595,13 @@ sandboxes:
       Ces chiffres peuvent différer des allocations : un environnement peut
       rester actif après la fin d'une tâche.
     refresh: Actualiser
-    hostSessions: Places de session sur l'hôte
-    namespaceSessions: Places de session dans le namespace
-    organizationSessions: Places d'exécution de ton organisation
+    hostSessions: Sandboxes du déploiement
+    namespaceSessions: Sandboxes du déploiement (namespace)
+    organizationSessions: Sandboxes de ton organisation
     slots: '{used} / {limit}'
     sessionStates: '{running} actives · {starting} au démarrage'
-    sessionSlotsHint: Environnements actifs ou au démarrage, toutes organisations confondues.
-    organizationSessionsHint: Tous les types de travail de ton organisation partagent cette limite de déploiement.
+    sessionSlotsHint: Actuellement actives ou au démarrage / capacité du déploiement, partagée par toutes les organisations.
+    organizationSessionsHint: Actuellement actives ou au démarrage, y compris les sandboxes inactives conservées pour être réutilisées.
     cpu: Utilisation du CPU de l'hôte
     cpuUsage: '{used} / {total} cœurs'
     cpuHint: Mesure sur l'ensemble des processus de l'hôte ; le premier relevé peut manquer.
@@ -7604,8 +7610,8 @@ sandboxes:
     memoryHint: Mémoire utilisée et totale de l'hôte, y compris les autres services.
     unknownValue: Indisponible
     operatorLimits:
-      L'équipe qui gère le déploiement fixe les limites d'exécution.
-      Une place libre ne garantit pas assez de CPU ou de mémoire pour une nouvelle session.
+      Toutes les organisations partagent la capacité fixée par l'opérateur.
+      Une place libre ne garantit pas assez de CPU ou de mémoire pour une nouvelle sandbox.
     observedAt: 'Relevé : {time}'
     scopes:
       host: Ensemble de l'hôte
@@ -7613,13 +7619,12 @@ sandboxes:
     notConfigured: Ce déploiement n'a pas d'infrastructure de sandbox configurée.
     unreachable: Impossible d'actualiser les données de l'infrastructure. L'état d'exécution et les ressources utilisées sont inconnus.
   columns:
-    owner: Espace de travail de
+    owner: Espace de travail
     agent: Agent
-    status: Exécution / allocation
-    task: Tâche en cours
+    status: Statut
+    task: Tâches en cours
     spend: Coût
     created: Créée
-    actions: Actions
   status:
     runtime:
       running: Active
@@ -7632,9 +7637,9 @@ sandboxes:
     pinned: Épinglée
   task:
     none: Aucune tâche active
-    project: Tâche de projet
-    workflow: Exécution de workflow
-    active: Exécution active
+    project: '{count, plural, one {Tâche de projet} other {# tâches de projet}}'
+    workflow: '{count, plural, one {Exécution de workflow} other {# exécutions de workflow}}'
+    active: '{count, plural, one {Exécution active} other {# exécutions actives}}'
   actions:
     stop: Arrêter la tâche
     pin: Épingler

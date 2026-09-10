@@ -16,7 +16,7 @@ const snapshot = {
     limit: 16,
     organizationRunning: 1,
     organizationStarting: 1,
-    organizationLimit: 50,
+    organizationLimit: 16,
   },
   resources: {
     cpu: { totalCores: 8, usedCores: 2.5 },

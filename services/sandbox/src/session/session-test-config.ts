@@ -7,7 +7,6 @@ import type { SessionConfig } from '../types.ts';
 
 export const TEST_SESSION_CONFIG: SessionConfig = {
   maxSessions: 10,
-  maxSessionsPerOrg: 2,
   maxLifetimeMs: 86_400_000,
   maxIdleMs: 1_800_000,
   maxLingerMs: 1_800_000,

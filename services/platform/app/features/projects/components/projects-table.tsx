@@ -285,7 +285,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         accessorKey: 'updatedAt',
         header: t('list.columnActivity'),
         // Below TanStack's default 150 so Last activity doesn't rival Name.
-        size: 110,
+        size: 136,
         meta: { className: 'hidden lg:table-cell' },
         cell: ({ row }) => (
           <span className="text-muted-foreground text-xs whitespace-nowrap">

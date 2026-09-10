@@ -12,7 +12,11 @@ image; the only thing that varies is _when the session is destroyed_:
   render.
 
 Per-org fairness is the governance `sandbox_quota` policy (separate project-agent,
-workflow and render budgets); the host ceiling is `SANDBOX_MAX_SESSIONS`.
+workflow and render budgets, default 2 each). Their total is derived, and saving
+the policy requires that total to fit the current deployment capacity,
+`SANDBOX_MAX_SESSIONS` (default 8). There is no independent organization runtime
+ceiling. Concurrent executions of the same workflow each own a separate session;
+agent and script nodes within one execution share that session.
 
 > The legacy one-shot `POST /v1/execute` route and the runtime image's one-shot
 > language lane are gone; `HostBackend` owns the
@@ -46,6 +50,48 @@ clock are authoritative. On boot the spawner re-adopts running sessions
 (`SessionRoutes.adoptExisting`); a periodic reaper (`sweepExpired`) **stops**
 sessions past their TTL (registry check) or idle timeout (runnerd `/healthz`
 `lastActivityAtMs`).
+
+### Capacity and idle reclamation
+
+The signed `GET /v1/limits` route exposes the configured `maxSessions`
+independently of runtime inventory availability. Platform reads it again on each
+quota save; forged client totals cannot bypass the sum check. Runtime occupancy
+still counts released containers that remain warm, so it can exceed the sum of
+an organization's active workload allocations.
+
+The signed session activity routes tie idle eligibility to the current
+allocation: `POST /v1/sessions/:id/acquire` marks new work and advances the
+generation; `GET /v1/sessions/:id/release` reads a release ticket; and
+`POST /v1/sessions/:id/release` conditionally releases that generation. Platform
+captures the ticket before freeing the allocation and publishes the release job
+only when that transaction commits. The job rechecks the allocation and active
+owners before release, while the generation check rejects delayed completions
+that belong to work before a reacquire.
+
+When admission reaches deployment capacity, runnerd can atomically freeze a
+released, unpinned session only if no request, file operation, staging operation
+or exec is in flight. The freeze blocks new work while the spawner removes
+compute through `stopSession`, preserving the workspace. Busy, unresponsive and
+older daemons without this protocol are ineligible. The reclaim runs outside
+the admission lock — creates that still have room never queue behind a probe
+or a backend stop — and a daemon that fails its probe is skipped for a short
+back-off instead of costing every create at capacity a health timeout. A stop
+failure retains occupied capacity and the frozen gate until a retry succeeds;
+it does not unfreeze work under a pending stop. Once runnerd has acknowledged
+the claim, the retry (the next sweep, or the next acquire for that session,
+which then answers not-found so the caller recreates at once) removes the
+compute without another probe — a container whose daemon has since died is
+still ours to remove. A replacement spawner can resume that stop after
+restart. Docker removal is fenced by container identity; Kubernetes removal is
+fenced by Pod and Secret UIDs (the Secret read through the `list` verb the
+Role grants) and waits for the original Pod to disappear before admitting a
+replacement. A different incarnation found under the name is never counted as
+freed. An acquire for a session whose create is still in flight waits for
+that create (bounded) rather than answering a false not-found.
+
+Admission is serialized by the single Docker spawner. Kubernetes replicas
+enforce the shared namespace count on a best-effort basis; use ResourceQuota
+for hard namespace resource bounds.
 
 ### Stop vs destroy — the data-preservation contract
 

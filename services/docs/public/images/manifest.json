@@ -313,6 +313,18 @@
       "height": 2400
     },
     {
+      "file": "images/platform/sandbox-infrastructure-capacity.webp",
+      "shot": "sandbox-infrastructure-capacity",
+      "route": "/dashboard/:orgId/settings/sandboxes",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1536,
+      "height": 928
+    },
+    {
       "file": "images/platform/settings-branding.webp",
       "shot": "settings-branding",
       "route": "/dashboard/:orgId/settings/branding",
@@ -366,11 +378,11 @@
       "route": "/dashboard/:orgId/settings/sandboxes",
       "viewport": {
         "width": 1440,
-        "height": 1040
+        "height": 900
       },
       "dpr": 2,
-      "width": 2880,
-      "height": 2080
+      "width": 1536,
+      "height": 1048
     },
     {
       "file": "images/platform/settings-teams.webp",

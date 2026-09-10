@@ -12,6 +12,17 @@ export type HealthResult =
   | { ok: true; detail: string }
   | { ok: false; error: string };
 
+/** A fenced stop found a DIFFERENT incarnation under the session's
+ * deterministic name than the one it was asked to stop (`expectedCreatedAtMs`
+ * mismatch, or the Pod/Secret UID moved): nothing was touched, and the caller
+ * must not count that replacement as freed. */
+export class SessionIncarnationChangedError extends Error {
+  constructor(sessionId: string, detail: string) {
+    super(`session ${sessionId} changed before idle stop (${detail})`);
+    this.name = 'SessionIncarnationChangedError';
+  }
+}
+
 export interface SweepOptions {
   /** Reap runtimes whose start time is older than this epoch-ms threshold. */
   staleBeforeMs: number;
@@ -143,8 +154,14 @@ export interface SessionBackend {
    * deletes data. Idempotent; returns false when nothing existed. THROWS on a
    * transient backend hiccup (never returns false on a blip — same contract as
    * destroySession), so the reaper leaves a flaky session for the next sweep.
+   * Pressure reclamation supplies expectedCreatedAtMs: removal is fenced to
+   * that incarnation's immutable identity and confirms compute is gone before
+   * returning. A mismatch throws without touching the replacement.
    */
-  stopSession(sessionId: string): Promise<boolean>;
+  stopSession(
+    sessionId: string,
+    expectedCreatedAtMs?: number,
+  ): Promise<boolean>;
   /** List session objects (label-selected), for boot + periodic re-adoption
    * and the route layer's registry-miss re-resolve. THROWS when the backend
    * cannot list (daemon/API hiccup) — never returns `[]` for "couldn't tell":

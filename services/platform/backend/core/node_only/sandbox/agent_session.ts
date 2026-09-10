@@ -8,8 +8,9 @@ import {
 } from '../../sandbox/session_naming';
 import {
   SessionDuplicateError,
+  SessionNotFoundError,
+  sessionAcquire,
   sessionCreate,
-  sessionIsAlive,
 } from './helpers/session_client';
 
 type SessionContext = Pick<ActionCtx, 'runQuery' | 'runMutation'>;
@@ -75,38 +76,27 @@ export async function ensureAgentSession(
     );
 
   if (existing !== null) {
-    if (await sessionIsAlive(sessionId)) {
-      // A released row may still have a warm container. It must be counted
-      // again before a new turn can run on it.
-      if (existing.status === 'stopped') {
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
-          { organizationId, sessionId },
-        );
-      }
-      return { liveCreatedAt: existing.createdAt };
-    }
-
-    // Refuse a full organization before provisioning any compute or keys.
-    await ctx.runMutation(
+    // Re-read and re-admit even when the query saw an active row: a previous
+    // turn may have released it since. This happens before acquiring warm
+    // compute, staging files or provisioning keys.
+    const admitted = await ctx.runMutation(
       internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
       { organizationId, sessionId },
     );
+    if (admitted === false)
+      throw new Error(`Sandbox allocation for ${sessionId} no longer exists`);
     try {
-      await sessionCreate({ sessionId, organizationId, profile: 'agent' });
-    } catch (error) {
-      if (!(error instanceof SessionDuplicateError)) {
-        await policy.releaseSlot().catch((releaseError: unknown) => {
-          console.warn(
-            '[sandbox.session] slot release after failed resume-create failed:',
-            releaseError,
-          );
-        });
-        throw error;
+      if (!(await sessionAcquire(sessionId))) {
+        await createOrAcquireSession(sessionId, organizationId);
       }
-      console.warn(
-        `[sandbox.session] adopting existing runtime for ${sessionId}`,
-      );
+    } catch (error) {
+      await policy.releaseSlot().catch((releaseError: unknown) => {
+        console.warn(
+          '[sandbox.session] slot release after failed resume failed:',
+          releaseError,
+        );
+      });
+      throw error;
     }
     return { liveCreatedAt: existing.createdAt };
   }
@@ -123,22 +113,35 @@ export async function ensureAgentSession(
     },
   );
   try {
-    await sessionCreate({ sessionId, organizationId, profile: 'agent' });
+    await createOrAcquireSession(sessionId, organizationId);
   } catch (error) {
-    if (!(error instanceof SessionDuplicateError)) {
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.setSessionStatus,
-        { rowId, status: 'failed' },
-      );
-      throw error;
-    }
-    console.warn(
-      `[sandbox.session] adopting existing runtime for ${sessionId} (new platform row)`,
-    );
+    await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
+      rowId,
+      status: 'failed',
+    });
+    throw error;
   }
   await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
     rowId,
     status: 'active',
   });
   return { liveCreatedAt: undefined };
+}
+
+async function createOrAcquireSession(
+  sessionId: string,
+  organizationId: string,
+): Promise<void> {
+  try {
+    await sessionCreate({ sessionId, organizationId, profile: 'agent' });
+  } catch (error) {
+    if (!(error instanceof SessionDuplicateError)) throw error;
+    // An orphan or concurrent create may already be released. Adopting its
+    // existence alone would leave the new turn eligible for an idle stop.
+    if (!(await sessionAcquire(sessionId)))
+      throw new SessionNotFoundError(sessionId);
+    console.warn(
+      `[sandbox.session] adopting existing runtime for ${sessionId}`,
+    );
+  }
 }

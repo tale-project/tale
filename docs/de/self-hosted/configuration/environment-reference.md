@@ -9,7 +9,7 @@ i18nLintExclude:
 
 Tale liest seine Konfiguration aus einer einzigen `.env`-Datei im Repo-Stammverzeichnis. Etwa ein Dutzend Variablen sind beim ersten Boot Pflicht; der Rest stimmt das Verhalten ab. Diese Seite listet jede Variable, die [`.env.example`](https://github.com/tale-project/tale/blob/main/.env.example) mitbringt, was sie als Default hat und welche Oberfläche im Produkt sie konsumiert.
 
-Gruppen sind danach geordnet, wann du sie zuerst brauchst: Domain-Identität, TLS, Secrets, Datenbank, Instanz, Observability, Provider-Verschlüsselung. Ändert sich der Wert einer Variable, starte die Services neu, die sie lesen (`docker compose restart platform backend-api backend-worker`), damit sie wirkt.
+Gruppen sind danach geordnet, wann du sie zuerst brauchst: Domain-Identität, TLS, Secrets, Datenbank, Instanz, Observability, Provider-Verschlüsselung. Erstelle nach einer Änderung an `.env` die betroffenen Dienste über deinen Deployment-Ablauf neu. `docker compose restart` behält die bisherige Umgebung des Containers bei.
 
 ## Wie du diese Seite liest
 
@@ -231,15 +231,54 @@ Lass es unset, um die Standard-Sitzungsdauer zu behalten. Wenn gesetzt, läuft e
 
 ## Sandbox-Infrastruktur
 
-Der Sandbox-Spawner liest die folgenden Einstellungen. Übergib sie seiner Umgebung und starte den Dienst nach einer Änderung neu; die unter [Sandboxes](/de/platform/admin/sandboxes) bearbeiteten Organisationskontingente bleiben davon unabhängig. Dort siehst du tatsächliche Laufzeitzahlen und Host-Messwerte getrennt von diesen Kontingenten.
+Der Sandbox-Spawner liest die folgenden Einstellungen. Übergib sie seiner Umgebung und erstelle den Dienst nach einer Änderung neu. `SANDBOX_MAX_SESSIONS` legt die gemeinsame Kapazität aller Organisationen fest. Die drei Arbeitslimits einer Organisation ergeben automatisch ihre Gesamtsumme; liegt sie über dieser Kapazität, kannst du die Limits nicht speichern. Unter [Sandboxes](/de/platform/admin/sandboxes) verwaltest du die Limits und siehst tatsächliche Laufzeitzahlen und Host-Messwerte getrennt von der Kontingentbelegung.
 
 | Name | Default | Beschreibung |
 | --- | --- | --- |
-| `SANDBOX_MAX_SESSIONS` | `16` | Laufende und startende Sessions aller Organisationen auf dem Docker-Host oder im Kubernetes-Namespace. Die Grenze reserviert weder CPU noch Arbeitsspeicher. Gleichzeitige Kubernetes-Replikate setzen sie nach bestem Bemühen durch; harte Ressourcengrenzen im Namespace setzt du mit ResourceQuota. |
-| `SANDBOX_MAX_SESSIONS_PER_ORG` | `50` | Laufzeitgrenze einer Organisation für Projektagenten, Workflow-Läufe und Rendering zusammen, einschließlich weiterlaufender Container im Leerlauf. |
+| `SANDBOX_MAX_SESSIONS` | `8` | Höchstzahl laufender und startender Sessions aller Organisationen auf dem Docker-Host oder im Kubernetes-Namespace, einschließlich weiterlaufender Container im Leerlauf. Die Kapazität reserviert weder CPU noch Arbeitsspeicher. Gleichzeitige Kubernetes-Replikate setzen sie nach bestem Bemühen durch; harte Ressourcengrenzen im Namespace setzt du mit ResourceQuota. |
+| `SANDBOX_AGENT_CPUS` | `2` | CPU-Grenze je Agent-Session. Berücksichtige bei der Session-Anzahl gleichzeitig laufende Builds und andere Aufgaben auf dem Host. |
+| `SANDBOX_AGENT_MEMORY` | `4g`; `8g` mit Docker in der Sandbox | Speichergrenze je Agent-Session, die auch für ihren inneren Docker-Daemon und dessen Container gilt. Ein expliziter Wert ersetzt beide Standardwerte und gilt für neu erstellte Sessions. |
 | `SANDBOX_SESSION_MAX_IDLE_MS` | `1800000` (30 Min.) | Leerlauffenster, nach dem nicht angepinnte Sessions stoppen. Die Build-Cache-Hilfscontainer einer Organisation stoppen ebenfalls nach diesem Fenster ohne möglicherweise aktive Session; Netzwerke und Cache-Volumes bleiben erhalten. |
 | `SANDBOX_RUNTIME_IMAGE`          | `tale-sandbox-runtime:latest` | **Optional, vom Spawner gelesen.** Das Image, aus dem jeder Session-Container entsteht. Der Default ist der Tag, den der Entwicklungs-Stack lokal baut; ein Host, der seine Images zieht, setzt deshalb den Registry-Namen: `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, passend zum Rest des Stacks. `tale deploy` setzt ihn für dich. |
 | `SANDBOX_DIND_INNER_POOL` | nicht gesetzt (automatisch) | Optionaler Adresspool für den inneren Docker-Daemon in Agent-Sessions auf Docker oder Kubernetes. Verwende ein kanonisches privates IPv4-`/16` nach RFC1918 außerhalb deiner Pod-, Service- und VPC-Netze. Die Runtime lehnt Überschneidungen mit erkannten Netzen und Adressen ab. |
+
+Bei voller Kapazität kann der Spawner eine freigegebene, nicht angepinnte Session im Leerlauf schon vor Ablauf des Leerlauffensters stoppen, um neue Arbeit zuzulassen. Der Daemon muss bestätigen, dass keine Arbeit läuft; beschäftigte Sessions und Sessions mit unbekanntem Zustand bleiben geschützt. Das dauerhafte Arbeitsverzeichnis oder Volume bleibt beim Stoppen erhalten. Lässt sich keine Session sicher freigeben, blockiert die Kapazitätsgrenze weiterhin neue Starts.
+
+### Session-Kapazität bemessen
+
+Beginne mit 8 und teste die Aufgaben, die deine Bereitstellung gleichzeitig ausführen soll. Browser-Rendering und Docker-Builds haben unterschiedliche Lastspitzen; berücksichtige Agents, Workflows und Crawling aller Organisationen. Ein freier Session-Platz garantiert keine ausreichenden Ressourcen. Der Spawner passt diese Einstellung nicht automatisch an den Host-Speicher an.
+
+Miss unter Docker den Ressourcenbedarf, während typische Aufgaben gleichzeitig laufen. Wiederhole diesen Befehl während des Durchlaufs; eine Messung im Leerlauf zeigt keine Lastspitzen:
+
+```bash
+docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}'
+```
+
+Ziehe den Bedarf von Betriebssystem, Plattformdiensten, Datenbanken und Build-Cache-Hilfscontainern sowie eine Sicherheitsreserve vom Host-Speicher ab. Teile den verbleibenden Speicher durch den gemessenen Spitzenbedarf je aktiver Session und runde ab. Beispiel: Ein Host mit 32 GiB, davon 8 GiB für Dienste und Reserve, und einem gemessenen Spitzenbedarf von 3 GiB je Session ergibt `(32 - 8) / 3 = 8` Sessions. Das ist ein Rechenbeispiel, kein Benchmark. Bei gemischten Aufgaben addierst du die gleichzeitig auftretenden Spitzen. Prüfe außerdem CPU-Auslastung und Aufgabendauer, bevor du die Grenze erhöhst.
+
+Die 4 GiB oder 8 GiB eines Agents sind eine Speicherobergrenze; beim Start reserviert er diesen Speicher nicht. Acht Agents mit laufenden Docker-Builds können daher deutlich mehr Speicher benötigen als acht überwiegend untätige Sessions. Miss unter typischer Last und halte Reserven frei. Erhöhe die Kapazität erst auf 16 oder mehr, wenn der Host die Last dauerhaft trägt. Verringere vor einer Absenkung alle Organisationssummen, die über dem neuen Wert liegen. Die Standardlimits einer Organisation ergeben 6; eine kleinere Bereitstellungskapazität braucht entsprechend kleinere Organisationslimits.
+
+### Eine Kapazitätsänderung anwenden
+
+Ergänze oder ändere diese Zeile in der `.env` deiner Bereitstellung. Behalte die übrigen Einträge bei. Explizite Werte gelten auch nach Upgrades weiter; der Standardwert 8 greift, wenn die Variable fehlt.
+
+```dotenv .env
+SANDBOX_MAX_SESSIONS=8
+```
+
+Erstelle bei einem selbst verwalteten Compose-Stack nur den Sandbox-Dienst mit seinem vorhandenen lokalen Image neu:
+
+```bash
+docker compose up -d --no-deps --no-build --pull never sandbox
+```
+
+Verwende dasselbe Projekt, dieselben `-f`-Dateien und dieselben Optionen für Umgebungsdateien wie beim laufenden Stack. Ein Neustart allein lädt eine geänderte `.env` nicht. Für CLI-verwaltete Installationen folgst du dem Deployment-Ablauf unter [Upgrades](/de/self-hosted/operate/upgrades). Setze unter Kubernetes die Variable im Deployment des Sandbox-Spawners und führe dessen Rollout aus.
+
+Prüfe die neue Bereitstellungskapazität unter [Sandboxes](/de/platform/admin/sandboxes). Bei Organisationslimits von 2/2/2 und einer Kapazität von 8 zeigt die Summe **6 / 8**. Bestehende Organisationseinstellungen bleiben erhalten; zum Speichern muss ihre Summe weiterhin in die aktuelle Kapazität passen. Die Kapazitätsänderung erhöht keine CPU- oder Speichergrenze eines Containers.
+
+### Nach einem Upgrade
+
+Die Standardkapazität lag bisher bei 16, und Organisationen aus früheren Versionen wurden mit den Limits 2/4/4 angelegt, also einer Summe von 10. Eine Bereitstellung, die `SANDBOX_MAX_SESSIONS` nie gesetzt hat, startet mit der neuen Version daher mit einer Kapazität von 8 und Organisationen, deren gespeicherte Summe darüber liegt. Laufende Arbeit ist davon nicht betroffen, und jede Organisation lässt weiterhin Arbeit unter ihren gespeicherten Limits zu; nur das Speichern der Sandbox-Seite bleibt gesperrt, bis die Summe passt, und niedrigere Limits lassen sich weiterhin speichern. Setze entweder `SANDBOX_MAX_SESSIONS=16` explizit, um die bisherige Kapazität zu behalten, oder bitte jede betroffene Organisation, ein Limit zu verringern.
 
 ### Docker-Build-Caches
 

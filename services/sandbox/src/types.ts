@@ -103,9 +103,6 @@ export interface SpawnerConfig {
 export interface SessionConfig {
   /** Spawner-wide concurrent session cap (replica-local on Docker). */
   maxSessions: number;
-  /** Per-org concurrent session cap (defense in depth; the platform's
-   * reserveSessionSlotAndInsert is the authoritative org gate). */
-  maxSessionsPerOrg: number;
   /** Hard wall-clock ceiling on a session's lifetime. */
   maxLifetimeMs: number;
   /** Idle ceiling — sessions with no runnerd activity past this are reaped. */

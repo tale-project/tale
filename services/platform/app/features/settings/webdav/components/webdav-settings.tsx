@@ -159,7 +159,7 @@ function WebdavAppPasswordsTable({
       {
         id: 'lastUsed',
         header: t('list.lastUsed'),
-        size: 123,
+        size: 152,
         meta: { align: 'right' },
         cell: ({ row }) => (
           <TableDateCell

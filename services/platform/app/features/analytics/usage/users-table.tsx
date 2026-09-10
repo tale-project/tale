@@ -87,7 +87,7 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           </div>
         ),
         meta: { align: 'right' as const },
-        size: 130,
+        size: 136,
       },
       {
         id: 'cost',

@@ -28,6 +28,7 @@
  */
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
+import type { ModelCatalogEntry } from '../../../../lib/shared/schemas/providers';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
@@ -37,6 +38,7 @@ import type { Id } from '../../lib/rows';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import {
   applyGatewayConfig,
+  ensureModelPricingOverride,
   hashVirtualKey,
   isStandardGatewayProvider,
   mintVirtualKey,
@@ -123,6 +125,58 @@ export async function buildProviderProvision(
     apiKey: resolved.secret,
     models,
   };
+}
+
+/**
+ * Tell the gateway what each allowed model costs. The gateway meters a
+ * virtual key's budget from the cost it computes per request, and its own
+ * datasheet knows nothing about an org's custom upstream records — so without
+ * this every request under such a record costs 0, the key's cap never trips,
+ * and the Sandboxes page never shows a spend. The price is the connector
+ * catalog's (the same figure the usage metrics estimate with); an entry
+ * without one is left to the gateway's datasheet. Accounting, not access
+ * control: a push that fails is logged and the session still serves, so a
+ * pricing-plane hiccup cannot refuse work — it only leaves that model's turns
+ * unmetered.
+ */
+async function pushModelPricing(
+  ctx: ActionCtx,
+  args: SessionGatewayArgs,
+): Promise<void> {
+  const connectors = await resolveProvidersForOrgId(ctx, args.organizationId);
+  const catalogs = new Map<string, readonly ModelCatalogEntry[]>();
+  for (const ref of args.allowedModels) {
+    try {
+      const connector = connectors.find(
+        (entry) => entry.name === ref.providerSlug,
+      );
+      if (!connector) continue;
+      let catalog = catalogs.get(ref.providerSlug);
+      if (catalog === undefined) {
+        catalog = await getProviderCatalog(connector);
+        catalogs.set(ref.providerSlug, catalog);
+      }
+      const pricing = catalog.find(
+        (entry) => entry.id === ref.modelId,
+      )?.pricing;
+      if (pricing === undefined) continue;
+      await ensureModelPricingOverride({
+        gatewayProvider: resolveGatewayRouting(
+          args.organizationId,
+          ref.providerSlug,
+          ref.modelId,
+        ).gatewayProvider,
+        modelId: ref.modelId,
+        inputCentsPerMillion: pricing.inputCentsPerMillion,
+        outputCentsPerMillion: pricing.outputCentsPerMillion,
+      });
+    } catch (err) {
+      console.warn(
+        `[gateway-provisioning] pricing for ${ref.providerSlug}/${ref.modelId} could not be pushed to the sandbox LLM gateway; its turns bill at the gateway's own price (0 for a custom upstream):`,
+        err,
+      );
+    }
+  }
 }
 
 /** The human sentence behind a failure — a structured refusal's
@@ -254,6 +308,8 @@ export async function provisionSessionGatewayKey(
   }
 
   await applyGatewayConfig();
+
+  await pushModelPricing(ctx, args);
 
   const minted = await mintVirtualKey({
     budgetCents: args.budgetCents,

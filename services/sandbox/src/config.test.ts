@@ -20,6 +20,8 @@ const KEYS = [
   'SANDBOX_HOST_SESSION_ROOT',
   'SANDBOX_TOKEN',
   'SANDBOX_MAX_REQUEST_BODY_BYTES',
+  'SANDBOX_MAX_SESSIONS',
+  'SANDBOX_MAX_SESSIONS_PER_ORG',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -52,6 +54,16 @@ afterEach(() => {
 function writeDeployment(obj: unknown): void {
   writeFileSync(join(cfgDir, 'deployment.json'), JSON.stringify(obj));
 }
+
+test('deployment session capacity is the only runtime cap', () => {
+  expect(loadConfig().session.maxSessions).toBe(8);
+  process.env.SANDBOX_MAX_SESSIONS = '24';
+  // A stale env entry from an older deployment cannot impose a hidden cap.
+  process.env.SANDBOX_MAX_SESSIONS_PER_ORG = '1';
+  const config = loadConfig();
+  expect(config.session.maxSessions).toBe(24);
+  expect(config.session).not.toHaveProperty('maxSessionsPerOrg');
+});
 
 describe('loadConfig — runtime tier', () => {
   test.each(['docker', 'kubernetes'])(

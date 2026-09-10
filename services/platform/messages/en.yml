@@ -7178,11 +7178,17 @@ sandboxes:
     title: Organization limits
     description:
       Set the number of sessions each workload can use at once. Allocated sessions
-      count against these limits while work starts or runs. Higher limits do not
-      add CPU or memory, and deployment limits still apply.
+      count against these limits while work starts or runs. The total updates
+      automatically and must fit within the deployment capacity.
     usage: 'Allocated: {used} / {limit}'
     usageUnavailable: Allocation data unavailable
     invalidSessions: Must be a whole number between 1 and 500.
+    total: Total organization sessions
+    totalValue: '{total} / {maxSessions}'
+    totalHint: Sum of the three limits / deployment capacity. Other organizations share this capacity.
+    totalExceedsDeployment: The total of {total} sessions exceeds the deployment capacity of {maxSessions}. Reduce one or more limits to save.
+    capacityUnavailable: Deployment capacity is unavailable. Lowering limits still saves; refresh the infrastructure data before raising one.
+    capacityLoading: Checking deployment capacity…
     saveFailed: Couldn't save sandbox limits
   quota:
     budgets:
@@ -7200,13 +7206,13 @@ sandboxes:
       differ from organization allocations because idle environments can stay
       running after a task ends.
     refresh: Refresh
-    hostSessions: Host session slots
-    namespaceSessions: Namespace session slots
-    organizationSessions: Your organization's runtime slots
+    hostSessions: Deployment sandboxes
+    namespaceSessions: Deployment sandboxes (namespace)
+    organizationSessions: Your organization's sandboxes
     slots: '{used} / {limit}'
     sessionStates: '{running} running · {starting} starting'
-    sessionSlotsHint: Running and starting environments across organizations.
-    organizationSessionsHint: All workloads in this organization share this deployment limit.
+    sessionSlotsHint: Currently running or starting / deployment capacity, shared by all organizations.
+    organizationSessionsHint: Currently running or starting, including idle sandboxes kept for reuse.
     cpu: Host CPU usage
     cpuUsage: '{used} / {total} cores'
     cpuHint: Measured across all host workloads; an initial sample may be unavailable.
@@ -7215,8 +7221,8 @@ sandboxes:
     memoryHint: Used memory and total memory across the host, including other services.
     unknownValue: Unavailable
     operatorLimits:
-      Deployment operators control runtime slot limits. A free slot does not
-      guarantee enough CPU or memory for a new session.
+      All organizations share the deployment capacity set by the operator.
+      A free place does not guarantee enough CPU or memory for a new sandbox.
     observedAt: 'Observed: {time}'
     scopes:
       host: Host scope
@@ -7224,13 +7230,12 @@ sandboxes:
     notConfigured: Sandbox infrastructure is not configured for this deployment.
     unreachable: Couldn't refresh infrastructure data. Runtime state and resource usage are unknown.
   columns:
-    owner: Workspace owner
+    owner: Workspace
     agent: Agent
-    status: Runtime / allocation
-    task: Current task
+    status: Status
+    task: Current tasks
     spend: Spend
     created: Created
-    actions: Actions
   status:
     runtime:
       running: Running
@@ -7243,9 +7248,9 @@ sandboxes:
     pinned: Pinned
   task:
     none: No active task
-    project: Project task
-    workflow: Workflow run
-    active: Active execution
+    project: '{count, plural, one {Project task} other {# project tasks}}'
+    workflow: '{count, plural, one {Workflow run} other {# workflow runs}}'
+    active: '{count, plural, one {Active execution} other {# active executions}}'
   actions:
     stop: Stop task
     pin: Pin

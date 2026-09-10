@@ -32,6 +32,10 @@ function stubGateway(
     configStatus?: number;
     configBody?: string;
     clientConfig?: Record<string, unknown>;
+    /** The gateway stored the minted key WITHOUT its budget. */
+    mintWithoutBudget?: boolean;
+    /** Overrides `GET /api/governance/pricing-overrides` lists. */
+    pricingOverrides?: Record<string, unknown>[];
   } = {},
 ): RecordedCall[] {
   const calls: RecordedCall[] = [];
@@ -74,8 +78,26 @@ function stubGateway(
       if (method === 'POST' && u.includes('/governance/virtual-keys')) {
         return Promise.resolve(
           new Response(
-            JSON.stringify({ virtual_key: { id: 'vk-1', value: 'sk-bf-x' } }),
+            JSON.stringify({
+              virtual_key: {
+                id: 'vk-1',
+                value: 'sk-bf-x',
+                budgets: opts.mintWithoutBudget ? [] : [{ id: 'budget-1' }],
+              },
+            }),
             { status: opts.writeStatus ?? 200 },
+          ),
+        );
+      }
+      if (method === 'GET' && u.includes('/governance/pricing-overrides')) {
+        const overrides = opts.pricingOverrides ?? [];
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              pricing_overrides: overrides,
+              total_count: overrides.length,
+            }),
+            { status: 200 },
           ),
         );
       }
@@ -529,9 +551,35 @@ describe('mintVirtualKey', () => {
           ],
         },
       ],
-      budget: { max_limit: 2.5, reset_duration: '1M' },
+      // Plural `budgets`: the gateway's multi-budget contract. Its decoder
+      // drops unknown fields, so the old singular `budget` was accepted with
+      // a 200 and stored an uncapped, unmetered key.
+      budgets: [{ max_limit: 2.5, reset_duration: '1M' }],
       is_active: true,
     });
+    expect(mint?.body).not.toHaveProperty('budget');
+  });
+
+  it('revokes and refuses a key the gateway stored without its budget', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const calls = stubGateway({ keyExists: true, mintWithoutBudget: true });
+    const mod = await loadModule();
+    await expect(
+      mod.mintVirtualKey({
+        budgetCents: 250,
+        allowedModels: [
+          { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+        ],
+        organizationId: ORG,
+        sessionId: 'sess-1',
+      }),
+    ).rejects.toThrow('without its budget');
+    // The uncapped key must not outlive the refusal.
+    expect(calls.at(-1)).toMatchObject({
+      method: 'DELETE',
+      url: expect.stringContaining('/api/governance/virtual-keys/vk-1'),
+    });
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('fails closed (throws, never mints) when the org has no provider key', async () => {
@@ -587,7 +635,13 @@ describe('mintVirtualKey', () => {
         }
         return Promise.resolve(
           new Response(
-            JSON.stringify({ virtual_key: { id: 'vk-2', value: 'sk-bf-y' } }),
+            JSON.stringify({
+              virtual_key: {
+                id: 'vk-2',
+                value: 'sk-bf-y',
+                budgets: [{ id: 'budget-2' }],
+              },
+            }),
             { status: 200 },
           ),
         );
@@ -655,23 +709,43 @@ describe('revokeVirtualKey', () => {
 });
 
 describe('getVirtualKeySpendCents', () => {
-  it('converts the budget usage dollars to fractional cents', async () => {
+  const spendResponse = (virtualKey: Record<string, unknown>) =>
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>
         Promise.resolve(
-          new Response(
-            JSON.stringify({
-              virtual_key: { budget: { current_usage: 0.1234 } },
-            }),
-            { status: 200 },
-          ),
+          new Response(JSON.stringify({ virtual_key: virtualKey }), {
+            status: 200,
+          }),
         ),
       ),
     );
+
+  it('converts the largest budget usage (dollars) to fractional cents', async () => {
+    // Every budget on the key meters the same requests over its own window;
+    // the longest window carries the turn's full spend.
+    spendResponse({
+      budgets: [{ current_usage: 0.05 }, { current_usage: 0.1234 }],
+    });
     const mod = await loadModule();
     await expect(mod.getVirtualKeySpendCents('vk-1')).resolves.toBeCloseTo(
       12.34,
+    );
+  });
+
+  it('still reads the pre-multi-budget singular `budget` shape', async () => {
+    spendResponse({ budget: { current_usage: 0.02 } });
+    const mod = await loadModule();
+    await expect(mod.getVirtualKeySpendCents('vk-1')).resolves.toBeCloseTo(2);
+  });
+
+  it('returns null (with a warning) for a key the gateway holds without a budget', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    spendResponse({ id: 'vk-1', budgets: [] });
+    const mod = await loadModule();
+    await expect(mod.getVirtualKeySpendCents('vk-1')).resolves.toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('carries no budget'),
     );
   });
 
@@ -786,6 +860,119 @@ describe('resolveGatewayRouting', () => {
     const b = mod.resolveGatewayRouting('org_2', 'internal', 'llama-4');
     expect(a.gatewayProvider).not.toBe(b.gatewayProvider);
     expect(a.gatewayModel).not.toBe(b.gatewayModel);
+  });
+});
+
+describe('ensureModelPricingOverride', () => {
+  const OVERRIDE = {
+    gatewayProvider: 'org_1__zai__glm-5.3-flash',
+    modelId: 'glm-5.3-flash',
+    inputCentsPerMillion: 15,
+    outputCentsPerMillion: 50,
+  };
+  const NAME = 'tale-pricing-org_1__zai__glm-5.3-flash-glm-5.3-flash';
+  // 15 ¢/M tokens = $0.15 / 1e6 tokens.
+  const PATCH = {
+    input_cost_per_token: 1.5e-7,
+    output_cost_per_token: 5e-7,
+  };
+  const pricingCalls = (calls: RecordedCall[]) =>
+    calls.filter((c) => c.url.includes('/governance/pricing-overrides'));
+
+  it('creates a provider-scoped exact-match override at the catalog price', async () => {
+    const calls = stubGateway({});
+    const mod = await loadModule();
+    await mod.ensureModelPricingOverride(OVERRIDE);
+    const [list, create] = pricingCalls(calls);
+    expect(list).toMatchObject({
+      method: 'GET',
+      url: expect.stringContaining(
+        'provider_id=org_1__zai__glm-5.3-flash&limit=',
+      ),
+    });
+    expect(create).toMatchObject({
+      method: 'POST',
+      url: expect.stringMatching(/\/api\/governance\/pricing-overrides$/),
+      body: {
+        name: NAME,
+        scope_kind: 'provider',
+        provider_id: 'org_1__zai__glm-5.3-flash',
+        match_type: 'exact',
+        pattern: 'glm-5.3-flash',
+        request_types: ['chat_completion', 'responses', 'text_completion'],
+        patch: PATCH,
+      },
+    });
+    expect(pricingCalls(calls)).toHaveLength(2);
+  });
+
+  it('updates a stale override in place when the catalog price moved', async () => {
+    const calls = stubGateway({
+      pricingOverrides: [
+        {
+          id: 'po-1',
+          name: NAME,
+          pattern: 'glm-5.3-flash',
+          match_type: 'exact',
+          request_types: ['chat_completion', 'responses', 'text_completion'],
+          pricing_patch: JSON.stringify({
+            input_cost_per_token: 1e-7,
+            output_cost_per_token: 5e-7,
+          }),
+        },
+      ],
+    });
+    const mod = await loadModule();
+    await mod.ensureModelPricingOverride(OVERRIDE);
+    expect(pricingCalls(calls)[1]).toMatchObject({
+      method: 'PUT',
+      url: expect.stringContaining('/api/governance/pricing-overrides/po-1'),
+      body: { pattern: 'glm-5.3-flash', patch: PATCH },
+    });
+    expect(pricingCalls(calls)[1]?.body).not.toHaveProperty('name');
+  });
+
+  it('leaves a matching override alone and memoizes it (one GET, then nothing)', async () => {
+    const calls = stubGateway({
+      pricingOverrides: [
+        {
+          id: 'po-1',
+          name: NAME,
+          pattern: 'glm-5.3-flash',
+          match_type: 'exact',
+          request_types: ['chat_completion', 'responses', 'text_completion'],
+          pricing_patch: JSON.stringify(PATCH),
+        },
+      ],
+    });
+    const mod = await loadModule();
+    await mod.ensureModelPricingOverride(OVERRIDE);
+    await mod.ensureModelPricingOverride(OVERRIDE);
+    expect(pricingCalls(calls)).toHaveLength(1);
+    expect(pricingCalls(calls)[0]?.method).toBe('GET');
+  });
+
+  it('pushes nothing for a zero token price (free tier / non-token billing)', async () => {
+    const calls = stubGateway({});
+    const mod = await loadModule();
+    await mod.ensureModelPricingOverride({
+      ...OVERRIDE,
+      inputCentsPerMillion: 0,
+      outputCentsPerMillion: 0,
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('throws (no memo) when the gateway rejects the write, so the next provision retries', async () => {
+    stubGateway({ writeStatus: 500 });
+    const mod = await loadModule();
+    await expect(mod.ensureModelPricingOverride(OVERRIDE)).rejects.toThrow(
+      `llm-gateway create pricing override ${NAME} failed (500)`,
+    );
+    vi.unstubAllGlobals();
+    const calls = stubGateway({});
+    await mod.ensureModelPricingOverride(OVERRIDE);
+    expect(pricingCalls(calls).map((c) => c.method)).toEqual(['GET', 'POST']);
   });
 });
 

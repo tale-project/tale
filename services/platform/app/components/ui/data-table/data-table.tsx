@@ -479,15 +479,6 @@ export function DataTable<TData, TValue = unknown>({
   const filtersDisabled =
     searchDisabled && !filters?.some((f) => f.widensResultSet);
 
-  // Floor the table at the sum of the columns' declared widths (+ the expand
-  // column when present) so a narrow viewport scrolls horizontally instead of
-  // squashing columns below their sizes. `getTotalSize()` is the real content
-  // width; the previous `columns.length * 8rem` heuristic under-counted tables
-  // with wide columns (e.g. a 240px Action column), so the auto/flex columns
-  // (Timestamp here) collapsed before the scrollbar appeared. On a wide
-  // viewport `max(100%, …)` still lets the table fill the container.
-  const tableMinWidth = `${table.getTotalSize() + (enableExpanding ? 48 : 0)}px`;
-
   // ---------------------------------------------------------------------------
   // Table body state machine
   //
@@ -687,6 +678,18 @@ export function DataTable<TData, TValue = unknown>({
     }
   }
 
+  // The table's declared floor: every content column at its declared px plus
+  // the pinned columns. `minWidth: max(100%, floor)` below floors the table
+  // here so a narrow viewport scrolls horizontally instead of squashing
+  // columns below their sizes (the earlier `columns.length * 8rem` heuristic
+  // under-counted tables with a wide column and collapsed their flex column
+  // before the scrollbar appeared), and the proportional widths are expressed
+  // against this same number so the floor resolves to exactly the declared
+  // px. Summed here rather than via `getTotalSize()`, which counts a
+  // default-sized utility column at TanStack's 150 instead of its pinned px.
+  const floorPx = contentSizeTotal + pinnedPx;
+  const tableMinWidth = `${floorPx}px`;
+
   const cellWidthStyle = (
     id: string,
     size: number | undefined,
@@ -711,12 +714,17 @@ export function DataTable<TData, TValue = unknown>({
               width: size !== undefined && size !== 150 ? size : undefined,
               maxWidth: size !== undefined && size !== 150 ? size : undefined,
             }
-          : // Proportional share of the width left after the pinned columns,
-            // using declared sizes as ratios. At the `minWidth` floor (table
-            // width == sum of declared sizes) this resolves to exactly the
-            // declared px; wider containers scale every column up.
+          : // Proportional share, using declared sizes as ratios, as a PLAIN
+            // percentage of the table width. Browsers resolve a `calc()` that
+            // mixes `%` and `px` on a fixed-layout table cell as `auto`, so
+            // the former `calc((100% - pinned) * ratio)` silently gave every
+            // content column an equal split in Chromium — and a header wider
+            // than that share painted into its neighbour. `size / floor`
+            // makes the `minWidth` floor resolve to exactly the declared px;
+            // a wider table scales every column up and the auto flex column
+            // absorbs what the px-pinned columns leave over.
             {
-              width: `calc((100% - ${pinnedPx}px) * ${((size ?? 150) / contentSizeTotal).toFixed(4)})`,
+              width: `${(((size ?? 150) / floorPx) * 100).toFixed(4)}%`,
             };
   // Wrap a utility cell's content in a fixed-width box so the column shrinks to
   // exactly its declared size (the select checkbox centered, the row-actions
@@ -806,8 +814,13 @@ export function DataTable<TData, TValue = unknown>({
                   return (
                     <TableHead
                       key={headerCell.id}
+                      // `overflow-hidden text-ellipsis`: the primitive keeps
+                      // headers on one line, so a label wider than its column
+                      // (an under-declared `size`, or a locale whose label
+                      // runs long) must clip with an ellipsis inside its own
+                      // cell — never paint over the neighbouring header.
                       className={cn(
-                        'text-sm font-medium',
+                        'overflow-hidden text-sm font-medium text-ellipsis',
                         utility && 'p-0',
                         meta?.align === 'right' && 'text-right',
                         meta?.align === 'center' && 'text-center',

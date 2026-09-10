@@ -224,9 +224,10 @@ describe('DataTable loading states', () => {
       const cells = within(firstDataRow).getAllByRole('cell');
       // First content column flexes → no fixed inline width.
       expect(cells[0].style.width).toBe('');
-      // A later column gets its proportional share (200 of 350 declared).
-      expect(cells[1].style.width).toContain('calc');
-      expect(cells[1].style.width).toContain('0.5714');
+      // A later column gets its proportional share (200 of the 350 declared
+      // floor) as a PLAIN percentage — a `calc()` mixing `%` and `px` is
+      // treated as `auto` on a fixed-layout table cell.
+      expect(cells[1].style.width).toBe('57.1429%');
     });
 
     it('applies explicit column size to skeleton row cells', () => {
@@ -241,8 +242,7 @@ describe('DataTable loading states', () => {
 
       const skeletons = getSkeletonRows();
       const cells = within(skeletons[0]).getAllByRole('cell');
-      expect(cells[1].style.width).toContain('calc');
-      expect(cells[1].style.width).toContain('0.5714');
+      expect(cells[1].style.width).toBe('57.1429%');
     });
   });
 

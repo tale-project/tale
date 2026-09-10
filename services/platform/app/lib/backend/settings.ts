@@ -506,6 +506,18 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
       refetchInterval: 15_000,
     };
   },
+  'sandbox/session_queries_public:getSandboxDeploymentLimits': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'sandbox_session', 'deployment-limits'),
+      queryFn: () =>
+        backendFetch<
+          ReturnsOf<'sandbox/session_queries_public:getSandboxDeploymentLimits'>
+        >('/sandbox/limits', { orgId }),
+      refetchInterval: 15_000,
+    };
+  },
   'sandbox/session_queries_public:getSandboxCapacity': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;

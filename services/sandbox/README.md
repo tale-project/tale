@@ -36,10 +36,26 @@ docker exec tale-sandbox bun /app/src/control-cli.ts drain-status   # {draining,
 
 ## Capacity observations
 
+`GET /v1/limits` uses the same HMAC authentication as session operations and
+returns the configured `maxSessions` without requiring a Docker or Kubernetes
+inventory. `SANDBOX_MAX_SESSIONS` defaults to 8 and is the one deployment
+capacity shared by all organizations. Platform adds an organization's three
+`sandbox_quota` workload limits (defaults 2/2/2) and refuses a save if the sum
+exceeds the current deployment capacity or that capacity cannot be read.
+There is no independently configured organization runtime ceiling.
+
+Size the ceiling against measured task peaks and the host resources remaining
+after platform services and safety headroom. See the
+[self-hosted capacity configuration guide](../../docs/en/self-hosted/configuration/environment-reference.md#size-session-capacity)
+for the sizing example and how to apply an environment override.
+
 `GET /v1/capacity?organizationId=<id>` uses the same HMAC authentication as
-session operations. It returns aggregate runtime slot use, configured admission
-ceilings, and only the requesting organization's session ids. Platform exposes
-aggregates to admins and developers; workspace details remain admin-only.
+session operations. It returns aggregate runtime occupancy, the deployment
+capacity, and only the requesting organization's session ids. The legacy
+`sessions.organizationLimit` response field mirrors the deployment capacity
+for older clients; it does not represent another organization limit. Platform
+shows the organization's runtime count without a denominator. Aggregates are
+visible to admins and developers; workspace details remain admin-only.
 
 Docker observations come from labeled containers and Docker daemon totals.
 Local Linux hosts also report CPU deltas and used memory (`MemTotal` minus
@@ -56,7 +72,16 @@ the settings page refreshes every 15 seconds and marks unavailable metrics.
 
 Platform quota allocation and physical runtime state have separate lifecycles:
 finishing work can release an org allocation while its idle container stays
-running. The capacity inventory includes that container until it stops.
+running. The capacity inventory includes that container until it stops. At
+capacity, the spawner can reclaim an explicitly released, unpinned idle session
+after runnerd atomically confirms and freezes its activity. Busy or unknown
+sessions stay protected; stopping compute preserves the workspace. See the
+[session lifecycle contract](docs/sessions.md#capacity-and-idle-reclamation)
+for release ordering and failure handling.
+
+Docker admission serializes creates through the host's single spawner.
+Concurrent Kubernetes replicas enforce the namespace capacity on a best-effort
+basis; use ResourceQuota for hard namespace resource bounds.
 
 ## Organization build caches
 
