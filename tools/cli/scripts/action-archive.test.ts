@@ -37,14 +37,21 @@ function git(
   args: string[],
   environment?: Record<string, string>,
 ): Buffer<ArrayBuffer> {
-  const child = Bun.spawnSync(['git', ...args], {
-    cwd: repository,
-    env: { ...process.env, ...environment },
-    timeout: 30_000,
-    killSignal: 'SIGKILL',
-  });
+  // Model GitHub's source bytes, independently of a Windows checkout's CRLF
+  // preference. Command-local overrides leave the developer's Git config intact.
+  const child = Bun.spawnSync(
+    ['git', '-c', 'core.autocrlf=false', '-c', 'core.eol=lf', ...args],
+    {
+      cwd: repository,
+      env: { ...process.env, ...environment },
+      timeout: 30_000,
+      killSignal: 'SIGKILL',
+    },
+  );
   if (child.exitCode !== 0)
-    throw new Error(`Git archive fixture failed: ${child.stderr.toString()}`);
+    throw new Error(
+      `Git archive fixture failed (exit ${child.exitCode}, signal ${child.signalCode ?? 'none'}): ${child.stderr.toString()}`,
+    );
   return Buffer.from(child.stdout);
 }
 
@@ -65,10 +72,13 @@ test('the real source ZIP excludes only dangling fixture links and retains the s
   const archivePath = join(root, 'source.zip');
   // This tests uncommitted attribute corrections without writing the active
   // Git index. Published commits use the same attributes through git archive.
+  // Store entries without compression: this proves inventory, link metadata,
+  // CRCs and source bytes; compressing every asset only adds CI CPU contention.
   git([
     'archive',
     '--worktree-attributes',
     '--format=zip',
+    '-0',
     `--output=${archivePath}`,
     'HEAD',
   ]);

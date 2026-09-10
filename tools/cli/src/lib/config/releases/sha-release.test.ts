@@ -5,7 +5,13 @@ import path from 'node:path';
 import { unpack } from './archive';
 import { compile } from './compiler';
 import { committedEntries } from './git';
-import { loadClient, releaseIdentity, skillBindings, sha256 } from './identity';
+import {
+  loadClient,
+  releaseIdentity,
+  repoPath,
+  skillBindings,
+  sha256,
+} from './identity';
 import { loadRelease, validateManifest } from './manifest';
 import { buildRelease, verifyArtifact } from './release';
 import { stageRelease, verifyStage } from './stage';
@@ -84,7 +90,7 @@ test('full SHA skills fit the native budget and shortened logical collisions fai
         committedEntries(
           pack.root,
           pack.options.sourceCommit,
-          path.relative(pack.root, pack.pack),
+          repoPath(pack.root, pack.pack),
         ),
         pack.descriptor.automations[0],
         left,

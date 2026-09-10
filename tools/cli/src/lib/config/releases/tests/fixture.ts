@@ -7,6 +7,7 @@ import path from 'node:path';
 import { stringify } from 'yaml';
 
 import { verifyArtifactBytes } from '../artifacts';
+import { repoPath } from '../identity';
 import { buildRelease, type BuildOptions } from '../release';
 
 const roots: string[] = [];
@@ -101,6 +102,14 @@ export function fixture(
     }).trim();
   git('init', '--quiet');
   git('add', '--all');
+  // Git owns the fixture's source modes; NTFS cannot persist chmod requests.
+  for (const skill of skills)
+    git(
+      'update-index',
+      '--chmod=+x',
+      '--',
+      repoPath(root, path.join(pack, 'skills', skill, 'scripts/run.py')),
+    );
   git(
     '-c',
     'user.name=Test',
