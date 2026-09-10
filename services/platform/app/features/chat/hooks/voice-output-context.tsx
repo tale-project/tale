@@ -473,27 +473,3 @@ export function useActivePlaybackWriter(): {
     [stores],
   );
 }
-
-/**
- * Reader: subscribe to the active-playback channel and return the
- * snapshot iff its `messageId` matches the caller's. Non-active
- * consumers (every other assistant bubble in the chat) get `null`
- * and so never re-render on chunk advances elsewhere.
- *
- * `useSyncExternalStore` is required (not plain `useState`) because
- * the store is a mutable singleton that any player can write to;
- * React 18 concurrent rendering would otherwise tear under writes
- * mid-render.
- */
-export function useActivePlaybackForMessage(
-  messageId: string | undefined,
-): ActivePlaybackSnapshot | null {
-  const stores = useContext(VoiceOutputStoresContext);
-  const snapshot = useSyncExternalStore(
-    (listener) => stores.activePlayback.subscribe(listener),
-    () => stores.activePlayback.read(),
-    () => null,
-  );
-  if (!messageId || !snapshot) return null;
-  return snapshot.messageId === messageId ? snapshot : null;
-}

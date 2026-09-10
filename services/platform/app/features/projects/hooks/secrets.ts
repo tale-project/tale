@@ -17,10 +17,6 @@ export function useSetProjectSecret() {
   return useBackendAction('projects/secrets/actions:setProjectSecret');
 }
 
-export function useSetProjectSecretPair() {
-  return useBackendAction('projects/secrets/actions:setProjectSecretPair');
-}
-
 export function useDeleteProjectSecret() {
   return useBackendAction('projects/secrets/actions:deleteProjectSecret');
 }

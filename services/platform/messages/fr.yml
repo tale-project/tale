@@ -1697,10 +1697,6 @@ common:
     title: Page introuvable
     description: La page que tu cherches n'existe pas ou a peut-être été déplacée.
     backToDashboard: Retour au tableau de bord
-  localeTabs:
-    default: défaut
-    untranslated: non traduit
-    autoTranslate: Traduire automatiquement
   discardChangesConfirm: Abandonner les modifications non enregistrées ?
   moveUp: Monter
   moveDown: Descendre
@@ -5689,10 +5685,6 @@ settings:
     card:
       facts: '{format} · {host}'
       factsPerCredential: '{format} · endpoint défini par identifiant'
-      sourceStatic: Catalogue intégré
-      sourceOpenrouterApi: Catalogue OpenRouter
-      sourceModelsEndpoint: Endpoint models du fournisseur
-      sourceNone: Pas de catalogue
       modelCount: '{count, plural, one {# modèle} other {# modèles}}'
       catalogUnavailable: 'Catalogue de modèles indisponible : {error}'
     credential:
@@ -7171,9 +7163,7 @@ websites:
       Résidence des données, puis reprends l'analyse.
   scanPausedBadge: Suspendu
   resumeScanning: Reprendre l'analyse
-  viewPages: Voir les pages
   indexed: Indexé
-  indexedTooltip: '{percentage} % - {crawled} sur {total} pages'
   pagesDialog:
     title: Pages du site web
     noPages: Aucune page explorée pour le moment

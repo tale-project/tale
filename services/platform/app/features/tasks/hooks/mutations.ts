@@ -36,10 +36,6 @@ export function useAssignTask() {
   });
 }
 
-export function useClaimTask() {
-  return useBackendMutation('tasks/mutations:claimTask');
-}
-
 export function useAddTaskComment() {
   return useBackendMutation('tasks/mutations:addTaskComment');
 }
@@ -58,10 +54,6 @@ export function useArchiveTask() {
 
 export function useRestoreTask() {
   return useBackendMutation('tasks/mutations:restoreTask');
-}
-
-export function useDeleteTask() {
-  return useBackendMutation('tasks/mutations:deleteTask');
 }
 
 export function useMoveTask() {
@@ -118,10 +110,6 @@ export function useCancelTaskAgentRun() {
 
 export function useSubscribeToTask() {
   return useBackendMutation('collab/subscriptions:subscribeToTask');
-}
-
-export function useUnsubscribeFromTask() {
-  return useBackendMutation('collab/subscriptions:unsubscribeFromTask');
 }
 
 export function useSetTaskMuted() {

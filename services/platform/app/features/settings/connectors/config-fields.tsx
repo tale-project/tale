@@ -52,7 +52,7 @@ function isSupplied(value: string | number | boolean | undefined): boolean {
   return true;
 }
 
-export function ConnectorConfigFields({
+function ConnectorConfigFields({
   vendor,
   value,
   onChange,

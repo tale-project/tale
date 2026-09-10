@@ -2,10 +2,8 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -93,32 +91,5 @@ export function useRegisterActiveEditor(controller: EditorController): void {
       setActive(null);
     },
     [setActive],
-  );
-}
-
-/**
- * Imperatively clears the active editor — used by the layout when no child
- * has registered (e.g. user is on Files tab which has no form).
- */
-export function useClearActiveEditor() {
-  const setActive = useContext(SetterContext);
-  return useCallback(() => setActive?.(null), [setActive]);
-}
-
-/**
- * Memo-friendly wrapper that some consumers use to keep the same registry
- * shape they had before the split (defensive in case a future caller wants
- * an opaque handle). The setter is already stable from `useState`, so we
- * just return a stable object.
- */
-export function useActiveEditorRegistry() {
-  const setActive = useContext(SetterContext);
-  const active = useContext(ControllerContext);
-  return useMemo(
-    () => ({
-      active,
-      set: setActive,
-    }),
-    [active, setActive],
   );
 }

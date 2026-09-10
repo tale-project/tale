@@ -30,7 +30,7 @@ export interface QueryStateInput<Data> {
  * `data === undefined` reliably means "still loading". Errors are never
  * conflated with empty data.
  */
-export function useQueryState<Data>(
+function useQueryState<Data>(
   result: QueryStateInput<Data>,
 ): QueryStateView<Data> {
   if (result.isError) {

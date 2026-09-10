@@ -183,22 +183,6 @@ export interface CredentialExtraModule<V, Cred, Extra> {
   }> | null;
 }
 
-/**
- * The no-op extra module, for a surface with no extra fields. A factory rather
- * than a shared constant so it types against the caller's own vendor and
- * credential types instead of forcing a cast at the assignment.
- */
-export function noExtras<V, Cred>(): CredentialExtraModule<V, Cred, undefined> {
-  return {
-    empty: () => undefined,
-    fromCredential: () => undefined,
-    isDirty: () => false,
-    createArgs: () => ({}),
-    editArgs: () => ({}),
-    Fields: null,
-  };
-}
-
 export interface CredentialAdapter<
   V extends CredentialVendor,
   Cred extends CredentialLike,

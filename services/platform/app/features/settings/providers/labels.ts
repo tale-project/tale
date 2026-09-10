@@ -35,21 +35,6 @@ export function authMethodLabel(t: Translator, method: string): string {
   }
 }
 
-export function catalogSourceLabel(t: Translator, source: string): string {
-  switch (source) {
-    case 'static':
-      return t('providers.card.sourceStatic');
-    case 'openrouter-api':
-      return t('providers.card.sourceOpenrouterApi');
-    case 'models-endpoint':
-      return t('providers.card.sourceModelsEndpoint');
-    case 'none':
-      return t('providers.card.sourceNone');
-    default:
-      return source;
-  }
-}
-
 export function apiFormatLabel(t: Translator, format: string): string {
   switch (format) {
     case 'openai':

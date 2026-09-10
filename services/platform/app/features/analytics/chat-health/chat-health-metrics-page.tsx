@@ -334,7 +334,7 @@ interface ChatHealthMetricsPageViewProps {
 // Presentational view — no data hooks. Rendered live and, while stats load,
 // wrapped in `<Skeletonize>` so loading and loaded layouts share one tree: the
 // StatCards mask their values and the breakdown lists render skeleton rows.
-export function ChatHealthMetricsPageView({
+function ChatHealthMetricsPageView({
   health,
   guardrails,
   period,

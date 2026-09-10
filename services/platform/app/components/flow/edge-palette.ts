@@ -25,16 +25,8 @@ export const FLOW_EDGE_COLORS = {
   error: 'hsl(var(--destructive))',
 } as const;
 
-export type FlowEdgeSemantic = keyof typeof FLOW_EDGE_COLORS;
-
 /** One stroke width for every edge on the canvas. */
 export const FLOW_EDGE_STROKE_WIDTH = 2;
 
 /** One arrowhead size for every edge on the canvas. */
 export const FLOW_EDGE_MARKER_SIZE = 18;
-
-/**
- * Which badge treatment an edge label gets. Kept semantic (not raw colors) so
- * the edge renderer can pick AA-contrast token classes per theme.
- */
-export type FlowEdgeLabelVariant = 'positive' | 'negative' | 'neutral';

@@ -48,10 +48,7 @@ const DatePickerWithRange = lazyComponent(
 // (`filters/filter-panel`), so the card catalogs can use them without importing
 // out of `data-table`. Re-exported here for the table callers that already
 // import them from this module.
-export {
-  isFilterActive,
-  isFilterAffordanceDisabled,
-} from '@/app/components/ui/filters/filter-panel';
+export { isFilterActive } from '@/app/components/ui/filters/filter-panel';
 export type {
   FilterConfig,
   FilterOption,

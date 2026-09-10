@@ -39,13 +39,6 @@ function parseUploadPolicyConfig(
   return null;
 }
 
-export function usePiiConfig(organizationId: string) {
-  return useBackendQuery('governance/queries:getPolicy', {
-    organizationId,
-    policyType: 'pii_config' as const,
-  });
-}
-
 export function useGovernancePolicy(
   organizationId: string,
   policyType: PolicyType,
@@ -62,12 +55,6 @@ export function useDsarPolicyForUi(organizationId: string) {
   });
 }
 
-export function useMyFeatureFlags(organizationId: string) {
-  return useBackendQuery('governance/queries:getMyFeatureFlags', {
-    organizationId,
-  });
-}
-
 export function useMyBudgetStatus(
   organizationId: string,
   selectedTeamId?: string | null,
@@ -76,16 +63,6 @@ export function useMyBudgetStatus(
     organizationId,
     selectedTeamId: selectedTeamId ?? null,
   });
-}
-
-export function useAccessibleModels(
-  organizationId: string,
-  modelIds: string[],
-) {
-  return useBackendQuery(
-    'governance/queries:getAccessibleModelsForUser',
-    modelIds.length > 0 ? { organizationId, modelIds } : 'skip',
-  );
 }
 
 /**
@@ -224,18 +201,6 @@ export function useLegalHoldByTarget(args: {
           targetType: args.targetType,
           targetId: args.targetId,
         }
-      : 'skip',
-  );
-}
-
-export function useActiveHoldTargetIds(args: {
-  organizationId: string | undefined;
-  targetType: LegalHoldTargetType;
-}) {
-  return useBackendQuery(
-    'governance/legal_hold_queries:listActiveHoldTargetIds',
-    args.organizationId
-      ? { organizationId: args.organizationId, targetType: args.targetType }
       : 'skip',
   );
 }

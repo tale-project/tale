@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 
 /** Marks a canvas node button so focus can return there after the inspector closes. */
-export const AUTOMATION_NODE_ATTR = 'data-automation-node';
+const AUTOMATION_NODE_ATTR = 'data-automation-node';
 
 export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;

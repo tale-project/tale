@@ -49,7 +49,7 @@ export type HarnessStatus =
   ItemOf<'lib/providers/harness_status:listHarnessStatus'>;
 
 /** React-query key of the harness status listing. */
-export function harnessStatusQueryKey(organizationId: string) {
+function harnessStatusQueryKey(organizationId: string) {
   return ['providers', 'harness-status', organizationId] as const;
 }
 

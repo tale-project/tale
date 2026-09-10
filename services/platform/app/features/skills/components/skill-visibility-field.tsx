@@ -22,7 +22,7 @@ export interface SkillSharingValue {
  * who has it — org → anything narrower, or a team dropped from the list.
  * Widening (private → team/org, adding teams) never warns.
  */
-export function isNarrowingSharingChange(
+function isNarrowingSharingChange(
   current: SkillSharingValue,
   next: SkillSharingValue,
 ): boolean {

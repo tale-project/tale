@@ -30,7 +30,7 @@ export type TaskTimelineEntry =
   | { kind: 'agentRun'; at: number; run: TaskAgentRunRow };
 
 /** How far apart an activity row and agent run may be to share workflow context. */
-export const WORKFLOW_CONTEXT_INFERENCE_WINDOW_MS = 5 * 60 * 1000;
+const WORKFLOW_CONTEXT_INFERENCE_WINDOW_MS = 5 * 60 * 1000;
 
 /** When a workflow-sentinel activity row lacks stored context, borrow from the nearest run. */
 export function inferWorkflowContextFromRuns(

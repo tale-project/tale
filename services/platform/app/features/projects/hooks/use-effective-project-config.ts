@@ -1,7 +1,4 @@
-import { useMemo } from 'react';
-
 import type { ProjectListItem } from './queries';
-import { useProject } from './queries';
 
 export interface EffectiveProjectConfig {
   /** Recommended agent slugs in display order (`recommended` mode). */
@@ -128,13 +125,4 @@ export function deriveEffectiveProjectConfig(
     filterAgents,
     filterModels,
   };
-}
-
-export function useEffectiveProjectConfig(projectId: string | undefined) {
-  const { project, isLoading } = useProject(projectId);
-  const config = useMemo(
-    () => deriveEffectiveProjectConfig(project),
-    [project],
-  );
-  return { config, project, isLoading };
 }

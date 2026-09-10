@@ -23,7 +23,7 @@ import type { ChatMessageItem, ChatMessageUsage } from '../types';
  * settled row's parts are immutable, so two texts of equal length on the same
  * row are the same text.
  */
-export function samePart(a: MessagePart, b: MessagePart): boolean {
+function samePart(a: MessagePart, b: MessagePart): boolean {
   if (a === b) return true;
   if (a.type !== b.type) return false;
   switch (a.type) {
@@ -76,7 +76,7 @@ export function samePart(a: MessagePart, b: MessagePart): boolean {
   }
 }
 
-export function sameParts(
+function sameParts(
   a: readonly MessagePart[],
   b: readonly MessagePart[],
 ): boolean {

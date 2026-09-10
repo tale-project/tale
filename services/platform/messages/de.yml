@@ -1686,10 +1686,6 @@ common:
     title: Seite nicht gefunden
     description: Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.
     backToDashboard: Zurück zum Dashboard
-  localeTabs:
-    default: Standard
-    untranslated: nicht übersetzt
-    autoTranslate: Automatisch übersetzen
   discardChangesConfirm: Ungespeicherte Änderungen verwerfen?
   moveUp: Nach oben
   moveDown: Nach unten
@@ -5577,10 +5573,6 @@ settings:
     card:
       facts: '{format} · {host}'
       factsPerCredential: '{format} · Endpunkt pro Eintrag'
-      sourceStatic: Mitgelieferter Katalog
-      sourceOpenrouterApi: OpenRouter-Katalog
-      sourceModelsEndpoint: Models-Endpunkt des Anbieters
-      sourceNone: Kein Katalog
       modelCount: '{count, plural, one {# Modell} other {# Modelle}}'
       catalogUnavailable: 'Modellkatalog nicht verfügbar: {error}'
     credential:
@@ -7053,9 +7045,7 @@ websites:
       Datenresidenz und setze die Scans danach fort.
   scanPausedBadge: Pausiert
   resumeScanning: Scans fortsetzen
-  viewPages: Seiten anzeigen
   indexed: Indexiert
-  indexedTooltip: '{percentage} % – {crawled} von {total} Seiten'
   pagesDialog:
     title: Website-Seiten
     noPages: Noch keine Seiten gecrawlt

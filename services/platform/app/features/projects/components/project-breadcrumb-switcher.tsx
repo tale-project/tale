@@ -12,7 +12,7 @@ import { useProjects } from '../hooks/queries';
 import { projectSwitchPathname } from '../lib/project-switch-path';
 
 /** Sentinel value for the Tasks-only "All projects" aggregate scope. */
-export const ALL_PROJECTS_SWITCHER_VALUE = '__all_projects__';
+const ALL_PROJECTS_SWITCHER_VALUE = '__all_projects__';
 
 /** True when the pathname is a project Tasks view (board/list/alias). */
 export function isProjectTasksPath(

@@ -15,10 +15,29 @@ import {
 } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import type { DecoratorFunction } from 'storybook/internal/types';
+import { sb } from 'storybook/test';
 
 import { i18n } from '../lib/i18n/i18n';
 
 import '../app/globals.css';
+
+// Connected settings stories supply their own data and mutations. Spy mode
+// preserves the real implementations for stories that do not override them.
+sb.mock(import('../app/features/settings/branding/hooks/mutations.ts'), {
+  spy: true,
+});
+sb.mock(import('../app/features/settings/governance/hooks/mutations.ts'), {
+  spy: true,
+});
+sb.mock(import('../app/features/settings/governance/hooks/queries.ts'), {
+  spy: true,
+});
+sb.mock(import('../app/features/settings/organization/hooks/queries.ts'), {
+  spy: true,
+});
+sb.mock(import('../app/features/settings/teams/hooks/queries.ts'), {
+  spy: true,
+});
 
 const rootRoute = createRootRoute();
 const indexRoute = createRoute({

@@ -134,7 +134,7 @@ export function useProjectDependencies(projectId: string | undefined) {
 
 /** How many comments the discussion shows before asking to load earlier
  * ones — the whole discussion for every task under it. */
-export const TASK_DISCUSSION_PAGE_SIZE = 200;
+const TASK_DISCUSSION_PAGE_SIZE = 200;
 
 /**
  * The task's discussion, NEWEST comment first, as a page walk: the first

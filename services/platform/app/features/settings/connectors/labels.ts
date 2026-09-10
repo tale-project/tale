@@ -7,18 +7,7 @@
  * something honest.
  */
 
-import type { StorableAuthMethodName } from '@/lib/shared/schemas/connectors';
-
 type Translator = (key: string, options?: Record<string, unknown>) => string;
-
-const AUTH_METHODS = new Set<string>(['api-key', 'bearer', 'basic', 'oauth2']);
-
-/** Narrows a picker's raw string back to the STORABLE connector vocabulary
- * (`platform` never reaches a picker), so a value from outside it is ignored
- * instead of asserted into the union. */
-export function isAuthMethod(value: string): value is StorableAuthMethodName {
-  return AUTH_METHODS.has(value);
-}
 
 export function authMethodLabel(t: Translator, method: string): string {
   switch (method) {

@@ -12,7 +12,7 @@ import {
   memberInsertHandle,
 } from './mention-handles';
 
-export const MAX_MENTION_OPTIONS = 8;
+const MAX_MENTION_OPTIONS = 8;
 
 export interface MentionActorOption {
   type: 'user' | 'agent' | 'automation';

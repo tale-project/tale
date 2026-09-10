@@ -19,7 +19,7 @@
  *  - Client-side synthetic codes (UNKNOWN_NETWORK, QUEUE_OVERFLOW,
  *    AUDIO_DECODE, AUDIO_FETCH_AUTH).
  */
-export function voiceErrorMessageKey(
+function voiceErrorMessageKey(
   code: string | undefined,
   /**
    * Key returned for codes that don't match any specific branch

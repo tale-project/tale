@@ -49,6 +49,9 @@ export default {
     'services/platform': {
       vite: { config: ['vite.config.ts'] },
       entry: [
+        // Frontend modules are reached through the SPA/routes and the
+        // Vite/Vitest/Storybook plugins. Making their whole directories
+        // entries hides orphan files and unused exports.
         'app/routes/**/*.tsx',
         'scripts/**/*.ts',
         // Bun production server — invoked by docker-entrypoint.sh, not from
@@ -61,9 +64,6 @@ export default {
         // logic under `backend/core/` and `backend/integration-check.ts`
         // (invoked by `backend:integration`).
         'backend/**/*.ts',
-        'app/features/**/*.{ts,tsx}',
-        'app/hooks/**/*.{ts,tsx}',
-        'app/components/**/*.{ts,tsx}',
         // Mock gateway (folded in from @tale/mocks): the `start` entry is
         // launched by playwright's webServer (`bun lib/mocks/start.ts`), not
         // imported, so knip can't auto-detect it. It anchors gateway/registry.

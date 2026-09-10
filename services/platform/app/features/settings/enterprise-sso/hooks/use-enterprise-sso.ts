@@ -22,10 +22,6 @@ export function useUpsertSaml() {
   return useBackendAction('enterprise_sso/config/actions:upsertSaml');
 }
 
-export function useSetProvisioning() {
-  return useBackendAction('enterprise_sso/config/actions:setProvisioning');
-}
-
 export function useTestSsoConnection() {
   return useBackendAction('enterprise_sso/config/actions:testConnection');
 }

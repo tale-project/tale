@@ -25,13 +25,6 @@ export function useSsoSelectableOrgs() {
   return useQuery(ssoSelectableQuery());
 }
 
-export function useHasMicrosoftAccount() {
-  return useQuery({
-    ...accountFlagsQuery(),
-    select: (flags) => flags.hasMicrosoftAccount,
-  });
-}
-
 export function useHasCredentialAccount() {
   return useQuery({
     ...accountFlagsQuery(),

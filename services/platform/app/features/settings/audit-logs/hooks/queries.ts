@@ -1,18 +1,5 @@
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import type { AuditLogFilter } from '@/backend/domains/audit_logs/service';
-
-export function useListAuditLogs(
-  organizationId: string,
-  filter?: AuditLogFilter,
-  limit = 50,
-) {
-  return useBackendQuery('audit_logs/queries:listAuditLogs', {
-    organizationId,
-    filter,
-    limit,
-  });
-}
 
 interface ListAuditLogsPaginatedArgs {
   organizationId: string;

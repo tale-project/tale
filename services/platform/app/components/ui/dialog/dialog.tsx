@@ -317,5 +317,3 @@ export function Dialog({
     </DialogPrimitive.Root>
   );
 }
-
-export const DialogClose = DialogPrimitive.Close;

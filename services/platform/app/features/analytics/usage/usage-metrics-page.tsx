@@ -70,7 +70,7 @@ interface UsageMetricsPageViewProps {
 // mask their numeric values; the chart reserves its `h-72` plot; the four
 // DataTables render skeleton rows from `isLoading`.
 // =============================================================================
-export function UsageMetricsPageView({
+function UsageMetricsPageView({
   data,
   isLoading,
   periodDays,

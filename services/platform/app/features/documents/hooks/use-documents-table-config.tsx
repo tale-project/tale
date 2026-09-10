@@ -311,8 +311,7 @@ export function useDocumentsTableConfig({
             // `w-0 min-w-full` ties the clip box to the `<td>` content width
             // under `table-fixed` — bare `truncate` + `max-w-*` on the text
             // alone can still paint into the Modified column (emails are one
-            // unbreakable token). Matches the two-line cell wrapper in
-            // `cell-kinds.tsx`. `title` keeps the full value on hover.
+            // unbreakable token). `title` keeps the full value on hover.
             <div className="w-0 min-w-full overflow-hidden">
               <Text
                 as="span"
