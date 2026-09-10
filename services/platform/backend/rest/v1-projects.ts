@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
+import { transactSerializable } from '@tale/shared/db/serializable';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { projectAgentInputSchema } from '../../lib/shared/schemas/projects.ts';
 import {
   createDocumentFromUpload,
+  DocumentError,
   loadDocumentOrThrow,
   validateDocumentUploadForOrg,
   type DocumentRow,
@@ -25,8 +28,13 @@ import {
 import {
   assertReadable,
   createProject,
+  createProjectAgent,
+  deleteProjectAgent,
+  getProjectAgent,
   getProjectByExternalItemId,
+  listProjectAgents,
   loadProjectOrThrow,
+  updateProjectAgent,
   type ProjectAuthContext,
   type ProjectRow,
 } from '../domains/projects/service.ts';
@@ -36,9 +44,12 @@ import {
   chargeLane,
   domainErrorResponse,
   formatKeysetCursor,
+  loadRestProject,
+  lockRestProjectForWrite,
   pageLimit,
   parseKeysetCursor,
   readJsonBody,
+  readOptionalJsonBody,
   requireEditor,
   type RestEnv,
   restProjectAuth,
@@ -62,6 +73,7 @@ import {
  */
 
 const UPLOAD_INTENT_TTL_MS = 30 * 60_000;
+const projectAgentBody = projectAgentInputSchema.strict();
 
 function projectPayload(project: ProjectRow): Record<string, unknown> {
   return {
@@ -96,17 +108,11 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     auth: ProjectAuthContext,
     projectId: string,
   ): Promise<ProjectRow | Response> => {
-    let project: ProjectRow;
     try {
-      project = await loadProjectOrThrow(deps.sql, projectId);
-      assertReadable(project, auth);
-    } catch {
-      return c.json({ error: 'Project not found' }, 404);
+      return await loadRestProject(deps.sql, auth, projectId);
+    } catch (error) {
+      return domainErrorResponse(c, error);
     }
-    if (project.organizationId !== c.get('organizationId')) {
-      return c.json({ error: 'Project not found' }, 404);
-    }
-    return project;
   };
 
   /** Write preamble: editor role, then project EDIT access. */
@@ -115,16 +121,11 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     auth: ProjectAuthContext,
     projectId: string,
   ): Promise<ProjectRow | Response> => {
-    requireEditor(c);
-    const project = await loadVisibleProject(c, auth, projectId);
-    if (project instanceof Response) return project;
-    if (project.archivedAt !== null) {
-      return c.json(
-        { error: 'You do not have permission to modify this project' },
-        403,
-      );
+    try {
+      return await loadRestProject(deps.sql, auth, projectId, { write: true });
+    } catch (error) {
+      return domainErrorResponse(c, error);
     }
-    return project;
   };
 
   /**
@@ -163,6 +164,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         description: z.string().max(500).optional(),
         externalItemId: z.string().max(256).optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("name" is required)' }, 400);
@@ -185,6 +187,100 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const project = await loadVisibleProject(c, auth, c.req.param('id'));
     if (project instanceof Response) return project;
     return c.json({ project: projectPayload(project) });
+  });
+
+  // ---- project agents -------------------------------------------------------
+  app.get('/projects/:id/agents', async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadVisibleProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      return c.json({
+        agents: await listProjectAgents(deps.sql, auth, project.id),
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.post('/projects/:id/agents', async (c) => {
+    const body = projectAgentBody.safeParse(await readJsonBody(c));
+    if (!body.success)
+      return c.json({ error: 'invalid project agent body' }, 400);
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadEditableProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const agent = await transactSerializable(deps.sql, async (tx) => {
+        const id = await createProjectAgent(tx, auth, {
+          ...body.data,
+          projectId: project.id,
+        });
+        return getProjectAgent(tx, auth, project.id, id);
+      });
+      return c.json({ agent }, 201);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.get('/projects/:id/agents/:agentId', async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadVisibleProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const agent = await getProjectAgent(
+        deps.sql,
+        auth,
+        project.id,
+        c.req.param('agentId'),
+      );
+      if (agent === null) return c.json({ error: 'Agent not found' }, 404);
+      return c.json({ agent });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.put('/projects/:id/agents/:agentId', async (c) => {
+    const body = projectAgentBody.safeParse(await readJsonBody(c));
+    if (!body.success)
+      return c.json({ error: 'invalid project agent body' }, 400);
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadEditableProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const agentId = c.req.param('agentId');
+      const agent = await transactSerializable(deps.sql, async (tx) => {
+        if ((await getProjectAgent(tx, auth, project.id, agentId)) === null)
+          return null;
+        await updateProjectAgent(tx, auth, { ...body.data, agentId });
+        return getProjectAgent(tx, auth, project.id, agentId);
+      });
+      if (agent === null) return c.json({ error: 'Agent not found' }, 404);
+      return c.json({ agent });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  });
+
+  app.delete('/projects/:id/agents/:agentId', async (c) => {
+    try {
+      const auth = await restProjectAuth(deps.sql, c);
+      const project = await loadEditableProject(c, auth, c.req.param('id'));
+      if (project instanceof Response) return project;
+      const agentId = c.req.param('agentId');
+      const deleted = await transactSerializable(deps.sql, async (tx) => {
+        if ((await getProjectAgent(tx, auth, project.id, agentId)) === null)
+          return false;
+        await deleteProjectAgent(tx, auth, agentId);
+        return true;
+      });
+      if (!deleted) return c.json({ error: 'Agent not found' }, 404);
+      return c.body(null, 204);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
   });
 
   // ---- folders --------------------------------------------------------------
@@ -216,6 +312,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         name: z.string().min(1).max(255),
         parentId: z.string().max(64).optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("name" is required)' }, 400);
@@ -233,15 +330,16 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         c.get('organizationId'),
       );
       if (limited) return limited;
-      const result = await deps.sql.begin((tx) =>
-        getOrCreateProjectFolder(tx, auth, {
+      const result = await deps.sql.begin(async (tx) => {
+        await lockRestProjectForWrite(tx, auth, project.id);
+        return getOrCreateProjectFolder(tx, auth, {
           projectId: project.id,
           name: body.data.name,
           ...(body.data.parentId !== undefined
             ? { parentId: body.data.parentId }
             : {}),
-        }),
-      );
+        });
+      });
       const payload = {
         folder: { id: result.folderId, name: result.name },
         created: result.created,
@@ -261,7 +359,8 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         fileName: z.string().max(1024).optional(),
         contentType: z.string().max(255).optional(),
       })
-      .safeParse(await c.req.json().catch(() => ({})));
+      .strict()
+      .safeParse(await readOptionalJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -271,25 +370,29 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadEditableProject(c, auth, c.req.param('id'));
       if (project instanceof Response) return project;
-      const handoff = await createRestUploadHandoff(
-        deps.sql,
-        { organizationId: c.get('organizationId') },
-        body.data.contentType !== undefined
-          ? { contentType: body.data.contentType }
-          : {},
-      );
       const uploadId = randomUUID();
       const now = Date.now();
       const expiresAt = now + UPLOAD_INTENT_TTL_MS;
-      await deps.sql`
-        INSERT INTO app.rest_upload_intents (
-          id, org_id, user_id, project_id, s3_ref, expires_at_ms,
-          created_at_ms
-        ) VALUES (
-          ${uploadId}, ${c.get('organizationId')}, ${c.get('userId')},
-          ${project.id}, ${handoff.storageRef}, ${expiresAt}, ${now}
-        )
-      `;
+      const handoff = await deps.sql.begin(async (tx) => {
+        await lockRestProjectForWrite(tx, auth, project.id);
+        const signed = await createRestUploadHandoff(
+          deps.sql,
+          { organizationId: c.get('organizationId') },
+          body.data.contentType !== undefined
+            ? { contentType: body.data.contentType }
+            : {},
+        );
+        await tx`
+          INSERT INTO app.rest_upload_intents (
+            id, org_id, user_id, project_id, s3_ref, expires_at_ms,
+            created_at_ms
+          ) VALUES (
+            ${uploadId}, ${c.get('organizationId')}, ${c.get('userId')},
+            ${project.id}, ${signed.storageRef}, ${expiresAt}, ${now}
+          )
+        `;
+        return signed;
+      });
       // Lazy sweep of dead handshakes (consumed) and ABANDONED uploads (never
       // bound: their blob is reclaimed with the row — the intent is the only
       // record the bytes exist).
@@ -322,6 +425,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         contentType: z.string().max(255).optional(),
         skipRagIndexing: z.boolean().optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
@@ -333,6 +437,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // ONE transaction: the intent is consumed atomically with the
       // register + document create — any refusal rolls the consume back.
       const documentId = await deps.sql.begin(async (tx) => {
+        await lockRestProjectForWrite(tx, auth, project.id);
         const consumed = await tx<{ id: string }[]>`
           UPDATE app.rest_upload_intents SET consumed_at_ms = ${Date.now()}
           WHERE id = ${body.data.uploadId}
@@ -462,7 +567,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       FROM app.documents
       WHERE org_id = ${c.get('organizationId')}
         AND project_id = ${project.id}
-        AND lifecycle_status IS DISTINCT FROM 'trashed'
+        AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
         AND (${folderId ?? null}::text IS NULL
           OR folder_id = ${folderId ?? null})
         AND (${cursorCreatedAt}::bigint IS NULL
@@ -491,14 +596,17 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     let doc: DocumentRow;
     try {
       doc = await loadDocumentOrThrow(deps.sql, c.req.param('documentId'));
-    } catch {
-      return c.json({ error: 'File not found' }, 404);
+    } catch (error) {
+      if (error instanceof DocumentError && error.status === 404) {
+        return c.json({ error: 'File not found' }, 404);
+      }
+      throw error;
     }
     if (
       doc.organizationId !== c.get('organizationId') ||
       doc.projectId !== project.id ||
       doc.fileRef === null ||
-      doc.lifecycleStatus === 'trashed'
+      (doc.lifecycleStatus !== null && doc.lifecycleStatus !== 'active')
     ) {
       return c.json({ error: 'File not found' }, 404);
     }
@@ -513,6 +621,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         doc.title !== null ? { filename: doc.title } : {},
       );
     } catch (error) {
+      if (!(error instanceof FileError)) throw error;
       console.warn(
         '[projects-rest] refused content serve:',
         error instanceof Error ? error.message : String(error),

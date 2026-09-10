@@ -39,7 +39,7 @@ type ComposerCredentialAuth =
   | { authMethod: 'subscription-key'; constraints: ExecutionConstraints }
   | { authMethod: 'subscription-broker'; constraints: ExecutionConstraints };
 
-interface ComposerModelOption {
+export interface ComposerModelOption {
   id: string;
   label: string;
   providerSlug: string;

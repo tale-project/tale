@@ -184,6 +184,15 @@ async function findLiveContactIdByEmail(
   return rows[0]?.id ?? null;
 }
 
+/** The external id as the directory keys it: trimmed, and absent when
+ * empty — an empty string is "no external id", never a key twins share. */
+function normalizeContactExternalId(
+  raw: string | undefined,
+): string | undefined {
+  const trimmed = raw?.trim();
+  return trimmed === undefined || trimmed === '' ? undefined : trimmed;
+}
+
 async function findLiveContactIdByExternalId(
   tx: TransactionSql,
   organizationId: string,
@@ -310,12 +319,31 @@ export async function createContact(
       );
     }
   }
+  // The external id is the import lane's second key, and the same rule
+  // here: the single create used to admit a twin the bulk door refuses.
+  const externalId = normalizeContactExternalId(input.externalId);
+  if (externalId !== undefined) {
+    await lockContactExternalId(tx, scope.organizationId, externalId);
+    if (
+      (await findLiveContactIdByExternalId(
+        tx,
+        scope.organizationId,
+        externalId,
+      )) !== null
+    ) {
+      throw new ContactError(
+        'CONTACT_DUPLICATE_EXTERNAL_ID',
+        `Contact with external ID ${externalId} already exists`,
+        409,
+      );
+    }
+  }
   const id = await insertContactRow(tx, {
     organizationId: scope.organizationId,
     name: input.name?.trim() ?? null,
     email: email ?? null,
     phone: input.phone ?? null,
-    externalId: input.externalId ?? null,
+    externalId: externalId ?? null,
     source: input.source,
     locale: input.locale ?? null,
     address: input.address ?? null,
@@ -415,11 +443,50 @@ export async function updateContact(
     patch.email === undefined
       ? contact.email
       : patch.email.trim().toLowerCase();
+  // A changed email or external id re-runs the create's uniqueness rule
+  // under the same locks — a PATCH could otherwise mint the twin the
+  // create refuses.
+  if (email !== null && email !== contact.email) {
+    await lockContactEmail(tx, scope.organizationId, email);
+    const twin = await findLiveContactIdByEmail(
+      tx,
+      scope.organizationId,
+      email,
+    );
+    if (twin !== null && twin !== contactId) {
+      throw new ContactError(
+        'CONTACT_DUPLICATE_EMAIL',
+        `Contact with email ${email} already exists`,
+        409,
+      );
+    }
+  }
+  const externalId =
+    patch.externalId === undefined
+      ? contact.externalId
+      : (normalizeContactExternalId(patch.externalId) ?? null);
+  if (externalId !== null && externalId !== contact.externalId) {
+    await lockContactExternalId(tx, scope.organizationId, externalId);
+    const twin = await findLiveContactIdByExternalId(
+      tx,
+      scope.organizationId,
+      externalId,
+    );
+    if (twin !== null && twin !== contactId) {
+      throw new ContactError(
+        'CONTACT_DUPLICATE_EXTERNAL_ID',
+        `Contact with external ID ${externalId} already exists`,
+        409,
+      );
+    }
+  }
   await tx`
     UPDATE app.contacts SET
       name = ${patch.name === undefined ? contact.name : (patch.name.trim() ?? null)},
       email = ${email},
       phone = ${patch.phone === undefined ? contact.phone : patch.phone},
+      external_id = ${externalId},
+      source = ${patch.source === undefined ? contact.source : patch.source},
       locale = ${patch.locale === undefined ? contact.locale : patch.locale},
       address = ${patch.address === undefined ? (contact.address === null ? null : tx.json(toJson(contact.address))) : tx.json(toJson(patch.address))},
       tags = ${patch.tags ?? contact.tags},

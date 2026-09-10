@@ -252,8 +252,8 @@
     "slug": "platform/agents/concepts",
     "locale": "fr",
     "frontmatter": {
-      "title": "Concepts d’agent",
-      "description": "Un agent est une persona — des instructions, les outils et skills qu’il peut solliciter, les connaissances qu’il peut fouiller, et qui a le droit de s’en servir."
+      "title": "Comprendre les agents",
+      "description": "Un agent de projet réunit un harness, un modèle, des instructions et un équipement pour traiter les tâches d’un seul projet."
     }
   },
   "fr:platform/automations/assistant": {
@@ -557,7 +557,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Agents (vue Admin)",
-      "description": "Quels agents existent dans cette version et comment un admin les gouverne — les agents de projet sur l’onglet Agents de chaque projet, et les personas d’agent sous forme de fichiers dans la configuration de l’organisation."
+      "description": "Encadre les accès, les fournisseurs, l’équipement et les secrets des agents avec les droits du projet et les ressources de l’organisation."
     }
   },
   "fr:platform/admin/teams": {
@@ -1326,7 +1326,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agent concepts",
-      "description": "An agent is a persona — instructions, the tools and skills it may reach for, the knowledge it may search, and who is allowed to use it."
+      "description": "A project agent combines a harness, model, instructions and equipment to work on tasks within one project."
     }
   },
   "en:platform/automations/assistant": {
@@ -1630,7 +1630,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agents (admin view)",
-      "description": "What agents exist in this version and how an admin governs them — project agents on each project's Agents tab, and file-based agent personas in the organization's configuration."
+      "description": "Govern project-agent access, providers, equipment and secret grants through the project's permissions and the organization's resources."
     }
   },
   "en:platform/admin/teams": {
@@ -2398,8 +2398,8 @@
     "slug": "platform/agents/concepts",
     "locale": "de",
     "frontmatter": {
-      "title": "Agent-Konzepte",
-      "description": "Ein Agent ist eine Persona — Anweisungen, die Tools und Skills, nach denen er greifen darf, das Wissen, das er durchsuchen darf, und wer ihn benutzen darf."
+      "title": "Agenten verstehen",
+      "description": "Ein Projekt-Agent verbindet Harness, Modell, Anweisungen und Ausstattung für Aufgaben in genau einem Projekt."
     }
   },
   "de:platform/automations/assistant": {
@@ -2702,8 +2702,8 @@
     "slug": "platform/admin/agents",
     "locale": "de",
     "frontmatter": {
-      "title": "Agents (Admin-Sicht)",
-      "description": "Welche Agenten es in dieser Version gibt und wie ein Admin sie steuert — Projekt-Agenten auf dem Tab Agenten jedes Projekts und dateibasierte Agent-Personas in der Konfiguration der Organisation."
+      "title": "Agenten aus Admin-Sicht",
+      "description": "Verwalte Zugriff, Anbieter, Ausstattung und Secret-Freigaben über die Projektberechtigungen und die Ressourcen der Organisation."
     }
   },
   "de:platform/admin/teams": {

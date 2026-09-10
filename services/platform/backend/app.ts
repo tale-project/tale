@@ -6,7 +6,6 @@ import type { Auth } from './auth/auth.ts';
 import { createIdentityRoutes } from './auth/identity-routes.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
-import { createAgentRoutes } from './domains/agents/routes.ts';
 import { createApprovalRoutes } from './domains/approvals/routes.ts';
 import { createAuditLogRoutes } from './domains/audit_logs/routes.ts';
 import { createAutomationRoutes } from './domains/automations/routes.ts';
@@ -75,7 +74,7 @@ import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { appErrorHandler } from './error-reporting.ts';
 import { createSseAuthRoutes } from './realtime/oracle-routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
-import { createRestV1Routes } from './rest/v1.ts';
+import { mountRestV1Routes } from './rest/v1.ts';
 import {
   backendMetricsResponse,
   httpDuration,
@@ -176,6 +175,10 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
 
   // Automation webhook triggers — the token in the path is the credential.
   app.route('/api/automations/webhook', createWebhookRoutes({ sql: deps.sql }));
+  app.route(
+    '/api/projects/:id/automations/webhook',
+    createWebhookRoutes({ sql: deps.sql }),
+  );
 
   // Enterprise SSO — pre-auth by nature (it CREATES the session). Mounted on
   // the 0.5-native path and on the 0.4 proxy-era alias: IdP registrations
@@ -196,12 +199,11 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   const trustedRoutes = createTrustedHeadersRoutes({ sql: deps.sql });
   app.route('/api/trusted-headers', trustedRoutes);
   app.route('/http_api/api/trusted-headers', trustedRoutes);
-  // The REST machine door (Bearer API key).
-  app.route('/api/v1', createRestV1Routes(deps));
+  // The REST machine door (Bearer API key), with its JSON 404 catch-all.
+  mountRestV1Routes(app, deps);
   // Internal app API (the surface the web app consumes); one sub-app per
   // ported domain.
   app.route('/api/app/agent-secrets', createAgentSecretRoutes(deps));
-  app.route('/api/app/agents', createAgentRoutes(deps));
   app.route('/api/app/audit-logs', createAuditLogRoutes(deps));
   app.route('/api/app/branding', createBrandingRoutes(deps));
   app.route('/api/app/deployment', createDeploymentRoutes(deps));

@@ -24,7 +24,7 @@ A successful response is a named list: `{ "automations": [ { "name": "billing/du
 
 API keys are minted in the product by anyone with Admin or Developer permissions — [API keys](/platform/admin/api-keys) covers the panel. A key is shown once at creation and never again; it belongs to the user who minted it, and every call it makes acts as that user.
 
-Pass the key as a bearer token: `Authorization: Bearer <key>`. The organization is resolved per request from the key user's memberships — a key reaches exactly the organizations its user belongs to, nothing else. An explicit `X-Organization-Slug` header always wins and is membership-checked: a slug the user is not a member of is refused. Without the header, a single-org user lands in their one organization. A multi-org user follows the organization last active in the dashboard only on reads — any write (`POST`/`PATCH`/`PUT`/`DELETE`), and every call on the Projects and Tasks routes, must name the organization, and a multi-org request without it answers **400**. What the key may _do_ follows the key holder's role: reads and mock runs need membership, while starting live work and editing what is deployed needs the developer capability. Where that matters, the endpoint notes below say so.
+Pass the key as a bearer token: `Authorization: Bearer <key>`. Every request acts as the key holder in an organization they belong to. An explicit `X-Organization-Slug` header selects that organization and is always membership-checked. A user with one membership can omit it. A user with several must include it on every write and every `/api/v1/projects/...` call, including reads; otherwise the API answers **400**. Other reads can use the organization last active in the dashboard. Project access and the operation determine the required permissions: project readers can chat and comment, while changing project resources or starting task workflows needs project edit access. Arbitrary live automation runs also require the developer capability. The sections below give the operation-specific rules.
 
 ## Sign in to an application with Tale
 
@@ -60,15 +60,19 @@ For a reviewed client key, `POST /api/app/identity/clients/office-app/rotate-sec
 
 ## Endpoint groups
 
+For a project resource under `/api/v1`, put its project ID in the URL. These request bodies do not accept `projectId`; strict schemas reject it with **400**. The resource must belong to the named project and be visible to the key holder, otherwise the call answers **404**. Responses may include `projectId` as resource metadata. Organization catalogs, such as automation definitions and skill bundles, keep their organization paths.
+
 | Group             | Path                                    | What it covers                                                                                               |
 | ----------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Automations       | `/api/v1/automations/...`               | List, read versions, start runs, read run history, bind and unbind triggers.                                 |
-| Runs              | `/api/v1/runs/{runId}`                  | One durable run in full — status, output, trace, effects — and `POST .../cancel`.                            |
-| Threads           | `/api/v1/threads/...`                   | The key holder's chat threads: create, read messages, send a message, poll the turn.                         |
-| Agents            | `/api/v1/agents/...`                    | List, read, create or replace, delete the organization's agents.                                             |
-| Skills            | `/api/v1/skills/...`                    | Same shape as agents, for skills.                                                                            |
+| Automations | `/api/v1/automations/...` | Organization definitions, versions and triggers; start and list runs that have no project. |
+| Project automations | `/api/v1/projects/{id}/automations/...` | List installed automations, install one, start and list this project's runs. |
+| Runs | `/api/v1/projects/{id}/runs/{runId}` or `/api/v1/runs/{runId}` | Status, output, trace, effects and `POST .../cancel`; use the project path for a project run. |
+| Threads | `/api/v1/projects/{id}/threads/...` or `/api/v1/threads/...` | The key holder's project chats or chats with no project: list, create, read, send messages and poll. |
+| Models | `GET /api/v1/models` | Configured chat models available to the key holder in this organization. |
+| Agents | `/api/v1/projects/{id}/agents/...` | List, read, create, update and delete agents within the required project. |
+| Skills | `/api/v1/skills/...` | List, read, create or update, and delete organization skill bundles. |
 | Knowledge entries | `/api/v1/knowledge-entries/...`         | Topic-keyed facts: list, create, supersede, delete.                                                          |
-| Knowledge search  | `POST /api/v1/knowledge/search`         | Semantic retrieval over the organization's indexed knowledge.                                                |
+| Knowledge search | `POST /api/v1/projects/{id}/knowledge/search` or `POST /api/v1/knowledge/search` | Search one project's indexed files, or visible non-project Hub documents and websites. |
 | Documents         | `/api/v1/documents/...`                 | Knowledge-base documents: CRUD plus `POST .../retry-indexing`. Hub only — project files live under Projects. |
 | Websites          | `/api/v1/websites/...`                  | Crawled sources: CRUD plus `.../pages`, `.../sync`, `.../search`.                                            |
 | Browser sessions  | `/api/v1/browser-sessions/...`          | The warmed cookie pool behind [video ingestion](/self-hosted/configuration/video-ingestion): masked list, `POST .../import` for allowlisted operators. |
@@ -76,66 +80,151 @@ For a reviewed client key, `POST /api/app/identity/clients/office-app/rotate-sec
 | Contacts          | `/api/v1/contacts/...`                  | Contact records: CRUD plus `POST /api/v1/contacts/bulk`.                                                     |
 | Conversations | `/api/v1/conversations/...` | Mirror external conversations into Inbox, read messages, claim replies and acknowledge delivery; exact schemas are in the running instance’s `/docs`. |
 | Projects          | `/api/v1/projects/...`                  | The machine door for external workers: look up by external id, create, prepare folders, upload files.        |
-| Tasks             | `/api/v1/tasks/...`                     | Idempotent task creation from an external ref, state reads, workflow starts, comments.                       |
+| Tasks | `/api/v1/projects/{id}/tasks/...` | Idempotent task creation from an external ref, state reads, workflow starts and comments within the named project. |
 | MCP               | `POST /api/v1/mcp`                      | The [MCP endpoint](/develop/mcp-endpoint) — same key, JSON-RPC instead of REST.                              |
-| Webhook trigger   | `POST /api/automations/webhook/<token>` | Start a deployed automation from outside; the [Webhooks page](/develop/webhooks).                            |
+| Webhook trigger | `POST /api/projects/{id}/automations/webhook/{token}` or `POST /api/automations/webhook/{token}` | Start a deployed automation using its token; the [Webhooks page](/develop/webhooks) covers project and non-project URLs. |
 
 For contact updates, pass the last read `updatedAt` as optional `expectedUpdatedAt` in `PATCH /api/v1/contacts/{id}`. A concurrent edit returns **409**, `CONTACT_STALE`; reload the contact and merge your changes before retrying.
 
-## Automation names in URLs
+Skills support `org` and `team` visibility; `teams` must name teams in this organization. `private` skill visibility is retired.
 
-An automation's name is a `/`-separated path — `billing/dunning` — and a path cannot travel inside one URL segment. In every `/api/v1/automations/{name}/...` URL, write the name with `__` in place of each `/`:
+For a hub document, send inline `content` to `POST /api/v1/documents`. Its `fileId` alternative requires the key holder's own unbound Hub upload in the selected organization, created through the app; REST does not mint one. An upload already attached to any document, thread or conversation cannot be reused here. A missing upload, another user's upload or a bound upload answers **404**, `FILE_NOT_FOUND`. Project, chat and conversation uploads cannot become Hub documents through this route. Trashed or expired documents, including files from a deleted project, stay out of this Hub surface. `POST` and `PATCH` bodies are strict: `projectId` is refused with **400**. Create project files through the project upload and file routes below.
+
+## Manage a project's agents
+
+Every agent belongs to a project. The project ID is required in the URL for every operation; responses include both `projectId` and the agent's `id`. These are the same agents managed in the project's **Agents** tab, with the same access rules.
+
+| Operation | Route | Success |
+| --- | --- | --- |
+| List the roster | `GET /api/v1/projects/{id}/agents` | `200 {agents}` |
+| Create | `POST /api/v1/projects/{id}/agents` | `201 {agent}` |
+| Read | `GET /api/v1/projects/{id}/agents/{agentId}` | `200 {agent}` |
+| Save full configuration | `PUT /api/v1/projects/{id}/agents/{agentId}` | `200 {agent}` |
+| Delete | `DELETE /api/v1/projects/{id}/agents/{agentId}` | `204` |
+
+Choose an existing project and a model available to the selected harness. This example creates a Claude Code agent and reads back its configuration; it does not start a task.
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/automations/billing__dunning/runs" \
+: "${BASE:?Set BASE to your Tale origin}"
+: "${TALE_API_KEY:?Set TALE_API_KEY}"
+: "${ORG_SLUG:?Set ORG_SLUG}"
+: "${PROJECT_ID:?Set PROJECT_ID to an existing project ID}"
+: "${MODEL_ID:?Set MODEL_ID to a model served by your harness}"
+AGENT_URL="$BASE/api/v1/projects/$PROJECT_ID/agents"
+AGENT_BODY=$(jq -n --arg model "$MODEL_ID" \
+  '{name:"Reviewer",harness:"claude-code",model:$model,skills:[],connectors:[]}')
+AGENT_ID=$(curl -fsS "$AGENT_URL" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $ORG_SLUG" \
+  -H 'Content-Type: application/json' -d "$AGENT_BODY" | jq -er '.agent.id')
+curl -fsS "$AGENT_URL/$AGENT_ID" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: $ORG_SLUG" \
+  | jq '.agent | {name, harness, skills, connectors}'
+```
+
+```json
+{
+  "name": "Reviewer",
+  "harness": "claude-code",
+  "skills": [],
+  "connectors": []
+}
+```
+
+`POST` and `PUT` require `name`, `harness`, `model`, `skills` and `connectors`. Optional fields are `modelProvider`, `tools`, `secrets` and `instructions`. A `PUT` saves the full configuration: omitted provider/instructions reset to `null`, and omitted tools/secrets reset to empty lists. It updates an existing agent; it does not create one at an unknown ID.
+
+A project holds at most 50 agents. Names are unique within the project without regard to case, up to 120 characters; each equipment list allows 25 entries and instructions allow 20,000 characters. An invalid configuration, duplicate name or exceeded limit answers **400**. `secrets` contains organization secret names, never values; unknown names are pruned. Only organization Owners and Admins may change secret grants, so an editor's full save must preserve existing grants.
+
+Project readers can read the roster; writes require project edit access and an active project. An invisible or missing project, or an agent ID from another project, answers **404**. A multi-organization key must include `X-Organization-Slug` on reads and writes. [Project agents](/platform/projects/project-agents) explains how these agents work on tasks; direct chat keeps using the built-in assistant.
+
+## Automation names in URLs
+
+An automation's name is a `/`-separated path — `billing/dunning` — and a path cannot travel inside one URL segment. In every `.../automations/{name}/...` URL, write the name with `__` in place of each `/`:
+
+```bash
+curl -sS "https://your-host.example.com/api/v1/automations/billing__dunning/versions" \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
-Responses always carry the real name (`"name": "billing/dunning"`); the `__` form exists only in URLs. Agent and skill slugs are flat and need no encoding.
+Responses always carry the real name (`"name": "billing/dunning"`); the `__` form exists only in URLs. Skill slugs are flat and need no encoding. Project agents use their project ID and agent ID.
 
 ## Start a run, then poll it
 
 A run is durable and may take minutes, so starting one answers **202** with the run's identity, not its result:
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/automations/billing__dunning/runs" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/automations/billing__dunning/runs" \
   -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d '{ "input": { "customerId": "cus_123" } }'
 # → 202 { "runId": "...", "version": 2, "name": "billing/dunning", "mode": "live" }
 ```
 
-Poll `GET /api/v1/runs/{runId}` until `status` leaves `queued`/`running`/`waiting`; the finished run carries `output`, the per-node `trace`, and the `effects` it produced. `POST /api/v1/runs/{runId}/cancel` stops a run at its next node boundary — work a node already completed is not undone.
+Poll `GET /api/v1/projects/{id}/runs/{runId}` until `status` leaves `queued`/`running`/`waiting`; the finished run carries `output`, the per-node `trace`, and the `effects` it produced. `POST /api/v1/projects/{id}/runs/{runId}/cancel` stops a run at its next node boundary — work a node already completed is not undone.
 
-`mode` defaults to `live`. A live run acts on the organization's behalf, so it needs a key whose holder has the developer capability; `{"mode": "mock"}` runs against deterministic mocks and needs only membership. Starting a run needs no trigger — the API key is the entitlement. An automation with no deployed version answers **409**; deploy a version whose tests pass and the same call goes through.
+`mode` defaults to `live`; arbitrary live runs and run cancellation require the developer capability. Project runs also require edit access to an active project, including `mode: "mock"`. Mock runs use deterministic mocks; a non-project mock run needs only membership. Starting a run needs no trigger. An automation with no deployed version answers **409** unless a saved version is explicitly selected for a mock run.
 
-`projectId` names the project the run operates in — the project its task and document tools act on. Omit it and the run is organization-wide, except that an automation bound to a single project runs in that one automatically; an automation bound to several accepts only a `projectId` among them, and refuses any other.
+An unknown automation answers **404**. A live run can only use the deployed `version`; naming another saved version answers **409**. Use `mode: "mock"` to test another saved version. A missing body means `{}`, but malformed JSON answers **400** and starts nothing. When the automation declares an `inputs` schema, the input must match it before a run is created.
+
+The project in the URL is the context for the run's task and document tools. An automation with project bindings can run only in a bound project. `GET /api/v1/projects/{id}/automations/{name}/runs` lists that project's history. For an automation with no bindings, `POST /api/v1/automations/{name}/runs` starts a non-project run; a bound automation answers **409** there. Global run lists and `/api/v1/runs/{runId}` expose only non-project runs. A project run requires its project URL for both reading and cancellation.
 
 ## Send a message, then poll the turn
 
-Chat is the same 202-then-poll shape. Create a thread, post a message, poll the generation, then read the messages:
+Project chat follows the same 202-then-poll shape. Use a project you can read, create a thread, post a message, poll the generation, then read the messages:
+
+List models before sending a message. Use an entry’s `id` as `model` and its `providerSlug` to select the provider. The list respects the organization’s model-access policy and includes only models callable directly through REST; an empty list means no chat model is available to this key holder.
+
+```bash
+curl -sS "https://your-host.example.com/api/v1/models" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# No available model → 200 { "models": [] }
+```
 
 ```bash
 # 1. A thread of your own
-curl -sS -X POST "https://your-host.example.com/api/v1/threads" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/threads" \
   -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" -d '{}'
 # → 201 { "id": "<threadId>" }
 
 # 2. Send a message — on this API the model is always explicit, never auto-selected
-curl -sS -X POST "https://your-host.example.com/api/v1/threads/<threadId>/messages" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/threads/<threadId>/messages" \
   -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
-  -d '{ "content": "Summarise this quarter for me.", "model": "<a model your org has configured>" }'
-# → 202 { "threadId": "...", "status": "accepted", "model": "...", "poll": "/api/v1/threads/<threadId>/generation" }
+  -d '{ "content": "Summarise this quarter for me.", "model": "<model-id>", "providerSlug": "<provider-slug>" }'
+# → 202 { "threadId": "...", "status": "accepted", "model": "...", "poll": "/api/v1/projects/<projectId>/threads/<threadId>/generation" }
 
 # 3. Poll until idle, then read
-curl -sS "https://your-host.example.com/api/v1/threads/<threadId>/generation" \
-  -H "Authorization: Bearer $TALE_API_KEY"
+curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/threads/<threadId>/generation" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
 # → 200 { "status": "streaming" } … then { "status": "idle" }
 ```
 
-`{"status": "idle"}` means no turn is running — read `GET /api/v1/threads/{id}/messages` for the reply. A turn that fails before producing output still surfaces: the failure lands as an assistant message carrying the error, never silently. Threads listed and read over the API are the key holder's own; a second user's threads are invisible to your key even inside the same organization.
+`{"status": "idle"}` means no turn is running. Read `GET /api/v1/projects/{id}/threads/{threadId}/messages` for the reply. Lists, thread details, messages and generation status contain only the key holder's own threads in that project; another user's thread stays invisible even if you both belong to the project. List with `GET /api/v1/projects/{id}/threads` and read a thread with `GET /api/v1/projects/{id}/threads/{threadId}`.
+
+For a personal chat with no project, use `/api/v1/threads` and its corresponding detail, messages and generation paths. Those URLs cannot address project threads. A wrong project URL answers **404**. Both kinds use the built-in assistant; `projectId`, `agentSlug` and `agentId` in create or message bodies answer **400**. Project readers, including Members, may create and send; an archived project refuses these writes with **403**, and an archived thread refuses a message with **409**.
+
+A model failure can appear as an assistant message with readable `error` text and, when available, `errorCode`. The worker rechecks the accepted thread and project access before opening the turn. If the thread moves projects or access is lost while the request waits, it does not run or append an error in the new scope.
+
+## Search a project's files
+
+Use the project search URL when results must come from one project. It searches only that project's indexed files and requires read access, including for an archived project. Hub or team documents, other projects, websites and email attachments are outside this search. Omit `corpus` or set it to `"documents"`; any other corpus or a `projectId` body field answers **400**.
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/knowledge/search" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "query": "Q1 filing deadline", "limit": 10 }'
+```
+
+The body requires `query` and also accepts `limit` (1–50) and `minSimilarity` (0–1). A missing embedding model answers **409**, `EMBEDDING_NOT_CONFIGURED`. To search visible non-project Hub and team documents or registered websites instead, use `POST /api/v1/knowledge/search` with `corpus` set to `"documents"`, `"web"` or `"all"` (the default). That URL excludes project files and email attachments.
 
 ## Mirror an external system into a project
 
@@ -166,6 +255,8 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects" \
 ```
 
 `key` (the task-identifier prefix) and `description` are optional — the key derives from the name when omitted. A second create with the same `externalItemId` answers **409**; the same string in another organization is fine, uniqueness is per organization.
+
+An explicit project `key` contains 2–6 letters or digits and is normalized to uppercase; invalid keys answer **400**, without truncation. A name that yields no valid key creates a keyless project. A key collision answers **409**; supply an unused key.
 
 ### Create folders
 
@@ -223,34 +314,36 @@ The listing answers `{files, cursor?}`: a `cursor` in the response means more pa
 
 ## Materialize a task, then run it
 
-The Tasks group closes the loop: the worker turns an external item into a task on the project's board, starts a deployed workflow on it, and reports back. One prerequisite when the automation is project-scoped: its binding set decides where it may run, so a freshly created project needs the automation bound to it once. That, too, is an API call — idempotent (**201** on the first bind, **200** when the binding already exists), and it requires the developer capability, the same gate the dashboard's binding panel applies. Mint the worker's key for a user with that capability, or bind ahead of time:
+The Tasks group turns an external item into a task on a project's board, starts a deployed workflow on it and reports back. A project-bound automation must be installed in this project first. Installing is idempotent: **201** on the first call, **200** when the binding exists. It requires the developer capability and edit access to an active project. Bind ahead of time if the worker's user lacks those permissions:
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/automations/vat-return/projects" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/automations/vat-return" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
-  -d '{ "projectId": "<projectId>" }'
+  -d '{}'
 # → 201 { "name": "vat-return", "added": true }
 ```
 
-An automation with no bindings at all is org-level and needs none of this — every project sees it. Unbinding stays a dashboard operation.
+`GET /api/v1/projects/{id}/automations` lists the automations installed in that project. An automation without any project bindings can also run in an accessible project when the caller has the required edit permissions, but it is not part of that installed list. Unbinding stays a dashboard operation.
 
-Task creation is idempotent per `(projectId, externalSystem, externalId)` — the first call creates (**201**, `created: true`), every repeat answers the same task (**200**, `created: false`) — so a worker that crashed after POSTing retries safely. `projectId` is required; this door never falls back to an org-wide default.
+Task creation is idempotent per `(projectId, externalSystem, externalId)`: the first call creates (**201**, `created: true`), and a repeat answers with the same task (**200**, `created: false`). Take `projectId` from the URL; sending it in the body answers **400**. Creating a task requires edit access to an active project.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
-  -d '{ "projectId": "<projectId>", "externalSystem": "crm", "externalId": "case-991", "title": "Prepare the Q1 filing" }'
+  -d '{ "externalSystem": "crm", "externalId": "case-991", "title": "Prepare the Q1 filing" }'
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
-`description`, `labels`, and `externalUrl` are optional. Send `automationSlug` when the task belongs to an automation: it becomes the assignee, and the task modal's work panel — the Start button, run progress, and the operator questions a run asks — keys on that ownership (a later re-pick fills a missing attribution, but never overwrites an assignee). `runWorkflowSlug` starts a deployed workflow on a newly created task in the same call — the run starts inline, so the response carries its `executionId` (the run id to poll), or `executionId: null` when the slug names no deployed automation. Start explicitly instead when you want to name the workflow in a separate call:
+Repeating an active task’s external reference updates its title and description; omitting `description` clears it. Labels change only when supplied. An archived task stays unchanged. The task id stays the same, and `runWorkflowSlug` does not start another run on that repeat. Keep the repeated payload stable when retrying after a lost response.
+
+`description`, `labels`, and `externalUrl` are optional. Send `automationSlug` when the task belongs to an automation: it becomes the assignee, and the task modal's work panel — the Start button, run progress, and the operator questions a run asks — keys on that ownership (a later re-pick fills a missing attribution, but never overwrites an assignee). `runWorkflowSlug` starts a deployed workflow on a newly created task in the same call — the run starts inline, so the response carries its `executionId` (the run id to poll), or `executionId: null` when the slug names no deployed automation. Start explicitly instead when you want to name the workflow in a separate call. The owning `automationSlug` must name a deployed automation, otherwise the call answers **404**. A workflow bound to other projects answers **403**.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/start" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
@@ -258,19 +351,19 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \
 # → 200 { "started": true, "executionId": "<runId>" }
 ```
 
-The run's input is the task itself, so starting needs membership and the task's visibility, not the developer capability — deploying the workflow was the privileged act, and the run log attributes the start to your key. Poll the run at the familiar `GET /api/v1/runs/{runId}`. `started: false` carries a `reason`: `already_running` answers the in-flight run's `executionId` instead of racing a duplicate — poll that one; `not_started` means the slug names no deployed automation.
+Starting requires edit access to an active project and an active task. It wraps the task as `{task: ...}` and needs no additional developer capability; the run log attributes the start to your key. Poll `GET /api/v1/projects/{id}/runs/{runId}`. With `started: false`, `reason: "already_running"` carries the in-flight run's `executionId`; poll that run. `reason: "not_started"` means the slug names no deployed automation.
 
-Report back and read state — the comment posts as the key's minting user, indistinguishable from the same person commenting in the app, @mentions included:
+Report back and read state — the comment posts as the key's minting user, indistinguishable from the same person commenting in the app, @mentions included. Project readers, including Members, may comment on an active task in an active project. Reading a task or its comments is also allowed after archival. Every task URL checks that the task belongs to the named project.
 
 ```bash
-curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \
+curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/comments" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d '{ "body": "Filed. Confirmation 2026-8842." }'
 # → 201 { "comment": { "id": "..." } }
 
-curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
+curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
@@ -279,7 +372,7 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 And fetch the results. What the automation reported lands in the task's discussion; what it filed lands as files in the quarter's folder — both readable through the door. The discussion comes newest page first (`limit`, default 200, at most 500), chronological within the page; while `isDone` is `false`, pass `continueCursor` back as `cursor` to read the older comments. The content endpoint answers a **302** to a short-lived presigned URL for the stored blob, so follow redirects:
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments?limit=100" \
+curl -sS "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/comments?limit=100" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
 # → 200 { "comments": [ { "id": "...", "authorType": "agent", "body": "Return prepared — key figures…", ... } ], "isDone": false, "continueCursor": "312" }
@@ -303,18 +396,18 @@ Branch on the HTTP status; the message is for humans:
 
 - **400** — malformed request: a missing required field, a wrong type, an unparseable body — or a multi-org key that did not name its organization (required on every write, and on all project and task routes).
 - **401** — missing or invalid API key.
-- **403** — the key is valid but its holder's role lacks the capability (live runs, trigger writes, cancels).
-- **404** — the resource does not exist in your organization, belongs to someone else's thread, or is a project or task the key's user cannot see — deliberately indistinguishable from one that does not exist.
-- **409** — the state refuses the action: no deployed version, a duplicate topic, email, or `externalItemId` (unique per organization — the same string in another organization is fine), a turn already running.
+- **403** — the holder lacks the required role or project edit access, the project or task is archived for a requested mutation, or an automation cannot run in this project.
+- **404** — the resource is absent, invisible to the holder, owned by another thread user, or belongs to a different project than the URL names.
+- **409** — the state refuses the action: no deployed version, a bound automation called without a project URL, an archived thread or a turn already running, a duplicate topic, email or `externalItemId`, or search without an embedding model.
 - **413** — the body is too large; only the webhook trigger returns it, at its 256 KB cap. An uploaded file that breaks the size or type policy is refused at the bind with **400** and a reason code instead.
 - **429** — rate limit exceeded; the response carries `Retry-After` in whole seconds — see [Rate limits](/develop/rate-limits).
 - **500** — internal error.
 
-Two deletion semantics exist, on purpose. Unbinding an automation's trigger (`DELETE .../triggers`) answers **204** whether or not a trigger existed — it is an idempotent "make it so". Deleting a resource (`DELETE /api/v1/agents/{slug}`) answers **404** when nothing existed — you asked to remove a thing that is not there.
+Unbinding a trigger from an existing automation (`DELETE .../triggers`) answers **204** whether or not a trigger was bound; an unknown automation answers **404**. Deleting a resource answers **404** when it is absent, including a contact already moved to trash or a knowledge entry already deleted. Cancelling an unknown run also answers **404**; `{cancelled: false}` means the run exists but has already finished.
 
 ## Versioning
 
-The API is versioned by URL prefix — today `/api/v1/` — and evolves additively inside it: new endpoints and new optional fields appear, existing shapes stay. A breaking change would ship under a new prefix. The OpenAPI document at `/docs` always describes the running instance.
+The current REST prefix is `/api/v1/`. The OpenAPI document at `/docs` describes the routes and request and response schemas served by the running instance; use it as the contract for your client.
 
 ## Where this fits
 

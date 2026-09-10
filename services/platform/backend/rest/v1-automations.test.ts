@@ -71,7 +71,10 @@ function fakeSql(opts: { alreadyBound?: boolean } = {}): {
     return Promise.resolve([]);
   };
   const unsafe = (text: string) => ({ unsafe: text });
-  const begin = (fn: (tx: unknown) => Promise<unknown>) => fn(sql);
+  const begin = (
+    options: string | ((tx: unknown) => Promise<unknown>),
+    callback?: (tx: unknown) => Promise<unknown>,
+  ) => (typeof options === 'function' ? options(sql) : callback?.(sql));
   const sql = Object.assign(tag, { unsafe, begin });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return { sql: sql as unknown as Sql, queries };
@@ -89,36 +92,34 @@ function mount(sql: Sql) {
     c.set('clientIp', '203.0.113.9');
     return next();
   });
-  // The family decodes the automation name from the `/api/v1/automations/`
-  // prefix, so it is mounted where the door mounts it.
   app.route('/api/v1', createAutomationRestRoutes({ sql }));
   return app;
 }
 
 const bind = (sql: Sql) =>
   mount(sql).request(
-    'http://localhost/api/v1/automations/invoice-sync/projects',
+    'http://localhost/api/v1/projects/p-2/automations/invoice-sync',
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ projectId: project.id }),
+      body: '{}',
     },
   );
 
 /**
- * POST …/projects is ONE atomic add. The regression under test: the route
+ * Installing into a URL project is ONE atomic add. The regression: the route
  * read the current binding set, appended the project and rewrote the whole
  * set through `setAutomationProjects`, whose DELETE dropped every binding
  * not in the passed list — two workers binding different projects at once
  * both answered 201 while the loser's rewrite silently removed the winner's
- * row. The route now goes through `bindProject` (INSERT … ON CONFLICT DO
+ * row. The route now goes through `bindProjectInTx` (INSERT … ON CONFLICT DO
  * NOTHING): no read-modify-write, no DELETE.
  */
-describe('POST /automations/{name}/projects', () => {
+describe('POST /projects/{id}/automations/{name}', () => {
   it('answers 400 in the JSON envelope for a malformed body', async () => {
     const { sql, queries } = fakeSql();
     const res = await mount(sql).request(
-      'http://localhost/api/v1/automations/invoice-sync/projects',
+      'http://localhost/api/v1/projects/p-2/automations/invoice-sync',
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

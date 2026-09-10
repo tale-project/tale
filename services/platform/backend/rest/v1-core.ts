@@ -2,22 +2,16 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import { getUserTeamIds } from '../auth/membership.ts';
-import {
-  deleteAgentForCaller,
-  listAgentsForCaller,
-  readAgentForCaller,
-  saveAgentForCaller,
-} from '../core/agents/file_actions.ts';
 import {
   deleteSkillForViewer,
   listSkillsForViewer,
   readSkillForViewer,
   saveSkillForViewer,
 } from '../core/skills/file_actions.ts';
-import { agentErrorResponse } from '../domains/agents/errors.ts';
 import {
   bulkCreateContacts,
   createContact,
@@ -38,7 +32,10 @@ import {
   updateDocument,
   type DocumentRow,
 } from '../domains/documents/service.ts';
-import { searchKnowledgeForOrg } from '../domains/knowledge/service.ts';
+import {
+  KnowledgeError,
+  searchKnowledgeForOrg,
+} from '../domains/knowledge/service.ts';
 import {
   markRagQueued,
   syncRagDocumentScope,
@@ -64,8 +61,10 @@ import { resolveOrgSlug } from '../lib/org-config.ts';
 import { purgeIncompleteResponse } from '../lib/purge-incomplete-response.ts';
 import { chargeOrgRateLimit } from '../lib/rate-limit-response.ts';
 import {
+  assertExplicitOrg,
   domainErrorResponse,
   formatKeysetCursor,
+  loadRestProject,
   pageLimit,
   parseKeysetCursor,
   readJsonBody,
@@ -75,7 +74,7 @@ import {
 
 /**
  * /api/v1 core resources: contacts, products, documents (the Knowledge-Hub
- * lane), knowledge entries, knowledge search, agents and skills (the file
+ * lane), knowledge entries, knowledge search and skills (the file
  * layer, reused). Thin adapters over the SAME domain services the app
  * surface uses, shaped like the 0.4 REST handlers.
  */
@@ -176,10 +175,25 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
+  /** The live contact, or the documented 404. A DELETE trashes the row
+   * (governance owns the hard erase), and the directory hides trash — so
+   * this door does too: a trashed contact reads, patches and deletes as
+   * absent, the way the reference promises "404 when it is gone". */
+  const loadLiveContact = async (
+    c: Context<RestEnv>,
+    contactId: string,
+  ): Promise<Awaited<ReturnType<typeof getContact>> | Response> => {
+    const contact = await getContact(deps.sql, scope(c), contactId);
+    if (contact.lifecycleStatus === 'trashed') {
+      return c.json({ error: 'Contact not found' }, 404);
+    }
+    return contact;
+  };
+
   app.get('/contacts/:id', async (c) => {
     try {
-      const contact = await getContact(deps.sql, scope(c), c.req.param('id'));
-      if (!contact) return c.json({ error: 'Contact not found' }, 404);
+      const contact = await loadLiveContact(c, c.req.param('id'));
+      if (contact instanceof Response) return contact;
       return c.json(contact);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -202,8 +216,10 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       return c.json({ error: 'invalid body' }, 400);
     }
     try {
+      const current = await loadLiveContact(c, c.req.param('id'));
+      if (current instanceof Response) return current;
       await deps.sql.begin((tx) =>
-        updateContact(tx, scope(c), c.req.param('id'), {
+        updateContact(tx, scope(c), current.id, {
           ...body.data,
           externalId:
             body.data.externalId === undefined
@@ -212,8 +228,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           source: body.data.source,
         }),
       );
-      const updated = await getContact(deps.sql, scope(c), c.req.param('id'));
-      if (!updated) return c.json({ error: 'Contact not found' }, 404);
+      const updated = await getContact(deps.sql, scope(c), current.id);
       return c.json(updated);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -222,9 +237,9 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
 
   app.delete('/contacts/:id', async (c) => {
     try {
-      await deps.sql.begin((tx) =>
-        deleteContact(tx, scope(c), c.req.param('id')),
-      );
+      const current = await loadLiveContact(c, c.req.param('id'));
+      if (current instanceof Response) return current;
+      await deps.sql.begin((tx) => deleteContact(tx, scope(c), current.id));
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -394,6 +409,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         teamId: z.string().max(128).optional(),
         folderId: z.string().max(64).optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("title" is required)' }, 400);
@@ -409,14 +425,19 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  /** One hub document, or the opaque 404 (missing, foreign, project file). */
+  /** One hub document, or the opaque 404 (missing, foreign, project file,
+   * or a row that left the active lifecycle — trashed, or expired by a
+   * project cascade and waiting for the retention sweep). */
   const loadHubDocument = async (
     c: Context<RestEnv>,
     documentId: string,
   ): Promise<DocumentRow | Response> => {
     const auth = await restProjectAuth(deps.sql, c);
     const doc = await getDocumentById(deps.sql, auth, documentId);
-    if (doc.projectId !== null) {
+    if (
+      doc.projectId !== null ||
+      (doc.lifecycleStatus ?? 'active') !== 'active'
+    ) {
       return c.json({ error: 'Document not found' }, 404);
     }
     return doc;
@@ -445,6 +466,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         teamId: z.string().max(128).nullable().optional(),
         folderId: z.string().max(64).nullable().optional(),
       })
+      .strict()
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
@@ -547,27 +569,58 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   // ---- knowledge search ----------------------------------------------------
-  // A POST because it carries a body, not because it writes. Deliberately
-  // ORG-WIDE: the API key speaks for the organization, not one member's
-  // visibility (the scoped surfaces are the chat tools and the sandbox
-  // bridge).
-  app.post('/knowledge/search', async (c) => {
-    const body = z
-      .object({
-        query: z.string().min(1).max(2000),
-        corpus: z.enum(['documents', 'web', 'all']).optional(),
-        limit: z.number().int().min(1).max(50).optional(),
-        minSimilarity: z.number().min(0).max(1).optional(),
-      })
-      .safeParse(await readJsonBody(c));
+  // Search is read-only. A key acts as its user: a project URL searches
+  // only that project's files; the global URL searches visible Hub teams
+  // and registered websites without admitting project or email attachments.
+  const knowledgeSearchBody = z
+    .object({
+      query: z.string().min(1).max(2000),
+      corpus: z.enum(['documents', 'web', 'all']).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+      minSimilarity: z.number().min(0).max(1).optional(),
+    })
+    .strict();
+  const projectKnowledgeSearchBody = knowledgeSearchBody.extend({
+    corpus: z.literal('documents').optional(),
+  });
+  const search = async (c: Context<RestEnv>, projectId: string | null) => {
+    const body = (
+      projectId === null ? knowledgeSearchBody : projectKnowledgeSearchBody
+    ).safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body ("query" is required)' }, 400);
     }
     try {
+      const auth = await restProjectAuth(deps.sql, c);
+      let access: KnowledgeAccessScope;
+      if (projectId !== null) {
+        const ambiguous = await assertExplicitOrg(deps.sql, c);
+        if (ambiguous) return ambiguous;
+        const project = await loadRestProject(deps.sql, auth, projectId);
+        access = {
+          userId: auth.userId,
+          teamIds: [],
+          projectIds: [project.id],
+          includeHub: false,
+          includeConversationScoped: false,
+          archivedProjectIds: project.archivedAt === null ? [] : [project.id],
+        };
+      } else {
+        access = {
+          userId: auth.userId,
+          teamIds: [
+            ...new Set([`org_${auth.organizationId}`, ...auth.teamIds]),
+          ],
+          projectIds: [],
+          includeHub: true,
+          includeConversationScoped: false,
+        };
+      }
       const result = await searchKnowledgeForOrg(deps.sql, {
         organizationId: c.get('organizationId'),
         query: body.data.query,
-        ...(body.data.corpus !== undefined ? { corpus: body.data.corpus } : {}),
+        corpus: projectId === null ? (body.data.corpus ?? 'all') : 'documents',
+        access,
         ...(body.data.limit !== undefined ? { limit: body.data.limit } : {}),
         ...(body.data.minSimilarity !== undefined
           ? { minSimilarity: body.data.minSimilarity }
@@ -575,9 +628,23 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       });
       return c.json(result);
     } catch (error) {
+      // The domain reports a missing embedding model as its 503; on this
+      // door that is the documented 409 — the organization's state refuses
+      // the search until an admin configures a model — never the 500 an
+      // unmapped 5xx domain error used to become.
+      if (
+        error instanceof KnowledgeError &&
+        error.code === 'EMBEDDING_NOT_CONFIGURED'
+      ) {
+        return c.json({ error: error.message, code: error.code }, 409);
+      }
       return domainErrorResponse(c, error);
     }
-  });
+  };
+  app.post('/knowledge/search', (c) => search(c, null));
+  app.post('/projects/:id/knowledge/search', (c) =>
+    search(c, c.req.param('id')),
+  );
 
   // ---- knowledge entries ---------------------------------------------------
   interface RestEntryRow {
@@ -750,75 +817,6 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  // ---- agents (the file layer, reused) ------------------------------------
-  const agentCaller = async (c: Context<RestEnv>) => ({
-    sql: deps.sql,
-    orgSlug:
-      (await resolveOrgSlug(deps.sql, c.get('organizationId'))) ??
-      c.get('orgSlug'),
-    viewerUserId: c.get('userId'),
-    isOrgAdmin: defineAbilityFor(c.get('role')).can('write', 'orgSettings'),
-  });
-
-  app.get('/agents', async (c) => {
-    return c.json(await listAgentsForCaller(await agentCaller(c)));
-  });
-
-  // The file layer's coded refusals — an invalid slug, an agent the key
-  // holder may not edit, a malformed file — map onto 400/403/422 exactly as
-  // the app route maps them; uncaught they read as a 500 outage.
-  app.get('/agents/:slug', async (c) => {
-    try {
-      const agent = await readAgentForCaller({
-        ...(await agentCaller(c)),
-        slug: c.req.param('slug'),
-      });
-      if (agent === null) return c.json({ error: 'Agent not found' }, 404);
-      return c.json({ agent });
-    } catch (error) {
-      return agentErrorResponse(c, error);
-    }
-  });
-
-  app.put('/agents/:slug', async (c) => {
-    const body = z
-      .object({
-        displayName: z.string().min(1),
-        description: z.string().optional(),
-        instructions: z.string().optional(),
-        visibility: z.enum(['private', 'org']).optional(),
-      })
-      .safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const agent = await saveAgentForCaller({
-        ...(await agentCaller(c)),
-        slug: c.req.param('slug'),
-        ...body.data,
-      });
-      return c.json({ agent });
-    } catch (error) {
-      return agentErrorResponse(c, error);
-    }
-  });
-
-  /** Removing a resource that is not there is a 404 — the deletion
-   * semantics the API reference documents, and the skills family's. */
-  app.delete('/agents/:slug', async (c) => {
-    try {
-      const deleted = await deleteAgentForCaller({
-        ...(await agentCaller(c)),
-        slug: c.req.param('slug'),
-      });
-      if (!deleted) return c.json({ error: 'Agent not found' }, 404);
-      return c.body(null, 204);
-    } catch (error) {
-      return agentErrorResponse(c, error);
-    }
-  });
-
   // ---- skills (the file layer, reused) -------------------------------------
   /** The key acts as its user: team skills follow the user's own teams. */
   const skillCaller = async (c: Context<RestEnv>) => ({
@@ -867,6 +865,27 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       .safeParse(await readJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
+    }
+    // The file layer trusts team ids (the app's library only offers real
+    // ones); a machine caller can send anything, so they are checked here —
+    // a share with a team that does not exist is a 400 naming the ids.
+    if (body.data.teams !== undefined && body.data.teams.length > 0) {
+      const known = await deps.sql<{ id: string }[]>`
+        SELECT "id" FROM "team"
+        WHERE "organizationId" = ${c.get('organizationId')}
+          AND "id" = ANY(${body.data.teams})
+      `;
+      const knownIds = new Set(known.map((row) => row.id));
+      const unknown = body.data.teams.filter((id) => !knownIds.has(id));
+      if (unknown.length > 0) {
+        return c.json(
+          {
+            error: `Unknown team ids: ${unknown.join(', ')}`,
+            code: 'SKILL_TEAM_UNKNOWN',
+          },
+          400,
+        );
+      }
     }
     try {
       const who = await skillCaller(c);

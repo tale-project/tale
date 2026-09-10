@@ -14,7 +14,6 @@
  * their phases land.
  */
 
-import { resolveAgentsDir } from '../../agents/file_utils';
 import { resolveSsoDir } from '../../enterprise_sso/file_utils';
 import { resolveGovernanceDir } from '../../governance/file_utils';
 import { resolveSkillsDir } from '../../skills/file_utils';
@@ -33,9 +32,6 @@ export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
   // Skill bundles (`<org>/skills/<slug>/SKILL.md` + assets), read node-direct
   // when staging a sandbox and when a turn expands a skill.
   skills: resolveSkillsDir,
-  // Agent personas (`<org>/agents/<slug>.yml`), read node-direct by the
-  // org-facing editor and by the turn that resolves who is answering.
-  agents: resolveAgentsDir,
 };
 
 /** Resolve a domain's dir for an org, throwing if the domain has no resolver. */

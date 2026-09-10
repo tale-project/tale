@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   createProjectInputSchema,
   deleteProjectInputSchema,
+  projectAgentInputSchema,
   projectKnowledgeModeSchema,
   updateProjectAgentSettingsSchema,
   updateProjectIdentitySchema,
@@ -73,18 +74,6 @@ const createProjectSchema = createProjectInputSchema
 const connectorSettingsSchema = z.object({
   connectorsMode: z.enum(['all', 'restricted']),
   allowedConnectorSlugs: z.array(z.string()).max(200).optional(),
-});
-
-const projectAgentSchema = z.object({
-  name: z.string().min(1).max(200),
-  harness: z.string().min(1).max(100),
-  model: z.string().min(1).max(300),
-  modelProvider: z.string().max(300).optional(),
-  skills: z.array(z.string()).max(100),
-  connectors: z.array(z.string()).max(100),
-  tools: z.array(z.string()).max(100).optional(),
-  secrets: z.array(z.string()).max(100).optional(),
-  instructions: z.string().max(30_000).optional(),
 });
 
 function handleError<E extends OrgEnv>(
@@ -441,7 +430,7 @@ export function createProjectRoutes(deps: {
   });
 
   app.post('/:id/agents', async (c) => {
-    const body = projectAgentSchema.safeParse(await c.req.json());
+    const body = projectAgentInputSchema.safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
@@ -460,7 +449,7 @@ export function createProjectRoutes(deps: {
   });
 
   app.post('/agents/:agentId', async (c) => {
-    const body = projectAgentSchema.safeParse(await c.req.json());
+    const body = projectAgentInputSchema.safeParse(await c.req.json());
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }

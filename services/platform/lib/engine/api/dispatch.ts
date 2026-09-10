@@ -136,11 +136,17 @@ export interface DispatchStore extends StoreAdapter {
     automation: Automation,
     message?: string,
   ): Promise<{ name: string; version: number }>;
+  /** Promote a saved version. `options.testsPassed` is set when the deploy
+   * gate just ran the version's tests and they passed — a host that keeps a
+   * per-version verdict stamps it, so the version reads as tested. */
   deploy(
     name: string,
     version: number,
+    options?: { testsPassed?: boolean },
   ): Promise<{ name: string; version: number }>;
   setTrigger?(name: string, trigger: TriggerSpec): Promise<void>;
+  /** Host authorization before an in-process deployed run starts executing. */
+  authorizeRun?(name: string, mode: 'mock' | 'live'): Promise<void>;
   recordRun?(
     name: string,
     version: number,
@@ -150,7 +156,8 @@ export interface DispatchStore extends StoreAdapter {
   /** Hand a run to the host's durable runner. Returns the handle to poll, or
    * null when the automation has no version to run. `projectId`, when given,
    * is the project the run operates in — the host validates it against the
-   * automation's bindings; omitted means org-wide (or the sole bound project). */
+   * automation's bindings and the actor's access. A project-aware host can
+   * pin the scope; otherwise omission requests an organization run. */
   startRun?(
     name: string,
     input: unknown,
@@ -515,6 +522,7 @@ export async function dispatch(
           errors,
         };
       }
+      let testsPassed: boolean | undefined;
       if (automation.tests && automation.tests.length > 0) {
         const report = await runAutomationTests(automation, { store });
         if ('failed' in report && report.failed > 0) {
@@ -523,9 +531,14 @@ export async function dispatch(
             report,
           };
         }
+        testsPassed = true;
       }
       try {
-        const deployed = await store.deploy(name, version);
+        const deployed = await store.deploy(
+          name,
+          version,
+          testsPassed === undefined ? undefined : { testsPassed },
+        );
         return {
           deployed,
           note: 'this version is now live-eligible via run_deployed and triggers',
@@ -582,6 +595,13 @@ export async function dispatch(
       const mode = ctx.allowLive ? 'live' : 'mock';
       if (mode === 'live' && !ctx.connectorHost) {
         return await runDeployedDurably(ctx, name, version, p.input ?? {});
+      }
+      try {
+        await store.authorizeRun?.(name, mode);
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error.message : String(error),
+        };
       }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
       const result = await execute(found.automation as Automation, {

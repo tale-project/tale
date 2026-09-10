@@ -93,7 +93,16 @@ const document = {
  * UPSERT (spent or not), and the policy's volume read (`usedBytes` answers
  * the sum at the moment it is read). `begin` runs the callback on the same
  * tag. */
-function fakeSql(opts: { spent?: boolean; usedBytes?: () => number } = {}): {
+function fakeSql(
+  opts: {
+    spent?: boolean;
+    usedBytes?: () => number;
+    projectError?: Error;
+    documentError?: Error;
+    document?: Record<string, unknown>;
+    project?: () => Record<string, unknown>;
+  } = {},
+): {
   sql: Sql;
   queries: Captured[];
 } {
@@ -103,10 +112,12 @@ function fakeSql(opts: { spent?: boolean; usedBytes?: () => number } = {}): {
     queries.push({ text, values });
     if (text.includes('FROM "teamMember"')) return Promise.resolve([]);
     if (text.includes('FROM app.projects WHERE id')) {
-      return Promise.resolve([project]);
+      if (opts.projectError) return Promise.reject(opts.projectError);
+      return Promise.resolve([{ ...project, ...opts.project?.() }]);
     }
     if (text.includes('FROM app.documents WHERE id')) {
-      return Promise.resolve([document]);
+      if (opts.documentError) return Promise.reject(opts.documentError);
+      return Promise.resolve([{ ...document, ...opts.document }]);
     }
     if (text.startsWith('UPDATE app.rest_upload_intents')) {
       return Promise.resolve([{ id: 'u-1' }]);
@@ -160,6 +171,99 @@ const bind = (sql: Sql, body: Record<string, unknown>) =>
       ...body,
     }),
   });
+
+describe('project REST resource boundaries', () => {
+  it.each([
+    ['/projects/p-1', { projectError: new Error('database unavailable') }],
+    [
+      '/projects/p-1/files/d-1/content',
+      { documentError: new Error('database unavailable') },
+    ],
+  ])('preserves outages as 500 on %s', async (route, options) => {
+    const res = await mount(fakeSql(options).sql).request(
+      `http://localhost${route}`,
+    );
+    expect(res.status).toBe(500);
+  });
+
+  it.each([
+    { projectId: 'other-project' },
+    { organizationId: 'other-org' },
+    { lifecycleStatus: 'expired' },
+    { lifecycleStatus: 'trashed' },
+  ])(
+    'does not presign a file outside this live resource: %s',
+    async (overrides) => {
+      vi.mocked(getFileUrl).mockClear();
+      const res = await mount(fakeSql({ document: overrides }).sql).request(
+        'http://localhost/projects/p-1/files/d-1/content',
+      );
+      expect(res.status).toBe(404);
+      expect(getFileUrl).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['/projects', { name: 'Ledger' }],
+    ['/projects/p-1/folders', { name: 'Invoices' }],
+    ['/projects/p-1/uploads', {}],
+    [
+      '/projects/p-1/files',
+      {
+        uploadId: 'u-1',
+        fileId: 's3:acme/blob-1',
+        folderId: 'fold-1',
+        fileName: 'ledger.csv',
+      },
+    ],
+  ])('refuses a payload projectId on %s', async (route, body) => {
+    const { sql, queries } = fakeSql();
+    const res = await mount(sql).request(`http://localhost${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...body, projectId: 'other-project' }),
+    });
+    expect(res.status).toBe(400);
+    expect(
+      queries.some((q) =>
+        /^(INSERT|UPDATE) (INTO )?app\.(projects|folders|documents|rest_upload_intents)\b/.test(
+          q.text,
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it.each(['folders', 'uploads', 'files'])(
+    'rechecks archival inside %s before writing',
+    async (resource) => {
+      let reads = 0;
+      const { sql, queries } = fakeSql({
+        project: () => ({ archivedAt: ++reads > 1 ? 123 : null }),
+      });
+      const res =
+        resource === 'files'
+          ? await bind(sql, {})
+          : await mount(sql).request(
+              `http://localhost/projects/p-1/${resource}`,
+              {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(
+                  resource === 'folders' ? { name: 'Invoices' } : {},
+                ),
+              },
+            );
+      expect(res.status).toBe(403);
+      expect(
+        queries.some((q) =>
+          /^(INSERT|UPDATE) (INTO )?app\.(folders|documents|rest_upload_intents)\b/.test(
+            q.text,
+          ),
+        ),
+      ).toBe(false);
+    },
+  );
+});
 
 /**
  * The REST bind runs the organization's upload policy. The regression under

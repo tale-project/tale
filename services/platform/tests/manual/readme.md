@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-542 boxes across 20 suites. Every suite declares the ID prefix its
+543 boxes across 20 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -51,7 +51,7 @@ directory and greppable as one token.
 | [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 13 |
 | [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads | 31 |
 | [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, mobile save bar | 16 |
-| [settings](suites/settings.md) | `SET-` | account, personalization, org, teams, branding, connectors, API, providers | 52 |
+| [settings](suites/settings.md) | `SET-` | account, personalization, org, teams, branding, connectors, API, providers | 53 |
 | [skills](suites/skills.md) | `SKILL-` | skill library: table + facets, create/upload bundles, visibility, equip on agents | 18 |
 | [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, agent runs, outputs, review | 25 |
 | [video-links](suites/video-links.md) | `VID-` | YouTube/video link ingestion (backend pipeline) | 12 |

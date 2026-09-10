@@ -1,4 +1,5 @@
-import type { Sql } from 'postgres';
+import { transactSerializable } from '@tale/shared/db/serializable';
+import type { Sql, TransactionSql } from 'postgres';
 
 import type {
   DispatchStore,
@@ -16,9 +17,21 @@ import {
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
+  assertReadable,
+  assertWritable,
+  getProjectAuthContext,
+  listProjects,
+  loadProjectOrThrow,
+  ProjectError,
+  type ProjectAuthContext,
+  type ProjectRow,
+} from '../projects/service.ts';
+import {
   assertAutomationName,
   beginRun,
+  beginRunInTx,
   cancelRun,
+  cancelRunInTx,
   deleteTrigger,
   deployedVersion,
   deploy as deployVersion,
@@ -27,6 +40,7 @@ import {
   listRuns,
   listTriggers,
   listVersions,
+  resolveRunProject,
   saveVersion,
   setTrigger,
   versionRow,
@@ -63,11 +77,11 @@ function actorUserId(actor: string): string {
 /** The 0.4 `authorizeActorRun`: membership resolved from the (org, user)
  * pair; `developer` additionally needs the developer-settings capability. */
 export async function authorizeActorRun(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   actor: string,
   need: 'membership' | 'developer',
-): Promise<void> {
+): Promise<ProjectAuthContext> {
   const userId = actorUserId(actor);
   if (userId === '') {
     throw new ActorAuthError(
@@ -95,6 +109,42 @@ export async function authorizeActorRun(
       'FORBIDDEN_DEVELOPER_SETTINGS',
       `Role "${role}" lacks the developer-settings capability required to perform this action.`,
     );
+  }
+  return getProjectAuthContext(sql, { organizationId, userId, role });
+}
+
+/** The engine/MCP actor has the same project visibility as its member. */
+async function readableActorProject(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<ProjectRow | null> {
+  try {
+    const project = await loadProjectOrThrow(sql, projectId);
+    assertReadable(project, auth);
+    return project;
+  } catch (error) {
+    if (
+      error instanceof ProjectError &&
+      (error.code === 'PROJECT_NOT_FOUND' || error.code === 'PROJECT_FORBIDDEN')
+    )
+      return null;
+    throw error;
+  }
+}
+
+async function writableActorProject(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<void> {
+  const project = await readableActorProject(sql, auth, projectId);
+  if (project === null) {
+    throw new ActorAuthError('PROJECT_NOT_FOUND', 'Project not found.');
+  }
+  assertWritable(project, auth);
+  if (project.archivedAt !== null) {
+    throw new ActorAuthError('PROJECT_ARCHIVED', 'Project is archived.');
   }
 }
 
@@ -147,6 +197,28 @@ export function pgAutomationStore(
   scope: PgStoreScope,
 ): DispatchStore {
   const { organizationId, actor } = scope;
+  const authorizeInlineRun = async (
+    handle: Sql | TransactionSql,
+    name: string,
+    mode: 'mock' | 'live',
+  ): Promise<string | null> => {
+    const auth = await authorizeActorRun(
+      handle,
+      organizationId,
+      actor,
+      mode === 'live' ? 'developer' : 'membership',
+    );
+    if (scope.projectId !== undefined) {
+      await writableActorProject(handle, auth, scope.projectId);
+    }
+    return resolveRunProject(handle, {
+      organizationId,
+      name,
+      ...(scope.projectId !== undefined
+        ? { projectId: scope.projectId }
+        : { requireOrgScope: true }),
+    });
+  };
   return {
     list: async () =>
       (await listAutomations(sql, organizationId)).map((row) => ({
@@ -176,8 +248,16 @@ export function pgAutomationStore(
           : {}),
       });
     },
-    deploy: (name, version) =>
-      deployVersion(sql, { organizationId, name, version, actor }),
+    deploy: (name, version, options) =>
+      deployVersion(sql, {
+        organizationId,
+        name,
+        version,
+        actor,
+        ...(options?.testsPassed !== undefined
+          ? { testsPassed: options.testsPassed }
+          : {}),
+      }),
     setTrigger: async (name, trigger) => {
       const automation = assertAutomationName(name);
       if (!TRIGGER_KINDS.has(trigger.kind)) {
@@ -201,6 +281,9 @@ export function pgAutomationStore(
         actor,
       });
     },
+    authorizeRun: async (name, mode) => {
+      await authorizeInlineRun(sql, name, mode);
+    },
     recordRun: async (name, version, result, mode) => {
       // A one-piece run (`run_deployed`) is born terminal — this insert IS
       // its exactly-once terminal transition, so a LIVE one also writes the
@@ -215,14 +298,15 @@ export function pgAutomationStore(
         result.error?.message !== undefined
           ? truncateRunDetail(result.error.message)
           : undefined;
-      await sql.begin(async (tx) => {
+      await transactSerializable(sql, async (tx) => {
+        const projectId = await authorizeInlineRun(tx, name, mode);
         const inserted = await tx<{ id: string }[]>`
           INSERT INTO app.automation_runs (
-            org_id, name, version, status, mode, started_by, input, output,
+            org_id, name, version, project_id, status, mode, started_by, input, output,
             checkpoints, trace, effects, detail, claim_epoch, started_at_ms,
             finished_at_ms
           ) VALUES (
-            ${organizationId}, ${name}, ${version}, ${status}, ${mode},
+            ${organizationId}, ${name}, ${version}, ${projectId}, ${status}, ${mode},
             ${actor}, ${tx.json(toJson(JSON.stringify(null)))},
             ${result.output === undefined ? null : tx.json(toJson(result.output))},
             ${tx.json(toJson({ nodes: {}, executions: 0 }))},
@@ -252,37 +336,57 @@ export function pgAutomationStore(
       });
     },
     startRun: async (name, input, mode, version, projectId) => {
-      await authorizeActorRun(
+      const auth = await authorizeActorRun(
         sql,
         organizationId,
         actor,
         mode === 'live' ? 'developer' : 'membership',
       );
-      if (projectId !== undefined) {
-        const projects = await sql<{ id: string }[]>`
-          SELECT id FROM app.projects
-          WHERE id = ${projectId} AND org_id = ${organizationId}
-          LIMIT 1
-        `;
-        if (projects.length === 0) {
-          throw new ActorAuthError(
-            'PROJECT_NOT_FOUND',
-            `No such project: ${projectId}`,
-          );
-        }
+      if (
+        scope.projectId !== undefined &&
+        projectId !== undefined &&
+        scope.projectId !== projectId
+      ) {
+        throw new ActorAuthError('PROJECT_NOT_FOUND', 'Project not found.');
       }
-      return beginRun(sql, {
+      const effectiveProjectId = scope.projectId ?? projectId;
+      const args = {
         organizationId,
         name,
         input: input ?? {},
         mode,
         startedBy: actor,
         ...(version !== undefined ? { version } : {}),
-        ...(projectId !== undefined ? { projectId } : {}),
-      });
+      };
+      if (effectiveProjectId !== undefined) {
+        return transactSerializable(sql, async (tx) => {
+          await writableActorProject(tx, auth, effectiveProjectId);
+          return beginRunInTx(tx, { ...args, projectId: effectiveProjectId });
+        });
+      }
+      return beginRun(sql, { ...args, requireOrgScope: true });
     },
     cancelRun: async (runId) => {
-      await authorizeActorRun(sql, organizationId, actor, 'developer');
+      const auth = await authorizeActorRun(
+        sql,
+        organizationId,
+        actor,
+        'developer',
+      );
+      const row = await getRun(sql, organizationId, runId);
+      if (
+        row === null ||
+        (scope.projectId !== undefined && row.projectId !== scope.projectId)
+      ) {
+        return { cancelled: false };
+      }
+      if (row.projectId !== null) {
+        const projectId = row.projectId;
+        return transactSerializable(sql, async (tx) => {
+          await writableActorProject(tx, auth, projectId);
+          return cancelRunInTx(tx, organizationId, runId);
+        });
+      }
       // The store answers `{ cancelled: false }` for a missing or terminal
       // run and never null; a throw here is a real failure (audit write,
       // session stop, the database) and must surface as such, not be
@@ -293,16 +397,46 @@ export function pgAutomationStore(
       await authorizeActorRun(sql, organizationId, actor, 'developer');
       return { deleted: await deleteTrigger(sql, organizationId, name) };
     },
-    listRuns: async (options) =>
-      (
+    listRuns: async (options) => {
+      const auth = await authorizeActorRun(
+        sql,
+        organizationId,
+        actor,
+        'membership',
+      );
+      if (
+        scope.projectId !== undefined &&
+        (await readableActorProject(sql, auth, scope.projectId)) === null
+      )
+        return [];
+      const projects = await listProjects(sql, auth, { includeArchived: true });
+      return (
         await listRuns(sql, organizationId, {
           ...(options.name !== undefined ? { name: options.name } : {}),
           ...(options.limit !== undefined ? { limit: options.limit } : {}),
+          ...(scope.projectId !== undefined
+            ? { projectId: scope.projectId }
+            : {}),
+          visibleProjectIds: projects.map((project) => project.id),
         })
-      ).map(toRunSummary),
+      ).map(toRunSummary);
+    },
     getRun: async (runId): Promise<RunDetail | null> => {
+      const auth = await authorizeActorRun(
+        sql,
+        organizationId,
+        actor,
+        'membership',
+      );
       const row = await getRun(sql, organizationId, runId);
       if (!row) return null;
+      if (scope.projectId !== undefined && row.projectId !== scope.projectId)
+        return null;
+      if (
+        row.projectId !== null &&
+        (await readableActorProject(sql, auth, row.projectId)) === null
+      )
+        return null;
       return {
         ...toRunSummary(row),
         input: decodeRunInput(row.input),

@@ -61,11 +61,11 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   deploy_automation: 'Promote one saved version to be the live version.',
   set_trigger: 'Bind what starts the automation (schedule/webhook/event).',
   run_deployed:
-    'Run the deployed version live and WAIT for the finished result — output, trace and effects in one answer; a run that outlives the wait answers with its runId to poll via get_run.',
+    'Run the deployed version live and WAIT for the finished result — output, trace and effects in one answer; a run that outlives the wait answers with its runId to poll via get_run. For a project-bound automation, use a host pinned to that project or start_run with projectId.',
   start_run:
     'Start the deployed version in the background and return a run handle immediately; poll get_run for the result.',
   list_runs:
-    'Recent runs, newest first — of one automation or of the whole organization.',
+    'Recent runs the caller can read, newest first — of one automation or of the current scope.',
   get_run: 'One run in full: status, output, trace and effects.',
   cancel_run: 'Stop a run at its next node boundary.',
   list_versions: "One automation's immutable version history.",
@@ -168,7 +168,7 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
       projectId: {
         type: 'string',
         description:
-          'The project the run operates in — its task and document tools act there. Omit for an organization-wide run (or, when the automation is bound to a single project, that one). A bound automation only accepts a project it is bound to.',
+          'The project the run operates in — its task and document tools act there. The caller must have edit access to this active project. Omit only for an organization-wide automation or when the host already pins a project. A bound automation requires an explicit allowed project.',
       },
     },
     ['name'],
@@ -177,7 +177,7 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
     name: {
       ...AUTOMATION_NAME,
       description:
-        "Only this automation's runs. Omit for the whole organization.",
+        "Only this automation's runs. Omit for every run the caller can read in the current scope.",
     },
     limit: {
       type: 'integer',

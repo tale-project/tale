@@ -86,7 +86,10 @@ export function routeClass(path: string): string {
   if (path.startsWith('/scim/v2') || path.startsWith('/http_api/scim/v2')) {
     return '/scim/v2';
   }
-  if (path.startsWith('/api/automations/webhook')) {
+  if (
+    path.startsWith('/api/automations/webhook') ||
+    /^\/api\/projects\/[^/]+\/automations\/webhook(?:\/|$)/.test(path)
+  ) {
     return '/api/automations/webhook';
   }
   if (path.startsWith('/dav')) return '/dav';

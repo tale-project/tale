@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { beginRunInTx } from '../automations/store.ts';
 import {
   startWorkflowForTask,
+  startWorkflowForTaskInTx,
   taskWorkflowStartLockKey,
   upsertTaskByExternalRef,
 } from './external-ref.ts';
@@ -130,6 +131,33 @@ describe('startWorkflowForTask — the one-live-run guard is atomic', () => {
       }),
     ).resolves.toEqual({ runId: 'run-live', alreadyRunning: true });
     expect(beginRunInTx).not.toHaveBeenCalled();
+  });
+
+  it('does not reuse a live task run attributed to another project', async () => {
+    vi.mocked(beginRunInTx).mockResolvedValue({ runId: 'run-1', version: 1 });
+    const { tx } = fakeDb((text, values) =>
+      text.includes('SELECT id FROM app.automation_runs') &&
+      !values.includes('p-1')
+        ? [{ id: 'other-project-run' }]
+        : [],
+    );
+
+    await expect(
+      startWorkflowForTaskInTx(tx, {
+        organizationId: 'org-1',
+        task,
+        workflowSlug: 'triage',
+        startedByUserId: 'u-1',
+        startedVia: 'api-key',
+      }),
+    ).resolves.toEqual({ runId: 'run-1', alreadyRunning: false });
+    expect(beginRunInTx).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        projectId: 'p-1',
+        startedBy: 'api-key:u-1',
+      }),
+    );
   });
 
   it('answers null for an undeployed automation only', async () => {

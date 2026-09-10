@@ -279,12 +279,14 @@ export async function getFileMetadata(
   sql: Sql | TransactionSql,
   organizationId: string,
   fileId: string,
+  options: { lock?: boolean } = {},
 ): Promise<FileMetadataRow | null> {
   const rows = await sql<FileMetadataRow[]>`
     SELECT ${sql.unsafe(FILE_METADATA_COLUMNS)}
     FROM app.file_metadata
     WHERE id = ${fileId} AND org_id = ${organizationId}
     LIMIT 1
+    ${sql.unsafe(options.lock === true ? 'FOR UPDATE' : '')}
   `;
   return rows[0] ?? null;
 }

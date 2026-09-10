@@ -3,12 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { API_KEY_RATE_LIMIT } from './auth.ts';
 
 /**
- * Pins the per-API-key rate-limit window. Better Auth's apiKey plugin measures
+ * Keeps the legacy key window disabled: REST uses the platform token buckets.
+ * Its dormant defaults still use the correct units. Better Auth measures
  * `timeWindow` in MILLISECONDS (`evaluateRateLimit` compares
  * `now - lastRequest` against it), so the intended 60-second window MUST be
  * expressed as 60_000. The historical bug was `timeWindow: 60` — a 60ms window
- * that reset the counter between virtually every request, leaving API keys
- * effectively unthrottled. This test fails the moment the unit regresses.
+ * that reset the counter between virtually every request. This test also
+ * prevents re-enabling the incompatible idle-reset window.
  */
 
 describe('API_KEY_RATE_LIMIT', () => {
@@ -18,9 +19,9 @@ describe('API_KEY_RATE_LIMIT', () => {
     expect(API_KEY_RATE_LIMIT.timeWindow).not.toBe(60);
   });
 
-  it('caps a key at 100 requests per window and keeps limiting enabled', () => {
+  it('disables the idle-reset window in favor of the platform token buckets', () => {
     expect(API_KEY_RATE_LIMIT.maxRequests).toBe(100);
-    expect(API_KEY_RATE_LIMIT.enabled).toBe(true);
+    expect(API_KEY_RATE_LIMIT.enabled).toBe(false);
   });
 
   it('keeps the window at least a second — a sub-second window is the bug', () => {

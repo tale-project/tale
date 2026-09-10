@@ -130,6 +130,9 @@ interface Statement {
 function fakeChatSql(
   options: {
     threadHeld?: boolean;
+    scopeChanged?: boolean;
+    projectArchived?: boolean;
+    projectAccessLost?: boolean;
     /** What the generation row holds when a finalize reads it back. */
     streamed?: { text: string; reasoning?: string };
     /** The placeholder's parts as stored before the finalize. */
@@ -146,6 +149,30 @@ function fakeChatSql(
   const transactions: Array<'commit' | 'rollback'> = [];
   let messageRows = 0;
   const answer = (text: string): unknown[] => {
+    if (text.includes('FOR UPDATE OF tm')) {
+      return options.scopeChanged ? [] : [{ id: 'thread_1' }];
+    }
+    if (text.includes('FROM app.projects')) {
+      if (text.includes('FOR SHARE') && options.projectArchived) return [];
+      return [
+        {
+          id: 'project_a',
+          orgId: 'org_1',
+          teamId: null,
+          sharedWithTeamIds: [],
+        },
+      ];
+    }
+    if (text.includes('FROM "member"')) {
+      return [
+        {
+          id: 'member_1',
+          organizationId: 'org_1',
+          userId: 'user_1',
+          role: options.projectAccessLost ? 'disabled' : 'member',
+        },
+      ];
+    }
     if (text.includes('INSERT INTO app.messages')) {
       messageRows += 1;
       return [{ id: `msg_${messageRows}`, order: messageRows - 1 }];
@@ -181,8 +208,16 @@ function fakeChatSql(
     return tag;
   };
   const pooled = Object.assign(makeTag(pool), {
-    async begin(fn: (tx: unknown) => Promise<unknown>) {
+    async begin(
+      optionsOrCallback: string | ((tx: unknown) => Promise<unknown>),
+      callback?: (tx: unknown) => Promise<unknown>,
+    ) {
       try {
+        const fn =
+          typeof optionsOrCallback === 'function'
+            ? optionsOrCallback
+            : callback;
+        if (fn === undefined) throw new Error('Missing transaction callback');
         const result = await fn(makeTag(tx));
         transactions.push('commit');
         return result;
@@ -203,6 +238,66 @@ const OPEN = {
 };
 
 describe('createPgTurnStore.beginTurn', () => {
+  it('allows a member with current read access to open the accepted project thread', async () => {
+    const f = fakeChatSql();
+    const opened = await createPgTurnStore(f.sql, {
+      scope: { userId: 'user_1', projectId: 'project_a' },
+    }).beginTurn(OPEN);
+    expect(opened.userMessage?.id).toBe('msg_1');
+    expect(f.transactions).toEqual(['commit']);
+    expect(f.tx.some((statement) => statement.text.includes('FOR SHARE'))).toBe(
+      true,
+    );
+  });
+
+  it.each([{ projectArchived: true }, { projectAccessLost: true }])(
+    'refuses late project changes at the write boundary: %j',
+    async (options) => {
+      const f = fakeChatSql(options);
+      await expect(
+        createPgTurnStore(f.sql, {
+          scope: { userId: 'user_1', projectId: 'project_a' },
+        }).beginTurn(OPEN),
+      ).rejects.toMatchObject({ code: 'THREAD_SCOPE_CHANGED' });
+      expect(f.transactions).toEqual(['rollback']);
+      expect(
+        f.tx.some((statement) => statement.text.includes('INSERT INTO')),
+      ).toBe(false);
+    },
+  );
+
+  it('refuses a REST thread moved after preflight before appending either message or opening generation', async () => {
+    const f = fakeChatSql({ scopeChanged: true });
+    await expect(
+      createPgTurnStore(f.sql, {
+        scope: { userId: 'user_1', projectId: 'project_a' },
+      }).beginTurn(OPEN),
+    ).rejects.toMatchObject({ code: 'THREAD_SCOPE_CHANGED' });
+    expect(f.transactions).toEqual(['rollback']);
+    expect(
+      f.tx.some((statement) => statement.text.includes('INSERT INTO')),
+    ).toBe(false);
+  });
+
+  it('locks the accepted unfiled scope in the same transaction before the turn opens', async () => {
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql, {
+      scope: { userId: 'user_1', projectId: null },
+    }).beginTurn(OPEN);
+    const guard = f.tx.findIndex((statement) =>
+      statement.text.includes('FOR UPDATE OF tm'),
+    );
+    const insert = f.tx.findIndex((statement) =>
+      statement.text.includes('INSERT INTO app.messages'),
+    );
+    expect(guard).toBeGreaterThanOrEqual(0);
+    expect(guard).toBeLessThan(insert);
+    expect(f.tx[guard]?.text).toContain('tm.project_id IS NOT DISTINCT FROM');
+    expect(f.tx[guard]?.values).toEqual(['thread_1', 'org_1', 'user_1', null]);
+    expect(f.transactions).toEqual(['commit']);
+    expect(f.pool).toEqual([]);
+  });
+
   it('opens the turn inside ONE transaction', async () => {
     const f = fakeChatSql();
     const opened = await createPgTurnStore(f.sql).beginTurn(OPEN);
@@ -246,6 +341,24 @@ describe('createPgTurnStore.beginTurn', () => {
 });
 
 describe('createPgTurnStore.appendMessage', () => {
+  it('also guards pre-open refusal messages against a thread move', async () => {
+    const f = fakeChatSql({ scopeChanged: true });
+    await expect(
+      createPgTurnStore(f.sql, {
+        scope: { userId: 'user_1', projectId: null },
+      }).appendMessage({
+        organizationId: 'org_1',
+        threadId: 'thread_1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello' }],
+      }),
+    ).rejects.toMatchObject({ code: 'THREAD_SCOPE_CHANGED' });
+    expect(f.transactions).toEqual(['rollback']);
+    expect(
+      f.tx.some((statement) => statement.text.includes('INSERT INTO')),
+    ).toBe(false);
+  });
+
   it('notifies the thread stream — a refusal lands its rows through this write alone', async () => {
     const f = fakeChatSql();
     const appended = await createPgTurnStore(f.sql).appendMessage({

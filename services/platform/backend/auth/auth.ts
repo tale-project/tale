@@ -183,17 +183,22 @@ const apiKeySuffixPlugin = {
 } satisfies BetterAuthPlugin;
 
 /**
- * Per-API-key rate limit. Better Auth's apiKey plugin interprets `timeWindow`
- * in MILLISECONDS — it resets the per-key counter whenever
- * `now - lastRequest > timeWindow` (see `evaluateRateLimit` in
- * `@better-auth/api-key`). A bare `60` therefore means a 60-MILLISECOND
- * window: any two requests more than 60ms apart reset the counter, so the
- * limit never accumulates and API keys are effectively unthrottled. 60_000 is
- * the intended 60-second window; the value is persisted per key as
- * `apikey.rateLimitTimeWindow` at creation time.
+ * Per-API-key rate limit of Better Auth's apiKey plugin — OFF. The plugin's
+ * window (`evaluateRateLimit` in `@better-auth/api-key`) counts requests and
+ * resets only after `timeWindow` of SILENCE since the last counted request,
+ * so a client that keeps calling gets `maxRequests` and is then refused for
+ * a whole window, whatever its rate: 100 calls, a 60-second lockout, 100
+ * more. That is not the budget the API documents. The `/api/v1` door
+ * charges every authenticated request to the key holder's `rest:api` token
+ * bucket (`lib/rate-limit.ts`: continuous refill, a burst then a sustained
+ * rate, `Retry-After` = time to the next token), and the work-starting and
+ * upload lanes top that up — those buckets ARE the contract, and the
+ * plugin's window only contradicted it. The window values stay declared so
+ * the persisted per-key columns keep a meaningful default should the
+ * plugin ever be re-armed; `enabled: false` is what every key row inherits.
  */
 export const API_KEY_RATE_LIMIT = {
-  enabled: true,
+  enabled: false,
   /** 60 seconds, expressed in milliseconds (Better Auth's unit). */
   timeWindow: 60_000,
   maxRequests: 100,

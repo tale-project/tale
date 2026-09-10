@@ -1,11 +1,15 @@
+import { transactSerializable } from '@tale/shared/db/serializable';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
 import {
   beginRun,
-  bindProject,
+  beginRunInTx,
+  bindProjectInTx,
   cancelRun,
+  cancelRunInTx,
   deleteTrigger,
   deployedVersion,
   getRun,
@@ -17,22 +21,22 @@ import {
   versionRow,
 } from '../domains/automations/store.ts';
 import {
-  assertReadable,
-  loadProjectOrThrow,
-} from '../domains/projects/service.ts';
-import {
+  assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
+  loadRestProject,
   pageLimit,
   readJsonBody,
+  readOptionalJsonBody,
   requireDeveloper,
   type RestEnv,
   restProjectAuth,
 } from './shared.ts';
 
 /**
- * /api/v1 automations + runs — the spec surface: reads for everyone in the
- * org, work-starting and authoring writes behind the developer capability.
+ * Organization automation definitions and explicitly scoped run resources.
+ * Project routes additionally enforce the key holder's project permissions;
+ * global run routes expose only runs without a project.
  * Starting a run needs NO trigger row: the API key IS the entitlement,
  * which keeps the programmatic surface symmetric with the app.
  *
@@ -43,22 +47,45 @@ import {
 export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
 
-  const decodeName = (c: Context<RestEnv>, suffix: string): string =>
-    decodeURIComponent(
-      (c.req.path.split('/api/v1/automations/')[1] ?? '').slice(
-        0,
-        suffix.length > 0 ? -suffix.length : undefined,
-      ),
-    );
+  const decodeName = (c: Context<RestEnv>): string =>
+    paramToAutomationSlug(c.req.param('name') ?? '');
+  const emptyBody = z.object({}).strict();
+  const runBody = z
+    .object({
+      input: z.unknown().optional(),
+      mode: z.enum(['mock', 'live']).optional(),
+      version: z.number().int().min(1).optional(),
+    })
+    .strict();
+
+  app.use('/projects/*', async (c, next) => {
+    const ambiguous = await assertExplicitOrg(deps.sql, c);
+    if (ambiguous) return ambiguous;
+    return next();
+  });
+
+  /** Whether any version of the automation exists in this org — the
+   * trigger and run doors answer 404 for a name nobody saved, never a
+   * "bound" trigger or a "not deployed" refusal for a typo. */
+  const automationExists = async (
+    c: Context<RestEnv>,
+    name: string,
+  ): Promise<boolean> =>
+    (await versionRow(deps.sql, c.get('organizationId'), name, undefined)) !==
+    null;
 
   app.get('/automations', async (c) => {
     return c.json({
-      automations: await listAutomations(deps.sql, c.get('organizationId')),
+      // Definitions are shared by the organization. Their project install
+      // ids are not: a catalog read must not reveal hidden projects.
+      automations: (
+        await listAutomations(deps.sql, c.get('organizationId'))
+      ).map(({ projectIds: _projectIds, ...definition }) => definition),
     });
   });
 
   app.get('/automations/:name{.+?}/versions', async (c) => {
-    const name = decodeName(c, '/versions');
+    const name = decodeName(c);
     return c.json({
       name,
       versions: await listVersions(deps.sql, c.get('organizationId'), name),
@@ -66,7 +93,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   app.get('/automations/:name{.+?}/triggers', async (c) => {
-    const name = decodeName(c, '/triggers');
+    const name = decodeName(c);
     return c.json({
       name,
       triggers: await listTriggers(deps.sql, c.get('organizationId'), name),
@@ -94,7 +121,10 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
     try {
       requireDeveloper(c);
-      const name = decodeName(c, '/triggers');
+      const name = decodeName(c);
+      if (!(await automationExists(c, name))) {
+        return c.json({ error: 'Automation not found' }, 404);
+      }
       const result = await setTrigger(deps.sql, {
         organizationId: c.get('organizationId'),
         name,
@@ -107,11 +137,16 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  /** Unbind the automation's trigger. Versions and run history stay. */
+  /** Unbind the automation's trigger — idempotent for an automation that
+   * exists (204 whether or not a trigger was bound); an unknown name is a
+   * 404, so a typo never reads as "unbound". Versions and run history stay. */
   app.delete('/automations/:name{.+?}/triggers', async (c) => {
     try {
       requireDeveloper(c);
-      const name = decodeName(c, '/triggers');
+      const name = decodeName(c);
+      if (!(await automationExists(c, name))) {
+        return c.json({ error: 'Automation not found' }, 404);
+      }
       await deleteTrigger(deps.sql, c.get('organizationId'), name);
       return c.body(null, 204);
     } catch (error) {
@@ -119,88 +154,140 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  /** Bind the automation to a project — the machine door's install step.
-   * Idempotent single-project ADD; the target must exist in-org AND be
-   * visible to the minting user (an invisible project reads as absent). */
-  app.post('/automations/:name{.+?}/projects', async (c) => {
-    const body = z
-      .object({ projectId: z.string().min(1).max(64) })
-      .safeParse(await readJsonBody(c));
-    if (!body.success) {
-      return c.json({ error: 'invalid body ("projectId" is required)' }, 400);
-    }
+  app.get('/projects/:id/automations', async (c) => {
     try {
-      requireDeveloper(c);
-      const name = decodeName(c, '/projects');
-      const versions = await listVersions(
-        deps.sql,
-        c.get('organizationId'),
-        name,
-      );
-      if (versions.length === 0) {
-        return c.json({ error: 'Automation not found' }, 404);
-      }
       const auth = await restProjectAuth(deps.sql, c);
-      let project;
-      try {
-        project = await loadProjectOrThrow(deps.sql, body.data.projectId);
-        assertReadable(project, auth);
-      } catch {
-        return c.json({ error: 'Project not found' }, 404);
-      }
-      if (project.organizationId !== c.get('organizationId')) {
-        return c.json({ error: 'Project not found' }, 404);
-      }
-      // ONE atomic add (`INSERT … ON CONFLICT DO NOTHING`), never a rewrite
-      // of the whole set from a read: two workers binding different
-      // projects at once must both keep their row.
-      const { bound } = await bindProject(deps.sql, {
-        organizationId: c.get('organizationId'),
-        name,
-        projectId: project.id,
-        actor: c.get('userId'),
+      const project = await loadRestProject(deps.sql, auth, c.req.param('id'));
+      return c.json({
+        automations: (await listAutomations(deps.sql, auth.organizationId))
+          .filter((definition) => definition.projectIds.includes(project.id))
+          .map(({ projectIds: _projectIds, ...definition }) => definition),
       });
-      return c.json({ name, added: bound }, bound ? 201 : 200);
     } catch (error) {
       return domainErrorResponse(c, error);
     }
   });
 
-  /** The newest runs first — a bounded window (`limit` 1..200, default
-   * 50), not a cursor walk; poll `GET /runs/{runId}` for one run. */
-  app.get('/automations/:name{.+?}/runs', async (c) => {
-    const name = decodeName(c, '/runs');
-    return c.json({
-      runs: await listRuns(deps.sql, c.get('organizationId'), {
-        name,
-        limit: pageLimit(c.req.query('limit'), { fallback: 50, max: 200 }),
-      }),
-    });
-  });
+  /** Idempotent install into the URL project; authorization and binding
+   * share one transaction, and no caller can override the scope in JSON. */
+  const installAutomation = async (c: Context<RestEnv>) => {
+    const body = emptyBody.safeParse(await readOptionalJsonBody(c));
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      requireDeveloper(c);
+      const name = decodeName(c);
+      const auth = await restProjectAuth(deps.sql, c);
+      const result = await transactSerializable(deps.sql, async (tx) => {
+        const project = await loadRestProject(
+          tx,
+          auth,
+          c.req.param('id') ?? '',
+          { write: true },
+        );
+        if (
+          (await versionRow(tx, auth.organizationId, name, undefined)) === null
+        )
+          return null;
+        return bindProjectInTx(tx, {
+          organizationId: auth.organizationId,
+          name,
+          projectId: project.id,
+          actor: auth.userId,
+        });
+      });
+      if (result === null) {
+        return c.json({ error: 'Automation not found' }, 404);
+      }
+      return c.json({ name, added: result.bound }, result.bound ? 201 : 200);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+
+  /** A bounded window inside exactly the URL scope. */
+  const readRuns = async (c: Context<RestEnv>) => {
+    try {
+      const projectId = c.req.param('id');
+      if (projectId !== undefined) {
+        const auth = await restProjectAuth(deps.sql, c);
+        await loadRestProject(deps.sql, auth, projectId);
+      }
+      return c.json({
+        runs: await listRuns(deps.sql, c.get('organizationId'), {
+          name: decodeName(c),
+          projectId: projectId ?? null,
+          limit: pageLimit(c.req.query('limit'), { fallback: 50, max: 200 }),
+        }),
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/automations/:name{.+?}/runs', readRuns);
+  app.get('/projects/:id/automations/:name{.+?}/runs', readRuns);
 
   /** Start a run of the deployed version (or a named one). Answers 202 with
-   * the run's identity — the caller polls `GET /api/v1/runs/{runId}`. A live
+   * the run's identity; poll its detail URL in the same scope. A live
    * run can act on the organization's behalf, so it needs the developer
    * capability; a mock run reaches nothing outside the process. */
-  app.post('/automations/:name{.+?}/runs', async (c) => {
+  const startRun = async (c: Context<RestEnv>) => {
     const limited = await chargeLane(deps.sql, c, 'rest:execute');
     if (limited) return limited;
-    const body = z
-      .object({
-        input: z.unknown().optional(),
-        mode: z.enum(['mock', 'live']).optional(),
-        version: z.number().int().min(1).optional(),
-        projectId: z.string().max(200).optional(),
-      })
-      .safeParse(await c.req.json().catch(() => ({})));
+    const body = runBody.safeParse(await readOptionalJsonBody(c));
     if (!body.success) {
       return c.json({ error: 'invalid body' }, 400);
     }
     const mode = body.data.mode ?? 'live';
     try {
       if (mode === 'live') requireDeveloper(c);
-      const name = decodeName(c, '/runs');
-      const started = await beginRun(deps.sql, {
+      const name = decodeName(c);
+      const organizationId = c.get('organizationId');
+      const projectId = c.req.param('id');
+      const auth =
+        projectId === undefined ? null : await restProjectAuth(deps.sql, c);
+      if (auth !== null && projectId !== undefined) {
+        await loadRestProject(deps.sql, auth, projectId, { write: true });
+      }
+      if (!(await automationExists(c, name))) {
+        return c.json({ error: 'Automation not found' }, 404);
+      }
+      if (body.data.version !== undefined) {
+        const named = await versionRow(
+          deps.sql,
+          organizationId,
+          name,
+          body.data.version,
+        );
+        if (named === null) {
+          return c.json(
+            {
+              error: `"${name}" has no version ${body.data.version}.`,
+              code: 'AUTOMATION_VERSION_UNKNOWN',
+            },
+            404,
+          );
+        }
+        // The deploy gate holds on this door too: a LIVE run acts on the
+        // organization's behalf, so it may only run the version the gate
+        // promoted. Naming any saved version is the mock lane's privilege —
+        // the builder's test run, which reaches nothing outside the process.
+        if (
+          mode === 'live' &&
+          (await deployedVersion(deps.sql, organizationId, name)) !==
+            body.data.version
+        ) {
+          return c.json(
+            {
+              error: `"${name}@${body.data.version}" is not the deployed version — deploy it first, or run it in mock mode.`,
+              code: 'AUTOMATION_VERSION_NOT_DEPLOYED',
+            },
+            409,
+          );
+        }
+      }
+      const args = {
         organizationId: c.get('organizationId'),
         name,
         input: body.data.input ?? {},
@@ -209,10 +296,16 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ...(body.data.version !== undefined
           ? { version: body.data.version }
           : {}),
-        ...(body.data.projectId !== undefined
-          ? { projectId: body.data.projectId }
-          : {}),
-      });
+      };
+      const started =
+        auth !== null && projectId !== undefined
+          ? await transactSerializable(deps.sql, async (tx) => {
+              const project = await loadRestProject(tx, auth, projectId, {
+                write: true,
+              });
+              return beginRunInTx(tx, { ...args, projectId: project.id });
+            })
+          : await beginRun(deps.sql, { ...args, requireOrgScope: true });
       if (started === null) {
         return c.json(
           {
@@ -226,11 +319,14 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     } catch (error) {
       return domainErrorResponse(c, error);
     }
-  });
+  };
+  app.post('/automations/:name{.+?}/runs', startRun);
+  app.post('/projects/:id/automations/:name{.+?}/runs', startRun);
+  app.post('/projects/:id/automations/:name{.+?}', installAutomation);
 
   /** One version's document — the latest deployed-aware read. */
   app.get('/automations/:name{.+?}', async (c) => {
-    const name = decodeName(c, '');
+    const name = decodeName(c);
     const versionParam = c.req.query('version');
     let version: number | undefined;
     if (versionParam !== undefined) {
@@ -267,30 +363,62 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   // ---- runs ----------------------------------------------------------------
-  app.get('/runs/:runId', async (c) => {
-    const run = await getRun(
-      deps.sql,
-      c.get('organizationId'),
-      c.req.param('runId'),
-    );
-    if (run === null) return c.json({ error: 'Run not found' }, 404);
-    return c.json(run);
-  });
-
-  app.post('/runs/:runId/cancel', async (c) => {
+  const readRun = async (c: Context<RestEnv>) => {
     try {
-      requireDeveloper(c);
-      return c.json(
-        await cancelRun(
-          deps.sql,
-          c.get('organizationId'),
-          c.req.param('runId'),
-        ),
+      const projectId = c.req.param('id');
+      if (projectId !== undefined) {
+        const auth = await restProjectAuth(deps.sql, c);
+        await loadRestProject(deps.sql, auth, projectId);
+      }
+      const run = await getRun(
+        deps.sql,
+        c.get('organizationId'),
+        c.req.param('runId') ?? '',
       );
+      if (run === null || run.projectId !== (projectId ?? null))
+        return c.json({ error: 'Run not found' }, 404);
+      return c.json(run);
     } catch (error) {
       return domainErrorResponse(c, error);
     }
-  });
+  };
+  app.get('/runs/:runId', readRun);
+  app.get('/projects/:id/runs/:runId', readRun);
+
+  /** Stop a run at its next node boundary. A run that is not there is a
+   * 404 — `{cancelled: false}` is reserved for a run that exists and had
+   * already finished, so a mistyped id never reads as "nothing to cancel". */
+  const stopRun = async (c: Context<RestEnv>) => {
+    if (!emptyBody.safeParse(await readOptionalJsonBody(c)).success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      requireDeveloper(c);
+      const runId = c.req.param('runId') ?? '';
+      const projectId = c.req.param('id');
+      if (projectId !== undefined) {
+        const auth = await restProjectAuth(deps.sql, c);
+        const result = await transactSerializable(deps.sql, async (tx) => {
+          await loadRestProject(tx, auth, projectId, { write: true });
+          const run = await getRun(tx, auth.organizationId, runId);
+          if (run === null || run.projectId !== projectId) return null;
+          return cancelRunInTx(tx, auth.organizationId, runId);
+        });
+        return result === null
+          ? c.json({ error: 'Run not found' }, 404)
+          : c.json(result);
+      }
+      const run = await getRun(deps.sql, c.get('organizationId'), runId);
+      if (run === null || run.projectId !== null) {
+        return c.json({ error: 'Run not found' }, 404);
+      }
+      return c.json(await cancelRun(deps.sql, c.get('organizationId'), runId));
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.post('/runs/:runId/cancel', stopRun);
+  app.post('/projects/:id/runs/:runId/cancel', stopRun);
 
   return app;
 }

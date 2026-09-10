@@ -34,7 +34,6 @@ import type { Sql } from 'postgres';
  * `governance/sso/`, so it shares the governance domain's lock.
  */
 export type ConfigDomain =
-  | 'agents'
   | 'branding'
   | 'governance'
   | 'knowledge'

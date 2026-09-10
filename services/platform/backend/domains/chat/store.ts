@@ -1,4 +1,5 @@
-import type { Sql } from 'postgres';
+import { transactSerializable } from '@tale/shared/db/serializable';
+import type { Sql, TransactionSql } from 'postgres';
 
 import {
   estimateCostCents,
@@ -14,6 +15,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import { claimMessageSlot, type SlotClaimOptions } from '../threads/store.ts';
+import { ChatThreadError, projectChatAccess } from './threads.ts';
 
 /**
  * The Postgres-backed ports the turn pipeline writes through — the 0.5 twin
@@ -30,6 +32,53 @@ import { claimMessageSlot, type SlotClaimOptions } from '../threads/store.ts';
  */
 
 const STREAM_WRITE_INTERVAL_MS = 250;
+
+/** A detached REST turn must keep the project scope its URL accepted. */
+export interface ThreadWriteScope {
+  userId: string;
+  projectId: string | null;
+}
+
+/** Hold the metadata row that move/archive/trash update until the write
+ * commits. A worker's earlier ownership read cannot guard this interval. */
+export async function assertThreadWriteScope(
+  tx: TransactionSql,
+  args: ThreadWriteScope & { organizationId: string; threadId: string },
+): Promise<void> {
+  const refused = () =>
+    new ChatThreadError(
+      'THREAD_SCOPE_CHANGED',
+      'The conversation is no longer writable in the accepted project scope.',
+      409,
+    );
+  const threads = await tx<{ id: string }[]>`
+    SELECT t.id FROM app.threads t
+    JOIN app.thread_metadata tm ON tm.thread_id = t.id
+    WHERE t.id = ${args.threadId} AND t.org_id = ${args.organizationId}
+      AND t.user_id = ${args.userId} AND tm.status = 'active'
+      AND tm.chat_type = 'direct' AND tm.archived = false
+      AND tm.project_id IS NOT DISTINCT FROM ${args.projectId}
+    FOR UPDATE OF tm
+  `;
+  if (threads.length === 0) throw refused();
+  if (args.projectId !== null) {
+    const projects = await tx<{ id: string }[]>`
+      SELECT id FROM app.projects
+      WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
+        AND archived_at_ms IS NULL
+      FOR SHARE
+    `;
+    if (
+      projects.length === 0 ||
+      (await projectChatAccess(tx, {
+        projectId: args.projectId,
+        organizationId: args.organizationId,
+        userId: args.userId,
+      })) !== 'ok'
+    )
+      throw refused();
+  }
+}
 
 export async function appendMessageRow(
   sql: Sql,
@@ -233,26 +282,37 @@ function settleDeferredSendOnUserAppend(
  * tray row there (the 0.4 `settleDeferredSendOnUserAppend` wiring). */
 export function createPgTurnStore(
   sql: Sql,
-  options: { onUserMessageAppended?: () => Promise<void> } = {},
+  options: {
+    onUserMessageAppended?: () => Promise<void>;
+    scope?: ThreadWriteScope;
+  } = {},
 ): TurnStore {
-  const store = pgTurnStore(sql);
+  const store = pgTurnStore(sql, options.scope);
   return options.onUserMessageAppended !== undefined
     ? settleDeferredSendOnUserAppend(store, options.onUserMessageAppended)
     : store;
 }
 
-function pgTurnStore(sql: Sql): TurnStore {
+function pgTurnStore(sql: Sql, scope?: ThreadWriteScope): TurnStore {
   let lastStreamWriteAt = 0;
   let lastCancelRequested = false;
   return {
     async appendMessage(message) {
-      const appended = await appendMessageRow(sql, {
+      const stored = {
         ...message,
         text: message.parts
           .map((part) => (part.type === 'text' ? part.text : ''))
           .join(''),
+      };
+      if (scope === undefined) return appendMessageRow(sql, stored);
+      return transactSerializable(sql, async (tx) => {
+        await assertThreadWriteScope(tx, {
+          ...scope,
+          organizationId: message.organizationId,
+          threadId: message.threadId,
+        });
+        return appendMessageRow(tx, stored);
       });
-      return appended;
     },
 
     async streamProgress(update) {
@@ -321,7 +381,14 @@ function pgTurnStore(sql: Sql): TurnStore {
       // between them used to leave a question with no reply, or a 'pending'
       // bubble no watchdog would ever fail (the watchdog keys on the
       // generation row, which did not exist yet).
-      const opened = await sql.begin(async (tx) => {
+      const open = async (tx: TransactionSql) => {
+        if (scope !== undefined) {
+          await assertThreadWriteScope(tx, {
+            ...scope,
+            organizationId: setup.organizationId,
+            threadId: setup.threadId,
+          });
+        }
         let userMessage: { id: string; sequence: number } | undefined;
         if (setup.userParts !== undefined) {
           userMessage = await appendMessageRow(tx, {
@@ -373,8 +440,10 @@ function pgTurnStore(sql: Sql): TurnStore {
           ...(userMessage !== undefined ? { userMessage } : {}),
           assistantMessage,
         };
-      });
-      return opened;
+      };
+      return scope === undefined
+        ? sql.begin(open)
+        : transactSerializable(sql, open);
     },
 
     async endGeneration(generation) {

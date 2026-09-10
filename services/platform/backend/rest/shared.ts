@@ -1,10 +1,18 @@
 import type { Context } from 'hono';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
-import { getProjectAuthContext } from '../domains/projects/service.ts';
+import {
+  assertReadable,
+  assertWritable,
+  getProjectAuthContext,
+  loadProjectOrThrow,
+  ProjectError,
+  type ProjectAuthContext,
+  type ProjectRow,
+} from '../domains/projects/service.ts';
 import {
   rateLimitedResponse,
   rateLimitExceededCause,
@@ -102,6 +110,29 @@ export const INVALID_JSON: unique symbol = Symbol('invalid-json');
 export async function readJsonBody(c: Context<RestEnv>): Promise<unknown> {
   try {
     return await c.req.json();
+  } catch (error) {
+    console.warn(
+      '[rest] unparseable JSON body:',
+      error instanceof Error ? error.message : String(error),
+    );
+    return INVALID_JSON;
+  }
+}
+
+/**
+ * The body of a route whose body is OPTIONAL: nothing sent (or whitespace)
+ * reads as `{}`, a body that is present but not JSON reads as
+ * `INVALID_JSON`. The former `c.req.json().catch(() => ({}))` treated a
+ * truncated `curl -d` like no body at all — a broken JSON document started a
+ * live run with `{}` as its input instead of the documented 400.
+ */
+export async function readOptionalJsonBody(
+  c: Context<RestEnv>,
+): Promise<unknown> {
+  const raw = await c.req.text();
+  if (raw.trim() === '') return {};
+  try {
+    return JSON.parse(raw) as unknown;
   } catch (error) {
     console.warn(
       '[rest] unparseable JSON body:',
@@ -227,4 +258,50 @@ export async function restProjectAuth(sql: Sql, c: Context<RestEnv>) {
     userId: c.get('userId'),
     role: c.get('role'),
   });
+}
+
+/** The URL project is authoritative for every nested REST resource. Hidden
+ * projects are opaque; driver failures remain outages. Member collaboration
+ * requires an active readable project, while editorial writes also require
+ * edit access. Call inside a mutation's transaction to recheck its scope. */
+export async function loadRestProject(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  options: { write?: boolean; active?: boolean } = {},
+): Promise<ProjectRow> {
+  let project: ProjectRow;
+  try {
+    project = await loadProjectOrThrow(sql, projectId);
+    assertReadable(project, auth);
+  } catch (error) {
+    if (
+      error instanceof ProjectError &&
+      (error.code === 'PROJECT_NOT_FOUND' || error.code === 'PROJECT_FORBIDDEN')
+    ) {
+      throw new RestRefusal('Project not found', 404);
+    }
+    throw error;
+  }
+  if (options.write) assertWritable(project, auth);
+  if ((options.write || options.active) && project.archivedAt !== null) {
+    throw new RestRefusal('Project is archived', 403);
+  }
+  return project;
+}
+
+/** Keep the project editable until the caller's transaction commits, including
+ * while a file write waits for blob storage. A serializable retry would repeat
+ * that external I/O; a row lock instead orders archival and binding. */
+export async function lockRestProjectForWrite(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<ProjectRow> {
+  await tx`
+    SELECT id FROM app.projects
+    WHERE id = ${projectId} AND org_id = ${auth.organizationId}
+    FOR SHARE
+  `;
+  return loadRestProject(tx, auth, projectId, { write: true });
 }

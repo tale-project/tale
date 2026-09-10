@@ -84,7 +84,7 @@ export function resolvePolicyYamlFilePath(
 
 /**
  * History dir for a policy type. Defence-in-depth: validate the policy type
- * before joining `.history/<policyType>` (mirrors `agents/file_utils.ts`).
+ * before joining `.history/<policyType>`.
  */
 export function resolveHistoryDir(orgSlug: string, policyType: string): string {
   if (!isFilePolicyType(policyType)) {

@@ -14,6 +14,9 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 | Suite | Boxes | Status | Owning spec |
 |---|---|---|---|
+| [projects](../suites/projects.md) | Project-agent REST CRUD, project isolation, roles, secret grants and session parity | ✅ automated | `backend/rest/v1-project-agents.test.ts`, `backend/domains/projects/routes.test.ts`, `backend/rest/project-agents-check.ts` (43 real HTTP/Postgres checks in `checkRestProjectAgents`) |
+| [projects](../suites/projects.md) | REST project tasks, threads, files, installed automations, runs and token webhooks: path isolation, member/editor roles, archived-project refusals, strict bodies, MCP access and opaque private resources | ✅ automated | `backend/rest/project-scope-check.ts` (106 real HTTP/Postgres checks plus concurrent archive/queued-turn checks in `checkRestProjectAgents`), `backend/rest/v1-tasks.test.ts`, `backend/rest/v1-threads.scope.test.ts`, `backend/rest/v1-automations.project-scope.test.ts`, `backend/rest/v1-core.contract.test.ts` (knowledge scope), `backend/domains/chat/store.test.ts` (queued-turn scope) |
+| [settings](../suites/settings.md) | `SET-B11` (REST model discovery) | 🔶 backend | `backend/rest/v1-threads.contract.test.ts`, `backend/rest/v1-threads.test.ts` — org/user scoping, empty catalog, credential-free response, provider forwarded; live provider response stays manual |
 | [accessibility](../suites/accessibility.md) | Layer | Status | Where |
 | [accessibility](../suites/accessibility.md) | Per-component axe (WCAG 2.1 AA) | ✅ automated | `checkAccessibility()` — `packages/ui/tests/utils/a11y.ts` (axe via `vitest-axe`); ~30+ component `.test.tsx` call it |
 | [accessibility](../suites/accessibility.md) | Per-story axe (WCAG 2.1 AA) | ✅ automated | Storybook `@storybook/addon-a11y` + `@storybook/addon-vitest` (`packages/ui/src/storybook/main.ts`); rules `wcag2a/wcag2aa/wcag21aa/best-practice` (`preview.tsx`) |

@@ -28,13 +28,16 @@ describe('routeClass', () => {
   test('collapses the machine doors and pre-auth lanes', () => {
     expect(routeClass('/api/auth/sign-in/email')).toBe('/api/auth');
     expect(routeClass('/api/tools/execute')).toBe('/api/tools');
-    expect(routeClass('/api/v1/tasks/1')).toBe('/api/v1');
+    expect(routeClass('/api/v1/projects/p-1/tasks/1')).toBe('/api/v1');
     expect(routeClass('/api/control/drain')).toBe('/api/control');
     expect(routeClass('/api/sso/callback/x')).toBe('/api/sso');
     expect(routeClass('/http_api/api/sso/callback/x')).toBe('/api/sso');
     expect(routeClass('/scim/v2/Users/7')).toBe('/scim/v2');
     expect(routeClass('/http_api/scim/v2/Groups')).toBe('/scim/v2');
     expect(routeClass('/api/automations/webhook/tok')).toBe(
+      '/api/automations/webhook',
+    );
+    expect(routeClass('/api/projects/project-1/automations/webhook/tok')).toBe(
       '/api/automations/webhook',
     );
     expect(routeClass('/dav/org/file.txt')).toBe('/dav');

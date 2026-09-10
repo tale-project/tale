@@ -489,10 +489,13 @@ export async function deleteKnowledgeEntry(
 ): Promise<void> {
   assertCanWriteEntries(args.role);
   await sql.begin(async (tx) => {
+    // A row already soft-deleted is not there to delete: a second DELETE
+    // answers the documented 404, not a 204 that re-stamps nothing.
     const rows = await tx<{ topicKey: string; documentId: string | null }[]>`
       SELECT topic_key AS "topicKey", document_id AS "documentId"
       FROM app.knowledge_entries
       WHERE id = ${args.entryId} AND org_id = ${args.organizationId}
+        AND deleted_at_ms IS NULL
       LIMIT 1
     `;
     const entry = rows[0];

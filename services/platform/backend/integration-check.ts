@@ -6505,96 +6505,6 @@ async function checkSmallDomains(
 }
 
 /**
- * Agents: the REUSED 0.4 file layer (org config tree yaml + history trail)
- * behind the 0.5 routes — save (verify-before-write), list, read, delete,
- * and the slug gate.
- */
-async function checkAgents(
-  base: string,
-  ctx: { cookie: string; orgId: string },
-): Promise<void> {
-  const { cookie, orgId } = ctx;
-  const call = (
-    method: 'GET' | 'PUT' | 'DELETE',
-    route: string,
-    body?: unknown,
-  ): Promise<Response> =>
-    fetch(`${base}${route}`, {
-      method,
-      headers: { 'content-type': 'application/json', cookie, origin: base },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    });
-
-  const agentDoc = z
-    .object({
-      agent: z.looseObject({
-        slug: z.string(),
-        displayName: z.string(),
-        visibility: z.string(),
-        canEdit: z.boolean(),
-        instructions: z.string().optional(),
-      }),
-    })
-    .loose();
-
-  const created = agentDoc.safeParse(
-    await (
-      await call('PUT', `/api/app/agents/helper?orgId=${orgId}`, {
-        displayName: 'Helper',
-        instructions: 'Be helpful, v1.',
-        visibility: 'org',
-      })
-    ).json(),
-  );
-  const listed = z
-    .object({ agents: z.array(z.looseObject({ slug: z.string() })) })
-    .loose()
-    .safeParse(
-      await (await call('GET', `/api/app/agents?orgId=${orgId}`)).json(),
-    );
-  const badSlug = await call(
-    'PUT',
-    `/api/app/agents/${encodeURIComponent('Bad Slug!')}?orgId=${orgId}`,
-    { displayName: 'Nope' },
-  );
-
-  // A second save edits in place and keeps every field the edit omits.
-  const edited = agentDoc.safeParse(
-    await (
-      await call('PUT', `/api/app/agents/helper?orgId=${orgId}`, {
-        displayName: 'Helper',
-        instructions: 'Be helpful, v2.',
-      })
-    ).json(),
-  );
-  const deleted = z
-    .object({ deleted: z.boolean() })
-    .safeParse(
-      await (
-        await call('DELETE', `/api/app/agents/helper?orgId=${orgId}`)
-      ).json(),
-    );
-  const readAfter = await call('GET', `/api/app/agents/helper?orgId=${orgId}`);
-
-  record(
-    'agents file layer (save/list/edit/delete)',
-    created.success &&
-      created.data.agent.canEdit &&
-      created.data.agent.visibility === 'org' &&
-      listed.success &&
-      listed.data.agents.some((agent) => agent.slug === 'helper') &&
-      badSlug.status === 400 &&
-      edited.success &&
-      edited.data.agent.instructions === 'Be helpful, v2.' &&
-      edited.data.agent.visibility === 'org' &&
-      deleted.success &&
-      deleted.data.deleted &&
-      readAfter.status === 404,
-    `created=${created.success}, listed=${listed.success ? listed.data.agents.length : 'ERR'}, badSlug → ${badSlug.status} (want 400), editedV2=${edited.success && edited.data.agent.instructions === 'Be helpful, v2.' && edited.data.agent.visibility === 'org'}, delete=${deleted.success && deleted.data.deleted}, readAfter → ${readAfter.status} (want 404)`,
-  );
-}
-
-/**
  * Skills: the REUSED 0.4 file layer (SKILL.md frontmatter + bundle files)
  * behind the 0.5 routes — save (verify-before-write, org default), list,
  * read (body + file entries), delete, and the slug/team gates.
@@ -10271,7 +10181,7 @@ async function checkAutomationRunLifecycle(
     .object({ token: z.string() })
     .safeParse(await hookSet.json());
   const hookBadProject = await fetch(
-    `${base}/api/automations/webhook/${hookToken.success ? hookToken.data.token : 'x'}?projectId=phantom-project`,
+    `${base}/api/projects/phantom-project/automations/webhook/${hookToken.success ? hookToken.data.token : 'x'}`,
     { method: 'POST', body: '{}' },
   );
   const hookNoProject = await fetch(
@@ -11886,11 +11796,6 @@ async function checkRestDoor(
         )
       ).json(),
     );
-  const agents = z
-    .object({ agents: z.array(z.unknown()) })
-    .loose()
-    .safeParse(await (await v1('/agents')).json());
-
   // Author via the SESSION surface (REST has no save/deploy — 0.4 parity),
   // then run + inspect entirely through the door's spec routes.
   const doorDoc = {
@@ -11984,7 +11889,6 @@ async function checkRestDoor(
       productCreated.success &&
       productRead.success &&
       productRead.data.name === 'Door Widget' &&
-      agents.success &&
       doorRead.success &&
       doorRead.data.deployedVersion === 1 &&
       doorListed.success &&
@@ -12002,7 +11906,7 @@ async function checkRestDoor(
       runsListed.data.runs.length >= 1 &&
       badKey.status === 401 &&
       noKey.status === 401,
-    `key=${minted.success}, contacts=${contacts.success ? contacts.data.page.length : 'ERR'}, product=${productRead.success ? productRead.data.name : 'ERR'}, agents=${agents.success}, autom read=${doorRead.success ? (doorRead.data.deployedVersion ?? 'nodeploy') : 'ERR'}, trigger mint/read/del=${triggerPut.success && typeof triggerPut.data.token === 'string'}/${triggerRead.success ? triggerRead.data.triggers[0]?.hasToken : 'ERR'}/${triggerDeleted.status}, door run=${doorSettled} output=${doorRun.success ? JSON.stringify(doorRun.data.output) : 'ERR'} (want 42), badKey → ${badKey.status}, noKey → ${noKey.status} (want 401/401)`,
+    `key=${minted.success}, contacts=${contacts.success ? contacts.data.page.length : 'ERR'}, product=${productRead.success ? productRead.data.name : 'ERR'}, autom read=${doorRead.success ? (doorRead.data.deployedVersion ?? 'nodeploy') : 'ERR'}, trigger mint/read/del=${triggerPut.success && typeof triggerPut.data.token === 'string'}/${triggerRead.success ? triggerRead.data.triggers[0]?.hasToken : 'ERR'}/${triggerDeleted.status}, door run=${doorSettled} output=${doorRun.success ? JSON.stringify(doorRun.data.output) : 'ERR'} (want 42), badKey → ${badKey.status}, noKey → ${noKey.status} (want 401/401)`,
   );
 }
 
@@ -12173,8 +12077,8 @@ async function checkRestMachineJourney(
   }
 
   // Bind the door automation to the project (idempotent add).
-  const bindFirst = await v1('/automations/ops/door/projects', {
-    body: { projectId },
+  const bindFirst = await v1(`/projects/${projectId}/automations/ops__door`, {
+    method: 'POST',
   });
   const bindFirstBody = z
     .object({ added: z.boolean() })
@@ -12185,14 +12089,15 @@ async function checkRestMachineJourney(
     .loose()
     .safeParse(
       await (
-        await v1('/automations/ops/door/projects', { body: { projectId } })
+        await v1(`/projects/${projectId}/automations/ops__door`, {
+          method: 'POST',
+        })
       ).json(),
     );
 
   // External-ref task intake: create → idempotent re-pick → projection.
-  const taskFirst = await v1('/tasks', {
+  const taskFirst = await v1(`/projects/${projectId}/tasks`, {
     body: {
-      projectId,
       externalSystem: 'github',
       externalId: 'journey-issue-7',
       title: 'Prepare the ledger review',
@@ -12210,9 +12115,8 @@ async function checkRestMachineJourney(
     .object({ task: z.object({ id: z.string(), created: z.boolean() }) })
     .safeParse(
       await (
-        await v1('/tasks', {
+        await v1(`/projects/${projectId}/tasks`, {
           body: {
-            projectId,
             externalSystem: 'github',
             externalId: 'journey-issue-7',
             title: 'Prepare the ledger review (renamed)',
@@ -12229,14 +12133,16 @@ async function checkRestMachineJourney(
         externalSystem: z.string().optional(),
       }),
     })
-    .safeParse(await (await v1(`/tasks/${taskId}`)).json());
+    .safeParse(
+      await (await v1(`/projects/${projectId}/tasks/${taskId}`)).json(),
+    );
 
   // Comment lane: post as the key's user, read it back.
   const commentPosted = z
     .object({ comment: z.object({ id: z.string() }) })
     .safeParse(
       await (
-        await v1(`/tasks/${taskId}/comments`, {
+        await v1(`/projects/${projectId}/tasks/${taskId}/comments`, {
           body: { body: 'Prepared figures are attached.' },
         })
       ).json(),
@@ -12247,7 +12153,11 @@ async function checkRestMachineJourney(
         z.looseObject({ authorType: z.string(), body: z.string() }),
       ),
     })
-    .safeParse(await (await v1(`/tasks/${taskId}/comments`)).json());
+    .safeParse(
+      await (
+        await v1(`/projects/${projectId}/tasks/${taskId}/comments`)
+      ).json(),
+    );
 
   // Start the deployed workflow ON the task; the run carries the task as
   // its subject input and is attributed to the task's project.
@@ -12259,7 +12169,7 @@ async function checkRestMachineJourney(
     .loose()
     .safeParse(
       await (
-        await v1(`/tasks/${taskId}/start`, {
+        await v1(`/projects/${projectId}/tasks/${taskId}/start`, {
           body: { workflowSlug: 'ops/door' },
         })
       ).json(),
@@ -12334,7 +12244,7 @@ async function checkRestMachineJourney(
  * (per-item duplicate accounting), the Knowledge-Hub document CRUD +
  * retry-indexing honesty, the knowledge-entry version chain over the wire
  * (PATCH answers the NEW id), the skills file layer, the REST chat lane
- * (202-accept → detached turn → poll → reply), and org-wide knowledge
+ * (202-accept → detached turn → poll → reply), and user-visible Hub knowledge
  * search on a live embedding endpoint.
  */
 async function checkRestResources(
@@ -12629,7 +12539,7 @@ async function checkRestResources(
       threadListed.data.page.some((t) => t.id === threadId);
     chatDetail = `thread=${threadCreated.success}, accepted=${accepted.success ? accepted.data.status : 'ERR'}, idle=${idle}, reply=${replied}, listed=${threadListed.success && threadListed.data.page.some((t) => t.id === threadId)}`;
 
-    // ---- knowledge search: re-point the embedder, org-wide query --------
+    // ---- knowledge search: re-point the embedder, visible Hub query -----
     await writeFile(
       path.join(configRoot, orgSlug, 'knowledge', 'embedding.json'),
       JSON.stringify({
@@ -12693,47 +12603,68 @@ async function checkRestResources(
       searchOk,
     `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 duplicate_email), docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}/${docRead.success ? docRead.data.content : 'ERR'}/retry=${retry.success ? retry.data.status : 'ERR'}/del=${docDeleted.status}→${docGone.status}, entry chain=${entryCreated.success}/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/old=${oldEntry.success ? oldEntry.data.status : 'ERR'}/del=${entryDeleted.status}, skill=${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
   );
+}
 
-  // Agents: a refusal is the 4xx it is, never a 500 — an invalid slug 400,
-  // someone else's private agent 403, a malformed file 422, and deleting an
-  // absent agent 404 (the deletion semantics the API reference documents,
-  // which the skills family already answered).
-  const agentsDir = path.join(
-    process.env.TALE_CONFIG_DIR ?? '',
-    orgSlug,
-    'agents',
-  );
-  await mkdir(agentsDir, { recursive: true });
-  const privateAgentFile = path.join(agentsDir, 'itest-private-agent.yml');
-  const brokenAgentFile = path.join(agentsDir, 'itest-broken-agent.yml');
-  await writeFile(
-    privateAgentFile,
-    'name: itest-private-agent\ndisplay-name: Private\ndescription: Someone else’s persona.\nvisibility: private\nowner: user_someone_else\ninstructions: Keep quiet.\n',
-    'utf8',
-  );
-  await writeFile(
-    brokenAgentFile,
-    'name: itest-broken-agent\ncolour: blue\n',
-    'utf8',
-  );
-  const agentBadSlug = await v1('/agents/Not_A_Slug');
-  const agentForbidden = await v1('/agents/itest-private-agent', {
-    method: 'PUT',
-    body: { displayName: 'Hijacked' },
+/** Real project resources share URL scope and persisted state across both doors. */
+async function checkRestProjectAgents(sql: Sql, base: string): Promise<void> {
+  const { checkProjectAgentRest } =
+    await import('./rest/project-agents-check.ts');
+  // A dedicated actor keeps this check's role changes and REST budget isolated.
+  const user = await signUpUser(base, 'project-agent-rest');
+  const headers = { 'content-type': 'application/json', origin: base };
+  const orgResponse = await fetch(`${base}/api/auth/organization/create`, {
+    method: 'POST',
+    headers: { ...headers, cookie: user.cookie },
+    body: JSON.stringify({
+      name: 'Project agent API integration',
+      slug: `project-agents-${randomUUID().slice(0, 8)}`,
+    }),
   });
-  const agentMalformed = await v1('/agents/itest-broken-agent');
-  const agentAbsentDelete = await v1('/agents/itest-absent-agent', {
-    method: 'DELETE',
-  });
-  await rm(privateAgentFile, { force: true });
-  await rm(brokenAgentFile, { force: true });
+  const org = z
+    .object({ id: z.string(), slug: z.string() })
+    .parse(await readJson(orgResponse, 'project agent API org'));
+  const ctx = { ...user, orgId: org.id };
+  const key = await mintRestKey(base, ctx.cookie, 'Project agent proof');
+  const requests = {
+    sql,
+    orgId: ctx.orgId,
+    userId: ctx.userId,
+    publicRequest: (
+      route: string,
+      body: unknown,
+      extraHeaders?: Record<string, string>,
+    ) =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...extraHeaders },
+        body: JSON.stringify(body),
+      }),
+    rest: (method: string, route: string, body?: unknown) =>
+      fetch(`${base}/api/v1${route}`, {
+        method,
+        headers: {
+          ...headers,
+          authorization: `Bearer ${key}`,
+          'X-Organization-Slug': org.slug,
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      }),
+    session: (method: string, route: string, body?: unknown) =>
+      fetch(`${base}${route}`, {
+        method,
+        headers: { ...headers, cookie: ctx.cookie },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      }),
+  };
+  const { checkProjectResourceRest } =
+    await import('./rest/project-scope-check.ts');
+  const count =
+    (await checkProjectAgentRest(requests)) +
+    (await checkProjectResourceRest(requests));
   record(
-    'REST resources: agent refusals map to 400/403/422/404, never 500',
-    agentBadSlug.status === 400 &&
-      agentForbidden.status === 403 &&
-      agentMalformed.status === 422 &&
-      agentAbsentDelete.status === 404,
-    `badSlug=${agentBadSlug.status} (want 400), forbidden=${agentForbidden.status} (want 403), malformed=${agentMalformed.status} (want 422), absentDelete=${agentAbsentDelete.status} (want 404)`,
+    'REST project resources: URL isolation, roles, archival and session parity',
+    true,
+    `${count} HTTP checks`,
   );
 }
 
@@ -39209,8 +39140,7 @@ async function checkLibrarySurface(
 
   // A bundle nobody can parse must still be deletable: the library shows it
   // as a failure row, and removing it is the only in-product repair (delete
-  // used to load the document first and answer 422). Same for a malformed
-  // agent file, which has no upload lane to replace it through at all.
+  // used to load the document first and answer 422).
   const configDir = process.env.TALE_CONFIG_DIR ?? '';
   const brokenSkillDir = path.join(
     configDir,
@@ -39222,18 +39152,6 @@ async function checkLibrarySurface(
   await writeFile(
     path.join(brokenSkillDir, 'SKILL.md'),
     '# no frontmatter\n',
-    'utf8',
-  );
-  const brokenAgentFile = path.join(
-    configDir,
-    orgSlug,
-    'agents',
-    'itest-broken-agent.yml',
-  );
-  await mkdir(path.dirname(brokenAgentFile), { recursive: true });
-  await writeFile(
-    brokenAgentFile,
-    'name: itest-broken-agent\ncolour: blue\n',
     'utf8',
   );
   const del = (route: string): Promise<Response> =>
@@ -39250,17 +39168,10 @@ async function checkLibrarySurface(
     `/api/app/skills/itest-broken-skill?orgId=${orgId}`,
   );
   const brokenSkillGone = await isGone(brokenSkillDir);
-  const brokenAgentDeleted = await del(
-    `/api/app/agents/itest-broken-agent?orgId=${orgId}`,
-  );
-  const brokenAgentGone = await isGone(brokenAgentFile);
   record(
-    'library surface: an admin deletes a malformed skill and agent',
-    brokenSkillDeleted.status === 200 &&
-      brokenSkillGone &&
-      brokenAgentDeleted.status === 200 &&
-      brokenAgentGone,
-    `skill=${brokenSkillDeleted.status} gone=${brokenSkillGone} (want 200/true), agent=${brokenAgentDeleted.status} gone=${brokenAgentGone} (want 200/true)`,
+    'library surface: an admin deletes a malformed skill',
+    brokenSkillDeleted.status === 200 && brokenSkillGone,
+    `skill=${brokenSkillDeleted.status} gone=${brokenSkillGone} (want 200/true)`,
   );
 
   // The upload door applies the editor's rules: `private` is retired for a
@@ -41258,12 +41169,16 @@ async function checkAccountAuthzHardening(
       `
     : [];
   const keyRow = keyRows[0];
+  // The plugin's own per-key window is OFF (auth.ts `API_KEY_RATE_LIMIT`):
+  // the door's `rest:api` bucket is the documented budget. The window
+  // columns still persist the declared 60-second default (never the 60 ms
+  // of the original unit bug) with the flag every minted key inherits.
   record(
-    'api-key rate limit persists a 60-second window (60000ms), not 60ms',
+    'api-key rate limit persists a disabled 60-second window (60000ms), not 60ms',
     keyRow?.rateLimitTimeWindow === 60_000 &&
       keyRow?.rateLimitMax === 100 &&
-      keyRow?.rateLimitEnabled === true,
-    `timeWindow=${keyRow?.rateLimitTimeWindow ?? 'ERR'} (want 60000), max=${keyRow?.rateLimitMax ?? 'ERR'}, enabled=${keyRow?.rateLimitEnabled ?? 'ERR'}`,
+      keyRow?.rateLimitEnabled === false,
+    `timeWindow=${keyRow?.rateLimitTimeWindow ?? 'ERR'} (want 60000), max=${keyRow?.rateLimitMax ?? 'ERR'}, enabled=${keyRow?.rateLimitEnabled ?? 'ERR'} (want false)`,
   );
 }
 
@@ -43585,7 +43500,7 @@ async function checkTaskDiscussionPaging(
     const body = restPage.safeParse(
       await (
         await fetch(
-          `${base}/api/v1/tasks/${taskId}/comments?limit=150${restCursor === '' ? '' : `&cursor=${restCursor}`}`,
+          `${base}/api/v1/projects/${projectId}/tasks/${taskId}/comments?limit=150${restCursor === '' ? '' : `&cursor=${restCursor}`}`,
           {
             headers: {
               authorization: `Bearer ${apiKey}`,
@@ -45036,7 +44951,6 @@ async function main(): Promise<void> {
         'checkRateLimitShapes',
         () => checkRateLimitShapes(sql, baseUrl, authCtx),
       ],
-      ['checkAgents', () => checkAgents(baseUrl, authCtx)],
       ['checkSkills', () => checkSkills(baseUrl, authCtx)],
       [
         'checkProviderCredentials',
@@ -45196,6 +45110,7 @@ async function main(): Promise<void> {
         () => checkBuilderSession(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
       ['checkRestDoor', () => checkRestDoor(sql, baseUrl, authCtx)],
+      ['checkRestProjectAgents', () => checkRestProjectAgents(sql, baseUrl)],
       [
         'checkRestMachineJourney',
         () => checkRestMachineJourney(sql, baseUrl, authCtx),

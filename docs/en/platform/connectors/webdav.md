@@ -37,6 +37,14 @@ In **This PC**, choose **Map network drive**, paste the URL as the folder, and p
 
 </Tab>
 
+<Tab title="Linux">
+
+GNOME Files mounts WebDAV under its own scheme — press **Ctrl+L**, enter the URL with `https://` swapped for `davs://` (`davs://<your-site>/dav/<orgSlug>/documents/`), and sign in with your email and the app-password. KDE Dolphin takes the same address as `webdavs://`.
+
+File managers with a split **Connect to Server** dialog (Nemo, Caja) build the address from their fields — put only the hostname (`<your-site>`) in **Server**, keep port `443` and type **Secure WebDAV (HTTPS)**, and enter `/dav/<orgSlug>/documents` as the folder.
+
+</Tab>
+
 <Tab title="iOS Files">
 
 Tap the three-dot menu, choose **Connect to Server**, and enter the same URL and credentials. Files supports browsing and downloading; in-place editing works for formats with an iOS app.

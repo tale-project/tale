@@ -1,70 +1,51 @@
 ---
 title: Agent concepts
-description: An agent is a persona — instructions, the tools and skills it may reach for, the knowledge it may search, and who is allowed to use it.
+description: A project agent combines a harness, model, instructions and equipment to work on tasks within one project.
 ---
 
-An agent is the unit Tale reaches for when the same question keeps coming back. It is a **persona** rather than a runtime: it says who is answering — a name, instructions, what it may reach for, and who in the organization may use it — and nothing about how a turn executes. In this version a persona is a YAML file in the organization's configuration, served and edited through the platform's own API; no screen lists or edits one, and the chat composer does not offer one to pick. The agents you meet on a screen are **project agents**, the named crew on a project's **Agents** tab — the same decisions, packaged for board tasks.
+A project agent is a named worker for one project's tasks. Its configuration brings together the harness that runs the work, the model it uses, standing instructions and the equipment it may reach for. Use this page to decide what belongs in that configuration before staffing a project; [Project agents](/platform/projects/project-agents) covers creating and managing the roster.
 
-This page hands you the mental model the rest of the section assumes. Read it once before you write your first persona file or staff your first project, and come back to it when you cannot remember whether the behaviour you want to change lives in the instructions, the tools, the skills, or the knowledge scope.
+## Choose what the agent owns
 
-Prefer to watch first? Episode 4 was recorded on the earlier agent editor — a screen this version does not ship — but the decisions it walks through, in under three minutes with captions, are the ones a persona still carries.
+An agent belongs to exactly one project. Its ID identifies that project's worker, and a task can only be assigned an agent from the same project. A project holds up to 50 agents, with names unique within that project.
 
-<Video src="/videos/en/tutorials/ep4-agent/ep4-agent.en.mp4" poster="/videos/en/tutorials/ep4-agent/ep4-agent.en.webp" captions="/videos/en/tutorials/ep4-agent/ep4-agent.en.vtt" lang="en" title="Episode 4 — Your first agent" caption="Episode 4 — Your first agent (2:46)">
+Visibility follows project access. People who can read the project can read its roster; people with project edit access can manage it while the project is active. An agent does not have a separate private or organization-wide visibility setting.
 
-</Video>
+## Choose how the work runs
 
-## What an agent carries
+The **harness** runs the coding session in a sandbox; the **model** and its provider determine which engine answers. These choices are part of the project agent. [Harnesses](/platform/agents/harnesses) explains the available execution environments, and [Providers](/platform/admin/providers) covers their credentials.
 
-A persona file carries five things. Each is validated when the file is saved, and none is set from a screen in this version — [Agents (admin view)](/platform/admin/agents) covers who may edit a file and how visibility is enforced.
+Standing **instructions** describe the agent's responsibility and boundaries, up to 20,000 characters. For a review agent, specify what to inspect, which changes need a person's decision and how to report the result. Keep task-specific requirements in the assigned task so the same agent can handle the next one.
 
-**Identity.** The slug the agent is filed under — it is the file name, fixed once the agent exists — the display name people meet it by, a short description of what it is for, and optional per-locale versions of those strings so a German or French reader gets the agent in their own language. The display name is yours to change whenever the job shifts.
+## Equip it for the task
 
-**Instructions.** The prose the persona contributes to every turn it frames, up to 20,000 characters, top-level or per locale. Keep it short, opinionated, and concrete — long instructions get diluted in long conversations. Name the voice, the constraints, and the cases where the agent should decline.
+**Skills** supply reference bundles, **connectors** provide connected services and **tools** grant platform capabilities. Each list holds up to 25 entries. Grant the capabilities the job needs; granting a write tool authorizes its writes within the tool's access rules.
 
-**Tools and skills.** Two allowlists. Tools name the capabilities the agent may call — up to a hundred — and platform tools, connected connectors, and the organization's automations all appear as capabilities in that one list. Skills name the skill bundles it may expand, up to ten of them. Both follow the same rule: leave a list out and the agent is not narrowed, state a list and it is limited to exactly what you named — an empty list means none at all.
-
-**Knowledge scoping.** One setting deciding which corpus the agent's retrieval may read — the organization's own documents, the pages fetched on its behalf, both together (the default), or nothing at all. Every corpus is the organization's own, so widening the scope never crosses a tenant boundary.
-
-**Visibility.** `private`, so only its owner reaches it, or `org`, so every member does. A private agent names an owner, because an ownerless private agent would be reachable by nobody; a persona created through the API belongs to its author and starts private, and sharing it is an explicit edit.
+**Secrets** reference organization-owned secret names, up to 25 per agent. Only an organization Owner or Admin may change those grants. Secret values remain encrypted in the organization's secret store; the agent configuration carries names, and its run receives the granted values.
 
 ```mermaid
 flowchart LR
-    I[Instructions] --> A((Agent))
-    T[Tools] --> A
-    S[Skills] --> A
-    K[Knowledge scope] --> A
-    A --> R[Reply with citations]
+    P[Project and assigned task] --> A[Project agent]
+    H[Harness and model] --> A
+    I[Standing instructions] --> A
+    E[Skills, connectors, tools and secrets] --> A
+    A --> R[Result for human review]
 ```
 
-## What the agent does not decide
+## Put the choices together
 
-The model is not part of the agent. Whoever composes the turn owns that choice — the chat composer's picker is models only, opening on **Auto** (Tale picks a model per message, and the reply records which one ran) with every directly-served model there to pin instead. An agent that pinned a model would quietly override the choice the person in front of the screen just made, so it holds none.
+A review agent might use a coding harness and a model served by an approved provider, a house review skill, the connector for the repository and instructions to report defects with evidence. It works on a task in its own project, then returns the result for a person to review. A second project needs its own agent configuration, even when the name and instructions match.
 
-The same reasoning retires several settings you might go looking for. A persona has no type and no harness picker: whether work runs on a coding [harness](/platform/agents/harnesses) is decided when you create a **project agent** (its dialog calls the field **Agent type**) or an automation **agent** node (there it is labeled **Harness**), and some provider credentials force one. It carries no execution deadline, because a ceiling belongs to the host running the turn rather than to a persona. It holds no environment variables and no credentials of its own — those live on the organization's provider records, where they can be rotated and audited in one place. And it ships no canned openers — nothing in this version presents a persona as a chat entry point.
+## Choose the right kind of work
 
-## Putting it together — a support-triage agent
+| Use | When you need |
+| --- | --- |
+| Chat | A conversation with the built-in assistant for questions, retrieval or drafting. |
+| A project agent | A configured worker for a project task whose result a person reviews. |
+| An automation | Defined stages, scheduling or approvals between steps. |
 
-A first useful agent is the support-triage one: it reads the inbound question, answers what it can, and hands the rest on. The decisions, whether you write them into a persona file or into a project agent's dialog:
+Direct chat uses the built-in assistant. Adding project context to a chat does not select a project agent; an automation's agent node has its own execution configuration.
 
-- Instructions: a one-paragraph voice, plus three explicit cases where it declines.
-- Tools: as few as the job allows — for an agent that reads a message and writes two lines, none.
-- Skills: the house reply-tone bundle, so the wording matches everywhere it is used.
-- Knowledge: the organization's documents, with the crawled web left out — on a project agent, the knowledge and document read tools.
-- Visibility: `org`, so the whole support team may read the persona; a project agent belongs to its project and is managed by whoever may edit it.
+## Staff the project
 
-The agent that actually runs in this version is the project agent: create it on the project's **Agents** tab with those instructions, assign it a task, click **Start agent**, and read the two lines it posts back at **In review** — [Build your first agent](/tutorials/editor/first-agent-end-to-end) walks exactly that. Escalation to a specialist is not a persona setting: handing work on is another task, assigned to another agent, as [Task automation](/platform/projects/task-automation) explains.
-
-## When to reach for it
-
-A persona is configuration that names who answers; the lanes you actually pick from are chat, a project agent, and an automation. Reach for chat when you are exploring an answer yourself — the built-in assistant retrieves and drafts, and produces no files. Reach for a project agent when the work is a task with a result a person should review. Reach for an [automation](/platform/automations/concepts) when the work has fixed stages and you want approvals or scheduling between them.
-
-| Use … when                                        | Chat | Project agent | Automation |
-| ------------------------------------------------- | ---- | ------------- | ---------- |
-| You are exploring an answer, or want a draft      | ✓    |               |            |
-| The result is a file or a change someone reviews  |      | ✓             |            |
-| The voice and the boundaries must hold every time |      | ✓             | ✓          |
-| You need approvals or scheduling between steps    |      |               | ✓          |
-
-## Build one
-
-An agent is identity, instructions, two allowlists, a knowledge scope, and a visibility setting — change one of them and you have changed how it behaves, change three and you have a different product. Everything about how a turn actually runs stays outside the persona, decided by the lane that runs it: the chat composer's model picker, a project agent's harness and model, an automation node's settings. The agents you build on a screen are project agents — [Project agents](/platform/projects/project-agents) walks the dialog field by field, and [Agents (admin view)](/platform/admin/agents) covers the persona files and who may change them.
+Choose the project and the task first, then set the agent's execution, instructions and equipment around that work. [Project agents](/platform/projects/project-agents) walks the setup, [Agents (admin view)](/platform/admin/agents) explains who may change it, and the [API reference](/develop/api-reference#manage-a-projects-agents) covers project-scoped management from an integration.

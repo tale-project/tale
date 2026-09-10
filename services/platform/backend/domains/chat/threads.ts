@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
+import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
@@ -343,6 +344,8 @@ export interface CreateThreadArgs {
   agentSlug?: string;
   projectId?: string;
   reasoningEffort?: string;
+  /** REST creates only inside an active, freshly readable URL project. */
+  requireActiveProject?: boolean;
 }
 
 /** Create a thread; a project link is access-checked with the same gate the
@@ -352,7 +355,7 @@ export async function createThread(
   sql: Sql,
   args: CreateThreadArgs,
 ): Promise<string> {
-  if (args.projectId !== undefined) {
+  if (args.projectId !== undefined && !args.requireActiveProject) {
     const access = await projectChatAccess(sql, {
       projectId: args.projectId,
       organizationId: args.organizationId,
@@ -367,7 +370,39 @@ export async function createThread(
     }
   }
   const now = Date.now();
-  return sql.begin(async (tx) => {
+  const create = async (tx: TransactionSql) => {
+    if (args.projectId !== undefined && args.requireActiveProject) {
+      // Archive, sharing changes and deletion update this same row. Keep
+      // it stable while fresh membership is checked and both thread rows
+      // commit; an HTTP preflight cannot protect this interval.
+      const projects = await tx<{ archivedAt: number | null }[]>`
+        SELECT archived_at_ms::float8 AS "archivedAt" FROM app.projects
+        WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
+        FOR SHARE
+      `;
+      const project = projects[0];
+      if (
+        project === undefined ||
+        (await projectChatAccess(tx, {
+          projectId: args.projectId,
+          organizationId: args.organizationId,
+          userId: args.userId,
+        })) !== 'ok'
+      ) {
+        throw new ChatThreadError(
+          'PROJECT_NOT_FOUND',
+          'Project not found',
+          404,
+        );
+      }
+      if (project.archivedAt !== null) {
+        throw new ChatThreadError(
+          'PROJECT_ARCHIVED',
+          'Project is archived',
+          403,
+        );
+      }
+    }
     const rows = await tx<{ id: string }[]>`
       INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
                                updated_at_ms)
@@ -392,7 +427,10 @@ export async function createThread(
       )
     `;
     return id;
-  });
+  };
+  return args.requireActiveProject
+    ? transactSerializable(sql, create)
+    : sql.begin(create);
 }
 
 /** Remember the conversation's reasoning-effort pick; absent clears it. */

@@ -140,12 +140,13 @@ export interface TaskPayloads {
   /** Crash-recovery sweep: re-poke waiting sends whose poll chain severed and
    * clear claimed sends wedged by a crash mid-turn. */
   'watchdog.deferred_sends': Record<string, never>;
-  /** One REST-accepted chat turn (`POST /api/v1/threads/{id}/messages`
-   * answered 202) — re-gates and drives the direct turn detached. */
+  /** One REST-accepted chat turn — re-gates the accepted URL scope and
+   * drives the direct turn detached. */
   'chat.api_turn': {
     organizationId: string;
     userId: string;
     threadId: string;
+    expectedProjectId: string | null;
     userText: string;
     modelId: string;
     providerSlug?: string;

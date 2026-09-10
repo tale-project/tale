@@ -32,14 +32,19 @@ import { pageLimit, type RestEnv } from './shared.ts';
 const MAX_TITLE = 200;
 const MAX_DESCRIPTION = 2000;
 
+/** A JSON object body — an array parses as an object too, and used to walk
+ * straight past this guard into a 204 that changed nothing. */
 function isRecordObj(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** An optional string field bounded to `max` characters — absent when the
- * body does not carry a string; `null` when it carries one over the cap. */
+ * body does not carry it; `null` when it carries one over the cap. A value
+ * of another type is a client mistake the route answers, not a field to
+ * skip in silence. */
 function boundedString(value: unknown, max: number): string | null | undefined {
-  if (typeof value !== 'string') return undefined;
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') return null;
   return value.length > max ? null : value;
 }
 
@@ -127,7 +132,7 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (title === null || description === null) {
       return restJsonError(
         c,
-        `title (≤${MAX_TITLE}) or description (≤${MAX_DESCRIPTION}) is too long`,
+        `title (a string of at most ${MAX_TITLE} characters) or description (at most ${MAX_DESCRIPTION}) is invalid`,
         400,
       );
     }
@@ -250,7 +255,7 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (title === null || description === null) {
       return restJsonError(
         c,
-        `title (≤${MAX_TITLE}) or description (≤${MAX_DESCRIPTION}) is too long`,
+        `title (a string of at most ${MAX_TITLE} characters) or description (at most ${MAX_DESCRIPTION}) is invalid`,
         400,
       );
     }

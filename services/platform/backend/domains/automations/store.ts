@@ -4,6 +4,8 @@ import {
   AUTOMATION_NAME_MAX_LENGTH,
   AUTOMATION_NAME_RE,
 } from '../../../lib/engine/core/validate/name.ts';
+import { compileSchema } from '../../../lib/engine/core/validate/schema.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   boundCheckpointTrace,
   truncateRunDetail,
@@ -303,6 +305,12 @@ export async function deploy(
     name: string;
     version: number;
     actor: string;
+    /** The deploy gate's verdict when it ran the version's tests just now:
+     * `true` stamps a version saved without a verdict (`tests_passed` NULL),
+     * so `GET /automations/{name}` reads `testsPassed: true` after a
+     * gate-passing deploy instead of `null` forever. A stored verdict is
+     * never overwritten — it was the save's own run. */
+    testsPassed?: boolean;
   },
 ): Promise<{ name: string; version: number }> {
   const row = await versionRow(
@@ -337,6 +345,13 @@ export async function deploy(
         version = EXCLUDED.version, deployed_by = EXCLUDED.deployed_by,
         deployed_at_ms = EXCLUDED.deployed_at_ms
     `;
+    if (args.testsPassed === true && row.testsPassed === null) {
+      await tx`
+        UPDATE app.automations SET tests_passed = true
+        WHERE org_id = ${args.organizationId} AND name = ${args.name}
+          AND version = ${args.version} AND tests_passed IS NULL
+      `;
+    }
     await emitDefinitionHint(tx, args.organizationId, args.name);
   });
   return { name: args.name, version: args.version };
@@ -560,7 +575,20 @@ export async function bindProject(
     actor: string;
   },
 ): Promise<{ bound: boolean }> {
-  const owned = await sql<{ id: string }[]>`
+  return sql.begin((tx) => bindProjectInTx(tx, args));
+}
+
+/** Add a binding inside the caller's project-authorization transaction. */
+export async function bindProjectInTx(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    name: string;
+    projectId: string;
+    actor: string;
+  },
+): Promise<{ bound: boolean }> {
+  const owned = await tx<{ id: string }[]>`
     SELECT id FROM app.projects
     WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
   `;
@@ -571,8 +599,7 @@ export async function bindProject(
       404,
     );
   }
-  return sql.begin(async (tx) => {
-    const inserted = await tx`
+  const inserted = await tx`
       INSERT INTO app.automation_project_bindings (
         org_id, automation_name, project_id, bound_at_ms, bound_by
       ) VALUES (
@@ -581,11 +608,10 @@ export async function bindProject(
       )
       ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
     `;
-    const bound = inserted.count > 0;
-    // An idempotent re-add changed nothing — no screen needs a refetch.
-    if (bound) await emitDefinitionHint(tx, args.organizationId, args.name);
-    return { bound };
-  });
+  const bound = inserted.count > 0;
+  // An idempotent re-add changed nothing — no screen needs a refetch.
+  if (bound) await emitDefinitionHint(tx, args.organizationId, args.name);
+  return { bound };
 }
 
 export async function bindingProjectIds(
@@ -934,7 +960,7 @@ async function closePendingAsksForRun(
 }
 
 export async function getRun(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   runId: string,
 ): Promise<RunRow | null> {
@@ -944,7 +970,14 @@ export async function getRun(
 export async function listRuns(
   sql: Sql,
   organizationId: string,
-  options: { name?: string; limit?: number; projectId?: string } = {},
+  options: {
+    name?: string;
+    limit?: number;
+    /** Undefined preserves the internal cross-project listing; null is org-only. */
+    projectId?: string | null;
+    /** An actor's readable projects; org runs remain visible. */
+    visibleProjectIds?: string[];
+  } = {},
 ): Promise<RunRow[]> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
   return sql<RunRow[]>`
@@ -952,8 +985,11 @@ export async function listRuns(
     WHERE org_id = ${organizationId}
       AND (${options.name ?? null}::text IS NULL
            OR name = ${options.name ?? null})
-      AND (${options.projectId ?? null}::text IS NULL
-           OR project_id = ${options.projectId ?? null})
+      AND (${options.projectId === undefined}
+           OR project_id IS NOT DISTINCT FROM ${options.projectId ?? null}::text)
+      AND (${options.visibleProjectIds === undefined}
+           OR project_id IS NULL
+           OR project_id = ANY(${options.visibleProjectIds ?? []}::text[]))
     ORDER BY started_at_ms DESC
     LIMIT ${limit}
   `;
@@ -991,6 +1027,64 @@ export interface BeginRunArgs {
   startedBy: string;
   version?: number;
   projectId?: string;
+  /** Machine org routes must never infer a project from installation bindings. */
+  requireOrgScope?: boolean;
+  /** A token authorizes installed projects, not arbitrary same-org projects. */
+  requireProjectBinding?: boolean;
+}
+
+/** The same project admission for durable and in-process run artifacts.
+ * Trusted trigger callers may infer their sole installation; machine callers
+ * require org scope or supply the project they already authorized. */
+export async function resolveRunProject(
+  sql: Sql | TransactionSql,
+  args: Pick<
+    BeginRunArgs,
+    | 'organizationId'
+    | 'name'
+    | 'projectId'
+    | 'requireOrgScope'
+    | 'requireProjectBinding'
+  >,
+): Promise<string | null> {
+  const bindings = await bindingProjectIds(sql, args.organizationId, args.name);
+  if (
+    args.requireOrgScope === true &&
+    (args.projectId !== undefined || bindings.length > 0)
+  ) {
+    throw new AutomationError(
+      'AUTOMATION_PROJECT_SCOPE_REQUIRED',
+      'A project-bound automation requires an explicit project scope.',
+      409,
+    );
+  }
+  if (args.projectId !== undefined) {
+    const owned = await sql<{ id: string }[]>`
+      SELECT id FROM app.projects
+      WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
+      LIMIT 1
+    `;
+    if (owned.length === 0) {
+      throw new AutomationError(
+        'AUTOMATION_PROJECT_UNKNOWN',
+        'The project does not exist in this organization.',
+        404,
+      );
+    }
+    if (
+      (args.requireProjectBinding === true || bindings.length > 0) &&
+      !bindings.includes(args.projectId)
+    ) {
+      throw new AutomationError(
+        'AUTOMATION_PROJECT_FORBIDDEN',
+        `"${args.name}" is not bound to that project.`,
+        403,
+      );
+    }
+  }
+  return (
+    args.projectId ?? (bindings.length === 1 ? (bindings[0] ?? null) : null)
+  );
 }
 
 export async function beginRun(
@@ -1007,48 +1101,35 @@ export async function beginRunInTx(
   args: BeginRunArgs,
 ): Promise<{ runId: string; version: number } | null> {
   {
-    const version =
-      args.version ??
-      (await deployedVersion(tx, args.organizationId, args.name));
+    const deployed =
+      args.mode === 'live' || args.version === undefined
+        ? await deployedVersion(tx, args.organizationId, args.name)
+        : undefined;
+    if (
+      args.mode === 'live' &&
+      args.version !== undefined &&
+      args.version !== deployed
+    ) {
+      throw new AutomationError(
+        'AUTOMATION_VERSION_NOT_DEPLOYED',
+        'Live runs must use the deployed version. Deploy this version or use mock mode.',
+        409,
+      );
+    }
+    const version = args.version ?? deployed;
     if (version === undefined) return null;
     const row = await versionRow(tx, args.organizationId, args.name, version);
     if (!row) return null;
-    // The caller's project wins; otherwise the sole bound project keeps
-    // trigger and manual runs attributed as the single-surface model did.
-    const bindings = await bindingProjectIds(
-      tx,
-      args.organizationId,
-      args.name,
-    );
-    if (args.projectId !== undefined) {
-      // ALWAYS validate a caller-supplied project — the webhook door
-      // (`?projectId=`) and /start pass it straight through, so it must exist
-      // in THIS organization before it lands on the run (never a phantom or
-      // another org's id). The dispatch-store door validated existence; this
-      // is the same gate for the doors that did not.
-      const owned = await tx<{ id: string }[]>`
-        SELECT id FROM app.projects
-        WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
-        LIMIT 1
-      `;
-      if (owned.length === 0) {
+    if (isRecord(row.document) && isRecord(row.document.inputs)) {
+      const check = compileSchema(row.document.inputs);
+      if (!check(args.input)) {
         throw new AutomationError(
-          'AUTOMATION_PROJECT_UNKNOWN',
-          'The project does not exist in this organization.',
-          404,
-        );
-      }
-      // A project-bound automation may only run FOR one of its projects.
-      if (bindings.length > 0 && !bindings.includes(args.projectId)) {
-        throw new AutomationError(
-          'AUTOMATION_PROJECT_FORBIDDEN',
-          `"${args.name}" is not bound to that project.`,
-          403,
+          'AUTOMATION_INPUT_INVALID',
+          'Run input does not match the automation inputs schema.',
         );
       }
     }
-    const projectId =
-      args.projectId ?? (bindings.length === 1 ? bindings[0] : undefined);
+    const projectId = await resolveRunProject(tx, args);
     const now = Date.now();
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
@@ -1056,7 +1137,7 @@ export async function beginRunInTx(
         checkpoints, wake_at_ms, claim_epoch, started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${version},
-        ${projectId ?? null}, 'queued', ${args.mode}, ${args.startedBy},
+        ${projectId}, 'queued', ${args.mode}, ${args.startedBy},
         ${tx.json(toJson(JSON.stringify(args.input)))},
         ${tx.json(toJson({ nodes: {}, executions: 0 }))},
         ${now}, 0, ${now}
