@@ -26,9 +26,9 @@ import {
   domainErrorResponse,
   invalidBodyResponse,
   loadRestProject,
-  pageLimit,
   readJsonBody,
   readOptionalJsonBody,
+  readPageLimit,
   requireDeveloper,
   type RestEnv,
   restProjectAuth,
@@ -215,11 +215,13 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         const auth = await restProjectAuth(deps.sql, c);
         await loadRestProject(deps.sql, auth, projectId);
       }
+      const limit = readPageLimit(c, { fallback: 50, max: 200 });
+      if (limit instanceof Response) return limit;
       return c.json({
         runs: await listRuns(deps.sql, c.get('organizationId'), {
           name: decodeName(c),
           projectId: projectId ?? null,
-          limit: pageLimit(c.req.query('limit'), { fallback: 50, max: 200 }),
+          limit,
         }),
       });
     } catch (error) {

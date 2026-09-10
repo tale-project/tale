@@ -194,6 +194,10 @@ describe.each(FAMILIES)('GET $route pagination', ({ route, table, row }) => {
       '%7B%22updatedAt%22%3A1%7D',
       'malformed-eval-cursor',
       'not-a-number:c-2',
+      // A finite number the bigint column cannot hold is still not a cursor.
+      '1.5:c-2',
+      '100000000000000000000:c-2',
+      '1e100:c-2',
     ]) {
       const { sql, queries } = fakeSql([row(1)]);
       const res = await mount(sql).request(

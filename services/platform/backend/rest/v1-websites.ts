@@ -234,11 +234,10 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     // `OFFSET`/`LIMIT`, where `-1` and `2.5` are Postgres errors and an
     // unbounded limit walks the whole per-domain corpus.
     const offset = Math.max(0, Math.trunc(Number(c.req.query('offset')) || 0));
+    const limit = readPageLimit(c, { fallback: 100, max: 500 });
+    if (limit instanceof Response) return limit;
     return c.json(
-      await fetchWebsitePages(deps.sql, website, {
-        offset,
-        limit: pageLimit(c.req.query('limit'), { fallback: 100, max: 500 }),
-      }),
+      await fetchWebsitePages(deps.sql, website, { offset, limit }),
     );
   });
 

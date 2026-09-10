@@ -9,6 +9,7 @@ import {
 import {
   domainErrorResponse,
   invalidBodyResponse,
+  readJsonBody,
   type RestEnv,
 } from './shared.ts';
 
@@ -49,7 +50,7 @@ export function createRestBrowserSessionRoutes(deps: {
   });
 
   app.post('/browser-sessions/import', async (c) => {
-    const body = importBody.safeParse(await c.req.json().catch(() => null));
+    const body = importBody.safeParse(await readJsonBody(c));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
     }

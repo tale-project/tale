@@ -282,8 +282,14 @@ export function parseKeysetCursor(
   if (raw === undefined || raw === null || raw === '') return null;
   const split = raw.indexOf(':');
   if (split <= 0 || split === raw.length - 1) return null;
-  const at = Number(raw.slice(0, split));
-  return Number.isFinite(at) ? { at, id: raw.slice(split + 1) } : null;
+  // The encoder writes a whole epoch-millisecond count. A fraction, an
+  // exponent or a count the bigint column cannot hold is not a token this
+  // list answered — and reaches Postgres as a cast error (22P02 / 22003),
+  // a 500, when it is let through as a finite number.
+  const stamp = raw.slice(0, split);
+  if (!/^\d{1,15}$/.test(stamp)) return null;
+  const at = Number(stamp);
+  return Number.isSafeInteger(at) ? { at, id: raw.slice(split + 1) } : null;
 }
 
 /** The 400 for a query parameter a list cannot act on. */
