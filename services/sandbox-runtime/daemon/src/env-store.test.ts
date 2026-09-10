@@ -7,6 +7,7 @@ describe('EnvStore', () => {
     'TALE_BUILDKIT_NETWORK_SUBNETS',
     'TALE_DIND_INNER_POOL',
     'TALE_DIND_INNER_BIP',
+    'TALE_DIND_INNER_POOL_OVERRIDE',
   ])(
     'reserves startup network routing metadata from seeds, patch and exec overlay (%s)',
     (name) => {

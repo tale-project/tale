@@ -1,5 +1,11 @@
 import { Address4, Address6 } from 'ip-address';
 
+import {
+  ipv4Subnet,
+  subnetsOverlap,
+  isPrivateIpv4Subnet,
+} from './network-address.ts';
+
 // Docker's built-in local pools when `docker info` reports no override.
 // https://docs.docker.com/engine/network/#automatic-subnet-allocation
 const DEFAULT_POOLS = [
@@ -11,28 +17,10 @@ const DEFAULT_POOLS = [
   { Base: '172.28.0.0/14', Size: 16 },
   { Base: '192.168.0.0/16', Size: 20 },
 ];
-const PRIVATE_RANGES = ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'].map(
-  (subnet) => new Address4(subnet),
-);
 const INNER_DOCKER = new Address4('172.31.0.0/16');
 
-export function ipv4Subnet(value: unknown): Address4 {
-  if (typeof value !== 'string' || !/^\d+\.\d+\.\d+\.\d+\/\d+$/.test(value)) {
-    throw new Error('buildkitd: invalid Docker IPv4 subnet');
-  }
-  const address = new Address4(value);
-  if (address.correctForm() !== address.startAddress().correctForm()) {
-    throw new Error('buildkitd: Docker subnet has nonzero host bits');
-  }
-  return address;
-}
-
-export function subnetsOverlap(a: Address4, b: Address4): boolean {
-  return a.isInSubnet(b) || b.isInSubnet(a);
-}
-
 export function assertBuildSubnet(subnet: Address4): void {
-  if (!PRIVATE_RANGES.some((range) => subnet.isInSubnet(range))) {
+  if (!isPrivateIpv4Subnet(subnet)) {
     throw new Error(
       'buildkitd: private network must use an RFC1918 IPv4 subnet',
     );
@@ -145,7 +133,7 @@ export function selectBuildSubnet(
     if (entry.Size < pool.subnetMask || entry.Size > 32) {
       throw new Error('buildkitd: invalid Docker default pool size');
     }
-    if (!PRIVATE_RANGES.some((range) => pool.isInSubnet(range))) continue;
+    if (!isPrivateIpv4Subnet(pool)) continue;
     const prefix = Math.max(23, entry.Size);
     if (prefix > 29) continue;
     const step = 2 ** (32 - prefix);

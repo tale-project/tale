@@ -12,8 +12,8 @@
 // into a container-escape primitive. User code is NEVER in argv; it arrives
 // over the runnerd HTTP API after the container is up.
 
-import { ipv4Subnet } from '../buildkit-network-pool.ts';
 import { buildkitdEndpoint } from '../buildkitd.ts';
+import { ipv4Subnet, parseDindInnerPool } from '../network-address.ts';
 import {
   dindCapabilityOf,
   dockerRuntimeFor,
@@ -258,6 +258,12 @@ export function buildDockerSessionRunArgs(
       '--env',
       `TALE_RUNTIME_TIER=${cfg.runtimeTier}`,
     ];
+    if (cfg.dindInnerPool !== undefined) {
+      dindEnv.push(
+        '--env',
+        `TALE_DIND_INNER_POOL_OVERRIDE=${parseDindInnerPool(cfg.dindInnerPool)}`,
+      );
+    }
     // Shared build cache: point the session at the shared buildkitd so the
     // entrypoint can wire a remote buildx builder. Only present when the backend
     // resolved an endpoint (cfg.dockerBuildCache on + the daemon came up), so

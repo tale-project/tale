@@ -157,9 +157,19 @@ override it with `SANDBOX_RUNTIME_CLASS`.
 - The inner `/var/lib/docker` is a **dedicated, ephemeral per-session volume**
   (Docker backend: a named volume `tale-dind-<session>`; K8s: a size-bounded
   `emptyDir`). It is **not** the workspace (nested overlay is rejected by the
-  kernel) and is reaped on both stop and destroy, so a crash never leaves a
-  dirty overlay2 that wedges resume. Image cache therefore does **not** persist
-  across an idle stop/resume (cold rebuild).
+  kernel). Stop and destroy remove the container or Pod and its inner store,
+  so image cache does **not** persist across an idle stop/resume (cold rebuild).
+  On Kubernetes, a runner-container restart within the **same Pod** retains
+  the `emptyDir`, including image and network state; it does not provide a
+  clean inner store after a crash. The workspace PVC has its own lifecycle
+  and survives stop/resume.
+- **Restarted inner networks.** After confirming retained inner Docker state,
+  the address selector recognizes standard `docker0` and `br-<12hex>` kernel
+  bridges as inner networks. Unknown or custom-named bridges remain in the
+  observed outer inventory and can block an overlapping pool. Choose
+  `SANDBOX_DIND_INNER_POOL` outside every outer Pod, Service and VPC network;
+  changing it requires recreating the session container or Pod. A same-Pod
+  container restart keeps its existing Pod environment and inner store.
 - **Disk bound.** A plain Docker named volume has no hard size cap. For a real
   multi-tenant quota, back the host docker data-root with an XFS project quota
   (or a fixed-size loopback filesystem). On K8s the `emptyDir.sizeLimit` bounds

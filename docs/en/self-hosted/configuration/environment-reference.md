@@ -231,7 +231,7 @@ Leave it unset to keep the default session lifetime. When set, an idle session e
 
 ## Sandbox infrastructure
 
-The runtime ceilings below are read by the sandbox spawner. Pass them into its environment and restart that service after a change; they do not change the organization policies edited in [Sandboxes](/platform/admin/sandboxes). The page reports actual runtime counts and host measurements separately from those organization allocations.
+The sandbox spawner reads the settings below. Pass them into its environment and restart that service after a change; they do not change the organization policies edited in [Sandboxes](/platform/admin/sandboxes). The page reports actual runtime counts and host measurements separately from those organization allocations.
 
 | Name | Default | Description |
 | --- | --- | --- |
@@ -239,18 +239,33 @@ The runtime ceilings below are read by the sandbox spawner. Pass them into its e
 | `SANDBOX_MAX_SESSIONS_PER_ORG` | `50` | Runtime ceiling for one organization across project agents, workflow runs and rendering, including idle containers that remain running. |
 | `SANDBOX_SESSION_MAX_IDLE_MS` | `1800000` (30 min) | Idle window for stopping unpinned sessions. Organization build-cache helpers also stop after this window with no potentially active organization session; their networks and cache volumes are retained. |
 | `SANDBOX_RUNTIME_IMAGE`          | `tale-sandbox-runtime:latest` | **Optional, read by the spawner.** The image every session container is created from. The default is the tag the development stack builds locally, so a host that pulls its images sets the registry one: `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, matching the rest of the stack. `tale deploy` sets it for you. |
+| `SANDBOX_DIND_INNER_POOL` | unset (automatic) | Optional inner Docker address pool for agent sessions on Docker or Kubernetes. Use a canonical RFC1918 IPv4 `/16` outside your Pod, Service and VPC networks. The runtime rejects overlaps with networks and addresses it discovers. |
 
-Docker build caches are isolated by organization. Each organization uses one privileged builder and three unprivileged registry mirrors. Once no session may still use them, the helpers stop after the session idle window; the next build restarts them with their cache volumes intact. Networks and volumes remain available for reuse.
+### Docker build caches
+
+Docker build caches are isolated by organization. Each organization uses one privileged builder and three unprivileged registry mirrors. Once no session may still use them, the helpers stop after the session idle window; the next build restarts them with their cache volumes intact. Networks and volumes remain available for reuse. Kubernetes sessions use their own inner Docker builder; Kubernetes reconciliation does not invoke the Docker CLI for these helpers.
 
 The spawner packs organization bridges into the first available Docker address pool before moving to the next. Its default `/23` gives each bridge 512 addresses; an otherwise unused `/16` holds 128 such organization networks. Smaller subnets configured in Docker’s pools remain smaller. It excludes existing Docker networks, routes and DNS server addresses on the Docker daemon’s host, and `172.31.0.0/16` for older runtime images, then validates the created network.
 
 To observe the daemon’s host even with remote Docker, the spawner briefly runs the configured BuildKit image in the host network namespace with a read-only filesystem, all capabilities dropped and no mounts. If that observation fails or no safe subnet remains, sessions build locally without the shared cache. An unused owned network left with an invalid subnet is rebuilt; in-use and foreign networks are preserved.
 
-Before starting its inner Docker daemon, the runtime selects a private `/16` that avoids its actual IPv4 routes and the organization bridge that will attach later. It prefers `172.31.0.0/16`, then tries other private ranges. The first `/24` serves `docker0`; inner Compose networks use `/24` blocks from that same pool. Unreadable routes or an exhausted pool prevent session startup and produce a specific runtime error.
-
-Keep `sandbox`, `sandbox-egress` and `SANDBOX_RUNTIME_IMAGE` on the same release when upgrading. Before attaching an organization’s build network, the spawner verifies the session’s forwarding protection. Compose and generated session containers disable IPv6 with `net.ipv6.conf.all.disable_ipv6=1` and `net.ipv6.conf.default.disable_ipv6=1`; keep these sysctls in custom deployment definitions so an IPv4 deployment does not depend on host IPv6 firewall support.
-
 Upgrades create cold organization caches and retain the old global cache data. Old helper containers stop automatically after no running session depends on them. Drain or stop old pinned sessions to complete that transition; until then the old shared cache service remains reachable. Browser automation uses headless Chromium; live browser viewing and manual browser takeover are retired.
+
+### Inner Docker networks
+
+On Docker and Kubernetes, automatic selection checks IPv4 routes and gateways from all routing tables, interface addresses and prefixes, DNS servers, and the resolved addresses of proxy and gateway hosts configured in the container environment at startup. Hosts supplied later during an agent turn are outside that initial observation. It also accounts for a Docker organization bridge that will attach later. The runtime prefers a free `172.31.0.0/16`, then tries other private `/16` ranges. The first `/24` serves `docker0`; inner Compose networks use `/24` blocks from that same pool. In automatic mode, failed observations or exhausted private space prevent session startup.
+
+A Pod cannot discover the cluster’s complete Pod, Service and VPC CIDRs from its own network namespace. Set `SANDBOX_DIND_INNER_POOL` to a private `/16` you have checked against all those networks when deploying DinD on Kubernetes. An explicit pool still fails on every discovered overlap or invalid value. If some observations are unavailable, the runtime names them in a warning and can continue with the explicit pool; responsibility for the unseen address space remains with the operator.
+
+After changing this pool, restart the spawner and recreate existing sessions to apply it. Restarting a runner container inside the same Kubernetes Pod retains that Pod’s environment and inner Docker store.
+
+The egress proxy allows upstream DNS queries to the validated nameserver IPs in its `/etc/resolv.conf`, including private cluster DNS. Each exception covers only that exact IP and UDP/TCP destination port 53. Other private destinations and forwarding between attached networks stay blocked.
+
+### IPv6 forwarding protection
+
+Keep `sandbox`, `sandbox-egress` and `SANDBOX_RUNTIME_IMAGE` on the same release when upgrading. Before attaching an organization’s Docker build network, the spawner verifies the session’s forwarding protection. Compose and generated Docker session containers disable IPv6 with `net.ipv6.conf.all.disable_ipv6=1` and `net.ipv6.conf.default.disable_ipv6=1`; preserve both in custom Docker definitions.
+
+Kubernetes Pods do not receive unsafe sysctls automatically. The egress proxy needs working IPv6 firewall support or IPv6 disabled in its network namespace. If the IPv6 firewall is unavailable, the entrypoint attempts that local disable and verifies the default and every interface. A read-only `/proc/sys` or denied write can prevent it; enabled IPv6 without protection still stops startup. Configure the egress Pod according to the cluster’s permitted networking settings before deployment.
 
 ## Sandbox agent turns
 

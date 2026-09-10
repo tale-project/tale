@@ -34,6 +34,7 @@ export const RUNNERD_ENV_DENYLIST = [
   'TALE_BUILDKIT_NETWORK_SUBNETS',
   'TALE_DIND_INNER_POOL',
   'TALE_DIND_INNER_BIP',
+  'TALE_DIND_INNER_POOL_OVERRIDE',
 ] as const;
 export const RUNNERD_ENV_DENY_PREFIXES = ['TALE_RUNNERD_'] as const;
 export const RUNNERD_ENV_DENY_PROXY_RE = /^(https?|no)_proxy$/i;

@@ -6,10 +6,9 @@ import {
   assertBuildSubnet,
   daemonReservedSubnets,
   dockerIpv4Subnets,
-  ipv4Subnet,
   selectBuildSubnet,
-  subnetsOverlap,
 } from './buildkit-network-pool.ts';
+import { ipv4Subnet, subnetsOverlap } from './network-address.ts';
 
 describe('organization build subnet allocation', () => {
   test('packs one /16 before advancing to the next default pool', () => {

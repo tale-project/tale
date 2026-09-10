@@ -34,6 +34,76 @@ set -e
 # development opt-out skips the firewall.
 SKIP_FIREWALL="${TALE_SKIP_SSRF_FIREWALL:-0}"
 
+install_dns_resolver_rules() {
+  # Kubernetes resolvers are often private Service IPs. Keep that necessary
+  # DNS traffic scoped to the configured literal addresses and UDP/TCP 53;
+  # private HTTP/CONNECT destinations and forwarding remain denied. Read a
+  # bounded snapshot and validate it before installing any exception. The final
+  # marker preserves trailing newlines for the size check in POSIX shells.
+  if ! _dns_config="$(head -c 65537 /etc/resolv.conf 2>/dev/null && printf '.')"; then
+    echo "[sandbox-egress] FATAL: cannot read DNS resolver configuration; refusing to start"
+    return 1
+  fi
+  _dns_config="${_dns_config%.}"
+  if [ "${#_dns_config}" -gt 65536 ]; then
+    echo "[sandbox-egress] FATAL: DNS resolver configuration exceeds 64 KiB; refusing to start"
+    return 1
+  fi
+  if ! _dns_resolvers="$(printf '%s\n' "$_dns_config" | LC_ALL=C awk '
+    function ipv4(address, parts, count, i) {
+      count = split(address, parts, ".")
+      if (count != 4) return 0
+      for (i = 1; i <= 4; i++) {
+        if (parts[i] !~ /^[0-9]+$/ || length(parts[i]) > 3 || parts[i] + 0 > 255) return 0
+        if (length(parts[i]) > 1 && substr(parts[i], 1, 1) == "0") return 0
+      }
+      return 1
+    }
+    {
+      sub(/[#;].*$/, "")
+      if ($1 != "nameserver") next
+      if (NF != 2) exit 1
+      address = $2
+      if (index(address, ":")) {
+        if (length(address) > 45 || address ~ /[^0-9a-fA-F:.]/) exit 1
+        family = 6
+      } else {
+        if (!ipv4(address)) exit 1
+        family = 4
+      }
+      if (!seen[address]++) {
+        if (++total > 64) exit 1
+        print family, address
+      }
+    }
+    END { if (!total) exit 1 }
+  ')"; then
+    echo "[sandbox-egress] FATAL: invalid DNS resolver configuration; expected at most 64 literal IP addresses; refusing to start"
+    return 1
+  fi
+  printf '%s\n' "$_dns_resolvers" | while read -r _dns_family _dns_address; do
+    if [ "$_dns_family" = "6" ]; then
+      if [ "$IPV6_FIREWALL" != "1" ]; then
+        echo "[sandbox-egress] FATAL: configured IPv6 DNS resolver requires IPv6 netfilter; refusing to start"
+        exit 1
+      fi
+      _dns_firewall=ip6tables
+      _dns_prefix=128
+    else
+      _dns_firewall=iptables
+      _dns_prefix=32
+    fi
+    for _dns_protocol in udp tcp; do
+      # ip6tables also validates the complete IPv6 syntax; the lexical check
+      # above excludes hostnames, scoped names and user-provided CIDR masks.
+      if ! "$_dns_firewall" -I OUTPUT -d "${_dns_address}/${_dns_prefix}" -p "$_dns_protocol" --dport 53 -j ACCEPT; then
+        echo "[sandbox-egress] FATAL: DNS resolver allowance could not be installed; refusing to start"
+        exit 1
+      fi
+    done
+  done
+}
+
 if [ "$SKIP_FIREWALL" = "1" ]; then
   echo "[sandbox-egress] WARN: TALE_SKIP_SSRF_FIREWALL=1 — SSRF firewall explicitly skipped"
 elif ! command -v iptables >/dev/null 2>&1; then
@@ -66,11 +136,20 @@ else
       exit 1
     fi
   elif [ -d /proc/sys/net/ipv6 ]; then
+    # IPv4-only Pod namespaces may still carry IPv6 loopback/link-local. Use
+    # the existing NET_ADMIN grant to disable that stack when /proc permits it.
+    # Restricted OCI mounts may be read-only: only verified readback is safe,
+    # and no cluster-wide unsafe-sysctl permission is assumed here.
+    for _ipv6_setting in /proc/sys/net/ipv6/conf/default/disable_ipv6 /proc/sys/net/ipv6/conf/*/disable_ipv6; do
+      if [ "$(cat "$_ipv6_setting" 2>/dev/null)" != "1" ]; then
+        (printf '1\n' > "$_ipv6_setting") 2>/dev/null || true
+      fi
+    done
     # conf/all alone is not proof: a per-interface override may re-enable IPv6.
     # Check defaults (including future network attachments) and every interface.
     for _ipv6_setting in /proc/sys/net/ipv6/conf/default/disable_ipv6 /proc/sys/net/ipv6/conf/*/disable_ipv6; do
       if [ "$(cat "$_ipv6_setting" 2>/dev/null)" != "1" ]; then
-        echo "[sandbox-egress] FATAL: IPv6 is enabled without a forwarding guard; refusing to start"
+        echo "[sandbox-egress] FATAL: IPv6 isolation cannot be verified; enable IPv6 netfilter or disable IPv6 for default and every interface in this container network namespace; refusing to start"
         exit 1
       fi
     done
@@ -82,14 +161,14 @@ else
   # All IPv4 link-local addresses, including metadata endpoints.
   iptables -I OUTPUT -d 169.254.0.0/16 -j REJECT --reject-with icmp-net-prohibited
   # Private destinations include peer networks attached for per-org build
-  # caches. New proxy connections to them are forbidden; only established
-  # replies to the runtime callers are accepted below.
+  # caches. Established replies to runtime callers are accepted below; the
+  # later resolver rules allow only configured DNS addresses on port 53.
   iptables -I OUTPUT -d 10.0.0.0/8 -j REJECT --reject-with icmp-net-prohibited
   iptables -I OUTPUT -d 172.16.0.0/12 -j REJECT --reject-with icmp-net-prohibited
   iptables -I OUTPUT -d 192.168.0.0/16 -j REJECT --reject-with icmp-net-prohibited
 
   # Accept responses to callers on attached private networks before the
-  # REJECT rules. New outbound private connections remain forbidden.
+  # REJECT rules. The later resolver exceptions are limited to DNS port 53.
   iptables -I OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
     iptables -I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
@@ -113,6 +192,12 @@ else
       ip6tables -I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
   else
     echo "[sandbox-egress] IPv6 disabled; IPv4 firewall installed"
+  fi
+
+  # Insert these after the private-address REJECTs so the exact resolver-only
+  # exceptions precede them in OUTPUT. No interface can forward between peers.
+  if ! install_dns_resolver_rules; then
+    exit 1
   fi
 fi
 

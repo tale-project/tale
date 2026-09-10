@@ -12,6 +12,7 @@ const KEYS = [
   'SANDBOX_RUNTIME',
   'SANDBOX_DOCKER_IN_CONTAINER',
   'SANDBOX_DOCKER_BUILD_CACHE',
+  'SANDBOX_DIND_INNER_POOL',
   'SANDBOX_BUILDKITD_IMAGE',
   'SANDBOX_RUNTIME_CLASS',
   'SANDBOX_BACKEND',
@@ -53,6 +54,31 @@ function writeDeployment(obj: unknown): void {
 }
 
 describe('loadConfig — runtime tier', () => {
+  test.each(['docker', 'kubernetes'])(
+    'reads an optional inner Docker pool independently of the %s backend',
+    (backend) => {
+      process.env.SANDBOX_BACKEND = backend;
+      expect(loadConfig().dindInnerPool).toBeUndefined();
+      process.env.SANDBOX_DIND_INNER_POOL = ' 10.240.0.0/16 ';
+      expect(loadConfig().dindInnerPool).toBe('10.240.0.0/16');
+      process.env.SANDBOX_DIND_INNER_POOL = ' ';
+      expect(loadConfig().dindInnerPool).toBeUndefined();
+    },
+  );
+
+  test.each([
+    '10.0.1.0/16',
+    '10.0.0.0/24',
+    '8.8.0.0/16',
+    '172.32.0.0/16',
+    '10.0.0.0/8',
+    'fd00::/16',
+    '10.0.0.0/16;true',
+  ])('refuses an invalid operator inner pool (%s)', (pool) => {
+    process.env.SANDBOX_DIND_INNER_POOL = pool;
+    expect(() => loadConfig()).toThrow(/SANDBOX_DIND_INNER_POOL/);
+  });
+
   test('defaults to runc, no DinD, no k8s runtimeClass', () => {
     const cfg = loadConfig();
     expect(cfg.runtimeTier).toBe('runc');

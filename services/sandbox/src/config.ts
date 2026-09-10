@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 
 import { parse as parseYaml } from 'yaml';
 
+import { parseDindInnerPool } from './network-address.ts';
 import {
   dindDefaultEnabled,
   dindExperimental,
@@ -188,6 +189,10 @@ export function loadConfig(): SpawnerConfig {
     deployment.dockerInContainer ??
     boolEnvOpt('SANDBOX_DOCKER_IN_CONTAINER') ??
     dindDefaultEnabled(runtimeTier);
+  const rawDindInnerPool = process.env.SANDBOX_DIND_INNER_POOL?.trim();
+  const dindInnerPool = rawDindInnerPool
+    ? parseDindInnerPool(rawDindInnerPool)
+    : undefined;
   if (dockerInContainer) {
     if (dindIsPrivileged(runtimeTier)) {
       console.warn(
@@ -352,6 +357,7 @@ export function loadConfig(): SpawnerConfig {
       process.env.SANDBOX_RUNTIME_IMAGE ?? 'tale-sandbox-runtime:latest',
     runtimeTier,
     dockerInContainer,
+    ...(dindInnerPool ? { dindInnerPool } : {}),
     // Per-org cross-session build cache (defaults to DinD's setting, resolved
     // above). Each organization gets its own builder, mirrors and private net.
     dockerBuildCache,

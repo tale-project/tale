@@ -60,7 +60,7 @@ running. The capacity inventory includes that container until it stops.
 
 ## Organization build caches
 
-Each organization has one privileged BuildKit container, three unprivileged
+On Docker, each organization has one privileged BuildKit container, three unprivileged
 registry mirrors, an internal network and four cache volumes. The spawner
 packs `/23` bridges (512 addresses each) into the first available Docker
 address pool before advancing, honoring smaller configured pool sizes. An
@@ -80,11 +80,30 @@ then stop; their network and volumes remain intact and the next build restarts
 them. Legacy global cache helpers retire once their remaining sessions drain,
 with their cache volumes retained.
 
+Kubernetes sessions use their inner Docker builder. The Kubernetes backend
+does not provision these organization helpers or call the Docker CLI during
+reconciliation. See the [Kubernetes deployment contract](docs/kubernetes.md).
+
 Deploy the spawner, egress and runtime images from the same release. Before it
 attaches an organization build network, the spawner verifies the runtime's
 forwarding protection, including when adopting an older runtime image. Generated
 Docker containers explicitly disable IPv6 so IPv4-only deployments do not rely
 on host IPv6 firewall support. See the [operator environment reference](../../docs/en/self-hosted/configuration/environment-reference.md#sandbox-infrastructure).
+
+## Inner Docker networking
+
+On Docker and Kubernetes, DinD agent sessions choose an inner private `/16`
+against their observed routes, interface addresses, DNS and proxy/gateway
+addresses configured at container startup. Hosts supplied later during a turn
+are outside that initial observation. An optional `SANDBOX_DIND_INNER_POOL` on
+the spawner pins that pool and still rejects known overlap. Automatic selection fails if
+discovery is incomplete; an explicit pool can proceed with warnings naming the
+unavailable observations. For Kubernetes, choose the override outside the full
+Pod, Service and VPC CIDRs, which Pod-local discovery cannot infer. Changing
+the pool requires restarting the spawner and recreating existing sessions; a
+same-Pod runner restart retains its environment and inner Docker store. The
+[Kubernetes contract](docs/kubernetes.md#inner-docker-networking) covers these
+operator responsibilities and the egress IPv6 prerequisite.
 
 ## Container
 

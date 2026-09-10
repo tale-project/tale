@@ -12,8 +12,8 @@ long-lived Pod per session running `runnerd`, a per-session Secret carrying the
 runnerd token + seed env (`envFrom`), and a per-session workspace PVC that
 outlives the Pod across stop → resume. Every spawner↔Pod interaction is plain
 HTTP — the Kubernetes API for the object lifecycle (`create`/`read`/`delete`
-Pod, Secret, PVC) and runnerd on the Pod IP (`:8200`) for exec, files, env and
-the browser view. There is **no exec websocket** and **no `pods/exec`** (the
+Pod, Secret, PVC) and runnerd on the Pod IP (`:8200`) for exec, files and env.
+There is **no exec websocket** and **no `pods/exec`** (the
 exec transport proved unreliable under Bun, and keeping the verb out lets a
 stray exec call fail closed).
 
@@ -27,6 +27,11 @@ Two backends share the client:
   and the periodic sweep that reaps leaked legacy one-shot objects
   (`tale.sandbox=1` Pods/Secrets, of which none are created anymore).
 
+Organization BuildKit daemons, registry mirrors and their private Docker
+bridges belong to the Docker backend. Kubernetes uses the session's inner
+Docker builder; Kubernetes reconciliation never invokes the Docker CLI to
+provision or retire those helpers.
+
 **Horizontal scale:** the spawner Deployment is HPA-able. The in-memory session
 registry is a per-replica cache: a request for a session another replica
 created re-resolves it from the backend by deterministic name and adopts it,
@@ -37,7 +42,8 @@ reservation, so this limit is best effort. Use Kubernetes ResourceQuota and
 profile resource limits for hard namespace resource bounds.
 
 The signed capacity endpoint reports running and pending session Pods in this
-namespace, plus this spawner's configured session ceilings. CPU and memory
+namespace, plus this spawner's configured session ceilings. Unknown Pod phases
+remain occupied until termination is confirmed. CPU and memory
 measurements remain unavailable: the namespace-scoped ServiceAccount cannot
 read node capacity or the metrics API, and the spawner Pod's own resources
 would not describe the cluster.
@@ -100,6 +106,7 @@ stream. Keep it out so a stray exec call fails closed.
 | `SANDBOX_K8S_NAMESPACE`                                           | yes        | Namespace the session Pods/Secrets/PVCs are created in (default `tale-sandbox`).                                                                                                            |
 | `NODE_EXTRA_CA_CERTS`                                             | in-cluster | Point at the SA `ca.crt` (`/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`). **This is the only working CA-trust mechanism under Bun** — see [Bun TLS note](#bun-tls-contract) below. |
 | `SANDBOX_RUNTIME`                                                 | optional   | Runtime tier (`runc` default, `gvisor`/`runsc`, `sysbox`, `kata`); sets the Pod `runtimeClassName`, overridable via `SANDBOX_RUNTIME_CLASS` for a non-runc tier.                            |
+| `SANDBOX_DIND_INNER_POOL` | optional | Canonical RFC1918 IPv4 `/16` for the agent's inner Docker daemon. Unset selects automatically; configure a range outside the cluster's Pod, Service and VPC CIDRs. Known overlap remains an error. See [Inner Docker networking](#inner-docker-networking). |
 | `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | Size of the per-session `/agent` workspace PVC (default `4Gi`) and, under DinD, the `sizeLimit` of the inner-docker `emptyDir`. Bounds deps + temp + outputs.                                |
 | `SANDBOX_K8S_CACHE_STORAGECLASS`                                  | optional   | StorageClass for the workspace PVCs (`ReadWriteOnce`). Unset ⇒ the cluster default. On a multi-node cluster use a class whose volumes can re-bind where a resume Pod schedules.               |
 | `SANDBOX_EGRESS_PROXY`                                            | optional   | The runner's `HTTPS_PROXY`/`HTTP_PROXY` (default `http://sandbox-egress:3128`); also what the transparent-egress sidecar tunnels to.                                                         |
@@ -107,6 +114,30 @@ stream. Keep it out so a stray exec call fails closed.
 
 The Pod sets `automountServiceAccountToken: false` — the runtime never gets an
 SA token.
+
+## Inner Docker networking
+
+Before starting a DinD agent's inner daemon, the runtime checks all-table IPv4
+routes and gateway IPs, interface addresses and prefixes, DNS servers, and the
+resolved addresses of proxy and gateway hosts configured at container startup.
+Hosts supplied only during a later agent turn are not observed at boot.
+Automatic selection prefers an available `172.31.0.0/16`, then tries other private `/16` ranges.
+`docker0` uses the first `/24`; nested Compose networks draw `/24` blocks from
+the same pool. Failed discovery or exhausted private space stops automatic
+startup with a specific error.
+
+A Pod's network namespace does not reveal the full cluster Pod, Service or VPC
+CIDRs. For Kubernetes DinD, configure `SANDBOX_DIND_INNER_POOL` in the spawner
+Deployment with a canonical RFC1918 `/16` that you have checked against all
+those networks. The spawner passes it only to DinD agent Pods. The override
+still rejects every known overlap and malformed value. If some observations
+are unavailable, the runtime warns with their names and can use the explicit
+pool; operators remain responsible for the address space the Pod cannot see.
+After changing the pool, restart the spawner and recreate existing session Pods.
+A runner-container restart within the same Pod retains its environment and
+inner Docker `emptyDir`. See [Storage & lifecycle](docker-in-container.md#storage--lifecycle)
+for retained inner-network detection and its boundary for custom bridge names.
+See the [operator environment reference](../../../docs/en/self-hosted/configuration/environment-reference.md#sandbox-infrastructure).
 
 ## Bun TLS contract
 
@@ -145,7 +176,7 @@ selector governs the whole Pod.
 The spawner now SHIPS and APPLIES this fence rather than leaving it to an
 operator to remember. Two residual operator responsibilities remain:
 
-- **RBAC:** the spawner ServiceAccount needs `create`/`patch` on
+- **RBAC:** the spawner ServiceAccount needs `create`/`update` on
   `networking.k8s.io/networkpolicies`. Without it, `init` logs a loud error
   (reaching GlitchTip) and continues — apply an equivalent policy externally, or
   grant the RBAC. It does not hard-fail (an operator may enforce egress by other
@@ -163,12 +194,32 @@ transparent-egress sidecar; the `HTTP_PROXY`/`HTTPS_PROXY` env alone is advisory
 layer. The proxy itself is open at the hostname layer by default
 (`SANDBOX_EGRESS_ALLOWLIST` opt-in).
 
+The proxy permits upstream DNS queries to the validated literal nameserver
+addresses in its own `/etc/resolv.conf`, including a private cluster DNS
+Service. Each exception is limited to that exact IP and UDP/TCP destination
+port 53; it does not allow the resolver's subnet or other private ports.
+Forwarding between attached networks remains blocked.
+
+### Egress IPv6 prerequisite
+
+The egress proxy must either install its IPv6 firewall or have IPv6 disabled
+in its own network namespace. When the firewall is unavailable, its entrypoint
+attempts to disable IPv6 locally, then verifies the default and every existing
+interface. A read-only `/proc/sys` or denied write can prevent that recovery;
+enabled IPv6 without protection still fails startup with an actionable error.
+Provide working IPv6 netfilter support or namespace settings allowed by the
+cluster. Generated session Pods do not add unsafe sysctls or extra
+capabilities to bypass cluster policy.
+
 ## Verification status
 
 Unit-tested (no cluster): the session Pod shape and its per-profile hardening
-(DinD / browser view are agent-only), the Secret-via-`envFrom` invariant, the
+(DinD is agent-only), the Secret-via-`envFrom` invariant, the
 create-conflict and failed-create cleanup rules, the workspace-PVC lifecycle,
-and the NetworkPolicy shape. The on-cluster reliability bar (create → exec →
-kill-container-restart → idle-stop → resume → destroy, cross-replica exec /
-destroy, 2-replica scale) is **pending a healthy cluster** and must be run
-before enabling this backend in production.
+and the NetworkPolicy shape. Before production, run the on-cluster reliability
+suite (create → exec → kill-container-restart → idle-stop → resume → destroy,
+cross-replica exec / destroy, 2-replica scale) under the deployment's actual
+CNI and RuntimeClass. Include Pod and Service reachability from nested Docker
+networks, cluster DNS through the egress proxy, and the egress IPv6 prerequisite.
+Passing networking checks in an isolated cluster does not replace this full
+deployment-specific suite.

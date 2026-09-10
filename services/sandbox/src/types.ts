@@ -26,6 +26,9 @@ export interface SpawnerConfig {
   // other tiers; runtime-tier.ts defines their different isolation guarantees.
   // Only agent-profile sessions receive this capability.
   dockerInContainer: boolean;
+  // Operator-selected private /16 for inner Docker on either backend. Unset
+  // selects automatically; the runtime also rejects observed network overlap.
+  dindInnerPool?: string;
   // Shared cross-session docker build cache (env SANDBOX_DOCKER_BUILD_CACHE;
   // DEFAULT = follows dockerInContainer, i.e. on whenever DinD is on). When on,
   // the spawner lazily launches one persistent buildkitd and per-registry

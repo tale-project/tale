@@ -49,6 +49,49 @@ const input = {
 };
 
 describe('buildSessionPod', () => {
+  test('passes an operator inner pool only to DinD runners without Docker build-cache wiring or unsafe sysctls', () => {
+    const configured: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      dockerBuildCache: true,
+      dindInnerPool: '10.240.0.0/16',
+    };
+    const pod = buildSessionPod(configured, input);
+    const env = pod.spec?.containers[0]?.env ?? [];
+    expect(env).toContainEqual({
+      name: 'TALE_DIND_INNER_POOL_OVERRIDE',
+      value: '10.240.0.0/16',
+    });
+    expect(env.some((entry) => entry.name.startsWith('TALE_BUILDKIT'))).toBe(
+      false,
+    );
+    expect(pod.spec?.securityContext?.sysctls).toBeUndefined();
+    const defaultPod = buildSessionPod(configured, {
+      ...input,
+      profile: 'default',
+    });
+    expect(
+      defaultPod.spec?.containers[0]?.env?.some(
+        (entry) => entry.name === 'TALE_DIND_INNER_POOL_OVERRIDE',
+      ),
+    ).toBe(false);
+  });
+
+  test('validates a directly supplied inner pool before creating a Pod', () => {
+    expect(() =>
+      buildSessionPod(
+        {
+          ...cfg,
+          runtimeTier: 'sysbox',
+          dockerInContainer: true,
+          dindInnerPool: '172.31.1.0/16',
+        },
+        input,
+      ),
+    ).toThrow(/SANDBOX_DIND_INNER_POOL/);
+  });
+
   test('single long-lived runner, no stage/harvest', () => {
     const pod = buildSessionPod(cfg, input);
     expect(pod.spec?.containers).toHaveLength(1);

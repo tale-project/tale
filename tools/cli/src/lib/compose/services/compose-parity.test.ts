@@ -24,6 +24,7 @@ import {
 import { createDbService } from './create-db-service';
 import { createObjectStorageService } from './create-object-storage-service';
 import { createSandboxEgressService } from './create-sandbox-egress-service';
+import { createSandboxService } from './create-sandbox-service';
 
 // Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
 // config that lives in one pipeline but not the other. `compose.yml` (the
@@ -130,6 +131,16 @@ describe('sandbox→backend reachability parity', () => {
 });
 
 describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
+  test('operator inner Docker pool reaches the spawner in both compose pipelines', () => {
+    const expected = '${SANDBOX_DIND_INNER_POOL:-}';
+    expect(
+      compose.services['sandbox']?.environment?.SANDBOX_DIND_INNER_POOL,
+    ).toBe(expected);
+    expect(
+      createSandboxService(config).environment?.SANDBOX_DIND_INNER_POOL,
+    ).toBe(expected);
+  });
+
   test('egress disables IPv6 for current and future interfaces in both compose pipelines', () => {
     const expected = {
       'net.ipv6.conf.all.disable_ipv6': '1',

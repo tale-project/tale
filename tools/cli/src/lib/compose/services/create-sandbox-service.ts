@@ -65,6 +65,7 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       // runc/gvisor); set SANDBOX_DOCKER_IN_CONTAINER (or the deployment.json
       // sandboxRuntime section) to force it.
       SANDBOX_DOCKER_IN_CONTAINER: '${SANDBOX_DOCKER_IN_CONTAINER:-}',
+      SANDBOX_DIND_INNER_POOL: '${SANDBOX_DIND_INNER_POOL:-}',
       SANDBOX_RUNTIME_IMAGE:
         '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}',
       // Shared cross-session docker build cache. Unset here so the spawner

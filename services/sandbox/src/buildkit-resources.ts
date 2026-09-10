@@ -4,6 +4,11 @@ import {
   dockerIpv4Subnets,
   selectBuildSubnet,
 } from './buildkit-network-pool.ts';
+import {
+  ipv4Subnet,
+  parseDindInnerPool,
+  subnetsOverlap,
+} from './network-address.ts';
 import { runDocker } from './spawn-util.ts';
 import type { RunDockerResult } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
@@ -237,11 +242,24 @@ async function preventEgressForwarding(containerId: string): Promise<void> {
   }
 }
 
-function assertPrivateBuildSubnets(network: Record<string, unknown>): void {
+function assertPrivateBuildSubnets(
+  network: Record<string, unknown>,
+  innerPool?: string,
+): void {
   const subnets = dockerIpv4Subnets(object(network.IPAM).Config);
   if (subnets.length === 0)
     throw new Error('buildkitd: private network has no IPv4 subnet');
-  for (const subnet of subnets) assertBuildSubnet(subnet);
+  const configured =
+    innerPool === undefined
+      ? undefined
+      : ipv4Subnet(parseDindInnerPool(innerPool));
+  for (const subnet of subnets) {
+    assertBuildSubnet(subnet);
+    if (configured && subnetsOverlap(subnet, configured))
+      throw new Error(
+        'buildkitd: private network overlaps the configured inner Docker pool',
+      );
+  }
 }
 
 async function occupiedDockerSubnets(): Promise<
@@ -371,6 +389,9 @@ async function ensurePrivateBuildNetworkUnlocked(
       const occupied = [
         ...(await occupiedDockerSubnets()),
         ...(await daemonHostReservations(cfg)),
+        ...(cfg.dindInnerPool === undefined
+          ? []
+          : [ipv4Subnet(parseDindInnerPool(cfg.dindInnerPool))]),
       ];
       const info = await readDockerMetadata([
         'info',
@@ -418,7 +439,7 @@ async function ensurePrivateBuildNetworkUnlocked(
       throw new Error(`buildkitd: refusing non-private network ${name}`);
     }
     try {
-      assertPrivateBuildSubnets(network);
+      assertPrivateBuildSubnets(network, cfg.dindInnerPool);
       const subnets = dockerIpv4Subnets(object(network.IPAM).Config);
       if (
         requested !== undefined &&

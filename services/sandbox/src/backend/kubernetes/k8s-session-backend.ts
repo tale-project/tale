@@ -236,22 +236,21 @@ export class KubernetesSessionBackend implements SessionBackend {
       if (httpStatusCode(err) === 404) return false;
       throw err;
     }
-    // A terminating or non-Running Pod (Succeeded/Failed after eviction, node
-    // loss) is dead for session purposes — session Pods never restart.
+    // Only a non-terminating Running Pod is present for session purposes.
+    // A runner-container crash can restart in place within that same Pod.
     if (pod.metadata?.deletionTimestamp) return false;
     return pod.status?.phase === 'Running';
   }
 
   /**
-   * Resume helper: a session Pod that died out-of-band (Failed after an OOM /
-   * eviction) is never restarted, yet it still occupies the deterministic
+   * Resume helper: a session Pod that became terminal out-of-band (for example,
+   * Failed after eviction) still occupies the deterministic
    * Pod/Secret name and would 409 the create on the next resume. Delete such a
    * PROVABLY-DEAD orphan (+ its Secret) and wait until the Pod object is gone,
    * so the recreate is first-attempt clean.
    *
-   * Reap ONLY a Pod that is genuinely terminal — `Failed`/`Succeeded` (runnerd
-   * is never restarted, so these never recover) or one already terminating
-   * (deletionTimestamp set). This mirrors the Docker backend's exited/dead gate.
+   * Reap ONLY a Pod in a terminal phase — `Failed`/`Succeeded` — or one already
+   * terminating (deletionTimestamp set). This mirrors Docker's exited/dead gate.
    * Crucially we do NOT reap `Running` OR `Pending`: the spawner is a
    * multi-replica Deployment behind a VIP, and the route's `creating` set is
    * per-replica in-memory — it does NOT serialize creates ACROSS replicas. A

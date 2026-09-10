@@ -271,6 +271,46 @@ afterAll(async () => {
 });
 
 describe('organization BuildKit provisioning', () => {
+  test('reserves the operator inner Docker pool while allocating an organization bridge', async () => {
+    const name = buildkitdNetworkName('org-a');
+    await ensureBuildkitNetwork(
+      { ...cfg, dindInnerPool: '172.19.0.0/16' },
+      'org-a',
+      name,
+    );
+    expect((await state()).networks[name]?.IPAM.Config[0]?.Subnet).toBe(
+      '172.20.0.0/23',
+    );
+  });
+
+  test('an existing attached cache network overlapping an operator pool is unavailable without mutation', async () => {
+    const seeded = initialState();
+    const name = buildkitdNetworkName('org-a');
+    seeded.networks[name] = {
+      Id: 'f'.repeat(64),
+      Containers: { ['c'.repeat(64)]: { Name: 'live-session' } },
+      Labels: owned('org-a'),
+      Driver: 'bridge',
+      Internal: true,
+      EnableIPv6: false,
+      IPAM: { Config: [{ Subnet: '172.19.0.0/23' }] },
+    };
+    await save(seeded);
+    expect(
+      (
+        await rejection(
+          ensureBuildkitNetwork(
+            { ...cfg, dindInnerPool: '172.19.0.0/16' },
+            'org-a',
+            name,
+          ),
+        )
+      )?.message,
+    ).toMatch(/configured inner Docker pool/);
+    expect(await calls()).toHaveLength(1);
+    expect(await state()).toEqual(seeded);
+  });
+
   test('reads daemon-host routes and DNS before selecting a subnet', async () => {
     const seeded = initialState();
     seeded.addressPools = [{ Base: '10.0.0.0/16', Size: 23 }];

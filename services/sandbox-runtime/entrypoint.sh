@@ -44,8 +44,8 @@ set -e
 # runnerd. Everything here is dead code on the default (non-DinD) path.
 # ---------------------------------------------------------------------------
 
-# Selected before dockerd starts from observed outer routes and the planned
-# organization build bridge. Never trust inherited values for root networking.
+# Selected before dockerd starts from observed outer networking and the planned
+# organization build bridge. Never trust inherited selected values for root networking.
 TALE_DIND_INNER_POOL=""
 TALE_DIND_INNER_BIP=""
 
@@ -56,6 +56,7 @@ _IP6TABLES=/usr/sbin/ip6tables
 # iproute2 `ip`, used by the SESSION transparent-egress path to add a default
 # route (see _ensure_default_route). Also in /usr/sbin (dropped from PATH).
 _IP=/usr/sbin/ip
+_GETENT=/usr/bin/getent
 
 # The organization bridge attaches after readiness, so the spawner supplies its
 # inspected IPv4 subnets before startup. Legacy spawners already attached both
@@ -63,21 +64,24 @@ _IP=/usr/sbin/ip
 # Python runs from the immutable image in isolated mode: workspace PATH and
 # PYTHONPATH are user-controlled by the time this root helper runs.
 select_inner_docker_pool() {
-  if ! _inner_network="$(/usr/local/bin/python3 -I - "$_IP" "${TALE_BUILDKIT_NETWORK_SUBNETS:-}" "${TALE_BUILDKITD_ENDPOINT:-}" <<'PY'
+  if ! _inner_network="$(/usr/local/bin/python3 -I - "$_IP" "$_GETENT" "${TALE_BUILDKIT_NETWORK_SUBNETS:-}" "${TALE_BUILDKITD_ENDPOINT:-}" "${TALE_DIND_INNER_POOL_OVERRIDE:-}" <<'PY'
 import ipaddress
 import json
 import os
 import re
 import selectors
+import stat
 import subprocess
 import sys
 import time
+from urllib.parse import urlsplit
 
 
-def route_inventory(binary):
-    deadline = time.monotonic() + 5
+def command_output(arguments, label, deadline):
+    if time.monotonic() >= deadline:
+        raise TimeoutError(f"{label} timed out")
     with subprocess.Popen(
-        [binary, "-j", "-4", "route", "show", "table", "all"],
+        arguments,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     ) as process:
@@ -88,42 +92,67 @@ def route_inventory(binary):
                 while True:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0 or not selector.select(remaining):
-                        raise TimeoutError("outer route inventory timed out")
+                        raise TimeoutError(f"{label} timed out")
                     chunk = os.read(process.stdout.fileno(), 65536)
                     if not chunk:
                         break
                     data.extend(chunk)
                     if len(data) > 1024 * 1024:
-                        raise ValueError("outer route inventory exceeds 1 MiB")
+                        raise ValueError(f"{label} exceeds 1 MiB")
             if process.wait(timeout=max(0.01, deadline - time.monotonic())) != 0:
-                raise ValueError("outer route inventory command failed")
+                raise ValueError(f"{label} command failed")
         finally:
             if process.poll() is None:
                 process.kill()
                 process.wait()
-    routes = json.loads(data)
-    if not isinstance(routes, list) or len(routes) > 4096:
-        raise ValueError("invalid outer route inventory")
-    return routes
+    return data.decode("utf-8")
+
+
+def inventory(binary, arguments, label, deadline, problems):
+    try:
+        records = json.loads(command_output([binary, "-j", "-4", *arguments], label, deadline))
+        if not isinstance(records, list) or len(records) > 4096:
+            raise ValueError("invalid list")
+        return records
+    except (TimeoutError, subprocess.TimeoutExpired):
+        problems.append(f"{label} timed out")
+        return []
+    except (OSError, ValueError):
+        problems.append(f"{label} unavailable or invalid")
+        return []
+
+
+def add_ip(value, occupied):
+    if not isinstance(value, str):
+        raise ValueError("invalid IP address")
+    address = ipaddress.ip_address(value)
+    if isinstance(address, ipaddress.IPv6Address):
+        address = address.ipv4_mapped
+    if address is not None:
+        occupied.append(ipaddress.IPv4Network(f"{address}/32"))
+
+
+def has_inner_docker_state():
+    try:
+        state = os.lstat("/var/lib/docker/network/files/local-kv.db")
+        return stat.S_ISREG(state.st_mode) and state.st_uid == os.geteuid() and state.st_mode & 0o022 == 0 and state.st_size > 0
+    except OSError:
+        return False
 
 
 def choose_pool():
-    routes = route_inventory(sys.argv[1])
-    occupied = []
-    outer_interfaces = set()
-    for route in routes:
-        if not isinstance(route, dict) or not isinstance(route.get("dst"), str):
-            raise ValueError("invalid outer route destination")
-        device = route.get("dev")
-        if device is not None and not isinstance(device, str):
-            raise ValueError("invalid outer route interface")
-        if device and re.fullmatch(r"eth[0-9]+", device):
-            outer_interfaces.add(device)
-        if route["dst"] in ("default", "0.0.0.0/0"):
-            continue
-        occupied.append(ipaddress.IPv4Network(route["dst"]))
+    occupied, problems, outer_interfaces = [], [], set()
+    configured = None
+    if sys.argv[5]:
+        try:
+            configured = ipaddress.IPv4Network(sys.argv[5])
+            private_ranges = map(ipaddress.IPv4Network, ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
+            if configured.prefixlen != 16 or not any(configured.subnet_of(private) for private in private_ranges):
+                raise ValueError("not a private /16")
+        except ValueError:
+            raise ValueError("configured inner Docker pool must be a canonical RFC1918 /16") from None
 
-    raw_hints = sys.argv[2]
+    raw_hints = sys.argv[3]
     if raw_hints:
         hints = json.loads(raw_hints)
         if not isinstance(hints, list) or not 1 <= len(hints) <= 64:
@@ -132,8 +161,138 @@ def choose_pool():
             if not isinstance(hint, str) or "/" not in hint:
                 raise ValueError("invalid planned build-network subnet")
             occupied.append(ipaddress.IPv4Network(hint))
-    elif sys.argv[3] and len(outer_interfaces) < 2:
+
+    # Pod routes can expose only a /32 and a link-local next hop. Interface
+    # prefixes, resolver IPs and configured Service endpoints are independent
+    # observations; none reveals the cluster's entire invisible Service CIDR.
+    # All subprocess observations share one startup budget and bounded output.
+    deadline = time.monotonic() + 5
+    routes = inventory(sys.argv[1], ["route", "show", "table", "all"], "outer route inventory", deadline, problems)
+    inner_bridges = {}
+    retained_state = has_inner_docker_state()
+    for interface in inventory(sys.argv[1], ["-d", "addr", "show"], "outer address inventory", deadline, problems):
+        if not isinstance(interface, dict) or not isinstance(interface.get("addr_info"), list):
+            problems.append("outer address inventory contains an invalid interface")
+            continue
+        name = interface.get("ifname")
+        if isinstance(name, str) and re.fullmatch(r"eth[0-9]+", name):
+            outer_interfaces.add(name)
+        # K8s container restarts retain the Pod netns and Docker's bridges.
+        # A name alone proves nothing: also require a Linux bridge and protected
+        # inner-daemon state. Custom bridge names remain occupied; no workspace
+        # marker or arbitrary bridge is accepted as evidence of Docker ownership.
+        details = interface.get("linkinfo")
+        inner = retained_state and isinstance(name, str) and re.fullmatch(r"docker0|br-[0-9a-f]{12}", name) and isinstance(details, dict) and details.get("info_kind") == "bridge"
+        for address in interface["addr_info"]:
+            try:
+                if not isinstance(address, dict) or address.get("family") != "inet":
+                    raise ValueError("invalid IPv4 address")
+                local, prefix = address.get("local"), address.get("prefixlen")
+                if not isinstance(local, str) or type(prefix) is not int or not 0 <= prefix <= 32:
+                    raise ValueError("invalid IPv4 prefix")
+                network = ipaddress.IPv4Interface(f"{local}/{prefix}").network
+                if inner:
+                    inner_bridges.setdefault(name, []).append(network)
+                else:
+                    occupied.append(network)
+            except ValueError:
+                problems.append("outer address inventory contains an invalid IPv4 prefix")
+
+    for route in routes:
+        if not isinstance(route, dict):
+            problems.append("outer route inventory contains an invalid row")
+            continue
+        device = route.get("dev")
+        if device is not None and not isinstance(device, str):
+            problems.append("outer route inventory contains an invalid interface")
+        if isinstance(device, str) and re.fullmatch(r"eth[0-9]+", device):
+            outer_interfaces.add(device)
+        try:
+            destination = route.get("dst")
+            if not isinstance(destination, str):
+                raise ValueError("missing destination")
+            if destination not in ("default", "0.0.0.0/0"):
+                network = ipaddress.IPv4Network(destination)
+                prefixes = inner_bridges.get(device, []) if isinstance(device, str) else []
+                # Only the bridge's own kernel-connected/local routes can be
+                # ignored. Static and unrelated routes remain real exclusions.
+                if route.get("protocol") != "kernel" or not any(network.subnet_of(prefix) for prefix in prefixes):
+                    occupied.append(network)
+        except ValueError:
+            problems.append("outer route inventory contains an invalid destination")
+        # The default route is not itself an exclusion, but its next hop is.
+        next_hops = route.get("nexthops", [])
+        if not isinstance(next_hops, list):
+            problems.append("outer route inventory contains invalid next hops")
+            next_hops = []
+        hops = [route, *next_hops]
+        for hop in hops:
+            try:
+                if not isinstance(hop, dict):
+                    raise ValueError("invalid next hop")
+                if "gateway" in hop:
+                    add_ip(hop["gateway"], occupied)
+            except ValueError:
+                problems.append("outer route inventory contains an invalid gateway")
+
+    if not raw_hints and sys.argv[4] and len(outer_interfaces) < 2:
         raise ValueError("planned build-network subnets are required before delayed attachment")
+
+    try:
+        with open("/etc/resolv.conf", "rb") as resolver:
+            data = resolver.read(65537)
+        if len(data) > 65536:
+            raise ValueError("resolver inventory exceeds 64 KiB")
+        for line in data.decode("utf-8").splitlines():
+            fields = line.split("#", 1)[0].split(";", 1)[0].split()
+            if fields and fields[0] == "nameserver":
+                try:
+                    if len(fields) != 2:
+                        raise ValueError("invalid nameserver")
+                    add_ip(fields[1], occupied)
+                except ValueError:
+                    problems.append("resolver inventory contains an invalid nameserver")
+    except (OSError, ValueError):
+        problems.append("resolver inventory unavailable or invalid")
+
+    resolved_hosts = set()
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "TALE_GATEWAY_URL"):
+        value = os.environ.get(key)
+        if not value:
+            continue
+        try:
+            host = urlsplit(value).hostname
+            if not host or len(host) > 253:
+                raise ValueError("invalid endpoint host")
+            if host in resolved_hosts:
+                continue
+            try:
+                add_ip(host, occupied)
+            except ValueError:
+                output = command_output([sys.argv[2], "ahostsv4", host], f"{key} IPv4 resolution", deadline)
+                lines = output.splitlines()
+                if not lines or len(lines) > 4096:
+                    raise ValueError("invalid resolved addresses")
+                for line in lines:
+                    fields = line.split()
+                    if not fields:
+                        continue
+                    try:
+                        add_ip(fields[0], occupied)
+                    except ValueError:
+                        problems.append(f"{key} IPv4 resolution contains an invalid address")
+            resolved_hosts.add(host)
+        except (OSError, ValueError, TimeoutError, subprocess.TimeoutExpired):
+            problems.append(f"{key} IPv4 resolution unavailable or invalid")
+
+    if configured:
+        if any(configured.overlaps(outer) for outer in occupied):
+            raise ValueError("configured inner Docker pool overlaps an observed outer network or endpoint")
+        if problems:
+            print("[entrypoint] WARN: using configured inner Docker pool with incomplete observations: " + "; ".join(dict.fromkeys(problems)), file=sys.stderr)
+        return f"{configured} {configured.network_address + 1}/24"
+    if problems:
+        raise ValueError("; ".join(dict.fromkeys(problems)))
 
     candidates = ["172.31.0.0/16"]
     candidates.extend(f"172.{part}.0.0/16" for part in range(16, 31))
@@ -544,11 +703,19 @@ protect_shared_cache_network() {
       exit 1
     fi
   elif [ -d /proc/sys/net/ipv6 ]; then
+    # Some IPv4-only Pod namespaces retain IPv6 loopback/link-local addresses.
+    # With the already-granted NET_ADMIN, disable IPv6 if the namespace permits
+    # it; do not add unsafe Pod sysctls or weaken the guard on read-only /proc.
+    for _ipv6_setting in /proc/sys/net/ipv6/conf/default/disable_ipv6 /proc/sys/net/ipv6/conf/*/disable_ipv6; do
+      if [ "$(cat "$_ipv6_setting" 2>/dev/null)" != "1" ]; then
+        (printf '1\n' > "$_ipv6_setting") 2>/dev/null || true
+      fi
+    done
     # conf/all alone is not proof: a per-interface override may re-enable IPv6.
     # Check defaults (including future network attachments) and every interface.
     for _ipv6_setting in /proc/sys/net/ipv6/conf/default/disable_ipv6 /proc/sys/net/ipv6/conf/*/disable_ipv6; do
       if [ "$(cat "$_ipv6_setting" 2>/dev/null)" != "1" ]; then
-        echo "[entrypoint] FATAL: IPv6 is enabled without a build-cache network guard" >&2
+        echo "[entrypoint] FATAL: IPv6 build-cache isolation cannot be verified; enable IPv6 netfilter or disable IPv6 for default and every interface in this container network namespace" >&2
         exit 1
       fi
     done

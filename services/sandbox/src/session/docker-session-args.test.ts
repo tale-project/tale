@@ -49,6 +49,31 @@ const goodInput = {
 };
 
 describe('buildDockerSessionRunArgs', () => {
+  test('passes a validated operator inner pool only to DinD agent containers', () => {
+    const configured: SpawnerConfig = {
+      ...cfg,
+      runtimeTier: 'sysbox',
+      dockerInContainer: true,
+      dindInnerPool: '10.240.0.0/16',
+    };
+    const input = { ...goodInput, dockerStorageVolume: 'tale-dind-test' };
+    expect(buildDockerSessionRunArgs(configured, input)).toContain(
+      'TALE_DIND_INNER_POOL_OVERRIDE=10.240.0.0/16',
+    );
+    expect(
+      buildDockerSessionRunArgs(configured, {
+        ...input,
+        profile: 'default',
+      }).some((arg) => arg.includes('TALE_DIND_INNER_POOL_OVERRIDE')),
+    ).toBe(false);
+    expect(() =>
+      buildDockerSessionRunArgs(
+        { ...configured, dindInnerPool: '8.8.0.0/16' },
+        input,
+      ),
+    ).toThrow(/SANDBOX_DIND_INNER_POOL/);
+  });
+
   test('disables IPv6 on existing and future interfaces for every Docker session', () => {
     for (const profile of ['agent', 'default'] as const) {
       const args = buildDockerSessionRunArgs(cfg, { ...goodInput, profile });
